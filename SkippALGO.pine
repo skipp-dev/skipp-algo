@@ -2,7 +2,7 @@
 // © preuss_steffen
 
 //@version=6
-indicator("SkippALGO", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO — Outlook + Forecast (Calibrated)", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs
@@ -28,14 +28,14 @@ tfLong1       = input.timeframe("D", "Long TF 1")
 tfLong2       = input.timeframe("5D", "Long TF 2")
 tfLong3       = input.timeframe("10D", "Long TF 3")
 
-// Forecast horizons (table rows)
-tfF1 = input.timeframe("1",   "Forecast 1")   // 1M
-tfF2 = input.timeframe("5",   "Forecast 2")   // 5M
-tfF3 = input.timeframe("15",  "Forecast 3")   // 15M
-tfF4 = input.timeframe("30",  "Forecast 4")   // 30M
-tfF5 = input.timeframe("60",  "Forecast 5")   // 1H
-tfF6 = input.timeframe("240", "Forecast 6")   // 4H
-tfF7 = input.timeframe("D",   "Forecast 7")   // 1D
+// Horizons shown in table (and used for calibration)
+tfF1 = input.timeframe("1",   "Horizon 1")   // 1M
+tfF2 = input.timeframe("5",   "Horizon 2")   // 5M
+tfF3 = input.timeframe("15",  "Horizon 3")   // 15M
+tfF4 = input.timeframe("30",  "Horizon 4")   // 30M
+tfF5 = input.timeframe("60",  "Horizon 5")   // 1H
+tfF6 = input.timeframe("240", "Horizon 6")   // 4H
+tfF7 = input.timeframe("D",   "Horizon 7")   // 1D
 
 // Trust-score weighting
 trustWAccuracy  = input.float(0.40, "Trust weight: accuracy", minval=0.0, step=0.05)
@@ -68,7 +68,7 @@ ddSevere       = input.float(0.30, "Drawdown severe (abs)", minval=0.10, step=0.
 ddTrustPenalty = input.float(0.20, "Drawdown trust penalty", minval=0.0, maxval=1.0, step=0.05)
 ddHardGate     = input.float(0.45, "Drawdown hard gate (abs)", minval=0.0, maxval=0.9, step=0.05)
 
-// Core lengths (trend)
+// Core lengths
 emaFastLen = input.int(21, "EMA fast", minval=1)
 emaSlowLen = input.int(55, "EMA slow", minval=1)
 atrLen     = input.int(14, "ATR length", minval=1)
@@ -80,16 +80,16 @@ rsiLenFastTF   = input.int(7,  "RSI len (<=5m)", minval=2)
 rsiLenMidTF    = input.int(9,  "RSI len (<=1h)", minval=2)
 rsiLenSlowTF   = input.int(14, "RSI len (>1h)",  minval=2)
 
-rsiLongOn   = input.float(55.0, "RSI long ON",   minval=0.0, maxval=100.0, step=0.5)
-rsiLongOff  = input.float(50.0, "RSI long OFF",  minval=0.0, maxval=100.0, step=0.5)
-rsiShortOn  = input.float(45.0, "RSI short ON",  minval=0.0, maxval=100.0, step=0.5)
-rsiShortOff = input.float(50.0, "RSI short OFF", minval=0.0, maxval=100.0, step=0.5)
+rsiLongOn  = input.float(55.0, "RSI long ON",  minval=0.0, maxval=100.0, step=0.5)
+rsiLongOff = input.float(50.0, "RSI long OFF", minval=0.0, maxval=100.0, step=0.5)
+rsiShortOn = input.float(45.0, "RSI short ON",  minval=0.0, maxval=100.0, step=0.5)
+rsiShortOff= input.float(50.0, "RSI short OFF", minval=0.0, maxval=100.0, step=0.5)
 
-// MTF score RSI length (stable so MTF acts like regime filter)
+// MTF score RSI length (keep stable so MTF acts like regime filter)
 rsiMtfLen = input.int(14, "MTF RSI length", minval=2)
 
 // Connors RSI (3,2,100) used as confidence factor
-useCrsiFactor      = input.bool(true, "CRSI factor on confidence")
+useCrsiFactor     = input.bool(true, "CRSI factor on confidence")
 crsiRsiLen         = input.int(3,   "CRSI: RSI len", minval=2)
 crsiStreakRsiLen   = input.int(2,   "CRSI: Streak RSI len", minval=2)
 crsiRankLen        = input.int(100, "CRSI: Rank len", minval=20)
@@ -102,13 +102,13 @@ crsiLongOverMult   = input.float(0.85, "CRSI LONG over mult", minval=0.50, maxva
 crsiLongPanic      = input.float(10.0, "CRSI LONG panic", minval=0.0, maxval=100.0, step=1.0)
 crsiLongPanicMult  = input.float(0.90, "CRSI LONG panic mult", minval=0.50, maxval=1.50, step=0.01)
 
-crsiShortGoodLo      = input.float(45.0, "CRSI SHORT good (lo)", minval=0.0, maxval=100.0, step=1.0)
-crsiShortGoodHi      = input.float(85.0, "CRSI SHORT good (hi)", minval=0.0, maxval=100.0, step=1.0)
-crsiShortGoodMult    = input.float(1.10, "CRSI SHORT good mult", minval=0.50, maxval=1.50, step=0.01)
-crsiShortExhaust     = input.float(20.0, "CRSI SHORT exhaust", minval=0.0, maxval=100.0, step=1.0)
+crsiShortGoodLo    = input.float(45.0, "CRSI SHORT good (lo)", minval=0.0, maxval=100.0, step=1.0)
+crsiShortGoodHi    = input.float(85.0, "CRSI SHORT good (hi)", minval=0.0, maxval=100.0, step=1.0)
+crsiShortGoodMult  = input.float(1.10, "CRSI SHORT good mult", minval=0.50, maxval=1.50, step=0.01)
+crsiShortExhaust   = input.float(20.0, "CRSI SHORT exhaust", minval=0.0, maxval=100.0, step=1.0)
 crsiShortExhaustMult = input.float(0.85, "CRSI SHORT exhaust mult", minval=0.50, maxval=1.50, step=0.01)
-crsiShortOver        = input.float(90.0, "CRSI SHORT over", minval=0.0, maxval=100.0, step=1.0)
-crsiShortOverMult    = input.float(0.90, "CRSI SHORT over mult", minval=0.50, maxval=1.50, step=0.01)
+crsiShortOver      = input.float(90.0, "CRSI SHORT over", minval=0.0, maxval=100.0, step=1.0)
+crsiShortOverMult  = input.float(0.90, "CRSI SHORT over mult", minval=0.50, maxval=1.50, step=0.01)
 
 // Zones
 showZones  = input.bool(true, "Show zones")
@@ -119,9 +119,9 @@ zoneAggressiveMult1  = input.float(1.6, "Aggressive zone ATR mult 1", minval=0.2
 zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4, step=0.1)
 
 // Visual controls
-showEntryLabels = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
-showSetMarkers  = input.bool(true, "Show SET markers")
-showTable       = input.bool(true, "Show forecast table")
+showEntryLabels   = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
+showSetMarkers    = input.bool(true, "Show SET markers")
+showTable         = input.bool(true, "Show Outlook + Forecast table")
 
 // Avoid entries right before close
 useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close")
@@ -129,20 +129,15 @@ rthCloseHour      = input.int(16, "RTH close hour (exchange tz)", minval=0, maxv
 rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
-// Forecast calibration (TRUE forward targets) + Confidence coupling
-fwdBars              = input.int(3, "Forecast forward bars (N) per TF", minval=1, maxval=20)
-calMinSamples        = input.int(50, "Calibration min samples per bin", minval=5, maxval=500)
-calAlpha             = input.float(1.0, "Calibration smoothing alpha", minval=0.0, maxval=10.0, step=0.25)
-predUpThr            = input.float(0.55, "Pred threshold UP (p)", minval=0.50, maxval=0.80, step=0.01)
-predDnThr            = input.float(0.45, "Pred threshold DOWN (p)", minval=0.20, maxval=0.50, step=0.01)
+// Forecast calibration params
+predBins          = input.int(3,  "Forecast: bins (N)", minval=2, maxval=10)
+calMinSamples     = input.int(50, "Forecast: MinN", minval=10, maxval=500)
+alphaSmooth       = input.float(1.0, "Forecast: α (Laplace smoothing)", minval=0.0, maxval=10.0, step=0.25)
+predDnThr         = input.float(0.45, "Forecast: Down threshold", minval=0.0, maxval=1.0, step=0.01)
+predUpThr         = input.float(0.55, "Forecast: Up threshold",   minval=0.0, maxval=1.0, step=0.01)
 
-useForecastConfAdj   = input.bool(true, "Use forecast-calibrated confidence adjust")
-forecastConfStrength = input.float(0.20, "Forecast confidence strength", minval=0.0, maxval=0.50, step=0.01)
-forecastConfTfPick   = input.string("Auto", "Confidence coupling TF", options=["Auto","F1","F2","F3","F4","F5","F6","F7"])
-forecastConfHorizon  = input.string("Blend", "Confidence horizon", options=["N","1","Blend"])
-
-// Reset calibration (toggle ON then OFF)
-resetCalibration = input.bool(false, "Reset calibration now (toggle)")
+// Reset calibration (manual)
+resetCal = input.bool(false, "Forecast: Reset calibration now")
 
 //====================
 // Helpers
@@ -163,50 +158,14 @@ f_is_tf_higher_or_equal(tf) =>
     other = f_tf_secs(tf)
     not na(base) and not na(other) and other >= base
 
-// MTF directional vote score
-f_score_tf(tf) =>
-    srcClose = request.security(syminfo.tickerid, tf, close, barmerge.gaps_off, barmerge.lookahead_off)
-    emaF_tf  = request.security(syminfo.tickerid, tf, ta.ema(close, emaFastLen), barmerge.gaps_off, barmerge.lookahead_off)
-    emaS_tf  = request.security(syminfo.tickerid, tf, ta.ema(close, emaSlowLen), barmerge.gaps_off, barmerge.lookahead_off)
-    r_tf     = request.security(syminfo.tickerid, tf, ta.rsi(close, rsiMtfLen),  barmerge.gaps_off, barmerge.lookahead_off)
-
-    trend = emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0
-    mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
-    loc   = srcClose > emaS_tf ? 0.5 : srcClose < emaS_tf ? -0.5 : 0.0
-
-    f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
-
-f_trust_score(dir, guardrailCount, volRank, dataQualityScore, macroScore, momOkLong, momOkShort) =>
-    emaF_ = ta.ema(close, emaFastLen)
-    emaS_ = ta.ema(close, emaSlowLen)
-
-    trendOk = dir == 1 ? (emaF_ > emaS_ and close > emaS_) : (emaF_ < emaS_ and close < emaS_)
-    momOk   = dir == 1 ? momOkLong : momOkShort
-
-    accuracyScore = (trendOk ? 0.6 : 0.0) + (momOk ? 0.4 : 0.0)
-
-    regimeScore     = volRank >= volRankHigh ? 0.4 : volRank >= volRankMed ? 0.7 : 1.0
-    guardrailScore  = f_clamp01(1.0 - (guardrailCount * penaltyGuardrail))
-
-    wSum = trustWAccuracy + trustWRegime + trustWGuardrail + trustWData + trustWMacro
-    wSum := wSum == 0.0 ? 1.0 : wSum
-
-    base = (
-        trustWAccuracy  * accuracyScore +
-        trustWRegime    * regimeScore +
-        trustWGuardrail * guardrailScore +
-        trustWData      * dataQualityScore +
-        trustWMacro     * macroScore
-    ) / wSum
-
-    extraPenalty = volRank >= volRankHigh ? penaltyRegimeHigh : volRank >= volRankMed ? penaltyRegimeMed : 0.0
-    f_clamp01(base - extraPenalty)
-
 f_tfLabel(tf) =>
-    tf == "1" ? "1M" : tf == "5" ? "5M" : tf == "15" ? "15M" : tf == "30" ? "30M" : tf == "60" ? "1H" : tf == "240" ? "4H" : tf == "D" ? "1D" : tf
-
-f_confColor(val) =>
-    val > 0.70 ? color.lime : val <= 0.45 ? color.red : color.yellow
+    tf == "1"   ? "1M"  :
+    tf == "5"   ? "5M"  :
+    tf == "15"  ? "15M" :
+    tf == "30"  ? "30M" :
+    tf == "60"  ? "1H"  :
+    tf == "240" ? "4H"  :
+    tf == "D"   ? "1D"  : tf
 
 f_fmtVol(v) =>
     na(v) ? "—" :
@@ -214,6 +173,97 @@ f_fmtVol(v) =>
      v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") :
      v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") :
                          str.tostring(v, "#")
+
+// ====================
+// OUTLOOK (STATE) score + components (single-timeframe, no forecasting)
+// ====================
+f_state_pack() =>
+    emaF_ = ta.ema(close, emaFastLen)
+    emaS_ = ta.ema(close, emaSlowLen)
+    r_    = ta.rsi(close, rsiMtfLen)
+
+    trend = emaF_ > emaS_ ? 1.0 : emaF_ < emaS_ ? -1.0 : 0.0
+    mom   = r_ > 55 ? 1.0 : r_ < 45 ? -1.0 : 0.0
+    loc   = close > emaS_ ? 0.5 : close < emaS_ ? -0.5 : 0.0
+
+    score = f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
+    [score, trend, mom, loc, r_]
+
+f_outSymbol(score) =>
+    score > 0.05 ? "▲" : score < -0.05 ? "▼" : "−"
+
+f_outColor(score, tblText) =>
+    score > 0.05 ? color.lime : score < -0.05 ? color.red : tblText
+
+f_tml_str(tr, mo, lo) =>
+    str.tostring(tr, "#.0") + "/" + str.tostring(mo, "#.0") + "/" + str.tostring(lo, "#.0")
+
+// ====================
+// FORECAST (PROB) via calibration on forward outcomes
+// ====================
+f_bin(score, bins) =>
+    s = f_clamp01((score + 1.0) * 0.5)
+    b = int(math.floor(s * bins))
+    math.min(bins - 1, math.max(0, b))
+
+f_prob_text(pUp, n, canCal) =>
+    not canCal ? "n0" : n < calMinSamples ? ("n" + str.tostring(n)) : (str.tostring(pUp * 100.0, "#.0") + "%")
+
+f_predSymbolP(pUp, n, canCal) =>
+    not canCal ? "—" :
+     n < calMinSamples ? "…" :
+      pUp > predUpThr ? "▲" :
+      pUp < predDnThr ? "▼" : "−"
+
+f_predColorP(pUp, n, canCal, tblText) =>
+    not canCal ? color.new(color.white, 70) :
+     n < calMinSamples ? color.new(color.white, 60) :
+      pUp > predUpThr ? color.lime :
+      pUp < predDnThr ? color.red : tblText
+
+f_probTextColor(pUp, n, canCal, tblText) =>
+    not canCal ? color.new(color.white, 70) :
+     n < calMinSamples ? color.new(color.white, 60) :
+      (pUp > predUpThr ? color.lime : pUp < predDnThr ? color.red : tblText)
+
+f_calib_update(canCal, prevBinN, prevUpN, prevBin1, prevUp1,
+               bins, alpha,
+               longCountsN, upCountsN, longCounts1, upCounts1) =>
+    if canCal
+        if not na(prevBinN) and prevBinN >= 0 and prevBinN < bins
+            longCountsN.set(prevBinN, longCountsN.get(prevBinN) + 1)
+            if prevUpN == 1
+                upCountsN.set(prevBinN, upCountsN.get(prevBinN) + 1)
+
+        if not na(prevBin1) and prevBin1 >= 0 and prevBin1 < bins
+            longCounts1.set(prevBin1, longCounts1.get(prevBin1) + 1)
+            if prevUp1 == 1
+                upCounts1.set(prevBin1, upCounts1.get(prevBin1) + 1)
+
+f_calib_read(canCal, scoreNow, bins, alpha, longCounts, upCounts) =>
+    if not canCal
+        [0.5, 0, false]
+    else
+        b = f_bin(scoreNow, bins)
+        n = longCounts.get(b)
+        u = upCounts.get(b)
+        p = (u + alpha) / (n + 2.0 * alpha)
+        [p, n, true]
+
+f_tf_pack(tf, bins) =>
+    [scoreNow, trNow, moNow, loNow, rsiNow] = request.security(syminfo.tickerid, tf, f_state_pack(), barmerge.gaps_off, barmerge.lookahead_off)
+
+    scorePrevN = request.security(syminfo.tickerid, tf, f_state_pack()[0][bins], barmerge.gaps_off, barmerge.lookahead_off)
+    scorePrev1 = request.security(syminfo.tickerid, tf, f_state_pack()[0][1],    barmerge.gaps_off, barmerge.lookahead_off)
+
+    isUp = request.security(syminfo.tickerid, tf, close > close[1] ? 1 : 0, barmerge.gaps_off, barmerge.lookahead_off)
+
+    prevBinN = f_bin(scorePrevN, bins)
+    prevBin1 = f_bin(scorePrev1, bins)
+    prevUpN  = isUp
+    prevUp1  = isUp
+
+    [scoreNow, trNow, moNow, loNow, rsiNow, prevBinN, prevUpN, prevBin1, prevUp1]
 
 //====================
 // Core indicators
@@ -225,9 +275,9 @@ atr  = ta.atr(atrLen)
 // Adaptive RSI length (for confidence momentum only)
 baseSecs = timeframe.in_seconds(timeframe.period)
 rsiLenUse = useAdaptiveRsi ?
-     ((not na(baseSecs) and baseSecs <= timeframe.in_seconds("5"))  ? rsiLenFastTF :
-      (not na(baseSecs) and baseSecs <= timeframe.in_seconds("60")) ? rsiLenMidTF :
-                                                                      rsiLenSlowTF) :
+     ((not na(baseSecs) and baseSecs <= timeframe.in_seconds("5"))   ? rsiLenFastTF :
+      (not na(baseSecs) and baseSecs <= timeframe.in_seconds("60"))  ? rsiLenMidTF  :
+                                                                       rsiLenSlowTF) :
      rsiLenSlowTF
 
 rsiConf = ta.rsi(close, rsiLenUse)
@@ -275,13 +325,13 @@ ddSeverity = f_clamp01((ddAbs - ddMild) / math.max(ddSevere - ddMild, 0.0001))
 ddPenalty  = ddTrustPenalty * ddSeverity
 ddHardGateHit = ddHardGate > 0.0 and ddAbs >= ddHardGate
 
-// Direction bias
+// Direction bias + confidence
 bullBias = emaF > emaS
 bearBias = emaF < emaS
 baseDir  = bullBias ? 1 : bearBias ? -1 : 0
 trustDir = baseDir == 0 ? 1 : baseDir
 
-// Momentum hysteresis state
+// Momentum hysteresis state (drives confidence accuracyScore)
 var bool momLongOnState  = false
 var bool momShortOnState = false
 var bool momStateInit    = false
@@ -314,249 +364,63 @@ else
     else
         streak := 0.0
 
+chg = ta.change(close)
+
 crsiRsiPart    = ta.rsi(close,  crsiRsiLen)
 crsiStreakPart = ta.rsi(streak, crsiStreakRsiLen)
-crsiRankPart   = f_pct_rank(ta.change(close), crsiRankLen) * 100.0
+crsiRankPart   = f_pct_rank(chg, crsiRankLen) * 100.0
 crsi           = (crsiRsiPart + crsiStreakPart + crsiRankPart) / 3.0
 
-longFactor = crsi < crsiLongPanic ? crsiLongPanicMult : crsi > crsiLongOver  ? crsiLongOverMult  : (crsi >= crsiLongGoodLo and crsi <= crsiLongGoodHi) ? crsiLongGoodMult : 1.0
+longFactor =
+    crsi < crsiLongPanic ? crsiLongPanicMult :
+    crsi > crsiLongOver  ? crsiLongOverMult  :
+    (crsi >= crsiLongGoodLo and crsi <= crsiLongGoodHi) ? crsiLongGoodMult : 1.0
 
-shortFactor = crsi < crsiShortExhaust ? crsiShortExhaustMult : crsi > crsiShortOver    ? crsiShortOverMult    : (crsi >= crsiShortGoodLo and crsi <= crsiShortGoodHi) ? crsiShortGoodMult : 1.0
+shortFactor =
+    crsi < crsiShortExhaust ? crsiShortExhaustMult :
+    crsi > crsiShortOver    ? crsiShortOverMult    :
+    (crsi >= crsiShortGoodLo and crsi <= crsiShortGoodHi) ? crsiShortGoodMult : 1.0
 
 crsiFactor = (not useCrsiFactor) ? 1.0 : (bullBias ? longFactor : bearBias ? shortFactor : 1.0)
 
-// Strength proxy
+// RSI(7) for Strength table
 rsi7 = ta.rsi(close, 7)
 
-// Base confidence
+// Trust score
+f_trust_score(dir, guardrailCount_, volRank_, dataQualityScore_, macroScore_, momOkLong_, momOkShort_) =>
+    emaF_ = ta.ema(close, emaFastLen)
+    emaS_ = ta.ema(close, emaSlowLen)
+    trendOk = dir == 1 ? (emaF_ > emaS_ and close > emaS_) : (emaF_ < emaS_ and close < emaS_)
+    momOk   = dir == 1 ? momOkLong_ : momOkShort_
+    accuracyScore = (trendOk ? 0.6 : 0.0) + (momOk ? 0.4 : 0.0)
+
+    regimeScore     = volRank_ >= volRankHigh ? 0.4 : volRank_ >= volRankMed ? 0.7 : 1.0
+    guardrailScore  = f_clamp01(1.0 - (guardrailCount_ * penaltyGuardrail))
+
+    wSum = trustWAccuracy + trustWRegime + trustWGuardrail + trustWData + trustWMacro
+    wSum := wSum == 0.0 ? 1.0 : wSum
+
+    base = (
+        trustWAccuracy  * accuracyScore +
+        trustWRegime    * regimeScore +
+        trustWGuardrail * guardrailScore +
+        trustWData      * dataQualityScore_ +
+        trustWMacro     * macroScore_
+    ) / wSum
+
+    extraPenalty = volRank_ >= volRankHigh ? penaltyRegimeHigh : volRank_ >= volRankMed ? penaltyRegimeMed : 0.0
+    f_clamp01(base - extraPenalty)
+
 confMultiplier =
      config == "Standard"      ? 1.00 :
      config == "Pro"           ? 1.05 :
      config == "V2 Essential"  ? 0.95 :
      config == "V2 Proficient" ? 1.00 : 1.10
 
-trustRaw       = f_trust_score(trustDir, guardrailCount, atrRank, dataQualityScore, macroScore, momLongOnState, momShortOnState)
-confidenceBase = f_clamp01(trustRaw * confMultiplier)
-confidenceBase := f_clamp01(confidenceBase * (1.0 - ddPenalty))
-confidenceBase := f_clamp01(confidenceBase * crsiFactor)
-
-//====================
-// Forecast stats (TRUE forward targets) + calibrated probs (N-bar and 1-bar)
-//====================
-CAL_BINS = 11
-
-f_bin(score) =>
-    step = 2.0 / CAL_BINS
-    idx  = int(math.floor((score + 1.0) / step))
-    math.max(0, math.min(CAL_BINS - 1, idx))
-
-f_prob_smoothed(winsArr, totalArr, binIdx, alpha) =>
-    int tot = array.get(totalArr, binIdx)
-    int win = array.get(winsArr,  binIdx)
-    float p = tot <= 0 ? 0.5 : ((win + alpha) / (tot + 2.0 * alpha))
-    [p, tot]
-
-f_predSymbolP(pUp, n, canCal) =>
-    not canCal ? "—" : n < calMinSamples ? "…" : pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
-
-f_predColorP(pUp, n, canCal, neutralColor) =>
-    not canCal ? color.new(color.white, 70) : n < calMinSamples ? color.new(color.white, 60) : pUp > predUpThr ? color.lime : pUp < predDnThr ? color.red : neutralColor
-
-f_probText(pUp, n, canCal) =>
-    not canCal ? "N/A" : n < calMinSamples ? ("n" + str.tostring(n)) : (str.tostring(pUp * 100.0, "#.0") + "%")
-
-f_probTextColor(pUp, n, canCal, neutralColor) =>
-    not canCal ? color.new(color.white, 70) : n < calMinSamples ? color.new(color.white, 60) : (pUp > predUpThr ? color.lime : pUp < predDnThr ? color.red : neutralColor)
-
-// TF-local state score (runs inside request.security TF context)
-f_state_score() =>
-    emaF_ = ta.ema(close, emaFastLen)
-    emaS_ = ta.ema(close, emaSlowLen)
-    r_    = ta.rsi(close, rsiMtfLen)
-    trend = emaF_ > emaS_ ? 1.0 : emaF_ < emaS_ ? -1.0 : 0.0
-    mom   = r_ > 55 ? 1.0 : r_ < 45 ? -1.0 : 0.0
-    loc   = close > emaS_ ? 0.5 : close < emaS_ ? -0.5 : 0.0
-    f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
-
-// Pack expression computed ONCE per TF bar in TF context
-f_tf_pack_expr() =>
-    s = f_state_score()
-    bPrevN = not na(s[fwdBars]) ? float(f_bin(s[fwdBars])) : na
-    uPrevN = not na(close[fwdBars]) ? float(close > close[fwdBars] ? 1 : 0) : na
-    bPrev1 = not na(s[1]) ? float(f_bin(s[1])) : na
-    uPrev1 = not na(close[1]) ? float(close > close[1] ? 1 : 0) : na
-    [s, bPrevN, uPrevN, bPrev1, uPrev1]
-
-// Returns: scoreNow, binPrevN, upPrevN, binPrev1, upPrev1 (floats)
-f_tf_pack(tf) =>
-    request.security(syminfo.tickerid, tf, f_tf_pack_expr(), barmerge.gaps_off, barmerge.lookahead_off)
-
-// FIX: tfChanged computed globally so ta.change executes every bar (no short-circuit)
-f_calib_update(canCal, tfChanged, scoreNow, binPrevN_f, upPrevN_f, binPrev1_f, upPrev1_f, winsN, totalN, wins1, total1, alpha) =>
-    if canCal and tfChanged
-        if not na(binPrevN_f) and not na(upPrevN_f)
-            bN = int(binPrevN_f)
-            uN = int(upPrevN_f)
-            array.set(totalN, bN, array.get(totalN, bN) + 1)
-            array.set(winsN,  bN, array.get(winsN,  bN) + uN)
-        if not na(binPrev1_f) and not na(upPrev1_f)
-            b1 = int(binPrev1_f)
-            u1 = int(upPrev1_f)
-            array.set(total1, b1, array.get(total1, b1) + 1)
-            array.set(wins1,  b1, array.get(wins1,  b1) + u1)
-
-    bNow = f_bin(scoreNow)
-    [pN, nN] = f_prob_smoothed(winsN, totalN, bNow, alpha)
-    [p1, n1] = f_prob_smoothed(wins1, total1, bNow, alpha)
-    [pN, nN, p1, n1]
-
-// Can we calibrate? Only if chart TF <= forecast TF (we can observe TF boundaries)
-canCal1 = f_is_tf_higher_or_equal(tfF1)
-canCal2 = f_is_tf_higher_or_equal(tfF2)
-canCal3 = f_is_tf_higher_or_equal(tfF3)
-canCal4 = f_is_tf_higher_or_equal(tfF4)
-canCal5 = f_is_tf_higher_or_equal(tfF5)
-canCal6 = f_is_tf_higher_or_equal(tfF6)
-canCal7 = f_is_tf_higher_or_equal(tfF7)
-
-// Global TF boundary flags (no short-circuit ta.change; always bool)
-tfF1_changed = nz(ta.change(time(tfF1)), 0) != 0
-tfF2_changed = nz(ta.change(time(tfF2)), 0) != 0
-tfF3_changed = nz(ta.change(time(tfF3)), 0) != 0
-tfF4_changed = nz(ta.change(time(tfF4)), 0) != 0
-tfF5_changed = nz(ta.change(time(tfF5)), 0) != 0
-tfF6_changed = nz(ta.change(time(tfF6)), 0) != 0
-tfF7_changed = nz(ta.change(time(tfF7)), 0) != 0
-
-// Pull TF packs (1 security call per TF)
-[score1, binPrevN1_f, upPrevN1_f, binPrev1_1_f, upPrev1_1_f] = f_tf_pack(tfF1)
-[score2, binPrevN2_f, upPrevN2_f, binPrev1_2_f, upPrev1_2_f] = f_tf_pack(tfF2)
-[score3, binPrevN3_f, upPrevN3_f, binPrev1_3_f, upPrev1_3_f] = f_tf_pack(tfF3)
-[score4, binPrevN4_f, upPrevN4_f, binPrev1_4_f, upPrev1_4_f] = f_tf_pack(tfF4)
-[score5, binPrevN5_f, upPrevN5_f, binPrev1_5_f, upPrev1_5_f] = f_tf_pack(tfF5)
-[score6, binPrevN6_f, upPrevN6_f, binPrev1_6_f, upPrev1_6_f] = f_tf_pack(tfF6)
-[score7, binPrevN7_f, upPrevN7_f, binPrev1_7_f, upPrev1_7_f] = f_tf_pack(tfF7)
-
-// Stats arrays (per TF, per horizon: N and 1)
-var winsF1N  = array.new_int(CAL_BINS, 0), totalF1N  = array.new_int(CAL_BINS, 0)
-var winsF1_1 = array.new_int(CAL_BINS, 0), totalF1_1 = array.new_int(CAL_BINS, 0)
-
-var winsF2N  = array.new_int(CAL_BINS, 0), totalF2N  = array.new_int(CAL_BINS, 0)
-var winsF2_1 = array.new_int(CAL_BINS, 0), totalF2_1 = array.new_int(CAL_BINS, 0)
-
-var winsF3N  = array.new_int(CAL_BINS, 0), totalF3N  = array.new_int(CAL_BINS, 0)
-var winsF3_1 = array.new_int(CAL_BINS, 0), totalF3_1 = array.new_int(CAL_BINS, 0)
-
-var winsF4N  = array.new_int(CAL_BINS, 0), totalF4N  = array.new_int(CAL_BINS, 0)
-var winsF4_1 = array.new_int(CAL_BINS, 0), totalF4_1 = array.new_int(CAL_BINS, 0)
-
-var winsF5N  = array.new_int(CAL_BINS, 0), totalF5N  = array.new_int(CAL_BINS, 0)
-var winsF5_1 = array.new_int(CAL_BINS, 0), totalF5_1 = array.new_int(CAL_BINS, 0)
-
-var winsF6N  = array.new_int(CAL_BINS, 0), totalF6N  = array.new_int(CAL_BINS, 0)
-var winsF6_1 = array.new_int(CAL_BINS, 0), totalF6_1 = array.new_int(CAL_BINS, 0)
-
-var winsF7N  = array.new_int(CAL_BINS, 0), totalF7N  = array.new_int(CAL_BINS, 0)
-var winsF7_1 = array.new_int(CAL_BINS, 0), totalF7_1 = array.new_int(CAL_BINS, 0)
-
-// Reset logic (edge-trigger)
-var bool resetLatch = false
-doReset = resetCalibration and not resetLatch
-
-if doReset
-    array.fill(winsF1N, 0), array.fill(totalF1N, 0), array.fill(winsF1_1, 0), array.fill(totalF1_1, 0)
-    array.fill(winsF2N, 0), array.fill(totalF2N, 0), array.fill(winsF2_1, 0), array.fill(totalF2_1, 0)
-    array.fill(winsF3N, 0), array.fill(totalF3N, 0), array.fill(winsF3_1, 0), array.fill(totalF3_1, 0)
-    array.fill(winsF4N, 0), array.fill(totalF4N, 0), array.fill(winsF4_1, 0), array.fill(totalF4_1, 0)
-    array.fill(winsF5N, 0), array.fill(totalF5N, 0), array.fill(winsF5_1, 0), array.fill(totalF5_1, 0)
-    array.fill(winsF6N, 0), array.fill(totalF6N, 0), array.fill(winsF6_1, 0), array.fill(totalF6_1, 0)
-    array.fill(winsF7N, 0), array.fill(totalF7N, 0), array.fill(winsF7_1, 0), array.fill(totalF7_1, 0)
-    resetLatch := true
-
-if not resetCalibration
-    resetLatch := false
-
-// Update stats at TF boundaries and compute probs for current state bin
-[pUp1N, n1N, pUp1_1, n1_1] = f_calib_update(canCal1, tfF1_changed, score1, binPrevN1_f, upPrevN1_f, binPrev1_1_f, upPrev1_1_f, winsF1N, totalF1N, winsF1_1, totalF1_1, calAlpha)
-[pUp2N, n2N, pUp2_1, n2_1] = f_calib_update(canCal2, tfF2_changed, score2, binPrevN2_f, upPrevN2_f, binPrev1_2_f, upPrev1_2_f, winsF2N, totalF2N, winsF2_1, totalF2_1, calAlpha)
-[pUp3N, n3N, pUp3_1, n3_1] = f_calib_update(canCal3, tfF3_changed, score3, binPrevN3_f, upPrevN3_f, binPrev1_3_f, upPrev1_3_f, winsF3N, totalF3N, winsF3_1, totalF3_1, calAlpha)
-[pUp4N, n4N, pUp4_1, n4_1] = f_calib_update(canCal4, tfF4_changed, score4, binPrevN4_f, upPrevN4_f, binPrev1_4_f, upPrev1_4_f, winsF4N, totalF4N, winsF4_1, totalF4_1, calAlpha)
-[pUp5N, n5N, pUp5_1, n5_1] = f_calib_update(canCal5, tfF5_changed, score5, binPrevN5_f, upPrevN5_f, binPrev1_5_f, upPrev1_5_f, winsF5N, totalF5N, winsF5_1, totalF5_1, calAlpha)
-[pUp6N, n6N, pUp6_1, n6_1] = f_calib_update(canCal6, tfF6_changed, score6, binPrevN6_f, upPrevN6_f, binPrev1_6_f, upPrev1_6_f, winsF6N, totalF6N, winsF6_1, totalF6_1, calAlpha)
-[pUp7N, n7N, pUp7_1, n7_1] = f_calib_update(canCal7, tfF7_changed, score7, binPrevN7_f, upPrevN7_f, binPrev1_7_f, upPrev1_7_f, winsF7N, totalF7N, winsF7_1, totalF7_1, calAlpha)
-
-//====================
-// Confidence coupling: choose TF and horizon (N / 1 / Blend)
-//====================
-sec1 = timeframe.in_seconds(tfF1)
-sec2 = timeframe.in_seconds(tfF2)
-sec3 = timeframe.in_seconds(tfF3)
-sec4 = timeframe.in_seconds(tfF4)
-sec5 = timeframe.in_seconds(tfF5)
-sec6 = timeframe.in_seconds(tfF6)
-sec7 = timeframe.in_seconds(tfF7)
-
-float pUpConfN = 0.5, pUpConf1 = 0.5
-int   nConfN = 0, nConf1 = 0
-bool  canCalConf = false
-string confTfLabel = "—"
-
-if forecastConfTfPick == "F1"
-    confTfLabel := f_tfLabel(tfF1), canCalConf := canCal1, pUpConfN := pUp1N, nConfN := n1N, pUpConf1 := pUp1_1, nConf1 := n1_1
-else if forecastConfTfPick == "F2"
-    confTfLabel := f_tfLabel(tfF2), canCalConf := canCal2, pUpConfN := pUp2N, nConfN := n2N, pUpConf1 := pUp2_1, nConf1 := n2_1
-else if forecastConfTfPick == "F3"
-    confTfLabel := f_tfLabel(tfF3), canCalConf := canCal3, pUpConfN := pUp3N, nConfN := n3N, pUpConf1 := pUp3_1, nConf1 := n3_1
-else if forecastConfTfPick == "F4"
-    confTfLabel := f_tfLabel(tfF4), canCalConf := canCal4, pUpConfN := pUp4N, nConfN := n4N, pUpConf1 := pUp4_1, nConf1 := n4_1
-else if forecastConfTfPick == "F5"
-    confTfLabel := f_tfLabel(tfF5), canCalConf := canCal5, pUpConfN := pUp5N, nConfN := n5N, pUpConf1 := pUp5_1, nConf1 := n5_1
-else if forecastConfTfPick == "F6"
-    confTfLabel := f_tfLabel(tfF6), canCalConf := canCal6, pUpConfN := pUp6N, nConfN := n6N, pUpConf1 := pUp6_1, nConf1 := n6_1
-else if forecastConfTfPick == "F7"
-    confTfLabel := f_tfLabel(tfF7), canCalConf := canCal7, pUpConfN := pUp7N, nConfN := n7N, pUpConf1 := pUp7_1, nConf1 := n7_1
-else
-    bestSec = 1e18
-    if canCal1 and sec1 < bestSec
-        bestSec := sec1, confTfLabel := f_tfLabel(tfF1), canCalConf := canCal1, pUpConfN := pUp1N, nConfN := n1N, pUpConf1 := pUp1_1, nConf1 := n1_1
-    if canCal2 and sec2 < bestSec
-        bestSec := sec2, confTfLabel := f_tfLabel(tfF2), canCalConf := canCal2, pUpConfN := pUp2N, nConfN := n2N, pUpConf1 := pUp2_1, nConf1 := n2_1
-    if canCal3 and sec3 < bestSec
-        bestSec := sec3, confTfLabel := f_tfLabel(tfF3), canCalConf := canCal3, pUpConfN := pUp3N, nConfN := n3N, pUpConf1 := pUp3_1, nConf1 := n3_1
-    if canCal4 and sec4 < bestSec
-        bestSec := sec4, confTfLabel := f_tfLabel(tfF4), canCalConf := canCal4, pUpConfN := pUp4N, nConfN := n4N, pUpConf1 := pUp4_1, nConf1 := n4_1
-    if canCal5 and sec5 < bestSec
-        bestSec := sec5, confTfLabel := f_tfLabel(tfF5), canCalConf := canCal5, pUpConfN := pUp5N, nConfN := n5N, pUpConf1 := pUp5_1, nConf1 := n5_1
-    if canCal6 and sec6 < bestSec
-        bestSec := sec6, confTfLabel := f_tfLabel(tfF6), canCalConf := canCal6, pUpConfN := pUp6N, nConfN := n6N, pUpConf1 := pUp6_1, nConf1 := n6_1
-    if canCal7 and sec7 < bestSec
-        bestSec := sec7, confTfLabel := f_tfLabel(tfF7), canCalConf := canCal7, pUpConfN := pUp7N, nConfN := n7N, pUpConf1 := pUp7_1, nConf1 := n7_1
-
-float pUpConf = 0.5
-int   nConf   = 0
-if forecastConfHorizon == "1"
-    pUpConf := pUpConf1
-    nConf   := nConf1
-else if forecastConfHorizon == "Blend"
-    pUpConf := 0.5 * (pUpConfN + pUpConf1)
-    nConf   := math.min(nConfN, nConf1)
-else
-    pUpConf := pUpConfN
-    nConf   := nConfN
-
-confidenceLongEff  = confidenceBase
-confidenceShortEff = confidenceBase
-
-if useForecastConfAdj and canCalConf and (nConf >= calMinSamples)
-    bias = (pUpConf - 0.5) * 2.0
-    multLong  = 1.0 + forecastConfStrength * bias
-    multShort = 1.0 - forecastConfStrength * bias
-    lo = 1.0 - forecastConfStrength
-    hi = 1.0 + forecastConfStrength
-    multLong  := math.max(lo, math.min(hi, multLong))
-    multShort := math.max(lo, math.min(hi, multShort))
-    confidenceLongEff  := f_clamp01(confidenceBase * multLong)
-    confidenceShortEff := f_clamp01(confidenceBase * multShort)
+trustRaw   = f_trust_score(trustDir, guardrailCount, atrRank, dataQualityScore, macroScore, momLongOnState, momShortOnState)
+confidence = f_clamp01(trustRaw * confMultiplier)
+confidence := f_clamp01(confidence * (1.0 - ddPenalty))
+confidence := f_clamp01(confidence * crsiFactor)
 
 //====================
 // MTF confirmation
@@ -565,6 +429,11 @@ mtfBaseSecs = timeframe.in_seconds(timeframe.period)
 autoSet  = (not na(mtfBaseSecs) and mtfBaseSecs <= timeframe.in_seconds("30"))  ? "Short" :
            (not na(mtfBaseSecs) and mtfBaseSecs <= timeframe.in_seconds("240")) ? "Medium" : "Long"
 setUse   = mtfSet == "Auto" ? autoSet : mtfSet
+
+// Simple MTF vote using OUTLOOK state score (still “outlook”, not forecasting)
+f_score_tf(tf) =>
+    [s, _, _, _, _] = request.security(syminfo.tickerid, tf, f_state_pack(), barmerge.gaps_off, barmerge.lookahead_off)
+    s
 
 getVoteScore() =>
     float sum = 0.0
@@ -591,8 +460,8 @@ mtfOkLong  = (not useMtfConfirm) or (mtfScore > 0.05)
 mtfOkShort = (not useMtfConfirm) or (mtfScore < -0.05)
 
 // Gate requires: Confidence Logic + MTF Vote + Macro + Drawdown
-gateLongNow  = (confidenceLongEff  >= minTrust) and mtfOkLong  and macroGateLong  and not ddHardGateHit
-gateShortNow = (confidenceShortEff >= minTrust) and mtfOkShort and macroGateShort and not ddHardGateHit
+gateLongNow  = (confidence >= minTrust) and mtfOkLong  and macroGateLong  and not ddHardGateHit
+gateShortNow = (confidence >= minTrust) and mtfOkShort and macroGateShort and not ddHardGateHit
 
 //====================
 // Close filter (avoid entries right before RTH close)
@@ -628,7 +497,7 @@ setShort  = bearBias and (crsi > crsiShortGoodLo)
 setPulse  = barstate.isconfirmed and (setLong or setShort)
 
 //====================
-// Signal engine (exits not blocked by cooldown)
+// Signal engine
 //====================
 trendFlipUp   = crossEmaF_EmaS_up
 trendFlipDown = crossEmaF_EmaS_down
@@ -685,25 +554,21 @@ if barstate.isconfirmed
         entryPrice := na
         lastSignalBar := bar_index
         lastSig := "EXIT"
-        alert("EXIT " + syminfo.ticker + " @ " + str.tostring(close) + " | Conf(base): " + str.tostring(confidenceBase * 100, "#.0") + "%", alert.freq_once_per_bar_close)
     else if coverSignal and pos == -1
         pos := 0
         entryPrice := na
         lastSignalBar := bar_index
         lastSig := "COVER"
-        alert("COVER " + syminfo.ticker + " @ " + str.tostring(close) + " | Conf(base): " + str.tostring(confidenceBase * 100, "#.0") + "%", alert.freq_once_per_bar_close)
     else if buySignal and pos == 0
         pos := 1
         entryPrice := close
         lastSignalBar := bar_index
         lastSig := "BUY"
-        alert("BUY " + syminfo.ticker + " @ " + str.tostring(close) + " | Conf(L): " + str.tostring(confidenceLongEff * 100, "#.0") + "%", alert.freq_once_per_bar_close)
     else if shortSignal and pos == 0
         pos := -1
         entryPrice := close
         lastSignalBar := bar_index
         lastSig := "SHORT"
-        alert("SHORT " + syminfo.ticker + " @ " + str.tostring(close) + " | Conf(S): " + str.tostring(confidenceShortEff * 100, "#.0") + "%", alert.freq_once_per_bar_close)
 
 //====================
 // Visuals
@@ -711,13 +576,13 @@ if barstate.isconfirmed
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
 
 if showEntryLabels and buySignal
-    label.new(bar_index, low, "BUY\nConf " + str.tostring(confidenceLongEff, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    label.new(bar_index, low, "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 if showEntryLabels and shortSignal
-    label.new(bar_index, high, "SHORT\nConf " + str.tostring(confidenceShortEff, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    label.new(bar_index, high, "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 if showEntryLabels and exitSignal
-    label.new(bar_index, high, "EXIT\nConf " + str.tostring(confidenceBase, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    label.new(bar_index, high, "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 if showEntryLabels and coverSignal
-    label.new(bar_index, low, "COVER\nConf " + str.tostring(confidenceBase, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    label.new(bar_index, low, "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
 pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
@@ -728,42 +593,148 @@ pAggLower = plot(showZones ? aggrLower : na, title="Aggressive zone lower", line
 fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 
 //====================
-// Forecast Table (middle-right, compact, Smart-Money-like)
-// 5 columns: TF | Pred(N) | Pred(1) | PUp(N) | PUp(1)
-// Color scheme matches your example.
+// Table colors (match your example look)
 //====================
-tblBg      = color.new(color.rgb(7, 16, 28), 72)
-tblHeader  = color.new(color.rgb(7, 16, 28), 58)
-tblCell    = color.new(color.rgb(7, 16, 28), 72)
-tblFrame   = color.new(color.rgb(0, 190, 210), 0)
-tblText    = color.new(color.rgb(210, 225, 240), 0)
-tblTextDim = color.new(color.rgb(170, 190, 210), 0)
+tblBg      = color.new(color.rgb(12, 20, 35), 0)
+tblHeader  = color.new(color.rgb(12, 20, 35), 0)
+tblCell    = color.new(color.rgb(12, 20, 35), 0)
+tblFrame   = color.new(color.rgb(100, 130, 200), 50)
+tblText    = color.white
+tblTextDim = color.new(color.white, 25)
+tblTfColor = color.new(color.rgb(220, 220, 255), 0)
 
-var table t = table.new(position.middle_right, 5, 18, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
+f_confColor(val) =>
+    val > 0.70 ? color.lime : val <= 0.45 ? color.red : color.yellow
+
+//====================
+// Calibration storage (per horizon)
+//====================
+makeCountsArray(bins) =>
+    array.new_int(bins, 0)
+
+var int binsUse = predBins
+
+var array<int> cntN_1M = makeCountsArray(binsUse)
+var array<int> upN_1M  = makeCountsArray(binsUse)
+var array<int> cnt1_1M = makeCountsArray(binsUse)
+var array<int> up1_1M  = makeCountsArray(binsUse)
+
+var array<int> cntN_5M = makeCountsArray(binsUse)
+var array<int> upN_5M  = makeCountsArray(binsUse)
+var array<int> cnt1_5M = makeCountsArray(binsUse)
+var array<int> up1_5M  = makeCountsArray(binsUse)
+
+var array<int> cntN_15M = makeCountsArray(binsUse)
+var array<int> upN_15M  = makeCountsArray(binsUse)
+var array<int> cnt1_15M = makeCountsArray(binsUse)
+var array<int> up1_15M  = makeCountsArray(binsUse)
+
+var array<int> cntN_30M = makeCountsArray(binsUse)
+var array<int> upN_30M  = makeCountsArray(binsUse)
+var array<int> cnt1_30M = makeCountsArray(binsUse)
+var array<int> up1_30M  = makeCountsArray(binsUse)
+
+var array<int> cntN_1H = makeCountsArray(binsUse)
+var array<int> upN_1H  = makeCountsArray(binsUse)
+var array<int> cnt1_1H = makeCountsArray(binsUse)
+var array<int> up1_1H  = makeCountsArray(binsUse)
+
+var array<int> cntN_4H = makeCountsArray(binsUse)
+var array<int> upN_4H  = makeCountsArray(binsUse)
+var array<int> cnt1_4H = makeCountsArray(binsUse)
+var array<int> up1_4H  = makeCountsArray(binsUse)
+
+var array<int> cntN_1D = makeCountsArray(binsUse)
+var array<int> upN_1D  = makeCountsArray(binsUse)
+var array<int> cnt1_1D = makeCountsArray(binsUse)
+var array<int> up1_1D  = makeCountsArray(binsUse)
+
+// Reset
+if resetCal
+    for i = 0 to binsUse - 1
+        cntN_1M.set(i, 0), upN_1M.set(i, 0), cnt1_1M.set(i, 0), up1_1M.set(i, 0)
+        cntN_5M.set(i, 0), upN_5M.set(i, 0), cnt1_5M.set(i, 0), up1_5M.set(i, 0)
+        cntN_15M.set(i, 0), upN_15M.set(i, 0), cnt1_15M.set(i, 0), up1_15M.set(i, 0)
+        cntN_30M.set(i, 0), upN_30M.set(i, 0), cnt1_30M.set(i, 0), up1_30M.set(i, 0)
+        cntN_1H.set(i, 0), upN_1H.set(i, 0), cnt1_1H.set(i, 0), up1_1H.set(i, 0)
+        cntN_4H.set(i, 0), upN_4H.set(i, 0), cnt1_4H.set(i, 0), up1_4H.set(i, 0)
+        cntN_1D.set(i, 0), upN_1D.set(i, 0), cnt1_1D.set(i, 0), up1_1D.set(i, 0)
+
+//====================
+// Compute packs per horizon (OUTLOOK + FORECAST prereqs)
+//====================
+[sc1, tr1, mo1, lo1, r1, pbN1, puN1, pb11, pu11] = f_tf_pack(tfF1, binsUse)
+[sc2, tr2, mo2, lo2, r2, pbN2, puN2, pb12, pu12] = f_tf_pack(tfF2, binsUse)
+[sc3, tr3, mo3, lo3, r3, pbN3, puN3, pb13, pu13] = f_tf_pack(tfF3, binsUse)
+[sc4, tr4, mo4, lo4, r4, pbN4, puN4, pb14, pu14] = f_tf_pack(tfF4, binsUse)
+[sc5, tr5, mo5, lo5, r5, pbN5, puN5, pb15, pu15] = f_tf_pack(tfF5, binsUse)
+[sc6, tr6, mo6, lo6, r6, pbN6, puN6, pb16, pu16] = f_tf_pack(tfF6, binsUse)
+[sc7, tr7, mo7, lo7, r7, pbN7, puN7, pb17, pu17] = f_tf_pack(tfF7, binsUse)
+
+// Update calibration on confirmed bars only (prevents “empty/unstable” table behavior)
+if barstate.isconfirmed
+    can1 = not na(sc1)
+    can2 = not na(sc2)
+    can3 = not na(sc3)
+    can4 = not na(sc4)
+    can5 = not na(sc5)
+    can6 = not na(sc6)
+    can7 = not na(sc7)
+
+    f_calib_update(can1, pbN1, puN1, pb11, pu11, binsUse, alphaSmooth, cntN_1M, upN_1M, cnt1_1M, up1_1M)
+    f_calib_update(can2, pbN2, puN2, pb12, pu12, binsUse, alphaSmooth, cntN_5M, upN_5M, cnt1_5M, up1_5M)
+    f_calib_update(can3, pbN3, puN3, pb13, pu13, binsUse, alphaSmooth, cntN_15M, upN_15M, cnt1_15M, up1_15M)
+    f_calib_update(can4, pbN4, puN4, pb14, pu14, binsUse, alphaSmooth, cntN_30M, upN_30M, cnt1_30M, up1_30M)
+    f_calib_update(can5, pbN5, puN5, pb15, pu15, binsUse, alphaSmooth, cntN_1H, upN_1H, cnt1_1H, up1_1H)
+    f_calib_update(can6, pbN6, puN6, pb16, pu16, binsUse, alphaSmooth, cntN_4H, upN_4H, cnt1_4H, up1_4H)
+    f_calib_update(can7, pbN7, puN7, pb17, pu17, binsUse, alphaSmooth, cntN_1D, upN_1D, cnt1_1D, up1_1D)
+
+[pUpN1, nN1, okN1] = f_calib_read(not na(sc1), sc1, binsUse, alphaSmooth, cntN_1M, upN_1M)
+[pUp11, n11, ok11] = f_calib_read(not na(sc1), sc1, binsUse, alphaSmooth, cnt1_1M, up1_1M)
+
+[pUpN2, nN2, okN2] = f_calib_read(not na(sc2), sc2, binsUse, alphaSmooth, cntN_5M, upN_5M)
+[pUp12, n12, ok12] = f_calib_read(not na(sc2), sc2, binsUse, alphaSmooth, cnt1_5M, up1_5M)
+
+[pUpN3, nN3, okN3] = f_calib_read(not na(sc3), sc3, binsUse, alphaSmooth, cntN_15M, upN_15M)
+[pUp13, n13, ok13] = f_calib_read(not na(sc3), sc3, binsUse, alphaSmooth, cnt1_15M, up1_15M)
+
+[pUpN4, nN4, okN4] = f_calib_read(not na(sc4), sc4, binsUse, alphaSmooth, cntN_30M, upN_30M)
+[pUp14, n14, ok14] = f_calib_read(not na(sc4), sc4, binsUse, alphaSmooth, cnt1_30M, up1_30M)
+
+[pUpN5, nN5, okN5] = f_calib_read(not na(sc5), sc5, binsUse, alphaSmooth, cntN_1H, upN_1H)
+[pUp15, n15, ok15] = f_calib_read(not na(sc5), sc5, binsUse, alphaSmooth, cnt1_1H, up1_1H)
+
+[pUpN6, nN6, okN6] = f_calib_read(not na(sc6), sc6, binsUse, alphaSmooth, cntN_4H, upN_4H)
+[pUp16, n16, ok16] = f_calib_read(not na(sc6), sc6, binsUse, alphaSmooth, cnt1_4H, up1_4H)
+
+[pUpN7, nN7, okN7] = f_calib_read(not na(sc7), sc7, binsUse, alphaSmooth, cntN_1D, upN_1D)
+[pUp17, n17, ok17] = f_calib_read(not na(sc7), sc7, binsUse, alphaSmooth, cnt1_1D, up1_1D)
+
+//====================
+// Table (5 columns) — OUTLOOK + FORECAST blocks, explicitly labeled
+//====================
+var table t = table.new(position.middle_right, 5, 34, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
 mtfStr  = useMtfConfirm ? (setUse + " " + str.tostring(mtfScore, format.mintick)) : "OFF"
 posStr  = pos == 1 ? "LONG" : pos == -1 ? "SHORT" : "FLAT"
+confStr = str.tostring(confidence * 100.0, "#.0") + "%"
 volStr  = f_fmtVol(volume)
 
 strengthVal = rsi7
 strengthStr = str.tostring(strengthVal, "#.0")
 c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : color.yellow
 
-c_conf = f_confColor(confidenceBase)
-confStr = str.tostring(confidenceBase * 100.0, "#.0") + "%"
-confLs  = "L " + str.tostring(confidenceLongEff * 100.0, "#.0") + "% / S " + str.tostring(confidenceShortEff * 100.0, "#.0") + "%"
+c_conf = f_confColor(confidence)
+c_vol  = volAvail ? color.lime : tblText
 
-hLabel = forecastConfHorizon == "N" ? "N" : forecastConfHorizon == "1" ? "1" : "B"
-confPickStr = confTfLabel + " " + hLabel + " " + (canCalConf ? (nConf < calMinSamples ? ("n" + str.tostring(nConf)) : (str.tostring(pUpConf * 100.0, "#.0") + "%")) : "N/A")
-
-if showTable
-    table.clear(t, 0, 0, 4, 17)
+if showTable and barstate.isconfirmed
+    table.clear(t, 0, 0, 4, 33)
 
     table.cell(t, 0, 0, "Confidence", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(t, 1, 0, confStr,       text_color=c_conf,    bgcolor=tblCell,   text_size=size.tiny)
-    table.cell(t, 2, 0, confLs,        text_color=tblText,   bgcolor=tblCell,   text_size=size.tiny)
-    table.cell(t, 3, 0, "ConfTF",      text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 4, 0, confPickStr,   text_color=tblText,   bgcolor=tblCell,   text_size=size.tiny)
+    table.cell(t, 2, 0, "",            text_color=tblText,   bgcolor=tblCell,   text_size=size.tiny)
+    table.cell(t, 3, 0, "",            text_color=tblText,   bgcolor=tblCell,   text_size=size.tiny)
+    table.cell(t, 4, 0, "",            text_color=tblText,   bgcolor=tblCell,   text_size=size.tiny)
 
     table.cell(t, 0, 1, "MinTrust", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(t, 1, 1, str.tostring(minTrust, format.mintick), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
@@ -772,7 +743,7 @@ if showTable
     table.cell(t, 4, 1, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     table.cell(t, 0, 2, "Volume", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 1, 2, volStr, text_color=(volAvail ? color.lime : tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 2, volStr,   text_color=c_vol,      bgcolor=tblCell,   text_size=size.tiny)
     table.cell(t, 2, 2, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
     table.cell(t, 3, 2, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
     table.cell(t, 4, 2, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
@@ -807,72 +778,133 @@ if showTable
     table.cell(t, 3, 7, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
     table.cell(t, 4, 7, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    table.cell(t, 0, 8, "Forecast", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 1, 8, "Pred(N)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 2, 8, "Pred(1)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 3, 8, "PUp(N)",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 4, 8, "PUp(1)",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    // ===== OUTLOOK BLOCK =====
+    table.cell(t, 0, 8, "OUTLOOK (STATE)", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 1, 8, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 2, 8, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 3, 8, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 4, 8, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
-    // F1
-    table.cell(t, 0, 9,  f_tfLabel(tfF1), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 9,  f_predSymbolP(pUp1N,  n1N,  canCal1), text_color=f_predColorP(pUp1N,  n1N,  canCal1, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 9,  f_predSymbolP(pUp1_1, n1_1, canCal1), text_color=f_predColorP(pUp1_1, n1_1, canCal1, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 9,  f_probText(pUp1N,  n1N,  canCal1), text_color=f_probTextColor(pUp1N,  n1N,  canCal1, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 9,  f_probText(pUp1_1, n1_1, canCal1), text_color=f_probTextColor(pUp1_1, n1_1, canCal1, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 9, "TF",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 1, 9, "Bias", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 2, 9, "Score",text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 3, 9, "T/M/L",text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 4, 9, "RSI",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
-    // F2
-    table.cell(t, 0, 10, f_tfLabel(tfF2), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 10, f_predSymbolP(pUp2N,  n2N,  canCal2), text_color=f_predColorP(pUp2N,  n2N,  canCal2, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 10, f_predSymbolP(pUp2_1, n2_1, canCal2), text_color=f_predColorP(pUp2_1, n2_1, canCal2, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 10, f_probText(pUp2N,  n2N,  canCal2), text_color=f_probTextColor(pUp2N,  n2N,  canCal2, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 10, f_probText(pUp2_1, n2_1, canCal2), text_color=f_probTextColor(pUp2_1, n2_1, canCal2, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 10, f_tfLabel(tfF1), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 10, f_outSymbol(sc1), text_color=f_outColor(sc1, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 10, str.tostring(sc1, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 10, f_tml_str(tr1, mo1, lo1), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 10, str.tostring(r1, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    // F3
-    table.cell(t, 0, 11, f_tfLabel(tfF3), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 11, f_predSymbolP(pUp3N,  n3N,  canCal3), text_color=f_predColorP(pUp3N,  n3N,  canCal3, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 11, f_predSymbolP(pUp3_1, n3_1, canCal3), text_color=f_predColorP(pUp3_1, n3_1, canCal3, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 11, f_probText(pUp3N,  n3N,  canCal3), text_color=f_probTextColor(pUp3N,  n3N,  canCal3, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 11, f_probText(pUp3_1, n3_1, canCal3), text_color=f_probTextColor(pUp3_1, n3_1, canCal3, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 11, f_tfLabel(tfF2), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 11, f_outSymbol(sc2), text_color=f_outColor(sc2, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 11, str.tostring(sc2, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 11, f_tml_str(tr2, mo2, lo2), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 11, str.tostring(r2, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    // F4
-    table.cell(t, 0, 12, f_tfLabel(tfF4), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 12, f_predSymbolP(pUp4N,  n4N,  canCal4), text_color=f_predColorP(pUp4N,  n4N,  canCal4, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 12, f_predSymbolP(pUp4_1, n4_1, canCal4), text_color=f_predColorP(pUp4_1, n4_1, canCal4, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 12, f_probText(pUp4N,  n4N,  canCal4), text_color=f_probTextColor(pUp4N,  n4N,  canCal4, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 12, f_probText(pUp4_1, n4_1, canCal4), text_color=f_probTextColor(pUp4_1, n4_1, canCal4, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 12, f_tfLabel(tfF3), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 12, f_outSymbol(sc3), text_color=f_outColor(sc3, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 12, str.tostring(sc3, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 12, f_tml_str(tr3, mo3, lo3), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 12, str.tostring(r3, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    // F5
-    table.cell(t, 0, 13, f_tfLabel(tfF5), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 13, f_predSymbolP(pUp5N,  n5N,  canCal5), text_color=f_predColorP(pUp5N,  n5N,  canCal5, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 13, f_predSymbolP(pUp5_1, n5_1, canCal5), text_color=f_predColorP(pUp5_1, n5_1, canCal5, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 13, f_probText(pUp5N,  n5N,  canCal5), text_color=f_probTextColor(pUp5N,  n5N,  canCal5, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 13, f_probText(pUp5_1, n5_1, canCal5), text_color=f_probTextColor(pUp5_1, n5_1, canCal5, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 13, f_tfLabel(tfF4), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 13, f_outSymbol(sc4), text_color=f_outColor(sc4, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 13, str.tostring(sc4, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 13, f_tml_str(tr4, mo4, lo4), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 13, str.tostring(r4, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    // F6
-    table.cell(t, 0, 14, f_tfLabel(tfF6), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 14, f_predSymbolP(pUp6N,  n6N,  canCal6), text_color=f_predColorP(pUp6N,  n6N,  canCal6, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 14, f_predSymbolP(pUp6_1, n6_1, canCal6), text_color=f_predColorP(pUp6_1, n6_1, canCal6, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 14, f_probText(pUp6N,  n6N,  canCal6), text_color=f_probTextColor(pUp6N,  n6N,  canCal6, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 14, f_probText(pUp6_1, n6_1, canCal6), text_color=f_probTextColor(pUp6_1, n6_1, canCal6, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 14, f_tfLabel(tfF5), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 14, f_outSymbol(sc5), text_color=f_outColor(sc5, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 14, str.tostring(sc5, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 14, f_tml_str(tr5, mo5, lo5), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 14, str.tostring(r5, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    // F7
-    table.cell(t, 0, 15, f_tfLabel(tfF7), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 1, 15, f_predSymbolP(pUp7N,  n7N,  canCal7), text_color=f_predColorP(pUp7N,  n7N,  canCal7, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 15, f_predSymbolP(pUp7_1, n7_1, canCal7), text_color=f_predColorP(pUp7_1, n7_1, canCal7, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 15, f_probText(pUp7N,  n7N,  canCal7), text_color=f_probTextColor(pUp7N,  n7N,  canCal7, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 4, 15, f_probText(pUp7_1, n7_1, canCal7), text_color=f_probTextColor(pUp7_1, n7_1, canCal7, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 15, f_tfLabel(tfF6), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 15, f_outSymbol(sc6), text_color=f_outColor(sc6, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 15, str.tostring(sc6, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 15, f_tml_str(tr6, mo6, lo6), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 15, str.tostring(r6, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    table.cell(t, 0, 16, "Params", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 1, 16, "N=" + str.tostring(fwdBars) + "  MinN=" + str.tostring(calMinSamples), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 2, 16, "α=" + str.tostring(calAlpha, "#.##"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(t, 3, 16, "Thr", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 4, 16, str.tostring(predDnThr, "#.##") + "/" + str.tostring(predUpThr, "#.##"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 16, f_tfLabel(tfF7), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 16, f_outSymbol(sc7), text_color=f_outColor(sc7, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 16, str.tostring(sc7, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 16, f_tml_str(tr7, mo7, lo7), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 16, str.tostring(r7, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-    table.cell(t, 0, 17, "Reset", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(t, 1, 17, doReset ? "DONE" : (resetCalibration ? "ON" : "OFF"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 0, 17, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 17, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
     table.cell(t, 2, 17, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
     table.cell(t, 3, 17, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
     table.cell(t, 4, 17, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    // ===== FORECAST BLOCK =====
+    table.cell(t, 0, 18, "FORECAST (PROB)", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 1, 18, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 2, 18, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 3, 18, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 4, 18, "", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    table.cell(t, 0, 19, "TF",      text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 1, 19, "Pred(N)", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 2, 19, "Pred(1)", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 3, 19, "PUp(N)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 4, 19, "PUp(1)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    table.cell(t, 0, 20, f_tfLabel(tfF1), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 20, f_predSymbolP(pUpN1, nN1, okN1), text_color=f_predColorP(pUpN1, nN1, okN1, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 20, f_predSymbolP(pUp11, n11, ok11), text_color=f_predColorP(pUp11, n11, ok11, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 20, f_prob_text(pUpN1, nN1, okN1),   text_color=f_probTextColor(pUpN1, nN1, okN1, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 20, f_prob_text(pUp11, n11, ok11),   text_color=f_probTextColor(pUp11, n11, ok11, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 21, f_tfLabel(tfF2), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 21, f_predSymbolP(pUpN2, nN2, okN2), text_color=f_predColorP(pUpN2, nN2, okN2, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 21, f_predSymbolP(pUp12, n12, ok12), text_color=f_predColorP(pUp12, n12, ok12, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 21, f_prob_text(pUpN2, nN2, okN2),   text_color=f_probTextColor(pUpN2, nN2, okN2, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 21, f_prob_text(pUp12, n12, ok12),   text_color=f_probTextColor(pUp12, n12, ok12, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 22, f_tfLabel(tfF3), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 22, f_predSymbolP(pUpN3, nN3, okN3), text_color=f_predColorP(pUpN3, nN3, okN3, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 22, f_predSymbolP(pUp13, n13, ok13), text_color=f_predColorP(pUp13, n13, ok13, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 22, f_prob_text(pUpN3, nN3, okN3),   text_color=f_probTextColor(pUpN3, nN3, okN3, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 22, f_prob_text(pUp13, n13, ok13),   text_color=f_probTextColor(pUp13, n13, ok13, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 23, f_tfLabel(tfF4), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 23, f_predSymbolP(pUpN4, nN4, okN4), text_color=f_predColorP(pUpN4, nN4, okN4, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 23, f_predSymbolP(pUp14, n14, ok14), text_color=f_predColorP(pUp14, n14, ok14, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 23, f_prob_text(pUpN4, nN4, okN4),   text_color=f_probTextColor(pUpN4, nN4, okN4, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 23, f_prob_text(pUp14, n14, ok14),   text_color=f_probTextColor(pUp14, n14, ok14, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 24, f_tfLabel(tfF5), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 24, f_predSymbolP(pUpN5, nN5, okN5), text_color=f_predColorP(pUpN5, nN5, okN5, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 24, f_predSymbolP(pUp15, n15, ok15), text_color=f_predColorP(pUp15, n15, ok15, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 24, f_prob_text(pUpN5, nN5, okN5),   text_color=f_probTextColor(pUpN5, nN5, okN5, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 24, f_prob_text(pUp15, n15, ok15),   text_color=f_probTextColor(pUp15, n15, ok15, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 25, f_tfLabel(tfF6), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 25, f_predSymbolP(pUpN6, nN6, okN6), text_color=f_predColorP(pUpN6, nN6, okN6, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 25, f_predSymbolP(pUp16, n16, ok16), text_color=f_predColorP(pUp16, n16, ok16, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 25, f_prob_text(pUpN6, nN6, okN6),   text_color=f_probTextColor(pUpN6, nN6, okN6, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 25, f_prob_text(pUp16, n16, ok16),   text_color=f_probTextColor(pUp16, n16, ok16, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 26, f_tfLabel(tfF7), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 1, 26, f_predSymbolP(pUpN7, nN7, okN7), text_color=f_predColorP(pUpN7, nN7, okN7, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 26, f_predSymbolP(pUp17, n17, ok17), text_color=f_predColorP(pUp17, n17, ok17, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 26, f_prob_text(pUpN7, nN7, okN7),   text_color=f_probTextColor(pUpN7, nN7, okN7, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 26, f_prob_text(pUp17, n17, ok17),   text_color=f_probTextColor(pUp17, n17, ok17, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 28, "Params", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 1, 28, "N=" + str.tostring(predBins) + "  MinN=" + str.tostring(calMinSamples), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 28, "α=" + str.tostring(alphaSmooth, "#.##"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 28, "Thr", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 4, 28, str.tostring(predDnThr, "#.00") + "/" + str.tostring(predUpThr, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(t, 0, 29, "Meaning", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(t, 1, 29, "Outlook = state", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 2, 29, "Forecast = PUp", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 3, 29, "…=insuff", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(t, 4, 29, "n0=no data", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
 //====================
 // Alerts
