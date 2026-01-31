@@ -412,9 +412,8 @@ f_sum_int_array(a) =>
 
 // --- Human name for "chance" depending on forecast target
 f_chance_word() =>
-    fcTarget == "PathTPvsSL" ? "Win" :
-     fcTarget == "KBarATR"   ? "Hit" :
-                               "Up"
+    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
+    anyWin ? "Win" : "Up"
 
 // --- 95% CI half-width (approx) for Bernoulli p with n samples
 f_ci95_halfwidth(p, n) =>
@@ -652,6 +651,8 @@ f_prob_platt(up, n, alpha, aPlatt, bPlatt) =>
     pRaw = (up + alpha) / (n + 2.0 * alpha)
     f_platt_prob(pRaw, aPlatt, bPlatt)
 
+f_prob(up, n, alpha) =>
+    (up + alpha) / (n + 2.0 * alpha)
 
 f_cal_update(cntArr, upArr, bin, isUp) =>
     n0 = array.get(cntArr, bin)
@@ -721,13 +722,19 @@ f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge,
     array.clear(qLogit1)
     
     // Stats clear
-    array.set(brierStatsN, 0, 0.0); array.set(brierStatsN, 1, 0.0)
-    array.set(brierStats1, 0, 0.0); array.set(brierStats1, 1, 0.0)
-    array.set(llStatsN, 0, 0.0);    array.set(llStatsN, 1, 0.0)
-    array.set(llStats1, 0, 0.0);    array.set(llStats1, 1, 0.0)
+    array.set(brierStatsN, 0, 0.0)
+    array.set(brierStatsN, 1, 0.0)
+    array.set(brierStats1, 0, 0.0)
+    array.set(brierStats1, 1, 0.0)
+    array.set(llStatsN, 0, 0.0)
+    array.set(llStatsN, 1, 0.0)
+    array.set(llStats1, 0, 0.0)
+    array.set(llStats1, 1, 0.0)
     // Platt Reset (Identity)
-    array.set(plattN, 0, 1.0);      array.set(plattN, 1, 0.0)
-    array.set(platt1, 0, 1.0);      array.set(platt1, 1, 0.0)
+    array.set(plattN, 0, 1.0)
+    array.set(plattN, 1, 0.0)
+    array.set(platt1, 0, 1.0)
+    array.set(platt1, 1, 0.0)
 
 // Process one TF calibration step (updates on new TF bar)
 f_process_tf(newTfBar, sA, 
@@ -775,15 +782,20 @@ f_process_tf(newTfBar, sA,
             // --- Phase 1: Local Target Logic ---
             if fcTgt == "NextBar"
                 if age_i >= 1
-                    resolved := true; doUpdate := true; isUp := cNow > entry_i
+                    resolved := true
+                    doUpdate := true
+                    isUp := cNow > entry_i
 
             else if fcTgt == "KBarReturn"
                 if age_i >= kB
-                    resolved := true; doUpdate := true; isUp := cNow > entry_i
+                    resolved := true
+                    doUpdate := true
+                    isUp := cNow > entry_i
 
             else if fcTgt == "KBarATR"
                 if age_i >= kB
-                    resolved := true; doUpdate := true
+                    resolved := true
+                    doUpdate := true
                     denom = (na(atr_i) or atr_i == 0.0) ? 1.0 : atr_i
                     retATR = (cNow - entry_i) / denom
                     isUp := retATR >= aThr
@@ -795,7 +807,8 @@ f_process_tf(newTfBar, sA,
                 lossHit = ml_i <= slPx
 
                 if winHit or lossHit
-                    resolved := true; doUpdate := true
+                    resolved := true
+                    doUpdate := true
                     if winHit and lossHit
                         if pathTiePolicy == "Win"
                             isUp := true
@@ -809,7 +822,8 @@ f_process_tf(newTfBar, sA,
                 else if age_i >= pH
                     resolved := true
                     if noHitPolicy == "Loss"
-                        doUpdate := true; isUp := false
+                        doUpdate := true
+                        isUp := false
                     else
                         doUpdate := false
 
@@ -833,7 +847,8 @@ f_process_tf(newTfBar, sA,
                         
                         // Platt SGD
                         if usePlatt
-                            aN = array.get(plattN, 0); bN = array.get(plattN, 1)
+                            aN = array.get(plattN, 0)
+                            bN = array.get(plattN, 1)
                             pAdj = f_sigmoid(aN * lgtN_i + bN)
                             err = pAdj - outcomeVal
                             da = err * lgtN_i
@@ -841,12 +856,14 @@ f_process_tf(newTfBar, sA,
                             // Update
                             aN := math.max(0.1, math.min(5.0, aN - lrPlatt * da)) 
                             bN := math.max(-3.0, math.min(3.0, bN - lrPlatt * db))
-                            array.set(plattN, 0, aN); array.set(plattN, 1, bN)
+                            array.set(plattN, 0, aN)
+                            array.set(plattN, 1, bN)
                             
                             // LogLoss
                             pLL = math.max(0.0001, math.min(0.9999, pAdj))
                             ll = -(outcomeVal * math.log(pLL) + (1.0 - outcomeVal) * math.log(1.0 - pLL))
-                            curSumLL = array.get(llStatsN, 0); curCntLL = array.get(llStatsN, 1)
+                            curSumLL = array.get(llStatsN, 0)
+                            curCntLL = array.get(llStatsN, 1)
                             array.set(llStatsN, 0, curSumLL + ll)
                             array.set(llStatsN, 1, curCntLL + 1.0)
                     
@@ -858,18 +875,21 @@ f_process_tf(newTfBar, sA,
                     array.set(brierStats1, 1, curCnt1 + 1.0)
 
                     if usePlatt
-                        a1 = array.get(platt1, 0); b1 = array.get(platt1, 1)
+                        a1 = array.get(platt1, 0)
+                        b1 = array.get(platt1, 1)
                         pAdj1 = f_sigmoid(a1 * lgt1_i + b1)
                         err1 = pAdj1 - outcomeVal
                         da1 = err1 * lgt1_i
                         db1 = err1
                         a1 := math.max(0.1, math.min(5.0, a1 - lrPlatt * da1))
                         b1 := math.max(-3.0, math.min(3.0, b1 - lrPlatt * db1))
-                        array.set(platt1, 0, a1); array.set(platt1, 1, b1)
+                        array.set(platt1, 0, a1)
+                        array.set(platt1, 1, b1)
                         
                         pLL1 = math.max(0.0001, math.min(0.9999, pAdj1))
                         ll1 = -(outcomeVal * math.log(pLL1) + (1.0 - outcomeVal) * math.log(1.0 - pLL1))
-                        curSumLL1 = array.get(llStats1, 0); curCntLL1 = array.get(llStats1, 1)
+                        curSumLL1 = array.get(llStats1, 0)
+                        curCntLL1 = array.get(llStats1, 1)
                         array.set(llStats1, 0, curSumLL1 + ll1)
                         array.set(llStats1, 1, curCntLL1 + 1.0)
 
@@ -1429,7 +1449,8 @@ f_get_disp_prob(sA, c, h, l, a, vR, ef, es, wA, wB, wC, cnt, up, bins, alpha, sh
     sEns = f_ensemble(sA, sB, sC, wA, wB, wC)
     b = f_bin2D(sEns, vR, bins, dim2Bins)
     [pRaw, nRaw] = f_cal_cur(cnt, up, b, alpha, shrink)
-    aP = array.get(platt, 0); bP = array.get(platt, 1)
+    aP = array.get(platt, 0)
+    bP = array.get(platt, 1)
     pCal = f_platt_prob(pRaw, aP, bP)
     [pCal, nRaw]
 
@@ -1562,7 +1583,7 @@ c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : c
 c_conf = f_confColor(confidence)
 c_vol  = volAvail ? color.lime : tblText
 
-targetDesc = fcTarget == "NextBar"    ? "NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR"    ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
+targetDesc = "Multi-Profile (See Settings). Fast: " + fcTargetF + ", Mid: " + fcTargetM + ", Slow: " + fcTargetS
 
 if showTable and barstate.isconfirmed
     table.clear(gT, 0, 0, 4, 33)

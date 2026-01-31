@@ -4,71 +4,83 @@
 
 ## 1) Purpose and Evolution
 
-**Version 6.1 (Deep Upgrade)** represents a fundamental architectural shift from simple "Bin Counting" to a sophisticated **Online Learning System**. 
+**Version 6.1 (Deep Upgrade)** represents a fundamental architectural shift from simple "Bin Counting" to a sophisticated **Online Learning System**.
 
 While retaining the core philosophy of "State" vs "Forecast", the engine now employs:
-1.  **Adaptive Targeting**: Different timeframes have different physics (Noise vs Trend).
-2.  **Multidimensional Context**: Predictions condition on both *Algorithm Score* and *Volatility Regime*.
-3.  **Ensemble Scoring**: State is no longer a single number, but a weighted blend of multiple expert signals.
-4.  **Continuous Calibration**: Using Stochastic Gradient Descent (SGD) to fit Platt Scaling parameters in real-time.
+
+1. **Adaptive Targeting**: Different timeframes have different physics (Noise vs Trend).
+2. **Multidimensional Context**: Predictions condition on both *Algorithm Score* and *Volatility Regime*.
+3. **Ensemble Scoring**: State is no longer a single number, but a weighted blend of multiple expert signals.
+4. **Continuous Calibration**: Using Stochastic Gradient Descent (SGD) to fit Platt Scaling parameters in real-time.
 
 ---
 
 ## 2) The Four Phases of Upgrade
 
 ### Phase 1: Adaptive Target Profiles
+
 Historical static targets (e.g., "Next Bar Close") failed to capture the nuance of different time horizons.
-*   **Fast TFs (1m, 5m)**: Noise dominance. Target: **K-Bar ATR** (Relative volatility expansion).
-*   **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent (TP vs SL)** based on ATR multiples.
-*   **Slow TFs (4h, 1D)**: Trend persistence. Target: **Next Bar Direction** or **K-Bar Return**.
-*   **Implementation**: `f_get_params(tf)` dynamically switches target logic based on the seconds-in-timeframe.
+
+* **Fast TFs (1m, 5m)**: Noise dominance. Target: **K-Bar ATR** (Relative volatility expansion).
+* **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent (TP vs SL)** based on ATR multiples.
+* **Slow TFs (4h, 1D)**: Trend persistence. Target: **Next Bar Direction** or **K-Bar Return**.
+* **Implementation**: `f_get_params(tf)` dynamically switches target logic based on the seconds-in-timeframe.
 
 ### Phase 2: 2D Calibration (Score x Volatility)
+
 Previous versions binned only on `AlgoScore`. This missed a critical factor: A "Bullish Trend" signal behaves differently in Low Volatility (Grind up) vs High Volatility (Blow-off top).
-*   **Dimensions**: 
-    1.  **Ensemble Score** (Quantized into N bins)
-    2.  **Volatility Rank** (Low / Mid / High)
-*   **Storage**: Flattens 2D space into 1D arrays: `Index = BinScore * 3 + BinVol`.
-*   **Benefit**: Signals are now context-aware. A "strong buy" in extreme volatility might now correctly predict a reversal (mean reversion) rather than continuation.
+
+* **Dimensions**:
+    1. **Ensemble Score** (Quantized into N bins)
+    2. **Volatility Rank** (Low / Mid / High)
+* **Storage**: Flattens 2D space into 1D arrays: `Index = BinScore * 3 + BinVol`.
+* **Benefit**: Signals are now context-aware. A "strong buy" in extreme volatility might now correctly predict a reversal (mean reversion) rather than continuation.
 
 ### Phase 3: Ensemble Signal Generation
+
 The "Outlook Score" is now a composite `sEns` derived from three experts:
-1.  **Expert A (Trend/State)**: The classic Trend/Momentum/Location logic.
-2.  **Expert B (Pullback)**: Measures distance from EMAs. Incentivizes entries *between* Fast and Slow EMAs (Sweet spot) vs extended or broken structures.
-3.  **Expert C (Regime)**: Bias injection based on Volatility.
-    *   *High Vol (>66%)*: Short Bias / Mean Reversion.
-    *   *Low Vol (<33%)*: Long Bias / Trend Following.
-*   **Formula**: `Score = wA*A + wB*B + wC*C`
+
+1. **Expert A (Trend/State)**: The classic Trend/Momentum/Location logic.
+2. **Expert B (Pullback)**: Measures distance from EMAs. Incentivizes entries *between* Fast and Slow EMAs (Sweet spot) vs extended or broken structures.
+3. **Expert C (Regime)**: Bias injection based on Volatility.
+    * *High Vol (>66%)*: Short Bias / Mean Reversion.
+    * *Low Vol (<33%)*: Long Bias / Trend Following.
+
+* **Formula**: `Score = wA*A + wB*B + wC*C`
 
 ### Phase 4: Online Calibration (Platt Scaling)
+
 Counting wins/losses in bins provides a "Raw Probability" (`pRaw`). However, this is often "rough" and slow to adapt.
-*   **Platt Scaling**: We model the true probability as `P(y=1|x) = Sigmoid(a * Logit(pRaw) + b)`.
-*   **Online Learning**:
-    *   Whenever a forecast resolves, we calculate the error between the *predicted probability* and the *actual outcome* (0 or 1).
-    *   **SGD (Stochastic Gradient Descent)** updates the parameters `a` (slope/confidence) and `b` (bias) instantly.
-    *   **LogLoss Tracking**: The system tracks the Logarithmic Loss to measure the "surprise" of the model, optimizing for true probabilistic confidence rather than just directional accuracy.
+
+* **Platt Scaling**: We model the true probability as `P(y=1|x) = Sigmoid(a * Logit(pRaw) + b)`.
+* **Online Learning**:
+  * Whenever a forecast resolves, we calculate the error between the *predicted probability* and the *actual outcome* (0 or 1).
+  * **SGD (Stochastic Gradient Descent)** updates the parameters `a` (slope/confidence) and `b` (bias) instantly.
+  * **LogLoss Tracking**: The system tracks the Logarithmic Loss to measure the "surprise" of the model, optimizing for true probabilistic confidence rather than just directional accuracy.
 
 ---
 
 ## 3) Technical Implementation Details
 
 ### Data Structues
-*   **Global Arrays**: Arrays like `cntN` (Counts) and `upN` (Wins) now have size `predBins * 3`.
-*   **Queues**: `qLogit` arrays store the `logit` of the probability *at the moment of entry*. This is crucial for valid backpropagation/SGD updates when the trade resolves bars later.
+
+* **Global Arrays**: Arrays like `cntN` (Counts) and `upN` (Wins) now have size `predBins * 3`.
+* **Queues**: `qLogit` arrays store the `logit` of the probability *at the moment of entry*. This is crucial for valid backpropagation/SGD updates when the trade resolves bars later.
 
 ### Flow
-1.  **Signal Generation**: On new bar -> `f_ensemble` -> `sEns`.
-2.  **Binning**: `f_bin2D(sEns, volRank)` -> `BinID`.
-3.  **Prediction**: 
-    *   Lookup `pRaw` from `cntN/upN`.
-    *   Apply `f_platt_prob(pRaw, a, b)` -> **Displayed Probability**.
-4.  **Storage**: Push `BinID`, `EntryPrice`, `Logit(pRaw)` to queues.
-5.  **Resolution (Next Bars)**:
-    *   Check if Target Profile conditions met (TP/SL/Time).
-    *   If resolved: 
-        *   Update `cntN/upN` (Bin counters).
-        *   Perform SGD step on `a` and `b` (`plattN` array).
-        *   Update Brier/LogLoss stats.
+
+1. **Signal Generation**: On new bar -> `f_ensemble` -> `sEns`.
+2. **Binning**: `f_bin2D(sEns, volRank)` -> `BinID`.
+3. **Prediction**:
+    * Lookup `pRaw` from `cntN/upN`.
+    * Apply `f_platt_prob(pRaw, a, b)` -> **Displayed Probability**.
+4. **Storage**: Push `BinID`, `EntryPrice`, `Logit(pRaw)` to queues.
+5. **Resolution (Next Bars)**:
+    * Check if Target Profile conditions met (TP/SL/Time).
+    * If resolved:
+        * Update `cntN/upN` (Bin counters).
+        * Perform SGD step on `a` and `b` (`plattN` array).
+        * Update Brier/LogLoss stats.
 
 ---
 
@@ -77,6 +89,7 @@ Counting wins/losses in bins provides a "Raw Probability" (`pRaw`). However, thi
 *(Below follows the original architecture, which remains relevant for the non-predictive modules)*
 
 ### 1) Purpose and design goals
+
 ...
 
 ### A) **Outlook (State)**
@@ -1270,3 +1283,24 @@ Once enough occurrences have been observed, the table becomes “fully active.�
 ### Ultra-short TradingView description (1 paragraph)
 
 SkippALGO is a non-repainting, bar-close confirmed signal + dashboard script that separates **Outlook (State)** from **Forecast (Probability)**. The Outlook block shows current multi-timeframe bias/regime (based on confirmed HTF bars). The Forecast block adds a calibrated probability layer: it learns from historical occurrences of the current state and estimates **PUp** (probability the next bar closes up) per timeframe, with explicit sample-size gating (`—` / `…` when insufficient data). The table includes **TF | Pred(N) | Pred(1) | PUp(N) | PUp(1)**, enabling stable vs reactive probability-based confirmation for trend-continuation decisions.
+
+---
+
+## 5) SkippALGO_Strategy (Deep Upgrade Synchronization)
+
+**Update Date: Jan 31, 2026**
+
+The strategy file `SkippALGO_Strategy.pine` has been fully upgraded to **Version 6.1** standards to match the main indicator's probabilistic engine.
+
+### Key Features Synchronized
+
+1. **Target Profiles**: Strategy now trades based on the same targets as the indicator (K-Bar ATR, Path TP/SL, etc.) rather than simple next-bar close.
+2. **2D Binning**: Trade entry probabilities are now conditioned on **Volatility Rank** in addition to the Algo Score.
+3. **Ensemble Scoring**: Strategy entries use the composite `sEns` (Trend + Pullback + Regime) signal.
+4. **Platt Scaling**: The backtester uses the SGD-calibrated probabilities (`pAdj`) for its "Confidence" filter.
+
+### Workflow
+
+* The Strategy file mimics the Indicator's logic but executes trades (`strategy.entry`) instead of just plotting.
+* It serves as the **Backtesting Engine** to validate the `v6.1` Deep Upgrade changes.
+* **Note**: Due to Pine Script limits, the strategy may have slightly different memory constraints than the indicator, but the logic is 1:1.
