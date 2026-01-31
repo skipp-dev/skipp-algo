@@ -76,5 +76,15 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertNotRegex(self.text, bad_pattern, 
             "Found (1) array with incorrect 1D sizing - will cause array bounds error with f_bin2D")
 
+    def test_forecast_display_headers(self):
+        # Ensure forecast display input and dynamic headers exist
+        self.assertIn('fcDisplay = input.string("Up% (N)"', self.text)
+        self.assertIn('pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"', self.text)
+        self.assertIn('pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"', self.text)
+
+    def test_ensemble_weights_used_in_display(self):
+        # Display probabilities should use the same ensemble weights as calibration
+        self.assertIn("sEns = f_ensemble(sA, sB, sC, ens_wA, ens_wB, ens_wC)", self.text)
+
 if __name__ == "__main__":
     unittest.main()
