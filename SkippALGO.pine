@@ -529,7 +529,6 @@ f_pullback_score(c, h, l, ef, es, atrVal, bias) =>
     // Simplified: Normalized distance
     float s = 0.0
     if bias == 1
-        dist = (c - ef) / (na(atrVal) ? c*0.01 : atrVal)
         // If c > ef (start of pull), dist > 0. If c < ef, dist < 0.
         // We want: slightly negative is Good (pullback). Strongly negative is Bad (break).
         // Strongly positive is Extended (maybe pullback coming).
@@ -1377,7 +1376,7 @@ if doCal
          qProbN1, qProb11, qLogitN1, qLogit11,
          brierStatsN1, brierStats11, llStatsN1, llStats11, plattN1, platt11,
          fc1, kb1, at1, ph1, tp1, sl1,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
     // F2
     [fc2, kb2, at2, ph2, tp2, sl2] = f_get_params(tfF2)
@@ -1387,7 +1386,7 @@ if doCal
          qProbN2, qProb12, qLogitN2, qLogit12,
          brierStatsN2, brierStats12, llStatsN2, llStats12, plattN2, platt12,
          fc2, kb2, at2, ph2, tp2, sl2,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
     // F3
     [fc3, kb3, at3, ph3, tp3, sl3] = f_get_params(tfF3)
@@ -1397,7 +1396,7 @@ if doCal
          qProbN3, qProb13, qLogitN3, qLogit13,
          brierStatsN3, brierStats13, llStatsN3, llStats13, plattN3, platt13,
          fc3, kb3, at3, ph3, tp3, sl3,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
     // F4
     [fc4, kb4, at4, ph4, tp4, sl4] = f_get_params(tfF4)
@@ -1407,7 +1406,7 @@ if doCal
          qProbN4, qProb14, qLogitN4, qLogit14,
          brierStatsN4, brierStats14, llStatsN4, llStats14, plattN4, platt14,
          fc4, kb4, at4, ph4, tp4, sl4,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
     // F5
     [fc5, kb5, at5, ph5, tp5, sl5] = f_get_params(tfF5)
@@ -1417,7 +1416,7 @@ if doCal
          qProbN5, qProb15, qLogitN5, qLogit15,
          brierStatsN5, brierStats15, llStatsN5, llStats15, plattN5, platt15,
          fc5, kb5, at5, ph5, tp5, sl5,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
     // F6
     [fc6, kb6, at6, ph6, tp6, sl6] = f_get_params(tfF6)
@@ -1427,7 +1426,7 @@ if doCal
          qProbN6, qProb16, qLogitN6, qLogit16,
          brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16,
          fc6, kb6, at6, ph6, tp6, sl6,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
     // F7
     [fc7, kb7, at7, ph7, tp7, sl7] = f_get_params(tfF7)
@@ -1437,7 +1436,7 @@ if doCal
          qProbN7, qProb17, qLogitN7, qLogit17,
          brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17,
          fc7, kb7, at7, ph7, tp7, sl7,
-         calAlphaN, calAlpha1, kShrink, ens_wA, ens_wB, ens_wC)
+         alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
 //====================
 // Display values — N (Calibrated) per horizon
@@ -1454,21 +1453,21 @@ f_get_disp_prob(sA, c, h, l, a, vR, ef, es, wA, wB, wC, cnt, up, bins, alpha, sh
     pCal = f_platt_prob(pRaw, aP, bP)
     [pCal, nRaw]
 
-[pN1, nN1] = f_get_disp_prob(outScore1, c1, h1, l1, a1, vR1, ef1, es1, ens_wA, ens_wB, ens_wC, cntN1, upN1, predBinsN, calAlphaN, kShrink, plattN1)
-[pN2, nN2] = f_get_disp_prob(outScore2, c2, h2, l2, a2, vR2, ef2, es2, ens_wA, ens_wB, ens_wC, cntN2, upN2, predBinsN, calAlphaN, kShrink, plattN2)
-[pN3, nN3] = f_get_disp_prob(outScore3, c3, h3, l3, a3, vR3, ef3, es3, ens_wA, ens_wB, ens_wC, cntN3, upN3, predBinsN, calAlphaN, kShrink, plattN3)
-[pN4, nN4] = f_get_disp_prob(outScore4, c4, h4, l4, a4, vR4, ef4, es4, ens_wA, ens_wB, ens_wC, cntN4, upN4, predBinsN, calAlphaN, kShrink, plattN4)
-[pN5, nN5] = f_get_disp_prob(outScore5, c5, h5, l5, a5, vR5, ef5, es5, ens_wA, ens_wB, ens_wC, cntN5, upN5, predBinsN, calAlphaN, kShrink, plattN5)
-[pN6, nN6] = f_get_disp_prob(outScore6, c6, h6, l6, a6, vR6, ef6, es6, ens_wA, ens_wB, ens_wC, cntN6, upN6, predBinsN, calAlphaN, kShrink, plattN6)
-[pN7, nN7] = f_get_disp_prob(outScore7, c7, h7, l7, a7, vR7, ef7, es7, ens_wA, ens_wB, ens_wC, cntN7, upN7, predBinsN, calAlphaN, kShrink, plattN7)
+[pN1, nN1] = f_get_disp_prob(outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, cntN1, upN1, predBinsN, alphaN, kShrink, plattN1)
+[pN2, nN2] = f_get_disp_prob(outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, cntN2, upN2, predBinsN, alphaN, kShrink, plattN2)
+[pN3, nN3] = f_get_disp_prob(outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, cntN3, upN3, predBinsN, alphaN, kShrink, plattN3)
+[pN4, nN4] = f_get_disp_prob(outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, cntN4, upN4, predBinsN, alphaN, kShrink, plattN4)
+[pN5, nN5] = f_get_disp_prob(outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, cntN5, upN5, predBinsN, alphaN, kShrink, plattN5)
+[pN6, nN6] = f_get_disp_prob(outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, cntN6, upN6, predBinsN, alphaN, kShrink, plattN6)
+[pN7, nN7] = f_get_disp_prob(outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, cntN7, upN7, predBinsN, alphaN, kShrink, plattN7)
 
-[p11p, n11p] = f_get_disp_prob(outScore1, c1, h1, l1, a1, vR1, ef1, es1, ens_wA, ens_wB, ens_wC, cnt11, up11, predBins1, calAlpha1, kShrink, platt11)
-[p12p, n12p] = f_get_disp_prob(outScore2, c2, h2, l2, a2, vR2, ef2, es2, ens_wA, ens_wB, ens_wC, cnt12, up12, predBins1, calAlpha1, kShrink, platt12)
-[p13p, n13p] = f_get_disp_prob(outScore3, c3, h3, l3, a3, vR3, ef3, es3, ens_wA, ens_wB, ens_wC, cnt13, up13, predBins1, calAlpha1, kShrink, platt13)
-[p14p, n14p] = f_get_disp_prob(outScore4, c4, h4, l4, a4, vR4, ef4, es4, ens_wA, ens_wB, ens_wC, cnt14, up14, predBins1, calAlpha1, kShrink, platt14)
-[p15p, n15p] = f_get_disp_prob(outScore5, c5, h5, l5, a5, vR5, ef5, es5, ens_wA, ens_wB, ens_wC, cnt15, up15, predBins1, calAlpha1, kShrink, platt15)
-[p16p, n16p] = f_get_disp_prob(outScore6, c6, h6, l6, a6, vR6, ef6, es6, ens_wA, ens_wB, ens_wC, cnt16, up16, predBins1, calAlpha1, kShrink, platt16)
-[p17p, n17p] = f_get_disp_prob(outScore7, c7, h7, l7, a7, vR7, ef7, es7, ens_wA, ens_wB, ens_wC, cnt17, up17, predBins1, calAlpha1, kShrink, platt17)
+[p11p, n11p] = f_get_disp_prob(outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, cnt11, up11, predBins1, alpha1, kShrink, platt11)
+[p12p, n12p] = f_get_disp_prob(outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, cnt12, up12, predBins1, alpha1, kShrink, platt12)
+[p13p, n13p] = f_get_disp_prob(outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, cnt13, up13, predBins1, alpha1, kShrink, platt13)
+[p14p, n14p] = f_get_disp_prob(outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, cnt14, up14, predBins1, alpha1, kShrink, platt14)
+[p15p, n15p] = f_get_disp_prob(outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, cnt15, up15, predBins1, alpha1, kShrink, platt15)
+[p16p, n16p] = f_get_disp_prob(outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, cnt16, up16, predBins1, alpha1, kShrink, platt16)
+[p17p, n17p] = f_get_disp_prob(outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, cnt17, up17, predBins1, alpha1, kShrink, platt17)
 
 // --- Total resolved samples per TF (across all bins)
 // (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)

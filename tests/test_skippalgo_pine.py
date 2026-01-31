@@ -110,5 +110,22 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertRegex(self.text, r"array\.push\(qMaxH,\s*cNow\)")
         self.assertRegex(self.text, r"array\.push\(qMinL,\s*cNow\)")
 
+    def test_calAlphaN_replaced_by_alphaN(self):
+        # Regression test for undefined variable errors in f_process_tf calls
+        undefined_vars = ["calAlphaN", "calAlpha1", "ens_wA", "ens_wB", "ens_wC"]
+        for var in undefined_vars:
+            self.assertNotRegex(self.text, fr"\b{var}\b", f"Found undefined variable '{var}' in text")
+
+        # Verify correct variable names usage in f_process_tf calls
+        # We look for the pattern of the last argument block
+        # alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*wState,\s*wPullback,\s*wRegime\)"
+        self.assertRegex(self.text, pattern, "Correct variable names not found in f_process_tf calls")
+
+    def test_div_by_zero_fix_f_pullback_score(self):
+        # The line 'dist = (c - ef) / (na(atrVal) ? c*0.01 : atrVal)' was causing potential div by zero and was unused
+        bad_line = r"dist\s*=\s*\(c\s*-\s*ef\)\s*/\s*\(na\(atrVal\)\s*\?\s*c\*0\.01\s*:\s*atrVal\)"
+        self.assertNotRegex(self.text, bad_line, "Found potentially dangerous div-by-zero line in f_pullback_score")
+
 if __name__ == "__main__":
     unittest.main()
