@@ -319,6 +319,74 @@ tblTfColor = color.new(color.rgb(220, 220, 255), 0)
 //====================
 // Helpers
 //====================
+// --- Sum int array (total resolved samples across all bins)
+f_sum_int_array(a) =>
+    int s = 0
+    for i = 0 to array.size(a) - 1
+        s += array.get(a, i)
+    s
+
+// --- Human name for "chance" depending on forecast target
+f_chance_word() =>
+    fcTarget == "PathTPvsSL" ? "Win" :
+     fcTarget == "KBarATR"   ? "Hit" :
+                               "Up"
+
+// --- 95% CI half-width (approx) for Bernoulli p with n samples
+f_ci95_halfwidth(p, n) =>
+    n <= 0 ? na : 1.96 * math.sqrt(p * (1.0 - p) / n)
+
+// --- Reliability label based on CI half-width
+f_rel_label(p, nBin, total, canCal) =>
+    string lbl = "off"
+    if not canCal
+        lbl := "off"
+    else if total <= 0
+        lbl := "n/a"
+    else if nBin < calMinSamples
+        lbl := "warmup"
+    else
+        hw = f_ci95_halfwidth(p, nBin)
+        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
+    lbl
+
+// --- Color for reliability label (subtle; does NOT conflict with up/down coloring)
+f_rel_color(p, nBin, total, canCal) =>
+    if not canCal
+        color.new(color.white, 70)
+    else if total <= 0
+        color.new(color.white, 60)
+    else if nBin < calMinSamples
+        color.new(color.white, 60)
+    else
+        hw = f_ci95_halfwidth(p, nBin)
+        na(hw) ? color.new(color.white, 60) : hw <= 0.05 ? color.lime : hw <= 0.10 ? color.yellow : tblTextDim
+
+// --- “Chance” cell text (arrow + percent), but human warmup/off states
+f_chance_text(pUp, nBin, total, canCal) =>
+    if not canCal or total <= 0
+        "—"
+    else if nBin < calMinSamples
+        "warmup"
+    else
+        sym = pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
+        sym + " " + str.tostring(pUp * 100.0, "#") + "%"
+
+// --- “Data” cell text: bin/total + label + optional ±CI
+f_data_text(pUp, nBin, total, canCal) =>
+    if not canCal
+        "off"
+    else if total <= 0
+        "n0"
+    else
+        lbl = f_rel_label(pUp, nBin, total, canCal)
+        if lbl == "warmup"
+            str.tostring(nBin) + "/" + str.tostring(total) + "\n" + "warmup"
+        else
+            hw = f_ci95_halfwidth(pUp, nBin)
+            ciTxt = na(hw) ? "" : (" ±" + str.tostring(hw * 100.0, "#.0") + "pp")
+            str.tostring(nBin) + "/" + str.tostring(total) + "\n" + lbl + ciTxt
+
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
 
@@ -1073,21 +1141,40 @@ b17 = f_binArr1(outScore7, cnt17)
 [p16p, n16p] = f_cal_cur(cnt16, up16, b16, alpha1, kShrink)
 [p17p, n17p] = f_cal_cur(cnt17, up17, b17, alpha1, kShrink)
 
-can1N = nN1 > 0
-can2N = nN2 > 0
-can3N = nN3 > 0
-can4N = nN4 > 0
-can5N = nN5 > 0
-can6N = nN6 > 0
-can7N = nN7 > 0
+// --- Total resolved samples per TF (across all bins)
+// (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
+totN1 = f_sum_int_array(cntN1)
+totN2 = f_sum_int_array(cntN2)
+totN3 = f_sum_int_array(cntN3)
+totN4 = f_sum_int_array(cntN4)
+totN5 = f_sum_int_array(cntN5)
+totN6 = f_sum_int_array(cntN6)
+totN7 = f_sum_int_array(cntN7)
 
-can11 = n11p > 0
-can12 = n12p > 0
-can13 = n13p > 0
-can14 = n14p > 0
-can15 = n15p > 0
-can16 = n16p > 0
-can17 = n17p > 0
+tot11 = f_sum_int_array(cnt11)
+tot12 = f_sum_int_array(cnt12)
+tot13 = f_sum_int_array(cnt13)
+tot14 = f_sum_int_array(cnt14)
+tot15 = f_sum_int_array(cnt15)
+tot16 = f_sum_int_array(cnt16)
+tot17 = f_sum_int_array(cnt17)
+
+// calibration “enabled for display” if forecast enabled + we have any resolved samples in that TF
+canF1N = enableForecast and (totN1 > 0)
+canF2N = enableForecast and (totN2 > 0)
+canF3N = enableForecast and (totN3 > 0)
+canF4N = enableForecast and (totN4 > 0)
+canF5N = enableForecast and (totN5 > 0)
+canF6N = enableForecast and (totN6 > 0)
+canF7N = enableForecast and (totN7 > 0)
+
+canF11 = enableForecast and (tot11 > 0)
+canF12 = enableForecast and (tot12 > 0)
+canF13 = enableForecast and (tot13 > 0)
+canF14 = enableForecast and (tot14 > 0)
+canF15 = enableForecast and (tot15 > 0)
+canF16 = enableForecast and (tot16 > 0)
+canF17 = enableForecast and (tot17 > 0)
 
 //====================
 // Table helpers MUST be global (cannot be defined inside if-block)
@@ -1103,19 +1190,28 @@ f_rowOut(tf, score, tC, mC, lC, rV, rRow) =>
     table.cell(gT, 3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
-f_rowFc(tf, pN, nN, canN, p1, n1, can1, rRow) =>
+f_rowFc(tf, pN, nBinN, totN_, canN_, p1, nBin1, tot1_, can1_, rRow) =>
     table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
 
-    symN = f_predSymbolP(pN, nN, canN)
-    colN = f_predColorP(pN, nN, canN, tblText)
-    table.cell(gT, 1, rRow, symN, text_color=colN, bgcolor=tblCell, text_size=size.tiny)
+    // Chance(N)
+    txtChanceN = f_chance_text(pN, nBinN, totN_, canN_)
+    colChanceN = f_predColorP(pN, nBinN, canN_, tblText)
+    table.cell(gT, 1, rRow, txtChanceN, text_color=colChanceN, bgcolor=tblCell, text_size=size.tiny)
 
-    sym1 = f_predSymbolP(p1, n1, can1)
-    col1 = f_predColorP(p1, n1, can1, tblText)
-    table.cell(gT, 2, rRow, sym1, text_color=col1, bgcolor=tblCell, text_size=size.tiny)
+    // Data(N) = bin/total + label + ±CI
+    txtDataN = f_data_text(pN, nBinN, totN_, canN_)
+    colDataN = f_rel_color(pN, nBinN, totN_, canN_)
+    table.cell(gT, 2, rRow, txtDataN, text_color=colDataN, bgcolor=tblCell, text_size=size.tiny)
 
-    table.cell(gT, 3, rRow, f_pupText(pN, nN, canN), text_color=f_predColorP(pN, nN, canN, tblText), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 4, rRow, f_pupText(p1, n1, can1), text_color=f_predColorP(p1, n1, can1, tblText), bgcolor=tblCell, text_size=size.tiny)
+    // Chance(1)
+    txtChance1 = f_chance_text(p1, nBin1, tot1_, can1_)
+    colChance1 = f_predColorP(p1, nBin1, can1_, tblText)
+    table.cell(gT, 3, rRow, txtChance1, text_color=colChance1, bgcolor=tblCell, text_size=size.tiny)
+
+    // Data(1)
+    txtData1 = f_data_text(p1, nBin1, tot1_, can1_)
+    colData1 = f_rel_color(p1, nBin1, tot1_, can1_)
+    table.cell(gT, 4, rRow, txtData1, text_color=colData1, bgcolor=tblCell, text_size=size.tiny)
 
 f_fmtBrier(stats) =>
     s = array.get(stats, 0)
@@ -1207,23 +1303,20 @@ if showTable and barstate.isconfirmed
     f_rowOut(tfF7, outScore7, t7c, m7c, l7c, r7, 15)
 
     // Forecast header
-    table.cell(gT, 0, 16, "Forecast", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 16, "Pred(N)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 2, 16, "Pred(1)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    cw = f_chance_word()
+    table.cell(gT, 0, 16, "Forecast",            text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 16, cw + " chance(N)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 2, 16, "Data(N)",             text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 3, 16, cw + " chance(1)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 16, "Data(1)",             text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
-    pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"
-    pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"
-
-    table.cell(gT, 3, 16, pHdrN, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 4, 16, pHdr1, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-
-    f_rowFc(tfF1, pN1, nN1, can1N, p11p, n11p, can11, 17)
-    f_rowFc(tfF2, pN2, nN2, can2N, p12p, n12p, can12, 18)
-    f_rowFc(tfF3, pN3, nN3, can3N, p13p, n13p, can13, 19)
-    f_rowFc(tfF4, pN4, nN4, can4N, p14p, n14p, can14, 20)
-    f_rowFc(tfF5, pN5, nN5, can5N, p15p, n15p, can15, 21)
-    f_rowFc(tfF6, pN6, nN6, can6N, p16p, n16p, can16, 22)
-    f_rowFc(tfF7, pN7, nN7, can7N, p17p, n17p, can17, 23)
+    f_rowFc(tfF1, pN1, nN1, totN1, canF1N, p11p, n11p, tot11, canF11, 17)
+    f_rowFc(tfF2, pN2, nN2, totN2, canF2N, p12p, n12p, tot12, canF12, 18)
+    f_rowFc(tfF3, pN3, nN3, totN3, canF3N, p13p, n13p, tot13, canF13, 19)
+    f_rowFc(tfF4, pN4, nN4, totN4, canF4N, p14p, n14p, tot14, canF14, 20)
+    f_rowFc(tfF5, pN5, nN5, totN5, canF5N, p15p, n15p, tot15, canF15, 21)
+    f_rowFc(tfF6, pN6, nN6, totN6, canF6N, p16p, n16p, tot16, canF16, 22)
+    f_rowFc(tfF7, pN7, nN7, totN7, canF7N, p17p, n17p, tot17, canF17, 23)
 
     // Accuracy header
     table.cell(gT, 0, 24, "Accuracy", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
