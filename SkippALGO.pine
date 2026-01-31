@@ -1094,7 +1094,7 @@ can17 = n17p > 0
 //====================
 var table gT = na
 if na(gT)
-    gT := table.new(position.middle_right, 5, 26, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
+    gT := table.new(position.middle_right, 5, 35, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
 f_rowOut(tf, score, tC, mC, lC, rV, rRow) =>
     table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
