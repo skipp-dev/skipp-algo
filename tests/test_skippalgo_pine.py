@@ -44,6 +44,15 @@ class TestSkippAlgoPine(unittest.TestCase):
         match = re.search(pattern, self.text)
         self.assertTrue(match, "Neutral tie policy logic not found or incorrect (should set doUpdate := false)")
 
+    def test_table_formatting_logic(self):
+        # Check for merge_cells usage
+        self.assertIn("table.merge_cells(gT, 1, 24, 4, 24)", self.text)
+        self.assertIn("table.merge_cells(gT, 1, 25, 4, 25)", self.text)
+        
+        # Check targetDesc definition exists (multiline or single line)
+        self.assertIn('targetDesc =', self.text)
+        self.assertIn('fcTarget == "NextBar"', self.text)
+
 
 if __name__ == "__main__":
     unittest.main()
