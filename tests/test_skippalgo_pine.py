@@ -16,6 +16,26 @@ class TestSkippAlgoPine(unittest.TestCase):
         cls.text = PINE_PATH.read_text(encoding="utf-8")
         cls.lines = cls.text.splitlines()
 
+    def test_version_6(self):
+        self.assertRegex(self.text, r"//@version=6")
+
+    def test_no_semicolons(self):
+        # Pine Script v6 forbids end-of-line semicolons
+        count = 0
+        for i, line in enumerate(self.lines, 1):
+            if line.strip().endswith(";"):
+                # Exclude comments
+                if "//" in line:
+                    idx = line.index("//")
+                    content = line[:idx].strip()
+                    if content.endswith(";"):
+                        count += 1
+                        print(f"Line {i} has semicolon: {line}")
+                else:
+                    count += 1
+                    print(f"Line {i} has semicolon: {line}")
+        self.assertEqual(count, 0, f"Found {count} lines ending with semicolons")
+
     def test_table_clear_has_bounds(self):
         self.assertIn("table.clear(gT, 0, 0, 4, 33)", self.text)
         self.assertNotRegex(self.text, r"table\.clear\(\s*gT\s*\)")
@@ -75,6 +95,10 @@ class TestSkippAlgoPine(unittest.TestCase):
         # Check for Note update
         self.assertIn("Forecast: Shrinkage k=5.0 active", self.text)
 
+    def test_new_ui_helpers(self):
+        # Verify CI/Reliability helpers are present (v6.1 UI)
+        self.assertRegex(self.text, r"f_ci95_halfwidth\(p, n\) =>")
+        self.assertRegex(self.text, r"f_rel_label\(p, nBin, total, canCal\) =>")
 
 if __name__ == "__main__":
     unittest.main()

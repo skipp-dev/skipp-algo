@@ -418,6 +418,26 @@ f_confColor(val) =>
 f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
+f_chance_word() =>
+    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
+    anyWin ? "Win" : "Up"
+
+f_ci95_halfwidth(p, n) =>
+    n <= 0 ? na : 1.96 * math.sqrt(p * (1.0 - p) / n)
+
+f_rel_label(p, nBin, total, canCal) =>
+    string lbl = "off"
+    if not canCal
+        lbl := "off"
+    else if total <= 0
+        lbl := "n/a"
+    else if nBin < calMinSamples
+        lbl := "warmup"
+    else
+        hw = f_ci95_halfwidth(p, nBin)
+        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
+    lbl
+
 f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
     trend = emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0
     mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
