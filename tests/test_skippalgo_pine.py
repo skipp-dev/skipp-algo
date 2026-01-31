@@ -127,5 +127,27 @@ class TestSkippAlgoPine(unittest.TestCase):
         bad_line = r"dist\s*=\s*\(c\s*-\s*ef\)\s*/\s*\(na\(atrVal\)\s*\?\s*c\*0\.01\s*:\s*atrVal\)"
         self.assertNotRegex(self.text, bad_line, "Found potentially dangerous div-by-zero line in f_pullback_score")
 
+    def test_reactive_arrays_sized_for_2d_binning(self):
+        """
+        Regression test for runtime error:
+        'Error on bar 0: In array.get() function. Index 4 is out of bounds, array size is 2.'
+        
+        The (1) reactive arrays (cnt11, up11, etc.) must be sized for 2D binning
+        (predBins1 * dim2Bins) since f_bin2D is used, not 1D (predBins1).
+        """
+        # Check that (1) arrays use 2D sizing: predBins1 * dim2Bins
+        pattern_2d = r"array\.new_int\(predBins1\s*\*\s*dim2Bins,\s*0\)"
+        matches_2d = re.findall(pattern_2d, self.text)
+        
+        # Should have 14 matches (cnt1x and up1x for F1-F7)
+        self.assertGreaterEqual(len(matches_2d), 14, 
+            f"Expected at least 14 (1) arrays with 2D sizing (predBins1 * dim2Bins), found {len(matches_2d)}")
+        
+        # Verify NO (1) arrays use old 1D sizing pattern
+        # Pattern: array.new_int(predBins1, 0) without the * dim2Bins
+        bad_pattern = r"cnt1\d\s*=\s*array\.new_int\(predBins1,\s*0\)"
+        self.assertNotRegex(self.text, bad_pattern, 
+            "Found (1) array with incorrect 1D sizing - will cause array bounds error with f_bin2D")
+
 if __name__ == "__main__":
     unittest.main()
