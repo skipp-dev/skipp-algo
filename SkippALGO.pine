@@ -1072,6 +1072,33 @@ f_rowFc(tf, pN, nN, canN, p1, n1, can1, rRow) =>
     table.cell(gT, 3, rRow, f_pupText(pN, nN, canN), text_color=f_predColorP(pN, nN, canN, tblText), bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 4, rRow, f_pupText(p1, n1, can1), text_color=f_predColorP(p1, n1, can1, tblText), bgcolor=tblCell, text_size=size.tiny)
 
+f_fmtBrier(stats) =>
+    s = array.get(stats, 0)
+    c = array.get(stats, 1)
+    val = c > 0 ? s / c : na
+    txt = na(val) ? "—" : str.tostring(val, "#.###")
+    col = na(val) ? tblTextDim : val < 0.20 ? color.green : val < 0.25 ? color.lime : val < 0.30 ? color.yellow : color.red
+    [txt, col]
+
+f_fmtCnt(stats) =>
+    c = array.get(stats, 1)
+    [str.tostring(c, "#"), c < 10 ? tblTextDim : tblText]
+
+f_rowRel(tf, statsN, stats1, rRow) =>
+    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    
+    [tN, cN] = f_fmtBrier(statsN)
+    table.cell(gT, 1, rRow, tN, text_color=cN, bgcolor=tblCell, text_size=size.tiny)
+    
+    [t1, c1] = f_fmtBrier(stats1)
+    table.cell(gT, 2, rRow, t1, text_color=c1, bgcolor=tblCell, text_size=size.tiny)
+    
+    [tcN, ccN] = f_fmtCnt(statsN)
+    table.cell(gT, 3, rRow, tcN, text_color=ccN, bgcolor=tblCell, text_size=size.tiny)
+    
+    [tc1, cc1] = f_fmtCnt(stats1)
+    table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
+
 //====================
 // Table (5 columns) — rendered on confirmed bars (stable)
 //====================
@@ -1089,7 +1116,7 @@ c_vol  = volAvail ? color.lime : tblText
 targetDesc = fcTarget == "NextBar"    ? "NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR"    ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
 
 if showTable and barstate.isconfirmed
-    table.clear(gT, 0, 0, 4, 25)
+    table.clear(gT, 0, 0, 4, 33)
 
     // Status rows
     table.cell(gT, 0, 0, "Confidence", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
@@ -1153,16 +1180,31 @@ if showTable and barstate.isconfirmed
     f_rowFc(tfF6, pN6, nN6, can6N, p16p, n16p, can16, 22)
     f_rowFc(tfF7, pN7, nN7, can7N, p17p, n17p, can17, 23)
 
-    // Footer
-    table.cell(gT, 0, 24, "Target", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 24, targetDesc, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.merge_cells(gT, 1, 24, 4, 24)
+    // Accuracy header
+    table.cell(gT, 0, 24, "Accuracy", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 24, "BS(N)",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 2, 24, "BS(1)",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 3, 24, "#(N)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 24, "#(1)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
-    table.cell(gT, 0, 25, "Note", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 25,
-     "Forecast: Past stats for similar State.\n(N)=Samples. Warm=Calibrating.",
+    f_rowRel(tfF1, brierStatsN1, brierStats11, 25)
+    f_rowRel(tfF2, brierStatsN2, brierStats12, 26)
+    f_rowRel(tfF3, brierStatsN3, brierStats13, 27)
+    f_rowRel(tfF4, brierStatsN4, brierStats14, 28)
+    f_rowRel(tfF5, brierStatsN5, brierStats15, 29)
+    f_rowRel(tfF6, brierStatsN6, brierStats16, 30)
+    f_rowRel(tfF7, brierStatsN7, brierStats17, 31)
+
+    // Footer
+    table.cell(gT, 0, 32, "Target", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 32, targetDesc, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.merge_cells(gT, 1, 32, 4, 32)
+
+    table.cell(gT, 0, 33, "Note", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 33,
+     "Forecast: Shrinkage k=5.0 active. Accuracy: Brier Score (0-1). <0.25=Skill.",
      text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.merge_cells(gT, 1, 25, 4, 25)
+    table.merge_cells(gT, 1, 33, 4, 33)
 
 //====================
 // Alerts (bar close)
