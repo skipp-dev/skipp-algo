@@ -29,6 +29,6 @@ The codebase successfully transitions from a static binning model to a dynamic, 
 * [x] Array Sizes Expanded (3x for Volatility)
 * [x] SGD Logic Implemented Correctly (Sigmoid -> Error -> Backprop)
 * [x] Table Output Linked to Calibrated Probabilities
-* [x] **Strategy Module Synced** (Updated 31 Jan 2026): `SkippALGO_Strategy.pine` now mirrors the main indicator logic.
+* [x] **Strategy Module Synced** (Updated 01 Feb 2026): `SkippALGO_Strategy.pine` mirrors the main indicator logic, including totals-based forecast gating (`can*` uses total samples + `enableForecast`).
 
 **Verdict**: Approved/Merge Ready.

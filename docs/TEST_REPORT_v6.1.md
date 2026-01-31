@@ -1,8 +1,8 @@
 # SkippALGO v6.1 - Deep Upgrade Test Report
 
-**Date:** 31 Jan 2026
+**Date:** 01 Feb 2026
 **Version:** 6.1 (Deep Upgrade)
-**Agent:** GitHub Copilot (Gemini 3 Pro)
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
 
 ## 1. Static Analysis Verification
 
@@ -29,16 +29,21 @@
 * **Output**:
   * `f_get_disp_prob` correctly applies `f_platt_prob` to the raw bin probability before returning to table variables.
 
-### 1.3 Strategy Synchronization (Jan 31 Update)
+### 1.3 Strategy Synchronization (Feb 01 Update)
 
 * **Code Parity**:
   * `SkippALGO_Strategy.pine` updated to match `SkippALGO.pine` (Main) v6.1 logic.
+  * Forecast gating (`can*`) now uses total resolved samples and `enableForecast`, matching indicator behavior.
   * Replaced `f_process_tf` with the Deep Upgrade version (Ensemble, 2D Bins, Platt, Target Profiles).
   * Added `volRank` to `f_tf_pack`.
   * Updated all 7 TF processing calls in the strategy loop.
 * **Syntax Validation**:
   * Corrected semicolon usage in `f_reset_tf` (Pine Script lint fix).
   * Verified correct argument mapping of global state arrays (`plattN`, `qLogitN`, etc.) to the processing function.
+
+### 1.4 Test Additions (Feb 01 Update)
+
+* Added parity tests to ensure totals-based `can*` logic and forecast gating align between indicator and strategy.
 
 ## 2. Risk Assessment
 
