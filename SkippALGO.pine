@@ -1079,7 +1079,7 @@ if showTable and barstate.isconfirmed
 
     table.cell(gT, 0, 25, "Note", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, 25,
-     "Forecast: Up%/Edge is estimated from past cases when this TF had the same State-bin. (N)=samples. Warm x/y = not enough samples yet.",
+     "Forecast: Past stats for similar State.\n(N)=Samples. Warm=Calibrating.",
      text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
     table.merge_cells(gT, 1, 25, 4, 25)
 

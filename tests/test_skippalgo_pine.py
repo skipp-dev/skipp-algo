@@ -66,7 +66,7 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('table.cell(gT, 3, 16, pHdrN', self.text)
         
         # Check for Note update
-        self.assertIn("Forecast: Up%/Edge is estimated from past cases", self.text)
+        self.assertIn("Forecast: Past stats for similar State", self.text)
 
 
 if __name__ == "__main__":
