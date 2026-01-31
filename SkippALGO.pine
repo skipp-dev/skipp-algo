@@ -928,11 +928,11 @@ f_process_tf(newTfBar, sA,
 
         array.push(qBinN,  bN)
         array.push(qBin1,  b1)
-        array.push(qEntry, entryNow)
+        array.push(qEntry, cNow)
         array.push(qAtr,   atrNow)
 
-        array.push(qMaxH,  entryNow)
-        array.push(qMinL,  entryNow)
+        array.push(qMaxH,  cNow)
+        array.push(qMinL,  cNow)
 
         array.push(qAge,   0)
         

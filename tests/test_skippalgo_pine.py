@@ -100,5 +100,15 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertRegex(self.text, r"f_ci95_halfwidth\(p, n\) =>")
         self.assertRegex(self.text, r"f_rel_label\(p, nBin, total, canCal\) =>")
 
+    def test_entryNow_replaced_by_cNow(self):
+        # entryNow was a bug, should be replaced by cNow in f_process_tf
+        self.assertNotRegex(self.text, r"array\.push\(qEntry,\s*entryNow\)")
+        self.assertNotRegex(self.text, r"array\.push\(qMaxH,\s*entryNow\)")
+        self.assertNotRegex(self.text, r"array\.push\(qMinL,\s*entryNow\)")
+        # Verify cNow is used instead
+        self.assertRegex(self.text, r"array\.push\(qEntry,\s*cNow\)")
+        self.assertRegex(self.text, r"array\.push\(qMaxH,\s*cNow\)")
+        self.assertRegex(self.text, r"array\.push\(qMinL,\s*cNow\)")
+
 if __name__ == "__main__":
     unittest.main()
