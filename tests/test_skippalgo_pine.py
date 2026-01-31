@@ -17,7 +17,7 @@ class TestSkippAlgoPine(unittest.TestCase):
         cls.lines = cls.text.splitlines()
 
     def test_table_clear_has_bounds(self):
-        self.assertIn("table.clear(gT, 0, 0, 4, 25)", self.text)
+        self.assertIn("table.clear(gT, 0, 0, 4, 33)", self.text)
         self.assertNotRegex(self.text, r"table\.clear\(\s*gT\s*\)")
 
     def test_newF_uses_precomputed_change(self):
@@ -46,12 +46,19 @@ class TestSkippAlgoPine(unittest.TestCase):
 
     def test_table_formatting_logic(self):
         # Check for merge_cells usage
-        self.assertIn("table.merge_cells(gT, 1, 24, 4, 24)", self.text)
-        self.assertIn("table.merge_cells(gT, 1, 25, 4, 25)", self.text)
+        self.assertIn("table.merge_cells(gT, 1, 32, 4, 32)", self.text)
+        self.assertIn("table.merge_cells(gT, 1, 33, 4, 33)", self.text)
         
         # Check targetDesc definition exists (multiline or single line)
         self.assertIn('targetDesc =', self.text)
-        self.assertIn('fcTarget == "NextBar"', self.text)
+        # Updated for Multi-Profile support
+        self.assertIn('"Multi-Profile (See Settings). Fast: " + fcTargetF', self.text)
+        
+    def test_process_tf_signature(self):
+        # Check that f_process_tf has the new comprehensive signature
+        self.assertIn("f_process_tf(newTfBar, sA,", self.text)
+        self.assertIn("fcTgt, kB, aThr, pH, tpA, slA,", self.text)
+        self.assertIn("plattN, platt1,", self.text)
 
     def test_forecast_readability_update(self):
         # Check for new input
@@ -61,12 +68,12 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('"Warm " + str.tostring(n) + "/"', self.text)
         self.assertIn('fcDisplay == "Edge pp (N)"', self.text)
         
-        # Check for dynamic headers
-        self.assertIn('pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"', self.text)
-        self.assertIn('table.cell(gT, 3, 16, pHdrN', self.text)
+        # SkippALGO.pine uses f_chance_word() for header, not pHdrN variable
+        self.assertIn('cw = f_chance_word()', self.text)
+        self.assertIn('cw + " chance(N)"', self.text)
         
         # Check for Note update
-        self.assertIn("Forecast: Past stats for similar State", self.text)
+        self.assertIn("Forecast: Shrinkage k=5.0 active", self.text)
 
 
 if __name__ == "__main__":
