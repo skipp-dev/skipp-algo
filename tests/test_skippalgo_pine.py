@@ -53,6 +53,21 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('targetDesc =', self.text)
         self.assertIn('fcTarget == "NextBar"', self.text)
 
+    def test_forecast_readability_update(self):
+        # Check for new input
+        self.assertIn('fcDisplay = input.string("Up% (N)"', self.text)
+        
+        # Check for new pupText logic lines
+        self.assertIn('"Warm " + str.tostring(n) + "/"', self.text)
+        self.assertIn('fcDisplay == "Edge pp (N)"', self.text)
+        
+        # Check for dynamic headers
+        self.assertIn('pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"', self.text)
+        self.assertIn('table.cell(gT, 3, 16, pHdrN', self.text)
+        
+        # Check for Note update
+        self.assertIn("Forecast: Up%/Edge is estimated from past cases", self.text)
+
 
 if __name__ == "__main__":
     unittest.main()

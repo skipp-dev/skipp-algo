@@ -134,6 +134,9 @@ avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
 
+// Forecast value display
+fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
+
 fcTarget = input.string("NextBar", "Forecast target",
     options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"])
 
@@ -268,7 +271,21 @@ f_predColorP(pUp, n, canCal, neutralCol) =>
     not canCal ? color.new(color.white, 70) : n < calMinSamples ? color.new(color.white, 60) : pUp > predUpThr ? color.lime : pUp < predDnThr ? color.red : neutralCol
 
 f_pupText(pUp, n, canCal) =>
-    not canCal ? "n0" : n < calMinSamples ? ("n" + str.tostring(n)) : (str.tostring(pUp * 100.0, "#.0") + "% n" + str.tostring(n))
+    if not canCal
+        "OFF"
+    else if n == 0
+        "—"
+    else if n < calMinSamples
+        "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples)
+    else
+        if fcDisplay == "Edge pp (N)"
+            edge = (pUp - 0.5) * 100.0
+            sign = edge > 0 ? "+" : ""
+            // example: +2.3pp (203)
+            sign + str.tostring(edge, "#.0") + "pp (" + str.tostring(n) + ")"
+        else
+            // example: Up 49.8% (203)
+            "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
 f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge) =>
     for i = 0 to array.size(cntN) - 1
@@ -988,11 +1005,7 @@ c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : c
 c_conf = f_confColor(confidence)
 c_vol  = volAvail ? color.lime : tblText
 
-targetDesc = 
-     fcTarget == "NextBar"    ? "NextBar (Up if next close > entry)" : 
-     fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : 
-     fcTarget == "KBarATR"    ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : 
-                                ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
+targetDesc = fcTarget == "NextBar"    ? "NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR"    ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
 
 if showTable and barstate.isconfirmed
     table.clear(gT, 0, 0, 4, 25)
@@ -1044,8 +1057,12 @@ if showTable and barstate.isconfirmed
     table.cell(gT, 0, 16, "Forecast", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, 16, "Pred(N)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 2, 16, "Pred(1)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 3, 16, "PUp(N)",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 4, 16, "PUp(1)",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"
+    pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"
+
+    table.cell(gT, 3, 16, pHdrN, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 16, pHdr1, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
     f_rowFc(tfF1, pN1, nN1, can1N, p11p, n11p, can11, 17)
     f_rowFc(tfF2, pN2, nN2, can2N, p12p, n12p, can12, 18)
@@ -1061,7 +1078,9 @@ if showTable and barstate.isconfirmed
     table.merge_cells(gT, 1, 24, 4, 24)
 
     table.cell(gT, 0, 25, "Note", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 25, "Outlook=State. Forecast=P(up|state) calibrated.", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 1, 25,
+     "Forecast: Up%/Edge is estimated from past cases when this TF had the same State-bin. (N)=samples. Warm x/y = not enough samples yet.",
+     text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
     table.merge_cells(gT, 1, 25, 4, 25)
 
 //====================
