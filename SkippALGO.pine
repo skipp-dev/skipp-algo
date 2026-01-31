@@ -988,7 +988,7 @@ c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : c
 c_conf = f_confColor(confidence)
 c_vol  = volAvail ? color.lime : tblText
 
-targetDesc = fcTarget == "NextBar" ? "Target: NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("Target: KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR" ? ("Target: KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("Target: PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
+targetDesc = fcTarget == "NextBar" ? "NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR" ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
 
 if showTable and barstate.isconfirmed
     table.clear(gT, 0, 0, 4, 25)
@@ -1054,9 +1054,11 @@ if showTable and barstate.isconfirmed
     // Footer
     table.cell(gT, 0, 24, "Target", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, 24, targetDesc, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.merge_cells(gT, 1, 24, 4, 24)
 
     table.cell(gT, 0, 25, "Note", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 25, "Outlook=State snapshot. Forecast=Calibrated P(up|state) with n gating.", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 1, 25, "Outlook=State. Forecast=P(up|state) calibrated.", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.merge_cells(gT, 1, 25, 4, 25)
 
 //====================
 // Alerts (bar close)
