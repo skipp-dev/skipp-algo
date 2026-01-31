@@ -168,6 +168,144 @@ resetWhich = input.string("None", "Reset calibration scope", options=["None","Al
 resetNow   = input.bool(false, "Reset selected calibration NOW")
 
 //====================
+// Inputs — Forecast Filtering (Accuracy-based)
+//====================
+useRelFilter = input.bool(false, "Filter entries by Forecast Accuracy")
+maxBrier     = input.float(0.25, "Max Brier Score (lower=better)", minval=0.01, step=0.01)
+relFilterTF  = input.string("F6", "Filter Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], tooltip="Check accuracy of this forecast timeframe")
+relFilterModel = input.string("N", "Filter Model", options=["N", "1"], tooltip="N=Multi-factor, 1=Single-factor")
+
+//====================
+// Calibration storage — per horizon TF (Global State)
+//====================
+// F1
+var int[] cntN1 = array.new_int(predBinsN, 0)
+var int[] upN1  = array.new_int(predBinsN, 0)
+var int[] cnt11 = array.new_int(predBins1, 0)
+var int[] up11  = array.new_int(predBins1, 0)
+// F1 Queues
+// Queues here store trade state at entry time
+var int[]   qBinN1 = array.new_int()
+var int[]   qBin11 = array.new_int()
+var float[] qEntry1 = array.new_float()
+var float[] qAtr1   = array.new_float()
+var float[] qMaxH1  = array.new_float()
+var float[] qMinL1  = array.new_float()
+var int[]   qAge1   = array.new_int()
+var float[] qProbN1 = array.new_float()
+var float[] qProb11 = array.new_float()
+var float[] brierStatsN1 = array.new_float(2, 0.0) // [0]=sum, [1]=cnt
+var float[] brierStats11 = array.new_float(2, 0.0)
+
+// F2
+var int[] cntN2 = array.new_int(predBinsN, 0)
+var int[] upN2  = array.new_int(predBinsN, 0)
+var int[] cnt12 = array.new_int(predBins1, 0)
+var int[] up12  = array.new_int(predBins1, 0)
+// F2 Queues
+var int[]   qBinN2 = array.new_int()
+var int[]   qBin12 = array.new_int()
+var float[] qEntry2 = array.new_float()
+var float[] qAtr2   = array.new_float()
+var float[] qMaxH2  = array.new_float()
+var float[] qMinL2  = array.new_float()
+var int[]   qAge2   = array.new_int()
+var float[] qProbN2 = array.new_float()
+var float[] qProb12 = array.new_float()
+var float[] brierStatsN2 = array.new_float(2, 0.0)
+var float[] brierStats12 = array.new_float(2, 0.0)
+
+// F3
+var int[] cntN3 = array.new_int(predBinsN, 0)
+var int[] upN3  = array.new_int(predBinsN, 0)
+var int[] cnt13 = array.new_int(predBins1, 0)
+var int[] up13  = array.new_int(predBins1, 0)
+// F3 Queues
+var int[]   qBinN3 = array.new_int()
+var int[]   qBin13 = array.new_int()
+var float[] qEntry3 = array.new_float()
+var float[] qAtr3   = array.new_float()
+var float[] qMaxH3  = array.new_float()
+var float[] qMinL3  = array.new_float()
+var int[]   qAge3   = array.new_int()
+var float[] qProbN3 = array.new_float()
+var float[] qProb13 = array.new_float()
+var float[] brierStatsN3 = array.new_float(2, 0.0)
+var float[] brierStats13 = array.new_float(2, 0.0)
+
+// F4
+var int[] cntN4 = array.new_int(predBinsN, 0)
+var int[] upN4  = array.new_int(predBinsN, 0)
+var int[] cnt14 = array.new_int(predBins1, 0)
+var int[] up14  = array.new_int(predBins1, 0)
+// F4 Queues
+var int[]   qBinN4 = array.new_int()
+var int[]   qBin14 = array.new_int()
+var float[] qEntry4 = array.new_float()
+var float[] qAtr4   = array.new_float()
+var float[] qMaxH4  = array.new_float()
+var float[] qMinL4  = array.new_float()
+var int[]   qAge4   = array.new_int()
+var float[] qProbN4 = array.new_float()
+var float[] qProb14 = array.new_float()
+var float[] brierStatsN4 = array.new_float(2, 0.0)
+var float[] brierStats14 = array.new_float(2, 0.0)
+
+// F5
+var int[] cntN5 = array.new_int(predBinsN, 0)
+var int[] upN5  = array.new_int(predBinsN, 0)
+var int[] cnt15 = array.new_int(predBins1, 0)
+var int[] up15  = array.new_int(predBins1, 0)
+// F5 Queues
+var int[]   qBinN5 = array.new_int()
+var int[]   qBin15 = array.new_int()
+var float[] qEntry5 = array.new_float()
+var float[] qAtr5   = array.new_float()
+var float[] qMaxH5  = array.new_float()
+var float[] qMinL5  = array.new_float()
+var int[]   qAge5   = array.new_int()
+var float[] qProbN5 = array.new_float()
+var float[] qProb15 = array.new_float()
+var float[] brierStatsN5 = array.new_float(2, 0.0)
+var float[] brierStats15 = array.new_float(2, 0.0)
+
+// F6
+var int[] cntN6 = array.new_int(predBinsN, 0)
+var int[] upN6  = array.new_int(predBinsN, 0)
+var int[] cnt16 = array.new_int(predBins1, 0)
+var int[] up16  = array.new_int(predBins1, 0)
+// F6 Queues
+var int[]   qBinN6 = array.new_int()
+var int[]   qBin16 = array.new_int()
+var float[] qEntry6 = array.new_float()
+var float[] qAtr6   = array.new_float()
+var float[] qMaxH6  = array.new_float()
+var float[] qMinL6  = array.new_float()
+var int[]   qAge6   = array.new_int()
+var float[] qProbN6 = array.new_float()
+var float[] qProb16 = array.new_float()
+var float[] brierStatsN6 = array.new_float(2, 0.0)
+var float[] brierStats16 = array.new_float(2, 0.0)
+
+// F7
+var int[] cntN7 = array.new_int(predBinsN, 0)
+var int[] upN7  = array.new_int(predBinsN, 0)
+var int[] cnt17 = array.new_int(predBins1, 0)
+var int[] up17  = array.new_int(predBins1, 0)
+// F7 Queues
+var int[]   qBinN7 = array.new_int()
+var int[]   qBin17 = array.new_int()
+var float[] qEntry7 = array.new_float()
+var float[] qAtr7   = array.new_float()
+var float[] qMaxH7  = array.new_float()
+var float[] qMinL7  = array.new_float()
+var int[]   qAge7   = array.new_int()
+var float[] qProbN7 = array.new_float()
+var float[] qProb17 = array.new_float()
+var float[] brierStatsN7 = array.new_float(2, 0.0)
+var float[] brierStats17 = array.new_float(2, 0.0)
+
+//====================
 // Table colors (navy + soft-blue frame)
 //====================
 tblBg      = color.new(color.rgb(12, 20, 35), 0)
@@ -705,7 +843,38 @@ var int lastSignalBar = na
 var string lastSig = "—"
 
 cooldownOk   = na(lastSignalBar) ? true : (bar_index - lastSignalBar > cooldownBars)
-allowEntry   = barstate.isconfirmed and cooldownOk and not blockNearClose
+
+f_getBrier(tfSel, modSel) =>
+    float score = 0.5 // default safe
+    
+    // Select array pair stats
+    float[] stats = na
+    if tfSel == "F1"
+        stats := (modSel == "N") ? brierStatsN1 : brierStats11
+    else if tfSel == "F2"
+        stats := (modSel == "N") ? brierStatsN2 : brierStats12
+    else if tfSel == "F3"
+        stats := (modSel == "N") ? brierStatsN3 : brierStats13
+    else if tfSel == "F4"
+        stats := (modSel == "N") ? brierStatsN4 : brierStats14
+    else if tfSel == "F5"
+        stats := (modSel == "N") ? brierStatsN5 : brierStats15
+    else if tfSel == "F6"
+        stats := (modSel == "N") ? brierStatsN6 : brierStats16
+    else if tfSel == "F7"
+        stats := (modSel == "N") ? brierStatsN7 : brierStats17
+    
+    if not na(stats)
+        s = array.get(stats, 0)
+        c = array.get(stats, 1)
+        if c > 0
+            score := s / c
+    score
+
+curBrier = f_getBrier(relFilterTF, relFilterModel)
+reliabilityOk = (not useRelFilter) or (curBrier <= maxBrier)
+
+allowEntry   = barstate.isconfirmed and cooldownOk and not blockNearClose and reliabilityOk
 allowExit    = barstate.isconfirmed
 
 buySignal   = false
@@ -829,133 +998,9 @@ outSym(score) => score > 0.05 ? "▲" : score < -0.05 ? "▼" : "−"
 outCol(score) => score > 0.05 ? color.lime : score < -0.05 ? color.red : tblText
 
 //====================
-// Calibration storage — per horizon TF
+// Calibration storage — per horizon TF (Removed - moved to top)
 //====================
-// F1
-var int[] cntN1 = array.new_int(predBinsN, 0)
-var int[] upN1  = array.new_int(predBinsN, 0)
-var int[] cnt11 = array.new_int(predBins1, 0)
-var int[] up11  = array.new_int(predBins1, 0)
-// F1 Queues
-var int[]   qBinN1 = array.new_int()
-var int[]   qBin11 = array.new_int()
-var float[] qEntry1 = array.new_float()
-var float[] qAtr1   = array.new_float()
-var float[] qMaxH1  = array.new_float()
-var float[] qMinL1  = array.new_float()
-var int[]   qAge1   = array.new_int()
-var float[] qProbN1 = array.new_float()
-var float[] qProb11 = array.new_float()
-var float[] brierStatsN1 = array.new_float(2, 0.0) // [0]=sum, [1]=cnt
-var float[] brierStats11 = array.new_float(2, 0.0)
-
-// F2
-var int[] cntN2 = array.new_int(predBinsN, 0)
-var int[] upN2  = array.new_int(predBinsN, 0)
-var int[] cnt12 = array.new_int(predBins1, 0)
-var int[] up12  = array.new_int(predBins1, 0)
-// F2 Queues
-var int[]   qBinN2 = array.new_int()
-var int[]   qBin12 = array.new_int()
-var float[] qEntry2 = array.new_float()
-var float[] qAtr2   = array.new_float()
-var float[] qMaxH2  = array.new_float()
-var float[] qMinL2  = array.new_float()
-var int[]   qAge2   = array.new_int()
-var float[] qProbN2 = array.new_float()
-var float[] qProb12 = array.new_float()
-var float[] brierStatsN2 = array.new_float(2, 0.0)
-var float[] brierStats12 = array.new_float(2, 0.0)
-
-// F3
-var int[] cntN3 = array.new_int(predBinsN, 0)
-var int[] upN3  = array.new_int(predBinsN, 0)
-var int[] cnt13 = array.new_int(predBins1, 0)
-var int[] up13  = array.new_int(predBins1, 0)
-// F3 Queues
-var int[]   qBinN3 = array.new_int()
-var int[]   qBin13 = array.new_int()
-var float[] qEntry3 = array.new_float()
-var float[] qAtr3   = array.new_float()
-var float[] qMaxH3  = array.new_float()
-var float[] qMinL3  = array.new_float()
-var int[]   qAge3   = array.new_int()
-var float[] qProbN3 = array.new_float()
-var float[] qProb13 = array.new_float()
-var float[] brierStatsN3 = array.new_float(2, 0.0)
-var float[] brierStats13 = array.new_float(2, 0.0)
-
-// F4
-var int[] cntN4 = array.new_int(predBinsN, 0)
-var int[] upN4  = array.new_int(predBinsN, 0)
-var int[] cnt14 = array.new_int(predBins1, 0)
-var int[] up14  = array.new_int(predBins1, 0)
-// F4 Queues
-var int[]   qBinN4 = array.new_int()
-var int[]   qBin14 = array.new_int()
-var float[] qEntry4 = array.new_float()
-var float[] qAtr4   = array.new_float()
-var float[] qMaxH4  = array.new_float()
-var float[] qMinL4  = array.new_float()
-var int[]   qAge4   = array.new_int()
-var float[] qProbN4 = array.new_float()
-var float[] qProb14 = array.new_float()
-var float[] brierStatsN4 = array.new_float(2, 0.0)
-var float[] brierStats14 = array.new_float(2, 0.0)
-
-// F5
-var int[] cntN5 = array.new_int(predBinsN, 0)
-var int[] upN5  = array.new_int(predBinsN, 0)
-var int[] cnt15 = array.new_int(predBins1, 0)
-var int[] up15  = array.new_int(predBins1, 0)
-// F5 Queues
-var int[]   qBinN5 = array.new_int()
-var int[]   qBin15 = array.new_int()
-var float[] qEntry5 = array.new_float()
-var float[] qAtr5   = array.new_float()
-var float[] qMaxH5  = array.new_float()
-var float[] qMinL5  = array.new_float()
-var int[]   qAge5   = array.new_int()
-var float[] qProbN5 = array.new_float()
-var float[] qProb15 = array.new_float()
-var float[] brierStatsN5 = array.new_float(2, 0.0)
-var float[] brierStats15 = array.new_float(2, 0.0)
-
-// F6
-var int[] cntN6 = array.new_int(predBinsN, 0)
-var int[] upN6  = array.new_int(predBinsN, 0)
-var int[] cnt16 = array.new_int(predBins1, 0)
-var int[] up16  = array.new_int(predBins1, 0)
-// F6 Queues
-var int[]   qBinN6 = array.new_int()
-var int[]   qBin16 = array.new_int()
-var float[] qEntry6 = array.new_float()
-var float[] qAtr6   = array.new_float()
-var float[] qMaxH6  = array.new_float()
-var float[] qMinL6  = array.new_float()
-var int[]   qAge6   = array.new_int()
-var float[] qProbN6 = array.new_float()
-var float[] qProb16 = array.new_float()
-var float[] brierStatsN6 = array.new_float(2, 0.0)
-var float[] brierStats16 = array.new_float(2, 0.0)
-
-// F7
-var int[] cntN7 = array.new_int(predBinsN, 0)
-var int[] upN7  = array.new_int(predBinsN, 0)
-var int[] cnt17 = array.new_int(predBins1, 0)
-var int[] up17  = array.new_int(predBins1, 0)
-// F7 Queues
-var int[]   qBinN7 = array.new_int()
-var int[]   qBin17 = array.new_int()
-var float[] qEntry7 = array.new_float()
-var float[] qAtr7   = array.new_float()
-var float[] qMaxH7  = array.new_float()
-var float[] qMinL7  = array.new_float()
-var int[]   qAge7   = array.new_int()
-var float[] qProbN7 = array.new_float()
-var float[] qProb17 = array.new_float()
-var float[] brierStatsN7 = array.new_float(2, 0.0)
-var float[] brierStats17 = array.new_float(2, 0.0)
+// (Moved to top level state)
 
 //====================
 // Reset handling (rising edge) — per horizon F1..F7
