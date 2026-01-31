@@ -149,5 +149,28 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertNotRegex(self.text, bad_pattern, 
             "Found (1) array with incorrect 1D sizing - will cause array bounds error with f_bin2D")
 
+    def test_ut_bot_overlay_presence(self):
+        # Inputs
+        self.assertIn("grpUt       = \"UT Bot Verification\"", self.text)
+        self.assertIn("utShow      = input.bool(false, \"Show UT Bot Overlay\"", self.text)
+        self.assertIn("utKey       = input.float(1.0, \"Key Value\"", self.text)
+        self.assertIn("utAtrPeriod = input.int(10, \"ATR Period\"", self.text)
+        self.assertIn("utUseHA     = input.bool(false, \"Use Heikin Ashi\"", self.text)
+
+        # Core logic markers
+        self.assertIn("utSrc = utUseHA ? request.security(ticker.heikinashi", self.text)
+        self.assertIn("utXATR = ta.atr(utAtrPeriod)", self.text)
+        self.assertIn("utNLoss = utKey * utXATR", self.text)
+        self.assertIn("utXATRTrailingStop", self.text)
+        self.assertIn("utBuy  = utSrc > utXATRTrailingStop and utAbove", self.text)
+        self.assertIn("utSell = utSrc < utXATRTrailingStop and utBelow", self.text)
+
+        # Visuals and alerts
+        self.assertIn("plotshape(utShow and utBuy", self.text)
+        self.assertIn("plotshape(utShow and utSell", self.text)
+        self.assertIn("barcolor(utShow and utBarBuy", self.text)
+        self.assertIn("alertcondition(utBuy,  \"UT Bot Long\"", self.text)
+        self.assertIn("alertcondition(utSell, \"UT Bot Short\"", self.text)
+
 if __name__ == "__main__":
     unittest.main()
