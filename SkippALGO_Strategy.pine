@@ -1,0 +1,1273 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+strategy("SkippALGO Strategy (Tuning)", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
+
+//====================
+// Inputs — Core / Engine
+//====================
+config = input.string("V2 Alpha", "Configuration", options=["Standard", "Pro", "V2 Essential", "V2 Proficient", "V2 Alpha"])
+
+// Signal engine
+engine       = input.string("Trend+Pullback", "Signal engine", options=["Trend+Pullback", "Loose", "TRIG (legacy)"])
+enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
+cooldownBars = input.int(6, "Cooldown bars", minval=0)
+minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
+
+// MTF use (filter / regime)
+useMtfConfirm = input.bool(true, "MTF confirmation")
+mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"])
+tfShort1      = input.timeframe("5", "Short TF 1")
+tfShort2      = input.timeframe("15", "Short TF 2")
+tfShort3      = input.timeframe("30", "Short TF 3")
+tfMedium1     = input.timeframe("60", "Medium TF 1")
+tfMedium2     = input.timeframe("240", "Medium TF 2")
+tfMedium3     = input.timeframe("D", "Medium TF 3")
+tfLong1       = input.timeframe("D", "Long TF 1")
+tfLong2       = input.timeframe("5D", "Long TF 2")
+tfLong3       = input.timeframe("10D", "Long TF 3")
+
+// Forecast horizons (table rows)
+tfF1 = input.timeframe("1",   "Forecast 1")   // 1M
+tfF2 = input.timeframe("5",   "Forecast 2")   // 5M
+tfF3 = input.timeframe("15",  "Forecast 3")   // 15M
+tfF4 = input.timeframe("30",  "Forecast 4")   // 30M
+tfF5 = input.timeframe("60",  "Forecast 5")   // 1H
+tfF6 = input.timeframe("240", "Forecast 6")   // 4H
+tfF7 = input.timeframe("D",   "Forecast 7")   // 1D
+
+// Trust-score weighting
+trustWAccuracy  = input.float(0.40, "Trust weight: accuracy", minval=0.0, step=0.05)
+trustWRegime    = input.float(0.30, "Trust weight: regime", minval=0.0, step=0.05)
+trustWGuardrail = input.float(0.20, "Trust weight: guardrails", minval=0.0, step=0.05)
+trustWData      = input.float(0.10, "Trust weight: data quality", minval=0.0, step=0.05)
+trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, step=0.05)
+
+penaltyGuardrail  = input.float(0.20, "Penalty per guardrail flag", minval=0.0, step=0.05)
+penaltyRegimeHigh = input.float(0.20, "Penalty: high-vol regime", minval=0.0, step=0.05)
+penaltyRegimeMed  = input.float(0.10, "Penalty: medium-vol regime", minval=0.0, step=0.05)
+
+volRankMed  = input.float(0.60, "Regime threshold: vol medium", minval=0.0, maxval=1.0, step=0.05)
+volRankHigh = input.float(0.80, "Regime threshold: vol high", minval=0.0, maxval=1.0, step=0.05)
+
+gapShockPct   = input.float(0.0125, "Guardrail: gap shock %", minval=0.0, step=0.0025)
+rangeShockPct = input.float(0.05,   "Guardrail: range shock %", minval=0.0, step=0.01)
+
+// Macro context
+macroPctLen         = input.int(252, "Macro pct-rank lookback", minval=20)
+macroPctLenIntraday = input.int(200, "Macro pct-rank intraday fallback", minval=20)
+macroGateMode       = input.string("Trust", "Macro context mode", options=["Off", "Trust", "Hard Gate"])
+macroLongPctThreshold  = input.float(0.35, "Macro LONG threshold (pct rank)",  minval=0.0, maxval=1.0, step=0.05)
+macroShortPctThreshold = input.float(0.65, "Macro SHORT threshold (pct rank)", minval=0.0, maxval=1.0, step=0.05)
+
+// Drawdown-aware haircut
+ddLookback     = input.int(120, "Drawdown lookback", minval=20)
+ddMild         = input.float(0.10, "Drawdown mild (abs)", minval=0.05, step=0.05)
+ddSevere       = input.float(0.30, "Drawdown severe (abs)", minval=0.10, step=0.05)
+ddTrustPenalty = input.float(0.20, "Drawdown trust penalty", minval=0.0, maxval=1.0, step=0.05)
+ddHardGate     = input.float(0.45, "Drawdown hard gate (abs)", minval=0.0, maxval=0.9, step=0.05)
+
+// Core lengths (trend)
+emaFastLen = input.int(21, "EMA fast", minval=1)
+emaSlowLen = input.int(55, "EMA slow", minval=1)
+atrLen     = input.int(14, "ATR length", minval=1)
+volRankLen = input.int(100,"Volatility rank lookback", minval=20)
+
+// Confidence momentum: Adaptive RSI + hysteresis (Trend-Continuation friendly)
+useAdaptiveRsi = input.bool(true, "Adaptive RSI length by TF (confidence)")
+rsiLenFastTF   = input.int(7,  "RSI len (<=5m)", minval=2)
+rsiLenMidTF    = input.int(9,  "RSI len (<=1h)", minval=2)
+rsiLenSlowTF   = input.int(14, "RSI len (>1h)",  minval=2)
+
+rsiLongOn   = input.float(55.0, "RSI long ON",  minval=0.0, maxval=100.0, step=0.5)
+rsiLongOff  = input.float(50.0, "RSI long OFF", minval=0.0, maxval=100.0, step=0.5)
+rsiShortOn  = input.float(45.0, "RSI short ON",  minval=0.0, maxval=100.0, step=0.5)
+rsiShortOff = input.float(50.0, "RSI short OFF", minval=0.0, maxval=100.0, step=0.5)
+
+// Outlook/MTF RSI length (stable)
+rsiStateLen = input.int(14, "State/MTF RSI length", minval=2)
+
+// Connors RSI (3,2,100) used as confidence factor
+useCrsiFactor      = input.bool(true, "CRSI factor on confidence")
+crsiRsiLen         = input.int(3,   "CRSI: RSI len", minval=2)
+crsiStreakRsiLen   = input.int(2,   "CRSI: Streak RSI len", minval=2)
+crsiRankLen        = input.int(100, "CRSI: Rank len", minval=20)
+
+crsiLongGoodLo     = input.float(15.0, "CRSI LONG good (lo)", minval=0.0, maxval=100.0, step=1.0)
+crsiLongGoodHi     = input.float(55.0, "CRSI LONG good (hi)", minval=0.0, maxval=100.0, step=1.0)
+crsiLongGoodMult   = input.float(1.10, "CRSI LONG good mult", minval=0.50, maxval=1.50, step=0.01)
+crsiLongOver       = input.float(80.0, "CRSI LONG over", minval=0.0, maxval=100.0, step=1.0)
+crsiLongOverMult   = input.float(0.85, "CRSI LONG over mult", minval=0.50, maxval=1.50, step=0.01)
+crsiLongPanic      = input.float(10.0, "CRSI LONG panic", minval=0.0, maxval=100.0, step=1.0)
+crsiLongPanicMult  = input.float(0.90, "CRSI LONG panic mult", minval=0.50, maxval=1.50, step=0.01)
+
+crsiShortGoodLo      = input.float(45.0, "CRSI SHORT good (lo)", minval=0.0, maxval=100.0, step=1.0)
+crsiShortGoodHi      = input.float(85.0, "CRSI SHORT good (hi)", minval=0.0, maxval=100.0, step=1.0)
+crsiShortGoodMult    = input.float(1.10, "CRSI SHORT good mult", minval=0.50, maxval=1.50, step=0.01)
+crsiShortExhaust     = input.float(20.0, "CRSI SHORT exhaust", minval=0.0, maxval=100.0, step=1.0)
+crsiShortExhaustMult = input.float(0.85, "CRSI SHORT exhaust mult", minval=0.50, maxval=1.50, step=0.01)
+crsiShortOver        = input.float(90.0, "CRSI SHORT over", minval=0.0, maxval=100.0, step=1.0)
+crsiShortOverMult    = input.float(0.90, "CRSI SHORT over mult", minval=0.50, maxval=1.50, step=0.01)
+
+// Zones
+showZones  = input.bool(true, "Show zones")
+zoneAnchor = input.string("EMA Slow", "Zone anchor", options=["Entry", "EMA Fast", "EMA Slow", "VWAP", "MA200"])
+zoneMode   = input.string("Pullback", "Zone mode", options=["Pullback", "Symmetric"])
+zoneNeutralMult      = input.float(0.8, "Neutral zone ATR mult", minval=0.1, step=0.1)
+zoneAggressiveMult1  = input.float(1.6, "Aggressive zone ATR mult 1", minval=0.2, step=0.1)
+zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4, step=0.1)
+
+// Visual controls
+showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
+showSetMarkers   = input.bool(true, "Show SET markers")
+showTable        = input.bool(true, "Show Outlook/Forecast table")
+
+// Avoid entries right before close
+useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close")
+rthCloseHour      = input.int(16, "RTH close hour (exchange tz)", minval=0, maxval=23)
+rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
+avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
+
+//====================
+// Inputs — Forecast Calibration Enhancements
+//====================
+enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
+
+// Forecast value display
+fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
+
+fcTarget = input.string("PathTPvsSL", "Forecast target",
+    options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"])
+
+kBars = input.int(3, "k bars ahead (KBar*)", minval=1, maxval=20)
+
+atrTargetLen = input.int(14, "ATR len (forecast targets)", minval=2)
+atrThr = input.float(0.25, "ATR threshold (KBarATR)", step=0.05)
+
+pathH = input.int(6, "Path horizon H bars (PathTPvsSL)", minval=1, maxval=50)
+tpATR = input.float(0.50, "TP (ATR)", step=0.05)
+slATR = input.float(0.30, "SL (ATR)", step=0.05)
+noHitPolicy = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"])
+pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"])
+
+predBinsN = input.int(3, "Pred bins (N) stable", minval=2, maxval=9)
+predBins1 = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3)
+
+alphaN = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1)
+alpha1 = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1)
+kShrink = input.int(5, "Base Rate Shrinkage k", minval=0, maxval=1000, tooltip="Higher = pull bin probability closer to global TF average")
+
+calMinSamples = input.int(40, "Min samples per bin (activate)", minval=5, maxval=1000)
+
+predUpThr = input.float(0.55, "Pred up threshold", minval=0.50, maxval=0.80, step=0.01)
+predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, step=0.01)
+
+// Per-horizon reset control
+resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7"])
+resetNow   = input.bool(false, "Reset selected calibration NOW")
+
+//====================
+// Inputs — Forecast Filtering (Accuracy-based)
+//====================
+useRelFilter = input.bool(false, "Filter entries by Forecast Accuracy")
+maxBrier     = input.float(0.25, "Max Brier Score (lower=better)", minval=0.01, step=0.01)
+relFilterTF  = input.string("F6", "Filter Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], tooltip="Check accuracy of this forecast timeframe")
+relFilterModel = input.string("N", "Filter Model", options=["N", "1"], tooltip="N=Multi-factor, 1=Single-factor")
+
+//====================
+// Calibration storage — per horizon TF (Global State)
+//====================
+// F1
+var int[] cntN1 = array.new_int(predBinsN, 0)
+var int[] upN1  = array.new_int(predBinsN, 0)
+var int[] cnt11 = array.new_int(predBins1, 0)
+var int[] up11  = array.new_int(predBins1, 0)
+// F1 Queues
+// Queues here store trade state at entry time
+var int[]   qBinN1 = array.new_int()
+var int[]   qBin11 = array.new_int()
+var float[] qEntry1 = array.new_float()
+var float[] qAtr1   = array.new_float()
+var float[] qMaxH1  = array.new_float()
+var float[] qMinL1  = array.new_float()
+var int[]   qAge1   = array.new_int()
+var float[] qProbN1 = array.new_float()
+var float[] qProb11 = array.new_float()
+var float[] brierStatsN1 = array.new_float(2, 0.0) // [0]=sum, [1]=cnt
+var float[] brierStats11 = array.new_float(2, 0.0)
+
+// F2
+var int[] cntN2 = array.new_int(predBinsN, 0)
+var int[] upN2  = array.new_int(predBinsN, 0)
+var int[] cnt12 = array.new_int(predBins1, 0)
+var int[] up12  = array.new_int(predBins1, 0)
+// F2 Queues
+var int[]   qBinN2 = array.new_int()
+var int[]   qBin12 = array.new_int()
+var float[] qEntry2 = array.new_float()
+var float[] qAtr2   = array.new_float()
+var float[] qMaxH2  = array.new_float()
+var float[] qMinL2  = array.new_float()
+var int[]   qAge2   = array.new_int()
+var float[] qProbN2 = array.new_float()
+var float[] qProb12 = array.new_float()
+var float[] brierStatsN2 = array.new_float(2, 0.0)
+var float[] brierStats12 = array.new_float(2, 0.0)
+
+// F3
+var int[] cntN3 = array.new_int(predBinsN, 0)
+var int[] upN3  = array.new_int(predBinsN, 0)
+var int[] cnt13 = array.new_int(predBins1, 0)
+var int[] up13  = array.new_int(predBins1, 0)
+// F3 Queues
+var int[]   qBinN3 = array.new_int()
+var int[]   qBin13 = array.new_int()
+var float[] qEntry3 = array.new_float()
+var float[] qAtr3   = array.new_float()
+var float[] qMaxH3  = array.new_float()
+var float[] qMinL3  = array.new_float()
+var int[]   qAge3   = array.new_int()
+var float[] qProbN3 = array.new_float()
+var float[] qProb13 = array.new_float()
+var float[] brierStatsN3 = array.new_float(2, 0.0)
+var float[] brierStats13 = array.new_float(2, 0.0)
+
+// F4
+var int[] cntN4 = array.new_int(predBinsN, 0)
+var int[] upN4  = array.new_int(predBinsN, 0)
+var int[] cnt14 = array.new_int(predBins1, 0)
+var int[] up14  = array.new_int(predBins1, 0)
+// F4 Queues
+var int[]   qBinN4 = array.new_int()
+var int[]   qBin14 = array.new_int()
+var float[] qEntry4 = array.new_float()
+var float[] qAtr4   = array.new_float()
+var float[] qMaxH4  = array.new_float()
+var float[] qMinL4  = array.new_float()
+var int[]   qAge4   = array.new_int()
+var float[] qProbN4 = array.new_float()
+var float[] qProb14 = array.new_float()
+var float[] brierStatsN4 = array.new_float(2, 0.0)
+var float[] brierStats14 = array.new_float(2, 0.0)
+
+// F5
+var int[] cntN5 = array.new_int(predBinsN, 0)
+var int[] upN5  = array.new_int(predBinsN, 0)
+var int[] cnt15 = array.new_int(predBins1, 0)
+var int[] up15  = array.new_int(predBins1, 0)
+// F5 Queues
+var int[]   qBinN5 = array.new_int()
+var int[]   qBin15 = array.new_int()
+var float[] qEntry5 = array.new_float()
+var float[] qAtr5   = array.new_float()
+var float[] qMaxH5  = array.new_float()
+var float[] qMinL5  = array.new_float()
+var int[]   qAge5   = array.new_int()
+var float[] qProbN5 = array.new_float()
+var float[] qProb15 = array.new_float()
+var float[] brierStatsN5 = array.new_float(2, 0.0)
+var float[] brierStats15 = array.new_float(2, 0.0)
+
+// F6
+var int[] cntN6 = array.new_int(predBinsN, 0)
+var int[] upN6  = array.new_int(predBinsN, 0)
+var int[] cnt16 = array.new_int(predBins1, 0)
+var int[] up16  = array.new_int(predBins1, 0)
+// F6 Queues
+var int[]   qBinN6 = array.new_int()
+var int[]   qBin16 = array.new_int()
+var float[] qEntry6 = array.new_float()
+var float[] qAtr6   = array.new_float()
+var float[] qMaxH6  = array.new_float()
+var float[] qMinL6  = array.new_float()
+var int[]   qAge6   = array.new_int()
+var float[] qProbN6 = array.new_float()
+var float[] qProb16 = array.new_float()
+var float[] brierStatsN6 = array.new_float(2, 0.0)
+var float[] brierStats16 = array.new_float(2, 0.0)
+
+// F7
+var int[] cntN7 = array.new_int(predBinsN, 0)
+var int[] upN7  = array.new_int(predBinsN, 0)
+var int[] cnt17 = array.new_int(predBins1, 0)
+var int[] up17  = array.new_int(predBins1, 0)
+// F7 Queues
+var int[]   qBinN7 = array.new_int()
+var int[]   qBin17 = array.new_int()
+var float[] qEntry7 = array.new_float()
+var float[] qAtr7   = array.new_float()
+var float[] qMaxH7  = array.new_float()
+var float[] qMinL7  = array.new_float()
+var int[]   qAge7   = array.new_int()
+var float[] qProbN7 = array.new_float()
+var float[] qProb17 = array.new_float()
+var float[] brierStatsN7 = array.new_float(2, 0.0)
+var float[] brierStats17 = array.new_float(2, 0.0)
+
+//====================
+// Table colors (navy + soft-blue frame)
+//====================
+tblBg      = color.new(color.rgb(12, 20, 35), 0)
+tblHeader  = color.new(color.rgb(12, 20, 35), 0)
+tblCell    = color.new(color.rgb(12, 20, 35), 0)
+tblFrame   = color.new(color.rgb(100, 130, 200), 50)
+tblText    = color.white
+tblTextDim = color.new(color.white, 25)
+tblTfColor = color.new(color.rgb(220, 220, 255), 0)
+
+//====================
+// Helpers
+//====================
+f_clamp01(x) =>
+    math.max(0.0, math.min(1.0, x))
+
+f_pct_rank(x, len) =>
+    lo = ta.lowest(x, len)
+    hi = ta.highest(x, len)
+    hi == lo ? 0.5 : (x - lo) / (hi - lo)
+
+f_tfLabel(tf) =>
+    tf == "1"   ? "1M"  : tf == "5"   ? "5M"  : tf == "15"  ? "15M" : tf == "30"  ? "30M" : tf == "60"  ? "1H"  : tf == "240" ? "4H"  : tf == "D"   ? "1D"  : tf
+
+f_confColor(val) =>
+    val > 0.70 ? color.lime : val <= 0.45 ? color.red : color.yellow
+
+f_fmtVol(v) =>
+    na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
+
+f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
+    trend = emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0
+    mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
+    loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
+    f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
+
+f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
+    t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
+    m = r_tf > 55 ? 1 : r_tf < 45 ? -1 : 0
+    l = c > emaS_tf ? 1 : c < emaS_tf ? -1 : 0
+    [t, m, l]
+
+f_tf_pack(tf) =>
+    request.security(
+        syminfo.tickerid,
+        tf,
+        [time, close, high, low,
+         ta.ema(close, emaFastLen),
+         ta.ema(close, emaSlowLen),
+         ta.rsi(close, rsiStateLen),
+         ta.atr(atrTargetLen)],
+        barmerge.gaps_off,
+        barmerge.lookahead_off
+    )
+
+f_score_tf(tf) =>
+    [c, ef, es, r] = request.security(
+            syminfo.tickerid,
+            tf,
+            [close,
+             ta.ema(close, emaFastLen),
+             ta.ema(close, emaSlowLen),
+             ta.rsi(close, rsiStateLen)],
+            barmerge.gaps_off,
+            barmerge.lookahead_off
+        )
+    f_state_score(c, ef, es, r)
+
+// Forecast binning / calibration
+f_bin(score, bins) =>
+    u = (score + 1.0) * 0.5
+    b = math.floor(u * bins)
+    b < 0 ? 0 : b > (bins - 1) ? (bins - 1) : b
+
+f_binArr(score, cntArr) =>
+    bins = array.size(cntArr)
+    f_bin(score, bins)
+
+f_binArr1(score, cntArr1) =>
+    bins = array.size(cntArr1)
+    bins == 2 ? (score > 0.0 ? 1 : 0) : f_bin(score, bins)
+
+f_prob(up, n, alpha) =>
+    (up + alpha) / (n + 2.0 * alpha)
+
+f_cal_update(cntArr, upArr, bin, isUp) =>
+    n0 = array.get(cntArr, bin)
+    u0 = array.get(upArr,  bin)
+    array.set(cntArr, bin, n0 + 1)
+    array.set(upArr,  bin, u0 + (isUp ? 1 : 0))
+
+f_cal_cur(cntArr, upArr, bin, alpha, shrinkK) =>
+    // Bin raw
+    n = array.get(cntArr, bin)
+    u = array.get(upArr,  bin)
+    pBin = n == 0 ? 0.5 : f_prob(u, n, alpha)
+
+    // Base rate (pooling)
+    nBase = array.sum(cntArr)
+    uBase = array.sum(upArr)
+    pBase = nBase == 0 ? 0.5 : f_prob(uBase, nBase, alpha)
+
+    // Shrinkage
+    w = (shrinkK <= 0) ? 1.0 : (n / (n + shrinkK + 0.0))
+    pFinal = w * pBin + (1.0 - w) * pBase
+    [pFinal, n]
+
+f_predSymbolP(pUp, n, canCal) =>
+    not canCal ? "—" : n < calMinSamples ? "…" : pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
+
+f_predColorP(pUp, n, canCal, neutralCol) =>
+    not canCal ? color.new(color.white, 70) : n < calMinSamples ? color.new(color.white, 60) : pUp > predUpThr ? color.lime : pUp < predDnThr ? color.red : neutralCol
+
+f_pupText(pUp, n, canCal) =>
+    if not canCal
+        "OFF"
+    else if n == 0
+        "—"
+    else if n < calMinSamples
+        "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples)
+    else
+        if fcDisplay == "Edge pp (N)"
+            edge = (pUp - 0.5) * 100.0
+            sign = edge > 0 ? "+" : ""
+            // example: +2.3pp (203)
+            sign + str.tostring(edge, "#.0") + "pp (" + str.tostring(n) + ")"
+        else
+            // example: Up 49.8% (203)
+            "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
+
+f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge, qProbN, qProb1, brierStatsN, brierStats1) =>
+    for i = 0 to array.size(cntN) - 1
+        array.set(cntN, i, 0)
+        array.set(upN,  i, 0)
+    for j = 0 to array.size(cnt1) - 1
+        array.set(cnt1, j, 0)
+        array.set(up1,  j, 0)
+
+    array.clear(qBinN)
+    array.clear(qBin1)
+    array.clear(qEntry)
+    array.clear(qAtr)
+    array.clear(qMaxH)
+    array.clear(qMinL)
+    array.clear(qAge)
+    
+    // Brier tracking clear
+    array.clear(qProbN)
+    array.clear(qProb1)
+    // Indexes: 0=sumSqErr, 1=count
+    array.set(brierStatsN, 0, 0.0)
+    array.set(brierStatsN, 1, 0.0)
+    array.set(brierStats1, 0, 0.0)
+    array.set(brierStats1, 1, 0.0)
+
+// Process one TF calibration step (updates on new TF bar)
+f_process_tf(newTfBar, scoreNow, entryNow, atrNow, hNow, lNow, cNow,
+             cntN, upN, cnt1, up1,
+             qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge,
+             qProbN, qProb1, brierStatsN, brierStats1,
+             alphaNVal, alpha1Val, shrinkKVal) =>
+
+    if newTfBar
+        // 1) Age/extremes update for pending items
+        sz = array.size(qAge)
+        if sz > 0
+            for i = 0 to sz - 1
+                age = array.get(qAge, i) + 1
+                array.set(qAge, i, age)
+                mh = math.max(array.get(qMaxH, i), hNow)
+                ml = math.min(array.get(qMinL, i), lNow)
+                array.set(qMaxH, i, mh)
+                array.set(qMinL, i, ml)
+
+        // 2) Resolve items (descending while loop => safe with removals)
+        i = array.size(qAge) - 1
+        while i >= 0
+            age_i   = array.get(qAge,   i)
+            entry_i = array.get(qEntry, i)
+            atr_i   = array.get(qAtr,   i)
+            mh_i    = array.get(qMaxH,  i)
+            ml_i    = array.get(qMinL,  i)
+            bN_i    = array.get(qBinN,  i)
+            b1_i    = array.get(qBin1,  i)
+
+            // Brier probabilities stored at entry time
+            probN_i = array.get(qProbN, i)
+            prob1_i = array.get(qProb1, i)
+
+            resolved = false
+            doUpdate = false
+            isUp     = false
+
+            if fcTarget == "NextBar"
+                if age_i >= 1
+                    resolved := true
+                    doUpdate := true
+                    isUp     := cNow > entry_i
+
+            else if fcTarget == "KBarReturn"
+                if age_i >= kBars
+                    resolved := true
+                    doUpdate := true
+                    isUp     := cNow > entry_i
+
+            else if fcTarget == "KBarATR"
+                if age_i >= kBars
+                    resolved := true
+                    doUpdate := true
+                    denom = (na(atr_i) or atr_i == 0.0) ? 1.0 : atr_i
+                    retATR = (cNow - entry_i) / denom
+                    isUp := retATR >= atrThr
+
+            else
+                tpPx = entry_i + tpATR * atr_i
+                slPx = entry_i - slATR * atr_i
+                winHit  = mh_i >= tpPx
+                lossHit = ml_i <= slPx
+
+                if winHit or lossHit
+                    resolved := true
+                    doUpdate := true
+                    if winHit and lossHit
+                        if pathTiePolicy == "Win"
+                            isUp := true
+                        else if pathTiePolicy == "Neutral"
+                            doUpdate := false
+                        else
+                            isUp := false
+                    else
+                        isUp := winHit and not lossHit
+
+                else if age_i >= pathH
+                    resolved := true
+                    if noHitPolicy == "Loss"
+                        doUpdate := true
+                        isUp := false
+                    else
+                        doUpdate := false
+
+            if resolved
+                if doUpdate
+                    f_cal_update(cntN, upN, bN_i, isUp)
+                    f_cal_update(cnt1, up1, b1_i, isUp)
+                    
+                    // Track Brier score 
+                    outcomeVal = isUp ? 1.0 : 0.0
+                    
+                    // N
+                    sqErrN = math.pow(outcomeVal - probN_i, 2)
+                    curSumN = array.get(brierStatsN, 0)
+                    curCntN = array.get(brierStatsN, 1)
+                    array.set(brierStatsN, 0, curSumN + sqErrN)
+                    array.set(brierStatsN, 1, curCntN + 1.0)
+                    
+                    // 1
+                    sqErr1 = math.pow(outcomeVal - prob1_i, 2)
+                    curSum1 = array.get(brierStats1, 0)
+                    curCnt1 = array.get(brierStats1, 1)
+                    array.set(brierStats1, 0, curSum1 + sqErr1)
+                    array.set(brierStats1, 1, curCnt1 + 1.0)
+
+                array.remove(qAge,   i)
+                array.remove(qMaxH,  i)
+                array.remove(qMinL,  i)
+                array.remove(qAtr,   i)
+                array.remove(qEntry, i)
+                array.remove(qBinN,  i)
+                array.remove(qBin1,  i)
+                array.remove(qProbN, i)
+                array.remove(qProb1, i)
+
+            i -= 1
+
+        // 3) Push new pending item
+        bN = f_binArr(scoreNow, cntN)
+        b1 = f_binArr1(scoreNow, cnt1)
+
+        // Capture current probabilities (Phase 1 Brier logic)
+        [pNowN, _nN] = f_cal_cur(cntN, upN, bN, alphaNVal, shrinkKVal)
+        [pNow1, _n1] = f_cal_cur(cnt1, up1, b1, alpha1Val, shrinkKVal)
+
+        array.push(qBinN,  bN)
+        array.push(qBin1,  b1)
+        array.push(qEntry, entryNow)
+        array.push(qAtr,   atrNow)
+
+        array.push(qMaxH,  entryNow)
+        array.push(qMinL,  entryNow)
+
+        array.push(qAge,   0)
+        
+        // Store forecast at time 0
+        array.push(qProbN, pNowN)
+        array.push(qProb1, pNow1)
+
+//====================
+// Core indicators
+//====================
+emaF = ta.ema(close, emaFastLen)
+emaS = ta.ema(close, emaSlowLen)
+atr  = ta.atr(atrLen)
+
+// Adaptive RSI length (for confidence momentum only)
+baseSecs = timeframe.in_seconds(timeframe.period)
+rsiLenUse = useAdaptiveRsi ?
+     ((not na(baseSecs) and baseSecs <= timeframe.in_seconds("300"))  ? rsiLenFastTF :
+      (not na(baseSecs) and baseSecs <= timeframe.in_seconds("3600")) ? rsiLenMidTF  :
+                                                                        rsiLenSlowTF) :
+     rsiLenSlowTF
+rsiConf = ta.rsi(close, rsiLenUse)
+
+// Crosses (computed every bar)
+crossEmaF_EmaS_up   = ta.crossover(emaF, emaS)
+crossEmaF_EmaS_down = ta.crossunder(emaF, emaS)
+
+crossClose_EmaF_up   = ta.crossover(close, emaF)
+crossClose_EmaF_down = ta.crossunder(close, emaF)
+
+crossClose_EmaS_up   = ta.crossover(close, emaS)
+crossClose_EmaS_down = ta.crossunder(close, emaS)
+
+// Vol regime
+atrRank = f_pct_rank(atr / close, volRankLen)
+
+// Guardrails
+prevClose = close[1]
+gapPct    = (na(prevClose) or prevClose == 0.0) ? 0.0 : math.abs(open - prevClose) / prevClose
+rangePct  = close == 0.0 ? 0.0 : (high - low) / close
+volShock  = atrRank >= volRankHigh
+gapShock  = gapPct >= gapShockPct
+rangeShock= rangePct >= rangeShockPct
+guardrailCount = (volShock ? 1 : 0) + (gapShock ? 1 : 0) + (rangeShock ? 1 : 0)
+
+// Data quality proxy
+volAvail = not na(volume)
+volRankRaw = f_pct_rank(volume, volRankLen)
+dataQualityScore = volAvail ? volRankRaw : 0.5
+
+// Macro
+macroLen = timeframe.isintraday ? math.min(macroPctLen, macroPctLenIntraday) : macroPctLen
+macroPct = f_pct_rank(close, macroLen)
+macroScoreRaw = f_clamp01(1.0 - macroPct)
+macroScore = macroGateMode == "Off" ? 0.5 : macroScoreRaw
+macroGateLong  = macroGateMode == "Hard Gate" ? (not na(macroPct) and macroPct < macroLongPctThreshold)  : true
+macroGateShort = macroGateMode == "Hard Gate" ? (not na(macroPct) and macroPct > macroShortPctThreshold) : true
+
+// Drawdown
+ddPeak = ta.highest(close, ddLookback)
+dd     = ddPeak == 0.0 ? 0.0 : (close - ddPeak) / ddPeak
+ddAbs  = math.max(0.0, -dd)
+ddSeverity = f_clamp01((ddAbs - ddMild) / math.max(ddSevere - ddMild, 0.0001))
+ddPenalty  = ddTrustPenalty * ddSeverity
+ddHardGateHit = ddHardGate > 0.0 and ddAbs >= ddHardGate
+
+// Direction bias + confidence
+bullBias = emaF > emaS
+bearBias = emaF < emaS
+baseDir  = bullBias ? 1 : bearBias ? -1 : 0
+trustDir = baseDir == 0 ? 1 : baseDir
+
+// Momentum hysteresis state
+var bool momLongOnState  = false
+var bool momShortOnState = false
+var bool momStateInit    = false
+
+if not na(rsiConf)
+    if not momStateInit
+        momLongOnState  := rsiConf > 50.0
+        momShortOnState := rsiConf < 50.0
+        momStateInit    := true
+    else
+        if (not momLongOnState) and (rsiConf > rsiLongOn)
+            momLongOnState := true
+        else if momLongOnState and (rsiConf < rsiLongOff)
+            momLongOnState := false
+
+        if (not momShortOnState) and (rsiConf < rsiShortOn)
+            momShortOnState := true
+        else if momShortOnState and (rsiConf > rsiShortOff)
+            momShortOnState := false
+
+// Connors RSI
+var float streak = 0.0
+if na(close[1])
+    streak := 0.0
+else
+    if close > close[1]
+        streak := streak >= 0 ? streak + 1 : 1
+    else if close < close[1]
+        streak := streak <= 0 ? streak - 1 : -1
+    else
+        streak := 0.0
+
+chgClose = ta.change(close)  // global per-bar
+crsiRsiPart    = ta.rsi(close,  crsiRsiLen)
+crsiStreakPart = ta.rsi(streak, crsiStreakRsiLen)
+crsiRankPart   = f_pct_rank(chgClose, crsiRankLen) * 100.0
+crsi           = (crsiRsiPart + crsiStreakPart + crsiRankPart) / 3.0
+
+longFactor = crsi < crsiLongPanic ? crsiLongPanicMult : crsi > crsiLongOver  ? crsiLongOverMult  : (crsi >= crsiLongGoodLo and crsi <= crsiLongGoodHi) ? crsiLongGoodMult : 1.0
+
+shortFactor = crsi < crsiShortExhaust ? crsiShortExhaustMult : crsi > crsiShortOver    ? crsiShortOverMult    : (crsi >= crsiShortGoodLo and crsi <= crsiShortGoodHi) ? crsiShortGoodMult : 1.0
+
+crsiFactor = (not useCrsiFactor) ? 1.0 : (bullBias ? longFactor : bearBias ? shortFactor : 1.0)
+
+// Strength calc
+rsi7 = ta.rsi(close, 7)
+
+// Trust score
+f_trust_score(dir, guardrailCount_, volRank_, dataQualityScore_, macroScore_, momOkLong_, momOkShort_) =>
+    emaF_ = ta.ema(close, emaFastLen)
+    emaS_ = ta.ema(close, emaSlowLen)
+
+    trendOk = dir == 1 ? (emaF_ > emaS_ and close > emaS_) : (emaF_ < emaS_ and close < emaS_)
+    momOk   = dir == 1 ? momOkLong_ : momOkShort_
+
+    accuracyScore = (trendOk ? 0.6 : 0.0) + (momOk ? 0.4 : 0.0)
+
+    regimeScore     = volRank_ >= volRankHigh ? 0.4 : volRank_ >= volRankMed ? 0.7 : 1.0
+    guardrailScore  = f_clamp01(1.0 - (guardrailCount_ * penaltyGuardrail))
+
+    wSum = trustWAccuracy + trustWRegime + trustWGuardrail + trustWData + trustWMacro
+    wSum := wSum == 0.0 ? 1.0 : wSum
+
+    base = (
+        trustWAccuracy  * accuracyScore +
+        trustWRegime    * regimeScore +
+        trustWGuardrail * guardrailScore +
+        trustWData      * dataQualityScore_ +
+        trustWMacro     * macroScore_
+    ) / wSum
+
+    extraPenalty = volRank_ >= volRankHigh ? penaltyRegimeHigh : volRank_ >= volRankMed ? penaltyRegimeMed : 0.0
+    f_clamp01(base - extraPenalty)
+
+confMultiplier =
+     config == "Standard"      ? 1.00 :
+     config == "Pro"           ? 1.05 :
+     config == "V2 Essential"  ? 0.95 :
+     config == "V2 Proficient" ? 1.00 : 1.10
+
+trustRaw   = f_trust_score(trustDir, guardrailCount, atrRank, dataQualityScore, macroScore, momLongOnState, momShortOnState)
+confidence = f_clamp01(trustRaw * confMultiplier)
+confidence := f_clamp01(confidence * (1.0 - ddPenalty))
+confidence := f_clamp01(confidence * crsiFactor)
+
+//====================
+// MTF confirmation
+//====================
+mtfBaseSecs = timeframe.in_seconds(timeframe.period)
+autoSet  = (not na(mtfBaseSecs) and mtfBaseSecs <= timeframe.in_seconds("30"))  ? "Short" :
+           (not na(mtfBaseSecs) and mtfBaseSecs <= timeframe.in_seconds("240")) ? "Medium" : "Long"
+setUse   = mtfSet == "Auto" ? autoSet : mtfSet
+
+f_is_tf_higher_or_equal(tf) =>
+    base  = timeframe.in_seconds(timeframe.period)
+    other = timeframe.in_seconds(tf)
+    not na(base) and not na(other) and other >= base
+
+getVoteScore() =>
+    float sum = 0.0
+    float cnt = 0.0
+
+    tf1 = setUse == "Short" ? tfShort1 : setUse == "Medium" ? tfMedium1 : tfLong1
+    tf2 = setUse == "Short" ? tfShort2 : setUse == "Medium" ? tfMedium2 : tfLong2
+    tf3 = setUse == "Short" ? tfShort3 : setUse == "Medium" ? tfMedium3 : tfLong3
+
+    if f_is_tf_higher_or_equal(tf1)
+        sum += f_score_tf(tf1)
+        cnt += 1
+    if f_is_tf_higher_or_equal(tf2)
+        sum += f_score_tf(tf2)
+        cnt += 1
+    if f_is_tf_higher_or_equal(tf3)
+        sum += f_score_tf(tf3)
+        cnt += 1
+
+    cnt == 0 ? 0.0 : sum / cnt
+
+mtfScore   = useMtfConfirm ? getVoteScore() : 0.0
+mtfOkLong  = (not useMtfConfirm) or (mtfScore > 0.05)
+mtfOkShort = (not useMtfConfirm) or (mtfScore < -0.05)
+
+// Gate requires: Confidence Logic + MTF Vote + Macro + Drawdown
+gateLongNow  = (confidence >= minTrust) and mtfOkLong  and macroGateLong  and not ddHardGateHit
+gateShortNow = (confidence >= minTrust) and mtfOkShort and macroGateShort and not ddHardGateHit
+
+//====================
+// Close filter (avoid entries right before RTH close)
+//====================
+sessClose      = timestamp(syminfo.timezone, year, month, dayofmonth, rthCloseHour, rthCloseMinute)
+minsToClose    = (sessClose - time) / 60000.0
+blockNearClose = useRthCloseFilter and timeframe.isintraday and (minsToClose >= 0) and (minsToClose <= avoidCloseMins)
+
+//====================
+// Zones (anchored)
+//====================
+var float entryPrice = na
+vwapVal   = ta.vwap(hlc3)
+sma200Val = ta.sma(close, 200)
+
+zoneAnchorPrice =
+     zoneAnchor == "Entry"    and not na(entryPrice) ? entryPrice :
+     zoneAnchor == "VWAP"     ? vwapVal :
+     zoneAnchor == "MA200"    ? sma200Val :
+     zoneAnchor == "EMA Fast" ? emaF : emaS
+
+neutralUpper = zoneAnchorPrice + zoneNeutralMult * atr
+neutralLower = zoneAnchorPrice - zoneNeutralMult * atr
+
+aggrUpper = zoneMode == "Symmetric" ? (zoneAnchorPrice + zoneAggressiveMult1 * atr) : (zoneAnchorPrice - zoneAggressiveMult1 * atr)
+aggrLower = zoneMode == "Symmetric" ? (zoneAnchorPrice - zoneAggressiveMult2 * atr) : (zoneAnchorPrice - zoneAggressiveMult2 * atr)
+
+//====================
+// SET marker (Trend Continuation Setup)
+//====================
+setLong   = bullBias and (crsi < crsiLongGoodHi)
+setShort  = bearBias and (crsi > crsiShortGoodLo)
+setPulse  = barstate.isconfirmed and (setLong or setShort)
+
+//====================
+// Signal engine (exits not blocked by cooldown)
+//====================
+trendFlipUp   = ta.crossover(emaF, emaS)
+trendFlipDown = ta.crossunder(emaF, emaS)
+reclaimUp     = bullBias and crossClose_EmaF_up
+reclaimDown   = bearBias and crossClose_EmaF_down
+
+breakLong  = crossClose_EmaS_down or trendFlipDown
+breakShort = crossClose_EmaS_up   or trendFlipUp
+
+var int pos = 0
+var int lastSignalBar = na
+var string lastSig = "—"
+
+cooldownOk   = na(lastSignalBar) ? true : (bar_index - lastSignalBar > cooldownBars)
+
+f_getBrier(tfSel, modSel) =>
+    float score = 0.5 // default safe
+    
+    // Select array pair stats
+    float[] stats = na
+    if tfSel == "F1"
+        stats := (modSel == "N") ? brierStatsN1 : brierStats11
+    else if tfSel == "F2"
+        stats := (modSel == "N") ? brierStatsN2 : brierStats12
+    else if tfSel == "F3"
+        stats := (modSel == "N") ? brierStatsN3 : brierStats13
+    else if tfSel == "F4"
+        stats := (modSel == "N") ? brierStatsN4 : brierStats14
+    else if tfSel == "F5"
+        stats := (modSel == "N") ? brierStatsN5 : brierStats15
+    else if tfSel == "F6"
+        stats := (modSel == "N") ? brierStatsN6 : brierStats16
+    else if tfSel == "F7"
+        stats := (modSel == "N") ? brierStatsN7 : brierStats17
+    
+    if not na(stats)
+        s = array.get(stats, 0)
+        c = array.get(stats, 1)
+        if c > 0
+            score := s / c
+    score
+
+curBrier = f_getBrier(relFilterTF, relFilterModel)
+reliabilityOk = (not useRelFilter) or (curBrier <= maxBrier)
+
+allowEntry   = barstate.isconfirmed and cooldownOk and not blockNearClose and reliabilityOk
+allowExit    = barstate.isconfirmed
+
+buySignal   = false
+exitSignal  = false
+shortSignal = false
+coverSignal = false
+
+if engine == "Trend+Pullback"
+    if pos == 0 and allowEntry
+        buySignal   := gateLongNow and (trendFlipUp or reclaimUp)
+        shortSignal := enableShorts and gateShortNow and (trendFlipDown or reclaimDown)
+        if buySignal and shortSignal
+            buySignal := false
+            shortSignal := false
+    if pos == 1 and allowExit
+        exitSignal := breakLong and bearBias
+    if pos == -1 and allowExit
+        coverSignal := breakShort and bullBias
+
+else if engine == "Loose"
+    if pos == 0 and allowEntry
+        buySignal   := gateLongNow and crossClose_EmaF_up
+        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_down
+        if buySignal and shortSignal
+            buySignal := false
+            shortSignal := false
+    if pos == 1 and allowExit
+        exitSignal := breakLong and bearBias
+    if pos == -1 and allowExit
+        coverSignal := breakShort and bullBias
+
+if barstate.isconfirmed
+    if exitSignal and pos == 1
+        pos := 0
+        entryPrice := na
+        lastSignalBar := bar_index
+        lastSig := "EXIT"
+    else if coverSignal and pos == -1
+        pos := 0
+        entryPrice := na
+        lastSignalBar := bar_index
+        lastSig := "COVER"
+    else if buySignal and pos == 0
+        pos := 1
+        entryPrice := close
+        lastSignalBar := bar_index
+        lastSig := "BUY"
+    else if shortSignal and pos == 0
+        pos := -1
+        entryPrice := close
+        lastSignalBar := bar_index
+        lastSig := "SHORT"
+
+//====================
+// Visuals
+//====================
+plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
+
+if showEntryLabels and buySignal
+    label.new(bar_index, low, "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+if showEntryLabels and shortSignal
+    label.new(bar_index, high, "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and exitSignal
+    label.new(bar_index, high, "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and coverSignal
+    label.new(bar_index, low, "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+
+pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
+pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
+fill(pNeutralUpper, pNeutralLower, color=color.new(color.blue, 90))
+
+pAggUpper = plot(showZones ? aggrUpper : na, title="Aggressive zone upper", linewidth=1, color=color.new(color.orange, 25))
+pAggLower = plot(showZones ? aggrLower : na, title="Aggressive zone lower", linewidth=1, color=color.new(color.orange, 25))
+fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
+
+//====================
+// Outlook/Forecast packs (one security call per horizon TF)
+//====================
+[t1, c1, h1, l1, ef1, es1, r1, a1] = f_tf_pack(tfF1)
+[t2, c2, h2, l2, ef2, es2, r2, a2] = f_tf_pack(tfF2)
+[t3, c3, h3, l3, ef3, es3, r3, a3] = f_tf_pack(tfF3)
+[t4, c4, h4, l4, ef4, es4, r4, a4] = f_tf_pack(tfF4)
+[t5, c5, h5, l5, ef5, es5, r5, a5] = f_tf_pack(tfF5)
+[t6, c6, h6, l6, ef6, es6, r6, a6] = f_tf_pack(tfF6)
+[t7, c7, h7, l7, ef7, es7, r7, a7] = f_tf_pack(tfF7)
+
+chgT1 = ta.change(t1)
+chgT2 = ta.change(t2)
+chgT3 = ta.change(t3)
+chgT4 = ta.change(t4)
+chgT5 = ta.change(t5)
+chgT6 = ta.change(t6)
+chgT7 = ta.change(t7)
+
+newF1 = not na(t1) and (chgT1 != 0)
+newF2 = not na(t2) and (chgT2 != 0)
+newF3 = not na(t3) and (chgT3 != 0)
+newF4 = not na(t4) and (chgT4 != 0)
+newF5 = not na(t5) and (chgT5 != 0)
+newF6 = not na(t6) and (chgT6 != 0)
+newF7 = not na(t7) and (chgT7 != 0)
+
+// Outlook scores + components
+outScore1 = f_state_score(c1, ef1, es1, r1)
+outScore2 = f_state_score(c2, ef2, es2, r2)
+outScore3 = f_state_score(c3, ef3, es3, r3)
+outScore4 = f_state_score(c4, ef4, es4, r4)
+outScore5 = f_state_score(c5, ef5, es5, r5)
+outScore6 = f_state_score(c6, ef6, es6, r6)
+outScore7 = f_state_score(c7, ef7, es7, r7)
+
+[t1c, m1c, l1c] = f_state_tml(c1, ef1, es1, r1)
+[t2c, m2c, l2c] = f_state_tml(c2, ef2, es2, r2)
+[t3c, m3c, l3c] = f_state_tml(c3, ef3, es3, r3)
+[t4c, m4c, l4c] = f_state_tml(c4, ef4, es4, r4)
+[t5c, m5c, l5c] = f_state_tml(c5, ef5, es5, r5)
+[t6c, m6c, l6c] = f_state_tml(c6, ef6, es6, r6)
+[t7c, m7c, l7c] = f_state_tml(c7, ef7, es7, r7)
+
+outSym(score) => score > 0.05 ? "▲" : score < -0.05 ? "▼" : "−"
+outCol(score) => score > 0.05 ? color.lime : score < -0.05 ? color.red : tblText
+
+//====================
+// Calibration storage — per horizon TF (Removed - moved to top)
+//====================
+// (Moved to top level state)
+
+//====================
+// Reset handling (rising edge) — per horizon F1..F7
+//====================
+var bool prevResetNow = false
+doReset = resetNow and not prevResetNow
+prevResetNow := resetNow
+
+if doReset
+    if resetWhich == "All" or resetWhich == "F1"
+        f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, brierStatsN1, brierStats11)
+    if resetWhich == "All" or resetWhich == "F2"
+        f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, brierStatsN2, brierStats12)
+    if resetWhich == "All" or resetWhich == "F3"
+        f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, brierStatsN3, brierStats13)
+    if resetWhich == "All" or resetWhich == "F4"
+        f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, brierStatsN4, brierStats14)
+    if resetWhich == "All" or resetWhich == "F5"
+        f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, brierStatsN5, brierStats15)
+    if resetWhich == "All" or resetWhich == "F6"
+        f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, brierStatsN6, brierStats16)
+    if resetWhich == "All" or resetWhich == "F7"
+        f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, brierStatsN7, brierStats17)
+
+//====================
+// Calibration update (bar-close confirmed guard + new TF bar events)
+//====================
+doCal = enableForecast and barstate.isconfirmed
+if doCal
+    f_process_tf(newF1, outScore1, c1, a1, h1, l1, c1, cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, brierStatsN1, brierStats11, alphaN, alpha1, kShrink)
+    f_process_tf(newF2, outScore2, c2, a2, h2, l2, c2, cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, brierStatsN2, brierStats12, alphaN, alpha1, kShrink)
+    f_process_tf(newF3, outScore3, c3, a3, h3, l3, c3, cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, brierStatsN3, brierStats13, alphaN, alpha1, kShrink)
+    f_process_tf(newF4, outScore4, c4, a4, h4, l4, c4, cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, brierStatsN4, brierStats14, alphaN, alpha1, kShrink)
+    f_process_tf(newF5, outScore5, c5, a5, h5, l5, c5, cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, brierStatsN5, brierStats15, alphaN, alpha1, kShrink)
+    f_process_tf(newF6, outScore6, c6, a6, h6, l6, c6, cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, brierStatsN6, brierStats16, alphaN, alpha1, kShrink)
+    f_process_tf(newF7, outScore7, c7, a7, h7, l7, c7, cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, brierStatsN7, brierStats17, alphaN, alpha1, kShrink)
+
+//====================
+// Display values — N and 1 per horizon
+//====================
+bN1 = f_binArr(outScore1, cntN1)
+bN2 = f_binArr(outScore2, cntN2)
+bN3 = f_binArr(outScore3, cntN3)
+bN4 = f_binArr(outScore4, cntN4)
+bN5 = f_binArr(outScore5, cntN5)
+bN6 = f_binArr(outScore6, cntN6)
+bN7 = f_binArr(outScore7, cntN7)
+
+b11 = f_binArr1(outScore1, cnt11)
+b12 = f_binArr1(outScore2, cnt12)
+b13 = f_binArr1(outScore3, cnt13)
+b14 = f_binArr1(outScore4, cnt14)
+b15 = f_binArr1(outScore5, cnt15)
+b16 = f_binArr1(outScore6, cnt16)
+b17 = f_binArr1(outScore7, cnt17)
+
+[pN1, nN1] = f_cal_cur(cntN1, upN1, bN1, alphaN, kShrink)
+[pN2, nN2] = f_cal_cur(cntN2, upN2, bN2, alphaN, kShrink)
+[pN3, nN3] = f_cal_cur(cntN3, upN3, bN3, alphaN, kShrink)
+[pN4, nN4] = f_cal_cur(cntN4, upN4, bN4, alphaN, kShrink)
+[pN5, nN5] = f_cal_cur(cntN5, upN5, bN5, alphaN, kShrink)
+[pN6, nN6] = f_cal_cur(cntN6, upN6, bN6, alphaN, kShrink)
+[pN7, nN7] = f_cal_cur(cntN7, upN7, bN7, alphaN, kShrink)
+
+[p11p, n11p] = f_cal_cur(cnt11, up11, b11, alpha1, kShrink)
+[p12p, n12p] = f_cal_cur(cnt12, up12, b12, alpha1, kShrink)
+[p13p, n13p] = f_cal_cur(cnt13, up13, b13, alpha1, kShrink)
+[p14p, n14p] = f_cal_cur(cnt14, up14, b14, alpha1, kShrink)
+[p15p, n15p] = f_cal_cur(cnt15, up15, b15, alpha1, kShrink)
+[p16p, n16p] = f_cal_cur(cnt16, up16, b16, alpha1, kShrink)
+[p17p, n17p] = f_cal_cur(cnt17, up17, b17, alpha1, kShrink)
+
+can1N = nN1 > 0
+can2N = nN2 > 0
+can3N = nN3 > 0
+can4N = nN4 > 0
+can5N = nN5 > 0
+can6N = nN6 > 0
+can7N = nN7 > 0
+
+can11 = n11p > 0
+can12 = n12p > 0
+can13 = n13p > 0
+can14 = n14p > 0
+can15 = n15p > 0
+can16 = n16p > 0
+can17 = n17p > 0
+
+//====================
+// Table helpers MUST be global (cannot be defined inside if-block)
+//====================
+var table gT = na
+if na(gT)
+    gT := table.new(position.middle_right, 5, 26, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
+
+f_rowOut(tf, score, tC, mC, lC, rV, rRow) =>
+    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 2, rRow, str.tostring(score, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+f_rowFc(tf, pN, nN, canN, p1, n1, can1, rRow) =>
+    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+
+    symN = f_predSymbolP(pN, nN, canN)
+    colN = f_predColorP(pN, nN, canN, tblText)
+    table.cell(gT, 1, rRow, symN, text_color=colN, bgcolor=tblCell, text_size=size.tiny)
+
+    sym1 = f_predSymbolP(p1, n1, can1)
+    col1 = f_predColorP(p1, n1, can1, tblText)
+    table.cell(gT, 2, rRow, sym1, text_color=col1, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 3, rRow, f_pupText(pN, nN, canN), text_color=f_predColorP(pN, nN, canN, tblText), bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 4, rRow, f_pupText(p1, n1, can1), text_color=f_predColorP(p1, n1, can1, tblText), bgcolor=tblCell, text_size=size.tiny)
+
+f_fmtBrier(stats) =>
+    s = array.get(stats, 0)
+    c = array.get(stats, 1)
+    val = c > 0 ? s / c : na
+    txt = na(val) ? "—" : str.tostring(val, "#.###")
+    col = na(val) ? tblTextDim : val < 0.20 ? color.green : val < 0.25 ? color.lime : val < 0.30 ? color.yellow : color.red
+    [txt, col]
+
+f_fmtCnt(stats) =>
+    c = array.get(stats, 1)
+    [str.tostring(c, "#"), c < 10 ? tblTextDim : tblText]
+
+f_rowRel(tf, statsN, stats1, rRow) =>
+    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    
+    [tN, cN] = f_fmtBrier(statsN)
+    table.cell(gT, 1, rRow, tN, text_color=cN, bgcolor=tblCell, text_size=size.tiny)
+    
+    [t1, c1] = f_fmtBrier(stats1)
+    table.cell(gT, 2, rRow, t1, text_color=c1, bgcolor=tblCell, text_size=size.tiny)
+    
+    [tcN, ccN] = f_fmtCnt(statsN)
+    table.cell(gT, 3, rRow, tcN, text_color=ccN, bgcolor=tblCell, text_size=size.tiny)
+    
+    [tc1, cc1] = f_fmtCnt(stats1)
+    table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
+
+//====================
+// Table (5 columns) — rendered on confirmed bars (stable)
+//====================
+mtfStr  = useMtfConfirm ? (setUse + " " + str.tostring(mtfScore, format.mintick)) : "OFF"
+posStr  = pos == 1 ? "LONG" : pos == -1 ? "SHORT" : "FLAT"
+confStr = str.tostring(confidence * 100.0, "#.0") + "%"
+volStr  = f_fmtVol(volume)
+
+strengthVal = rsi7
+strengthStr = str.tostring(strengthVal, "#.0")
+c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : color.yellow
+c_conf = f_confColor(confidence)
+c_vol  = volAvail ? color.lime : tblText
+
+targetDesc = fcTarget == "NextBar"    ? "NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR"    ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
+
+if showTable and barstate.isconfirmed
+    table.clear(gT, 0, 0, 4, 33)
+
+    // Status rows
+    table.cell(gT, 0, 0, "Confidence", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 0, confStr,       text_color=c_conf,    bgcolor=tblCell,   text_size=size.tiny)
+    table.cell(gT, 2, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 3, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 4, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 0, 1, "MinTrust", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 1, str.tostring(minTrust, format.mintick), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 0, 2, "Volume", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 2, volStr,   text_color=c_vol,      bgcolor=tblCell,   text_size=size.tiny)
+
+    table.cell(gT, 0, 3, "Strength", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 3, strengthStr, text_color=c_strength, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 0, 4, "MTF", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 4, mtfStr, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 0, 5, "Pos", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 5, posStr, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 0, 6, "LastSig", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 6, lastSig, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    table.cell(gT, 0, 7, "Time", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 7, str.format_time(time, "yyyy-MM-dd HH:mm"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    // Outlook header
+    table.cell(gT, 0, 8, "Outlook", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 8, "Bias",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 2, 8, "Score",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 3, 8, "T/M/L",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 8, "RSI",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    f_rowOut(tfF1, outScore1, t1c, m1c, l1c, r1,  9)
+    f_rowOut(tfF2, outScore2, t2c, m2c, l2c, r2, 10)
+    f_rowOut(tfF3, outScore3, t3c, m3c, l3c, r3, 11)
+    f_rowOut(tfF4, outScore4, t4c, m4c, l4c, r4, 12)
+    f_rowOut(tfF5, outScore5, t5c, m5c, l5c, r5, 13)
+    f_rowOut(tfF6, outScore6, t6c, m6c, l6c, r6, 14)
+    f_rowOut(tfF7, outScore7, t7c, m7c, l7c, r7, 15)
+
+    // Forecast header
+    table.cell(gT, 0, 16, "Forecast", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 16, "Pred(N)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 2, 16, "Pred(1)",  text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"
+    pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"
+
+    table.cell(gT, 3, 16, pHdrN, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 16, pHdr1, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    f_rowFc(tfF1, pN1, nN1, can1N, p11p, n11p, can11, 17)
+    f_rowFc(tfF2, pN2, nN2, can2N, p12p, n12p, can12, 18)
+    f_rowFc(tfF3, pN3, nN3, can3N, p13p, n13p, can13, 19)
+    f_rowFc(tfF4, pN4, nN4, can4N, p14p, n14p, can14, 20)
+    f_rowFc(tfF5, pN5, nN5, can5N, p15p, n15p, can15, 21)
+    f_rowFc(tfF6, pN6, nN6, can6N, p16p, n16p, can16, 22)
+    f_rowFc(tfF7, pN7, nN7, can7N, p17p, n17p, can17, 23)
+
+    // Accuracy header
+    table.cell(gT, 0, 24, "Accuracy", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 24, "BS(N)",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 2, 24, "BS(1)",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 3, 24, "#(N)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 24, "#(1)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    f_rowRel(tfF1, brierStatsN1, brierStats11, 25)
+    f_rowRel(tfF2, brierStatsN2, brierStats12, 26)
+    f_rowRel(tfF3, brierStatsN3, brierStats13, 27)
+    f_rowRel(tfF4, brierStatsN4, brierStats14, 28)
+    f_rowRel(tfF5, brierStatsN5, brierStats15, 29)
+    f_rowRel(tfF6, brierStatsN6, brierStats16, 30)
+    f_rowRel(tfF7, brierStatsN7, brierStats17, 31)
+
+    // Footer
+    table.cell(gT, 0, 32, "Target", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 32, targetDesc, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.merge_cells(gT, 1, 32, 4, 32)
+
+    table.cell(gT, 0, 33, "Note", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 33,
+     "Forecast: Shrinkage k=5.0 active. Accuracy: Brier Score (0-1). <0.25=Skill.",
+     text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.merge_cells(gT, 1, 33, 4, 33)
+
+//====================
+// Alerts (bar close)
+//====================
+alertcondition(buySignal,   title="BUY (bar close)",   message="BUY {{ticker}} @ {{close}}")
+alertcondition(exitSignal,  title="EXIT (bar close)",  message="EXIT {{ticker}} @ {{close}}")
+alertcondition(shortSignal, title="SHORT (bar close)", message="SHORT {{ticker}} @ {{close}}")
+alertcondition(coverSignal, title="COVER (bar close)", message="COVER {{ticker}} @ {{close}}")
+
+//====================
+// Strategy Execution (Backtest Mode)
+//====================
+if buySignal
+    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
+if shortSignal
+    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
+if exitSignal
+    strategy.close("L")
+if coverSignal
+    strategy.close("S")
+
