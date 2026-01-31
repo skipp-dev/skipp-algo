@@ -137,6 +137,15 @@ rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
 //====================
+// Inputs — UT Bot Verification Overlay
+//====================
+grpUt       = "UT Bot Verification"
+utShow      = input.bool(false, "Show UT Bot Overlay", group=grpUt)
+utKey       = input.float(1.0, "Key Value", group=grpUt) 
+utAtrPeriod = input.int(10, "ATR Period", group=grpUt) 
+utUseHA     = input.bool(false, "Use Heikin Ashi", group=grpUt) 
+
+//====================
 // Inputs — Forecast Calibration Enhancements
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
@@ -1633,6 +1642,53 @@ if showTable and barstate.isconfirmed
      "Forecast: Shrinkage k=5.0 active. Accuracy: Brier Score (0-1). <0.25=Skill.",
      text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
     table.merge_cells(gT, 1, 33, 4, 33)
+
+//====================
+// UT Bot Logic (Overlay, V4 Port)
+//====================
+utSrc = utUseHA ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead = barmerge.lookahead_off) : close
+utXATR = ta.atr(utAtrPeriod)
+utNLoss = utKey * utXATR
+
+var float utXATRTrailingStop = 0.0
+// Logic replication
+utPrevStop = nz(utXATRTrailingStop[1], 0)
+utSrc1 = utSrc[1]
+
+if utSrc > utPrevStop and utSrc1 > utPrevStop
+    utXATRTrailingStop := math.max(utPrevStop, utSrc - utNLoss)
+else if utSrc < utPrevStop and utSrc1 < utPrevStop
+    utXATRTrailingStop := math.min(utPrevStop, utSrc + utNLoss)
+else if utSrc > utPrevStop
+    utXATRTrailingStop := utSrc - utNLoss
+else 
+    utXATRTrailingStop := utSrc + utNLoss
+
+var int utPos = 0
+if utSrc1 < utPrevStop and utSrc > utPrevStop
+    utPos := 1
+else if utSrc1 > utPrevStop and utSrc < utPrevStop
+    utPos := -1
+else
+    utPos := nz(utPos[1], 0)
+
+utEma = ta.ema(utSrc, 1)
+utAbove = ta.crossover(utEma, utXATRTrailingStop)
+utBelow = ta.crossover(utXATRTrailingStop, utEma)
+
+utBuy  = utSrc > utXATRTrailingStop and utAbove
+utSell = utSrc < utXATRTrailingStop and utBelow
+
+utBarBuy  = utSrc > utXATRTrailingStop
+utBarSell = utSrc < utXATRTrailingStop
+
+plotshape(utShow and utBuy,  title = "UT Buy",  text = 'UT Buy',  style = shape.labelup,   location = location.belowbar, color= color.green, textcolor = color.white, size = size.tiny)
+plotshape(utShow and utSell, title = "UT Sell", text = 'UT Sell', style = shape.labeldown, location = location.abovebar, color= color.red,   textcolor = color.white, size = size.tiny)
+
+barcolor(utShow and utBarBuy ? color.green : utShow and utBarSell ? color.red : na)
+
+alertcondition(utBuy,  "UT Bot Long",  "UT Bot Long")
+alertcondition(utSell, "UT Bot Short", "UT Bot Short")
 
 //====================
 // Alerts (bar close)
