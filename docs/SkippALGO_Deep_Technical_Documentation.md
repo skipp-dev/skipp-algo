@@ -339,9 +339,9 @@ To prevent false confidence in small sample sizes, the system calculates a **95%
 
 * **Formula:** standard Wald interval $1.96 \cdot \sqrt{p(1-p)/n}$.
 * **Labels:**
-    * **"strong"**: CI half-width $\le 5\%$ (High precision).
-    * **"ok"**: CI half-width $\le 10\%$ (Acceptable precision).
-    * **"weak"**: CI half-width $> 10\%$ OR $n < 30$ (Low precision).
+  * **"strong"**: CI half-width $\le 5\%$ (High precision).
+  * **"ok"**: CI half-width $\le 10\%$ (Acceptable precision).
+  * **"weak"**: CI half-width $> 10\%$ OR $n < 30$ (Low precision).
 * **Visuals:** The table displays the CI range (e.g., `±4.2pp`) next to the probability.
 
 ---
@@ -381,9 +381,9 @@ Columns:
 * **TF**: Timeframe label (e.g., 5M, 1H).
 * **Pred(N)**: Stable directional call (e.g., ▲ 55%). Shows "warmup" if insufficient data.
 * **Data (N)**: Reliability Stats.
-    * Format: `Samples/Total` + `Label` + `±CI`
-    * Example: `42/150` `strong` `±4.2pp`
-    * Gives you instant context on *why* you should (or shouldn't) trust the signal.
+  * Format: `Samples/Total` + `Label` + `±CI`
+  * Example: `42/150` `strong` `±4.2pp`
+  * Gives you instant context on *why* you should (or shouldn't) trust the signal.
 * **Pred(1)**: Fast/Reactive directional call.
 * **Data (1)**: Reactive Stats (always calculation, useful for spotting regime shifts early).
 
@@ -393,7 +393,21 @@ Interpretation:
 * **Pred(1)** is your tactical signal. Be wary of it, but use it to spot turns before N catches up.
 * **Brier Checks:** If Brier Scores (shown in footer or header tooltips if enabled) are high (>0.25), the market is currently defying the model's logic.
 
-### 7.4 Footer rows (“Params” and “Meaning”)
+### 7.3.1 The difference between #(N) and #(1) (Plain English)
+
+* **#(N) — The "Trusted Veteran" (Strategic)**
+  * **Behavior:** Highly selective. Ignores "warmup" noise.
+  * **The Change:** Its accuracy score (Brier Score) now *pauses* and waits until a specific pattern has occurred enough times (e.g., 40+ samples) to be statistically "mature."
+  * **Why used:** Prevents early luck/bad luck from skewing long-term accuracy.
+  * **How to read:** If you see a signal here, it is based on a **proven, high-confidence** history.
+
+* **#(1) — The "Fast Scout" (Tactical)**
+  * **Behavior:** Always active. Learns and reports on *everything* from trade #1.
+  * **The Change:** Tracks accuracy instantly. Ignores sample size rules.
+  * **Why used:** Spots new market regimes fast. If `#(N)` says "UP" but `#(1)` accuracy fails (high Brier score), the trend might be dying.
+  * **How to read:** Use as an early warning system.
+
+### 7.4 Footer rows ("Params" and "Meaning")
 
 These are guardrails against semantic confusion:
 
