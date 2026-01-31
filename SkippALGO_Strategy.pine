@@ -142,6 +142,7 @@ enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
 
 // Forecast value display
 fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
+atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
 
 // --- Phase 1: Separate Targets per Timeframe Group ---
 grp_fast = "Target Profile 1: Fast (1m, 5m)"
@@ -469,7 +470,7 @@ f_platt_prob(pRaw, a, b) =>
     usePlatt ? f_sigmoid(a * f_logit(pRaw) + b) : pRaw
 
 // --- Phase 3 Helpers: Ensemble ---
-f_pullback_score(c, h, l, ef, es, atrVal, bias) =>
+f_pullback_score(c, ef, es, bias) =>
     // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
     // Simplified: Normalized distance
     float s = 0.0
@@ -594,7 +595,7 @@ f_pupText(pUp, n, canCal) =>
             // example: Up 49.8% (203)
             "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
-f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge, qProbN, qProb1, qLogitN, qLogit1, brierStatsN, brierStats1, llStatsN, llStats1, plattN, platt1) =>
+f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge, qProbN, qProb1, brierStatsN, brierStats1, qLogitN, qLogit1, llStatsN, llStats1, plattN, platt1) =>
     for i = 0 to array.size(cntN) - 1
         array.set(cntN, i, 0)
         array.set(upN,  i, 0)
@@ -806,7 +807,7 @@ f_process_tf(newTfBar, sA,
         // 3) Push new pending item
         // --- Phase 3: Ensemble Score ---
         bias = emaFNow > emaSNow ? 1 : -1
-        sB = f_pullback_score(cNow, hNow, lNow, emaFNow, emaSNow, atrNow, bias)
+        sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
         sC = volRankNow >= 0.66 ? -1.0 : (volRankNow <= 0.33 ? 1.0 : 0.0)
         sEns = f_ensemble(sA, sB, sC, wAVal, wBVal, wCVal)
         
@@ -1255,19 +1256,19 @@ prevResetNow := resetNow
 
 if doReset
     if resetWhich == "All" or resetWhich == "F1"
-        f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, qLogitN1, qLogit11, brierStatsN1, brierStats11, llStatsN1, llStats11, plattN1, platt11)
+        f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, brierStatsN1, brierStats11, qLogitN1, qLogit11, llStatsN1, llStats11, plattN1, platt11)
     if resetWhich == "All" or resetWhich == "F2"
-        f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, qLogitN2, qLogit12, brierStatsN2, brierStats12, llStatsN2, llStats12, plattN2, platt12)
+        f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, brierStatsN2, brierStats12, qLogitN2, qLogit12, llStatsN2, llStats12, plattN2, platt12)
     if resetWhich == "All" or resetWhich == "F3"
-        f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, qLogitN3, qLogit13, brierStatsN3, brierStats13, llStatsN3, llStats13, plattN3, platt13)
+        f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, brierStatsN3, brierStats13, qLogitN3, qLogit13, llStatsN3, llStats13, plattN3, platt13)
     if resetWhich == "All" or resetWhich == "F4"
-        f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, qLogitN4, qLogit14, brierStatsN4, brierStats14, llStatsN4, llStats14, plattN4, platt14)
+        f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, brierStatsN4, brierStats14, qLogitN4, qLogit14, llStatsN4, llStats14, plattN4, platt14)
     if resetWhich == "All" or resetWhich == "F5"
-        f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, qLogitN5, qLogit15, brierStatsN5, brierStats15, llStatsN5, llStats15, plattN5, platt15)
+        f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, brierStatsN5, brierStats15, qLogitN5, qLogit15, llStatsN5, llStats15, plattN5, platt15)
     if resetWhich == "All" or resetWhich == "F6"
-        f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, qLogitN6, qLogit16, brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16)
+        f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, brierStatsN6, brierStats16, qLogitN6, qLogit16, llStatsN6, llStats16, plattN6, platt16)
     if resetWhich == "All" or resetWhich == "F7"
-        f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, qLogitN7, qLogit17, brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17)
+        f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, brierStatsN7, brierStats17, qLogitN7, qLogit17, llStatsN7, llStats17, plattN7, platt17)
 
 //====================
 // Calibration update (bar-close confirmed guard + new TF bar events)
@@ -1282,9 +1283,9 @@ if doCal
     f_process_tf(newF6, outScore6, c6, h6, l6, a6, vr6, ef6, es6, cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, qLogitN6, qLogit16, brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16, fcT6, kB6, aT6, pH6, tp6, sl6, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
     f_process_tf(newF7, outScore7, c7, h7, l7, a7, vr7, ef7, es7, cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, qLogitN7, qLogit17, brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17, fcT7, kB7, aT7, pH7, tp7, sl7, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
 
-f_get_disp_vals(sA, c, h, l, ef, es, a, vr, cntN, upN, cnt1, up1, plattN, platt1) =>
+f_get_disp_vals(sA, c, ef, es, vr, cntN, upN, cnt1, up1, plattN, platt1) =>
     bias = ef > es ? 1 : -1
-    sB = f_pullback_score(c, h, l, ef, es, a, bias)
+    sB = f_pullback_score(c, ef, es, bias)
     sC = vr >= 0.66 ? -1.0 : (vr <= 0.33 ? 1.0 : 0.0)
     sEns = f_ensemble(sA, sB, sC, ens_wA, ens_wB, ens_wC)
     bN = f_bin2D(sEns, vr, predBinsN, dim2Bins)
@@ -1302,13 +1303,13 @@ f_get_disp_vals(sA, c, h, l, ef, es, a, vr, cntN, upN, cnt1, up1, plattN, platt1
 //====================
 // Display values — N and 1 per horizon
 //====================
-[pN1, nN1, p11p, n11p] = f_get_disp_vals(outScore1, c1, h1, l1, ef1, es1, a1, vr1, cntN1, upN1, cnt11, up11, plattN1, platt11)
-[pN2, nN2, p12p, n12p] = f_get_disp_vals(outScore2, c2, h2, l2, ef2, es2, a2, vr2, cntN2, upN2, cnt12, up12, plattN2, platt12)
-[pN3, nN3, p13p, n13p] = f_get_disp_vals(outScore3, c3, h3, l3, ef3, es3, a3, vr3, cntN3, upN3, cnt13, up13, plattN3, platt13)
-[pN4, nN4, p14p, n14p] = f_get_disp_vals(outScore4, c4, h4, l4, ef4, es4, a4, vr4, cntN4, upN4, cnt14, up14, plattN4, platt14)
-[pN5, nN5, p15p, n15p] = f_get_disp_vals(outScore5, c5, h5, l5, ef5, es5, a5, vr5, cntN5, upN5, cnt15, up15, plattN5, platt15)
-[pN6, nN6, p16p, n16p] = f_get_disp_vals(outScore6, c6, h6, l6, ef6, es6, a6, vr6, cntN6, upN6, cnt16, up16, plattN6, platt16)
-[pN7, nN7, p17p, n17p] = f_get_disp_vals(outScore7, c7, h7, l7, ef7, es7, a7, vr7, cntN7, upN7, cnt17, up17, plattN7, platt17)
+[pN1, nN1, p11p, n11p] = f_get_disp_vals(outScore1, c1, ef1, es1, vr1, cntN1, upN1, cnt11, up11, plattN1, platt11)
+[pN2, nN2, p12p, n12p] = f_get_disp_vals(outScore2, c2, ef2, es2, vr2, cntN2, upN2, cnt12, up12, plattN2, platt12)
+[pN3, nN3, p13p, n13p] = f_get_disp_vals(outScore3, c3, ef3, es3, vr3, cntN3, upN3, cnt13, up13, plattN3, platt13)
+[pN4, nN4, p14p, n14p] = f_get_disp_vals(outScore4, c4, ef4, es4, vr4, cntN4, upN4, cnt14, up14, plattN4, platt14)
+[pN5, nN5, p15p, n15p] = f_get_disp_vals(outScore5, c5, ef5, es5, vr5, cntN5, upN5, cnt15, up15, plattN5, platt15)
+[pN6, nN6, p16p, n16p] = f_get_disp_vals(outScore6, c6, ef6, es6, vr6, cntN6, upN6, cnt16, up16, plattN6, platt16)
+[pN7, nN7, p17p, n17p] = f_get_disp_vals(outScore7, c7, ef7, es7, vr7, cntN7, upN7, cnt17, up17, plattN7, platt17)
 
 can1N = nN1 > 0
 can2N = nN2 > 0
