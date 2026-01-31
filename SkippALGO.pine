@@ -622,14 +622,16 @@ f_process_tf(newTfBar, scoreNow, entryNow, atrNow, hNow, lNow, cNow,
                     // Track Brier score 
                     outcomeVal = isUp ? 1.0 : 0.0
                     
-                    // N
-                    sqErrN = math.pow(outcomeVal - probN_i, 2)
-                    curSumN = array.get(brierStatsN, 0)
-                    curCntN = array.get(brierStatsN, 1)
-                    array.set(brierStatsN, 0, curSumN + sqErrN)
-                    array.set(brierStatsN, 1, curCntN + 1.0)
+                    // N (Filtered: Mature bins only)
+                    nBinN_cur = array.get(cntN, bN_i)
+                    if nBinN_cur >= calMinSamples
+                        sqErrN = math.pow(outcomeVal - probN_i, 2)
+                        curSumN = array.get(brierStatsN, 0)
+                        curCntN = array.get(brierStatsN, 1)
+                        array.set(brierStatsN, 0, curSumN + sqErrN)
+                        array.set(brierStatsN, 1, curCntN + 1.0)
                     
-                    // 1
+                    // 1 (Always: Fast adaptation)
                     sqErr1 = math.pow(outcomeVal - prob1_i, 2)
                     curSum1 = array.get(brierStats1, 0)
                     curCnt1 = array.get(brierStats1, 1)
