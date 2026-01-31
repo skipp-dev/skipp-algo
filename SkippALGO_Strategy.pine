@@ -216,8 +216,8 @@ relFilterModel = input.string("N", "Filter Model", options=["N", "1"], tooltip="
 // F1
 var int[] cntN1 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN1  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt11 = array.new_int(predBins1, 0) // (1) stays 1D (reactive)
-var int[] up11  = array.new_int(predBins1, 0)
+var int[] cnt11 = array.new_int(predBins1 * dim2Bins, 0) // (1) now 2D to match f_bin2D
+var int[] up11  = array.new_int(predBins1 * dim2Bins, 0)
 // F1 Queues
 var int[]   qBinN1  = array.new_int()
 var int[]   qBin11  = array.new_int()
@@ -241,8 +241,8 @@ var float[] platt11      = array.from(1.0, 0.0)    // Phase 4: [a, b]
 // F2
 var int[] cntN2 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN2  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt12 = array.new_int(predBins1, 0)
-var int[] up12  = array.new_int(predBins1, 0)
+var int[] cnt12 = array.new_int(predBins1 * dim2Bins, 0)
+var int[] up12  = array.new_int(predBins1 * dim2Bins, 0)
 // F2 Queues
 var int[]   qBinN2  = array.new_int()
 var int[]   qBin12  = array.new_int()
@@ -266,8 +266,8 @@ var float[] platt12      = array.from(1.0, 0.0)
 // F3
 var int[] cntN3 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN3  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt13 = array.new_int(predBins1, 0)
-var int[] up13  = array.new_int(predBins1, 0)
+var int[] cnt13 = array.new_int(predBins1 * dim2Bins, 0)
+var int[] up13  = array.new_int(predBins1 * dim2Bins, 0)
 // F3 Queues
 var int[]   qBinN3  = array.new_int()
 var int[]   qBin13  = array.new_int()
@@ -291,8 +291,8 @@ var float[] platt13      = array.from(1.0, 0.0)
 // F4
 var int[] cntN4 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN4  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt14 = array.new_int(predBins1, 0)
-var int[] up14  = array.new_int(predBins1, 0)
+var int[] cnt14 = array.new_int(predBins1 * dim2Bins, 0)
+var int[] up14  = array.new_int(predBins1 * dim2Bins, 0)
 // F4 Queues
 var int[]   qBinN4  = array.new_int()
 var int[]   qBin14  = array.new_int()
@@ -316,8 +316,8 @@ var float[] platt14      = array.from(1.0, 0.0)
 // F5
 var int[] cntN5 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN5  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt15 = array.new_int(predBins1, 0)
-var int[] up15  = array.new_int(predBins1, 0)
+var int[] cnt15 = array.new_int(predBins1 * dim2Bins, 0)
+var int[] up15  = array.new_int(predBins1 * dim2Bins, 0)
 // F5 Queues
 var int[]   qBinN5  = array.new_int()
 var int[]   qBin15  = array.new_int()
@@ -341,8 +341,8 @@ var float[] platt15      = array.from(1.0, 0.0)
 // F6
 var int[] cntN6 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN6  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt16 = array.new_int(predBins1, 0)
-var int[] up16  = array.new_int(predBins1, 0)
+var int[] cnt16 = array.new_int(predBins1 * dim2Bins, 0)
+var int[] up16  = array.new_int(predBins1 * dim2Bins, 0)
 // F6 Queues
 var int[]   qBinN6  = array.new_int()
 var int[]   qBin16  = array.new_int()
@@ -366,8 +366,8 @@ var float[] platt16      = array.from(1.0, 0.0)
 // F7
 var int[] cntN7 = array.new_int(predBinsN * dim2Bins, 0)
 var int[] upN7  = array.new_int(predBinsN * dim2Bins, 0)
-var int[] cnt17 = array.new_int(predBins1, 0)
-var int[] up17  = array.new_int(predBins1, 0)
+var int[] cnt17 = array.new_int(predBins1 * dim2Bins, 0)
+var int[] up17  = array.new_int(predBins1 * dim2Bins, 0)
 // F7 Queues
 var int[]   qBinN7  = array.new_int()
 var int[]   qBin17  = array.new_int()
