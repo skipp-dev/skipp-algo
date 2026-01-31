@@ -988,7 +988,11 @@ c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : c
 c_conf = f_confColor(confidence)
 c_vol  = volAvail ? color.lime : tblText
 
-targetDesc = fcTarget == "NextBar" ? "NextBar (Up if next close > entry)" : fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : fcTarget == "KBarATR" ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
+targetDesc = 
+     fcTarget == "NextBar"    ? "NextBar (Up if next close > entry)" : 
+     fcTarget == "KBarReturn" ? ("KBarReturn k=" + str.tostring(kBars)) : 
+     fcTarget == "KBarATR"    ? ("KBarATR k=" + str.tostring(kBars) + " thr=" + str.tostring(atrThr, "#.##") + "ATR") : 
+                                ("PathTPvsSL H=" + str.tostring(pathH) + " TP=" + str.tostring(tpATR, "#.##") + "ATR SL=" + str.tostring(slATR, "#.##") + "ATR NoHit=" + noHitPolicy)
 
 if showTable and barstate.isconfirmed
     table.clear(gT, 0, 0, 4, 25)
