@@ -124,5 +124,16 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         # Ensure old non-linear mapping is not present
         self.assertNotIn("f_clamp01((raw + 1.0) * 0.5) * 2.0 - 1.0", self.text)
 
+    def test_can_logic_uses_totals_and_forecast_gate(self):
+        # Ensure totals are computed via helper
+        self.assertIn("f_sum_int_array(cntN1)", self.text)
+        self.assertIn("f_sum_int_array(cnt11)", self.text)
+
+        # Ensure can flags depend on enableForecast and totals
+        self.assertIn("can1N = enableForecast and (totN1 > 0)", self.text)
+        self.assertIn("can7N = enableForecast and (totN7 > 0)", self.text)
+        self.assertIn("can11 = enableForecast and (tot11 > 0)", self.text)
+        self.assertIn("can17 = enableForecast and (tot17 > 0)", self.text)
+
 if __name__ == "__main__":
     unittest.main()

@@ -402,6 +402,13 @@ tblTfColor = color.new(color.rgb(220, 220, 255), 0)
 //====================
 // Helpers
 //====================
+// --- Sum int array (total resolved samples across all bins)
+f_sum_int_array(a) =>
+    int s = 0
+    for i = 0 to array.size(a) - 1
+        s += array.get(a, i)
+    s
+
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
 
@@ -1313,21 +1320,39 @@ f_get_disp_vals(sA, c, ef, es, vr, cntN, upN, cnt1, up1, plattN, platt1) =>
 [pN6, nN6, p16p, n16p] = f_get_disp_vals(outScore6, c6, ef6, es6, vr6, cntN6, upN6, cnt16, up16, plattN6, platt16)
 [pN7, nN7, p17p, n17p] = f_get_disp_vals(outScore7, c7, ef7, es7, vr7, cntN7, upN7, cnt17, up17, plattN7, platt17)
 
-can1N = nN1 > 0
-can2N = nN2 > 0
-can3N = nN3 > 0
-can4N = nN4 > 0
-can5N = nN5 > 0
-can6N = nN6 > 0
-can7N = nN7 > 0
+// --- Total resolved samples per TF (across all bins)
+totN1 = f_sum_int_array(cntN1)
+totN2 = f_sum_int_array(cntN2)
+totN3 = f_sum_int_array(cntN3)
+totN4 = f_sum_int_array(cntN4)
+totN5 = f_sum_int_array(cntN5)
+totN6 = f_sum_int_array(cntN6)
+totN7 = f_sum_int_array(cntN7)
 
-can11 = n11p > 0
-can12 = n12p > 0
-can13 = n13p > 0
-can14 = n14p > 0
-can15 = n15p > 0
-can16 = n16p > 0
-can17 = n17p > 0
+tot11 = f_sum_int_array(cnt11)
+tot12 = f_sum_int_array(cnt12)
+tot13 = f_sum_int_array(cnt13)
+tot14 = f_sum_int_array(cnt14)
+tot15 = f_sum_int_array(cnt15)
+tot16 = f_sum_int_array(cnt16)
+tot17 = f_sum_int_array(cnt17)
+
+// calibration “enabled for display” if forecast enabled + we have any resolved samples in that TF
+can1N = enableForecast and (totN1 > 0)
+can2N = enableForecast and (totN2 > 0)
+can3N = enableForecast and (totN3 > 0)
+can4N = enableForecast and (totN4 > 0)
+can5N = enableForecast and (totN5 > 0)
+can6N = enableForecast and (totN6 > 0)
+can7N = enableForecast and (totN7 > 0)
+
+can11 = enableForecast and (tot11 > 0)
+can12 = enableForecast and (tot12 > 0)
+can13 = enableForecast and (tot13 > 0)
+can14 = enableForecast and (tot14 > 0)
+can15 = enableForecast and (tot15 > 0)
+can16 = enableForecast and (tot16 > 0)
+can17 = enableForecast and (tot17 > 0)
 
 //====================
 // Table helpers MUST be global (cannot be defined inside if-block)
