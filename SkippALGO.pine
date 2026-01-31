@@ -524,7 +524,7 @@ f_platt_prob(pRaw, a, b) =>
     usePlatt ? f_sigmoid(a * f_logit(pRaw) + b) : pRaw
 
 // --- Phase 3 Helpers: Ensemble ---
-f_pullback_score(c, h, l, ef, es, atrVal, bias) =>
+f_pullback_score(c, ef, es, bias) =>
     // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
     // Simplified: Normalized distance
     float s = 0.0
@@ -607,44 +607,6 @@ f_bin2D(score, volRank, binsA, binsB) =>
     
     // Flattened index
     bA * binsB + bB
-
-f_binArr(score, cntArr, volRank) =>
-    // Infer if 1D or 2D based on inputs? 
-    // Actually we know cntArr uses predBinsN * dim2Bins
-    // But this function needs to know how many binsA vs binsB.
-    // We'll trust global params predBinsN types.
-    f_bin2D(score, volRank, predBinsN, dim2Bins)
-
-f_binArr1(score, cntArr1) =>
-    // 1-Series remains 1D (per user instruction Phase 4 note, and code structure)
-    // "Since we kept qBin1# 1D..." 
-    // Actually Phase 2 says "replace cntN# and upN#... replace qBinN# with qIdxN#".
-    // It implies (1) likely stays 1D or also goes 2D?
-    // "and similarly for Pred(1)" -> So (1) also becomes 2D? 
-    // "replace cnt1# and up1# sizes" -> Yes.
-    // But helper `f_binArr1` currently treats bins=2 specific logic.
-    // Use 1D for Pred(1) as "Reactive" companion? 
-    // The prompt says: "replace cntN and upN ... (and similarly for Pred(1))".
-    // So Pred(1) is also 2D. 
-    // But `predBins1` input is small (2 or 3).
-    // If 2D, size = 2 * 3 = 6.
-    // Let's implement 2D for (1) too to match structure.
-    // But wait, `f_binArr1` had logic `score > 0 ? 1 : 0`.
-    // We should preserve that for BinA, and add Vol Dimension.
-    binsA = predBins1 // usually 2
-    u = (score + 1.0) * 0.5
-    bA = math.floor(u * binsA)
-    bA := bA < 0 ? 0 : bA > (binsA - 1) ? (binsA - 1) : bA
-    // Vol
-    // We need volRank passed here too.
-    0 // Placeholder, we need to change signature or usage.
-    // Wait, I cannot change usage easily without changing `f_binArr1` signature in 14 places.
-    // I will refactor `f_binArr1` to take volRank too.
-    0 
-
-f_binArr1_2D(score, volRank, cntArr1) =>
-    // Explicit 2D for (1)
-    f_bin2D(score, volRank, predBins1, dim2Bins)
 
 f_prob_platt(up, n, alpha, aPlatt, bPlatt) =>
     pRaw = (up + alpha) / (n + 2.0 * alpha)
@@ -909,7 +871,7 @@ f_process_tf(newTfBar, sA,
         // 3) Push new pending item
         // --- Phase 3: Ensemble Score ---
         bias = emaFNow > emaSNow ? 1 : -1
-        sB = f_pullback_score(cNow, hNow, lNow, emaFNow, emaSNow, atrNow, bias)
+        sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
         sC = volRankNow >= 0.66 ? -1.0 : (volRankNow <= 0.33 ? 1.0 : 0.0)
         sEns = f_ensemble(sA, sB, sC, wAVal, wBVal, wCVal)
         
@@ -1349,19 +1311,19 @@ prevResetNow := resetNow
 
 if doReset
     if resetWhich == "All" or resetWhich == "F1"
-        f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, brierStatsN1, brierStats11)
+        f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, brierStatsN1, brierStats11, qLogitN1, qLogit11, llStatsN1, llStats11, plattN1, platt11)
     if resetWhich == "All" or resetWhich == "F2"
-        f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, brierStatsN2, brierStats12)
+        f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, brierStatsN2, brierStats12, qLogitN2, qLogit12, llStatsN2, llStats12, plattN2, platt12)
     if resetWhich == "All" or resetWhich == "F3"
-        f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, brierStatsN3, brierStats13)
+        f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, brierStatsN3, brierStats13, qLogitN3, qLogit13, llStatsN3, llStats13, plattN3, platt13)
     if resetWhich == "All" or resetWhich == "F4"
-        f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, brierStatsN4, brierStats14)
+        f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, brierStatsN4, brierStats14, qLogitN4, qLogit14, llStatsN4, llStats14, plattN4, platt14)
     if resetWhich == "All" or resetWhich == "F5"
-        f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, brierStatsN5, brierStats15)
+        f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, brierStatsN5, brierStats15, qLogitN5, qLogit15, llStatsN5, llStats15, plattN5, platt15)
     if resetWhich == "All" or resetWhich == "F6"
-        f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, brierStatsN6, brierStats16)
+        f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, brierStatsN6, brierStats16, qLogitN6, qLogit16, llStatsN6, llStats16, plattN6, platt16)
     if resetWhich == "All" or resetWhich == "F7"
-        f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, brierStatsN7, brierStats17)
+        f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, brierStatsN7, brierStats17, qLogitN7, qLogit17, llStatsN7, llStats17, plattN7, platt17)
 
 //====================
 // Calibration update (bar-close confirmed guard + new TF bar events)
@@ -1443,7 +1405,7 @@ if doCal
 //====================
 f_get_disp_prob(sA, c, h, l, a, vR, ef, es, wA, wB, wC, cnt, up, bins, alpha, shrink, platt) =>
     bias = ef > es ? 1 : -1
-    sB = f_pullback_score(c, h, l, ef, es, a, bias)
+    sB = f_pullback_score(c, ef, es, bias)
     sC = vR >= 0.66 ? -1.0 : (vR <= 0.33 ? 1.0 : 0.0)
     sEns = f_ensemble(sA, sB, sC, wA, wB, wC)
     b = f_bin2D(sEns, vR, bins, dim2Bins)
