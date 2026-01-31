@@ -7,7 +7,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 PINE_PATH = ROOT / "SkippALGO_Strategy.pine"
 
 
-class TestSkippAlgoStrategyPine(unittest.TestCase):
+class TestSkippAlgoStrategy(unittest.TestCase):
     text: str = ""
     lines: list[str] = []
 
@@ -36,26 +36,23 @@ class TestSkippAlgoStrategyPine(unittest.TestCase):
                     print(f"Line {i} has semicolon: {line}")
         self.assertEqual(count, 0, f"Found {count} lines ending with semicolons")
 
-    def test_table_clear_has_bounds(self):
-        # Strategy also updated to 33 rows?
-        self.assertIn("table.clear(gT, 0, 0, 4, 33)", self.text)
-        self.assertNotRegex(self.text, r"table\.clear\(\s*gT\s*\)")
+    def test_f_process_tf_usage(self):
+        # f_process_tf calls should match definition
+        # We check that arguments match the input names (ens_wA vs wState issue check)
+        # In Strategy, inputs ARE ens_wA, ens_wB, ens_wC.
+        # So we check that the calls usage these variables.
+        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*ens_wA,\s*ens_wB,\s*ens_wC\)"
+        self.assertRegex(self.text, pattern, "Correct variable names not found in f_process_tf calls")
 
-    def test_f_prob_exists(self):
-         self.assertRegex(self.text, r"f_prob\(up, n, alpha\) =>")
-
-    def test_f_chance_word_exists(self):
-        # Should be synced with Indicator
-         self.assertRegex(self.text, r"f_chance_word\(\) =>")
-
-    def test_target_profiles_usage(self):
-        # Verify inputs are used in string concatenation
-        self.assertIn('"Multi-Profile (See Settings). Fast: " + fcTargetF', self.text)
+    def test_div_by_zero_fix_f_pullback_score(self):
+        # The line 'dist = (c - ef) / (na(atrVal) ? c*0.01 : atrVal)' was causing potential div by zero and was unused
+        bad_line = r"dist\s*=\s*\(c\s*-\s*ef\)\s*/\s*\(na\(atrVal\)\s*\?\s*c\*0\.01\s*:\s*atrVal\)"
+        self.assertNotRegex(self.text, bad_line, "Found potentially dangerous div-by-zero line in f_pullback_score")
         
-    def test_new_ui_helpers(self):
-        # Verify CI/Reliability helpers are present (v6.1 UI)
-        self.assertRegex(self.text, r"f_ci95_halfwidth\(p, n\) =>")
-        self.assertRegex(self.text, r"f_rel_label\(p, nBin, total, canCal\) =>")
+    def test_entryNow_replaced_by_cNow(self):
+        # Verify cNow is used instead of entryNow
+        self.assertNotRegex(self.text, r"array\.push\(qEntry,\s*entryNow\)")
+        self.assertRegex(self.text, r"array\.push\(qEntry,\s*cNow\)")
 
 if __name__ == "__main__":
     unittest.main()

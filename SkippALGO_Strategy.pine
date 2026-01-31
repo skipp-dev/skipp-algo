@@ -474,7 +474,6 @@ f_pullback_score(c, h, l, ef, es, atrVal, bias) =>
     // Simplified: Normalized distance
     float s = 0.0
     if bias == 1
-        dist = (c - ef) / (na(atrVal) ? c*0.01 : atrVal)
         if c > ef
             s := 0.5
         else if c > es
@@ -482,7 +481,6 @@ f_pullback_score(c, h, l, ef, es, atrVal, bias) =>
         else
             s := -1.0 // Broken
     else
-        dist = (ef - c) / (na(atrVal) ? c*0.01 : atrVal)
         if c < ef
             s := 0.5
         else if c < es
