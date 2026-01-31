@@ -306,12 +306,12 @@ This is Laplace/Beta(α, α) style smoothing:
 * Avoids 0%/100% probabilities when sample sizes are small
 * Gradually converges as n grows
 
-### 6.7 Data sufficiency gating
+### 6.7 Data sufficiency gating and Reliability
 
-Two levels of “insufficient” are displayed:
+Two levels of "insufficient" are displayed:
 
-* `n0` / “—” when calculation is impossible (no data)
-* `…` when n < `calMinSamples`
+* `n0` / "—" when calculation is impossible (no data)
+* `warmup` when n < `calMinSamples`
 
 This is a major correctness improvement: the UI tells the truth about how much evidence exists.
 
@@ -323,7 +323,26 @@ This is a major correctness improvement: the UI tells the truth about how much e
 * ▼ if `PUp < predDnThr` (e.g. < 0.45)
 * − otherwise
 
-These thresholds define your “decision boundary” and can be widened/narrowed for stricter/looser prediction.
+These thresholds define your "decision boundary" and can be widened/narrowed for stricter/looser prediction.
+
+### 6.9 Brier Score (Accuracy Tracking)
+
+The script now tracks the **Brier Score** (Mean Squared Error of probability forecasts) to objectively measure accuracy.
+
+* **Score Range:** 0.0 (Perfect) to 1.0 (Worst). 0.25 is random/useless (like guessing 50% every time).
+* **BS(N)**: Tracks long-term accuracy. Crucially, this score is **gated by `calMinSamples`**. It only penalizes the model for bins that are considered "mature." This prevents "warmup" noise from ruining the long-term score.
+* **BS(1)**: Tracks short-term/fast accuracy. This score is **always active**, updating on every trade regardless of sample size. It reflects the model's immediate adaptability.
+
+### 6.10 Confidence Intervals & Reliability Labels ("Method 2")
+
+To prevent false confidence in small sample sizes, the system calculates a **95% Confidence Interval (CI)** for every probability.
+
+* **Formula:** standard Wald interval $1.96 \cdot \sqrt{p(1-p)/n}$.
+* **Labels:**
+    * **"strong"**: CI half-width $\le 5\%$ (High precision).
+    * **"ok"**: CI half-width $\le 10\%$ (Acceptable precision).
+    * **"weak"**: CI half-width $> 10\%$ OR $n < 30$ (Low precision).
+* **Visuals:** The table displays the CI range (e.g., `±4.2pp`) next to the probability.
 
 ---
 
@@ -355,22 +374,24 @@ Interpretation:
 * Bias/score tells you the current regime snapshot on that TF.
 * T/M/L helps you debug why it’s biased (trend vs momentum vs location).
 
-### 7.3 FORECAST (PROB) block (5 columns)
+### 7.3 FORECAST (PROB) block (New Layout)
 
 Columns:
 
-* TF
-* Pred(N)
-* Pred(1)
-* PUp(N)
-* PUp(1)
+* **TF**: Timeframe label (e.g., 5M, 1H).
+* **Pred(N)**: Stable directional call (e.g., ▲ 55%). Shows "warmup" if insufficient data.
+* **Data (N)**: Reliability Stats.
+    * Format: `Samples/Total` + `Label` + `±CI`
+    * Example: `42/150` `strong` `±4.2pp`
+    * Gives you instant context on *why* you should (or shouldn't) trust the signal.
+* **Pred(1)**: Fast/Reactive directional call.
+* **Data (1)**: Reactive Stats (always calculation, useful for spotting regime shifts early).
 
 Interpretation:
 
-* **Pred(N)** is the “stable” probabilistic call (after sufficiency)
-* **Pred(1)** is a more reactive companion
-* **PUp(N)** and **PUp(1)** show the underlying probability estimate
-* `…` means “not enough samples yet, do not trust”
+* **Pred(N)** is your strategic signal. Trust it only when Data(N) says "strong" or "ok".
+* **Pred(1)** is your tactical signal. Be wary of it, but use it to spot turns before N catches up.
+* **Brier Checks:** If Brier Scores (shown in footer or header tooltips if enabled) are high (>0.25), the market is currently defying the model's logic.
 
 ### 7.4 Footer rows (“Params” and “Meaning”)
 
