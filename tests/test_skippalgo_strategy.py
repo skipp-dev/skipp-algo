@@ -41,10 +41,8 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_f_process_tf_usage(self):
         # f_process_tf calls should match definition
-        # We check that arguments match the input names (ens_wA vs wState issue check)
-        # In Strategy, inputs ARE ens_wA, ens_wB, ens_wC.
-        # So we check that the calls usage these variables.
-        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*ens_wA,\s*ens_wB,\s*ens_wC\)"
+        # After harmonization, both files use wState, wPullback, wRegime
+        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*wState,\s*wPullback,\s*wRegime\)"
         self.assertRegex(self.text, pattern, "Correct variable names not found in f_process_tf calls")
 
     def test_div_by_zero_fix_f_pullback_score(self):
@@ -86,7 +84,7 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_ensemble_weights_used_in_display(self):
         # Display probabilities should use the same ensemble weights as calibration
-        self.assertIn("sEns = f_ensemble(sA, sB, sC, ens_wA, ens_wB, ens_wC)", self.text)
+        self.assertIn("sEns = f_ensemble(sA, sB, sC, wState, wPullback, wRegime)", self.text)
 
     def test_defaults_match_indicator_targets(self):
         # Mid targets
@@ -104,9 +102,10 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn('slATRS    = input.float(0.80, "Path SL"', self.text)
 
     def test_ensemble_defaults_match_indicator(self):
-        self.assertIn('ens_wA = input.float(1.0, "Weight A (Algo)"', self.text)
-        self.assertIn('ens_wB = input.float(0.5, "Weight B (Pullback)"', self.text)
-        self.assertIn('ens_wC = input.float(0.3, "Weight C (Regime)"', self.text)
+        # After harmonization, Strategy uses same variable names as Indicator
+        self.assertIn('wState    = input.float(1.0, "Weight: State (Outlook)"', self.text)
+        self.assertIn('wPullback = input.float(0.5, "Weight: Pullback Depth"', self.text)
+        self.assertIn('wRegime   = input.float(0.3, "Weight: Vol Regime"', self.text)
 
         # Ensure indicator still defines the same weights for parity
         self.assertIn('wState    = input.float(1.0, "Weight: State (Outlook)"', self.indicator_text)

@@ -585,6 +585,14 @@ f_data_text(pUp, nBin, total, canCal) =>
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
 
+// @function Clamp value to arbitrary [lo, hi] range
+// @param val Value to clamp
+// @param lo Minimum bound
+// @param hi Maximum bound
+// @returns Clamped value
+f_clamp(val, lo, hi) =>
+    math.max(lo, math.min(hi, val))
+
 f_pct_rank(x, len) =>
     lo = ta.lowest(x, len)
     hi = ta.highest(x, len)

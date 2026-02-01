@@ -188,10 +188,10 @@ noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["I
 pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"], group="Policy")
 
 // --- Phase 3: Ensemble Weights ---
-grp_ens = "Ensemble Weights (Phase 3)"
-ens_wA = input.float(1.0, "Weight A (Algo)", step=0.1, group=grp_ens)
-ens_wB = input.float(0.5, "Weight B (Pullback)", step=0.1, group=grp_ens)
-ens_wC = input.float(0.3, "Weight C (Regime)", step=0.1, group=grp_ens)
+grp_ens = "Phase 3: Ensemble Weights"
+wState    = input.float(1.0, "Weight: State (Outlook)", step=0.1, group=grp_ens)
+wPullback = input.float(0.5, "Weight: Pullback Depth", step=0.1, group=grp_ens)
+wRegime   = input.float(0.3, "Weight: Vol Regime", step=0.1, group=grp_ens)
 
 // --- Phase 4: Online Calibration ---
 grp_cal = "Calibration Settings (Phase 4)"
@@ -601,6 +601,10 @@ f_eval_update_one(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evS
     if array.size(evBrier) > rollScore
         sb := sb - array.shift(evBrier)
         sl := sl - array.shift(evLog)
+    // Periodic recalculation to prevent FP drift
+    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(evBrier) > 0
+        sb := array.sum(evBrier)
+        sl := array.sum(evLog)
     array.set(evSumBrier, 0, sb)
     array.set(evSumLog, 0, sl)
 
@@ -613,6 +617,12 @@ f_eval_update_one(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evS
         sys := sys - array.shift(evYS)
     if array.size(evYL) > rollLong
         syl := syl - array.shift(evYL)
+    // Periodic recalculation to prevent FP drift
+    if bar_index % ROLL_RECALC_INTERVAL == 0
+        if array.size(evYS) > 0
+            sys := array.sum(evYS)
+        if array.size(evYL) > 0
+            syl := array.sum(evYL)
     array.set(evSumYS, 0, sys)
     array.set(evSumYL, 0, syl)
 
@@ -786,7 +796,7 @@ f_process_tf(newTfBar, sA,
              cNow, hNow, lNow, atrNow, volRankNow, emaFNow, emaSNow,
              TfState st,
              fcTgt, kB, aThr, pH, tpA, slA,
-             alphaNVal, alpha1Val, shrinkKVal, wAVal, wBVal, wCVal) =>
+             alphaNVal, alpha1Val, shrinkKVal, wStateVal, wPullbackVal, wRegimeVal) =>
 
     if newTfBar
         // 1) Age/extremes update for pending items
@@ -912,7 +922,7 @@ f_process_tf(newTfBar, sA,
                             array.set(st.plattN, 1, bN)
                             
                             // LogLoss
-                            pLL = math.max(0.0001, math.min(0.9999, pAdj))
+                            pLL = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, pAdj))
                             ll = -(outcomeVal * math.log(pLL) + (1.0 - outcomeVal) * math.log(1.0 - pLL))
                             curSumLL = array.get(st.llStatsN, 0)
                             curCntLL = array.get(st.llStatsN, 1)
@@ -938,7 +948,7 @@ f_process_tf(newTfBar, sA,
                         array.set(st.platt1, 0, a1)
                         array.set(st.platt1, 1, b1)
                         
-                        pLL1 = math.max(0.0001, math.min(0.9999, pAdj1))
+                        pLL1 = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, pAdj1))
                         ll1 = -(outcomeVal * math.log(pLL1) + (1.0 - outcomeVal) * math.log(1.0 - pLL1))
                         curSumLL1 = array.get(st.llStats1, 0)
                         curCntLL1 = array.get(st.llStats1, 1)
@@ -966,7 +976,7 @@ f_process_tf(newTfBar, sA,
         bias = emaFNow > emaSNow ? 1 : -1
         sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
         sC = volRankNow >= VOL_THRESH_HIGH ? -1.0 : (volRankNow <= VOL_THRESH_LOW ? 1.0 : 0.0)
-        sEns = f_ensemble(sA, sB, sC, wAVal, wBVal, wCVal)
+        sEns = f_ensemble(sA, sB, sC, wStateVal, wPullbackVal, wRegimeVal)
         
         // --- Phase 2: 2D Binning ---
         bN = f_bin2D(sEns, volRankNow, predBinsN, dim2Bins)
@@ -1450,19 +1460,19 @@ if doReset
 //====================
 doCal = enableForecast and barstate.isconfirmed
 if doCal
-    f_process_tf(newF1, outScore1, c1, h1, l1, a1, vr1, ef1, es1, tf1State, fcT1, kB1, aT1, pH1, tp1, sl1, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF2, outScore2, c2, h2, l2, a2, vr2, ef2, es2, tf2State, fcT2, kB2, aT2, pH2, tp2, sl2, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF3, outScore3, c3, h3, l3, a3, vr3, ef3, es3, tf3State, fcT3, kB3, aT3, pH3, tp3, sl3, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF4, outScore4, c4, h4, l4, a4, vr4, ef4, es4, tf4State, fcT4, kB4, aT4, pH4, tp4, sl4, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF5, outScore5, c5, h5, l5, a5, vr5, ef5, es5, tf5State, fcT5, kB5, aT5, pH5, tp5, sl5, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF6, outScore6, c6, h6, l6, a6, vr6, ef6, es6, tf6State, fcT6, kB6, aT6, pH6, tp6, sl6, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF7, outScore7, c7, h7, l7, a7, vr7, ef7, es7, tf7State, fcT7, kB7, aT7, pH7, tp7, sl7, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+    f_process_tf(newF1, outScore1, c1, h1, l1, a1, vr1, ef1, es1, tf1State, fcT1, kB1, aT1, pH1, tp1, sl1, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+    f_process_tf(newF2, outScore2, c2, h2, l2, a2, vr2, ef2, es2, tf2State, fcT2, kB2, aT2, pH2, tp2, sl2, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+    f_process_tf(newF3, outScore3, c3, h3, l3, a3, vr3, ef3, es3, tf3State, fcT3, kB3, aT3, pH3, tp3, sl3, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+    f_process_tf(newF4, outScore4, c4, h4, l4, a4, vr4, ef4, es4, tf4State, fcT4, kB4, aT4, pH4, tp4, sl4, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+    f_process_tf(newF5, outScore5, c5, h5, l5, a5, vr5, ef5, es5, tf5State, fcT5, kB5, aT5, pH5, tp5, sl5, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+    f_process_tf(newF6, outScore6, c6, h6, l6, a6, vr6, ef6, es6, tf6State, fcT6, kB6, aT6, pH6, tp6, sl6, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
+    f_process_tf(newF7, outScore7, c7, h7, l7, a7, vr7, ef7, es7, tf7State, fcT7, kB7, aT7, pH7, tp7, sl7, alphaN, alpha1, kShrink, wState, wPullback, wRegime)
 
 f_get_disp_vals(sA, c, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : -1
     sB = f_pullback_score(c, ef, es, bias)
     sC = vr >= VOL_THRESH_HIGH ? -1.0 : (vr <= VOL_THRESH_LOW ? 1.0 : 0.0)
-    sEns = f_ensemble(sA, sB, sC, ens_wA, ens_wB, ens_wC)
+    sEns = f_ensemble(sA, sB, sC, wState, wPullback, wRegime)
     bN = f_bin2D(sEns, vr, predBinsN, dim2Bins)
     b1 = f_bin2D(sEns, vr, predBins1, dim2Bins)
     [pN, nN] = f_cal_cur(st.cntN, st.upN, bN, alphaN, kShrink)

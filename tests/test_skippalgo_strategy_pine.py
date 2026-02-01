@@ -94,9 +94,10 @@ class TestSkippAlgoStrategyForecasting(unittest.TestCase):
     def test_ensemble_scoring(self):
         """Verify ensemble scoring system with weights."""
         self.assertIn("f_ensemble(", self.text)
-        self.assertIn("ens_wA", self.text)
-        self.assertIn("ens_wB", self.text)
-        self.assertIn("ens_wC", self.text)
+        # After harmonization, Strategy uses same names as Indicator
+        self.assertIn("wState", self.text)
+        self.assertIn("wPullback", self.text)
+        self.assertIn("wRegime", self.text)
 
     def test_2d_binning(self):
         """Verify 2D binning (Score × Volatility)."""
