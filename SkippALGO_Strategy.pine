@@ -211,6 +211,23 @@ relFilterTF  = input.string("F6", "Filter Horizon", options=["F1","F2","F3","F4"
 relFilterModel = input.string("N", "Filter Model", options=["N", "1"], tooltip="N=Multi-factor, 1=Single-factor")
 
 //====================
+// Inputs — Evaluation (live scoring)
+//====================
+showEvalSection = input.bool(true, "Show Evaluation rows (Brier/LogLoss/ECE/Drift)")
+evalWhichHead   = input.string("N", "Evaluate head", options=["N","1"])  // N=stable bins, 1=reactive bins
+
+evalMode        = input.string("History+Live", "Evaluation mode", options=["History+Live","LiveOnly"])
+
+evalRollScore   = input.int(200, "Eval rolling window: score (events)", minval=20, maxval=2000)
+evalRollShort   = input.int(50,  "Eval drift short window (events)", minval=10, maxval=500)
+evalRollLong    = input.int(300, "Eval drift long window (events)", minval=30, maxval=3000)
+
+evalBuckets     = input.int(5, "Eval buckets (ECE)", minval=3, maxval=5)
+evalMinEvents   = input.int(30, "Eval min events to display", minval=5, maxval=500)
+
+driftWarnPP     = input.float(8.0, "Drift warn threshold (pp)", minval=1.0, maxval=50.0, step=0.5)
+
+//====================
 // Calibration storage — per horizon TF (Global State)
 //====================
 // F1
@@ -230,6 +247,8 @@ var float[] qProbN1 = array.new_float() // raw prob at entry
 var float[] qProb11 = array.new_float() // raw prob at entry
 var float[] qLogitN1= array.new_float() // Phase 4
 var float[] qLogit11= array.new_float() // Phase 4
+var float[] qPredN1 = array.new_float()
+var float[] qPred11 = array.new_float()
 
 var float[] brierStatsN1 = array.new_float(2, 0.0) // [0]=sum, [1]=cnt
 var float[] brierStats11 = array.new_float(2, 0.0)
@@ -255,6 +274,8 @@ var float[] qProbN2 = array.new_float()
 var float[] qProb12 = array.new_float()
 var float[] qLogitN2= array.new_float()
 var float[] qLogit12= array.new_float()
+var float[] qPredN2 = array.new_float()
+var float[] qPred12 = array.new_float()
 
 var float[] brierStatsN2 = array.new_float(2, 0.0)
 var float[] brierStats12 = array.new_float(2, 0.0)
@@ -280,6 +301,8 @@ var float[] qProbN3 = array.new_float()
 var float[] qProb13 = array.new_float()
 var float[] qLogitN3= array.new_float()
 var float[] qLogit13= array.new_float()
+var float[] qPredN3 = array.new_float()
+var float[] qPred13 = array.new_float()
 
 var float[] brierStatsN3 = array.new_float(2, 0.0)
 var float[] brierStats13 = array.new_float(2, 0.0)
@@ -305,6 +328,8 @@ var float[] qProbN4 = array.new_float()
 var float[] qProb14 = array.new_float()
 var float[] qLogitN4= array.new_float()
 var float[] qLogit14= array.new_float()
+var float[] qPredN4 = array.new_float()
+var float[] qPred14 = array.new_float()
 
 var float[] brierStatsN4 = array.new_float(2, 0.0)
 var float[] brierStats14 = array.new_float(2, 0.0)
@@ -330,6 +355,8 @@ var float[] qProbN5 = array.new_float()
 var float[] qProb15 = array.new_float()
 var float[] qLogitN5= array.new_float()
 var float[] qLogit15= array.new_float()
+var float[] qPredN5 = array.new_float()
+var float[] qPred15 = array.new_float()
 
 var float[] brierStatsN5 = array.new_float(2, 0.0)
 var float[] brierStats15 = array.new_float(2, 0.0)
@@ -355,6 +382,8 @@ var float[] qProbN6 = array.new_float()
 var float[] qProb16 = array.new_float()
 var float[] qLogitN6= array.new_float()
 var float[] qLogit16= array.new_float()
+var float[] qPredN6 = array.new_float()
+var float[] qPred16 = array.new_float()
 
 var float[] brierStatsN6 = array.new_float(2, 0.0)
 var float[] brierStats16 = array.new_float(2, 0.0)
@@ -380,6 +409,8 @@ var float[] qProbN7 = array.new_float()
 var float[] qProb17 = array.new_float()
 var float[] qLogitN7= array.new_float()
 var float[] qLogit17= array.new_float()
+var float[] qPredN7 = array.new_float()
+var float[] qPred17 = array.new_float()
 
 var float[] brierStatsN7 = array.new_float(2, 0.0)
 var float[] brierStats17 = array.new_float(2, 0.0)
@@ -387,6 +418,232 @@ var float[] llStatsN7    = array.new_float(2, 0.0)
 var float[] llStats17    = array.new_float(2, 0.0)
 var float[] plattN7      = array.from(1.0, 0.0)
 var float[] platt17      = array.from(1.0, 0.0)
+
+//====================
+// Evaluation storage — per horizon (Head N and Head 1)
+//====================
+// F1 — Head N
+var float[] evBrierN1 = array.new_float()
+var float[] evLogN1   = array.new_float()
+var float[] evSumBrierN1 = array.new_float(1, 0.0)
+var float[] evSumLogN1   = array.new_float(1, 0.0)
+
+var float[] evYS_N1 = array.new_float()
+var float[] evYL_N1 = array.new_float()
+var float[] evSumYS_N1 = array.new_float(1, 0.0)
+var float[] evSumYL_N1 = array.new_float(1, 0.0)
+
+// rolling calibration buckets (ECE)
+var int[]   evCalCntN1  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN1 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN1 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN1 = array.new_int()
+var float[] evCalPBufN1 = array.new_float()
+var float[] evCalYBufN1 = array.new_float()
+
+// F1 — Head 1
+var float[] evBrier11 = array.new_float()
+var float[] evLog11   = array.new_float()
+var float[] evSumBrier11 = array.new_float(1, 0.0)
+var float[] evSumLog11   = array.new_float(1, 0.0)
+
+var float[] evYS_11 = array.new_float()
+var float[] evYL_11 = array.new_float()
+var float[] evSumYS_11 = array.new_float(1, 0.0)
+var float[] evSumYL_11 = array.new_float(1, 0.0)
+
+var int[]   evCalCnt11  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP11 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY11 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf11 = array.new_int()
+var float[] evCalPBuf11 = array.new_float()
+var float[] evCalYBuf11 = array.new_float()
+
+// F2
+var float[] evBrierN2 = array.new_float()
+var float[] evLogN2   = array.new_float()
+var float[] evSumBrierN2 = array.new_float(1, 0.0)
+var float[] evSumLogN2   = array.new_float(1, 0.0)
+var float[] evYS_N2 = array.new_float()
+var float[] evYL_N2 = array.new_float()
+var float[] evSumYS_N2 = array.new_float(1, 0.0)
+var float[] evSumYL_N2 = array.new_float(1, 0.0)
+var int[]   evCalCntN2  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN2 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN2 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN2 = array.new_int()
+var float[] evCalPBufN2 = array.new_float()
+var float[] evCalYBufN2 = array.new_float()
+
+var float[] evBrier12 = array.new_float()
+var float[] evLog12   = array.new_float()
+var float[] evSumBrier12 = array.new_float(1, 0.0)
+var float[] evSumLog12   = array.new_float(1, 0.0)
+var float[] evYS_12 = array.new_float()
+var float[] evYL_12 = array.new_float()
+var float[] evSumYS_12 = array.new_float(1, 0.0)
+var float[] evSumYL_12 = array.new_float(1, 0.0)
+var int[]   evCalCnt12  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP12 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY12 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf12 = array.new_int()
+var float[] evCalPBuf12 = array.new_float()
+var float[] evCalYBuf12 = array.new_float()
+
+// F3
+var float[] evBrierN3 = array.new_float()
+var float[] evLogN3   = array.new_float()
+var float[] evSumBrierN3 = array.new_float(1, 0.0)
+var float[] evSumLogN3   = array.new_float(1, 0.0)
+var float[] evYS_N3 = array.new_float()
+var float[] evYL_N3 = array.new_float()
+var float[] evSumYS_N3 = array.new_float(1, 0.0)
+var float[] evSumYL_N3 = array.new_float(1, 0.0)
+var int[]   evCalCntN3  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN3 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN3 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN3 = array.new_int()
+var float[] evCalPBufN3 = array.new_float()
+var float[] evCalYBufN3 = array.new_float()
+
+var float[] evBrier13 = array.new_float()
+var float[] evLog13   = array.new_float()
+var float[] evSumBrier13 = array.new_float(1, 0.0)
+var float[] evSumLog13   = array.new_float(1, 0.0)
+var float[] evYS_13 = array.new_float()
+var float[] evYL_13 = array.new_float()
+var float[] evSumYS_13 = array.new_float(1, 0.0)
+var float[] evSumYL_13 = array.new_float(1, 0.0)
+var int[]   evCalCnt13  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP13 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY13 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf13 = array.new_int()
+var float[] evCalPBuf13 = array.new_float()
+var float[] evCalYBuf13 = array.new_float()
+
+// F4
+var float[] evBrierN4 = array.new_float()
+var float[] evLogN4   = array.new_float()
+var float[] evSumBrierN4 = array.new_float(1, 0.0)
+var float[] evSumLogN4   = array.new_float(1, 0.0)
+var float[] evYS_N4 = array.new_float()
+var float[] evYL_N4 = array.new_float()
+var float[] evSumYS_N4 = array.new_float(1, 0.0)
+var float[] evSumYL_N4 = array.new_float(1, 0.0)
+var int[]   evCalCntN4  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN4 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN4 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN4 = array.new_int()
+var float[] evCalPBufN4 = array.new_float()
+var float[] evCalYBufN4 = array.new_float()
+
+var float[] evBrier14 = array.new_float()
+var float[] evLog14   = array.new_float()
+var float[] evSumBrier14 = array.new_float(1, 0.0)
+var float[] evSumLog14   = array.new_float(1, 0.0)
+var float[] evYS_14 = array.new_float()
+var float[] evYL_14 = array.new_float()
+var float[] evSumYS_14 = array.new_float(1, 0.0)
+var float[] evSumYL_14 = array.new_float(1, 0.0)
+var int[]   evCalCnt14  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP14 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY14 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf14 = array.new_int()
+var float[] evCalPBuf14 = array.new_float()
+var float[] evCalYBuf14 = array.new_float()
+
+// F5
+var float[] evBrierN5 = array.new_float()
+var float[] evLogN5   = array.new_float()
+var float[] evSumBrierN5 = array.new_float(1, 0.0)
+var float[] evSumLogN5   = array.new_float(1, 0.0)
+var float[] evYS_N5 = array.new_float()
+var float[] evYL_N5 = array.new_float()
+var float[] evSumYS_N5 = array.new_float(1, 0.0)
+var float[] evSumYL_N5 = array.new_float(1, 0.0)
+var int[]   evCalCntN5  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN5 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN5 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN5 = array.new_int()
+var float[] evCalPBufN5 = array.new_float()
+var float[] evCalYBufN5 = array.new_float()
+
+var float[] evBrier15 = array.new_float()
+var float[] evLog15   = array.new_float()
+var float[] evSumBrier15 = array.new_float(1, 0.0)
+var float[] evSumLog15   = array.new_float(1, 0.0)
+var float[] evYS_15 = array.new_float()
+var float[] evYL_15 = array.new_float()
+var float[] evSumYS_15 = array.new_float(1, 0.0)
+var float[] evSumYL_15 = array.new_float(1, 0.0)
+var int[]   evCalCnt15  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP15 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY15 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf15 = array.new_int()
+var float[] evCalPBuf15 = array.new_float()
+var float[] evCalYBuf15 = array.new_float()
+
+// F6
+var float[] evBrierN6 = array.new_float()
+var float[] evLogN6   = array.new_float()
+var float[] evSumBrierN6 = array.new_float(1, 0.0)
+var float[] evSumLogN6   = array.new_float(1, 0.0)
+var float[] evYS_N6 = array.new_float()
+var float[] evYL_N6 = array.new_float()
+var float[] evSumYS_N6 = array.new_float(1, 0.0)
+var float[] evSumYL_N6 = array.new_float(1, 0.0)
+var int[]   evCalCntN6  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN6 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN6 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN6 = array.new_int()
+var float[] evCalPBufN6 = array.new_float()
+var float[] evCalYBufN6 = array.new_float()
+
+var float[] evBrier16 = array.new_float()
+var float[] evLog16   = array.new_float()
+var float[] evSumBrier16 = array.new_float(1, 0.0)
+var float[] evSumLog16   = array.new_float(1, 0.0)
+var float[] evYS_16 = array.new_float()
+var float[] evYL_16 = array.new_float()
+var float[] evSumYS_16 = array.new_float(1, 0.0)
+var float[] evSumYL_16 = array.new_float(1, 0.0)
+var int[]   evCalCnt16  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP16 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY16 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf16 = array.new_int()
+var float[] evCalPBuf16 = array.new_float()
+var float[] evCalYBuf16 = array.new_float()
+
+// F7
+var float[] evBrierN7 = array.new_float()
+var float[] evLogN7   = array.new_float()
+var float[] evSumBrierN7 = array.new_float(1, 0.0)
+var float[] evSumLogN7   = array.new_float(1, 0.0)
+var float[] evYS_N7 = array.new_float()
+var float[] evYL_N7 = array.new_float()
+var float[] evSumYS_N7 = array.new_float(1, 0.0)
+var float[] evSumYL_N7 = array.new_float(1, 0.0)
+var int[]   evCalCntN7  = array.new_int(evalBuckets, 0)
+var float[] evCalSumPN7 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumYN7 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBufN7 = array.new_int()
+var float[] evCalPBufN7 = array.new_float()
+var float[] evCalYBufN7 = array.new_float()
+
+var float[] evBrier17 = array.new_float()
+var float[] evLog17   = array.new_float()
+var float[] evSumBrier17 = array.new_float(1, 0.0)
+var float[] evSumLog17   = array.new_float(1, 0.0)
+var float[] evYS_17 = array.new_float()
+var float[] evYL_17 = array.new_float()
+var float[] evSumYS_17 = array.new_float(1, 0.0)
+var float[] evSumYL_17 = array.new_float(1, 0.0)
+var int[]   evCalCnt17  = array.new_int(evalBuckets, 0)
+var float[] evCalSumP17 = array.new_float(evalBuckets, 0.0)
+var float[] evCalSumY17 = array.new_float(evalBuckets, 0.0)
+var int[]   evCalBBuf17 = array.new_int()
+var float[] evCalPBuf17 = array.new_float()
+var float[] evCalYBuf17 = array.new_float()
 
 //====================
 // Table colors (navy + soft-blue frame)
@@ -604,7 +861,199 @@ f_pupText(pUp, n, canCal) =>
             // example: Up 49.8% (203)
             "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
-f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge, qProbN, qProb1, brierStatsN, brierStats1, qLogitN, qLogit1, llStatsN, llStats1, plattN, platt1) =>
+// Helper: Brier Score (MSE)
+f_brier(p, isEvent) =>
+    y = isEvent ? 1.0 : 0.0
+    math.pow(p - y, 2)
+
+// Helper: Log Loss (clipped)
+f_logloss(p, isEvent) =>
+    y = isEvent ? 1.0 : 0.0
+    pClip = f_clamp(p, 0.01, 0.99)
+    -(y * math.log(pClip) + (1.0 - y) * math.log(1.0 - pClip))
+
+// Helper: Update one Evaluation struct
+f_eval_update_one(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, 
+                  evCalCnt, evCalSumP, evCalSumY, evCalBBuf, evCalPBuf, evCalYBuf, 
+                  pPred, isUp, rollScore, rollShort, rollLong, buckets) =>
+    // 1. Calc instance scores
+    bs = f_brier(pPred, isUp)
+    ll = f_logloss(pPred, isUp)
+    y  = isUp ? 1.0 : 0.0
+    
+    // 2. Rolling Brier/LogLoss
+    array.push(evBrier, bs)
+    array.push(evLog, ll)
+    sb = array.get(evSumBrier, 0) + bs
+    sl = array.get(evSumLog, 0) + ll
+    if array.size(evBrier) > rollScore
+        sb := sb - array.shift(evBrier)
+        sl := sl - array.shift(evLog)
+    array.set(evSumBrier, 0, sb)
+    array.set(evSumLog, 0, sl)
+
+    // 3. Drift (YS vs YL)
+    array.push(evYS, y)
+    array.push(evYL, y)
+    sys = array.get(evSumYS, 0) + y
+    syl = array.get(evSumYL, 0) + y
+    if array.size(evYS) > rollShort
+        sys := sys - array.shift(evYS)
+    if array.size(evYL) > rollLong
+        syl := syl - array.shift(evYL)
+    array.set(evSumYS, 0, sys)
+    array.set(evSumYL, 0, syl)
+
+    // 4. Calibration (ECE Buckets)
+    bIdx = math.min(math.floor(pPred * buckets), buckets - 1)
+    
+    // Rolling buffer for ECE (remove old events to keep ECE "live")
+    // We store [bIdx, pPred, y] in parallel arrays or similar structure
+    array.push(evCalBBuf, int(bIdx))
+    array.push(evCalPBuf, pPred)
+    array.push(evCalYBuf, y)
+    
+    // Add to buckets
+    array.set(evCalCnt,  bIdx, array.get(evCalCnt,  bIdx) + 1)
+    array.set(evCalSumP, bIdx, array.get(evCalSumP, bIdx) + pPred)
+    array.set(evCalSumY, bIdx, array.get(evCalSumY, bIdx) + y)
+
+    // Expire old
+    // Use rollScore for ECE window as well for simplicity (or separate param)
+    if array.size(evCalBBuf) > rollScore
+        oldB = array.shift(evCalBBuf)
+        oldP = array.shift(evCalPBuf)
+        oldY = array.shift(evCalYBuf)
+        // Remove from buckets
+        cOld = array.get(evCalCnt, oldB)
+        if cOld > 0
+            array.set(evCalCnt, oldB, cOld - 1)
+            array.set(evCalSumP, oldB, array.get(evCalSumP, oldB) - oldP)
+            array.set(evCalSumY, oldB, array.get(evCalSumY, oldB) - oldY)
+
+f_eval_on_resolve(hid, pPredN, pPred1, isUp) =>
+    modeN = (evalWhichHead == "N") or (evalWhichHead == "Both")
+    mode1 = (evalWhichHead == "1") or (evalWhichHead == "Both")
+    
+    // Map hid to arrays (Switch-Case ugly but necessary in Pine globals)
+    if hid == 1
+        if modeN
+            f_eval_update_one(evBrierN1, evLogN1, evSumBrierN1, evSumLogN1, evYS_N1, evYL_N1, evSumYS_N1, evSumYL_N1, evCalCntN1, evCalSumPN1, evCalSumYN1, evCalBBufN1, evCalPBufN1, evCalYBufN1, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier11, evLog11, evSumBrier11, evSumLog11, evYS_11, evYL_11, evSumYS_11, evSumYL_11, evCalCnt11, evCalSumP11, evCalSumY11, evCalBBuf11, evCalPBuf11, evCalYBuf11, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    else if hid == 2
+        if modeN
+            f_eval_update_one(evBrierN2, evLogN2, evSumBrierN2, evSumLogN2, evYS_N2, evYL_N2, evSumYS_N2, evSumYL_N2, evCalCntN2, evCalSumPN2, evCalSumYN2, evCalBBufN2, evCalPBufN2, evCalYBufN2, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier12, evLog12, evSumBrier12, evSumLog12, evYS_12, evYL_12, evSumYS_12, evSumYL_12, evCalCnt12, evCalSumP12, evCalSumY12, evCalBBuf12, evCalPBuf12, evCalYBuf12, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    else if hid == 3
+        if modeN
+            f_eval_update_one(evBrierN3, evLogN3, evSumBrierN3, evSumLogN3, evYS_N3, evYL_N3, evSumYS_N3, evSumYL_N3, evCalCntN3, evCalSumPN3, evCalSumYN3, evCalBBufN3, evCalPBufN3, evCalYBufN3, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier13, evLog13, evSumBrier13, evSumLog13, evYS_13, evYL_13, evSumYS_13, evSumYL_13, evCalCnt13, evCalSumP13, evCalSumY13, evCalBBuf13, evCalPBuf13, evCalYBuf13, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    else if hid == 4
+        if modeN
+            f_eval_update_one(evBrierN4, evLogN4, evSumBrierN4, evSumLogN4, evYS_N4, evYL_N4, evSumYS_N4, evSumYL_N4, evCalCntN4, evCalSumPN4, evCalSumYN4, evCalBBufN4, evCalPBufN4, evCalYBufN4, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier14, evLog14, evSumBrier14, evSumLog14, evYS_14, evYL_14, evSumYS_14, evSumYL_14, evCalCnt14, evCalSumP14, evCalSumY14, evCalBBuf14, evCalPBuf14, evCalYBuf14, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    else if hid == 5
+        if modeN
+            f_eval_update_one(evBrierN5, evLogN5, evSumBrierN5, evSumLogN5, evYS_N5, evYL_N5, evSumYS_N5, evSumYL_N5, evCalCntN5, evCalSumPN5, evCalSumYN5, evCalBBufN5, evCalPBufN5, evCalYBufN5, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier15, evLog15, evSumBrier15, evSumLog15, evYS_15, evYL_15, evSumYS_15, evSumYL_15, evCalCnt15, evCalSumP15, evCalSumY15, evCalBBuf15, evCalPBuf15, evCalYBuf15, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    else if hid == 6
+        if modeN
+            f_eval_update_one(evBrierN6, evLogN6, evSumBrierN6, evSumLogN6, evYS_N6, evYL_N6, evSumYS_N6, evSumYL_N6, evCalCntN6, evCalSumPN6, evCalSumYN6, evCalBBufN6, evCalPBufN6, evCalYBufN6, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier16, evLog16, evSumBrier16, evSumLog16, evYS_16, evYL_16, evSumYS_16, evSumYL_16, evCalCnt16, evCalSumP16, evCalSumY16, evCalBBuf16, evCalPBuf16, evCalYBuf16, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    else if hid == 7
+        if modeN
+            f_eval_update_one(evBrierN7, evLogN7, evSumBrierN7, evSumLogN7, evYS_N7, evYL_N7, evSumYS_N7, evSumYL_N7, evCalCntN7, evCalSumPN7, evCalSumYN7, evCalBBufN7, evCalPBufN7, evCalYBufN7, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+        if mode1
+            f_eval_update_one(evBrier17, evLog17, evSumBrier17, evSumLog17, evYS_17, evYL_17, evSumYS_17, evSumYL_17, evCalCnt17, evCalSumP17, evCalSumY17, evCalBBuf17, evCalPBuf17, evCalYBuf17, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+
+// Helper: Get Eval Stats [Brier, LogLoss, ECE, DriftPP, Count]
+f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY) =>
+    n = array.size(evBrier)
+    if n < evalMinEvents
+        [float(na), float(na), float(na), float(na), float(n)]
+    else
+        // Brier, Log
+        bs = array.get(evSumBrier, 0) / n
+        ll = array.get(evSumLog, 0) / n
+        
+        // ECE
+        eceSum = 0.0
+        totCal = 0
+        for i = 0 to evalBuckets - 1
+            bn = array.get(evCalCnt, i)
+            if bn > 0
+                bp = array.get(evCalSumP, i) / bn
+                by = array.get(evCalSumY, i) / bn
+                eceSum := eceSum + bn * math.abs(bp - by)
+                totCal := totCal + bn
+        ece = totCal > 0 ? eceSum / totCal : 0.0
+        
+        // Drift
+        // Only if short/long windows are filled
+        nS = array.size(evYS)
+        nL = array.size(evYL)
+        drift = 0.0
+        if nS >= evalRollShort and nL >= evalRollLong
+            avgS = array.get(evSumYS, 0) / nS
+            avgL = array.get(evSumYL, 0) / nL
+            drift := (avgS - avgL) * 100.0 // in pp
+        else
+            drift := float(na)
+            
+        [bs, ll, ece, drift, float(n)]
+
+// Table Helpers
+f_colLowerBetter(val, goodThr, badThr) =>
+    na(val) ? color.new(color.gray, 60) :
+      val < goodThr ? color.new(color.lime, 30) :
+      val > badThr ? color.new(color.red, 30) :
+      color.new(color.yellow, 30)
+
+f_ppSigned(val) =>
+    na(val) ? "—" :
+     (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
+
+f_rowEval(tid, titleStr, evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY, rIdx) =>
+    [bs, ll, ece, drift, n] = f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    
+    // Header
+    table.cell(tbl, 0, rIdx, titleStr, text_halign=text.align_left, text_size=size.small, bgcolor=color.new(color.gray, 90))
+    
+    if na(bs)
+        table.cell(tbl, 1, rIdx, "Wait (" + str.tostring(n, "#") + ")", text_size=size.small)
+    else
+        // Brier
+        // scale: typically 0.25 is max entropy. <0.20 is good. <0.15 is great.
+        // Let's color based on general intuition
+        cBs = f_colLowerBetter(bs, 0.18, 0.23)
+        table.cell(tbl, 1, rIdx, str.tostring(bs, "#.3f"), bgcolor=cBs, text_size=size.small)
+        
+        // LogL
+        // scale: ~0.693 is rand. <0.60 is good.
+        cLl = f_colLowerBetter(ll, 0.55, 0.65)
+        table.cell(tbl, 2, rIdx, str.tostring(ll, "#.3f"), bgcolor=cLl, text_size=size.small)
+        
+        // ECE
+        cEce = f_colLowerBetter(ece, 0.05, 0.10)
+        table.cell(tbl, 3, rIdx, str.tostring(ece*100, "#.1")+"%", bgcolor=cEce, text_size=size.small)
+        
+        // Drift
+        cDr = math.abs(drift) > driftWarnPP ? color.new(color.red, 30) : color.new(color.gray, 90)
+        table.cell(tbl, 4, rIdx, f_ppSigned(drift), bgcolor=cDr, text_size=size.small)
+
+
+f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge, qProbN, qProb1, qLogitN, qLogit1, qPredN, qPred1, 
+           evBrierN, evLogN, evSumBrierN, evSumLogN, evYSN, evYLN, evSumYSN, evSumYLN, 
+           evCalCntN, evCalSumPN, evCalSumYN, evCalBBufN, evCalPBufN, evCalYBufN,
+           evBrier1, evLog1, evSumBrier1, evSumLog1, evYS1, evYL1, evSumYS1, evSumYL1,
+           evCalCnt1, evCalSumP1, evCalSumY1, evCalBBuf1, evCalPBuf1, evCalYBuf1,
+           brierStatsN, brierStats1, llStatsN, llStats1, plattN, platt1) =>
     for i = 0 to array.size(cntN) - 1
         array.set(cntN, i, 0)
         array.set(upN,  i, 0)
@@ -619,13 +1068,48 @@ f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge,
     array.clear(qMaxH)
     array.clear(qMinL)
     array.clear(qAge)
-    
-    // Brier/Logit tracking clear
     array.clear(qProbN)
     array.clear(qProb1)
     array.clear(qLogitN)
     array.clear(qLogit1)
+    array.clear(qPredN)
+    array.clear(qPred1)
     
+    // Eval N
+    array.clear(evBrierN)
+    array.clear(evLogN)
+    array.set(evSumBrierN, 0, 0.0)
+    array.set(evSumLogN, 0, 0.0)
+    array.clear(evYSN)
+    array.clear(evYLN)
+    array.set(evSumYSN, 0, 0.0)
+    array.set(evSumYLN, 0, 0.0)
+    
+    // Eval 1
+    array.clear(evBrier1)
+    array.clear(evLog1)
+    array.set(evSumBrier1, 0, 0.0)
+    array.set(evSumLog1, 0, 0.0)
+    array.clear(evYS1)
+    array.clear(evYL1)
+    array.set(evSumYS1, 0, 0.0)
+    array.set(evSumYL1, 0, 0.0)
+    
+    // ECE buckets clear
+    for k = 0 to evalBuckets - 1
+        array.set(evCalCntN, k, 0)
+        array.set(evCalSumPN, k, 0.0)
+        array.set(evCalSumYN, k, 0.0)
+        array.set(evCalCnt1, k, 0)
+        array.set(evCalSumP1, k, 0.0)
+        array.set(evCalSumY1, k, 0.0)
+    array.clear(evCalBBufN)
+    array.clear(evCalPBufN)
+    array.clear(evCalYBufN)
+    array.clear(evCalBBuf1)
+    array.clear(evCalPBuf1)
+    array.clear(evCalYBuf1)
+
     // Stats
     array.set(brierStatsN, 0, 0.0)
     array.set(brierStatsN, 1, 0.0)
@@ -642,12 +1126,53 @@ f_reset_tf(cntN, upN, cnt1, up1, qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge,
     array.set(platt1, 0, 1.0)
     array.set(platt1, 1, 0.0)
 
+f_reset_eval_all() =>
+    // F1
+    f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, qLogitN1, qLogit11, qPredN1, qPred11, 
+       evBrierN1, evLogN1, evSumBrierN1, evSumLogN1, evYS_N1, evYL_N1, evSumYS_N1, evSumYL_N1, evCalCntN1, evCalSumPN1, evCalSumYN1, evCalBBufN1, evCalPBufN1, evCalYBufN1,
+       evBrier11, evLog11, evSumBrier11, evSumLog11, evYS_11, evYL_11, evSumYS_11, evSumYL_11, evCalCnt11, evCalSumP11, evCalSumY11, evCalBBuf11, evCalPBuf11, evCalYBuf11,
+       brierStatsN1, brierStats11, llStatsN1, llStats11, plattN1, platt11)
+    // F2
+    f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, qLogitN2, qLogit12, qPredN2, qPred12,
+       evBrierN2, evLogN2, evSumBrierN2, evSumLogN2, evYS_N2, evYL_N2, evSumYS_N2, evSumYL_N2, evCalCntN2, evCalSumPN2, evCalSumYN2, evCalBBufN2, evCalPBufN2, evCalYBufN2,
+       evBrier12, evLog12, evSumBrier12, evSumLog12, evYS_12, evYL_12, evSumYS_12, evSumYL_12, evCalCnt12, evCalSumP12, evCalSumY12, evCalBBuf12, evCalPBuf12, evCalYBuf12,
+       brierStatsN2, brierStats12, llStatsN2, llStats12, plattN2, platt12)
+    // F3
+    f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, qLogitN3, qLogit13, qPredN3, qPred13,
+       evBrierN3, evLogN3, evSumBrierN3, evSumLogN3, evYS_N3, evYL_N3, evSumYS_N3, evSumYL_N3, evCalCntN3, evCalSumPN3, evCalSumYN3, evCalBBufN3, evCalPBufN3, evCalYBufN3,
+       evBrier13, evLog13, evSumBrier13, evSumLog13, evYS_13, evYL_13, evSumYS_13, evSumYL_13, evCalCnt13, evCalSumP13, evCalSumY13, evCalBBuf13, evCalPBuf13, evCalYBuf13,
+       brierStatsN3, brierStats13, llStatsN3, llStats13, plattN3, platt13)
+    // F4
+    f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, qLogitN4, qLogit14, qPredN4, qPred14,
+       evBrierN4, evLogN4, evSumBrierN4, evSumLogN4, evYS_N4, evYL_N4, evSumYS_N4, evSumYL_N4, evCalCntN4, evCalSumPN4, evCalSumYN4, evCalBBufN4, evCalPBufN4, evCalYBufN4,
+       evBrier14, evLog14, evSumBrier14, evSumLog14, evYS_14, evYL_14, evSumYS_14, evSumYL_14, evCalCnt14, evCalSumP14, evCalSumY14, evCalBBuf14, evCalPBuf14, evCalYBuf14,
+       brierStatsN4, brierStats14, llStatsN4, llStats14, plattN4, platt14)
+    // F5
+    f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, qLogitN5, qLogit15, qPredN5, qPred15,
+       evBrierN5, evLogN5, evSumBrierN5, evSumLogN5, evYS_N5, evYL_N5, evSumYS_N5, evSumYL_N5, evCalCntN5, evCalSumPN5, evCalSumYN5, evCalBBufN5, evCalPBufN5, evCalYBufN5,
+       evBrier15, evLog15, evSumBrier15, evSumLog15, evYS_15, evYL_15, evSumYS_15, evSumYL_15, evCalCnt15, evCalSumP15, evCalSumY15, evCalBBuf15, evCalPBuf15, evCalYBuf15,
+       brierStatsN5, brierStats15, llStatsN5, llStats15, plattN5, platt15)
+    // F6
+    f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, qLogitN6, qLogit16, qPredN6, qPred16,
+       evBrierN6, evLogN6, evSumBrierN6, evSumLogN6, evYS_N6, evYL_N6, evSumYS_N6, evSumYL_N6, evCalCntN6, evCalSumPN6, evCalSumYN6, evCalBBufN6, evCalPBufN6, evCalYBufN6,
+       evBrier16, evLog16, evSumBrier16, evSumLog16, evYS_16, evYL_16, evSumYS_16, evSumYL_16, evCalCnt16, evCalSumP16, evCalSumY16, evCalBBuf16, evCalPBuf16, evCalYBuf16,
+       brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16)
+    // F7
+    f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, qLogitN7, qLogit17, qPredN7, qPred17,
+       evBrierN7, evLogN7, evSumBrierN7, evSumLogN7, evYS_N7, evYL_N7, evSumYS_N7, evSumYL_N7, evCalCntN7, evCalSumPN7, evCalSumYN7, evCalBBufN7, evCalPBufN7, evCalYBufN7,
+       evBrier17, evLog17, evSumBrier17, evSumLog17, evYS_17, evYL_17, evSumYS_17, evSumYL_17, evCalCnt17, evCalSumP17, evCalSumY17, evCalBBuf17, evCalPBuf17, evCalYBuf17,
+       brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17)
+
 // Process one TF calibration step (updates on new TF bar)
-f_process_tf(newTfBar, sA, 
+f_process_tf(hid, newTfBar, sA, 
              cNow, hNow, lNow, atrNow, volRankNow, emaFNow, emaSNow,
              cntN, upN, cnt1, up1,
              qBinN, qBin1, qEntry, qAtr, qMaxH, qMinL, qAge,
-             qProbN, qProb1, qLogitN, qLogit1,
+             qProbN, qProb1, qLogitN, qLogit1, qPredN, qPred1,
+             evBrierN, evLogN, evSumBrierN, evSumLogN, evYSN, evYLN, evSumYSN, evSumYLN, 
+             evCalCntN, evCalSumPN, evCalSumYN, evCalBBufN, evCalPBufN, evCalYBufN,
+             evBrier1, evLog1, evSumBrier1, evSumLog1, evYS1, evYL1, evSumYS1, evSumYL1,
+             evCalCnt1, evCalSumP1, evCalSumY1, evCalBBuf1, evCalPBuf1, evCalYBuf1,
              brierStatsN, brierStats1, llStatsN, llStats1, plattN, platt1,
              fcTgt, kB, aThr, pH, tpA, slA,
              alphaNVal, alpha1Val, shrinkKVal, wAVal, wBVal, wCVal) =>
@@ -680,6 +1205,8 @@ f_process_tf(newTfBar, sA,
             prob1_i = array.get(qProb1,  i)
             lgtN_i  = array.get(qLogitN, i)
             lgt1_i  = array.get(qLogit1, i)
+            predN_i = array.get(qPredN,  i)
+            pred1_i = array.get(qPred1,  i)
 
             resolved = false
             doUpdate = false
@@ -739,6 +1266,11 @@ f_process_tf(newTfBar, sA,
                     f_cal_update(cnt1, up1, b1_i, isUp)
                     
                     outcomeVal = isUp ? 1.0 : 0.0
+                    
+                    // --- Evaluation (Live Scoring) ---
+                    // Score based on the final prediction we made (predN_i / pred1_i)
+                    if (evalMode == "History+Live") or (evalMode == "LiveOnly" and barstate.isrealtime)
+                        f_eval_on_resolve(hid, predN_i, pred1_i, isUp)
 
                     // --- Phase 4: SGD Update & LogLoss (N) ---
                     // N (Gated Logic)
@@ -810,6 +1342,8 @@ f_process_tf(newTfBar, sA,
                 array.remove(qProb1, i)
                 array.remove(qLogitN, i)
                 array.remove(qLogit1, i)
+                array.remove(qPredN, i)
+                array.remove(qPred1, i)
 
             i -= 1
 
@@ -832,6 +1366,19 @@ f_process_tf(newTfBar, sA,
         lgtN = f_logit(pNowN)
         lgt1 = f_logit(pNow1)
 
+        // Platt Adjust (Display/Predict)
+        aN = array.get(plattN, 0)
+        bN_p = array.get(plattN, 1)
+        pAdjN = f_sigmoid(aN * lgtN + bN_p)
+        
+        a1 = array.get(platt1, 0)
+        b1_p = array.get(platt1, 1)
+        pAdj1 = f_sigmoid(a1 * lgt1 + b1_p)
+        
+        // Use adjusted if Platt enabled, else raw
+        pFinalN = usePlatt ? pAdjN : pNowN
+        pFinal1 = usePlatt ? pAdj1 : pNow1
+
         array.push(qBinN,  bN)
         array.push(qBin1,  b1)
         array.push(qEntry, cNow)
@@ -846,6 +1393,8 @@ f_process_tf(newTfBar, sA,
         array.push(qProb1, pNow1)
         array.push(qLogitN, lgtN)
         array.push(qLogit1, lgt1)
+        array.push(qPredN, pFinalN)
+        array.push(qPred1, pFinal1)
 
 //====================
 // Core indicators
@@ -1264,33 +1813,63 @@ doReset = resetNow and not prevResetNow
 prevResetNow := resetNow
 
 if doReset
-    if resetWhich == "All" or resetWhich == "F1"
-        f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, brierStatsN1, brierStats11, qLogitN1, qLogit11, llStatsN1, llStats11, plattN1, platt11)
-    if resetWhich == "All" or resetWhich == "F2"
-        f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, brierStatsN2, brierStats12, qLogitN2, qLogit12, llStatsN2, llStats12, plattN2, platt12)
-    if resetWhich == "All" or resetWhich == "F3"
-        f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, brierStatsN3, brierStats13, qLogitN3, qLogit13, llStatsN3, llStats13, plattN3, platt13)
-    if resetWhich == "All" or resetWhich == "F4"
-        f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, brierStatsN4, brierStats14, qLogitN4, qLogit14, llStatsN4, llStats14, plattN4, platt14)
-    if resetWhich == "All" or resetWhich == "F5"
-        f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, brierStatsN5, brierStats15, qLogitN5, qLogit15, llStatsN5, llStats15, plattN5, platt15)
-    if resetWhich == "All" or resetWhich == "F6"
-        f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, brierStatsN6, brierStats16, qLogitN6, qLogit16, llStatsN6, llStats16, plattN6, platt16)
-    if resetWhich == "All" or resetWhich == "F7"
-        f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, brierStatsN7, brierStats17, qLogitN7, qLogit17, llStatsN7, llStats17, plattN7, platt17)
+    if resetWhich == "All"
+        f_reset_eval_all()
+    else 
+        if resetWhich == "F1"
+           f_reset_tf(cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, qLogitN1, qLogit11, qPredN1, qPred11, evBrierN1, evLogN1, evSumBrierN1, evSumLogN1, evYS_N1, evYL_N1, evSumYS_N1, evSumYL_N1, evCalCntN1, evCalSumPN1, evCalSumYN1, evCalBBufN1, evCalPBufN1, evCalYBufN1, evBrier11, evLog11, evSumBrier11, evSumLog11, evYS_11, evYL_11, evSumYS_11, evSumYL_11, evCalCnt11, evCalSumP11, evCalSumY11, evCalBBuf11, evCalPBuf11, evCalYBuf11, brierStatsN1, brierStats11, llStatsN1, llStats11, plattN1, platt11)
+        if resetWhich == "F2"
+           f_reset_tf(cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, qLogitN2, qLogit12, qPredN2, qPred12, evBrierN2, evLogN2, evSumBrierN2, evSumLogN2, evYS_N2, evYL_N2, evSumYS_N2, evSumYL_N2, evCalCntN2, evCalSumPN2, evCalSumYN2, evCalBBufN2, evCalPBufN2, evCalYBufN2, evBrier12, evLog12, evSumBrier12, evSumLog12, evYS_12, evYL_12, evSumYS_12, evSumYL_12, evCalCnt12, evCalSumP12, evCalSumY12, evCalBBuf12, evCalPBuf12, evCalYBuf12, brierStatsN2, brierStats12, llStatsN2, llStats12, plattN2, platt12)
+        if resetWhich == "F3"
+           f_reset_tf(cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, qLogitN3, qLogit13, qPredN3, qPred13, evBrierN3, evLogN3, evSumBrierN3, evSumLogN3, evYS_N3, evYL_N3, evSumYS_N3, evSumYL_N3, evCalCntN3, evCalSumPN3, evCalSumYN3, evCalBBufN3, evCalPBufN3, evCalYBufN3, evBrier13, evLog13, evSumBrier13, evSumLog13, evYS_13, evYL_13, evSumYS_13, evSumYL_13, evCalCnt13, evCalSumP13, evCalSumY13, evCalBBuf13, evCalPBuf13, evCalYBuf13, brierStatsN3, brierStats13, llStatsN3, llStats13, plattN3, platt13)
+        if resetWhich == "F4"
+           f_reset_tf(cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, qLogitN4, qLogit14, qPredN4, qPred14, evBrierN4, evLogN4, evSumBrierN4, evSumLogN4, evYS_N4, evYL_N4, evSumYS_N4, evSumYL_N4, evCalCntN4, evCalSumPN4, evCalSumYN4, evCalBBufN4, evCalPBufN4, evCalYBufN4, evBrier14, evLog14, evSumBrier14, evSumLog14, evYS_14, evYL_14, evSumYS_14, evSumYL_14, evCalCnt14, evCalSumP14, evCalSumY14, evCalBBuf14, evCalPBuf14, evCalYBuf14, brierStatsN4, brierStats14, llStatsN4, llStats14, plattN4, platt14)
+        if resetWhich == "F5"
+           f_reset_tf(cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, qLogitN5, qLogit15, qPredN5, qPred15, evBrierN5, evLogN5, evSumBrierN5, evSumLogN5, evYS_N5, evYL_N5, evSumYS_N5, evSumYL_N5, evCalCntN5, evCalSumPN5, evCalSumYN5, evCalBBufN5, evCalPBufN5, evCalYBufN5, evBrier15, evLog15, evSumBrier15, evSumLog15, evYS_15, evYL_15, evSumYS_15, evSumYL_15, evCalCnt15, evCalSumP15, evCalSumY15, evCalBBuf15, evCalPBuf15, evCalYBuf15, brierStatsN5, brierStats15, llStatsN5, llStats15, plattN5, platt15)
+        if resetWhich == "F6"
+           f_reset_tf(cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, qLogitN6, qLogit16, qPredN6, qPred16, evBrierN6, evLogN6, evSumBrierN6, evSumLogN6, evYS_N6, evYL_N6, evSumYS_N6, evSumYL_N6, evCalCntN6, evCalSumPN6, evCalSumYN6, evCalBBufN6, evCalPBufN6, evCalYBufN6, evBrier16, evLog16, evSumBrier16, evSumLog16, evYS_16, evYL_16, evSumYS_16, evSumYL_16, evCalCnt16, evCalSumP16, evCalSumY16, evCalBBuf16, evCalPBuf16, evCalYBuf16, brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16)
+        if resetWhich == "F7"
+           f_reset_tf(cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, qLogitN7, qLogit17, qPredN7, qPred17, evBrierN7, evLogN7, evSumBrierN7, evSumLogN7, evYS_N7, evYL_N7, evSumYS_N7, evSumYL_N7, evCalCntN7, evCalSumPN7, evCalSumYN7, evCalBBufN7, evCalPBufN7, evCalYBufN7, evBrier17, evLog17, evSumBrier17, evSumLog17, evYS_17, evYL_17, evSumYS_17, evSumYL_17, evCalCnt17, evCalSumP17, evCalSumY17, evCalBBuf17, evCalPBuf17, evCalYBuf17, brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17)
 
 //====================
 // Calibration update (bar-close confirmed guard + new TF bar events)
 //====================
 doCal = enableForecast and barstate.isconfirmed
 if doCal
-    f_process_tf(newF1, outScore1, c1, h1, l1, a1, vr1, ef1, es1, cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, qLogitN1, qLogit11, brierStatsN1, brierStats11, llStatsN1, llStats11, plattN1, platt11, fcT1, kB1, aT1, pH1, tp1, sl1, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF2, outScore2, c2, h2, l2, a2, vr2, ef2, es2, cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, qLogitN2, qLogit12, brierStatsN2, brierStats12, llStatsN2, llStats12, plattN2, platt12, fcT2, kB2, aT2, pH2, tp2, sl2, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF3, outScore3, c3, h3, l3, a3, vr3, ef3, es3, cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, qLogitN3, qLogit13, brierStatsN3, brierStats13, llStatsN3, llStats13, plattN3, platt13, fcT3, kB3, aT3, pH3, tp3, sl3, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF4, outScore4, c4, h4, l4, a4, vr4, ef4, es4, cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, qLogitN4, qLogit14, brierStatsN4, brierStats14, llStatsN4, llStats14, plattN4, platt14, fcT4, kB4, aT4, pH4, tp4, sl4, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF5, outScore5, c5, h5, l5, a5, vr5, ef5, es5, cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, qLogitN5, qLogit15, brierStatsN5, brierStats15, llStatsN5, llStats15, plattN5, platt15, fcT5, kB5, aT5, pH5, tp5, sl5, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF6, outScore6, c6, h6, l6, a6, vr6, ef6, es6, cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, qLogitN6, qLogit16, brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16, fcT6, kB6, aT6, pH6, tp6, sl6, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
-    f_process_tf(newF7, outScore7, c7, h7, l7, a7, vr7, ef7, es7, cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, qLogitN7, qLogit17, brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17, fcT7, kB7, aT7, pH7, tp7, sl7, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+    f_process_tf(1, newF1, outScore1, c1, h1, l1, a1, vr1, ef1, es1, cntN1, upN1, cnt11, up11, qBinN1, qBin11, qEntry1, qAtr1, qMaxH1, qMinL1, qAge1, qProbN1, qProb11, qLogitN1, qLogit11, qPredN1, qPred11, 
+       evBrierN1, evLogN1, evSumBrierN1, evSumLogN1, evYS_N1, evYL_N1, evSumYS_N1, evSumYL_N1, evCalCntN1, evCalSumPN1, evCalSumYN1, evCalBBufN1, evCalPBufN1, evCalYBufN1,
+       evBrier11, evLog11, evSumBrier11, evSumLog11, evYS_11, evYL_11, evSumYS_11, evSumYL_11, evCalCnt11, evCalSumP11, evCalSumY11, evCalBBuf11, evCalPBuf11, evCalYBuf11,
+       brierStatsN1, brierStats11, llStatsN1, llStats11, plattN1, platt11, fcT1, kB1, aT1, pH1, tp1, sl1, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+
+    f_process_tf(2, newF2, outScore2, c2, h2, l2, a2, vr2, ef2, es2, cntN2, upN2, cnt12, up12, qBinN2, qBin12, qEntry2, qAtr2, qMaxH2, qMinL2, qAge2, qProbN2, qProb12, qLogitN2, qLogit12, qPredN2, qPred12,
+       evBrierN2, evLogN2, evSumBrierN2, evSumLogN2, evYS_N2, evYL_N2, evSumYS_N2, evSumYL_N2, evCalCntN2, evCalSumPN2, evCalSumYN2, evCalBBufN2, evCalPBufN2, evCalYBufN2,
+       evBrier12, evLog12, evSumBrier12, evSumLog12, evYS_12, evYL_12, evSumYS_12, evSumYL_12, evCalCnt12, evCalSumP12, evCalSumY12, evCalBBuf12, evCalPBuf12, evCalYBuf12,
+       brierStatsN2, brierStats12, llStatsN2, llStats12, plattN2, platt12, fcT2, kB2, aT2, pH2, tp2, sl2, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+
+    f_process_tf(3, newF3, outScore3, c3, h3, l3, a3, vr3, ef3, es3, cntN3, upN3, cnt13, up13, qBinN3, qBin13, qEntry3, qAtr3, qMaxH3, qMinL3, qAge3, qProbN3, qProb13, qLogitN3, qLogit13, qPredN3, qPred13,
+       evBrierN3, evLogN3, evSumBrierN3, evSumLogN3, evYS_N3, evYL_N3, evSumYS_N3, evSumYL_N3, evCalCntN3, evCalSumPN3, evCalSumYN3, evCalBBufN3, evCalPBufN3, evCalYBufN3,
+       evBrier13, evLog13, evSumBrier13, evSumLog13, evYS_13, evYL_13, evSumYS_13, evSumYL_13, evCalCnt13, evCalSumP13, evCalSumY13, evCalBBuf13, evCalPBuf13, evCalYBuf13,
+       brierStatsN3, brierStats13, llStatsN3, llStats13, plattN3, platt13, fcT3, kB3, aT3, pH3, tp3, sl3, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+
+    f_process_tf(4, newF4, outScore4, c4, h4, l4, a4, vr4, ef4, es4, cntN4, upN4, cnt14, up14, qBinN4, qBin14, qEntry4, qAtr4, qMaxH4, qMinL4, qAge4, qProbN4, qProb14, qLogitN4, qLogit14, qPredN4, qPred14,
+       evBrierN4, evLogN4, evSumBrierN4, evSumLogN4, evYS_N4, evYL_N4, evSumYS_N4, evSumYL_N4, evCalCntN4, evCalSumPN4, evCalSumYN4, evCalBBufN4, evCalPBufN4, evCalYBufN4,
+       evBrier14, evLog14, evSumBrier14, evSumLog14, evYS_14, evYL_14, evSumYS_14, evSumYL_14, evCalCnt14, evCalSumP14, evCalSumY14, evCalBBuf14, evCalPBuf14, evCalYBuf14,
+       brierStatsN4, brierStats14, llStatsN4, llStats14, plattN4, platt14, fcT4, kB4, aT4, pH4, tp4, sl4, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+
+    f_process_tf(5, newF5, outScore5, c5, h5, l5, a5, vr5, ef5, es5, cntN5, upN5, cnt15, up15, qBinN5, qBin15, qEntry5, qAtr5, qMaxH5, qMinL5, qAge5, qProbN5, qProb15, qLogitN5, qLogit15, qPredN5, qPred15,
+       evBrierN5, evLogN5, evSumBrierN5, evSumLogN5, evYS_N5, evYL_N5, evSumYS_N5, evSumYL_N5, evCalCntN5, evCalSumPN5, evCalSumYN5, evCalBBufN5, evCalPBufN5, evCalYBufN5,
+       evBrier15, evLog15, evSumBrier15, evSumLog15, evYS_15, evYL_15, evSumYS_15, evSumYL_15, evCalCnt15, evCalSumP15, evCalSumY15, evCalBBuf15, evCalPBuf15, evCalYBuf15,
+       brierStatsN5, brierStats15, llStatsN5, llStats15, plattN5, platt15, fcT5, kB5, aT5, pH5, tp5, sl5, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+
+    f_process_tf(6, newF6, outScore6, c6, h6, l6, a6, vr6, ef6, es6, cntN6, upN6, cnt16, up16, qBinN6, qBin16, qEntry6, qAtr6, qMaxH6, qMinL6, qAge6, qProbN6, qProb16, qLogitN6, qLogit16, qPredN6, qPred16,
+       evBrierN6, evLogN6, evSumBrierN6, evSumLogN6, evYS_N6, evYL_N6, evSumYS_N6, evSumYL_N6, evCalCntN6, evCalSumPN6, evCalSumYN6, evCalBBufN6, evCalPBufN6, evCalYBufN6,
+       evBrier16, evLog16, evSumBrier16, evSumLog16, evYS_16, evYL_16, evSumYS_16, evSumYL_16, evCalCnt16, evCalSumP16, evCalSumY16, evCalBBuf16, evCalPBuf16, evCalYBuf16,
+       brierStatsN6, brierStats16, llStatsN6, llStats16, plattN6, platt16, fcT6, kB6, aT6, pH6, tp6, sl6, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
+
+    f_process_tf(7, newF7, outScore7, c7, h7, l7, a7, vr7, ef7, es7, cntN7, upN7, cnt17, up17, qBinN7, qBin17, qEntry7, qAtr7, qMaxH7, qMinL7, qAge7, qProbN7, qProb17, qLogitN7, qLogit17, qPredN7, qPred17,
+       evBrierN7, evLogN7, evSumBrierN7, evSumLogN7, evYS_N7, evYL_N7, evSumYS_N7, evSumYL_N7, evCalCntN7, evCalSumPN7, evCalSumYN7, evCalBBufN7, evCalPBufN7, evCalYBufN7,
+       evBrier17, evLog17, evSumBrier17, evSumLog17, evYS_17, evYL_17, evSumYS_17, evSumYL_17, evCalCnt17, evCalSumP17, evCalSumY17, evCalBBuf17, evCalPBuf17, evCalYBuf17,
+       brierStatsN7, brierStats17, llStatsN7, llStats17, plattN7, platt17, fcT7, kB7, aT7, pH7, tp7, sl7, alphaN, alpha1, kShrink, ens_wA, ens_wB, ens_wC)
 
 f_get_disp_vals(sA, c, ef, es, vr, cntN, upN, cnt1, up1, plattN, platt1) =>
     bias = ef > es ? 1 : -1
@@ -1490,20 +2069,25 @@ if showTable and barstate.isconfirmed
     f_rowFc(tfF6, pN6, nN6, can6N, p16p, n16p, can16, 22)
     f_rowFc(tfF7, pN7, nN7, can7N, p17p, n17p, can17, 23)
 
-    // Accuracy header
-    table.cell(gT, 0, 24, "Accuracy", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 24, "BS(N)",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 2, 24, "BS(1)",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 3, 24, "#(N)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 4, 24, "#(1)",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    // Evaluation (live scoring)
+    if showEvalSection
+        // Header
+        table.cell(gT, 0, 24, "Eval(" + evalWhichHead + ")", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+        table.cell(gT, 1, 24, "Brier",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+        table.cell(gT, 2, 24, "LogL",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+        table.cell(gT, 3, 24, "ECE",      text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+        table.cell(gT, 4, 24, "Drift",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
-    f_rowRel(tfF1, brierStatsN1, brierStats11, 25)
-    f_rowRel(tfF2, brierStatsN2, brierStats12, 26)
-    f_rowRel(tfF3, brierStatsN3, brierStats13, 27)
-    f_rowRel(tfF4, brierStatsN4, brierStats14, 28)
-    f_rowRel(tfF5, brierStatsN5, brierStats15, 29)
-    f_rowRel(tfF6, brierStatsN6, brierStats16, 30)
-    f_rowRel(tfF7, brierStatsN7, brierStats17, 31)
+        // Select N or 1 logic
+        isN = evalWhichHead != "1"
+        
+        f_rowEval(tfF1, f_tfLabel(tfF1), isN ? evBrierN1 : evBrier11, isN ? evLogN1 : evLog11, isN ? evSumBrierN1 : evSumBrier11, isN ? evSumLogN1 : evSumLog11, isN ? evYS_N1 : evYS_11, isN ? evYL_N1 : evYL_11, isN ? evSumYS_N1 : evSumYS_11, isN ? evSumYL_N1 : evSumYL_11, isN ? evCalCntN1 : evCalCnt11, isN ? evCalSumPN1 : evCalSumP11, isN ? evCalSumYN1 : evCalSumY11, 25)
+        f_rowEval(tfF2, f_tfLabel(tfF2), isN ? evBrierN2 : evBrier12, isN ? evLogN2 : evLog12, isN ? evSumBrierN2 : evSumBrier12, isN ? evSumLogN2 : evSumLog12, isN ? evYS_N2 : evYS_12, isN ? evYL_N2 : evYL_12, isN ? evSumYS_N2 : evSumYS_12, isN ? evSumYL_N2 : evSumYL_12, isN ? evCalCntN2 : evCalCnt12, isN ? evCalSumPN2 : evCalSumP12, isN ? evCalSumYN2 : evCalSumY12, 26)
+        f_rowEval(tfF3, f_tfLabel(tfF3), isN ? evBrierN3 : evBrier13, isN ? evLogN3 : evLog13, isN ? evSumBrierN3 : evSumBrier13, isN ? evSumLogN3 : evSumLog13, isN ? evYS_N3 : evYS_13, isN ? evYL_N3 : evYL_13, isN ? evSumYS_N3 : evSumYS_13, isN ? evSumYL_N3 : evSumYL_13, isN ? evCalCntN3 : evCalCnt13, isN ? evCalSumPN3 : evCalSumP13, isN ? evCalSumYN3 : evCalSumY13, 27)
+        f_rowEval(tfF4, f_tfLabel(tfF4), isN ? evBrierN4 : evBrier14, isN ? evLogN4 : evLog14, isN ? evSumBrierN4 : evSumBrier14, isN ? evSumLogN4 : evSumLog14, isN ? evYS_N4 : evYS_14, isN ? evYL_N4 : evYL_14, isN ? evSumYS_N4 : evSumYS_14, isN ? evSumYL_N4 : evSumYL_14, isN ? evCalCntN4 : evCalCnt14, isN ? evCalSumPN4 : evCalSumP14, isN ? evCalSumYN4 : evCalSumY14, 28)
+        f_rowEval(tfF5, f_tfLabel(tfF5), isN ? evBrierN5 : evBrier15, isN ? evLogN5 : evLog15, isN ? evSumBrierN5 : evSumBrier15, isN ? evSumLogN5 : evSumLog15, isN ? evYS_N5 : evYS_15, isN ? evYL_N5 : evYL_15, isN ? evSumYS_N5 : evSumYS_15, isN ? evSumYL_N5 : evSumYL_15, isN ? evCalCntN5 : evCalCnt15, isN ? evCalSumPN5 : evCalSumP15, isN ? evCalSumYN5 : evCalSumY15, 29)
+        f_rowEval(tfF6, f_tfLabel(tfF6), isN ? evBrierN6 : evBrier16, isN ? evLogN6 : evLog16, isN ? evSumBrierN6 : evSumBrier16, isN ? evSumLogN6 : evSumLog16, isN ? evYS_N6 : evYS_16, isN ? evYL_N6 : evYL_16, isN ? evSumYS_N6 : evSumYS_16, isN ? evSumYL_N6 : evSumYL_16, isN ? evCalCntN6 : evCalCnt16, isN ? evCalSumPN6 : evCalSumP16, isN ? evCalSumYN6 : evCalSumY16, 30)
+        f_rowEval(tfF7, f_tfLabel(tfF7), isN ? evBrierN7 : evBrier17, isN ? evLogN7 : evLog17, isN ? evSumBrierN7 : evSumBrier17, isN ? evSumLogN7 : evSumLog17, isN ? evYS_N7 : evYS_17, isN ? evYL_N7 : evYL_17, isN ? evSumYS_N7 : evSumYS_17, isN ? evSumYL_N7 : evSumYL_17, isN ? evCalCntN7 : evCalCnt17, isN ? evCalSumPN7 : evCalSumP17, isN ? evCalSumYN7 : evCalSumY17, 31)
 
     // Footer
     table.cell(gT, 0, 32, "Target", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)

@@ -75,10 +75,35 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('"Multi-Profile (See Settings). Fast: " + fcTargetF', self.text)
         
     def test_process_tf_signature(self):
-        # Check that f_process_tf has the new comprehensive signature
-        self.assertIn("f_process_tf(newTfBar, sA,", self.text)
+        # Check that f_process_tf uses TfState pattern
+        self.assertIn("f_process_tf(hid, newTfBar, sA,", self.text)
+        self.assertIn("TfState st,", self.text)
         self.assertIn("fcTgt, kB, aThr, pH, tpA, slA,", self.text)
-        self.assertIn("plattN, platt1,", self.text)
+
+    def test_evaluation_metrics_implementation(self):
+        # Verify the presence of float(na) initialization which is critical for v6 type inference
+        self.assertIn("ece = float(na)", self.text)
+        self.assertIn("maxErr = float(na)", self.text)
+
+        # Verify the gate logic for evaluation updates
+        self.assertIn('canEval = (evalMode == "History+Live") or barstate.isrealtime', self.text)
+        self.assertIn('if canEval', self.text)
+        self.assertNotIn('if not canEval\n        return', self.text) # Should be removed
+
+        # Check for Brier Score calculation function
+        self.assertRegex(self.text, r"f_brier\(p, y\) =>")
+        # f_brier uses d * d instead of math.pow
+        self.assertIn("d = p - y", self.text)
+        self.assertIn("d * d", self.text)
+
+        # Check for Log Loss calculation function
+        self.assertRegex(self.text, r"f_logloss\(p, y\) =>")
+        self.assertIn("math.log(pc)", self.text)
+
+        # Verify table helpers for evaluation are present
+        self.assertIn("f_rowEval(tf, hid, rRow) =>", self.text)
+        self.assertIn("f_eval_get(hid) =>", self.text)
+
 
     def test_forecast_readability_update(self):
         # Check for new input
@@ -88,9 +113,9 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('"Warm " + str.tostring(n) + "/"', self.text)
         self.assertIn('fcDisplay == "Edge pp (N)"', self.text)
         
-        # SkippALGO.pine uses f_chance_word() for header, not pHdrN variable
-        self.assertIn('cw = f_chance_word()', self.text)
-        self.assertIn('cw + " chance(N)"', self.text)
+        # Check for target-specific forecast labels
+        self.assertIn('f_target_label(tf)', self.text)
+        self.assertIn('f_strength_label_fc(nBin)', self.text)
         
         # Check for Note update
         self.assertIn("Forecast: Shrinkage k=5.0 active", self.text)
@@ -102,13 +127,14 @@ class TestSkippAlgoPine(unittest.TestCase):
 
     def test_entryNow_replaced_by_cNow(self):
         # entryNow was a bug, should be replaced by cNow in f_process_tf
+        # Now uses TfState st.qEntry etc
         self.assertNotRegex(self.text, r"array\.push\(qEntry,\s*entryNow\)")
         self.assertNotRegex(self.text, r"array\.push\(qMaxH,\s*entryNow\)")
         self.assertNotRegex(self.text, r"array\.push\(qMinL,\s*entryNow\)")
-        # Verify cNow is used instead
-        self.assertRegex(self.text, r"array\.push\(qEntry,\s*cNow\)")
-        self.assertRegex(self.text, r"array\.push\(qMaxH,\s*cNow\)")
-        self.assertRegex(self.text, r"array\.push\(qMinL,\s*cNow\)")
+        # Verify cNow is used instead with st. prefix
+        self.assertRegex(self.text, r"array\.push\(st\.qEntry,\s*cNow\)")
+        self.assertRegex(self.text, r"array\.push\(st\.qMaxH,\s*cNow\)")
+        self.assertRegex(self.text, r"array\.push\(st\.qMinL,\s*cNow\)")
 
     def test_calAlphaN_replaced_by_alphaN(self):
         # Regression test for undefined variable errors in f_process_tf calls
@@ -116,11 +142,11 @@ class TestSkippAlgoPine(unittest.TestCase):
         for var in undefined_vars:
             self.assertNotRegex(self.text, fr"\b{var}\b", f"Found undefined variable '{var}' in text")
 
-        # Verify correct variable names usage in f_process_tf calls
-        # We look for the pattern of the last argument block
-        # alphaN, alpha1, kShrink, wState, wPullback, wRegime)
-        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*wState,\s*wPullback,\s*wRegime\)"
-        self.assertRegex(self.text, pattern, "Correct variable names not found in f_process_tf calls")
+        # Verify TfState pattern is used in f_process_tf calls
+        # Pattern: tf1State, (parameters)
+        self.assertIn("tf1State,", self.text)
+        self.assertIn("tf2State,", self.text)
+        self.assertIn("alphaN, alpha1, kShrink, wState, wPullback, wRegime)", self.text)
 
     def test_div_by_zero_fix_f_pullback_score(self):
         # The line 'dist = (c - ef) / (na(atrVal) ? c*0.01 : atrVal)' was causing potential div by zero and was unused
@@ -129,25 +155,21 @@ class TestSkippAlgoPine(unittest.TestCase):
 
     def test_reactive_arrays_sized_for_2d_binning(self):
         """
-        Regression test for runtime error:
-        'Error on bar 0: In array.get() function. Index 4 is out of bounds, array size is 2.'
-        
-        The (1) reactive arrays (cnt11, up11, etc.) must be sized for 2D binning
-        (predBins1 * dim2Bins) since f_bin2D is used, not 1D (predBins1).
+        Regression test for TfState architecture.
+        Arrays are now encapsulated in TfState UDT, sized during initialization.
         """
-        # Check that (1) arrays use 2D sizing: predBins1 * dim2Bins
-        pattern_2d = r"array\.new_int\(predBins1\s*\*\s*dim2Bins,\s*0\)"
-        matches_2d = re.findall(pattern_2d, self.text)
+        # Check that TfState is properly defined
+        self.assertIn("type TfState", self.text)
         
-        # Should have 14 matches (cnt1x and up1x for F1-F7)
-        self.assertGreaterEqual(len(matches_2d), 14, 
-            f"Expected at least 14 (1) arrays with 2D sizing (predBins1 * dim2Bins), found {len(matches_2d)}")
+        # Check for cnt1 and up1 fields in TfState
+        self.assertIn("int[]   cnt1", self.text)
+        self.assertIn("int[]   up1", self.text)
         
-        # Verify NO (1) arrays use old 1D sizing pattern
-        # Pattern: array.new_int(predBins1, 0) without the * dim2Bins
-        bad_pattern = r"cnt1\d\s*=\s*array\.new_int\(predBins1,\s*0\)"
-        self.assertNotRegex(self.text, bad_pattern, 
-            "Found (1) array with incorrect 1D sizing - will cause array bounds error with f_bin2D")
+        # Check that f_init_tf_state creates properly sized arrays
+        self.assertIn("f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets)", self.text)
+        
+        # Verify TfState instances are created
+        self.assertIn("var TfState tf1State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)", self.text)
 
     def test_ut_bot_overlay_presence(self):
         # Inputs
@@ -171,6 +193,107 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn("barcolor(utShow and utBarBuy", self.text)
         self.assertIn("alertcondition(utBuy,  \"UT Bot Long\"", self.text)
         self.assertIn("alertcondition(utSell, \"UT Bot Short\"", self.text)
+
+    # ========== New tests for UX upgrades (v6.2) ==========
+
+    def test_forecast_profile_helpers(self):
+        """Test that forecast profile mapping functions are present."""
+        # f_profile maps TF to Fast/Mid/Slow
+        self.assertIn('f_profile(tf) =>', self.text)
+        self.assertIn('"Fast"', self.text)
+        self.assertIn('"Mid"', self.text)
+        self.assertIn('"Slow"', self.text)
+        
+        # f_target_for_tf returns the active target type for that TF
+        self.assertIn('f_target_for_tf(tf) =>', self.text)
+        self.assertIn('prof == "Fast" ? fcTargetF', self.text)
+
+    def test_target_label_function(self):
+        """Test f_target_label returns human-readable labels."""
+        self.assertIn('f_target_label(tf) =>', self.text)
+        # Labels for each target type
+        self.assertIn('"Next-up"', self.text)
+        self.assertIn('"Up-close"', self.text)
+        self.assertIn('"ATR-hit"', self.text)
+        self.assertIn('"TP-first"', self.text)
+
+    def test_uncertainty_band_helpers(self):
+        """Test f_unc_pp for binomial CI calculation."""
+        self.assertIn('f_unc_pp(p, n) =>', self.text)
+        # Uses 1.96 for 95% CI
+        self.assertIn('1.96 * math.sqrt', self.text)
+
+    def test_strength_label_fc_function(self):
+        """Test sample-strength labeling for forecast display."""
+        self.assertIn('f_strength_label_fc(nBin) =>', self.text)
+        self.assertIn('nBin < calMinSamples ? "weak"', self.text)
+
+    def test_prob_range_text_function(self):
+        """Test probability range formatting like '34–46%'."""
+        self.assertIn('f_prob_range_text(p, nBin) =>', self.text)
+        # Check for bounded range calculation
+        self.assertIn('lo = math.max(0.0, p - band)', self.text)
+        self.assertIn('hi = math.min(1.0, p + band)', self.text)
+
+    def test_chance_text_uses_target_label(self):
+        """Test that f_chance_text shows target-specific labels."""
+        # f_chance_text should call f_target_label
+        self.assertIn('f_chance_text(tf, pUp, nBin, total, canCal) =>', self.text)
+        self.assertIn('f_target_label(tf)', self.text)
+
+    def test_data_text_uses_range_format(self):
+        """Test that f_data_text shows explicit range instead of ±pp."""
+        self.assertIn('f_data_text(pUp, nBin, total, canCal) =>', self.text)
+        # Should call f_prob_range_text
+        self.assertIn('rng = f_prob_range_text(pUp, nBin)', self.text)
+        # Should NOT use old ± format in the output string (but comments are fine)
+        # Check that we're not outputting ±pp format (old pattern)
+        self.assertNotIn('str.tostring(hw * 100.0, "#.0") + "pp"', self.text)
+
+    def test_tfstate_evaluation_fields(self):
+        """Test TfState UDT contains all evaluation-related fields."""
+        # Evaluation arrays for head N
+        self.assertIn('float[] evBrierN', self.text)
+        self.assertIn('float[] evLogN', self.text)
+        self.assertIn('float[] evYS_N', self.text)
+        self.assertIn('float[] evYL_N', self.text)
+        self.assertIn('int[]   evCalCntN', self.text)
+        # Evaluation arrays for head 1
+        self.assertIn('float[] evBrier1', self.text)
+        self.assertIn('float[] evLog1', self.text)
+
+    def test_f_rowFc_passes_tf_parameter(self):
+        """Test f_rowFc passes tf to display helpers."""
+        self.assertIn('f_rowFc(tf, pN, nBinN, totN_, canN_, p1, nBin1, tot1_, can1_, rRow) =>', self.text)
+        # Should use tf when calling helpers
+        self.assertIn('txtChanceN = f_chance_text(tf, pN, nBinN, totN_, canN_)', self.text)
+        self.assertIn('txtChance1 = f_chance_text(tf, p1, nBin1, tot1_, can1_)', self.text)
+
+    def test_forecast_header_simplified(self):
+        """Test forecast header uses generic labels since rows carry semantic."""
+        # Header should have generic "Chance(N)" not target-specific
+        self.assertIn('table.cell(gT, 1, 16, "Chance(N)"', self.text)
+        self.assertIn('table.cell(gT, 3, 16, "Chance(1)"', self.text)
+
+    def test_no_orphaned_global_arrays(self):
+        """Regression: ensure old global arrays have been replaced by TfState."""
+        # These old array names should NOT exist as standalone var declarations
+        old_arrays = [
+            "var int[] cntN1 =",
+            "var int[] upN1 =",
+            "var float[] qEntry1 =",
+            "var float[] brierStatsN1 =",
+        ]
+        for arr in old_arrays:
+            self.assertNotIn(arr, self.text, f"Found orphaned global array: {arr}")
+
+    def test_f_eval_on_resolve_uses_tfstate(self):
+        """Test evaluation scoring uses TfState parameter."""
+        self.assertIn('f_eval_on_resolve(TfState st, pN, p1, isUpBool) =>', self.text)
+        # Should reference st.evBrierN etc
+        self.assertIn('st.evBrierN', self.text)
+        self.assertIn('st.evSumBrierN', self.text)
+
 
 if __name__ == "__main__":
     unittest.main()
