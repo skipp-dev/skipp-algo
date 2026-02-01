@@ -53,31 +53,30 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertNotRegex(self.text, bad_line, "Found potentially dangerous div-by-zero line in f_pullback_score")
         
     def test_entryNow_replaced_by_cNow(self):
-        # Verify cNow is used instead of entryNow
-        self.assertNotRegex(self.text, r"array\.push\(qEntry,\s*entryNow\)")
-        self.assertRegex(self.text, r"array\.push\(qEntry,\s*cNow\)")
+        # Verify cNow is used instead of entryNow (now via TfState st.qEntry)
+        self.assertNotRegex(self.text, r"array\.push\(.*qEntry,\s*entryNow\)")
+        self.assertRegex(self.text, r"array\.push\(st\.qEntry,\s*cNow\)")
 
     def test_reactive_arrays_sized_for_2d_binning(self):
         """
         Regression test for runtime error:
         'Error on bar 0: In array.get() function. Index 4 is out of bounds, array size is 2.'
         
-        The (1) reactive arrays (cnt11, up11, etc.) must be sized for 2D binning
-        (predBins1 * dim2Bins) since f_bin2D is used, not 1D (predBins1).
+        The (1) reactive arrays (cnt1, up1) inside TfState must be sized for 2D binning
+        (nBins1 * dim2) since f_bin2D is used, not 1D (predBins1).
         """
         import re
-        # Check that (1) arrays use 2D sizing: predBins1 * dim2Bins
-        pattern_2d = r"array\.new_int\(predBins1\s*\*\s*dim2Bins,\s*0\)"
+        # With TfState pattern, check that f_init_tf_state uses 2D sizing for cnt1/up1
+        # Pattern: array.new_int(nBins1 * dim2, 0) for cnt1 and up1
+        pattern_2d = r"array\.new_int\(nBins1\s*\*\s*dim2,\s*0\)"
         matches_2d = re.findall(pattern_2d, self.text)
         
-        # Should have 14 matches (cnt1x and up1x for F1-F7)
-        self.assertGreaterEqual(len(matches_2d), 14, 
-            f"Expected at least 14 (1) arrays with 2D sizing (predBins1 * dim2Bins), found {len(matches_2d)}")
+        # Should have at least 2 matches (cnt1 and up1 in f_init_tf_state)
+        self.assertGreaterEqual(len(matches_2d), 2, 
+            f"Expected at least 2 (1) arrays with 2D sizing in f_init_tf_state, found {len(matches_2d)}")
         
-        # Verify NO (1) arrays use old 1D sizing pattern
-        bad_pattern = r"cnt1\d\s*=\s*array\.new_int\(predBins1,\s*0\)"
-        self.assertNotRegex(self.text, bad_pattern, 
-            "Found (1) array with incorrect 1D sizing - will cause array bounds error with f_bin2D")
+        # Verify TfState initialization exists
+        self.assertIn("f_init_tf_state(", self.text)
 
     def test_forecast_display_headers(self):
         # Ensure forecast display input and dynamic headers exist
@@ -125,9 +124,9 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertNotIn("f_clamp01((raw + 1.0) * 0.5) * 2.0 - 1.0", self.text)
 
     def test_can_logic_uses_totals_and_forecast_gate(self):
-        # Ensure totals are computed via helper
-        self.assertIn("f_sum_int_array(cntN1)", self.text)
-        self.assertIn("f_sum_int_array(cnt11)", self.text)
+        # Ensure totals are computed via helper using TfState
+        self.assertIn("f_sum_int_array(tf1State.cntN)", self.text)
+        self.assertIn("f_sum_int_array(tf1State.cnt1)", self.text)
 
         # Ensure can flags depend on enableForecast and totals
         self.assertIn("can1N = enableForecast and (totN1 > 0)", self.text)

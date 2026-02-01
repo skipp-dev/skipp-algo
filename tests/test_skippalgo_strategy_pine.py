@@ -146,12 +146,12 @@ class TestSkippAlgoStrategyEvaluation(unittest.TestCase):
         self.assertIn("f_rowEval(", self.text)
 
 
-class TestSkippAlgoStrategyGlobalArraysStatus(unittest.TestCase):
+class TestSkippAlgoStrategyTfStateArchitecture(unittest.TestCase):
     """
-    Tests documenting the CURRENT architecture using global arrays.
+    Tests verifying the TfState UDT pattern migration.
     
-    The Strategy script still uses the old pattern with ~100+ global arrays.
-    These tests will need updating when TfState UDT migration is applied.
+    The Strategy script now uses the same TfState UDT pattern as the indicator,
+    replacing ~100+ global arrays with 7 TfState objects.
     """
     
     text: str = ""
@@ -162,50 +162,52 @@ class TestSkippAlgoStrategyGlobalArraysStatus(unittest.TestCase):
         cls.text = STRATEGY_PATH.read_text(encoding="utf-8")
         cls.lines = cls.text.splitlines()
 
-    def test_has_global_count_arrays(self):
-        """CURRENT: Strategy uses global cntN1..7 arrays."""
+    def test_has_tfstate_udt(self):
+        """Strategy has TfState UDT definition."""
+        self.assertIn("type TfState", self.text)
+
+    def test_has_f_init_tf_state(self):
+        """Strategy has f_init_tf_state helper."""
+        self.assertIn("f_init_tf_state(", self.text)
+
+    def test_has_seven_tfstate_variables(self):
+        """Strategy has tf1State through tf7State."""
         for i in range(1, 8):
-            # Note: Pine uses variable spacing; match just the array names
-            self.assertIn(f"cntN{i}", self.text)
-            self.assertIn(f"upN{i}", self.text)
+            self.assertIn(f"tf{i}State", self.text)
 
-    def test_has_global_queue_arrays(self):
-        """CURRENT: Strategy uses global qEntry1..7 arrays."""
-        for i in range(1, 8):
-            # Note: Pine uses variable spacing; use regex-like matching
-            self.assertIn(f"qEntry{i}", self.text)
-            self.assertIn(f"qAge{i}", self.text)
+    def test_tfstate_has_calibration_fields(self):
+        """TfState UDT has calibration fields (cntN, upN, etc)."""
+        self.assertIn("int[]   cntN", self.text)
+        self.assertIn("int[]   upN", self.text)
+        self.assertIn("int[]   cnt1", self.text)
+        self.assertIn("int[]   up1", self.text)
 
-    def test_has_global_brier_stats_arrays(self):
-        """CURRENT: Strategy uses global brierStatsN1..7 arrays."""
-        for i in range(1, 8):
-            self.assertIn(f"var float[] brierStatsN{i} = array.new_float", self.text)
-            self.assertIn(f"var float[] brierStats1{i} = array.new_float", self.text)
+    def test_tfstate_has_queue_fields(self):
+        """TfState UDT has queue fields (qEntry, qAge, etc)."""
+        self.assertIn("float[] qEntry", self.text)
+        self.assertIn("int[]   qAge", self.text)
+        self.assertIn("int[]   qBinN", self.text)
 
-    def test_has_global_eval_arrays(self):
-        """CURRENT: Strategy uses global evBrierN1..7 arrays."""
-        for i in range(1, 8):
-            self.assertIn(f"evBrierN{i}", self.text)
-            self.assertIn(f"evLogN{i}", self.text)
+    def test_tfstate_has_evaluation_fields(self):
+        """TfState UDT has evaluation fields."""
+        self.assertIn("float[] evBrierN", self.text)
+        self.assertIn("float[] evLogN", self.text)
+        self.assertIn("float[] evBrier1", self.text)
 
-    def test_no_tfstate_udt(self):
-        """CURRENT: Strategy does NOT have TfState UDT (needs migration)."""
-        # This should FAIL when migration is applied
-        self.assertNotIn("type TfState", self.text)
+    def test_f_reset_tf_uses_tfstate(self):
+        """f_reset_tf accepts TfState parameter."""
+        self.assertIn("f_reset_tf(TfState st)", self.text)
 
-    def test_no_f_init_tf_state(self):
-        """CURRENT: Strategy does NOT have f_init_tf_state (needs migration)."""
-        # This should FAIL when migration is applied
-        self.assertNotIn("f_init_tf_state(", self.text)
+    def test_f_process_tf_uses_tfstate(self):
+        """f_process_tf includes TfState st parameter."""
+        self.assertIn("TfState st,", self.text)
 
-    def test_f_process_tf_long_signature(self):
-        """CURRENT: f_process_tf has many individual array parameters."""
-        # The current signature passes many arrays individually
-        # After migration, it should accept TfState st
-        self.assertIn("cntN, upN, cnt1, up1,", self.text)
-        self.assertIn("qBinN, qBin1, qEntry, qAtr", self.text)
-        # Should NOT have TfState parameter yet
-        self.assertNotIn("TfState st,", self.text)
+    def test_no_orphaned_global_arrays(self):
+        """No old-style global arrays (cntN1, upN1, etc)."""
+        # These old patterns should be gone
+        self.assertNotIn("var int[] cntN1 ", self.text)
+        self.assertNotIn("var int[] upN1 ", self.text)
+        self.assertNotIn("var float[] evBrierN1 = array.new_float", self.text)
 
 
 class TestSkippAlgoStrategyUXHelpers(unittest.TestCase):
