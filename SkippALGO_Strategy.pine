@@ -50,6 +50,20 @@ trustWGuardrail = input.float(0.20, "Trust weight: guardrails", minval=0.0, step
 trustWData      = input.float(0.10, "Trust weight: data quality", minval=0.0, step=0.05)
 trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, step=0.05)
 
+//====================
+// Constants — Avoid Magic Numbers
+//====================
+// Volatility regime thresholds
+VOL_THRESH_HIGH = 0.66    // High volatility threshold
+VOL_THRESH_LOW  = 0.33    // Low volatility threshold
+
+// Statistical constants
+Z_95            = 1.96    // Z-score for 95% confidence interval
+PROB_EPS        = 0.0001  // Epsilon for probability clamping to avoid log(0)
+
+// Rolling buffer recalculation interval (prevent FP drift)
+ROLL_RECALC_INTERVAL = 500
+
 penaltyGuardrail  = input.float(0.20, "Penalty per guardrail flag", minval=0.0, step=0.05)
 penaltyRegimeHigh = input.float(0.20, "Penalty: high-vol regime", minval=0.0, step=0.05)
 penaltyRegimeMed  = input.float(0.10, "Penalty: medium-vol regime", minval=0.0, step=0.05)
@@ -344,6 +358,14 @@ f_sum_int_array(a) =>
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
 
+// @function Clamp value to arbitrary [lo, hi] range
+// @param val Value to clamp
+// @param lo Minimum bound
+// @param hi Maximum bound
+// @returns Clamped value
+f_clamp(val, lo, hi) =>
+    math.max(lo, math.min(hi, val))
+
 f_pct_rank(x, len) =>
     lo = ta.lowest(x, len)
     hi = ta.highest(x, len)
@@ -363,7 +385,7 @@ f_chance_word() =>
     anyWin ? "Win" : "Up"
 
 f_ci95_halfwidth(p, n) =>
-    n <= 0 ? na : 1.96 * math.sqrt(p * (1.0 - p) / n)
+    n <= 0 ? na : Z_95 * math.sqrt(p * (1.0 - p) / n)
 
 f_rel_label(p, nBin, total, canCal) =>
     string lbl = "off"
@@ -399,7 +421,7 @@ f_get_params(tf) =>
 
 // --- Phase 4 Helpers: Platt Scaling ---
 f_logit(p) =>
-    pc = math.max(0.0001, math.min(0.9999, p))
+    pc = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, p))
     math.log(pc / (1.0 - pc))
 
 f_sigmoid(x) =>
@@ -439,19 +461,28 @@ f_ensemble(sA, sB, sC, wA, wB, wC) =>
     math.max(-1.0, math.min(1.0, val))
 
 // --- Phase 2 Helpers: 2D Binning ---
+// @function Computes 2D bin index from score and volatility rank
+// @param score Ensemble score in [-1, 1]
+// @param volRank Volatility percentile rank in [0, 1]
+// @param binsScore Number of bins for score dimension
+// @param binsVol Number of bins for volatility dimension (typically 3)
+// @returns Flattened bin index
 f_bin2D(score, volRank, binsScore, binsVol) =>
-    // Score bin (0..binsScore-1)
+    // Score bin (0..binsScore-1) - map [-1,1] to [0,1] then to bin index
     uS = (score + 1.0) * 0.5
-    bS = math.floor(uS * binsScore)
-    bS := bS < 0 ? 0 : bS > (binsScore - 1) ? (binsScore - 1) : bS
+    bS = int(math.floor(uS * binsScore))
+    bS := math.max(0, math.min(binsScore - 1, bS))
     
     // Vol bin (0..binsVol-1) usually 3
-    // Low (<0.33), Mid (0.33-0.66), High (>0.66)
-    bV = volRank <= 0.33 ? 0 : volRank <= 0.66 ? 1 : 2
+    // Low (<LOW), Mid (LOW-HIGH), High (>=HIGH) - matches indicator logic
+    bV = 0
+    if volRank >= VOL_THRESH_HIGH
+        bV := 2
+    else if volRank >= VOL_THRESH_LOW
+        bV := 1
     
     // Flattened Index
-    // idx = bS * binsVol + bV
-    bS * binsVol + bV
+    int(bS * binsVol + bV)
 
 f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
     t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
@@ -488,8 +519,14 @@ f_score_tf(tf) =>
 
 
 
+// @function Computes Laplace-smoothed probability with division safety
+// @param up Number of positive outcomes
+// @param n Total number of samples
+// @param alpha Laplace smoothing parameter (default typically 1.0)
+// @returns Probability in (0, 1), defaults to 0.5 if denominator is zero
 f_prob(up, n, alpha) =>
-    (up + alpha) / (n + 2.0 * alpha)
+    denom = n + 2.0 * alpha
+    denom == 0.0 ? 0.5 : (up + alpha) / denom
 
 f_cal_update(cntArr, upArr, bin, isUp) =>
     n0 = array.get(cntArr, bin)
@@ -802,10 +839,13 @@ f_process_tf(newTfBar, sA,
             else if fcTgt == "KBarATR"
                 if age_i >= kB
                     resolved := true
-                    doUpdate := true
-                    denom = (na(atr_i) or atr_i == 0.0) ? 1.0 : atr_i
-                    retATR = (cNow - entry_i) / denom
-                    isUp := retATR >= aThr
+                    // Skip calibration update if ATR is invalid (prevents misleading ratios)
+                    if na(atr_i) or atr_i == 0.0
+                        doUpdate := false
+                    else
+                        doUpdate := true
+                        retATR = (cNow - entry_i) / atr_i
+                        isUp := retATR >= aThr
 
             else // PathTPvsSL
                 tpPx = entry_i + tpA * atr_i
@@ -925,7 +965,7 @@ f_process_tf(newTfBar, sA,
         // --- Phase 3: Ensemble Score ---
         bias = emaFNow > emaSNow ? 1 : -1
         sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
-        sC = volRankNow >= 0.66 ? -1.0 : (volRankNow <= 0.33 ? 1.0 : 0.0)
+        sC = volRankNow >= VOL_THRESH_HIGH ? -1.0 : (volRankNow <= VOL_THRESH_LOW ? 1.0 : 0.0)
         sEns = f_ensemble(sA, sB, sC, wAVal, wBVal, wCVal)
         
         // --- Phase 2: 2D Binning ---
@@ -1421,7 +1461,7 @@ if doCal
 f_get_disp_vals(sA, c, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : -1
     sB = f_pullback_score(c, ef, es, bias)
-    sC = vr >= 0.66 ? -1.0 : (vr <= 0.33 ? 1.0 : 0.0)
+    sC = vr >= VOL_THRESH_HIGH ? -1.0 : (vr <= VOL_THRESH_LOW ? 1.0 : 0.0)
     sEns = f_ensemble(sA, sB, sC, ens_wA, ens_wB, ens_wC)
     bN = f_bin2D(sEns, vr, predBinsN, dim2Bins)
     b1 = f_bin2D(sEns, vr, predBins1, dim2Bins)

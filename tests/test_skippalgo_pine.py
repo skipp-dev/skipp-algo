@@ -75,8 +75,8 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('"Multi-Profile (See Settings). Fast: " + fcTargetF', self.text)
         
     def test_process_tf_signature(self):
-        # Check that f_process_tf uses TfState pattern
-        self.assertIn("f_process_tf(hid, newTfBar, sA,", self.text)
+        # Check that f_process_tf uses TfState pattern (_hid marks unused param)
+        self.assertIn("f_process_tf(_hid, newTfBar, sA,", self.text)
         self.assertIn("TfState st,", self.text)
         self.assertIn("fcTgt, kB, aThr, pH, tpA, slA,", self.text)
 
@@ -220,8 +220,8 @@ class TestSkippAlgoPine(unittest.TestCase):
     def test_uncertainty_band_helpers(self):
         """Test f_unc_pp for binomial CI calculation."""
         self.assertIn('f_unc_pp(p, n) =>', self.text)
-        # Uses 1.96 for 95% CI
-        self.assertIn('1.96 * math.sqrt', self.text)
+        # Uses Z_95 constant for 95% CI
+        self.assertIn('Z_95 * math.sqrt', self.text)
 
     def test_strength_label_fc_function(self):
         """Test sample-strength labeling for forecast display."""
