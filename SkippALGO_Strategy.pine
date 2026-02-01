@@ -242,6 +242,14 @@ evalMinEvents   = input.int(30, "Eval min events to display", minval=5, maxval=5
 driftWarnPP     = input.float(8.0, "Drift warn threshold (pp)", minval=1.0, maxval=50.0, step=0.5)
 
 //====================
+// Inputs — Calibration Diagnostics (Debug Panel)
+//====================
+grp_diag = "🔧 Calibration Diagnostics"
+showDiagPanel   = input.bool(false, "Show Calibration Debug Panel", group=grp_diag, tooltip="Displays Platt params, convergence, bin samples")
+diagHorizon     = input.string("F1", "Diagnostic Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_diag)
+diagModel       = input.string("N", "Diagnostic Model", options=["N","1"], group=grp_diag, tooltip="N=Multi-factor, 1=Single-factor")
+
+//====================
 // Calibration storage — TfState UDT (replaces 100+ global arrays)
 //====================
 
@@ -1696,6 +1704,119 @@ if showTable and barstate.isconfirmed
      "Forecast: Shrinkage k=5.0 active. Accuracy: Brier Score (0-1). <0.25=Skill.",
      text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
     table.merge_cells(gT, 1, 33, 4, 33)
+
+//====================
+// Calibration Diagnostics Panel (Debug)
+//====================
+var table diagTbl = na
+if showDiagPanel and na(diagTbl)
+    diagTbl := table.new(position.top_right, 2, 14, bgcolor=color.new(color.black, 85), frame_color=color.gray, frame_width=1, border_color=color.gray, border_width=1)
+
+// Helper to get selected TfState
+f_get_diag_state() =>
+    diagHorizon == "F1" ? tf1State : diagHorizon == "F2" ? tf2State : diagHorizon == "F3" ? tf3State : diagHorizon == "F4" ? tf4State : diagHorizon == "F5" ? tf5State : diagHorizon == "F6" ? tf6State : tf7State
+
+if showDiagPanel and barstate.islast
+    st = f_get_diag_state()
+    
+    // Select model arrays
+    cntArr = diagModel == "N" ? st.cntN : st.cnt1
+    upArr  = diagModel == "N" ? st.upN  : st.up1
+    plattArr = diagModel == "N" ? st.plattN : st.platt1
+    brierStats = diagModel == "N" ? st.brierStatsN : st.brierStats1
+    llStats = diagModel == "N" ? st.llStatsN : st.llStats1
+    
+    // Platt params
+    plattA = array.get(plattArr, 0)
+    plattB = array.get(plattArr, 1)
+    
+    // Brier/LogLoss
+    brierSum = array.get(brierStats, 0)
+    brierCnt = array.get(brierStats, 1)
+    brierAvg = brierCnt > 0 ? brierSum / brierCnt : na
+    
+    llSum = array.get(llStats, 0)
+    llCnt = array.get(llStats, 1)
+    llAvg = llCnt > 0 ? llSum / llCnt : na
+    
+    // Bin samples (total and per-bin distribution)
+    totalSamples = array.sum(cntArr)
+    numBins = array.size(cntArr)
+    
+    // Bin distribution (min/max/avg samples per bin)
+    minBin = numBins > 0 ? array.min(cntArr) : 0
+    maxBin = numBins > 0 ? array.max(cntArr) : 0
+    avgBin = numBins > 0 ? totalSamples / numBins : 0
+    
+    // Win rate (overall calibrated base rate)
+    totalUp = array.sum(upArr)
+    baseRate = totalSamples > 0 ? totalUp * 100.0 / totalSamples : 50.0
+    
+    // Convergence check: Is Platt A stable (should be near 1.0 if well-calibrated)?
+    plattStable = (plattA >= 0.7 and plattA <= 1.5) and (plattB >= -0.5 and plattB <= 0.5)
+    convStatus = plattStable ? "✅ Converged" : (plattA < 0.3 or plattA > 3.0) ? "⚠️ Unstable" : "🔄 Adjusting"
+    convColor = plattStable ? color.lime : (plattA < 0.3 or plattA > 3.0) ? color.red : color.yellow
+    
+    // Quality grade
+    qualityGrade = na(brierAvg) ? "—" : brierAvg < 0.18 ? "A (Excellent)" : brierAvg < 0.22 ? "B (Good)" : brierAvg < 0.25 ? "C (Baseline)" : brierAvg < 0.30 ? "D (Poor)" : "F (No Skill)"
+    qualityColor = na(brierAvg) ? color.gray : brierAvg < 0.18 ? color.lime : brierAvg < 0.22 ? color.green : brierAvg < 0.25 ? color.yellow : brierAvg < 0.30 ? color.orange : color.red
+    
+    // Row 0: Header
+    table.cell(diagTbl, 0, 0, "🔧 Calibration Diagnostics", text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
+    table.cell(diagTbl, 1, 0, diagHorizon + " / " + diagModel, text_color=color.aqua, bgcolor=color.new(color.blue, 70), text_size=size.small)
+    
+    // Row 1: Platt A
+    table.cell(diagTbl, 0, 1, "Platt A (slope)", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 1, str.tostring(plattA, "#.###"), text_color=color.white, text_size=size.tiny)
+    
+    // Row 2: Platt B
+    table.cell(diagTbl, 0, 2, "Platt B (intercept)", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 2, str.tostring(plattB, "#.###"), text_color=color.white, text_size=size.tiny)
+    
+    // Row 3: Convergence status
+    table.cell(diagTbl, 0, 3, "SGD Status", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 3, convStatus, text_color=convColor, text_size=size.tiny)
+    
+    // Row 4: Separator
+    table.cell(diagTbl, 0, 4, "─────────", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 4, "─────────", text_color=color.gray, text_size=size.tiny)
+    
+    // Row 5: Brier Score
+    table.cell(diagTbl, 0, 5, "Brier Score", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 5, na(brierAvg) ? "—" : str.tostring(brierAvg, "#.####"), text_color=na(brierAvg) ? color.gray : brierAvg < 0.25 ? color.lime : color.red, text_size=size.tiny)
+    
+    // Row 6: LogLoss
+    table.cell(diagTbl, 0, 6, "LogLoss", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 6, na(llAvg) ? "—" : str.tostring(llAvg, "#.####"), text_color=na(llAvg) ? color.gray : llAvg < 0.65 ? color.lime : color.red, text_size=size.tiny)
+    
+    // Row 7: Quality Grade
+    table.cell(diagTbl, 0, 7, "Quality Grade", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 7, qualityGrade, text_color=qualityColor, text_size=size.tiny)
+    
+    // Row 8: Separator
+    table.cell(diagTbl, 0, 8, "─────────", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 8, "─────────", text_color=color.gray, text_size=size.tiny)
+    
+    // Row 9: Total samples
+    table.cell(diagTbl, 0, 9, "Total Samples", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 9, str.tostring(totalSamples), text_color=totalSamples >= calMinSamples * numBins ? color.lime : color.yellow, text_size=size.tiny)
+    
+    // Row 10: Bin distribution
+    table.cell(diagTbl, 0, 10, "Bin Min/Avg/Max", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 10, str.tostring(minBin) + "/" + str.tostring(avgBin, "#") + "/" + str.tostring(maxBin), text_color=color.white, text_size=size.tiny)
+    
+    // Row 11: Warmup progress
+    warmupPct = math.min(100, totalSamples * 100.0 / (calMinSamples * numBins))
+    table.cell(diagTbl, 0, 11, "Warmup Progress", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 11, str.tostring(warmupPct, "#.0") + "%", text_color=warmupPct >= 100 ? color.lime : warmupPct >= 50 ? color.yellow : color.red, text_size=size.tiny)
+    
+    // Row 12: Base Rate
+    table.cell(diagTbl, 0, 12, "Base Rate (Up%)", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 12, str.tostring(baseRate, "#.1") + "%", text_color=math.abs(baseRate - 50) > 15 ? color.orange : color.white, text_size=size.tiny)
+    
+    // Row 13: Observations count
+    table.cell(diagTbl, 0, 13, "Resolutions", text_color=color.gray, text_size=size.tiny)
+    table.cell(diagTbl, 1, 13, str.tostring(int(brierCnt)), text_color=color.white, text_size=size.tiny)
 
 //====================
 // Alerts (bar close)
