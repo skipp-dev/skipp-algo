@@ -62,25 +62,61 @@ Counting wins/losses in bins provides a "Raw Probability" (`pRaw`). However, thi
 
 ## 3) Technical Implementation Details
 
-### Data Structues
+### TfState UDT Architecture (v6.1+)
 
-* **Global Arrays**: Arrays like `cntN` (Counts) and `upN` (Wins) now have size `predBins * 3`.
-* **Queues**: `qLogit` arrays store the `logit` of the probability *at the moment of entry*. This is crucial for valid backpropagation/SGD updates when the trade resolves bars later.
+Both the indicator and strategy now use a **User-Defined Type (UDT)** pattern to manage per-timeframe state, replacing ~100+ individual global arrays with 7 TfState objects.
 
-### Flow
+```pine
+type TfState
+    // Calibration counts
+    int[]   cntN        // N-bin counts (predBinsN × dim2Bins)
+    int[]   upN         // N-bin wins
+    int[]   cnt1        // 1-bin counts (predBins1 × dim2Bins)
+    int[]   up1         // 1-bin wins
+    
+    // Queues for pending forecasts
+    int[]   qBinN, qBin1
+    float[] qEntry, qAtr, qMaxH, qMinL
+    int[]   qAge
+    float[] qProbN, qProb1, qLogitN, qLogit1, qPredN, qPred1
+    
+    // Online calibration stats
+    float[] brierStatsN, brierStats1, llStatsN, llStats1
+    float[] plattN, platt1  // Platt scaling [a, b]
+    
+    // Evaluation buffers (Brier, LogLoss, ECE)
+    float[] evBrierN, evSumBrierN, evLogN, evSumLogN, ...
+    int[]   evCalCntN, evCalCnt1  // ECE bucket counts
+```
 
-1. **Signal Generation**: On new bar -> `f_ensemble` -> `sEns`.
-2. **Binning**: `f_bin2D(sEns, volRank)` -> `BinID`.
+**Benefits:**
+
+* **Code reduction**: ~450 lines removed from strategy
+* **Maintainability**: Single `TfState st` parameter vs 40+ arrays
+* **Consistency**: Indicator and strategy share identical patterns
+* **Type safety**: UDT provides clear field documentation
+
+**Key Functions:**
+
+* `f_init_tf_state(nBinsN, nBins1, dim2, evBuckets)` — Initialize TfState with properly sized arrays
+* `f_reset_tf(TfState st)` — Clear all calibration and queue arrays
+* `f_process_tf(..., TfState st, ...)` — Process calibration for one horizon
+* `f_eval_on_resolve(TfState st, pN, p1, isUp)` — Update evaluation metrics
+
+### Data Flow
+
+1. **Signal Generation**: On new bar → `f_ensemble` → `sEns`.
+2. **Binning**: `f_bin2D(sEns, volRank)` → `BinID`.
 3. **Prediction**:
-    * Lookup `pRaw` from `cntN/upN`.
-    * Apply `f_platt_prob(pRaw, a, b)` -> **Displayed Probability**.
-4. **Storage**: Push `BinID`, `EntryPrice`, `Logit(pRaw)` to queues.
+    * Lookup `pRaw` from `st.cntN/st.upN`.
+    * Apply `f_platt_prob(pRaw, a, b)` → **Displayed Probability**.
+4. **Storage**: Push `BinID`, `EntryPrice`, `Logit(pRaw)` to `st.qXxx` queues.
 5. **Resolution (Next Bars)**:
     * Check if Target Profile conditions met (TP/SL/Time).
     * If resolved:
-        * Update `cntN/upN` (Bin counters).
-        * Perform SGD step on `a` and `b` (`plattN` array).
-        * Update Brier/LogLoss stats.
+        * Update `st.cntN/st.upN` (Bin counters).
+        * Perform SGD step on `st.plattN[a,b]`.
+        * Call `f_eval_on_resolve(st, ...)` for metrics.
 
 ---
 
