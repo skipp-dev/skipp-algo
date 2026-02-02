@@ -282,8 +282,10 @@ abstainMinEdge = input.float(0.08, "Abstain min edge (pp)", minval=0.0, maxval=0
 //====================
 // Inputs — Evaluation (live scoring)
 //====================
-showEvalSection = input.bool(true, "Show Evaluation rows (Brier/LogLoss/ECE/Drift)")
+showEvalSection = input.bool(true, "Show Evaluation rows (Brier/LogLoss/ConfErr/Drift)")
 evalWhichHead   = input.string("N", "Evaluate head", options=["N","1"])  // N=stable bins, 1=reactive bins
+
+evalInBackground = input.bool(true, "Eval in background (when Eval section hidden)")
 
 evalMode        = input.string("History+Live", "Evaluation mode", options=["History+Live","LiveOnly"])
 
@@ -293,6 +295,8 @@ evalRollLong    = input.int(300, "Eval drift long window (events)", minval=30, m
 
 evalBuckets     = input.int(5, "Eval buckets (ECE)", minval=3, maxval=5)
 evalMinEvents   = input.int(30, "Eval min events to display", minval=5, maxval=500)
+
+evalBucketCount = use3Way ? evalBuckets * 3 : evalBuckets
 
 driftWarnPP     = input.float(8.0, "Drift warn threshold (pp)", minval=1.0, maxval=50.0, step=0.5)
 
@@ -433,22 +437,22 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
       // Eval N
       array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
       array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
-      array.new_int(evBuckets, 0), array.new_float(evBuckets, 0.0), array.new_float(evBuckets, 0.0),
+            array.new_int(evBuckets, 0), array.new_float(evBuckets, 0.0), array.new_float(evBuckets, 0.0),
       array.new_int(), array.new_float(), array.new_float(),
       // Eval 1
       array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
       array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
-      array.new_int(evBuckets, 0), array.new_float(evBuckets, 0.0), array.new_float(evBuckets, 0.0),
+            array.new_int(evBuckets, 0), array.new_float(evBuckets, 0.0), array.new_float(evBuckets, 0.0),
       array.new_int(), array.new_float(), array.new_float()
     )
 
-var TfState tf1State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
-var TfState tf2State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
-var TfState tf3State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
-var TfState tf4State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
-var TfState tf5State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
-var TfState tf6State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
-var TfState tf7State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBuckets)
+var TfState tf1State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
+var TfState tf2State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
+var TfState tf3State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
+var TfState tf4State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
+var TfState tf5State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
+var TfState tf6State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
+var TfState tf7State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
 
 //====================
 // Table colors (navy + soft-blue frame)
@@ -465,8 +469,8 @@ tblTfColor = color.new(color.rgb(220, 220, 255), 0)
 // Quantile bin buffers (score dimension)
 //====================
 var float[] qScoreBuf = array.new_float()
-var float[] qCutsN = array.new_float(math.max(predBinsN - 1, 0), na)
-var float[] qCuts1 = array.new_float(math.max(predBins1 - 1, 0), na)
+var float[] qCutsN = array.new_float(int(math.max(predBinsN - 1, 0)), na)
+var float[] qCuts1 = array.new_float(int(math.max(predBins1 - 1, 0)), na)
 
 //====================
 // Helpers
@@ -488,8 +492,14 @@ f_fill_cuts(sorted, cuts, bins) =>
             idx = int(math.floor(frac * (n - 1)))
             array.set(cuts, i, array.get(sorted, idx))
 
+// Forecast binning (fallback: fixed width)
+f_bin(score, bins) =>
+    u = (score + 1.0) * 0.5
+    b = int(math.floor(u * bins))
+    b < 0 ? 0 : b > (bins - 1) ? (bins - 1) : b
+
 f_update_quantiles(score) =>
-    if useQuantileBins
+    if useQuantileBins and (showTable or showEvalSection)
         array.push(qScoreBuf, score)
         if array.size(qScoreBuf) > quantileWindow
             array.shift(qScoreBuf)
@@ -672,7 +682,10 @@ f_cal_update3(cntArr, upArr, dnArr, bin, outcome) =>
 
 f_prob3(u, f, d, n, alpha) =>
     denom = n + 3.0 * alpha
-    denom == 0.0 ? [0.3333, 0.3334, 0.3333] : [(u + alpha) / denom, (f + alpha) / denom, (d + alpha) / denom]
+    if denom == 0.0
+        [0.3333, 0.3334, 0.3333]
+    else
+        [(u + alpha) / denom, (f + alpha) / denom, (d + alpha) / denom]
 
 f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
     n = array.get(cntArr, bin)
@@ -680,7 +693,10 @@ f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
     d = array.get(dnArr,  bin)
     f = math.max(0, n - u - d)
 
-    [pUb, pFb, pDb] = f_prob3(u, f, d, n, alpha)
+    [pUb_t, pFb_t, pDb_t] = f_prob3(u, f, d, n, alpha)
+    pUb = pUb_t
+    pFb = pFb_t
+    pDb = pDb_t
 
     volBin = bin % dim2Bins
     binsScore = int(array.size(cntArr) / dim2Bins)
@@ -693,13 +709,19 @@ f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
         uReg += array.get(upArr,  idx)
         dReg += array.get(dnArr,  idx)
     fReg = math.max(0, nReg - uReg - dReg)
-    [pUr, pFr, pDr] = f_prob3(uReg, fReg, dReg, nReg, alpha)
+    [pUr_t, pFr_t, pDr_t] = f_prob3(uReg, fReg, dReg, nReg, alpha)
+    pUr = pUr_t
+    pFr = pFr_t
+    pDr = pDr_t
 
     nBase = array.sum(cntArr)
     uBase = array.sum(upArr)
     dBase = array.sum(dnArr)
     fBase = math.max(0, nBase - uBase - dBase)
-    [pU0, pF0, pD0] = f_prob3(uBase, fBase, dBase, nBase, alpha)
+    [pU0_t, pF0_t, pD0_t] = f_prob3(uBase, fBase, dBase, nBase, alpha)
+    pU0 = pU0_t
+    pF0 = pF0_t
+    pD0 = pD0_t
 
     wReg = (shrinkReg <= 0) ? 1.0 : (n / (n + shrinkReg + 0.0))
     pUreg = wReg * pUb + (1.0 - wReg) * pUr
@@ -712,7 +734,10 @@ f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
     pD = w * pDreg + (1.0 - w) * pD0
 
     s = pU + pF + pD
-    s == 0.0 ? [0.3333, 0.3334, 0.3333, n] : [pU / s, pF / s, pD / s, n]
+    if s == 0.0
+        [0.3333, 0.3334, 0.3333, n]
+    else
+        [pU / s, pF / s, pD / s, n]
 
 f_safe_log(p) =>
     math.log(math.max(PROB_EPS, p))
@@ -723,7 +748,10 @@ f_softmax3(zU, zF, zD) =>
     eF = math.exp(zF - zMax)
     eD = math.exp(zD - zMax)
     s = eU + eF + eD
-    s == 0.0 ? [0.3333, 0.3334, 0.3333] : [eU / s, eF / s, eD / s]
+    if s == 0.0
+        [0.3333, 0.3334, 0.3333]
+    else
+        [eU / s, eF / s, eD / s]
 
 f_can_cal3(nBin) =>
     calibratorMode != "Off" and (not cal3AutoFallback or nBin >= cal3MinSamples)
@@ -773,7 +801,10 @@ f_prior3(tf, outScore) =>
     pF = f_clamp(baseFlat, 0.0, 1.0)
 
     s = pU + pF + pD
-    s == 0.0 ? [0.3333, 0.3334, 0.3333] : [pU / s, pF / s, pD / s]
+    if s == 0.0
+        [0.3333, 0.3334, 0.3333]
+    else
+        [pU / s, pF / s, pD / s]
 
 f_samp_label(enabled, total) =>
     not enabled ? "off" : total < calMinSamples ? "…" : total < calMinSamples * 3 ? "ok" : "strong"
@@ -799,7 +830,7 @@ f_tf_pack(tf) =>
     )
 
 f_score_tf(tf) =>
-    [c, ef, es, r] = request.security(
+    [c_t, ef_t, es_t, r_t] = request.security(
             syminfo.tickerid,
             tf,
             [close,
@@ -809,15 +840,11 @@ f_score_tf(tf) =>
             barmerge.gaps_off,
             barmerge.lookahead_off
         )
+    c = c_t
+    ef = ef_t
+    es = es_t
+    r = r_t
     f_state_score(c, ef, es, r)
-
-// Forecast binning (fallback: fixed width)
-f_bin(score, bins) =>
-    u = (score + 1.0) * 0.5
-    b = int(math.floor(u * bins))
-    b < 0 ? 0 : b > (bins - 1) ? (bins - 1) : b
-
-
 
 // @function Computes Laplace-smoothed probability with division safety
 // @param up Number of positive outcomes
@@ -859,185 +886,216 @@ f_predColorP(pUp, n, canCal, neutralCol) =>
 f_pupText(pUp, n, canCal) =>
     not canCal ? "OFF" : n == 0 ? "—" : n < calMinSamples ? "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples) : fcDisplay == "Edge pp (N)" ? ((pUp - 0.5) * 100.0 > 0 ? "+" + str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")" : str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")") : "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
-// Helper: Brier Score (MSE)
-f_brier(p, isEvent) =>
-    y = isEvent ? 1.0 : 0.0
-    math.pow(p - y, 2)
+f_epsClamp(p) =>
+    eps = 1e-6
+    math.max(eps, math.min(1.0 - eps, p))
 
-// Helper: Log Loss (clipped)
-f_logloss(p, isEvent) =>
-    y = isEvent ? 1.0 : 0.0
-    pClip = f_clamp(p, 0.01, 0.99)
-    -(y * math.log(pClip) + (1.0 - y) * math.log(1.0 - pClip))
+f_brier(p, y) =>
+    d = p - y
+    d * d
 
-// Helper: Update one Evaluation struct
-f_eval_update_one(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, 
-                  evCalCnt, evCalSumP, evCalSumY, evCalBBuf, evCalPBuf, evCalYBuf, 
-                  pPred, isUp, rollScore, rollShort, rollLong, buckets) =>
-    // 1. Calc instance scores
-    bs = f_brier(pPred, isUp)
-    ll = f_logloss(pPred, isUp)
-    y  = isUp ? 1.0 : 0.0
-    
-    // 2. Rolling Brier/LogLoss
-    array.push(evBrier, bs)
-    array.push(evLog, ll)
-    sb = array.get(evSumBrier, 0) + bs
-    sl = array.get(evSumLog, 0) + ll
-    if array.size(evBrier) > rollScore
-        sb := sb - array.shift(evBrier)
-        sl := sl - array.shift(evLog)
-    // Periodic recalculation to prevent FP drift
-    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(evBrier) > 0
-        sb := array.sum(evBrier)
-        sl := array.sum(evLog)
-    array.set(evSumBrier, 0, sb)
-    array.set(evSumLog, 0, sl)
+f_logloss(p, y) =>
+    pc = f_epsClamp(p)
+    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
 
-    // 3. Drift (YS vs YL)
-    array.push(evYS, y)
-    array.push(evYL, y)
-    sys = array.get(evSumYS, 0) + y
-    syl = array.get(evSumYL, 0) + y
-    if array.size(evYS) > rollShort
-        sys := sys - array.shift(evYS)
-    if array.size(evYL) > rollLong
-        syl := syl - array.shift(evYL)
-    // Periodic recalculation to prevent FP drift
-    if bar_index % ROLL_RECALC_INTERVAL == 0
-        if array.size(evYS) > 0
-            sys := array.sum(evYS)
-        if array.size(evYL) > 0
-            syl := array.sum(evYL)
-    array.set(evSumYS, 0, sys)
-    array.set(evSumYL, 0, syl)
+f_roll_add(buf, sumArr, v, maxLen) =>
+    array.push(buf, v)
+    array.set(sumArr, 0, array.get(sumArr, 0) + v)
+    if array.size(buf) > maxLen
+        old = array.shift(buf)
+        array.set(sumArr, 0, array.get(sumArr, 0) - old)
+    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(buf) > 0
+        array.set(sumArr, 0, array.sum(buf))
 
-    // 4. Calibration (ECE Buckets)
-    bIdx = math.min(math.floor(pPred * buckets), buckets - 1)
-    
-    // Rolling buffer for ECE (remove old events to keep ECE "live")
-    // We store [bIdx, pPred, y] in parallel arrays or similar structure
-    array.push(evCalBBuf, int(bIdx))
-    array.push(evCalPBuf, pPred)
-    array.push(evCalYBuf, y)
-    
-    // Add to buckets
-    array.set(evCalCnt,  bIdx, array.get(evCalCnt,  bIdx) + 1)
-    array.set(evCalSumP, bIdx, array.get(evCalSumP, bIdx) + pPred)
-    array.set(evCalSumY, bIdx, array.get(evCalSumY, bIdx) + y)
+f_bucket(p, B) =>
+    b = int(math.floor(p * B))
+    b < 0 ? 0 : b > (B - 1) ? (B - 1) : b
 
-    // Expire old
-    // Use rollScore for ECE window as well for simplicity (or separate param)
-    if array.size(evCalBBuf) > rollScore
-        oldB = array.shift(evCalBBuf)
-        oldP = array.shift(evCalPBuf)
-        oldY = array.shift(evCalYBuf)
-        // Remove from buckets
-        cOld = array.get(evCalCnt, oldB)
-        if cOld > 0
-            array.set(evCalCnt, oldB, cOld - 1)
-            array.set(evCalSumP, oldB, array.get(evCalSumP, oldB) - oldP)
-            array.set(evCalSumY, oldB, array.get(evCalSumY, oldB) - oldY)
+f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
+    B = array.size(calCnt)
+    bi = f_bucket(p, B)
 
-f_eval_update_one3(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL,
-                  evCalCnt, evCalSumP, evCalSumY, evCalBBuf, evCalPBuf, evCalYBuf,
-                  pU, pF, pD, outcome, rollScore, rollShort, rollLong, buckets) =>
-    b3 = f_brier3(pU, pF, pD, outcome)
-    ll = f_logloss3(pU, pF, pD, outcome)
-    yUp = outcome == 1 ? 1.0 : 0.0
-    pTrue = outcome == 1 ? pU : outcome == 0 ? pF : pD
+    array.push(bBuf, bi)
+    array.push(pBuf, p)
+    array.push(yBuf, y)
 
-    array.push(evBrier, b3)
-    array.push(evLog, ll)
-    sb = array.get(evSumBrier, 0) + b3
-    sl = array.get(evSumLog, 0) + ll
-    if array.size(evBrier) > rollScore
-        sb := sb - array.shift(evBrier)
-        sl := sl - array.shift(evLog)
-    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(evBrier) > 0
-        sb := array.sum(evBrier)
-        sl := array.sum(evLog)
-    array.set(evSumBrier, 0, sb)
-    array.set(evSumLog, 0, sl)
+    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
+    array.set(calSumP, bi, array.get(calSumP, bi) + p)
+    array.set(calSumY, bi, array.get(calSumY, bi) + y)
 
-    array.push(evYS, yUp)
-    array.push(evYL, yUp)
-    sys = array.get(evSumYS, 0) + yUp
-    syl = array.get(evSumYL, 0) + yUp
-    if array.size(evYS) > rollShort
-        sys := sys - array.shift(evYS)
-    if array.size(evYL) > rollLong
-        syl := syl - array.shift(evYL)
-    if bar_index % ROLL_RECALC_INTERVAL == 0
-        if array.size(evYS) > 0
-            sys := array.sum(evYS)
-        if array.size(evYL) > 0
-            syl := array.sum(evYL)
-    array.set(evSumYS, 0, sys)
-    array.set(evSumYL, 0, syl)
+    if array.size(bBuf) > maxLen
+        bOld = array.shift(bBuf)
+        pOld = array.shift(pBuf)
+        yOld = array.shift(yBuf)
 
-    bIdx = math.min(math.floor(pTrue * buckets), buckets - 1)
-    array.push(evCalBBuf, int(bIdx))
-    array.push(evCalPBuf, pTrue)
-    array.push(evCalYBuf, 1.0)
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
 
-    array.set(evCalCnt,  bIdx, array.get(evCalCnt,  bIdx) + 1)
-    array.set(evCalSumP, bIdx, array.get(evCalSumP, bIdx) + pTrue)
-    array.set(evCalSumY, bIdx, array.get(evCalSumY, bIdx) + 1.0)
+f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) =>
+    B = evalBuckets
+    yU = outcome == 1 ? 1.0 : 0.0
+    yF = outcome == 0 ? 1.0 : 0.0
+    yD = outcome == -1 ? 1.0 : 0.0
 
-    if array.size(evCalBBuf) > rollScore
-        oldB = array.shift(evCalBBuf)
-        oldP = array.shift(evCalPBuf)
-        oldY = array.shift(evCalYBuf)
-        cOld = array.get(evCalCnt, oldB)
-        if cOld > 0
-            array.set(evCalCnt, oldB, cOld - 1)
-            array.set(evCalSumP, oldB, array.get(evCalSumP, oldB) - oldP)
-            array.set(evCalSumY, oldB, array.get(evCalSumY, oldB) - oldY)
+    biU = f_bucket(pU, B)
+    biF = f_bucket(pF, B)
+    biD = f_bucket(pD, B)
+
+    idxU = 0 * B + biU
+    idxF = 1 * B + biF
+    idxD = 2 * B + biD
+
+    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
+    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
+    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
+
+    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
+    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
+    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
+
+    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
+    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
+    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
+
+    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
+    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
+    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
+
+    maxLen3 = maxLen * 3
+    while array.size(bBuf) > maxLen3
+        bOld = array.shift(bBuf)
+        pOld = array.shift(pBuf)
+        yOld = array.shift(yBuf)
+
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) =>
+    nScore = array.size(brierBuf)
+    brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
+    logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
+
+    nS = array.size(ySBuf)
+    nL = array.size(yLBuf)
+    wS = nS == 0 ? na : array.get(sumYS, 0) / nS
+    wL = nL == 0 ? na : array.get(sumYL, 0) / nL
+    drift = (na(wS) or na(wL)) ? na : (wS - wL)
+
+    ece = float(na)
+    maxErr = float(na)
+    B = evalBuckets
+    sizeCnt = array.size(calCnt)
+    if sizeCnt == B
+        tot = 0
+        for i = 0 to sizeCnt - 1
+            tot += array.get(calCnt, i)
+        if tot > 0
+            e = 0.0
+            m = 0.0
+            for i = 0 to sizeCnt - 1
+                c = array.get(calCnt, i)
+                if c > 0
+                    ap = array.get(calSumP, i) / c
+                    ay = array.get(calSumY, i) / c
+                    err = math.abs(ap - ay)
+                    e += err * (c / tot)
+                    m := math.max(m, err)
+            ece := e
+            maxErr := m
+    else if sizeCnt == B * 3
+        eTot = 0.0
+        mTot = 0.0
+        for cls = 0 to 2
+            totC = 0
+            for i = 0 to B - 1
+                totC += array.get(calCnt, cls * B + i)
+            if totC > 0
+                eC = 0.0
+                mC = 0.0
+                for i = 0 to B - 1
+                    idx = cls * B + i
+                    c = array.get(calCnt, idx)
+                    if c > 0
+                        ap = array.get(calSumP, idx) / c
+                        ay = array.get(calSumY, idx) / c
+                        err = math.abs(ap - ay)
+                        eC += err * (c / totC)
+                        mC := math.max(mC, err)
+                eTot += eC
+                mTot := math.max(mTot, mC)
+        ece := eTot / 3.0
+        maxErr := mTot
+
+    [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
+
+f_eval_update_one(p, y,
+    brierBuf, sumBrier,
+    logBuf,   sumLog,
+    ySBuf,    sumYS,
+    yLBuf,    sumYL,
+    calCnt, calSumP, calSumY,
+    calBBuf, calPBuf, calYBuf) =>
+
+    // Eval gating: run if Eval section visible OR background eval enabled,
+    // AND we're in history+live mode or on a realtime bar.
+    canEval = (showEvalSection or evalInBackground) and ((evalMode == "History+Live") or barstate.isrealtime)
+    if canEval
+        pc = f_epsClamp(p)
+
+        f_roll_add(brierBuf, sumBrier, f_brier(pc, y), evalRollScore)
+        f_roll_add(logBuf,   sumLog,   f_logloss(pc, y), evalRollScore)
+
+        f_roll_add(ySBuf, sumYS, y, evalRollShort)
+        f_roll_add(yLBuf, sumYL, y, evalRollLong)
+
+        f_cal_roll_update(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pc, y, evalRollScore)
+
+f_eval_update_one3(pU, pF, pD, outcome,
+    brierBuf, sumBrier,
+    logBuf,   sumLog,
+    ySBuf,    sumYS,
+    yLBuf,    sumYL,
+    calCnt, calSumP, calSumY,
+    calBBuf, calPBuf, calYBuf) =>
+
+    // Eval gating: run if Eval section visible OR background eval enabled
+    canEval = (showEvalSection or evalInBackground) and ((evalMode == "History+Live") or barstate.isrealtime)
+    if canEval
+        b3 = f_brier3(pU, pF, pD, outcome)
+        ll = f_logloss3(pU, pF, pD, outcome)
+        yUp = outcome == 1 ? 1.0 : 0.0
+
+        f_roll_add(brierBuf, sumBrier, b3, evalRollScore)
+        f_roll_add(logBuf,   sumLog,   ll, evalRollScore)
+
+        f_roll_add(ySBuf, sumYS, yUp, evalRollShort)
+        f_roll_add(yLBuf, sumYL, yUp, evalRollLong)
+
+        f_cal_roll_update3(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pU, pF, pD, outcome, evalRollScore)
 
 f_eval_on_resolve(TfState st, pPredN, pPred1, isUp) =>
-    modeN = evalWhichHead == "N"
-    mode1 = evalWhichHead == "1"
-    
-    if modeN
-        f_eval_update_one(st.evBrierN, st.evLogN, st.evSumBrierN, st.evSumLogN, st.evYS_N, st.evYL_N, st.evSumYS_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN, pPredN, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
-    if mode1
-        f_eval_update_one(st.evBrier1, st.evLog1, st.evSumBrier1, st.evSumLog1, st.evYS_1, st.evYL_1, st.evSumYS_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1, pPred1, isUp, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
+    y = isUp ? 1.0 : 0.0
 
-// Helper: Get Eval Stats [Brier, LogLoss, ECE, DriftPP, Count]
+    f_eval_update_one(pPredN, y, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
+    f_eval_update_one(pPred1, y, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+
 f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY) =>
-    n = array.size(evBrier)
-    if n < evalMinEvents
-        [float(na), float(na), float(na), float(na), float(n)]
+    [bAvg_t, lAvg_t, ece_t, _mErr_t, wS_t, wL_t, drift_t, nScore_t] = f_eval_stats_one(evBrier, evSumBrier, evLog, evSumLog, evYS, evSumYS, evYL, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    bAvg = bAvg_t
+    lAvg = lAvg_t
+    ece = ece_t
+    _mErr = _mErr_t
+    wS = wS_t
+    wL = wL_t
+    drift = drift_t
+    nScore = nScore_t
+    if nScore < evalMinEvents
+        [float(na), float(na), float(na), float(na), float(nScore)]
     else
-        // Brier, Log
-        bs = array.get(evSumBrier, 0) / n
-        ll = array.get(evSumLog, 0) / n
-        
-        // ECE - compute inline without nested if
-        eceSum = 0.0
-        totCal = 0
-        for i = 0 to evalBuckets - 1
-            bn = array.get(evCalCnt, i)
-            // Use ternary to avoid nested if block issue
-            contrib = bn > 0 ? bn * math.abs(array.get(evCalSumP, i) / bn - array.get(evCalSumY, i) / bn) : 0.0
-            eceSum += contrib
-            totCal += bn > 0 ? bn : 0
-        ece = totCal > 0 ? eceSum / totCal : 0.0
-        
-        // Drift
-        // Only if short/long windows are filled
-        nS = array.size(evYS)
-        nL = array.size(evYL)
-        drift = 0.0
-        if nS >= evalRollShort and nL >= evalRollLong
-            avgS = array.get(evSumYS, 0) / nS
-            avgL = array.get(evSumYL, 0) / nL
-            drift := (avgS - avgL) * 100.0 // in pp
-        else
-            drift := float(na)
-            
-        [bs, ll, ece, drift, float(n)]
+        driftPP = na(drift) ? na : drift * 100.0
+        [bAvg, lAvg, ece, driftPP, float(nScore)]
 
 // Table Helpers
 f_colLowerBetter(val, goodThr, badThr) =>
@@ -1047,7 +1105,12 @@ f_ppSigned(val) =>
     na(val) ? "—" : (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
 
 f_rowEval(tbl, tid, titleStr, evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY, rIdx) =>
-    [bs, ll, ece, drift, n] = f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    [bs_t, ll_t, ece_t, drift_t, n_t] = f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    bs = bs_t
+    ll = ll_t
+    ece = ece_t
+    drift = drift_t
+    n = n_t
     
     // Header
     table.cell(tbl, 0, rIdx, titleStr, text_halign=text.align_left, text_size=size.small, bgcolor=color.new(color.gray, 90))
@@ -1347,10 +1410,22 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                     
                     // --- Evaluation (Live Scoring) ---
                     // Score based on the final prediction we made (predN_i / pred1_i)
-                    if use3Way and ((evalMode == "History+Live") or (evalMode == "LiveOnly" and barstate.isrealtime))
-                        f_eval_update_one3(st.evBrierN, st.evLogN, st.evSumBrierN, st.evSumLogN, st.evYS_N, st.evYL_N, st.evSumYS_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN, pUpN_i, pFlN_i, pDnN_i, outcome, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
-                        f_eval_update_one3(st.evBrier1, st.evLog1, st.evSumBrier1, st.evSumLog1, st.evYS_1, st.evYL_1, st.evSumYS_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1, pUp1_i, pFl1_i, pDn1_i, outcome, evalRollScore, evalRollShort, evalRollLong, evalBuckets)
-                    else if not use3Way and ((evalMode == "History+Live") or (evalMode == "LiveOnly" and barstate.isrealtime))
+                    if use3Way
+                        f_eval_update_one3(pUpN_i, pFlN_i, pDnN_i, outcome,
+                            st.evBrierN, st.evSumBrierN,
+                            st.evLogN, st.evSumLogN,
+                            st.evYS_N, st.evSumYS_N,
+                            st.evYL_N, st.evSumYL_N,
+                            st.evCalCntN, st.evCalSumPN, st.evCalSumYN,
+                            st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
+                        f_eval_update_one3(pUp1_i, pFl1_i, pDn1_i, outcome,
+                            st.evBrier1, st.evSumBrier1,
+                            st.evLog1, st.evSumLog1,
+                            st.evYS_1, st.evSumYS_1,
+                            st.evYL_1, st.evSumYL_1,
+                            st.evCalCnt1, st.evCalSumP1, st.evCalSumY1,
+                            st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+                    else
                         f_eval_on_resolve(st, predN_i, pred1_i, isUp)
 
                     if use3Way and calibratorMode != "Off"
@@ -1365,14 +1440,20 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                         if calibratorMode == "Temp"
                             if canCalN
                                 tN = array.get(st.tempN, 0)
-                                [pUNc, pFNc, pDNc] = f_softmax3(zUpN_i / tN, zFlN_i / tN, zDnN_i / tN)
+                                [pUNc_t, pFNc_t, pDNc_t] = f_softmax3(zUpN_i / tN, zFlN_i / tN, zDnN_i / tN)
+                                pUNc = pUNc_t
+                                pFNc = pFNc_t
+                                pDNc = pDNc_t
                                 gradN = ((pUNc - yU) * zUpN_i + (pFNc - yF) * zFlN_i + (pDNc - yD) * zDnN_i) / (tN * tN)
                                 tN := f_clamp(tN - lrCal * gradN, tempMin, tempMax)
                                 array.set(st.tempN, 0, tN)
 
                             if canCal1
                                 t1 = array.get(st.temp1, 0)
-                                [pU1c, pF1c, pD1c] = f_softmax3(zUp1_i / t1, zFl1_i / t1, zDn1_i / t1)
+                                [pU1c_t, pF1c_t, pD1c_t] = f_softmax3(zUp1_i / t1, zFl1_i / t1, zDn1_i / t1)
+                                pU1c = pU1c_t
+                                pF1c = pF1c_t
+                                pD1c = pD1c_t
                                 grad1 = ((pU1c - yU) * zUp1_i + (pF1c - yF) * zFl1_i + (pD1c - yD) * zDn1_i) / (t1 * t1)
                                 t1 := f_clamp(t1 - lrCal * grad1, tempMin, tempMax)
                                 array.set(st.temp1, 0, t1)
@@ -1384,7 +1465,10 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                                 bUN = array.get(st.vecBN, 0)
                                 bFN = array.get(st.vecBN, 1)
                                 bDN = array.get(st.vecBN, 2)
-                                [pUNc, pFNc, pDNc] = f_softmax3(aUN * zUpN_i + bUN, aFN * zFlN_i + bFN, aDN * zDnN_i + bDN)
+                                [pUNc_t, pFNc_t, pDNc_t] = f_softmax3(aUN * zUpN_i + bUN, aFN * zFlN_i + bFN, aDN * zDnN_i + bDN)
+                                pUNc = pUNc_t
+                                pFNc = pFNc_t
+                                pDNc = pDNc_t
                                 aUN := f_clamp(aUN - lrCal * (pUNc - yU) * zUpN_i, vecAMin, vecAMax)
                                 aFN := f_clamp(aFN - lrCal * (pFNc - yF) * zFlN_i, vecAMin, vecAMax)
                                 aDN := f_clamp(aDN - lrCal * (pDNc - yD) * zDnN_i, vecAMin, vecAMax)
@@ -1405,7 +1489,10 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                                 bU1 = array.get(st.vecB1, 0)
                                 bF1 = array.get(st.vecB1, 1)
                                 bD1 = array.get(st.vecB1, 2)
-                                [pU1c, pF1c, pD1c] = f_softmax3(aU1 * zUp1_i + bU1, aF1 * zFl1_i + bF1, aD1 * zDn1_i + bD1)
+                                [pU1c_t, pF1c_t, pD1c_t] = f_softmax3(aU1 * zUp1_i + bU1, aF1 * zFl1_i + bF1, aD1 * zDn1_i + bD1)
+                                pU1c = pU1c_t
+                                pF1c = pF1c_t
+                                pD1c = pD1c_t
                                 aU1 := f_clamp(aU1 - lrCal * (pU1c - yU) * zUp1_i, vecAMin, vecAMax)
                                 aF1 := f_clamp(aF1 - lrCal * (pF1c - yF) * zFl1_i, vecAMin, vecAMax)
                                 aD1 := f_clamp(aD1 - lrCal * (pD1c - yD) * zDn1_i, vecAMin, vecAMax)
@@ -1511,7 +1598,8 @@ f_process_tf(_hid, _tf, newTfBar, sA,
         bias = emaFNow > emaSNow ? 1 : -1
         sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
         sC = volRankNow >= VOL_THRESH_HIGH ? -1.0 : (volRankNow <= VOL_THRESH_LOW ? 1.0 : 0.0)
-        atrNorm = atrNow / nz(cNow, 1)
+        // Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments with close near 0
+        atrNorm = atrNow / math.max(cNow, 0.0001)
         sD = f_trend_regime(emaFNow, emaSNow, atrNorm)
         sEns = f_ensemble4(sA, sB, sC, sD, wStateVal, wPullbackVal, wRegimeVal, wTrendVal)
         f_update_quantiles(sEns)
@@ -1529,8 +1617,16 @@ f_process_tf(_hid, _tf, newTfBar, sA,
         dn1_sel  = useBullBearCal ? (biasFlag >= 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
 
         if use3Way
-            [pUrawN, pFrawN, pDrawN, _nN] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaNVal, shrinkKVal, kShrinkReg)
-            [pUraw1, pFraw1, pDraw1, _n1] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1Val, shrinkKVal, kShrinkReg)
+            [pUrawN_t, pFrawN_t, pDrawN_t, _nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaNVal, shrinkKVal, kShrinkReg)
+            [pUraw1_t, pFraw1_t, pDraw1_t, _n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1Val, shrinkKVal, kShrinkReg)
+            pUrawN = pUrawN_t
+            pFrawN = pFrawN_t
+            pDrawN = pDrawN_t
+            _nN = _nN_t
+            pUraw1 = pUraw1_t
+            pFraw1 = pFraw1_t
+            pDraw1 = pDraw1_t
+            _n1 = _n1_t
 
             zUN = f_safe_log(pUrawN)
             zFN = f_safe_log(pFrawN)
@@ -1541,8 +1637,30 @@ f_process_tf(_hid, _tf, newTfBar, sA,
 
             useCalN = f_can_cal3(_nN)
             useCal1 = f_can_cal3(_n1)
-            [pUN, pFN, pDN] = useCalN ? f_cal_apply(zUN, zFN, zDN, st.tempN, st.vecAN, st.vecBN) : [pUrawN, pFrawN, pDrawN]
-            [pU1, pF1, pD1] = useCal1 ? f_cal_apply(zU1, zF1, zD1, st.temp1, st.vecA1, st.vecB1) : [pUraw1, pFraw1, pDraw1]
+            float pUN = na
+            float pFN = na
+            float pDN = na
+            float pU1 = na
+            float pF1 = na
+            float pD1 = na
+            if useCalN
+                [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, st.tempN, st.vecAN, st.vecBN)
+                pUN := tUN_t
+                pFN := tFN_t
+                pDN := tDN_t
+            else
+                pUN := pUrawN
+                pFN := pFrawN
+                pDN := pDrawN
+            if useCal1
+                [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, st.temp1, st.vecA1, st.vecB1)
+                pU1 := tU1_t
+                pF1 := tF1_t
+                pD1 := tD1_t
+            else
+                pU1 := pUraw1
+                pF1 := pFraw1
+                pD1 := pDraw1
 
             array.push(st.qBinN,  bN)
             array.push(st.qBin1,  b1)
@@ -1570,8 +1688,12 @@ f_process_tf(_hid, _tf, newTfBar, sA,
             array.push(st.qZDn1, zD1)
         else
             // Capture current probabilities
-            [pNowN, _nN] = f_cal_cur(st.cntN, st.upN, bN, alphaNVal, shrinkKVal)
-            [pNow1, _n1] = f_cal_cur(st.cnt1, st.up1, b1, alpha1Val, shrinkKVal)
+            [pNowN_t, _nN_t] = f_cal_cur(st.cntN, st.upN, bN, alphaNVal, shrinkKVal)
+            [pNow1_t, _n1_t] = f_cal_cur(st.cnt1, st.up1, b1, alpha1Val, shrinkKVal)
+            pNowN = pNowN_t
+            _nN = _nN_t
+            pNow1 = pNow1_t
+            _n1 = _n1_t
 
             // Logits (Phase 4)
             lgtN = f_logit(pNowN)
@@ -1886,12 +2008,146 @@ f_get_total_samples(tfSel, modSel) =>
         total := array.sum(cnt)
     total
 
+var float totN1 = na
+var float totN2 = na
+var float totN3 = na
+var float totN4 = na
+var float totN5 = na
+var float totN6 = na
+var float totN7 = na
+var float tot11 = na
+var float tot12 = na
+var float tot13 = na
+var float tot14 = na
+var float tot15 = na
+var float tot16 = na
+var float tot17 = na
+
+var float pUN1 = na
+var float pFN1 = na
+var float pDN1 = na
+var float pUN2 = na
+var float pFN2 = na
+var float pDN2 = na
+var float pUN3 = na
+var float pFN3 = na
+var float pDN3 = na
+var float pUN4 = na
+var float pFN4 = na
+var float pDN4 = na
+var float pUN5 = na
+var float pFN5 = na
+var float pDN5 = na
+var float pUN6 = na
+var float pFN6 = na
+var float pDN6 = na
+var float pUN7 = na
+var float pFN7 = na
+var float pDN7 = na
+
+var float nN1 = na
+var float nN2 = na
+var float nN3 = na
+var float nN4 = na
+var float nN5 = na
+var float nN6 = na
+var float nN7 = na
+
+var float pU11 = na
+var float pF11 = na
+var float pD11 = na
+var float pU12 = na
+var float pF12 = na
+var float pD12 = na
+var float pU13 = na
+var float pF13 = na
+var float pD13 = na
+var float pU14 = na
+var float pF14 = na
+var float pD14 = na
+var float pU15 = na
+var float pF15 = na
+var float pD15 = na
+var float pU16 = na
+var float pF16 = na
+var float pD16 = na
+var float pU17 = na
+var float pF17 = na
+var float pD17 = na
+
+var float n11p = na
+var float n12p = na
+var float n13p = na
+var float n14p = na
+var float n15p = na
+var float n16p = na
+var float n17p = na
+
+f_get_rel_vals(tfSel, modSel) =>
+    float pU = na
+    float pF = na
+    float pD = na
+    float nBin = na
+    float total = na
+    if modSel == "N"
+        if tfSel == "F1"
+            pU := pUN1, pF := pFN1, pD := pDN1, nBin := nN1, total := totN1
+        else if tfSel == "F2"
+            pU := pUN2, pF := pFN2, pD := pDN2, nBin := nN2, total := totN2
+        else if tfSel == "F3"
+            pU := pUN3, pF := pFN3, pD := pDN3, nBin := nN3, total := totN3
+        else if tfSel == "F4"
+            pU := pUN4, pF := pFN4, pD := pDN4, nBin := nN4, total := totN4
+        else if tfSel == "F5"
+            pU := pUN5, pF := pFN5, pD := pDN5, nBin := nN5, total := totN5
+        else if tfSel == "F6"
+            pU := pUN6, pF := pFN6, pD := pDN6, nBin := nN6, total := totN6
+        else if tfSel == "F7"
+            pU := pUN7, pF := pFN7, pD := pDN7, nBin := nN7, total := totN7
+    else
+        if tfSel == "F1"
+            pU := pU11, pF := pF11, pD := pD11, nBin := n11p, total := tot11
+        else if tfSel == "F2"
+            pU := pU12, pF := pF12, pD := pD12, nBin := n12p, total := tot12
+        else if tfSel == "F3"
+            pU := pU13, pF := pF13, pD := pD13, nBin := n13p, total := tot13
+        else if tfSel == "F4"
+            pU := pU14, pF := pF14, pD := pD14, nBin := n14p, total := tot14
+        else if tfSel == "F5"
+            pU := pU15, pF := pF15, pD := pD15, nBin := n15p, total := tot15
+        else if tfSel == "F6"
+            pU := pU16, pF := pF16, pD := pD16, nBin := n16p, total := tot16
+        else if tfSel == "F7"
+            pU := pU17, pF := pF17, pD := pD17, nBin := n17p, total := tot17
+    [pU, pF, pD, nBin, total]
+
+f_decision_quality(pU, pF, pD, nBin, total) =>
+    maxP = math.max(pU, math.max(pF, pD))
+    minP = math.min(pU, math.min(pF, pD))
+    midP = (pU + pF + pD) - maxP - minP
+    edge = maxP - midP
+    totalOk = (not evidenceGate) or (total >= evidenceMinTotal)
+    ok = (not use3Way) ? true : (edge >= abstainMinEdge and nBin >= calMinSamples and totalOk)
+    reason = (evidenceGate and total < evidenceMinTotal) ? "low total" : nBin < calMinSamples ? "weak bin" : edge < abstainMinEdge ? "low edge" : "ok"
+    label = ok ? "OK" : "ABSTAIN (" + reason + ")"
+    col = ok ? color.lime : color.orange
+    [ok, label, col, edge]
+
 curBrier = f_getBrier(relFilterTF, relFilterModel)
 reliabilityOk = (not useRelFilter) or (curBrier <= maxBrier)
 evidenceOk = (not evidenceGate) or (f_get_total_samples(relFilterTF, relFilterModel) >= evidenceMinTotal)
 
-[pRelU, pRelF, pRelD, nRel, totRel] = f_get_rel_vals(relFilterTF, relFilterModel)
-[decisionOk, decisionLabel, decisionColor, decisionEdge] = f_decision_quality(pRelU, pRelF, pRelD, nRel, totRel)
+[pRelU_t, pRelF_t, pRelD_t, nRel_t, totRel_t] = f_get_rel_vals(relFilterTF, relFilterModel)
+pRelU = pRelU_t
+pRelF = pRelF_t
+pRelD = pRelD_t
+nRel = nRel_t
+totRel = totRel_t
+[decisionOk_t, decisionLabel_t, decisionColor_t, decisionEdge_t] = f_decision_quality(pRelU, pRelF, pRelD, nRel, totRel)
+decisionOk = decisionOk_t
+decisionLabel = decisionLabel_t
+decisionColor = decisionColor_t
+decisionEdge = decisionEdge_t
 decisionEdgeTxt = (not use3Way or na(decisionEdge)) ? "—" : str.tostring(decisionEdge * 100.0, "#.1") + "pp"
 
 allowEntry   = barstate.isconfirmed and cooldownOk and not blockNearClose and reliabilityOk and evidenceOk and (not abstainGate or decisionOk)
@@ -1981,22 +2237,36 @@ fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
 //====================
-[t1, c1, h1, l1, ef1, es1, r1, a1, vR1] = f_tf_pack(tfF1)
-[t2, c2, h2, l2, ef2, es2, r2, a2, vR2] = f_tf_pack(tfF2)
-[t3, c3, h3, l3, ef3, es3, r3, a3, vR3] = f_tf_pack(tfF3)
-[t4, c4, h4, l4, ef4, es4, r4, a4, vR4] = f_tf_pack(tfF4)
-[t5, c5, h5, l5, ef5, es5, r5, a5, vR5] = f_tf_pack(tfF5)
-[t6, c6, h6, l6, ef6, es6, r6, a6, vR6] = f_tf_pack(tfF6)
-[t7, c7, h7, l7, ef7, es7, r7, a7, vR7] = f_tf_pack(tfF7)
+[t1_t, c1_t, h1_t, l1_t, ef1_t, es1_t, r1_t, a1_t, vR1_t] = f_tf_pack(tfF1)
+[t2_t, c2_t, h2_t, l2_t, ef2_t, es2_t, r2_t, a2_t, vR2_t] = f_tf_pack(tfF2)
+[t3_t, c3_t, h3_t, l3_t, ef3_t, es3_t, r3_t, a3_t, vR3_t] = f_tf_pack(tfF3)
+[t4_t, c4_t, h4_t, l4_t, ef4_t, es4_t, r4_t, a4_t, vR4_t] = f_tf_pack(tfF4)
+[t5_t, c5_t, h5_t, l5_t, ef5_t, es5_t, r5_t, a5_t, vR5_t] = f_tf_pack(tfF5)
+[t6_t, c6_t, h6_t, l6_t, ef6_t, es6_t, r6_t, a6_t, vR6_t] = f_tf_pack(tfF6)
+[t7_t, c7_t, h7_t, l7_t, ef7_t, es7_t, r7_t, a7_t, vR7_t] = f_tf_pack(tfF7)
+t1 = t1_t, c1 = c1_t, h1 = h1_t, l1 = l1_t, ef1 = ef1_t, es1 = es1_t, r1 = r1_t, a1 = a1_t, vR1 = vR1_t
+t2 = t2_t, c2 = c2_t, h2 = h2_t, l2 = l2_t, ef2 = ef2_t, es2 = es2_t, r2 = r2_t, a2 = a2_t, vR2 = vR2_t
+t3 = t3_t, c3 = c3_t, h3 = h3_t, l3 = l3_t, ef3 = ef3_t, es3 = es3_t, r3 = r3_t, a3 = a3_t, vR3 = vR3_t
+t4 = t4_t, c4 = c4_t, h4 = h4_t, l4 = l4_t, ef4 = ef4_t, es4 = es4_t, r4 = r4_t, a4 = a4_t, vR4 = vR4_t
+t5 = t5_t, c5 = c5_t, h5 = h5_t, l5 = l5_t, ef5 = ef5_t, es5 = es5_t, r5 = r5_t, a5 = a5_t, vR5 = vR5_t
+t6 = t6_t, c6 = c6_t, h6 = h6_t, l6 = l6_t, ef6 = ef6_t, es6 = es6_t, r6 = r6_t, a6 = a6_t, vR6 = vR6_t
+t7 = t7_t, c7 = c7_t, h7 = h7_t, l7 = l7_t, ef7 = ef7_t, es7 = es7_t, r7 = r7_t, a7 = a7_t, vR7 = vR7_t
 
 // Get Target Params per TF
-[fcT1, kB1, aT1, pH1, tp1, sl1] = f_get_params(tfF1)
-[fcT2, kB2, aT2, pH2, tp2, sl2] = f_get_params(tfF2)
-[fcT3, kB3, aT3, pH3, tp3, sl3] = f_get_params(tfF3)
-[fcT4, kB4, aT4, pH4, tp4, sl4] = f_get_params(tfF4)
-[fcT5, kB5, aT5, pH5, tp5, sl5] = f_get_params(tfF5)
-[fcT6, kB6, aT6, pH6, tp6, sl6] = f_get_params(tfF6)
-[fcT7, kB7, aT7, pH7, tp7, sl7] = f_get_params(tfF7)
+[fcT1_t, kB1_t, aT1_t, pH1_t, tp1_t, sl1_t] = f_get_params(tfF1)
+[fcT2_t, kB2_t, aT2_t, pH2_t, tp2_t, sl2_t] = f_get_params(tfF2)
+[fcT3_t, kB3_t, aT3_t, pH3_t, tp3_t, sl3_t] = f_get_params(tfF3)
+[fcT4_t, kB4_t, aT4_t, pH4_t, tp4_t, sl4_t] = f_get_params(tfF4)
+[fcT5_t, kB5_t, aT5_t, pH5_t, tp5_t, sl5_t] = f_get_params(tfF5)
+[fcT6_t, kB6_t, aT6_t, pH6_t, tp6_t, sl6_t] = f_get_params(tfF6)
+[fcT7_t, kB7_t, aT7_t, pH7_t, tp7_t, sl7_t] = f_get_params(tfF7)
+fcT1 = fcT1_t, kB1 = kB1_t, aT1 = aT1_t, pH1 = pH1_t, tp1 = tp1_t, sl1 = sl1_t
+fcT2 = fcT2_t, kB2 = kB2_t, aT2 = aT2_t, pH2 = pH2_t, tp2 = tp2_t, sl2 = sl2_t
+fcT3 = fcT3_t, kB3 = kB3_t, aT3 = aT3_t, pH3 = pH3_t, tp3 = tp3_t, sl3 = sl3_t
+fcT4 = fcT4_t, kB4 = kB4_t, aT4 = aT4_t, pH4 = pH4_t, tp4 = tp4_t, sl4 = sl4_t
+fcT5 = fcT5_t, kB5 = kB5_t, aT5 = aT5_t, pH5 = pH5_t, tp5 = tp5_t, sl5 = sl5_t
+fcT6 = fcT6_t, kB6 = kB6_t, aT6 = aT6_t, pH6 = pH6_t, tp6 = tp6_t, sl6 = sl6_t
+fcT7 = fcT7_t, kB7 = kB7_t, aT7 = aT7_t, pH7 = pH7_t, tp7 = tp7_t, sl7 = sl7_t
 
 chgT1 = ta.change(t1)
 chgT2 = ta.change(t2)
@@ -2023,13 +2293,20 @@ outScore5 = f_state_score(c5, ef5, es5, r5)
 outScore6 = f_state_score(c6, ef6, es6, r6)
 outScore7 = f_state_score(c7, ef7, es7, r7)
 
-[t1c, m1c, l1c] = f_state_tml(c1, ef1, es1, r1)
-[t2c, m2c, l2c] = f_state_tml(c2, ef2, es2, r2)
-[t3c, m3c, l3c] = f_state_tml(c3, ef3, es3, r3)
-[t4c, m4c, l4c] = f_state_tml(c4, ef4, es4, r4)
-[t5c, m5c, l5c] = f_state_tml(c5, ef5, es5, r5)
-[t6c, m6c, l6c] = f_state_tml(c6, ef6, es6, r6)
-[t7c, m7c, l7c] = f_state_tml(c7, ef7, es7, r7)
+[t1c_t, m1c_t, l1c_t] = f_state_tml(c1, ef1, es1, r1)
+[t2c_t, m2c_t, l2c_t] = f_state_tml(c2, ef2, es2, r2)
+[t3c_t, m3c_t, l3c_t] = f_state_tml(c3, ef3, es3, r3)
+[t4c_t, m4c_t, l4c_t] = f_state_tml(c4, ef4, es4, r4)
+[t5c_t, m5c_t, l5c_t] = f_state_tml(c5, ef5, es5, r5)
+[t6c_t, m6c_t, l6c_t] = f_state_tml(c6, ef6, es6, r6)
+[t7c_t, m7c_t, l7c_t] = f_state_tml(c7, ef7, es7, r7)
+t1c = t1c_t, m1c = m1c_t, l1c = l1c_t
+t2c = t2c_t, m2c = m2c_t, l2c = l2c_t
+t3c = t3c_t, m3c = m3c_t, l3c = l3c_t
+t4c = t4c_t, m4c = m4c_t, l4c = l4c_t
+t5c = t5c_t, m5c = m5c_t, l5c = l5c_t
+t6c = t6c_t, m6c = m6c_t, l6c = l6c_t
+t7c = t7c_t, m7c = m7c_t, l7c = l7c_t
 
 outSym(score) => score > 0.05 ? "▲" : score < -0.05 ? "▼" : "−"
 outCol(score) => score > 0.05 ? color.lime : score < -0.05 ? color.red : tblText
@@ -2070,20 +2347,35 @@ doReset = resetNow and not prevResetNow
 prevResetNow := resetNow
 
 if doReset
-    switch resetWhich
-        "All" => f_reset_eval_all()
-        "F1"  => f_reset_tf(tf1State)
-        "F2"  => f_reset_tf(tf2State)
-        "F3"  => f_reset_tf(tf3State)
-        "F4"  => f_reset_tf(tf4State)
-        "F5"  => f_reset_tf(tf5State)
-        "F6"  => f_reset_tf(tf6State)
-        "F7"  => f_reset_tf(tf7State)
+    if resetWhich == "All"
+        f_reset_eval_all()
+        f_reset_tf(tf1State)
+        f_reset_tf(tf2State)
+        f_reset_tf(tf3State)
+        f_reset_tf(tf4State)
+        f_reset_tf(tf5State)
+        f_reset_tf(tf6State)
+        f_reset_tf(tf7State)
+
+    if resetWhich == "F1"
+        f_reset_tf(tf1State)
+    if resetWhich == "F2"
+        f_reset_tf(tf2State)
+    if resetWhich == "F3"
+        f_reset_tf(tf3State)
+    if resetWhich == "F4"
+        f_reset_tf(tf4State)
+    if resetWhich == "F5"
+        f_reset_tf(tf5State)
+    if resetWhich == "F6"
+        f_reset_tf(tf6State)
+    if resetWhich == "F7"
+        f_reset_tf(tf7State)
 
 //====================
 // Calibration update (bar-close confirmed guard + new TF bar events)
 //====================
-doCal = enableForecast and barstate.isconfirmed
+doCal = enableForecast and barstate.isconfirmed and (showTable or showEvalSection)
 if doCal
     f_process_tf(1, tfF1, newF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, tf1State, fcT1, kB1, aT1, pH1, tp1, sl1, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
     f_process_tf(2, tfF2, newF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, tf2State, fcT2, kB2, aT2, pH2, tp2, sl2, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
@@ -2097,7 +2389,8 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : -1
     sB = f_pullback_score(c, ef, es, bias)
     sC = vr >= VOL_THRESH_HIGH ? -1.0 : (vr <= VOL_THRESH_LOW ? 1.0 : 0.0)
-    atrNorm = atrVal / nz(c, 1)
+    // Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments
+    atrNorm = atrVal / math.max(c, 0.0001)
     sD = f_trend_regime(ef, es, atrNorm)
     sEns = f_ensemble4(sA, sB, sC, sD, wState, wPullback, wRegime, wTrend)
     bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, qCutsN)
@@ -2109,49 +2402,71 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     cnt1_sel = useBullBearCal ? (biasSel >= 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
     up1_sel  = useBullBearCal ? (biasSel >= 0 ? st.up1_bull  : st.up1_bear)  : st.up1
     dn1_sel  = useBullBearCal ? (biasSel >= 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
-    [pUN, pFN, pDN, nN] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaN, kShrink, kShrinkReg)
-    [pU1, pF1, pD1, n1] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1, kShrink, kShrinkReg)
+    [pUN_t, pFN_t, pDN_t, nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaN, kShrink, kShrinkReg)
+    [pU1_t, pF1_t, pD1_t, n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1, kShrink, kShrinkReg)
+    pUN = pUN_t
+    pFN = pFN_t
+    pDN = pDN_t
+    nN = nN_t
+    pU1 = pU1_t
+    pF1 = pF1_t
+    pD1 = pD1_t
+    n1 = n1_t
     useCalN = f_can_cal3(nN)
     useCal1 = f_can_cal3(n1)
     if useCalN
         zUN = f_safe_log(pUN)
         zFN = f_safe_log(pFN)
         zDN = f_safe_log(pDN)
-        [pUN, pFN, pDN] := f_cal_apply(zUN, zFN, zDN, st.tempN, st.vecAN, st.vecBN)
+        [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, st.tempN, st.vecAN, st.vecBN)
+        pUN := tUN_t
+        pFN := tFN_t
+        pDN := tDN_t
     if useCal1
         zU1 = f_safe_log(pU1)
         zF1 = f_safe_log(pF1)
         zD1 = f_safe_log(pD1)
-        [pU1, pF1, pD1] := f_cal_apply(zU1, zF1, zD1, st.temp1, st.vecA1, st.vecB1)
+        [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, st.temp1, st.vecA1, st.vecB1)
+        pU1 := tU1_t
+        pF1 := tF1_t
+        pD1 := tD1_t
     [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
 
 //====================
 // Display values — N and 1 per horizon
 //====================
-[pUN1, pFN1, pDN1, nN1, pU11, pF11, pD11, n11p] = f_get_disp_vals(tfF1, outScore1, c1, a1, ef1, es1, vR1, tf1State)
-[pUN2, pFN2, pDN2, nN2, pU12, pF12, pD12, n12p] = f_get_disp_vals(tfF2, outScore2, c2, a2, ef2, es2, vR2, tf2State)
-[pUN3, pFN3, pDN3, nN3, pU13, pF13, pD13, n13p] = f_get_disp_vals(tfF3, outScore3, c3, a3, ef3, es3, vR3, tf3State)
-[pUN4, pFN4, pDN4, nN4, pU14, pF14, pD14, n14p] = f_get_disp_vals(tfF4, outScore4, c4, a4, ef4, es4, vR4, tf4State)
-[pUN5, pFN5, pDN5, nN5, pU15, pF15, pD15, n15p] = f_get_disp_vals(tfF5, outScore5, c5, a5, ef5, es5, vR5, tf5State)
-[pUN6, pFN6, pDN6, nN6, pU16, pF16, pD16, n16p] = f_get_disp_vals(tfF6, outScore6, c6, a6, ef6, es6, vR6, tf6State)
-[pUN7, pFN7, pDN7, nN7, pU17, pF17, pD17, n17p] = f_get_disp_vals(tfF7, outScore7, c7, a7, ef7, es7, vR7, tf7State)
+[pUN1_t, pFN1_t, pDN1_t, nN1_t, pU11_t, pF11_t, pD11_t, n11p_t] = f_get_disp_vals(tfF1, outScore1, c1, a1, ef1, es1, vR1, tf1State)
+[pUN2_t, pFN2_t, pDN2_t, nN2_t, pU12_t, pF12_t, pD12_t, n12p_t] = f_get_disp_vals(tfF2, outScore2, c2, a2, ef2, es2, vR2, tf2State)
+[pUN3_t, pFN3_t, pDN3_t, nN3_t, pU13_t, pF13_t, pD13_t, n13p_t] = f_get_disp_vals(tfF3, outScore3, c3, a3, ef3, es3, vR3, tf3State)
+[pUN4_t, pFN4_t, pDN4_t, nN4_t, pU14_t, pF14_t, pD14_t, n14p_t] = f_get_disp_vals(tfF4, outScore4, c4, a4, ef4, es4, vR4, tf4State)
+[pUN5_t, pFN5_t, pDN5_t, nN5_t, pU15_t, pF15_t, pD15_t, n15p_t] = f_get_disp_vals(tfF5, outScore5, c5, a5, ef5, es5, vR5, tf5State)
+[pUN6_t, pFN6_t, pDN6_t, nN6_t, pU16_t, pF16_t, pD16_t, n16p_t] = f_get_disp_vals(tfF6, outScore6, c6, a6, ef6, es6, vR6, tf6State)
+[pUN7_t, pFN7_t, pDN7_t, nN7_t, pU17_t, pF17_t, pD17_t, n17p_t] = f_get_disp_vals(tfF7, outScore7, c7, a7, ef7, es7, vR7, tf7State)
+
+pUN1 := pUN1_t, pFN1 := pFN1_t, pDN1 := pDN1_t, nN1 := nN1_t, pU11 := pU11_t, pF11 := pF11_t, pD11 := pD11_t, n11p := n11p_t
+pUN2 := pUN2_t, pFN2 := pFN2_t, pDN2 := pDN2_t, nN2 := nN2_t, pU12 := pU12_t, pF12 := pF12_t, pD12 := pD12_t, n12p := n12p_t
+pUN3 := pUN3_t, pFN3 := pFN3_t, pDN3 := pDN3_t, nN3 := nN3_t, pU13 := pU13_t, pF13 := pF13_t, pD13 := pD13_t, n13p := n13p_t
+pUN4 := pUN4_t, pFN4 := pFN4_t, pDN4 := pDN4_t, nN4 := nN4_t, pU14 := pU14_t, pF14 := pF14_t, pD14 := pD14_t, n14p := n14p_t
+pUN5 := pUN5_t, pFN5 := pFN5_t, pDN5 := pDN5_t, nN5 := nN5_t, pU15 := pU15_t, pF15 := pF15_t, pD15 := pD15_t, n15p := n15p_t
+pUN6 := pUN6_t, pFN6 := pFN6_t, pDN6 := pDN6_t, nN6 := nN6_t, pU16 := pU16_t, pF16 := pF16_t, pD16 := pD16_t, n16p := n16p_t
+pUN7 := pUN7_t, pFN7 := pFN7_t, pDN7 := pDN7_t, nN7 := nN7_t, pU17 := pU17_t, pF17 := pF17_t, pD17 := pD17_t, n17p := n17p_t
 
 // --- Total resolved samples per TF (across all bins)
-totN1 = f_sum_int_array(cntN1Arr)
-totN2 = f_sum_int_array(cntN2Arr)
-totN3 = f_sum_int_array(cntN3Arr)
-totN4 = f_sum_int_array(cntN4Arr)
-totN5 = f_sum_int_array(cntN5Arr)
-totN6 = f_sum_int_array(cntN6Arr)
-totN7 = f_sum_int_array(cntN7Arr)
+totN1 := f_sum_int_array(cntN1Arr)
+totN2 := f_sum_int_array(cntN2Arr)
+totN3 := f_sum_int_array(cntN3Arr)
+totN4 := f_sum_int_array(cntN4Arr)
+totN5 := f_sum_int_array(cntN5Arr)
+totN6 := f_sum_int_array(cntN6Arr)
+totN7 := f_sum_int_array(cntN7Arr)
 
-tot11 = f_sum_int_array(cnt11Arr)
-tot12 = f_sum_int_array(cnt12Arr)
-tot13 = f_sum_int_array(cnt13Arr)
-tot14 = f_sum_int_array(cnt14Arr)
-tot15 = f_sum_int_array(cnt15Arr)
-tot16 = f_sum_int_array(cnt16Arr)
-tot17 = f_sum_int_array(cnt17Arr)
+tot11 := f_sum_int_array(cnt11Arr)
+tot12 := f_sum_int_array(cnt12Arr)
+tot13 := f_sum_int_array(cnt13Arr)
+tot14 := f_sum_int_array(cnt14Arr)
+tot15 := f_sum_int_array(cnt15Arr)
+tot16 := f_sum_int_array(cnt16Arr)
+tot17 := f_sum_int_array(cnt17Arr)
 
 // calibration “enabled for display” if forecast enabled + we have any resolved samples in that TF
 canF1N = enableForecast and (totN1 > 0)
@@ -2170,55 +2485,6 @@ canF15 = enableForecast and (tot15 > 0)
 canF16 = enableForecast and (tot16 > 0)
 canF17 = enableForecast and (tot17 > 0)
 
-f_get_rel_vals(tfSel, modSel) =>
-    float pU = na
-    float pF = na
-    float pD = na
-    float nBin = na
-    float total = na
-    if modSel == "N"
-        if tfSel == "F1"
-            pU := pUN1, pF := pFN1, pD := pDN1, nBin := nN1, total := totN1
-        else if tfSel == "F2"
-            pU := pUN2, pF := pFN2, pD := pDN2, nBin := nN2, total := totN2
-        else if tfSel == "F3"
-            pU := pUN3, pF := pFN3, pD := pDN3, nBin := nN3, total := totN3
-        else if tfSel == "F4"
-            pU := pUN4, pF := pFN4, pD := pDN4, nBin := nN4, total := totN4
-        else if tfSel == "F5"
-            pU := pUN5, pF := pFN5, pD := pDN5, nBin := nN5, total := totN5
-        else if tfSel == "F6"
-            pU := pUN6, pF := pFN6, pD := pDN6, nBin := nN6, total := totN6
-        else if tfSel == "F7"
-            pU := pUN7, pF := pFN7, pD := pDN7, nBin := nN7, total := totN7
-    else
-        if tfSel == "F1"
-            pU := pU11, pF := pF11, pD := pD11, nBin := n11p, total := tot11
-        else if tfSel == "F2"
-            pU := pU12, pF := pF12, pD := pD12, nBin := n12p, total := tot12
-        else if tfSel == "F3"
-            pU := pU13, pF := pF13, pD := pD13, nBin := n13p, total := tot13
-        else if tfSel == "F4"
-            pU := pU14, pF := pF14, pD := pD14, nBin := n14p, total := tot14
-        else if tfSel == "F5"
-            pU := pU15, pF := pF15, pD := pD15, nBin := n15p, total := tot15
-        else if tfSel == "F6"
-            pU := pU16, pF := pF16, pD := pD16, nBin := n16p, total := tot16
-        else if tfSel == "F7"
-            pU := pU17, pF := pF17, pD := pD17, nBin := n17p, total := tot17
-    [pU, pF, pD, nBin, total]
-
-f_decision_quality(pU, pF, pD, nBin, total) =>
-    maxP = math.max(pU, math.max(pF, pD))
-    minP = math.min(pU, math.min(pF, pD))
-    midP = (pU + pF + pD) - maxP - minP
-    edge = maxP - midP
-    totalOk = (not evidenceGate) or (total >= evidenceMinTotal)
-    ok = (not use3Way) ? true : (edge >= abstainMinEdge and nBin >= calMinSamples and totalOk)
-    reason = (evidenceGate and total < evidenceMinTotal) ? "low total" : nBin < calMinSamples ? "weak bin" : edge < abstainMinEdge ? "low edge" : "ok"
-    label = ok ? "OK" : "ABSTAIN (" + reason + ")"
-    col = ok ? color.lime : color.orange
-    [ok, label, col, edge]
 
 //====================
 // Table helpers MUST be global (cannot be defined inside if-block)
@@ -2251,7 +2517,10 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
 
     enabled = enableForecast
     useCalN = enabled and (nBin >= calMinSamples)
-    [pUprio, pFprio, pDprio] = f_prior3(_tf, score)
+    [pUprio_t, pFprio_t, pDprio_t] = f_prior3(_tf, score)
+    pUprio = pUprio_t
+    pFprio = pFprio_t
+    pDprio = pDprio_t
     pU = useCalN ? pUN : pUprio
     pF = useCalN ? pFN : pFprio
     pD = useCalN ? pDN : pDprio
@@ -2265,7 +2534,9 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     table.cell(gT, 7, rRow, str.tostring(pF * 100, "#.0") + "%", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 8, rRow, str.tostring(pD * 100, "#.0") + "%", text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
 
-    [qLbl, qCol] = f_bin_quality(maxP, nBin)
+    [qLbl_t, qCol_t] = f_bin_quality(maxP, nBin)
+    qLbl = qLbl_t
+    qCol = qCol_t
     nTxt = "n=" + str.tostring(nBin) + " " + qLbl
     table.cell(gT, 9, rRow, nTxt, text_color=qCol, bgcolor=tblCell, text_size=size.tiny)
 
@@ -2284,16 +2555,24 @@ f_fmtCnt(stats) =>
 f_rowRel(tf, statsN, stats1, rRow) =>
     table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
     
-    [tBN, cBN] = f_fmtBrier(statsN)
+    [tBN_t, cBN_t] = f_fmtBrier(statsN)
+    tBN = tBN_t
+    cBN = cBN_t
     table.cell(gT, 1, rRow, tBN, text_color=cBN, bgcolor=tblCell, text_size=size.tiny)
     
-    [tB1, cB1] = f_fmtBrier(stats1)
+    [tB1_t, cB1_t] = f_fmtBrier(stats1)
+    tB1 = tB1_t
+    cB1 = cB1_t
     table.cell(gT, 2, rRow, tB1, text_color=cB1, bgcolor=tblCell, text_size=size.tiny)
     
-    [tcN, ccN] = f_fmtCnt(statsN)
+    [tcN_t, ccN_t] = f_fmtCnt(statsN)
+    tcN = tcN_t
+    ccN = ccN_t
     table.cell(gT, 3, rRow, tcN, text_color=ccN, bgcolor=tblCell, text_size=size.tiny)
     
-    [tc1, cc1] = f_fmtCnt(stats1)
+    [tc1_t, cc1_t] = f_fmtCnt(stats1)
+    tc1 = tc1_t
+    cc1 = cc1_t
     table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
 
 //====================
@@ -2312,7 +2591,7 @@ c_vol  = volAvail ? color.lime : tblText
 
 targetDesc = "Multi-Profile (See Settings). Fast: " + fcTargetF + ", Mid: " + fcTargetM + ", Slow: " + fcTargetS
 
-if showTable and barstate.isconfirmed
+if showTable and barstate.isconfirmed and barstate.islast
     tblCols = 10
     table.clear(gT, 0, 0, tblCols - 1, 15)
 
@@ -2482,16 +2761,21 @@ if exportCalibration and barstate.isconfirmed and barstate.isrealtime and (bar_i
     pA1 = array.get(expSt.platt1, 0)
     pB1 = array.get(expSt.platt1, 1)
 
-    // Brier/LogLoss stats
-    brierSumN = array.get(expSt.brierStatsN, 0)
-    brierCntN = array.get(expSt.brierStatsN, 1)
+    // Brier/LogLoss stats aligned to evalWhichHead
+    useHeadN = evalWhichHead == "N"
+    brierStats = useHeadN ? expSt.brierStatsN : expSt.brierStats1
+    llStats = useHeadN ? expSt.llStatsN : expSt.llStats1
+    cntArr = useHeadN ? expSt.cntN : expSt.cnt1
+
+    brierSumN = array.get(brierStats, 0)
+    brierCntN = array.get(brierStats, 1)
     brierAvgN = brierCntN > 0 ? brierSumN / brierCntN : 0
 
-    llSumN = array.get(expSt.llStatsN, 0)
-    llCntN = array.get(expSt.llStatsN, 1)
+    llSumN = array.get(llStats, 0)
+    llCntN = array.get(llStats, 1)
     llAvgN = llCntN > 0 ? llSumN / llCntN : 0
 
-    totalSamplesN = array.sum(expSt.cntN)
+    totalSamplesN = array.sum(cntArr)
 
     // Build JSON payload (single line to avoid line continuation issues)
     jsonPayload = '{"ticker":"' + syminfo.ticker + '","horizon":"' + exportHorizon + '","bar_index":' + str.tostring(bar_index) + ',"timestamp":"' + str.tostring(timenow) + '","platt_N":{"a":' + str.tostring(pAN, "#.####") + ',"b":' + str.tostring(pBN, "#.####") + '},"platt_1":{"a":' + str.tostring(pA1, "#.####") + ',"b":' + str.tostring(pB1, "#.####") + '},"brier_avg":' + str.tostring(brierAvgN, "#.####") + ',"logloss_avg":' + str.tostring(llAvgN, "#.####") + ',"samples":' + str.tostring(totalSamplesN) + ',"resolutions":' + str.tostring(int(brierCntN)) + '}'
@@ -2501,7 +2785,8 @@ if exportCalibration and barstate.isconfirmed and barstate.isrealtime and (bar_i
 //====================
 // Trend Regime Export Alert (for monitoring)
 //====================
-atrNormCur = atr / nz(close, 1)
+// Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments
+atrNormCur = atr / math.max(close, 0.0001)
 curTrendRegime = f_trend_regime(emaF, emaS, atrNormCur)
 trendLabel = curTrendRegime > 0.5 ? "BULL" : curTrendRegime < -0.5 ? "BEAR" : "SIDEWAYS"
 alertcondition(curTrendRegime > 0.5 and curTrendRegime[1] <= 0.5, title="Regime: BULL", message="{{ticker}} entered BULL regime")

@@ -75,5 +75,6 @@ Both indicator and strategy now use the **TfState UDT pattern**:
 * **Temperature/vector scaling applied to display**: calibrated probabilities now reflect temp/vector adjustments when eligible.
 * **Runtime safety**: guardrails for division/NA, quantile buffer bounds, and gating for weak bins.
 * **Outlook table refactor**: fixed 10‑column layout (Dir + Up/Flat/Down + nCur) and removed forecast/eval blocks from the main table.
+* **Tuple Destructuring Safety**: Refactored all tuple assignments (e.g., `[a, b] = f()`) to use temporary variables to prevent variable shadowing/redeclaration issues.
 
 **Verdict**: Approved/Merge Ready.
