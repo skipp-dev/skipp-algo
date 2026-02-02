@@ -2591,7 +2591,7 @@ c_vol  = volAvail ? color.lime : tblText
 
 targetDesc = "Multi-Profile (See Settings). Fast: " + fcTargetF + ", Mid: " + fcTargetM + ", Slow: " + fcTargetS
 
-if showTable and barstate.isconfirmed and barstate.islast
+if showTable and barstate.islast
     tblCols = 10
     table.clear(gT, 0, 0, tblCols - 1, 15)
 
