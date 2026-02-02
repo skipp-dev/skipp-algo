@@ -214,16 +214,16 @@ fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn
 kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
 atrThrM   = input.float(0.50, "ATR Thr", step=0.05, group=grp_mid)
 pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
-tpATRM    = input.float(0.80, "Path TP", step=0.05, group=grp_mid)
-slATRM    = input.float(0.50, "Path SL", step=0.05, group=grp_mid)
+tpATRM    = input.float(0.65, "Path TP", step=0.05, group=grp_mid)
+slATRM    = input.float(0.65, "Path SL", step=0.05, group=grp_mid)
 
 grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
 fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
 kBarsS    = input.int(10, "k bars", minval=1, maxval=50, group=grp_slow)
 atrThrS   = input.float(1.00, "ATR Thr", step=0.05, group=grp_slow)
 pathHS    = input.int(12, "Path H", minval=1, maxval=100, group=grp_slow)
-tpATRS    = input.float(1.20, "Path TP", step=0.05, group=grp_slow)
-slATRS    = input.float(0.80, "Path SL", step=0.05, group=grp_slow)
+tpATRS    = input.float(1.00, "Path TP", step=0.05, group=grp_slow)
+slATRS    = input.float(1.00, "Path SL", step=0.05, group=grp_slow)
 
 // Policies
 noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"], group="Policy")
