@@ -2225,13 +2225,23 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
 //====================
 var table gT = na
 if na(gT)
-    tblCols = fcTblModel == "Both" ? 12 : 9
+    tblCols = 10
     tblRows = 16
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
+f_bin_quality(pTop, nBin) =>
+    if nBin <= 0
+        ["warmup", tblTextDim]
+    else if nBin < calMinSamples
+        ["warmup", tblTextDim]
+    else
+        hw = f_ci95_halfwidth(pTop, nBin)
+        lbl = na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
+        col = na(hw) ? tblTextDim : hw <= 0.05 ? color.lime : hw <= 0.10 ? color.yellow : color.orange
+        [lbl, col]
+
 f_rowTF(_tf, score, tC, mC, lC, rV,
-        pUN, pFN, pDN, totN,
-        pU1, pF1, pD1, tot1,
+        pUN, pFN, pDN, nBin,
         rRow) =>
     table.cell(gT, 0, rRow, f_tfLabel(_tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
@@ -2240,7 +2250,7 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     enabled = enableForecast
-    useCalN = enabled and (totN >= calMinSamples)
+    useCalN = enabled and (nBin >= calMinSamples)
     [pUprio, pFprio, pDprio] = f_prior3(_tf, score)
     pU = useCalN ? pUN : pUprio
     pF = useCalN ? pFN : pFprio
@@ -2248,23 +2258,16 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
 
     maxP = math.max(pU, math.max(pF, pD))
     dirSym = maxP < dirMinProb ? "·" : (pU == maxP ? "▲" : pD == maxP ? "▼" : "■")
+    dirCol = pU == maxP ? color.lime : pD == maxP ? color.red : color.yellow
 
-    table.cell(gT, 5, rRow, "▲ " + str.tostring(pU * 100, "#.0"), text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 6, rRow, "− " + str.tostring(pF * 100, "#.0"), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 7, rRow, "▼ " + str.tostring(pD * 100, "#.0"), text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 5, rRow, dirSym, text_color=dirCol, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 6, rRow, str.tostring(pU * 100, "#.0") + "%", text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 7, rRow, str.tostring(pF * 100, "#.0") + "%", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 8, rRow, str.tostring(pD * 100, "#.0") + "%", text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
 
-    lbl = f_samp_label(enabled, totN) + " (" + str.tostring(totN) + ") " + dirSym
-    labelCol = fcTblModel == "Both" ? 11 : 8
-    table.cell(gT, labelCol, rRow, lbl, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-
-    if fcTblModel == "Both"
-        useCal1 = enabled and (tot1 >= calMinSamples)
-        pU1d = useCal1 ? pU1 : pUprio
-        pF1d = useCal1 ? pF1 : pFprio
-        pD1d = useCal1 ? pD1 : pDprio
-        table.cell(gT, 8,  rRow, "▲ " + str.tostring(pU1d * 100, "#.0"), text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(gT, 9,  rRow, "− " + str.tostring(pF1d * 100, "#.0"), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(gT, 10, rRow, "▼ " + str.tostring(pD1d * 100, "#.0"), text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
+    [qLbl, qCol] = f_bin_quality(maxP, nBin)
+    nTxt = "n=" + str.tostring(nBin) + " " + qLbl
+    table.cell(gT, 9, rRow, nTxt, text_color=qCol, bgcolor=tblCell, text_size=size.tiny)
 
 f_fmtBrier(stats) =>
     s = array.get(stats, 0)
@@ -2310,7 +2313,7 @@ c_vol  = volAvail ? color.lime : tblText
 targetDesc = "Multi-Profile (See Settings). Fast: " + fcTargetF + ", Mid: " + fcTargetM + ", Slow: " + fcTargetS
 
 if showTable and barstate.isconfirmed
-    tblCols = fcTblModel == "Both" ? 12 : 9
+    tblCols = 10
     table.clear(gT, 0, 0, tblCols - 1, 15)
 
     // Status rows
@@ -2319,6 +2322,11 @@ if showTable and barstate.isconfirmed
     table.cell(gT, 2, 0, "Decision", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 3, 0, decisionLabel, text_color=decisionColor, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 4, 0, decisionEdgeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 5, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 6, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 7, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 8, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 9, 0, "", text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     table.cell(gT, 0, 1, "MinTrust", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, 1, str.tostring(minTrust, format.mintick), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
@@ -2340,6 +2348,26 @@ if showTable and barstate.isconfirmed
 
     table.cell(gT, 0, 7, "Time", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, 7, str.format_time(time, "yyyy-MM-dd HH:mm"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    // Outlook header + forecast columns
+    table.cell(gT, 0, 8, "Outlook", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 1, 8, "Bias",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 2, 8, "Score",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 3, 8, "T/M/L",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 4, 8, "RSI",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 5, 8, "Dir",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 6, 8, "Up%",     text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 7, 8, "Flat%",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 8, 8, "Down%",   text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 9, 8, "nCur",    text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+
+    f_rowTF(tfF1, outScore1, t1c, m1c, l1c, r1, pUN1, pFN1, pDN1, nN1, 9)
+    f_rowTF(tfF2, outScore2, t2c, m2c, l2c, r2, pUN2, pFN2, pDN2, nN2, 10)
+    f_rowTF(tfF3, outScore3, t3c, m3c, l3c, r3, pUN3, pFN3, pDN3, nN3, 11)
+    f_rowTF(tfF4, outScore4, t4c, m4c, l4c, r4, pUN4, pFN4, pDN4, nN4, 12)
+    f_rowTF(tfF5, outScore5, t5c, m5c, l5c, r5, pUN5, pFN5, pDN5, nN5, 13)
+    f_rowTF(tfF6, outScore6, t6c, m6c, l6c, r6, pUN6, pFN6, pDN6, nN6, 14)
+    f_rowTF(tfF7, outScore7, t7c, m7c, l7c, r7, pUN7, pFN7, pDN7, nN7, 15)
 
 
 //====================

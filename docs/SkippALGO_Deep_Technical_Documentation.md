@@ -13,6 +13,7 @@
 * **Decision‑quality abstain gate** with UI feedback (edge + bin samples + optional total evidence).
 * **3‑way calibrator safety fallback**: temperature/vector scaling only applies/updates when sample thresholds are met.
 * **Display‑time calibration**: 3‑way probabilities reflect temp/vector scaling when eligible.
+* **Outlook table refactor**: fixed 10‑column layout with Dir + Up/Flat/Down + nCur and no forecast/eval blocks in the main table.
 
 While retaining the core philosophy of "State" vs "Forecast", the engine now employs:
 

@@ -65,11 +65,12 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertTrue(match, "Neutral tie policy logic not found or incorrect (should set doUpdate := false)")
 
     def test_table_formatting_logic(self):
-        # Check for 3-way header usage
-        self.assertIn('table.cell(gT, 5, 8, "Up(N)"', self.text)
-        self.assertIn('table.cell(gT, 6, 8, "Flat(N)"', self.text)
-        self.assertIn('table.cell(gT, 7, 8, "Down(N)"', self.text)
-        self.assertRegex(self.text, r'table\.cell\(gT,\s*(8|11),\s*8,\s*"Label"')
+        # Check for 3-way header usage (new Outlook layout)
+        self.assertIn('table.cell(gT, 5, 8, "Dir"', self.text)
+        self.assertIn('table.cell(gT, 6, 8, "Up%"', self.text)
+        self.assertIn('table.cell(gT, 7, 8, "Flat%"', self.text)
+        self.assertIn('table.cell(gT, 8, 8, "Down%"', self.text)
+        self.assertIn('table.cell(gT, 9, 8, "nCur"', self.text)
         
         # Check targetDesc definition exists (multiline or single line)
         self.assertIn('targetDesc =', self.text)
@@ -273,9 +274,11 @@ class TestSkippAlgoPine(unittest.TestCase):
 
     def test_forecast_header_simplified(self):
         """Test forecast header uses 3-way labels."""
-        self.assertIn('table.cell(gT, 5, 8, "Up(N)"', self.text)
-        self.assertIn('table.cell(gT, 6, 8, "Flat(N)"', self.text)
-        self.assertIn('table.cell(gT, 7, 8, "Down(N)"', self.text)
+        self.assertIn('table.cell(gT, 5, 8, "Dir"', self.text)
+        self.assertIn('table.cell(gT, 6, 8, "Up%"', self.text)
+        self.assertIn('table.cell(gT, 7, 8, "Flat%"', self.text)
+        self.assertIn('table.cell(gT, 8, 8, "Down%"', self.text)
+        self.assertIn('table.cell(gT, 9, 8, "nCur"', self.text)
 
     def test_no_orphaned_global_arrays(self):
         """Regression: ensure old global arrays have been replaced by TfState."""

@@ -1,31 +1,22 @@
 # SkippALGO v6.1 - Deep Upgrade Test Report
 
-**Date:** 01 Feb 2026
+**Date:** 02 Feb 2026
 **Version:** 6.1 (Deep Upgrade)
-**Agent:** GitHub Copilot (Claude Opus 4.5)
+**Agent:** GitHub Copilot (GPT-5.2-Codex)
 
 ## 1. Test Results Summary
 
 ### Automated Test Suite
 
-| Test Category | Tests | Status |
-|--------------|-------|--------|
-| Indicator Core | 29 | ✅ All Passing |
-| Strategy Basics | 4 | ✅ All Passing |
-| Strategy Forecasting | 6 | ✅ All Passing |
-| Strategy Evaluation | 5 | ✅ All Passing |
-| TfState Architecture | 10 | ✅ All Passing |
-| UX Helpers | 6 | ✅ All Passing |
-| Consistency | 8 | ✅ All Passing |
-| Alerts | 4 | ✅ All Passing |
-| Legacy Strategy | 14 | ✅ All Passing |
-| **TOTAL** | **86** | **✅ All Passing** |
+| Test Scope             | Tests | Status         |
+| ---------------------- | ----- | -------------- |
+| Full suite (all tests) | 217   | ✅ All Passing  |
 
 ### Test Execution
 
-```
-$ python -m pytest tests/ -v
-============================== 86 passed in 0.46s ==============================
+```text
+$ python -m pytest
+=============================== 217 passed in 0.37s =============================
 ```
 
 ## 2. TfState UDT Migration Verification
@@ -57,10 +48,10 @@ $ python -m pytest tests/ -v
 
 ### 3.2 Code Reduction Metrics
 
-| Script | Before | After | Reduction |
-|--------|--------|-------|-----------|
+| Script                 | Before      | After       | Reduction        |
+| ---------------------- | ----------- | ----------- | ---------------- |
 | SkippALGO_Strategy.pine | 2,123 lines | 1,669 lines | ~454 lines (21%) |
-| Global arrays replaced | ~100+ | 7 TfState | ~93% reduction |
+| Global arrays replaced | ~100+       | 7 TfState   | ~93% reduction   |
 
 ### 3.3 Strategy Synchronization
 
