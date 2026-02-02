@@ -14,6 +14,9 @@
 * **3‑way calibrator safety fallback**: temperature/vector scaling only applies/updates when sample thresholds are met.
 * **Display‑time calibration**: 3‑way probabilities reflect temp/vector scaling when eligible.
 * **Outlook table refactor**: fixed 10‑column layout with Dir + Up/Flat/Down + nCur and no forecast/eval blocks in the main table.
+* **UI Reliability**: Table visibility logic updated to `barstate.islast` to ensure persistent display on high timeframes.
+* **Symmetric Targeting**: Mid/Slow profiles updated to symmetric TP/SL (Mid: 0.65/0.65, Slow: 1.0/1.0) to eliminate bearish bias in probabilities.
+* **Calibration Tuning**: "Vector" scaling is now the default mode; forecast display threshold lowered to 0.34.
 
 While retaining the core philosophy of "State" vs "Forecast", the engine now employs:
 
@@ -31,8 +34,8 @@ While retaining the core philosophy of "State" vs "Forecast", the engine now emp
 Historical static targets (e.g., "Next Bar Close") failed to capture the nuance of different time horizons.
 
 * **Fast TFs (1m, 5m)**: Noise dominance. Target: **K-Bar ATR** (Relative volatility expansion).
-* **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent (TP vs SL)** based on ATR multiples.
-* **Slow TFs (4h, 1D)**: Trend persistence. Target: **Next Bar Direction** or **K-Bar Return**.
+* **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent** (Symmetric 0.65 ATR TP/SL).
+* **Slow TFs (4h, 1D)**: Trend persistence. Target: **Path Dependent** (Symmetric 1.0 ATR TP/SL).
 * **Implementation**: `f_get_params(tf)` dynamically switches target logic based on the seconds-in-timeframe.
 
 ### Phase 2: 2D Calibration (Score x Volatility)
