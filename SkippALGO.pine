@@ -2190,8 +2190,8 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
     edge = maxP - midP
     totalOk = (not evidenceGate) or (total >= evidenceMinTotal)
     ok = (not use3Way) ? true : (edge >= abstainMinEdge and nBin >= calMinSamples and totalOk)
-    reason = (evidenceGate and total < evidenceMinTotal) ? "low total" : nBin < calMinSamples ? "weak bin" : edge < abstainMinEdge ? "low edge" : "ok"
-    label = ok ? "OK" : "ABSTAIN (" + reason + ")"
+    reason = (evidenceGate and total < evidenceMinTotal) ? "Low Total" : nBin < calMinSamples ? "Weak Bin" : edge < abstainMinEdge ? "Low Edge" : "OK"
+    label = ok ? "OK" : reason
     col = ok ? color.lime : color.orange
     [ok, label, col, edge]
 
