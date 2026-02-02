@@ -186,7 +186,7 @@ dirMinProb = input.float(0.34, "Direction shown if max prob ≥", step=0.01, min
 
 fcTblModel = input.string("N", "Forecast columns", options=["N","1","Both"], group=grp_tri)
 
-calibratorMode = input.string("Off", "3-way calibrator", options=["Off","Temp","Vector"], group=grp_tri)
+calibratorMode = input.string("Vector", "3-way calibrator", options=["Off","Temp","Vector"], group=grp_tri)
 lrCal = input.float(0.01, "Calibrator LR", step=0.001, minval=0.0001, group=grp_tri)
 tempMin = input.float(0.5, "Temp min", step=0.1, minval=0.1, group=grp_tri)
 tempMax = input.float(5.0, "Temp max", step=0.1, minval=0.5, group=grp_tri)
