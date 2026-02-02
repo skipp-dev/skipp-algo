@@ -65,8 +65,8 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         """
         import re
         # With TfState pattern, check that f_init_tf_state uses 2D sizing for cnt1/up1
-        # Pattern: array.new_int(nBins1 * dim2, 0) for cnt1 and up1
-        pattern_2d = r"array\.new_int\(nBins1\s*\*\s*dim2,\s*0\)"
+        # Pattern: array.new_float(nBins1 * dim2, 0.0) for cnt1 and up1
+        pattern_2d = r"array\.new_float\(nBins1\s*\*\s*dim2,\s*0\.0\)"
         matches_2d = re.findall(pattern_2d, self.text)
         
         # Should have at least 2 matches (cnt1 and up1 in f_init_tf_state)
@@ -125,14 +125,14 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_can_logic_uses_totals_and_forecast_gate(self):
         # Ensure totals are computed via helper using TfState
-        self.assertIn("f_sum_int_array(tf1State.cntN)", self.text)
-        self.assertIn("f_sum_int_array(tf1State.cnt1)", self.text)
+        self.assertIn("f_sum_int_array(cntN1Arr)", self.text)
+        self.assertIn("f_sum_int_array(cnt11Arr)", self.text)
 
         # Ensure can flags depend on enableForecast and totals
-        self.assertIn("can1N = enableForecast and (totN1 > 0)", self.text)
-        self.assertIn("can7N = enableForecast and (totN7 > 0)", self.text)
-        self.assertIn("can11 = enableForecast and (tot11 > 0)", self.text)
-        self.assertIn("can17 = enableForecast and (tot17 > 0)", self.text)
+        self.assertIn("canF1N = enableForecast and (totN1 > 0)", self.text)
+        self.assertIn("canF7N = enableForecast and (totN7 > 0)", self.text)
+        self.assertIn("canF11 = enableForecast and (tot11 > 0)", self.text)
+        self.assertIn("canF17 = enableForecast and (tot17 > 0)", self.text)
 
 if __name__ == "__main__":
     unittest.main()

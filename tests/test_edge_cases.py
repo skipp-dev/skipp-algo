@@ -228,19 +228,15 @@ class TestEdgeCases(unittest.TestCase):
             "Strategy missing probability clamping for logloss")
     
     def test_bin_index_clamping(self):
-        """f_bin2D must clamp bin index to valid range.
+        """Binning must clamp indices to valid range in both files."""
+        pattern_quantile = r'math\.max\(0,\s*math\.min\(bins\s*-\s*1,\s*b\)\)'
+        pattern_fixed = r'b\s*<\s*0\s*\?\s*0\s*:\s*b\s*>\s*\(bins\s*-\s*1\)\s*\?\s*\(bins\s*-\s*1\)\s*:\s*b'
         
-        Note: Indicator uses bA, Strategy uses bS as variable name.
-        """
-        # Indicator pattern
-        pattern_ind = r'bA\s*:=\s*math\.max\(0,\s*math\.min\('
-        # Strategy pattern (uses bS)
-        pattern_strat = r'bS\s*:=\s*math\.max\(0,\s*math\.min\('
-        
-        self.assertRegex(self.indicator, pattern_ind,
-            "Indicator f_bin2D missing bin index clamping")
-        self.assertRegex(self.strategy, pattern_strat,
-            "Strategy f_bin2D missing bin index clamping")
+        for content, name in ((self.indicator, "Indicator"), (self.strategy, "Strategy")):
+            self.assertTrue(
+                re.search(pattern_quantile, content) or re.search(pattern_fixed, content),
+                f"{name} missing bin index clamping"
+            )
     
     def test_bucket_index_clamping(self):
         """f_bucket must clamp index to valid range (Indicator only).

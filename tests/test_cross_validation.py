@@ -131,20 +131,17 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
             "Strategy f_logit should use PROB_EPS")
     
     def test_f_bin2D_boundary_logic_match(self):
-        """f_bin2D must use same >= boundary logic."""
-        # Both should use >= for vol thresholds
-        pattern_high = r'volRank\s*>=\s*VOL_THRESH_HIGH'
-        pattern_low = r'volRank\s*>=\s*VOL_THRESH_LOW'
+        """f_bin2D must use quantile bins + regime binning in both files."""
+        pattern_bin2d = r'f_bin2D\([^)]+\)\s*=>'
+        pattern_quantile = r'f_bin_quantile\('
+        pattern_regime = r'f_regime_bin\('
+        pattern_flatten = r'int\(\s*\w+\s*\*\s*\w+\s*\+\s*\w+\s*\)'
         
-        self.assertRegex(self.indicator, pattern_high, 
-            "Indicator f_bin2D should use >= VOL_THRESH_HIGH")
-        self.assertRegex(self.strategy, pattern_high, 
-            "Strategy f_bin2D should use >= VOL_THRESH_HIGH")
-        
-        self.assertRegex(self.indicator, pattern_low, 
-            "Indicator f_bin2D should use >= VOL_THRESH_LOW")
-        self.assertRegex(self.strategy, pattern_low, 
-            "Strategy f_bin2D should use >= VOL_THRESH_LOW")
+        for content, name in ((self.indicator, "Indicator"), (self.strategy, "Strategy")):
+            self.assertRegex(content, pattern_bin2d, f"{name} missing f_bin2D")
+            self.assertRegex(content, pattern_quantile, f"{name} missing quantile binning")
+            self.assertRegex(content, pattern_regime, f"{name} missing regime binning")
+            self.assertRegex(content, pattern_flatten, f"{name} missing 2D flatten formula")
     
     def test_f_pct_rank_division_guard(self):
         """f_pct_rank must have hi==lo guard in both."""

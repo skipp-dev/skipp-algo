@@ -6,6 +6,14 @@
 
 **Version 6.1 (Deep Upgrade)** represents a fundamental architectural shift from simple "Bin Counting" to a sophisticated **Online Learning System**.
 
+### Feb 02, 2026 Additions (Stability + Decision Quality)
+
+* **Quantile binning** for the score dimension (adaptive density) with fixed‑bin fallback.
+* **Chop‑aware regime dimension** for 2D bins and forecast display (distinct flat marker).
+* **Decision‑quality abstain gate** with UI feedback (edge + bin samples + optional total evidence).
+* **3‑way calibrator safety fallback**: temperature/vector scaling only applies/updates when sample thresholds are met.
+* **Display‑time calibration**: 3‑way probabilities reflect temp/vector scaling when eligible.
+
 While retaining the core philosophy of "State" vs "Forecast", the engine now employs:
 
 1. **Adaptive Targeting**: Different timeframes have different physics (Noise vs Trend).

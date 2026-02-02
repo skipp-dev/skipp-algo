@@ -513,9 +513,10 @@ class TestFormulaRegression(unittest.TestCase):
                 continue
             # Pattern: bS * binsVol (Strategy), binScore * N_VOL (Indicator)
             has_2d_index = (
-                re.search(r'\w+\s*\*\s*(?:N_BINS|binsVol|N_VOL|dim2)\s*\+', content) or
+                re.search(r'\w+\s*\*\s*(?:N_BINS|binsVol|N_VOL|dim2|binsReg|binsB)\s*\+', content) or
                 re.search(r'\w+\s*\*\s*[35]\s*\+', content) or  # literal 3 or 5
-                re.search(r'bS\s*\*\s*binsVol', content)  # Strategy pattern
+                re.search(r'bS\s*\*\s*(?:binsReg|binsB)', content) or
+                re.search(r'bA\s*\*\s*(?:binsReg|binsB)', content)
             )
             self.assertTrue(has_2d_index, f"{name}: 2D bin index formula not found")
     

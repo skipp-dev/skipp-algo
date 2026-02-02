@@ -178,10 +178,10 @@ class TestSkippAlgoStrategyTfStateArchitecture(unittest.TestCase):
 
     def test_tfstate_has_calibration_fields(self):
         """TfState UDT has calibration fields (cntN, upN, etc)."""
-        self.assertIn("int[]   cntN", self.text)
-        self.assertIn("int[]   upN", self.text)
-        self.assertIn("int[]   cnt1", self.text)
-        self.assertIn("int[]   up1", self.text)
+        self.assertIn("float[] cntN", self.text)
+        self.assertIn("float[] upN", self.text)
+        self.assertIn("float[] cnt1", self.text)
+        self.assertIn("float[] up1", self.text)
 
     def test_tfstate_has_queue_fields(self):
         """TfState UDT has queue fields (qEntry, qAge, etc)."""

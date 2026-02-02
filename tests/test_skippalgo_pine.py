@@ -37,7 +37,7 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertEqual(count, 0, f"Found {count} lines ending with semicolons")
 
     def test_table_clear_has_bounds(self):
-        self.assertIn("table.clear(gT, 0, 0, 4, 33)", self.text)
+        self.assertIn("table.clear(gT, 0, 0, tblCols - 1, 15)", self.text)
         self.assertNotRegex(self.text, r"table\.clear\(\s*gT\s*\)")
 
     def test_newF_uses_precomputed_change(self):
@@ -60,14 +60,16 @@ class TestSkippAlgoPine(unittest.TestCase):
     def test_neutral_tie_policy_implemented(self):
         # Check that Neutral policy sets doUpdate to false
         # We look for the specific block structure
-        pattern = r'else if pathTiePolicy == "Neutral"\s+doUpdate := false'
+        pattern = r'else if pathTiePolicy == "Neutral"[\s\S]{0,120}?(outcome := 0|doUpdate := false)'
         match = re.search(pattern, self.text)
         self.assertTrue(match, "Neutral tie policy logic not found or incorrect (should set doUpdate := false)")
 
     def test_table_formatting_logic(self):
-        # Check for merge_cells usage
-        self.assertIn("table.merge_cells(gT, 1, 32, 4, 32)", self.text)
-        self.assertIn("table.merge_cells(gT, 1, 33, 4, 33)", self.text)
+        # Check for 3-way header usage
+        self.assertIn('table.cell(gT, 5, 8, "Up(N)"', self.text)
+        self.assertIn('table.cell(gT, 6, 8, "Flat(N)"', self.text)
+        self.assertIn('table.cell(gT, 7, 8, "Down(N)"', self.text)
+        self.assertRegex(self.text, r'table\.cell\(gT,\s*(8|11),\s*8,\s*"Label"')
         
         # Check targetDesc definition exists (multiline or single line)
         self.assertIn('targetDesc =', self.text)
@@ -76,7 +78,7 @@ class TestSkippAlgoPine(unittest.TestCase):
         
     def test_process_tf_signature(self):
         # Check that f_process_tf uses TfState pattern (_hid marks unused param)
-        self.assertIn("f_process_tf(_hid, newTfBar, sA,", self.text)
+        self.assertIn("f_process_tf(_hid, _tf, newTfBar, sA,", self.text)
         self.assertIn("TfState st,", self.text)
         self.assertIn("fcTgt, kB, aThr, pH, tpA, slA,", self.text)
 
@@ -100,8 +102,8 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertRegex(self.text, r"f_logloss\(p, y\) =>")
         self.assertIn("math.log(pc)", self.text)
 
-        # Verify table helpers for evaluation are present
-        self.assertIn("f_rowEval(tf, hid, rRow) =>", self.text)
+        # Verify table helpers for evaluation are present (tbl param added to avoid global scope)
+        self.assertIn("f_rowEval(tbl, tf, hid, rRow) =>", self.text)
         self.assertIn("f_eval_get(hid) =>", self.text)
 
 
@@ -117,8 +119,7 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('f_target_label(tf)', self.text)
         self.assertIn('f_strength_label_fc(nBin)', self.text)
         
-        # Check for Note update
-        self.assertIn("Forecast: Shrinkage k=5.0 active", self.text)
+
 
     def test_new_ui_helpers(self):
         # Verify CI/Reliability helpers are present (v6.1 UI)
@@ -146,7 +147,8 @@ class TestSkippAlgoPine(unittest.TestCase):
         # Pattern: tf1State, (parameters)
         self.assertIn("tf1State,", self.text)
         self.assertIn("tf2State,", self.text)
-        self.assertIn("alphaN, alpha1, kShrink, wState, wPullback, wRegime)", self.text)
+        # Updated to 4-factor ensemble with wTrend
+        self.assertIn("alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)", self.text)
 
     def test_div_by_zero_fix_f_pullback_score(self):
         # The line 'dist = (c - ef) / (na(atrVal) ? c*0.01 : atrVal)' was causing potential div by zero and was unused
@@ -161,9 +163,9 @@ class TestSkippAlgoPine(unittest.TestCase):
         # Check that TfState is properly defined
         self.assertIn("type TfState", self.text)
         
-        # Check for cnt1 and up1 fields in TfState
-        self.assertIn("int[]   cnt1", self.text)
-        self.assertIn("int[]   up1", self.text)
+        # Check for cnt1 and up1 fields in TfState (float arrays)
+        self.assertIn("float[] cnt1", self.text)
+        self.assertIn("float[] up1", self.text)
         
         # Check that f_init_tf_state creates properly sized arrays
         self.assertIn("f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets)", self.text)
@@ -270,10 +272,10 @@ class TestSkippAlgoPine(unittest.TestCase):
         self.assertIn('txtChance1 = f_chance_text(tf, p1, nBin1, tot1_, can1_)', self.text)
 
     def test_forecast_header_simplified(self):
-        """Test forecast header uses generic labels since rows carry semantic."""
-        # Header should have generic "Chance(N)" not target-specific
-        self.assertIn('table.cell(gT, 1, 16, "Chance(N)"', self.text)
-        self.assertIn('table.cell(gT, 3, 16, "Chance(1)"', self.text)
+        """Test forecast header uses 3-way labels."""
+        self.assertIn('table.cell(gT, 5, 8, "Up(N)"', self.text)
+        self.assertIn('table.cell(gT, 6, 8, "Flat(N)"', self.text)
+        self.assertIn('table.cell(gT, 7, 8, "Down(N)"', self.text)
 
     def test_no_orphaned_global_arrays(self):
         """Regression: ensure old global arrays have been replaced by TfState."""

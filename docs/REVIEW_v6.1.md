@@ -2,7 +2,7 @@
 
 **Reviewer:** GitHub Copilot (Simulated Peer Review)
 **Target:** `SkippALGO.pine` (Phases 1-4 Upgrade)
-**Last Updated:** 01 Feb 2026
+**Last Updated:** 02 Feb 2026
 
 ## 1. Summary of Changes
 
@@ -62,5 +62,17 @@ Both indicator and strategy now use the **TfState UDT pattern**:
 * [x] **TfState UDT Migration Complete** (01 Feb 2026): Both scripts use identical patterns
 * [x] **Strategy Module Synced** (01 Feb 2026): `SkippALGO_Strategy.pine` mirrors the main indicator logic
 * [x] **86 Tests Passing** (01 Feb 2026): Full test suite validates architecture
+* [x] **217 Tests Passing** (02 Feb 2026): Full test suite validates architecture
+
+## 7. Feb 02, 2026 Updates (Post‑Review Enhancements)
+
+**Scope:** Both `SkippALGO.pine` and `SkippALGO_Strategy.pine`.
+
+* **Quantile binning** for score dimension with rolling cut updates and fixed‑bin fallback.
+* **Chop‑aware regime dimension**: trend regime drives the second bin axis; flat is explicitly represented in display.
+* **Evidence/abstain gating + UI**: decision‑quality gate by edge, bin samples, and (optionally) total evidence; status shown in table header.
+* **Multiclass safety fallback**: temperature/vector calibration applies only when sample thresholds are met; updates are gated similarly.
+* **Temperature/vector scaling applied to display**: calibrated probabilities now reflect temp/vector adjustments when eligible.
+* **Runtime safety**: guardrails for division/NA, quantile buffer bounds, and gating for weak bins.
 
 **Verdict**: Approved/Merge Ready.
