@@ -220,7 +220,7 @@ tiltMaxFast = input.float(0.10, "Warmup tilt max (Fast)", step=0.01, minval=0.0,
 tiltMaxMid  = input.float(0.12, "Warmup tilt max (Mid)",  step=0.01, minval=0.0, maxval=0.30, group=grp_tri)
 tiltMaxSlow = input.float(0.15, "Warmup tilt max (Slow)", step=0.01, minval=0.0, maxval=0.30, group=grp_tri)
 
-dirMinProb = input.float(0.45, "Direction shown if max prob ≥", step=0.01, minval=0.34, maxval=0.90, group=grp_tri)
+dirMinProb = input.float(0.34, "Direction shown if max prob ≥", step=0.01, minval=0.34, maxval=0.90, group=grp_tri)
 
 fcTblModel = input.string("N", "Forecast columns", options=["N","1","Both"], group=grp_tri)
 
