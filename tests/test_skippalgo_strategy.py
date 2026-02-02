@@ -41,8 +41,8 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_f_process_tf_usage(self):
         # f_process_tf calls should match definition
-        # After harmonization, both files use wState, wPullback, wRegime
-        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*wState,\s*wPullback,\s*wRegime\)"
+        # After 4-factor ensemble upgrade, now includes wTrend
+        pattern = r"alphaN,\s*alpha1,\s*kShrink,\s*wState,\s*wPullback,\s*wRegime,\s*wTrend\)"
         self.assertRegex(self.text, pattern, "Correct variable names not found in f_process_tf calls")
 
     def test_div_by_zero_fix_f_pullback_score(self):
@@ -84,7 +84,8 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_ensemble_weights_used_in_display(self):
         # Display probabilities should use the same ensemble weights as calibration
-        self.assertIn("sEns = f_ensemble(sA, sB, sC, wState, wPullback, wRegime)", self.text)
+        # Updated for 4-factor ensemble (includes wTrend)
+        self.assertIn("sEns = f_ensemble4(sA, sB, sC, sD, wState, wPullback, wRegime, wTrend)", self.text)
 
     def test_defaults_match_indicator_targets(self):
         # Mid targets
