@@ -2128,8 +2128,8 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
     edge = maxP - midP
     totalOk = (not evidenceGate) or (total >= evidenceMinTotal)
     ok = (not use3Way) ? true : (edge >= abstainMinEdge and nBin >= calMinSamples and totalOk)
-    reason = (evidenceGate and total < evidenceMinTotal) ? "low total" : nBin < calMinSamples ? "weak bin" : edge < abstainMinEdge ? "low edge" : "ok"
-    label = ok ? "OK" : "ABSTAIN (" + reason + ")"
+    reason = (evidenceGate and total < evidenceMinTotal) ? "Low Total" : nBin < calMinSamples ? "Weak Bin" : edge < abstainMinEdge ? "Low Edge" : "OK"
+    label = ok ? "OK" : reason
     col = ok ? color.lime : color.orange
     [ok, label, col, edge]
 
@@ -2626,7 +2626,7 @@ if showTable and barstate.islast
     table.cell(gT, 1, 6, lastSig, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     table.cell(gT, 0, 7, "Time", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 7, str.format_time(time, "yyyy-MM-dd HH:mm"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 1, 7, str.format_time(time, "HH:mm"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     // Outlook header + forecast columns
     table.cell(gT, 0, 8, "Outlook", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
