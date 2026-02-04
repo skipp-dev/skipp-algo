@@ -16,7 +16,33 @@ strategy("SkippALGO Strategy (Deep Upgrade v6.1)", overlay=true, initial_capital
 config = input.string("V2 Alpha", "Configuration", options=["Standard", "Pro", "V2 Essential", "V2 Proficient", "V2 Alpha"])
 
 // Signal engine
-engine       = input.string("Trend+Pullback", "Signal engine", options=["Trend+Pullback", "Loose"])
+engine       = input.string("Gainz Hybrid", "Signal engine", options=["Gainz Hybrid","Gainz Breakout","Trend+Pullback","Loose"])
+
+useForecastGateEntry = input.bool(true, "Entry gate: require forecast edge (3-way)")
+entryFcTF    = input.string("F3", "Entry horizon", options=["F1","F2","F3","F4","F5","F6","F7"])
+entryFcModel = input.string("N",  "Entry model", options=["N","1"])
+minDirProb   = input.float(0.42, "Min dir prob (Up/Down)", minval=0.34, maxval=0.95, step=0.01)
+minEdgePP    = input.float(0.10, "Min edge (pp) vs mid", minval=0.00, maxval=0.50, step=0.01)
+requireRelOk = input.bool(false, "Entry gate: require bin reliability ok/strong")
+
+requireSET   = input.bool(true, "Entry gate: require SET (CRSI confluence)")
+
+pbLookback = input.int(12, "Pullback lookback", minval=2)
+pbMinATR   = input.float(0.20, "Pullback min depth (ATR)", step=0.05)
+pbMaxATR   = input.float(1.50, "Pullback max depth (ATR)", step=0.05)
+
+useVolConfirm = input.bool(false, "Volume confirmation")
+volLen   = input.int(20, "Volume SMA len", minval=2)
+volMult  = input.float(1.20, "Volume mult", step=0.05)
+
+useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
+stopATR  = input.float(1.50, "Stop ATR", step=0.10)
+tpATR    = input.float(3.00, "Take Profit ATR", step=0.10)
+trailATR = input.float(2.00, "Trail ATR", step=0.10)
+trailAfterR = input.float(1.00, "Trail activates after R", step=0.10)
+
+swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
+swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
 enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
 cooldownBars = input.int(6, "Cooldown bars", minval=0)
 minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
@@ -251,6 +277,7 @@ useQuantileBins = input.bool(true, "Use quantile bins (score)", group="Engine")
 quantileWindow = input.int(500, "Quantile window (samples)", minval=100, maxval=5000, group="Engine")
 quantileUpdate = input.int(50, "Quantile update interval (bars)", minval=10, maxval=1000, group="Engine")
 quantileMinSamples = input.int(200, "Quantile min samples", minval=50, maxval=5000, group="Engine")
+calibrateInBackground = input.bool(true, "Calibrate even if table hidden")
 
 alphaN = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1, group="Engine")
 alpha1 = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1, group="Engine")
@@ -2153,86 +2180,60 @@ decisionEdgeTxt = (not use3Way or na(decisionEdge)) ? "—" : str.tostring(decis
 allowEntry   = barstate.isconfirmed and cooldownOk and not blockNearClose and reliabilityOk and evidenceOk and (not abstainGate or decisionOk)
 allowExit    = barstate.isconfirmed
 
+//====================
+// Gainz / Risk Helpers
+//====================
+f_entry_forecast_gate(isLong) =>
+    bool ok = true
+    if useForecastGateEntry and use3Way
+        [pU, pF, pD, nBin, total] = f_get_rel_vals(entryFcTF, entryFcModel)
+        [dqOk, dqLabel, dqCol, edge] = f_decision_quality(pU, pF, pD, nBin, total)
+
+        // reliability label from your CI logic (re-used)
+        canCal = enableForecast and (total > 0)
+        relLbl = f_rel_label(isLong ? pU : pD, nBin, total, canCal)
+        relOk  = (not requireRelOk) or (relLbl == "ok" or relLbl == "strong")
+
+        if isLong
+            ok := dqOk and relOk and (pU >= minDirProb) and (edge >= minEdgePP)
+        else
+            ok := dqOk and relOk and (pD >= minDirProb) and (edge >= minEdgePP)
+    ok
+
+// Risk model state
+var float stopPx  = na
+var float tpPx    = na
+var float trailPx = na
+
+f_set_risk_on_entry(isLong, entry, atrNow) =>
+    stopPx  := isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
+    tpPx    := isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
+    trailPx := na
+
+f_update_trail(isLong, entry, atrNow) =>
+    // activate trailing only after reaching +R
+    denom = math.max(math.abs(entry - stopPx), 0.0001)
+    rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
+    if rNow >= trailAfterR
+        newTrail = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
+        trailPx := na(trailPx) ? newTrail : (isLong ? math.max(trailPx, newTrail) : math.min(trailPx, newTrail))
+
+f_risk_exit_hit(isLong) =>
+    if not useAtrRisk or na(stopPx)
+        false
+    else
+        lowPx = low
+        highPx = high
+        stopHit  = isLong ? (lowPx <= stopPx) : (highPx >= stopPx)
+        tpHit    = isLong ? (highPx >= tpPx)  : (lowPx  <= tpPx)
+        trailHit = not na(trailPx) and (isLong ? (lowPx <= trailPx) : (highPx >= trailPx))
+        stopHit or trailHit or tpHit
+
 buySignal   = false
 exitSignal  = false
 shortSignal = false
 coverSignal = false
 
-if engine == "Trend+Pullback"
-    if pos == 0 and allowEntry
-        buySignal   := gateLongNow and (trendFlipUp or reclaimUp)
-        shortSignal := enableShorts and gateShortNow and (trendFlipDown or reclaimDown)
-        if buySignal and shortSignal
-            buySignal := false
-            shortSignal := false
-    if pos == 1 and allowExit
-        exitSignal := breakLong and bearBias
-    if pos == -1 and allowExit
-        coverSignal := breakShort and bullBias
-
-else if engine == "Loose"
-    if pos == 0 and allowEntry
-        buySignal   := gateLongNow and crossClose_EmaF_up
-        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_down
-        if buySignal and shortSignal
-            buySignal := false
-            shortSignal := false
-    if pos == 1 and allowExit
-        exitSignal := breakLong and bearBias
-    if pos == -1 and allowExit
-        coverSignal := breakShort and bullBias
-
-if barstate.isconfirmed
-    if exitSignal and pos == 1
-        pos := 0
-        entryPrice := na
-        lastSignalBar := bar_index
-        lastSig := "EXIT"
-    else if coverSignal and pos == -1
-        pos := 0
-        entryPrice := na
-        lastSignalBar := bar_index
-        lastSig := "COVER"
-    else if buySignal and pos == 0
-        pos := 1
-        entryPrice := close
-        lastSignalBar := bar_index
-        lastSig := "BUY"
-    else if shortSignal and pos == 0
-        pos := -1
-        entryPrice := close
-        lastSignalBar := bar_index
-        lastSig := "SHORT"
-
-//====================
-// Alerts
-//====================
-alertcondition(buySignal,   title="BUY",   message="BUY")
-alertcondition(exitSignal,  title="EXIT",  message="EXIT")
-alertcondition(shortSignal, title="SHORT", message="SHORT")
-alertcondition(coverSignal, title="COVER", message="COVER")
-
-//====================
-// Visuals
-//====================
-plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
-
-if showEntryLabels and buySignal
-    label.new(bar_index, low, "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-if showEntryLabels and shortSignal
-    label.new(bar_index, high, "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and exitSignal
-    label.new(bar_index, high, "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and coverSignal
-    label.new(bar_index, low, "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-
-pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
-pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
-fill(pNeutralUpper, pNeutralLower, color=color.new(color.blue, 90))
-
-pAggUpper = plot(showZones ? aggrUpper : na, title="Aggressive zone upper", linewidth=1, color=color.new(color.orange, 25))
-pAggLower = plot(showZones ? aggrLower : na, title="Aggressive zone lower", linewidth=1, color=color.new(color.orange, 25))
-fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
@@ -2650,6 +2651,153 @@ if showTable and barstate.islast
 
 
 //====================
+// Signal Logic (Post-Forecast)
+//====================
+volOk = (not useVolConfirm) or (not na(volume) and volume > ta.sma(volume, volLen) * volMult)
+
+fcGateLong  = f_entry_forecast_gate(true)
+fcGateShort = f_entry_forecast_gate(false)
+
+// Pullback depth
+pbLow = ta.lowest(low, pbLookback)
+pbHigh = ta.highest(high, pbLookback)
+pbDepthLong = (emaF - pbLow) / math.max(atr, 0.0001)
+pbDepthShort = (pbHigh - emaF) / math.max(atr, 0.0001)
+
+touchEmaF_Long  = low <= emaF and close >= emaF
+touchEmaF_Short = high >= emaF and close <= emaF
+
+bullReversal = close > open and close > emaF and low <= emaF
+bearReversal = close < open and close < emaF and high >= emaF
+
+setOkLong  = (not requireSET) or setLong
+setOkShort = (not requireSET) or setShort
+
+pullbackLongOk  = trendUp and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
+pullbackShortOk = trendDn and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
+
+// Breakout
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+ph = ta.pivothigh(high, swingL, swingR)
+pl = ta.pivotlow(low,  swingL, swingR)
+if not na(ph)
+    lastSwingHigh := ph
+if not na(pl)
+    lastSwingLow := pl
+
+breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+
+// Signals
+if pos == 0 and allowEntry
+    if engine == "Gainz Hybrid"
+        buySignal   := gateLongNow  and fcGateLong  and volOk and setOkLong  and pullbackLongOk  and (touchEmaF_Long  and (crossClose_EmaF_up or bullReversal))
+        shortSignal := enableShorts and gateShortNow and fcGateShort and volOk and setOkShort and pullbackShortOk and (touchEmaF_Short and (crossClose_EmaF_down or bearReversal))
+    else if engine == "Gainz Breakout"
+        buySignal   := gateLongNow  and fcGateLong  and volOk and trendUp and breakoutLong
+        shortSignal := enableShorts and gateShortNow and fcGateShort and volOk and trendDn and breakoutShort
+    else if engine == "Trend+Pullback"
+        buySignal   := gateLongNow and (trendFlipUp or reclaimUp)
+        shortSignal := enableShorts and gateShortNow and (trendFlipDown or reclaimDown)
+    else // Loose
+        buySignal   := gateLongNow and crossClose_EmaF_up
+        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_down
+
+    if buySignal and shortSignal
+        buySignal := false
+        shortSignal := false
+
+if pos == 1 and allowExit
+    if useAtrRisk
+        f_update_trail(true, entryPrice, atr)
+    exitSignal := f_risk_exit_hit(true) or (breakLong and bearBias)
+
+if pos == -1 and allowExit
+    if useAtrRisk
+        f_update_trail(false, entryPrice, atr)
+    coverSignal := f_risk_exit_hit(false) or (breakShort and bullBias)
+
+// State Logic
+if barstate.isconfirmed
+    if exitSignal and pos == 1
+        pos := 0
+        entryPrice := na
+        stopPx := na
+        tpPx := na
+        trailPx := na
+        lastSignalBar := bar_index
+        lastSig := "EXIT"
+    else if coverSignal and pos == -1
+        pos := 0
+        entryPrice := na
+        stopPx := na
+        tpPx := na
+        trailPx := na
+        lastSignalBar := bar_index
+        lastSig := "COVER"
+    else if buySignal and pos == 0
+        pos := 1
+        entryPrice := close
+        if useAtrRisk
+            f_set_risk_on_entry(true, entryPrice, atr)
+        lastSignalBar := bar_index
+        lastSig := "BUY"
+    else if shortSignal and pos == 0
+        pos := -1
+        entryPrice := close
+        if useAtrRisk
+            f_set_risk_on_entry(false, entryPrice, atr)
+        lastSignalBar := bar_index
+        lastSig := "SHORT"
+
+// Alerts
+alertcondition(buySignal,   title="BUY",   message="SkippALGO BUY")
+alertcondition(shortSignal, title="SHORT", message="SkippALGO SHORT")
+alertcondition(exitSignal,  title="EXIT",  message="SkippALGO EXIT")
+alertcondition(coverSignal, title="COVER", message="SkippALGO COVER")
+
+// Highlighting
+if showEntryLabels and buySignal
+    label.new(bar_index, low, "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+if showEntryLabels and shortSignal
+    label.new(bar_index, high, "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and exitSignal
+    label.new(bar_index, high, "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and coverSignal
+    label.new(bar_index, low, "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+
+plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
+plot(useAtrRisk and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
+
+plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
+plot(useAtrRisk and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
+
+// Strategy Execution (Active)
+if buySignal
+    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
+    if useAtrRisk
+        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx)
+
+if shortSignal
+    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
+    if useAtrRisk
+        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx)
+
+if useAtrRisk and pos != 0
+    if pos == 1 and not na(trailPx)
+        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx)
+    if pos == -1 and not na(trailPx)
+        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx)
+
+if exitSignal and pos == 1
+    strategy.close("L", comment="Exit Signal")
+if coverSignal and pos == -1
+    strategy.close("S", comment="Cover Signal")
+
+//====================
 // Calibration Diagnostics Panel (Debug)
 //====================
 var table diagTbl = na
@@ -2794,14 +2942,5 @@ alertcondition(curTrendRegime < -0.5 and curTrendRegime[1] >= -0.5, title="Regim
 alertcondition(math.abs(curTrendRegime) <= 0.5 and math.abs(curTrendRegime[1]) > 0.5, title="Regime: SIDEWAYS", message="{{ticker}} entered SIDEWAYS regime")
 
 //====================
-// Strategy Execution (Backtest Mode)
-//====================
-if buySignal
-    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
-if shortSignal
-    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
-if exitSignal
-    strategy.close("L")
-if coverSignal
-    strategy.close("S")
+// Old Execution removed (replaced by Gainz Logic above)
 

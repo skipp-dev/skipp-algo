@@ -58,8 +58,8 @@ class TestSkippAlgoStrategyBasics(unittest.TestCase):
         """Verify strategy entry/close calls are present."""
         self.assertIn('strategy.entry("L", strategy.long', self.text)
         self.assertIn('strategy.entry("S", strategy.short', self.text)
-        self.assertIn('strategy.close("L")', self.text)
-        self.assertIn('strategy.close("S")', self.text)
+        self.assertIn('strategy.close("L"', self.text)
+        self.assertIn('strategy.close("S"', self.text)
 
 
 class TestSkippAlgoStrategyForecasting(unittest.TestCase):

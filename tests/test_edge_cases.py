@@ -219,8 +219,8 @@ class TestEdgeCases(unittest.TestCase):
         """
         # Indicator has dedicated f_epsClamp
         indicator_pattern = r'f_epsClamp\(p\)\s*=>'
-        # Strategy uses f_clamp inline for similar purpose
-        strategy_pattern = r'f_clamp\(p[^,]*,\s*0\.01'
+        # Strategy uses f_clamp inline for similar purpose OR f_epsClamp
+        strategy_pattern = r'f_clamp\(p[^,]*,\s*0\.01|f_epsClamp'
         
         self.assertRegex(self.indicator, indicator_pattern,
             "Indicator missing f_epsClamp")
@@ -360,8 +360,8 @@ class TestEdgeCases(unittest.TestCase):
         """
         # Indicator pattern
         pattern_ind = r'if\s*array\.size\(buf\)\s*>\s*maxLen'
-        # Strategy pattern (uses specific names)
-        pattern_strat = r'if\s*array\.size\(evBrier\)\s*>\s*rollScore'
+        # Strategy pattern (uses specific names OR generic function if harmonized)
+        pattern_strat = r'if\s*array\.size\((evBrier|buf)\)\s*>\s*(rollScore|maxLen)'
         
         self.assertRegex(self.indicator, pattern_ind,
             "Indicator missing rolling buffer max enforcement")
@@ -388,8 +388,8 @@ class TestEdgeCases(unittest.TestCase):
         """
         # Indicator pattern (in f_roll_add function)
         pattern_ind = r'array\.set\(sumArr,\s*0,\s*array\.sum\(buf\)\)'
-        # Strategy pattern (inline)
-        pattern_strat = r'sb\s*:=\s*array\.sum\(evBrier\)'
+        # Strategy pattern (inline OR helper function)
+        pattern_strat = r'(sb\s*:=\s*array\.sum\(evBrier\))|(array\.set\([^,]+,\s*0,\s*array\.sum\([^)]+\)\))'
         
         self.assertRegex(self.indicator, pattern_ind,
             "Indicator missing array.sum for recalculation")
