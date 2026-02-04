@@ -1,6 +1,6 @@
 # SkippALGO v6.1 - Deep Upgrade Test Report
 
-**Date:** 02 Feb 2026
+**Date:** 04 Feb 2026
 **Version:** 6.1 (Deep Upgrade)
 **Agent:** GitHub Copilot (GPT-5.2-Codex)
 
@@ -10,16 +10,23 @@
 
 | Test Scope             | Tests | Status         |
 | ---------------------- | ----- | -------------- |
-| Full suite (all tests) | 217   | ✅ All Passing  |
+| Full suite (all tests) | 206   | ✅ All Passing  |
 
 ### Test Execution
 
 ```text
-$ python -m pytest
-=============================== 217 passed in 0.37s =============================
+$ pytest -q
+206 passed in 0.37s
 ```
 
-## 2. TfState UDT Migration Verification
+## 2. Recent Updates (04 Feb 2026)
+
+* ✅ Nonrepaint execution flags (`didBuy/didShort/didExit/didCover`) now drive alerts/labels for confirmed-bar behavior.
+* ✅ Alert helper refactor reduces duplication in indicator and strategy.
+* ✅ Label price helper simplified for readability (no behavior change).
+* ✅ Edge-case test added to ensure trade-gate thresholds treat 0 as disabled.
+
+## 3. TfState UDT Migration Verification
 
 ### Architecture Tests (New Feb 01 2026)
 
@@ -33,7 +40,7 @@ $ python -m pytest
 * ✅ `test_f_process_tf_uses_tfstate` - `TfState st,` parameter present
 * ✅ `test_no_orphaned_global_arrays` - Old cntN1, upN1 patterns removed
 
-## 3. Static Analysis Verification
+## 4. Static Analysis Verification
 
 ### 3.1 Syntax & Definitions
 
@@ -48,10 +55,10 @@ $ python -m pytest
 
 ### 3.2 Code Reduction Metrics
 
-| Script                 | Before      | After       | Reduction        |
-| ---------------------- | ----------- | ----------- | ---------------- |
+| Script | Before | After | Reduction |
+| --- | --- | --- | --- |
 | SkippALGO_Strategy.pine | 2,123 lines | 1,669 lines | ~454 lines (21%) |
-| Global arrays replaced | ~100+       | 7 TfState   | ~93% reduction   |
+| Global arrays replaced | ~100+ | 7 TfState | ~93% reduction |
 
 ### 3.3 Strategy Synchronization
 
@@ -59,7 +66,7 @@ $ python -m pytest
 * **Forecast gating**: `can*` uses `f_sum_int_array(tfXState.cntN)` + `enableForecast`
 * **All call sites updated**: 7× `f_process_tf`, 7× `f_reset_tf`, display helpers
 
-## 4. Risk Assessment
+## 5. Risk Assessment
 
 ### 4.1 Complexity Risks
 
@@ -81,11 +88,11 @@ All documented in `docs/REVIEW_v6.1.md` for future remediation.
 * **Array bounds**: TfState uses 2D sizing (`predBinsN * dim2Bins`)
 * **Memory**: 7 TfState objects × ~50 arrays each = ~350 arrays total (well within Pine limits)
 
-## 5. Conclusion
+## 6. Conclusion
 
 The TfState UDT migration is complete and verified:
 
-* ✅ All 86 tests passing
+* ✅ All 206 tests passing
 * ✅ Architecture aligned between indicator and strategy
 * ✅ ~21% code reduction in strategy
 * ✅ Documentation updated

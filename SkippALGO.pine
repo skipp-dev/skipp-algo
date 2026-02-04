@@ -17,7 +17,7 @@ indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500,
 config = input.string("V2 Alpha", "Configuration", options=["Standard", "Pro", "V2 Essential", "V2 Proficient", "V2 Alpha"])
 
 // Signal engine
-engine       = input.string("Gainz Hybrid", "Signal engine", options=["Gainz Hybrid","Gainz Breakout","Trend+Pullback","Loose"])
+engine       = input.string("Hybrid", "Signal engine", options=["Hybrid","Breakout","Trend+Pullback","Loose"])
 
 useForecastGateEntry = input.bool(true, "Entry gate: require forecast edge (3-way)")
 entryFcTF    = input.string("F3", "Entry horizon", options=["F1","F2","F3","F4","F5","F6","F7"])
@@ -174,6 +174,12 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
 showSetMarkers   = input.bool(true, "Show SET markers")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
+labelSource       = input.string("Position", "Label source", options=["Position","Signal"])
+labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"])
+
+// Alerts
+useAlertCalls       = input.bool(false, "Alerts: use alert() calls")
+alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
 
 // Avoid entries right before close
 useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close")
@@ -297,7 +303,7 @@ resetNow   = input.bool(false, "Reset selected calibration NOW")
 //====================
 useRelFilter = input.bool(false, "Filter entries by Forecast Accuracy")
 maxBrier     = input.float(0.25, "Max Brier Score (lower=better)", minval=0.01, step=0.01)
-relFilterTF  = input.string("F6", "Filter Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], tooltip="Check accuracy of this forecast timeframe")
+relFilterTF  = input.string("F3", "Filter Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], tooltip="Check accuracy of this forecast timeframe")
 relFilterModel = input.string("N", "Filter Model", options=["N", "1"], tooltip="N=Multi-factor, 1=Single-factor")
 
 // Evidence / coverage gating
@@ -305,6 +311,10 @@ evidenceGate = input.bool(false, "Evidence gate (block weak bins)")
 evidenceMinTotal = input.int(120, "Evidence min total samples", minval=1, maxval=10000)
 abstainGate = input.bool(true, "Abstain on weak decisions")
 abstainMinEdge = input.float(0.08, "Abstain min edge (pp)", minval=0.0, maxval=0.50, step=0.01)
+
+// Trade-gate thresholds (separate from calibration thresholds)
+tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, maxval=200)
+tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", minval=0, maxval=20000)
 
 //====================
 // Inputs — Evaluation (live scoring)
@@ -2201,6 +2211,32 @@ f_get_rel_vals(tfSel, modSel) =>
             pU := pU17, pF := pF17, pD := pD17, nBin := n17p, total := tot17
     [pU, pF, pD, nBin, total]
 
+// Decision quality helper (used by forecast gate and decision banners)
+f_decision_quality(pU, pF, pD, nBin, total) =>
+    // Handle warmup / NA safely
+    if na(pU) or na(pF) or na(pD) or na(nBin) or na(total)
+        [false, "n/a", color.orange, na]
+    else
+        maxP = math.max(pU, math.max(pF, pD))
+        minP = math.min(pU, math.min(pF, pD))
+        midP = (pU + pF + pD) - maxP - minP
+        edge = maxP - midP
+
+        binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
+        totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
+        edgeOk  = (not use3Way) or (edge >= abstainMinEdge)
+
+        ok = (not use3Way) ? true : (edgeOk and binOk and totalOk)
+
+        reason =
+             (tradeMinTotalSamples > 0 and total < tradeMinTotalSamples) ? "Low Total" :
+             (tradeMinBinSamples   > 0 and nBin  < tradeMinBinSamples)   ? "Weak Bin" :
+             (use3Way and edge < abstainMinEdge)                         ? "Low Edge" :
+             "OK"
+
+        col = ok ? color.lime : color.orange
+        [ok, reason, col, edge]
+
 f_entry_forecast_gate(isLong) =>
     bool ok = true
     if useForecastGateEntry and use3Way
@@ -2217,18 +2253,6 @@ f_entry_forecast_gate(isLong) =>
         else
             ok := dqOk and relOk and (pD >= minDirProb) and (edge >= minEdgePP)
     ok
-
-f_decision_quality(pU, pF, pD, nBin, total) =>
-    maxP = math.max(pU, math.max(pF, pD))
-    minP = math.min(pU, math.min(pF, pD))
-    midP = (pU + pF + pD) - maxP - minP
-    edge = maxP - midP
-    totalOk = (not evidenceGate) or (total >= evidenceMinTotal)
-    ok = (not use3Way) ? true : (edge >= abstainMinEdge and nBin >= calMinSamples and totalOk)
-    reason = (evidenceGate and total < evidenceMinTotal) ? "Low Total" : nBin < calMinSamples ? "Weak Bin" : edge < abstainMinEdge ? "Low Edge" : "OK"
-    label = ok ? "OK" : reason
-    col = ok ? color.lime : color.orange
-    [ok, label, col, edge]
 
 curBrier = f_getBrier(relFilterTF, relFilterModel)
 reliabilityOk = (not useRelFilter) or (curBrier <= maxBrier)
@@ -2256,14 +2280,7 @@ shortSignal = false
 coverSignal = false
 
 //====================
-// SET marker (Trend Continuation Setup)
-//====================
-setLong   = bullBias and (crsi < crsiLongGoodHi)
-setShort  = bearBias and (crsi > crsiShortGoodLo)
-setPulse  = barstate.isconfirmed and (setLong or setShort)
-
-//====================
-// Gainz-style execution layer
+// Signal execution layer
 //====================
 
 // Trend regime
@@ -2320,35 +2337,40 @@ var float stopPx  = na
 var float tpPx    = na
 var float trailPx = na
 
+// Calculate risk levels on entry; returns updated stop/tp/trail
 f_set_risk_on_entry(isLong, entry, atrNow) =>
-    stopPx  := isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
-    tpPx    := isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
-    trailPx := na
+    float newStop  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
+    float newTp    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
+    float newTrail = na
+    [newStop, newTp, newTrail]
 
-f_update_trail(isLong, entry, atrNow) =>
+// Update trailing stop; returns updated trail
+f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
     // activate trailing only after reaching +R
-    denom = math.max(math.abs(entry - stopPx), 0.0001)
+    denom = math.max(math.abs(entry - stopVal), 0.0001)
     rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
+    float trailOut = trailVal
     if rNow >= trailAfterR
-        newTrail = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
-        trailPx := na(trailPx) ? newTrail : (isLong ? math.max(trailPx, newTrail) : math.min(trailPx, newTrail))
+        float newTrail = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
+        trailOut := na(trailOut) ? newTrail : (isLong ? math.max(trailOut, newTrail) : math.min(trailOut, newTrail))
+    trailOut
 
-f_risk_exit_hit(isLong) =>
-    if not useAtrRisk or na(stopPx)
+f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
+    if not useAtrRisk or na(stopVal)
         false
     else
-        stopHit  = isLong ? (low <= stopPx) : (high >= stopPx)
-        tpHit    = isLong ? (high >= tpPx)  : (low  <= tpPx)
-        trailHit = not na(trailPx) and (isLong ? (low <= trailPx) : (high >= trailPx))
+        stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
+        tpHit    = isLong ? (high >= tpVal)  : (low  <= tpVal)
+        trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
         // conservative: stop wins if both in same bar
         stopHit or trailHit or tpHit
 
 // Signals
 if pos == 0 and allowEntry
-    if engine == "Gainz Hybrid"
+    if engine == "Hybrid"
         buySignal   := gateLongNow  and fcGateLong  and volOk and setOkLong  and pullbackLongOk  and (touchEmaF_Long  and (crossClose_EmaF_up or bullReversal))
         shortSignal := enableShorts and gateShortNow and fcGateShort and volOk and setOkShort and pullbackShortOk and (touchEmaF_Short and (crossClose_EmaF_down or bearReversal))
-    else if engine == "Gainz Breakout"
+    else if engine == "Breakout"
         buySignal   := gateLongNow  and fcGateLong  and volOk and trendUp and breakoutLong
         shortSignal := enableShorts and gateShortNow and fcGateShort and volOk and trendDn and breakoutShort
     else if engine == "Trend+Pullback"
@@ -2364,17 +2386,27 @@ if pos == 0 and allowEntry
 
 if pos == 1 and allowExit
     if useAtrRisk
-        f_update_trail(true, entryPrice, atr)
-    exitSignal := f_risk_exit_hit(true) or (breakLong and bearBias)
+        trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
+    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias)
 
 if pos == -1 and allowExit
     if useAtrRisk
-        f_update_trail(false, entryPrice, atr)
-    coverSignal := f_risk_exit_hit(false) or (breakShort and bullBias)
+        trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
+    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
+
+// Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
+bool didBuy   = false
+bool didShort = false
+bool didExit  = false
+bool didCover = false
 
 // State transitions
+float newStop  = na
+float newTp    = na
+float newTrail = na
 if barstate.isconfirmed
     if exitSignal and pos == 1
+        didExit := true
         pos := 0
         entryPrice := na
         stopPx := na
@@ -2383,6 +2415,7 @@ if barstate.isconfirmed
         lastSignalBar := bar_index
         lastSig := "EXIT"
     else if coverSignal and pos == -1
+        didCover := true
         pos := 0
         entryPrice := na
         stopPx := na
@@ -2391,33 +2424,61 @@ if barstate.isconfirmed
         lastSignalBar := bar_index
         lastSig := "COVER"
     else if buySignal and pos == 0
+        didBuy := true
         pos := 1
         entryPrice := close
         if useAtrRisk
-            f_set_risk_on_entry(true, entryPrice, atr)
+            [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
+            stopPx  := newStop
+            tpPx    := newTp
+            trailPx := newTrail
         lastSignalBar := bar_index
         lastSig := "BUY"
     else if shortSignal and pos == 0
+        didShort := true
         pos := -1
         entryPrice := close
         if useAtrRisk
-            f_set_risk_on_entry(false, entryPrice, atr)
+            [newStop, newTp, newTrail] = f_set_risk_on_entry(false, entryPrice, atr)
+            stopPx  := newStop
+            tpPx    := newTp
+            trailPx := newTrail
         lastSignalBar := bar_index
         lastSig := "SHORT"
+
+buyEvent   = didBuy
+shortEvent = didShort
+exitEvent  = didExit
+coverEvent = didCover
+
+alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 //====================
 // Visuals
 //====================
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
 
-if showEntryLabels and buySignal
-    label.new(bar_index, low, "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-if showEntryLabels and shortSignal
-    label.new(bar_index, high, "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and exitSignal
-    label.new(bar_index, high, "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and coverSignal
-    label.new(bar_index, low, "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+// Label rendering (configurable source + price)
+labelBuy   = labelSource == "Position" ? buyEvent   : (buySignal and barstate.isconfirmed)
+labelShort = labelSource == "Position" ? shortEvent : (shortSignal and barstate.isconfirmed)
+labelExit  = labelSource == "Position" ? exitEvent  : (exitSignal and barstate.isconfirmed)
+labelCover = labelSource == "Position" ? coverEvent : (coverSignal and barstate.isconfirmed)
+
+entryPxPrev = entryPrice[1]
+
+f_label_price(isLong, isEntry) =>
+    entryBase = isEntry ? entryPrice : entryPxPrev
+    entryVal = na(entryBase) ? close : entryBase
+    labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
+
+if showEntryLabels and labelBuy
+    label.new(bar_index, f_label_price(true, true), "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+if showEntryLabels and labelShort
+    label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and labelExit
+    label.new(bar_index, f_label_price(false, false), "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and labelCover
+    label.new(bar_index, f_label_price(true, false), "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
@@ -3186,7 +3247,17 @@ f_calc_frama(len, dist) =>
 //====================
 // Alerts (bar close)
 //====================
-alertcondition(buySignal,   title="BUY",   message="SkippALGO BUY")
-alertcondition(shortSignal, title="SHORT", message="SkippALGO SHORT")
-alertcondition(exitSignal,  title="EXIT",  message="SkippALGO EXIT")
-alertcondition(coverSignal, title="COVER", message="SkippALGO COVER")
+alertcondition(buyEvent,   title="BUY",   message="SkippALGO BUY")
+alertcondition(shortEvent, title="SHORT", message="SkippALGO SHORT")
+alertcondition(exitEvent,  title="EXIT",  message="SkippALGO EXIT")
+alertcondition(coverEvent, title="COVER", message="SkippALGO COVER")
+
+f_send_alert(cond, label) =>
+    if useAlertCalls and cond
+        alert("SkippALGO " + label + ": " + syminfo.ticker + " " + timeframe.period, alertFreq)
+
+f_send_alert(buyEvent, "BUY")
+f_send_alert(shortEvent, "SHORT")
+f_send_alert(exitEvent, "EXIT")
+f_send_alert(coverEvent, "COVER")
+

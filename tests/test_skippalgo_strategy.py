@@ -123,6 +123,40 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         # Ensure old non-linear mapping is not present
         self.assertNotIn("f_clamp01((raw + 1.0) * 0.5) * 2.0 - 1.0", self.text)
 
+    def test_trade_gate_inputs(self):
+        """Ensure separate trade-gate sample thresholds are defined."""
+        self.assertIn('tradeMinBinSamples', self.text)
+        self.assertIn('tradeMinTotalSamples', self.text)
+
+    def test_rel_filter_default_horizon(self):
+        """Default filter horizon should be F3 for faster gate responsiveness."""
+        self.assertIn('relFilterTF  = input.string("F3"', self.text)
+
+    def test_trend_regime_block_present(self):
+        """Catch missing trendUp/trendDn definitions (undeclared identifiers)."""
+        self.assertIn("atrNormHere = atr / math.max(close, 0.0001)", self.text)
+        self.assertIn("trendReg = f_trend_regime(emaF, emaS, atrNormHere)", self.text)
+        self.assertIn("trendUp  = trendReg == 1.0", self.text)
+        self.assertIn("trendDn  = trendReg == -1.0", self.text)
+
+    def test_risk_temp_declared_once(self):
+        """Ensure risk temp locals (newStop/Tp/Trail) are declared a single time to avoid redeclare errors."""
+        import re
+        self.assertEqual(len(re.findall(r"^float newStop\s*= na", self.text, flags=re.MULTILINE)), 1)
+        self.assertEqual(len(re.findall(r"^float newTp\s*= na", self.text, flags=re.MULTILINE)), 1)
+        self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 1)
+
+    def test_forecast_pack_block_present(self):
+        """Ensure all tfF1..tfF7 packs and assignments exist to avoid undeclared _t vars."""
+        for i in range(1, 8):
+            self.assertIn(f"[t{i}_t, c{i}_t, h{i}_t, l{i}_t", self.text)
+            self.assertIn(f"t{i} = t{i}_t", self.text)
+
+    def test_decision_quality_uses_trade_gate_thresholds(self):
+        """Decision gate should use tradeMin* thresholds rather than calMinSamples."""
+        self.assertIn("tradeMinBinSamples", self.text)
+        self.assertIn("tradeMinTotalSamples", self.text)
+
     def test_can_logic_uses_totals_and_forecast_gate(self):
         # Ensure totals are computed via helper using TfState
         self.assertIn("f_sum_int_array(cntN1Arr)", self.text)
