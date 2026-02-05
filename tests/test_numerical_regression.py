@@ -422,8 +422,8 @@ class TestFormulaRegression(unittest.TestCase):
             # Key components: z², sqrt, division by n
             has_z_squared = re.search(r'Z_95\s*\*\s*Z_95', content)
             has_sqrt = re.search(r'math\.sqrt', content)
-            
-            # At least sqrt and some z usage should exist
+
+            self.assertTrue(has_z_squared, f"{name}: Z_95^2 term not found (needed for CI)")
             self.assertTrue(has_sqrt, f"{name}: sqrt not found (needed for CI)")
     
     # ===========================================
@@ -582,8 +582,8 @@ class TestNumericalBoundaries(unittest.TestCase):
                 re.search(r'1\.0\s*-\s*PROB_EPS', content) or
                 re.search(r'math\.min\s*\([^)]+,\s*1\s*-', content)
             )
-            # This is optional but recommended
-            # Just check PROB_EPS exists (already tested above)
+            self.assertTrue(has_one_protection,
+                f"{name}: Missing protection against p == 1.0 in log(1-p)")
     
     # ===========================================
     # RSI BOUNDS
@@ -639,7 +639,7 @@ class TestNumericalBoundaries(unittest.TestCase):
                 continue
             # Look for array.size checks before pop/shift
             has_size_check = (
-                re.search(r'array\.size\s*\([^)]+\)\s*[>>=]\s*', content) or
+                re.search(r'array\.size\s*\([^)]+\)\s*[>=]\s*', content) or
                 re.search(r'if\s+.*size.*(?:pop|shift)', content, re.IGNORECASE)
             )
             self.assertTrue(has_size_check,

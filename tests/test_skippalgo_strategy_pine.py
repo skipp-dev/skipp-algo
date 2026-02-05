@@ -319,19 +319,19 @@ class TestSkippAlgoStrategyAlerts(unittest.TestCase):
 
     def test_buy_alert(self):
         """Verify BUY alert condition."""
-        self.assertIn('alertcondition(buyEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and buyEvent,', self.text)
 
     def test_exit_alert(self):
         """Verify EXIT alert condition."""
-        self.assertIn('alertcondition(exitEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and exitEvent,', self.text)
 
     def test_short_alert(self):
         """Verify SHORT alert condition."""
-        self.assertIn('alertcondition(shortEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and shortEvent,', self.text)
 
     def test_cover_alert(self):
         """Verify COVER alert condition."""
-        self.assertIn('alertcondition(coverEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and coverEvent,', self.text)
 
 
 if __name__ == "__main__":
