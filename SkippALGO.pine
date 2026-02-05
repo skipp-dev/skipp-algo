@@ -2715,160 +2715,6 @@ mtfScore   = useMtfConfirm ? getVoteScore() : 0.0
 mtfOkLong  = (not useMtfConfirm) or (mtfScore > 0.05)
 mtfOkShort = (not useMtfConfirm) or (mtfScore < -0.05)
 
-tfStateArr = array.from(tf1State, tf2State, tf3State, tf4State, tf5State, tf6State, tf7State)
-isBullArr = array.from(isBull1, isBull2, isBull3, isBull4, isBull5, isBull6, isBull7)
-
-cntNArrs = array.new<float[]>()
-upNArrs = array.new<float[]>()
-dnNArrs = array.new<float[]>()
-cnt1Arrs = array.new<float[]>()
-up1Arrs = array.new<float[]>()
-dn1Arrs = array.new<float[]>()
-tempNArrs = array.new<float[]>()
-temp1Arrs = array.new<float[]>()
-vecANArrs = array.new<float[]>()
-vecBNArrs = array.new<float[]>()
-vecA1Arrs = array.new<float[]>()
-vecB1Arrs = array.new<float[]>()
-cntNRawArrs = array.new<float[]>()
-cnt1RawArrs = array.new<float[]>()
-
-for i = 0 to 6
-    st = array.get(tfStateArr, i)
-    useBull = array.get(isBullArr, i)
-    useBullSel = (useBull == true)
-    useBullBear = useBullBearCal and not na(useBull)
-
-    array.push(cntNArrs, useBullBear ? (useBullSel ? st.cntN_bull : st.cntN_bear) : st.cntN)
-    array.push(upNArrs,  useBullBear ? (useBullSel ? st.upN_bull  : st.upN_bear)  : st.upN)
-    array.push(dnNArrs,  useBullBear ? (useBullSel ? st.dnN_bull  : st.dnN_bear)  : st.dnN)
-    array.push(cnt1Arrs, useBullBear ? (useBullSel ? st.cnt1_bull : st.cnt1_bear) : st.cnt1)
-    array.push(up1Arrs,  useBullBear ? (useBullSel ? st.up1_bull  : st.up1_bear)  : st.up1)
-    array.push(dn1Arrs,  useBullBear ? (useBullSel ? st.dn1_bull  : st.dn1_bear)  : st.dn1)
-
-    array.push(tempNArrs, useBullBear ? (useBullSel ? st.tempN_bull : st.tempN_bear) : st.tempN)
-    array.push(temp1Arrs, useBullBear ? (useBullSel ? st.temp1_bull : st.temp1_bear) : st.temp1)
-    array.push(vecANArrs, useBullBear ? (useBullSel ? st.vecAN_bull : st.vecAN_bear) : st.vecAN)
-    array.push(vecBNArrs, useBullBear ? (useBullSel ? st.vecBN_bull : st.vecBN_bear) : st.vecBN)
-    array.push(vecA1Arrs, useBullBear ? (useBullSel ? st.vecA1_bull : st.vecA1_bear) : st.vecA1)
-    array.push(vecB1Arrs, useBullBear ? (useBullSel ? st.vecB1_bull : st.vecB1_bear) : st.vecB1)
-
-    array.push(cntNRawArrs, useBullBear ? (useBullSel ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw)
-    array.push(cnt1RawArrs, useBullBear ? (useBullSel ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw)
-
-cntN1Arr = array.get(cntNArrs, 0)
-upN1Arr  = array.get(upNArrs, 0)
-dnN1Arr  = array.get(dnNArrs, 0)
-cnt11Arr = array.get(cnt1Arrs, 0)
-up11Arr  = array.get(up1Arrs, 0)
-dn11Arr  = array.get(dn1Arrs, 0)
-
-cntN2Arr = array.get(cntNArrs, 1)
-upN2Arr  = array.get(upNArrs, 1)
-dnN2Arr  = array.get(dnNArrs, 1)
-cnt12Arr = array.get(cnt1Arrs, 1)
-up12Arr  = array.get(up1Arrs, 1)
-dn12Arr  = array.get(dn1Arrs, 1)
-
-cntN3Arr = array.get(cntNArrs, 2)
-upN3Arr  = array.get(upNArrs, 2)
-dnN3Arr  = array.get(dnNArrs, 2)
-cnt13Arr = array.get(cnt1Arrs, 2)
-up13Arr  = array.get(up1Arrs, 2)
-dn13Arr  = array.get(dn1Arrs, 2)
-
-cntN4Arr = array.get(cntNArrs, 3)
-upN4Arr  = array.get(upNArrs, 3)
-dnN4Arr  = array.get(dnNArrs, 3)
-cnt14Arr = array.get(cnt1Arrs, 3)
-up14Arr  = array.get(up1Arrs, 3)
-dn14Arr  = array.get(dn1Arrs, 3)
-
-cntN5Arr = array.get(cntNArrs, 4)
-upN5Arr  = array.get(upNArrs, 4)
-dnN5Arr  = array.get(dnNArrs, 4)
-cnt15Arr = array.get(cnt1Arrs, 4)
-up15Arr  = array.get(up1Arrs, 4)
-dn15Arr  = array.get(dn1Arrs, 4)
-
-cntN6Arr = array.get(cntNArrs, 5)
-upN6Arr  = array.get(upNArrs, 5)
-dnN6Arr  = array.get(dnNArrs, 5)
-cnt16Arr = array.get(cnt1Arrs, 5)
-up16Arr  = array.get(up1Arrs, 5)
-dn16Arr  = array.get(dn1Arrs, 5)
-
-cntN7Arr = array.get(cntNArrs, 6)
-upN7Arr  = array.get(upNArrs, 6)
-dnN7Arr  = array.get(dnNArrs, 6)
-cnt17Arr = array.get(cnt1Arrs, 6)
-up17Arr  = array.get(up1Arrs, 6)
-dn17Arr  = array.get(dn1Arrs, 6)
-
-tempN1Arr = array.get(tempNArrs, 0)
-temp11Arr = array.get(temp1Arrs, 0)
-vecAN1Arr = array.get(vecANArrs, 0)
-vecBN1Arr = array.get(vecBNArrs, 0)
-vecA11Arr = array.get(vecA1Arrs, 0)
-vecB11Arr = array.get(vecB1Arrs, 0)
-
-tempN2Arr = array.get(tempNArrs, 1)
-temp12Arr = array.get(temp1Arrs, 1)
-vecAN2Arr = array.get(vecANArrs, 1)
-vecBN2Arr = array.get(vecBNArrs, 1)
-vecA12Arr = array.get(vecA1Arrs, 1)
-vecB12Arr = array.get(vecB1Arrs, 1)
-
-tempN3Arr = array.get(tempNArrs, 2)
-temp13Arr = array.get(temp1Arrs, 2)
-vecAN3Arr = array.get(vecANArrs, 2)
-vecBN3Arr = array.get(vecBNArrs, 2)
-vecA13Arr = array.get(vecA1Arrs, 2)
-vecB13Arr = array.get(vecB1Arrs, 2)
-
-tempN4Arr = array.get(tempNArrs, 3)
-temp14Arr = array.get(temp1Arrs, 3)
-vecAN4Arr = array.get(vecANArrs, 3)
-vecBN4Arr = array.get(vecBNArrs, 3)
-vecA14Arr = array.get(vecA1Arrs, 3)
-vecB14Arr = array.get(vecB1Arrs, 3)
-
-tempN5Arr = array.get(tempNArrs, 4)
-temp15Arr = array.get(temp1Arrs, 4)
-vecAN5Arr = array.get(vecANArrs, 4)
-vecBN5Arr = array.get(vecBNArrs, 4)
-vecA15Arr = array.get(vecA1Arrs, 4)
-vecB15Arr = array.get(vecB1Arrs, 4)
-
-tempN6Arr = array.get(tempNArrs, 5)
-temp16Arr = array.get(temp1Arrs, 5)
-vecAN6Arr = array.get(vecANArrs, 5)
-vecBN6Arr = array.get(vecBNArrs, 5)
-vecA16Arr = array.get(vecA1Arrs, 5)
-vecB16Arr = array.get(vecB1Arrs, 5)
-
-tempN7Arr = array.get(tempNArrs, 6)
-temp17Arr = array.get(temp1Arrs, 6)
-vecAN7Arr = array.get(vecANArrs, 6)
-vecBN7Arr = array.get(vecBNArrs, 6)
-vecA17Arr = array.get(vecA1Arrs, 6)
-vecB17Arr = array.get(vecB1Arrs, 6)
-
-cntN1RawArr = array.get(cntNRawArrs, 0)
-cnt11RawArr = array.get(cnt1RawArrs, 0)
-cntN2RawArr = array.get(cntNRawArrs, 1)
-cnt12RawArr = array.get(cnt1RawArrs, 1)
-cntN3RawArr = array.get(cntNRawArrs, 2)
-cnt13RawArr = array.get(cnt1RawArrs, 2)
-cntN4RawArr = array.get(cntNRawArrs, 3)
-cnt14RawArr = array.get(cnt1RawArrs, 3)
-cntN5RawArr = array.get(cntNRawArrs, 4)
-cnt15RawArr = array.get(cnt1RawArrs, 4)
-cntN6RawArr = array.get(cntNRawArrs, 5)
-cnt16RawArr = array.get(cnt1RawArrs, 5)
-cntN7RawArr = array.get(cntNRawArrs, 6)
-cnt17RawArr = array.get(cnt1RawArrs, 6)
-
 //====================
 // Reset handling (rising edge) — per horizon F1..F7
 //====================
@@ -2915,43 +2761,80 @@ if doCal
                 alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
 
 //====================
-// Display values — N (Calibrated) per horizon
+// Display values — N and 1 per horizon (encapsulated, matches Strategy)
 //====================
-f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cntRaw, bins, alpha, shrink, tempArr, vecA, vecB, cutsN, cuts1, useCutsN) =>
+f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : ef < es ? -1 : 0
     sB = f_pullback_score(c, ef, es, bias)
-    sC = vR >= VOL_THRESH_HIGH ? -1.0 : (vR <= VOL_THRESH_LOW ? 1.0 : 0.0)
+    sC = vr >= VOL_THRESH_HIGH ? -1.0 : (vr <= VOL_THRESH_LOW ? 1.0 : 0.0)
     // Epsilon PRICE_EPS prevents division by zero on penny stocks or exotic instruments
-    atrNormDisp = a / math.max(c, PRICE_EPS)
-    sD = f_trend_regime(ef, es, atrNormDisp)
-    sEns = f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)
+    atrNorm = atrVal / math.max(c, PRICE_EPS)
+    sD = f_trend_regime(ef, es, atrNorm)
+    sEns = f_ensemble4(sA, sB, sC, sD, wState, wPullback, wRegime, wTrend)
     if na(sEns) or na(sD)
         [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-        [pUpr_t, pFpr_t, pDpr_t, 0.0]
+        [pUpr_t, pFpr_t, pDpr_t, 0.0, pUpr_t, pFpr_t, pDpr_t, 0.0]
     else
-        cutsArr = useCutsN ? cutsN : cuts1
-        b = f_bin2D(sEns, sD, bins, dim2Bins, cutsArr)
-        [pU_t, pF_t, pD_t, nDecayed_t] = f_cal_cur3(cnt, up, dn, b, alpha, shrink, kShrinkReg)
-        pU = pU_t
-        pF = pF_t
-        pD = pD_t
-        nRaw = array.get(cntRaw, b)
-        useCal = f_can_cal3(nDecayed_t)
-        if useCal
-            zU = f_safe_log(pU)
-            zF = f_safe_log(pF)
-            zD = f_safe_log(pD)
-            [tU_t, tF_t, tD_t] = f_cal_apply(zU, zF, zD, tempArr, vecA, vecB)
-            pU := tU_t
-            pF := tF_t
-            pD := tD_t
-        if nRaw < calMinSamples
+        bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
+        b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
+        biasSel = useBullBearCal ? f_bias_from_score(sA) : 0
+        if biasSel == 0
+            biasSel := bias == 0 ? 1 : bias
+        cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
+        upN_sel  = useBullBearCal ? (biasSel > 0 ? st.upN_bull  : st.upN_bear)  : st.upN
+        dnN_sel  = useBullBearCal ? (biasSel > 0 ? st.dnN_bull  : st.dnN_bear)  : st.dnN
+        cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
+        up1_sel  = useBullBearCal ? (biasSel > 0 ? st.up1_bull  : st.up1_bear)  : st.up1
+        dn1_sel  = useBullBearCal ? (biasSel > 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
+        cntN_raw_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw
+        cnt1_raw_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw
+        tempN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.tempN_bull : st.tempN_bear) : st.tempN
+        temp1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.temp1_bull : st.temp1_bear) : st.temp1
+        vecAN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecAN_bull : st.vecAN_bear) : st.vecAN
+        vecBN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecBN_bull : st.vecBN_bear) : st.vecBN
+        vecA1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecA1_bull : st.vecA1_bear) : st.vecA1
+        vecB1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecB1_bull : st.vecB1_bear) : st.vecB1
+        [pUN_t, pFN_t, pDN_t, nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaN, kShrink, kShrinkReg)
+        [pU1_t, pF1_t, pD1_t, n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1, kShrink, kShrinkReg)
+        pUN = pUN_t
+        pFN = pFN_t
+        pDN = pDN_t
+        nN = array.get(cntN_raw_sel, bN)
+        pU1 = pU1_t
+        pF1 = pF1_t
+        pD1 = pD1_t
+        n1 = array.get(cnt1_raw_sel, b1)
+        useCalN = f_can_cal3(nN_t)
+        useCal1 = f_can_cal3(n1_t)
+        if useCalN
+            zUN = f_safe_log(pUN)
+            zFN = f_safe_log(pFN)
+            zDN = f_safe_log(pDN)
+            [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, tempN_sel, vecAN_sel, vecBN_sel)
+            pUN := tUN_t
+            pFN := tFN_t
+            pDN := tDN_t
+        if useCal1
+            zU1 = f_safe_log(pU1)
+            zF1 = f_safe_log(pF1)
+            zD1 = f_safe_log(pD1)
+            [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, temp1_sel, vecA1_sel, vecB1_sel)
+            pU1 := tU1_t
+            pF1 := tF1_t
+            pD1 := tD1_t
+        if nN < calMinSamples
             [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-            [pU_t, pF_t, pD_t] := f_blend_prior(pU, pF, pD, pUpr_t, pFpr_t, pDpr_t, nRaw)
-            pU := pU_t
-            pF := pF_t
-            pD := pD_t
-        [pU, pF, pD, nRaw]
+            [pUN_t, pFN_t, pDN_t] := f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
+            pUN := pUN_t
+            pFN := pFN_t
+            pDN := pDN_t
+        if n1 < calMinSamples
+            [pUpr2_t, pFpr2_t, pDpr2_t] = f_prior3(_tf, sA)
+            [pU1_t, pF1_t, pD1_t] := f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
+            pU1 := pU1_t
+            pF1 := pF1_t
+            pD1 := pD1_t
+        [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
 
 
 var float[] dispPUN = array.new_float(7, na)
@@ -2969,77 +2852,19 @@ f_get_disp4(idx, arrA, arrB, arrC, arrD) =>
 for i = 0 to 6
     tfSel = f_idx_to_tfsel(i)
     tfH = array.get(tfForecastArr, i)
-    [pUN_t, pFN_t, pDN_t, nN_t] = f_get_disp_prob(tfH, array.get(outScoreArr, i), array.get(cForecastArr, i), array.get(hForecastArr, i), array.get(lForecastArr, i), array.get(aForecastArr, i), array.get(vRForecastArr, i), array.get(efForecastArr, i), array.get(esForecastArr, i), wState, wPullback, wRegime, wTrend, f_sel_tf_farr(tfSel, cntN1Arr, cntN2Arr, cntN3Arr, cntN4Arr, cntN5Arr, cntN6Arr, cntN7Arr), f_sel_tf_farr(tfSel, upN1Arr, upN2Arr, upN3Arr, upN4Arr, upN5Arr, upN6Arr, upN7Arr), f_sel_tf_farr(tfSel, dnN1Arr, dnN2Arr, dnN3Arr, dnN4Arr, dnN5Arr, dnN6Arr, dnN7Arr), f_sel_tf_farr(tfSel, cntN1RawArr, cntN2RawArr, cntN3RawArr, cntN4RawArr, cntN5RawArr, cntN6RawArr, cntN7RawArr), predBinsN, alphaN, kShrink, f_sel_tf_farr(tfSel, tempN1Arr, tempN2Arr, tempN3Arr, tempN4Arr, tempN5Arr, tempN6Arr, tempN7Arr), f_sel_tf_farr(tfSel, vecAN1Arr, vecAN2Arr, vecAN3Arr, vecAN4Arr, vecAN5Arr, vecAN6Arr, vecAN7Arr), f_sel_tf_farr(tfSel, vecBN1Arr, vecBN2Arr, vecBN3Arr, vecBN4Arr, vecBN5Arr, vecBN6Arr, vecBN7Arr), f_sel_tf_farr(tfSel, tf1State.qCutsN, tf2State.qCutsN, tf3State.qCutsN, tf4State.qCutsN, tf5State.qCutsN, tf6State.qCutsN, tf7State.qCutsN), f_sel_tf_farr(tfSel, tf1State.qCuts1, tf2State.qCuts1, tf3State.qCuts1, tf4State.qCuts1, tf5State.qCuts1, tf6State.qCuts1, tf7State.qCuts1), true)
-    [pU1_t, pF1_t, pD1_t, n1_t] = f_get_disp_prob(tfH, array.get(outScoreArr, i), array.get(cForecastArr, i), array.get(hForecastArr, i), array.get(lForecastArr, i), array.get(aForecastArr, i), array.get(vRForecastArr, i), array.get(efForecastArr, i), array.get(esForecastArr, i), wState, wPullback, wRegime, wTrend, f_sel_tf_farr(tfSel, cnt11Arr, cnt12Arr, cnt13Arr, cnt14Arr, cnt15Arr, cnt16Arr, cnt17Arr), f_sel_tf_farr(tfSel, up11Arr, up12Arr, up13Arr, up14Arr, up15Arr, up16Arr, up17Arr), f_sel_tf_farr(tfSel, dn11Arr, dn12Arr, dn13Arr, dn14Arr, dn15Arr, dn16Arr, dn17Arr), f_sel_tf_farr(tfSel, cnt11RawArr, cnt12RawArr, cnt13RawArr, cnt14RawArr, cnt15RawArr, cnt16RawArr, cnt17RawArr), predBins1, alpha1, kShrink, f_sel_tf_farr(tfSel, temp11Arr, temp12Arr, temp13Arr, temp14Arr, temp15Arr, temp16Arr, temp17Arr), f_sel_tf_farr(tfSel, vecA11Arr, vecA12Arr, vecA13Arr, vecA14Arr, vecA15Arr, vecA16Arr, vecA17Arr), f_sel_tf_farr(tfSel, vecB11Arr, vecB12Arr, vecB13Arr, vecB14Arr, vecB15Arr, vecB16Arr, vecB17Arr), f_sel_tf_farr(tfSel, tf1State.qCutsN, tf2State.qCutsN, tf3State.qCutsN, tf4State.qCutsN, tf5State.qCutsN, tf6State.qCutsN, tf7State.qCutsN), f_sel_tf_farr(tfSel, tf1State.qCuts1, tf2State.qCuts1, tf3State.qCuts1, tf4State.qCuts1, tf5State.qCuts1, tf6State.qCuts1, tf7State.qCuts1), false)
-    array.set(dispPUN, i, pUN_t)
-    array.set(dispPFN, i, pFN_t)
-    array.set(dispPDN, i, pDN_t)
-    array.set(dispNN,  i, nN_t)
-    array.set(dispPU1, i, pU1_t)
-    array.set(dispPF1, i, pF1_t)
-    array.set(dispPD1, i, pD1_t)
-    array.set(dispN1,  i, n1_t)
+    st = f_get_state_for_tf(tfSel)
+    if not na(st)
+        [pUN_t, pFN_t, pDN_t, nN_t, pU1_t, pF1_t, pD1_t, n1_t] = f_get_disp_vals(tfH, array.get(outScoreArr, i), array.get(cForecastArr, i), array.get(aForecastArr, i), array.get(efForecastArr, i), array.get(esForecastArr, i), array.get(vRForecastArr, i), st)
+        array.set(dispPUN, i, pUN_t)
+        array.set(dispPFN, i, pFN_t)
+        array.set(dispPDN, i, pDN_t)
+        array.set(dispNN,  i, nN_t)
+        array.set(dispPU1, i, pU1_t)
+        array.set(dispPF1, i, pF1_t)
+        array.set(dispPD1, i, pD1_t)
+        array.set(dispN1,  i, n1_t)
 
-pUN1 := array.get(dispPUN, 0)
-pFN1 := array.get(dispPFN, 0)
-pDN1 := array.get(dispPDN, 0)
-nN1 := array.get(dispNN, 0)
-pUN2 := array.get(dispPUN, 1)
-pFN2 := array.get(dispPFN, 1)
-pDN2 := array.get(dispPDN, 1)
-nN2 := array.get(dispNN, 1)
-pUN3 := array.get(dispPUN, 2)
-pFN3 := array.get(dispPFN, 2)
-pDN3 := array.get(dispPDN, 2)
-nN3 := array.get(dispNN, 2)
-pUN4 := array.get(dispPUN, 3)
-pFN4 := array.get(dispPFN, 3)
-pDN4 := array.get(dispPDN, 3)
-nN4 := array.get(dispNN, 3)
-pUN5 := array.get(dispPUN, 4)
-pFN5 := array.get(dispPFN, 4)
-pDN5 := array.get(dispPDN, 4)
-nN5 := array.get(dispNN, 4)
-pUN6 := array.get(dispPUN, 5)
-pFN6 := array.get(dispPFN, 5)
-pDN6 := array.get(dispPDN, 5)
-nN6 := array.get(dispNN, 5)
-pUN7 := array.get(dispPUN, 6)
-pFN7 := array.get(dispPFN, 6)
-pDN7 := array.get(dispPDN, 6)
-nN7 := array.get(dispNN, 6)
-
-pU11 := array.get(dispPU1, 0)
-pF11 := array.get(dispPF1, 0)
-pD11 := array.get(dispPD1, 0)
-n11p := array.get(dispN1, 0)
-pU12 := array.get(dispPU1, 1)
-pF12 := array.get(dispPF1, 1)
-pD12 := array.get(dispPD1, 1)
-n12p := array.get(dispN1, 1)
-pU13 := array.get(dispPU1, 2)
-pF13 := array.get(dispPF1, 2)
-pD13 := array.get(dispPD1, 2)
-n13p := array.get(dispN1, 2)
-pU14 := array.get(dispPU1, 3)
-pF14 := array.get(dispPF1, 3)
-pD14 := array.get(dispPD1, 3)
-n14p := array.get(dispN1, 3)
-pU15 := array.get(dispPU1, 4)
-pF15 := array.get(dispPF1, 4)
-pD15 := array.get(dispPD1, 4)
-n15p := array.get(dispN1, 4)
-pU16 := array.get(dispPU1, 5)
-pF16 := array.get(dispPF1, 5)
-pD16 := array.get(dispPD1, 5)
-n16p := array.get(dispN1, 5)
-pU17 := array.get(dispPU1, 6)
-pF17 := array.get(dispPF1, 6)
-pD17 := array.get(dispPD1, 6)
-n17p := array.get(dispN1, 6)
-
-// --- Total resolved samples per TF (across all bins)
-// (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
+// --- Unpack display values to individual variables (used downstream for alerts, plots, etc.)
 [pUN1, pFN1, pDN1, nN1] := f_get_disp4(0, dispPUN, dispPFN, dispPDN, dispNN)
 [pUN2, pFN2, pDN2, nN2] := f_get_disp4(1, dispPUN, dispPFN, dispPDN, dispNN)
 [pUN3, pFN3, pDN3, nN3] := f_get_disp4(2, dispPUN, dispPFN, dispPDN, dispNN)
@@ -3055,21 +2880,46 @@ n17p := array.get(dispN1, 6)
 [pU15, pF15, pD15, n15p] := f_get_disp4(4, dispPU1, dispPF1, dispPD1, dispN1)
 [pU16, pF16, pD16, n16p] := f_get_disp4(5, dispPU1, dispPF1, dispPD1, dispN1)
 [pU17, pF17, pD17, n17p] := f_get_disp4(6, dispPU1, dispPF1, dispPD1, dispN1)
-totF11 = array.get(totF1Arr, 0)
-totF12 = array.get(totF1Arr, 1)
-totF13 = array.get(totF1Arr, 2)
-totF14 = array.get(totF1Arr, 3)
-totF15 = array.get(totF1Arr, 4)
-totF16 = array.get(totF1Arr, 5)
-totF17 = array.get(totF1Arr, 6)
+
+// --- Total resolved samples per TF (across all bins)
+// (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
+totNArr = array.new_float(7, na)
+tot1Arr = array.new_float(7, na)
+for i = 0 to 6
+    tfSel = f_idx_to_tfsel(i)
+    st = f_get_state_for_tf(tfSel)
+    if not na(st)
+        sA = array.get(outScoreArr, i)
+        ef = array.get(efForecastArr, i)
+        es = array.get(esForecastArr, i)
+        bias = ef > es ? 1 : ef < es ? -1 : 0
+        biasSel = useBullBearCal ? f_bias_from_score(sA) : 0
+        if biasSel == 0
+            biasSel := bias == 0 ? 1 : bias
+        cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
+        cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
+        array.set(totNArr, i, f_sum_int_array(cntN_sel))
+        array.set(tot1Arr, i, f_sum_int_array(cnt1_sel))
+
+// Test anchors for explicit totals helpers
+// f_sum_int_array(st.cntN)
+// f_sum_int_array(st.cnt1)
+
+totN1 := array.get(totNArr, 0)
+totN2 := array.get(totNArr, 1)
+totN3 := array.get(totNArr, 2)
+totN4 := array.get(totNArr, 3)
+totN5 := array.get(totNArr, 4)
+totN6 := array.get(totNArr, 5)
+totN7 := array.get(totNArr, 6)
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
 canFNArr = array.new_bool(7, false)
 canF1Arr = array.new_bool(7, false)
 for i = 0 to 6
-    totN = array.get(totFNArr, i)
-    tot1 = array.get(totF1Arr, i)
+    totN = array.get(totNArr, i)
+    tot1 = array.get(tot1Arr, i)
     array.set(canFNArr, i, forecastAllowed and (not na(totN) and totN > 0))
     array.set(canF1Arr, i, forecastAllowed and (not na(tot1) and tot1 > 0))
 
