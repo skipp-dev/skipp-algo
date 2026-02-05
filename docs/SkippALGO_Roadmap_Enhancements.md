@@ -1,5 +1,15 @@
 # Roadmap Outline — Next Recommended Enhancements
 
+## Status (Feb 02, 2026)
+
+Completed in v6.1 (Indicator + Strategy):
+
+* Quantile binning for score dimension (adaptive data density).
+* Chop‑aware regime dimension with explicit flat handling in display.
+* Evidence/abstain gate with UI feedback for decision quality.
+* 3‑way calibrator auto‑fallback on weak bins (safety).
+* Temperature/vector scaling applied to displayed 3‑way probabilities when eligible.
+
 ## 0) Guiding principles (applies to all items)
 
 * **Semantic guardrail:** Never label state as forecast. State stays “Outlook”; predictive outputs stay “Forecast (Prob)”.

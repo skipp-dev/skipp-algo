@@ -2,14 +2,13 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO — Deep Upgrade (Phases 1-4)
-// Implements advanced calibration and forecasting logic:
-// Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
-// Phase 2: 2D Binning (Algorithm Score + Volatility Regime)
-// Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
-// Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
-
-indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500, max_lines_count=500)
+// SkippALGO Strategy (Deep Upgrade v6.1)
+// - Synchronized with Main Indicator v6.1
+// - Target Profiles (Fixed, KReturn, KATR, TPorSL)
+// - Ensemble Score (Algo + Pullback + Regime)
+// - 2D Binning (Score x Volatility)
+// - Platt Scaling (SGD Probability Calibration)
+strategy("SkippALGO Strategy (Deep Upgrade v6.1)", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -48,6 +47,8 @@ tfF7 = input.timeframe("D",   "Forecast 7")   // 1D
 trustWAccuracy  = input.float(0.40, "Trust weight: accuracy", minval=0.0, step=0.05)
 trustWRegime    = input.float(0.30, "Trust weight: regime", minval=0.0, step=0.05)
 trustWGuardrail = input.float(0.20, "Trust weight: guardrails", minval=0.0, step=0.05)
+trustWData      = input.float(0.10, "Trust weight: data quality", minval=0.0, step=0.05)
+trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, step=0.05)
 
 //====================
 // Constants — Avoid Magic Numbers
@@ -66,9 +67,6 @@ ROLL_RECALC_INTERVAL = 500
 // Sideways/choppy market detection thresholds
 SIDEWAYS_EMA_THRESH = 0.005   // Max EMA diff ratio for sideways
 SIDEWAYS_ATR_THRESH = 0.015   // Max ATR norm for sideways
-
-trustWData      = input.float(0.10, "Trust weight: data quality", minval=0.0, step=0.05)
-trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, step=0.05)
 
 penaltyGuardrail  = input.float(0.20, "Penalty per guardrail flag", minval=0.0, step=0.05)
 penaltyRegimeHigh = input.float(0.20, "Penalty: high-vol regime", minval=0.0, step=0.05)
@@ -156,50 +154,14 @@ rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
 //====================
-// Inputs — UT Bot Verification Overlay
-//====================
-grpUt       = "UT Bot Verification"
-utShow      = input.bool(false, "Show UT Bot Overlay", group=grpUt)
-utKey       = input.float(1.0, "Key Value", group=grpUt) 
-utAtrPeriod = input.int(10, "ATR Period", group=grpUt) 
-utUseHA     = input.bool(false, "Use Heikin Ashi", group=grpUt) 
-
-//====================
-// Inputs — Forecast Calibration Enhancements
+// Inputs — Forecast Calibration Enhancements (Deep Upgrade v6.1)
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
 
 // Forecast value display
 fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
-
-// --- Phase 1: Separate Targets per Timeframe Group ---
-grp_fast = "Target Profile 1: Fast (1m, 5m)"
-fcTargetF = input.string("KBarATR", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_fast)
-kBarsF    = input.int(3, "k bars", minval=1, maxval=20, group=grp_fast)
-atrThrF   = input.float(0.25, "ATR Thr", step=0.05, group=grp_fast)
-pathHF    = input.int(6, "Path H", minval=1, maxval=50, group=grp_fast)
-tpATRF    = input.float(0.50, "Path TP", step=0.05, group=grp_fast)
-slATRF    = input.float(0.30, "Path SL", step=0.05, group=grp_fast)
-
-grp_mid = "Target Profile 2: Mid (15m, 30m, 1h)"
-fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_mid)
-kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
-atrThrM   = input.float(0.50, "ATR Thr", step=0.05, group=grp_mid)
-pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
-tpATRM    = input.float(0.65, "Path TP", step=0.05, group=grp_mid)
-slATRM    = input.float(0.65, "Path SL", step=0.05, group=grp_mid)
-
-grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
-fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
-kBarsS    = input.int(10, "k bars", minval=1, maxval=50, group=grp_slow)
-atrThrS   = input.float(1.00, "ATR Thr", step=0.05, group=grp_slow)
-pathHS    = input.int(12, "Path H", minval=1, maxval=100, group=grp_slow)
-tpATRS    = input.float(1.00, "Path TP", step=0.05, group=grp_slow)
-slATRS    = input.float(1.00, "Path SL", step=0.05, group=grp_slow)
-
-// Global Policies
-noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"])
-pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"])
+pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"
+pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"
 atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
 
 //====================
@@ -238,26 +200,34 @@ useBullBearCal = input.bool(true, "Separate bull/bear calibrators", group=grp_tr
 countDecay = input.float(1.0, "Count decay (1.0=none)", minval=0.80, maxval=1.0, step=0.01, group=grp_tri)
 kShrinkReg = input.int(5, "Regime shrinkage k", minval=0, maxval=1000, group=grp_tri)
 
-// --- Phase 2: Calibration Dimensions ---
-predBinsN     = input.int(3, "Pred bins (N) state", minval=2, maxval=9)
-dim2Bins      = 3 // Fixed: Low, Med, High Volatility Regime
+// --- Phase 1: Separate Targets per Timeframe Group ---
+grp_fast = "Target Profile 1: Fast (1m, 5m)"
+fcTargetF = input.string("KBarATR", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_fast)
+kBarsF    = input.int(3, "k bars", minval=1, maxval=20, group=grp_fast)
+atrThrF   = input.float(0.25, "ATR Thr", step=0.05, group=grp_fast)
+pathHF    = input.int(6, "Path H", minval=1, maxval=50, group=grp_fast)
+tpATRF    = input.float(0.50, "Path TP", step=0.05, group=grp_fast)
+slATRF    = input.float(0.30, "Path SL", step=0.05, group=grp_fast)
 
-predBins1     = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3)
+grp_mid = "Target Profile 2: Mid (15m, 30m, 1h)"
+fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_mid)
+kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
+atrThrM   = input.float(0.50, "ATR Thr", step=0.05, group=grp_mid)
+pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
+tpATRM    = input.float(0.65, "Path TP", step=0.05, group=grp_mid)
+slATRM    = input.float(0.65, "Path SL", step=0.05, group=grp_mid)
 
-// Quantile binning (score dimension)
-useQuantileBins = input.bool(true, "Use quantile bins (score)")
-quantileWindow = input.int(500, "Quantile window (samples)", minval=100, maxval=5000)
-quantileUpdate = input.int(50, "Quantile update interval (bars)", minval=10, maxval=1000)
-quantileMinSamples = input.int(200, "Quantile min samples", minval=50, maxval=5000)
+grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
+fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
+kBarsS    = input.int(10, "k bars", minval=1, maxval=50, group=grp_slow)
+atrThrS   = input.float(1.00, "ATR Thr", step=0.05, group=grp_slow)
+pathHS    = input.int(12, "Path H", minval=1, maxval=100, group=grp_slow)
+tpATRS    = input.float(1.00, "Path TP", step=0.05, group=grp_slow)
+slATRS    = input.float(1.00, "Path SL", step=0.05, group=grp_slow)
 
-alphaN  = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1)
-alpha1  = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1)
-kShrink = input.int(5, "Base Rate Shrinkage k", minval=0, maxval=1000)
-
-calMinSamples = input.int(40, "Min samples per bin (activate)", minval=5, maxval=1000)
-
-predUpThr = input.float(0.55, "Pred up threshold", minval=0.50, maxval=0.80, step=0.01)
-predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, step=0.01)
+// Policies
+noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"], group="Policy")
+pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"], group="Policy")
 
 // --- Phase 3: Ensemble Weights ---
 grp_ens = "Phase 3: Ensemble Weights"
@@ -266,13 +236,34 @@ wPullback = input.float(0.5, "Weight: Pullback Depth", step=0.1, group=grp_ens)
 wRegime   = input.float(0.3, "Weight: Vol Regime", step=0.1, group=grp_ens)
 wTrend    = input.float(0.4, "Weight: Trend Regime", step=0.1, group=grp_ens, tooltip="Bull/Bear/Sideways detection")
 
-// --- Phase 4: Platt Scaling (Online Calibration) ---
-usePlatt = input.bool(true, "Phase 4: Use Platt Scaling (SGD)", group="Calibration Tuning")
-lrPlatt  = input.float(0.005, "Learning Rate", step=0.001, group="Calibration Tuning")
+// --- Phase 4: Online Calibration ---
+grp_cal = "Calibration Settings (Phase 4)"
+usePlatt = input.bool(true, "Use Platt Scaling (Online SGD)", group=grp_cal)
+lrPlatt  = input.float(0.005, "Learning Rate (SGD)", minval=0.001, maxval=0.1, step=0.001, group=grp_cal)
+
+// Bins & Smoothing
+predBinsN = input.int(3, "Pred bins (N) stable", minval=2, maxval=9, group="Engine")
+predBins1 = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3, group="Engine")
+dim2Bins  = 3 // Volatility Low/Mid/Hi
+
+// Quantile binning (score dimension)
+useQuantileBins = input.bool(true, "Use quantile bins (score)", group="Engine")
+quantileWindow = input.int(500, "Quantile window (samples)", minval=100, maxval=5000, group="Engine")
+quantileUpdate = input.int(50, "Quantile update interval (bars)", minval=10, maxval=1000, group="Engine")
+quantileMinSamples = input.int(200, "Quantile min samples", minval=50, maxval=5000, group="Engine")
+
+alphaN = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1, group="Engine")
+alpha1 = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1, group="Engine")
+kShrink = input.int(5, "Base Rate Shrinkage k", minval=0, maxval=1000, tooltip="Higher = pull bin probability closer to global TF average", group="Engine")
+
+calMinSamples = input.int(40, "Min samples per bin (activate)", minval=5, maxval=1000, group="Engine")
+
+predUpThr = input.float(0.55, "Pred up threshold", minval=0.50, maxval=0.80, step=0.01, group="Signals")
+predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, step=0.01, group="Signals")
 
 // Per-horizon reset control
-resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7"])
-resetNow   = input.bool(false, "Reset selected calibration NOW")
+resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7"], group="Maintenance")
+resetNow   = input.bool(false, "Reset selected calibration NOW", group="Maintenance")
 
 //====================
 // Inputs — Forecast Filtering (Accuracy-based)
@@ -318,7 +309,15 @@ diagHorizon     = input.string("F1", "Diagnostic Horizon", options=["F1","F2","F
 diagModel       = input.string("N", "Diagnostic Model", options=["N","1"], group=grp_diag, tooltip="N=Multi-factor, 1=Single-factor")
 
 //====================
-// Calibration storage — per horizon TF (Global State)
+// Inputs — Calibration Export (Webhook)
+//====================
+grp_export = "📤 Calibration Export"
+exportCalibration = input.bool(false, "Enable Calibration Export Alert", group=grp_export, tooltip="Fires alert with JSON calibration state")
+exportInterval    = input.int(100, "Export Every N Bars", minval=10, maxval=1000, group=grp_export)
+exportHorizon     = input.string("F1", "Export Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_export)
+
+//====================
+// Calibration storage — TfState UDT (replaces 100+ global arrays)
 //====================
 
 // UDT to hold all state arrays for a single timeframe horizon
@@ -456,12 +455,6 @@ var TfState tf6State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucke
 var TfState tf7State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
 
 //====================
-// Evaluation storage — per horizon (Head N and Head 1)
-//====================
-// F1 — Head N
-// (Globals removed, now in TfState)
-
-//====================
 // Table colors (navy + soft-blue frame)
 //====================
 tblBg      = color.new(color.rgb(12, 20, 35), 0)
@@ -499,7 +492,7 @@ f_fill_cuts(sorted, cuts, bins) =>
             idx = int(math.floor(frac * (n - 1)))
             array.set(cuts, i, array.get(sorted, idx))
 
-// Forecast binning / calibration
+// Forecast binning (fallback: fixed width)
 f_bin(score, bins) =>
     u = (score + 1.0) * 0.5
     b = int(math.floor(u * bins))
@@ -532,275 +525,6 @@ f_bin_quantile(score, cuts, bins) =>
 f_regime_bin(trendScore) =>
     trendScore > 0.5 ? 2 : trendScore < -0.5 ? 0 : 1
 
-// --- Human name for "chance" depending on forecast target
-f_chance_word() =>
-    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
-    anyWin ? "Win" : "Up"
-
-// --- 95% CI half-width (approx) for Bernoulli p with n samples
-f_ci95_halfwidth(p, n) =>
-    n <= 0 ? na : Z_95 * math.sqrt(p * (1.0 - p) / n)
-
-// --- Reliability label based on CI half-width
-f_rel_label(p, nBin, total, canCal) =>
-    string lbl = "off"
-    if not canCal
-        lbl := "off"
-    else if total <= 0
-        lbl := "n/a"
-    else if nBin < calMinSamples
-        lbl := "warmup"
-    else
-        hw = f_ci95_halfwidth(p, nBin)
-        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
-    lbl
-
-// --- Color for reliability label (subtle; does NOT conflict with up/down coloring)
-f_rel_color(p, nBin, total, canCal) =>
-    if not canCal
-        color.new(color.white, 70)
-    else if total <= 0
-        color.new(color.white, 60)
-    else if nBin < calMinSamples
-        color.new(color.white, 60)
-    else
-        hw = f_ci95_halfwidth(p, nBin)
-        na(hw) ? color.new(color.white, 60) : hw <= 0.05 ? color.lime : hw <= 0.10 ? color.yellow : tblTextDim
-
-//====================
-// Forecast display helpers (human formatting)
-//====================
-
-// Map a TF into your "Fast/Mid/Slow" profiles.
-f_profile(tf) =>
-    s = timeframe.in_seconds(tf)
-    not na(s) and s <= timeframe.in_seconds("900") ? "Fast" : not na(s) and s <= timeframe.in_seconds("14400") ? "Mid" : "Slow"
-
-// Pick which target is active for that TF profile.
-f_target_for_tf(tf) =>
-    prof = f_profile(tf)
-    prof == "Fast" ? fcTargetF : prof == "Mid" ? fcTargetM : fcTargetS
-
-// Short, human label for the target (what "Win" means on that row)
-f_target_label(tf) =>
-    t = f_target_for_tf(tf)
-    t == "NextBar" ? "Next-up" : t == "KBarReturn" ? "Up-close" : t == "KBarATR" ? "ATR-hit" : t == "PathTPvsSL" ? "TP-first" : "Win"
-
-// Uncertainty band in percentage points using a binomial approx (≈95% band).
-f_unc_pp(p, n) =>
-    n <= 0 ? na : Z_95 * math.sqrt(math.max(p * (1.0 - p), 0.0) / n) * 100.0
-
-// Sample-strength label derived from CURRENT BIN sample size (nBin).
-f_strength_label_fc(nBin) =>
-    nBin < calMinSamples ? "weak" : nBin < calMinSamples * 4 ? "ok" : "strong"
-
-// Format probability range text like "34–46%" (bounded to 0..100)
-f_prob_range_text(p, nBin) =>
-    if nBin < calMinSamples or nBin <= 0
-        "build n" + str.tostring(nBin)
-    else
-        band = f_unc_pp(p, nBin) / 100.0
-        lo = math.max(0.0, p - band)
-        hi = math.min(1.0, p + band)
-        str.tostring(lo * 100.0, "#.0") + "–" + str.tostring(hi * 100.0, "#.0") + "%"
-
-//====================
-// Helpers — Evaluation (proper scoring + rolling stats)
-//====================
-f_epsClamp(p) =>
-    eps = 1e-6
-    math.max(eps, math.min(1.0 - eps, p))
-
-f_brier(p, y) =>
-    // y in {0.0, 1.0}
-    d = p - y
-    d * d
-
-f_logloss(p, y) =>
-    // y in {0.0, 1.0}
-    pc = f_epsClamp(p)
-    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
-
-// @function Adds value to rolling buffer and maintains running sum
-// @param buf Rolling buffer array
-// @param sumArr Single-element array holding running sum
-// @param v Value to add
-// @param maxLen Maximum buffer length
-// @note Periodic recalculation every ROLL_RECALC_INTERVAL bars prevents FP drift
-f_roll_add(buf, sumArr, v, maxLen) =>
-    array.push(buf, v)
-    array.set(sumArr, 0, array.get(sumArr, 0) + v)
-    if array.size(buf) > maxLen
-        old = array.shift(buf)
-        array.set(sumArr, 0, array.get(sumArr, 0) - old)
-    // Periodic recalculation to prevent floating-point drift
-    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(buf) > 0
-        array.set(sumArr, 0, array.sum(buf))
-
-f_bucket(p, B) =>
-    // p in [0,1], B buckets
-    b = int(math.floor(p * B))
-    b < 0 ? 0 : b > (B - 1) ? (B - 1) : b
-
-f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
-    B = array.size(calCnt)
-    bi = f_bucket(p, B)
-
-    // push
-    array.push(bBuf, bi)
-    array.push(pBuf, p)
-    array.push(yBuf, y)
-
-    // increment bucket accumulators
-    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
-    array.set(calSumP, bi, array.get(calSumP, bi) + p)
-    array.set(calSumY, bi, array.get(calSumY, bi) + y)
-
-    // enforce rolling length
-    if array.size(bBuf) > maxLen
-        bOld = array.shift(bBuf)
-        pOld = array.shift(pBuf)
-        yOld = array.shift(yBuf)
-
-        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
-        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
-        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
-
-f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) =>
-    B = evalBuckets
-    yU = outcome == 1 ? 1.0 : 0.0
-    yF = outcome == 0 ? 1.0 : 0.0
-    yD = outcome == -1 ? 1.0 : 0.0
-
-    biU = f_bucket(pU, B)
-    biF = f_bucket(pF, B)
-    biD = f_bucket(pD, B)
-
-    idxU = 0 * B + biU
-    idxF = 1 * B + biF
-    idxD = 2 * B + biD
-
-    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
-    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
-    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
-
-    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
-    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
-    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
-
-    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
-    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
-    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
-
-    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
-    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
-    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
-
-    maxLen3 = maxLen * 3
-    while array.size(bBuf) > maxLen3
-        bOld = array.shift(bBuf)
-        pOld = array.shift(pBuf)
-        yOld = array.shift(yBuf)
-
-        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
-        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
-        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
-
-f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) =>
-    nScore = array.size(brierBuf)
-    brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
-    logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
-
-    nS = array.size(ySBuf)
-    nL = array.size(yLBuf)
-    wS = nS == 0 ? na : array.get(sumYS, 0) / nS
-    wL = nL == 0 ? na : array.get(sumYL, 0) / nL
-    drift = (na(wS) or na(wL)) ? na : (wS - wL)
-
-    // ECE from rolling buckets (binary or multiclass)
-    ece = float(na)
-    maxErr = float(na)
-    B = evalBuckets
-    sizeCnt = array.size(calCnt)
-    if sizeCnt == B
-        tot = 0
-        for i = 0 to sizeCnt - 1
-            tot += array.get(calCnt, i)
-        if tot > 0
-            e = 0.0
-            m = 0.0
-            for i = 0 to sizeCnt - 1
-                c = array.get(calCnt, i)
-                if c > 0
-                    ap = array.get(calSumP, i) / c
-                    ay = array.get(calSumY, i) / c
-                    err = math.abs(ap - ay)
-                    e += err * (c / tot)
-                    m := math.max(m, err)
-            ece := e
-            maxErr := m
-    else if sizeCnt == B * 3
-        eTot = 0.0
-        mTot = 0.0
-        for cls = 0 to 2
-            totC = 0
-            for i = 0 to B - 1
-                totC += array.get(calCnt, cls * B + i)
-            if totC > 0
-                eC = 0.0
-                mC = 0.0
-                for i = 0 to B - 1
-                    idx = cls * B + i
-                    c = array.get(calCnt, idx)
-                    if c > 0
-                        ap = array.get(calSumP, idx) / c
-                        ay = array.get(calSumY, idx) / c
-                        err = math.abs(ap - ay)
-                        eC += err * (c / totC)
-                        mC := math.max(mC, err)
-                eTot += eC
-                mTot := math.max(mTot, mC)
-        ece := eTot / 3.0
-        maxErr := mTot
-
-    [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
-
-f_strengthLabel(n) =>
-    n < 30 ? "weak" : n < 100 ? "ok" : "strong"
-
-f_pp(x) =>
-    // x in [0,1] -> "12.3%"
-    str.tostring(x * 100.0, "#.0") + "%"
-
-f_ppSigned(x) =>
-    // x in [-1,1] -> "+4.0pp"
-    pp = x * 100.0
-    (pp >= 0 ? "+" : "") + str.tostring(pp, "#.0") + "pp"
-
-f_colLowerBetter(x, good, ok) =>
-    na(x) ? color.new(color.white, 60) : x <= good ? color.lime : x <= ok ? color.yellow : color.red
-
-// --- “Chance” cell text (arrow + percent), but human warmup/off states
-f_chance_text(tf, pUp, nBin, total, canCal) =>
-    if not canCal or total <= 0
-        "—"
-    else if nBin < calMinSamples
-        f_target_label(tf) + " …"
-    else
-        sym = pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
-        sym + " " + f_target_label(tf) + " " + str.tostring(pUp * 100.0, "#.0") + "%"
-
-// --- “Data” cell text: bin/total + label + optional ±CI
-f_data_text(pUp, nBin, total, canCal) =>
-    if not canCal
-        "off"
-    else if total <= 0
-        "n0"
-    else
-        lbl = f_strength_label_fc(nBin)
-        rng = f_prob_range_text(pUp, nBin)
-        str.tostring(nBin) + "/" + str.tostring(total) + "\n" + lbl + " (" + rng + ")"
-
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
 
@@ -826,17 +550,31 @@ f_confColor(val) =>
 f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
+f_chance_word() =>
+    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
+    anyWin ? "Win" : "Up"
+
+f_ci95_halfwidth(p, n) =>
+    n <= 0 ? na : Z_95 * math.sqrt(p * (1.0 - p) / n)
+
+f_rel_label(p, nBin, total, canCal) =>
+    string lbl = "off"
+    if not canCal
+        lbl := "off"
+    else if total <= 0
+        lbl := "n/a"
+    else if nBin < calMinSamples
+        lbl := "warmup"
+    else
+        hw = f_ci95_halfwidth(p, nBin)
+        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
+    lbl
+
 f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
     trend = emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0
     mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
     loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
     f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
-
-f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
-    t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
-    m = r_tf > 55 ? 1 : r_tf < 45 ? -1 : 0
-    l = c > emaS_tf ? 1 : c < emaS_tf ? -1 : 0
-    [t, m, l]
 
 // --- Phase 1 Helpers: Target Params ---
 f_get_params(tf) =>
@@ -867,14 +605,8 @@ f_platt_prob(pRaw, a, b) =>
 // --- Phase 3 Helpers: Ensemble ---
 f_pullback_score(c, ef, es, bias) =>
     // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
-    // Bias -1 (Bear): mirror logic
+    // Bias -1 (Bear): mirror logic; Bias 0 (neutral): return 0
     bias == 1 ? (c > ef ? 0.5 : c > es ? 1.0 : -1.0) : bias == -1 ? (c < ef ? 0.5 : c < es ? 1.0 : -1.0) : 0.0
-
-f_ensemble(sA, sB, sC, wA, wB, wC) =>
-    num = wA * sA + wB * sB + wC * sC
-    den = wA + wB + wC
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
 
 // @function Computes trend regime score (bull/bear/sideways)
 // @param emaF Fast EMA value
@@ -883,61 +615,45 @@ f_ensemble(sA, sB, sC, wA, wB, wC) =>
 // @returns Score in [-1, 1]: +1=bull, -1=bear, 0=sideways/choppy
 f_trend_regime(emaF, emaS, atrNorm) =>
     emaDiff = (emaF - emaS) / nz(emaS, 1)
+    // Strong trend: EMAs diverging significantly (>0.5% gap)
+    // Sideways: EMAs close together AND low volatility
     isSideways = math.abs(emaDiff) < SIDEWAYS_EMA_THRESH and atrNorm < SIDEWAYS_ATR_THRESH
     isBull = emaF > emaS and not isSideways
     isBear = emaF < emaS and not isSideways
     isBull ? 1.0 : isBear ? -1.0 : 0.0
 
+f_ensemble(sA, sB, sC, wA, wB, wC) =>
+    // sA: Algo State (-1..1)
+    // sB: Pullback Score (-1..1)
+    // sC: Regime Score (-1..1)
+    num = wA * sA + wB * sB + wC * sC
+    den = wA + wB + wC
+    val = den == 0 ? 0.0 : num / den
+    math.max(-1.0, math.min(1.0, val))
+
 // Extended ensemble with trend regime (4 factors)
 f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
+    // sA: Algo State (-1..1)
+    // sB: Pullback Score (-1..1)
+    // sC: Vol Regime Score (-1..1)
+    // sD: Trend Regime Score (-1..1): bull/bear/sideways
     num = wA * sA + wB * sB + wC * sC + wD * sD
     den = wA + wB + wC + wD
     val = den == 0 ? 0.0 : num / den
     math.max(-1.0, math.min(1.0, val))
 
-f_tf_pack(tf) =>
-    request.security(
-        syminfo.tickerid,
-        tf,
-        [time, close, high, low,
-         ta.ema(close, emaFastLen),
-         ta.ema(close, emaSlowLen),
-         ta.rsi(close, rsiStateLen),
-         ta.atr(atrTargetLen),
-         f_pct_rank(close == 0 ? 0.0 : ta.atr(atrLen) / close, volRankLen)], // Added Phase 2 Vol Rank
-        barmerge.gaps_off,
-        barmerge.lookahead_off
-    )
-
-f_score_tf(tf) =>
-    [c_t, ef_t, es_t, r_t] = request.security(
-            syminfo.tickerid,
-            tf,
-            [close,
-             ta.ema(close, emaFastLen),
-             ta.ema(close, emaSlowLen),
-             ta.rsi(close, rsiStateLen)],
-            barmerge.gaps_off,
-            barmerge.lookahead_off
-        )
-    c = c_t
-    ef = ef_t
-    es = es_t
-    r = r_t
-    f_state_score(c, ef, es, r)
-
-// Phase 2: 2D Binning (Score + Regime)
+// --- Phase 2 Helpers: 2D Binning ---
 // @function Computes 2D bin index from score and trend regime
 // @param score Ensemble score in [-1, 1]
 // @param trendScore Trend regime score in [-1, 1]
-// @param binsA Number of bins for score dimension
-// @param binsB Number of bins for regime dimension (typically 3)
+// @param binsScore Number of bins for score dimension
+// @param binsReg Number of bins for regime dimension (typically 3)
 // @param cutsArr Quantile cutpoints for score dimension
 // @returns Flattened bin index
-f_bin2D(score, trendScore, binsA, binsB, cutsArr) =>
-    bA = f_bin_quantile(score, cutsArr, binsA)
-    bB = f_regime_bin(trendScore)
-    int(bA * binsB + bB)
+f_bin2D(score, trendScore, binsScore, binsReg, cutsArr) =>
+    bS = f_bin_quantile(score, cutsArr, binsScore)
+    bR = f_regime_bin(trendScore)
+    int(bS * binsReg + bR)
 
 f_db_mult(tf) =>
     sec = timeframe.in_seconds(tf)
@@ -1070,7 +786,7 @@ f_brier3(pU, pF, pD, outcome) =>
 
 f_logloss3(pU, pF, pD, outcome) =>
     pTrue = outcome == 1 ? pU : outcome == 0 ? pF : pD
-    -math.log(f_epsClamp(pTrue))
+    -math.log(f_clamp(pTrue, 0.0001, 0.9999))
 
 f_prior3(tf, outScore) =>
     sec = timeframe.in_seconds(tf)
@@ -1093,17 +809,42 @@ f_prior3(tf, outScore) =>
 f_samp_label(enabled, total) =>
     not enabled ? "off" : total < calMinSamples ? "…" : total < calMinSamples * 3 ? "ok" : "strong"
 
-// @function Computes Bayesian probability with Platt scaling
-// @param up Number of positive outcomes
-// @param n Total number of samples
-// @param alpha Laplace smoothing parameter
-// @param aPlatt Platt scaling slope
-// @param bPlatt Platt scaling intercept
-// @returns Calibrated probability after Platt transformation
-f_prob_platt(up, n, alpha, aPlatt, bPlatt) =>
-    denom = n + 2.0 * alpha
-    pRaw = denom == 0.0 ? 0.5 : (up + alpha) / denom
-    f_platt_prob(pRaw, aPlatt, bPlatt)
+f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
+    t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
+    m = r_tf > 55 ? 1 : r_tf < 45 ? -1 : 0
+    l = c > emaS_tf ? 1 : c < emaS_tf ? -1 : 0
+    [t, m, l]
+
+f_tf_pack(tf) =>
+    request.security(
+        syminfo.tickerid,
+        tf,
+        [time, close, high, low,
+         ta.ema(close, emaFastLen),
+         ta.ema(close, emaSlowLen),
+         ta.rsi(close, rsiStateLen),
+         ta.atr(atrTargetLen),
+         f_pct_rank(close == 0 ? 0.0 : ta.atr(atrLen) / close, volRankLen)], // Added Phase 2 Vol Rank
+        barmerge.gaps_off,
+        barmerge.lookahead_off
+    )
+
+f_score_tf(tf) =>
+    [c_t, ef_t, es_t, r_t] = request.security(
+            syminfo.tickerid,
+            tf,
+            [close,
+             ta.ema(close, emaFastLen),
+             ta.ema(close, emaSlowLen),
+             ta.rsi(close, rsiStateLen)],
+            barmerge.gaps_off,
+            barmerge.lookahead_off
+        )
+    c = c_t
+    ef = ef_t
+    es = es_t
+    r = r_t
+    f_state_score(c, ef, es, r)
 
 // @function Computes Laplace-smoothed probability with division safety
 // @param up Number of positive outcomes
@@ -1145,6 +886,150 @@ f_predColorP(pUp, n, canCal, neutralCol) =>
 f_pupText(pUp, n, canCal) =>
     not canCal ? "OFF" : n == 0 ? "—" : n < calMinSamples ? "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples) : fcDisplay == "Edge pp (N)" ? ((pUp - 0.5) * 100.0 > 0 ? "+" + str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")" : str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")") : "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
+f_epsClamp(p) =>
+    eps = 1e-6
+    math.max(eps, math.min(1.0 - eps, p))
+
+f_brier(p, y) =>
+    d = p - y
+    d * d
+
+f_logloss(p, y) =>
+    pc = f_epsClamp(p)
+    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
+
+f_roll_add(buf, sumArr, v, maxLen) =>
+    array.push(buf, v)
+    array.set(sumArr, 0, array.get(sumArr, 0) + v)
+    if array.size(buf) > maxLen
+        old = array.shift(buf)
+        array.set(sumArr, 0, array.get(sumArr, 0) - old)
+    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(buf) > 0
+        array.set(sumArr, 0, array.sum(buf))
+
+f_bucket(p, B) =>
+    b = int(math.floor(p * B))
+    b < 0 ? 0 : b > (B - 1) ? (B - 1) : b
+
+f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
+    B = array.size(calCnt)
+    bi = f_bucket(p, B)
+
+    array.push(bBuf, bi)
+    array.push(pBuf, p)
+    array.push(yBuf, y)
+
+    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
+    array.set(calSumP, bi, array.get(calSumP, bi) + p)
+    array.set(calSumY, bi, array.get(calSumY, bi) + y)
+
+    if array.size(bBuf) > maxLen
+        bOld = array.shift(bBuf)
+        pOld = array.shift(pBuf)
+        yOld = array.shift(yBuf)
+
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) =>
+    B = evalBuckets
+    yU = outcome == 1 ? 1.0 : 0.0
+    yF = outcome == 0 ? 1.0 : 0.0
+    yD = outcome == -1 ? 1.0 : 0.0
+
+    biU = f_bucket(pU, B)
+    biF = f_bucket(pF, B)
+    biD = f_bucket(pD, B)
+
+    idxU = 0 * B + biU
+    idxF = 1 * B + biF
+    idxD = 2 * B + biD
+
+    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
+    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
+    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
+
+    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
+    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
+    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
+
+    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
+    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
+    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
+
+    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
+    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
+    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
+
+    maxLen3 = maxLen * 3
+    while array.size(bBuf) > maxLen3
+        bOld = array.shift(bBuf)
+        pOld = array.shift(pBuf)
+        yOld = array.shift(yBuf)
+
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) =>
+    nScore = array.size(brierBuf)
+    brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
+    logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
+
+    nS = array.size(ySBuf)
+    nL = array.size(yLBuf)
+    wS = nS == 0 ? na : array.get(sumYS, 0) / nS
+    wL = nL == 0 ? na : array.get(sumYL, 0) / nL
+    drift = (na(wS) or na(wL)) ? na : (wS - wL)
+
+    ece = float(na)
+    maxErr = float(na)
+    B = evalBuckets
+    sizeCnt = array.size(calCnt)
+    if sizeCnt == B
+        tot = 0
+        for i = 0 to sizeCnt - 1
+            tot += array.get(calCnt, i)
+        if tot > 0
+            e = 0.0
+            m = 0.0
+            for i = 0 to sizeCnt - 1
+                c = array.get(calCnt, i)
+                if c > 0
+                    ap = array.get(calSumP, i) / c
+                    ay = array.get(calSumY, i) / c
+                    err = math.abs(ap - ay)
+                    e += err * (c / tot)
+                    m := math.max(m, err)
+            ece := e
+            maxErr := m
+    else if sizeCnt == B * 3
+        eTot = 0.0
+        mTot = 0.0
+        for cls = 0 to 2
+            totC = 0
+            for i = 0 to B - 1
+                totC += array.get(calCnt, cls * B + i)
+            if totC > 0
+                eC = 0.0
+                mC = 0.0
+                for i = 0 to B - 1
+                    idx = cls * B + i
+                    c = array.get(calCnt, idx)
+                    if c > 0
+                        ap = array.get(calSumP, idx) / c
+                        ay = array.get(calSumY, idx) / c
+                        err = math.abs(ap - ay)
+                        eC += err * (c / totC)
+                        mC := math.max(mC, err)
+                eTot += eC
+                mTot := math.max(mTot, mC)
+        ece := eTot / 3.0
+        maxErr := mTot
+
+    [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
+
 f_eval_update_one(p, y,
     brierBuf, sumBrier,
     logBuf,   sumLog,
@@ -1159,15 +1044,12 @@ f_eval_update_one(p, y,
     if canEval
         pc = f_epsClamp(p)
 
-        // rolling scores
         f_roll_add(brierBuf, sumBrier, f_brier(pc, y), evalRollScore)
         f_roll_add(logBuf,   sumLog,   f_logloss(pc, y), evalRollScore)
 
-        // rolling win rates
         f_roll_add(ySBuf, sumYS, y, evalRollShort)
         f_roll_add(yLBuf, sumYL, y, evalRollLong)
 
-        // rolling calibration buckets (ECE)
         f_cal_roll_update(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pc, y, evalRollScore)
 
 f_eval_update_one3(pU, pF, pD, outcome,
@@ -1184,7 +1066,6 @@ f_eval_update_one3(pU, pF, pD, outcome,
         b3 = f_brier3(pU, pF, pD, outcome)
         ll = f_logloss3(pU, pF, pD, outcome)
         yUp = outcome == 1 ? 1.0 : 0.0
-        pTrue = outcome == 1 ? pU : outcome == 0 ? pF : pD
 
         f_roll_add(brierBuf, sumBrier, b3, evalRollScore)
         f_roll_add(logBuf,   sumLog,   ll, evalRollScore)
@@ -1194,11 +1075,68 @@ f_eval_update_one3(pU, pF, pD, outcome,
 
         f_cal_roll_update3(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pU, pF, pD, outcome, evalRollScore)
 
-f_eval_on_resolve(TfState st, pN, p1, isUpBool) =>
-    y = isUpBool ? 1.0 : 0.0
+f_eval_on_resolve(TfState st, pPredN, pPred1, isUp) =>
+    y = isUp ? 1.0 : 0.0
 
-    f_eval_update_one(pN, y, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
-    f_eval_update_one(p1, y, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+    f_eval_update_one(pPredN, y, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
+    f_eval_update_one(pPred1, y, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+
+f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY) =>
+    [bAvg_t, lAvg_t, ece_t, _mErr_t, wS_t, wL_t, drift_t, nScore_t] = f_eval_stats_one(evBrier, evSumBrier, evLog, evSumLog, evYS, evSumYS, evYL, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    bAvg = bAvg_t
+    lAvg = lAvg_t
+    ece = ece_t
+    _mErr = _mErr_t
+    wS = wS_t
+    wL = wL_t
+    drift = drift_t
+    nScore = nScore_t
+    if nScore < evalMinEvents
+        [float(na), float(na), float(na), float(na), float(nScore)]
+    else
+        driftPP = na(drift) ? na : drift * 100.0
+        [bAvg, lAvg, ece, driftPP, float(nScore)]
+
+// Table Helpers
+f_colLowerBetter(val, goodThr, badThr) =>
+    na(val) ? color.new(color.gray, 60) : val < goodThr ? color.new(color.lime, 30) : val > badThr ? color.new(color.red, 30) : color.new(color.yellow, 30)
+
+f_ppSigned(val) =>
+    na(val) ? "—" : (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
+
+f_rowEval(tbl, tid, titleStr, evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY, rIdx) =>
+    [bs_t, ll_t, ece_t, drift_t, n_t] = f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    bs = bs_t
+    ll = ll_t
+    ece = ece_t
+    drift = drift_t
+    n = n_t
+    
+    // Header
+    table.cell(tbl, 0, rIdx, titleStr, text_halign=text.align_left, text_size=size.small, bgcolor=color.new(color.gray, 90))
+    
+    if na(bs)
+        table.cell(tbl, 1, rIdx, "Wait (" + str.tostring(n, "#") + ")", text_size=size.small)
+    else
+        // Brier
+        // scale: typically 0.25 is max entropy. <0.20 is good. <0.15 is great.
+        // Let's color based on general intuition
+        cBs = f_colLowerBetter(bs, 0.18, 0.23)
+        table.cell(tbl, 1, rIdx, str.tostring(bs, "#.3f"), bgcolor=cBs, text_size=size.small)
+        
+        // LogL
+        // scale: ~0.693 is rand. <0.60 is good.
+        cLl = f_colLowerBetter(ll, 0.55, 0.65)
+        table.cell(tbl, 2, rIdx, str.tostring(ll, "#.3f"), bgcolor=cLl, text_size=size.small)
+        
+        // ECE
+        cEce = f_colLowerBetter(ece, 0.05, 0.10)
+        table.cell(tbl, 3, rIdx, str.tostring(ece*100, "#.1")+"%", bgcolor=cEce, text_size=size.small)
+        
+        // Drift
+        cDr = math.abs(drift) > driftWarnPP ? color.new(color.red, 30) : color.new(color.gray, 90)
+        table.cell(tbl, 4, rIdx, f_ppSigned(drift), bgcolor=cDr, text_size=size.small)
+
 
 f_reset_tf(TfState st) =>
     array.fill(st.cntN, 0.0), array.fill(st.upN, 0.0), array.fill(st.dnN, 0.0)
@@ -1286,34 +1224,11 @@ f_reset_eval_all() =>
 
 // Process one TF calibration step (updates on new TF bar)
 // @param _hid Horizon ID (1-7) - reserved for debugging/logging
-// @param newTfBar True when a new timeframe bar starts
-// @param sA Algorithm score for ensemble calculation
-// @param cNow Current close price
-// @param hNow Current high price
-// @param lNow Current low price
-// @param atrNow Current ATR value
-// @param volRankNow Current volatility rank [0,1]
-// @param emaFNow Fast EMA value
-// @param emaSNow Slow EMA value
-// @param st TfState UDT containing all state arrays
-// @param fcTgt Forecast target type
-// @param kB K-bar horizon
-// @param aThr ATR threshold
-// @param pH Path horizon
-// @param tpA Take-profit ATR multiplier
-// @param slA Stop-loss ATR multiplier
-// @param alphaNVal Alpha for N-bin smoothing
-// @param alpha1Val Alpha for 1-bin smoothing
-// @param shrinkKVal Shrinkage factor
-// @param wAVal Weight for trend score
-// @param wBVal Weight for pullback score
-// @param wCVal Weight for volatility bias
-// @param wDVal Weight for trend regime
 f_process_tf(_hid, _tf, newTfBar, sA, 
              cNow, hNow, lNow, atrNow, volRankNow, emaFNow, emaSNow,
              TfState st,
              fcTgt, kB, aThr, pH, tpA, slA,
-             alphaNVal, alpha1Val, shrinkKVal, wAVal, wBVal, wCVal, wDVal) =>
+             alphaNVal, alpha1Val, shrinkKVal, wStateVal, wPullbackVal, wRegimeVal, wTrendVal) =>
 
     if newTfBar
         // 1) Age/extremes update for pending items
@@ -1344,15 +1259,15 @@ f_process_tf(_hid, _tf, newTfBar, sA,
             float prob1_i = na
             float lgtN_i = na
             float lgt1_i = na
-            float pPredN_i = na
-            float pPred1_i = na
+            float predN_i = na
+            float pred1_i = na
             if not use3Way
                 probN_i := array.get(st.qProbN,  i)
                 prob1_i := array.get(st.qProb1,  i)
                 lgtN_i  := array.get(st.qLogitN, i)
                 lgt1_i  := array.get(st.qLogit1, i)
-                pPredN_i := array.get(st.qPredN, i)
-                pPred1_i := array.get(st.qPred1, i)
+                predN_i := array.get(st.qPredN,  i)
+                pred1_i := array.get(st.qPred1,  i)
 
             // 3-way stored probs/logits
             float pUpN_i = na
@@ -1492,13 +1407,26 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                         f_cal_update3(cnt1_sel, up1_sel, dn1_sel, b1_i, outcome)
                     
                     outcomeVal = isUp ? 1.0 : 0.0
-
-                    // evaluation scoring (NEW)
+                    
+                    // --- Evaluation (Live Scoring) ---
+                    // Score based on the final prediction we made (predN_i / pred1_i)
                     if use3Way
-                        f_eval_update_one3(pUpN_i, pFlN_i, pDnN_i, outcome, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
-                        f_eval_update_one3(pUp1_i, pFl1_i, pDn1_i, outcome, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+                        f_eval_update_one3(pUpN_i, pFlN_i, pDnN_i, outcome,
+                            st.evBrierN, st.evSumBrierN,
+                            st.evLogN, st.evSumLogN,
+                            st.evYS_N, st.evSumYS_N,
+                            st.evYL_N, st.evSumYL_N,
+                            st.evCalCntN, st.evCalSumPN, st.evCalSumYN,
+                            st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
+                        f_eval_update_one3(pUp1_i, pFl1_i, pDn1_i, outcome,
+                            st.evBrier1, st.evSumBrier1,
+                            st.evLog1, st.evSumLog1,
+                            st.evYS_1, st.evSumYS_1,
+                            st.evYL_1, st.evSumYL_1,
+                            st.evCalCnt1, st.evCalSumP1, st.evCalSumY1,
+                            st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
                     else
-                        f_eval_on_resolve(st, pPredN_i, pPred1_i, isUp)
+                        f_eval_on_resolve(st, predN_i, pred1_i, isUp)
 
                     if use3Way and calibratorMode != "Off"
                         nBinN_cur = array.get(st.cntN, bN_i)
@@ -1626,7 +1554,7 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                             err1 = pAdj1 - outcomeVal
                             da1 = err1 * lgt1_i
                             db1 = err1
-                            pltA1 := math.max(0.1, math.min(5.0, pltA1 - lrPlatt * da1)) 
+                            pltA1 := math.max(0.1, math.min(5.0, pltA1 - lrPlatt * da1))
                             pltB1 := math.max(-3.0, math.min(3.0, pltB1 - lrPlatt * db1))
                             array.set(st.platt1, 0, pltA1)
                             array.set(st.platt1, 1, pltB1)
@@ -1638,14 +1566,6 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                             array.set(st.llStats1, 0, curSumLL1 + ll1)
                             array.set(st.llStats1, 1, curCntLL1 + 1.0)
 
-                array.remove(st.qAge,   i)
-                array.remove(st.qMaxH,  i)
-                array.remove(st.qMinL,  i)
-                array.remove(st.qAtr,   i)
-                array.remove(st.qEntry, i)
-                array.remove(st.qBinN,  i)
-                array.remove(st.qBin1,  i)
-                array.remove(st.qBias,  i)
                 if not use3Way
                     array.remove(st.qProbN, i)
                     array.remove(st.qProb1, i)
@@ -1666,18 +1586,22 @@ f_process_tf(_hid, _tf, newTfBar, sA,
                     array.remove(st.qZUp1, i)
                     array.remove(st.qZFl1, i)
                     array.remove(st.qZDn1, i)
-
+                array.remove(st.qAge,   i)
+                array.remove(st.qMaxH,  i)
+                array.remove(st.qMinL,  i)
+                array.remove(st.qAtr,   i)
+                array.remove(st.qEntry, i)
+                array.remove(st.qBinN,  i)
+                array.remove(st.qBin1,  i)
+                array.remove(st.qBias, i)
             i -= 1
-
-        // 3) Push new pending item
-        // --- Phase 3: Ensemble Score ---
         bias = emaFNow > emaSNow ? 1 : -1
         sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
         sC = volRankNow >= VOL_THRESH_HIGH ? -1.0 : (volRankNow <= VOL_THRESH_LOW ? 1.0 : 0.0)
         // Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments with close near 0
-        atrNormEns = atrNow / math.max(cNow, 0.0001)
-        sD = f_trend_regime(emaFNow, emaSNow, atrNormEns)
-        sEns = f_ensemble4(sA, sB, sC, sD, wAVal, wBVal, wCVal, wDVal)
+        atrNorm = atrNow / math.max(cNow, 0.0001)
+        sD = f_trend_regime(emaFNow, emaSNow, atrNorm)
+        sEns = f_ensemble4(sA, sB, sC, sD, wStateVal, wPullbackVal, wRegimeVal, wTrendVal)
         f_update_quantiles(sEns)
         
         // --- Phase 2: 2D Binning ---
@@ -1775,6 +1699,19 @@ f_process_tf(_hid, _tf, newTfBar, sA,
             lgtN = f_logit(pNowN)
             lgt1 = f_logit(pNow1)
 
+            // Platt Adjust (Display/Predict)
+            aN = array.get(st.plattN, 0)
+            bN_p = array.get(st.plattN, 1)
+            pAdjN = f_sigmoid(aN * lgtN + bN_p)
+
+            pltA1 = array.get(st.platt1, 0)
+            pltB1_p = array.get(st.platt1, 1)
+            pAdj1 = f_sigmoid(pltA1 * lgt1 + pltB1_p)
+
+            // Use adjusted if Platt enabled, else raw
+            pFinalN = usePlatt ? pAdjN : pNowN
+            pFinal1 = usePlatt ? pAdj1 : pNow1
+
             array.push(st.qBinN,  bN)
             array.push(st.qBin1,  b1)
             array.push(st.qEntry, cNow)
@@ -1790,9 +1727,10 @@ f_process_tf(_hid, _tf, newTfBar, sA,
             array.push(st.qProb1, pNow1)
             array.push(st.qLogitN, lgtN)
             array.push(st.qLogit1, lgt1)
+            array.push(st.qPredN, pFinalN)
+            array.push(st.qPred1, pFinal1)
 
-            array.push(st.qPredN, pNowN)
-            array.push(st.qPred1, pNow1)
+//====================
 // Core indicators
 //====================
 emaF = ta.ema(close, emaFastLen)
@@ -2267,6 +2205,14 @@ if barstate.isconfirmed
         lastSig := "SHORT"
 
 //====================
+// Alerts
+//====================
+alertcondition(buySignal,   title="BUY",   message="BUY")
+alertcondition(exitSignal,  title="EXIT",  message="EXIT")
+alertcondition(shortSignal, title="SHORT", message="SHORT")
+alertcondition(coverSignal, title="COVER", message="COVER")
+
+//====================
 // Visuals
 //====================
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
@@ -2305,6 +2251,22 @@ t4 = t4_t, c4 = c4_t, h4 = h4_t, l4 = l4_t, ef4 = ef4_t, es4 = es4_t, r4 = r4_t,
 t5 = t5_t, c5 = c5_t, h5 = h5_t, l5 = l5_t, ef5 = ef5_t, es5 = es5_t, r5 = r5_t, a5 = a5_t, vR5 = vR5_t
 t6 = t6_t, c6 = c6_t, h6 = h6_t, l6 = l6_t, ef6 = ef6_t, es6 = es6_t, r6 = r6_t, a6 = a6_t, vR6 = vR6_t
 t7 = t7_t, c7 = c7_t, h7 = h7_t, l7 = l7_t, ef7 = ef7_t, es7 = es7_t, r7 = r7_t, a7 = a7_t, vR7 = vR7_t
+
+// Get Target Params per TF
+[fcT1_t, kB1_t, aT1_t, pH1_t, tp1_t, sl1_t] = f_get_params(tfF1)
+[fcT2_t, kB2_t, aT2_t, pH2_t, tp2_t, sl2_t] = f_get_params(tfF2)
+[fcT3_t, kB3_t, aT3_t, pH3_t, tp3_t, sl3_t] = f_get_params(tfF3)
+[fcT4_t, kB4_t, aT4_t, pH4_t, tp4_t, sl4_t] = f_get_params(tfF4)
+[fcT5_t, kB5_t, aT5_t, pH5_t, tp5_t, sl5_t] = f_get_params(tfF5)
+[fcT6_t, kB6_t, aT6_t, pH6_t, tp6_t, sl6_t] = f_get_params(tfF6)
+[fcT7_t, kB7_t, aT7_t, pH7_t, tp7_t, sl7_t] = f_get_params(tfF7)
+fcT1 = fcT1_t, kB1 = kB1_t, aT1 = aT1_t, pH1 = pH1_t, tp1 = tp1_t, sl1 = sl1_t
+fcT2 = fcT2_t, kB2 = kB2_t, aT2 = aT2_t, pH2 = pH2_t, tp2 = tp2_t, sl2 = sl2_t
+fcT3 = fcT3_t, kB3 = kB3_t, aT3 = aT3_t, pH3 = pH3_t, tp3 = tp3_t, sl3 = sl3_t
+fcT4 = fcT4_t, kB4 = kB4_t, aT4 = aT4_t, pH4 = pH4_t, tp4 = tp4_t, sl4 = sl4_t
+fcT5 = fcT5_t, kB5 = kB5_t, aT5 = aT5_t, pH5 = pH5_t, tp5 = tp5_t, sl5 = sl5_t
+fcT6 = fcT6_t, kB6 = kB6_t, aT6 = aT6_t, pH6 = pH6_t, tp6 = tp6_t, sl6 = sl6_t
+fcT7 = fcT7_t, kB7 = kB7_t, aT7 = aT7_t, pH7 = pH7_t, tp7 = tp7_t, sl7 = sl7_t
 
 chgT1 = ta.change(t1)
 chgT2 = ta.change(t2)
@@ -2358,53 +2320,19 @@ isBull6 = f_bias_from_score(outScore6) == 1
 isBull7 = f_bias_from_score(outScore7) == 1
 
 cntN1Arr = useBullBearCal ? (isBull1 ? tf1State.cntN_bull : tf1State.cntN_bear) : tf1State.cntN
-upN1Arr  = useBullBearCal ? (isBull1 ? tf1State.upN_bull  : tf1State.upN_bear)  : tf1State.upN
-dnN1Arr  = useBullBearCal ? (isBull1 ? tf1State.dnN_bull  : tf1State.dnN_bear)  : tf1State.dnN
 cnt11Arr = useBullBearCal ? (isBull1 ? tf1State.cnt1_bull : tf1State.cnt1_bear) : tf1State.cnt1
-up11Arr  = useBullBearCal ? (isBull1 ? tf1State.up1_bull  : tf1State.up1_bear)  : tf1State.up1
-dn11Arr  = useBullBearCal ? (isBull1 ? tf1State.dn1_bull  : tf1State.dn1_bear)  : tf1State.dn1
-
 cntN2Arr = useBullBearCal ? (isBull2 ? tf2State.cntN_bull : tf2State.cntN_bear) : tf2State.cntN
-upN2Arr  = useBullBearCal ? (isBull2 ? tf2State.upN_bull  : tf2State.upN_bear)  : tf2State.upN
-dnN2Arr  = useBullBearCal ? (isBull2 ? tf2State.dnN_bull  : tf2State.dnN_bear)  : tf2State.dnN
 cnt12Arr = useBullBearCal ? (isBull2 ? tf2State.cnt1_bull : tf2State.cnt1_bear) : tf2State.cnt1
-up12Arr  = useBullBearCal ? (isBull2 ? tf2State.up1_bull  : tf2State.up1_bear)  : tf2State.up1
-dn12Arr  = useBullBearCal ? (isBull2 ? tf2State.dn1_bull  : tf2State.dn1_bear)  : tf2State.dn1
-
 cntN3Arr = useBullBearCal ? (isBull3 ? tf3State.cntN_bull : tf3State.cntN_bear) : tf3State.cntN
-upN3Arr  = useBullBearCal ? (isBull3 ? tf3State.upN_bull  : tf3State.upN_bear)  : tf3State.upN
-dnN3Arr  = useBullBearCal ? (isBull3 ? tf3State.dnN_bull  : tf3State.dnN_bear)  : tf3State.dnN
 cnt13Arr = useBullBearCal ? (isBull3 ? tf3State.cnt1_bull : tf3State.cnt1_bear) : tf3State.cnt1
-up13Arr  = useBullBearCal ? (isBull3 ? tf3State.up1_bull  : tf3State.up1_bear)  : tf3State.up1
-dn13Arr  = useBullBearCal ? (isBull3 ? tf3State.dn1_bull  : tf3State.dn1_bear)  : tf3State.dn1
-
 cntN4Arr = useBullBearCal ? (isBull4 ? tf4State.cntN_bull : tf4State.cntN_bear) : tf4State.cntN
-upN4Arr  = useBullBearCal ? (isBull4 ? tf4State.upN_bull  : tf4State.upN_bear)  : tf4State.upN
-dnN4Arr  = useBullBearCal ? (isBull4 ? tf4State.dnN_bull  : tf4State.dnN_bear)  : tf4State.dnN
 cnt14Arr = useBullBearCal ? (isBull4 ? tf4State.cnt1_bull : tf4State.cnt1_bear) : tf4State.cnt1
-up14Arr  = useBullBearCal ? (isBull4 ? tf4State.up1_bull  : tf4State.up1_bear)  : tf4State.up1
-dn14Arr  = useBullBearCal ? (isBull4 ? tf4State.dn1_bull  : tf4State.dn1_bear)  : tf4State.dn1
-
 cntN5Arr = useBullBearCal ? (isBull5 ? tf5State.cntN_bull : tf5State.cntN_bear) : tf5State.cntN
-upN5Arr  = useBullBearCal ? (isBull5 ? tf5State.upN_bull  : tf5State.upN_bear)  : tf5State.upN
-dnN5Arr  = useBullBearCal ? (isBull5 ? tf5State.dnN_bull  : tf5State.dnN_bear)  : tf5State.dnN
 cnt15Arr = useBullBearCal ? (isBull5 ? tf5State.cnt1_bull : tf5State.cnt1_bear) : tf5State.cnt1
-up15Arr  = useBullBearCal ? (isBull5 ? tf5State.up1_bull  : tf5State.up1_bear)  : tf5State.up1
-dn15Arr  = useBullBearCal ? (isBull5 ? tf5State.dn1_bull  : tf5State.dn1_bear)  : tf5State.dn1
-
 cntN6Arr = useBullBearCal ? (isBull6 ? tf6State.cntN_bull : tf6State.cntN_bear) : tf6State.cntN
-upN6Arr  = useBullBearCal ? (isBull6 ? tf6State.upN_bull  : tf6State.upN_bear)  : tf6State.upN
-dnN6Arr  = useBullBearCal ? (isBull6 ? tf6State.dnN_bull  : tf6State.dnN_bear)  : tf6State.dnN
 cnt16Arr = useBullBearCal ? (isBull6 ? tf6State.cnt1_bull : tf6State.cnt1_bear) : tf6State.cnt1
-up16Arr  = useBullBearCal ? (isBull6 ? tf6State.up1_bull  : tf6State.up1_bear)  : tf6State.up1
-dn16Arr  = useBullBearCal ? (isBull6 ? tf6State.dn1_bull  : tf6State.dn1_bear)  : tf6State.dn1
-
 cntN7Arr = useBullBearCal ? (isBull7 ? tf7State.cntN_bull : tf7State.cntN_bear) : tf7State.cntN
-upN7Arr  = useBullBearCal ? (isBull7 ? tf7State.upN_bull  : tf7State.upN_bear)  : tf7State.upN
-dnN7Arr  = useBullBearCal ? (isBull7 ? tf7State.dnN_bull  : tf7State.dnN_bear)  : tf7State.dnN
 cnt17Arr = useBullBearCal ? (isBull7 ? tf7State.cnt1_bull : tf7State.cnt1_bear) : tf7State.cnt1
-up17Arr  = useBullBearCal ? (isBull7 ? tf7State.up1_bull  : tf7State.up1_bear)  : tf7State.up1
-dn17Arr  = useBullBearCal ? (isBull7 ? tf7State.dn1_bull  : tf7State.dn1_bear)  : tf7State.dn1
 
 //====================
 // Calibration storage — per horizon TF (Removed - moved to top)
@@ -2421,20 +2349,27 @@ prevResetNow := resetNow
 if doReset
     if resetWhich == "All"
         f_reset_eval_all()
-    
-    if resetWhich == "All" or resetWhich == "F1"
         f_reset_tf(tf1State)
-    if resetWhich == "All" or resetWhich == "F2"
         f_reset_tf(tf2State)
-    if resetWhich == "All" or resetWhich == "F3"
         f_reset_tf(tf3State)
-    if resetWhich == "All" or resetWhich == "F4"
         f_reset_tf(tf4State)
-    if resetWhich == "All" or resetWhich == "F5"
         f_reset_tf(tf5State)
-    if resetWhich == "All" or resetWhich == "F6"
         f_reset_tf(tf6State)
-    if resetWhich == "All" or resetWhich == "F7"
+        f_reset_tf(tf7State)
+
+    if resetWhich == "F1"
+        f_reset_tf(tf1State)
+    if resetWhich == "F2"
+        f_reset_tf(tf2State)
+    if resetWhich == "F3"
+        f_reset_tf(tf3State)
+    if resetWhich == "F4"
+        f_reset_tf(tf4State)
+    if resetWhich == "F5"
+        f_reset_tf(tf5State)
+    if resetWhich == "F6"
+        f_reset_tf(tf6State)
+    if resetWhich == "F7"
         f_reset_tf(tf7State)
 
 //====================
@@ -2442,125 +2377,81 @@ if doReset
 //====================
 doCal = enableForecast and barstate.isconfirmed and (showTable or showEvalSection)
 if doCal
-    // F1
-    [fc1_t, kb1_t, at1_t, ph1_t, tp1_t, sl1_t] = f_get_params(tfF1)
-    fc1 = fc1_t, kb1 = kb1_t, at1 = at1_t, ph1 = ph1_t, tp1 = tp1_t, sl1 = sl1_t
-    f_process_tf(1, tfF1, newF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, 
-         tf1State,
-         fc1, kb1, at1, ph1, tp1, sl1,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(1, tfF1, newF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, tf1State, fcT1, kB1, aT1, pH1, tp1, sl1, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(2, tfF2, newF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, tf2State, fcT2, kB2, aT2, pH2, tp2, sl2, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(3, tfF3, newF3, outScore3, c3, h3, l3, a3, vR3, ef3, es3, tf3State, fcT3, kB3, aT3, pH3, tp3, sl3, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(4, tfF4, newF4, outScore4, c4, h4, l4, a4, vR4, ef4, es4, tf4State, fcT4, kB4, aT4, pH4, tp4, sl4, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(5, tfF5, newF5, outScore5, c5, h5, l5, a5, vR5, ef5, es5, tf5State, fcT5, kB5, aT5, pH5, tp5, sl5, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(6, tfF6, newF6, outScore6, c6, h6, l6, a6, vR6, ef6, es6, tf6State, fcT6, kB6, aT6, pH6, tp6, sl6, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
+    f_process_tf(7, tfF7, newF7, outScore7, c7, h7, l7, a7, vR7, ef7, es7, tf7State, fcT7, kB7, aT7, pH7, tp7, sl7, alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
 
-    // F2
-    [fc2_t, kb2_t, at2_t, ph2_t, tp2_t, sl2_t] = f_get_params(tfF2)
-    fc2 = fc2_t, kb2 = kb2_t, at2 = at2_t, ph2 = ph2_t, tp2 = tp2_t, sl2 = sl2_t
-    f_process_tf(2, tfF2, newF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, 
-         tf2State,
-         fc2, kb2, at2, ph2, tp2, sl2,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
-
-    // F3
-    [fc3_t, kb3_t, at3_t, ph3_t, tp3_t, sl3_t] = f_get_params(tfF3)
-    fc3 = fc3_t, kb3 = kb3_t, at3 = at3_t, ph3 = ph3_t, tp3 = tp3_t, sl3 = sl3_t
-    f_process_tf(3, tfF3, newF3, outScore3, c3, h3, l3, a3, vR3, ef3, es3, 
-         tf3State,
-         fc3, kb3, at3, ph3, tp3, sl3,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
-
-    // F4
-    [fc4_t, kb4_t, at4_t, ph4_t, tp4_t, sl4_t] = f_get_params(tfF4)
-    fc4 = fc4_t, kb4 = kb4_t, at4 = at4_t, ph4 = ph4_t, tp4 = tp4_t, sl4 = sl4_t
-    f_process_tf(4, tfF4, newF4, outScore4, c4, h4, l4, a4, vR4, ef4, es4, 
-         tf4State,
-         fc4, kb4, at4, ph4, tp4, sl4,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
-
-    // F5
-    [fc5_t, kb5_t, at5_t, ph5_t, tp5_t, sl5_t] = f_get_params(tfF5)
-    fc5 = fc5_t, kb5 = kb5_t, at5 = at5_t, ph5 = ph5_t, tp5 = tp5_t, sl5 = sl5_t
-    f_process_tf(5, tfF5, newF5, outScore5, c5, h5, l5, a5, vR5, ef5, es5, 
-         tf5State,
-         fc5, kb5, at5, ph5, tp5, sl5,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
-
-    // F6
-    [fc6_t, kb6_t, at6_t, ph6_t, tp6_t, sl6_t] = f_get_params(tfF6)
-    fc6 = fc6_t, kb6 = kb6_t, at6 = at6_t, ph6 = ph6_t, tp6 = tp6_t, sl6 = sl6_t
-    f_process_tf(6, tfF6, newF6, outScore6, c6, h6, l6, a6, vR6, ef6, es6, 
-         tf6State,
-         fc6, kb6, at6, ph6, tp6, sl6,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
-
-    // F7
-    [fc7_t, kb7_t, at7_t, ph7_t, tp7_t, sl7_t] = f_get_params(tfF7)
-    fc7 = fc7_t, kb7 = kb7_t, at7 = at7_t, ph7 = ph7_t, tp7 = tp7_t, sl7 = sl7_t
-    f_process_tf(7, tfF7, newF7, outScore7, c7, h7, l7, a7, vR7, ef7, es7, 
-         tf7State,
-         fc7, kb7, at7, ph7, tp7, sl7,
-         alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
-
-//====================
-// Display values — N (Calibrated) per horizon
-//====================
-f_get_disp_prob(sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, bins, alpha, shrink, tempArr, vecA, vecB) =>
+f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : -1
     sB = f_pullback_score(c, ef, es, bias)
-    sC = vR >= VOL_THRESH_HIGH ? -1.0 : (vR <= VOL_THRESH_LOW ? 1.0 : 0.0)
+    sC = vr >= VOL_THRESH_HIGH ? -1.0 : (vr <= VOL_THRESH_LOW ? 1.0 : 0.0)
     // Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments
-    atrNormDisp = a / math.max(c, 0.0001)
-    sD = f_trend_regime(ef, es, atrNormDisp)
-    sEns = f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)
-    cutsArr = bins == predBinsN ? qCutsN : qCuts1
-    b = f_bin2D(sEns, sD, bins, dim2Bins, cutsArr)
-    [pU_t, pF_t, pD_t, nRaw_t] = f_cal_cur3(cnt, up, dn, b, alpha, shrink, kShrinkReg)
-    pU = pU_t
-    pF = pF_t
-    pD = pD_t
-    nRaw = nRaw_t
-    useCal = f_can_cal3(nRaw)
-    if useCal
-        zU = f_safe_log(pU)
-        zF = f_safe_log(pF)
-        zD = f_safe_log(pD)
-        [tU_t, tF_t, tD_t] = f_cal_apply(zU, zF, zD, tempArr, vecA, vecB)
-        pU := tU_t
-        pF := tF_t
-        pD := tD_t
-    [pU, pF, pD, nRaw]
+    atrNorm = atrVal / math.max(c, 0.0001)
+    sD = f_trend_regime(ef, es, atrNorm)
+    sEns = f_ensemble4(sA, sB, sC, sD, wState, wPullback, wRegime, wTrend)
+    bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, qCutsN)
+    b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, qCuts1)
+    biasSel = useBullBearCal ? f_bias_from_score(sA) : 0
+    cntN_sel = useBullBearCal ? (biasSel >= 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
+    upN_sel  = useBullBearCal ? (biasSel >= 0 ? st.upN_bull  : st.upN_bear)  : st.upN
+    dnN_sel  = useBullBearCal ? (biasSel >= 0 ? st.dnN_bull  : st.dnN_bear)  : st.dnN
+    cnt1_sel = useBullBearCal ? (biasSel >= 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
+    up1_sel  = useBullBearCal ? (biasSel >= 0 ? st.up1_bull  : st.up1_bear)  : st.up1
+    dn1_sel  = useBullBearCal ? (biasSel >= 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
+    [pUN_t, pFN_t, pDN_t, nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaN, kShrink, kShrinkReg)
+    [pU1_t, pF1_t, pD1_t, n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1, kShrink, kShrinkReg)
+    pUN = pUN_t
+    pFN = pFN_t
+    pDN = pDN_t
+    nN = nN_t
+    pU1 = pU1_t
+    pF1 = pF1_t
+    pD1 = pD1_t
+    n1 = n1_t
+    useCalN = f_can_cal3(nN)
+    useCal1 = f_can_cal3(n1)
+    if useCalN
+        zUN = f_safe_log(pUN)
+        zFN = f_safe_log(pFN)
+        zDN = f_safe_log(pDN)
+        [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, st.tempN, st.vecAN, st.vecBN)
+        pUN := tUN_t
+        pFN := tFN_t
+        pDN := tDN_t
+    if useCal1
+        zU1 = f_safe_log(pU1)
+        zF1 = f_safe_log(pF1)
+        zD1 = f_safe_log(pD1)
+        [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, st.temp1, st.vecA1, st.vecB1)
+        pU1 := tU1_t
+        pF1 := tF1_t
+        pD1 := tD1_t
+    [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
 
-[pUN1_t, pFN1_t, pDN1_t, nN1_t] = f_get_disp_prob(outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cntN1Arr, upN1Arr, dnN1Arr, predBinsN, alphaN, kShrink, tf1State.tempN, tf1State.vecAN, tf1State.vecBN)
-[pUN2_t, pFN2_t, pDN2_t, nN2_t] = f_get_disp_prob(outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, wTrend, cntN2Arr, upN2Arr, dnN2Arr, predBinsN, alphaN, kShrink, tf2State.tempN, tf2State.vecAN, tf2State.vecBN)
-[pUN3_t, pFN3_t, pDN3_t, nN3_t] = f_get_disp_prob(outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, wTrend, cntN3Arr, upN3Arr, dnN3Arr, predBinsN, alphaN, kShrink, tf3State.tempN, tf3State.vecAN, tf3State.vecBN)
-[pUN4_t, pFN4_t, pDN4_t, nN4_t] = f_get_disp_prob(outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, wTrend, cntN4Arr, upN4Arr, dnN4Arr, predBinsN, alphaN, kShrink, tf4State.tempN, tf4State.vecAN, tf4State.vecBN)
-[pUN5_t, pFN5_t, pDN5_t, nN5_t] = f_get_disp_prob(outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, wTrend, cntN5Arr, upN5Arr, dnN5Arr, predBinsN, alphaN, kShrink, tf5State.tempN, tf5State.vecAN, tf5State.vecBN)
-[pUN6_t, pFN6_t, pDN6_t, nN6_t] = f_get_disp_prob(outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, wTrend, cntN6Arr, upN6Arr, dnN6Arr, predBinsN, alphaN, kShrink, tf6State.tempN, tf6State.vecAN, tf6State.vecBN)
-[pUN7_t, pFN7_t, pDN7_t, nN7_t] = f_get_disp_prob(outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, wTrend, cntN7Arr, upN7Arr, dnN7Arr, predBinsN, alphaN, kShrink, tf7State.tempN, tf7State.vecAN, tf7State.vecBN)
+//====================
+// Display values — N and 1 per horizon
+//====================
+[pUN1_t, pFN1_t, pDN1_t, nN1_t, pU11_t, pF11_t, pD11_t, n11p_t] = f_get_disp_vals(tfF1, outScore1, c1, a1, ef1, es1, vR1, tf1State)
+[pUN2_t, pFN2_t, pDN2_t, nN2_t, pU12_t, pF12_t, pD12_t, n12p_t] = f_get_disp_vals(tfF2, outScore2, c2, a2, ef2, es2, vR2, tf2State)
+[pUN3_t, pFN3_t, pDN3_t, nN3_t, pU13_t, pF13_t, pD13_t, n13p_t] = f_get_disp_vals(tfF3, outScore3, c3, a3, ef3, es3, vR3, tf3State)
+[pUN4_t, pFN4_t, pDN4_t, nN4_t, pU14_t, pF14_t, pD14_t, n14p_t] = f_get_disp_vals(tfF4, outScore4, c4, a4, ef4, es4, vR4, tf4State)
+[pUN5_t, pFN5_t, pDN5_t, nN5_t, pU15_t, pF15_t, pD15_t, n15p_t] = f_get_disp_vals(tfF5, outScore5, c5, a5, ef5, es5, vR5, tf5State)
+[pUN6_t, pFN6_t, pDN6_t, nN6_t, pU16_t, pF16_t, pD16_t, n16p_t] = f_get_disp_vals(tfF6, outScore6, c6, a6, ef6, es6, vR6, tf6State)
+[pUN7_t, pFN7_t, pDN7_t, nN7_t, pU17_t, pF17_t, pD17_t, n17p_t] = f_get_disp_vals(tfF7, outScore7, c7, a7, ef7, es7, vR7, tf7State)
 
-[pU11_t, pF11_t, pD11_t, n11p_t] = f_get_disp_prob(outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cnt11Arr, up11Arr, dn11Arr, predBins1, alpha1, kShrink, tf1State.temp1, tf1State.vecA1, tf1State.vecB1)
-[pU12_t, pF12_t, pD12_t, n12p_t] = f_get_disp_prob(outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, wTrend, cnt12Arr, up12Arr, dn12Arr, predBins1, alpha1, kShrink, tf2State.temp1, tf2State.vecA1, tf2State.vecB1)
-[pU13_t, pF13_t, pD13_t, n13p_t] = f_get_disp_prob(outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, wTrend, cnt13Arr, up13Arr, dn13Arr, predBins1, alpha1, kShrink, tf3State.temp1, tf3State.vecA1, tf3State.vecB1)
-[pU14_t, pF14_t, pD14_t, n14p_t] = f_get_disp_prob(outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, wTrend, cnt14Arr, up14Arr, dn14Arr, predBins1, alpha1, kShrink, tf4State.temp1, tf4State.vecA1, tf4State.vecB1)
-[pU15_t, pF15_t, pD15_t, n15p_t] = f_get_disp_prob(outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, wTrend, cnt15Arr, up15Arr, dn15Arr, predBins1, alpha1, kShrink, tf5State.temp1, tf5State.vecA1, tf5State.vecB1)
-[pU16_t, pF16_t, pD16_t, n16p_t] = f_get_disp_prob(outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, wTrend, cnt16Arr, up16Arr, dn16Arr, predBins1, alpha1, kShrink, tf6State.temp1, tf6State.vecA1, tf6State.vecB1)
-[pU17_t, pF17_t, pD17_t, n17p_t] = f_get_disp_prob(outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, wTrend, cnt17Arr, up17Arr, dn17Arr, predBins1, alpha1, kShrink, tf7State.temp1, tf7State.vecA1, tf7State.vecB1)
-
-pUN1 := pUN1_t, pFN1 := pFN1_t, pDN1 := pDN1_t, nN1 := nN1_t
-pUN2 := pUN2_t, pFN2 := pFN2_t, pDN2 := pDN2_t, nN2 := nN2_t
-pUN3 := pUN3_t, pFN3 := pFN3_t, pDN3 := pDN3_t, nN3 := nN3_t
-pUN4 := pUN4_t, pFN4 := pFN4_t, pDN4 := pDN4_t, nN4 := nN4_t
-pUN5 := pUN5_t, pFN5 := pFN5_t, pDN5 := pDN5_t, nN5 := nN5_t
-pUN6 := pUN6_t, pFN6 := pFN6_t, pDN6 := pDN6_t, nN6 := nN6_t
-pUN7 := pUN7_t, pFN7 := pFN7_t, pDN7 := pDN7_t, nN7 := nN7_t
-
-pU11 := pU11_t, pF11 := pF11_t, pD11 := pD11_t, n11p := n11p_t
-pU12 := pU12_t, pF12 := pF12_t, pD12 := pD12_t, n12p := n12p_t
-pU13 := pU13_t, pF13 := pF13_t, pD13 := pD13_t, n13p := n13p_t
-pU14 := pU14_t, pF14 := pF14_t, pD14 := pD14_t, n14p := n14p_t
-pU15 := pU15_t, pF15 := pF15_t, pD15 := pD15_t, n15p := n15p_t
-pU16 := pU16_t, pF16 := pF16_t, pD16 := pD16_t, n16p := n16p_t
-pU17 := pU17_t, pF17 := pF17_t, pD17 := pD17_t, n17p := n17p_t
+pUN1 := pUN1_t, pFN1 := pFN1_t, pDN1 := pDN1_t, nN1 := nN1_t, pU11 := pU11_t, pF11 := pF11_t, pD11 := pD11_t, n11p := n11p_t
+pUN2 := pUN2_t, pFN2 := pFN2_t, pDN2 := pDN2_t, nN2 := nN2_t, pU12 := pU12_t, pF12 := pF12_t, pD12 := pD12_t, n12p := n12p_t
+pUN3 := pUN3_t, pFN3 := pFN3_t, pDN3 := pDN3_t, nN3 := nN3_t, pU13 := pU13_t, pF13 := pF13_t, pD13 := pD13_t, n13p := n13p_t
+pUN4 := pUN4_t, pFN4 := pFN4_t, pDN4 := pDN4_t, nN4 := nN4_t, pU14 := pU14_t, pF14 := pF14_t, pD14 := pD14_t, n14p := n14p_t
+pUN5 := pUN5_t, pFN5 := pFN5_t, pDN5 := pDN5_t, nN5 := nN5_t, pU15 := pU15_t, pF15 := pF15_t, pD15 := pD15_t, n15p := n15p_t
+pUN6 := pUN6_t, pFN6 := pFN6_t, pDN6 := pDN6_t, nN6 := nN6_t, pU16 := pU16_t, pF16 := pF16_t, pD16 := pD16_t, n16p := n16p_t
+pUN7 := pUN7_t, pFN7 := pFN7_t, pDN7 := pDN7_t, nN7 := nN7_t, pU17 := pU17_t, pF17 := pF17_t, pD17 := pD17_t, n17p := n17p_t
 
 // --- Total resolved samples per TF (across all bins)
-// (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
 totN1 := f_sum_int_array(cntN1Arr)
 totN2 := f_sum_int_array(cntN2Arr)
 totN3 := f_sum_int_array(cntN3Arr)
@@ -2603,13 +2494,6 @@ if na(gT)
     tblCols = 10
     tblRows = 16
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
-
-f_rowOut(tf, score, tC, mC, lC, rV, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 2, rRow, str.tostring(score, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
 f_bin_quality(pTop, nBin) =>
     if nBin <= 0
@@ -2656,29 +2540,6 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     nTxt = "n=" + str.tostring(nBin) + " " + qLbl
     table.cell(gT, 9, rRow, nTxt, text_color=qCol, bgcolor=tblCell, text_size=size.tiny)
 
-f_rowFc(tf, pN, nBinN, totN_, canN_, p1, nBin1, tot1_, can1_, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-
-    // Chance(N)
-    txtChanceN = f_chance_text(tf, pN, nBinN, totN_, canN_)
-    colChanceN = f_predColorP(pN, nBinN, canN_, tblText)
-    table.cell(gT, 1, rRow, txtChanceN, text_color=colChanceN, bgcolor=tblCell, text_size=size.tiny)
-
-    // Data(N) = bin/total + label + range
-    txtDataN = f_data_text(pN, nBinN, totN_, canN_)
-    colDataN = f_rel_color(pN, nBinN, totN_, canN_)
-    table.cell(gT, 2, rRow, txtDataN, text_color=colDataN, bgcolor=tblCell, text_size=size.tiny)
-
-    // Chance(1)
-    txtChance1 = f_chance_text(tf, p1, nBin1, tot1_, can1_)
-    colChance1 = f_predColorP(p1, nBin1, can1_, tblText)
-    table.cell(gT, 3, rRow, txtChance1, text_color=colChance1, bgcolor=tblCell, text_size=size.tiny)
-
-    // Data(1)
-    txtData1 = f_data_text(p1, nBin1, tot1_, can1_)
-    colData1 = f_rel_color(p1, nBin1, tot1_, can1_)
-    table.cell(gT, 4, rRow, txtData1, text_color=colData1, bgcolor=tblCell, text_size=size.tiny)
-
 f_fmtBrier(stats) =>
     s = array.get(stats, 0)
     c = array.get(stats, 1)
@@ -2713,85 +2574,6 @@ f_rowRel(tf, statsN, stats1, rRow) =>
     tc1 = tc1_t
     cc1 = cc1_t
     table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
-
-// --- Evaluation Helpers
-f_eval_get(hid) =>
-    float bAvg = na, float lAvg = na
-    float ece = na, float mErr = na
-    float wS = na, float wL = na
-    float drift = na, float nSc = na
-    
-    TfState st = na
-    if hid == 1
-        st := tf1State
-    else if hid == 2
-        st := tf2State
-    else if hid == 3
-        st := tf3State
-    else if hid == 4
-        st := tf4State
-    else if hid == 5
-        st := tf5State
-    else if hid == 6
-        st := tf6State
-    else 
-        st := tf7State
-
-    if not na(st)
-        // Switch to get arrays based on head (N or 1)
-        if evalWhichHead == "N"
-            [b0_t, b1_t, e0_t, e1_t, w0_t, w1_t, d0_t, n0_t] = f_eval_stats_one(st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN)
-            bAvg := b0_t, lAvg := b1_t, ece := e0_t, mErr := e1_t, wS := w0_t, wL := w1_t, drift := d0_t, nSc := n0_t
-        else
-            [b0_t, b1_t, e0_t, e1_t, w0_t, w1_t, d0_t, n0_t] = f_eval_stats_one(st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1)
-            bAvg := b0_t, lAvg := b1_t, ece := e0_t, mErr := e1_t, wS := w0_t, wL := w1_t, drift := d0_t, nSc := n0_t
-        
-    [bAvg, lAvg, ece, mErr, wS, wL, drift, nSc]
-
-f_rowEval(tbl, tf, hid, rRow) =>
-    [bAvg_t, lAvg_t, ece_t, mErr_t, wS_t, wL_t, drift_t, nSc_t] = f_eval_get(hid)
-    bAvg = bAvg_t
-    lAvg = lAvg_t
-    ece = ece_t
-    mErr = mErr_t
-    wS = wS_t
-    wL = wL_t
-    drift = drift_t
-    nSc = nSc_t
-    
-    // Label
-    table.cell(tbl, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-
-    if na(nSc) or nSc == 0
-        table.cell(tbl, 1, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 2, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 3, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 4, rRow, "0",   text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    else
-        // LogLoss
-        // ideal ~ 0.693 for random 50/50. Good < 0.65 ?? 
-        // We'll just color based on existence
-        llTxt = str.tostring(lAvg, "#.000")
-        table.cell(tbl, 1, rRow, llTxt, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-
-        // ConfErr (pTrue) / Max
-        eceT = str.tostring(ece * 100, "#.0")
-        maxT = str.tostring(mErr * 100, "#.0")
-        comb = eceT + "/" + maxT
-        // Color ECE: < 5% is great, <10% ok
-        cEce = ece < 0.05 ? color.lime : ece < 0.10 ? color.yellow : color.red
-        table.cell(tbl, 2, rRow, comb, text_color=cEce, bgcolor=tblCell, text_size=size.tiny)
-
-        // Drift
-        drT = f_ppSigned(drift)
-        // positive drift = Short yield > Long yield? 
-        // Actually wS - wL. If > 0 => Short doing better.
-        // We assume neutral is 0.
-        table.cell(tbl, 3, rRow, drT, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-        
-        // Count
-        table.cell(tbl, 4, rRow, str.tostring(nSc, "#"), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-
 
 //====================
 // Table (5 columns) — rendered on confirmed bars (stable)
@@ -2844,7 +2626,7 @@ if showTable and barstate.islast
     table.cell(gT, 1, 6, lastSig, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     table.cell(gT, 0, 7, "Time", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 7, str.format_time(timenow, "HH:mm"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny) // Short time format
+    table.cell(gT, 1, 7, str.format_time(timenow, "HH:mm"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
     // Outlook header + forecast columns
     table.cell(gT, 0, 8, "Outlook", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
@@ -2866,12 +2648,13 @@ if showTable and barstate.islast
     f_rowTF(tfF6, outScore6, t6c, m6c, l6c, r6, pUN6, pFN6, pDN6, nN6, 14)
     f_rowTF(tfF7, outScore7, t7c, m7c, l7c, r7, pUN7, pFN7, pDN7, nN7, 15)
 
+
 //====================
 // Calibration Diagnostics Panel (Debug)
 //====================
 var table diagTbl = na
 if showDiagPanel and na(diagTbl)
-    diagTbl := table.new(position.top_right, 2, 14, bgcolor=color.new(color.black, 85), frame_color=color.gray, frame_width=1, border_color=color.gray, border_width=1)
+    diagTbl := table.new(position.top_right, 2, 18, bgcolor=color.new(color.black, 85), frame_color=color.gray, frame_width=1, border_color=color.gray, border_width=1)
 
 // Helper to get selected TfState
 f_get_diag_state() =>
@@ -2963,78 +2746,62 @@ if showDiagPanel and barstate.islast
     // Row 9: Total samples
     table.cell(diagTbl, 0, 9, "Total Samples", text_color=color.gray, text_size=size.tiny)
     table.cell(diagTbl, 1, 9, str.tostring(totalSamples), text_color=totalSamples >= calMinSamples * numBins ? color.lime : color.yellow, text_size=size.tiny)
-    
-    // Row 10: Bin distribution
-    table.cell(diagTbl, 0, 10, "Bin Min/Avg/Max", text_color=color.gray, text_size=size.tiny)
-    table.cell(diagTbl, 1, 10, str.tostring(minBin) + "/" + str.tostring(avgBin, "#") + "/" + str.tostring(maxBin), text_color=color.white, text_size=size.tiny)
-    
-    // Row 11: Warmup label (mirrors table behavior)
-    warmupLbl = f_samp_label(enableForecast, totalSamples)
-    warmupPct = math.min(100, totalSamples * 100.0 / (calMinSamples * numBins))
-    warmupTxt = warmupLbl == "off" ? "off" : warmupLbl == "…" ? "…" : warmupLbl + " (" + str.tostring(warmupPct, "#.0") + "%)"
-    warmupCol = warmupLbl == "strong" ? color.lime : warmupLbl == "ok" ? color.yellow : warmupLbl == "…" ? color.red : color.gray
-    table.cell(diagTbl, 0, 11, "Warmup", text_color=color.gray, text_size=size.tiny)
-    table.cell(diagTbl, 1, 11, warmupTxt, text_color=warmupCol, text_size=size.tiny)
-    
-    // Row 12: Base Rate
-    table.cell(diagTbl, 0, 12, "Base Rate (Up%)", text_color=color.gray, text_size=size.tiny)
-    table.cell(diagTbl, 1, 12, str.tostring(baseRate, "#.1") + "%", text_color=math.abs(baseRate - 50) > 15 ? color.orange : color.white, text_size=size.tiny)
-    
-    // Row 13: Observations count
-    table.cell(diagTbl, 0, 13, "Resolutions", text_color=color.gray, text_size=size.tiny)
-    table.cell(diagTbl, 1, 13, str.tostring(int(brierCnt)), text_color=color.white, text_size=size.tiny)
 
 //====================
-// UT Bot Logic (Overlay, V4 Port)
+// Calibration Export Alert
 //====================
-utSrc = utUseHA ? request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close, lookahead = barmerge.lookahead_off) : close
-utXATR = ta.atr(utAtrPeriod)
-utNLoss = utKey * utXATR
+f_get_export_state() =>
+    exportHorizon == "F1" ? tf1State : exportHorizon == "F2" ? tf2State : exportHorizon == "F3" ? tf3State : exportHorizon == "F4" ? tf4State : exportHorizon == "F5" ? tf5State : exportHorizon == "F6" ? tf6State : tf7State
 
-var float utXATRTrailingStop = 0.0
-// Logic replication
-utPrevStop = nz(utXATRTrailingStop[1], 0)
-utSrc1 = utSrc[1]
+if exportCalibration and barstate.isconfirmed and barstate.isrealtime and (bar_index % exportInterval == 0)
+    expSt = f_get_export_state()
 
-if utSrc > utPrevStop and utSrc1 > utPrevStop
-    utXATRTrailingStop := math.max(utPrevStop, utSrc - utNLoss)
-else if utSrc < utPrevStop and utSrc1 < utPrevStop
-    utXATRTrailingStop := math.min(utPrevStop, utSrc + utNLoss)
-else if utSrc > utPrevStop
-    utXATRTrailingStop := utSrc - utNLoss
-else 
-    utXATRTrailingStop := utSrc + utNLoss
+    pAN = array.get(expSt.plattN, 0)
+    pBN = array.get(expSt.plattN, 1)
+    pA1 = array.get(expSt.platt1, 0)
+    pB1 = array.get(expSt.platt1, 1)
 
-var int utPos = 0
-if utSrc1 < utPrevStop and utSrc > utPrevStop
-    utPos := 1
-else if utSrc1 > utPrevStop and utSrc < utPrevStop
-    utPos := -1
-else
-    utPos := nz(utPos[1], 0)
+    // Brier/LogLoss stats aligned to evalWhichHead
+    useHeadN = evalWhichHead == "N"
+    brierStats = useHeadN ? expSt.brierStatsN : expSt.brierStats1
+    llStats = useHeadN ? expSt.llStatsN : expSt.llStats1
+    cntArr = useHeadN ? expSt.cntN : expSt.cnt1
 
-utEma = ta.ema(utSrc, 1)
-utAbove = ta.crossover(utEma, utXATRTrailingStop)
-utBelow = ta.crossover(utXATRTrailingStop, utEma)
+    brierSumN = array.get(brierStats, 0)
+    brierCntN = array.get(brierStats, 1)
+    brierAvgN = brierCntN > 0 ? brierSumN / brierCntN : 0
 
-utBuy  = utSrc > utXATRTrailingStop and utAbove
-utSell = utSrc < utXATRTrailingStop and utBelow
+    llSumN = array.get(llStats, 0)
+    llCntN = array.get(llStats, 1)
+    llAvgN = llCntN > 0 ? llSumN / llCntN : 0
 
-utBarBuy  = utSrc > utXATRTrailingStop
-utBarSell = utSrc < utXATRTrailingStop
+    totalSamplesN = array.sum(cntArr)
 
-plotshape(utShow and utBuy,  title = "UT Buy",  text = 'UT Buy',  style = shape.labelup,   location = location.belowbar, color= color.green, textcolor = color.white, size = size.tiny)
-plotshape(utShow and utSell, title = "UT Sell", text = 'UT Sell', style = shape.labeldown, location = location.abovebar, color= color.red,   textcolor = color.white, size = size.tiny)
+    // Build JSON payload (single line to avoid line continuation issues)
+    jsonPayload = '{"ticker":"' + syminfo.ticker + '","horizon":"' + exportHorizon + '","bar_index":' + str.tostring(bar_index) + ',"timestamp":"' + str.tostring(timenow) + '","platt_N":{"a":' + str.tostring(pAN, "#.####") + ',"b":' + str.tostring(pBN, "#.####") + '},"platt_1":{"a":' + str.tostring(pA1, "#.####") + ',"b":' + str.tostring(pB1, "#.####") + '},"brier_avg":' + str.tostring(brierAvgN, "#.####") + ',"logloss_avg":' + str.tostring(llAvgN, "#.####") + ',"samples":' + str.tostring(totalSamplesN) + ',"resolutions":' + str.tostring(int(brierCntN)) + '}'
 
-barcolor(utShow and utBarBuy ? color.green : utShow and utBarSell ? color.red : na)
-
-alertcondition(utBuy,  "UT Bot Long",  "UT Bot Long")
-alertcondition(utSell, "UT Bot Short", "UT Bot Short")
+    alert(jsonPayload, alert.freq_once_per_bar)
 
 //====================
-// Alerts (bar close)
+// Trend Regime Export Alert (for monitoring)
 //====================
-alertcondition(buySignal,   title="BUY (bar close)",   message="BUY {{ticker}} @ {{close}}")
-alertcondition(exitSignal,  title="EXIT (bar close)",  message="EXIT {{ticker}} @ {{close}}")
-alertcondition(shortSignal, title="SHORT (bar close)", message="SHORT {{ticker}} @ {{close}}")
-alertcondition(coverSignal, title="COVER (bar close)", message="COVER {{ticker}} @ {{close}}")
+// Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments
+atrNormCur = atr / math.max(close, 0.0001)
+curTrendRegime = f_trend_regime(emaF, emaS, atrNormCur)
+trendLabel = curTrendRegime > 0.5 ? "BULL" : curTrendRegime < -0.5 ? "BEAR" : "SIDEWAYS"
+alertcondition(curTrendRegime > 0.5 and curTrendRegime[1] <= 0.5, title="Regime: BULL", message="{{ticker}} entered BULL regime")
+alertcondition(curTrendRegime < -0.5 and curTrendRegime[1] >= -0.5, title="Regime: BEAR", message="{{ticker}} entered BEAR regime")
+alertcondition(math.abs(curTrendRegime) <= 0.5 and math.abs(curTrendRegime[1]) > 0.5, title="Regime: SIDEWAYS", message="{{ticker}} entered SIDEWAYS regime")
+
+//====================
+// Strategy Execution (Backtest Mode)
+//====================
+if buySignal
+    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
+if shortSignal
+    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
+if exitSignal
+    strategy.close("L")
+if coverSignal
+    strategy.close("S")
+
