@@ -215,7 +215,6 @@ class TestSkippAlgoStrategyUXHelpers(unittest.TestCase):
     Tests for UX display helpers.
     
     These check whether the new UX helpers from SkippALGO.pine are present.
-    CURRENT: Strategy is missing these - they need to be ported.
     """
     
     text: str = ""
@@ -238,27 +237,27 @@ class TestSkippAlgoStrategyUXHelpers(unittest.TestCase):
         """Strategy has prediction color function."""
         self.assertIn("f_predColorP(", self.text)
 
-    def test_missing_f_profile(self):
+    def test_has_f_profile(self):
         """Strategy includes f_profile helper."""
         self.assertIn("f_profile(tf) =>", self.text)
 
-    def test_missing_f_target_for_tf(self):
+    def test_has_f_target_for_tf(self):
         """Strategy includes f_target_for_tf helper."""
         self.assertIn("f_target_for_tf(tf) =>", self.text)
 
-    def test_missing_f_target_label(self):
+    def test_has_f_target_label(self):
         """Strategy includes f_target_label helper."""
         self.assertIn("f_target_label(tf) =>", self.text)
 
-    def test_missing_f_unc_pp(self):
+    def test_has_f_unc_pp(self):
         """Strategy includes f_unc_pp (CI band helper)."""
         self.assertIn("f_unc_pp(p, n) =>", self.text)
 
-    def test_missing_f_strength_label_fc(self):
+    def test_has_f_strength_label_fc(self):
         """Strategy includes f_strength_label_fc."""
         self.assertIn("f_strength_label_fc(nBin) =>", self.text)
 
-    def test_missing_f_prob_range_text(self):
+    def test_has_f_prob_range_text(self):
         """Strategy includes f_prob_range_text."""
         self.assertIn("f_prob_range_text(p, nBin) =>", self.text)
 
