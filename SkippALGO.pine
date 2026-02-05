@@ -2328,23 +2328,24 @@ f_getBrier_raw(tfSel, modSel) =>
 f_getBrier_disp(tfSel, modSel) =>
     nz(f_getBrier_raw(tfSel, modSel), 0.5)
 
-f_get_total_samples(tfSel, modSel) =>
+f_get_total_samples(tfSel, modSel, useBull) =>
     float total = na
     float[] cnt = na
+    useBullSel = (useBull == true)
     if tfSel == "F1"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull1 ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : (isBull1 ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw)) : ((modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : (useBullSel ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw)) : ((modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw)
     else if tfSel == "F2"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull2 ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : (isBull2 ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw)) : ((modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : (useBullSel ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw)) : ((modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw)
     else if tfSel == "F3"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull3 ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : (isBull3 ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw)) : ((modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : (useBullSel ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw)) : ((modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw)
     else if tfSel == "F4"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull4 ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : (isBull4 ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw)) : ((modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : (useBullSel ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw)) : ((modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw)
     else if tfSel == "F5"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull5 ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : (isBull5 ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw)) : ((modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : (useBullSel ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw)) : ((modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw)
     else if tfSel == "F6"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull6 ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : (isBull6 ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw)) : ((modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : (useBullSel ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw)) : ((modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw)
     else if tfSel == "F7"
-        cnt := useBullBearCal ? ((modSel == "N") ? (isBull7 ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : (isBull7 ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw)) : ((modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw)
+        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : (useBullSel ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw)) : ((modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw)
 
     if not na(cnt)
         total := array.sum(cnt)
@@ -3001,20 +3002,20 @@ array.set(relN1,   6, n17p_t)
 array.set(relTot1, 6, tot17)
 
 // calibration “enabled for display” if forecast enabled + we have any resolved samples in that TF
-totF1N = f_get_total_samples("F1", "N")
-totF2N = f_get_total_samples("F2", "N")
-totF3N = f_get_total_samples("F3", "N")
-totF4N = f_get_total_samples("F4", "N")
-totF5N = f_get_total_samples("F5", "N")
-totF6N = f_get_total_samples("F6", "N")
-totF7N = f_get_total_samples("F7", "N")
-totF11 = f_get_total_samples("F1", "1")
-totF12 = f_get_total_samples("F2", "1")
-totF13 = f_get_total_samples("F3", "1")
-totF14 = f_get_total_samples("F4", "1")
-totF15 = f_get_total_samples("F5", "1")
-totF16 = f_get_total_samples("F6", "1")
-totF17 = f_get_total_samples("F7", "1")
+totF1N = f_get_total_samples("F1", "N", isBull1)
+totF2N = f_get_total_samples("F2", "N", isBull2)
+totF3N = f_get_total_samples("F3", "N", isBull3)
+totF4N = f_get_total_samples("F4", "N", isBull4)
+totF5N = f_get_total_samples("F5", "N", isBull5)
+totF6N = f_get_total_samples("F6", "N", isBull6)
+totF7N = f_get_total_samples("F7", "N", isBull7)
+totF11 = f_get_total_samples("F1", "1", isBull1)
+totF12 = f_get_total_samples("F2", "1", isBull2)
+totF13 = f_get_total_samples("F3", "1", isBull3)
+totF14 = f_get_total_samples("F4", "1", isBull4)
+totF15 = f_get_total_samples("F5", "1", isBull5)
+totF16 = f_get_total_samples("F6", "1", isBull6)
+totF17 = f_get_total_samples("F7", "1", isBull7)
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
@@ -3036,7 +3037,8 @@ canF17 = forecastAllowed and (not na(totF17) and totF17 > 0)
 
 curBrierRaw = f_getBrier_raw(relFilterTF, relFilterModel)
 curBrier = nz(curBrierRaw, 0.5)
-totSamp = f_get_total_samples(relFilterTF, relFilterModel)
+relBull = relFilterTF == "F1" ? isBull1 : relFilterTF == "F2" ? isBull2 : relFilterTF == "F3" ? isBull3 : relFilterTF == "F4" ? isBull4 : relFilterTF == "F5" ? isBull5 : relFilterTF == "F6" ? isBull6 : isBull7
+totSamp = f_get_total_samples(relFilterTF, relFilterModel, relBull)
 reliabilityOk = (not forecastAllowed) or (not useRelFilter) or (not na(curBrierRaw) and not na(totSamp) and totSamp > 0 and curBrierRaw <= maxBrier)
 evidenceOk = (not forecastAllowed) or (not evidenceGate) or (not na(totSamp) and totSamp >= evidenceMinTotal)
 

@@ -161,10 +161,10 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("f_sum_int_array(cnt11Arr)", self.text)
 
         # Ensure can flags depend on enableForecast and totals
-        self.assertIn('totF1N = f_get_total_samples("F1", "N")', self.text)
-        self.assertIn('totF7N = f_get_total_samples("F7", "N")', self.text)
-        self.assertIn('totF11 = f_get_total_samples("F1", "1")', self.text)
-        self.assertIn('totF17 = f_get_total_samples("F7", "1")', self.text)
+        self.assertRegex(self.text, r'totF1N\s*=\s*f_get_total_samples\("F1",\s*"N"(?:,\s*isBull1)?\)')
+        self.assertRegex(self.text, r'totF7N\s*=\s*f_get_total_samples\("F7",\s*"N"(?:,\s*isBull7)?\)')
+        self.assertRegex(self.text, r'totF11\s*=\s*f_get_total_samples\("F1",\s*"1"(?:,\s*isBull1)?\)')
+        self.assertRegex(self.text, r'totF17\s*=\s*f_get_total_samples\("F7",\s*"1"(?:,\s*isBull7)?\)')
 
         self.assertRegex(self.text, r"canF1N\s*=\s*forecastAllowed\s+and\s*\(not na\(totF1N\) and totF1N > 0\)")
         self.assertRegex(self.text, r"canF7N\s*=\s*forecastAllowed\s+and\s*\(not na\(totF7N\) and totF7N > 0\)")
