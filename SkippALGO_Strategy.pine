@@ -760,8 +760,8 @@ f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
 // --- Phase 1 Helpers: Target Params ---
 f_get_params(tf) =>
     sec = timeframe.in_seconds(tf)
-    isFast = sec <= SEC_5M // <= 5m
-    isMid  = sec <= SEC_1H // <= 1h
+    isFast = (not na(sec)) and sec <= SEC_5M // <= 5m
+    isMid  = (not na(sec)) and sec <= SEC_1H // <= 1h
     // Returns: [fcTarget, kBars, atrThr, pathH, tpATR, slATR]
     [isFast ? fcTargetF : isMid ? fcTargetM : fcTargetS, 
      isFast ? kBarsF    : isMid ? kBarsM    : kBarsS, 
@@ -838,7 +838,7 @@ f_bin2D(score, trendScore, binsScore, binsReg, cutsArr) =>
 
 f_db_mult(tf) =>
     sec = timeframe.in_seconds(tf)
-    sec <= SEC_5M ? deadbandFast : sec <= SEC_1H ? deadbandMid : deadbandSlow
+    na(sec) ? deadbandSlow : sec <= SEC_5M ? deadbandFast : sec <= SEC_1H ? deadbandMid : deadbandSlow
 
 f_outcome3(delta, db) =>
     delta > db ? 1 : delta < -db ? -1 : 0
@@ -985,8 +985,10 @@ f_logloss3(pU, pF, pD, outcome) =>
 
 f_prior3(tf, outScore) =>
     sec = timeframe.in_seconds(tf)
-    baseFlat = sec <= SEC_5M ? flatPriorFast : sec <= SEC_1H ? flatPriorMid : flatPriorSlow
-    tiltMax  = sec <= SEC_5M ? tiltMaxFast  : sec <= SEC_1H ? tiltMaxMid  : tiltMaxSlow
+    isFast = (not na(sec)) and sec <= SEC_5M
+    isMid  = (not na(sec)) and sec <= SEC_1H
+    baseFlat = isFast ? flatPriorFast : isMid ? flatPriorMid : flatPriorSlow
+    tiltMax  = isFast ? tiltMaxFast  : isMid ? tiltMaxMid  : tiltMaxSlow
 
     baseSide = (1.0 - baseFlat) * 0.5
     tilt = f_clamp(outScore, -1.0, 1.0) * tiltMax
@@ -2712,7 +2714,7 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     sEns = f_ensemble4(sA, sB, sC, sD, wState, wPullback, wRegime, wTrend)
     if na(sEns) or na(sD)
         [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-        [pUpr_t, pFpr_t, pDpr_t, 0, pUpr_t, pFpr_t, pDpr_t, 0]
+        [pUpr_t, pFpr_t, pDpr_t, 0.0, pUpr_t, pFpr_t, pDpr_t, 0.0]
     else
         bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
         b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
@@ -3312,12 +3314,12 @@ if barstate.isconfirmed
         lastSignalBar := bar_index
         lastSig := "SHORT"
 
-    buyEvent   = barstate.isconfirmed and pos == 1 and pos[1] == 0
-    shortEvent = barstate.isconfirmed and pos == -1 and pos[1] == 0
-    exitEvent  = barstate.isconfirmed and pos == 0 and pos[1] == 1
-    coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
+buyEvent   = barstate.isconfirmed and pos == 1 and pos[1] == 0
+shortEvent = barstate.isconfirmed and pos == -1 and pos[1] == 0
+exitEvent  = barstate.isconfirmed and pos == 0 and pos[1] == 1
+coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 
-    alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
+alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
 alertcondition(buyEvent,   title="BUY",   message="SkippALGO BUY")

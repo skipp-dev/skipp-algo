@@ -990,8 +990,8 @@ f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
 // --- Phase 1 Helpers: Target Params ---
 f_get_params(tf) =>
     sec = timeframe.in_seconds(tf)
-    isFast = sec <= SEC_5M // <= 5m
-    isMid  = sec <= SEC_1H // <= 1h
+    isFast = (not na(sec)) and sec <= SEC_5M // <= 5m
+    isMid  = (not na(sec)) and sec <= SEC_1H // <= 1h
     // Returns: [fcTarget, kBars, atrThr, pathH, tpATR, slATR]
     [isFast ? fcTargetF : isMid ? fcTargetM : fcTargetS, 
      isFast ? kBarsF    : isMid ? kBarsM    : kBarsS, 
@@ -1091,7 +1091,7 @@ f_bin2D(score, trendScore, binsA, binsB, cutsArr) =>
 
 f_db_mult(tf) =>
     sec = timeframe.in_seconds(tf)
-    sec <= SEC_5M ? deadbandFast : sec <= SEC_1H ? deadbandMid : deadbandSlow
+    na(sec) ? deadbandSlow : sec <= SEC_5M ? deadbandFast : sec <= SEC_1H ? deadbandMid : deadbandSlow
 
 f_outcome3(delta, db) =>
     delta > db ? 1 : delta < -db ? -1 : 0
@@ -1238,8 +1238,10 @@ f_logloss3(pU, pF, pD, outcome) =>
 
 f_prior3(tf, outScore) =>
     sec = timeframe.in_seconds(tf)
-    baseFlat = sec <= SEC_5M ? flatPriorFast : sec <= SEC_1H ? flatPriorMid : flatPriorSlow
-    tiltMax  = sec <= SEC_5M ? tiltMaxFast  : sec <= SEC_1H ? tiltMaxMid  : tiltMaxSlow
+    isFast = (not na(sec)) and sec <= SEC_5M
+    isMid  = (not na(sec)) and sec <= SEC_1H
+    baseFlat = isFast ? flatPriorFast : isMid ? flatPriorMid : flatPriorSlow
+    tiltMax  = isFast ? tiltMaxFast  : isMid ? tiltMaxMid  : tiltMaxSlow
 
     baseSide = (1.0 - baseFlat) * 0.5
     tilt = f_clamp(outScore, -1.0, 1.0) * tiltMax
@@ -2792,7 +2794,7 @@ f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cn
     sEns = f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)
     if na(sEns) or na(sD)
         [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-        [pUpr_t, pFpr_t, pDpr_t, 0]
+        [pUpr_t, pFpr_t, pDpr_t, 0.0]
     else
         cutsArr = bins == predBinsN ? cutsN : cuts1
         b = f_bin2D(sEns, sD, bins, dim2Bins, cutsArr)
