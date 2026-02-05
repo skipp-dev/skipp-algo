@@ -1116,12 +1116,18 @@ f_decay_counts(cntArr, upArr, dnArr, decay) =>
             array.set(dnArr,  i, array.get(dnArr,  i) * decay)
 
 f_cal_update3(cntArr, upArr, dnArr, bin, outcome) =>
-    n0 = array.get(cntArr, bin)
-    u0 = array.get(upArr,  bin)
-    d0 = array.get(dnArr,  bin)
-    array.set(cntArr, bin, n0 + 1.0)
-    array.set(upArr,  bin, u0 + (outcome == 1 ? 1.0 : 0.0))
-    array.set(dnArr,  bin, d0 + (outcome == -1 ? 1.0 : 0.0))
+    if na(bin) or array.size(cntArr) == 0
+        na
+    else
+        b = int(bin)
+        maxIdx = array.size(cntArr) - 1
+        b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
+        n0 = array.get(cntArr, b)
+        u0 = array.get(upArr,  b)
+        d0 = array.get(dnArr,  b)
+        array.set(cntArr, b, n0 + 1.0)
+        array.set(upArr,  b, u0 + (outcome == 1 ? 1.0 : 0.0))
+        array.set(dnArr,  b, d0 + (outcome == -1 ? 1.0 : 0.0))
 
 f_prob3(u, f, d, n, alpha) =>
     denom = n + 3.0 * alpha
@@ -2320,19 +2326,19 @@ f_get_total_samples(tfSel, modSel) =>
     float total = na
     float[] cnt = na
     if tfSel == "F1"
-        cnt := (modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull1 ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : (isBull1 ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw)) : ((modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw)
     else if tfSel == "F2"
-        cnt := (modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull2 ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : (isBull2 ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw)) : ((modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw)
     else if tfSel == "F3"
-        cnt := (modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull3 ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : (isBull3 ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw)) : ((modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw)
     else if tfSel == "F4"
-        cnt := (modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull4 ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : (isBull4 ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw)) : ((modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw)
     else if tfSel == "F5"
-        cnt := (modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull5 ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : (isBull5 ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw)) : ((modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw)
     else if tfSel == "F6"
-        cnt := (modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull6 ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : (isBull6 ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw)) : ((modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw)
     else if tfSel == "F7"
-        cnt := (modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull7 ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : (isBull7 ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw)) : ((modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw)
 
     if not na(cnt)
         total := array.sum(cnt)
@@ -2515,7 +2521,7 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
 
 f_entry_forecast_gate(isLong) =>
     bool ok = true
-    if useForecastGateEntry and use3Way and f_forecast_allowed()
+    if useForecastGateEntry and use3Way and enableForecast and f_forecast_allowed()
         [pU, pF, pD, nBin, total] = f_get_rel_vals(entryFcTF, entryFcModel)
         binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
         totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
@@ -2786,8 +2792,8 @@ if doCal
 //====================
 // Display values — N (Calibrated) per horizon
 //====================
-f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cntRaw, bins, alpha, shrink, tempArr, vecA, vecB, cutsN, cuts1) =>
-    bias = ef > es ? 1 : -1
+f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cntRaw, bins, alpha, shrink, tempArr, vecA, vecB, cutsN, cuts1, useCutsN) =>
+    bias = ef > es ? 1 : ef < es ? -1 : 0
     sB = f_pullback_score(c, ef, es, bias)
     sC = vR >= VOL_THRESH_HIGH ? -1.0 : (vR <= VOL_THRESH_LOW ? 1.0 : 0.0)
     // Epsilon 0.0001 prevents division by zero on penny stocks or exotic instruments
@@ -2798,7 +2804,7 @@ f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cn
         [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
         [pUpr_t, pFpr_t, pDpr_t, 0.0]
     else
-        cutsArr = bins == predBinsN ? cutsN : cuts1
+        cutsArr = useCutsN ? cutsN : cuts1
         b = f_bin2D(sEns, sD, bins, dim2Bins, cutsArr)
         [pU_t, pF_t, pD_t, nDecayed_t] = f_cal_cur3(cnt, up, dn, b, alpha, shrink, kShrinkReg)
         pU = pU_t
@@ -2823,21 +2829,21 @@ f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cn
         [pU, pF, pD, nRaw]
 
 
-[pUN1_t, pFN1_t, pDN1_t, nN1_t] = f_get_disp_prob(tfF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cntN1Arr, upN1Arr, dnN1Arr, cntN1RawArr, predBinsN, alphaN, kShrink, tempN1Arr, vecAN1Arr, vecBN1Arr, tf1State.qCutsN, tf1State.qCuts1)
-[pUN2_t, pFN2_t, pDN2_t, nN2_t] = f_get_disp_prob(tfF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, wTrend, cntN2Arr, upN2Arr, dnN2Arr, cntN2RawArr, predBinsN, alphaN, kShrink, tempN2Arr, vecAN2Arr, vecBN2Arr, tf2State.qCutsN, tf2State.qCuts1)
-[pUN3_t, pFN3_t, pDN3_t, nN3_t] = f_get_disp_prob(tfF3, outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, wTrend, cntN3Arr, upN3Arr, dnN3Arr, cntN3RawArr, predBinsN, alphaN, kShrink, tempN3Arr, vecAN3Arr, vecBN3Arr, tf3State.qCutsN, tf3State.qCuts1)
-[pUN4_t, pFN4_t, pDN4_t, nN4_t] = f_get_disp_prob(tfF4, outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, wTrend, cntN4Arr, upN4Arr, dnN4Arr, cntN4RawArr, predBinsN, alphaN, kShrink, tempN4Arr, vecAN4Arr, vecBN4Arr, tf4State.qCutsN, tf4State.qCuts1)
-[pUN5_t, pFN5_t, pDN5_t, nN5_t] = f_get_disp_prob(tfF5, outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, wTrend, cntN5Arr, upN5Arr, dnN5Arr, cntN5RawArr, predBinsN, alphaN, kShrink, tempN5Arr, vecAN5Arr, vecBN5Arr, tf5State.qCutsN, tf5State.qCuts1)
-[pUN6_t, pFN6_t, pDN6_t, nN6_t] = f_get_disp_prob(tfF6, outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, wTrend, cntN6Arr, upN6Arr, dnN6Arr, cntN6RawArr, predBinsN, alphaN, kShrink, tempN6Arr, vecAN6Arr, vecBN6Arr, tf6State.qCutsN, tf6State.qCuts1)
-[pUN7_t, pFN7_t, pDN7_t, nN7_t] = f_get_disp_prob(tfF7, outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, wTrend, cntN7Arr, upN7Arr, dnN7Arr, cntN7RawArr, predBinsN, alphaN, kShrink, tempN7Arr, vecAN7Arr, vecBN7Arr, tf7State.qCutsN, tf7State.qCuts1)
+[pUN1_t, pFN1_t, pDN1_t, nN1_t] = f_get_disp_prob(tfF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cntN1Arr, upN1Arr, dnN1Arr, cntN1RawArr, predBinsN, alphaN, kShrink, tempN1Arr, vecAN1Arr, vecBN1Arr, tf1State.qCutsN, tf1State.qCuts1, true)
+[pUN2_t, pFN2_t, pDN2_t, nN2_t] = f_get_disp_prob(tfF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, wTrend, cntN2Arr, upN2Arr, dnN2Arr, cntN2RawArr, predBinsN, alphaN, kShrink, tempN2Arr, vecAN2Arr, vecBN2Arr, tf2State.qCutsN, tf2State.qCuts1, true)
+[pUN3_t, pFN3_t, pDN3_t, nN3_t] = f_get_disp_prob(tfF3, outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, wTrend, cntN3Arr, upN3Arr, dnN3Arr, cntN3RawArr, predBinsN, alphaN, kShrink, tempN3Arr, vecAN3Arr, vecBN3Arr, tf3State.qCutsN, tf3State.qCuts1, true)
+[pUN4_t, pFN4_t, pDN4_t, nN4_t] = f_get_disp_prob(tfF4, outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, wTrend, cntN4Arr, upN4Arr, dnN4Arr, cntN4RawArr, predBinsN, alphaN, kShrink, tempN4Arr, vecAN4Arr, vecBN4Arr, tf4State.qCutsN, tf4State.qCuts1, true)
+[pUN5_t, pFN5_t, pDN5_t, nN5_t] = f_get_disp_prob(tfF5, outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, wTrend, cntN5Arr, upN5Arr, dnN5Arr, cntN5RawArr, predBinsN, alphaN, kShrink, tempN5Arr, vecAN5Arr, vecBN5Arr, tf5State.qCutsN, tf5State.qCuts1, true)
+[pUN6_t, pFN6_t, pDN6_t, nN6_t] = f_get_disp_prob(tfF6, outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, wTrend, cntN6Arr, upN6Arr, dnN6Arr, cntN6RawArr, predBinsN, alphaN, kShrink, tempN6Arr, vecAN6Arr, vecBN6Arr, tf6State.qCutsN, tf6State.qCuts1, true)
+[pUN7_t, pFN7_t, pDN7_t, nN7_t] = f_get_disp_prob(tfF7, outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, wTrend, cntN7Arr, upN7Arr, dnN7Arr, cntN7RawArr, predBinsN, alphaN, kShrink, tempN7Arr, vecAN7Arr, vecBN7Arr, tf7State.qCutsN, tf7State.qCuts1, true)
 
-[pU11_t, pF11_t, pD11_t, n11p_t] = f_get_disp_prob(tfF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cnt11Arr, up11Arr, dn11Arr, cnt11RawArr, predBins1, alpha1, kShrink, temp11Arr, vecA11Arr, vecB11Arr, tf1State.qCutsN, tf1State.qCuts1)
-[pU12_t, pF12_t, pD12_t, n12p_t] = f_get_disp_prob(tfF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, wTrend, cnt12Arr, up12Arr, dn12Arr, cnt12RawArr, predBins1, alpha1, kShrink, temp12Arr, vecA12Arr, vecB12Arr, tf2State.qCutsN, tf2State.qCuts1)
-[pU13_t, pF13_t, pD13_t, n13p_t] = f_get_disp_prob(tfF3, outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, wTrend, cnt13Arr, up13Arr, dn13Arr, cnt13RawArr, predBins1, alpha1, kShrink, temp13Arr, vecA13Arr, vecB13Arr, tf3State.qCutsN, tf3State.qCuts1)
-[pU14_t, pF14_t, pD14_t, n14p_t] = f_get_disp_prob(tfF4, outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, wTrend, cnt14Arr, up14Arr, dn14Arr, cnt14RawArr, predBins1, alpha1, kShrink, temp14Arr, vecA14Arr, vecB14Arr, tf4State.qCutsN, tf4State.qCuts1)
-[pU15_t, pF15_t, pD15_t, n15p_t] = f_get_disp_prob(tfF5, outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, wTrend, cnt15Arr, up15Arr, dn15Arr, cnt15RawArr, predBins1, alpha1, kShrink, temp15Arr, vecA15Arr, vecB15Arr, tf5State.qCutsN, tf5State.qCuts1)
-[pU16_t, pF16_t, pD16_t, n16p_t] = f_get_disp_prob(tfF6, outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, wTrend, cnt16Arr, up16Arr, dn16Arr, cnt16RawArr, predBins1, alpha1, kShrink, temp16Arr, vecA16Arr, vecB16Arr, tf6State.qCutsN, tf6State.qCuts1)
-[pU17_t, pF17_t, pD17_t, n17p_t] = f_get_disp_prob(tfF7, outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, wTrend, cnt17Arr, up17Arr, dn17Arr, cnt17RawArr, predBins1, alpha1, kShrink, temp17Arr, vecA17Arr, vecB17Arr, tf7State.qCutsN, tf7State.qCuts1)
+[pU11_t, pF11_t, pD11_t, n11p_t] = f_get_disp_prob(tfF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cnt11Arr, up11Arr, dn11Arr, cnt11RawArr, predBins1, alpha1, kShrink, temp11Arr, vecA11Arr, vecB11Arr, tf1State.qCutsN, tf1State.qCuts1, false)
+[pU12_t, pF12_t, pD12_t, n12p_t] = f_get_disp_prob(tfF2, outScore2, c2, h2, l2, a2, vR2, ef2, es2, wState, wPullback, wRegime, wTrend, cnt12Arr, up12Arr, dn12Arr, cnt12RawArr, predBins1, alpha1, kShrink, temp12Arr, vecA12Arr, vecB12Arr, tf2State.qCutsN, tf2State.qCuts1, false)
+[pU13_t, pF13_t, pD13_t, n13p_t] = f_get_disp_prob(tfF3, outScore3, c3, h3, l3, a3, vR3, ef3, es3, wState, wPullback, wRegime, wTrend, cnt13Arr, up13Arr, dn13Arr, cnt13RawArr, predBins1, alpha1, kShrink, temp13Arr, vecA13Arr, vecB13Arr, tf3State.qCutsN, tf3State.qCuts1, false)
+[pU14_t, pF14_t, pD14_t, n14p_t] = f_get_disp_prob(tfF4, outScore4, c4, h4, l4, a4, vR4, ef4, es4, wState, wPullback, wRegime, wTrend, cnt14Arr, up14Arr, dn14Arr, cnt14RawArr, predBins1, alpha1, kShrink, temp14Arr, vecA14Arr, vecB14Arr, tf4State.qCutsN, tf4State.qCuts1, false)
+[pU15_t, pF15_t, pD15_t, n15p_t] = f_get_disp_prob(tfF5, outScore5, c5, h5, l5, a5, vR5, ef5, es5, wState, wPullback, wRegime, wTrend, cnt15Arr, up15Arr, dn15Arr, cnt15RawArr, predBins1, alpha1, kShrink, temp15Arr, vecA15Arr, vecB15Arr, tf5State.qCutsN, tf5State.qCuts1, false)
+[pU16_t, pF16_t, pD16_t, n16p_t] = f_get_disp_prob(tfF6, outScore6, c6, h6, l6, a6, vR6, ef6, es6, wState, wPullback, wRegime, wTrend, cnt16Arr, up16Arr, dn16Arr, cnt16RawArr, predBins1, alpha1, kShrink, temp16Arr, vecA16Arr, vecB16Arr, tf6State.qCutsN, tf6State.qCuts1, false)
+[pU17_t, pF17_t, pD17_t, n17p_t] = f_get_disp_prob(tfF7, outScore7, c7, h7, l7, a7, vR7, ef7, es7, wState, wPullback, wRegime, wTrend, cnt17Arr, up17Arr, dn17Arr, cnt17RawArr, predBins1, alpha1, kShrink, temp17Arr, vecA17Arr, vecB17Arr, tf7State.qCutsN, tf7State.qCuts1, false)
 
 pUN1 := pUN1_t
 pFN1 := pFN1_t

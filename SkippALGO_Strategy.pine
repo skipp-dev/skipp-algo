@@ -863,12 +863,18 @@ f_decay_counts(cntArr, upArr, dnArr, decay) =>
             array.set(dnArr,  i, array.get(dnArr,  i) * decay)
 
 f_cal_update3(cntArr, upArr, dnArr, bin, outcome) =>
-    n0 = array.get(cntArr, bin)
-    u0 = array.get(upArr,  bin)
-    d0 = array.get(dnArr,  bin)
-    array.set(cntArr, bin, n0 + 1.0)
-    array.set(upArr,  bin, u0 + (outcome == 1 ? 1.0 : 0.0))
-    array.set(dnArr,  bin, d0 + (outcome == -1 ? 1.0 : 0.0))
+    if na(bin) or array.size(cntArr) == 0
+        na
+    else
+        b = int(bin)
+        maxIdx = array.size(cntArr) - 1
+        b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
+        n0 = array.get(cntArr, b)
+        u0 = array.get(upArr,  b)
+        d0 = array.get(dnArr,  b)
+        array.set(cntArr, b, n0 + 1.0)
+        array.set(upArr,  b, u0 + (outcome == 1 ? 1.0 : 0.0))
+        array.set(dnArr,  b, d0 + (outcome == -1 ? 1.0 : 0.0))
 
 f_prob3(u, f, d, n, alpha) =>
     denom = n + 3.0 * alpha
@@ -2297,19 +2303,19 @@ f_get_total_samples(tfSel, modSel) =>
     float total = na
     float[] cnt = na
     if tfSel == "F1"
-        cnt := (modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull1 ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : (isBull1 ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw)) : ((modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw)
     else if tfSel == "F2"
-        cnt := (modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull2 ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : (isBull2 ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw)) : ((modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw)
     else if tfSel == "F3"
-        cnt := (modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull3 ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : (isBull3 ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw)) : ((modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw)
     else if tfSel == "F4"
-        cnt := (modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull4 ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : (isBull4 ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw)) : ((modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw)
     else if tfSel == "F5"
-        cnt := (modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull5 ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : (isBull5 ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw)) : ((modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw)
     else if tfSel == "F6"
-        cnt := (modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull6 ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : (isBull6 ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw)) : ((modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw)
     else if tfSel == "F7"
-        cnt := (modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw
+        cnt := useBullBearCal ? ((modSel == "N") ? (isBull7 ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : (isBull7 ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw)) : ((modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw)
 
     if not na(cnt)
         total := array.sum(cnt)
