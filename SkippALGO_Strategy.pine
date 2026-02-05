@@ -179,7 +179,10 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 
 // Visual controls
 showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
+showPreEntryLabels = input.bool(false, "Show PRE labels (PRE-BUY / PRE-SHORT)")
+preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
 showSetMarkers   = input.bool(true, "Show SET markers")
+setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SET prints only on the transition into a SET state")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
 ui_tableShowMode       = input.bool(true, "Table: show LIVE/CONFIRMED tag")
 tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
@@ -2230,7 +2233,9 @@ aggrLower = zoneMode == "Symmetric" ? (zoneAnchorPrice - zoneAggressiveMult2 * a
 //====================
 setLong   = bullBias and (crsi < crsiLongGoodHi)
 setShort  = bearBias and (crsi > crsiShortGoodLo)
-setPulse  = barstate.isconfirmed and (setLong or setShort)
+setAnyStrict = ((setLong == true) and (not na(setLong))) or ((setShort == true) and (not na(setShort)))
+setAnyPrevStrict = (setAnyStrict[1] == true) and (not na(setAnyStrict[1]))
+setPulse  = barstate.isconfirmed and (setPulseOnly ? (setAnyStrict and not setAnyPrevStrict) : setAnyStrict)
 
 //====================
 // Signal engine (exits not blocked by cooldown)
@@ -2705,66 +2710,70 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     atrNorm = atrVal / math.max(c, 0.0001)
     sD = f_trend_regime(ef, es, atrNorm)
     sEns = f_ensemble4(sA, sB, sC, sD, wState, wPullback, wRegime, wTrend)
-    bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
-    b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
-    biasSel = useBullBearCal ? f_bias_from_score(sA) : 0
-    if biasSel == 0
-        biasSel := bias == 0 ? 1 : bias
-    cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
-    upN_sel  = useBullBearCal ? (biasSel > 0 ? st.upN_bull  : st.upN_bear)  : st.upN
-    dnN_sel  = useBullBearCal ? (biasSel > 0 ? st.dnN_bull  : st.dnN_bear)  : st.dnN
-    cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
-    up1_sel  = useBullBearCal ? (biasSel > 0 ? st.up1_bull  : st.up1_bear)  : st.up1
-    dn1_sel  = useBullBearCal ? (biasSel > 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
-    cntN_raw_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw
-    cnt1_raw_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw
-    tempN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.tempN_bull : st.tempN_bear) : st.tempN
-    temp1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.temp1_bull : st.temp1_bear) : st.temp1
-    vecAN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecAN_bull : st.vecAN_bear) : st.vecAN
-    vecBN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecBN_bull : st.vecBN_bear) : st.vecBN
-    vecA1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecA1_bull : st.vecA1_bear) : st.vecA1
-    vecB1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecB1_bull : st.vecB1_bear) : st.vecB1
-    [pUN_t, pFN_t, pDN_t, nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaN, kShrink, kShrinkReg)
-    [pU1_t, pF1_t, pD1_t, n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1, kShrink, kShrinkReg)
-    pUN = pUN_t
-    pFN = pFN_t
-    pDN = pDN_t
-    nN = array.get(cntN_raw_sel, bN)
-    pU1 = pU1_t
-    pF1 = pF1_t
-    pD1 = pD1_t
-    n1 = array.get(cnt1_raw_sel, b1)
-    useCalN = f_can_cal3(nN_t)
-    useCal1 = f_can_cal3(n1_t)
-    if useCalN
-        zUN = f_safe_log(pUN)
-        zFN = f_safe_log(pFN)
-        zDN = f_safe_log(pDN)
-        [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, tempN_sel, vecAN_sel, vecBN_sel)
-        pUN := tUN_t
-        pFN := tFN_t
-        pDN := tDN_t
-    if useCal1
-        zU1 = f_safe_log(pU1)
-        zF1 = f_safe_log(pF1)
-        zD1 = f_safe_log(pD1)
-        [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, temp1_sel, vecA1_sel, vecB1_sel)
-        pU1 := tU1_t
-        pF1 := tF1_t
-        pD1 := tD1_t
-    if nN < calMinSamples
+    if na(sEns) or na(sD)
         [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-        [pUN_t, pFN_t, pDN_t] = f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
-        pUN := pUN_t
-        pFN := pFN_t
-        pDN := pDN_t
-    if n1 < calMinSamples
-        [pUpr2_t, pFpr2_t, pDpr2_t] = f_prior3(_tf, sA)
-        [pU1_t, pF1_t, pD1_t] = f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
-        pU1 := pU1_t
-        pF1 := pF1_t
-        pD1 := pD1_t
-    [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
+        [pUpr_t, pFpr_t, pDpr_t, 0, pUpr_t, pFpr_t, pDpr_t, 0]
+    else
+        bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
+        b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
+        biasSel = useBullBearCal ? f_bias_from_score(sA) : 0
+        if biasSel == 0
+            biasSel := bias == 0 ? 1 : bias
+        cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
+        upN_sel  = useBullBearCal ? (biasSel > 0 ? st.upN_bull  : st.upN_bear)  : st.upN
+        dnN_sel  = useBullBearCal ? (biasSel > 0 ? st.dnN_bull  : st.dnN_bear)  : st.dnN
+        cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
+        up1_sel  = useBullBearCal ? (biasSel > 0 ? st.up1_bull  : st.up1_bear)  : st.up1
+        dn1_sel  = useBullBearCal ? (biasSel > 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
+        cntN_raw_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw
+        cnt1_raw_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw
+        tempN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.tempN_bull : st.tempN_bear) : st.tempN
+        temp1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.temp1_bull : st.temp1_bear) : st.temp1
+        vecAN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecAN_bull : st.vecAN_bear) : st.vecAN
+        vecBN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecBN_bull : st.vecBN_bear) : st.vecBN
+        vecA1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecA1_bull : st.vecA1_bear) : st.vecA1
+        vecB1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecB1_bull : st.vecB1_bear) : st.vecB1
+        [pUN_t, pFN_t, pDN_t, nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaN, kShrink, kShrinkReg)
+        [pU1_t, pF1_t, pD1_t, n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1, kShrink, kShrinkReg)
+        pUN = pUN_t
+        pFN = pFN_t
+        pDN = pDN_t
+        nN = array.get(cntN_raw_sel, bN)
+        pU1 = pU1_t
+        pF1 = pF1_t
+        pD1 = pD1_t
+        n1 = array.get(cnt1_raw_sel, b1)
+        useCalN = f_can_cal3(nN_t)
+        useCal1 = f_can_cal3(n1_t)
+        if useCalN
+            zUN = f_safe_log(pUN)
+            zFN = f_safe_log(pFN)
+            zDN = f_safe_log(pDN)
+            [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, tempN_sel, vecAN_sel, vecBN_sel)
+            pUN := tUN_t
+            pFN := tFN_t
+            pDN := tDN_t
+        if useCal1
+            zU1 = f_safe_log(pU1)
+            zF1 = f_safe_log(pF1)
+            zD1 = f_safe_log(pD1)
+            [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, temp1_sel, vecA1_sel, vecB1_sel)
+            pU1 := tU1_t
+            pF1 := tF1_t
+            pD1 := tD1_t
+        if nN < calMinSamples
+            [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
+            [pUN_t, pFN_t, pDN_t] = f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
+            pUN := pUN_t
+            pFN := pFN_t
+            pDN := pDN_t
+        if n1 < calMinSamples
+            [pUpr2_t, pFpr2_t, pDpr2_t] = f_prior3(_tf, sA)
+            [pU1_t, pF1_t, pD1_t] = f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
+            pU1 := pU1_t
+            pF1 := pF1_t
+            pD1 := pD1_t
+        [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
 
 //====================
 // Display values — N and 1 per horizon
@@ -2885,21 +2894,21 @@ totF17 = f_get_total_samples("F7", "1")
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
-canF1N = enableForecast and (not na(totF1N) and totF1N > 0)
-canF2N = enableForecast and (not na(totF2N) and totF2N > 0)
-canF3N = enableForecast and (not na(totF3N) and totF3N > 0)
-canF4N = enableForecast and (not na(totF4N) and totF4N > 0)
-canF5N = enableForecast and (not na(totF5N) and totF5N > 0)
-canF6N = enableForecast and (not na(totF6N) and totF6N > 0)
-canF7N = enableForecast and (not na(totF7N) and totF7N > 0)
+canF1N = forecastAllowed and (not na(totF1N) and totF1N > 0)
+canF2N = forecastAllowed and (not na(totF2N) and totF2N > 0)
+canF3N = forecastAllowed and (not na(totF3N) and totF3N > 0)
+canF4N = forecastAllowed and (not na(totF4N) and totF4N > 0)
+canF5N = forecastAllowed and (not na(totF5N) and totF5N > 0)
+canF6N = forecastAllowed and (not na(totF6N) and totF6N > 0)
+canF7N = forecastAllowed and (not na(totF7N) and totF7N > 0)
 
-canF11 = enableForecast and (not na(totF11) and totF11 > 0)
-canF12 = enableForecast and (not na(totF12) and totF12 > 0)
-canF13 = enableForecast and (not na(totF13) and totF13 > 0)
-canF14 = enableForecast and (not na(totF14) and totF14 > 0)
-canF15 = enableForecast and (not na(totF15) and totF15 > 0)
-canF16 = enableForecast and (not na(totF16) and totF16 > 0)
-canF17 = enableForecast and (not na(totF17) and totF17 > 0)
+canF11 = forecastAllowed and (not na(totF11) and totF11 > 0)
+canF12 = forecastAllowed and (not na(totF12) and totF12 > 0)
+canF13 = forecastAllowed and (not na(totF13) and totF13 > 0)
+canF14 = forecastAllowed and (not na(totF14) and totF14 > 0)
+canF15 = forecastAllowed and (not na(totF15) and totF15 > 0)
+canF16 = forecastAllowed and (not na(totF16) and totF16 > 0)
+canF17 = forecastAllowed and (not na(totF17) and totF17 > 0)
 
 curBrierRaw = f_getBrier_raw(relFilterTF, relFilterModel)
 curBrier = nz(curBrierRaw, 0.5)
@@ -3219,6 +3228,38 @@ if pos == 0 and allowEntry
         buySignal := false
         shortSignal := false
 
+preBuyNow = false
+preShortNow = false
+if pos == 0 and allowEntry
+    float preDist = preWarnDistATR * atr
+    distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
+
+    if engine == "Hybrid"
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and setOkLongSafe and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
+    else if engine == "Breakout"
+        nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
+        nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe
+    else if engine == "Trend+Pullback"
+        nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
+        nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
+        nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (not na(bullBias)) and (close < emaF) and ((emaF - close) <= preDist)
+        nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (not na(bearBias)) and (close > emaF) and ((close - emaF) <= preDist)
+        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
+        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
+    else // Loose
+        nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
+        nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
+        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
+        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
+
+preBuyPrev = (preBuyNow[1] == true) and (not na(preBuyNow[1]))
+preShortPrev = (preShortNow[1] == true) and (not na(preShortNow[1]))
+preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
+preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
+
 if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
@@ -3294,6 +3335,10 @@ f_send_alert(exitEvent, "EXIT")
 f_send_alert(coverEvent, "COVER")
 
 // Highlighting
+plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
+plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.belowbar, size=size.tiny, text="PRE\nBUY", textcolor=color.black, color=color.new(color.yellow, 0))
+plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
+
 // Label rendering (configurable source + price)
 labelBuy   = buyEvent
 labelShort = shortEvent

@@ -168,10 +168,10 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn('totF11 = f_get_total_samples("F1", "1")', self.text)
         self.assertIn('totF17 = f_get_total_samples("F7", "1")', self.text)
 
-        self.assertRegex(self.text, r"canF1N\s*=\s*enableForecast\s+and\s*\(not na\(totF1N\) and totF1N > 0\)")
-        self.assertRegex(self.text, r"canF7N\s*=\s*enableForecast\s+and\s*\(not na\(totF7N\) and totF7N > 0\)")
-        self.assertRegex(self.text, r"canF11\s*=\s*enableForecast\s+and\s*\(not na\(totF11\) and totF11 > 0\)")
-        self.assertRegex(self.text, r"canF17\s*=\s*enableForecast\s+and\s*\(not na\(totF17\) and totF17 > 0\)")
+        self.assertRegex(self.text, r"canF1N\s*=\s*forecastAllowed\s+and\s*\(not na\(totF1N\) and totF1N > 0\)")
+        self.assertRegex(self.text, r"canF7N\s*=\s*forecastAllowed\s+and\s*\(not na\(totF7N\) and totF7N > 0\)")
+        self.assertRegex(self.text, r"canF11\s*=\s*forecastAllowed\s+and\s*\(not na\(totF11\) and totF11 > 0\)")
+        self.assertRegex(self.text, r"canF17\s*=\s*forecastAllowed\s+and\s*\(not na\(totF17\) and totF17 > 0\)")
 
 if __name__ == "__main__":
     unittest.main()

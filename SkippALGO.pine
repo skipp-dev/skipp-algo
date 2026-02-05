@@ -182,7 +182,10 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 
 // Visual controls
 showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
+showPreEntryLabels = input.bool(false, "Show PRE labels (PRE-BUY / PRE-SHORT)")
+preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
 showSetMarkers   = input.bool(true, "Show SET markers")
+setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SET prints only on the transition into a SET state")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
 ui_tableShowMode       = input.bool(true, "Table: show LIVE/CONFIRMED tag")
 tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
@@ -2253,7 +2256,9 @@ aggrLower = zoneMode == "Symmetric" ? (zoneAnchorPrice - zoneAggressiveMult2 * a
 //====================
 setLong   = bullBias and (crsi < crsiLongGoodHi)
 setShort  = bearBias and (crsi > crsiShortGoodLo)
-setPulse  = barstate.isconfirmed and (setLong or setShort)
+setAnyStrict = ((setLong == true) and (not na(setLong))) or ((setShort == true) and (not na(setShort)))
+setAnyPrevStrict = (setAnyStrict[1] == true) and (not na(setAnyStrict[1]))
+setPulse  = barstate.isconfirmed and (setPulseOnly ? (setAnyStrict and not setAnyPrevStrict) : setAnyStrict)
 
 //====================
 // Signal engine (exits not blocked by cooldown)
@@ -2785,29 +2790,33 @@ f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cn
     atrNormDisp = a / math.max(c, 0.0001)
     sD = f_trend_regime(ef, es, atrNormDisp)
     sEns = f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)
-    cutsArr = bins == predBinsN ? cutsN : cuts1
-    b = f_bin2D(sEns, sD, bins, dim2Bins, cutsArr)
-    [pU_t, pF_t, pD_t, nDecayed_t] = f_cal_cur3(cnt, up, dn, b, alpha, shrink, kShrinkReg)
-    pU = pU_t
-    pF = pF_t
-    pD = pD_t
-    nRaw = array.get(cntRaw, b)
-    useCal = f_can_cal3(nDecayed_t)
-    if useCal
-        zU = f_safe_log(pU)
-        zF = f_safe_log(pF)
-        zD = f_safe_log(pD)
-        [tU_t, tF_t, tD_t] = f_cal_apply(zU, zF, zD, tempArr, vecA, vecB)
-        pU := tU_t
-        pF := tF_t
-        pD := tD_t
-    if nRaw < calMinSamples
+    if na(sEns) or na(sD)
         [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-        [pU_t, pF_t, pD_t] = f_blend_prior(pU, pF, pD, pUpr_t, pFpr_t, pDpr_t, nRaw)
-        pU := pU_t
-        pF := pF_t
-        pD := pD_t
-    [pU, pF, pD, nRaw]
+        [pUpr_t, pFpr_t, pDpr_t, 0]
+    else
+        cutsArr = bins == predBinsN ? cutsN : cuts1
+        b = f_bin2D(sEns, sD, bins, dim2Bins, cutsArr)
+        [pU_t, pF_t, pD_t, nDecayed_t] = f_cal_cur3(cnt, up, dn, b, alpha, shrink, kShrinkReg)
+        pU = pU_t
+        pF = pF_t
+        pD = pD_t
+        nRaw = array.get(cntRaw, b)
+        useCal = f_can_cal3(nDecayed_t)
+        if useCal
+            zU = f_safe_log(pU)
+            zF = f_safe_log(pF)
+            zD = f_safe_log(pD)
+            [tU_t, tF_t, tD_t] = f_cal_apply(zU, zF, zD, tempArr, vecA, vecB)
+            pU := tU_t
+            pF := tF_t
+            pD := tD_t
+        if nRaw < calMinSamples
+            [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
+            [pU_t, pF_t, pD_t] = f_blend_prior(pU, pF, pD, pUpr_t, pFpr_t, pDpr_t, nRaw)
+            pU := pU_t
+            pF := pF_t
+            pD := pD_t
+        [pU, pF, pD, nRaw]
 
 
 [pUN1_t, pFN1_t, pDN1_t, nN1_t] = f_get_disp_prob(tfF1, outScore1, c1, h1, l1, a1, vR1, ef1, es1, wState, wPullback, wRegime, wTrend, cntN1Arr, upN1Arr, dnN1Arr, cntN1RawArr, predBinsN, alphaN, kShrink, tempN1Arr, vecAN1Arr, vecBN1Arr, tf1State.qCutsN, tf1State.qCuts1)
@@ -3232,6 +3241,38 @@ if pos == 0 and allowEntry
         buySignal := false
         shortSignal := false
 
+preBuyNow = false
+preShortNow = false
+if pos == 0 and allowEntry
+    float preDist = preWarnDistATR * atr
+    distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
+
+    if engine == "Hybrid"
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and setOkLongSafe and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
+    else if engine == "Breakout"
+        nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
+        nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe
+    else if engine == "Trend+Pullback"
+        nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
+        nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
+        nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (not na(bullBias)) and (close < emaF) and ((emaF - close) <= preDist)
+        nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (not na(bearBias)) and (close > emaF) and ((close - emaF) <= preDist)
+        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
+        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
+    else // Loose
+        nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
+        nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
+        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
+        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
+
+preBuyPrev = (preBuyNow[1] == true) and (not na(preBuyNow[1]))
+preShortPrev = (preShortNow[1] == true) and (not na(preShortNow[1]))
+preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
+preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
+
 if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
@@ -3305,6 +3346,8 @@ alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_onc
 // Visuals
 //====================
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
+plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.belowbar, size=size.tiny, text="PRE\nBUY", textcolor=color.black, color=color.new(color.yellow, 0))
+plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
 
 // Label rendering (configurable source + price)
 labelBuy   = buyEvent
