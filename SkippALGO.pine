@@ -1764,6 +1764,12 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                         yU = outcome == 1 ? 1.0 : 0.0
                         yF = outcome == 0 ? 1.0 : 0.0
                         yD = outcome == -1 ? 1.0 : 0.0
+                        tempN_sel = (useBullBearCal and bias_i != 0) ? (bias_i > 0 ? st.tempN_bull : st.tempN_bear) : st.tempN
+                        temp1_sel = (useBullBearCal and bias_i != 0) ? (bias_i > 0 ? st.temp1_bull : st.temp1_bear) : st.temp1
+                        vecAN_sel = (useBullBearCal and bias_i != 0) ? (bias_i > 0 ? st.vecAN_bull : st.vecAN_bear) : st.vecAN
+                        vecBN_sel = (useBullBearCal and bias_i != 0) ? (bias_i > 0 ? st.vecBN_bull : st.vecBN_bear) : st.vecBN
+                        vecA1_sel = (useBullBearCal and bias_i != 0) ? (bias_i > 0 ? st.vecA1_bull : st.vecA1_bear) : st.vecA1
+                        vecB1_sel = (useBullBearCal and bias_i != 0) ? (bias_i > 0 ? st.vecB1_bull : st.vecB1_bear) : st.vecB1
 
                         if calibratorMode == "Temp"
                             if canCalN
@@ -2082,7 +2088,7 @@ crossClose_EmaS_up   = ta.crossover(close, emaS)
 crossClose_EmaS_down = ta.crossunder(close, emaS)
 
 // Vol regime (protect against close=0 on exotic instruments)
-atrRank = close == 0 ? 0.5 : f_pct_rank(atr / close, volRankLen)
+atrRank = f_pct_rank(atr / math.max(close, 0.0001), volRankLen)
 
 // Guardrails
 prevClose = close[1]
