@@ -91,7 +91,7 @@ All documented in `docs/REVIEW_v6.1.md` for future remediation.
 
 The TfState UDT migration is complete and verified:
 
-* ✅ All 206 tests passing
+* ✅ All 210 tests passing
 * ✅ Architecture aligned between indicator and strategy
 * ✅ ~21% code reduction in strategy
 * ✅ Documentation updated

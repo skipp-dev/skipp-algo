@@ -348,6 +348,42 @@ class TestIntentionalDifferences(unittest.TestCase):
         self.assertNotRegex(self.strategy, r'^indicator\(', 
             msg="Strategy should not have indicator() at start")
 
+    # ========================================
+    # STRUCTURAL PARITY — inputs, alerts, duplicates
+    # ========================================
+
+    def test_input_count_parity(self):
+        """Indicator and Strategy should have similar input.* declaration counts."""
+        ind_inputs = len(re.findall(r'\binput\.\w+\s*\(', self.indicator))
+        strat_inputs = len(re.findall(r'\binput\.\w+\s*\(', self.strategy))
+        # Allow up to 10 extra inputs in Strategy (strategy-specific toggles)
+        self.assertAlmostEqual(ind_inputs, strat_inputs, delta=10,
+            msg=f"Input count diverged: Indicator={ind_inputs}, Strategy={strat_inputs}")
+
+    def test_alert_titles_match(self):
+        """Core alert titles (BUY/SHORT/EXIT/COVER) should exist in both files.
+        Strategy may have additional alerts (e.g. Regime) that Indicator lacks."""
+        ind_alerts = set(re.findall(r'alertcondition\([^,]+,\s*title\s*=\s*"([^"]+)"', self.indicator))
+        strat_alerts = set(re.findall(r'alertcondition\([^,]+,\s*title\s*=\s*"([^"]+)"', self.strategy))
+        # Every indicator alert title should also exist in the strategy
+        missing_in_strat = ind_alerts - strat_alerts
+        self.assertEqual(missing_in_strat, set(),
+            f"Alert titles in Indicator but not Strategy: {missing_in_strat}")
+
+    def test_no_duplicate_function_definitions(self):
+        """Each function should be defined at most once per file (prevents copy-paste duplication)."""
+        func_pattern = re.compile(r'^(\w+)\([^)]*\)\s*=>', re.MULTILINE)
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            funcs = func_pattern.findall(content)
+            seen = {}
+            duplicates = []
+            for fn in funcs:
+                if fn in seen:
+                    duplicates.append(fn)
+                seen[fn] = True
+            self.assertEqual(duplicates, [],
+                f"{name} has duplicate function definitions: {duplicates}")
+
 
 if __name__ == '__main__':
     unittest.main()

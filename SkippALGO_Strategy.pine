@@ -73,7 +73,7 @@ tfF5 = input.timeframe("60",  "Forecast 5")   // 1H
 tfF6 = input.timeframe("240", "Forecast 6")   // 4H
 tfF7 = input.timeframe("D",   "Forecast 7")   // 1D
 
-// Trust-score weighting
+// Trust-score weighting (weights are normalised at runtime; defaults sum to 1.10)
 trustWAccuracy  = input.float(0.40, "Trust weight: accuracy", minval=0.0, step=0.05)
 trustWRegime    = input.float(0.30, "Trust weight: regime", minval=0.0, step=0.05)
 trustWGuardrail = input.float(0.20, "Trust weight: guardrails", minval=0.0, step=0.05)
@@ -510,26 +510,34 @@ type TfState
     float[] qCuts1
 
 // Helper to initialize TfState
+// Arguments map 1-to-1 to UDT fields in declaration order.
+// Section comments below match the UDT groupings.
 f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
     TfState.new(
+        // --- Decayed count grids: cntN/upN/dnN, cnt1/up1/dn1 ---
         array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0),
         array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
+        // --- Bull/bear count grids ---
         array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0),
         array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0),
         array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
         array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
+        // --- Rolling history buffers ---
             array.new_int(), array.new_int(),
       array.new_float(), array.new_float(), array.new_float(), array.new_float(), array.new_int(),
             array.new_int(),
+        // --- Temperature / ensemble vectors ---
             array.new_float(), array.new_float(), array.new_float(), array.new_float(), array.new_float(), array.new_float(),
     array.new_float(), array.new_float(), array.new_float(),
     array.new_float(), array.new_float(), array.new_float(),
     array.new_float(), array.new_float(), array.new_float(),
     array.new_float(), array.new_float(), array.new_float(),
+        // --- Platt scaling: brierStats, llStats, platt params ---
       array.new_float(2, 0.0), array.new_float(2, 0.0),
       array.new_float(2, 0.0), array.new_float(2, 0.0),
     array.from(1.0, 0.0), array.from(1.0, 0.0),
     array.from(1.0), array.from(1.0),
+        // --- Bull/bear Platt params ---
     array.from(1.0, 1.0, 1.0), array.from(0.0, 0.0, 0.0),
     array.from(1.0, 1.0, 1.0), array.from(0.0, 0.0, 0.0),
         array.from(1.0), array.from(1.0),
@@ -555,6 +563,7 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
     array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0),
     array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
     array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
+        // --- Quantile buffers ---
     array.new_float(), array.new_float(int(math.max(nBinsN - 1, 0)), na), array.new_float(int(math.max(nBins1 - 1, 0)), na)
     )
 
@@ -604,6 +613,7 @@ f_safe_get_int(int[] arr, int idx, int fallback) =>
     idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
 
 // --- TF selector helpers (avoid long ternary chains)
+// Pine Script lacks generics, so one copy per return type is required.
 f_sel_tf_str(tfSel, v1, v2, v3, v4, v5, v6, v7) =>
     tfSel == "F1" ? v1 : tfSel == "F2" ? v2 : tfSel == "F3" ? v3 : tfSel == "F4" ? v4 : tfSel == "F5" ? v5 : tfSel == "F6" ? v6 : v7
 
@@ -632,6 +642,9 @@ f_bin(score, bins) =>
     b = int(math.floor(u * bins))
     b < 0 ? 0 : b > (bins - 1) ? (bins - 1) : b
 
+// Quantile cutpoints are recalculated every `quantileUpdate` bars once
+// `quantileMinSamples` scores have been collected. Until then, uniform
+// (equal-width) binning is used as the warm-up fallback.
 f_update_quantiles(TfState st, score) =>
     if useQuantileBins and (calibrateInBackground or showTable or showEvalSection)
         array.push(st.qScoreBuf, score)
@@ -889,9 +902,6 @@ f_outcome3(delta, db) =>
     delta > db ? 1 : delta < -db ? -1 : 0
 
 f_bias_from_score(score) =>
-    score > 0 ? 1 : score < 0 ? -1 : 0
-
-f_dir_from_score(score) =>
     score > 0 ? 1 : score < 0 ? -1 : 0
 
 f_is_bull_bias(score, emaF_tf, emaS_tf) =>
@@ -1945,7 +1955,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
             bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
             b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
 
-            dirFlag = f_dir_from_score(sA)
+            dirFlag = f_bias_from_score(sA)
             biasSel = f_bias_from_score(sA)
             if biasSel == 0
                 biasSel := bias == 0 ? 1 : bias
