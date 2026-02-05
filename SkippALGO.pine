@@ -1055,7 +1055,7 @@ f_tf_pack(tf) =>
          ta.ema(close, emaSlowLen),
          ta.rsi(close, rsiStateLen),
          ta.atr(atrTargetLen),
-         f_pct_rank(close == 0 ? 0.0 : ta.atr(atrLen) / close, volRankLen), // Added Phase 2 Vol Rank
+         f_pct_rank(ta.atr(atrLen) / math.max(close, 0.0001), volRankLen), // Added Phase 2 Vol Rank
          barstate.isconfirmed],
         barmerge.gaps_off,
         barmerge.lookahead_off
@@ -2500,31 +2500,31 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
     if not use3Way
         [false, "3-way off", color.gray, na]
     else
-    // Handle warmup / NA safely
-    if na(pU) or na(pF) or na(pD) or na(nBin) or na(total)
-        [false, "n/a", color.orange, na]
-    else
-        maxP = math.max(pU, math.max(pF, pD))
-        dir = maxP == pU ? 1 : maxP == pD ? -1 : 0
-        edgeFlat = dir == 1 ? (pU - pF) : dir == -1 ? (pD - pF) : 0.0
-        edgeOpp  = dir == 1 ? (pU - pD) : dir == -1 ? (pD - pU) : 0.0
-        edge = dir == 0 ? na : math.min(edgeFlat, edgeOpp)
+        // Handle warmup / NA safely
+        if na(pU) or na(pF) or na(pD) or na(nBin) or na(total)
+            [false, "n/a", color.orange, na]
+        else
+            maxP = math.max(pU, math.max(pF, pD))
+            dir = maxP == pU ? 1 : maxP == pD ? -1 : 0
+            edgeFlat = dir == 1 ? (pU - pF) : dir == -1 ? (pD - pF) : 0.0
+            edgeOpp  = dir == 1 ? (pU - pD) : dir == -1 ? (pD - pU) : 0.0
+            edge = dir == 0 ? na : math.min(edgeFlat, edgeOpp)
 
-        binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
-        totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
-        edgeOk  = (dir != 0) and edge >= abstainMinEdge
+            binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
+            totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
+            edgeOk  = (dir != 0) and edge >= abstainMinEdge
 
-        ok = edgeOk and binOk and totalOk
+            ok = edgeOk and binOk and totalOk
 
-        reason =
-             (tradeMinTotalSamples > 0 and total < tradeMinTotalSamples) ? "Low Total" :
-             (tradeMinBinSamples   > 0 and nBin  < tradeMinBinSamples)   ? "Weak Bin" :
-             (dir == 0)                                                  ? "Flat" :
-             (edge < abstainMinEdge)                                    ? "Low Edge" :
-             "OK"
+            reason =
+                 (tradeMinTotalSamples > 0 and total < tradeMinTotalSamples) ? "Low Total" :
+                 (tradeMinBinSamples   > 0 and nBin  < tradeMinBinSamples)   ? "Weak Bin" :
+                 (dir == 0)                                                  ? "Flat" :
+                 (edge < abstainMinEdge)                                    ? "Low Edge" :
+                 "OK"
 
-        col = ok ? color.lime : color.orange
-        [ok, reason, col, edge]
+            col = ok ? color.lime : color.orange
+            [ok, reason, col, edge]
 
 f_entry_forecast_gate(isLong) =>
     bool ok = true
