@@ -83,10 +83,10 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 1)
 
     def test_forecast_pack_block_present(self):
-        """Ensure all tfF1..tfF7 packs and assignments exist to avoid undeclared _t vars."""
+        """Ensure all tfF1..tfF7 packs exist with direct tuple destructuring."""
         for i in range(1, 8):
-            self.assertIn(f"[t{i}_t, c{i}_t, h{i}_t, l{i}_t", self.text)
-            self.assertIn(f"t{i} = t{i}_t", self.text)
+            self.assertIn(f"[t{i}, c{i}, h{i}, l{i}", self.text)
+            self.assertIn(f"= f_tf_pack(tfF{i})", self.text)
 
     def test_decision_quality_uses_trade_gate_thresholds(self):
         """Decision gate should use tradeMin* thresholds rather than calMinSamples."""

@@ -147,10 +147,10 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 1)
 
     def test_forecast_pack_block_present(self):
-        """Ensure all tfF1..tfF7 packs and assignments exist to avoid undeclared _t vars."""
+        """Ensure all tfF1..tfF7 packs exist with direct tuple destructuring."""
         for i in range(1, 8):
-            self.assertIn(f"[t{i}_t, c{i}_t, h{i}_t, l{i}_t", self.text)
-            self.assertIn(f"t{i} = t{i}_t", self.text)
+            self.assertIn(f"[t{i}, c{i}, h{i}, l{i}", self.text)
+            self.assertIn(f"= f_tf_pack(tfF{i})", self.text)
 
     def test_decision_quality_uses_trade_gate_thresholds(self):
         """Decision gate should use tradeMin* thresholds rather than calMinSamples."""
@@ -163,10 +163,15 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("f_sum_int_array(cnt11Arr)", self.text)
 
         # Ensure can flags depend on enableForecast and totals
-        self.assertIn("canF1N = enableForecast and (totN1 > 0)", self.text)
-        self.assertIn("canF7N = enableForecast and (totN7 > 0)", self.text)
-        self.assertIn("canF11 = enableForecast and (tot11 > 0)", self.text)
-        self.assertIn("canF17 = enableForecast and (tot17 > 0)", self.text)
+        self.assertIn('totF1N = f_get_total_samples("F1", "N")', self.text)
+        self.assertIn('totF7N = f_get_total_samples("F7", "N")', self.text)
+        self.assertIn('totF11 = f_get_total_samples("F1", "1")', self.text)
+        self.assertIn('totF17 = f_get_total_samples("F7", "1")', self.text)
+
+        self.assertRegex(self.text, r"canF1N\s*=\s*enableForecast\s+and\s*\(not na\(totF1N\) and totF1N > 0\)")
+        self.assertRegex(self.text, r"canF7N\s*=\s*enableForecast\s+and\s*\(not na\(totF7N\) and totF7N > 0\)")
+        self.assertRegex(self.text, r"canF11\s*=\s*enableForecast\s+and\s*\(not na\(totF11\) and totF11 > 0\)")
+        self.assertRegex(self.text, r"canF17\s*=\s*enableForecast\s+and\s*\(not na\(totF17\) and totF17 > 0\)")
 
 if __name__ == "__main__":
     unittest.main()

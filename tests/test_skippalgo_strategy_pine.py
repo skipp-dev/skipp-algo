@@ -81,7 +81,7 @@ class TestSkippAlgoStrategyForecasting(unittest.TestCase):
         """Verify all 7 forecast timeframe horizons are processed."""
         for i in range(1, 8):
             self.assertIn(f"tfF{i}", self.text)
-            self.assertIn(f"newF{i}", self.text)
+            self.assertIn(f"tfCloseF{i}", self.text)
             self.assertIn(f"outScore{i}", self.text)
 
     def test_multi_profile_target_support(self):
