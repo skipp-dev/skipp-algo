@@ -46,6 +46,7 @@ trailAfterR = input.float(1.00, "Trail activates after R", step=0.10)
 
 swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
+swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
 enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
 cooldownBars = input.int(6, "Cooldown bars", minval=0)
 minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
@@ -95,6 +96,7 @@ VOL_THRESH_LOW  = 0.33    // Low volatility threshold
 // Statistical constants
 Z_95            = 1.96    // Z-score for 95% confidence interval
 PROB_EPS        = 0.0001  // Epsilon for probability clamping to avoid log(0)
+LOGIT_CLAMP     = 20.0    // Clamp for logit to limit extreme values
 
 // Rolling buffer recalculation interval (prevent FP drift)
 ROLL_RECALC_INTERVAL = 500
@@ -181,6 +183,7 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
 showPreEntryLabels = input.bool(false, "Show PRE labels (PRE-BUY / PRE-SHORT)")
 preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
+preSetPulseOnly    = input.bool(true, "PRE: pulse-only SET", tooltip="When enabled, PRE labels require a fresh SET transition (pulse) instead of a steady SET state")
 showSetMarkers   = input.bool(true, "Show SET markers")
 setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SET prints only on the transition into a SET state")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
@@ -784,7 +787,7 @@ f_get_params(tf) =>
 f_logit(p) =>
     pc = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, p))
     // Clamp output to prevent extreme values
-    math.max(-10.0, math.min(10.0, math.log(pc / (1.0 - pc))))
+    math.max(-LOGIT_CLAMP, math.min(LOGIT_CLAMP, math.log(pc / (1.0 - pc))))
 
 f_sigmoid(x) =>
     // Prevent overflow for extreme x values
@@ -844,7 +847,9 @@ f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
 f_bin2D(score, trendScore, binsScore, binsReg, cutsArr) =>
     bS = f_bin_quantile(score, cutsArr, binsScore)
     bR = f_regime_bin(trendScore)
-    int(bS * binsReg + bR)
+    idx = int(bS * binsReg + bR)
+    maxIdx = binsScore * binsReg - 1
+    idx < 0 ? 0 : idx > maxIdx ? maxIdx : idx
 
 f_db_mult(tf) =>
     sec = timeframe.in_seconds(tf)
@@ -887,7 +892,7 @@ f_cal_update3(cntArr, upArr, dnArr, bin, outcome) =>
 f_prob3(u, f, d, n, alpha) =>
     denom = n + 3.0 * alpha
     if denom == 0.0
-        [0.3333, 0.3334, 0.3333]
+        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
     else
         [(u + alpha) / denom, (f + alpha) / denom, (d + alpha) / denom]
 
@@ -946,7 +951,7 @@ f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
 
         s = pU + pF + pD
         if s == 0.0
-            [0.3333, 0.3334, 0.3333, n]
+            [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, n]
         else
             [pU / s, pF / s, pD / s, n]
 
@@ -960,7 +965,7 @@ f_softmax3(zU, zF, zD) =>
     eD = math.exp(zD - zMax)
     s = eU + eF + eD
     if s == 0.0
-        [0.3333, 0.3334, 0.3333]
+        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
     else
         [eU / s, eF / s, eD / s]
 
@@ -1015,7 +1020,7 @@ f_prior3(tf, outScore) =>
 
     s = pU + pF + pD
     if s == 0.0
-        [0.3333, 0.3334, 0.3333]
+        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
     else
         [pU / s, pF / s, pD / s]
 
@@ -1077,10 +1082,16 @@ f_prob(up, n, alpha) =>
     denom == 0.0 ? 0.5 : (up + alpha) / denom
 
 f_cal_update(cntArr, upArr, bin, isUp) =>
-    n0 = array.get(cntArr, bin)
-    u0 = array.get(upArr,  bin)
-    array.set(cntArr, bin, n0 + 1.0)
-    array.set(upArr,  bin, u0 + (isUp ? 1.0 : 0.0))
+    if na(bin) or array.size(cntArr) == 0
+        na
+    else
+        b = int(bin)
+        maxIdx = array.size(cntArr) - 1
+        b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
+        n0 = array.get(cntArr, b)
+        u0 = array.get(upArr,  b)
+        array.set(cntArr, b, n0 + 1.0)
+        array.set(upArr,  b, u0 + (isUp ? 1.0 : 0.0))
 
 f_cal_cur(cntArr, upArr, bin, alpha, shrinkK) =>
     // Bin raw
@@ -2257,9 +2268,15 @@ aggrLower = zoneMode == "Symmetric" ? (zoneAnchorPrice - zoneAggressiveMult2 * a
 //====================
 setLong   = bullBias and (crsi < crsiLongGoodHi)
 setShort  = bearBias and (crsi > crsiShortGoodLo)
-setAnyStrict = ((setLong == true) and (not na(setLong))) or ((setShort == true) and (not na(setShort)))
-setAnyPrevStrict = (setAnyStrict[1] == true) and (not na(setAnyStrict[1]))
+setLongStrict = (setLong == true)
+setShortStrict = (setShort == true)
+setAnyStrict = setLongStrict or setShortStrict
+setAnyPrevStrict = (setAnyStrict[1] == true)
+setLongPrevStrict = (setLongStrict[1] == true)
+setShortPrevStrict = (setShortStrict[1] == true)
 setPulse  = barstate.isconfirmed and (setPulseOnly ? (setAnyStrict and not setAnyPrevStrict) : setAnyStrict)
+setLongPulse = setPulseOnly ? (setLongStrict and not setLongPrevStrict) : setLongStrict
+setShortPulse = setPulseOnly ? (setShortStrict and not setShortPrevStrict) : setShortStrict
 
 //====================
 // Signal engine (exits not blocked by cooldown)
@@ -2490,7 +2507,11 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
             [false, "n/a", color.orange, na]
         else
             maxP = math.max(pU, math.max(pF, pD))
-            dir = maxP == pU ? 1 : maxP == pD ? -1 : 0
+            tieEps = 1e-10
+            isMaxU = math.abs(pU - maxP) <= tieEps
+            isMaxF = math.abs(pF - maxP) <= tieEps
+            isMaxD = math.abs(pD - maxP) <= tieEps
+            dir = (isMaxU and not (isMaxF or isMaxD)) ? 1 : (isMaxD and not (isMaxU or isMaxF)) ? -1 : 0
             edgeFlat = dir == 1 ? (pU - pF) : dir == -1 ? (pD - pF) : 0.0
             edgeOpp  = dir == 1 ? (pU - pD) : dir == -1 ? (pD - pU) : 0.0
             edge = dir == 0 ? na : math.min(edgeFlat, edgeOpp)
@@ -2549,7 +2570,13 @@ f_entry_forecast_gate(isLong) =>
             edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
             ok := binOk and totalOk and relOk and (not na(pD) and pD >= minDirProb) and edgeOk
 
-        if useChopAbstain and trendSide and (not na(pF) and pF >= flatAbstainThr)
+        cSel = entryFcTF == "F1" ? c1 : entryFcTF == "F2" ? c2 : entryFcTF == "F3" ? c3 : entryFcTF == "F4" ? c4 : entryFcTF == "F5" ? c5 : entryFcTF == "F6" ? c6 : c7
+        efSel = entryFcTF == "F1" ? ef1 : entryFcTF == "F2" ? ef2 : entryFcTF == "F3" ? ef3 : entryFcTF == "F4" ? ef4 : entryFcTF == "F5" ? ef5 : entryFcTF == "F6" ? ef6 : ef7
+        esSel = entryFcTF == "F1" ? es1 : entryFcTF == "F2" ? es2 : entryFcTF == "F3" ? es3 : entryFcTF == "F4" ? es4 : entryFcTF == "F5" ? es5 : entryFcTF == "F6" ? es6 : es7
+        aSel = entryFcTF == "F1" ? a1 : entryFcTF == "F2" ? a2 : entryFcTF == "F3" ? a3 : entryFcTF == "F4" ? a4 : entryFcTF == "F5" ? a5 : entryFcTF == "F6" ? a6 : a7
+        confSel = entryFcTF == "F1" ? conf1 : entryFcTF == "F2" ? conf2 : entryFcTF == "F3" ? conf3 : entryFcTF == "F4" ? conf4 : entryFcTF == "F5" ? conf5 : entryFcTF == "F6" ? conf6 : conf7
+        trendSideLocal = (confSel == true) and (f_trend_regime(efSel, esSel, aSel / math.max(cSel, 0.0001)) == 0.0)
+        if useChopAbstain and trendSideLocal and (not na(pF) and pF >= flatAbstainThr)
             ok := false
     ok
 
@@ -3039,8 +3066,12 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     pD = useCalN ? pDN : pDprio
 
     maxP = math.max(pU, math.max(pF, pD))
-    dirSym = maxP < dirMinProb ? "·" : (pU == maxP ? "▲" : pD == maxP ? "▼" : "■")
-    dirCol = pU == maxP ? color.lime : pD == maxP ? color.red : color.yellow
+    tieEps = 1e-10
+    isMaxU = math.abs(pU - maxP) <= tieEps
+    isMaxF = math.abs(pF - maxP) <= tieEps
+    isMaxD = math.abs(pD - maxP) <= tieEps
+    dirSym = maxP < dirMinProb ? "·" : (isMaxU and not (isMaxF or isMaxD)) ? "▲" : (isMaxD and not (isMaxU or isMaxF)) ? "▼" : "■"
+    dirCol = (isMaxU and not (isMaxF or isMaxD)) ? color.lime : (isMaxD and not (isMaxU or isMaxF)) ? color.red : color.yellow
 
     table.cell(gT, 5, rRow, dirSym, text_color=dirCol, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 6, rRow, str.tostring(pU * 100, "#.0") + "%", text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
@@ -3200,12 +3231,23 @@ pullbackShortOk = trendDn and bearBias and (pbDepthShort >= pbMinATR) and (pbDep
 // Breakout
 var float lastSwingHigh = na
 var float lastSwingLow  = na
+var int lastSwingHighBar = na
+var int lastSwingLowBar  = na
 ph = ta.pivothigh(high, swingL, swingR)
 pl = ta.pivotlow(low,  swingL, swingR)
 if not na(ph)
     lastSwingHigh := ph
+    lastSwingHighBar := bar_index
 if not na(pl)
     lastSwingLow := pl
+    lastSwingLowBar := bar_index
+if swingMaxAgeBars > 0
+    if not na(lastSwingHighBar) and (bar_index - lastSwingHighBar > swingMaxAgeBars)
+        lastSwingHigh := na
+        lastSwingHighBar := na
+    if not na(lastSwingLowBar) and (bar_index - lastSwingLowBar > swingMaxAgeBars)
+        lastSwingLow := na
+        lastSwingLowBar := na
 
 breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
 breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
@@ -3260,10 +3302,12 @@ preShortNow = false
 if pos == 0 and allowEntry
     float preDist = preWarnDistATR * atr
     distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
+    preSetOkLong = (not requireSET) or (preSetPulseOnly ? setLongPulse : setLongStrict)
+    preSetOkShort = (not requireSET) or (preSetPulseOnly ? setShortPulse : setShortStrict)
 
     if engine == "Hybrid"
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and setOkLongSafe and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
     else if engine == "Breakout"
         nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
         nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
@@ -3347,10 +3391,10 @@ coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
-alertcondition(buyEvent,   title="BUY",   message="SkippALGO BUY")
-alertcondition(shortEvent, title="SHORT", message="SkippALGO SHORT")
-alertcondition(exitEvent,  title="EXIT",  message="SkippALGO EXIT")
-alertcondition(coverEvent, title="COVER", message="SkippALGO COVER")
+alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY")
+alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT")
+alertcondition((not useAlertCalls) and exitEvent,  title="EXIT",  message="SkippALGO EXIT")
+alertcondition((not useAlertCalls) and coverEvent, title="COVER", message="SkippALGO COVER")
 
 f_send_alert(cond, label) =>
     if useAlertCalls and cond and barstate.isconfirmed
@@ -3399,23 +3443,23 @@ plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, 
 // Strategy Execution (Active)
 if buyEvent
     strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
-    if useAtrRisk
+    if useAtrRisk and not na(stopPx) and not na(tpPx)
         strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx)
 
 if shortEvent
     strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
-    if useAtrRisk
+    if useAtrRisk and not na(stopPx) and not na(tpPx)
         strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx)
 
-if useAtrRisk and pos != 0
+if useAtrRisk and pos != 0 and not na(stopPx)
     if pos == 1 and not na(trailPx)
         strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx)
     if pos == -1 and not na(trailPx)
         strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx)
 
-if exitEvent and pos == 1
+if exitEvent
     strategy.close("L", comment="Exit Signal")
-if coverEvent and pos == -1
+if coverEvent
     strategy.close("S", comment="Cover Signal")
 
 //====================
