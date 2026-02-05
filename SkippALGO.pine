@@ -961,12 +961,20 @@ f_forecast_allowed() =>
         baseSec <= minSec
 
 f_tf_from_horizon(h) =>
-    h == "F1" ? tfF1 :
-    h == "F2" ? tfF2 :
-    h == "F3" ? tfF3 :
-    h == "F4" ? tfF4 :
-    h == "F5" ? tfF5 :
-    h == "F6" ? tfF6 : tfF7
+    if h == "F1"
+        tfF1
+    else if h == "F2"
+        tfF2
+    else if h == "F3"
+        tfF3
+    else if h == "F4"
+        tfF4
+    else if h == "F5"
+        tfF5
+    else if h == "F6"
+        tfF6
+    else
+        tfF7
 
 f_tfLabel(tf) =>
     tf == "1"   ? "1M"  : tf == "5"   ? "5M"  : tf == "15"  ? "15M" : tf == "30"  ? "30M" : tf == "60"  ? "1H"  : tf == "240" ? "4H"  : tf == "D"   ? "1D"  : tf
@@ -2528,13 +2536,14 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
 
 f_entry_forecast_gate(isLong) =>
     bool ok = true
-    if useForecastGateEntry and use3Way and enableForecast and f_forecast_allowed()
+    forecastAllowed = enableForecast and f_forecast_allowed()
+    if useForecastGateEntry and use3Way and forecastAllowed
         [pU, pF, pD, nBin, total] = f_get_rel_vals(entryFcTF, entryFcModel)
         binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
         totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
 
         // reliability label from your CI logic (re-used)
-        canCal = enableForecast and (not na(total) and total > 0)
+        canCal = forecastAllowed and (not na(total) and total > 0)
         relLbl = f_rel_label(isLong ? pU : pD, nBin, total, canCal)
         relOk  = (not requireRelOk) or (relLbl == "ok" or relLbl == "strong")
 
@@ -2549,7 +2558,8 @@ f_entry_forecast_gate(isLong) =>
             edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
             ok := binOk and totalOk and relOk and (not na(pD) and pD >= minDirProb) and edgeOk
 
-        if useChopAbstain and trendSide and (not na(pF) and pF >= flatAbstainThr)
+        trendSideLocal = f_trend_regime(emaF, emaS, atr / math.max(close, 0.0001)) == 0.0
+        if useChopAbstain and trendSideLocal and (not na(pF) and pF >= flatAbstainThr)
             ok := false
     ok
 
@@ -2829,7 +2839,7 @@ f_get_disp_prob(_tf, sA, c, h, l, a, vR, ef, es, wA, wB, wC, wD, cnt, up, dn, cn
             pD := tD_t
         if nRaw < calMinSamples
             [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-            [pU_t, pF_t, pD_t] = f_blend_prior(pU, pF, pD, pUpr_t, pFpr_t, pDpr_t, nRaw)
+            [pU_t, pF_t, pD_t] := f_blend_prior(pU, pF, pD, pUpr_t, pFpr_t, pDpr_t, nRaw)
             pU := pU_t
             pF := pF_t
             pD := pD_t
@@ -3066,18 +3076,18 @@ confGate = evalSoftHit ? f_clamp01(confidence * (1.0 - evalPenalty)) : confidenc
 // Gate requires: Confidence Logic + MTF Vote + Macro + Drawdown (+ eval penalty)
 // Fail-closed coercions: any na => deny
 confOk      = (not na(confGate)) and (confGate >= minTrust)
-ddOk        = (ddHardGateHit == false) and (not na(ddHardGateHit))
-mtfOkLong_  = (mtfOkLong == true) and (not na(mtfOkLong))
-mtfOkShort_ = (mtfOkShort == true) and (not na(mtfOkShort))
-macOkLong_  = (macroGateLong == true) and (not na(macroGateLong))
-macOkShort_ = (macroGateShort == true) and (not na(macroGateShort))
+ddOk        = (ddHardGateHit == false)
+mtfOkLong_  = (mtfOkLong == true)
+mtfOkShort_ = (mtfOkShort == true)
+macOkLong_  = (macroGateLong == true)
+macOkShort_ = (macroGateShort == true)
 
 gateLongNow  = confOk and mtfOkLong_  and macOkLong_  and ddOk
 gateShortNow = confOk and mtfOkShort_ and macOkShort_ and ddOk
 
-decisionOkSafe     = (not use3Way) ? true : ((decisionOk == true) and (not na(decisionOk)))
-cooldownOkSafe     = (cooldownOk == true) and (not na(cooldownOk))
-nearCloseOk        = (blockNearClose == false) and (not na(blockNearClose))
+decisionOkSafe     = (not use3Way) ? true : (decisionOk == true)
+cooldownOkSafe     = (cooldownOk == true)
+nearCloseOk        = (blockNearClose == false)
 
 allowEntry =
      barstate.isconfirmed
@@ -3088,9 +3098,18 @@ allowEntry =
  and (evalOk == true)
  and (not abstainGate or decisionOkSafe)
 
-f_is_true(x) => (x == true) and (not na(x))
+f_is_true(x) => x == true
 
 f_bool_to_num(x) => x ? 1.0 : 0.0
+
+bool buySignal = false
+bool shortSignal = false
+bool exitSignal = false
+bool coverSignal = false
+bool didBuy = false
+bool didShort = false
+bool didExit = false
+bool didCover = false
 
 plot(showEvidencePackDebug ? totSamp : na, "totSamp", display=display.data_window)
 plot(showEvidencePackDebug ? curBrierRaw : na, "curBrierRaw", display=display.data_window)
@@ -3123,10 +3142,10 @@ plot(showEvidencePackDebug ? f_bool_to_num(didShort) : na, "didShort", display=d
 
 allowExit = barstate.isconfirmed
 
-buySignal   = false
-exitSignal  = false
-shortSignal = false
-coverSignal = false
+buySignal   := false
+exitSignal  := false
+shortSignal := false
+coverSignal := false
 
 //====================
 // Signal execution layer
@@ -3140,7 +3159,8 @@ trendDn  = trendReg == -1.0
 trendSide = trendReg == 0.0
 
 // Volume confirmation (optional)
-volOk = (not useVolConfirm) or (not na(volume) and volume > ta.sma(volume, volLen) * volMult)
+volSma = ta.sma(volume, volLen)
+volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
 
 // Pullback context
 pbLow  = ta.lowest(low, pbLookback)
@@ -3188,10 +3208,10 @@ var float trailPx = na
 
 // Calculate risk levels on entry; returns updated stop/tp/trail
 f_set_risk_on_entry(isLong, entry, atrNow) =>
-    float newStop  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
-    float newTp    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
-    float newTrail = na
-    [newStop, newTp, newTrail]
+    float stopOut  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
+    float tpOut    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
+    float trailOut = na
+    [stopOut, tpOut, trailOut]
 
 // Update trailing stop; returns updated trail
 f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
@@ -3200,8 +3220,8 @@ f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
     rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
     float trailOut = trailVal
     if rNow >= trailAfterR
-        float newTrail = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
-        trailOut := na(trailOut) ? newTrail : (isLong ? math.max(trailOut, newTrail) : math.min(trailOut, newTrail))
+        float trailCandidate = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
+        trailOut := na(trailOut) ? trailCandidate : (isLong ? math.max(trailOut, trailCandidate) : math.min(trailOut, trailCandidate))
     trailOut
 
 f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
@@ -3276,8 +3296,8 @@ if pos == 0 and allowEntry
     else if engine == "Trend+Pullback"
         nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
         nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
-        nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (not na(bullBias)) and (close < emaF) and ((emaF - close) <= preDist)
-        nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (not na(bearBias)) and (close > emaF) and ((close - emaF) <= preDist)
+        nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (close < emaF) and ((emaF - close) <= preDist)
+        nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (close > emaF) and ((close - emaF) <= preDist)
         preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
         preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
     else // Loose
@@ -3286,8 +3306,8 @@ if pos == 0 and allowEntry
         preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
         preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
 
-preBuyPrev = (preBuyNow[1] == true) and (not na(preBuyNow[1]))
-preShortPrev = (preShortNow[1] == true) and (not na(preShortNow[1]))
+preBuyPrev = (preBuyNow[1] == true)
+preShortPrev = (preShortNow[1] == true)
 preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
 preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
 
@@ -3302,10 +3322,10 @@ if pos == -1 and allowExit
     coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
 
 // Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
-bool didBuy   = false
-bool didShort = false
-bool didExit  = false
-bool didCover = false
+didBuy   := false
+didShort := false
+didExit  := false
+didCover := false
 
 // State transitions
 float newStop  = na
