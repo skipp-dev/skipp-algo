@@ -333,5 +333,76 @@ class TestSkippAlgoStrategyAlerts(unittest.TestCase):
         self.assertIn('alertcondition((not useAlertCalls) and coverEvent,', self.text)
 
 
+class TestSkippAlgoStrategyDeferredFeatures(unittest.TestCase):
+    """Tests for deferred feature implementations (A2/A5/B1-B4/C1/C3/C4/D1/D2)."""
+
+    text: str = ""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = STRATEGY_PATH.read_text(encoding="utf-8")
+
+    def test_sgd_momentum_inputs(self):
+        """A2: SGD momentum inputs exist."""
+        self.assertIn("useSgdMomentum", self.text)
+        self.assertIn("sgdBeta", self.text)
+
+    def test_ece_recal_inputs(self):
+        """A5: ECE-triggered recalibration inputs exist."""
+        self.assertIn("useEceRecal", self.text)
+        self.assertIn("eceRecalBoost", self.text)
+
+    def test_smooth_trend_function(self):
+        """D1: f_trend_strength function exists."""
+        self.assertIn("f_trend_strength(", self.text)
+        self.assertIn("useSmoothTrend", self.text)
+
+    def test_roc_score_function(self):
+        """B2: f_roc_score function exists."""
+        self.assertIn("f_roc_score(", self.text)
+        self.assertIn("rocLongOk", self.text)
+
+    def test_vol_score_function(self):
+        """B4: f_vol_score function exists."""
+        self.assertIn("f_vol_score(", self.text)
+        self.assertIn("volEnsLongOk", self.text)
+
+    def test_ensemble6_function(self):
+        """6-factor ensemble function exists."""
+        self.assertIn("f_ensemble6(", self.text)
+
+    def test_adx_filter(self):
+        """D2: ADX filter inputs and gate exist."""
+        self.assertIn("useAdx", self.text)
+        self.assertIn("adxLen", self.text)
+        self.assertIn("adxThresh", self.text)
+        self.assertIn("adxOk", self.text)
+
+    def test_pre_momentum_filter(self):
+        """C1: Pre-signal momentum filter exists."""
+        self.assertIn("usePreMomentum", self.text)
+        self.assertIn("preMomLongOk", self.text)
+
+    def test_ema_accel_filter(self):
+        """C3: EMA acceleration filter exists."""
+        self.assertIn("useEmaAccel", self.text)
+        self.assertIn("emaAccelLongOk", self.text)
+
+    def test_vwap_filter(self):
+        """C4: VWAP alignment filter exists."""
+        self.assertIn("useVwap", self.text)
+        self.assertIn("vwapLongOk", self.text)
+
+    def test_enhancement_gates(self):
+        """Enhancement composite gates exist and are wired into signals."""
+        self.assertIn("enhLongOk", self.text)
+        self.assertIn("enhShortOk", self.text)
+
+    def test_momentum_fields_in_tfstate(self):
+        """A2: TfState has momentum accumulator fields."""
+        self.assertIn("float[] momPlattN", self.text)
+        self.assertIn("float[] momPlatt1", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()

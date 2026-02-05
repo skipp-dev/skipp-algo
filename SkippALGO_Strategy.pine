@@ -51,6 +51,24 @@ enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
 cooldownBars = input.int(6, "Cooldown bars", minval=0)
 minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
 
+// --- Signal Enhancement Filters ---
+grp_sigfilt = "Signal Filters"
+// C1 – Pre-signal momentum gate
+usePreMomentum = input.bool(false, "Pre-signal momentum gate", group=grp_sigfilt, tooltip="Require RSI alignment with trade direction")
+preMomRsiHi    = input.int(65, "Pre-signal RSI high (long)", minval=55, maxval=80, group=grp_sigfilt)
+preMomRsiLo    = input.int(35, "Pre-signal RSI low (short)", minval=20, maxval=45, group=grp_sigfilt)
+// C3 – EMA acceleration filter
+useEmaAccel    = input.bool(false, "EMA acceleration filter", group=grp_sigfilt, tooltip="Check that EMA gap is expanding")
+emaAccelLen    = input.int(5, "EMA accel lookback", minval=2, maxval=20, group=grp_sigfilt)
+// C4 – VWAP alignment filter
+useVwap        = input.bool(false, "VWAP alignment filter", group=grp_sigfilt, tooltip="Long above VWAP, short below (intraday only)")
+// D1 – Smooth trend regime
+useSmoothTrend = input.bool(false, "Smooth trend regime", group=grp_sigfilt, tooltip="Replace discrete trend with continuous [-1,1]")
+// D2 – ADX trend strength
+useAdx         = input.bool(false, "ADX trend strength filter", group=grp_sigfilt, tooltip="Require ADX above threshold for trending entries")
+adxLen         = input.int(14, "ADX length", minval=5, maxval=50, group=grp_sigfilt)
+adxThresh      = input.float(20.0, "ADX min threshold", minval=5.0, maxval=50.0, step=1.0, group=grp_sigfilt)
+
 // MTF use (filter / regime)
 useMtfConfirm = input.bool(true, "MTF confirmation")
 mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"])
@@ -286,11 +304,20 @@ wState    = input.float(1.0, "Weight: State (Outlook)", step=0.1, group=grp_ens)
 wPullback = input.float(0.5, "Weight: Pullback Depth", step=0.1, group=grp_ens)
 wRegime   = input.float(0.3, "Weight: Vol Regime", step=0.1, group=grp_ens)
 wTrend    = input.float(0.4, "Weight: Trend Regime", step=0.1, group=grp_ens, tooltip="Bull/Bear/Sideways detection")
+// B2 – ROC factor in ensemble
+wRoc      = input.float(0.0, "Weight: ROC factor", step=0.1, group=grp_ens, tooltip="Rate of Change momentum (0=off)")
+rocLen    = input.int(10, "ROC length", minval=2, maxval=50, group=grp_ens)
+// B4 – Volume in ensemble
+wVol      = input.float(0.0, "Weight: Volume factor", step=0.1, group=grp_ens, tooltip="Volume vs SMA ratio (0=off)")
+volEnsLen = input.int(20, "Volume ensemble SMA len", minval=2, maxval=100, group=grp_ens)
 
 // --- Phase 4: Online Calibration ---
 grp_cal = "Calibration Settings (Phase 4)"
 usePlatt = input.bool(true, "Use Platt Scaling (Online SGD)", group=grp_cal)
 lrPlatt  = input.float(0.005, "Learning Rate (SGD)", minval=0.001, maxval=0.1, step=0.001, group=grp_cal)
+// A2 – SGD Momentum (Adam-lite)
+useSgdMomentum = input.bool(false, "SGD momentum (Adam-lite)", group=grp_cal, tooltip="EMA of gradients for smoother convergence")
+sgdBeta        = input.float(0.9, "SGD momentum beta", minval=0.5, maxval=0.99, step=0.01, group=grp_cal)
 
 // Bins & Smoothing
 predBinsN = input.int(4, "Pred bins (N) stable", minval=2, maxval=9, group="Engine")
@@ -362,6 +389,9 @@ driftMaxPP      = input.float(12.0, "Max drift (pp, gate)", minval=1.0, maxval=5
 useEvalPenalty  = input.bool(true, "Soft penalty on eval degrade")
 eceWarn         = input.float(0.08, "ECE warn threshold", minval=0.01, maxval=0.50, step=0.01)
 evalPenalty     = input.float(0.10, "Eval penalty (confidence)", minval=0.0, maxval=0.50, step=0.01)
+// A5 – ECE-triggered recalibration
+useEceRecal     = input.bool(false, "ECE-triggered recal (boost LR)", tooltip="Temporarily boost Platt LR when ECE exceeds warn")
+eceRecalBoost   = input.float(3.0, "ECE recal LR multiplier", minval=1.5, maxval=10.0, step=0.5)
 
 //====================
 // Inputs — Calibration Diagnostics (Debug Panel)
@@ -504,6 +534,9 @@ type TfState
     float[] cnt1_bear_raw
     float[] up1_bear_raw
     float[] dn1_bear_raw
+    // A2 – SGD Momentum buffers (Adam-lite)
+    float[] momPlattN  // [mom_a, mom_b]
+    float[] momPlatt1  // [mom_a, mom_b]
     // Quantile bins (per horizon)
     float[] qScoreBuf
     float[] qCutsN
@@ -563,6 +596,8 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
     array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0), array.new_float(nBinsN * dim2, 0.0),
     array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
     array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0), array.new_float(nBins1 * dim2, 0.0),
+        // --- A2: SGD momentum buffers ---
+    array.new_float(2, 0.0), array.new_float(2, 0.0),
         // --- Quantile buffers ---
     array.new_float(), array.new_float(int(math.max(nBinsN - 1, 0)), na), array.new_float(int(math.max(nBins1 - 1, 0)), na)
     )
@@ -808,7 +843,8 @@ f_rel_label(p, nBin, total, canCal) =>
     lbl
 
 f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
-    trend = emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0
+    // B1 – Continuous trend: smooth EMA gap vs binary
+    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
     mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
     loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
     f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
@@ -876,6 +912,34 @@ f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
     // sD: Trend Regime Score (-1..1): bull/bear/sideways
     num = wA * sA + wB * sB + wC * sC + wD * sD
     den = wA + wB + wC + wD
+    val = den == 0 ? 0.0 : num / den
+    math.max(-1.0, math.min(1.0, val))
+
+// D1 – Continuous trend strength [-1, 1] (smooth alternative to discrete f_trend_regime)
+f_trend_strength(emaF, emaS) =>
+    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
+    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH, PRICE_EPS)))
+
+// B2 – ROC (Rate of Change) score: momentum via price change [-1, 1]
+f_roc_score(c, rocL) =>
+    roc = ta.roc(c, rocL)
+    r = na(roc) ? 0.0 : roc
+    // Normalise: ±5% => ±1
+    math.max(-1.0, math.min(1.0, r / 5.0))
+
+// B4 – Volume score: above/below SMA [-1, 1]
+f_vol_score(vol, volSmaLen) =>
+    if na(vol) or vol == 0
+        0.0
+    else
+        sma = ta.sma(vol, volSmaLen)
+        ratio = na(sma) or sma == 0.0 ? 0.0 : (vol / sma - 1.0)
+        math.max(-1.0, math.min(1.0, ratio))
+
+// Extended ensemble with 6 factors (state + pullback + vol regime + trend + ROC + volume)
+f_ensemble6(sA, sB, sC, sD, sE, sF, wA, wB, wC, wD, wE, wF) =>
+    num = wA * sA + wB * sB + wC * sC + wD * sD + wE * sE + wF * sF
+    den = wA + wB + wC + wD + wE + wF
     val = den == 0 ? 0.0 : num / den
     math.max(-1.0, math.min(1.0, val))
 
@@ -1872,9 +1936,19 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                                 err = pAdj - outcomeVal
                                 da = err * lgtN_i
                                 db = err
+                                // A2 – Momentum: EMA of gradients
+                                float effDa = da
+                                float effDb = db
+                                if useSgdMomentum
+                                    mA = sgdBeta * array.get(st.momPlattN, 0) + (1.0 - sgdBeta) * da
+                                    mB = sgdBeta * array.get(st.momPlattN, 1) + (1.0 - sgdBeta) * db
+                                    array.set(st.momPlattN, 0, mA)
+                                    array.set(st.momPlattN, 1, mB)
+                                    effDa := mA
+                                    effDb := mB
                                 // Update
-                                aN := math.max(0.1, math.min(5.0, aN - lrPlatt * da)) 
-                                bN := math.max(-3.0, math.min(3.0, bN - lrPlatt * db))
+                                aN := math.max(0.1, math.min(5.0, aN - lrPlattEff * effDa)) 
+                                bN := math.max(-3.0, math.min(3.0, bN - lrPlattEff * effDb))
                                 array.set(st.plattN, 0, aN)
                                 array.set(st.plattN, 1, bN)
                                 
@@ -1900,8 +1974,18 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             err1 = pAdj1 - outcomeVal
                             da1 = err1 * lgt1_i
                             db1 = err1
-                            pltA1 := math.max(0.1, math.min(5.0, pltA1 - lrPlatt * da1))
-                            pltB1 := math.max(-3.0, math.min(3.0, pltB1 - lrPlatt * db1))
+                            // A2 – Momentum: EMA of gradients (head 1)
+                            float effDa1 = da1
+                            float effDb1 = db1
+                            if useSgdMomentum
+                                mA1 = sgdBeta * array.get(st.momPlatt1, 0) + (1.0 - sgdBeta) * da1
+                                mB1 = sgdBeta * array.get(st.momPlatt1, 1) + (1.0 - sgdBeta) * db1
+                                array.set(st.momPlatt1, 0, mA1)
+                                array.set(st.momPlatt1, 1, mB1)
+                                effDa1 := mA1
+                                effDb1 := mB1
+                            pltA1 := math.max(0.1, math.min(5.0, pltA1 - lrPlattEff * effDa1))
+                            pltB1 := math.max(-3.0, math.min(3.0, pltB1 - lrPlattEff * effDb1))
                             array.set(st.platt1, 0, pltA1)
                             array.set(st.platt1, 1, pltB1)
                             
@@ -2547,6 +2631,26 @@ trendUp  = trendReg == 1.0
 trendDn  = trendReg == -1.0
 trendSide = trendReg == 0.0
 
+// D1 – Smooth trend strength (continuous [-1, 1] alternative)
+trendStrength = f_trend_strength(emaF, emaS)
+trendUpSmooth  = useSmoothTrend ? trendStrength > 0.3 : trendUp
+trendDnSmooth  = useSmoothTrend ? trendStrength < -0.3 : trendDn
+
+// D2 – ADX trend strength filter
+adxVal = ta.rma(math.abs(ta.change(ta.rma(high - low, adxLen))), adxLen)
+[diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
+adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
+
+// B2 – ROC momentum score at signal layer
+rocScore = f_roc_score(close, rocLen)
+rocLongOk  = wRoc == 0 or rocScore > 0.0
+rocShortOk = wRoc == 0 or rocScore < 0.0
+
+// B4 – Volume score at signal layer
+volScore = f_vol_score(volume, volEnsLen)
+volEnsLongOk  = wVol == 0 or volScore > -0.3
+volEnsShortOk = wVol == 0 or volScore > -0.3
+
 //====================
 // Risk Helpers
 //====================
@@ -2847,6 +2951,11 @@ if doReset
 // Calibration update (bar-close confirmed guard + new TF bar events)
 //====================
 doCal = enableForecast and barstate.isconfirmed and f_forecast_allowed() and (calibrateInBackground or showTable or showEvalSection)
+// A5 – ECE-triggered recalibration: boost Platt LR when model is poorly calibrated
+var float prevEvalEce = na
+lrPlattEff = lrPlatt
+if useEceRecal and not na(prevEvalEce) and prevEvalEce >= eceWarn
+    lrPlattEff := math.min(lrPlatt * eceRecalBoost, 0.05)
 if doCal
     for i = 0 to 6
         tfSel = f_idx_to_tfsel(i)
@@ -3108,6 +3217,8 @@ decisionEdge = decisionEdge_t
 decisionEdgeTxt = (not use3Way or na(decisionEdge)) ? "—" : str.tostring(decisionEdge * 100.0, "#.1") + "pp"
 
 [evalEce, evalDriftPP, evalN] = f_eval_metrics_for_tf(relFilterTF)
+// A5 – store ECE for next bar's recal decision
+prevEvalEce := evalEce
 eceOk = (not useEceGate) or (not na(evalEce) and evalEce <= eceMax)
 driftOk = (not useDriftGate) or (not na(evalDriftPP) and math.abs(evalDriftPP) <= driftMaxPP)
 evalOk = (not forecastAllowed) or (eceOk and driftOk)
@@ -3326,6 +3437,22 @@ if renderTable
 volSma = ta.sma(volume, volLen)
 volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
 
+// C1 – Pre-signal momentum (RSI alignment)
+chartRsi = ta.rsi(close, rsiStateLen)
+preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
+preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
+
+// C3 – EMA acceleration (gap expanding)
+emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
+emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
+emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
+emaAccelShortOk = (not useEmaAccel) or (emaGap >= emaGapPrev)
+
+// C4 – VWAP alignment (intraday only)
+vwapVal = ta.vwap(hlc3)
+vwapLongOk  = (not useVwap) or na(vwapVal) or (close >= vwapVal)
+vwapShortOk = (not useVwap) or na(vwapVal) or (close <= vwapVal)
+
 fcGateLong  = f_entry_forecast_gate(true)
 fcGateShort = f_entry_forecast_gate(false)
 
@@ -3344,8 +3471,8 @@ bearReversal = close < open and close < emaF and high >= emaF
 setOkLong  = (not requireSET) or setLong
 setOkShort = (not requireSET) or setShort
 
-pullbackLongOk  = trendUp and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
-pullbackShortOk = trendDn and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
+pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
+pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
 
 // Breakout
 var float lastSwingHigh = na
@@ -3393,6 +3520,21 @@ trendFlipUpSafe   = f_is_true(trendFlipUp)
 trendFlipDownSafe = f_is_true(trendFlipDown)
 reclaimUpSafe     = f_is_true(reclaimUp)
 reclaimDownSafe   = f_is_true(reclaimDown)
+adxOkSafe         = f_is_true(adxOk)
+rocLongOkSafe     = f_is_true(rocLongOk)
+rocShortOkSafe    = f_is_true(rocShortOk)
+volEnsLongOkSafe  = f_is_true(volEnsLongOk)
+volEnsShortOkSafe = f_is_true(volEnsShortOk)
+preMomLongOkSafe  = f_is_true(preMomLongOk)
+preMomShortOkSafe = f_is_true(preMomShortOk)
+emaAccelLongOkSafe  = f_is_true(emaAccelLongOk)
+emaAccelShortOkSafe = f_is_true(emaAccelShortOk)
+vwapLongOkSafe    = f_is_true(vwapLongOk)
+vwapShortOkSafe   = f_is_true(vwapShortOk)
+
+// Enhancement composite gates
+enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe
+enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe
 
 hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
@@ -3400,17 +3542,17 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 // Signals
 if pos == 0 and allowEntry
     if engine == "Hybrid"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger
+        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger  and enhLongOk
+        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk
     else if engine == "Breakout"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe
+        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe  and enhLongOk
+        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk
     else if engine == "Trend+Pullback"
-        buySignal   := gateLongNow and (trendFlipUpSafe or reclaimUpSafe)
-        shortSignal := enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe)
+        buySignal   := gateLongNow and (trendFlipUpSafe or reclaimUpSafe) and enhLongOk
+        shortSignal := enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe) and enhShortOk
     else // Loose
-        buySignal   := gateLongNow and crossClose_EmaF_upSafe
-        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe
+        buySignal   := gateLongNow and crossClose_EmaF_upSafe and enhLongOk
+        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
 
     if buySignal and shortSignal
         buySignal := false

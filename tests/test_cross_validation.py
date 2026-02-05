@@ -238,8 +238,8 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     
     def test_platt_sgd_update_exists(self):
         """Platt SGD update logic must exist in both."""
-        # Check for gradient descent update pattern
-        pattern = r'a[N1]\s*:=\s*math\.max\([^)]+,\s*math\.min\([^)]+,\s*a[N1]\s*-\s*lrPlatt\s*\*\s*da'
+        # Check for gradient descent update pattern (uses lrPlattEff with A2 momentum)
+        pattern = r'a[N1]\s*:=\s*math\.max\([^)]+,\s*math\.min\([^)]+,\s*a[N1]\s*-\s*lrPlattEff\s*\*\s*(?:eff[Dd]a|da)'
         
         self.assertRegex(self.indicator, pattern, 
             "Indicator missing Platt SGD update")
