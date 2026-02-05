@@ -4,6 +4,7 @@ Test suite for SkippALGO.pine (Indicator).
 Validates the indicator script against expected patterns and configuration.
 """
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -77,7 +78,6 @@ class TestSkippAlgoIndicator(unittest.TestCase):
 
     def test_risk_temp_declared_once(self):
         """Ensure risk temp locals (newStop/Tp/Trail) are declared a single time to avoid redeclare errors."""
-        import re
         self.assertEqual(len(re.findall(r"^float newStop\s*= na", self.text, flags=re.MULTILINE)), 1)
         self.assertEqual(len(re.findall(r"^float newTp\s*= na", self.text, flags=re.MULTILINE)), 1)
         self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 1)
