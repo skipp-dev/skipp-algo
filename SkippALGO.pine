@@ -184,9 +184,8 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
 showSetMarkers   = input.bool(true, "Show SET markers")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
-ui_tableConfirmedOnly = input.bool(true, "Table: update on confirmed bars only")
 ui_tableShowMode       = input.bool(true, "Table: show LIVE/CONFIRMED tag")
-tableOnConfirmed = input.bool(true, "Table updates on confirmed bars")
+tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
 labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"])
 
 // Alerts
@@ -203,6 +202,7 @@ avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 // Inputs — Forecast Calibration Enhancements
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
+allowForecastOnNonFixed = input.bool(false, "Forecast: allow on non-fixed TFs", tooltip="If chart timeframe can't be resolved to seconds, allow forecast gating instead of disabling it")
 
 // Forecast value display
 fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
@@ -950,7 +950,10 @@ f_forecast_allowed() =>
     s6 = timeframe.in_seconds(tfF6)
     s7 = timeframe.in_seconds(tfF7)
     minSec = f_min_sec(s1, f_min_sec(s2, f_min_sec(s3, f_min_sec(s4, f_min_sec(s5, f_min_sec(s6, s7))))))
-    (not na(baseSec)) and (not na(minSec)) and baseSec <= minSec
+    if na(baseSec) or na(minSec)
+        allowForecastOnNonFixed
+    else
+        baseSec <= minSec
 
 f_tf_from_horizon(h) =>
     h == "F1" ? tfF1 :
@@ -1123,56 +1126,63 @@ f_prob3(u, f, d, n, alpha) =>
         [(u + alpha) / denom, (f + alpha) / denom, (d + alpha) / denom]
 
 f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
-    n = array.get(cntArr, bin)
-    u = array.get(upArr,  bin)
-    d = array.get(dnArr,  bin)
-    f = math.max(0, n - u - d)
-
-    [pUb_t, pFb_t, pDb_t] = f_prob3(u, f, d, n, alpha)
-    pUb = pUb_t
-    pFb = pFb_t
-    pDb = pDb_t
-
-    regBin = bin % dim2Bins
-    binsScore = int(array.size(cntArr) / dim2Bins)
-    nReg = 0.0
-    uReg = 0.0
-    dReg = 0.0
-    for i = 0 to binsScore - 1
-        idx = i * dim2Bins + regBin
-        nReg += array.get(cntArr, idx)
-        uReg += array.get(upArr,  idx)
-        dReg += array.get(dnArr,  idx)
-    fReg = math.max(0, nReg - uReg - dReg)
-    [pUr_t, pFr_t, pDr_t] = f_prob3(uReg, fReg, dReg, nReg, alpha)
-    pUr = pUr_t
-    pFr = pFr_t
-    pDr = pDr_t
-
-    nBase = array.sum(cntArr)
-    uBase = array.sum(upArr)
-    dBase = array.sum(dnArr)
-    fBase = math.max(0, nBase - uBase - dBase)
-    [pU0_t, pF0_t, pD0_t] = f_prob3(uBase, fBase, dBase, nBase, alpha)
-    pU0 = pU0_t
-    pF0 = pF0_t
-    pD0 = pD0_t
-
-    wReg = (shrinkReg <= 0) ? 1.0 : (n / (n + shrinkReg + 0.0))
-    pUreg = wReg * pUb + (1.0 - wReg) * pUr
-    pFreg = wReg * pFb + (1.0 - wReg) * pFr
-    pDreg = wReg * pDb + (1.0 - wReg) * pDr
-
-    w = (shrinkK <= 0) ? 1.0 : (nReg / (nReg + shrinkK + 0.0))
-    pU = w * pUreg + (1.0 - w) * pU0
-    pF = w * pFreg + (1.0 - w) * pF0
-    pD = w * pDreg + (1.0 - w) * pD0
-
-    s = pU + pF + pD
-    if s == 0.0
-        [0.3333, 0.3334, 0.3333, n]
+    if na(bin) or array.size(cntArr) == 0
+        [na, na, na, na]
     else
-        [pU / s, pF / s, pD / s, n]
+        b = int(bin)
+        maxIdx = array.size(cntArr) - 1
+        b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
+
+        n = array.get(cntArr, b)
+        u = array.get(upArr,  b)
+        d = array.get(dnArr,  b)
+        f = math.max(0, n - u - d)
+
+        [pUb_t, pFb_t, pDb_t] = f_prob3(u, f, d, n, alpha)
+        pUb = pUb_t
+        pFb = pFb_t
+        pDb = pDb_t
+
+        regBin = b % dim2Bins
+        binsScore = int(array.size(cntArr) / dim2Bins)
+        nReg = 0.0
+        uReg = 0.0
+        dReg = 0.0
+        for i = 0 to binsScore - 1
+            idx = i * dim2Bins + regBin
+            nReg += array.get(cntArr, idx)
+            uReg += array.get(upArr,  idx)
+            dReg += array.get(dnArr,  idx)
+        fReg = math.max(0, nReg - uReg - dReg)
+        [pUr_t, pFr_t, pDr_t] = f_prob3(uReg, fReg, dReg, nReg, alpha)
+        pUr = pUr_t
+        pFr = pFr_t
+        pDr = pDr_t
+
+        nBase = array.sum(cntArr)
+        uBase = array.sum(upArr)
+        dBase = array.sum(dnArr)
+        fBase = math.max(0, nBase - uBase - dBase)
+        [pU0_t, pF0_t, pD0_t] = f_prob3(uBase, fBase, dBase, nBase, alpha)
+        pU0 = pU0_t
+        pF0 = pF0_t
+        pD0 = pD0_t
+
+        wReg = (shrinkReg <= 0) ? 1.0 : (n / (n + shrinkReg + 0.0))
+        pUreg = wReg * pUb + (1.0 - wReg) * pUr
+        pFreg = wReg * pFb + (1.0 - wReg) * pFr
+        pDreg = wReg * pDb + (1.0 - wReg) * pDr
+
+        w = (shrinkK <= 0) ? 1.0 : (nReg / (nReg + shrinkK + 0.0))
+        pU = w * pUreg + (1.0 - w) * pU0
+        pF = w * pFreg + (1.0 - w) * pF0
+        pD = w * pDreg + (1.0 - w) * pD0
+
+        s = pU + pF + pD
+        if s == 0.0
+            [0.3333, 0.3334, 0.3333, n]
+        else
+            [pU / s, pF / s, pD / s, n]
 
 f_safe_log(p) =>
     math.log(math.max(PROB_EPS, p))
@@ -1911,131 +1921,132 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
         atrNormEns = atrNow / math.max(cNow, 0.0001)
         sD = f_trend_regime(emaFNow, emaSNow, atrNormEns)
         sEns = f_ensemble4(sA, sB, sC, sD, wAVal, wBVal, wCVal, wDVal)
-        f_update_quantiles(st, sEns)
-        
-        // --- Phase 2: 2D Binning ---
-        bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
-        b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
+        if not na(sEns) and not na(sD)
+            f_update_quantiles(st, sEns)
+            
+            // --- Phase 2: 2D Binning ---
+            bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
+            b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
 
-        dirFlag = f_dir_from_score(sA)
-        biasSel = f_bias_from_score(sA)
-        if biasSel == 0
-            biasSel := bias == 0 ? 1 : bias
-        cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
-        upN_sel  = useBullBearCal ? (biasSel > 0 ? st.upN_bull  : st.upN_bear)  : st.upN
-        dnN_sel  = useBullBearCal ? (biasSel > 0 ? st.dnN_bull  : st.dnN_bear)  : st.dnN
-        cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
-        up1_sel  = useBullBearCal ? (biasSel > 0 ? st.up1_bull  : st.up1_bear)  : st.up1
-        dn1_sel  = useBullBearCal ? (biasSel > 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
+            dirFlag = f_dir_from_score(sA)
+            biasSel = f_bias_from_score(sA)
+            if biasSel == 0
+                biasSel := bias == 0 ? 1 : bias
+            cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
+            upN_sel  = useBullBearCal ? (biasSel > 0 ? st.upN_bull  : st.upN_bear)  : st.upN
+            dnN_sel  = useBullBearCal ? (biasSel > 0 ? st.dnN_bull  : st.dnN_bear)  : st.dnN
+            cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
+            up1_sel  = useBullBearCal ? (biasSel > 0 ? st.up1_bull  : st.up1_bear)  : st.up1
+            dn1_sel  = useBullBearCal ? (biasSel > 0 ? st.dn1_bull  : st.dn1_bear)  : st.dn1
 
-        tempN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.tempN_bull : st.tempN_bear) : st.tempN
-        temp1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.temp1_bull : st.temp1_bear) : st.temp1
-        vecAN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecAN_bull : st.vecAN_bear) : st.vecAN
-        vecBN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecBN_bull : st.vecBN_bear) : st.vecBN
-        vecA1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecA1_bull : st.vecA1_bear) : st.vecA1
-        vecB1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecB1_bull : st.vecB1_bear) : st.vecB1
+            tempN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.tempN_bull : st.tempN_bear) : st.tempN
+            temp1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.temp1_bull : st.temp1_bear) : st.temp1
+            vecAN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecAN_bull : st.vecAN_bear) : st.vecAN
+            vecBN_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecBN_bull : st.vecBN_bear) : st.vecBN
+            vecA1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecA1_bull : st.vecA1_bear) : st.vecA1
+            vecB1_sel = (useBullBearCal and biasSel != 0) ? (biasSel > 0 ? st.vecB1_bull : st.vecB1_bear) : st.vecB1
 
-        if use3Way
-            [pUrawN_t, pFrawN_t, pDrawN_t, _nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaNVal, shrinkKVal, kShrinkReg)
-            [pUraw1_t, pFraw1_t, pDraw1_t, _n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1Val, shrinkKVal, kShrinkReg)
-            pUrawN = pUrawN_t
-            pFrawN = pFrawN_t
-            pDrawN = pDrawN_t
-            _nN = _nN_t
-            pUraw1 = pUraw1_t
-            pFraw1 = pFraw1_t
-            pDraw1 = pDraw1_t
-            _n1 = _n1_t
+            if use3Way
+                [pUrawN_t, pFrawN_t, pDrawN_t, _nN_t] = f_cal_cur3(cntN_sel, upN_sel, dnN_sel, bN, alphaNVal, shrinkKVal, kShrinkReg)
+                [pUraw1_t, pFraw1_t, pDraw1_t, _n1_t] = f_cal_cur3(cnt1_sel, up1_sel, dn1_sel, b1, alpha1Val, shrinkKVal, kShrinkReg)
+                pUrawN = pUrawN_t
+                pFrawN = pFrawN_t
+                pDrawN = pDrawN_t
+                _nN = _nN_t
+                pUraw1 = pUraw1_t
+                pFraw1 = pFraw1_t
+                pDraw1 = pDraw1_t
+                _n1 = _n1_t
 
-            zUN = f_safe_log(pUrawN)
-            zFN = f_safe_log(pFrawN)
-            zDN = f_safe_log(pDrawN)
-            zU1 = f_safe_log(pUraw1)
-            zF1 = f_safe_log(pFraw1)
-            zD1 = f_safe_log(pDraw1)
+                zUN = f_safe_log(pUrawN)
+                zFN = f_safe_log(pFrawN)
+                zDN = f_safe_log(pDrawN)
+                zU1 = f_safe_log(pUraw1)
+                zF1 = f_safe_log(pFraw1)
+                zD1 = f_safe_log(pDraw1)
 
-            useCalN = f_can_cal3(_nN)
-            useCal1 = f_can_cal3(_n1)
-            float pUN = na
-            float pFN = na
-            float pDN = na
-            float pU1 = na
-            float pF1 = na
-            float pD1 = na
-            if useCalN
-                [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, tempN_sel, vecAN_sel, vecBN_sel)
-                pUN := tUN_t
-                pFN := tFN_t
-                pDN := tDN_t
+                useCalN = f_can_cal3(_nN)
+                useCal1 = f_can_cal3(_n1)
+                float pUN = na
+                float pFN = na
+                float pDN = na
+                float pU1 = na
+                float pF1 = na
+                float pD1 = na
+                if useCalN
+                    [tUN_t, tFN_t, tDN_t] = f_cal_apply(zUN, zFN, zDN, tempN_sel, vecAN_sel, vecBN_sel)
+                    pUN := tUN_t
+                    pFN := tFN_t
+                    pDN := tDN_t
+                else
+                    pUN := pUrawN
+                    pFN := pFrawN
+                    pDN := pDrawN
+                if useCal1
+                    [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, temp1_sel, vecA1_sel, vecB1_sel)
+                    pU1 := tU1_t
+                    pF1 := tF1_t
+                    pD1 := tD1_t
+                else
+                    pU1 := pUraw1
+                    pF1 := pFraw1
+                    pD1 := pDraw1
+
+                array.push(st.qBinN,  bN)
+                array.push(st.qBin1,  b1)
+                array.push(st.qEntry, cNow)
+                array.push(st.qAtr,   atrNow)
+
+                array.push(st.qMaxH,  cNow)
+                array.push(st.qMinL,  cNow)
+
+                array.push(st.qAge,   0)
+                array.push(st.qBias,  dirFlag)
+
+                array.push(st.qPUpN, pUN)
+                array.push(st.qPFlN, pFN)
+                array.push(st.qPDnN, pDN)
+                array.push(st.qPUp1, pU1)
+                array.push(st.qPFl1, pF1)
+                array.push(st.qPDn1, pD1)
+
+                array.push(st.qZUpN, zUN)
+                array.push(st.qZFlN, zFN)
+                array.push(st.qZDnN, zDN)
+                array.push(st.qZUp1, zU1)
+                array.push(st.qZFl1, zF1)
+                array.push(st.qZDn1, zD1)
             else
-                pUN := pUrawN
-                pFN := pFrawN
-                pDN := pDrawN
-            if useCal1
-                [tU1_t, tF1_t, tD1_t] = f_cal_apply(zU1, zF1, zD1, temp1_sel, vecA1_sel, vecB1_sel)
-                pU1 := tU1_t
-                pF1 := tF1_t
-                pD1 := tD1_t
-            else
-                pU1 := pUraw1
-                pF1 := pFraw1
-                pD1 := pDraw1
+                // Capture current probabilities
+                [pNowN_t, _nN_t] = f_cal_cur(st.cntN, st.upN, bN, alphaNVal, shrinkKVal)
+                [pNow1_t, _n1_t] = f_cal_cur(st.cnt1, st.up1, b1, alpha1Val, shrinkKVal)
+                pNowN = pNowN_t
+                _nN = _nN_t
+                pNow1 = pNow1_t
+                _n1 = _n1_t
 
-            array.push(st.qBinN,  bN)
-            array.push(st.qBin1,  b1)
-            array.push(st.qEntry, cNow)
-            array.push(st.qAtr,   atrNow)
+                // Logits (Phase 4)
+                lgtN = f_logit(pNowN)
+                lgt1 = f_logit(pNow1)
 
-            array.push(st.qMaxH,  cNow)
-            array.push(st.qMinL,  cNow)
+                array.push(st.qBinN,  bN)
+                array.push(st.qBin1,  b1)
+                array.push(st.qEntry, cNow)
+                array.push(st.qAtr,   atrNow)
 
-            array.push(st.qAge,   0)
-            array.push(st.qBias,  dirFlag)
+                array.push(st.qMaxH,  cNow)
+                array.push(st.qMinL,  cNow)
 
-            array.push(st.qPUpN, pUN)
-            array.push(st.qPFlN, pFN)
-            array.push(st.qPDnN, pDN)
-            array.push(st.qPUp1, pU1)
-            array.push(st.qPFl1, pF1)
-            array.push(st.qPDn1, pD1)
+                array.push(st.qAge,   0)
+                array.push(st.qBias,  dirFlag)
 
-            array.push(st.qZUpN, zUN)
-            array.push(st.qZFlN, zFN)
-            array.push(st.qZDnN, zDN)
-            array.push(st.qZUp1, zU1)
-            array.push(st.qZFl1, zF1)
-            array.push(st.qZDn1, zD1)
-        else
-            // Capture current probabilities
-            [pNowN_t, _nN_t] = f_cal_cur(st.cntN, st.upN, bN, alphaNVal, shrinkKVal)
-            [pNow1_t, _n1_t] = f_cal_cur(st.cnt1, st.up1, b1, alpha1Val, shrinkKVal)
-            pNowN = pNowN_t
-            _nN = _nN_t
-            pNow1 = pNow1_t
-            _n1 = _n1_t
+                array.push(st.qProbN, pNowN)
+                array.push(st.qProb1, pNow1)
+                array.push(st.qLogitN, lgtN)
+                array.push(st.qLogit1, lgt1)
 
-            // Logits (Phase 4)
-            lgtN = f_logit(pNowN)
-            lgt1 = f_logit(pNow1)
-
-            array.push(st.qBinN,  bN)
-            array.push(st.qBin1,  b1)
-            array.push(st.qEntry, cNow)
-            array.push(st.qAtr,   atrNow)
-
-            array.push(st.qMaxH,  cNow)
-            array.push(st.qMinL,  cNow)
-
-            array.push(st.qAge,   0)
-            array.push(st.qBias,  dirFlag)
-
-            array.push(st.qProbN, pNowN)
-            array.push(st.qProb1, pNow1)
-            array.push(st.qLogitN, lgtN)
-            array.push(st.qLogit1, lgt1)
-
-            array.push(st.qPredN, pNowN)
-            array.push(st.qPred1, pNow1)
+                array.push(st.qPredN, pNowN)
+                array.push(st.qPred1, pNow1)
 // Core indicators
 //====================
 emaF = ta.ema(close, emaFastLen)
@@ -2875,21 +2886,21 @@ n17p := n17p_t
 
 // --- Total resolved samples per TF (across all bins)
 // (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
-totN1 := f_sum_int_array(cntN1Arr)
-totN2 := f_sum_int_array(cntN2Arr)
-totN3 := f_sum_int_array(cntN3Arr)
-totN4 := f_sum_int_array(cntN4Arr)
-totN5 := f_sum_int_array(cntN5Arr)
-totN6 := f_sum_int_array(cntN6Arr)
-totN7 := f_sum_int_array(cntN7Arr)
+totN1 := f_sum_int_array(cntN1RawArr)
+totN2 := f_sum_int_array(cntN2RawArr)
+totN3 := f_sum_int_array(cntN3RawArr)
+totN4 := f_sum_int_array(cntN4RawArr)
+totN5 := f_sum_int_array(cntN5RawArr)
+totN6 := f_sum_int_array(cntN6RawArr)
+totN7 := f_sum_int_array(cntN7RawArr)
 
-tot11 := f_sum_int_array(cnt11Arr)
-tot12 := f_sum_int_array(cnt12Arr)
-tot13 := f_sum_int_array(cnt13Arr)
-tot14 := f_sum_int_array(cnt14Arr)
-tot15 := f_sum_int_array(cnt15Arr)
-tot16 := f_sum_int_array(cnt16Arr)
-tot17 := f_sum_int_array(cnt17Arr)
+tot11 := f_sum_int_array(cnt11RawArr)
+tot12 := f_sum_int_array(cnt12RawArr)
+tot13 := f_sum_int_array(cnt13RawArr)
+tot14 := f_sum_int_array(cnt14RawArr)
+tot15 := f_sum_int_array(cnt15RawArr)
+tot16 := f_sum_int_array(cnt16RawArr)
+tot17 := f_sum_int_array(cnt17RawArr)
 
 // Populate rel-value arrays for gating/table (current bar)
 array.set(relPUN,  0, pUN1_t)
@@ -2982,26 +2993,27 @@ totF17 = f_get_total_samples("F7", "1")
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
-canF1N = enableForecast and (not na(totF1N) and totF1N > 0)
-canF2N = enableForecast and (not na(totF2N) and totF2N > 0)
-canF3N = enableForecast and (not na(totF3N) and totF3N > 0)
-canF4N = enableForecast and (not na(totF4N) and totF4N > 0)
-canF5N = enableForecast and (not na(totF5N) and totF5N > 0)
-canF6N = enableForecast and (not na(totF6N) and totF6N > 0)
-canF7N = enableForecast and (not na(totF7N) and totF7N > 0)
+canF1N = forecastAllowed and (not na(totF1N) and totF1N > 0)
+canF2N = forecastAllowed and (not na(totF2N) and totF2N > 0)
+canF3N = forecastAllowed and (not na(totF3N) and totF3N > 0)
+canF4N = forecastAllowed and (not na(totF4N) and totF4N > 0)
+canF5N = forecastAllowed and (not na(totF5N) and totF5N > 0)
+canF6N = forecastAllowed and (not na(totF6N) and totF6N > 0)
+canF7N = forecastAllowed and (not na(totF7N) and totF7N > 0)
 
-canF11 = enableForecast and (not na(totF11) and totF11 > 0)
-canF12 = enableForecast and (not na(totF12) and totF12 > 0)
-canF13 = enableForecast and (not na(totF13) and totF13 > 0)
-canF14 = enableForecast and (not na(totF14) and totF14 > 0)
-canF15 = enableForecast and (not na(totF15) and totF15 > 0)
-canF16 = enableForecast and (not na(totF16) and totF16 > 0)
-canF17 = enableForecast and (not na(totF17) and totF17 > 0)
+canF11 = forecastAllowed and (not na(totF11) and totF11 > 0)
+canF12 = forecastAllowed and (not na(totF12) and totF12 > 0)
+canF13 = forecastAllowed and (not na(totF13) and totF13 > 0)
+canF14 = forecastAllowed and (not na(totF14) and totF14 > 0)
+canF15 = forecastAllowed and (not na(totF15) and totF15 > 0)
+canF16 = forecastAllowed and (not na(totF16) and totF16 > 0)
+canF17 = forecastAllowed and (not na(totF17) and totF17 > 0)
 
-curBrier = f_getBrier_disp(relFilterTF, relFilterModel)
+curBrierRaw = f_getBrier_raw(relFilterTF, relFilterModel)
+curBrier = nz(curBrierRaw, 0.5)
 totSamp = f_get_total_samples(relFilterTF, relFilterModel)
-reliabilityOk = (not useRelFilter) or (not na(curBrier) and curBrier <= maxBrier)
-evidenceOk = (not evidenceGate) or (not na(totSamp) and totSamp >= evidenceMinTotal)
+reliabilityOk = (not forecastAllowed) or (not useRelFilter) or (not na(curBrierRaw) and not na(totSamp) and totSamp > 0 and curBrierRaw <= maxBrier)
+evidenceOk = (not forecastAllowed) or (not evidenceGate) or (not na(totSamp) and totSamp >= evidenceMinTotal)
 
 [pRelU_t, pRelF_t, pRelD_t, nRel_t, totRel_t] = f_get_rel_vals(relFilterTF, relFilterModel)
 pRelU = pRelU_t
@@ -3027,18 +3039,18 @@ confGate = evalSoftHit ? f_clamp01(confidence * (1.0 - evalPenalty)) : confidenc
 // Gate requires: Confidence Logic + MTF Vote + Macro + Drawdown (+ eval penalty)
 // Fail-closed coercions: any na => deny
 confOk      = (not na(confGate)) and (confGate >= minTrust)
-ddOk        = (ddHardGateHit == false)
-mtfOkLong_  = (mtfOkLong == true)
-mtfOkShort_ = (mtfOkShort == true)
-macOkLong_  = (macroGateLong == true)
-macOkShort_ = (macroGateShort == true)
+ddOk        = (ddHardGateHit == false) and (not na(ddHardGateHit))
+mtfOkLong_  = (mtfOkLong == true) and (not na(mtfOkLong))
+mtfOkShort_ = (mtfOkShort == true) and (not na(mtfOkShort))
+macOkLong_  = (macroGateLong == true) and (not na(macroGateLong))
+macOkShort_ = (macroGateShort == true) and (not na(macroGateShort))
 
 gateLongNow  = confOk and mtfOkLong_  and macOkLong_  and ddOk
 gateShortNow = confOk and mtfOkShort_ and macOkShort_ and ddOk
 
-decisionOkSafe     = (not use3Way) ? true : (decisionOk == true)
-cooldownOkSafe     = (cooldownOk == true)
-nearCloseOk        = (blockNearClose == false)
+decisionOkSafe     = (not use3Way) ? true : ((decisionOk == true) and (not na(decisionOk)))
+cooldownOkSafe     = (cooldownOk == true) and (not na(cooldownOk))
+nearCloseOk        = (blockNearClose == false) and (not na(blockNearClose))
 
 allowEntry =
      barstate.isconfirmed
@@ -3049,10 +3061,12 @@ allowEntry =
  and (evalOk == true)
  and (not abstainGate or decisionOkSafe)
 
+f_is_true(x) => (x == true) and (not na(x))
+
 f_bool_to_num(x) => x ? 1.0 : 0.0
 
 plot(showEvidencePackDebug ? totSamp : na, "totSamp", display=display.data_window)
-plot(showEvidencePackDebug ? curBrier : na, "curBrierRaw", display=display.data_window)
+plot(showEvidencePackDebug ? curBrierRaw : na, "curBrierRaw", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(reliabilityOk) : na, "reliabilityOk", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(evidenceOk) : na, "evidenceOk", display=display.data_window)
 plot(showEvidencePackDebug ? evalEce : na, "evalEce", display=display.data_window)
@@ -3168,25 +3182,51 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
         false
     else
         stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
-        tpHit    = isLong ? (high >= tpVal)  : (low  <= tpVal)
+        tpHit    = not na(tpVal) and (isLong ? (high >= tpVal)  : (low  <= tpVal))
         trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
         // conservative: stop wins if both in same bar
         stopHit or trailHit or tpHit
 
+// Fail-closed signal subconditions: any na => deny
+fcGateLongSafe  = f_is_true(fcGateLong)
+fcGateShortSafe = f_is_true(fcGateShort)
+volOkSafe       = f_is_true(volOk)
+setOkLongSafe   = f_is_true(setOkLong)
+setOkShortSafe  = f_is_true(setOkShort)
+pullbackLongOkSafe  = f_is_true(pullbackLongOk)
+pullbackShortOkSafe = f_is_true(pullbackShortOk)
+touchEmaF_LongSafe  = f_is_true(touchEmaF_Long)
+touchEmaF_ShortSafe = f_is_true(touchEmaF_Short)
+crossClose_EmaF_upSafe   = f_is_true(crossClose_EmaF_up)
+crossClose_EmaF_downSafe = f_is_true(crossClose_EmaF_down)
+bullReversalSafe = f_is_true(bullReversal)
+bearReversalSafe = f_is_true(bearReversal)
+trendUpSafe      = f_is_true(trendUp)
+trendDnSafe      = f_is_true(trendDn)
+breakoutLongSafe  = f_is_true(breakoutLong)
+breakoutShortSafe = f_is_true(breakoutShort)
+trendFlipUpSafe   = f_is_true(trendFlipUp)
+trendFlipDownSafe = f_is_true(trendFlipDown)
+reclaimUpSafe     = f_is_true(reclaimUp)
+reclaimDownSafe   = f_is_true(reclaimDown)
+
+hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
+hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
+
 // Signals
 if pos == 0 and allowEntry
     if engine == "Hybrid"
-        buySignal   := gateLongNow  and fcGateLong  and volOk and setOkLong  and pullbackLongOk  and (touchEmaF_Long  and (crossClose_EmaF_up or bullReversal))
-        shortSignal := enableShorts and gateShortNow and fcGateShort and volOk and setOkShort and pullbackShortOk and (touchEmaF_Short and (crossClose_EmaF_down or bearReversal))
+        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger
+        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger
     else if engine == "Breakout"
-        buySignal   := gateLongNow  and fcGateLong  and volOk and trendUp and breakoutLong
-        shortSignal := enableShorts and gateShortNow and fcGateShort and volOk and trendDn and breakoutShort
+        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe
+        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe
     else if engine == "Trend+Pullback"
-        buySignal   := gateLongNow and (trendFlipUp or reclaimUp)
-        shortSignal := enableShorts and gateShortNow and (trendFlipDown or reclaimDown)
+        buySignal   := gateLongNow and (trendFlipUpSafe or reclaimUpSafe)
+        shortSignal := enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe)
     else // Loose
-        buySignal   := gateLongNow and crossClose_EmaF_up
-        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_down
+        buySignal   := gateLongNow and crossClose_EmaF_upSafe
+        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe
 
     if buySignal and shortSignal
         buySignal := false
@@ -3522,7 +3562,7 @@ f_rowEval(tbl, tf, hid, rRow) =>
 
 
 //====================
-// Table (10 columns) — rendered on confirmed bars (stable)
+// Table (10 columns) — rendered on last bar (LIVE or CONFIRMED-only)
 //====================
 mtfStr  = useMtfConfirm ? (setUse + " " + str.tostring(mtfScore, format.mintick)) : "OFF"
 posStr  = pos == 1 ? "LONG" : pos == -1 ? "SHORT" : "FLAT"
@@ -3535,14 +3575,13 @@ c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : c
 c_conf = f_confColor(confidence)
 c_vol  = volAvail ? color.lime : tblTextDim
 
-tableUpdateOk = barstate.islast and (not ui_tableConfirmedOnly or barstate.isconfirmed)
-renderTable = showTable and (tableOnConfirmed ? barstate.isconfirmed : barstate.islast)
+renderTable = showTable and barstate.islast and (not tableOnConfirmed or barstate.isconfirmed)
 modeTxt = tableOnConfirmed ? "CONF" : "LIVE"
 hdrSuffix = ui_tableShowMode ? " • " + modeTxt : ""
 hdrOutlook = "STATE • Outlook (state)" + hdrSuffix
 hdrForecast = "PROB • Forecast" + hdrSuffix
 
-if renderTable and tableUpdateOk
+if renderTable
     tblCols = 10
     table.clear(gT, 0, 0, tblCols - 1, 16)
 
@@ -3614,7 +3653,7 @@ if showDiagPanel and na(diagTbl)
 f_get_diag_state() =>
     diagHorizon == "F1" ? tf1State : diagHorizon == "F2" ? tf2State : diagHorizon == "F3" ? tf3State : diagHorizon == "F4" ? tf4State : diagHorizon == "F5" ? tf5State : diagHorizon == "F6" ? tf6State : tf7State
 
-if showDiagPanel and barstate.islast
+if showDiagPanel and barstate.islast and (not tableOnConfirmed or barstate.isconfirmed)
     st = f_get_diag_state()
     if na(st)
         table.cell(diagTbl, 0, 0, "🔧 Calibration Diagnostics", text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
@@ -3796,4 +3835,3 @@ f_send_alert(buyEvent, "BUY")
 f_send_alert(shortEvent, "SHORT")
 f_send_alert(exitEvent, "EXIT")
 f_send_alert(coverEvent, "COVER")
-
