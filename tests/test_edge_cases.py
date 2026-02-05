@@ -173,7 +173,14 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_ci_halfwidth_returns_na_for_zero_n(self):
         """CI half-width must return NA when n <= 0."""
-        pattern = r'f_ci95_halfwidth\([^)]+\)\s*=>\s*\n\s*n\s*<=\s*0\s*\?\s*na'
+        pattern = (
+            r'f_ci95_halfwidth\([^)]+\)\s*=>\s*\n'
+            r'(?:'
+            r'\s*n\s*<=\s*0\s*\?\s*na'
+            r'|'
+            r'\s*if[^\n]*n\s*<=\s*0[^\n]*\n\s*na'
+            r')'
+        )
         
         self.assertRegex(self.indicator, pattern,
             "Indicator f_ci95_halfwidth missing zero-n guard")

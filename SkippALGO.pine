@@ -633,11 +633,13 @@ f_chance_word() =>
 
 // --- 95% CI half-width (approx) for Bernoulli p with n samples
 f_ci95_halfwidth(p, n) =>
-    n <= 0 ? na :
-    z2 = Z_95 * Z_95
-    den = 1.0 + z2 / n
-    half = (Z_95 * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
-    half
+    if na(p) or na(n) or n <= 0
+        na
+    else
+        z2 = Z_95 * Z_95
+        den = 1.0 + z2 / n
+        half = (Z_95 * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
+        half
 
 // --- Reliability label based on CI half-width
 f_rel_label(p, nBin, total, canCal) =>
