@@ -1,6 +1,6 @@
 # SkippALGO v6.1 - Deep Upgrade Test Report
 
-**Date:** 04 Feb 2026
+**Date:** 05 Feb 2026
 **Version:** 6.1 (Deep Upgrade)
 **Agent:** GitHub Copilot (GPT-5.2-Codex)
 
@@ -16,15 +16,14 @@
 
 ```text
 $ pytest -q
-206 passed in 0.37s
+206 passed in 0.32s
 ```
 
-## 2. Recent Updates (04 Feb 2026)
+## 2. Recent Updates (05 Feb 2026)
 
-* ✅ Nonrepaint execution flags (`didBuy/didShort/didExit/didCover`) now drive alerts/labels for confirmed-bar behavior.
-* ✅ Alert helper refactor reduces duplication in indicator and strategy.
-* ✅ Label price helper simplified for readability (no behavior change).
-* ✅ Edge-case test added to ensure trade-gate thresholds treat 0 as disabled.
+* ✅ Forecast totals now use the selected count arrays to reflect bull/bear calibration selection.
+* ✅ `canF*` gating now keys off `enableForecast` directly, while `forecastAllowed` still gates execution.
+* ✅ Indicator/strategy parity updated for totals and gating logic.
 
 ## 3. TfState UDT Migration Verification
 

@@ -2,7 +2,7 @@
 
 **Reviewer:** GitHub Copilot (Simulated Peer Review)
 **Target:** `SkippALGO.pine` (Phases 1-4 Upgrade)
-**Last Updated:** 04 Feb 2026
+**Last Updated:** 05 Feb 2026
 
 ## 1. Summary of Changes
 
@@ -85,3 +85,9 @@ Both indicator and strategy now use the **TfState UDT pattern**:
 * **Alert helper refactor**: Consolidated alert calls into a helper function in both indicator and strategy.
 * **Label price helper cleanup**: Simplified `f_label_price` for readability without changing behavior.
 * **Edge-case coverage**: Added test ensuring trade-gate thresholds treat `0` as disabled.
+
+## 9. Feb 05, 2026 Updates
+
+* **Totals alignment**: Forecast totals now use the selected count arrays to reflect bull/bear calibration selection.
+* **Forecast gating**: `canF*` flags depend on `enableForecast` directly, while `forecastAllowed` continues to gate execution.
+* **Indicator/strategy parity**: Applied the same alignment to both `SkippALGO.pine` and `SkippALGO_Strategy.pine`.
