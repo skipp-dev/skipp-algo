@@ -1257,6 +1257,16 @@ Treat that information as **Outlook** now. It’s still useful for:
 * Add per-timeframe sample counts directly in the table for transparency.
 * Add an optional “calibration reset per timeframe” control (instead of global reset).
 
+## Recent quality upgrades (v6.2+)
+
+* Per-horizon **quantile bins** (no cross‑TF mixing of score distributions).
+* Direction‑aware **macro score** to avoid short bias in oversold regimes.
+* **Wilson** confidence intervals for reliability labels (more stable at small $n$).
+* Directional **edge** gating for 3‑way probabilities.
+* Optional **PathTPvsSL** entry gating and **chop abstain** (high Flat in sideways).
+* Optional **ECE/Drift** gating and soft confidence penalty on eval degradation.
+* Table badges: **STATE** vs **PROB**, plus **nCur/Total** and target footer for transparency.
+
 ---
 
 # TradingView Changelog (User-Friendly)

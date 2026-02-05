@@ -240,29 +240,28 @@ class TestSkippAlgoStrategyUXHelpers(unittest.TestCase):
         self.assertIn("f_predColorP(", self.text)
 
     def test_missing_f_profile(self):
-        """CURRENT: Strategy is MISSING f_profile helper (needs porting)."""
-        # This should FAIL when UX helpers are ported
-        self.assertNotIn("f_profile(tf) =>", self.text)
+        """Strategy includes f_profile helper."""
+        self.assertIn("f_profile(tf) =>", self.text)
 
     def test_missing_f_target_for_tf(self):
-        """CURRENT: Strategy is MISSING f_target_for_tf helper."""
-        self.assertNotIn("f_target_for_tf(tf) =>", self.text)
+        """Strategy includes f_target_for_tf helper."""
+        self.assertIn("f_target_for_tf(tf) =>", self.text)
 
     def test_missing_f_target_label(self):
-        """CURRENT: Strategy is MISSING f_target_label helper."""
-        self.assertNotIn("f_target_label(tf) =>", self.text)
+        """Strategy includes f_target_label helper."""
+        self.assertIn("f_target_label(tf) =>", self.text)
 
     def test_missing_f_unc_pp(self):
-        """CURRENT: Strategy is MISSING f_unc_pp (CI band helper)."""
-        self.assertNotIn("f_unc_pp(p, n) =>", self.text)
+        """Strategy includes f_unc_pp (CI band helper)."""
+        self.assertIn("f_unc_pp(p, n) =>", self.text)
 
     def test_missing_f_strength_label_fc(self):
-        """CURRENT: Strategy is MISSING f_strength_label_fc."""
-        self.assertNotIn("f_strength_label_fc(nBin) =>", self.text)
+        """Strategy includes f_strength_label_fc."""
+        self.assertIn("f_strength_label_fc(nBin) =>", self.text)
 
     def test_missing_f_prob_range_text(self):
-        """CURRENT: Strategy is MISSING f_prob_range_text."""
-        self.assertNotIn("f_prob_range_text(p, nBin) =>", self.text)
+        """Strategy includes f_prob_range_text."""
+        self.assertIn("f_prob_range_text(p, nBin) =>", self.text)
 
 
 class TestSkippAlgoStrategyConsistency(unittest.TestCase):
