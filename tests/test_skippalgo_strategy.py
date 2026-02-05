@@ -63,7 +63,6 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         The (1) reactive arrays (cnt1, up1) inside TfState must be sized for 2D binning
         (nBins1 * dim2) since f_bin2D is used, not 1D (predBins1).
         """
-        import re
         # With TfState pattern, check that f_init_tf_state uses 2D sizing for cnt1/up1
         # Pattern: array.new_float(nBins1 * dim2, 0.0) for cnt1 and up1
         pattern_2d = r"array\.new_float\(nBins1\s*\*\s*dim2,\s*0\.0\)"
@@ -141,7 +140,6 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_risk_temp_declared_once(self):
         """Ensure risk temp locals (newStop/Tp/Trail) are declared a single time to avoid redeclare errors."""
-        import re
         self.assertEqual(len(re.findall(r"^float newStop\s*= na", self.text, flags=re.MULTILINE)), 1)
         self.assertEqual(len(re.findall(r"^float newTp\s*= na", self.text, flags=re.MULTILINE)), 1)
         self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 1)

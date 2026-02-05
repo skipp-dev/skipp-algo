@@ -1,6 +1,6 @@
 # Roadmap Outline — Next Recommended Enhancements
 
-## Status (Feb 02, 2026)
+## Status (Feb 05, 2026)
 
 Completed in v6.1 (Indicator + Strategy):
 

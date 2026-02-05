@@ -28,7 +28,7 @@ class TestNumericalConstants(unittest.TestCase):
         """Load both Pine Script files."""
         base_path = Path(__file__).parent.parent
         
-        indicator_path = base_path / "SkippALGO_Indicator.pine"
+        indicator_path = base_path / "SkippALGO.pine"
         strategy_path = base_path / "SkippALGO_Strategy.pine"
         
         cls.indicator_content = indicator_path.read_text() if indicator_path.exists() else ""
@@ -160,52 +160,32 @@ class TestNumericalConstants(unittest.TestCase):
     # ===========================================
     
     def test_n_bins_value(self):
-        """N_BINS/predBinsN - check that binning exists with sensible values."""
+        """predBinsN - check that binning exists with sensible values."""
         for name, content in self.files.items():
             if not content:
                 continue
-            # Indicator uses N_BINS=5 constant, Strategy uses input.int (default 3)
-            if name == "Indicator":
-                match = re.search(r'N_BINS\s*=\s*(\d+)', content)
-                self.assertIsNotNone(match, f"{name}: N_BINS not found")
-                value = int(match.group(1))
-                self.assertEqual(value, 5, f"{name}: N_BINS changed from 5 to {value}")
-            else:
-                # Strategy has predBinsN as configurable input
-                match = re.search(r'predBinsN\s*=\s*input\.int\s*\(\s*(\d+)', content)
-                self.assertIsNotNone(match, f"{name}: predBinsN input not found")
-                value = int(match.group(1))
-                self.assertIn(value, [3, 5], f"{name}: predBinsN default should be 3 or 5")
+            match = re.search(r'predBinsN\s*=\s*input\.int\s*\(\s*(\d+)', content)
+            self.assertIsNotNone(match, f"{name}: predBinsN input not found")
+            value = int(match.group(1))
+            self.assertIn(value, [3, 5], f"{name}: predBinsN default should be 3 or 5")
     
-    def test_n_bins_squared_equals_total_cells(self):
-        """N_BINS^2 should equal the total probability cells (25)."""
+    def test_n_bins_2d_sizing_exists(self):
+        """2D binning must size N arrays as nBinsN * dim2."""
         for name, content in self.files.items():
             if not content:
                 continue
-            match = re.search(r'N_BINS\s*=\s*(\d+)', content)
-            if match:
-                n_bins = int(match.group(1))
-                total_cells = n_bins * n_bins
-                self.assertEqual(total_cells, 25,
-                    f"{name}: N_BINS^2 = {total_cells}, expected 25")
+            self.assertRegex(content, r"array\.new_float\(nBinsN\s*\*\s*dim2,\s*0\.0\)",
+                f"{name}: Expected 2D sizing array.new_float(nBinsN * dim2, 0.0)")
     
     def test_n_rsi_bins_value(self):
-        """N_RSI_BINS/predBins1 - check binning configuration exists."""
+        """predBins1 - check binning configuration exists."""
         for name, content in self.files.items():
             if not content:
                 continue
-            # Indicator uses N_RSI_BINS=3, Strategy uses input.int predBins1 (default 2)
-            if name == "Indicator":
-                match = re.search(r'N_RSI_BINS\s*=\s*(\d+)', content)
-                self.assertIsNotNone(match, f"{name}: N_RSI_BINS not found")
-                value = int(match.group(1))
-                self.assertEqual(value, 3, f"{name}: N_RSI_BINS changed from 3 to {value}")
-            else:
-                # Strategy has predBins1 as configurable input
-                match = re.search(r'predBins1\s*=\s*input\.int\s*\(\s*(\d+)', content)
-                self.assertIsNotNone(match, f"{name}: predBins1 input not found")
-                value = int(match.group(1))
-                self.assertIn(value, [2, 3], f"{name}: predBins1 default should be 2 or 3")
+            match = re.search(r'predBins1\s*=\s*input\.int\s*\(\s*(\d+)', content)
+            self.assertIsNotNone(match, f"{name}: predBins1 input not found")
+            value = int(match.group(1))
+            self.assertIn(value, [2, 3], f"{name}: predBins1 default should be 2 or 3")
     
     def test_n_vol_bins_value(self):
         """N_VOL_BINS/dim2Bins must be 3 for low/normal/high volatility."""
@@ -286,19 +266,30 @@ class TestNumericalConstants(unittest.TestCase):
             value = float(match.group(1))
             self.assertEqual(value, 0.3,
                 f"{name}: wRegime changed from 0.3 to {value}")
+
+    def test_wtrend_value(self):
+        """wTrend weight must be exactly 0.4."""
+        for name, content in self.files.items():
+            if not content:
+                continue
+            match = re.search(r'wTrend\s*=\s*(?:input\.float\s*\(\s*)?([\d.]+)', content)
+            self.assertIsNotNone(match, f"{name}: wTrend not found")
+            value = float(match.group(1))
+            self.assertEqual(value, 0.4,
+                f"{name}: wTrend changed from 0.4 to {value}")
     
     def test_ensemble_weights_sum(self):
-        """Ensemble weights should sum to 1.8 (wState + wPullback + wRegime)."""
-        expected_sum = 1.0 + 0.5 + 0.3  # 1.8
+        """Ensemble weights should sum to 2.2 (wState + wPullback + wRegime + wTrend)."""
+        expected_sum = 1.0 + 0.5 + 0.3 + 0.4  # 2.2
         for name, content in self.files.items():
             if not content:
                 continue
             weights = {}
-            for w_name in ['wState', 'wPullback', 'wRegime']:
+            for w_name in ['wState', 'wPullback', 'wRegime', 'wTrend']:
                 match = re.search(rf'{w_name}\s*=\s*([\d.]+)', content)
                 if match:
                     weights[w_name] = float(match.group(1))
-            if len(weights) == 3:
+            if len(weights) == 4:
                 actual_sum = sum(weights.values())
                 self.assertAlmostEqual(actual_sum, expected_sum, places=6,
                     msg=f"{name}: Ensemble weight sum={actual_sum}, expected {expected_sum}")
@@ -308,7 +299,7 @@ class TestNumericalConstants(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            for w_name in ['wState', 'wPullback', 'wRegime']:
+            for w_name in ['wState', 'wPullback', 'wRegime', 'wTrend']:
                 match = re.search(rf'{w_name}\s*=\s*([\d.]+)', content)
                 if match:
                     value = float(match.group(1))
@@ -324,7 +315,7 @@ class TestFormulaRegression(unittest.TestCase):
         """Load both Pine Script files."""
         base_path = Path(__file__).parent.parent
         
-        indicator_path = base_path / "SkippALGO_Indicator.pine"
+        indicator_path = base_path / "SkippALGO.pine"
         strategy_path = base_path / "SkippALGO_Strategy.pine"
         
         cls.indicator_content = indicator_path.read_text() if indicator_path.exists() else ""
@@ -542,7 +533,7 @@ class TestNumericalBoundaries(unittest.TestCase):
         """Load both Pine Script files."""
         base_path = Path(__file__).parent.parent
         
-        indicator_path = base_path / "SkippALGO_Indicator.pine"
+        indicator_path = base_path / "SkippALGO.pine"
         strategy_path = base_path / "SkippALGO_Strategy.pine"
         
         cls.indicator_content = indicator_path.read_text() if indicator_path.exists() else ""
@@ -697,7 +688,7 @@ class TestSpecificNumericalValues(unittest.TestCase):
         """Load both Pine Script files."""
         base_path = Path(__file__).parent.parent
         
-        indicator_path = base_path / "SkippALGO_Indicator.pine"
+        indicator_path = base_path / "SkippALGO.pine"
         strategy_path = base_path / "SkippALGO_Strategy.pine"
         
         cls.indicator_content = indicator_path.read_text() if indicator_path.exists() else ""
@@ -797,12 +788,6 @@ class TestSpecificNumericalValues(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # Look for calibration ratio pattern
-            has_cal_ratio = (
-                re.search(r'(?:mean|avg|sum)[^/]*/[^/]*(?:mean|avg|sum)', content, re.IGNORECASE) or
-                re.search(r'cal(?:ibration)?.*ratio|O\s*/\s*E', content, re.IGNORECASE) or
-                re.search(r'predicted.*actual|actual.*predicted', content, re.IGNORECASE)
-            )
             # Calibration should exist
             self.assertTrue('cal' in content.lower(),
                 f"{name}: Calibration references not found")
@@ -849,7 +834,7 @@ class TestRegressionSafety(unittest.TestCase):
         """Load both Pine Script files."""
         base_path = Path(__file__).parent.parent
         
-        indicator_path = base_path / "SkippALGO_Indicator.pine"
+        indicator_path = base_path / "SkippALGO.pine"
         strategy_path = base_path / "SkippALGO_Strategy.pine"
         
         cls.indicator_content = indicator_path.read_text() if indicator_path.exists() else ""
@@ -970,10 +955,14 @@ class TestRegressionSafety(unittest.TestCase):
                 has_protection = (
                     re.search(r'math\.exp\s*\(\s*-?\s*math\.min', content) or
                     re.search(r'math\.exp\s*\(\s*-?\s*math\.max', content) or
-                    re.search(r'math\.min\s*\([^)]*math\.exp', content)  # clamp result
+                    re.search(r'math\.min\s*\([^)]*math\.exp', content) or  # clamp result
+                    # Sigmoid clamp pattern (x is bounded before exp(-x))
+                    re.search(r'x\s*<\s*-500\s*\?\s*0\.0\s*:\s*x\s*>\s*500\s*\?\s*1\.0\s*:\s*1\.0\s*/\s*\(1\.0\s*\+\s*math\.exp\(\s*-\s*x\s*\)\s*\)', content) or
+                    # Softmax stability (subtract max logit)
+                    re.search(r'math\.exp\s*\(\s*\w+\s*-\s*zMax\s*\)', content)
                 )
-                # At minimum, the code exists and should handle this
-                # (full verification would require deeper analysis)
+                self.assertTrue(has_protection,
+                    f"{name}: math.exp() calls found without obvious overflow protection")
     
     def test_logarithm_domain_protection(self):
         """math.log() should only receive positive values."""

@@ -2,15 +2,14 @@
 Test suite for SkippALGO_Strategy.pine.
 
 Validates the strategy script against expected patterns and catches
-regressions. NOTE: The strategy script currently uses the OLD global array
-pattern (~100+ arrays) rather than the TfState UDT pattern from SkippALGO.pine.
+regressions.
 
-This test suite documents the current state and includes tests that will
-FAIL when the TfState migration is applied - serving as both documentation
-and a migration guide.
+This suite acts as living documentation for the current Strategy architecture
+(including the TfState UDT pattern and related forecasting/evaluation helpers).
+If the strategy is refactored in the future, update these tests alongside the
+implementation to keep expectations in sync.
 """
 import pathlib
-import re
 import unittest
 
 
