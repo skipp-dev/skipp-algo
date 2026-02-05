@@ -167,7 +167,7 @@ class TestNumericalConstants(unittest.TestCase):
             match = re.search(r'predBinsN\s*=\s*input\.int\s*\(\s*(\d+)', content)
             self.assertIsNotNone(match, f"{name}: predBinsN input not found")
             value = int(match.group(1))
-            self.assertIn(value, [3, 5], f"{name}: predBinsN default should be 3 or 5")
+            self.assertIn(value, [3, 4, 5], f"{name}: predBinsN default should be 3, 4 or 5")
     
     def test_n_bins_2d_sizing_exists(self):
         """2D binning must size N arrays as nBinsN * dim2."""

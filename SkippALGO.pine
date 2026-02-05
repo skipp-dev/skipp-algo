@@ -249,9 +249,9 @@ atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
 grp_tri = "Forecast 3-way (Up/Flat/Down)"
 use3Way = input.bool(true, "3-way probs: Up/Flat/Down", group=grp_tri)
 
-deadbandFast = input.float(0.10, "Deadband × ATR (Fast <=5m)", step=0.01, group=grp_tri)
+deadbandFast = input.float(0.15, "Deadband × ATR (Fast <=5m)", step=0.01, group=grp_tri)
 deadbandMid  = input.float(0.10, "Deadband × ATR (Mid <=1h)",  step=0.01, group=grp_tri)
-deadbandSlow = input.float(0.10, "Deadband × ATR (Slow >1h)",  step=0.01, group=grp_tri)
+deadbandSlow = input.float(0.07, "Deadband × ATR (Slow >1h)",  step=0.01, group=grp_tri)
 
 flatPriorFast = input.float(0.42, "Warmup prior: Flat (Fast)", step=0.01, minval=0.0, maxval=0.90, group=grp_tri)
 flatPriorMid  = input.float(0.30, "Warmup prior: Flat (Mid)",  step=0.01, minval=0.0, maxval=0.90, group=grp_tri)
@@ -277,11 +277,11 @@ cal3AutoFallback = input.bool(true, "3-way auto fallback (weak bins)", group=grp
 cal3MinSamples  = input.int(120, "3-way min samples for calibrator", minval=10, maxval=5000, group=grp_tri)
 calRegStrength  = input.float(0.002, "Calibrator stabilize strength", minval=0.0, step=0.001, group=grp_tri)
 useBullBearCal = input.bool(true, "Separate bull/bear calibrators", group=grp_tri)
-countDecay = input.float(1.0, "Count decay (1.0=none)", minval=0.80, maxval=1.0, step=0.01, group=grp_tri)
-kShrinkReg = input.int(5, "Regime shrinkage k", minval=0, maxval=1000, group=grp_tri)
+countDecay = input.float(0.9995, "Count decay (1.0=none)", minval=0.80, maxval=1.0, step=0.0005, group=grp_tri)
+kShrinkReg = input.int(20, "Regime shrinkage k", minval=0, maxval=1000, group=grp_tri)
 
 // --- Phase 2: Calibration Dimensions ---
-predBinsN     = input.int(3, "Pred bins (N) state", minval=2, maxval=9)
+predBinsN     = input.int(4, "Pred bins (N) state", minval=2, maxval=9)
 dim2Bins      = 3 // Fixed: Trend regime bins (bear/sideways/bull)
 
 predBins1     = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3)
@@ -289,7 +289,7 @@ predBins1     = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3)
 // Quantile binning (score dimension)
 useQuantileBins = input.bool(true, "Use quantile bins (score)")
 quantileWindow = input.int(500, "Quantile window (samples)", minval=100, maxval=5000)
-quantileUpdate = input.int(50, "Quantile update interval (bars)", minval=10, maxval=1000)
+quantileUpdate = input.int(25, "Quantile update interval (bars)", minval=10, maxval=1000)
 quantileMinSamples = input.int(200, "Quantile min samples", minval=50, maxval=5000)
 calibrateInBackground = input.bool(true, "Calibrate even if table hidden")
 
@@ -2306,7 +2306,9 @@ var int pos = 0
 var int lastSignalBar = na
 var string lastSig = "—"
 
-cooldownOk   = na(lastSignalBar) ? true : (bar_index - lastSignalBar > cooldownBars)
+// C2 – Adaptive cooldown: halve wait when model confidence is high
+effectiveCooldown = (confidence >= 0.80) ? math.max(2, math.round(cooldownBars / 2)) : cooldownBars
+cooldownOk   = na(lastSignalBar) ? true : (bar_index - lastSignalBar > effectiveCooldown)
 
 f_getBrier_raw(tfSel, modSel) =>
     float score = na
@@ -2693,23 +2695,24 @@ f_score_tf_cached(tf) =>
 
 getVoteScore() =>
     float sum = 0.0
-    float cnt = 0.0
+    float wgt = 0.0
 
     tf1 = setUse == "Short" ? tfShort1 : setUse == "Medium" ? tfMedium1 : tfLong1
     tf2 = setUse == "Short" ? tfShort2 : setUse == "Medium" ? tfMedium2 : tfLong2
     tf3 = setUse == "Short" ? tfShort3 : setUse == "Medium" ? tfMedium3 : tfLong3
 
+    // Weight higher timeframes more (tf3 > tf2 > tf1 by convention)
     if f_is_tf_higher_or_equal(tf1)
-        sum += f_score_tf_cached(tf1)
-        cnt += 1
+        sum += 1.0 * f_score_tf_cached(tf1)
+        wgt += 1.0
     if f_is_tf_higher_or_equal(tf2)
-        sum += f_score_tf_cached(tf2)
-        cnt += 1
+        sum += 1.5 * f_score_tf_cached(tf2)
+        wgt += 1.5
     if f_is_tf_higher_or_equal(tf3)
-        sum += f_score_tf_cached(tf3)
-        cnt += 1
+        sum += 2.0 * f_score_tf_cached(tf3)
+        wgt += 2.0
 
-    cnt == 0 ? 0.0 : sum / cnt
+    wgt == 0 ? 0.0 : sum / wgt
 
 mtfScore   = useMtfConfirm ? getVoteScore() : 0.0
 mtfOkLong  = (not useMtfConfirm) or (mtfScore > 0.05)
