@@ -268,6 +268,41 @@ where `trustRaw` aggregates directional alignment, guardrail count, ATR rank, da
 * Use **Standard** or **V2 Proficient** as neutral defaults.
 * Use **Pro** or **V2 Alpha** when data quality is high and the calibration metrics (Brier, ECE) confirm the model is well-calibrated.
 
+### 2.5) Gating & Chop Filters (v6.2 Reference)
+
+#### Chop Abstain (Flat Probability filter)
+
+The **Chop Abstain** mechanism uses the calibrated 3-way probabilities (Up / Flat / Down) to filter out signals during sideways regimes.
+
+* **Logic**: If the probability of a "Flat" outcome (`pF`) exceeds the user-defined threshold, the signal is suppressed.
+* **Parameter**: `Chop abstain: Flat prob ≥` (default 0.45).
+* **Tuning Guide**:
+  * **0.34 (Minimum)**: Strictest setting. Abstains if there is even a 34% chance of chop. Results in very few, high-confidence signals.
+  * **0.45 (Default)**: Balanced setting. Filters obvious non-trending states while allowing normal pullbacks.
+  * **0.60+ (Loose)**: Permissive. Only abstains in extreme sideways conditions.
+
+#### Decision Abstain (Weak Evidence Filter)
+
+The **Abstain on weak decisions** setting ensures trading only occurs when the model has statistically significant data.
+
+* **Standard Logic**: Signals are rejected if:
+  * **Sample Count**: The number of historical events in the current specific bin is too low (default < 10 `Trade: Min samples/bin`).
+  * **Reliability**: The statistical reliability label is "weak" or "poor" (insufficient data to determine edge).
+  * **Edge**: The predicted probability advantage is below `Abstain min edge` (default 0.08).
+
+#### High Confidence Override (Black Swan / Rare Event Logic)
+
+A rigid sample count filter can mistakenly block "Black Swan" or "Perfect Storm" signals—events that are rare in history (low sample count) but where the model has exceptionally high confidence (e.g., probability > 90%).
+
+* **The Problem**: A signal with `Confidence = 0.94` might be blocked simply because it has only occurred 8 times in history (threshold=10).
+* **The Solution (Override)**: If the confidence is high enough, we assume the signal quality outweighs the lack of historical quantity.
+* **Logic**:
+    > If `Confidence >= abstainOverrideConf` (Default: 0.85), the **Sample Count** and **Reliability** gates are **ignored**.
+* **Parameter**: `Abstain override: High Conf`
+  * **0.85 (Default)**: Trusts the model when it is very sure (>85%), even if data is scarce.
+  * **0.80**: More permissive; allows more rare events.
+  * **0.90**: Stricter; requires extreme confidence to bypass the sample count check.
+
 ---
 
 ## 3) Technical Implementation Details
