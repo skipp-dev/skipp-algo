@@ -3025,11 +3025,11 @@ for i = 0 to 6
 // calibration “enabled for display” if forecast enabled + we have any resolved samples in that TF
 totFNArr = array.new_float(7, na)
 totF1Arr = array.new_float(7, na)
-isBullArr = array.from(isBull1, isBull2, isBull3, isBull4, isBull5, isBull6, isBull7)
+isBullArr2 = array.from(isBull1, isBull2, isBull3, isBull4, isBull5, isBull6, isBull7)
 
 for i = 0 to 6
     tfSel = f_idx_to_tfsel(i)
-    useBull = array.get(isBullArr, i)
+    useBull = array.get(isBullArr2, i)
     array.set(totFNArr, i, f_get_total_samples(tfSel, "N", useBull))
     array.set(totF1Arr, i, f_get_total_samples(tfSel, "1", useBull))
 
@@ -3339,8 +3339,7 @@ emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
 emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
 emaAccelShortOk = (not useEmaAccel) or (emaGap <= emaGapPrev)
 
-// C4 – VWAP alignment (intraday only)
-vwapVal = ta.vwap(hlc3)
+// C4 – VWAP alignment (intraday only; vwapVal computed in Zones section)
 vwapLongOk  = (not useVwap) or (not timeframe.isintraday) or (na(vwapVal) or close >= vwapVal)
 vwapShortOk = (not useVwap) or (not timeframe.isintraday) or (na(vwapVal) or close <= vwapVal)
 
