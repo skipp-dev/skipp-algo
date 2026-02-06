@@ -45,9 +45,10 @@ trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
 // Dynamic Risk Decay
-useRiskDecay = input.bool(true, "Tighten Risk after Grace Period?", tooltip="Shrinks Stop/TP to tighter values after N bars to cut losses if trade stalls.")
+useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
 decayStopATR = input.float(1.50, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
+decayBars    = input.int(6, "Decay Duration (Bars)", minval=1)
 
 exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
@@ -2359,6 +2360,7 @@ blockNearClose = useRthCloseFilter and timeframe.isintraday and (minsToClose >= 
 // Zones (anchored)
 //====================
 var float entryPrice = na
+var float entryAtr   = na
 vwapVal   = ta.vwap(hlc3)
 sma200Val = ta.sma(close, 200)
 
@@ -3487,18 +3489,29 @@ else
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
 
-// Risk Decay Calculation (Simulating Indicator Logic)
-if useAtrRisk and useRiskDecay and canStructExit and (barsSinceEntry == (exitGraceBars + 1))
-    if pos == 1 and not na(stopPx) and not na(entryPrice)
-        approxAtr = (entryPrice - stopPx) / stopATR
-        if approxAtr > 0
-            stopPx := math.max(stopPx, entryPrice - (decayStopATR * approxAtr))
-            tpPx   := math.min(tpPx,   entryPrice + (decayTpATR   * approxAtr))
-    else if pos == -1 and not na(stopPx) and not na(entryPrice)
-        approxAtr = (stopPx - entryPrice) / stopATR
-        if approxAtr > 0
-            stopPx := math.min(stopPx, entryPrice + (decayStopATR * approxAtr))
-            tpPx   := math.max(tpPx,   entryPrice - (decayTpATR   * approxAtr))
+// Risk Decay Calculation (Linear interpolation)
+if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars
+    float w   = math.min(1.0, float(barsSinceEntry) / float(decayBars))
+    // Calculate current target Multipliers
+    float cStopM = math.max(0.1, stopATR + (decayStopATR - stopATR) * w)
+    float cTpM   = math.max(0.1, tpATR   + (decayTpATR   - tpATR)   * w)
+    
+    if pos == 1 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
+        // Recalculate based on STATIC entry conditions to ensure stability
+        targetStop = entryPrice - (cStopM * entryAtr)
+        targetTp   = entryPrice + (cTpM   * entryAtr)
+        
+        // Tighten Only: Higher Stop, Lower TP
+        stopPx := math.max(stopPx, targetStop)
+        tpPx   := math.min(tpPx, targetTp)
+            
+    else if pos == -1 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
+        targetStop = entryPrice + (cStopM * entryAtr)
+        targetTp   = entryPrice - (cTpM   * entryAtr)
+        
+        // Tighten Only: Lower Stop, Higher TP
+        stopPx := math.min(stopPx, targetStop)
+        tpPx   := math.max(tpPx, targetTp)
 
 // Capturing exit reasons for debugging/transparency
 string tempExitReason = ""
@@ -3545,6 +3558,7 @@ if barstate.isconfirmed
     else if buySignal and pos == 0
         pos := 1
         entryPrice := close
+        entryAtr   := atr
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -3555,6 +3569,7 @@ if barstate.isconfirmed
     else if shortSignal and pos == 0
         pos := -1
         entryPrice := close
+        entryAtr   := atr
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
