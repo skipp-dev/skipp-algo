@@ -32,18 +32,18 @@ flatAbstainThr = input.float(0.45, "Chop abstain: Flat prob ≥", minval=0.34, m
 requireSET   = input.bool(true, "Entry gate: require SET (CRSI confluence)")
 
 pbLookback = input.int(12, "Pullback lookback", minval=2)
-pbMinATR   = input.float(0.20, "Pullback min depth (ATR)", step=0.05)
-pbMaxATR   = input.float(1.50, "Pullback max depth (ATR)", step=0.05)
+pbMinATR   = input.float(0.20, "Pullback min depth (ATR)", minval=0.0, step=0.05)
+pbMaxATR   = input.float(1.50, "Pullback max depth (ATR)", minval=0.1, step=0.05)
 
 useVolConfirm = input.bool(false, "Volume confirmation")
 volLen   = input.int(20, "Volume SMA len", minval=2)
-volMult  = input.float(1.20, "Volume mult", step=0.05)
+volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05)
 
 useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
-stopATR  = input.float(1.50, "Stop ATR", step=0.10)
-tpATR    = input.float(3.00, "Take Profit ATR", step=0.10)
-trailATR = input.float(2.00, "Trail ATR", step=0.10)
-trailAfterR = input.float(1.00, "Trail activates after R", step=0.10)
+stopATR  = input.float(1.50, "Stop ATR", minval=0.1, step=0.10)
+tpATR    = input.float(3.00, "Take Profit ATR", minval=0.1, step=0.10)
+trailATR = input.float(2.00, "Trail ATR", minval=0.1, step=0.10)
+trailAfterR = input.float(1.00, "Trail activates after R", minval=0.0, step=0.10)
 
 swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
@@ -256,26 +256,26 @@ fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)"
 grp_fast = "Target Profile 1: Fast (1m, 5m)"
 fcTargetF = input.string("KBarATR", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_fast)
 kBarsF    = input.int(3, "k bars", minval=1, maxval=20, group=grp_fast)
-atrThrF   = input.float(0.25, "ATR Thr", step=0.05, group=grp_fast)
+atrThrF   = input.float(0.25, "ATR Thr", minval=0.01, step=0.05, group=grp_fast)
 pathHF    = input.int(6, "Path H", minval=1, maxval=50, group=grp_fast)
-tpATRF    = input.float(0.50, "Path TP", step=0.05, group=grp_fast)
-slATRF    = input.float(0.30, "Path SL", step=0.05, group=grp_fast)
+tpATRF    = input.float(0.50, "Path TP", minval=0.01, step=0.05, group=grp_fast)
+slATRF    = input.float(0.30, "Path SL", minval=0.01, step=0.05, group=grp_fast)
 
 grp_mid = "Target Profile 2: Mid (15m, 30m, 1h)"
 fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_mid)
 kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
-atrThrM   = input.float(0.50, "ATR Thr", step=0.05, group=grp_mid)
+atrThrM   = input.float(0.50, "ATR Thr", minval=0.01, step=0.05, group=grp_mid)
 pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
-tpATRM    = input.float(0.65, "Path TP", step=0.05, group=grp_mid)
-slATRM    = input.float(0.65, "Path SL", step=0.05, group=grp_mid)
+tpATRM    = input.float(0.65, "Path TP", minval=0.01, step=0.05, group=grp_mid)
+slATRM    = input.float(0.65, "Path SL", minval=0.01, step=0.05, group=grp_mid)
 
 grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
 fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
 kBarsS    = input.int(10, "k bars", minval=1, maxval=50, group=grp_slow)
-atrThrS   = input.float(1.00, "ATR Thr", step=0.05, group=grp_slow)
+atrThrS   = input.float(1.00, "ATR Thr", minval=0.01, step=0.05, group=grp_slow)
 pathHS    = input.int(12, "Path H", minval=1, maxval=100, group=grp_slow)
-tpATRS    = input.float(1.00, "Path TP", step=0.05, group=grp_slow)
-slATRS    = input.float(1.00, "Path SL", step=0.05, group=grp_slow)
+tpATRS    = input.float(1.00, "Path TP", minval=0.01, step=0.05, group=grp_slow)
+slATRS    = input.float(1.00, "Path SL", minval=0.01, step=0.05, group=grp_slow)
 
 // Global Policies
 noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"])
@@ -288,9 +288,9 @@ atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
 grp_tri = "Forecast 3-way (Up/Flat/Down)"
 use3Way = input.bool(true, "3-way probs: Up/Flat/Down", group=grp_tri)
 
-deadbandFast = input.float(0.15, "Deadband × ATR (Fast <=5m)", step=0.01, group=grp_tri)
-deadbandMid  = input.float(0.10, "Deadband × ATR (Mid <=1h)",  step=0.01, group=grp_tri)
-deadbandSlow = input.float(0.07, "Deadband × ATR (Slow >1h)",  step=0.01, group=grp_tri)
+deadbandFast = input.float(0.15, "Deadband × ATR (Fast <=5m)", minval=0.0, step=0.01, group=grp_tri)
+deadbandMid  = input.float(0.10, "Deadband × ATR (Mid <=1h)",  minval=0.0, step=0.01, group=grp_tri)
+deadbandSlow = input.float(0.07, "Deadband × ATR (Slow >1h)",  minval=0.0, step=0.01, group=grp_tri)
 
 flatPriorFast = input.float(0.42, "Warmup prior: Flat (Fast)", step=0.01, minval=0.0, maxval=0.90, group=grp_tri)
 flatPriorMid  = input.float(0.30, "Warmup prior: Flat (Mid)",  step=0.01, minval=0.0, maxval=0.90, group=grp_tri)
@@ -343,15 +343,15 @@ predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, s
 
 // --- Phase 3: Ensemble Weights ---
 grp_ens = "Phase 3: Ensemble Weights"
-wState    = input.float(1.0, "Weight: State (Outlook)", step=0.1, group=grp_ens)
-wPullback = input.float(0.5, "Weight: Pullback Depth", step=0.1, group=grp_ens)
-wRegime   = input.float(0.3, "Weight: Vol Regime", step=0.1, group=grp_ens)
-wTrend    = input.float(0.4, "Weight: Trend Regime", step=0.1, group=grp_ens, tooltip="Bull/Bear/Sideways detection")
+wState    = input.float(1.0, "Weight: State (Outlook)", minval=0.0, step=0.1, group=grp_ens)
+wPullback = input.float(0.5, "Weight: Pullback Depth", minval=0.0, step=0.1, group=grp_ens)
+wRegime   = input.float(0.3, "Weight: Vol Regime", minval=0.0, step=0.1, group=grp_ens)
+wTrend    = input.float(0.4, "Weight: Trend Regime", minval=0.0, step=0.1, group=grp_ens, tooltip="Bull/Bear/Sideways detection")
 // B2 – ROC factor in ensemble
-wRoc      = input.float(0.0, "Weight: ROC factor", step=0.1, group=grp_ens, tooltip="Rate of Change momentum (0=off)")
+wRoc      = input.float(0.0, "Weight: ROC factor", minval=0.0, step=0.1, group=grp_ens, tooltip="Rate of Change momentum (0=off)")
 rocLen    = input.int(10, "ROC length", minval=2, maxval=50, group=grp_ens)
 // B4 – Volume in ensemble
-wVol      = input.float(0.0, "Weight: Volume factor", step=0.1, group=grp_ens, tooltip="Volume vs SMA ratio (0=off)")
+wVol      = input.float(0.0, "Weight: Volume factor", minval=0.0, step=0.1, group=grp_ens, tooltip="Volume vs SMA ratio (0=off)")
 volEnsLen = input.int(20, "Volume ensemble SMA len", minval=2, maxval=100, group=grp_ens)
 
 // --- Phase 4: Platt Scaling (Online Calibration) ---
@@ -2802,6 +2802,10 @@ if doCal
 
 //====================
 // Display values — N and 1 per horizon (encapsulated, matches Strategy)
+// NOTE: reads global inputs: wState, wPullback, wRegime, wTrend, predBinsN,
+//       predBins1, dim2Bins, useBullBearCal, alphaN, alpha1, kShrink,
+//       kShrinkReg, calMinSamples.  Pine's 14-param limit prevents passing
+//       these explicitly.
 //====================
 f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : ef < es ? -1 : 0
