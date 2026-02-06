@@ -159,20 +159,25 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("tradeMinTotalSamples", self.text)
 
     def test_can_logic_uses_totals_and_forecast_gate(self):
-        # Ensure totals are computed via helper using TfState
-        self.assertIn("f_sum_int_array(cntN1Arr)", self.text)
-        self.assertIn("f_sum_int_array(cnt11Arr)", self.text)
+        # Ensure totals are computed via f_sum_int_array in the loop body
+        self.assertIn("f_sum_int_array(cntN)", self.text)
+        self.assertIn("f_sum_int_array(cnt1)", self.text)
 
-        # Ensure can flags depend on enableForecast and totals
-        self.assertRegex(self.text, r'totF1N\s*=\s*f_get_total_samples\("F1",\s*"N"(?:,\s*isBull1)?\)')
-        self.assertRegex(self.text, r'totF7N\s*=\s*f_get_total_samples\("F7",\s*"N"(?:,\s*isBull7)?\)')
-        self.assertRegex(self.text, r'totF11\s*=\s*f_get_total_samples\("F1",\s*"1"(?:,\s*isBull1)?\)')
-        self.assertRegex(self.text, r'totF17\s*=\s*f_get_total_samples\("F7",\s*"1"(?:,\s*isBull7)?\)')
+        # Ensure totals are extracted via array.get from loop-computed arrays
+        self.assertIn("totF1N = array.get(totFNArr, 0)", self.text)
+        self.assertIn("totF7N = array.get(totFNArr, 6)", self.text)
+        self.assertIn("totF11 = array.get(totF1Arr, 0)", self.text)
+        self.assertIn("totF17 = array.get(totF1Arr, 6)", self.text)
 
-        self.assertRegex(self.text, r"canF1N\s*=\s*forecastAllowed\s+and\s*\(not na\(totF1N\) and totF1N > 0\)")
-        self.assertRegex(self.text, r"canF7N\s*=\s*forecastAllowed\s+and\s*\(not na\(totF7N\) and totF7N > 0\)")
-        self.assertRegex(self.text, r"canF11\s*=\s*forecastAllowed\s+and\s*\(not na\(totF11\) and totF11 > 0\)")
-        self.assertRegex(self.text, r"canF17\s*=\s*forecastAllowed\s+and\s*\(not na\(totF17\) and totF17 > 0\)")
+        # Ensure can flags are extracted via array.get from loop-computed arrays
+        self.assertIn("canF1N = array.get(canFNArr, 0)", self.text)
+        self.assertIn("canF7N = array.get(canFNArr, 6)", self.text)
+        self.assertIn("canF11 = array.get(canF1Arr, 0)", self.text)
+        self.assertIn("canF17 = array.get(canF1Arr, 6)", self.text)
+
+        # Ensure loop uses f_get_total_samples and forecastAllowed gate
+        self.assertIn("f_get_total_samples(tfSel,", self.text)
+        self.assertIn("forecastAllowed and (not na(totN) and totN > 0)", self.text)
 
 if __name__ == "__main__":
     unittest.main()

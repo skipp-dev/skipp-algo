@@ -126,6 +126,27 @@ ROLL_RECALC_INTERVAL = 500
 SIDEWAYS_EMA_THRESH = 0.005   // Max EMA diff ratio for sideways
 SIDEWAYS_ATR_THRESH = 0.015   // Max ATR norm for sideways
 
+// Score / trend thresholds
+SCORE_NEUTRAL_BAND  = 0.05    // MTF & outSym neutral dead-zone
+TREND_SMOOTH_THRESH = 0.3     // Smooth trend strength threshold
+
+// Calibration quality thresholds
+HW_STRONG           = 0.05    // CI half-width: strong calibration
+HW_OK               = 0.10    // CI half-width: acceptable calibration
+ECE_GOOD            = 0.05    // ECE: well-calibrated
+ECE_FAIR            = 0.10    // ECE: fair calibration
+BRIER_EXCELLENT     = 0.18    // Brier score: A grade
+BRIER_GOOD          = 0.22    // Brier score: B grade
+BRIER_BASELINE      = 0.25    // Brier score: C grade (random)
+BRIER_POOR          = 0.30    // Brier score: D grade
+
+// Platt scaling stability bounds
+PLATT_A_LO          = 0.7     // Platt A lower bound (converged)
+PLATT_A_HI          = 1.5     // Platt A upper bound (converged)
+PLATT_B_BOUND       = 0.5     // Platt B abs bound (converged)
+PLATT_A_UNSTABLE_LO = 0.3     // Platt A lower bound (unstable)
+PLATT_A_UNSTABLE_HI = 3.0     // Platt A upper bound (unstable)
+
 penaltyGuardrail  = input.float(0.20, "Penalty per guardrail flag", minval=0.0, step=0.05)
 penaltyRegimeHigh = input.float(0.20, "Penalty: high-vol regime", minval=0.0, step=0.05)
 penaltyRegimeMed  = input.float(0.10, "Penalty: medium-vol regime", minval=0.0, step=0.05)
@@ -732,7 +753,7 @@ f_rel_label(p, nBin, total, canCal) =>
         lbl := "warmup"
     else
         hw = f_ci95_halfwidth(p, nBin)
-        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
+        lbl := na(hw) ? "warmup" : hw <= HW_STRONG ? "strong" : hw <= HW_OK ? "ok" : "weak"
     lbl
 
 // --- Color for reliability label (subtle; does NOT conflict with up/down coloring)
@@ -745,7 +766,7 @@ f_rel_color(p, nBin, total, canCal) =>
         color.new(color.white, 60)
     else
         hw = f_ci95_halfwidth(p, nBin)
-        na(hw) ? color.new(color.white, 60) : hw <= 0.05 ? color.lime : hw <= 0.10 ? color.yellow : tblTextDim
+        na(hw) ? color.new(color.white, 60) : hw <= HW_STRONG ? color.lime : hw <= HW_OK ? color.yellow : tblTextDim
 
 //====================
 // Forecast display helpers (human formatting)
@@ -2678,8 +2699,8 @@ efMtfArr = array.from(efS1, efS2, efS3, efM1, efM2, efM3, efL1, efL2, efL3)
 esMtfArr = array.from(esS1, esS2, esS3, esM1, esM2, esM3, esL1, esL2, esL3)
 rMtfArr = array.from(rS1, rS2, rS3, rM1, rM2, rM3, rL1, rL2, rL3)
 
-outSym(score) => score > 0.05 ? "▲" : score < -0.05 ? "▼" : "−"
-outCol(score) => score > 0.05 ? color.lime : score < -0.05 ? color.red : tblText
+outSym(score) => score > SCORE_NEUTRAL_BAND ? "▲" : score < -SCORE_NEUTRAL_BAND ? "▼" : "−"
+outCol(score) => score > SCORE_NEUTRAL_BAND ? color.lime : score < -SCORE_NEUTRAL_BAND ? color.red : tblText
 
 isBull1 = f_is_bull_bias(outScore1, ef1, es1)
 isBull2 = f_is_bull_bias(outScore2, ef2, es2)
@@ -2731,8 +2752,8 @@ getVoteScore() =>
     wgt == 0 ? 0.0 : sum / wgt
 
 mtfScore   = useMtfConfirm ? getVoteScore() : 0.0
-mtfOkLong  = (not useMtfConfirm) or (mtfScore > 0.05)
-mtfOkShort = (not useMtfConfirm) or (mtfScore < -0.05)
+mtfOkLong  = (not useMtfConfirm) or (mtfScore > SCORE_NEUTRAL_BAND)
+mtfOkShort = (not useMtfConfirm) or (mtfScore < -SCORE_NEUTRAL_BAND)
 
 //====================
 // Reset handling (rising edge) — per horizon F1..F7
@@ -2901,10 +2922,6 @@ for i = 0 to 6
         array.set(totNArr, i, f_sum_int_array(cntN_sel))
         array.set(tot1Arr, i, f_sum_int_array(cnt1_sel))
 
-// Test anchors for explicit totals helpers
-// f_sum_int_array(st.cntN)
-// f_sum_int_array(st.cnt1)
-
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
@@ -2987,8 +3004,6 @@ allowEntry =
  and (evalOk == true)
  and (not abstainGate or decisionOkSafe)
 
-f_is_true(x) => x == true
-
 f_bool_to_num(x) => x ? 1.0 : 0.0
 
 bool buySignal = false
@@ -3049,8 +3064,8 @@ trendSide = trendReg == 0.0
 
 // D1 – Smooth trend strength (continuous [-1, 1] alternative)
 trendStrength = f_trend_strength(emaF, emaS)
-trendUpSmooth  = useSmoothTrend ? trendStrength > 0.3 : trendUp
-trendDnSmooth  = useSmoothTrend ? trendStrength < -0.3 : trendDn
+trendUpSmooth  = useSmoothTrend ? trendStrength > TREND_SMOOTH_THRESH : trendUp
+trendDnSmooth  = useSmoothTrend ? trendStrength < -TREND_SMOOTH_THRESH : trendDn
 
 // D2 – ADX trend strength filter
 [diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
@@ -3170,41 +3185,41 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
         // conservative: stop wins if both in same bar
         stopHit or trailHit or tpHit
 
-// Fail-closed signal subconditions: any na => deny
-fcGateLongSafe  = f_is_true(fcGateLong)
-fcGateShortSafe = f_is_true(fcGateShort)
-volOkSafe       = f_is_true(volOk)
-setOkLongSafe   = f_is_true(setOkLong)
-setOkShortSafe  = f_is_true(setOkShort)
-pullbackLongOkSafe  = f_is_true(pullbackLongOk)
-pullbackShortOkSafe = f_is_true(pullbackShortOk)
-touchEmaF_LongSafe  = f_is_true(touchEmaF_Long)
-touchEmaF_ShortSafe = f_is_true(touchEmaF_Short)
-crossClose_EmaF_upSafe   = f_is_true(crossClose_EmaF_up)
-crossClose_EmaF_downSafe = f_is_true(crossClose_EmaF_down)
-bullReversalSafe = f_is_true(bullReversal)
-bearReversalSafe = f_is_true(bearReversal)
-trendUpSafe      = f_is_true(trendUp)
-trendDnSafe      = f_is_true(trendDn)
-breakoutLongSafe  = f_is_true(breakoutLong)
-breakoutShortSafe = f_is_true(breakoutShort)
-trendFlipUpSafe   = f_is_true(trendFlipUp)
-trendFlipDownSafe = f_is_true(trendFlipDown)
-reclaimUpSafe     = f_is_true(reclaimUp)
-reclaimDownSafe   = f_is_true(reclaimDown)
+// Fail-closed signal subconditions: any na => deny (== true coerces na to false)
+fcGateLongSafe  = (fcGateLong == true)
+fcGateShortSafe = (fcGateShort == true)
+volOkSafe       = (volOk == true)
+setOkLongSafe   = (setOkLong == true)
+setOkShortSafe  = (setOkShort == true)
+pullbackLongOkSafe  = (pullbackLongOk == true)
+pullbackShortOkSafe = (pullbackShortOk == true)
+touchEmaF_LongSafe  = (touchEmaF_Long == true)
+touchEmaF_ShortSafe = (touchEmaF_Short == true)
+crossClose_EmaF_upSafe   = (crossClose_EmaF_up == true)
+crossClose_EmaF_downSafe = (crossClose_EmaF_down == true)
+bullReversalSafe = (bullReversal == true)
+bearReversalSafe = (bearReversal == true)
+trendUpSafe      = (trendUp == true)
+trendDnSafe      = (trendDn == true)
+breakoutLongSafe  = (breakoutLong == true)
+breakoutShortSafe = (breakoutShort == true)
+trendFlipUpSafe   = (trendFlipUp == true)
+trendFlipDownSafe = (trendFlipDown == true)
+reclaimUpSafe     = (reclaimUp == true)
+reclaimDownSafe   = (reclaimDown == true)
 
 // Enhancement gates — all default to true when disabled
-adxOkSafe           = f_is_true(adxOk)
-rocLongOkSafe       = f_is_true(rocLongOk)
-rocShortOkSafe      = f_is_true(rocShortOk)
-volEnsLongOkSafe    = f_is_true(volEnsLongOk)
-volEnsShortOkSafe   = f_is_true(volEnsShortOk)
-preMomLongOkSafe    = f_is_true(preMomLongOk)
-preMomShortOkSafe   = f_is_true(preMomShortOk)
-emaAccelLongOkSafe  = f_is_true(emaAccelLongOk)
-emaAccelShortOkSafe = f_is_true(emaAccelShortOk)
-vwapLongOkSafe      = f_is_true(vwapLongOk)
-vwapShortOkSafe     = f_is_true(vwapShortOk)
+adxOkSafe           = (adxOk == true)
+rocLongOkSafe       = (rocLongOk == true)
+rocShortOkSafe      = (rocShortOk == true)
+volEnsLongOkSafe    = (volEnsLongOk == true)
+volEnsShortOkSafe   = (volEnsShortOk == true)
+preMomLongOkSafe    = (preMomLongOk == true)
+preMomShortOkSafe   = (preMomShortOk == true)
+emaAccelLongOkSafe  = (emaAccelLongOk == true)
+emaAccelShortOkSafe = (emaAccelShortOk == true)
+vwapLongOkSafe      = (vwapLongOk == true)
+vwapShortOkSafe     = (vwapShortOk == true)
 
 // Combined signal enhancement filter (all new filters ANDed)
 enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe
@@ -3399,8 +3414,8 @@ f_bin_quality(pTop, nBin) =>
         ["warmup", tblTextDim]
     else
         hw = f_ci95_halfwidth(pTop, nBin)
-        lbl = na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
-        col = na(hw) ? tblTextDim : hw <= 0.05 ? color.lime : hw <= 0.10 ? color.yellow : color.orange
+        lbl = na(hw) ? "warmup" : hw <= HW_STRONG ? "strong" : hw <= HW_OK ? "ok" : "weak"
+        col = na(hw) ? tblTextDim : hw <= HW_STRONG ? color.lime : hw <= HW_OK ? color.yellow : color.orange
         [lbl, col]
 
 f_rowTF(_tf, score, tC, mC, lC, rV,
@@ -3467,7 +3482,7 @@ f_fmtBrier(stats) =>
     c = array.get(stats, 1)
     val = c > 0 ? s / c : na
     txt = na(val) ? "—" : str.tostring(val, "#.###")
-    col = na(val) ? tblTextDim : val < 0.20 ? color.green : val < 0.25 ? color.lime : val < 0.30 ? color.yellow : color.red
+    col = na(val) ? tblTextDim : val < BRIER_GOOD ? color.green : val < BRIER_BASELINE ? color.lime : val < BRIER_POOR ? color.yellow : color.red
     [txt, col]
 
 f_fmtCnt(stats) =>
@@ -3580,7 +3595,7 @@ f_rowEval(tbl, tf, hid, rRow) =>
         maxT = str.tostring(mErr * 100, "#.0")
         comb = eceT + "/" + maxT
         // Color ECE: < 5% is great, <10% ok
-        cEce = ece < 0.05 ? color.lime : ece < 0.10 ? color.yellow : color.red
+        cEce = ece < ECE_GOOD ? color.lime : ece < ECE_FAIR ? color.yellow : color.red
         table.cell(tbl, 2, rRow, comb, text_color=cEce, bgcolor=tblCell, text_size=size.tiny)
 
         // Drift
@@ -3711,13 +3726,13 @@ if showDiagPanel and barstate.islast and (not tableOnConfirmed or barstate.iscon
         baseRate = totalSamples > 0 ? totalUp * 100.0 / totalSamples : 50.0
         
         // Convergence check: Is Platt A stable (should be near 1.0 if well-calibrated)?
-        plattStable = (plattA >= 0.7 and plattA <= 1.5) and (plattB >= -0.5 and plattB <= 0.5)
-        convStatus = plattStable ? "✅ Converged" : (plattA < 0.3 or plattA > 3.0) ? "⚠️ Unstable" : "🔄 Adjusting"
-        convColor = plattStable ? color.lime : (plattA < 0.3 or plattA > 3.0) ? color.red : color.yellow
+        plattStable = (plattA >= PLATT_A_LO and plattA <= PLATT_A_HI) and (plattB >= -PLATT_B_BOUND and plattB <= PLATT_B_BOUND)
+        convStatus = plattStable ? "✅ Converged" : (plattA < PLATT_A_UNSTABLE_LO or plattA > PLATT_A_UNSTABLE_HI) ? "⚠️ Unstable" : "🔄 Adjusting"
+        convColor = plattStable ? color.lime : (plattA < PLATT_A_UNSTABLE_LO or plattA > PLATT_A_UNSTABLE_HI) ? color.red : color.yellow
         
         // Quality grade
-        qualityGrade = na(brierAvg) ? "—" : brierAvg < 0.18 ? "A (Excellent)" : brierAvg < 0.22 ? "B (Good)" : brierAvg < 0.25 ? "C (Baseline)" : brierAvg < 0.30 ? "D (Poor)" : "F (No Skill)"
-        qualityColor = na(brierAvg) ? color.gray : brierAvg < 0.18 ? color.lime : brierAvg < 0.22 ? color.green : brierAvg < 0.25 ? color.yellow : brierAvg < 0.30 ? color.orange : color.red
+        qualityGrade = na(brierAvg) ? "—" : brierAvg < BRIER_EXCELLENT ? "A (Excellent)" : brierAvg < BRIER_GOOD ? "B (Good)" : brierAvg < BRIER_BASELINE ? "C (Baseline)" : brierAvg < BRIER_POOR ? "D (Poor)" : "F (No Skill)"
+        qualityColor = na(brierAvg) ? color.gray : brierAvg < BRIER_EXCELLENT ? color.lime : brierAvg < BRIER_GOOD ? color.green : brierAvg < BRIER_BASELINE ? color.yellow : brierAvg < BRIER_POOR ? color.orange : color.red
         
         // Row 0: Header
         table.cell(diagTbl, 0, 0, "🔧 Calibration Diagnostics", text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
@@ -3779,14 +3794,14 @@ alertShortCond = (not useAlertCalls) and shortEvent and barstate.isconfirmed
 alertExitCond = (not useAlertCalls) and exitEvent  and barstate.isconfirmed
 alertCoverCond = (not useAlertCalls) and coverEvent and barstate.isconfirmed
 
-alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY")
-alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT")
-alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT")
-alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER")
+alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
 
 f_send_alert(cond, label) =>
     if useAlertCalls and cond and barstate.isconfirmed
-        alert("SkippALGO " + label + ": " + syminfo.ticker + " " + timeframe.period, alertFreq)
+        alert("SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(confidence * 100, "#.0") + "%", alertFreq)
 
 f_send_alert(buyEvent, "BUY")
 f_send_alert(shortEvent, "SHORT")
