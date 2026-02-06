@@ -842,6 +842,11 @@ f_rel_label(p, nBin, total, canCal) =>
         lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
     lbl
 
+// D1 – Continuous trend strength [-1, 1] (smooth alternative to discrete f_trend_regime)
+f_trend_strength(emaF, emaS) =>
+    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
+    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH, PRICE_EPS)))
+
 f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
     // B1 – Continuous trend: smooth EMA gap vs binary
     trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
@@ -914,11 +919,6 @@ f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
     den = wA + wB + wC + wD
     val = den == 0 ? 0.0 : num / den
     math.max(-1.0, math.min(1.0, val))
-
-// D1 – Continuous trend strength [-1, 1] (smooth alternative to discrete f_trend_regime)
-f_trend_strength(emaF, emaS) =>
-    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
-    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH, PRICE_EPS)))
 
 // B2 – ROC (Rate of Change) score: momentum via price change [-1, 1]
 f_roc_score(c, rocL) =>
@@ -1604,6 +1604,12 @@ f_reset_eval_all() =>
     f_reset_one_state_eval(tf5State)
     f_reset_one_state_eval(tf6State)
     f_reset_one_state_eval(tf7State)
+
+// A5 – ECE-triggered recalibration: boost Platt LR when model is poorly calibrated
+var float prevEvalEce = na
+lrPlattEff = lrPlatt
+if useEceRecal and not na(prevEvalEce) and prevEvalEce >= eceWarn
+    lrPlattEff := math.min(lrPlatt * eceRecalBoost, 0.05)
 
 // Process one TF calibration step (updates on TF close)
 // @param _hid Horizon ID (1-7) - reserved for debugging/logging
@@ -2875,11 +2881,6 @@ if doReset
 // Calibration update (bar-close confirmed guard + new TF bar events)
 //====================
 doCal = enableForecast and barstate.isconfirmed and f_forecast_allowed() and (calibrateInBackground or showTable or showEvalSection)
-// A5 – ECE-triggered recalibration: boost Platt LR when model is poorly calibrated
-var float prevEvalEce = na
-lrPlattEff = lrPlatt
-if useEceRecal and not na(prevEvalEce) and prevEvalEce >= eceWarn
-    lrPlattEff := math.min(lrPlatt * eceRecalBoost, 0.05)
 if doCal
     for i = 0 to 6
         tfSel = f_idx_to_tfsel(i)
@@ -3493,9 +3494,6 @@ if pos == -1 and allowExit
     coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
 
 // State Logic
-float newStop  = na
-float newTp    = na
-float newTrail = na
 if barstate.isconfirmed
     if exitSignal and pos == 1
         pos := 0
