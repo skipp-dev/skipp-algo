@@ -258,7 +258,7 @@ kBarsF    = input.int(3, "k bars", minval=1, maxval=20, group=grp_fast)
 atrThrF   = input.float(0.25, "ATR Thr", minval=0.01, step=0.05, group=grp_fast)
 pathHF    = input.int(6, "Path H", minval=1, maxval=50, group=grp_fast)
 tpATRF    = input.float(0.50, "Path TP", minval=0.01, step=0.05, group=grp_fast)
-slATRF    = input.float(0.30, "Path SL", minval=0.01, step=0.05, group=grp_fast)
+slATRF    = input.float(0.50, "Path SL", minval=0.01, step=0.05, group=grp_fast)
 
 grp_mid = "Target Profile 2: Mid (15m, 30m, 1h)"
 fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_mid)
