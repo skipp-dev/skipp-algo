@@ -39,10 +39,16 @@ volLen   = input.int(20, "Volume SMA len", minval=2)
 volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05)
 
 useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
-stopATR  = input.float(2.50, "Stop ATR", minval=0.1, step=0.10, tooltip="Hard Stop Loss distance. Increase if exiting on wicks.")
-tpATR    = input.float(5.00, "Take Profit ATR", minval=0.1, step=0.10)
+stopATR  = input.float(2.50, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
+tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10)
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
+
+// Dynamic Risk Decay
+useRiskDecay = input.bool(true, "Tighten Risk after Grace Period?", tooltip="Shrinks Stop/TP to tighter values after N bars to cut losses if trade stalls.")
+decayStopATR = input.float(1.50, "Sustained Stop ATR", minval=0.1)
+decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
+
 exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
 swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
@@ -3480,6 +3486,19 @@ else
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
+
+// Risk Decay Calculation (Simulating Indicator Logic)
+if useAtrRisk and useRiskDecay and canStructExit and (barsSinceEntry == (exitGraceBars + 1))
+    if pos == 1 and not na(stopPx) and not na(entryPrice)
+        approxAtr = (entryPrice - stopPx) / stopATR
+        if approxAtr > 0
+            stopPx := math.max(stopPx, entryPrice - (decayStopATR * approxAtr))
+            tpPx   := math.min(tpPx,   entryPrice + (decayTpATR   * approxAtr))
+    else if pos == -1 and not na(stopPx) and not na(entryPrice)
+        approxAtr = (stopPx - entryPrice) / stopATR
+        if approxAtr > 0
+            stopPx := math.min(stopPx, entryPrice + (decayStopATR * approxAtr))
+            tpPx   := math.max(tpPx,   entryPrice - (decayTpATR   * approxAtr))
 
 if pos == 1 and allowExit
     if useAtrRisk
