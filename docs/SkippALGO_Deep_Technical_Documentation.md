@@ -1,6 +1,6 @@
 # SkippALGO — Deep Upgrade v6.1 Technical Documentation
 
-**Pine Script v6 | Non-repainting | Online Learning (SGD) | Ensemble Architecture**
+## Pine Script v6 | Non-repainting | Online Learning (SGD) | Ensemble Architecture
 
 ## 1) Purpose and Evolution
 
@@ -70,6 +70,162 @@ Counting wins/losses in bins provides a "Raw Probability" (`pRaw`). However, thi
   * **SGD (Stochastic Gradient Descent)** updates the parameters `a` (slope/confidence) and `b` (bias) instantly.
   * **LogLoss Tracking**: The system tracks the Logarithmic Loss to measure the "surprise" of the model, optimizing for true probabilistic confidence rather than just directional accuracy.
 
+### Why the Forecast Calibration Exists (and how it helps)
+
+Raw bin counts can be biased by small samples, regime shifts, and non‑stationary market behavior. The calibration pipeline is designed to make **probabilities trustworthy**, not merely frequentist counts.
+
+**Expected benefits:**
+
+* **Better decision gating:** Entry filters like *Min dir prob* and *Min edge* rely on calibrated probabilities; uncalibrated values would misfire.
+* **Regime‑aware adaptation:** 2D bins (score × regime) and optional bull/bear separation let probabilities adapt to market context instead of averaging across incompatible regimes.
+* **Graceful warm‑up:** Prior blending prevents false certainty while samples are sparse.
+* **Online correction:** Temperature/Vector scaling and Platt scaling continuously correct over‑ or under‑confidence as new data arrives.
+
+---
+
+### 2.1) Forecast Performance Metrics — Interpretation & Thresholds
+
+The script tracks several **proper scoring and calibration metrics** so you can objectively judge whether the probabilities are reliable enough to use.
+
+### Brier Score (3‑way)
+
+**Definition:** mean squared error of probabilistic forecasts, averaged across classes (Up/Flat/Down).
+
+* **Excellent**: `BRIER_EXCELLENT = 0.18`
+* **Good**: `BRIER_GOOD = 0.22`
+* **Baseline / Random**: `BRIER_BASELINE = 0.25` (roughly no predictive skill)
+* **Poor**: `BRIER_POOR = 0.30`
+
+Interpretation: lower is better. Values below ~0.22 suggest meaningful forecasting skill; ~0.25 is effectively random for 3‑class probabilities.
+
+### LogLoss (3‑way)
+
+**Definition:** $-\log(p_{true})$ for the realized class.
+
+Interpretation: lower is better, and it heavily penalizes confident wrong forecasts. A random 3‑class model has baseline logloss $-\log(1/3) \approx 1.099$.
+
+### ECE (Expected Calibration Error)
+
+Tracks absolute calibration error between predicted probabilities and realized frequencies across rolling buckets.
+
+* **Well‑calibrated**: `ECE_GOOD = 0.05`
+* **Fair / acceptable**: `ECE_FAIR = 0.10`
+
+Interpretation: values above 0.10 indicate probabilities are materially mis‑calibrated (either too confident or too timid).
+
+### Reliability via 95% CI Half‑Width
+
+Uses a Wilson‑style CI half‑width to label reliability per bin:
+
+* **Strong**: `HW_STRONG = 0.05`
+* **OK**: `HW_OK = 0.10`
+* **Weak**: above 0.10 or insufficient samples
+
+Interpretation: smaller half‑width means tighter statistical certainty on that probability estimate.
+
+### Platt Parameter Bounds (convergence diagnostics)
+
+These are not performance metrics but stability indicators for the Platt Scaling calibrator:
+
+* **Converged**: $a \in [0.7, 1.5]$, $|b| < 0.5$ — modest corrections; raw probabilities were already reasonable.
+* **Unstable**: $a \notin [0.3, 3.0]$ — the calibrator is overcorrecting, indicating either too few samples or a fundamentally misspecified model.
+
+Monitoring these bounds serves as an early warning system for model instability. Automated alerts when parameters drift outside the converged range are recommended (see section 2.2 below).
+
+### Practical metric interpretation (decision rules)
+
+The metrics work together as a diagnostic dashboard:
+
+* **Brier < 0.22 + ECE < 0.05** — the forecast model has genuine skill and is well‑calibrated; trust the entry gates.
+* **Brier < 0.22 but ECE > 0.10** — the model has skill but probabilities are systematically off; the calibrators haven't converged yet (need more samples).
+* **Brier > 0.25** — no forecasting skill; the probability‑based entry gate is adding noise, not signal.
+
+---
+
+### 2.2) Design Considerations & Operational Guidance
+
+This section captures review feedback and forward‑looking recommendations for maintaining and extending the calibration system.
+
+#### Calibration latency vs. adaptiveness
+
+Phase 4 (online post‑hoc calibration) is critical for adapting to new data but may introduce latency in response to sudden market shifts. The learning rates (`lrCal`, `lrPlatt`) control the speed/stability trade‑off:
+
+* **Faster LR** → quicker adaptation to regime changes, but noisier parameters.
+* **Slower LR** → more stable estimates, but slower to react after structural breaks.
+
+Operators should choose learning rates that match their trading horizon. Intraday scalpers may prefer slightly higher LR; swing traders benefit from the defaults.
+
+#### Metric monitoring cadence
+
+* **Brier Score**: review per‑horizon grades regularly (e.g., weekly or after significant volatility events). Persistent Grade C or worse on a horizon suggests the target definition or bin structure needs revisiting.
+* **LogLoss**: monitor alongside Brier to detect *overconfident* predictions that Brier alone may mask. A rising LogLoss with stable Brier is a red flag for tail‑risk mispricings.
+* **ECE**: check after every calibration reset or major market regime change. Sustained ECE > 0.10 means the calibrators need more samples or the bin count should be reduced.
+* **CI Half‑Width**: when a bin's reliability label reads "weak," the system should either abstain from trading on that signal or reduce position size. The existing `requireRelOk` input gate provides this.
+
+#### Platt parameter stability alerts
+
+When Platt parameters drift outside the converged range ($a \notin [0.7, 1.5]$ or $|b| > 0.5$), consider:
+
+1. Logging a warning in the evaluation table (already displayed as color‑coded Platt diagnostics).
+2. Temporarily falling back to raw bin probabilities until parameters re‑stabilize.
+3. Triggering a per‑horizon calibration reset if instability persists for an extended period.
+
+#### Model update and recalibration schedule
+
+Markets are non‑stationary. Recommended practices:
+
+* **Continuous online learning** (current default): SGD updates on every resolved forecast — no manual retraining needed.
+* **Periodic review**: inspect Brier/ECE grades monthly or after major macro events (rate decisions, earnings seasons, volatility spikes).
+* **Reset triggers**: reset calibration when switching asset class, after prolonged exchange outages, or when >50% of horizons show Grade D Brier for 5+ consecutive sessions.
+* **Count decay** (`countDecay`): the existing exponential decay mechanism (default 0.9995) gradually down‑weights stale observations, providing implicit "forgetting" without explicit resets.
+
+#### Backtesting vs. forward testing
+
+The Strategy file (`SkippALGO_Strategy.pine`) provides backtesting capability, but backtests are inherently optimistic due to:
+
+* No slippage modeling (Pine `strategy()` supports basic slippage but not order‑book simulation).
+* No market‑impact costs on larger position sizes.
+* Survivorship bias in the symbol universe.
+
+**Recommendation**: after backtesting, run the indicator in paper‑trading mode on live data for at least 2–4 weeks per asset class before committing capital. Compare live Brier/ECE metrics against backtest values to detect overfitting.
+
+#### Risk management beyond ATR
+
+The script uses ATR‑based stops, take‑profits, and trailing stops. Additional risk factors to consider in production:
+
+* **Correlation risk**: multiple instruments may trigger simultaneously during market stress, amplifying portfolio exposure.
+* **Slippage**: fast markets (news events, opens) can cause fills significantly worse than the theoretical stop price.
+* **Market impact**: for illiquid instruments, the bid‑ask spread and order‑book depth can erode edge.
+* **Session boundaries**: the existing RTH close filter (`useRthCloseFilter`) helps, but overnight gap risk on non‑24h instruments remains.
+
+These factors are outside the scope of Pine Script but should be addressed at the portfolio/execution layer.
+
+#### Scalability and computational limits
+
+Pine Script imposes execution‑time and memory limits. As complexity grows:
+
+* Seven horizons × multiple `request.security()` calls per horizon is already near the practical ceiling.
+* Adding more ensemble factors, bins, or calibration dimensions will hit TradingView's execution limits.
+* If running across many instruments, consider off‑chart computation (e.g., exporting signals via webhooks to an external system that handles portfolio‑level logic).
+
+#### User interface and operational dashboard
+
+The on‑chart table serves as the primary dashboard. For enhanced operational use:
+
+* The evaluation section (Brier / ECE / Platt diagnostics) provides at‑a‑glance model health.
+* Reliability labels ("strong" / "ok" / "weak") and sample counts (`nCur/Total`) give immediate data‑sufficiency feedback.
+* Alert conditions (`alertcondition`) can push signals to external systems for automated or semi‑automated workflows.
+* For users managing multiple instruments, an external aggregation dashboard (consuming webhook alerts) would provide portfolio‑level oversight.
+
+#### Continuous improvement
+
+The calibration framework is designed for extensibility. Areas for future enhancement:
+
+* **Alternative targets**: path‑dependent targets beyond TP vs SL (e.g., time‑weighted returns, max adverse excursion).
+* **Additional ensemble factors**: order‑flow proxies, inter‑market correlations, or sentiment data (when available via Pine).
+* **Adaptive bin counts**: automatically adjusting `predBinsN` based on available sample depth.
+* **Cross‑asset transfer learning**: using calibration from correlated instruments to warm‑start a new symbol's bins.
+
 ---
 
 ## 3) Technical Implementation Details
@@ -134,7 +290,7 @@ type TfState
 
 ## 4) Legacy Documentation (v6.0)
 
-*(Below follows the original architecture, which remains relevant for the non-predictive modules)*
+Below follows the original architecture, which remains relevant for the non-predictive modules.
 
 ### 1) Purpose and design goals
 
@@ -164,7 +320,7 @@ This is forecasting, but it’s **narrowly defined**: next-bar direction on each
 
 ---
 
-## 2) High-level architecture
+### 2) High-level architecture
 
 The script has three major subsystems:
 
@@ -193,9 +349,9 @@ The **table** is the presentation layer showing:
 
 ---
 
-## 3) Non-repainting and timing semantics
+### 3) Non-repainting and timing semantics
 
-### 3.1 `request.security()` behavior (critical)
+#### 3.1 `request.security()` behavior (critical)
 
 For a higher timeframe `tf` (e.g., 5m on a 1m chart):
 
@@ -208,7 +364,7 @@ So:
 * **Outlook** is a snapshot of the last confirmed bar for that tf
 * **Forecast** uses those confirmed state values as conditioning inputs
 
-### 3.2 `barstate.isconfirmed` usage
+#### 3.2 `barstate.isconfirmed` usage
 
 The script updates and prints only on confirmed bars to ensure:
 
@@ -221,15 +377,15 @@ If you are on a live bar, the table may not refresh until the bar closes. That�
 
 ---
 
-## 4) Trading logic subsystem (signals)
+### 4) Trading logic subsystem (signals)
 
-### 4.1 Core indicators
+#### 4.1 Core indicators
 
 * `emaF = EMA(close, emaFastLen)`
 * `emaS = EMA(close, emaSlowLen)`
 * `atr = ATR(atrLen)`
 
-### 4.2 Volatility regime and guardrails
+#### 4.2 Volatility regime and guardrails
 
 The script estimates volatility regime with:
 
@@ -245,7 +401,7 @@ Guardrails count flags:
 
 Guardrails reduce trust via penalties.
 
-### 4.3 Macro context gate
+#### 4.3 Macro context gate
 
 Macro is approximated by percentile rank of close over lookback:
 
@@ -257,13 +413,13 @@ Macro gating (if `Hard Gate`):
 * Long allowed only if macroPct below long threshold
 * Short allowed only if macroPct above short threshold
 
-### 4.4 Drawdown haircut and hard gate
+#### 4.4 Drawdown haircut and hard gate
 
 * `ddPeak = highest(close, ddLookback)`
 * `ddAbs = max(0, -(close - ddPeak)/ddPeak)` drawdown magnitude
 * Applies continuous penalty and optional hard gate
 
-### 4.5 Confidence momentum: adaptive RSI + hysteresis
+#### 4.5 Confidence momentum: adaptive RSI + hysteresis
 
 The script maintains momentum state with hysteresis:
 
@@ -280,7 +436,7 @@ It doesn’t “toggle” momentum on every small RSI wiggle:
 
 This makes confidence less noisy and more trend-continuation-friendly.
 
-### 4.6 Connors RSI factor (3,2,100)
+#### 4.6 Connors RSI factor (3,2,100)
 
 Connors RSI is computed as the average of:
 
@@ -293,7 +449,7 @@ This is used as a **multiplicative factor** on confidence:
 * Helps modulate confidence based on short-term “timing/quality”
 * Not used as the primary directional gate
 
-### 4.7 Trust score computation
+#### 4.7 Trust score computation
 
 `f_trust_score()` produces a 0..1 value from weighted components:
 
@@ -309,7 +465,7 @@ Then:
 * Apply drawdown penalty
 * Apply Connors RSI factor
 
-### 4.8 Gating and signal engine
+#### 4.8 Gating and signal engine
 
 Gate is:
 
@@ -328,9 +484,9 @@ This is your “trading decision layer”. It’s independent from the forecast 
 
 ---
 
-## 5) Outlook (State) subsystem
+### 5) Outlook (State) subsystem
 
-### 5.1 State definition
+#### 5.1 State definition
 
 For each timeframe, state is computed by `f_state_pack()`:
 
@@ -356,7 +512,7 @@ Then the table shows:
 * T/M/L components (trend/mom/loc)
 * RSI value
 
-### 5.2 Meaning
+#### 5.2 Meaning
 
 **Outlook** is a descriptive regime snapshot:
 
@@ -366,11 +522,11 @@ Then the table shows:
 
 ---
 
-## 6) Forecast (Probabilities) subsystem
+### 6) Forecast (Probabilities) subsystem
 
 This is the most important “new” part compared to your earlier state-only table.
 
-### 6.1 What exactly is being forecast?
+#### 6.1 What exactly is being forecast?
 
 In the current script:
 
@@ -383,11 +539,11 @@ So forecast is literally:
 This is a *directional next-bar* model.
 If you want “trend continuation” defined differently (e.g., forward return over multiple bars, or no adverse excursion), the target function must change.
 
-### 6.2 Conditioning variable: state score
+#### 6.2 Conditioning variable: state score
 
 Forecast does not use raw EMA/RSI directly. It uses the *derived state score* (−1..+1) as the “state descriptor”.
 
-### 6.3 Binning: score → discrete state bucket
+#### 6.3 Binning: score → discrete state bucket
 
 `f_bin(score, bins)` maps score to one of `bins` discrete buckets.
 
@@ -398,7 +554,7 @@ Example:
 
 Binning is critical: it reduces the continuous state space into a manageable categorical distribution you can calibrate with limited data.
 
-### 6.4 Calibration storage (counts)
+#### 6.4 Calibration storage (counts)
 
 For each timeframe, the script keeps arrays (length = bins):
 
@@ -416,14 +572,14 @@ Conceptually:
 * **1** is “more immediate / reactive”
   (Your current implementation still bins, but the intent is to separate smoothing/conditioning behavior.)
 
-### 6.5 Update timing: why bar-close only matters
+#### 6.5 Update timing: why bar-close only matters
 
 Updates happen only when `barstate.isconfirmed`:
 
 * prevents double-counting during intrabar evaluation
 * keeps calibration consistent with non-repaint principle
 
-### 6.6 Probability estimate with smoothing
+#### 6.6 Probability estimate with smoothing
 
 For each bin:
 
@@ -440,7 +596,7 @@ This is Laplace/Beta(α, α) style smoothing:
 * Avoids 0%/100% probabilities when sample sizes are small
 * Gradually converges as n grows
 
-### 6.7 Data sufficiency gating and Reliability
+#### 6.7 Data sufficiency gating and Reliability
 
 Two levels of "insufficient" are displayed:
 
@@ -449,7 +605,7 @@ Two levels of "insufficient" are displayed:
 
 This is a major correctness improvement: the UI tells the truth about how much evidence exists.
 
-### 6.8 Turning probability into prediction symbols
+#### 6.8 Turning probability into prediction symbols
 
 `Pred()` is derived from probability thresholds:
 
@@ -459,7 +615,7 @@ This is a major correctness improvement: the UI tells the truth about how much e
 
 These thresholds define your "decision boundary" and can be widened/narrowed for stricter/looser prediction.
 
-### 6.9 Brier Score (Accuracy Tracking)
+#### 6.9 Brier Score (Accuracy Tracking)
 
 The script now tracks the **Brier Score** (Mean Squared Error of probability forecasts) to objectively measure accuracy.
 
@@ -467,7 +623,7 @@ The script now tracks the **Brier Score** (Mean Squared Error of probability for
 * **BS(N)**: Tracks long-term accuracy. Crucially, this score is **gated by `calMinSamples`**. It only penalizes the model for bins that are considered "mature." This prevents "warmup" noise from ruining the long-term score.
 * **BS(1)**: Tracks short-term/fast accuracy. This score is **always active**, updating on every trade regardless of sample size. It reflects the model's immediate adaptability.
 
-### 6.10 Confidence Intervals & Reliability Labels ("Method 2")
+#### 6.10 Confidence Intervals & Reliability Labels ("Method 2")
 
 To prevent false confidence in small sample sizes, the system calculates a **95% Confidence Interval (CI)** for every probability.
 
@@ -480,9 +636,9 @@ To prevent false confidence in small sample sizes, the system calculates a **95%
 
 ---
 
-## 7) The Table UI: what each section means
+### 7) The Table UI: what each section means
 
-### 7.1 Status rows (top)
+#### 7.1 Status rows (top)
 
 * Confidence: your gate confidence (0..100%)
 * MinTrust: threshold used for gating
@@ -493,7 +649,7 @@ To prevent false confidence in small sample sizes, the system calculates a **95%
 * LastSig: last action
 * Time: timestamp
 
-### 7.2 OUTLOOK (STATE) block
+#### 7.2 OUTLOOK (STATE) block
 
 Columns:
 
@@ -508,7 +664,7 @@ Interpretation:
 * Bias/score tells you the current regime snapshot on that TF.
 * T/M/L helps you debug why it’s biased (trend vs momentum vs location).
 
-### 7.3 FORECAST (PROB) block (New Layout)
+#### 7.3 FORECAST (PROB) block (New Layout)
 
 Columns:
 
@@ -527,7 +683,7 @@ Interpretation:
 * **Pred(1)** is your tactical signal. Be wary of it, but use it to spot turns before N catches up.
 * **Brier Checks:** If Brier Scores (shown in footer or header tooltips if enabled) are high (>0.25), the market is currently defying the model's logic.
 
-### 7.3.1 The difference between #(N) and #(1) (Plain English)
+#### 7.3.1 The difference between #(N) and #(1) (Plain English)
 
 * **#(N) — The "Trusted Veteran" (Strategic)**
   * **Behavior:** Highly selective. Ignores "warmup" noise.
@@ -541,7 +697,7 @@ Interpretation:
   * **Why used:** Spots new market regimes fast. If `#(N)` says "UP" but `#(1)` accuracy fails (high Brier score), the trend might be dying.
   * **How to read:** Use as an early warning system.
 
-### 7.4 Footer rows ("Params" and "Meaning")
+#### 7.4 Footer rows ("Params" and "Meaning")
 
 These are guardrails against semantic confusion:
 
@@ -550,16 +706,16 @@ These are guardrails against semantic confusion:
 
 ---
 
-## 8) How to use the script (practical workflow)
+### 8) How to use the script (practical workflow)
 
-### Step 1 — Choose your chart timeframe
+#### Step 1 — Choose your chart timeframe
 
 Most common:
 
 * Trade on 1m or 5m charts for intraday continuation
 * Or 15m/1h for slower continuation
 
-### Step 2 — Let calibration accumulate
+#### Step 2 — Let calibration accumulate
 
 The forecast block needs sample sizes.
 If `calMinSamples = 50`, you need at least ~50 occurrences per bin per timeframe.
@@ -573,7 +729,7 @@ With bins=3, that means:
 * `alphaSmooth = 1.0` (reasonable smoothing)
 * `calMinSamples = 30–50`
 
-### Step 3 — Read Outlook first, then Forecast
+#### Step 3 — Read Outlook first, then Forecast
 
 Recommended decision flow:
 
@@ -587,7 +743,7 @@ Recommended decision flow:
 
    * Only trade when your confidence and gating permit
 
-### Step 4 — Tune thresholds to your risk tolerance
+#### Step 4 — Tune thresholds to your risk tolerance
 
 * If you want fewer but stronger signals:
 
@@ -596,7 +752,7 @@ Recommended decision flow:
 
   * Bring thresholds closer to 0.50 (but expect noise)
 
-### Step 5 — Reset calibration only when appropriate
+#### Step 5 — Reset calibration only when appropriate
 
 Use `Forecast: Reset calibration now` when:
 
@@ -608,31 +764,31 @@ Avoid resetting constantly—calibration needs data to become meaningful.
 
 ---
 
-## 9) Common misunderstandings (and how this script avoids them)
+### 9) Common misunderstandings (and how this script avoids them)
 
-### “Isn’t Outlook already a forecast?”
+#### “Isn’t Outlook already a forecast?”
 
 No.
 Outlook is a present-state diagnostic.
 Forecast is a statistical statement about **future outcomes conditioned on state**.
 
-### “Why does 5m not change every 1m bar?”
+#### “Why does 5m not change every 1m bar?”
 
 Because 5m data only finalizes on 5m bar close.
 That’s correct non-repainting behavior.
 
-### “Why do I see … or n0?”
+#### “Why do I see … or n0?”
 
 Because the model is honest: there isn’t enough data yet for that state bin.
 
-### “Is the forecast guaranteed?”
+#### “Is the forecast guaranteed?”
 
 No. It’s a **calibrated probability**, not a promise.
 It reflects *historical frequency under similar states*.
 
 ---
 
-## 10) Performance and limits (Pine constraints)
+### 10) Performance and limits (Pine constraints)
 
 * `request.security()` is expensive. You’re doing it per timeframe for state packs and outcome checks.
 * Seven horizons × multiple security calls can be heavy.
@@ -644,7 +800,7 @@ It reflects *historical frequency under similar states*.
 
 ---
 
-## 11) If you want true “Trend-Continuation forecast” (stronger target)
+### 11) If you want true “Trend-Continuation forecast” (stronger target)
 
 Right now the forecast target is **next-bar direction**.
 
@@ -660,7 +816,7 @@ If you tell me your exact continuation definition (e.g., “price is higher afte
 
 ---
 
-## 12) Quick glossary (for users)
+### 12) Quick glossary (for users)
 
 * **Bias**: current state direction indicator (▲/▼/−)
 * **Score**: numeric state summary (−1..+1)
@@ -673,9 +829,9 @@ If you tell me your exact continuation definition (e.g., “price is higher afte
 
 ---
 
-# 1) TradingView Author’s Notes (User Manual)
+## TradingView Author’s Notes (User Manual)
 
-## What SkippALGO is
+### What SkippALGO is
 
 SkippALGO combines a **signal engine** (entries/exits) with a **dashboard** that shows:
 
@@ -686,7 +842,7 @@ It is **non-repainting** by design: values are based on confirmed (closed) bars 
 
 ---
 
-## Quick Start (recommended workflow)
+### Quick Start (recommended workflow)
 
 1. **Pick your trading timeframe** (example: 1m or 5m for intraday continuation).
 2. **Enable “MTF confirmation”** if you want the higher TFs to act as a trend filter.
@@ -698,9 +854,9 @@ It is **non-repainting** by design: values are based on confirmed (closed) bars 
 
 ---
 
-## How to read the Table
+### How to read the Table
 
-### A) Status rows (top)
+#### A) Status rows (top)
 
 You’ll typically see:
 
@@ -715,7 +871,7 @@ This block answers: *“Is the engine allowed to trade right now?”*
 
 ---
 
-### B) Outlook (State)
+#### B) Outlook (State)
 
 This is **not forecasting**.
 
@@ -735,7 +891,7 @@ Outlook shows, per timeframe:
 
 ---
 
-### C) Forecast (Probability)
+#### C) Forecast (Probability)
 
 This is the **predictive** part — but only for the **specific target** defined by the script (commonly “next-bar up vs down” on each TF).
 
@@ -754,7 +910,7 @@ You’ll typically see 5 columns like:
 
 ---
 
-## What Pred(N) vs Pred(1) means (intuitive)
+### What Pred(N) vs Pred(1) means (intuitive)
 
 * **Pred(N)** is the “stable” prediction: coarser conditioning, typically slower to change, needs fewer mistakes from noise.
 * **Pred(1)** is a “reactive” companion: responds faster but can be noisier.
@@ -766,29 +922,24 @@ A common use:
 
 ---
 
-## How to trade with it (Trend-Continuation style)
+### How to trade with it (Trend-Continuation style)
 
 A practical, rules-based approach:
 
-**Long continuation idea**
+#### Long continuation idea
 
 1. Outlook is bullish on your trading TF (▲)
-2. Outlook is bullish or neutral on the next higher TF (▲ or −)
-3. Forecast probability is supportive:
+1. Outlook is bullish or neutral on the next higher TF (▲ or −)
+1. Forecast probability is supportive: `PUp(N) > 55%` and ideally `PUp(1)` also above threshold.
+1. Engine gate is open: Confidence ≥ MinTrust; MTF and Macro gates allow Long; not in drawdown hard gate.
 
-   * `PUp(N) > 55%` and ideally `PUp(1)` also above threshold
-4. Engine gate is open:
+#### Short continuation idea
 
-   * Confidence ≥ MinTrust
-   * MTF and Macro gates allow Long
-   * Not in drawdown hard gate
-
-**Short continuation idea**
 Same logic inverted.
 
 ---
 
-## Calibration warm-up (Forecast)
+### Calibration warm-up (Forecast)
 
 Forecast quality improves with data. You will get best results when:
 
@@ -806,23 +957,23 @@ then a reset can make sense — otherwise let it accumulate.
 
 ---
 
-## Common confusion / troubleshooting
+### Common confusion / troubleshooting
 
-### “Outlook changes only every 5 minutes on the 5m row”
+#### “Outlook changes only every 5 minutes on the 5m row”
 
 Correct. 5m data finalizes only on 5m close. This is non-repainting behavior.
 
-### “Forecast shows …”
+#### “Forecast shows …”
 
 That means insufficient sample size for calibration. Reduce bins, reduce min-samples, or accumulate more history.
 
-### “Why doesn’t the table update mid-candle?”
+#### “Why doesn’t the table update mid-candle?”
 
 The script prints on **confirmed bars** to avoid flicker and inconsistent counts.
 
 ---
 
-## Safety and limitations
+### Safety and limitations
 
 * This is an analytical tool; it does not guarantee profits.
 * Forecast is a **conditional probability estimate**, not certainty.
@@ -830,11 +981,11 @@ The script prints on **confirmed bars** to avoid flicker and inconsistent counts
 
 ---
 
-# 2) Developer Appendix (Deep Technical)
+## Developer Appendix (Deep Technical)
 
 This section is written for maintaining/extending the script safely.
 
-## 2.1 Execution model (Pine)
+### 2.1 Execution model (Pine)
 
 * Script executes on every chart update.
 * **Non-repainting standard** requires:
@@ -843,15 +994,15 @@ This section is written for maintaining/extending the script safely.
   * Calibration updates only on **bar-close** (typically `barstate.isconfirmed`)
   * Table updates either on `barstate.isconfirmed` or `barstate.islast` (depending on how you want UI refresh)
 
-### Key invariant
+#### Key invariant
 
 > **No forward-looking reference** and no partial-bar calibration updates.
 
 ---
 
-## 2.2 Subsystem boundaries
+### 2.2 Subsystem boundaries
 
-### A) Trading / gating subsystem
+#### A) Trading / gating subsystem
 
 Core outputs:
 
@@ -860,7 +1011,7 @@ Core outputs:
 * Position state machine: `pos ∈ {-1,0,+1}`
 * Signals: `buySignal, exitSignal, shortSignal, coverSignal`
 
-### B) Outlook (state) subsystem
+#### B) Outlook (state) subsystem
 
 Core outputs per TF:
 
@@ -868,7 +1019,7 @@ Core outputs per TF:
 * Optional components: trend/mom/loc
 * Symbol mapping: ▲ ▼ −
 
-### C) Forecast (calibration) subsystem
+#### C) Forecast (calibration) subsystem
 
 Core outputs per TF:
 
@@ -878,9 +1029,9 @@ Core outputs per TF:
 
 ---
 
-## 2.3 Outlook: recommended state definition (contract)
+### 2.3 Outlook: recommended state definition (contract)
 
-### State pack contract (per TF)
+#### State pack contract (per TF)
 
 Inputs:
 
@@ -910,9 +1061,9 @@ Score normalization:
 
 ---
 
-## 2.4 Forecast: calibration math and mechanics (contract)
+### 2.4 Forecast: calibration math and mechanics (contract)
 
-### 2.4.1 Define the forecast target (must be explicit)
+#### 2.4.1 Define the forecast target (must be explicit)
 
 Common target:
 
@@ -928,7 +1079,7 @@ Other valid targets (trend continuation variants):
 
 ---
 
-### 2.4.2 Conditioning variable
+#### 2.4.2 Conditioning variable
 
 Use `score_tf` (from Outlook) as the state descriptor.
 
@@ -939,7 +1090,7 @@ Then you have two calibration modes:
 
 ---
 
-### 2.4.3 Binning
+#### 2.4.3 Binning
 
 Function contract:
 
@@ -955,7 +1106,7 @@ Recommended mapping:
 
 ---
 
-### 2.4.4 Count storage
+#### 2.4.4 Count storage
 
 For each timeframe and each bin you maintain:
 
@@ -976,7 +1127,7 @@ If you support multiple timeframes, you either:
 
 ---
 
-### 2.4.5 Update timing (critical)
+#### 2.4.5 Update timing (critical)
 
 Calibration updates should be tied to the timeframe close event, not every chart bar.
 
@@ -1000,7 +1151,7 @@ So:
 
 ---
 
-### 2.4.6 Probability with smoothing
+#### 2.4.6 Probability with smoothing
 
 Using Laplace/Beta smoothing:
 
@@ -1012,7 +1163,7 @@ Where `alpha` is float > 0.
 
 ---
 
-### 2.4.7 Minimum samples gate
+#### 2.4.7 Minimum samples gate
 
 Define:
 
@@ -1029,9 +1180,9 @@ This is correctness + UX.
 
 ---
 
-## 2.5 Prediction symbol + color functions (avoid “tblText” scope bugs)
+### 2.5 Prediction symbol + color functions (avoid “tblText” scope bugs)
 
-### The exact issue you hit
+#### The exact issue you hit
 
 Your functions referenced `tblText` but `tblText` wasn’t in scope (or was declared later / inside a block).
 
@@ -1049,7 +1200,7 @@ This eliminates “Undeclared identifier” issues and makes helpers reusable.
 
 ---
 
-## 2.6 Table refresh rules (why tables go empty)
+### 2.6 Table refresh rules (why tables go empty)
 
 Tables appear “empty” typically due to one of these:
 
@@ -1074,23 +1225,23 @@ This is deterministic and avoids partial refresh.
 
 ---
 
-## 2.7 Maintenance checklist (high-signal)
+### 2.7 Maintenance checklist (high-signal)
 
 When you change anything, verify these invariants:
 
-### Non-repaint invariants
+#### Non-repaint invariants
 
 * All HTF uses `lookahead_off`
 * Calibration updates only on confirmed TF events
 * Table prints only on confirmed bars (or last bar, but consistent)
 
-### Semantic invariants
+#### Semantic invariants
 
 * “Outlook” labels state only
 * “Forecast” labels probability only
 * Forecast rows show `n` / `…` when insufficient
 
-### Consistency invariants
+#### Consistency invariants
 
 * `ta.change()` / similar history-dependent functions computed every bar globally
 * No “short-circuit skipping” of history-dependent calls
@@ -1098,7 +1249,7 @@ When you change anything, verify these invariants:
 
 ---
 
-## 2.8 “Developer user story”: how to extend targets safely
+### 2.8 “Developer user story”: how to extend targets safely
 
 If you want to forecast **trend continuation**, do not reuse “next-bar up” blindly. Define continuation precisely, e.g.:
 
@@ -1114,16 +1265,16 @@ Then:
 
 ---
 
-# Release Notes — SkippALGO (Outlook + Forecast)
+## Release Notes — SkippALGO (Outlook + Forecast)
 
 **Scope:** semantic correction + probabilistic forecasting + table/UI reliability
 **Applies to:** Pine v6 script (SkippALGO)
 
 ---
 
-## vNext — Semantic Fix + Calibrated Forecast Engine (Probability-Based)
+### vNext — Semantic Fix + Calibrated Forecast Engine (Probability-Based)
 
-### What changed (high level)
+#### What changed (high level)
 
 This release splits the dashboard into two clearly defined parts:
 
@@ -1137,9 +1288,9 @@ This is a deliberate semantic correction: **state is not called “forecast” a
 
 ---
 
-## Major Improvements
+### Major Improvements
 
-### 1) Forecast is now a real forecast (probability, not state)
+#### 1) Forecast is now a real forecast (probability, not state)
 
 **Previous behavior:**
 The table displayed MTF “bias” computed from confirmed HTF bars (EMA/RSI/location score). This is useful context, but it is a **retrospective state description**, not a forecast.
@@ -1155,7 +1306,7 @@ A calibration engine learns from historical data:
 
 ---
 
-### 2) Data sufficiency is explicit (no fake certainty)
+#### 2) Data sufficiency is explicit (no fake certainty)
 
 Forecast outputs are now gated by sample size:
 
@@ -1167,7 +1318,7 @@ This prevents premature “100% / 0%” style misinterpretations early in calibr
 
 ---
 
-### 3) Table now includes 5 columns (Pred(N) + Pred(1) + both probabilities)
+#### 3) Table now includes 5 columns (Pred(N) + Pred(1) + both probabilities)
 
 The Forecast block now supports a clearer decision interface with:
 
@@ -1183,7 +1334,7 @@ This makes it easy to compare:
 
 ---
 
-### 4) Non-repainting consistency tightened (`barstate.isconfirmed` guard)
+#### 4) Non-repainting consistency tightened (`barstate.isconfirmed` guard)
 
 To prevent inconsistent or flickering UI and to ensure calibration integrity:
 
@@ -1194,7 +1345,7 @@ This ensures the dashboard does not “paint future” or update calibration mid
 
 ---
 
-### 5) Pine consistency warning fixed (`ta.change()` must execute every bar)
+#### 5) Pine consistency warning fixed (`ta.change()` must execute every bar)
 
 A known Pine issue was addressed:
 
@@ -1207,16 +1358,16 @@ This removes warnings and improves determinism.
 
 ---
 
-### 6) UI color scheme unified and stabilized
+#### 6) UI color scheme unified and stabilized
 
 The table’s visual theme was aligned with your chosen “clean / navy / cyan frame / dim text” scheme.
 In addition, helper functions were adjusted to avoid referencing identifiers not in scope (e.g., `tblText`), preventing runtime compile errors.
 
 ---
 
-## Behavioral Clarifications (important)
+### Behavioral Clarifications (important)
 
-### Outlook vs Forecast
+#### Outlook vs Forecast
 
 * **Outlook (State)** = what the last confirmed bar indicates (bias/regime snapshot)
 * **Forecast (Probability)** = a conditional probability estimate of a defined forward outcome
@@ -1225,9 +1376,9 @@ The script intentionally does not claim that “Outlook” is predictive by itse
 
 ---
 
-## Migration Notes / How to interpret the update
+### Migration Notes / How to interpret the update
 
-### If you previously used “Forecast TF” as direction guidance
+#### If you previously used “Forecast TF” as direction guidance
 
 Treat that information as **Outlook** now. It’s still useful for:
 
@@ -1235,7 +1386,7 @@ Treat that information as **Outlook** now. It’s still useful for:
 * regime filtering,
 * context for signal gating.
 
-### How to use Forecast effectively
+#### How to use Forecast effectively
 
 * Wait for calibration to accumulate (watch `n` / `…`)
 * Start with **few bins** (e.g., 3) and reasonable minimum samples
@@ -1243,7 +1394,7 @@ Treat that information as **Outlook** now. It’s still useful for:
 
 ---
 
-## Known Limitations
+### Known Limitations
 
 * Forecast is only as good as its target definition and available historical samples.
 * Multi-timeframe calibration can take time to “warm up,” especially with more bins and higher timeframes.
@@ -1251,13 +1402,13 @@ Treat that information as **Outlook** now. It’s still useful for:
 
 ---
 
-## Next Recommended Enhancements (optional roadmap)
+### Next Recommended Enhancements (optional roadmap)
 
 * Add alternate forecast targets for “trend continuation” beyond next-bar direction (e.g., k-bar forward return, ATR-based continuation, path-based targets).
 * Add per-timeframe sample counts directly in the table for transparency.
 * Add an optional “calibration reset per timeframe” control (instead of global reset).
 
-## Recent quality upgrades (v6.2+)
+### Recent quality upgrades (v6.2+)
 
 * Per-horizon **quantile bins** (no cross‑TF mixing of score distributions).
 * Direction‑aware **macro score** to avoid short bias in oversold regimes.
@@ -1269,11 +1420,11 @@ Treat that information as **Outlook** now. It’s still useful for:
 
 ---
 
-# TradingView Changelog (User-Friendly)
+## TradingView Changelog (User-Friendly)
 
-## ✅ vNext — Outlook + Forecast Upgrade (Semantic Fix + Probability Forecasting)
+### ✅ vNext — Outlook + Forecast Upgrade (Semantic Fix + Probability Forecasting)
 
-**What’s new**
+#### What’s new
 
 * **Outlook (State)** and **Forecast (Probability)** are now separated and labeled correctly.
 * The table now shows a real **probability forecast** (conditional probability), not just multi-timeframe bias.
@@ -1281,13 +1432,13 @@ Treat that information as **Outlook** now. It’s still useful for:
 
   * **TF | Pred(N) | Pred(1) | PUp(N) | PUp(1)**
 
-**What changed**
+#### What changed
 
 * The old “Forecast” display was actually a **state snapshot** (bias based on confirmed HTF bars).
   It’s still valuable, but it is now correctly presented as **Outlook (State)**.
 * A new **calibration engine** learns from history and outputs **PUp** probabilities for a defined forward outcome (typically “next-bar direction” per TF).
 
-**Reliability / correctness improvements**
+#### Reliability / correctness improvements
 
 * Forecast outputs are now **data-sufficiency gated**:
 
@@ -1299,9 +1450,9 @@ Treat that information as **Outlook** now. It’s still useful for:
 
 ---
 
-## What this means for you (plain language)
+### What this means for you (plain language)
 
-### 1) Your table is now honest and more useful
+#### 1) Your table is now honest and more useful
 
 Before:
 
@@ -1316,7 +1467,7 @@ Now:
   * **Outlook (State):** current multi-timeframe bias/regime
   * **Forecast (Probability):** “Given this state, how often did the next bar go up historically?”
 
-### 2) How to use the new table in practice
+#### 2) How to use the new table in practice
 
 Use it top-down:
 
@@ -1331,7 +1482,7 @@ Use it top-down:
 
    * If you see `…`, it’s telling you: “not enough data yet—don’t trust this forecast.”
 
-### 3) Why you might see `…` after installing
+#### 3) Why you might see `…` after installing
 
 Because the forecast is not guessing—it needs historical samples to calibrate.
 Once enough occurrences have been observed, the table becomes “fully active.”
@@ -1344,9 +1495,9 @@ SkippALGO is a non-repainting, bar-close confirmed signal + dashboard script tha
 
 ---
 
-## 5) SkippALGO_Strategy (Deep Upgrade Synchronization)
+### 5) SkippALGO_Strategy (Deep Upgrade Synchronization)
 
-**Update Date: Jan 31, 2026**
+#### Update Date: Jan 31, 2026
 
 The strategy file `SkippALGO_Strategy.pine` has been fully upgraded to **Version 6.1** standards to match the main indicator's probabilistic engine.
 
