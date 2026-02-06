@@ -3028,13 +3028,13 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
             pD1 := tD1_t
         if nN < calMinSamples
             [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-            [pUN_t, pFN_t, pDN_t] := f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
+            [pUN_t, pFN_t, pDN_t] = f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
             pUN := pUN_t
             pFN := pFN_t
             pDN := pDN_t
         if n1 < calMinSamples
             [pUpr2_t, pFpr2_t, pDpr2_t] = f_prior3(_tf, sA)
-            [pU1_t, pF1_t, pD1_t] := f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
+            [pU1_t, pF1_t, pD1_t] = f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
             pU1 := pU1_t
             pF1 := pF1_t
             pD1 := pD1_t
@@ -3070,21 +3070,21 @@ for i = 0 to 6
         array.set(dispPD1, i, pD1_t)
         array.set(dispN1,  i, n1_t)
 
-[pUN1, pFN1, pDN1, nN1] := f_get_disp4(0, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN2, pFN2, pDN2, nN2] := f_get_disp4(1, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN3, pFN3, pDN3, nN3] := f_get_disp4(2, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN4, pFN4, pDN4, nN4] := f_get_disp4(3, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN5, pFN5, pDN5, nN5] := f_get_disp4(4, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN6, pFN6, pDN6, nN6] := f_get_disp4(5, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN7, pFN7, pDN7, nN7] := f_get_disp4(6, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN1, pFN1, pDN1, nN1] = f_get_disp4(0, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN2, pFN2, pDN2, nN2] = f_get_disp4(1, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN3, pFN3, pDN3, nN3] = f_get_disp4(2, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN4, pFN4, pDN4, nN4] = f_get_disp4(3, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN5, pFN5, pDN5, nN5] = f_get_disp4(4, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN6, pFN6, pDN6, nN6] = f_get_disp4(5, dispPUN, dispPFN, dispPDN, dispNN)
+[pUN7, pFN7, pDN7, nN7] = f_get_disp4(6, dispPUN, dispPFN, dispPDN, dispNN)
 
-[pU11, pF11, pD11, n11p] := f_get_disp4(0, dispPU1, dispPF1, dispPD1, dispN1)
-[pU12, pF12, pD12, n12p] := f_get_disp4(1, dispPU1, dispPF1, dispPD1, dispN1)
-[pU13, pF13, pD13, n13p] := f_get_disp4(2, dispPU1, dispPF1, dispPD1, dispN1)
-[pU14, pF14, pD14, n14p] := f_get_disp4(3, dispPU1, dispPF1, dispPD1, dispN1)
-[pU15, pF15, pD15, n15p] := f_get_disp4(4, dispPU1, dispPF1, dispPD1, dispN1)
-[pU16, pF16, pD16, n16p] := f_get_disp4(5, dispPU1, dispPF1, dispPD1, dispN1)
-[pU17, pF17, pD17, n17p] := f_get_disp4(6, dispPU1, dispPF1, dispPD1, dispN1)
+[pU11, pF11, pD11, n11p] = f_get_disp4(0, dispPU1, dispPF1, dispPD1, dispN1)
+[pU12, pF12, pD12, n12p] = f_get_disp4(1, dispPU1, dispPF1, dispPD1, dispN1)
+[pU13, pF13, pD13, n13p] = f_get_disp4(2, dispPU1, dispPF1, dispPD1, dispN1)
+[pU14, pF14, pD14, n14p] = f_get_disp4(3, dispPU1, dispPF1, dispPD1, dispN1)
+[pU15, pF15, pD15, n15p] = f_get_disp4(4, dispPU1, dispPF1, dispPD1, dispN1)
+[pU16, pF16, pD16, n16p] = f_get_disp4(5, dispPU1, dispPF1, dispPD1, dispN1)
+[pU17, pF17, pD17, n17p] = f_get_disp4(6, dispPU1, dispPF1, dispPD1, dispN1)
 
 // --- Total resolved samples per TF (across all bins)
 totNArr = array.new_float(7, na)
