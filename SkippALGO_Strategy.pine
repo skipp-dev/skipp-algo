@@ -2611,8 +2611,15 @@ var float trailPx = na
 
 // Calculate risk levels on entry; returns updated stop/tp/trail
 f_set_risk_on_entry(isLong, entry, atrNow) =>
-    float stopOut  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
-    float tpOut    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
+    // Determine which Target Profile applies to current chart TF
+    [fc, kb, at, ph, tp, sl] = f_get_params(timeframe.period)
+    
+    // Override manual inputs if using time-based profiles
+    float sAtr = (fc == "PathTPvsSL" or fc == "KBarATR") ? sl : stopATR
+    float tAtr = (fc == "PathTPvsSL" or fc == "KBarATR") ? tp : tpATR
+
+    float stopOut  = isLong ? (entry - sAtr * atrNow) : (entry + sAtr * atrNow)
+    float tpOut    = isLong ? (entry + tAtr * atrNow) : (entry - tAtr * atrNow)
     float trailOut = na
     [stopOut, tpOut, trailOut]
 
