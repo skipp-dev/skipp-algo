@@ -2482,74 +2482,6 @@ f_eval_metrics_for_tf(tfSel) =>
             [_bAvg, _lAvg, ece, _mErr, _wS, _wL, drift, nSc] = f_eval_stats_one(st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1)
             [ece, drift * 100.0, nSc]
 
-var float totN1 = na
-var float totN2 = na
-var float totN3 = na
-var float totN4 = na
-var float totN5 = na
-var float totN6 = na
-var float totN7 = na
-
-
-var float pUN1 = na
-var float pFN1 = na
-var float pDN1 = na
-var float pUN2 = na
-var float pFN2 = na
-var float pDN2 = na
-var float pUN3 = na
-var float pFN3 = na
-var float pDN3 = na
-var float pUN4 = na
-var float pFN4 = na
-var float pDN4 = na
-var float pUN5 = na
-var float pFN5 = na
-var float pDN5 = na
-var float pUN6 = na
-var float pFN6 = na
-var float pDN6 = na
-var float pUN7 = na
-var float pFN7 = na
-var float pDN7 = na
-
-var float nN1 = na
-var float nN2 = na
-var float nN3 = na
-var float nN4 = na
-var float nN5 = na
-var float nN6 = na
-var float nN7 = na
-
-var float pU11 = na
-var float pF11 = na
-var float pD11 = na
-var float pU12 = na
-var float pF12 = na
-var float pD12 = na
-var float pU13 = na
-var float pF13 = na
-var float pD13 = na
-var float pU14 = na
-var float pF14 = na
-var float pD14 = na
-var float pU15 = na
-var float pF15 = na
-var float pD15 = na
-var float pU16 = na
-var float pF16 = na
-var float pD16 = na
-var float pU17 = na
-var float pF17 = na
-var float pD17 = na
-
-var float n11p = na
-var float n12p = na
-var float n13p = na
-var float n14p = na
-var float n15p = na
-var float n16p = na
-var float n17p = na
 
 // Rel-value arrays (source of truth for gate/table)
 var float[] relPUN  = array.new_float(7, na)
@@ -2636,41 +2568,6 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
             col = ok ? color.lime : color.orange
             [ok, reason, col, edge]
 
-f_entry_forecast_gate(isLong) =>
-    bool ok = true
-    forecastAllowed = enableForecast and f_forecast_allowed()
-    if useForecastGateEntry and use3Way and forecastAllowed
-        [pU, pF, pD, nBin, total] = f_get_rel_vals(entryFcTF, entryFcModel)
-        binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
-        totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
-
-        // reliability label from your CI logic (re-used)
-        canCal = forecastAllowed and (not na(total) and total > 0)
-        relLbl = f_rel_label(isLong ? pU : pD, nBin, total, canCal)
-        relOk  = (not requireRelOk) or (relLbl == "ok" or relLbl == "strong")
-
-        [eUf, eUo, eDf, eDo] = f_edges3(pU, pF, pD)
-
-        if requirePathTargetEntry and f_target_for_tf(f_tf_from_horizon(entryFcTF)) != "PathTPvsSL"
-            ok := false
-        else if isLong
-            edgeOk = (not na(eUf) and eUf >= minEdgePP) and (not na(eUo) and eUo >= minEdgePP)
-            ok := binOk and totalOk and relOk and (not na(pU) and pU >= minDirProb) and edgeOk
-        else
-            edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
-            ok := binOk and totalOk and relOk and (not na(pD) and pD >= minDirProb) and edgeOk
-
-        idxFc = f_tf_index(entryFcTF)
-        cSel = array.get(cForecastArr, idxFc)
-        efSel = array.get(efForecastArr, idxFc)
-        esSel = array.get(esForecastArr, idxFc)
-        aSel = array.get(aForecastArr, idxFc)
-        confSel = array.get(confForecastArr, idxFc)
-        trendSideLocal = (confSel == true) and (f_trend_regime(efSel, esSel, aSel / math.max(cSel, PRICE_EPS)) == 0.0)
-        if useChopAbstain and trendSideLocal and (not na(pF) and pF >= flatAbstainThr)
-            ok := false
-    ok
-
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
 //====================
@@ -2722,6 +2619,41 @@ outScoreArr = array.from(outScore1, outScore2, outScore3, outScore4, outScore5, 
 tArr = array.from(t1c, t2c, t3c, t4c, t5c, t6c, t7c)
 mArr = array.from(m1c, m2c, m3c, m4c, m5c, m6c, m7c)
 lArr = array.from(l1c, l2c, l3c, l4c, l5c, l6c, l7c)
+
+f_entry_forecast_gate(isLong) =>
+    bool ok = true
+    forecastAllowed = enableForecast and f_forecast_allowed()
+    if useForecastGateEntry and use3Way and forecastAllowed
+        [pU, pF, pD, nBin, total] = f_get_rel_vals(entryFcTF, entryFcModel)
+        binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
+        totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
+
+        // reliability label from your CI logic (re-used)
+        canCal = forecastAllowed and (not na(total) and total > 0)
+        relLbl = f_rel_label(isLong ? pU : pD, nBin, total, canCal)
+        relOk  = (not requireRelOk) or (relLbl == "ok" or relLbl == "strong")
+
+        [eUf, eUo, eDf, eDo] = f_edges3(pU, pF, pD)
+
+        if requirePathTargetEntry and f_target_for_tf(f_tf_from_horizon(entryFcTF)) != "PathTPvsSL"
+            ok := false
+        else if isLong
+            edgeOk = (not na(eUf) and eUf >= minEdgePP) and (not na(eUo) and eUo >= minEdgePP)
+            ok := binOk and totalOk and relOk and (not na(pU) and pU >= minDirProb) and edgeOk
+        else
+            edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
+            ok := binOk and totalOk and relOk and (not na(pD) and pD >= minDirProb) and edgeOk
+
+        idxFc = f_tf_index(entryFcTF)
+        cSel = array.get(cForecastArr, idxFc)
+        efSel = array.get(efForecastArr, idxFc)
+        esSel = array.get(esForecastArr, idxFc)
+        aSel = array.get(aForecastArr, idxFc)
+        confSel = array.get(confForecastArr, idxFc)
+        trendSideLocal = (confSel == true) and (f_trend_regime(efSel, esSel, aSel / math.max(cSel, PRICE_EPS)) == 0.0)
+        if useChopAbstain and trendSideLocal and (not na(pF) and pF >= flatAbstainThr)
+            ok := false
+    ok
 
 // MTF packs (for normalized score access)
 [tS1, cS1, hS1, lS1, efS1, esS1, rS1, aS1, vRS1, confS1] = f_tf_pack(tfShort1)
@@ -2932,9 +2864,6 @@ var float[] dispPF1 = array.new_float(7, na)
 var float[] dispPD1 = array.new_float(7, na)
 var float[] dispN1  = array.new_float(7, na)
 
-f_get_disp4(idx, arrA, arrB, arrC, arrD) =>
-    [array.get(arrA, idx), array.get(arrB, idx), array.get(arrC, idx), array.get(arrD, idx)]
-
 for i = 0 to 6
     tfSel = f_idx_to_tfsel(i)
     tfH = array.get(tfForecastArr, i)
@@ -2950,22 +2879,6 @@ for i = 0 to 6
         array.set(dispPD1, i, pD1_t)
         array.set(dispN1,  i, n1_t)
 
-// --- Unpack display values to individual variables (used downstream for alerts, plots, etc.)
-[pUN1, pFN1, pDN1, nN1] = f_get_disp4(0, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN2, pFN2, pDN2, nN2] = f_get_disp4(1, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN3, pFN3, pDN3, nN3] = f_get_disp4(2, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN4, pFN4, pDN4, nN4] = f_get_disp4(3, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN5, pFN5, pDN5, nN5] = f_get_disp4(4, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN6, pFN6, pDN6, nN6] = f_get_disp4(5, dispPUN, dispPFN, dispPDN, dispNN)
-[pUN7, pFN7, pDN7, nN7] = f_get_disp4(6, dispPUN, dispPFN, dispPDN, dispNN)
-
-[pU11, pF11, pD11, n11p] = f_get_disp4(0, dispPU1, dispPF1, dispPD1, dispN1)
-[pU12, pF12, pD12, n12p] = f_get_disp4(1, dispPU1, dispPF1, dispPD1, dispN1)
-[pU13, pF13, pD13, n13p] = f_get_disp4(2, dispPU1, dispPF1, dispPD1, dispN1)
-[pU14, pF14, pD14, n14p] = f_get_disp4(3, dispPU1, dispPF1, dispPD1, dispN1)
-[pU15, pF15, pD15, n15p] = f_get_disp4(4, dispPU1, dispPF1, dispPD1, dispN1)
-[pU16, pF16, pD16, n16p] = f_get_disp4(5, dispPU1, dispPF1, dispPD1, dispN1)
-[pU17, pF17, pD17, n17p] = f_get_disp4(6, dispPU1, dispPF1, dispPD1, dispN1)
 
 // --- Total resolved samples per TF (across all bins)
 // (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
@@ -2991,13 +2904,6 @@ for i = 0 to 6
 // f_sum_int_array(st.cntN)
 // f_sum_int_array(st.cnt1)
 
-totN1 := array.get(totNArr, 0)
-totN2 := array.get(totNArr, 1)
-totN3 := array.get(totNArr, 2)
-totN4 := array.get(totNArr, 3)
-totN5 := array.get(totNArr, 4)
-totN6 := array.get(totNArr, 5)
-totN7 := array.get(totNArr, 6)
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
