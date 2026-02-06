@@ -232,7 +232,7 @@ tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
 labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"])
 
 // Alerts
-useAlertCalls       = input.bool(false, "Alerts: use alert() calls")
+useAlertCalls       = input.bool(true, "Alerts: use alert() calls", tooltip="Strategy scripts ignore alertcondition(); use alert() instead (recommended ON)")
 alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
 
 // Avoid entries right before close
@@ -833,13 +833,13 @@ f_target_profile_desc(profile) =>
     tp = profile == "Fast" ? tpATRF   : profile == "Mid" ? tpATRM    : tpATRS
     sl = profile == "Fast" ? slATRF   : profile == "Mid" ? slATRM    : slATRS
     t == "NextBar" ? "NextBar" :
-     t == "KBarReturn" ? "KRet k=" + str.tostring(k) :
-     t == "KBarATR" ? "KATR k=" + str.tostring(k) + " thr=" + str.tostring(a, "#.##") + "ATR" :
-     t == "PathTPvsSL" ? "Path H=" + str.tostring(h) + " TP=" + str.tostring(tp, "#.##") + " SL=" + str.tostring(sl, "#.##") + " NoHit=" + noHitPolicy :
+     t == "KBarReturn" ? "K" + str.tostring(k) :
+     t == "KBarATR" ? "K" + str.tostring(k) + " " + str.tostring(a, "#.#") + "A" :
+     t == "PathTPvsSL" ? "P" + str.tostring(h) + " " + str.tostring(tp, "#.#") + "/" + str.tostring(sl, "#.#") :
      "Target"
 
 f_target_footer_text() =>
-    "Target: Fast=" + f_target_profile_desc("Fast") + " | Mid=" + f_target_profile_desc("Mid") + " | Slow=" + f_target_profile_desc("Slow")
+    "F=" + f_target_profile_desc("Fast") + " M=" + f_target_profile_desc("Mid") + " S=" + f_target_profile_desc("Slow")
 
 f_ci95_halfwidth(p, n) =>
     if na(p) or na(n) or n <= 0
@@ -1119,6 +1119,10 @@ f_cal_apply(zU, zF, zD, tempArr, aArr, bArr) =>
         zDo := aD * zD + bD
     f_softmax3(zUo, zFo, zDo)
 
+f_epsClamp(p) =>
+    eps = PROB_EPS
+    math.max(eps, math.min(1.0 - eps, p))
+
 f_brier3(pU, pF, pD, outcome) =>
     yU = outcome == 1 ? 1.0 : 0.0
     yF = outcome == 0 ? 1.0 : 0.0
@@ -1166,7 +1170,7 @@ f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
     [t, m, l]
 
 f_tf_pack(tf) =>
-    request.security(
+    [t, c, h, l, ef, es, r, a, vr] = request.security(
         syminfo.tickerid,
         tf,
         [time, close, high, low,
@@ -1174,11 +1178,13 @@ f_tf_pack(tf) =>
          ta.ema(close, emaSlowLen),
          ta.rsi(close, rsiStateLen),
          ta.atr(atrTargetLen),
-         f_pct_rank(ta.atr(atrLen) / math.max(close, PRICE_EPS), volRankLen), // Added Phase 2 Vol Rank
-         barstate.isconfirmed],
+         f_pct_rank(ta.atr(atrLen) / math.max(close, PRICE_EPS), volRankLen)],
         barmerge.gaps_off,
         barmerge.lookahead_off
     )
+    // NOTE: barstate.isconfirmed moved outside request.security() to avoid
+    //       TradingView repainting warning that blocks alert creation.
+    [t, c, h, l, ef, es, r, a, vr, barstate.isconfirmed]
 
 f_score_tf(c, ef, es, r) =>
     f_state_score(c, ef, es, r)
@@ -1228,10 +1234,6 @@ f_predColorP(pUp, n, canCal, neutralCol) =>
 
 f_pupText(pUp, n, canCal) =>
     not canCal ? "OFF" : n == 0 ? "—" : n < calMinSamples ? "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples) : fcDisplay == "Edge pp (N)" ? ((pUp - 0.5) * 100.0 > 0 ? "+" + str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")" : str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")") : "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
-
-f_epsClamp(p) =>
-    eps = PROB_EPS
-    math.max(eps, math.min(1.0 - eps, p))
 
 f_brier(p, y) =>
     d = p - y
@@ -2241,11 +2243,7 @@ dataQualityScore = volAvail ? nz(volRankRaw, 0.5) : 0.5
 macroLen = timeframe.isintraday ? math.min(macroPctLen, macroPctLenIntraday) : macroPctLen
 macroPct = f_pct_rank(close, macroLen)
 macroScoreRaw = f_clamp01(1.0 - macroPct)
-macroScoreDir =
-    macroGateMode == "Off" ? 0.5 :
-    emaF > emaS ? (1.0 - macroPct) :
-    emaF < emaS ? macroPct :
-    0.5
+macroScoreDir = macroGateMode == "Off" ? 0.5 : emaF > emaS ? (1.0 - macroPct) : emaF < emaS ? macroPct : 0.5
 macroGateLong  = macroGateMode == "Hard Gate" ? (not na(macroPct) and macroPct < macroLongPctThreshold)  : true
 macroGateShort = macroGateMode == "Hard Gate" ? (not na(macroPct) and macroPct > macroShortPctThreshold) : true
 
@@ -2439,19 +2437,19 @@ f_get_total_samples(tfSel, modSel, useBull) =>
     float[] cnt = na
     useBullSel = (useBull == true)
     if tfSel == "F1"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : (useBullSel ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw)) : ((modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : (useBullSel ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw)) : ((modSel == "N") ? tf1State.cntN_raw : tf1State.cnt1_raw)
     else if tfSel == "F2"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : (useBullSel ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw)) : ((modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : (useBullSel ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw)) : ((modSel == "N") ? tf2State.cntN_raw : tf2State.cnt1_raw)
     else if tfSel == "F3"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : (useBullSel ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw)) : ((modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : (useBullSel ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw)) : ((modSel == "N") ? tf3State.cntN_raw : tf3State.cnt1_raw)
     else if tfSel == "F4"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : (useBullSel ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw)) : ((modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : (useBullSel ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw)) : ((modSel == "N") ? tf4State.cntN_raw : tf4State.cnt1_raw)
     else if tfSel == "F5"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : (useBullSel ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw)) : ((modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : (useBullSel ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw)) : ((modSel == "N") ? tf5State.cntN_raw : tf5State.cnt1_raw)
     else if tfSel == "F6"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : (useBullSel ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw)) : ((modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : (useBullSel ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw)) : ((modSel == "N") ? tf6State.cntN_raw : tf6State.cnt1_raw)
     else if tfSel == "F7"
-        cnt := (useBullBearCal and not na(useBull)) ? ((modSel == "N") ? (useBullSel ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : (useBullSel ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw)) : ((modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw)
+        cnt := useBullBearCal ? ((modSel == "N") ? (useBullSel ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : (useBullSel ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw)) : ((modSel == "N") ? tf7State.cntN_raw : tf7State.cnt1_raw)
 
     if not na(cnt)
         total := array.sum(cnt)
@@ -2808,54 +2806,36 @@ mtfScore   = useMtfConfirm ? getVoteScore() : 0.0
 mtfOkLong  = (not useMtfConfirm) or (mtfScore > SCORE_NEUTRAL_BAND)
 mtfOkShort = (not useMtfConfirm) or (mtfScore < -SCORE_NEUTRAL_BAND)
 
-tfStateArr = array.from(tf1State, tf2State, tf3State, tf4State, tf5State, tf6State, tf7State)
-isBullArr = array.from(isBull1, isBull2, isBull3, isBull4, isBull5, isBull6, isBull7)
+// Per-horizon bin arrays (unrolled — Pine v6 does not support array-of-arrays)
+cntN1Arr = useBullBearCal ? (isBull1 ? tf1State.cntN_bull : tf1State.cntN_bear) : tf1State.cntN
+cnt11Arr = useBullBearCal ? (isBull1 ? tf1State.cnt1_bull : tf1State.cnt1_bear) : tf1State.cnt1
+cntN2Arr = useBullBearCal ? (isBull2 ? tf2State.cntN_bull : tf2State.cntN_bear) : tf2State.cntN
+cnt12Arr = useBullBearCal ? (isBull2 ? tf2State.cnt1_bull : tf2State.cnt1_bear) : tf2State.cnt1
+cntN3Arr = useBullBearCal ? (isBull3 ? tf3State.cntN_bull : tf3State.cntN_bear) : tf3State.cntN
+cnt13Arr = useBullBearCal ? (isBull3 ? tf3State.cnt1_bull : tf3State.cnt1_bear) : tf3State.cnt1
+cntN4Arr = useBullBearCal ? (isBull4 ? tf4State.cntN_bull : tf4State.cntN_bear) : tf4State.cntN
+cnt14Arr = useBullBearCal ? (isBull4 ? tf4State.cnt1_bull : tf4State.cnt1_bear) : tf4State.cnt1
+cntN5Arr = useBullBearCal ? (isBull5 ? tf5State.cntN_bull : tf5State.cntN_bear) : tf5State.cntN
+cnt15Arr = useBullBearCal ? (isBull5 ? tf5State.cnt1_bull : tf5State.cnt1_bear) : tf5State.cnt1
+cntN6Arr = useBullBearCal ? (isBull6 ? tf6State.cntN_bull : tf6State.cntN_bear) : tf6State.cntN
+cnt16Arr = useBullBearCal ? (isBull6 ? tf6State.cnt1_bull : tf6State.cnt1_bear) : tf6State.cnt1
+cntN7Arr = useBullBearCal ? (isBull7 ? tf7State.cntN_bull : tf7State.cntN_bear) : tf7State.cntN
+cnt17Arr = useBullBearCal ? (isBull7 ? tf7State.cnt1_bull : tf7State.cnt1_bear) : tf7State.cnt1
 
-cntNArrs = array.new<float[]>()
-cnt1Arrs = array.new<float[]>()
-cntNRawArrs = array.new<float[]>()
-cnt1RawArrs = array.new<float[]>()
-
-for i = 0 to 6
-    st = array.get(tfStateArr, i)
-    useBull = array.get(isBullArr, i)
-    useBullSel = (useBull == true)
-    useBullBear = useBullBearCal and not na(useBull)
-
-    array.push(cntNArrs, useBullBear ? (useBullSel ? st.cntN_bull : st.cntN_bear) : st.cntN)
-    array.push(cnt1Arrs, useBullBear ? (useBullSel ? st.cnt1_bull : st.cnt1_bear) : st.cnt1)
-    array.push(cntNRawArrs, useBullBear ? (useBullSel ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw)
-    array.push(cnt1RawArrs, useBullBear ? (useBullSel ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw)
-
-cntN1Arr = array.get(cntNArrs, 0)
-cnt11Arr = array.get(cnt1Arrs, 0)
-cntN2Arr = array.get(cntNArrs, 1)
-cnt12Arr = array.get(cnt1Arrs, 1)
-cntN3Arr = array.get(cntNArrs, 2)
-cnt13Arr = array.get(cnt1Arrs, 2)
-cntN4Arr = array.get(cntNArrs, 3)
-cnt14Arr = array.get(cnt1Arrs, 3)
-cntN5Arr = array.get(cntNArrs, 4)
-cnt15Arr = array.get(cnt1Arrs, 4)
-cntN6Arr = array.get(cntNArrs, 5)
-cnt16Arr = array.get(cnt1Arrs, 5)
-cntN7Arr = array.get(cntNArrs, 6)
-cnt17Arr = array.get(cnt1Arrs, 6)
-
-cntN1RawArr = array.get(cntNRawArrs, 0)
-cnt11RawArr = array.get(cnt1RawArrs, 0)
-cntN2RawArr = array.get(cntNRawArrs, 1)
-cnt12RawArr = array.get(cnt1RawArrs, 1)
-cntN3RawArr = array.get(cntNRawArrs, 2)
-cnt13RawArr = array.get(cnt1RawArrs, 2)
-cntN4RawArr = array.get(cntNRawArrs, 3)
-cnt14RawArr = array.get(cnt1RawArrs, 3)
-cntN5RawArr = array.get(cntNRawArrs, 4)
-cnt15RawArr = array.get(cnt1RawArrs, 4)
-cntN6RawArr = array.get(cntNRawArrs, 5)
-cnt16RawArr = array.get(cnt1RawArrs, 5)
-cntN7RawArr = array.get(cntNRawArrs, 6)
-cnt17RawArr = array.get(cnt1RawArrs, 6)
+cntN1RawArr = useBullBearCal ? (isBull1 ? tf1State.cntN_bull_raw : tf1State.cntN_bear_raw) : tf1State.cntN_raw
+cnt11RawArr = useBullBearCal ? (isBull1 ? tf1State.cnt1_bull_raw : tf1State.cnt1_bear_raw) : tf1State.cnt1_raw
+cntN2RawArr = useBullBearCal ? (isBull2 ? tf2State.cntN_bull_raw : tf2State.cntN_bear_raw) : tf2State.cntN_raw
+cnt12RawArr = useBullBearCal ? (isBull2 ? tf2State.cnt1_bull_raw : tf2State.cnt1_bear_raw) : tf2State.cnt1_raw
+cntN3RawArr = useBullBearCal ? (isBull3 ? tf3State.cntN_bull_raw : tf3State.cntN_bear_raw) : tf3State.cntN_raw
+cnt13RawArr = useBullBearCal ? (isBull3 ? tf3State.cnt1_bull_raw : tf3State.cnt1_bear_raw) : tf3State.cnt1_raw
+cntN4RawArr = useBullBearCal ? (isBull4 ? tf4State.cntN_bull_raw : tf4State.cntN_bear_raw) : tf4State.cntN_raw
+cnt14RawArr = useBullBearCal ? (isBull4 ? tf4State.cnt1_bull_raw : tf4State.cnt1_bear_raw) : tf4State.cnt1_raw
+cntN5RawArr = useBullBearCal ? (isBull5 ? tf5State.cntN_bull_raw : tf5State.cntN_bear_raw) : tf5State.cntN_raw
+cnt15RawArr = useBullBearCal ? (isBull5 ? tf5State.cnt1_bull_raw : tf5State.cnt1_bear_raw) : tf5State.cnt1_raw
+cntN6RawArr = useBullBearCal ? (isBull6 ? tf6State.cntN_bull_raw : tf6State.cntN_bear_raw) : tf6State.cntN_raw
+cnt16RawArr = useBullBearCal ? (isBull6 ? tf6State.cnt1_bull_raw : tf6State.cnt1_bear_raw) : tf6State.cnt1_raw
+cntN7RawArr = useBullBearCal ? (isBull7 ? tf7State.cntN_bull_raw : tf7State.cntN_bear_raw) : tf7State.cntN_raw
+cnt17RawArr = useBullBearCal ? (isBull7 ? tf7State.cnt1_bull_raw : tf7State.cnt1_bear_raw) : tf7State.cnt1_raw
 
 //====================
 // Calibration storage — per horizon TF (Removed - moved to top)
@@ -3293,8 +3273,8 @@ c_vol  = volAvail ? color.lime : tblTextDim
 renderTable = showTable and barstate.islast and (not tableOnConfirmed or barstate.isconfirmed)
 modeTxt = tableOnConfirmed ? "CONF" : "LIVE"
 hdrSuffix = ui_tableShowMode ? " • " + modeTxt : ""
-hdrOutlook = "STATE • Outlook (state)" + hdrSuffix
-hdrForecast = "PROB • Forecast" + hdrSuffix
+hdrOutlook = "Outlook" + hdrSuffix
+hdrForecast = "Forecast" + hdrSuffix
 
 if renderTable
     tblCols = 10
@@ -3325,8 +3305,9 @@ if renderTable
     for i = 0 to 6
         f_rowTF_idx(i, 9 + i)
 
-    table.cell(gT, 0, 16, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 0, 16, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
     f_fill_cells(gT, 16, 1, 9, "", tblTextDim, tblHeader, size.tiny)
+    table.merge_cells(gT, 0, 16, 9, 16)
 
 
 //====================
@@ -3552,7 +3533,7 @@ alertcondition((not useAlertCalls) and exitEvent,  title="EXIT",  message="Skipp
 alertcondition((not useAlertCalls) and coverEvent, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
 
 f_send_alert(cond, label) =>
-    if useAlertCalls and cond and barstate.isconfirmed
+    if useAlertCalls and cond and barstate.isconfirmed and barstate.isrealtime
         alert("SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(confidence * 100, "#.0") + "%", alertFreq)
 
 f_send_alert(buyEvent, "BUY")
@@ -3597,25 +3578,25 @@ plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, 
 
 // Strategy Execution (Active)
 if buyEvent
-    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
+    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message="SkippALGO BUY | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period)
     if useAtrRisk and not na(stopPx) and not na(tpPx)
-        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx)
+        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx, alert_message="SkippALGO EXIT L | " + syminfo.ticker + " | stop/tp hit")
 
 if shortEvent
-    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
+    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message="SkippALGO SHORT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period)
     if useAtrRisk and not na(stopPx) and not na(tpPx)
-        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx)
+        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx, alert_message="SkippALGO EXIT S | " + syminfo.ticker + " | stop/tp hit")
 
 if useAtrRisk and pos != 0 and not na(stopPx)
     if pos == 1 and not na(trailPx)
-        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx)
+        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx, alert_message="SkippALGO TRAIL EXIT L | " + syminfo.ticker)
     if pos == -1 and not na(trailPx)
-        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx)
+        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx, alert_message="SkippALGO TRAIL EXIT S | " + syminfo.ticker)
 
 if exitEvent
-    strategy.close("L", comment="Exit Signal")
+    strategy.close("L", comment="Exit Signal", alert_message="SkippALGO EXIT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##"))
 if coverEvent
-    strategy.close("S", comment="Cover Signal")
+    strategy.close("S", comment="Cover Signal", alert_message="SkippALGO COVER | " + syminfo.ticker + " @ " + str.tostring(close, "#.##"))
 
 //====================
 // Calibration Diagnostics Panel (Debug)

@@ -226,6 +226,48 @@ The calibration framework is designed for extensibility. Areas for future enhanc
 * **Adaptive bin counts**: automatically adjusting `predBinsN` based on available sample depth.
 * **Cross‑asset transfer learning**: using calibration from correlated instruments to warm‑start a new symbol's bins.
 
+### 2.3) Signal Engines
+
+The `engine` input selects one of four signal-generation modes. Each mode requires a different combination of filters before a buy or short signal fires:
+
+| Engine | Long trigger | Filters required |
+| -------- | ------------- | ----------------- |
+| **Hybrid** (default) | EMA touch + (EMA cross-up OR bullish reversal) | Volume, SET, pullback, forecast gate, enhancements |
+| **Breakout** | Swing-high breakout | Volume, trend direction, forecast gate, enhancements |
+| **Trend+Pullback** | Trend flip or EMA reclaim | Forecast gate, enhancements |
+| **Loose** | Close crosses above fast EMA | Cooldown gate only |
+
+* **Hybrid** is the most selective — it requires price to touch the fast EMA *and* either cross above it or print a bullish reversal pattern, while also passing volume, SET confirmation, pullback depth, forecast probability, and all enhancement filters (ADX, ROC, volume-ensemble, pre-momentum, EMA-acceleration, VWAP).
+* **Breakout** fires on swing-high/low breaks and requires trend alignment plus volume and forecast gates.
+* **Trend+Pullback** fires on EMA crossover or reclaim events and requires fewer filters (no explicit volume or SET gate).
+* **Loose** is the most permissive — it fires whenever price closes above (or below) the fast EMA and the cooldown gate allows it. No volume, SET, pullback, forecast, or enhancement filters are applied. It is useful for testing or high-frequency scanning but is prone to false signals in choppy markets.
+
+Short signals mirror the long logic with bearish equivalents. If both a buy and short signal fire on the same bar, both are suppressed to avoid ambiguity.
+
+### 2.4) Configuration Presets
+
+The `config` input selects a named preset that controls a **confidence multiplier** applied to the trust/confidence score. The confidence score gates whether signals are actionable — it must exceed the `minTrust` threshold for a signal to fire.
+
+| Config | Multiplier | Effect |
+| -------- | ----------- | -------- |
+| **Standard** | 1.00 | Baseline confidence — no scaling |
+| **Pro** | 1.05 | +5% boost — slightly more aggressive |
+| **V2 Essential** | 0.95 | −5% — most conservative, fewer signals pass `minTrust` |
+| **V2 Proficient** | 1.00 | Same as Standard (neutral) |
+| **V2 Alpha** | 1.10 | +10% boost — most aggressive, more signals qualify |
+
+The confidence value is computed as:
+
+$$\text{confidence} = \text{clamp}_{[0,1]}\bigl(\text{trustRaw} \times \text{confMultiplier} \times (1 - \text{ddPenalty}) \times \text{crsiFactor}\bigr)$$
+
+where `trustRaw` aggregates directional alignment, guardrail count, ATR rank, data quality, macro score, and momentum state.
+
+**Choosing a preset:**
+
+* Use **V2 Essential** for conservative setups or unfamiliar instruments — fewer but higher-conviction signals.
+* Use **Standard** or **V2 Proficient** as neutral defaults.
+* Use **Pro** or **V2 Alpha** when data quality is high and the calibration metrics (Brier, ECE) confirm the model is well-calibrated.
+
 ---
 
 ## 3) Technical Implementation Details
