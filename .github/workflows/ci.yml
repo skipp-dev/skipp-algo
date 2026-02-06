@@ -12,7 +12,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate Pine script
+      - name: Validate Pine scripts
         run: |
           test -f SkippALGO.pine
           grep -q "^//@version=6" SkippALGO.pine
+          test -f SkippALGO_Strategy.pine
+          grep -q "^//@version=6" SkippALGO_Strategy.pine
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+      - name: Run Python tests
+        run: |
+          python -m pytest tests/ -v

@@ -26,6 +26,7 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 - **Outlook (State):** descriptive snapshot at the last confirmed bar for each TF.
 - **Forecast (Prob):** conditional probability for the defined target (default: next‑bar direction).
 - `…` and `n0` indicate insufficient data; do not treat as a signal.
+- Forecast rows include **nCur/Total** and a target footer describing active target definitions.
 
 ## Documentation
 

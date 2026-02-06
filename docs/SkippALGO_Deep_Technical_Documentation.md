@@ -1,10 +1,144 @@
-# SkippALGO — Outlook (State) + Forecast (Calibrated Probabilities)
+# SkippALGO — Deep Upgrade v6.1 Technical Documentation
 
-**Pine Script v6 | Non-repainting | Bar-close confirmed**
+**Pine Script v6 | Non-repainting | Online Learning (SGD) | Ensemble Architecture**
 
-## 1) Purpose and design goals
+## 1) Purpose and Evolution
 
-This script intentionally exposes two different classes of information:
+**Version 6.1 (Deep Upgrade)** represents a fundamental architectural shift from simple "Bin Counting" to a sophisticated **Online Learning System**.
+
+### Feb 02, 2026 Additions (Stability + Decision Quality)
+
+* **Quantile binning** for the score dimension (adaptive density) with fixed‑bin fallback.
+* **Chop‑aware regime dimension** for 2D bins and forecast display (distinct flat marker).
+* **Decision‑quality abstain gate** with UI feedback (edge + bin samples + optional total evidence).
+* **3‑way calibrator safety fallback**: temperature/vector scaling only applies/updates when sample thresholds are met.
+* **Display‑time calibration**: 3‑way probabilities reflect temp/vector scaling when eligible.
+* **Outlook table refactor**: fixed 10‑column layout with Dir + Up/Flat/Down + nCur and no forecast/eval blocks in the main table.
+* **UI Reliability**: Table visibility logic updated to `barstate.islast` to ensure persistent display on high timeframes.
+* **Symmetric Targeting**: Mid/Slow profiles updated to symmetric TP/SL (Mid: 0.65/0.65, Slow: 1.0/1.0) to eliminate bearish bias in probabilities.
+* **Calibration Tuning**: "Vector" scaling is now the default mode; forecast display threshold lowered to 0.34.
+
+While retaining the core philosophy of "State" vs "Forecast", the engine now employs:
+
+1. **Adaptive Targeting**: Different timeframes have different physics (Noise vs Trend).
+2. **Multidimensional Context**: Predictions condition on both *Algorithm Score* and *Volatility Regime*.
+3. **Ensemble Scoring**: State is no longer a single number, but a weighted blend of multiple expert signals.
+4. **Continuous Calibration**: Using Stochastic Gradient Descent (SGD) to fit Platt Scaling parameters in real-time.
+
+---
+
+## 2) The Four Phases of Upgrade
+
+### Phase 1: Adaptive Target Profiles
+
+Historical static targets (e.g., "Next Bar Close") failed to capture the nuance of different time horizons.
+
+* **Fast TFs (1m, 5m)**: Noise dominance. Target: **K-Bar ATR** (Relative volatility expansion).
+* **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent** (Symmetric 0.65 ATR TP/SL).
+* **Slow TFs (4h, 1D)**: Trend persistence. Target: **Path Dependent** (Symmetric 1.0 ATR TP/SL).
+* **Implementation**: `f_get_params(tf)` dynamically switches target logic based on the seconds-in-timeframe.
+
+### Phase 2: 2D Calibration (Score x Volatility)
+
+Previous versions binned only on `AlgoScore`. This missed a critical factor: A "Bullish Trend" signal behaves differently in Low Volatility (Grind up) vs High Volatility (Blow-off top).
+
+* **Dimensions**:
+    1. **Ensemble Score** (Quantized into N bins)
+    2. **Volatility Rank** (Low / Mid / High)
+* **Storage**: Flattens 2D space into 1D arrays: `Index = BinScore * 3 + BinVol`.
+* **Benefit**: Signals are now context-aware. A "strong buy" in extreme volatility might now correctly predict a reversal (mean reversion) rather than continuation.
+
+### Phase 3: Ensemble Signal Generation
+
+The "Outlook Score" is now a composite `sEns` derived from three experts:
+
+1. **Expert A (Trend/State)**: The classic Trend/Momentum/Location logic.
+2. **Expert B (Pullback)**: Measures distance from EMAs. Incentivizes entries *between* Fast and Slow EMAs (Sweet spot) vs extended or broken structures.
+3. **Expert C (Regime)**: Bias injection based on Volatility.
+    * *High Vol (>66%)*: Short Bias / Mean Reversion.
+    * *Low Vol (<33%)*: Long Bias / Trend Following.
+
+* **Formula**: `Score = wA*A + wB*B + wC*C`
+
+### Phase 4: Online Calibration (Platt Scaling)
+
+Counting wins/losses in bins provides a "Raw Probability" (`pRaw`). However, this is often "rough" and slow to adapt.
+
+* **Platt Scaling**: We model the true probability as `P(y=1|x) = Sigmoid(a * Logit(pRaw) + b)`.
+* **Online Learning**:
+  * Whenever a forecast resolves, we calculate the error between the *predicted probability* and the *actual outcome* (0 or 1).
+  * **SGD (Stochastic Gradient Descent)** updates the parameters `a` (slope/confidence) and `b` (bias) instantly.
+  * **LogLoss Tracking**: The system tracks the Logarithmic Loss to measure the "surprise" of the model, optimizing for true probabilistic confidence rather than just directional accuracy.
+
+---
+
+## 3) Technical Implementation Details
+
+### TfState UDT Architecture (v6.1+)
+
+Both the indicator and strategy now use a **User-Defined Type (UDT)** pattern to manage per-timeframe state, replacing ~100+ individual global arrays with 7 TfState objects.
+
+```pine
+type TfState
+    // Calibration counts
+    int[]   cntN        // N-bin counts (predBinsN × dim2Bins)
+    int[]   upN         // N-bin wins
+    int[]   cnt1        // 1-bin counts (predBins1 × dim2Bins)
+    int[]   up1         // 1-bin wins
+    
+    // Queues for pending forecasts
+    int[]   qBinN, qBin1
+    float[] qEntry, qAtr, qMaxH, qMinL
+    int[]   qAge
+    float[] qProbN, qProb1, qLogitN, qLogit1, qPredN, qPred1
+    
+    // Online calibration stats
+    float[] brierStatsN, brierStats1, llStatsN, llStats1
+    float[] plattN, platt1  // Platt scaling [a, b]
+    
+    // Evaluation buffers (Brier, LogLoss, ECE)
+    float[] evBrierN, evSumBrierN, evLogN, evSumLogN, ...
+    int[]   evCalCntN, evCalCnt1  // ECE bucket counts
+```
+
+**Benefits:**
+
+* **Code reduction**: ~450 lines removed from strategy
+* **Maintainability**: Single `TfState st` parameter vs 40+ arrays
+* **Consistency**: Indicator and strategy share identical patterns
+* **Type safety**: UDT provides clear field documentation
+
+**Key Functions:**
+
+* `f_init_tf_state(nBinsN, nBins1, dim2, evBuckets)` — Initialize TfState with properly sized arrays
+* `f_reset_tf(TfState st)` — Clear all calibration and queue arrays
+* `f_process_tf(..., TfState st, ...)` — Process calibration for one horizon
+* `f_eval_on_resolve(TfState st, pN, p1, isUp)` — Update evaluation metrics
+
+### Data Flow
+
+1. **Signal Generation**: On new bar → `f_ensemble` → `sEns`.
+2. **Binning**: `f_bin2D(sEns, volRank)` → `BinID`.
+3. **Prediction**:
+    * Lookup `pRaw` from `st.cntN/st.upN`.
+    * Apply `f_platt_prob(pRaw, a, b)` → **Displayed Probability**.
+4. **Storage**: Push `BinID`, `EntryPrice`, `Logit(pRaw)` to `st.qXxx` queues.
+5. **Resolution (Next Bars)**:
+    * Check if Target Profile conditions met (TP/SL/Time).
+    * If resolved:
+        * Update `st.cntN/st.upN` (Bin counters).
+        * Perform SGD step on `st.plattN[a,b]`.
+        * Call `f_eval_on_resolve(st, ...)` for metrics.
+
+---
+
+## 4) Legacy Documentation (v6.0)
+
+*(Below follows the original architecture, which remains relevant for the non-predictive modules)*
+
+### 1) Purpose and design goals
+
+...
 
 ### A) **Outlook (State)**
 
@@ -306,12 +440,12 @@ This is Laplace/Beta(α, α) style smoothing:
 * Avoids 0%/100% probabilities when sample sizes are small
 * Gradually converges as n grows
 
-### 6.7 Data sufficiency gating
+### 6.7 Data sufficiency gating and Reliability
 
-Two levels of “insufficient” are displayed:
+Two levels of "insufficient" are displayed:
 
-* `n0` / “—” when calculation is impossible (no data)
-* `…` when n < `calMinSamples`
+* `n0` / "—" when calculation is impossible (no data)
+* `warmup` when n < `calMinSamples`
 
 This is a major correctness improvement: the UI tells the truth about how much evidence exists.
 
@@ -323,7 +457,26 @@ This is a major correctness improvement: the UI tells the truth about how much e
 * ▼ if `PUp < predDnThr` (e.g. < 0.45)
 * − otherwise
 
-These thresholds define your “decision boundary” and can be widened/narrowed for stricter/looser prediction.
+These thresholds define your "decision boundary" and can be widened/narrowed for stricter/looser prediction.
+
+### 6.9 Brier Score (Accuracy Tracking)
+
+The script now tracks the **Brier Score** (Mean Squared Error of probability forecasts) to objectively measure accuracy.
+
+* **Score Range:** 0.0 (Perfect) to 1.0 (Worst). 0.25 is random/useless (like guessing 50% every time).
+* **BS(N)**: Tracks long-term accuracy. Crucially, this score is **gated by `calMinSamples`**. It only penalizes the model for bins that are considered "mature." This prevents "warmup" noise from ruining the long-term score.
+* **BS(1)**: Tracks short-term/fast accuracy. This score is **always active**, updating on every trade regardless of sample size. It reflects the model's immediate adaptability.
+
+### 6.10 Confidence Intervals & Reliability Labels ("Method 2")
+
+To prevent false confidence in small sample sizes, the system calculates a **95% Confidence Interval (CI)** for every probability.
+
+* **Formula:** standard Wald interval $1.96 \cdot \sqrt{p(1-p)/n}$.
+* **Labels:**
+  * **"strong"**: CI half-width $\le 5\%$ (High precision).
+  * **"ok"**: CI half-width $\le 10\%$ (Acceptable precision).
+  * **"weak"**: CI half-width $> 10\%$ OR $n < 30$ (Low precision).
+* **Visuals:** The table displays the CI range (e.g., `±4.2pp`) next to the probability.
 
 ---
 
@@ -355,24 +508,40 @@ Interpretation:
 * Bias/score tells you the current regime snapshot on that TF.
 * T/M/L helps you debug why it’s biased (trend vs momentum vs location).
 
-### 7.3 FORECAST (PROB) block (5 columns)
+### 7.3 FORECAST (PROB) block (New Layout)
 
 Columns:
 
-* TF
-* Pred(N)
-* Pred(1)
-* PUp(N)
-* PUp(1)
+* **TF**: Timeframe label (e.g., 5M, 1H).
+* **Pred(N)**: Stable directional call (e.g., ▲ 55%). Shows "warmup" if insufficient data.
+* **Data (N)**: Reliability Stats.
+  * Format: `Samples/Total` + `Label` + `±CI`
+  * Example: `42/150` `strong` `±4.2pp`
+  * Gives you instant context on *why* you should (or shouldn't) trust the signal.
+* **Pred(1)**: Fast/Reactive directional call.
+* **Data (1)**: Reactive Stats (always calculation, useful for spotting regime shifts early).
 
 Interpretation:
 
-* **Pred(N)** is the “stable” probabilistic call (after sufficiency)
-* **Pred(1)** is a more reactive companion
-* **PUp(N)** and **PUp(1)** show the underlying probability estimate
-* `…` means “not enough samples yet, do not trust”
+* **Pred(N)** is your strategic signal. Trust it only when Data(N) says "strong" or "ok".
+* **Pred(1)** is your tactical signal. Be wary of it, but use it to spot turns before N catches up.
+* **Brier Checks:** If Brier Scores (shown in footer or header tooltips if enabled) are high (>0.25), the market is currently defying the model's logic.
 
-### 7.4 Footer rows (“Params” and “Meaning”)
+### 7.3.1 The difference between #(N) and #(1) (Plain English)
+
+* **#(N) — The "Trusted Veteran" (Strategic)**
+  * **Behavior:** Highly selective. Ignores "warmup" noise.
+  * **The Change:** Its accuracy score (Brier Score) now *pauses* and waits until a specific pattern has occurred enough times (e.g., 40+ samples) to be statistically "mature."
+  * **Why used:** Prevents early luck/bad luck from skewing long-term accuracy.
+  * **How to read:** If you see a signal here, it is based on a **proven, high-confidence** history.
+
+* **#(1) — The "Fast Scout" (Tactical)**
+  * **Behavior:** Always active. Learns and reports on *everything* from trade #1.
+  * **The Change:** Tracks accuracy instantly. Ignores sample size rules.
+  * **Why used:** Spots new market regimes fast. If `#(N)` says "UP" but `#(1)` accuracy fails (high Brier score), the trend might be dying.
+  * **How to read:** Use as an early warning system.
+
+### 7.4 Footer rows ("Params" and "Meaning")
 
 These are guardrails against semantic confusion:
 
@@ -1088,6 +1257,16 @@ Treat that information as **Outlook** now. It’s still useful for:
 * Add per-timeframe sample counts directly in the table for transparency.
 * Add an optional “calibration reset per timeframe” control (instead of global reset).
 
+## Recent quality upgrades (v6.2+)
+
+* Per-horizon **quantile bins** (no cross‑TF mixing of score distributions).
+* Direction‑aware **macro score** to avoid short bias in oversold regimes.
+* **Wilson** confidence intervals for reliability labels (more stable at small $n$).
+* Directional **edge** gating for 3‑way probabilities.
+* Optional **PathTPvsSL** entry gating and **chop abstain** (high Flat in sideways).
+* Optional **ECE/Drift** gating and soft confidence penalty on eval degradation.
+* Table badges: **STATE** vs **PROB**, plus **nCur/Total** and target footer for transparency.
+
 ---
 
 # TradingView Changelog (User-Friendly)
@@ -1162,3 +1341,24 @@ Once enough occurrences have been observed, the table becomes “fully active.�
 ### Ultra-short TradingView description (1 paragraph)
 
 SkippALGO is a non-repainting, bar-close confirmed signal + dashboard script that separates **Outlook (State)** from **Forecast (Probability)**. The Outlook block shows current multi-timeframe bias/regime (based on confirmed HTF bars). The Forecast block adds a calibrated probability layer: it learns from historical occurrences of the current state and estimates **PUp** (probability the next bar closes up) per timeframe, with explicit sample-size gating (`—` / `…` when insufficient data). The table includes **TF | Pred(N) | Pred(1) | PUp(N) | PUp(1)**, enabling stable vs reactive probability-based confirmation for trend-continuation decisions.
+
+---
+
+## 5) SkippALGO_Strategy (Deep Upgrade Synchronization)
+
+**Update Date: Jan 31, 2026**
+
+The strategy file `SkippALGO_Strategy.pine` has been fully upgraded to **Version 6.1** standards to match the main indicator's probabilistic engine.
+
+### Key Features Synchronized
+
+1. **Target Profiles**: Strategy now trades based on the same targets as the indicator (K-Bar ATR, Path TP/SL, etc.) rather than simple next-bar close.
+2. **2D Binning**: Trade entry probabilities are now conditioned on **Volatility Rank** in addition to the Algo Score.
+3. **Ensemble Scoring**: Strategy entries use the composite `sEns` (Trend + Pullback + Regime) signal.
+4. **Platt Scaling**: The backtester uses the SGD-calibrated probabilities (`pAdj`) for its "Confidence" filter.
+
+### Workflow
+
+* The Strategy file mimics the Indicator's logic but executes trades (`strategy.entry`) instead of just plotting.
+* It serves as the **Backtesting Engine** to validate the `v6.1` Deep Upgrade changes.
+* **Note**: Due to Pine Script limits, the strategy may have slightly different memory constraints than the indicator, but the logic is 1:1.

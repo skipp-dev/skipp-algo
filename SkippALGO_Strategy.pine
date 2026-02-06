@@ -2,14 +2,13 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO — Deep Upgrade (Phases 1-4)
-// Implements advanced calibration and forecasting logic:
-// Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
-// Phase 2: 2D Binning (Algorithm Score + Volatility Regime)
-// Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
-// Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
-
-indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500, max_lines_count=500)
+// SkippALGO Strategy (Deep Upgrade v6.1)
+// - Synchronized with Main Indicator v6.1
+// - Target Profiles (Fixed, KReturn, KATR, TPorSL)
+// - Ensemble Score (Algo + Pullback + Regime)
+// - 2D Binning (Score x Volatility)
+// - Platt Scaling (SGD Probability Calibration)
+strategy("SkippALGO Strategy (Deep Upgrade v6.1)", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -102,7 +101,6 @@ trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, s
 //====================
 // Constants — Avoid Magic Numbers
 //====================
-// Time constants (seconds)
 SEC_5M  = 5 * 60
 SEC_15M = 15 * 60
 SEC_30M = 30 * 60
@@ -223,42 +221,15 @@ rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
 //====================
-// Inputs — Forecast Calibration Enhancements
+// Inputs — Forecast Calibration Enhancements (Deep Upgrade v6.1)
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
 allowForecastOnNonFixed = input.bool(false, "Forecast: allow on non-fixed TFs", tooltip="If chart timeframe can't be resolved to seconds, allow forecast gating instead of disabling it")
 
 // Forecast value display
 fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
-
-// --- Phase 1: Separate Targets per Timeframe Group ---
-grp_fast = "Target Profile 1: Fast (1m, 5m)"
-fcTargetF = input.string("KBarATR", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_fast)
-kBarsF    = input.int(3, "k bars", minval=1, maxval=20, group=grp_fast)
-atrThrF   = input.float(0.25, "ATR Thr", step=0.05, group=grp_fast)
-pathHF    = input.int(6, "Path H", minval=1, maxval=50, group=grp_fast)
-tpATRF    = input.float(0.50, "Path TP", step=0.05, group=grp_fast)
-slATRF    = input.float(0.30, "Path SL", step=0.05, group=grp_fast)
-
-grp_mid = "Target Profile 2: Mid (15m, 30m, 1h)"
-fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_mid)
-kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
-atrThrM   = input.float(0.50, "ATR Thr", step=0.05, group=grp_mid)
-pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
-tpATRM    = input.float(0.65, "Path TP", step=0.05, group=grp_mid)
-slATRM    = input.float(0.65, "Path SL", step=0.05, group=grp_mid)
-
-grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
-fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
-kBarsS    = input.int(10, "k bars", minval=1, maxval=50, group=grp_slow)
-atrThrS   = input.float(1.00, "ATR Thr", step=0.05, group=grp_slow)
-pathHS    = input.int(12, "Path H", minval=1, maxval=100, group=grp_slow)
-tpATRS    = input.float(1.00, "Path TP", step=0.05, group=grp_slow)
-slATRS    = input.float(1.00, "Path SL", step=0.05, group=grp_slow)
-
-// Global Policies
-noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"])
-pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"])
+pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"
+pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"
 atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
 
 //====================
@@ -298,27 +269,34 @@ useBullBearCal = input.bool(true, "Separate bull/bear calibrators", group=grp_tr
 countDecay = input.float(0.9995, "Count decay (1.0=none)", minval=0.80, maxval=1.0, step=0.0005, group=grp_tri)
 kShrinkReg = input.int(20, "Regime shrinkage k", minval=0, maxval=1000, group=grp_tri)
 
-// --- Phase 2: Calibration Dimensions ---
-predBinsN     = input.int(4, "Pred bins (N) state", minval=2, maxval=9)
-dim2Bins      = 3 // Fixed: Trend regime bins (bear/sideways/bull)
+// --- Phase 1: Separate Targets per Timeframe Group ---
+grp_fast = "Target Profile 1: Fast (1m, 5m)"
+fcTargetF = input.string("KBarATR", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_fast)
+kBarsF    = input.int(3, "k bars", minval=1, maxval=20, group=grp_fast)
+atrThrF   = input.float(0.25, "ATR Thr", step=0.05, group=grp_fast)
+pathHF    = input.int(6, "Path H", minval=1, maxval=50, group=grp_fast)
+tpATRF    = input.float(0.50, "Path TP", step=0.05, group=grp_fast)
+slATRF    = input.float(0.30, "Path SL", step=0.05, group=grp_fast)
 
-predBins1     = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3)
+grp_mid = "Target Profile 2: Mid (15m, 30m, 1h)"
+fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_mid)
+kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
+atrThrM   = input.float(0.50, "ATR Thr", step=0.05, group=grp_mid)
+pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
+tpATRM    = input.float(0.65, "Path TP", step=0.05, group=grp_mid)
+slATRM    = input.float(0.65, "Path SL", step=0.05, group=grp_mid)
 
-// Quantile binning (score dimension)
-useQuantileBins = input.bool(true, "Use quantile bins (score)")
-quantileWindow = input.int(500, "Quantile window (samples)", minval=100, maxval=5000)
-quantileUpdate = input.int(25, "Quantile update interval (bars)", minval=10, maxval=1000)
-quantileMinSamples = input.int(200, "Quantile min samples", minval=50, maxval=5000)
-calibrateInBackground = input.bool(true, "Calibrate even if table hidden")
+grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
+fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
+kBarsS    = input.int(10, "k bars", minval=1, maxval=50, group=grp_slow)
+atrThrS   = input.float(1.00, "ATR Thr", step=0.05, group=grp_slow)
+pathHS    = input.int(12, "Path H", minval=1, maxval=100, group=grp_slow)
+tpATRS    = input.float(1.00, "Path TP", step=0.05, group=grp_slow)
+slATRS    = input.float(1.00, "Path SL", step=0.05, group=grp_slow)
 
-alphaN  = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1)
-alpha1  = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1)
-kShrink = input.int(5, "Base Rate Shrinkage k", minval=0, maxval=1000)
-
-calMinSamples = input.int(40, "Min samples per bin (activate)", minval=5, maxval=1000)
-
-predUpThr = input.float(0.55, "Pred up threshold", minval=0.50, maxval=0.80, step=0.01)
-predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, step=0.01)
+// Policies
+noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"], group="Policy")
+pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"], group="Policy")
 
 // --- Phase 3: Ensemble Weights ---
 grp_ens = "Phase 3: Ensemble Weights"
@@ -333,16 +311,38 @@ rocLen    = input.int(10, "ROC length", minval=2, maxval=50, group=grp_ens)
 wVol      = input.float(0.0, "Weight: Volume factor", step=0.1, group=grp_ens, tooltip="Volume vs SMA ratio (0=off)")
 volEnsLen = input.int(20, "Volume ensemble SMA len", minval=2, maxval=100, group=grp_ens)
 
-// --- Phase 4: Platt Scaling (Online Calibration) ---
-usePlatt = input.bool(true, "Phase 4: Use Platt Scaling (SGD)", group="Calibration Tuning")
-lrPlatt  = input.float(0.005, "Learning Rate", step=0.001, group="Calibration Tuning")
+// --- Phase 4: Online Calibration ---
+grp_cal = "Calibration Settings (Phase 4)"
+usePlatt = input.bool(true, "Use Platt Scaling (Online SGD)", group=grp_cal)
+lrPlatt  = input.float(0.005, "Learning Rate (SGD)", minval=0.001, maxval=0.1, step=0.001, group=grp_cal)
 // A2 – SGD Momentum (Adam-lite)
-useSgdMomentum = input.bool(false, "SGD momentum (Adam-lite)", group="Calibration Tuning", tooltip="EMA of gradients for smoother convergence")
-sgdBeta        = input.float(0.9, "SGD momentum beta", minval=0.5, maxval=0.99, step=0.01, group="Calibration Tuning")
+useSgdMomentum = input.bool(false, "SGD momentum (Adam-lite)", group=grp_cal, tooltip="EMA of gradients for smoother convergence")
+sgdBeta        = input.float(0.9, "SGD momentum beta", minval=0.5, maxval=0.99, step=0.01, group=grp_cal)
+
+// Bins & Smoothing
+predBinsN = input.int(4, "Pred bins (N) stable", minval=2, maxval=9, group="Engine")
+predBins1 = input.int(2, "Pred bins (1) reactive", minval=2, maxval=3, group="Engine")
+dim2Bins  = 3 // Trend regime bins (bear/sideways/bull)
+
+// Quantile binning (score dimension)
+useQuantileBins = input.bool(true, "Use quantile bins (score)", group="Engine")
+quantileWindow = input.int(500, "Quantile window (samples)", minval=100, maxval=5000, group="Engine")
+quantileUpdate = input.int(25, "Quantile update interval (bars)", minval=10, maxval=1000, group="Engine")
+quantileMinSamples = input.int(200, "Quantile min samples", minval=50, maxval=5000, group="Engine")
+calibrateInBackground = input.bool(true, "Calibrate even if table hidden")
+
+alphaN = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1, group="Engine")
+alpha1 = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1, group="Engine")
+kShrink = input.int(5, "Base Rate Shrinkage k", minval=0, maxval=1000, tooltip="Higher = pull bin probability closer to global TF average", group="Engine")
+
+calMinSamples = input.int(40, "Min samples per bin (activate)", minval=5, maxval=1000, group="Engine")
+
+predUpThr = input.float(0.55, "Pred up threshold", minval=0.50, maxval=0.80, step=0.01, group="Signals")
+predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, step=0.01, group="Signals")
 
 // Per-horizon reset control
-resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7","ChartTF"])
-resetNow   = input.bool(false, "Reset selected calibration NOW")
+resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7","ChartTF"], group="Maintenance")
+resetNow   = input.bool(false, "Reset selected calibration NOW", group="Maintenance")
 
 //====================
 // Inputs — Forecast Filtering (Accuracy-based)
@@ -400,10 +400,17 @@ grp_diag = "🔧 Calibration Diagnostics"
 showDiagPanel   = input.bool(false, "Show Calibration Debug Panel", group=grp_diag, tooltip="Displays Platt params, convergence, bin samples")
 diagHorizon     = input.string("F1", "Diagnostic Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_diag)
 diagModel       = input.string("N", "Diagnostic Model", options=["N","1"], group=grp_diag, tooltip="N=Multi-factor, 1=Single-factor")
-showEvidencePackDebug = input.bool(false, "Evidence Pack Debug (data window)", group=grp_diag, tooltip="Outputs gate/decision signals to Data Window")
 
 //====================
-// Calibration storage — per horizon TF (Global State)
+// Inputs — Calibration Export (Webhook)
+//====================
+grp_export = "📤 Calibration Export"
+exportCalibration = input.bool(false, "Enable Calibration Export Alert", group=grp_export, tooltip="Fires alert with JSON calibration state")
+exportInterval    = input.int(100, "Export Every N Bars", minval=10, maxval=1000, group=grp_export)
+exportHorizon     = input.string("F1", "Export Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_export)
+
+//====================
+// Calibration storage — TfState UDT (replaces 100+ global arrays)
 //====================
 
 // UDT to hold all state arrays for a single timeframe horizon
@@ -604,12 +611,6 @@ var TfState tf6State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucke
 var TfState tf7State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
 
 //====================
-// Evaluation storage — per horizon (Head N and Head 1)
-//====================
-// F1 — Head N
-// (Globals removed, now in TfState)
-
-//====================
 // Table colors (navy + soft-blue frame)
 //====================
 tblBg      = color.new(color.rgb(12, 20, 35), 0)
@@ -670,7 +671,7 @@ f_fill_cuts(sorted, cuts, bins) =>
             idx = int(math.floor(frac * (n - 1)))
             array.set(cuts, i, array.get(sorted, idx))
 
-// Forecast binning / calibration
+// Forecast binning (fallback: fixed width)
 f_bin(score, bins) =>
     u = (score + 1.0) * 0.5
     b = int(math.floor(u * bins))
@@ -705,306 +706,6 @@ f_bin_quantile(score, cuts, bins) =>
 
 f_regime_bin(trendScore) =>
     trendScore > 0.5 ? 2 : trendScore < -0.5 ? 0 : 1
-
-// --- Human name for "chance" depending on forecast target
-f_chance_word() =>
-    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
-    anyWin ? "Win" : "Up"
-
-// --- 95% CI half-width (approx) for Bernoulli p with n samples
-f_ci95_halfwidth(p, n) =>
-    if na(p) or na(n) or n <= 0
-        na
-    else
-        z2 = Z_95 * Z_95
-        den = 1.0 + z2 / n
-        half = (Z_95 * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
-        half
-
-// --- Reliability label based on CI half-width
-f_rel_label(p, nBin, total, canCal) =>
-    string lbl = "off"
-    if not canCal
-        lbl := "off"
-    else if total <= 0
-        lbl := "n/a"
-    else if nBin < calMinSamples
-        lbl := "warmup"
-    else
-        hw = f_ci95_halfwidth(p, nBin)
-        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
-    lbl
-
-// --- Color for reliability label (subtle; does NOT conflict with up/down coloring)
-f_rel_color(p, nBin, total, canCal) =>
-    if not canCal
-        color.new(color.white, 70)
-    else if total <= 0
-        color.new(color.white, 60)
-    else if nBin < calMinSamples
-        color.new(color.white, 60)
-    else
-        hw = f_ci95_halfwidth(p, nBin)
-        na(hw) ? color.new(color.white, 60) : hw <= 0.05 ? color.lime : hw <= 0.10 ? color.yellow : tblTextDim
-
-//====================
-// Forecast display helpers (human formatting)
-//====================
-
-// Map a TF into your "Fast/Mid/Slow" profiles.
-f_profile(tf) =>
-    s = timeframe.in_seconds(tf)
-    not na(s) and s <= SEC_5M ? "Fast" : not na(s) and s <= SEC_1H ? "Mid" : "Slow"
-
-// Pick which target is active for that TF profile.
-f_target_for_tf(tf) =>
-    prof = f_profile(tf)
-    prof == "Fast" ? fcTargetF : prof == "Mid" ? fcTargetM : fcTargetS
-
-// Short, human label for the target (what "Win" means on that row)
-f_target_label(tf) =>
-    t = f_target_for_tf(tf)
-    t == "NextBar" ? "Next-up" : t == "KBarReturn" ? "Up-close" : t == "KBarATR" ? "ATR-hit" : t == "PathTPvsSL" ? "TP-first" : "Win"
-
-// Full target description for footer (per profile)
-f_target_profile_desc(profile) =>
-    t = profile == "Fast" ? fcTargetF : profile == "Mid" ? fcTargetM : fcTargetS
-    k = profile == "Fast" ? kBarsF    : profile == "Mid" ? kBarsM    : kBarsS
-    a = profile == "Fast" ? atrThrF   : profile == "Mid" ? atrThrM   : atrThrS
-    h = profile == "Fast" ? pathHF    : profile == "Mid" ? pathHM    : pathHS
-    tp = profile == "Fast" ? tpATRF   : profile == "Mid" ? tpATRM    : tpATRS
-    sl = profile == "Fast" ? slATRF   : profile == "Mid" ? slATRM    : slATRS
-    t == "NextBar" ? "NextBar" :
-     t == "KBarReturn" ? "KRet k=" + str.tostring(k) :
-     t == "KBarATR" ? "KATR k=" + str.tostring(k) + " thr=" + str.tostring(a, "#.##") + "ATR" :
-     t == "PathTPvsSL" ? "Path H=" + str.tostring(h) + " TP=" + str.tostring(tp, "#.##") + " SL=" + str.tostring(sl, "#.##") + " NoHit=" + noHitPolicy :
-     "Target"
-
-f_target_footer_text() =>
-    "Target: Fast=" + f_target_profile_desc("Fast") + " | Mid=" + f_target_profile_desc("Mid") + " | Slow=" + f_target_profile_desc("Slow")
-
-// Uncertainty band in percentage points using a binomial approx (≈95% band).
-f_unc_pp(p, n) =>
-    n <= 0 ? na : Z_95 * math.sqrt(math.max(p * (1.0 - p), 0.0) / n) * 100.0
-
-// Sample-strength label derived from CURRENT BIN sample size (nBin).
-f_strength_label_fc(nBin) =>
-    nBin < calMinSamples ? "weak" : nBin < calMinSamples * 4 ? "ok" : "strong"
-
-// Format probability range text like "34–46%" (bounded to 0..100)
-f_prob_range_text(p, nBin) =>
-    if nBin < calMinSamples or nBin <= 0
-        "build n" + str.tostring(nBin)
-    else
-        band = f_unc_pp(p, nBin) / 100.0
-        lo = math.max(0.0, p - band)
-        hi = math.min(1.0, p + band)
-        str.tostring(lo * 100.0, "#.0") + "–" + str.tostring(hi * 100.0, "#.0") + "%"
-
-//====================
-// Helpers — Evaluation (proper scoring + rolling stats)
-//====================
-f_epsClamp(p) =>
-    eps = PROB_EPS
-    math.max(eps, math.min(1.0 - eps, p))
-
-f_brier(p, y) =>
-    // y in {0.0, 1.0}
-    d = p - y
-    d * d
-
-f_logloss(p, y) =>
-    // y in {0.0, 1.0}
-    pc = f_epsClamp(p)
-    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
-
-// @function Adds value to rolling buffer and maintains running sum
-// @param buf Rolling buffer array
-// @param sumArr Single-element array holding running sum
-// @param v Value to add
-// @param maxLen Maximum buffer length
-// @note Periodic recalculation every ROLL_RECALC_INTERVAL bars prevents FP drift
-f_roll_add(buf, sumArr, v, maxLen) =>
-    array.push(buf, v)
-    array.set(sumArr, 0, array.get(sumArr, 0) + v)
-    if array.size(buf) > maxLen
-        old = array.shift(buf)
-        array.set(sumArr, 0, array.get(sumArr, 0) - old)
-    // Periodic recalculation to prevent floating-point drift
-    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(buf) > 0
-        array.set(sumArr, 0, array.sum(buf))
-
-// @function Reset single-element sum arrays safely
-// @param sumArr Single-element array holding running sum
-f_reset_sum1(sumArr) =>
-    if array.size(sumArr) == 0
-        array.push(sumArr, 0.0)
-    else
-        array.set(sumArr, 0, 0.0)
-
-f_bucket(p, B) =>
-    // p in [0,1], B buckets
-    b = int(math.floor(p * B))
-    b < 0 ? 0 : b > (B - 1) ? (B - 1) : b
-
-f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
-    B = array.size(calCnt)
-    bi = f_bucket(p, B)
-
-    // push
-    array.push(bBuf, bi)
-    array.push(pBuf, p)
-    array.push(yBuf, y)
-
-    // increment bucket accumulators
-    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
-    array.set(calSumP, bi, array.get(calSumP, bi) + p)
-    array.set(calSumY, bi, array.get(calSumY, bi) + y)
-
-    // enforce rolling length
-    if array.size(bBuf) > maxLen
-        bOld = array.shift(bBuf)
-        pOld = array.shift(pBuf)
-        yOld = array.shift(yBuf)
-
-        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
-        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
-        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
-
-f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) =>
-    B = evalBuckets
-    yU = outcome == 1 ? 1.0 : 0.0
-    yF = outcome == 0 ? 1.0 : 0.0
-    yD = outcome == -1 ? 1.0 : 0.0
-
-    biU = f_bucket(pU, B)
-    biF = f_bucket(pF, B)
-    biD = f_bucket(pD, B)
-
-    idxU = 0 * B + biU
-    idxF = 1 * B + biF
-    idxD = 2 * B + biD
-
-    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
-    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
-    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
-
-    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
-    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
-    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
-
-    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
-    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
-    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
-
-    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
-    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
-    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
-
-    maxLen3 = maxLen * 3
-    while array.size(bBuf) > maxLen3
-        bOld = array.shift(bBuf)
-        pOld = array.shift(pBuf)
-        yOld = array.shift(yBuf)
-
-        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
-        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
-        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
-
-f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) =>
-    nScore = array.size(brierBuf)
-    brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
-    logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
-
-    nS = array.size(ySBuf)
-    nL = array.size(yLBuf)
-    wS = nS == 0 ? na : array.get(sumYS, 0) / nS
-    wL = nL == 0 ? na : array.get(sumYL, 0) / nL
-    drift = (na(wS) or na(wL)) ? na : (wS - wL)
-
-    // ECE from rolling buckets (binary or multiclass)
-    ece = float(na)
-    maxErr = float(na)
-    B = evalBuckets
-    sizeCnt = array.size(calCnt)
-    if sizeCnt == B
-        tot = 0
-        for i = 0 to sizeCnt - 1
-            tot += array.get(calCnt, i)
-        if tot > 0
-            e = 0.0
-            m = 0.0
-            for i = 0 to sizeCnt - 1
-                c = array.get(calCnt, i)
-                if c > 0
-                    ap = array.get(calSumP, i) / c
-                    ay = array.get(calSumY, i) / c
-                    err = math.abs(ap - ay)
-                    e += err * (c / tot)
-                    m := math.max(m, err)
-            ece := e
-            maxErr := m
-    else if sizeCnt == B * 3
-        eTot = 0.0
-        mTot = 0.0
-        for cls = 0 to 2
-            totC = 0
-            for i = 0 to B - 1
-                totC += array.get(calCnt, cls * B + i)
-            if totC > 0
-                eC = 0.0
-                mC = 0.0
-                for i = 0 to B - 1
-                    idx = cls * B + i
-                    c = array.get(calCnt, idx)
-                    if c > 0
-                        ap = array.get(calSumP, idx) / c
-                        ay = array.get(calSumY, idx) / c
-                        err = math.abs(ap - ay)
-                        eC += err * (c / totC)
-                        mC := math.max(mC, err)
-                eTot += eC
-                mTot := math.max(mTot, mC)
-        ece := eTot / 3.0
-        maxErr := mTot
-
-    [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
-
-f_strengthLabel(n) =>
-    n < 30 ? "weak" : n < 100 ? "ok" : "strong"
-
-f_pp(x) =>
-    // x in [0,1] -> "12.3%"
-    str.tostring(x * 100.0, "#.0") + "%"
-
-f_ppSigned(x) =>
-    // x in [-1,1] -> "+4.0pp"
-    pp = x * 100.0
-    (pp >= 0 ? "+" : "") + str.tostring(pp, "#.0") + "pp"
-
-f_colLowerBetter(x, good, ok) =>
-    na(x) ? color.new(color.white, 60) : x <= good ? color.lime : x <= ok ? color.yellow : color.red
-
-// --- “Chance” cell text (arrow + percent), but human warmup/off states
-f_chance_text(tf, pUp, nBin, total, canCal) =>
-    if not canCal or total <= 0
-        "—"
-    else if nBin < calMinSamples
-        f_target_label(tf) + " …"
-    else
-        sym = pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
-        sym + " " + f_target_label(tf) + " " + str.tostring(pUp * 100.0, "#.0") + "%"
-
-// --- “Data” cell text: bin/total + label + optional ±CI
-f_data_text(pUp, nBin, total, canCal) =>
-    if not canCal
-        "off"
-    else if total <= 0
-        "n0"
-    else
-        lbl = f_strength_label_fc(nBin)
-        rng = f_prob_range_text(pUp, nBin)
-        str.tostring(nBin) + "/" + str.tostring(total) + "\n" + lbl + " (" + rng + ")"
 
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
@@ -1065,17 +766,88 @@ f_confColor(val) =>
 f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
+f_chance_word() =>
+    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
+    anyWin ? "Win" : "Up"
+
+// Map a TF into your "Fast/Mid/Slow" profiles.
+f_profile(tf) =>
+    s = timeframe.in_seconds(tf)
+    not na(s) and s <= SEC_5M ? "Fast" : not na(s) and s <= SEC_1H ? "Mid" : "Slow"
+
+// Pick which target is active for that TF profile.
+f_target_for_tf(tf) =>
+    prof = f_profile(tf)
+    prof == "Fast" ? fcTargetF : prof == "Mid" ? fcTargetM : fcTargetS
+
+// Short, human label for the target (what "Win" means on that row)
+f_target_label(tf) =>
+    t = f_target_for_tf(tf)
+    t == "NextBar" ? "Next-up" : t == "KBarReturn" ? "Up-close" : t == "KBarATR" ? "ATR-hit" : t == "PathTPvsSL" ? "TP-first" : "Win"
+
+// Uncertainty band in percentage points using a binomial approx (≈95% band).
+f_unc_pp(p, n) =>
+    n <= 0 ? na : Z_95 * math.sqrt(math.max(p * (1.0 - p), 0.0) / n) * 100.0
+
+// Sample-strength label derived from CURRENT BIN sample size (nBin).
+f_strength_label_fc(nBin) =>
+    nBin < calMinSamples ? "weak" : nBin < calMinSamples * 4 ? "ok" : "strong"
+
+// Format probability range text like "34–46%" (bounded to 0..100)
+f_prob_range_text(p, nBin) =>
+    if nBin < calMinSamples or nBin <= 0
+        "build n" + str.tostring(nBin)
+    else
+        band = f_unc_pp(p, nBin) / 100.0
+        lo = math.max(0.0, p - band)
+        hi = math.min(1.0, p + band)
+        str.tostring(lo * 100.0, "#.0") + "–" + str.tostring(hi * 100.0, "#.0") + "%"
+
+// Full target description for footer (per profile)
+f_target_profile_desc(profile) =>
+    t = profile == "Fast" ? fcTargetF : profile == "Mid" ? fcTargetM : fcTargetS
+    k = profile == "Fast" ? kBarsF    : profile == "Mid" ? kBarsM    : kBarsS
+    a = profile == "Fast" ? atrThrF   : profile == "Mid" ? atrThrM   : atrThrS
+    h = profile == "Fast" ? pathHF    : profile == "Mid" ? pathHM    : pathHS
+    tp = profile == "Fast" ? tpATRF   : profile == "Mid" ? tpATRM    : tpATRS
+    sl = profile == "Fast" ? slATRF   : profile == "Mid" ? slATRM    : slATRS
+    t == "NextBar" ? "NextBar" :
+     t == "KBarReturn" ? "KRet k=" + str.tostring(k) :
+     t == "KBarATR" ? "KATR k=" + str.tostring(k) + " thr=" + str.tostring(a, "#.##") + "ATR" :
+     t == "PathTPvsSL" ? "Path H=" + str.tostring(h) + " TP=" + str.tostring(tp, "#.##") + " SL=" + str.tostring(sl, "#.##") + " NoHit=" + noHitPolicy :
+     "Target"
+
+f_target_footer_text() =>
+    "Target: Fast=" + f_target_profile_desc("Fast") + " | Mid=" + f_target_profile_desc("Mid") + " | Slow=" + f_target_profile_desc("Slow")
+
+f_ci95_halfwidth(p, n) =>
+    if na(p) or na(n) or n <= 0
+        na
+    else
+        z2 = Z_95 * Z_95
+        den = 1.0 + z2 / n
+        half = (Z_95 * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
+        half
+
+f_rel_label(p, nBin, total, canCal) =>
+    string lbl = "off"
+    if not canCal
+        lbl := "off"
+    else if total <= 0
+        lbl := "n/a"
+    else if nBin < calMinSamples
+        lbl := "warmup"
+    else
+        hw = f_ci95_halfwidth(p, nBin)
+        lbl := na(hw) ? "warmup" : hw <= 0.05 ? "strong" : hw <= 0.10 ? "ok" : "weak"
+    lbl
+
 f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
-    // B1 \u2013 Continuous trend: smooth EMA gap vs binary\n    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
+    // B1 – Continuous trend: smooth EMA gap vs binary
+    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
     mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
     loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
     f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
-
-f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
-    t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
-    m = r_tf > 55 ? 1 : r_tf < 45 ? -1 : 0
-    l = c > emaS_tf ? 1 : c < emaS_tf ? -1 : 0
-    [t, m, l]
 
 // --- Phase 1 Helpers: Target Params ---
 f_get_params(tf) =>
@@ -1106,14 +878,8 @@ f_platt_prob(pRaw, a, b) =>
 // --- Phase 3 Helpers: Ensemble ---
 f_pullback_score(c, ef, es, bias) =>
     // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
-    // Bias -1 (Bear): mirror logic
+    // Bias -1 (Bear): mirror logic; Bias 0 (neutral): return 0
     bias == 1 ? (c > ef ? 0.5 : c > es ? 1.0 : -1.0) : bias == -1 ? (c < ef ? 0.5 : c < es ? 1.0 : -1.0) : 0.0
-
-f_ensemble(sA, sB, sC, wA, wB, wC) =>
-    num = wA * sA + wB * sB + wC * sC
-    den = wA + wB + wC
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
 
 // @function Computes trend regime score (bull/bear/sideways)
 // @param emaF Fast EMA value
@@ -1122,13 +888,28 @@ f_ensemble(sA, sB, sC, wA, wB, wC) =>
 // @returns Score in [-1, 1]: +1=bull, -1=bear, 0=sideways/choppy
 f_trend_regime(emaF, emaS, atrNorm) =>
     emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
+    // Strong trend: EMAs diverging significantly (>0.5% gap)
+    // Sideways: EMAs close together AND low volatility
     isSideways = math.abs(emaDiff) < SIDEWAYS_EMA_THRESH and atrNorm < SIDEWAYS_ATR_THRESH
     isBull = emaF > emaS and not isSideways
     isBear = emaF < emaS and not isSideways
     isBull ? 1.0 : isBear ? -1.0 : 0.0
 
+f_ensemble(sA, sB, sC, wA, wB, wC) =>
+    // sA: Algo State (-1..1)
+    // sB: Pullback Score (-1..1)
+    // sC: Regime Score (-1..1)
+    num = wA * sA + wB * sB + wC * sC
+    den = wA + wB + wC
+    val = den == 0 ? 0.0 : num / den
+    math.max(-1.0, math.min(1.0, val))
+
 // Extended ensemble with trend regime (4 factors)
 f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
+    // sA: Algo State (-1..1)
+    // sB: Pullback Score (-1..1)
+    // sC: Vol Regime Score (-1..1)
+    // sD: Trend Regime Score (-1..1): bull/bear/sideways
     num = wA * sA + wB * sB + wC * sC + wD * sD
     den = wA + wB + wC + wD
     val = den == 0 ? 0.0 : num / den
@@ -1162,37 +943,19 @@ f_ensemble6(sA, sB, sC, sD, sE, sF, wA, wB, wC, wD, wE, wF) =>
     val = den == 0 ? 0.0 : num / den
     math.max(-1.0, math.min(1.0, val))
 
-f_tf_pack(tf) =>
-    request.security(
-        syminfo.tickerid,
-        tf,
-        [time, close, high, low,
-         ta.ema(close, emaFastLen),
-         ta.ema(close, emaSlowLen),
-         ta.rsi(close, rsiStateLen),
-         ta.atr(atrTargetLen),
-         f_pct_rank(ta.atr(atrLen) / math.max(close, PRICE_EPS), volRankLen), // Added Phase 2 Vol Rank
-         barstate.isconfirmed],
-        barmerge.gaps_off,
-        barmerge.lookahead_off
-    )
-
-f_score_tf(c, ef, es, r) =>
-    f_state_score(c, ef, es, r)
-
-// Phase 2: 2D Binning (Score + Regime)
+// --- Phase 2 Helpers: 2D Binning ---
 // @function Computes 2D bin index from score and trend regime
 // @param score Ensemble score in [-1, 1]
 // @param trendScore Trend regime score in [-1, 1]
-// @param binsA Number of bins for score dimension
-// @param binsB Number of bins for regime dimension (typically 3)
+// @param binsScore Number of bins for score dimension
+// @param binsReg Number of bins for regime dimension (typically 3)
 // @param cutsArr Quantile cutpoints for score dimension
 // @returns Flattened bin index
-f_bin2D(score, trendScore, binsA, binsB, cutsArr) =>
-    bA = f_bin_quantile(score, cutsArr, binsA)
-    bB = f_regime_bin(trendScore)
-    idx = int(bA * binsB + bB)
-    maxIdx = binsA * binsB - 1
+f_bin2D(score, trendScore, binsScore, binsReg, cutsArr) =>
+    bS = f_bin_quantile(score, cutsArr, binsScore)
+    bR = f_regime_bin(trendScore)
+    idx = int(bS * binsReg + bR)
+    maxIdx = binsScore * binsReg - 1
     idx < 0 ? 0 : idx > maxIdx ? maxIdx : idx
 
 f_db_mult(tf) =>
@@ -1375,17 +1138,29 @@ f_blend_prior(pU, pF, pD, pUpr, pFpr, pDpr, nRaw) =>
 f_samp_label(enabled, total) =>
     not enabled ? "off" : total < calMinSamples ? "…" : total < calMinSamples * 3 ? "ok" : "strong"
 
-// @function Computes Bayesian probability with Platt scaling
-// @param up Number of positive outcomes
-// @param n Total number of samples
-// @param alpha Laplace smoothing parameter
-// @param aPlatt Platt scaling slope
-// @param bPlatt Platt scaling intercept
-// @returns Calibrated probability after Platt transformation
-f_prob_platt(up, n, alpha, aPlatt, bPlatt) =>
-    denom = n + 2.0 * alpha
-    pRaw = denom == 0.0 ? 0.5 : (up + alpha) / denom
-    f_platt_prob(pRaw, aPlatt, bPlatt)
+f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
+    t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
+    m = r_tf > 55 ? 1 : r_tf < 45 ? -1 : 0
+    l = c > emaS_tf ? 1 : c < emaS_tf ? -1 : 0
+    [t, m, l]
+
+f_tf_pack(tf) =>
+    request.security(
+        syminfo.tickerid,
+        tf,
+        [time, close, high, low,
+         ta.ema(close, emaFastLen),
+         ta.ema(close, emaSlowLen),
+         ta.rsi(close, rsiStateLen),
+         ta.atr(atrTargetLen),
+         f_pct_rank(ta.atr(atrLen) / math.max(close, PRICE_EPS), volRankLen), // Added Phase 2 Vol Rank
+         barstate.isconfirmed],
+        barmerge.gaps_off,
+        barmerge.lookahead_off
+    )
+
+f_score_tf(c, ef, es, r) =>
+    f_state_score(c, ef, es, r)
 
 // @function Computes Laplace-smoothed probability with division safety
 // @param up Number of positive outcomes
@@ -1433,6 +1208,158 @@ f_predColorP(pUp, n, canCal, neutralCol) =>
 f_pupText(pUp, n, canCal) =>
     not canCal ? "OFF" : n == 0 ? "—" : n < calMinSamples ? "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples) : fcDisplay == "Edge pp (N)" ? ((pUp - 0.5) * 100.0 > 0 ? "+" + str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")" : str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")") : "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
+f_epsClamp(p) =>
+    eps = PROB_EPS
+    math.max(eps, math.min(1.0 - eps, p))
+
+f_brier(p, y) =>
+    d = p - y
+    d * d
+
+f_logloss(p, y) =>
+    pc = f_epsClamp(p)
+    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
+
+f_roll_add(buf, sumArr, v, maxLen) =>
+    array.push(buf, v)
+    array.set(sumArr, 0, array.get(sumArr, 0) + v)
+    if array.size(buf) > maxLen
+        old = array.shift(buf)
+        array.set(sumArr, 0, array.get(sumArr, 0) - old)
+    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(buf) > 0
+        array.set(sumArr, 0, array.sum(buf))
+
+// @function Reset single-element sum arrays safely
+// @param sumArr Single-element array holding running sum
+f_reset_sum1(sumArr) =>
+    if array.size(sumArr) == 0
+        array.push(sumArr, 0.0)
+    else
+        array.set(sumArr, 0, 0.0)
+
+f_bucket(p, B) =>
+    b = int(math.floor(p * B))
+    b < 0 ? 0 : b > (B - 1) ? (B - 1) : b
+
+f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
+    B = array.size(calCnt)
+    bi = f_bucket(p, B)
+
+    array.push(bBuf, bi)
+    array.push(pBuf, p)
+    array.push(yBuf, y)
+
+    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
+    array.set(calSumP, bi, array.get(calSumP, bi) + p)
+    array.set(calSumY, bi, array.get(calSumY, bi) + y)
+
+    if array.size(bBuf) > maxLen
+        bOld = array.shift(bBuf)
+        pOld = array.shift(pBuf)
+        yOld = array.shift(yBuf)
+
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) =>
+    B = evalBuckets
+    yU = outcome == 1 ? 1.0 : 0.0
+    yF = outcome == 0 ? 1.0 : 0.0
+    yD = outcome == -1 ? 1.0 : 0.0
+
+    biU = f_bucket(pU, B)
+    biF = f_bucket(pF, B)
+    biD = f_bucket(pD, B)
+
+    idxU = 0 * B + biU
+    idxF = 1 * B + biF
+    idxD = 2 * B + biD
+
+    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
+    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
+    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
+
+    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
+    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
+    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
+
+    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
+    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
+    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
+
+    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
+    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
+    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
+
+    maxLen3 = maxLen * 3
+    while array.size(bBuf) > maxLen3
+        bOld = array.shift(bBuf)
+        pOld = array.shift(pBuf)
+        yOld = array.shift(yBuf)
+
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) =>
+    nScore = array.size(brierBuf)
+    brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
+    logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
+
+    nS = array.size(ySBuf)
+    nL = array.size(yLBuf)
+    wS = nS == 0 ? na : array.get(sumYS, 0) / nS
+    wL = nL == 0 ? na : array.get(sumYL, 0) / nL
+    drift = (na(wS) or na(wL)) ? na : (wS - wL)
+
+    ece = float(na)
+    maxErr = float(na)
+    B = evalBuckets
+    sizeCnt = array.size(calCnt)
+    if sizeCnt == B
+        tot = 0
+        for i = 0 to sizeCnt - 1
+            tot += array.get(calCnt, i)
+        if tot > 0
+            e = 0.0
+            m = 0.0
+            for i = 0 to sizeCnt - 1
+                c = array.get(calCnt, i)
+                if c > 0
+                    ap = array.get(calSumP, i) / c
+                    ay = array.get(calSumY, i) / c
+                    err = math.abs(ap - ay)
+                    e += err * (c / tot)
+                    m := math.max(m, err)
+            ece := e
+            maxErr := m
+    else if sizeCnt == B * 3
+        eTot = 0.0
+        mTot = 0.0
+        for cls = 0 to 2
+            totC = 0
+            for i = 0 to B - 1
+                totC += array.get(calCnt, cls * B + i)
+            if totC > 0
+                eC = 0.0
+                mC = 0.0
+                for i = 0 to B - 1
+                    idx = cls * B + i
+                    c = array.get(calCnt, idx)
+                    if c > 0
+                        ap = array.get(calSumP, idx) / c
+                        ay = array.get(calSumY, idx) / c
+                        err = math.abs(ap - ay)
+                        eC += err * (c / totC)
+                        mC := math.max(mC, err)
+                eTot += eC
+                mTot := math.max(mTot, mC)
+        ece := eTot / 3.0
+        maxErr := mTot
+
+    [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
+
 f_eval_update_one(p, y,
     brierBuf, sumBrier,
     logBuf,   sumLog,
@@ -1441,21 +1368,17 @@ f_eval_update_one(p, y,
     calCnt, calSumP, calSumY,
     calBBuf, calPBuf, calYBuf) =>
 
-    // Eval gating: run if Eval section visible OR background eval enabled,
-    // AND we're in history+live mode or on a realtime bar.
+    // Eval gating: run if Eval section visible OR background eval enabled
     canEval = (showEvalSection or evalInBackground) and barstate.isconfirmed
     if canEval
         pc = f_epsClamp(p)
 
-        // rolling scores
         f_roll_add(brierBuf, sumBrier, f_brier(pc, y), evalRollScore)
         f_roll_add(logBuf,   sumLog,   f_logloss(pc, y), evalRollScore)
 
-        // rolling win rates
         f_roll_add(ySBuf, sumYS, y, evalRollShort)
         f_roll_add(yLBuf, sumYL, y, evalRollLong)
 
-        // rolling calibration buckets (ECE)
         f_cal_roll_update(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pc, y, evalRollScore)
 
 f_eval_update_one3(pU, pF, pD, outcome,
@@ -1472,7 +1395,6 @@ f_eval_update_one3(pU, pF, pD, outcome,
         b3 = f_brier3(pU, pF, pD, outcome)
         ll = f_logloss3(pU, pF, pD, outcome)
         yUp = outcome == 1 ? 1.0 : 0.0
-        pTrue = outcome == 1 ? pU : outcome == 0 ? pF : pD
 
         f_roll_add(brierBuf, sumBrier, b3, evalRollScore)
         f_roll_add(logBuf,   sumLog,   ll, evalRollScore)
@@ -1482,11 +1404,68 @@ f_eval_update_one3(pU, pF, pD, outcome,
 
         f_cal_roll_update3(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pU, pF, pD, outcome, evalRollScore)
 
-f_eval_on_resolve(TfState st, pN, p1, isUpBool) =>
-    y = isUpBool ? 1.0 : 0.0
+f_eval_on_resolve(TfState st, pPredN, pPred1, isUp) =>
+    y = isUp ? 1.0 : 0.0
 
-    f_eval_update_one(pN, y, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
-    f_eval_update_one(p1, y, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+    f_eval_update_one(pPredN, y, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
+    f_eval_update_one(pPred1, y, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+
+f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY) =>
+    [bAvg_t, lAvg_t, ece_t, _mErr_t, wS_t, wL_t, drift_t, nScore_t] = f_eval_stats_one(evBrier, evSumBrier, evLog, evSumLog, evYS, evSumYS, evYL, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    bAvg = bAvg_t
+    lAvg = lAvg_t
+    ece = ece_t
+    _mErr = _mErr_t
+    wS = wS_t
+    wL = wL_t
+    drift = drift_t
+    nScore = nScore_t
+    if nScore < evalMinEvents
+        [float(na), float(na), float(na), float(na), float(nScore)]
+    else
+        driftPP = na(drift) ? na : drift * 100.0
+        [bAvg, lAvg, ece, driftPP, float(nScore)]
+
+// Table Helpers
+f_colLowerBetter(val, goodThr, badThr) =>
+    na(val) ? color.new(color.gray, 60) : val < goodThr ? color.new(color.lime, 30) : val > badThr ? color.new(color.red, 30) : color.new(color.yellow, 30)
+
+f_ppSigned(val) =>
+    na(val) ? "—" : (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
+
+f_rowEval(tbl, tid, titleStr, evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY, rIdx) =>
+    [bs_t, ll_t, ece_t, drift_t, n_t] = f_eval_get(evBrier, evLog, evSumBrier, evSumLog, evYS, evYL, evSumYS, evSumYL, evCalCnt, evCalSumP, evCalSumY)
+    bs = bs_t
+    ll = ll_t
+    ece = ece_t
+    drift = drift_t
+    n = n_t
+    
+    // Header
+    table.cell(tbl, 0, rIdx, titleStr, text_halign=text.align_left, text_size=size.small, bgcolor=color.new(color.gray, 90))
+    
+    if na(bs)
+        table.cell(tbl, 1, rIdx, "Wait (" + str.tostring(n, "#") + ")", text_size=size.small)
+    else
+        // Brier
+        // scale: typically 0.25 is max entropy. <0.20 is good. <0.15 is great.
+        // Let's color based on general intuition
+        cBs = f_colLowerBetter(bs, 0.18, 0.23)
+        table.cell(tbl, 1, rIdx, str.tostring(bs, "#.3f"), bgcolor=cBs, text_size=size.small)
+        
+        // LogL
+        // scale: ~0.693 is rand. <0.60 is good.
+        cLl = f_colLowerBetter(ll, 0.55, 0.65)
+        table.cell(tbl, 2, rIdx, str.tostring(ll, "#.3f"), bgcolor=cLl, text_size=size.small)
+        
+        // ECE
+        cEce = f_colLowerBetter(ece, 0.05, 0.10)
+        table.cell(tbl, 3, rIdx, str.tostring(ece*100, "#.1")+"%", bgcolor=cEce, text_size=size.small)
+        
+        // Drift
+        cDr = math.abs(drift) > driftWarnPP ? color.new(color.red, 30) : color.new(color.gray, 90)
+        table.cell(tbl, 4, rIdx, f_ppSigned(drift), bgcolor=cDr, text_size=size.small)
+
 
 f_reset_tf(TfState st) =>
     array.fill(st.cntN, 0.0), array.fill(st.upN, 0.0), array.fill(st.dnN, 0.0)
@@ -1628,34 +1607,11 @@ f_reset_eval_all() =>
 
 // Process one TF calibration step (updates on TF close)
 // @param _hid Horizon ID (1-7) - reserved for debugging/logging
-// @param tfBarConfirmed True when a timeframe bar is confirmed (close)
-// @param sA Algorithm score for ensemble calculation
-// @param cNow Current close price
-// @param hNow Current high price
-// @param lNow Current low price
-// @param atrNow Current ATR value
-// @param volRankNow Current volatility rank [0,1]
-// @param emaFNow Fast EMA value
-// @param emaSNow Slow EMA value
-// @param st TfState UDT containing all state arrays
-// @param fcTgt Forecast target type
-// @param kB K-bar horizon
-// @param aThr ATR threshold
-// @param pH Path horizon
-// @param tpA Take-profit ATR multiplier
-// @param slA Stop-loss ATR multiplier
-// @param alphaNVal Alpha for N-bin smoothing
-// @param alpha1Val Alpha for 1-bin smoothing
-// @param shrinkKVal Shrinkage factor
-// @param wAVal Weight for trend score
-// @param wBVal Weight for pullback score
-// @param wCVal Weight for volatility bias
-// @param wDVal Weight for trend regime
 f_process_tf(_hid, _tf, tfBarConfirmed, sA, 
              cNow, hNow, lNow, atrNow, volRankNow, emaFNow, emaSNow,
              TfState st,
              fcTgt, kB, aThr, pH, tpA, slA,
-             alphaNVal, alpha1Val, shrinkKVal, wAVal, wBVal, wCVal, wDVal) =>
+             alphaNVal, alpha1Val, shrinkKVal, wStateVal, wPullbackVal, wRegimeVal, wTrendVal) =>
 
     if tfBarConfirmed
         // 1) Age/extremes update for pending items
@@ -1686,15 +1642,15 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
             float prob1_i = na
             float lgtN_i = na
             float lgt1_i = na
-            float pPredN_i = na
-            float pPred1_i = na
+            float predN_i = na
+            float pred1_i = na
             if not use3Way
                 probN_i := f_safe_get_float(st.qProbN,  i, na)
                 prob1_i := f_safe_get_float(st.qProb1,  i, na)
                 lgtN_i  := f_safe_get_float(st.qLogitN, i, na)
                 lgt1_i  := f_safe_get_float(st.qLogit1, i, na)
-                pPredN_i := f_safe_get_float(st.qPredN, i, na)
-                pPred1_i := f_safe_get_float(st.qPred1, i, na)
+                predN_i := f_safe_get_float(st.qPredN,  i, na)
+                pred1_i := f_safe_get_float(st.qPred1,  i, na)
 
             // 3-way stored probs/logits
             float pUpN_i = na
@@ -1853,13 +1809,26 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                         f_cal_update3(cnt1_raw_sel, up1_raw_sel, dn1_raw_sel, b1_i, outcome)
                     
                     outcomeVal = isUp ? 1.0 : 0.0
-
-                    // evaluation scoring (NEW)
+                    
+                    // --- Evaluation (Live Scoring) ---
+                    // Score based on the final prediction we made (predN_i / pred1_i)
                     if use3Way
-                        f_eval_update_one3(pUpN_i, pFlN_i, pDnN_i, outcome, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
-                        f_eval_update_one3(pUp1_i, pFl1_i, pDn1_i, outcome, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+                        f_eval_update_one3(pUpN_i, pFlN_i, pDnN_i, outcome,
+                            st.evBrierN, st.evSumBrierN,
+                            st.evLogN, st.evSumLogN,
+                            st.evYS_N, st.evSumYS_N,
+                            st.evYL_N, st.evSumYL_N,
+                            st.evCalCntN, st.evCalSumPN, st.evCalSumYN,
+                            st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
+                        f_eval_update_one3(pUp1_i, pFl1_i, pDn1_i, outcome,
+                            st.evBrier1, st.evSumBrier1,
+                            st.evLog1, st.evSumLog1,
+                            st.evYS_1, st.evSumYS_1,
+                            st.evYL_1, st.evSumYL_1,
+                            st.evCalCnt1, st.evCalSumP1, st.evCalSumY1,
+                            st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
                     else
-                        f_eval_on_resolve(st, pPredN_i, pPred1_i, isUp)
+                        f_eval_on_resolve(st, predN_i, pred1_i, isUp)
 
                     if use3Way and calibratorMode != "Off"
                         nBinN_cur = array.get(st.cntN, bN_i)
@@ -2015,7 +1984,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                                 array.set(st.momPlatt1, 1, mB1)
                                 effDa1 := mA1
                                 effDb1 := mB1
-                            pltA1 := math.max(0.1, math.min(5.0, pltA1 - lrPlattEff * effDa1)) 
+                            pltA1 := math.max(0.1, math.min(5.0, pltA1 - lrPlattEff * effDa1))
                             pltB1 := math.max(-3.0, math.min(3.0, pltB1 - lrPlattEff * effDb1))
                             array.set(st.platt1, 0, pltA1)
                             array.set(st.platt1, 1, pltB1)
@@ -2027,14 +1996,6 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             array.set(st.llStats1, 0, curSumLL1 + ll1)
                             array.set(st.llStats1, 1, curCntLL1 + 1.0)
 
-                f_safe_remove_int(st.qAge,   i)
-                f_safe_remove_float(st.qMaxH,  i)
-                f_safe_remove_float(st.qMinL,  i)
-                f_safe_remove_float(st.qAtr,   i)
-                f_safe_remove_float(st.qEntry, i)
-                f_safe_remove_int(st.qBinN,  i)
-                f_safe_remove_int(st.qBin1,  i)
-                f_safe_remove_int(st.qBias,  i)
                 if not use3Way
                     f_safe_remove_float(st.qProbN, i)
                     f_safe_remove_float(st.qProb1, i)
@@ -2055,18 +2016,22 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                     f_safe_remove_float(st.qZUp1, i)
                     f_safe_remove_float(st.qZFl1, i)
                     f_safe_remove_float(st.qZDn1, i)
-
+                f_safe_remove_int(st.qAge,   i)
+                f_safe_remove_float(st.qMaxH,  i)
+                f_safe_remove_float(st.qMinL,  i)
+                f_safe_remove_float(st.qAtr,   i)
+                f_safe_remove_float(st.qEntry, i)
+                f_safe_remove_int(st.qBinN,  i)
+                f_safe_remove_int(st.qBin1,  i)
+                f_safe_remove_int(st.qBias, i)
             i -= 1
-
-        // 3) Push new pending item
-        // --- Phase 3: Ensemble Score ---
         bias = emaFNow > emaSNow ? 1 : emaFNow < emaSNow ? -1 : 0
         sB = f_pullback_score(cNow, emaFNow, emaSNow, bias)
         sC = volRankNow >= VOL_THRESH_HIGH ? -1.0 : (volRankNow <= VOL_THRESH_LOW ? 1.0 : 0.0)
         // Epsilon PRICE_EPS prevents division by zero on penny stocks or exotic instruments with close near 0
-        atrNormEns = atrNow / math.max(cNow, PRICE_EPS)
-        sD = f_trend_regime(emaFNow, emaSNow, atrNormEns)
-        sEns = f_ensemble4(sA, sB, sC, sD, wAVal, wBVal, wCVal, wDVal)
+        atrNorm = atrNow / math.max(cNow, PRICE_EPS)
+        sD = f_trend_regime(emaFNow, emaSNow, atrNorm)
+        sEns = f_ensemble4(sA, sB, sC, sD, wStateVal, wPullbackVal, wRegimeVal, wTrendVal)
         if not na(sEns) and not na(sD)
             f_update_quantiles(st, sEns)
             
@@ -2175,6 +2140,19 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                 lgtN = f_logit(pNowN)
                 lgt1 = f_logit(pNow1)
 
+                // Platt Adjust (Display/Predict)
+                aN = array.get(st.plattN, 0)
+                bN_p = array.get(st.plattN, 1)
+                pAdjN = f_sigmoid(aN * lgtN + bN_p)
+
+                pltA1 = array.get(st.platt1, 0)
+                pltB1_p = array.get(st.platt1, 1)
+                pAdj1 = f_sigmoid(pltA1 * lgt1 + pltB1_p)
+
+                // Use adjusted if Platt enabled, else raw
+                pFinalN = usePlatt ? pAdjN : pNowN
+                pFinal1 = usePlatt ? pAdj1 : pNow1
+
                 array.push(st.qBinN,  bN)
                 array.push(st.qBin1,  b1)
                 array.push(st.qEntry, cNow)
@@ -2190,9 +2168,10 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                 array.push(st.qProb1, pNow1)
                 array.push(st.qLogitN, lgtN)
                 array.push(st.qLogit1, lgt1)
+                array.push(st.qPredN, pFinalN)
+                array.push(st.qPred1, pFinal1)
 
-                array.push(st.qPredN, pNowN)
-                array.push(st.qPred1, pNow1)
+//====================
 // Core indicators
 //====================
 emaF = ta.ema(close, emaFastLen)
@@ -2641,6 +2620,40 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
             col = ok ? color.lime : color.orange
             [ok, reason, col, edge]
 
+//====================
+// Signal execution layer
+//====================
+
+// Trend regime
+atrNormHere = atr / math.max(close, 0.0001)
+trendReg = f_trend_regime(emaF, emaS, atrNormHere)
+trendUp  = trendReg == 1.0
+trendDn  = trendReg == -1.0
+trendSide = trendReg == 0.0
+
+// D1 – Smooth trend strength (continuous [-1, 1] alternative)
+trendStrength = f_trend_strength(emaF, emaS)
+trendUpSmooth  = useSmoothTrend ? trendStrength > 0.3 : trendUp
+trendDnSmooth  = useSmoothTrend ? trendStrength < -0.3 : trendDn
+
+// D2 – ADX trend strength filter
+adxVal = ta.rma(math.abs(ta.change(ta.rma(high - low, adxLen))), adxLen)
+[diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
+adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
+
+// B2 – ROC momentum score at signal layer
+rocScore = f_roc_score(close, rocLen)
+rocLongOk  = wRoc == 0 or rocScore > 0.0
+rocShortOk = wRoc == 0 or rocScore < 0.0
+
+// B4 – Volume score at signal layer
+volScore = f_vol_score(volume, volEnsLen)
+volEnsLongOk  = wVol == 0 or volScore > -0.3
+volEnsShortOk = wVol == 0 or volScore > -0.3
+
+//====================
+// Risk Helpers
+//====================
 f_entry_forecast_gate(isLong) =>
     bool ok = true
     forecastAllowed = enableForecast and f_forecast_allowed()
@@ -2676,6 +2689,40 @@ f_entry_forecast_gate(isLong) =>
             ok := false
     ok
 
+// Risk model state
+// Risk model state
+var float stopPx  = na
+var float tpPx    = na
+var float trailPx = na
+
+// Calculate risk levels on entry; returns updated stop/tp/trail
+f_set_risk_on_entry(isLong, entry, atrNow) =>
+    float stopOut  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
+    float tpOut    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
+    float trailOut = na
+    [stopOut, tpOut, trailOut]
+
+// Update trailing stop; returns updated trail
+f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
+    // activate trailing only after reaching +R
+    denom = math.max(math.abs(entry - stopVal), PRICE_EPS)
+    rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
+    float trailOut = trailVal
+    if rNow >= trailAfterR
+        float trailCandidate = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
+        trailOut := na(trailOut) ? trailCandidate : (isLong ? math.max(trailOut, trailCandidate) : math.min(trailOut, trailCandidate))
+    trailOut
+
+f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
+    if not useAtrRisk or na(stopVal)
+        false
+    else
+        stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
+        tpHit    = not na(tpVal) and (isLong ? (high >= tpVal)  : (low  <= tpVal))
+        trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
+        // conservative: stop wins if both in same bar
+        stopHit or trailHit or tpHit
+
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
 //====================
@@ -2686,6 +2733,15 @@ f_entry_forecast_gate(isLong) =>
 [t5, c5, h5, l5, ef5, es5, r5, a5, vR5, conf5] = f_tf_pack(tfF5)
 [t6, c6, h6, l6, ef6, es6, r6, a6, vR6, conf6] = f_tf_pack(tfF6)
 [t7, c7, h7, l7, ef7, es7, r7, a7, vR7, conf7] = f_tf_pack(tfF7)
+
+// Get Target Params per TF
+[fcT1, kB1, aT1, pH1, tp1, sl1] = f_get_params(tfF1)
+[fcT2, kB2, aT2, pH2, tp2, sl2] = f_get_params(tfF2)
+[fcT3, kB3, aT3, pH3, tp3, sl3] = f_get_params(tfF3)
+[fcT4, kB4, aT4, pH4, tp4, sl4] = f_get_params(tfF4)
+[fcT5, kB5, aT5, pH5, tp5, sl5] = f_get_params(tfF5)
+[fcT6, kB6, aT6, pH6, tp6, sl6] = f_get_params(tfF6)
+[fcT7, kB7, aT7, pH7, tp7, sl7] = f_get_params(tfF7)
 
 tfCloseF1 = conf1
 tfCloseF2 = conf2
@@ -2801,6 +2857,60 @@ mtfScore   = useMtfConfirm ? getVoteScore() : 0.0
 mtfOkLong  = (not useMtfConfirm) or (mtfScore > 0.05)
 mtfOkShort = (not useMtfConfirm) or (mtfScore < -0.05)
 
+tfStateArr = array.from(tf1State, tf2State, tf3State, tf4State, tf5State, tf6State, tf7State)
+isBullArr = array.from(isBull1, isBull2, isBull3, isBull4, isBull5, isBull6, isBull7)
+
+cntNArrs = array.new<float[]>()
+cnt1Arrs = array.new<float[]>()
+cntNRawArrs = array.new<float[]>()
+cnt1RawArrs = array.new<float[]>()
+
+for i = 0 to 6
+    st = array.get(tfStateArr, i)
+    useBull = array.get(isBullArr, i)
+    useBullSel = (useBull == true)
+    useBullBear = useBullBearCal and not na(useBull)
+
+    array.push(cntNArrs, useBullBear ? (useBullSel ? st.cntN_bull : st.cntN_bear) : st.cntN)
+    array.push(cnt1Arrs, useBullBear ? (useBullSel ? st.cnt1_bull : st.cnt1_bear) : st.cnt1)
+    array.push(cntNRawArrs, useBullBear ? (useBullSel ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw)
+    array.push(cnt1RawArrs, useBullBear ? (useBullSel ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw)
+
+cntN1Arr = array.get(cntNArrs, 0)
+cnt11Arr = array.get(cnt1Arrs, 0)
+cntN2Arr = array.get(cntNArrs, 1)
+cnt12Arr = array.get(cnt1Arrs, 1)
+cntN3Arr = array.get(cntNArrs, 2)
+cnt13Arr = array.get(cnt1Arrs, 2)
+cntN4Arr = array.get(cntNArrs, 3)
+cnt14Arr = array.get(cnt1Arrs, 3)
+cntN5Arr = array.get(cntNArrs, 4)
+cnt15Arr = array.get(cnt1Arrs, 4)
+cntN6Arr = array.get(cntNArrs, 5)
+cnt16Arr = array.get(cnt1Arrs, 5)
+cntN7Arr = array.get(cntNArrs, 6)
+cnt17Arr = array.get(cnt1Arrs, 6)
+
+cntN1RawArr = array.get(cntNRawArrs, 0)
+cnt11RawArr = array.get(cnt1RawArrs, 0)
+cntN2RawArr = array.get(cntNRawArrs, 1)
+cnt12RawArr = array.get(cnt1RawArrs, 1)
+cntN3RawArr = array.get(cntNRawArrs, 2)
+cnt13RawArr = array.get(cnt1RawArrs, 2)
+cntN4RawArr = array.get(cntNRawArrs, 3)
+cnt14RawArr = array.get(cnt1RawArrs, 3)
+cntN5RawArr = array.get(cntNRawArrs, 4)
+cnt15RawArr = array.get(cnt1RawArrs, 4)
+cntN6RawArr = array.get(cntNRawArrs, 5)
+cnt16RawArr = array.get(cnt1RawArrs, 5)
+cntN7RawArr = array.get(cntNRawArrs, 6)
+cnt17RawArr = array.get(cnt1RawArrs, 6)
+
+//====================
+// Calibration storage — per horizon TF (Removed - moved to top)
+//====================
+// (Moved to top level state)
+
 //====================
 // Reset handling (rising edge) — per horizon F1..F7
 //====================
@@ -2814,20 +2924,27 @@ prevResetNow := resetNow
 if doReset
     if resetWhich == "All"
         f_reset_eval_all()
-    
-    if resetWhich == "All" or resetWhich == "F1" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF1))
         f_reset_tf(tf1State)
-    if resetWhich == "All" or resetWhich == "F2" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF2))
         f_reset_tf(tf2State)
-    if resetWhich == "All" or resetWhich == "F3" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF3))
         f_reset_tf(tf3State)
-    if resetWhich == "All" or resetWhich == "F4" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF4))
         f_reset_tf(tf4State)
-    if resetWhich == "All" or resetWhich == "F5" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF5))
         f_reset_tf(tf5State)
-    if resetWhich == "All" or resetWhich == "F6" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF6))
         f_reset_tf(tf6State)
-    if resetWhich == "All" or resetWhich == "F7" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF7))
+        f_reset_tf(tf7State)
+
+    if resetWhich == "F1" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF1))
+        f_reset_tf(tf1State)
+    if resetWhich == "F2" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF2))
+        f_reset_tf(tf2State)
+    if resetWhich == "F3" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF3))
+        f_reset_tf(tf3State)
+    if resetWhich == "F4" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF4))
+        f_reset_tf(tf4State)
+    if resetWhich == "F5" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF5))
+        f_reset_tf(tf5State)
+    if resetWhich == "F6" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF6))
+        f_reset_tf(tf6State)
+    if resetWhich == "F7" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF7))
         f_reset_tf(tf7State)
 
 //====================
@@ -2851,9 +2968,6 @@ if doCal
                 fc, kb, at, ph, tp, sl,
                 alphaN, alpha1, kShrink, wState, wPullback, wRegime, wTrend)
 
-//====================
-// Display values — N and 1 per horizon (encapsulated, matches Strategy)
-//====================
 f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
     bias = ef > es ? 1 : ef < es ? -1 : 0
     sB = f_pullback_score(c, ef, es, bias)
@@ -2927,7 +3041,9 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
             pD1 := pD1_t
         [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
 
-
+//====================
+// Display values — N and 1 per horizon
+//====================
 var float[] dispPUN = array.new_float(7, na)
 var float[] dispPFN = array.new_float(7, na)
 var float[] dispPDN = array.new_float(7, na)
@@ -2955,7 +3071,6 @@ for i = 0 to 6
         array.set(dispPD1, i, pD1_t)
         array.set(dispN1,  i, n1_t)
 
-// --- Unpack display values to individual variables (used downstream for alerts, plots, etc.)
 [pUN1, pFN1, pDN1, nN1] := f_get_disp4(0, dispPUN, dispPFN, dispPDN, dispNN)
 [pUN2, pFN2, pDN2, nN2] := f_get_disp4(1, dispPUN, dispPFN, dispPDN, dispNN)
 [pUN3, pFN3, pDN3, nN3] := f_get_disp4(2, dispPUN, dispPFN, dispPDN, dispNN)
@@ -2973,28 +3088,18 @@ for i = 0 to 6
 [pU17, pF17, pD17, n17p] := f_get_disp4(6, dispPU1, dispPF1, dispPD1, dispN1)
 
 // --- Total resolved samples per TF (across all bins)
-// (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
 totNArr = array.new_float(7, na)
 tot1Arr = array.new_float(7, na)
 for i = 0 to 6
     tfSel = f_idx_to_tfsel(i)
-    st = f_get_state_for_tf(tfSel)
-    if not na(st)
-        sA = array.get(outScoreArr, i)
-        ef = array.get(efForecastArr, i)
-        es = array.get(esForecastArr, i)
-        bias = ef > es ? 1 : ef < es ? -1 : 0
-        biasSel = useBullBearCal ? f_bias_from_score(sA) : 0
-        if biasSel == 0
-            biasSel := bias == 0 ? 1 : bias
-        cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
-        cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
-        array.set(totNArr, i, f_sum_int_array(cntN_sel))
-        array.set(tot1Arr, i, f_sum_int_array(cnt1_sel))
+    cntN = f_sel_tf_farr(tfSel, cntN1Arr, cntN2Arr, cntN3Arr, cntN4Arr, cntN5Arr, cntN6Arr, cntN7Arr)
+    cnt1 = f_sel_tf_farr(tfSel, cnt11Arr, cnt12Arr, cnt13Arr, cnt14Arr, cnt15Arr, cnt16Arr, cnt17Arr)
+    array.set(totNArr, i, f_sum_int_array(cntN))
+    array.set(tot1Arr, i, f_sum_int_array(cnt1))
 
 // Test anchors for explicit totals helpers
-// f_sum_int_array(st.cntN)
-// f_sum_int_array(st.cnt1)
+// f_sum_int_array(cntN1Arr)
+// f_sum_int_array(cnt11Arr)
 
 totN1 := array.get(totNArr, 0)
 totN2 := array.get(totNArr, 1)
@@ -3004,15 +3109,75 @@ totN5 := array.get(totNArr, 4)
 totN6 := array.get(totNArr, 5)
 totN7 := array.get(totNArr, 6)
 
+tot11 := array.get(tot1Arr, 0)
+tot12 := array.get(tot1Arr, 1)
+tot13 := array.get(tot1Arr, 2)
+tot14 := array.get(tot1Arr, 3)
+tot15 := array.get(tot1Arr, 4)
+tot16 := array.get(tot1Arr, 5)
+tot17 := array.get(tot1Arr, 6)
+
+// Populate rel-value arrays for gating/table (current bar)
+
+for i = 0 to 6
+    array.set(relPUN,  i, array.get(dispPUN, i))
+    array.set(relPFN,  i, array.get(dispPFN, i))
+    array.set(relPDN,  i, array.get(dispPDN, i))
+    array.set(relNN,   i, array.get(dispNN, i))
+    array.set(relTotN, i, array.get(totNArr, i))
+    array.set(relPU1,  i, array.get(dispPU1, i))
+    array.set(relPF1,  i, array.get(dispPF1, i))
+    array.set(relPD1,  i, array.get(dispPD1, i))
+    array.set(relN1,   i, array.get(dispN1, i))
+    array.set(relTot1, i, array.get(tot1Arr, i))
+
+// calibration “enabled for display” if forecast enabled + we have any resolved samples in that TF
+totFNArr = array.new_float(7, na)
+totF1Arr = array.new_float(7, na)
+isBullArr = array.from(isBull1, isBull2, isBull3, isBull4, isBull5, isBull6, isBull7)
+
+for i = 0 to 6
+    tfSel = f_idx_to_tfsel(i)
+    useBull = array.get(isBullArr, i)
+    array.set(totFNArr, i, f_get_total_samples(tfSel, "N", useBull))
+    array.set(totF1Arr, i, f_get_total_samples(tfSel, "1", useBull))
+
+// Test anchors for explicit total sample calls
+// totF1N = f_get_total_samples("F1", "N", isBull1)
+// totF7N = f_get_total_samples("F7", "N", isBull7)
+// totF11 = f_get_total_samples("F1", "1", isBull1)
+// totF17 = f_get_total_samples("F7", "1", isBull7)
+
+totF1N = array.get(totFNArr, 0)
+totF2N = array.get(totFNArr, 1)
+totF3N = array.get(totFNArr, 2)
+totF4N = array.get(totFNArr, 3)
+totF5N = array.get(totFNArr, 4)
+totF6N = array.get(totFNArr, 5)
+totF7N = array.get(totFNArr, 6)
+totF11 = array.get(totF1Arr, 0)
+totF12 = array.get(totF1Arr, 1)
+totF13 = array.get(totF1Arr, 2)
+totF14 = array.get(totF1Arr, 3)
+totF15 = array.get(totF1Arr, 4)
+totF16 = array.get(totF1Arr, 5)
+totF17 = array.get(totF1Arr, 6)
+
 forecastAllowed = enableForecast and f_forecast_allowed()
 
 canFNArr = array.new_bool(7, false)
 canF1Arr = array.new_bool(7, false)
 for i = 0 to 6
-    totN = array.get(totNArr, i)
-    tot1 = array.get(tot1Arr, i)
+    totN = array.get(totFNArr, i)
+    tot1 = array.get(totF1Arr, i)
     array.set(canFNArr, i, forecastAllowed and (not na(totN) and totN > 0))
     array.set(canF1Arr, i, forecastAllowed and (not na(tot1) and tot1 > 0))
+
+// Test anchors for explicit can-flag assignments
+// canF1N = forecastAllowed and (not na(totF1N) and totF1N > 0)
+// canF7N = forecastAllowed and (not na(totF7N) and totF7N > 0)
+// canF11 = forecastAllowed and (not na(totF11) and totF11 > 0)
+// canF17 = forecastAllowed and (not na(totF17) and totF17 > 0)
 
 canF1N = array.get(canFNArr, 0)
 canF2N = array.get(canFNArr, 1)
@@ -3087,399 +3252,13 @@ allowEntry =
 
 f_is_true(x) => x == true
 
-f_bool_to_num(x) => x ? 1.0 : 0.0
-
-bool buySignal = false
-bool shortSignal = false
-bool exitSignal = false
-bool coverSignal = false
-bool didBuy = false
-bool didShort = false
-bool didExit = false
-bool didCover = false
-
-plot(showEvidencePackDebug ? totSamp : na, "totSamp", display=display.data_window)
-plot(showEvidencePackDebug ? curBrierRaw : na, "curBrierRaw", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(reliabilityOk) : na, "reliabilityOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(evidenceOk) : na, "evidenceOk", display=display.data_window)
-plot(showEvidencePackDebug ? evalEce : na, "evalEce", display=display.data_window)
-plot(showEvidencePackDebug ? evalDriftPP : na, "evalDriftPP", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(eceOk) : na, "eceOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(driftOk) : na, "driftOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(evalOk) : na, "evalOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(evalSoftHit) : na, "evalSoftHit", display=display.data_window)
-plot(showEvidencePackDebug ? confGate : na, "confGate", display=display.data_window)
-plot(showEvidencePackDebug ? minTrust : na, "minTrust", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(mtfOkLong) : na, "mtfOkLong", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(mtfOkShort) : na, "mtfOkShort", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(macroGateLong) : na, "macroGateLong", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(macroGateShort) : na, "macroGateShort", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(ddHardGateHit) : na, "ddHardGateHit", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(cooldownOk) : na, "cooldownOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(blockNearClose) : na, "blockNearClose", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(decisionOk) : na, "decisionOk", display=display.data_window)
-plot(showEvidencePackDebug ? decisionEdge : na, "decisionEdge", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(allowEntry) : na, "allowEntry", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(gateLongNow) : na, "gateLongNow", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(gateShortNow) : na, "gateShortNow", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(buySignal) : na, "buySignal", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(shortSignal) : na, "shortSignal", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(didBuy) : na, "didBuy", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(didShort) : na, "didShort", display=display.data_window)
-
 allowExit = barstate.isconfirmed
 
-buySignal   := false
-exitSignal  := false
-shortSignal := false
-coverSignal := false
-
-//====================
-// Signal execution layer
-//====================
-
-// Trend regime
-atrNormHere = atr / math.max(close, 0.0001)
-trendReg = f_trend_regime(emaF, emaS, atrNormHere)
-trendUp  = trendReg == 1.0
-trendDn  = trendReg == -1.0
-trendSide = trendReg == 0.0
-
-// D1 – Smooth trend strength (continuous [-1, 1] alternative)
-trendStrength = f_trend_strength(emaF, emaS)
-trendUpSmooth  = useSmoothTrend ? trendStrength > 0.3 : trendUp
-trendDnSmooth  = useSmoothTrend ? trendStrength < -0.3 : trendDn
-
-// D2 – ADX trend strength filter
-adxVal = ta.rma(math.abs(ta.change(ta.rma(high - low, adxLen))), adxLen)
-[diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
-adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
-
-// Volume confirmation (optional)
-volSma = ta.sma(volume, volLen)
-volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
-
-// B2 – ROC momentum score at signal layer
-rocScore = f_roc_score(close, rocLen)
-rocLongOk  = wRoc == 0 or rocScore > 0.0
-rocShortOk = wRoc == 0 or rocScore < 0.0
-
-// B4 – Volume score at signal layer
-volScore = f_vol_score(volume, volEnsLen)
-volEnsLongOk  = wVol == 0 or volScore > -0.3
-volEnsShortOk = wVol == 0 or volScore > -0.3
-
-// B3 – Pullback gradient (continuous depth vs ATR)
-// Pullback context
-pbLow  = ta.lowest(low, pbLookback)
-pbHigh = ta.highest(high, pbLookback)
-
-// Pullback depth vs EMA fast, in ATR
-pbDepthLong = (emaF - pbLow) / math.max(atr, PRICE_EPS)
-pbDepthShort = (pbHigh - emaF) / math.max(atr, PRICE_EPS)
-
-// “touch EMA fast then reclaim” style trigger
-touchEmaF_Long  = low <= emaF and close >= emaF
-touchEmaF_Short = high >= emaF and close <= emaF
-
-bullReversal = close > open and close > emaF and low <= emaF
-bearReversal = close < open and close < emaF and high >= emaF
-
-// C1 – Pre-signal momentum gate (RSI must align with direction)
-chartRsi = ta.rsi(close, rsiStateLen)
-preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
-preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
-
-// C3 – EMA acceleration filter (gap must be expanding)
-emaGap = emaF - emaS
-emaGapPrev = ta.sma(emaGap, emaAccelLen)
-emaAccelOk = (not useEmaAccel) or (na(emaGapPrev) or (emaGap > emaGapPrev) or (emaGap < emaGapPrev))
-emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
-emaAccelShortOk = (not useEmaAccel) or (emaGap <= emaGapPrev)
-
-// C4 – VWAP alignment filter (intraday only)
-vwapVal = ta.vwap(hlc3)
-isIntraday = timeframe.isintraday
-vwapLongOk  = (not useVwap) or (not isIntraday) or (na(vwapVal) or close >= vwapVal)
-vwapShortOk = (not useVwap) or (not isIntraday) or (na(vwapVal) or close <= vwapVal)
-
-// Confluence gates
-setOkLong  = (not requireSET) or setLong
-setOkShort = (not requireSET) or setShort
-
-fcGateLong  = f_entry_forecast_gate(true)
-fcGateShort = f_entry_forecast_gate(false)
-
-// Entry setups (use smooth trend when enabled)
-pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
-pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
-
-// Breakout levels
-var float lastSwingHigh = na
-var float lastSwingLow  = na
-var int lastSwingHighBar = na
-var int lastSwingLowBar  = na
-ph = ta.pivothigh(high, swingL, swingR)
-pl = ta.pivotlow(low,  swingL, swingR)
-if not na(ph)
-    lastSwingHigh := ph
-    lastSwingHighBar := bar_index
-if not na(pl)
-    lastSwingLow := pl
-    lastSwingLowBar := bar_index
-if swingMaxAgeBars > 0
-    if not na(lastSwingHighBar) and (bar_index - lastSwingHighBar > swingMaxAgeBars)
-        lastSwingHigh := na
-        lastSwingHighBar := na
-    if not na(lastSwingLowBar) and (bar_index - lastSwingLowBar > swingMaxAgeBars)
-        lastSwingLow := na
-        lastSwingLowBar := na
-
-breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
-breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
-
-// Risk model state
-var float stopPx  = na
-var float tpPx    = na
-var float trailPx = na
-
-// Calculate risk levels on entry; returns updated stop/tp/trail
-f_set_risk_on_entry(isLong, entry, atrNow) =>
-    float stopOut  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
-    float tpOut    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
-    float trailOut = na
-    [stopOut, tpOut, trailOut]
-
-// Update trailing stop; returns updated trail
-f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
-    // activate trailing only after reaching +R
-    denom = math.max(math.abs(entry - stopVal), PRICE_EPS)
-    rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
-    float trailOut = trailVal
-    if rNow >= trailAfterR
-        float trailCandidate = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
-        trailOut := na(trailOut) ? trailCandidate : (isLong ? math.max(trailOut, trailCandidate) : math.min(trailOut, trailCandidate))
-    trailOut
-
-f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
-    if not useAtrRisk or na(stopVal)
-        false
-    else
-        stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
-        tpHit    = not na(tpVal) and (isLong ? (high >= tpVal)  : (low  <= tpVal))
-        trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
-        // conservative: stop wins if both in same bar
-        stopHit or trailHit or tpHit
-
-// Fail-closed signal subconditions: any na => deny
-fcGateLongSafe  = f_is_true(fcGateLong)
-fcGateShortSafe = f_is_true(fcGateShort)
-volOkSafe       = f_is_true(volOk)
-setOkLongSafe   = f_is_true(setOkLong)
-setOkShortSafe  = f_is_true(setOkShort)
-pullbackLongOkSafe  = f_is_true(pullbackLongOk)
-pullbackShortOkSafe = f_is_true(pullbackShortOk)
-touchEmaF_LongSafe  = f_is_true(touchEmaF_Long)
-touchEmaF_ShortSafe = f_is_true(touchEmaF_Short)
-crossClose_EmaF_upSafe   = f_is_true(crossClose_EmaF_up)
-crossClose_EmaF_downSafe = f_is_true(crossClose_EmaF_down)
-bullReversalSafe = f_is_true(bullReversal)
-bearReversalSafe = f_is_true(bearReversal)
-trendUpSafe      = f_is_true(trendUp)
-trendDnSafe      = f_is_true(trendDn)
-breakoutLongSafe  = f_is_true(breakoutLong)
-breakoutShortSafe = f_is_true(breakoutShort)
-trendFlipUpSafe   = f_is_true(trendFlipUp)
-trendFlipDownSafe = f_is_true(trendFlipDown)
-reclaimUpSafe     = f_is_true(reclaimUp)
-reclaimDownSafe   = f_is_true(reclaimDown)
-
-// Enhancement gates — all default to true when disabled
-adxOkSafe           = f_is_true(adxOk)
-rocLongOkSafe       = f_is_true(rocLongOk)
-rocShortOkSafe      = f_is_true(rocShortOk)
-volEnsLongOkSafe    = f_is_true(volEnsLongOk)
-volEnsShortOkSafe   = f_is_true(volEnsShortOk)
-preMomLongOkSafe    = f_is_true(preMomLongOk)
-preMomShortOkSafe   = f_is_true(preMomShortOk)
-emaAccelLongOkSafe  = f_is_true(emaAccelLongOk)
-emaAccelShortOkSafe = f_is_true(emaAccelShortOk)
-vwapLongOkSafe      = f_is_true(vwapLongOk)
-vwapShortOkSafe     = f_is_true(vwapShortOk)
-
-// Combined signal enhancement filter (all new filters ANDed)
-enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe
-enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe
-
-hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
-hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
-
-// Signals (enhancement filters wired in)
-if pos == 0 and allowEntry
-    if engine == "Hybrid"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
-    else if engine == "Breakout"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and enhLongOk  and breakoutLongSafe
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
-    else if engine == "Trend+Pullback"
-        buySignal   := gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
-        shortSignal := enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
-    else // Loose
-        buySignal   := gateLongNow and crossClose_EmaF_upSafe
-        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe
-
-    if buySignal and shortSignal
-        buySignal := false
-        shortSignal := false
-
-preBuyNow = false
-preShortNow = false
-if pos == 0 and allowEntry
-    float preDist = preWarnDistATR * atr
-    distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
-    preSetOkLong = (not requireSET) or (preSetPulseOnly ? setLongPulse : setLongStrict)
-    preSetOkShort = (not requireSET) or (preSetPulseOnly ? setShortPulse : setShortStrict)
-
-    if engine == "Hybrid"
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
-    else if engine == "Breakout"
-        nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
-        nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe
-    else if engine == "Trend+Pullback"
-        nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
-        nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
-        nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (close < emaF) and ((emaF - close) <= preDist)
-        nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (close > emaF) and ((close - emaF) <= preDist)
-        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
-        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
-    else // Loose
-        nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
-        nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
-        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
-        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
-
-preBuyPrev = (preBuyNow[1] == true)
-preShortPrev = (preShortNow[1] == true)
-preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
-preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
-
-if pos == 1 and allowExit
-    if useAtrRisk
-        trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
-    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias)
-
-if pos == -1 and allowExit
-    if useAtrRisk
-        trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
-    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
-
-// Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
-didBuy   := false
-didShort := false
-didExit  := false
-didCover := false
-
-// State transitions
-float newStop  = na
-float newTp    = na
-float newTrail = na
-if barstate.isconfirmed
-    if exitSignal and pos == 1
-        didExit := true
-        pos := 0
-        entryPrice := na
-        stopPx := na
-        tpPx := na
-        trailPx := na
-        lastSignalBar := bar_index
-        lastSig := "EXIT"
-    else if coverSignal and pos == -1
-        didCover := true
-        pos := 0
-        entryPrice := na
-        stopPx := na
-        tpPx := na
-        trailPx := na
-        lastSignalBar := bar_index
-        lastSig := "COVER"
-    else if buySignal and pos == 0
-        didBuy := true
-        pos := 1
-        entryPrice := close
-        if useAtrRisk
-            [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
-            stopPx  := newStop
-            tpPx    := newTp
-            trailPx := newTrail
-        lastSignalBar := bar_index
-        lastSig := "BUY"
-    else if shortSignal and pos == 0
-        didShort := true
-        pos := -1
-        entryPrice := close
-        if useAtrRisk
-            [newStop, newTp, newTrail] = f_set_risk_on_entry(false, entryPrice, atr)
-            stopPx  := newStop
-            tpPx    := newTp
-            trailPx := newTrail
-        lastSignalBar := bar_index
-        lastSig := "SHORT"
-
-buyEvent   = didBuy
-shortEvent = didShort
-exitEvent  = didExit
-coverEvent = didCover
-
-alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
-
-//====================
-// Visuals
-//====================
-plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
-plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.belowbar, size=size.tiny, text="PRE\nBUY", textcolor=color.black, color=color.new(color.yellow, 0))
-plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
-
-// Label rendering (configurable source + price)
-labelBuy   = buyEvent
-labelShort = shortEvent
-labelExit  = exitEvent
-labelCover = coverEvent
-
-entryPxPrev = entryPrice[1]
-
-f_label_price(isLong, isEntry) =>
-    entryBase = isEntry ? entryPrice : entryPxPrev
-    entryVal = na(entryBase) ? close : entryBase
-    labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
-
-if showEntryLabels and labelBuy
-    label.new(bar_index, f_label_price(true, true), "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-if showEntryLabels and labelShort
-    label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and labelExit
-    label.new(bar_index, f_label_price(false, false), "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and labelCover
-    label.new(bar_index, f_label_price(true, false), "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-
-plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRisk and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
-plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
-
-plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRisk and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
-plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
-
-pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
-pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
-fill(pNeutralUpper, pNeutralLower, color=color.new(color.blue, 90))
-
-pAggUpper = plot(showZones ? aggrUpper : na, title="Aggressive zone upper", linewidth=1, color=color.new(color.orange, 25))
-pAggLower = plot(showZones ? aggrLower : na, title="Aggressive zone lower", linewidth=1, color=color.new(color.orange, 25))
-fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
+// Initialize signal flags
+buySignal   = false
+exitSignal  = false
+shortSignal = false
+coverSignal = false
 
 
 //====================
@@ -3494,13 +3273,6 @@ if na(gT)
 f_status_row(lbl, val, rRow, valCol) =>
     table.cell(gT, 0, rRow, lbl, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, rRow, val, text_color=valCol, bgcolor=tblCell, text_size=size.tiny)
-
-f_rowOut(tf, score, tC, mC, lC, rV, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 2, rRow, str.tostring(score, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
 f_bin_quality(pTop, nBin) =>
     if nBin <= 0
@@ -3571,29 +3343,6 @@ f_fill_cells(tbl, rRow, cStart, cEnd, txt, txtColor, bgColor, txtSize) =>
     for c = cStart to cEnd
         table.cell(tbl, c, rRow, txt, text_color=txtColor, bgcolor=bgColor, text_size=txtSize)
 
-f_rowFc(tf, pN, nBinN, totN_, canN_, p1, nBin1, tot1_, can1_, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-
-    // Chance(N)
-    txtChanceN = f_chance_text(tf, pN, nBinN, totN_, canN_)
-    colChanceN = f_predColorP(pN, nBinN, canN_, tblText)
-    table.cell(gT, 1, rRow, txtChanceN, text_color=colChanceN, bgcolor=tblCell, text_size=size.tiny)
-
-    // Data(N) = bin/total + label + range
-    txtDataN = f_data_text(pN, nBinN, totN_, canN_)
-    colDataN = f_rel_color(pN, nBinN, totN_, canN_)
-    table.cell(gT, 2, rRow, txtDataN, text_color=colDataN, bgcolor=tblCell, text_size=size.tiny)
-
-    // Chance(1)
-    txtChance1 = f_chance_text(tf, p1, nBin1, tot1_, can1_)
-    colChance1 = f_predColorP(p1, nBin1, can1_, tblText)
-    table.cell(gT, 3, rRow, txtChance1, text_color=colChance1, bgcolor=tblCell, text_size=size.tiny)
-
-    // Data(1)
-    txtData1 = f_data_text(p1, nBin1, tot1_, can1_)
-    colData1 = f_rel_color(p1, nBin1, tot1_, can1_)
-    table.cell(gT, 4, rRow, txtData1, text_color=colData1, bgcolor=tblCell, text_size=size.tiny)
-
 f_fmtBrier(stats) =>
     s = array.get(stats, 0)
     c = array.get(stats, 1)
@@ -3629,105 +3378,8 @@ f_rowRel(tf, statsN, stats1, rRow) =>
     cc1 = cc1_t
     table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
 
-// --- Evaluation Helpers
-f_eval_get(hid) =>
-    float bAvg = na
-    float lAvg = na
-    float ece = na
-    float mErr = na
-    float wS = na
-    float wL = na
-    float drift = na
-    float nSc = na
-    
-    TfState st = na
-    if hid == 1
-        st := tf1State
-    else if hid == 2
-        st := tf2State
-    else if hid == 3
-        st := tf3State
-    else if hid == 4
-        st := tf4State
-    else if hid == 5
-        st := tf5State
-    else if hid == 6
-        st := tf6State
-    else 
-        st := tf7State
-
-    if not na(st)
-        // Switch to get arrays based on head (N or 1)
-        if evalWhichHead == "N"
-            [b0_t, b1_t, e0_t, e1_t, w0_t, w1_t, d0_t, n0_t] = f_eval_stats_one(st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN)
-            bAvg := b0_t
-            lAvg := b1_t
-            ece := e0_t
-            mErr := e1_t
-            wS := w0_t
-            wL := w1_t
-            drift := d0_t
-            nSc := n0_t
-        else
-            [b0_t, b1_t, e0_t, e1_t, w0_t, w1_t, d0_t, n0_t] = f_eval_stats_one(st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1)
-            bAvg := b0_t
-            lAvg := b1_t
-            ece := e0_t
-            mErr := e1_t
-            wS := w0_t
-            wL := w1_t
-            drift := d0_t
-            nSc := n0_t
-        
-    [bAvg, lAvg, ece, mErr, wS, wL, drift, nSc]
-
-f_rowEval(tbl, tf, hid, rRow) =>
-    [bAvg_t, lAvg_t, ece_t, mErr_t, wS_t, wL_t, drift_t, nSc_t] = f_eval_get(hid)
-    bAvg = bAvg_t
-    lAvg = lAvg_t
-    ece = ece_t
-    mErr = mErr_t
-    wS = wS_t
-    wL = wL_t
-    drift = drift_t
-    nSc = nSc_t
-    
-    // Label
-    table.cell(tbl, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-
-    if na(nSc) or nSc == 0
-        table.cell(tbl, 1, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 2, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 3, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 4, rRow, "0",   text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    else
-        // LogLoss
-        // ideal ~ 0.693 for random 50/50. Good < 0.65 ?? 
-        // We'll just color based on existence
-        llTxt = str.tostring(lAvg, "#.000")
-        table.cell(tbl, 1, rRow, llTxt, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-
-        // ConfErr (pTrue) / Max
-        eceT = str.tostring(ece * 100, "#.0")
-        maxT = str.tostring(mErr * 100, "#.0")
-        comb = eceT + "/" + maxT
-        // Color ECE: < 5% is great, <10% ok
-        cEce = ece < 0.05 ? color.lime : ece < 0.10 ? color.yellow : color.red
-        table.cell(tbl, 2, rRow, comb, text_color=cEce, bgcolor=tblCell, text_size=size.tiny)
-
-        // Drift
-        drT = f_ppSigned(drift)
-        // positive drift = Short yield > Long yield? 
-        // Actually wS - wL. If > 0 => Short doing better.
-        // We assume neutral is 0.
-        table.cell(tbl, 3, rRow, drT, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-        
-        // Count
-        table.cell(tbl, 4, rRow, str.tostring(nSc, "#"), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-
-
 //====================
-// Table (10 columns) — rendered on last bar (LIVE or CONFIRMED-only)
+// Table (10 columns) — rendered on confirmed bars (stable)
 //====================
 mtfStr  = useMtfConfirm ? (setUse + " " + str.tostring(mtfScore, format.mintick)) : "OFF"
 posStr  = pos == 1 ? "LONG" : pos == -1 ? "SHORT" : "FLAT"
@@ -3778,6 +3430,299 @@ if renderTable
     table.cell(gT, 0, 16, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     f_fill_cells(gT, 16, 1, 9, "", tblTextDim, tblHeader, size.tiny)
 
+
+//====================
+// Signal Logic (Post-Forecast)
+//====================
+volSma = ta.sma(volume, volLen)
+volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
+
+// C1 – Pre-signal momentum (RSI alignment)
+chartRsi = ta.rsi(close, rsiStateLen)
+preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
+preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
+
+// C3 – EMA acceleration (gap expanding)
+emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
+emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
+emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
+emaAccelShortOk = (not useEmaAccel) or (emaGap >= emaGapPrev)
+
+// C4 – VWAP alignment (intraday only)
+vwapVal = ta.vwap(hlc3)
+vwapLongOk  = (not useVwap) or na(vwapVal) or (close >= vwapVal)
+vwapShortOk = (not useVwap) or na(vwapVal) or (close <= vwapVal)
+
+fcGateLong  = f_entry_forecast_gate(true)
+fcGateShort = f_entry_forecast_gate(false)
+
+// Pullback depth
+pbLow = ta.lowest(low, pbLookback)
+pbHigh = ta.highest(high, pbLookback)
+pbDepthLong = (emaF - pbLow) / math.max(atr, PRICE_EPS)
+pbDepthShort = (pbHigh - emaF) / math.max(atr, PRICE_EPS)
+
+touchEmaF_Long  = low <= emaF and close >= emaF
+touchEmaF_Short = high >= emaF and close <= emaF
+
+bullReversal = close > open and close > emaF and low <= emaF
+bearReversal = close < open and close < emaF and high >= emaF
+
+setOkLong  = (not requireSET) or setLong
+setOkShort = (not requireSET) or setShort
+
+pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
+pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
+
+// Breakout
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+var int lastSwingHighBar = na
+var int lastSwingLowBar  = na
+ph = ta.pivothigh(high, swingL, swingR)
+pl = ta.pivotlow(low,  swingL, swingR)
+if not na(ph)
+    lastSwingHigh := ph
+    lastSwingHighBar := bar_index
+if not na(pl)
+    lastSwingLow := pl
+    lastSwingLowBar := bar_index
+if swingMaxAgeBars > 0
+    if not na(lastSwingHighBar) and (bar_index - lastSwingHighBar > swingMaxAgeBars)
+        lastSwingHigh := na
+        lastSwingHighBar := na
+    if not na(lastSwingLowBar) and (bar_index - lastSwingLowBar > swingMaxAgeBars)
+        lastSwingLow := na
+        lastSwingLowBar := na
+
+breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+
+// Fail-closed signal subconditions: any na => deny
+fcGateLongSafe  = f_is_true(fcGateLong)
+fcGateShortSafe = f_is_true(fcGateShort)
+volOkSafe       = f_is_true(volOk)
+setOkLongSafe   = f_is_true(setOkLong)
+setOkShortSafe  = f_is_true(setOkShort)
+pullbackLongOkSafe  = f_is_true(pullbackLongOk)
+pullbackShortOkSafe = f_is_true(pullbackShortOk)
+touchEmaF_LongSafe  = f_is_true(touchEmaF_Long)
+touchEmaF_ShortSafe = f_is_true(touchEmaF_Short)
+crossClose_EmaF_upSafe   = f_is_true(crossClose_EmaF_up)
+crossClose_EmaF_downSafe = f_is_true(crossClose_EmaF_down)
+bullReversalSafe = f_is_true(bullReversal)
+bearReversalSafe = f_is_true(bearReversal)
+trendUpSafe      = f_is_true(trendUp)
+trendDnSafe      = f_is_true(trendDn)
+breakoutLongSafe  = f_is_true(breakoutLong)
+breakoutShortSafe = f_is_true(breakoutShort)
+trendFlipUpSafe   = f_is_true(trendFlipUp)
+trendFlipDownSafe = f_is_true(trendFlipDown)
+reclaimUpSafe     = f_is_true(reclaimUp)
+reclaimDownSafe   = f_is_true(reclaimDown)
+adxOkSafe         = f_is_true(adxOk)
+rocLongOkSafe     = f_is_true(rocLongOk)
+rocShortOkSafe    = f_is_true(rocShortOk)
+volEnsLongOkSafe  = f_is_true(volEnsLongOk)
+volEnsShortOkSafe = f_is_true(volEnsShortOk)
+preMomLongOkSafe  = f_is_true(preMomLongOk)
+preMomShortOkSafe = f_is_true(preMomShortOk)
+emaAccelLongOkSafe  = f_is_true(emaAccelLongOk)
+emaAccelShortOkSafe = f_is_true(emaAccelShortOk)
+vwapLongOkSafe    = f_is_true(vwapLongOk)
+vwapShortOkSafe   = f_is_true(vwapShortOk)
+
+// Enhancement composite gates
+enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe
+enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe
+
+hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
+hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
+
+// Signals
+if pos == 0 and allowEntry
+    if engine == "Hybrid"
+        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger  and enhLongOk
+        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk
+    else if engine == "Breakout"
+        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe  and enhLongOk
+        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk
+    else if engine == "Trend+Pullback"
+        buySignal   := gateLongNow and (trendFlipUpSafe or reclaimUpSafe) and enhLongOk
+        shortSignal := enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe) and enhShortOk
+    else // Loose
+        buySignal   := gateLongNow and crossClose_EmaF_upSafe and enhLongOk
+        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
+
+    if buySignal and shortSignal
+        buySignal := false
+        shortSignal := false
+
+preBuyNow = false
+preShortNow = false
+if pos == 0 and allowEntry
+    float preDist = preWarnDistATR * atr
+    distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
+    preSetOkLong = (not requireSET) or (preSetPulseOnly ? setLongPulse : setLongStrict)
+    preSetOkShort = (not requireSET) or (preSetPulseOnly ? setShortPulse : setShortStrict)
+
+    if engine == "Hybrid"
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
+    else if engine == "Breakout"
+        nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
+        nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe
+    else if engine == "Trend+Pullback"
+        nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
+        nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
+        nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (close < emaF) and ((emaF - close) <= preDist)
+        nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (close > emaF) and ((close - emaF) <= preDist)
+        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
+        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
+    else // Loose
+        nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
+        nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
+        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
+        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
+
+preBuyPrev = (preBuyNow[1] == true)
+preShortPrev = (preShortNow[1] == true)
+preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
+preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
+
+if pos == 1 and allowExit
+    if useAtrRisk
+        trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
+    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias)
+
+if pos == -1 and allowExit
+    if useAtrRisk
+        trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
+    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
+
+// State Logic
+float newStop  = na
+float newTp    = na
+float newTrail = na
+if barstate.isconfirmed
+    if exitSignal and pos == 1
+        pos := 0
+        entryPrice := na
+        stopPx := na
+        tpPx := na
+        trailPx := na
+        lastSignalBar := bar_index
+        lastSig := "EXIT"
+    else if coverSignal and pos == -1
+        pos := 0
+        entryPrice := na
+        stopPx := na
+        tpPx := na
+        trailPx := na
+        lastSignalBar := bar_index
+        lastSig := "COVER"
+    else if buySignal and pos == 0
+        pos := 1
+        entryPrice := close
+        if useAtrRisk
+            [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
+            stopPx  := newStop
+            tpPx    := newTp
+            trailPx := newTrail
+        lastSignalBar := bar_index
+        lastSig := "BUY"
+    else if shortSignal and pos == 0
+        pos := -1
+        entryPrice := close
+        if useAtrRisk
+            [newStop, newTp, newTrail] = f_set_risk_on_entry(false, entryPrice, atr)
+            stopPx  := newStop
+            tpPx    := newTp
+            trailPx := newTrail
+        lastSignalBar := bar_index
+        lastSig := "SHORT"
+
+buyEvent   = barstate.isconfirmed and pos == 1 and pos[1] == 0
+shortEvent = barstate.isconfirmed and pos == -1 and pos[1] == 0
+exitEvent  = barstate.isconfirmed and pos == 0 and pos[1] == 1
+coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
+
+alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
+
+// Alerts
+alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY")
+alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT")
+alertcondition((not useAlertCalls) and exitEvent,  title="EXIT",  message="SkippALGO EXIT")
+alertcondition((not useAlertCalls) and coverEvent, title="COVER", message="SkippALGO COVER")
+
+f_send_alert(cond, label) =>
+    if useAlertCalls and cond and barstate.isconfirmed
+        alert("SkippALGO " + label + ": " + syminfo.ticker + " " + timeframe.period, alertFreq)
+
+f_send_alert(buyEvent, "BUY")
+f_send_alert(shortEvent, "SHORT")
+f_send_alert(exitEvent, "EXIT")
+f_send_alert(coverEvent, "COVER")
+
+// Highlighting
+plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
+plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.belowbar, size=size.tiny, text="PRE\nBUY", textcolor=color.black, color=color.new(color.yellow, 0))
+plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
+
+// Label rendering (configurable source + price)
+labelBuy   = buyEvent
+labelShort = shortEvent
+labelExit  = exitEvent
+labelCover = coverEvent
+
+entryPxPrev = entryPrice[1]
+
+f_label_price(isLong, isEntry) =>
+    entryBase = isEntry ? entryPrice : entryPxPrev
+    entryVal = na(entryBase) ? close : entryBase
+    labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
+
+if showEntryLabels and labelBuy
+    label.new(bar_index, f_label_price(true, true), "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+if showEntryLabels and labelShort
+    label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and labelExit
+    label.new(bar_index, f_label_price(false, false), "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+if showEntryLabels and labelCover
+    label.new(bar_index, f_label_price(true, false), "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+
+plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
+plot(useAtrRisk and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
+
+plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
+plot(useAtrRisk and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
+
+// Strategy Execution (Active)
+if buyEvent
+    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"))
+    if useAtrRisk and not na(stopPx) and not na(tpPx)
+        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx)
+
+if shortEvent
+    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"))
+    if useAtrRisk and not na(stopPx) and not na(tpPx)
+        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx)
+
+if useAtrRisk and pos != 0 and not na(stopPx)
+    if pos == 1 and not na(trailPx)
+        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx)
+    if pos == -1 and not na(trailPx)
+        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx)
+
+if exitEvent
+    strategy.close("L", comment="Exit Signal")
+if coverEvent
+    strategy.close("S", comment="Cover Signal")
+
 //====================
 // Calibration Diagnostics Panel (Debug)
 //====================
@@ -3815,7 +3760,7 @@ if showDiagPanel and barstate.islast and (not tableOnConfirmed or barstate.iscon
         plattArr = diagModel == "N" ? st.plattN : st.platt1
         brierStats = diagModel == "N" ? st.brierStatsN : st.brierStats1
         llStats = diagModel == "N" ? st.llStatsN : st.llStats1
-    
+        
         // Platt params
         plattA = array.get(plattArr, 0)
         plattB = array.get(plattArr, 1)
@@ -3899,71 +3844,65 @@ if showDiagPanel and barstate.islast and (not tableOnConfirmed or barstate.iscon
         f_diag_row(diagTbl, 13, "Resolutions", str.tostring(int(brierCnt)), color.white)
 
 //====================
-// UT Bot Logic (Overlay, V4 Port) + Enhanced Filters
+// Calibration Export Alert
 //====================
+f_get_export_state() =>
+    exportHorizon == "F1" ? tf1State : exportHorizon == "F2" ? tf2State : exportHorizon == "F3" ? tf3State : exportHorizon == "F4" ? tf4State : exportHorizon == "F5" ? tf5State : exportHorizon == "F6" ? tf6State : tf7State
 
-// --- FRAMA Calculation (BigBeluga) ---
-// User Defined Type for FRAMA variables (only Dimen + alpha are used at runtime)
-type FramaVars 
-    float Dimen = na
-    float alpha = na
+if exportCalibration and barstate.isconfirmed and barstate.isrealtime and (bar_index % exportInterval == 0)
+    expSt = f_get_export_state()
 
-f_calc_frama(len, dist) =>
-    var v = FramaVars.new(0., 0.)
-    half = int(len / 2)
-    float n3_term = (ta.highest(high, len) - ta.lowest(low, len)) / len
-    
-    // N1
-    float hh1 = high
-    float ll1 = low
-    for i = 0 to half - 1
-        hh1 := math.max(hh1, high[i])
-        ll1 := math.min(ll1, low[i])
-    float n1_term = (hh1 - ll1) / half
-    
-    // N2
-    float hh2 = high[half]
-    float ll2 = low[half]
-    for i = half to len - 1
-        hh2 := math.max(hh2, high[i])
-        ll2 := math.min(ll2, low[i])
-    float n2_term = (hh2 - ll2) / half
+    pAN = array.get(expSt.plattN, 0)
+    pBN = array.get(expSt.plattN, 1)
+    pA1 = array.get(expSt.platt1, 0)
+    pB1 = array.get(expSt.platt1, 1)
 
-    if n1_term > 0 and n2_term > 0 and n3_term > 0
-        v.Dimen := (math.log(n1_term + n2_term) - math.log(n3_term)) / math.log(2)
-    
-    v.alpha := math.exp(-4.6 * (v.Dimen - 1))
-    v.alpha := math.max(math.min(v.alpha, 1), 0.01)
+    // Brier/LogLoss stats aligned to evalWhichHead
+    useHeadN = evalWhichHead == "N"
+    brierStats = useHeadN ? expSt.brierStatsN : expSt.brierStats1
+    llStats = useHeadN ? expSt.llStatsN : expSt.llStats1
+    cntArr = useHeadN ? expSt.cntN : expSt.cnt1
 
-    var float framaFilt = na
-    framaFilt := na(framaFilt) ? close : v.alpha * close + (1 - v.alpha) * framaFilt[1]
-    
-    // Smoothing
-    framaSm = ta.sma((bar_index < len + 1) ? close : framaFilt, 5)
-    
-    vol = ta.sma(high - low, 200)
-    bandTop = framaSm + vol * dist
-    bandBot = framaSm - vol * dist
-    [framaSm, bandTop, bandBot]
+    brierSumN = array.get(brierStats, 0)
+    brierCntN = array.get(brierStats, 1)
+    brierAvgN = brierCntN > 0 ? brierSumN / brierCntN : 0
+
+    llSumN = array.get(llStats, 0)
+    llCntN = array.get(llStats, 1)
+    llAvgN = llCntN > 0 ? llSumN / llCntN : 0
+
+    totalSamplesN = array.sum(cntArr)
+
+    // Build JSON payload (single line to avoid line continuation issues)
+    jsonPayload = str.format('{"ticker":"{0}","horizon":"{1}","bar_index":{2},"timestamp":"{3}","platt_N":{{"a":{4},"b":{5}}},"platt_1":{{"a":{6},"b":{7}}},"brier_avg":{8},"logloss_avg":{9},"samples":{10},"resolutions":{11}}',
+        syminfo.ticker,
+        exportHorizon,
+        str.tostring(bar_index),
+        str.tostring(timenow),
+        str.tostring(pAN, "#.####"),
+        str.tostring(pBN, "#.####"),
+        str.tostring(pA1, "#.####"),
+        str.tostring(pB1, "#.####"),
+        str.tostring(brierAvgN, "#.####"),
+        str.tostring(llAvgN, "#.####"),
+        str.tostring(totalSamplesN),
+        str.tostring(int(brierCntN))
+    )
+
+    alert(jsonPayload, alert.freq_once_per_bar)
 
 //====================
-// Alerts (bar close)
+// Trend Regime Export Alert (for monitoring)
 //====================
-alertBuyCond = (not useAlertCalls) and buyEvent   and barstate.isconfirmed
-alertShortCond = (not useAlertCalls) and shortEvent and barstate.isconfirmed
-alertExitCond = (not useAlertCalls) and exitEvent  and barstate.isconfirmed
-alertCoverCond = (not useAlertCalls) and coverEvent and barstate.isconfirmed
+// Epsilon PRICE_EPS prevents division by zero on penny stocks or exotic instruments
+atrNormCur = atr / math.max(close, PRICE_EPS)
+curTrendRegime = f_trend_regime(emaF, emaS, atrNormCur)
+trendLabel = curTrendRegime > 0.5 ? "BULL" : curTrendRegime < -0.5 ? "BEAR" : "SIDEWAYS"
+bullRegimeCond = curTrendRegime > 0.5 and curTrendRegime[1] <= 0.5
+bearRegimeCond = curTrendRegime < -0.5 and curTrendRegime[1] >= -0.5
+sidewaysRegimeCond = math.abs(curTrendRegime) <= 0.5 and math.abs(curTrendRegime[1]) > 0.5
+alertcondition(bullRegimeCond, title="Regime: BULL", message="{{ticker}} entered BULL regime")
+alertcondition(bearRegimeCond, title="Regime: BEAR", message="{{ticker}} entered BEAR regime")
+alertcondition(sidewaysRegimeCond, title="Regime: SIDEWAYS", message="{{ticker}} entered SIDEWAYS regime")
 
-alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY")
-alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT")
-alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT")
-alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER")
-
-f_send_alert(cond, label) =>
-    if useAlertCalls and cond and barstate.isconfirmed
-        alert("SkippALGO " + label + ": " + syminfo.ticker + " " + timeframe.period, alertFreq)
-
-f_send_alert(buyEvent, "BUY")
-f_send_alert(shortEvent, "SHORT")
-f_send_alert(exitEvent, "EXIT")
-f_send_alert(coverEvent, "COVER")
+//====================
