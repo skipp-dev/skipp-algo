@@ -43,6 +43,7 @@ stopATR  = input.float(1.50, "Stop ATR", minval=0.1, step=0.10)
 tpATR    = input.float(3.00, "Take Profit ATR", minval=0.1, step=0.10)
 trailATR = input.float(2.00, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.00, "Trail activates after R", minval=0.0, step=0.10)
+exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
 swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
@@ -3470,15 +3471,25 @@ preShortPrev = (preShortNow[1] == true)
 preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
 preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
 
+var int barsSinceEntry = 0
+if pos != pos[1] and pos != 0
+    barsSinceEntry := 0
+else if pos != 0
+    barsSinceEntry += 1
+else
+    barsSinceEntry := 0
+
+bool canStructExit = (barsSinceEntry >= exitGraceBars)
+
 if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
-    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias)
+    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias and canStructExit)
 
 if pos == -1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
-    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
+    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias and canStructExit)
 
 // State Logic
 if barstate.isconfirmed
