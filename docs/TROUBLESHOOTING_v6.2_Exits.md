@@ -47,22 +47,24 @@ Users reported high-confidence BUY signals (e.g., at 21:48) followed immediately
   * `EXIT (Struct)`: Trend Flip / Signal Reversal.
 * **Benefit**: Allows instant visual debugging of *why* an exit occurred.
 
-### 4. Dynamic Risk Decay (Smart Risk Management)
+### 4. Dynamic Risk Decay (Linear Cone)
 
-* **Feature Added**: Automatically tightens risk parameters after the trade stabilizes.
-* **Mechanism**:
-  1. **Phase 1 (Entry)**: Uses Wide Stops (`2.5 ATR`) to survive initial noise.
-  2. **Phase 2 (Sustained)**: After `Grace Period` ends, stops snap to tighter values (`1.5 ATR`).
-* **Result**: Provides "Safety" of a wide stop during volatility, but ensures "Discipline" of a tight stop during trend maintenance.
+* **Feature Added**: Automatically tightens risk parameters linearly over the first `N` bars.
+* **Mechanism (Linear Interpolation)**:
+  *   **Bar 0 (Entry)**: Risk is at maximum width (`2.5 ATR`) to absorb volatility.
+  *   **Bar 3 (Halfway)**: Risk has tightened by 50% (`2.0 ATR`).
+  *   **Bar 6 (Sustained)**: Risk reaches final tight state (`1.5 ATR`).
+* **Why Linear?**: Unlike a "step" change, linear decay gently guides the stop closer to price. If price moves against the trade slowly during the grace period, the funneling stop will catch it earlier, reducing the loss compared to waiting for a hard step.
+* **Result**: Provides a "Funnel" of safety that is wide at the mouth (entry) and precise at the tail (trend).
 
 ## Verification & Case Study
 
 * **Test Case**: 21:15 Entry on 3m Chart.
-* **Previous Behavior**: Exited immediately at 21:18 (Loss) due to `0.5 ATR` noise wicks or tight structural reactions.
+* **Previous Behavior**: Exited immediately at 21:18 (Loss) due to noise wicks.
 * **New Behavior**:
   1. **Entry 21:15**: Wide Stop (2.5 ATR) absorbs the initial wick.
   2. **Grace Period**: Trade ignores structural flips through 21:30 (5 bars).
-  3. **Risk Decay**: At 21:30, TP target automatically reduces from 5.0 &rarr; 3.0 ATR.
+  3. **Risk Decay**: From 21:15 to 21:33, the Hard Stop and TP targets smoothly tighten, bar by bar.
   4. **Outcome**: Valid Exit at **21:42 (EXIT TP)**.
 * **Conclusion**: The logic correction turned a "Technical Stop-Out" into a "Realized Profit". The trade was allowed to breathe, survived the noise, and hit the target.
 
