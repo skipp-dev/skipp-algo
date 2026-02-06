@@ -265,8 +265,8 @@ fcTargetM = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn
 kBarsM    = input.int(5, "k bars", minval=1, maxval=20, group=grp_mid)
 atrThrM   = input.float(0.50, "ATR Thr", minval=0.01, step=0.05, group=grp_mid)
 pathHM    = input.int(8, "Path H", minval=1, maxval=50, group=grp_mid)
-tpATRM    = input.float(0.65, "Path TP", minval=0.01, step=0.05, group=grp_mid)
-slATRM    = input.float(0.65, "Path SL", minval=0.01, step=0.05, group=grp_mid)
+tpATRM    = input.float(0.80, "Path TP", minval=0.01, step=0.05, group=grp_mid)
+slATRM    = input.float(1.00, "Path SL", minval=0.01, step=0.05, group=grp_mid)
 
 grp_slow = "Target Profile 3: Slow (4h, 1D, ...)"
 fcTargetS = input.string("PathTPvsSL", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_slow)
@@ -377,6 +377,8 @@ evidenceGate = input.bool(false, "Evidence gate (block weak bins)")
 evidenceMinTotal = input.int(120, "Evidence min total samples", minval=1, maxval=10000)
 abstainGate = input.bool(true, "Abstain on weak decisions")
 abstainMinEdge = input.float(0.08, "Abstain min edge (pp)", minval=0.0, maxval=0.50, step=0.01)
+// New: Allow strong signals significantly trusted by the model to bypass the "Min Samples" gate
+abstainOverrideConf = input.float(0.85, "Abstain override: High Conf", minval=0.5, step=0.05, tooltip="If Confidence > this level, ignore sample size gates. Allows rare but high-quality signals.")
 
 // Trade-gate thresholds (separate from calibration thresholds)
 tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, maxval=200)
@@ -3016,6 +3018,12 @@ gateLongNow  = confOk and mtfOkLong_  and macOkLong_  and ddOk
 gateShortNow = confOk and mtfOkShort_ and macOkShort_ and ddOk
 
 decisionOkSafe     = (not use3Way) ? true : (decisionOk == true)
+// High confidence override: If the calibrated confidence is extremely high (e.g. > 0.85),
+// it means the "Shrinkage" algorithm already validated the signal despite low sample count.
+// In such cases, we should NOT block it with a brute-force sample count gate.
+isHighConf = (confidence >= abstainOverrideConf)
+decisionFinal = decisionOkSafe or isHighConf
+
 cooldownOkSafe     = (cooldownOk == true)
 nearCloseOk        = (blockNearClose == false)
 
@@ -3026,7 +3034,7 @@ allowEntry =
  and (reliabilityOk == true)
  and (evidenceOk == true)
  and (evalOk == true)
- and (not abstainGate or decisionOkSafe)
+ and (not abstainGate or decisionFinal)
 
 f_bool_to_num(x) => x ? 1.0 : 0.0
 
