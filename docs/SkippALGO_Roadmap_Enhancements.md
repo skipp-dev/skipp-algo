@@ -1,6 +1,6 @@
 # Roadmap Outline — Next Recommended Enhancements
 
-## Status (Feb 05, 2026)
+## Status (Feb 06, 2026)
 
 Completed in v6.1 (Indicator + Strategy):
 
@@ -9,6 +9,35 @@ Completed in v6.1 (Indicator + Strategy):
 * Evidence/abstain gate with UI feedback for decision quality.
 * 3‑way calibrator auto‑fallback on weak bins (safety).
 * Temperature/vector scaling applied to displayed 3‑way probabilities when eligible.
+
+Completed in v6.2 — Forecast Quality & Signal Enhancements (Feb 05–06, 2026):
+
+**Safe calibration defaults (A1/A3/A4/A6/A7):**
+* A1 – `calMinSamples` raised to 30, `alphaN`/`alpha1` to 1.5.
+* A3 – Guardrail skip on `volShock`/`gapShock`/`rangeShock`.
+* A4 – `kShrink` = 1.0, `kShrinkReg` = 0.8 for regularised calibrator.
+* A6 – Queue capacity capped to `maxQ = 60`.
+* A7 – Platt param clamping `[0.1, 5.0]` / `[-3.0, 3.0]`.
+
+**Adaptive systems (C2/D3):**
+* C2 – Adaptive cooldown: halves wait when confidence ≥ 0.80.
+* D3 – Weighted MTF scoring: tf3 × 2.0, tf2 × 1.5, tf1 × 1.0.
+
+**Deferred deep-review items (A2/A5/B1–B4/C1/C3/C4/D1/D2) — all opt-in, default OFF:**
+* A2 – SGD momentum (Adam-lite): EMA on Platt gradients (`useSgdMomentum`, `sgdBeta`).
+* A5 – ECE-triggered recalibration: boost Platt LR when ECE ≥ warning (`useEceRecal`).
+* B1 – Continuous trend: `f_state_score` uses `f_trend_strength` when `useSmoothTrend` enabled.
+* B2 – ROC factor: signal-layer momentum gate via `f_roc_score` (`wRoc`).
+* B3 – Pullback gradient: pullback uses smooth trend thresholds when D1 enabled.
+* B4 – Volume in ensemble: signal-layer volume gate via `f_vol_score` (`wVol`).
+* C1 – Pre-signal momentum: RSI alignment gate (`usePreMomentum`).
+* C3 – EMA acceleration: gap expansion filter (`useEmaAccel`).
+* C4 – VWAP alignment: intraday direction filter (`useVwap`).
+* D1 – Smooth trend regime: continuous `f_trend_strength` [-1, 1].
+* D2 – ADX filter: minimum trend strength gate (`useAdx`, `adxThresh`).
+* 6-factor ensemble function `f_ensemble6` added for future scoring.
+* Enhancement composite gates (`enhLongOk`/`enhShortOk`) wired into all 4 signal engines.
+* 234 tests passing (24 new feature-coverage tests).
 
 ## 0) Guiding principles (applies to all items)
 

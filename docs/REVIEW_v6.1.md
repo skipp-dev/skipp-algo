@@ -91,3 +91,42 @@ Both indicator and strategy now use the **TfState UDT pattern**:
 * **Totals alignment**: Forecast totals now use the selected count arrays to reflect bull/bear calibration selection.
 * **Forecast gating**: `canF*` flags depend on `enableForecast` directly, while `forecastAllowed` continues to gate execution.
 * **Indicator/strategy parity**: Applied the same alignment to both `SkippALGO.pine` and `SkippALGO_Strategy.pine`.
+
+## 10. Feb 05–06, 2026 Updates (v6.2 — Forecast Quality & Signal Enhancements)
+
+### Safe Calibration Defaults (A1/A3/A4/A6/A7)
+* **A1**: Raised `calMinSamples` to 30, `alphaN`/`alpha1` to 1.5 for better smoothing.
+* **A3**: Guardrail skip — calibration updates skipped on `volShock`/`gapShock`/`rangeShock` bars.
+* **A4**: Regularised calibrator with `kShrink` = 1.0, `kShrinkReg` = 0.8.
+* **A6**: Queue capacity capped to `maxQ = 60` to prevent unbounded memory growth.
+* **A7**: Platt parameter clamping to `[0.1, 5.0]` (A) / `[-3.0, 3.0]` (B).
+
+### Adaptive Systems (C2/D3)
+* **C2**: Adaptive cooldown — halves `cooldownBars` when `confidence >= 0.80`.
+* **D3**: Weighted MTF scoring — higher timeframes weighted more (tf3 × 2.0, tf2 × 1.5, tf1 × 1.0).
+
+### Deferred Deep-Review Items (A2/A5/B1–B4/C1/C3/C4/D1/D2)
+All features opt-in with input toggles defaulting to OFF for backward compatibility.
+
+* **A2 – SGD momentum (Adam-lite)**: Optional EMA on Platt SGD gradients via `useSgdMomentum`/`sgdBeta` (0.9). TfState extended with `momPlattN`/`momPlatt1` momentum vectors.
+* **A5 – ECE-triggered recalibration**: Boosts Platt learning rate by `eceRecalBoost` (3×) when previous bar's ECE ≥ `eceWarn`. Uses `prevEvalEce` variable computed after eval metrics.
+* **B1 – Continuous trend**: `f_state_score` conditionally uses `f_trend_strength()` (continuous [-1,1]) instead of binary trend when `useSmoothTrend` enabled.
+* **B2 – ROC factor**: Signal-layer momentum gate via `f_roc_score()`, controlled by `wRoc` weight. Implemented as signal filter (not in calibration ensemble) to avoid breaking learned 2D bin distributions.
+* **B3 – Pullback gradient**: Pullback conditions use `trendUpSmooth`/`trendDnSmooth` (0.3 threshold) instead of binary `trendUp`/`trendDn` when D1 is enabled.
+* **B4 – Volume in ensemble**: Signal-layer volume gate via `f_vol_score()`, controlled by `wVol` weight. Same design rationale as B2.
+* **C1 – Pre-signal momentum**: RSI alignment gate (`usePreMomentum`). Longs require RSI ≥ `preMomRsiLo` (35), shorts require RSI ≤ `preMomRsiHi` (65).
+* **C3 – EMA acceleration**: Gap expansion filter (`useEmaAccel`) — requires EMA gap to be expanding (not contracting) for entry.
+* **C4 – VWAP alignment**: Intraday-only direction filter (`useVwap`). Longs require close ≥ VWAP; shorts require close ≤ VWAP.
+* **D1 – Smooth trend regime**: New `f_trend_strength(emaF, emaS)` function returns continuous [-1, 1] trend via normalised EMA diff.
+* **D2 – ADX filter**: Minimum trend strength gate (`useAdx`/`adxLen`/`adxThresh`). Uses `ta.dmi()` built-in.
+
+### Architecture
+* New `f_ensemble6()` function for 6-factor weighted ensemble scoring (future use).
+* Enhancement composite gates `enhLongOk`/`enhShortOk` AND all new signal filters together and are wired into all 4 signal engine modes (Hybrid, Breakout, Trend+Pullback, Loose).
+* All changes applied to both `SkippALGO.pine` and `SkippALGO_Strategy.pine`.
+
+### Tests
+* 234 tests passing (24 new tests covering deferred feature presence in both files).
+* Cross-validation test for Platt SGD updated to match `lrPlattEff` pattern.
+
+**Verdict**: All deep-review items complete. PR #6 ready to merge.
