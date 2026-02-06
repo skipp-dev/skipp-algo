@@ -2637,7 +2637,6 @@ trendUpSmooth  = useSmoothTrend ? trendStrength > 0.3 : trendUp
 trendDnSmooth  = useSmoothTrend ? trendStrength < -0.3 : trendDn
 
 // D2 – ADX trend strength filter
-adxVal = ta.rma(math.abs(ta.change(ta.rma(high - low, adxLen))), adxLen)
 [diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
 adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
 
@@ -2649,7 +2648,7 @@ rocShortOk = wRoc == 0 or rocScore < 0.0
 // B4 – Volume score at signal layer
 volScore = f_vol_score(volume, volEnsLen)
 volEnsLongOk  = wVol == 0 or volScore > -0.3
-volEnsShortOk = wVol == 0 or volScore > -0.3
+volEnsShortOk = wVol == 0 or volScore > -0.3  // symmetric: both sides reject depressed volume
 
 //====================
 // Risk Helpers
@@ -3446,12 +3445,12 @@ preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMom
 emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
 emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
 emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
-emaAccelShortOk = (not useEmaAccel) or (emaGap >= emaGapPrev)
+emaAccelShortOk = (not useEmaAccel) or (emaGap <= emaGapPrev)
 
 // C4 – VWAP alignment (intraday only)
 vwapVal = ta.vwap(hlc3)
-vwapLongOk  = (not useVwap) or na(vwapVal) or (close >= vwapVal)
-vwapShortOk = (not useVwap) or na(vwapVal) or (close <= vwapVal)
+vwapLongOk  = (not useVwap) or (not timeframe.isintraday) or (na(vwapVal) or close >= vwapVal)
+vwapShortOk = (not useVwap) or (not timeframe.isintraday) or (na(vwapVal) or close <= vwapVal)
 
 fcGateLong  = f_entry_forecast_gate(true)
 fcGateShort = f_entry_forecast_gate(false)

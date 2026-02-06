@@ -95,6 +95,7 @@ Both indicator and strategy now use the **TfState UDT pattern**:
 ## 10. Feb 05–06, 2026 Updates (v6.2 — Forecast Quality & Signal Enhancements)
 
 ### Safe Calibration Defaults (A1/A3/A4/A6/A7)
+
 * **A1**: Raised `calMinSamples` to 30, `alphaN`/`alpha1` to 1.5 for better smoothing.
 * **A3**: Guardrail skip — calibration updates skipped on `volShock`/`gapShock`/`rangeShock` bars.
 * **A4**: Regularised calibrator with `kShrink` = 1.0, `kShrinkReg` = 0.8.
@@ -102,10 +103,12 @@ Both indicator and strategy now use the **TfState UDT pattern**:
 * **A7**: Platt parameter clamping to `[0.1, 5.0]` (A) / `[-3.0, 3.0]` (B).
 
 ### Adaptive Systems (C2/D3)
+
 * **C2**: Adaptive cooldown — halves `cooldownBars` when `confidence >= 0.80`.
 * **D3**: Weighted MTF scoring — higher timeframes weighted more (tf3 × 2.0, tf2 × 1.5, tf1 × 1.0).
 
 ### Deferred Deep-Review Items (A2/A5/B1–B4/C1/C3/C4/D1/D2)
+
 All features opt-in with input toggles defaulting to OFF for backward compatibility.
 
 * **A2 – SGD momentum (Adam-lite)**: Optional EMA on Platt SGD gradients via `useSgdMomentum`/`sgdBeta` (0.9). TfState extended with `momPlattN`/`momPlatt1` momentum vectors.
@@ -121,11 +124,13 @@ All features opt-in with input toggles defaulting to OFF for backward compatibil
 * **D2 – ADX filter**: Minimum trend strength gate (`useAdx`/`adxLen`/`adxThresh`). Uses `ta.dmi()` built-in.
 
 ### Architecture
+
 * New `f_ensemble6()` function for 6-factor weighted ensemble scoring (future use).
 * Enhancement composite gates `enhLongOk`/`enhShortOk` AND all new signal filters together and are wired into all 4 signal engine modes (Hybrid, Breakout, Trend+Pullback, Loose).
 * All changes applied to both `SkippALGO.pine` and `SkippALGO_Strategy.pine`.
 
 ### Tests
+
 * 234 tests passing (24 new tests covering deferred feature presence in both files).
 * Cross-validation test for Platt SGD updated to match `lrPlattEff` pattern.
 

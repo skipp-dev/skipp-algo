@@ -1066,7 +1066,8 @@ f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
 f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
-    // B1 \u2013 Continuous trend: smooth EMA gap vs binary\n    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
+    // B1 – Continuous trend: smooth EMA gap vs binary
+    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
     mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
     loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
     f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
@@ -2488,13 +2489,7 @@ var float totN4 = na
 var float totN5 = na
 var float totN6 = na
 var float totN7 = na
-var float tot11 = na
-var float tot12 = na
-var float tot13 = na
-var float tot14 = na
-var float tot15 = na
-var float tot16 = na
-var float tot17 = na
+
 
 var float pUN1 = na
 var float pFN1 = na
@@ -3151,7 +3146,6 @@ trendUpSmooth  = useSmoothTrend ? trendStrength > 0.3 : trendUp
 trendDnSmooth  = useSmoothTrend ? trendStrength < -0.3 : trendDn
 
 // D2 – ADX trend strength filter
-adxVal = ta.rma(math.abs(ta.change(ta.rma(high - low, adxLen))), adxLen)
 [diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
 adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
 
@@ -3167,7 +3161,7 @@ rocShortOk = wRoc == 0 or rocScore < 0.0
 // B4 – Volume score at signal layer
 volScore = f_vol_score(volume, volEnsLen)
 volEnsLongOk  = wVol == 0 or volScore > -0.3
-volEnsShortOk = wVol == 0 or volScore > -0.3
+volEnsShortOk = wVol == 0 or volScore > -0.3  // symmetric: both sides reject depressed volume
 
 // B3 – Pullback gradient (continuous depth vs ATR)
 // Pullback context
@@ -3191,14 +3185,12 @@ preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMom
 preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
 
 // C3 – EMA acceleration filter (gap must be expanding)
-emaGap = emaF - emaS
-emaGapPrev = ta.sma(emaGap, emaAccelLen)
-emaAccelOk = (not useEmaAccel) or (na(emaGapPrev) or (emaGap > emaGapPrev) or (emaGap < emaGapPrev))
+emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
+emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
 emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
 emaAccelShortOk = (not useEmaAccel) or (emaGap <= emaGapPrev)
 
-// C4 – VWAP alignment filter (intraday only)
-vwapVal = ta.vwap(hlc3)
+// C4 – VWAP alignment filter (intraday only; vwapVal computed in Zones section)
 isIntraday = timeframe.isintraday
 vwapLongOk  = (not useVwap) or (not isIntraday) or (na(vwapVal) or close >= vwapVal)
 vwapShortOk = (not useVwap) or (not isIntraday) or (na(vwapVal) or close <= vwapVal)
@@ -3495,12 +3487,6 @@ f_status_row(lbl, val, rRow, valCol) =>
     table.cell(gT, 0, rRow, lbl, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 1, rRow, val, text_color=valCol, bgcolor=tblCell, text_size=size.tiny)
 
-f_rowOut(tf, score, tC, mC, lC, rV, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 2, rRow, str.tostring(score, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
 
 f_bin_quality(pTop, nBin) =>
     if nBin <= 0
@@ -3571,28 +3557,6 @@ f_fill_cells(tbl, rRow, cStart, cEnd, txt, txtColor, bgColor, txtSize) =>
     for c = cStart to cEnd
         table.cell(tbl, c, rRow, txt, text_color=txtColor, bgcolor=bgColor, text_size=txtSize)
 
-f_rowFc(tf, pN, nBinN, totN_, canN_, p1, nBin1, tot1_, can1_, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-
-    // Chance(N)
-    txtChanceN = f_chance_text(tf, pN, nBinN, totN_, canN_)
-    colChanceN = f_predColorP(pN, nBinN, canN_, tblText)
-    table.cell(gT, 1, rRow, txtChanceN, text_color=colChanceN, bgcolor=tblCell, text_size=size.tiny)
-
-    // Data(N) = bin/total + label + range
-    txtDataN = f_data_text(pN, nBinN, totN_, canN_)
-    colDataN = f_rel_color(pN, nBinN, totN_, canN_)
-    table.cell(gT, 2, rRow, txtDataN, text_color=colDataN, bgcolor=tblCell, text_size=size.tiny)
-
-    // Chance(1)
-    txtChance1 = f_chance_text(tf, p1, nBin1, tot1_, can1_)
-    colChance1 = f_predColorP(p1, nBin1, can1_, tblText)
-    table.cell(gT, 3, rRow, txtChance1, text_color=colChance1, bgcolor=tblCell, text_size=size.tiny)
-
-    // Data(1)
-    txtData1 = f_data_text(p1, nBin1, tot1_, can1_)
-    colData1 = f_rel_color(p1, nBin1, tot1_, can1_)
-    table.cell(gT, 4, rRow, txtData1, text_color=colData1, bgcolor=tblCell, text_size=size.tiny)
 
 f_fmtBrier(stats) =>
     s = array.get(stats, 0)
@@ -3902,49 +3866,6 @@ if showDiagPanel and barstate.islast and (not tableOnConfirmed or barstate.iscon
 // UT Bot Logic (Overlay, V4 Port) + Enhanced Filters
 //====================
 
-// --- FRAMA Calculation (BigBeluga) ---
-// User Defined Type for FRAMA variables (only Dimen + alpha are used at runtime)
-type FramaVars 
-    float Dimen = na
-    float alpha = na
-
-f_calc_frama(len, dist) =>
-    var v = FramaVars.new(0., 0.)
-    half = int(len / 2)
-    float n3_term = (ta.highest(high, len) - ta.lowest(low, len)) / len
-    
-    // N1
-    float hh1 = high
-    float ll1 = low
-    for i = 0 to half - 1
-        hh1 := math.max(hh1, high[i])
-        ll1 := math.min(ll1, low[i])
-    float n1_term = (hh1 - ll1) / half
-    
-    // N2
-    float hh2 = high[half]
-    float ll2 = low[half]
-    for i = half to len - 1
-        hh2 := math.max(hh2, high[i])
-        ll2 := math.min(ll2, low[i])
-    float n2_term = (hh2 - ll2) / half
-
-    if n1_term > 0 and n2_term > 0 and n3_term > 0
-        v.Dimen := (math.log(n1_term + n2_term) - math.log(n3_term)) / math.log(2)
-    
-    v.alpha := math.exp(-4.6 * (v.Dimen - 1))
-    v.alpha := math.max(math.min(v.alpha, 1), 0.01)
-
-    var float framaFilt = na
-    framaFilt := na(framaFilt) ? close : v.alpha * close + (1 - v.alpha) * framaFilt[1]
-    
-    // Smoothing
-    framaSm = ta.sma((bar_index < len + 1) ? close : framaFilt, 5)
-    
-    vol = ta.sma(high - low, 200)
-    bandTop = framaSm + vol * dist
-    bandBot = framaSm - vol * dist
-    [framaSm, bandTop, bandBot]
 
 //====================
 // Alerts (bar close)

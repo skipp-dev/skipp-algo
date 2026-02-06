@@ -13,6 +13,7 @@ Completed in v6.1 (Indicator + Strategy):
 Completed in v6.2 — Forecast Quality & Signal Enhancements (Feb 05–06, 2026):
 
 **Safe calibration defaults (A1/A3/A4/A6/A7):**
+
 * A1 – `calMinSamples` raised to 30, `alphaN`/`alpha1` to 1.5.
 * A3 – Guardrail skip on `volShock`/`gapShock`/`rangeShock`.
 * A4 – `kShrink` = 1.0, `kShrinkReg` = 0.8 for regularised calibrator.
@@ -20,10 +21,12 @@ Completed in v6.2 — Forecast Quality & Signal Enhancements (Feb 05–06, 2026)
 * A7 – Platt param clamping `[0.1, 5.0]` / `[-3.0, 3.0]`.
 
 **Adaptive systems (C2/D3):**
+
 * C2 – Adaptive cooldown: halves wait when confidence ≥ 0.80.
 * D3 – Weighted MTF scoring: tf3 × 2.0, tf2 × 1.5, tf1 × 1.0.
 
 **Deferred deep-review items (A2/A5/B1–B4/C1/C3/C4/D1/D2) — all opt-in, default OFF:**
+
 * A2 – SGD momentum (Adam-lite): EMA on Platt gradients (`useSgdMomentum`, `sgdBeta`).
 * A5 – ECE-triggered recalibration: boost Platt LR when ECE ≥ warning (`useEceRecal`).
 * B1 – Continuous trend: `f_state_score` uses `f_trend_strength` when `useSmoothTrend` enabled.
