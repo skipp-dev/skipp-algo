@@ -378,6 +378,7 @@ evidenceGate = input.bool(false, "Evidence gate (block weak bins)")
 evidenceMinTotal = input.int(120, "Evidence min total samples", minval=1, maxval=10000)
 abstainGate = input.bool(true, "Abstain on weak decisions")
 abstainMinEdge = input.float(0.08, "Abstain min edge (pp)", minval=0.0, maxval=0.50, step=0.01)
+abstainOverrideConf = input.float(0.85, "Abstain override confidence", minval=0.50, maxval=1.00, step=0.01)
 
 // Trade-gate thresholds (separate from calibration thresholds)
 tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, maxval=200)
@@ -2383,8 +2384,20 @@ setShortPulse = setPulseOnly ? (setShortStrict and not setShortPrevStrict) : set
 //====================
 trendFlipUp   = ta.crossover(emaF, emaS)
 trendFlipDown = ta.crossunder(emaF, emaS)
-reclaimUp     = bullBias and crossClose_EmaF_up
-reclaimDown   = bearBias and crossClose_EmaF_down
+
+// Tolerant reclaim logic (Reclaim or Bounce)
+reclaimTol     = 0.05 * atr
+// Basic reclaim: Crossing up EMA F when Bullish
+recUpBasic     = bullBias and crossClose_EmaF_up
+// Bounce reclaim: Close is above EMA F (or near it) AND Low touched EMA F AND Open was above EMA F (Bounce)
+recUpBounce    = bullBias and (close >= emaF - reclaimTol) and (low <= emaF + reclaimTol) and (open >= emaF - reclaimTol)
+reclaimUp      = recUpBasic or recUpBounce
+
+// Basic reclaim: Crossing down EMA F when Bearish
+recDnBasic     = bearBias and crossClose_EmaF_down
+// Bounce reclaim: Close is below EMA F (or near it) AND High touched EMA F AND Open was below EMA F (Bounce)
+recDnBounce    = bearBias and (close <= emaF + reclaimTol) and (high >= emaF - reclaimTol) and (open <= emaF + reclaimTol)
+reclaimDown    = recDnBasic or recDnBounce
 
 breakLong  = crossClose_EmaS_down or trendFlipDown
 breakShort = crossClose_EmaS_up   or trendFlipUp
@@ -2715,12 +2728,18 @@ f_entry_forecast_gate(isLong) =>
 
         if requirePathTargetEntry and f_target_for_tf(f_tf_from_horizon(entryFcTF)) != "PathTPvsSL"
             ok := false
-        else if isLong
-            edgeOk = (not na(eUf) and eUf >= minEdgePP) and (not na(eUo) and eUo >= minEdgePP)
-            ok := binOk and totalOk and relOk and (not na(pU) and pU >= minDirProb) and edgeOk
         else
-            edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
-            ok := binOk and totalOk and relOk and (not na(pD) and pD >= minDirProb) and edgeOk
+            prob = isLong ? pU : pD
+            isHighConf = (not na(prob)) and (prob >= abstainOverrideConf)
+            samplesOk = binOk and totalOk and relOk
+            gatePassed = samplesOk or isHighConf
+
+            if isLong
+                edgeOk = (not na(eUf) and eUf >= minEdgePP) and (not na(eUo) and eUo >= minEdgePP)
+                ok := gatePassed and (not na(pU) and pU >= minDirProb) and edgeOk
+            else
+                edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
+                ok := gatePassed and (not na(pD) and pD >= minDirProb) and edgeOk
 
         idxFc = f_tf_index(entryFcTF)
         cSel = array.get(cForecastArr, idxFc)
@@ -3314,7 +3333,8 @@ if renderTable
 // Signal Logic (Post-Forecast)
 //====================
 volSma = ta.sma(volume, volLen)
-volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
+volTol    = 0.50
+volOk     = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult * volTol)
 
 // C1 – Pre-signal momentum (RSI alignment)
 chartRsi = ta.rsi(close, rsiStateLen)
@@ -3349,8 +3369,10 @@ bearReversal = close < open and close < emaF and high >= emaF
 setOkLong  = (not requireSET) or setLong
 setOkShort = (not requireSET) or setShort
 
-pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
-pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
+// NOTE: Tolerance added to Pullback Depth (0.25 ATR) to handle repaint/wick differences
+pbTol = 0.25
+pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= (pbMinATR - pbTol)) and (pbDepthLong <= (pbMaxATR + pbTol)) and (close > emaS)
+pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= (pbMinATR - pbTol)) and (pbDepthShort <= (pbMaxATR + pbTol)) and (close < emaS)
 
 // Breakout
 var float lastSwingHigh = na
