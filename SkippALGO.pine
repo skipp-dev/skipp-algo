@@ -1169,12 +1169,13 @@ f_roc_score(c, rocL) =>
 
 // B4 – Volume score: above/below SMA [-1, 1]
 f_vol_score(vol, volSmaLen) =>
+    sma = ta.sma(vol, volSmaLen)
     if na(vol) or vol == 0
         0.0
     else
-        sma = ta.sma(vol, volSmaLen)
         ratio = na(sma) or sma == 0.0 ? 0.0 : (vol / sma - 1.0)
         math.max(-1.0, math.min(1.0, ratio))
+
 
 // Extended ensemble with 6 factors (state + pullback + vol regime + trend + ROC + volume)
 f_ensemble6(sA, sB, sC, sD, sE, sF, wA, wB, wC, wD, wE, wF) =>
@@ -2404,8 +2405,13 @@ setShortPulse = setPulseOnly ? (setShortStrict and not setShortPrevStrict) : set
 //====================
 trendFlipUp   = ta.crossover(emaF, emaS)
 trendFlipDown = ta.crossunder(emaF, emaS)
-reclaimUp     = bullBias and crossClose_EmaF_up
-reclaimDown   = bearBias and crossClose_EmaF_down
+
+// Reclaim Tolerance: Allow very small deviation (0.05 ATR) if live tick triggered but close ended up slightly below EMA
+reclaimTol    = 0.05 * atr
+// Reclaim logic: Standard Cross OR Bounce (Reversal) OR Tolerant Cross (Repaint Safe)
+// This ensures Trend+Pullback engine recognizes the same 'Bounce' events as the Hybrid engine
+reclaimUp     = bullBias and ( (crossClose_EmaF_up) or (close > open and close > emaF and low <= (emaF + reclaimTol)) or (close >= (emaF - reclaimTol) and close[1] < (emaF[1] + reclaimTol)) )
+reclaimDown   = bearBias and ( (crossClose_EmaF_down) or (close < open and close < emaF and high >= (emaF - reclaimTol)) or (close <= (emaF + reclaimTol) and close[1] > (emaF[1] - reclaimTol)) )
 
 breakLong  = crossClose_EmaS_down or trendFlipDown
 breakShort = crossClose_EmaS_up   or trendFlipUp
@@ -2902,6 +2908,16 @@ for i = 0 to 6
         array.set(dispPD1, i, pD1_t)
         array.set(dispN1,  i, n1_t)
 
+        // Populate logic arrays
+        array.set(relPUN, i, pUN_t)
+        array.set(relPFN, i, pFN_t)
+        array.set(relPDN, i, pDN_t)
+        array.set(relNN,  i, nN_t)
+        array.set(relPU1, i, pU1_t)
+        array.set(relPF1, i, pF1_t)
+        array.set(relPD1, i, pD1_t)
+        array.set(relN1,  i, n1_t)
+
 
 // --- Total resolved samples per TF (across all bins)
 // (These totals will usually be identical for (N) and (1) because both get updated from the same resolved events.)
@@ -2920,8 +2936,15 @@ for i = 0 to 6
             biasSel := bias == 0 ? 1 : bias
         cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
         cnt1_sel = useBullBearCal ? (biasSel > 0 ? st.cnt1_bull : st.cnt1_bear) : st.cnt1
-        array.set(totNArr, i, f_sum_int_array(cntN_sel))
-        array.set(tot1Arr, i, f_sum_int_array(cnt1_sel))
+        
+        tN_tot = f_sum_int_array(cntN_sel)
+        t1_tot = f_sum_int_array(cnt1_sel)
+        array.set(totNArr, i, tN_tot)
+        array.set(tot1Arr, i, t1_tot)
+        
+        // Populate logic arrays
+        array.set(relTotN, i, tN_tot)
+        array.set(relTot1, i, t1_tot)
 
 
 forecastAllowed = enableForecast and f_forecast_allowed()
@@ -3074,7 +3097,9 @@ adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
 
 // Volume confirmation (optional)
 volSma = ta.sma(volume, volLen)
-volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
+// NOTE: Added 5% tolerance to volume check to handle data feed discrepancies
+volTol = 0.50
+volOk = (not useVolConfirm) or (not na(volume) and volume > (volSma * volMult * volTol))
 
 // B2 – ROC momentum score at signal layer
 rocScore = f_roc_score(close, rocLen)
@@ -3096,13 +3121,16 @@ pbDepthLong = (emaF - pbLow) / math.max(atr, PRICE_EPS)
 pbDepthShort = (pbHigh - emaF) / math.max(atr, PRICE_EPS)
 
 // “touch EMA fast then reclaim” style trigger
-touchEmaF_Long  = low <= emaF and close >= emaF
-touchEmaF_Short = high >= emaF and close <= emaF
+// NOTE: touchTolerance is hardcoded here to 0.05 ATR to robustify against repainting data drift
+touchTol = 0.05 * atr
+touchEmaF_Long  = low <= (emaF + touchTol) and close >= emaF
+touchEmaF_Short = high >= (emaF - touchTol) and close <= emaF
 
-bullReversal = close > open and close > emaF and low <= emaF
-bearReversal = close < open and close < emaF and high >= emaF
+bullReversal = close > open and close > emaF and low <= (emaF + touchTol)
+bearReversal = close < open and close < emaF and high >= (emaF - touchTol)
 
 // C1 – Pre-signal momentum gate (RSI must align with direction)
+
 chartRsi = ta.rsi(close, rsiStateLen)
 preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
 preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
@@ -3110,8 +3138,10 @@ preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMom
 // C3 – EMA acceleration filter (gap must be expanding)
 emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
 emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
-emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
-emaAccelShortOk = (not useEmaAccel) or (emaGap <= emaGapPrev)
+// NOTE: small 5% tolerance added to prevent repainting rejection on borderline bars
+emaAccelTol = 0.05 * (emaGapPrev + 0.0001)
+emaAccelLongOk  = (not useEmaAccel) or (emaGap >= (emaGapPrev - emaAccelTol))
+emaAccelShortOk = (not useEmaAccel) or (emaGap <= (emaGapPrev + emaAccelTol))
 
 // C4 – VWAP alignment filter (intraday only; vwapVal computed in Zones section)
 isIntraday = timeframe.isintraday
@@ -3126,8 +3156,11 @@ fcGateLong  = f_entry_forecast_gate(true)
 fcGateShort = f_entry_forecast_gate(false)
 
 // Entry setups (use smooth trend when enabled)
-pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
-pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
+// NOTE: Tolerance added to Pullback Depth (0.25 ATR) to handle repaint/wick differences
+pbTol = 0.25
+pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= (pbMinATR - pbTol)) and (pbDepthLong <= (pbMaxATR + pbTol)) and (close > emaS)
+pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= (pbMinATR - pbTol)) and (pbDepthShort <= (pbMaxATR + pbTol)) and (close < emaS)
+
 
 // Breakout levels
 var float lastSwingHigh = na
@@ -3230,11 +3263,15 @@ hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullRe
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
 
 // Signals (enhancement filters wired in)
+bool rawBuySignal = false
+bool rawShortSignal = false
+
 if pos == 0 and allowEntry
     if engine == "Hybrid"
         buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
     else if engine == "Breakout"
+
         buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and enhLongOk  and breakoutLongSafe
         shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
     else if engine == "Trend+Pullback"
@@ -3243,10 +3280,22 @@ if pos == 0 and allowEntry
     else // Loose
         buySignal   := gateLongNow and crossClose_EmaF_upSafe
         shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe
+    
+    // Capture raw signals before conflict logic
+    rawBuySignal := buySignal
+    rawShortSignal := shortSignal
 
+    // Conflict resolution: if both signals fire, prefer the one aligned with wider trend
     if buySignal and shortSignal
-        buySignal := false
-        shortSignal := false
+        if trendUpSmooth
+            buySignal := true
+            shortSignal := false
+        else if trendDnSmooth
+            buySignal := false
+            shortSignal := true
+        else
+            buySignal := false
+            shortSignal := false
 
 preBuyNow = false
 preShortNow = false
@@ -3297,6 +3346,11 @@ didBuy   := false
 didShort := false
 didExit  := false
 didCover := false
+
+// -- PLOT TREND LINES (For visualization validity) --
+plot(emaF, "EMA Fast", color=color.new(color.yellow, 0))
+plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
+
 
 // State transitions
 if barstate.isconfirmed
@@ -3368,10 +3422,21 @@ f_label_price(isLong, isEntry) =>
     entryVal = na(entryBase) ? close : entryBase
     labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
-if showEntryLabels and labelBuy
+if showEntryLabels and (labelBuy)
     label.new(bar_index, f_label_price(true, true), "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-if showEntryLabels and labelShort
+
+
+
+
+
+
+if showEntryLabels and (labelShort)
     label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+
+
+
+
+
 if showEntryLabels and labelExit
     label.new(bar_index, f_label_price(false, false), "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 if showEntryLabels and labelCover
