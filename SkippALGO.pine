@@ -2842,16 +2842,16 @@ f_get_disp_vals(_tf, sA, c, atrVal, ef, es, vr, TfState st) =>
             pD1 := tD1_t
         if nN < calMinSamples
             [pUpr_t, pFpr_t, pDpr_t] = f_prior3(_tf, sA)
-            [pUN_t, pFN_t, pDN_t] = f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
-            pUN := pUN_t
-            pFN := pFN_t
-            pDN := pDN_t
+            [pUN_b, pFN_b, pDN_b] = f_blend_prior(pUN, pFN, pDN, pUpr_t, pFpr_t, pDpr_t, nN)
+            pUN := pUN_b
+            pFN := pFN_b
+            pDN := pDN_b
         if n1 < calMinSamples
             [pUpr2_t, pFpr2_t, pDpr2_t] = f_prior3(_tf, sA)
-            [pU1_t, pF1_t, pD1_t] = f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
-            pU1 := pU1_t
-            pF1 := pF1_t
-            pD1 := pD1_t
+            [pU1_b, pF1_b, pD1_b] = f_blend_prior(pU1, pF1, pD1, pUpr2_t, pFpr2_t, pDpr2_t, n1)
+            pU1 := pU1_b
+            pF1 := pF1_b
+            pD1 := pD1_b
         [pUN, pFN, pDN, nN, pU1, pF1, pD1, n1]
 
 
@@ -3320,10 +3320,10 @@ if barstate.isconfirmed
         pos := -1
         entryPrice := close
         if useAtrRisk
-            [newStop, newTp, newTrail] = f_set_risk_on_entry(false, entryPrice, atr)
-            stopPx  := newStop
-            tpPx    := newTp
-            trailPx := newTrail
+            [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
+            stopPx  := sStop
+            tpPx    := sTp
+            trailPx := sTrail
         lastSignalBar := bar_index
         lastSig := "SHORT"
 
