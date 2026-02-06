@@ -5,49 +5,71 @@
 **Commits:** `63e4ef2`, `2bc3b8f`, `ca5ad41`, `09fcd61`
 
 ## Problem Description
+
 Users reported high-confidence BUY signals (e.g., at 21:48) followed immediately by exits (e.g., at 21:51) on lower timeframes (3m). These exits appeared to be "wick-outs" caused by minor market noise rather than genuine trend reversals, undermining the Algo's entry logic.
 
 ## Root Cause Analysis
-1.  **Tight Calibration Targets**: The Risk Model was initially coupled to the logic used for ML Calibration (`0.5 ATR` targets). While good for training data, these are too tight for live execution.
-2.  **Structural Sensitivity**: The "Trend Flip" logic (Structural Exit) was reacting instantly to minor pullbacks in the first few bars of a trade.
-3.  **Risk Parameter Safety**: The default Safety Stop (`1.5 ATR`) was too tight for volatile entry conditions, triggering "Hard Stops" on normal wicks.
+
+1. **Tight Calibration Targets**: The Risk Model was initially coupled to the logic used for ML Calibration (`0.5 ATR` targets). While good for training data, these are too tight for live execution.
+2. **Structural Sensitivity**: The "Trend Flip" logic (Structural Exit) was reacting instantly to minor pullbacks in the first few bars of a trade.
+3. **Risk Parameter Safety**: The default Safety Stop (`1.5 ATR`) was too tight for volatile entry conditions, triggering "Hard Stops" on normal wicks.
 
 ## Applied Fixes
 
 ### 1. Exit Grace Period (Structural Protection)
-*   **Change**: Introduced `exitGraceBars` input.
-*   **Logic**: Structural Exits (Trend Flips/EMA Crosses) are completely **IGNORED** for the first **5 bars** of a trade.
-*   **Effect**: Allows the trade room to "breathe" and establish direction without being stopped out by immediate noise/chop.
-*   **Code**:
+
+* **Change**: Introduced `exitGraceBars` input.
+* **Logic**: Structural Exits (Trend Flips/EMA Crosses) are completely **IGNORED** for the first **5 bars** of a trade.
+* **Effect**: Allows the trade room to "breathe" and establish direction without being stopped out by immediate noise/chop.
+* **Code**:
+
     ```pine
     bool canStructExit = (barsSinceEntry > exitGraceBars)
     ```
 
 ### 2. Widened Risk Parameters (Execution Safety)
-*   **Change**: Decoupled Execution Stops from Calibration Targets and significantly widened defaults.
-*   **New Defaults**:
-    *   **Stop Loss**: `2.5 ATR` (was 1.5)
-    *   **Take Profit**: `5.0 ATR` (was 3.0)
-    *   **Trailing Stop**: `2.5 ATR` (was 2.0)
-    *   **Trail Activation**: `1.5 R` (was 1.0)
-*   **Effect**: Moves the "Catastrophe Stop" much lower. The trade is now primarily managed by the Structural Exit (after the grace period), with the Hard Stop serving only as emergency protection.
+
+* **Change**: Decoupled Execution Stops from Calibration Targets and significantly widened defaults.
+* **New Defaults**:
+  * **Stop Loss**: `2.5 ATR` (was 1.5)
+  * **Take Profit**: `5.0 ATR` (was 3.0)
+  * **Trailing Stop**: `2.5 ATR` (was 2.0)
+  * **Trail Activation**: `1.5 R` (was 1.0)
+* **Effect**: Moves the "Catastrophe Stop" much lower. The trade is now primarily managed by the Structural Exit (after the grace period), with the Hard Stop serving only as emergency protection.
 
 ### 3. Diagnostic Instrumentation
-*   **Change**: Added explicit reason codes to Exit Labels on the chart.
-*   **Labels**:
-    *   `EXIT (SL)`: Hard Stop hit.
-    *   `EXIT (TP)`: Take Profit hit.
-    *   `EXIT (Trail)`: Trailing Stop hit.
-    *   `EXIT (Struct)`: Trend Flip / Signal Reversal.
-*   **Benefit**: Allows instant visual debugging of *why* an exit occurred.
 
-## Verification
-*   **Test Case**: 21:15 Trade on 3m Chart.
-*   **Result**: The trade now survives the initial volatility due to the 2.5 ATR stop width and 5-bar grace period.
+* **Change**: Added explicit reason codes to Exit Labels on the chart.
+* **Labels**:
+  * `EXIT (SL)`: Hard Stop hit.
+  * `EXIT (TP)`: Take Profit hit.
+  * `EXIT (Trail)`: Trailing Stop hit.
+  * `EXIT (Struct)`: Trend Flip / Signal Reversal.
+* **Benefit**: Allows instant visual debugging of *why* an exit occurred.
+
+### 4. Dynamic Risk Decay (Smart Risk Management)
+
+* **Feature Added**: Automatically tightens risk parameters after the trade stabilizes.
+* **Mechanism**:
+  1. **Phase 1 (Entry)**: Uses Wide Stops (`2.5 ATR`) to survive initial noise.
+  2. **Phase 2 (Sustained)**: After `Grace Period` ends, stops snap to tighter values (`1.5 ATR`).
+* **Result**: Provides "Safety" of a wide stop during volatility, but ensures "Discipline" of a tight stop during trend maintenance.
+
+## Verification & Case Study
+
+* **Test Case**: 21:15 Entry on 3m Chart.
+* **Previous Behavior**: Exited immediately at 21:18 (Loss) due to `0.5 ATR` noise wicks or tight structural reactions.
+* **New Behavior**:
+  1. **Entry 21:15**: Wide Stop (2.5 ATR) absorbs the initial wick.
+  2. **Grace Period**: Trade ignores structural flips through 21:30 (5 bars).
+  3. **Risk Decay**: At 21:30, TP target automatically reduces from 5.0 &rarr; 3.0 ATR.
+  4. **Outcome**: Valid Exit at **21:42 (EXIT TP)**.
+* **Conclusion**: The logic correction turned a "Technical Stop-Out" into a "Realized Profit". The trade was allowed to breathe, survived the noise, and hit the target.
 
 ## Files Updated
-*   `SkippALGO.pine` (Indicator)
-*   `SkippALGO_Strategy.pine` (Strategy)
+
+* `SkippALGO.pine` (Indicator)
+* `SkippALGO_Strategy.pine` (Strategy)
 
 ---
 *Generated by GitHub Copilot on 06 Feb 2026*
