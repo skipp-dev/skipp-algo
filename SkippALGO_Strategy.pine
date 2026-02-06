@@ -3500,20 +3500,33 @@ if useAtrRisk and useRiskDecay and canStructExit and (barsSinceEntry == (exitGra
             stopPx := math.min(stopPx, entryPrice + (decayStopATR * approxAtr))
             tpPx   := math.max(tpPx,   entryPrice - (decayTpATR   * approxAtr))
 
+// Capturing exit reasons for debugging/transparency
+string tempExitReason = ""
+
 if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
-    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias and canStructExit)
+    [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
+    structHit = (breakLong and bearBias and canStructExit)
+    exitSignal := rHit or structHit
+    if exitSignal
+        tempExitReason := rHit ? rMsg : "Struct"
 
 if pos == -1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
-    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias and canStructExit)
+    [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
+    structHit = (breakShort and bullBias and canStructExit)
+    coverSignal := rHit or structHit
+    if coverSignal
+        tempExitReason := rHit ? rMsg : "Struct"
 
 // State Logic
+var string lastExitReason = ""
 if barstate.isconfirmed
     if exitSignal and pos == 1
         pos := 0
+        lastExitReason := tempExitReason
         entryPrice := na
         stopPx := na
         tpPx := na
@@ -3522,6 +3535,7 @@ if barstate.isconfirmed
         lastSig := "EXIT"
     else if coverSignal and pos == -1
         pos := 0
+        lastExitReason := tempExitReason
         entryPrice := na
         stopPx := na
         tpPx := na
@@ -3594,9 +3608,9 @@ if showEntryLabels and labelBuy
 if showEntryLabels and labelShort
     label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 if showEntryLabels and labelExit
-    label.new(bar_index, f_label_price(false, false), "EXIT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    label.new(bar_index, f_label_price(false, false), "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 if showEntryLabels and labelCover
-    label.new(bar_index, f_label_price(true, false), "COVER\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    label.new(bar_index, f_label_price(true, false), "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
