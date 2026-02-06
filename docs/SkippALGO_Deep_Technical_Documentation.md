@@ -34,7 +34,9 @@ While retaining the core philosophy of "State" vs "Forecast", the engine now emp
 Historical static targets (e.g., "Next Bar Close") failed to capture the nuance of different time horizons.
 
 * **Fast TFs (1m, 5m)**: Noise dominance. Target: **K-Bar ATR** (Relative volatility expansion).
-* **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent** (Symmetric 0.65 ATR TP/SL).
+  * *Update v6.1.1 (Feb 6, 2026)*: Default Path SL widened to **0.50 ATR** (from 0.30) to prevent premature noise-based exits on 1m/5m charts.
+* **Mid TFs (15m - 1h)**: Swing structure. Target: **Path Dependent**.
+  * *Update v6.1.1 (Feb 6, 2026)*: Defaults adjusted to **0.80 ATR TP / 1.00 ATR SL** (from 0.65/0.65). This allows trades more breathing room during intraday swings while seeking a slightly higher reward.
 * **Slow TFs (4h, 1D)**: Trend persistence. Target: **Path Dependent** (Symmetric 1.0 ATR TP/SL).
 * **Implementation**: `f_get_params(tf)` dynamically switches target logic based on the seconds-in-timeframe.
 
