@@ -77,10 +77,13 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         self.assertIn("trendDn  = trendReg == -1.0", self.text)
 
     def test_risk_temp_declared_once(self):
-        """Ensure risk temp locals (newStop/Tp/Trail) are declared a single time to avoid redeclare errors."""
-        self.assertEqual(len(re.findall(r"^float newStop\s*= na", self.text, flags=re.MULTILINE)), 1)
-        self.assertEqual(len(re.findall(r"^float newTp\s*= na", self.text, flags=re.MULTILINE)), 1)
-        self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 1)
+        """Parent-scope float newStop/Tp/Trail = na removed to avoid shadow;
+        buy branch tuple [newStop, ...] provides the declarations."""
+        self.assertEqual(len(re.findall(r"^float newStop\s*= na", self.text, flags=re.MULTILINE)), 0)
+        self.assertEqual(len(re.findall(r"^float newTp\s*= na", self.text, flags=re.MULTILINE)), 0)
+        self.assertEqual(len(re.findall(r"^float newTrail\s*= na", self.text, flags=re.MULTILINE)), 0)
+        # Buy branch tuple still present
+        self.assertIn("[newStop, newTp, newTrail] = f_set_risk_on_entry(true", self.text)
 
     def test_forecast_pack_block_present(self):
         """Ensure all tfF1..tfF7 packs exist with direct tuple destructuring."""
