@@ -280,6 +280,7 @@ slATRS    = input.float(1.00, "Path SL", minval=0.01, step=0.05, group=grp_slow)
 noHitPolicy   = input.string("Ignore", "No-hit policy (PathTPvsSL)", options=["Ignore", "Neutral", "Loss"])
 pathTiePolicy = input.string("Loss", "Tie policy if TP & SL hit same bar", options=["Loss", "Neutral", "Win"])
 atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
+exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, maxval=20, tooltip="Ignore structural/trend exits for first N bars (rely on Hard Stop only)")
 
 //====================
 // Inputs — Forecast 3-way (Up/Flat/Down)
@@ -3346,15 +3347,25 @@ preShortPrev = (preShortNow[1] == true)
 preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
 preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
 
+var int barsSinceEntry = 0
+if didBuy[1] or didShort[1]
+    barsSinceEntry := 1
+else if pos != 0
+    barsSinceEntry += 1
+else
+    barsSinceEntry := 0
+
+bool canStructExit = (barsSinceEntry >= exitGraceBars)
+
 if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
-    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias)
+    exitSignal := f_risk_exit_hit(true, stopPx, tpPx, trailPx) or (breakLong and bearBias and canStructExit)
 
 if pos == -1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
-    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias)
+    coverSignal := f_risk_exit_hit(false, stopPx, tpPx, trailPx) or (breakShort and bullBias and canStructExit)
 
 // Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
 didBuy   := false
