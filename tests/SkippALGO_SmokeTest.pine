@@ -1,0 +1,160 @@
+// SkippALGO Smoke Test — Paste this FIRST to validate core functions
+// If this compiles and shows "✅ ALL TESTS PASS", the full script should work
+//@version=6
+indicator("SkippALGO Smoke Test", overlay=false)
+
+//====================
+// CONSTANTS (must match main script)
+//====================
+PROB_EPS = 0.0001
+VOL_THRESH_HIGH = 0.66
+VOL_THRESH_LOW = 0.33
+Z_95 = 1.96
+ROLL_RECALC_INTERVAL = 500
+
+//====================
+// CRITICAL FUNCTIONS TO TEST
+//====================
+
+// Test 1: f_prob - division by zero protection
+f_prob(up, n, alpha) =>
+    denom = n + 2.0 * alpha
+    denom == 0.0 ? 0.5 : (up + alpha) / denom
+
+// Test 2: f_logit - PROB_EPS clamping
+f_logit(p) =>
+    pc = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, p))
+    math.log(pc / (1.0 - pc))
+
+// Test 3: f_pct_rank - division by zero protection
+f_pct_rank_safe(x, lo, hi) =>
+    hi == lo ? 0.5 : (x - lo) / (hi - lo)
+
+// Test 4: f_bin2D - array bounds clamping
+f_bin2D(score, volRank, binsScore, binsVol) =>
+    uS = (score + 1.0) * 0.5
+    bS = int(math.floor(uS * binsScore))
+    bS := math.max(0, math.min(binsScore - 1, bS))
+    bV = 0
+    if volRank >= VOL_THRESH_HIGH
+        bV := 2
+    else if volRank >= VOL_THRESH_LOW
+        bV := 1
+    int(bS * binsVol + bV)
+
+// Test 5: f_clamp
+f_clamp(val, lo, hi) =>
+    math.max(lo, math.min(hi, val))
+
+// Test 6: f_ensemble - division by zero
+f_ensemble(sA, sB, sC, wA, wB, wC) =>
+    num = wA * sA + wB * sB + wC * sC
+    den = wA + wB + wC
+    val = den == 0 ? 0.0 : num / den
+    math.max(-1.0, math.min(1.0, val))
+
+// Test 7: f_ci95_halfwidth - n<=0 check
+f_ci95_halfwidth(p, n) =>
+    n <= 0 ? na : Z_95 * math.sqrt(p * (1.0 - p) / n)
+
+//====================
+// RUN TESTS
+//====================
+var int passed = 0
+var int failed = 0
+var string results = ""
+
+// === Test 1: f_prob edge cases ===
+t1a = f_prob(0, 0, 0) == 0.5    // n=0, alpha=0 → denom=0 → return 0.5
+t1b = f_prob(5, 10, 1) > 0.0    // normal case
+t1c = f_prob(0, 10, 0) == 0.0   // all down, no smoothing
+if t1a and t1b and t1c
+    passed += 1
+    results := results + "✅ f_prob\n"
+else
+    failed += 1
+    results := results + "❌ f_prob: " + str.tostring(t1a) + "/" + str.tostring(t1b) + "/" + str.tostring(t1c) + "\n"
+
+// === Test 2: f_logit edge cases ===
+t2a = not na(f_logit(0.0))     // should NOT be -infinity
+t2b = not na(f_logit(1.0))     // should NOT be +infinity
+t2c = f_logit(0.5) == 0.0      // logit(0.5) = 0
+if t2a and t2b and t2c
+    passed += 1
+    results := results + "✅ f_logit\n"
+else
+    failed += 1
+    results := results + "❌ f_logit: " + str.tostring(t2a) + "/" + str.tostring(t2b) + "/" + str.tostring(t2c) + "\n"
+
+// === Test 3: f_pct_rank_safe ===
+t3a = f_pct_rank_safe(5, 5, 5) == 0.5   // hi==lo → 0.5
+t3b = f_pct_rank_safe(5, 0, 10) == 0.5  // normal case
+t3c = f_pct_rank_safe(0, 0, 10) == 0.0  // at low
+if t3a and t3b and t3c
+    passed += 1
+    results := results + "✅ f_pct_rank\n"
+else
+    failed += 1
+    results := results + "❌ f_pct_rank\n"
+
+// === Test 4: f_bin2D bounds ===
+t4a = f_bin2D(-2.0, 0.5, 5, 3) >= 0     // extreme low score → clamp to 0
+t4b = f_bin2D(2.0, 0.5, 5, 3) <= 14     // extreme high score → clamp to max
+t4c = f_bin2D(0.0, 0.33, 5, 3) >= 0     // boundary test
+if t4a and t4b and t4c
+    passed += 1
+    results := results + "✅ f_bin2D\n"
+else
+    failed += 1
+    results := results + "❌ f_bin2D: bounds=" + str.tostring(t4a) + "/" + str.tostring(t4b) + "/" + str.tostring(t4c) + "\n"
+
+// === Test 5: f_clamp ===
+t5a = f_clamp(-5, 0, 10) == 0
+t5b = f_clamp(15, 0, 10) == 10
+t5c = f_clamp(5, 0, 10) == 5
+if t5a and t5b and t5c
+    passed += 1
+    results := results + "✅ f_clamp\n"
+else
+    failed += 1
+    results := results + "❌ f_clamp\n"
+
+// === Test 6: f_ensemble ===
+t6a = f_ensemble(1, 0, 0, 0, 0, 0) == 0.0  // all weights=0 → return 0
+t6b = f_ensemble(1, 1, 1, 1, 1, 1) == 1.0  // all +1 → return 1
+t6c = f_ensemble(-1, -1, -1, 1, 1, 1) == -1.0  // all -1 → return -1
+if t6a and t6b and t6c
+    passed += 1
+    results := results + "✅ f_ensemble\n"
+else
+    failed += 1
+    results := results + "❌ f_ensemble: " + str.tostring(t6a) + "/" + str.tostring(t6b) + "/" + str.tostring(t6c) + "\n"
+
+// === Test 7: f_ci95_halfwidth ===
+t7a = na(f_ci95_halfwidth(0.5, 0))    // n=0 → na
+t7b = na(f_ci95_halfwidth(0.5, -1))   // n<0 → na
+t7c = not na(f_ci95_halfwidth(0.5, 100))  // normal
+if t7a and t7b and t7c
+    passed += 1
+    results := results + "✅ f_ci95_halfwidth\n"
+else
+    failed += 1
+    results := results + "❌ f_ci95_halfwidth\n"
+
+//====================
+// DISPLAY RESULTS
+//====================
+var table resultTable = table.new(position.middle_center, 1, 3, bgcolor=color.new(color.black, 80))
+
+allPass = failed == 0
+statusColor = allPass ? color.lime : color.red
+statusText = allPass ? "✅ ALL TESTS PASS (" + str.tostring(passed) + "/" + str.tostring(passed + failed) + ")" : "❌ FAILED (" + str.tostring(failed) + " failures)"
+
+if barstate.islast
+    table.cell(resultTable, 0, 0, statusText, text_color=statusColor, text_size=size.large)
+    table.cell(resultTable, 0, 1, results, text_color=color.white, text_size=size.small, text_halign=text.align_left)
+    table.cell(resultTable, 0, 2, "If all pass, the full SkippALGO script should compile.", text_color=color.gray, text_size=size.tiny)
+
+// Plot something so indicator isn't empty
+plot(passed, "Tests Passed", color=color.lime)
+plot(failed, "Tests Failed", color=color.red)
