@@ -9,7 +9,7 @@
 // Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
 
-indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500, max_lines_count=500, calc_bars_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -52,8 +52,8 @@ decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
 decayBars    = input.int(6, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Example: At 50% duration, Stop is halfway between Initial and Sustained.")
 // Note: Uses same exitGraceBars duration defined below
 
-swingL = input.int(5, "Breakout swing left", minval=1, maxval=20)
-swingR = input.int(5, "Breakout swing right", minval=1, maxval=20)
+swingL = input.int(5, "Breakout swing left (L)", minval=1, maxval=20)
+swingR = input.int(3, "Breakout swing right (R)", minval=1, maxval=20, tooltip="Lower 'R' values detect new structure levels faster.")
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
 breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.")
 structureLogic = input.string("Standard", "Structure Logic", options=["Standard", "SMC+Sweep"], tooltip="Standard: ChoCH = Trend Reversal (Break of Swing Low). SMC+Sweep: ChoCH includes Failed Breakouts (Reclaim of Level).")
