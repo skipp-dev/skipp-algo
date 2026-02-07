@@ -90,8 +90,8 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         # Mid targets
         self.assertIn('atrThrM   = input.float(0.50, "ATR Thr"', self.text)
         self.assertIn('pathHM    = input.int(8, "Path H"', self.text)
-        self.assertIn('tpATRM    = input.float(0.65, "Path TP"', self.text)
-        self.assertIn('slATRM    = input.float(0.65, "Path SL"', self.text)
+        self.assertIn('tpATRM    = input.float(0.80, "Path TP"', self.text)
+        self.assertIn('slATRM    = input.float(1.00, "Path SL"', self.text)
 
         # Slow targets
         self.assertIn('fcTargetS = input.string("PathTPvsSL", "Target"', self.text)

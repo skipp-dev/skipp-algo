@@ -41,6 +41,14 @@ ChoCH signals are more dangerous than BOS signals. To filter out "fakeouts", Cho
 1. **Higher Probability** (`chochMinProb`, default 0.50): The Neural Engine must be *very* sure.
 2. **Volume** (`chochReqVol`): Reversals without volume are ignored.
 
+### SMC Liquidity Sweep Filter (v6.1.4)
+
+A core Smart Money Concept (SMC) to reduce false reversals.
+
+* **Concept**: A pure Break (ChoCH) is often preceded by a "Stop Hunt" (Liquidity Sweep).
+* **Bull Sweep**: Price dips *below* Swing Low but closes *above*.
+* **Rule**: If enabled (`Filter Reversals by Liquidity Sweep`), ChoCH entries are **rejected** unless a sweep occurred within the last `N` bars (`Sweep Lookback`).
+
 ### Fast Exit via ChoCH
 
 The logic also updates the **Exit Conditions**:
@@ -62,3 +70,4 @@ The script is designed for safety and capital preservation.
 * **Show BOS / ChoCH structure tags**: Toggle the distinct labels.
 * **ChoCH Min Confidence**: Threshold for Reversal entries (Rec: 0.50).
 * **ChoCH Require Volume?**: Mandatory volume check for reversals.
+* **Filter Reversals by Liquidity Sweep**: Enable SMC Sweep Logic.

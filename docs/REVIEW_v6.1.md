@@ -120,6 +120,7 @@ All features opt-in with input toggles defaulting to OFF for backward compatibil
 * **C1 – Pre-signal momentum**: RSI alignment gate (`usePreMomentum`). Longs require RSI ≥ `preMomRsiLo` (35), shorts require RSI ≤ `preMomRsiHi` (65).
 * **C3 – EMA acceleration**: Gap expansion filter (`useEmaAccel`) — requires EMA gap to be expanding (not contracting) for entry.
 * **C4 – VWAP alignment**: Intraday-only direction filter (`useVwap`). Longs require close ≥ VWAP; shorts require close ≤ VWAP.
+* **C5 – Regression Slope Oscillator**: Trend confirmation filter (`useRegSlope`). Uses a multi-length log-regression slope average. Trend is Up if oscillator > 0, Down if < 0.
 * **D1 – Smooth trend regime**: New `f_trend_strength(emaF, emaS)` function returns continuous [-1, 1] trend via normalised EMA diff.
 * **D2 – ADX filter**: Minimum trend strength gate (`useAdx`/`adxLen`/`adxThresh`). Uses `ta.dmi()` built-in.
 

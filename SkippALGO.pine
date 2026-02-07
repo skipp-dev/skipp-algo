@@ -85,6 +85,13 @@ useAdx         = input.bool(false, "ADX trend strength filter", group=grp_sigfil
 adxLen         = input.int(14, "ADX length", minval=5, maxval=50, group=grp_sigfilt)
 adxThresh      = input.float(20.0, "ADX min threshold", minval=5.0, maxval=50.0, step=1.0, group=grp_sigfilt)
 
+// D3 – Regression Slope Oscillator Gates
+useRegSlope    = input.bool(false, "Regression Slope filter", group=grp_sigfilt, tooltip="Require positive slope osc for Longs, negative for Shorts")
+rsMaxRange     = input.int(100, "RegSlope Max Range", minval=10, group=grp_sigfilt)
+rsMinRange     = input.int(10, "RegSlope Min Range", minval=5, group=grp_sigfilt)
+rsStep         = input.int(5, "RegSlope Step", minval=1, group=grp_sigfilt)
+rsSigLine      = input.int(7, "RegSlope Signal Line", minval=1, group=grp_sigfilt)
+
 // MTF use (filter / regime)
 useMtfConfirm = input.bool(true, "MTF confirmation")
 mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"])
@@ -113,6 +120,24 @@ trustWRegime    = input.float(0.30, "Trust weight: regime", minval=0.0, step=0.0
 trustWGuardrail = input.float(0.20, "Trust weight: guardrails", minval=0.0, step=0.05)
 trustWData      = input.float(0.10, "Trust weight: data quality", minval=0.0, step=0.05)
 trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, step=0.05)
+
+//====================
+// Custom Logic: Regression Slope Oscillator
+//====================
+f_log_regression_single(src, length) =>
+    float sumX      = 0.0
+    float sumY      = 0.0
+    float sumXSqr   = 0.0
+    float sumXY     = 0.0
+    for i = 0 to length - 1
+        val = math.log(src[i])
+        per = i + 1.0
+        sumX += per
+        sumY += val
+        sumXSqr += per * per
+        sumXY += val * per
+    slope = (length * sumXY - sumX * sumY) / (length * sumXSqr - sumX * sumX)
+    slope * -1
 
 //====================
 // Constants — Avoid Magic Numbers
@@ -3171,6 +3196,30 @@ bearReversal = close < open and close < emaF and high >= (emaF - touchTol)
 
 // C1 – Pre-signal momentum gate (RSI must align with direction)
 
+// D3 – Regression Slope Oscillator Calculation
+float regSlopeOsc = 0.0
+bool regSlopeLongOk = true
+bool regSlopeShortOk = true
+
+if useRegSlope
+    float slopeSum = 0.0
+    int slopeCount = 0
+    // Loop over range
+    for i = rsMinRange to rsMaxRange by rsStep
+        slopeSum += f_log_regression_single(close, i)
+        slopeCount += 1
+    
+    // Calculate average slope (oscillator)
+    if slopeCount > 0
+        regSlopeOsc := slopeSum / slopeCount
+    
+    // Gate Logic:
+    // Long: Oscillator > 0 (Trend is Up)
+    // Short: Oscillator < 0 (Trend is Down)
+    regSlopeLongOk  := regSlopeOsc > 0
+    regSlopeShortOk := regSlopeOsc < 0
+
+
 chartRsi = ta.rsi(close, rsiStateLen)
 preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
 preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
@@ -3249,9 +3298,9 @@ if structureLogic == "SMC+Sweep" and not na(lastSwingHigh) and not na(lastSwingL
         sweepHigh := close < lastSwingHigh and high > lastSwingHigh and close[1] > lastSwingHigh
         reclaimLow := close > lastSwingLow and low < lastSwingLow and close[1] < lastSwingLow
     else // Wick (Crossunder/Crossover Logic matches Reference Script)
-        // GainzAlgo Logic: ChoCH Sell = crossunder(low, last_high)
+        // Legacy Logic: ChoCH Sell = crossunder(low, last_high)
         sweepHigh := ta.crossunder(low, lastSwingHigh) 
-        // GainzAlgo Logic: ChoCH Buy = crossover(high, last_low)
+        // Legacy Logic: ChoCH Buy = crossover(high, last_low)
         reclaimLow := ta.crossover(high, lastSwingLow)
 
 // --- Market Structure State (BOS vs ChoCH) ---
@@ -3277,7 +3326,7 @@ if structureLogic == "Standard"
             isBOS_Short := true
         structState := -1
 
-else // SMC+Sweep (GainzAlgo Style)
+else // SMC+Sweep (Standard Style)
     // Combined Logic: ChoCH = Reversal (Break of High) OR Sweep (Reclaim of Low)
     
     // Bullish Event: Break High
@@ -3379,10 +3428,12 @@ emaAccelLongOkSafe  = (emaAccelLongOk == true)
 emaAccelShortOkSafe = (emaAccelShortOk == true)
 vwapLongOkSafe      = (vwapLongOk == true)
 vwapShortOkSafe     = (vwapShortOk == true)
+regSlopeLongOkSafe  = (regSlopeLongOk == true)
+regSlopeShortOkSafe = (regSlopeShortOk == true)
 
 // Combined signal enhancement filter (all new filters ANDed)
-enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe
-enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe
+enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe and regSlopeLongOkSafe
+enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe and regSlopeShortOkSafe
 
 hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
@@ -4179,6 +4230,17 @@ alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticke
 alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
 
+// v6.1.3: TradersPost JSON Payload Generator
+f_tp_json(action) =>
+    str.format('{{"ticker": "{0}", "action": "{1}", "price": {2}, "uniqueId": "{0}-{3}-{4}-{1}", "refId": "{5}"}}', 
+         syminfo.ticker, 
+         action, 
+         str.tostring(close, "#.##"), 
+         timeframe.period, 
+         str.tostring(timenow),
+         tpStrategyId
+     )
+
 f_send_alert(cond, label) =>
     if cond and barstate.isconfirmed and barstate.isrealtime
         // v6.1.3: TradersPost JSON support
@@ -4186,14 +4248,7 @@ f_send_alert(cond, label) =>
         string action = label == "BUY" ? "buy" : label == "SHORT" ? "sell" : label == "EXIT" ? "exit" : label == "COVER" ? "exit" : "flat"
         
         if useJsonAlerts
-            msg := str.format('{{"ticker": "{0}", "action": "{1}", "price": {2}, "uniqueId": "{0}-{3}-{4}-{1}", "refId": "{5}"}}', 
-                 syminfo.ticker, 
-                 action, 
-                 str.tostring(close, "#.##"), 
-                 timeframe.period, 
-                 str.tostring(timenow),
-                 tpStrategyId
-             )
+            msg := f_tp_json(action)
         else
             msg := "SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(confidence * 100, "#.0") + "%"
             
