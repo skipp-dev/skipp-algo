@@ -3384,10 +3384,10 @@ bool hugeVolG   = volRatioG >= 2.0
 
 // Force Debug Label (Global)
 if showDebugLabels and recentChoCH_L and not isChoCH_Long and barstate.isconfirmed
-    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos), color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
+    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nAllow:" + str.tostring(allowEntry), color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
 
 if showDebugLabels and recentChoCH_S and not isChoCH_Short and barstate.isconfirmed
-    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos), color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
+    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nAllow:" + str.tostring(allowEntry), color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
 
 
 // Signals (enhancement filters wired in)
