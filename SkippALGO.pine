@@ -450,6 +450,8 @@ abstainOverrideConf = input.float(0.85, "Abstain override: High Conf", minval=0.
 // Trade-gate thresholds (separate from calibration thresholds)
 tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, maxval=200)
 tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", minval=0, maxval=20000)
+rescueVolMult = input.float(1.5, "Rescue Mode: Min Volume (xSMA)", minval=1.0, maxval=50.0, step=0.1, tooltip="Volume ratio required to trigger Rescue Mode (bypasses gates).")
+
 
 //====================
 // Inputs — Evaluation (live scoring)
@@ -3452,9 +3454,9 @@ bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
 
 // Global Volume Ratio
 float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
-bool hugeVolG   = volRatioG >= 1.5
+bool hugeVolG   = volRatioG >= rescueVolMult
 
-// Rescue Mode: Bypass statistical gates if Volume is Huge (2.0x) and Cooldown is OK
+// Rescue Mode: Bypass statistical gates if Volume is Huge (Configurable) and Cooldown is OK
 allowRescue = hugeVolG and barstate.isconfirmed and cooldownOkSafe
 
 // Force Debug Label (Global)
