@@ -3203,7 +3203,7 @@ f_bin_quality(pTop, nBin) =>
         [lbl, col]
 
 f_rowTF(_tf, score, tC, mC, lC, rV,
-    pUN, pFN, pDN, nBin, nTot,
+    pUN, pFN, pDN, nBin, nTot, nBin1,
         rRow) =>
     table.cell(gT, 0, rRow, f_tfLabel(_tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
@@ -3237,7 +3237,7 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     [qLbl_t, qCol_t] = f_bin_quality(maxP, nBin)
     qLbl = qLbl_t
     qCol = qCol_t
-    nTxt = "n=" + str.tostring(nBin, "#") + "/" + str.tostring(nTot, "#") + " " + qLbl
+    nTxt = "N:" + str.tostring(nBin, "#") + " 1:" + str.tostring(nBin1, "#") // + " " + qLbl
     table.cell(gT, 9, rRow, nTxt, text_color=qCol, bgcolor=tblCell, text_size=size.tiny)
 
 f_rowTF_idx(i, rRow) =>
@@ -3253,6 +3253,7 @@ f_rowTF_idx(i, rRow) =>
         array.get(dispPDN, i),
         array.get(dispNN, i),
         array.get(totNArr, i),
+        array.get(dispN1, i),
         rRow
     )
 
@@ -3337,7 +3338,7 @@ if renderTable
     f_status_row("Time", str.format_time(timenow, "HH:mm"), 7, tblText)
 
     // Outlook header + forecast columns
-    hdrLabels = array.from(hdrOutlook, "Bias", "Score", "T/M/L", "RSI", hdrForecast + "\nDir", "Up%", "Flat%", "Down%", "nCur/Total")
+    hdrLabels = array.from(hdrOutlook, "Bias", "Score", "T/M/L", "RSI", hdrForecast + "\nDir", "Up%", "Flat%", "Down%", "n(N) | n(1)")
     for c = 0 to 9
         table.cell(gT, c, 8, array.get(hdrLabels, c), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
 
