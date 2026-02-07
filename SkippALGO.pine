@@ -3268,14 +3268,14 @@ else // SMC+Sweep (GainzAlgo Style)
     
     // Bullish BOS: Break High
     if breakoutLong
-        if structState != -1 // If not already bearish trend... or just mark BOS
-             isBOS_Long := true
+        if structState != -1
+            isBOS_Long := true
         structState := 1
         
     // Bearish BOS: Break Low
     if breakoutShort
         if structState != 1
-             isBOS_Short := true
+            isBOS_Short := true
         structState := -1
         
     // Bullish ChoCH: Reclaim Low (Turtle Soup)
