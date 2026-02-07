@@ -3368,6 +3368,25 @@ enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortO
 hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
 
+// --- Global Recency Calculation (Safe Scope) ---
+int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
+bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12)
+
+int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
+bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
+
+// Global Volume Ratio
+float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
+bool hugeVolG   = volRatioG >= 2.0
+
+// Force Debug Label (Global)
+if showDebugLabels and recentChoCH_L and not isChoCH_Long and barstate.isconfirmed
+    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2"), color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
+
+if showDebugLabels and recentChoCH_S and not isChoCH_Short and barstate.isconfirmed
+    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2"), color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
+
+
 // Fetch probabilities for strict ChoCH filtering (Global Scope)
 [pU, pF, pD, nBin_prob, total_prob] = f_get_rel_vals(entryFcTF, entryFcModel)
 
@@ -3387,25 +3406,14 @@ if pos == 0 and allowEntry
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
         // REV-BUY (Neural Reversal)
-        // Allow for "Late" confirmation: if ChoCH happened recently, and Vol/Prob confirms NOW, trigger BUY
-        int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
-        bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12) // 12 bars lookback
-
-        if isChoCH_Long and barstate.isconfirmed
-            label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny, force_overlay=true)
-        
-        // Dynamic Rescue: If Volume is extremely high (> 2.0x), lower the Prob requirement
-        float volRatio = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
-        bool hugeVol   = volRatio >= 2.0
-        bool probOk    = (pU >= 0.50) or (hugeVol and pU >= 0.40) // Rescue mode
+        // Use global vars
+        bool probOk    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
         
         revBuy = (isChoCH_Long or recentChoCH_L) and probOk and volOk and not isBOS_Long
         isRevBuy := revBuy
-        
-        // DEBUG: Force diagnostics on recent ChoCH window
-        if recentChoCH_L and not isChoCH_Long and barstate.isconfirmed
-            label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pU, "#.2"), color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
 
+        if isChoCH_Long and barstate.isconfirmed
+            label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny, force_overlay=true)
         
         buySignal   := (gateBuy and chochFilterOk) or revBuy
         
@@ -3414,19 +3422,13 @@ if pos == 0 and allowEntry
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
         // REV-SHORT
-        int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
-        bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
-        
-        if isChoCH_Short and barstate.isconfirmed
-            label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny, force_overlay=true)
-        
-        bool probOkS = (pD >= 0.50) or (hugeVol and pD >= 0.40)
+        bool probOkS = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
         
         revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk and not isBOS_Short
         isRevShort := revShort
         
-        if recentChoCH_S and not isChoCH_Short and barstate.isconfirmed
-            label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pD, "#.2"), color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
+        if isChoCH_Short and barstate.isconfirmed
+            label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny, force_overlay=true)
         
         shortSignal := (gateShort and chochShortFilterOk) or revShort
 
