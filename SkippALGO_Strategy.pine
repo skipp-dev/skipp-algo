@@ -394,12 +394,6 @@ predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, s
 resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7","ChartTF"], group="Maintenance")
 resetNow   = input.bool(false, "Reset selected calibration NOW", group="Maintenance")
 
-//====================
-// Inputs — Exit Filters
-//====================
-grp_exit = "Exit Filters (Confidence)"
-exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit on ChoCh/Structure Break if the reversal probability (pU/pD) is above this level.")
-exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
 
 //====================
 // Inputs — Forecast Filtering (Accuracy-based)
@@ -467,6 +461,13 @@ grp_export = "📤 Calibration Export"
 exportCalibration = input.bool(false, "Enable Calibration Export Alert", group=grp_export, tooltip="Fires alert with JSON calibration state")
 exportInterval    = input.int(100, "Export Every N Bars", minval=10, maxval=1000, group=grp_export)
 exportHorizon     = input.string("F1", "Export Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_export)
+
+//====================
+// Inputs — Exit Filters
+//====================
+grp_exit = "Exit Filters (Confidence)"
+exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit on ChoCh/Structure Break if the reversal probability (pU/pD) is above this level.")
+exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
 
 //====================
 // Calibration storage — TfState UDT (replaces 100+ global arrays)

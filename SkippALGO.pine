@@ -431,12 +431,6 @@ sgdBeta        = input.float(0.9, "SGD momentum beta", minval=0.5, maxval=0.99, 
 resetWhich = input.string("None", "Reset calibration scope", options=["None","All","F1","F2","F3","F4","F5","F6","F7","ChartTF"])
 resetNow   = input.bool(false, "Reset selected calibration NOW")
 
-//====================
-// Inputs — Exit Filters
-//====================
-grp_exit = "Exit Filters (Confidence)"
-exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit on ChoCh/Structure Break if the reversal probability (pU/pD) is above this level.")
-exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
 
 //====================
 // Inputs — Forecast Filtering (Accuracy-based)
@@ -499,6 +493,13 @@ showDiagPanel   = input.bool(false, "Show Calibration Debug Panel", group=grp_di
 diagHorizon     = input.string("F1", "Diagnostic Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_diag)
 diagModel       = input.string("N", "Diagnostic Model", options=["N","1"], group=grp_diag, tooltip="N=Multi-factor, 1=Single-factor")
 showEvidencePackDebug = input.bool(false, "Evidence Pack Debug (data window)", group=grp_diag, tooltip="Outputs gate/decision signals to Data Window")
+
+//====================
+// Inputs — Exit Filters
+//====================
+grp_exit = "Exit Filters (Confidence)"
+exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit on ChoCh/Structure Break if the reversal probability (pU/pD) is above this level.")
+exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
 
 //====================
 // Calibration storage — per horizon TF (Global State)
