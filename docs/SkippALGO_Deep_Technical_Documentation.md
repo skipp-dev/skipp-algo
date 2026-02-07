@@ -239,7 +239,7 @@ The `engine` input selects one of four signal-generation modes. Each mode requir
 | **Trend+Pullback** | Trend flip or EMA reclaim | Forecast gate, enhancements |
 | **Loose** | Close crosses above fast EMA | Cooldown gate only |
 
-* **Hybrid** is the most selective — it requires price to touch the fast EMA *and* either cross above it or print a bullish reversal pattern, while also passing volume, SET confirmation, pullback depth, forecast probability, and all enhancement filters (ADX, ROC, volume-ensemble, pre-momentum, EMA-acceleration, VWAP).
+* **Hybrid** is the most selective — it requires price to touch the fast EMA *and* either cross above it or print a bullish reversal pattern, while also passing volume, SET confirmation, pullback depth, forecast probability, and all enhancement filters (ADX, ROC, volume-ensemble, pre-momentum, EMA-acceleration, VWAP, RegSlope).
 * **Breakout** fires on swing-high/low breaks and requires trend alignment plus volume and forecast gates.
 * **Trend+Pullback** fires on EMA crossover or reclaim events and requires fewer filters (no explicit volume or SET gate).
 * **Loose** is the most permissive — it fires whenever price closes above (or below) the fast EMA and the cooldown gate allows it. No volume, SET, pullback, forecast, or enhancement filters are applied. It is useful for testing or high-frequency scanning but is prone to false signals in choppy markets.
