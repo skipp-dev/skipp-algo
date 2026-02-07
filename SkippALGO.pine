@@ -3391,7 +3391,7 @@ if pos == 0 and allowEntry
         int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
         bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12) // 12 bars lookback
 
-        if showDebugLabels and isChoCH_Long and barstate.isconfirmed
+        if isChoCH_Long and barstate.isconfirmed
             label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny)
         
         // Dynamic Rescue: If Volume is extremely high (> 2.0x), lower the Prob requirement
@@ -3402,9 +3402,10 @@ if pos == 0 and allowEntry
         revBuy = (isChoCH_Long or recentChoCH_L) and probOk and volOk and not isBOS_Long
         isRevBuy := revBuy
         
-        // DEBUG: Diagnosis for missed ChoCH signals
-        if showDebugLabels and recentChoCH_L and not revBuy and barstate.isconfirmed
-            label.new(bar_index, low, "MISS(L)\npU=" + str.tostring(pU, "#.##") + "\nVol=" + str.tostring(volRatio, "#.#") + "x", color=color.gray, style=label.style_label_up, size=size.tiny)
+        // DEBUG: Force diagnostics on recent ChoCH window
+        if recentChoCH_L and not isChoCH_Long and barstate.isconfirmed
+             label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pU, "#.2"), color=color.gray, style=label.style_label_up, size=size.tiny)
+
         
         buySignal   := (gateBuy and chochFilterOk) or revBuy
         
@@ -3416,16 +3417,16 @@ if pos == 0 and allowEntry
         int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
         bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
         
-        if showDebugLabels and isChoCH_Short and barstate.isconfirmed
+if isChoCH_Short and barstate.isconfirmed
             label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny)
-
+        
         bool probOkS = (pD >= 0.50) or (hugeVol and pD >= 0.40)
         
         revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk and not isBOS_Short
         isRevShort := revShort
         
-        if showDebugLabels and recentChoCH_S and not revShort and barstate.isconfirmed
-            label.new(bar_index, high, "MISS(S)\npD=" + str.tostring(pD, "#.##") + "\nVol=" + str.tostring(volRatio, "#.#") + "x", color=color.gray, style=label.style_label_down, size=size.tiny)
+        if recentChoCH_S and not isChoCH_Short and barstate.isconfirmed
+            label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pD, "#.2"), color=color.gray, style=label.style_label_down, size=size.tiny)
         
         shortSignal := (gateShort and chochShortFilterOk) or revShort
         
