@@ -279,6 +279,16 @@ The `engine` input selects one of four signal-generation modes. Each mode requir
 
 Short signals mirror the long logic with bearish equivalents. If both a buy and short signal fire on the same bar, both are suppressed to avoid ambiguity.
 
+#### Neural Reversals (Counter-Trend Injection)
+
+By default, strict engines like **Hybrid** and **Trend+Pullback** can also trigger on specific counter-trend "Reversal" signals if the neural model confidence is extreme.
+
+* **Parameter**: `Allow Neural Reversals (ChoCH)` (Default: On).
+* **Behavior**:
+  * **Enabled**: The engines will "OR" their standard logic with the Neural Reversal trigger. This allows for purchasing exactly at the bottom (V-Shape reversal) before the trend is confirmed.
+  * **Disabled**: The engines strictly follow their philosophy. **Trend+Pullback** will *only* trade on Trend Confirmation (EMA Cross), completely ignoring early bottom-fishing signals.
+  * **Use Case**: Disable this if you find the system fighting strong trends by trying to pick reversals too early.
+
 ### 2.4) Configuration Presets
 
 The `config` input selects a named preset that controls a **confidence multiplier** applied to the trust/confidence score. The confidence score gates whether signals are actionable — it must exceed the `minTrust` threshold for a signal to fire.
