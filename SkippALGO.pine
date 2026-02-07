@@ -3409,7 +3409,9 @@ if pos == 0 and allowEntry
         // Use global vars
         bool probOk    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
         
-        revBuy = (isChoCH_Long or recentChoCH_L) and probOk and volOk and not isBOS_Long
+        // Logic Update: Allow BOS (Continuation) if it's a High-Volume Rescue in the Recency Window
+        // Previously: `and not isBOS_Long` blocked entries that occurred slightly after the ChoCH if they broke structure again.
+        revBuy = (isChoCH_Long or recentChoCH_L) and probOk and volOk
         isRevBuy := revBuy
 
         if isChoCH_Long and barstate.isconfirmed
@@ -3424,7 +3426,7 @@ if pos == 0 and allowEntry
         // REV-SHORT
         bool probOkS = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
         
-        revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk and not isBOS_Short
+        revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk
         isRevShort := revShort
         
         if isChoCH_Short and barstate.isconfirmed
