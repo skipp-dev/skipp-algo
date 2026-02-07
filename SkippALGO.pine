@@ -3319,10 +3319,15 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
         stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
         tpHit    = not na(tpVal) and (isLong ? (high >= tpVal)  : (low  <= tpVal))
         trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
-        // conservative: stop wins if both in same bar
-        hit = stopHit or trailHit or tpHit
-        // Priority: Stop > Trail > TP
-        msg = stopHit ? "SL" : trailHit ? "Trail" : tpHit ? "TP" : ""
+        
+        // Optimistic Exit Priority on Favorable Candles (TP wins if bar closed in profit)
+        bool favorableClose = isLong ? (close > open) : (close < open)
+        // If TP hit and bar looks strong, assume TP happened before any deep wick
+        bool priorityTP = tpHit and favorableClose
+        
+        // standard: stop wins if both in same bar (unless optimistic priority)
+        hit = priorityTP ? true : (stopHit or trailHit or tpHit)
+        msg = priorityTP ? "TP" : stopHit ? "SL" : trailHit ? "Trail" : tpHit ? "TP" : ""
         [hit, msg]
 
 // Fail-closed signal subconditions: any na => deny (== true coerces na to false)
@@ -3536,7 +3541,7 @@ bool canStructExit = (barsSinceEntry > exitGraceBars) // Strict > ensures full g
 string tempExitReason = ""
 
 // Risk Decay Calculation (Linear interpolation)
-if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars
+if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
     float w   = math.min(1.0, float(barsSinceEntry) / float(decayBars))
     // Calculate current target Multipliers
     float cStopM = math.max(0.1, stopATR + (decayStopATR - stopATR) * w)
