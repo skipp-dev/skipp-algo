@@ -3492,8 +3492,9 @@ if pos == 0 and (allowEntry or allowRescue)
     bool sweepRecent_Bull = (not na(barsSinceSweep_Bull)) and (barsSinceSweep_Bull <= liqSweepLookback)
     bool sweepRecent_Bear = (not na(barsSinceSweep_Bear)) and (barsSinceSweep_Bear <= liqSweepLookback)
     
-    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull
-    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear
+    // allowRescue (Volume > 1.5x) should also bypass SMC structural gates
+    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescue
+    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescue
 
     // This logic was previously stuck inside "Hybrid" engine block, causing other engines to miss Neural Reversals.
     // Moved here to ensure global availability.

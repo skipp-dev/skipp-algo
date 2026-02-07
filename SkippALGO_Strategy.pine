@@ -3526,8 +3526,9 @@ if pos == 0 and (allowEntry or allowRescue)
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
-    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull
-    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear
+    // allowRescue (Volume > 1.5x) bypasses SMC structural gates too
+    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescue
+    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescue
     
     bool revBuyGlobal    = (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL
     bool revShortGlobal  = (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS
