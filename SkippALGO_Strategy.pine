@@ -26,7 +26,7 @@ minEdgePP    = input.float(0.10, "Min edge (pp) vs mid", minval=0.00, maxval=0.5
 requireRelOk = input.bool(false, "Entry gate: require bin reliability ok/strong")
 requirePathTargetEntry = input.bool(true, "Entry gate: require PathTPvsSL target")
 useChopAbstain = input.bool(true, "Chop abstain when Flat high")
-flatAbstainThr = input.float(0.45, "Chop abstain: Flat prob ≥", minval=0.34, maxval=0.80, step=0.01)
+flatAbstainThr = input.float(0.55, "Chop abstain: Flat prob ≥", minval=0.34, maxval=0.80, step=0.01)
 
 requireSET   = input.bool(true, "Entry gate: require SET (CRSI confluence)")
 
@@ -53,7 +53,7 @@ decayBars    = input.int(6, "Decay Duration (Bars)", minval=1)
 exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
 swingL = input.int(5, "Breakout swing left", minval=1, maxval=20)
-swingR = input.int(5, "Breakout swing right", minval=1, maxval=20)
+swingR = input.int(3, "Breakout swing right", minval=1, maxval=20)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
 breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.")
 
@@ -3335,6 +3335,13 @@ if renderTable
 volSma = ta.sma(volume, volLen)
 volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
 
+// Global Volume Ratio
+float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
+bool hugeVolG   = volRatioG >= 1.5
+
+// Rescue Mode: Bypass statistical gates if Volume is Huge (1.5x) and Cooldown is OK
+bool allowRescue = hugeVolG and barstate.isconfirmed and cooldownOk
+
 // C1 – Pre-signal momentum (RSI alignment)
 chartRsi = ta.rsi(close, rsiStateLen)
 preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
@@ -3476,7 +3483,20 @@ hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullRe
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
 
 // Signals
-if pos == 0 and allowEntry
+if pos == 0 and (allowEntry or allowRescue)
+
+    // Recency (Global Scope inside loop for safety)
+    int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
+    bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12)
+    int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
+    bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
+
+    // Reversal Logic (Global)
+    bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
+    bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
+    bool revBuyGlobal    = (isChoCH_Long or recentChoCH_L) and probOkGlobal and volOk
+    bool revShortGlobal  = (isChoCH_Short or recentChoCH_S) and probOkGlobalS and volOk
+
     if engine == "Hybrid"
         // Base triggers
         gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger  and enhLongOk
@@ -3485,13 +3505,14 @@ if pos == 0 and allowEntry
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        buySignal   := gateBuy and chochFilterOk
-
+        // REV-BUY (Neural Reversal) injection
+        buySignal   := (gateBuy and chochFilterOk) or revBuyGlobal
+        
         gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        shortSignal := gateShort and chochShortFilterOk
+        shortSignal := (gateShort and chochShortFilterOk) or revShortGlobal
 
     else if engine == "Breakout"
         // Base
@@ -3499,17 +3520,22 @@ if pos == 0 and allowEntry
         isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        buySignal   := baseBuy and chochFilterOk
+        buySignal   := (baseBuy and chochFilterOk) or revBuyGlobal
         
         baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        shortSignal := baseShort and chochShortFilterOk
+        shortSignal := (baseShort and chochShortFilterOk) or revShortGlobal
 
     else if engine == "Trend+Pullback"
         buySignal   := gateLongNow and (trendFlipUpSafe or reclaimUpSafe) and enhLongOk
         shortSignal := enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe) and enhShortOk
+        
+        // Inject Reversal Logic
+        buySignal   := buySignal   or revBuyGlobal
+        shortSignal := shortSignal or revShortGlobal
+
     else // Loose
         buySignal   := gateLongNow and crossClose_EmaF_upSafe and enhLongOk
         shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk

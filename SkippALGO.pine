@@ -27,7 +27,7 @@ minEdgePP    = input.float(0.10, "Min edge (pp) vs mid", minval=0.00, maxval=0.5
 requireRelOk = input.bool(false, "Entry gate: require bin reliability ok/strong")
 requirePathTargetEntry = input.bool(true, "Entry gate: require PathTPvsSL target")
 useChopAbstain = input.bool(true, "Chop abstain when Flat high")
-flatAbstainThr = input.float(0.45, "Chop abstain: Flat prob ≥", minval=0.34, maxval=0.80, step=0.01)
+flatAbstainThr = input.float(0.55, "Chop abstain: Flat prob ≥", minval=0.34, maxval=0.80, step=0.01)
 
 requireSET   = input.bool(true, "Entry gate: require SET (CRSI confluence)")
 
@@ -3380,14 +3380,21 @@ bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
 
 // Global Volume Ratio
 float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
-bool hugeVolG   = volRatioG >= 2.0
+bool hugeVolG   = volRatioG >= 1.5
+
+// Rescue Mode: Bypass statistical gates if Volume is Huge (2.0x) and Cooldown is OK
+allowRescue = hugeVolG and barstate.isconfirmed and cooldownOkSafe
 
 // Force Debug Label (Global)
-if showDebugLabels and recentChoCH_L and not isChoCH_Long and barstate.isconfirmed
-    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nAllow:" + str.tostring(allowEntry), color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
+if showDebugLabels and recentChoCH_L and barstate.isconfirmed
+    bool _isRev = (isChoCH_Long or recentChoCH_L) and ((pU >= 0.50) or (hugeVolG and pU >= 0.40)) and volOk
+    string gates = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
+    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevB:" + str.tostring(_isRev) + "\nGate:" + gates + "\nEng:" + engine, color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
 
-if showDebugLabels and recentChoCH_S and not isChoCH_Short and barstate.isconfirmed
-    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nAllow:" + str.tostring(allowEntry), color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
+if showDebugLabels and recentChoCH_S and barstate.isconfirmed
+    bool _isRevS = (isChoCH_Short or recentChoCH_S) and ((pD >= 0.50) or (hugeVolG and pD >= 0.40)) and volOk
+    string gatesS = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
+    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevS:" + str.tostring(_isRevS) + "\nGate:" + gatesS + "\nEng:" + engine, color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
 
 
 // Signals (enhancement filters wired in)
@@ -3396,8 +3403,25 @@ bool rawShortSignal = false
 bool isRevBuy   = false
 bool isRevShort = false
 
-if pos == 0 and allowEntry
+if pos == 0 and (allowEntry or allowRescue)
+    if showDebugLabels and allowRescue
+        label.new(bar_index, high, "Main Loop Entered", force_overlay=true)
+
+    // Reversal Logic (Global — Applies to All Engines)
+    // This logic was previously stuck inside "Hybrid" engine block, causing other engines to miss Neural Reversals.
+    // Moved here to ensure global availability.
+    probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
+    probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
+    revBuyGlobal    = (isChoCH_Long or recentChoCH_L) and probOkGlobal and volOk
+    revShortGlobal  = (isChoCH_Short or recentChoCH_S) and probOkGlobalS and volOk
+
+    // Export for debug
+    isRevBuy   := revBuyGlobal
+    isRevShort := revShortGlobal
+
     if engine == "Hybrid"
+        if showDebugLabels and allowRescue
+            label.new(bar_index, high, "Hybrid Loop Entered", style=label.style_label_down, force_overlay=true)
         // Base triggers
         gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         
@@ -3405,34 +3429,14 @@ if pos == 0 and allowEntry
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        // REV-BUY (Neural Reversal)
-        // Use global vars
-        bool probOk    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
-        
-        // Logic Update: Allow BOS (Continuation) if it's a High-Volume Rescue in the Recency Window
-        // Previously: `and not isBOS_Long` blocked entries that occurred slightly after the ChoCH if they broke structure again.
-        revBuy = (isChoCH_Long or recentChoCH_L) and probOk and volOk
-        isRevBuy := revBuy
-
-        if isChoCH_Long and barstate.isconfirmed
-            label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny, force_overlay=true)
-        
-        buySignal   := (gateBuy and chochFilterOk) or revBuy
+        // REV-BUY (Neural Reversal) injection
+        buySignal   := (gateBuy and chochFilterOk) or revBuyGlobal
         
         gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        // REV-SHORT
-        bool probOkS = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
-        
-        revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk
-        isRevShort := revShort
-        
-        if isChoCH_Short and barstate.isconfirmed
-            label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny, force_overlay=true)
-        
-        shortSignal := (gateShort and chochShortFilterOk) or revShort
+        shortSignal := (gateShort and chochShortFilterOk) or revShortGlobal
 
     else if engine == "Breakout"
 
@@ -3446,25 +3450,21 @@ if pos == 0 and allowEntry
         isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        // Use global logic/vars
-        bool probOk    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
-        revBuy = (isChoCH_Long or recentChoCH_L) and probOk and volOk and not isBOS_Long
-        isRevBuy := revBuy
-        
-        buySignal   := (baseBuy and chochFilterOk) or revBuy
+        buySignal   := (baseBuy and chochFilterOk) or revBuyGlobal
         
         baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        bool probOkS = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
-        revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk and not isBOS_Short
-        isRevShort := revShort
+        shortSignal := (baseShort and chochShortFilterOk) or revShortGlobal
         
-        shortSignal := (baseShort and chochShortFilterOk) or revShort
     else if engine == "Trend+Pullback"
         buySignal   := gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
         shortSignal := enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
+        
+        // Inject Reversal Logic
+        buySignal   := buySignal   or revBuyGlobal
+        shortSignal := shortSignal or revShortGlobal
     else // Loose
         buySignal   := gateLongNow and crossClose_EmaF_upSafe
         shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe
