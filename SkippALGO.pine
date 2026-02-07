@@ -3771,22 +3771,22 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     pUprio = pUprio_t
     pFprio = pFprio_t
     pDprio = pDprio_t
-    pU = useCalN ? pUN : pUprio
-    pF = useCalN ? pFN : pFprio
-    pD = useCalN ? pDN : pDprio
+    pU_local = useCalN ? pUN : pUprio
+    pF_local = useCalN ? pFN : pFprio
+    pD_local = useCalN ? pDN : pDprio
 
-    maxP = math.max(pU, math.max(pF, pD))
+    maxP = math.max(pU_local, math.max(pF_local, pD_local))
     tieEps = 1e-10
-    isMaxU = math.abs(pU - maxP) <= tieEps
-    isMaxF = math.abs(pF - maxP) <= tieEps
-    isMaxD = math.abs(pD - maxP) <= tieEps
+    isMaxU = math.abs(pU_local - maxP) <= tieEps
+    isMaxF = math.abs(pF_local - maxP) <= tieEps
+    isMaxD = math.abs(pD_local - maxP) <= tieEps
     dirSym = maxP < dirMinProb ? "·" : (isMaxU and not (isMaxF or isMaxD)) ? "▲" : (isMaxD and not (isMaxU or isMaxF)) ? "▼" : "■"
     dirCol = (isMaxU and not (isMaxF or isMaxD)) ? color.lime : (isMaxD and not (isMaxU or isMaxF)) ? color.red : color.yellow
 
     table.cell(gT, 5, rRow, dirSym, text_color=dirCol, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 6, rRow, str.tostring(pU * 100, "#.0") + "%", text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 7, rRow, str.tostring(pF * 100, "#.0") + "%", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 8, rRow, str.tostring(pD * 100, "#.0") + "%", text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 6, rRow, str.tostring(pU_local * 100, "#.0") + "%", text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 7, rRow, str.tostring(pF_local * 100, "#.0") + "%", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    table.cell(gT, 8, rRow, str.tostring(pD_local * 100, "#.0") + "%", text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
 
     [qLbl_t, qCol_t] = f_bin_quality(maxP, nBin)
     qLbl = qLbl_t
