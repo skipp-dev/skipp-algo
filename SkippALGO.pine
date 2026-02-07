@@ -3404,7 +3404,7 @@ if pos == 0 and allowEntry
         
         // DEBUG: Force diagnostics on recent ChoCH window
         if recentChoCH_L and not isChoCH_Long and barstate.isconfirmed
-             label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pU, "#.2"), color=color.gray, style=label.style_label_up, size=size.tiny)
+            label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pU, "#.2"), color=color.gray, style=label.style_label_up, size=size.tiny)
 
         
         buySignal   := (gateBuy and chochFilterOk) or revBuy
@@ -3417,7 +3417,7 @@ if pos == 0 and allowEntry
         int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
         bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
         
-if isChoCH_Short and barstate.isconfirmed
+        if isChoCH_Short and barstate.isconfirmed
             label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny)
         
         bool probOkS = (pD >= 0.50) or (hugeVol and pD >= 0.40)
@@ -3427,8 +3427,6 @@ if isChoCH_Short and barstate.isconfirmed
         
         if recentChoCH_S and not isChoCH_Short and barstate.isconfirmed
             label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatio, "#.1") + "\nP:" + str.tostring(pD, "#.2"), color=color.gray, style=label.style_label_down, size=size.tiny)
-        
-        shortSignal := (gateShort and chochShortFilterOk) or revShort
         
         shortSignal := (gateShort and chochShortFilterOk) or revShort
 
