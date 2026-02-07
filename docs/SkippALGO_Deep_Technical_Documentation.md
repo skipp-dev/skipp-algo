@@ -342,11 +342,11 @@ Standard exit logic (TP/SL/Structure Break) can sometimes react prematurely to n
 #### 3. ChoCh Confirmation ("Filter Reversal Fakeouts")
 
 * **Goal**: To prevent exiting on "Character Change" (Structure Break) signals that are merely liquidity sweeps or temporary wicks rather than true reversals.
-* **Logic**: When a Check of Character (ChoCh) signal triggers an exit (e.g., losing the recent swing low in a long trade), the system checks the forecast probability for the *new* opposing direction.
-  * If `Prob(Reversal) < exitConfChoCh`: The structural exit is **ignored/filtered**.
-  * If `Prob(Reversal) >= exitConfChoCh`: The exit is valid and the trade closes.
+* **Logic**: When a Check of Character (ChoCh) signal triggers an exit, the system checks the reversal probability.
+  * **Exiting LONG Positions (Bearish ChoCh)**: If `Prob(Down) < exitConfChoCh`, the structural exit is **ignored/filtered** (Fail-safe against wicks).
+  * **Exiting SHORT Positions (Bullish ChoCh)**: **Always exit**. The filter does *not* apply to Bullish ChoCh exits (Safety priority).
 * **Parameter**: `Confirm ChoCh (Min Prob)` (Default: 0.0 = Off).
-  * Setting this to 0.55 ensures we don't bail out of a trade unless the model actually predicts the reversal is likely (>55%).
+  * Setting this to 0.55 ensures we don't bail out of a LONG trade unless the model actually predicts the drop is likely (>55%).
 
 ---
 

@@ -498,7 +498,7 @@ showEvidencePackDebug = input.bool(false, "Evidence Pack Debug (data window)", g
 // Inputs — Exit Filters
 //====================
 grp_exit = "Exit Filters (Confidence)"
-exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit on ChoCh/Structure Break if the reversal probability (pU/pD) is above this level.")
+exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit LONG positions on Bearish ChoCh if the reversal probability (pD) is above this level. Bullish ChoCh exits are not filtered.")
 exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
 
 //====================
@@ -3700,10 +3700,9 @@ if pos == -1 and allowExit
     // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
     structHit = ((breakLong and canStructExit) or isChoCH_Long)
 
-    // ChoCh Filtering (Confirm Reversal)
-    // Only exit Long if the Up Probability (pU) is high enough
-    if structHit and not na(pU) and pU < exitConfChoCh
-        structHit := false
+    // ChoCh Filtering (Confirm Reversal) - REMOVED for Bullish ChoCh per instruction
+    // if structHit and not na(pU) and pU < exitConfChoCh
+    //     structHit := false
     
     coverSignal := rHit or structHit
     if coverSignal
