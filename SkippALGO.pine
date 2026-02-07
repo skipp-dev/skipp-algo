@@ -3373,6 +3373,8 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 // Signals (enhancement filters wired in)
 bool rawBuySignal = false
 bool rawShortSignal = false
+bool isRevBuy   = false
+bool isRevShort = false
 
 if pos == 0 and allowEntry
     if engine == "Hybrid"
@@ -3383,13 +3385,22 @@ if pos == 0 and allowEntry
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        buySignal   := gateBuy and chochFilterOk
+        // REV-BUY (Neural Reversal)
+        revBuy = isChoCH_Long and (pU >= 0.50) and volOk
+        isRevBuy := revBuy
+        
+        buySignal   := (gateBuy and chochFilterOk) or revBuy
         
         gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        shortSignal := gateShort and chochShortFilterOk
+        // REV-SHORT
+        revShort = isChoCH_Short and (pD >= 0.50) and volOk
+        isRevShort := revShort
+        
+        shortSignal := (gateShort and chochShortFilterOk) or revShort
+
     else if engine == "Breakout"
 
         // Base
@@ -3402,13 +3413,19 @@ if pos == 0 and allowEntry
         isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        buySignal   := baseBuy and chochFilterOk
+        revBuy = isChoCH_Long and (pU >= 0.50) and volOk
+        isRevBuy := revBuy
+        
+        buySignal   := (baseBuy and chochFilterOk) or revBuy
         
         baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        shortSignal := baseShort and chochShortFilterOk
+        revShort = isChoCH_Short and (pD >= 0.50) and volOk
+        isRevShort := revShort
+        
+        shortSignal := (baseShort and chochShortFilterOk) or revShort
     else if engine == "Trend+Pullback"
         buySignal   := gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
         shortSignal := enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
@@ -3626,8 +3643,11 @@ plotshape(labelBOS_S,   title="BOS (Short)",  style=shape.labeldown, location=lo
 plotshape(labelChoCH_S, title="ChoCH (Short)", style=shape.labeldown, location=location.abovebar, size=size.small, text="ChoCH", textcolor=color.white, color=color.new(color.maroon, 0))
 
 // Standard BUY label (Show only if NOT a structure tag, or stack them)
-labelBuy   = buyEvent
-labelShort = shortEvent
+labelRevBuy   = buyEvent and isRevBuy
+labelRevShort = shortEvent and isRevShort
+labelBuy      = buyEvent and not isRevBuy
+labelShort    = shortEvent and not isRevShort
+
 labelExit  = exitEvent
 labelCover = coverEvent
 
@@ -3638,13 +3658,14 @@ f_label_price(isLong, isEntry) =>
     entryVal = na(entryBase) ? close : entryBase
     labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
+if showEntryLabels and (labelRevBuy)
+    label.new(bar_index, f_label_price(true, true), "REV-BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.black, color=color.new(color.aqua, 0))
+
+if showEntryLabels and (labelRevShort)
+    label.new(bar_index, f_label_price(false, true), "REV-SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.black, color=color.new(color.fuchsia, 0))
+
 if showEntryLabels and (labelBuy)
     label.new(bar_index, f_label_price(true, true), "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
-
-
-
-
-
 
 if showEntryLabels and (labelShort)
     label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
