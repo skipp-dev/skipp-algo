@@ -321,6 +321,33 @@ A rigid sample count filter can mistakenly block "Black Swan" or "Perfect Storm"
   * **0.80**: More permissive; allows more rare events.
   * **0.90**: Stricter; requires extreme confidence to bypass the sample count check.
 
+### 2.6) Exit Filtering & Optimization (v6.2)
+
+Standard exit logic (TP/SL/Structure Break) can sometimes react prematurely to noise or cap potential gains in strong trends. Version 6.2 introduces granular probability-based filters to optimize the exit process.
+
+#### 1. Stop-Loss (Safety Priority)
+
+* **Logic**: The Stop-Loss (SL) mechanism is **always unfiltered**.
+* **Reasoning**: SL represents the hard invalidation of the trade idea or the maximum risk tolerance. No probability model should override a safety stop.
+
+#### 2. Take-Profit Holding ("Let Winners Run")
+
+* **Goal**: To capture extended moves in strong trends where price blasts through the standard ATR-based Take-Profit target.
+* **Logic**: When price hits the TP level, the system checks the current trend confidence.
+  * If `Confidence >= exitConfTP`: The TP exit is **ignored**, allowing the position to remain open.
+  * If `Confidence < exitConfTP`: The trade exits normally at the TP target.
+* **Parameter**: `Hold TP (Min Trend Conf)` (Default: 1.0 = Off).
+  * Setting this to 0.85 would hold winning trades as long as the model remains 85% confident in the direction.
+
+#### 3. ChoCh Confirmation ("Filter Reversal Fakeouts")
+
+* **Goal**: To prevent exiting on "Character Change" (Structure Break) signals that are merely liquidity sweeps or temporary wicks rather than true reversals.
+* **Logic**: When a Check of Character (ChoCh) signal triggers an exit (e.g., losing the recent swing low in a long trade), the system checks the forecast probability for the *new* opposing direction.
+  * If `Prob(Reversal) < exitConfChoCh`: The structural exit is **ignored/filtered**.
+  * If `Prob(Reversal) >= exitConfChoCh`: The exit is valid and the trade closes.
+* **Parameter**: `Confirm ChoCh (Min Prob)` (Default: 0.0 = Off).
+  * Setting this to 0.55 ensures we don't bail out of a trade unless the model actually predicts the reversal is likely (>55%).
+
 ---
 
 ## 3) Technical Implementation Details
