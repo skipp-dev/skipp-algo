@@ -56,6 +56,7 @@ swingL = input.int(5, "Breakout swing left", minval=1, maxval=20)
 swingR = input.int(5, "Breakout swing right", minval=1, maxval=20)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
 breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.")
+structureLogic = input.string("Standard", "Structure Logic", options=["Standard", "SMC+Sweep"], tooltip="Standard: ChoCH = Trend Reversal (Break of Swing Low). SMC+Sweep: ChoCH includes Failed Breakouts (Reclaim of Level).")
 
 // Market Structure (BOS / ChoCH)
 useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags")
@@ -3223,6 +3224,21 @@ else // Wick
 breakoutLong  = not na(lastSwingHigh) and breakHigh
 breakoutShort = not na(lastSwingLow)  and breakLow
 
+// Expanded Logic for Sweep/Reclaim Mode
+bool sweepHigh = false
+bool reclaimLow = false
+
+if structureLogic == "SMC+Sweep" and not na(lastSwingHigh) and not na(lastSwingLow)
+    // Sweep High (Bearish Reversal Pattern): Price crossed above High then fell back below
+    if breakoutSource == "Close"
+        sweepHigh := close < lastSwingHigh and high > lastSwingHigh and close[1] > lastSwingHigh
+        reclaimLow := close > lastSwingLow and low < lastSwingLow and close[1] < lastSwingLow
+    else // Wick (Crossunder/Crossover Logic matches Reference Script)
+        // GainzAlgo Logic: ChoCH Sell = crossunder(low, last_high)
+        sweepHigh := ta.crossunder(low, lastSwingHigh) 
+        // GainzAlgo Logic: ChoCH Buy = crossover(high, last_low)
+        reclaimLow := ta.crossover(high, lastSwingLow)
+
 // --- Market Structure State (BOS vs ChoCH) ---
 var int structState = 0 // 0=Neutral, 1=Bullish, -1=Bearish
 bool isChoCH_Long = false
@@ -3230,21 +3246,47 @@ bool isBOS_Long   = false
 bool isChoCH_Short = false
 bool isBOS_Short   = false
 
-// Long Break Logic
-if breakoutLong
-    if structState == -1 // Was Bearish -> Reversal
-        isChoCH_Long := true
-    else // Neutral or Bullish -> Continuation
-        isBOS_Long := true
-    structState := 1 // Set to Bullish
+if structureLogic == "Standard"
+    // Standard Trend Logic
+    if breakoutLong
+        if structState == -1
+            isChoCH_Long := true
+        else
+            isBOS_Long := true
+        structState := 1
 
-// Short Break Logic
-if breakoutShort
-    if structState == 1 // Was Bullish -> Reversal
+    if breakoutShort
+        if structState == 1
+            isChoCH_Short := true
+        else
+            isBOS_Short := true
+        structState := -1
+
+else // SMC+Sweep (GainzAlgo Style)
+    // BOS = Continuation (Breakout)
+    // ChoCH = Sweep/Reclaim (Reversal) OR Standard Reversal
+    
+    // Bullish BOS: Break High
+    if breakoutLong
+        if structState != -1 // If not already bearish trend... or just mark BOS
+             isBOS_Long := true
+        structState := 1
+        
+    // Bearish BOS: Break Low
+    if breakoutShort
+        if structState != 1
+             isBOS_Short := true
+        structState := -1
+        
+    // Bullish ChoCH: Reclaim Low (Turtle Soup)
+    if reclaimLow
+        isChoCH_Long := true
+        // structState := 1 // Sweep often starts a new trend
+        
+    // Bearish ChoCH: Sweep High (fakeout)
+    if sweepHigh
         isChoCH_Short := true
-    else // Neutral or Bearish -> Continuation
-        isBOS_Short := true
-    structState := -1 // Set to Bearish
+        // structState := -1
 
 // Risk model state
 var float stopPx  = na
