@@ -3312,6 +3312,9 @@ enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortO
 hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
 
+// Fetch probabilities for strict ChoCH filtering (Global Scope)
+[pU, pF, pD, nBin_prob, total_prob] = f_get_rel_vals(entryFcTF, entryFcModel)
+
 // Signals (enhancement filters wired in)
 bool rawBuySignal = false
 bool rawShortSignal = false
