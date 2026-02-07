@@ -255,10 +255,27 @@ The `engine` input selects one of four signal-generation modes. Each mode requir
 | **Trend+Pullback** | Trend flip or EMA reclaim | Forecast gate, enhancements |
 | **Loose** | Close crosses above fast EMA | Cooldown gate only |
 
-* **Hybrid** is the most selective — it requires price to touch the fast EMA *and* either cross above it or print a bullish reversal pattern, while also passing volume, SET confirmation, pullback depth, forecast probability, and all enhancement filters (ADX, ROC, volume-ensemble, pre-momentum, EMA-acceleration, VWAP, RegSlope).
-* **Breakout** fires on swing-high/low breaks and requires trend alignment plus volume and forecast gates.
-* **Trend+Pullback** fires on EMA crossover or reclaim events and requires fewer filters (no explicit volume or SET gate).
-* **Loose** is the most permissive — it fires whenever price closes above (or below) the fast EMA and the cooldown gate allows it. No volume, SET, pullback, forecast, or enhancement filters are applied. It is useful for testing or high-frequency scanning but is prone to false signals in choppy markets.
+* **Hybrid** (The "Sniper"):
+  * **Philosophy**: "Only trade when *everything* aligns."
+  * **Trigger**: Requires price to touch the Fast EMA and then bounce (Close above or Bullish Reversal pattern).
+  * **Unique Requirement**: Enforces **Structured Sentiment (SET)** and **Volume Validation** as hard requirements.
+  * **Best For**: High-win-rate swing trading in established trends. It filters out low-quality "choppy" crossovers.
+
+* **Breakout** (The "Explosion Catcher"):
+  * **Philosophy**: "Catch the momentum expansion."
+  * **Trigger**: Fires when price breaks a Swing High/Low.
+  * **Best For**: Volatility expansion phases. Handles structure internally.
+
+* **Trend+Pullback** (The "Flow" Trader):
+  * **Philosophy**: "Follow the structure shift."
+  * **Trigger**: Fires on **Trend Flips** (EMA Crossover) or **Reclaims**.
+  * **Difference**: It is lighter than Hybrid. It **skips** the strict Volume and SET gates to catch earlier entries.
+  * **Best For**: Assets where volume is erratic or capturing the very start of a trend.
+
+* **Loose** (The "Scanner"):
+  * **Philosophy**: "Raw signal access."
+  * **Trigger**: Fires whenever price closes above/below the Fast EMA.
+  * **Best For**: High-frequency scanning or testing. Prone to false signals in chop.
 
 Short signals mirror the long logic with bearish equivalents. If both a buy and short signal fire on the same bar, both are suppressed to avoid ambiguity.
 
@@ -320,6 +337,17 @@ A rigid sample count filter can mistakenly block "Black Swan" or "Perfect Storm"
   * **0.85 (Default)**: Trusts the model when it is very sure (>85%), even if data is scarce.
   * **0.80**: More permissive; allows more rare events.
   * **0.90**: Stricter; requires extreme confidence to bypass the sample count check.
+
+#### Forecast Accuracy Filter (Brier Gating)
+
+The **Forecast Accuracy** filter allows you to gate entries based on how well the model is performing on a specific timeframe.
+
+* **Parameter**: `Filter entries by Forecast Accuracy` (Default: Off).
+* **Metrics**:
+  * **Max Brier Score**: The maximum acceptable error rate. Lower is better. (e.g., 0.25 is random guessing; <0.22 is predictive).
+  * **Filter Horizon (`relFilterTF`)**: This determines **which** forecast timeframe is checked for accuracy.
+    * *Usage*: Typically set to the same timeframe you are trading. However, you can use it to filter lower timeframe trades based on the accuracy of a Higher Timeframe (HTF) forecast.
+    * *Example*: You trade on 1m, but only want to take trades if the **15m** forecast (F3) has a low Brier Score (high accuracy).
 
 ### 2.6) Exit Filtering & Optimization (v6.2)
 
