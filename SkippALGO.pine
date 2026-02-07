@@ -3413,12 +3413,16 @@ if pos == 0 and (allowEntry or allowRescue)
         label.new(bar_index, high, "Main Loop Entered", force_overlay=true)
 
     // Reversal Logic (Global — Applies to All Engines)
+    // Refined to filter stale reversals (older than 5 bars) on low volume to prevent "fake" late entries
+    bool revRecencyOkL = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 5 or volRatioG >= 1.0)
+    bool revRecencyOkS = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 5 or volRatioG >= 1.0)
+
     // This logic was previously stuck inside "Hybrid" engine block, causing other engines to miss Neural Reversals.
     // Moved here to ensure global availability.
     probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
     probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
-    revBuyGlobal    = (isChoCH_Long or recentChoCH_L) and probOkGlobal and volOk
-    revShortGlobal  = (isChoCH_Short or recentChoCH_S) and probOkGlobalS and volOk
+    revBuyGlobal    = (isChoCH_Long or recentChoCH_L) and revRecencyOkL and probOkGlobal and volOk
+    revShortGlobal  = (isChoCH_Short or recentChoCH_S) and revRecencyOkS and probOkGlobalS and volOk
 
     // Export for debug
     isRevBuy   := revBuyGlobal
@@ -3572,12 +3576,14 @@ if pos == 1 and allowExit
     
     // Check for Reversal Exit (ChoCH Down)
     // If breakShort happens while we are Long, that is a bearish structure break.
-    structHit = (breakShort and canStructExit)
+    // Explicitly include isChoCH_Short (the visual label signal) to ensure we catch all reversals.
+    // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
+    structHit = ((breakShort and canStructExit) or isChoCH_Short)
     
     exitSignal := rHit or structHit
     if exitSignal
         string reason = rHit ? rMsg : "Struct"
-        if not rHit and breakShort
+        if not rHit and (breakShort or isChoCH_Short)
             reason := "ChoCH"
         tempExitReason := reason
 
@@ -3588,12 +3594,14 @@ if pos == -1 and allowExit
     
     // Check for Reversal Exit (ChoCH Up)
     // If breakLong happens while we are Short, that is a bullish structure break.
-    structHit = (breakLong and canStructExit)
+    // Explicitly include isChoCH_Long (the visual label signal).
+    // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
+    structHit = ((breakLong and canStructExit) or isChoCH_Long)
     
     coverSignal := rHit or structHit
     if coverSignal
         string reason = rHit ? rMsg : "Struct"
-        if not rHit and breakLong
+        if not rHit and (breakLong or isChoCH_Long)
             reason := "ChoCH"
         tempExitReason := reason
 

@@ -3493,15 +3493,15 @@ if pos == 0 and (allowEntry or allowRescue)
 
     // Recency (Global Scope inside loop for safety)
     int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
-    bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12)
+    bool revRecencyOkL   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 5 or volRatioG >= 1.0)
     int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
-    bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
+    bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 5 or volRatioG >= 1.0)
 
     // Reversal Logic (Global)
     bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
     bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
-    bool revBuyGlobal    = (isChoCH_Long or recentChoCH_L) and probOkGlobal and volOk
-    bool revShortGlobal  = (isChoCH_Short or recentChoCH_S) and probOkGlobalS and volOk
+    bool revBuyGlobal    = (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk
+    bool revShortGlobal  = (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk
 
     if engine == "Hybrid"
         // Base triggers
@@ -3628,7 +3628,7 @@ if pos == 1 and allowExit
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
     
     // Check for Reversal Exit (ChoCH Down)
-    structHit = (breakShort and canStructExit)
+    structHit = ((breakShort and canStructExit) or isChoCH_Short)
     
     exitSignal := rHit or structHit
     if exitSignal
@@ -3640,7 +3640,7 @@ if pos == -1 and allowExit
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
     
     // Check for Reversal Exit (ChoCH Up)
-    structHit = (breakLong and canStructExit)
+    structHit = ((breakLong and canStructExit) or isChoCH_Long)
     
     coverSignal := rHit or structHit
     if coverSignal
