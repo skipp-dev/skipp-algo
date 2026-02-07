@@ -52,9 +52,10 @@ decayBars    = input.int(6, "Decay Duration (Bars)", minval=1)
 
 exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
-swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
-swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
+swingL = input.int(5, "Breakout swing left", minval=1, maxval=20)
+swingR = input.int(5, "Breakout swing right", minval=1, maxval=20)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
+breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.")
 
 // Market Structure (BOS / ChoCH)
 useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags")
@@ -3394,8 +3395,21 @@ if swingMaxAgeBars > 0
         lastSwingLow := na
         lastSwingLowBar := na
 
-breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
-breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+// Breakout Logic (Close vs Wick)
+bool breakHigh = false
+bool breakLow  = false
+
+if breakoutSource == "Close"
+    breakHigh := close > lastSwingHigh and close[1] <= lastSwingHigh
+    breakLow  := close < lastSwingLow  and close[1] >= lastSwingLow
+else // Wick
+    if not na(lastSwingHigh)
+        breakHigh := ta.crossover(high, lastSwingHigh)
+    if not na(lastSwingLow)
+        breakLow  := ta.crossunder(low,  lastSwingLow)
+
+breakoutLong  = not na(lastSwingHigh) and breakHigh
+breakoutShort = not na(lastSwingLow)  and breakLow
 
 // --- Market Structure State (BOS vs ChoCH) ---
 var int structState = 0 // 0=Neutral, 1=Bullish, -1=Bearish
