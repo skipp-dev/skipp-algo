@@ -3562,10 +3562,9 @@ if pos == 1 and allowExit
     
     exitSignal := rHit or structHit
     if exitSignal
-        string reason = rHit ? rMsg : "Struct"
+        tempExitReason := rHit ? rMsg : "Struct"
         if not rHit and breakShort
-             reason := "ChoCH"
-        tempExitReason := reason
+             tempExitReason := "ChoCH"
 
 if pos == -1 and allowExit
     if useAtrRisk
@@ -3577,10 +3576,9 @@ if pos == -1 and allowExit
     
     coverSignal := rHit or structHit
     if coverSignal
-        string reason = rHit ? rMsg : "Struct"
+        tempExitReason := rHit ? rMsg : "Struct"
         if not rHit and breakLong
-             reason := "ChoCH"
-        tempExitReason := reason
+             tempExitReason := "ChoCH"
 
 // State Logic
 var string lastExitReason = ""
