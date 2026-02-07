@@ -39,14 +39,14 @@ volLen   = input.int(20, "Volume SMA len", minval=2)
 volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05)
 
 useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
-stopATR  = input.float(2.50, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
+stopATR  = input.float(2.00, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
 tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10)
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
 // Dynamic Risk Decay
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
-decayStopATR = input.float(1.50, "Sustained Stop ATR", minval=0.1)
+decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
 decayBars    = input.int(6, "Decay Duration (Bars)", minval=1)
 
@@ -55,6 +55,12 @@ exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prev
 swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
+
+// Market Structure (BOS / ChoCH)
+useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags")
+chochMinProb     = input.float(0.50, "ChoCH Min Confidence (Prob)", minval=0.34, maxval=0.95, step=0.01)
+chochReqVol      = input.bool(true, "ChoCH Require Volume?")
+
 enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
 cooldownBars = input.int(6, "Cooldown bars", minval=0)
 minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
@@ -2638,13 +2644,16 @@ f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
 
 f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
     if not useAtrRisk or na(stopVal)
-        false
+        [false, ""]
     else
         stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
         tpHit    = not na(tpVal) and (isLong ? (high >= tpVal)  : (low  <= tpVal))
         trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
         // conservative: stop wins if both in same bar
-        stopHit or trailHit or tpHit
+        hit = stopHit or trailHit or tpHit
+        // Priority: Stop > Trail > TP
+        msg = stopHit ? "SL" : trailHit ? "Trail" : tpHit ? "TP" : ""
+        [hit, msg]
 
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
@@ -3429,11 +3438,35 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 // Signals
 if pos == 0 and allowEntry
     if engine == "Hybrid"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger  and enhLongOk
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk
+        // Base triggers
+        gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger  and enhLongOk
+        
+        // ChoCH Filter (Strict)
+        isChoCH_Entry = gateBuy and (structState == -1) // Currently Bearish
+        chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
+        
+        buySignal   := gateBuy and chochFilterOk
+
+        gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk
+        isChoCH_ShortEntry = gateShort and (structState == 1) // Currently Bullish
+        chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
+        
+        shortSignal := gateShort and chochShortFilterOk
+
     else if engine == "Breakout"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe  and enhLongOk
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk
+        // Base
+        baseBuy = gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe  and enhLongOk
+        isChoCH_Entry = baseBuy and (structState == -1)
+        chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
+        
+        buySignal   := baseBuy and chochFilterOk
+        
+        baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk
+        isChoCH_ShortEntry = baseShort and (structState == 1)
+        chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
+        
+        shortSignal := baseShort and chochShortFilterOk
+
     else if engine == "Trend+Pullback"
         buySignal   := gateLongNow and (trendFlipUpSafe or reclaimUpSafe) and enhLongOk
         shortSignal := enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe) and enhShortOk
@@ -3520,19 +3553,31 @@ if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
-    structHit = (breakLong and bearBias and canStructExit)
+    
+    // Check for Reversal Exit (ChoCH Down)
+    structHit = (breakShort and canStructExit)
+    
     exitSignal := rHit or structHit
     if exitSignal
-        tempExitReason := rHit ? rMsg : "Struct"
+        string reason = rHit ? rMsg : "Struct"
+        if not rHit and breakShort
+             reason := "ChoCH"
+        tempExitReason := reason
 
 if pos == -1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
-    structHit = (breakShort and bullBias and canStructExit)
+    
+    // Check for Reversal Exit (ChoCH Up)
+    structHit = (breakLong and canStructExit)
+    
     coverSignal := rHit or structHit
     if coverSignal
-        tempExitReason := rHit ? rMsg : "Struct"
+        string reason = rHit ? rMsg : "Struct"
+        if not rHit and breakLong
+             reason := "ChoCH"
+        tempExitReason := reason
 
 // State Logic
 var string lastExitReason = ""

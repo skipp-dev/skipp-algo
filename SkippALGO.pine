@@ -40,14 +40,14 @@ volLen   = input.int(20, "Volume SMA len", minval=2)
 volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05)
 
 useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
-stopATR  = input.float(2.50, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
+stopATR  = input.float(2.00, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
 tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10)
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
 // Dynamic Risk Decay
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
-decayStopATR = input.float(1.50, "Sustained Stop ATR", minval=0.1)
+decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
 decayBars    = input.int(6, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Example: At 50% duration, Stop is halfway between Initial and Sustained.")
 // Note: Uses same exitGraceBars duration defined below
@@ -55,6 +55,12 @@ decayBars    = input.int(6, "Decay Duration (Bars)", minval=1, tooltip="Time to 
 swingL = input.int(3, "Breakout swing left", minval=1, maxval=10)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=10)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
+
+// Market Structure (BOS / ChoCH)
+useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags")
+chochMinProb     = input.float(0.50, "ChoCH Min Confidence (Prob)", minval=0.34, maxval=0.95, step=0.01)
+chochReqVol      = input.bool(true, "ChoCH Require Volume?")
+
 enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
 cooldownBars = input.int(6, "Cooldown bars", minval=0)
 minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
@@ -3198,10 +3204,34 @@ if swingMaxAgeBars > 0
         lastSwingHighBar := na
     if not na(lastSwingLowBar) and (bar_index - lastSwingLowBar > swingMaxAgeBars)
         lastSwingLow := na
+        lastSwingLow := na
         lastSwingLowBar := na
 
 breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
 breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+
+// --- Market Structure State (BOS vs ChoCH) ---
+var int structState = 0 // 0=Neutral, 1=Bullish, -1=Bearish
+bool isChoCH_Long = false
+bool isBOS_Long   = false
+bool isChoCH_Short = false
+bool isBOS_Short   = false
+
+// Long Break Logic
+if breakoutLong
+    if structState == -1 // Was Bearish -> Reversal
+        isChoCH_Long := true
+    else // Neutral or Bullish -> Continuation
+        isBOS_Long := true
+    structState := 1 // Set to Bullish
+
+// Short Break Logic
+if breakoutShort
+    if structState == 1 // Was Bullish -> Reversal
+        isChoCH_Short := true
+    else // Neutral or Bearish -> Continuation
+        isBOS_Short := true
+    structState := -1 // Set to Bearish
 
 // Risk model state
 var float stopPx  = na
@@ -3288,12 +3318,39 @@ bool rawShortSignal = false
 
 if pos == 0 and allowEntry
     if engine == "Hybrid"
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
+        // Base triggers
+        gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
+        
+        // ChoCH Filter (Strict)
+        isChoCH_Entry = gateBuy and (structState == -1) // Currently Bearish
+        chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
+        
+        buySignal   := gateBuy and chochFilterOk
+        
+        gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
+        isChoCH_ShortEntry = gateShort and (structState == 1) // Currently Bullish
+        chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
+        
+        shortSignal := gateShort and chochShortFilterOk
     else if engine == "Breakout"
 
-        buySignal   := gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and enhLongOk  and breakoutLongSafe
-        shortSignal := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
+        // Base
+        baseBuy = gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and enhLongOk  and breakoutLongSafe
+        
+        // Breakout Engine inherently handles Structure, but we can enforce strict ChoCH here too
+        // Note: For Breakout engine, `breakoutLong` usually aligns with BOS unless it's the very first reversal.
+        // We will assume standard filters apply unless explicitly a ChoCH (Reversal) event.
+        
+        isChoCH_Entry = baseBuy and (structState == -1)
+        chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
+        
+        buySignal   := baseBuy and chochFilterOk
+        
+        baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
+        isChoCH_ShortEntry = baseShort and (structState == 1)
+        chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
+        
+        shortSignal := baseShort and chochShortFilterOk
     else if engine == "Trend+Pullback"
         buySignal   := gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
         shortSignal := enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
@@ -3396,21 +3453,33 @@ if pos == 1 and allowExit
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
     // Deconstruct risk exit
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
-    structHit = (breakLong and bearBias and canStructExit)
+    
+    // Check for Reversal Exit (ChoCH Down)
+    // If breakShort happens while we are Long, that is a bearish structure break.
+    structHit = (breakShort and canStructExit)
     
     exitSignal := rHit or structHit
     if exitSignal
-        tempExitReason := rHit ? rMsg : "Struct"
+        string reason = rHit ? rMsg : "Struct"
+        if not rHit and breakShort
+            reason := "ChoCH"
+        tempExitReason := reason
 
 if pos == -1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
-    structHit = (breakShort and bullBias and canStructExit)
+    
+    // Check for Reversal Exit (ChoCH Up)
+    // If breakLong happens while we are Short, that is a bullish structure break.
+    structHit = (breakLong and canStructExit)
     
     coverSignal := rHit or structHit
     if coverSignal
-        tempExitReason := rHit ? rMsg : "Struct"
+        string reason = rHit ? rMsg : "Struct"
+        if not rHit and breakLong
+            reason := "ChoCH"
+        tempExitReason := reason
 
 // Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
 didBuy   := false
@@ -3487,7 +3556,14 @@ plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.b
 plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
 
 // Label rendering (configurable source + price)
-labelBuy   = buyEvent
+labelBOS_L   = useStructureTags and isBOS_Long   and buyEvent
+labelChoCH_L = useStructureTags and isChoCH_Long and buyEvent
+
+plotshape(labelBOS_L,   title="BOS",   style=shape.labelup, location=location.belowbar, size=size.small, text="BOS",   textcolor=color.white, color=color.new(color.green, 0))
+plotshape(labelChoCH_L, title="ChoCH", style=shape.labelup, location=location.belowbar, size=size.small, text="ChoCH", textcolor=color.white, color=color.new(color.purple, 0))
+
+// Standard BUY label (Show only if NOT a structure tag, to avoid double labeling)
+labelBuy   = buyEvent and (not useStructureTags or (not isBOS_Long and not isChoCH_Long))
 labelShort = shortEvent
 labelExit  = exitEvent
 labelCover = coverEvent

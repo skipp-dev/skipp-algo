@@ -51,9 +51,9 @@ Users reported high-confidence BUY signals (e.g., at 21:48) followed immediately
 
 * **Feature Added**: Automatically tightens risk parameters linearly over the first `N` bars.
 * **Mechanism (Linear Interpolation)**:
-  *   **Bar 0 (Entry)**: Risk is at maximum width (`2.5 ATR`) to absorb volatility.
-  *   **Bar 3 (Halfway)**: Risk has tightened by 50% (`2.0 ATR`).
-  *   **Bar 6 (Sustained)**: Risk reaches final tight state (`1.5 ATR`).
+  * **Bar 0 (Entry)**: Risk is at maximum width (`2.5 ATR`) to absorb volatility.
+  * **Bar 3 (Halfway)**: Risk has tightened by 50% (`2.0 ATR`).
+  * **Bar 6 (Sustained)**: Risk reaches final tight state (`1.5 ATR`).
 * **Why Linear?**: Unlike a "step" change, linear decay gently guides the stop closer to price. If price moves against the trade slowly during the grace period, the funneling stop will catch it earlier, reducing the loss compared to waiting for a hard step.
 * **Result**: Provides a "Funnel" of safety that is wide at the mouth (entry) and precise at the tail (trend).
 
