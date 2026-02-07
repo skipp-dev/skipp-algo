@@ -311,6 +311,14 @@ useBullBearCal = input.bool(true, "Separate bull/bear calibrators", group=grp_tr
 countDecay = input.float(0.9995, "Count decay (1.0=none)", minval=0.80, maxval=1.0, step=0.0005, group=grp_tri)
 kShrinkReg = input.int(20, "Regime shrinkage k", minval=0, maxval=1000, group=grp_tri)
 
+//====================
+// Liquidity Concepts (SMC)
+//====================
+grp_smc = "Liquidity Concepts (SMC)"
+useLiqSweep     = input.bool(true, "Filter Reversals by Liquidity Sweep", group=grp_smc, tooltip="Only take Reversal entries if a Liquidity Sweep (stop hunt) occurred recently.")
+liqSweepLookback= input.int(10, "Sweep Lookback (Bars)", minval=1, group=grp_smc)
+// useLiqTargets   = input.bool(false, "Avg Entry Targets (Future)", group=grp_smc) // Reserved for Phase 2
+
 // --- Phase 1: Separate Targets per Timeframe Group ---
 grp_fast = "Target Profile 1: Fast (1m, 5m)"
 fcTargetF = input.string("KBarATR", "Target", options=["NextBar", "KBarReturn", "KBarATR", "PathTPvsSL"], group=grp_fast)
@@ -3430,6 +3438,14 @@ else // Wick
 breakoutLong  = not na(lastSwingHigh) and breakHigh
 breakoutShort = not na(lastSwingLow)  and breakLow
 
+// Liquidity Sweeps (SMC)
+bool isSweep_Bull = not na(lastSwingLow) and (low < lastSwingLow) and (close > lastSwingLow)
+bool isSweep_Bear = not na(lastSwingHigh) and (high > lastSwingHigh) and (close < lastSwingHigh)
+int barsSinceSweep_Bull = ta.barssince(isSweep_Bull)
+int barsSinceSweep_Bear = ta.barssince(isSweep_Bear)
+bool sweepRecent_Bull = (not na(barsSinceSweep_Bull)) and (barsSinceSweep_Bull <= liqSweepLookback)
+bool sweepRecent_Bear = (not na(barsSinceSweep_Bear)) and (barsSinceSweep_Bear <= liqSweepLookback)
+
 // --- Market Structure State (BOS vs ChoCH) ---
 var int structState = 0 // 0=Neutral, 1=Bullish, -1=Bearish
 bool isChoCH_Long = false
@@ -3506,8 +3522,14 @@ if pos == 0 and (allowEntry or allowRescue)
     // Reversal Logic (Global)
     bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
     bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
-    bool revBuyGlobal    = (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk
-    bool revShortGlobal  = (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk
+    
+    // SMC Filter: If enabled, requires recent sweep
+    // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
+    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull
+    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear
+    
+    bool revBuyGlobal    = (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL
+    bool revShortGlobal  = (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS
 
     if engine == "Hybrid"
         // Base triggers
