@@ -3352,6 +3352,9 @@ vwapShortOk = (not useVwap) or (not timeframe.isintraday) or (na(vwapVal) or clo
 fcGateLong  = f_entry_forecast_gate(true)
 fcGateShort = f_entry_forecast_gate(false)
 
+// Fetch probabilities for strict ChoCH filtering (Global Scope)
+[pU, pF, pD, nBin_prob, total_prob] = f_get_rel_vals(entryFcTF, entryFcModel)
+
 // Pullback depth
 pbLow = ta.lowest(low, pbLookback)
 pbHigh = ta.highest(high, pbLookback)
