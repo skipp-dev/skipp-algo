@@ -432,6 +432,13 @@ resetWhich = input.string("None", "Reset calibration scope", options=["None","Al
 resetNow   = input.bool(false, "Reset selected calibration NOW")
 
 //====================
+// Inputs — Exit Filters
+//====================
+grp_exit = "Exit Filters (Confidence)"
+exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit on ChoCh/Structure Break if the reversal probability (pU/pD) is above this level.")
+exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
+
+//====================
 // Inputs — Forecast Filtering (Accuracy-based)
 //====================
 useRelFilter = input.bool(false, "Filter entries by Forecast Accuracy")
@@ -3655,11 +3662,20 @@ if pos == 1 and allowExit
     // Deconstruct risk exit
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
     
+    // TP Filtering (Hold Winner)
+    if rHit and rMsg == "TP" and confidence >= exitConfTP
+        rHit := false 
+    
     // Check for Reversal Exit (ChoCH Down)
     // If breakShort happens while we are Long, that is a bearish structure break.
     // Explicitly include isChoCH_Short (the visual label signal) to ensure we catch all reversals.
     // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
     structHit = ((breakShort and canStructExit) or isChoCH_Short)
+
+    // ChoCh Filtering (Confirm Reversal)
+    // Only exit Short if the Down Probability (pD) is high enough
+    if structHit and not na(pD) and pD < exitConfChoCh
+        structHit := false
     
     exitSignal := rHit or structHit
     if exitSignal
@@ -3673,11 +3689,20 @@ if pos == -1 and allowExit
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
     
+    // TP Filtering (Hold Winner)
+    if rHit and rMsg == "TP" and confidence >= exitConfTP
+        rHit := false 
+    
     // Check for Reversal Exit (ChoCH Up)
     // If breakLong happens while we are Short, that is a bullish structure break.
     // Explicitly include isChoCH_Long (the visual label signal).
     // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
     structHit = ((breakLong and canStructExit) or isChoCH_Long)
+
+    // ChoCh Filtering (Confirm Reversal)
+    // Only exit Long if the Up Probability (pU) is high enough
+    if structHit and not na(pU) and pU < exitConfChoCh
+        structHit := false
     
     coverSignal := rHit or structHit
     if coverSignal
