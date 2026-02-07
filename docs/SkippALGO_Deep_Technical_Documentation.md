@@ -40,6 +40,22 @@ Historical static targets (e.g., "Next Bar Close") failed to capture the nuance 
 * **Slow TFs (4h, 1D)**: Trend persistence. Target: **Path Dependent** (Symmetric 1.0 ATR TP/SL).
 * **Implementation**: `f_get_params(tf)` dynamically switches target logic based on the seconds-in-timeframe.
 
+### 2.0.1 Target Definitions
+
+The system now supports three advanced target definitions that can be selected per timeframe profile (Fast/Mid/Slow):
+
+1. **K-Bar Return (`KBarReturn`)**
+   * **Logic**: "Will the price be higher or lower `k` bars from now?"
+   * **Why**: Removes noise. Predicting single-bar direction is often random, but predicting momentum persistence over 3-5 bars is cleaner.
+
+2. **K-Bar ATR Magnitude (`KBarATR`)**
+   * **Logic**: "Will the price move at least `Threshold * ATR` in the winning direction after `k` bars?"
+   * **Why**: Filters out weak wins. A drift of 1 pip shouldn't train the model to buy. This forces the model to learn signals that precede volatility expansion.
+
+3. **Path-Based (`PathTPvsSL`)** — *Advanced*
+   * **Logic**: "Within the next `H` bars, will price hit Take-Profit (+TP ATR) before Stop-Loss (-SL ATR)?"
+   * **Why**: This is a direct simulation of a trade. It accounts for wicks and volatility paths, training the probability engine on *realized outcome* rather than just where the candle closes.
+
 ### Phase 2: 2D Calibration (Score x Volatility)
 
 Previous versions binned only on `AlgoScore`. This missed a critical factor: A "Bullish Trend" signal behaves differently in Low Volatility (Grind up) vs High Volatility (Blow-off top).
