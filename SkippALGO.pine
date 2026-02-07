@@ -3392,7 +3392,7 @@ if pos == 0 and allowEntry
         bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12) // 12 bars lookback
 
         if showDebugLabels and isChoCH_Long and barstate.isconfirmed
-             label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny)
+            label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny)
         
         // Dynamic Rescue: If Volume is extremely high (> 2.0x), lower the Prob requirement
         float volRatio = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
@@ -3417,7 +3417,7 @@ if pos == 0 and allowEntry
         bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
         
         if showDebugLabels and isChoCH_Short and barstate.isconfirmed
-             label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny)
+            label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny)
 
         bool probOkS = (pD >= 0.50) or (hugeVol and pD >= 0.40)
         
