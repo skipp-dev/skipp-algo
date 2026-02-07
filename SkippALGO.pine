@@ -3325,13 +3325,13 @@ if pos == 0 and allowEntry
         gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         
         // ChoCH Filter (Strict)
-        isChoCH_Entry = gateBuy and (structState == -1) // Currently Bearish
+        isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
         buySignal   := gateBuy and chochFilterOk
         
         gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
-        isChoCH_ShortEntry = gateShort and (structState == 1) // Currently Bullish
+        isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
         shortSignal := gateShort and chochShortFilterOk
@@ -3344,13 +3344,13 @@ if pos == 0 and allowEntry
         // Note: For Breakout engine, `breakoutLong` usually aligns with BOS unless it's the very first reversal.
         // We will assume standard filters apply unless explicitly a ChoCH (Reversal) event.
         
-        isChoCH_Entry = baseBuy and (structState == -1)
+        isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
         buySignal   := baseBuy and chochFilterOk
         
         baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
-        isChoCH_ShortEntry = baseShort and (structState == 1)
+        isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
         shortSignal := baseShort and chochShortFilterOk
