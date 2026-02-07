@@ -3264,30 +3264,30 @@ if structureLogic == "Standard"
         structState := -1
 
 else // SMC+Sweep (GainzAlgo Style)
-    // BOS = Continuation (Breakout)
-    // ChoCH = Sweep/Reclaim (Reversal) OR Standard Reversal
+    // Combined Logic: ChoCH = Reversal (Break of High) OR Sweep (Reclaim of Low)
     
-    // Bullish BOS: Break High
+    // Bullish Event: Break High
     if breakoutLong
-        if structState != -1
-            isBOS_Long := true
+        if structState == -1
+            isChoCH_Long := true // Reversal via Structure Break
+        else
+            isBOS_Long := true   // Continuation
         structState := 1
         
-    // Bearish BOS: Break Low
+    // Bearish Event: Break Low
     if breakoutShort
-        if structState != 1
-            isBOS_Short := true
+        if structState == 1
+            isChoCH_Short := true // Reversal via Structure Break
+        else
+            isBOS_Short := true   // Continuation
         structState := -1
         
-    // Bullish ChoCH: Reclaim Low (Turtle Soup)
+    // Extra Sweep Logic (Turtle Soup) - Also triggers ChoCH Signal
     if reclaimLow
         isChoCH_Long := true
-        // structState := 1 // Sweep often starts a new trend
         
-    // Bearish ChoCH: Sweep High (fakeout)
     if sweepHigh
         isChoCH_Short := true
-        // structState := -1
 
 // Risk model state
 var float stopPx  = na
@@ -3390,6 +3390,9 @@ if pos == 0 and allowEntry
         // Allow for "Late" confirmation: if ChoCH happened recently, and Vol/Prob confirms NOW, trigger BUY
         int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
         bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12) // 12 bars lookback
+
+        if showDebugLabels and isChoCH_Long and barstate.isconfirmed
+             label.new(bar_index, low, "RAW CH-L", color=color.blue, style=label.style_label_up, size=size.tiny)
         
         // Dynamic Rescue: If Volume is extremely high (> 2.0x), lower the Prob requirement
         float volRatio = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
@@ -3413,6 +3416,9 @@ if pos == 0 and allowEntry
         int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
         bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
         
+        if showDebugLabels and isChoCH_Short and barstate.isconfirmed
+             label.new(bar_index, high, "RAW CH-S", color=color.orange, style=label.style_label_down, size=size.tiny)
+
         bool probOkS = (pD >= 0.50) or (hugeVol and pD >= 0.40)
         
         revShort = (isChoCH_Short or recentChoCH_S) and probOkS and volOk and not isBOS_Short
