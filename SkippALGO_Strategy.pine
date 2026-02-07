@@ -257,6 +257,12 @@ rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
 //====================
+// Automation Inputs (TradersPost / Webhooks)
+//====================
+grp_auto   = "Automation"
+useJsonAlerts = input.bool(false, "Enable JSON Webhook Payloads", group=grp_auto, tooltip="Formats alerts as JSON for TradersPost or other bots. If disabled, sends human-readable text.")
+
+//====================
 // Inputs — Forecast Calibration Enhancements (Deep Upgrade v6.1)
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
@@ -3748,26 +3754,44 @@ plot(useAtrRisk and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, 
 plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
 
 // Strategy Execution (Active)
+// v6.1.3: TradersPost JSON Payload logic
+// uniqueId: recommended by user: {{ticker}}-{{interval}}-{{time}}-{{strategy.order.id}}
+// Note: strategy.order.id is essentially the "id" param passed to entry/exit.
+f_tp_json(action, orderId, legacyMsg) =>
+    if useJsonAlerts
+        str.format('{{"ticker": "{0}", "action": "{1}", "orderId": "{2}", "uniqueId": "{0}-{3}-{4}-{2}", "price": {5}, "contracts": {6}, "sentiment": "{7}" }}', 
+             syminfo.ticker, 
+             action, 
+             orderId, 
+             timeframe.period, 
+             str.tostring(timenow), 
+             str.tostring(close, "#.##"), 
+             str.tostring(math.abs(strategy.position_size)),
+             pos == 1 ? "bullish" : pos == -1 ? "bearish" : "flat"
+        )
+    else
+        legacyMsg
+
 if buyEvent
-    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message="SkippALGO BUY | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period)
+    strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message=f_tp_json("buy", "L", "SkippALGO BUY | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period))
     if useAtrRisk and not na(stopPx) and not na(tpPx)
-        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx, alert_message="SkippALGO EXIT L | " + syminfo.ticker + " | stop/tp hit")
+        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx, alert_message=f_tp_json("exit", "Exit L", "SkippALGO EXIT L | " + syminfo.ticker + " | stop/tp hit"))
 
 if shortEvent
-    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message="SkippALGO SHORT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period)
+    strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message=f_tp_json("sell", "S", "SkippALGO SHORT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period))
     if useAtrRisk and not na(stopPx) and not na(tpPx)
-        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx, alert_message="SkippALGO EXIT S | " + syminfo.ticker + " | stop/tp hit")
+        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx, alert_message=f_tp_json("exit", "Exit S", "SkippALGO EXIT S | " + syminfo.ticker + " | stop/tp hit"))
 
 if useAtrRisk and pos != 0 and not na(stopPx)
     if pos == 1 and not na(trailPx)
-        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx, alert_message="SkippALGO TRAIL EXIT L | " + syminfo.ticker)
+        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx, alert_message=f_tp_json("exit", "Exit L", "SkippALGO TRAIL EXIT L | " + syminfo.ticker))
     if pos == -1 and not na(trailPx)
-        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx, alert_message="SkippALGO TRAIL EXIT S | " + syminfo.ticker)
+        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx, alert_message=f_tp_json("exit", "Exit S", "SkippALGO TRAIL EXIT S | " + syminfo.ticker))
 
 if exitEvent
-    strategy.close("L", comment="Exit Signal", alert_message="SkippALGO EXIT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##"))
+    strategy.close("L", comment="Exit Signal", alert_message=f_tp_json("close", "L", "SkippALGO EXIT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##")))
 if coverEvent
-    strategy.close("S", comment="Cover Signal", alert_message="SkippALGO COVER | " + syminfo.ticker + " @ " + str.tostring(close, "#.##"))
+    strategy.close("S", comment="Cover Signal", alert_message=f_tp_json("close", "S", "SkippALGO COVER | " + syminfo.ticker + " @ " + str.tostring(close, "#.##")))
 
 //====================
 // Calibration Diagnostics Panel (Debug)
