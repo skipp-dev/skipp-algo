@@ -3397,6 +3397,29 @@ if swingMaxAgeBars > 0
 breakoutLong  = not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
 breakoutShort = not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
 
+// --- Market Structure State (BOS vs ChoCH) ---
+var int structState = 0 // 0=Neutral, 1=Bullish, -1=Bearish
+bool isChoCH_Long = false
+bool isBOS_Long   = false
+bool isChoCH_Short = false
+bool isBOS_Short   = false
+
+// Long Break Logic
+if breakoutLong
+    if structState == -1 // Was Bearish -> Reversal
+        isChoCH_Long := true
+    else // Neutral or Bullish -> Continuation
+        isBOS_Long := true
+    structState := 1 // Set to Bullish
+
+// Short Break Logic
+if breakoutShort
+    if structState == 1 // Was Bullish -> Reversal
+        isChoCH_Short := true
+    else // Neutral or Bearish -> Continuation
+        isBOS_Short := true
+    structState := -1 // Set to Bearish
+
 // Fail-closed signal subconditions: any na => deny (== true coerces na to false)
 fcGateLongSafe  = (fcGateLong == true)
 fcGateShortSafe = (fcGateShort == true)
