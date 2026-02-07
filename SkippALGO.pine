@@ -9,7 +9,7 @@
 // Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
 
-indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500, max_lines_count=500, calc_bars_count=500)
+indicator("SkippALGO — Deep Upgrade v6.1", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
