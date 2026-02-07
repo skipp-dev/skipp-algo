@@ -17,6 +17,7 @@ config = input.string("V2 Alpha", "Configuration", options=["Standard", "Pro", "
 
 // Signal engine
 engine       = input.string("Hybrid", "Signal engine", options=["Hybrid","Breakout","Trend+Pullback","Loose"])
+allowNeuralReversals = input.bool(true, "Allow Neural Reversals (ChoCH)", tooltip="Injects early reversal signals (Bearish/Bullish ChoCH) into the Engine logic. Uncheck to restrict entries to standard Engine triggers (Trend/Breakout) only.")
 
 useForecastGateEntry = input.bool(true, "Entry gate: require forecast edge (3-way)")
 entryFcTF    = input.string("F3", "Entry horizon", options=["F1","F2","F3","F4","F5","F6","F7"])
@@ -3540,8 +3541,9 @@ if pos == 0 and (allowEntry or allowRescue)
     bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescue
     bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescue
     
-    bool revBuyGlobal    = (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL
-    bool revShortGlobal  = (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS
+    // Global Gate: allowNeuralReversals
+    bool revBuyGlobal    = allowNeuralReversals and (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL
+    bool revShortGlobal  = allowNeuralReversals and (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS
 
     if engine == "Hybrid"
         // Base triggers
