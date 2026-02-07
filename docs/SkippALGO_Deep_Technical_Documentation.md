@@ -289,6 +289,53 @@ By default, strict engines like **Hybrid** and **Trend+Pullback** can also trigg
   * **Disabled**: The engines strictly follow their philosophy. **Trend+Pullback** will *only* trade on Trend Confirmation (EMA Cross), completely ignoring early bottom-fishing signals.
   * **Use Case**: Disable this if you find the system fighting strong trends by trying to pick reversals too early.
 
+### 2.3.1) Strategy Deep-Dive: The "Hybrid" Engine
+
+The **Hybrid ("Sniper")** engine is the flagship logic of SkippALGO. It is designed for traders who prioritize **Win Rate** and **Quality** over Frequency.
+
+#### Core Philosophy: "The Perfect Pitch"
+
+Most algorithms fail because they trade "choppy crossovers"—where the EMAs cross, but there is no volume, the trend is exhausted, or the sentiment is actually bearish. The Hybrid Engine fixes this by enforcing **Confluence**. A signal will **ONLY** fire if **7 distinct layers** agree simultaneously:
+
+1. **Price Structure**: Price must pull back to the **Fast EMA**, touch it, and then bounce away (confirming support).
+2. **Volume**: There must be sufficient relative volume (no "dead market" trades).
+3. **Sentiment (SET)**: The "Structured Sentiment" (Institutional vs Retail flow) must be bullish.
+4. **Forecast**: The AI/ML Probability Engine must predict an uptrend (`Prob(Up) > Threshold`).
+5. **Momentum**: ROC (Rate of Change) and ADX (Trend Strength) must be healthy.
+6. **Pullback**: The pullback must be deep enough to offer value, but not so deep that it breaks the trend.
+7. **Regime**: Checks Volatility Regime (Low/High) to avoid buying tops.
+
+#### Best Configuration Settings
+
+* **For Crypto & High Beta (BTC, ETH, SOL)**
+  * **Timeframe**: **15m** or **4h**. (15m catches intraday meat, 4h captures multi-day swings).
+  * **Config**: **V2 Proficient** or **Standard**. (Balanced trust threshold).
+  * **Allow Neural Reversals**: **ON**. (Captures V-Shape bottoms before trend confirmation).
+
+* **For TradFi / Forex / Indices (US500, EURUSD)**
+  * **Timeframe**: **5m** or **1h**.
+  * **Config**: **V2 Alpha** or **Pro**. (Slightly more aggressive to handle grinding markets).
+  * **Allow Neural Reversals**: **OFF**. (Avoids stop-hunt traps common in Forex).
+
+#### The "Ideal Trade" Sequence
+
+1. **The Setup**: Price is trending up (Green Cloud), then begins to drop/flag.
+2. **The Touch**: Price candles enter the cloud and physically **touch or wick the Fast EMA line**.
+3. **The Confluence**:
+   * Table shows **UP** or **FLAT** (Not DOWN).
+   * Zone background is neutral or green.
+4. **The Trigger**: A candle closes *firmly*, pushing away from the EMA line.
+5. **The Signal**: The "Buy" label prints.
+
+**Red Flag**: If a signal fires but the Table shows "Chop" (Orange) or Probabilities are weak (< 50%), consider skipping.
+
+#### Exit Strategy for Hybrid
+
+Since Hybrid enters on strong confirmation, the goal is to let it run.
+
+1. **Stop Loss**: Use the automated ATR Stop (Red Line).
+2. **Take Profit**: Enable **Hold TP** logic (`Hold TP > 0.85`). This lets the trade ignore the TP line as long as the trend remains strong.
+
 ### 2.4) Configuration Presets
 
 The `config` input selects a named preset that controls a **confidence multiplier** applied to the trust/confidence score. The confidence score gates whether signals are actionable — it must exceed the `minTrust` threshold for a signal to fire.
