@@ -289,6 +289,52 @@ By default, strict engines like **Hybrid** and **Trend+Pullback** can also trigg
   * **Disabled**: The engines strictly follow their philosophy. **Trend+Pullback** will *only* trade on Trend Confirmation (EMA Cross), completely ignoring early bottom-fishing signals.
   * **Use Case**: Disable this if you find the system fighting strong trends by trying to pick reversals too early.
 
+##### REV-BUY Logic (Detailed Gates v6.2.6)
+
+A **REV-BUY** signal is generated when **ALL** of the following 7 gates align on the **exact same candle**:
+
+1. **Strict CHoCH (Structure)**:
+    * Price must confirm a **Market Structure Shift** (Change of Character) from Bearish to Bullish **on the current candle**.
+    * *Constraint:* No lookback allowed. If the CHoCH happened 1 bar ago, the signal is invalid.
+2. **AI Probability (Model)**:
+    * The predictive model must output a probability of an UP move (`pU`) **≥ 50%**.
+3. **Volume & Momentum (Confirmation)**:
+    * **Volume**: Must be higher than the Volume SMA (Volume > Average).
+    * *(Alternatively, if ADX is very high (>15), typically `volOk` passes).*
+4. **Macro Trend (Direction)**:
+    * The **Macro Trend** filter must allow Longs.
+    * *Note: This prevents reversals directly against a massive higher-timeframe downtrend unless the Macro filter itself has flipped or neutralised.*
+5. **Drawdown Safety (Risk)**:
+    * **Max Drawdown**: You must not have hit your daily max loss.
+    * **Stalemate**: You must not be in a "stalemate" (choppy consolidation) state if that protection is active.
+6. **SMC Liquidity (Optional)**:
+    * If `Use Liquidity Sweep` is enabled: We must have swept a recent low ("Turtle Soup").
+    * *Exception:* **Rescue Logic** (Impulse Candle) allows bypassing this if the candle is strong enough.
+7. **Engine Switch**:
+    * The global setting `Allow Neural Reversals` must be checked.
+
+###### Visual Example: REV-BUY Setup
+
+```text
+       Price
+         |
+         |      [Bearish Trend]             
+         |     .                            
+         |    .                             
+         |   . (Lower High)                 
+         |  .                               
+[CHoCH_Line]|..........................  (Break of Structure Level = CHoCH)
+         |          .           ^           
+         |         .            | REV-BUY CANDLE (Trigger)
+         |        .             | - MUST Close ABOVE Old High (Strict)
+         |   (Low)..............| - Volume > SMA (Confirmation)
+         |                      | - AI Prob > 50% (Prediction)
+         |                      | 
+Reversal:  Confirmed Structure Shift + Volume + AI Confidence
+```
+
+*Note: **REV-SHORT** follows the exact inverse logic: A break below a recent Higher Low (Bearish CHoCH) accompanied by High Volume and Bearish AI Probability (>50%).*
+
 ### 2.3.1) Strategy Deep-Dive: The "Hybrid" Engine
 
 The **Hybrid ("Sniper")** engine is the flagship logic of SkippALGO. It is designed for traders who prioritize **Win Rate** and **Quality** over Frequency.
