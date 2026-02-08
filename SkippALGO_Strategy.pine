@@ -3894,12 +3894,12 @@ f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color
 if showLongLabels and labelExit
     // Reverted to standard sizing (removed size.auto)
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
-    label.new(bar_index, val, "EXIT\n" + lastExitReason, style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    label.new(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 
 if showShortLabels and labelCover
     // Reverted to standard sizing (removed size.auto)
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
-    label.new(bar_index, val, "COVER\n" + lastExitReason, style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    label.new(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
