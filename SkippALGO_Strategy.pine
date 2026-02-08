@@ -42,6 +42,7 @@ volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05)
 useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
 stopATR  = input.float(2.00, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
 tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10)
+useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="Disables fixed Take Profit targets. Exits only via Stop Loss or Trailing Stop to capture large spikes.")
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
@@ -414,6 +415,7 @@ abstainMinEdge = input.float(0.08, "Abstain min edge (pp)", minval=0.0, maxval=0
 tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, maxval=200)
 tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", minval=0, maxval=20000)
 rescueVolMult = input.float(1.5, "Rescue Mode: Min Volume (xSMA)", minval=1.0, maxval=50.0, step=0.1, tooltip="Volume ratio required to trigger Rescue Mode (bypasses gates).")
+rescueImpulseATR = input.float(0.7, "Rescue Mode: Min Impulse (xATR)", minval=0.1, step=0.1, tooltip="Minimum candle body size (in ATR) to validate a Rescue Reversal.")
 
 
 //====================
@@ -3337,7 +3339,12 @@ if renderTable
     table.cell(gT, 2, 0, "Decision", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 3, 0, decisionLabel, text_color=decisionColor, bgcolor=tblCell, text_size=size.tiny)
     table.cell(gT, 4, 0, decisionEdgeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    f_fill_cells(gT, 0, 5, 8, "", tblText, tblCell, size.tiny)
+    
+    // Configurable display of ATR in previously empty fields
+    table.cell(gT, 5, 0, "ATR", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+    table.cell(gT, 6, 0, str.tostring(atr, format.mintick), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    
+    f_fill_cells(gT, 0, 7, 8, "", tblText, tblCell, size.tiny)
     table.cell(gT, 9, 0, modeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
 
     f_status_row("MinTrust", str.tostring(minTrust, format.mintick), 1, tblText)
@@ -3371,8 +3378,17 @@ volOk = (not useVolConfirm) or (not na(volume) and volume > volSma * volMult)
 float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
 bool hugeVolG   = volRatioG >= rescueVolMult
 
-// Rescue Mode: Bypass statistical gates if Volume is Huge (Configurable) and Cooldown is OK
-bool allowRescue = hugeVolG and barstate.isconfirmed and cooldownOk
+// Rescue Logic: Replaced Volume-only trigger with Price Impulse trigger (v6.2)
+// User Intent: Prevent falling knife entries on huge bearish volume.
+// Require "Considerable Price Increase" (Impulse Candle > 0.7 ATR). Lowered from 1.0 to catch valid signals.
+float bodySize = math.abs(close - open)
+bool isImpulse = bodySize > (atr * rescueImpulseATR)
+
+bool allowRescueLong  = isImpulse and (close > open) and barstate.isconfirmed and cooldownOk
+bool allowRescueShort = isImpulse and (close < open) and barstate.isconfirmed and cooldownOk
+
+// Legacy support (OR logic)
+bool allowRescue = (allowRescueLong or allowRescueShort)
 
 // C1 – Pre-signal momentum (RSI alignment)
 chartRsi = ta.rsi(close, rsiStateLen)
@@ -3532,18 +3548,23 @@ if pos == 0 and (allowEntry or allowRescue)
     bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 5 or volRatioG >= 1.0)
 
     // Reversal Logic (Global)
-    bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
-    bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
+    bool probOkGlobal    = (pU >= 0.50)
+    bool probOkGlobalS   = (pD >= 0.50)
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
-    // allowRescue (Volume > 1.5x) bypasses SMC structural gates too
-    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescue
-    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescue
+    // allowRescue (Volume > 1.5x) allows bypassing strict SMC Structure (Restored v6.2)
+    // Updated to use allowable rescue Direction (Impulse)
+    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescueLong
+    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescueShort
     
     // Global Gate: allowNeuralReversals
-    bool revBuyGlobal    = allowNeuralReversals and (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL
-    bool revShortGlobal  = allowNeuralReversals and (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS
+    // Reversals bypass MTF (Trend) but MUST respect Safety Gates (Macro + Drawdown) to avoid catching falling knives
+    // Added Impulse check to filter "Short Candles" in downtrends
+    bool impulseOkL = isImpulse and (close > open)
+    bool impulseOkS = isImpulse and (close < open)
+    bool revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL and impulseOkL
+    bool revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS and impulseOkS
 
     if engine == "Hybrid"
         // Base triggers
@@ -3799,11 +3820,11 @@ if showEntryLabels and labelCover
     label.new(bar_index, f_label_price(true, false), "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRisk and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
 plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
 
 plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRisk and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
 plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
 
 // Strategy Execution (Active)
@@ -3827,19 +3848,19 @@ f_tp_json(action, orderId, legacyMsg) =>
 
 if buyEvent
     strategy.entry("L", strategy.long, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message=f_tp_json("buy", "L", "SkippALGO BUY | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period))
-    if useAtrRisk and not na(stopPx) and not na(tpPx)
-        strategy.exit("Exit L", "L", stop=stopPx, limit=tpPx, alert_message=f_tp_json("exit", "Exit L", "SkippALGO EXIT L | " + syminfo.ticker + " | stop/tp hit"))
+    if useAtrRisk and not na(stopPx) and (useInfiniteTP or not na(tpPx))
+        strategy.exit("Exit L", "L", stop=stopPx, limit=useInfiniteTP ? na : tpPx, alert_message=f_tp_json("exit", "Exit L", "SkippALGO EXIT L | " + syminfo.ticker + " | stop/tp hit"))
 
 if shortEvent
     strategy.entry("S", strategy.short, comment="Brier=" + str.tostring(curBrier, "#.##"), alert_message=f_tp_json("sell", "S", "SkippALGO SHORT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period))
-    if useAtrRisk and not na(stopPx) and not na(tpPx)
-        strategy.exit("Exit S", "S", stop=stopPx, limit=tpPx, alert_message=f_tp_json("exit", "Exit S", "SkippALGO EXIT S | " + syminfo.ticker + " | stop/tp hit"))
+    if useAtrRisk and not na(stopPx) and (useInfiniteTP or not na(tpPx))
+        strategy.exit("Exit S", "S", stop=stopPx, limit=useInfiniteTP ? na : tpPx, alert_message=f_tp_json("exit", "Exit S", "SkippALGO EXIT S | " + syminfo.ticker + " | stop/tp hit"))
 
 if useAtrRisk and pos != 0 and not na(stopPx)
     if pos == 1 and not na(trailPx)
-        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=tpPx, alert_message=f_tp_json("exit", "Exit L", "SkippALGO TRAIL EXIT L | " + syminfo.ticker))
+        strategy.exit("Exit L", "L", stop=math.max(stopPx, trailPx), limit=useInfiniteTP ? na : tpPx, alert_message=f_tp_json("exit", "Exit L", "SkippALGO TRAIL EXIT L | " + syminfo.ticker))
     if pos == -1 and not na(trailPx)
-        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=tpPx, alert_message=f_tp_json("exit", "Exit S", "SkippALGO TRAIL EXIT S | " + syminfo.ticker))
+        strategy.exit("Exit S", "S", stop=math.min(stopPx, trailPx), limit=useInfiniteTP ? na : tpPx, alert_message=f_tp_json("exit", "Exit S", "SkippALGO TRAIL EXIT S | " + syminfo.ticker))
 
 if exitEvent
     strategy.close("L", comment="Exit Signal", alert_message=f_tp_json("close", "L", "SkippALGO EXIT | " + syminfo.ticker + " @ " + str.tostring(close, "#.##")))

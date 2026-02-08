@@ -136,3 +136,41 @@ All features opt-in with input toggles defaulting to OFF for backward compatibil
 * Cross-validation test for Platt SGD updated to match `lrPlattEff` pattern.
 
 **Verdict**: All deep-review items complete. PR #6 ready to merge.
+
+## 5. Updates (Field Reports)
+
+### 09 Feb 2026: High Volume Neural Reversal Fix
+* **Symptom:** "REV-BUY" signals triggering in downtrends on high-volume bullish ChoCH events.
+* **Root Cause:** Analysis revealed a logic path in `probOkGlobal` that relaxed the probability requirement from **0.50** to **0.40** when `hugeVolG` was true. This was intended to catch "V-Shape" recoveries but proved too aggressive in sustained high-volatility downtrends.
+* **Resolution:** Removed the `hugeVolG` relaxation clause from both `SkippALGO.pine` and `SkippALGO_Strategy.pine`.
+* **Code Change:**
+  - Old: `bool probOkGlobal = (pU >= 0.50) or (hugeVolG and pU >= 0.40)`
+  - New: `bool probOkGlobal = (pU >= 0.50)`
+* **Result:** Reversal signals now strictly adhere to the >50% probability consensus, eliminating high-volume noise false positives.
+
+## 09 Feb 2026: Debug Logic Cleanup
+* **Issue:** User noted the indicator file seemed unchanged.
+* **Finding:** While the core signal logic was updated, the *Debug Label* logic (inside `if showDebugLabels`) still contained the old code path, potentially displaying confusing "RevB: true" status on charts and leading to confusion.
+* **Fix:** Updated the debug blocks to match the strict global logic.
+
+### 09 Feb 2026: High Volume SMC Bypass Removal
+* **Symptom:** User persisted that "REV-BUY" signals were still appearing on High Volume even after probability fix.
+* **Finding:** Deep inspection revealed that `allowRescue` (triggered by `hugeVolG`) was *also* bypassing the `smcOkL` (Liquidity Sweep) requirement. This allowed non-sweeping ChoCH events to trigger reversals purely due to volume, which the user identified as false positives in downtrends.
+* **Fix:** Removed `or allowRescue` from `smcOkL` and `smcOkS`.
+* **Result:** Reversals now strictly require a Liquidity Sweep (if enabled), regardless of volume.
+
+### 09 Feb 2026: Tuning Neural Reversal Gates
+* **Issue:** Strict enforcement of "GateLongNow" on Reversals killed valid counter-trend entries (e.g. V-Shapes), while "Standard" reversal logic allowed entries in deep short trends.
+* **Finding:** We need a middle ground. Neural Reversals are *allowed* to be counter-trend (ignore MTF), but they should generally respect **Macro** and **Drawdown** safety hard-gates to avoid buying into a depression/crash.
+* **Fix:** 
+  - Restored  rescue bypass (High Volume can override Lack of Sweep -> catches V-Shape).
+  - Modified  to check  and  instead of full .
+* **Result:** "Black Swan" reversals (High Vol, No Sweep) are allowed again, but "Short Situation" reversals (Macro Bearish) are blocked.
+
+### 09 Feb 2026: Tuning Neural Reversal Gates
+* **Issue:** Strict enforcement of "GateLongNow" on Reversals killed valid counter-trend entries (e.g. V-Shapes), while "Standard" reversal logic allowed entries in deep short trends.
+* **Finding:** We need a middle ground. Neural Reversals are *allowed* to be counter-trend (ignore MTF), but they should generally respect **Macro** and **Drawdown** safety hard-gates to avoid buying into a depression/crash.
+* **Fix:** 
+  - Restored `smcOkL` rescue bypass (High Volume can override Lack of Sweep -> catches V-Shape).
+  - Modified `revBuyGlobal` to check `macOkLong_` and `ddOk` instead of full `gateLongNow`.
+* **Result:** "Black Swan" reversals (High Vol, No Sweep) are allowed again, but "Short Situation" reversals (Macro Bearish) are blocked.
