@@ -3886,12 +3886,18 @@ f_draw_lbl(show, cond, isBelow, isEntry, txt, txtCol, bgCol) =>
     if show and cond
         style = isBelow ? label.style_label_up : label.style_label_down
         y = f_label_price(isBelow, isEntry)
-        label.new(bar_index, y, txt + "\nConf " + str.tostring(confidence, format.mintick), style=style, textcolor=txtCol, color=bgCol)
+        label.new(bar_index, y, txt, style=style, textcolor=txtCol, color=bgCol)
 
 f_draw_lbl(showLongLabels, labelBuy, true, true, "BUY", color.white, color.new(color.green, 0))
 f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color.new(color.red, 0))
-f_draw_lbl(showLongLabels, labelExit, false, false, "EXIT\n" + lastExitReason, color.white, color.new(color.red, 0))
-f_draw_lbl(showShortLabels, labelCover, true, false, "COVER\n" + lastExitReason, color.white, color.new(color.green, 0))
+
+if showLongLabels and labelExit
+    val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
+    label.new(bar_index, val, "EXIT\n" + lastExitReason, style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+
+if showShortLabels and labelCover
+    val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
+    label.new(bar_index, val, "COVER\n" + lastExitReason, style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
