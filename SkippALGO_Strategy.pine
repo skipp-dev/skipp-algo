@@ -3724,7 +3724,7 @@ if useBreakeven and not isBeHit and pos != 0 and not na(entryPrice) and not na(a
 // Stalemate Logic
 // Only active if no other exit signal triggers this bar
 bool staleExit = false
-if useStalemate and pos != 0 and (bar_index - enBar) >= staleBars
+if useStalemate and pos != 0 and (bar_index - enBar) >= staleBars and not na(atr) and atr > 0
     // Check profit
     float profitATR = 0.0
     if pos == 1
@@ -3790,6 +3790,7 @@ if barstate.isconfirmed
         stopPx := na
         tpPx := na
         trailPx := na
+        isBeHit := false
         lastSignalBar := bar_index
         lastSig := "EXIT"
     else if coverSignal and pos == -1
@@ -3799,6 +3800,7 @@ if barstate.isconfirmed
         stopPx := na
         tpPx := na
         trailPx := na
+        isBeHit := false
         lastSignalBar := bar_index
         lastSig := "COVER"
     else if buySignal and pos == 0
