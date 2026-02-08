@@ -3583,8 +3583,9 @@ if pos == 0 and (allowEntry or allowRescue)
     // Added Impulse check to filter "Short Candles" in downtrends
     bool impulseOkL = isImpulse and (close > open)
     bool impulseOkS = isImpulse and (close < open)
-    bool revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and (isChoCH_Long or revRecencyOkL) and probOkGlobal and volOk and smcOkL and impulseOkL
-    bool revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and (isChoCH_Short or revRecencyOkS) and probOkGlobalS and volOk and smcOkS and impulseOkS
+    // STRICT CHoCH REQUIREMENT (v6.2.2): REV-BUY only triggers on the exact bar of the CHoCH (Structure Flip). No late entries.
+    bool revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and isChoCH_Long and probOkGlobal and volOk and smcOkL and impulseOkL
+    bool revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and isChoCH_Short and probOkGlobalS and volOk and smcOkS and impulseOkS
 
     if engine == "Hybrid"
         // Base triggers
