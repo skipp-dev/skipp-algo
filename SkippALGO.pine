@@ -3850,13 +3850,30 @@ f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color
 
 if showLongLabels and labelExit
     // Exit label (Above bar)
-    val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
-    label.new(bar_index, val, "EXIT\n" + lastExitReason, style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0), size=size.auto)
+    // Robust calculation for Y coordinate to avoid NA
+    float exitY = high
+    if labelPriceMode == "Close"
+        exitY := close
+    else if labelPriceMode == "Entry Price"
+        exitY := na(entryPxPrev) ? close : entryPxPrev
+    else
+        exitY := high // Bar Extremes
+
+    lblTxt = "EXIT\n" + (na(lastExitReason) ? "" : lastExitReason)
+    label.new(bar_index, exitY, lblTxt, style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0), size=size.auto)
 
 if showShortLabels and labelCover
     // Cover label (Below bar)
-    val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
-    label.new(bar_index, val, "COVER\n" + lastExitReason, style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0), size=size.auto)
+    float coverY = low
+    if labelPriceMode == "Close"
+        coverY := close
+    else if labelPriceMode == "Entry Price"
+        coverY := na(entryPxPrev) ? close : entryPxPrev
+    else
+        coverY := low // Bar Extremes
+
+    lblTxt = "COVER\n" + (na(lastExitReason) ? "" : lastExitReason)
+    label.new(bar_index, coverY, lblTxt, style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0), size=size.auto)
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
