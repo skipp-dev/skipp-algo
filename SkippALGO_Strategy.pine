@@ -3584,8 +3584,9 @@ if pos == 0 and (allowEntry or allowRescue)
     bool impulseOkL = isImpulse and (close > open)
     bool impulseOkS = isImpulse and (close < open)
     // CHoCH REQUIREMENT (v6.2.4): REV-BUY triggers on CHoCH bar OR within 2 bars after.
-    bool revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and (isChoCH_Long or isChoCH_Long[1] or isChoCH_Long[2]) and probOkGlobal and volOk and smcOkL and impulseOkL
-    bool revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and (isChoCH_Short or isChoCH_Short[1] or isChoCH_Short[2]) and probOkGlobalS and volOk and smcOkS and impulseOkS
+    // REMOVED 'impulseOkL' constraint here because we allow entries on consolidation (non-impulse) bars following the CHoCH.
+    bool revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and (isChoCH_Long or isChoCH_Long[1] or isChoCH_Long[2]) and probOkGlobal and volOk and smcOkL
+    bool revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and (isChoCH_Short or isChoCH_Short[1] or isChoCH_Short[2]) and probOkGlobalS and volOk and smcOkS
 
     if engine == "Hybrid"
         // Base triggers
