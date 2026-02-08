@@ -275,7 +275,8 @@ zoneAggressiveMult1  = input.float(1.6, "Aggressive zone ATR mult 1", minval=0.2
 zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4, step=0.1)
 
 // Visual controls
-showEntryLabels  = input.bool(true, "Show labels (BUY / EXIT / SHORT)")
+showLongLabels   = input.bool(true, "Show Long labels (BUY / EXIT)")
+showShortLabels  = input.bool(true, "Show Short labels (SHORT / COVER)")
 showDebugLabels  = input.bool(true, "Show Debug/Missed Signals")
 showPreEntryLabels = input.bool(false, "Show PRE labels (PRE-BUY / PRE-SHORT)")
 preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
@@ -3835,26 +3836,20 @@ f_label_price(isLong, isEntry) =>
     entryVal = na(entryBase) ? close : entryBase
     labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
-if showEntryLabels and (labelRevBuy)
-    label.new(bar_index, f_label_price(true, true), "REV-BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.black, color=color.new(color.aqua, 0))
+f_draw_lbl(show, cond, isBelow, isEntry, txt, txtCol, bgCol, sz) =>
+    if show and cond
+        style = isBelow ? label.style_label_up : label.style_label_down
+        y = f_label_price(isBelow, isEntry)
+        label.new(bar_index, y, txt + "\nConf " + str.tostring(confidence, format.mintick), style=style, textcolor=txtCol, color=bgCol, size=sz)
 
-if showEntryLabels and (labelRevShort)
-    label.new(bar_index, f_label_price(false, true), "REV-SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.black, color=color.new(color.fuchsia, 0))
+f_draw_lbl(showLongLabels, labelRevBuy, true, true, "REV-BUY", color.black, color.new(color.aqua, 0), size.small)
+f_draw_lbl(showShortLabels, labelRevShort, false, true, "REV-SHORT", color.black, color.new(color.fuchsia, 0), size.small)
 
-if showEntryLabels and (labelBuy)
-    label.new(bar_index, f_label_price(true, true), "BUY\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+f_draw_lbl(showLongLabels, labelBuy, true, true, "BUY", color.white, color.new(color.green, 0), size.auto)
+f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color.new(color.red, 0), size.auto)
 
-if showEntryLabels and (labelShort)
-    label.new(bar_index, f_label_price(false, true), "SHORT\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-
-
-
-
-
-if showEntryLabels and labelExit
-    label.new(bar_index, f_label_price(false, false), "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
-if showEntryLabels and labelCover
-    label.new(bar_index, f_label_price(true, false), "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+f_draw_lbl(showLongLabels, labelExit, false, false, "EXIT\n" + lastExitReason, color.white, color.new(color.red, 0), size.auto)
+f_draw_lbl(showShortLabels, labelCover, true, false, "COVER\n" + lastExitReason, color.white, color.new(color.green, 0), size.auto)
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
@@ -4125,6 +4120,14 @@ if renderTable
     // Configurable display of ATR in previously empty fields
     table.cell(gT, 5, 0, "ATR", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
     table.cell(gT, 6, 0, str.tostring(atr, format.mintick), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+
+    // T/M/L Legend (User Request)
+    table.merge_cells(gT, 2, 1, 9, 1)
+    table.cell(gT, 2, 1, "T: Trend (Fast EMA vs Slow EMA)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(gT, 2, 2, 9, 2)
+    table.cell(gT, 2, 2, "M: Mom (Momentum/RSI state)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(gT, 2, 3, 9, 3)
+    table.cell(gT, 2, 3, "L: Loc (Location/Price vs Slow EMA)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
     
     f_fill_cells(gT, 0, 7, 8, "", tblText, tblCell, size.tiny)
     table.cell(gT, 9, 0, modeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
