@@ -3858,6 +3858,10 @@ if showLongLabels and labelExit
         exitY := na(entryPxPrev) ? close : entryPxPrev
     else
         exitY := high // Bar Extremes
+    
+    // Explicit debug/fallback
+    if na(exitY)
+        exitY := high
 
     lblTxt = "EXIT\n" + (na(lastExitReason) ? "" : lastExitReason)
     label.new(bar_index, exitY, lblTxt, style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0), size=size.auto)
@@ -3871,6 +3875,9 @@ if showShortLabels and labelCover
         coverY := na(entryPxPrev) ? close : entryPxPrev
     else
         coverY := low // Bar Extremes
+
+    if na(coverY)
+        coverY := low
 
     lblTxt = "COVER\n" + (na(lastExitReason) ? "" : lastExitReason)
     label.new(bar_index, coverY, lblTxt, style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0), size=size.auto)
