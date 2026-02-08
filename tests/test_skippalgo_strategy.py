@@ -179,5 +179,16 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("f_get_total_samples(tfSel,", self.text)
         self.assertIn("forecastAllowed and (not na(totN) and totN > 0)", self.text)
 
+    def test_new_risk_features_exist(self):
+        """Ensure Breakeven, Stalemate, and Session Filter inputs are present."""
+        self.assertIn("useBreakeven =", self.text)
+        self.assertIn("useStalemate =", self.text)
+        self.assertIn("useSessionFilter =", self.text)
+        
+        # Ensure logic variables are initialized
+        self.assertIn("isBeHit :=", self.text)
+        self.assertRegex(self.text, r"staleExit\s*=")
+        self.assertRegex(self.text, r"enBar\s*=")
+
 if __name__ == "__main__":
     unittest.main()

@@ -433,6 +433,44 @@ Standard exit logic (TP/SL/Structure Break) can sometimes react prematurely to n
 * **Parameter**: `Confirm ChoCh (Min Prob)` (Default: 0.0 = Off).
   * Setting this to 0.55 ensures we don't bail out of a LONG trade unless the model actually predicts the drop is likely (>55%).
 
+### 2.7) Risk Management Enhancements (v6.2.1)
+
+Version 6.2.1 introduces robust risk control mechanisms typically found in professional execution algos. These operate *independently* of the ML model to govern trade lifecycle and capital preservation.
+
+#### 1. Move to Breakeven (+BE)
+
+* **Goal**: To protect capital by eliminating risk once a trade has moved sufficiently in favor (Free Trade).
+* **Logic**:
+  * Trigger: When price hits `Entry ± (Trigger * ATR)`.
+  * Action: Stop Loss moves effectively to `Entry ± (Offset * ATR)`.
+  * **One-Shot**: The Breakeven logic fires exactly once per trade.
+  * **Safety**: It only moves the stop *closer* to price (tightens exposure). It will never widen a stop derived from the Dynamic Risk Decay.
+* **Parameters**:
+  * `Use Breakeven`: Enable toggle.
+  * `Trigger (ATR)`: Distance to activate (e.g., +1.5 ATR).
+  * `Offset (ATR)`: Cushion to cover fees/spread (e.g., +0.1 ATR).
+
+#### 2. Stalemate Exit (Anti-Stagnation)
+
+* **Goal**: To free up capital from "Zombie Trades" that drift sideways without hitting Stop or TP.
+* **Logic**: "Time Stop".
+  * If `Current Bar - Entry Bar >= Stale Limit` AND `Current Profit < Minimum ATR`: **EXIT**.
+* **Why**: The predictive model's edge decays over time. If the expected move hasn't happened within `N` bars, the original thesis is likely invalid (or we are in chop). Better to exit small and reset than wait for a full stop or reversal.
+* **Parameters**:
+  * `Stalemate Exit`: Enable toggle.
+  * `Stale Bars`: Max duration to hold a non-performing trade.
+  * `Min Profit (ATR)`: Profit threshold to be considered "performing".
+
+#### 3. Trading Session Filter
+
+* **Goal**: To restrict entries to high-volume hours (e.g., NY Session) while filtering overnight chop.
+* **Logic**:
+  * **Entries**: `allowEntry` is gated by `time(period, sessionString)`.
+  * **Exits**: **Unaffected**. A trade entered at 15:55 will remain open past 16:00 until it hits a valid exit condition (TP/SL/Stalemate).
+* **Parameters**:
+  * `Session Filter`: Enable toggle.
+  * `Session String`: Standard TradingView session format (e.g., "0930-1600" or "0930-1600:1234567").
+
 ---
 
 ## 3) Technical Implementation Details

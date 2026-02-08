@@ -46,6 +46,16 @@ useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="D
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
+// Breakeven
+useBreakeven = input.bool(false, "+BE Trigger", tooltip="Move Stop to Breakeven when price reaches +N ATR profit.")
+beTrigger    = input.float(1.5, "Move to BE at (ATR)", minval=0.1, step=0.1)
+beOffset     = input.float(0.1, "BE Offset (ATR)", minval=0.0, step=0.05, tooltip="Small buffer above entry to cover fees.")
+
+// Stalemate Exit
+useStalemate = input.bool(false, "Stalemate Exit", tooltip="Exit if trade makes no progress after N bars.")
+staleBars    = input.int(12, "Stalemate Check (Bars)", minval=1)
+staleMinATR  = input.float(0.5, "Min Profit Required (ATR)", minval=0.0, step=0.1)
+
 // Dynamic Risk Decay
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
 decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
@@ -251,6 +261,10 @@ labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Ex
 // Alerts
 useAlertCalls       = input.bool(true, "Alerts: use alert() calls", tooltip="Strategy scripts ignore alertcondition(); use alert() instead (recommended ON)")
 alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
+
+// Trading Session Time Window
+useSessionFilter = input.bool(false, "Session Filter (Time Window)")
+sessionWin       = input.session("1530-2200", "Trading Session (Exch Time)", tooltip="Only enters new trades inside this window. Does not force exits.")
 
 // Avoid entries right before close
 useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close")
@@ -2651,6 +2665,8 @@ volEnsShortOk = wVol == 0 or volScore > -0.3  // symmetric: both sides reject de
 var float stopPx  = na
 var float tpPx    = na
 var float trailPx = na
+var bool  isBeHit = false // Track if Breakeven triggered
+var int   enBar   = 0     // Track Entry Bar Index for Stalemate
 
 // Calculate risk levels on entry; returns updated stop/tp/trail
 f_set_risk_on_entry(isLong, entry, atrNow) =>
@@ -3173,8 +3189,12 @@ decisionOkSafe     = (not use3Way) ? true : (decisionOk == true)
 cooldownOkSafe     = (cooldownOk == true)
 nearCloseOk        = (blockNearClose == false)
 
+// Session Check
+inSession = (not useSessionFilter) or (not na(time(timeframe.period, sessionWin)))
+
 allowEntry =
-     barstate.isconfirmed
+     inSession
+ and barstate.isconfirmed
  and cooldownOkSafe
  and nearCloseOk
  and (reliabilityOk == true)
@@ -3672,7 +3692,8 @@ if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
         
         // Tighten Only: Higher Stop, Lower TP
         stopPx := math.max(stopPx, targetStop)
-        tpPx   := math.min(tpPx, targetTp)
+        if not useInfiniteTP
+            tpPx   := math.min(tpPx, targetTp)
             
     else if pos == -1 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
         targetStop = entryPrice + (cStopM * entryAtr)
@@ -3680,7 +3701,39 @@ if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
         
         // Tighten Only: Lower Stop, Higher TP
         stopPx := math.min(stopPx, targetStop)
-        tpPx   := math.max(tpPx, targetTp)
+        if not useInfiniteTP
+            tpPx   := math.max(tpPx, targetTp)
+
+// Breakeven Logic
+if useBreakeven and not isBeHit and pos != 0 and not na(entryPrice) and not na(atr)
+    if pos == 1
+        triggerPx = entryPrice + (beTrigger * atr)
+        if high >= triggerPx
+            newStop = entryPrice + (beOffset * atr)
+            if newStop > stopPx
+                stopPx := newStop
+                isBeHit := true
+    else
+        triggerPx = entryPrice - (beTrigger * atr)
+        if low <= triggerPx
+            newStop = entryPrice - (beOffset * atr)
+            if newStop < stopPx
+                stopPx := newStop
+                isBeHit := true
+
+// Stalemate Logic
+// Only active if no other exit signal triggers this bar
+bool staleExit = false
+if useStalemate and pos != 0 and (bar_index - enBar) >= staleBars
+    // Check profit
+    float profitATR = 0.0
+    if pos == 1
+        profitATR := (close - entryPrice) / atr
+    else
+        profitATR := (entryPrice - close) / atr
+        
+    if profitATR < staleMinATR
+        staleExit := true
 
 // Capturing exit reasons for debugging/transparency
 string tempExitReason = ""
@@ -3702,12 +3755,13 @@ if pos == 1 and allowExit
     if structHit and not na(pD) and pD < exitConfChoCh
         structHit := false
     
-    exitSignal := rHit or structHit
+    exitSignal := rHit or structHit or staleExit
     if exitSignal
-        tempExitReason := rHit ? rMsg : "ChoCH"
+        tempExitReason := rHit ? rMsg : staleExit ? "Stalemate" : "ChoCH"
 
 if pos == -1 and allowExit
     if useAtrRisk
+
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
     
@@ -3722,9 +3776,9 @@ if pos == -1 and allowExit
     // if structHit and not na(pU) and pU < exitConfChoCh
     //    structHit := false
     
-    coverSignal := rHit or structHit
+    coverSignal := rHit or structHit or staleExit
     if coverSignal
-        tempExitReason := rHit ? rMsg : "ChoCH"
+        tempExitReason := rHit ? rMsg : staleExit ? "Stalemate" : "ChoCH"
 
 // State Logic
 var string lastExitReason = ""
@@ -3751,6 +3805,8 @@ if barstate.isconfirmed
         pos := 1
         entryPrice := close
         entryAtr   := atr
+        enBar      := bar_index
+        isBeHit    := false
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -3762,6 +3818,8 @@ if barstate.isconfirmed
         pos := -1
         entryPrice := close
         entryAtr   := atr
+        enBar      := bar_index
+        isBeHit    := false
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
