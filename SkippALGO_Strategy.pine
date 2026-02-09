@@ -2042,12 +2042,12 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                                 array.set(st.plattN, 1, bN)
                                 
                                 // LogLoss
-                                pLL = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, pAdj))
-                                ll = -(outcomeVal * math.log(pLL) + (1.0 - outcomeVal) * math.log(1.0 - pLL))
-                                curSumLL = array.get(st.llStatsN, 0)
-                                curCntLL = array.get(st.llStatsN, 1)
-                                array.set(st.llStatsN, 0, curSumLL + ll)
-                                array.set(st.llStatsN, 1, curCntLL + 1.0)
+                                ll = f_logloss(pAdj, outcomeVal)
+                                if not na(ll)
+                                    curSumLL = array.get(st.llStatsN, 0)
+                                    curCntLL = array.get(st.llStatsN, 1)
+                                    array.set(st.llStatsN, 0, curSumLL + ll)
+                                    array.set(st.llStatsN, 1, curCntLL + 1.0)
                         
                         // --- Phase 4: SGD Update & LogLoss (1) ---
                         sqErr1 = math.pow(outcomeVal - prob1_i, 2)
@@ -2078,12 +2078,12 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             array.set(st.platt1, 0, pltA1)
                             array.set(st.platt1, 1, pltB1)
                             
-                            pLL1 = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, pAdj1))
-                            ll1 = -(outcomeVal * math.log(pLL1) + (1.0 - outcomeVal) * math.log(1.0 - pLL1))
-                            curSumLL1 = array.get(st.llStats1, 0)
-                            curCntLL1 = array.get(st.llStats1, 1)
-                            array.set(st.llStats1, 0, curSumLL1 + ll1)
-                            array.set(st.llStats1, 1, curCntLL1 + 1.0)
+                            ll1 = f_logloss(pAdj1, outcomeVal)
+                            if not na(ll1)
+                                curSumLL1 = array.get(st.llStats1, 0)
+                                curCntLL1 = array.get(st.llStats1, 1)
+                                array.set(st.llStats1, 0, curSumLL1 + ll1)
+                                array.set(st.llStats1, 1, curCntLL1 + 1.0)
 
                 if not use3Way
                     f_safe_remove_float(st.qProbN, i)
