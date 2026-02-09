@@ -935,6 +935,13 @@ f_logloss(p, y) =>
     else
         -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
 
+f_update_accum_stats(statsArr, val) =>
+    if not na(val)
+        curSum = array.get(statsArr, 0)
+        curCnt = array.get(statsArr, 1)
+        array.set(statsArr, 0, curSum + val)
+        array.set(statsArr, 1, curCnt + 1.0)
+
 // @function Adds value to rolling buffer and maintains running sum
 // @param buf Rolling buffer array
 // @param sumArr Single-element array holding running sum
@@ -2112,11 +2119,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                                 
                                 // LogLoss
                                 ll = f_logloss(pAdj, outcomeVal)
-                                if not na(ll)
-                                    curSumLL = array.get(st.llStatsN, 0)
-                                    curCntLL = array.get(st.llStatsN, 1)
-                                    array.set(st.llStatsN, 0, curSumLL + ll)
-                                    array.set(st.llStatsN, 1, curCntLL + 1.0)
+                                f_update_accum_stats(st.llStatsN, ll)
                         
                         // --- Phase 4: SGD Update & LogLoss (1) ---
                         sqErr1 = math.pow(outcomeVal - prob1_i, 2)
@@ -2148,11 +2151,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             array.set(st.platt1, 1, pltB1)
                             
                             ll1 = f_logloss(pAdj1, outcomeVal)
-                            if not na(ll1)
-                                curSumLL1 = array.get(st.llStats1, 0)
-                                curCntLL1 = array.get(st.llStats1, 1)
-                                array.set(st.llStats1, 0, curSumLL1 + ll1)
-                                array.set(st.llStats1, 1, curCntLL1 + 1.0)
+                            f_update_accum_stats(st.llStats1, ll1)
 
                 f_safe_remove_int(st.qAge,   i)
                 f_safe_remove_float(st.qMaxH,  i)
@@ -4114,7 +4113,7 @@ f_rowEval(tbl, tf, hid, rRow) =>
 //====================
 mtfStr  = useMtfConfirm ? (setUse + " " + str.tostring(mtfScore, format.mintick)) : "OFF"
 posStr  = pos == 1 ? "LONG" : pos == -1 ? "SHORT" : "FLAT"
-confStr = str.tostring(confidence * 100.0, "#.0") + "%"
+confStr = str.tostring(nz(confidence) * 100.0, "#.0") + "%"
 volStr  = f_fmtVol(volume)
 
 strengthVal = rsi7
@@ -4339,7 +4338,7 @@ f_send_alert(cond, label) =>
         if useJsonAlerts
             msg := f_tp_json(action)
         else
-            msg := "SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(confidence * 100, "#.0") + "%"
+            msg := "SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%"
             
         alert(msg, alertFreq)
 

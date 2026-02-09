@@ -1303,6 +1303,13 @@ f_logloss(p, y) =>
     else
         -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
 
+f_update_accum_stats(statsArr, val) =>
+    if not na(val)
+        curSum = array.get(statsArr, 0)
+        curCnt = array.get(statsArr, 1)
+        array.set(statsArr, 0, curSum + val)
+        array.set(statsArr, 1, curCnt + 1.0)
+
 f_roll_add(buf, sumArr, v, maxLen) =>
     array.push(buf, v)
     array.set(sumArr, 0, array.get(sumArr, 0) + v)
@@ -2043,11 +2050,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                                 
                                 // LogLoss
                                 ll = f_logloss(pAdj, outcomeVal)
-                                if not na(ll)
-                                    curSumLL = array.get(st.llStatsN, 0)
-                                    curCntLL = array.get(st.llStatsN, 1)
-                                    array.set(st.llStatsN, 0, curSumLL + ll)
-                                    array.set(st.llStatsN, 1, curCntLL + 1.0)
+                                f_update_accum_stats(st.llStatsN, ll)
                         
                         // --- Phase 4: SGD Update & LogLoss (1) ---
                         sqErr1 = math.pow(outcomeVal - prob1_i, 2)
@@ -2079,11 +2082,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             array.set(st.platt1, 1, pltB1)
                             
                             ll1 = f_logloss(pAdj1, outcomeVal)
-                            if not na(ll1)
-                                curSumLL1 = array.get(st.llStats1, 0)
-                                curCntLL1 = array.get(st.llStats1, 1)
-                                array.set(st.llStats1, 0, curSumLL1 + ll1)
-                                array.set(st.llStats1, 1, curCntLL1 + 1.0)
+                            f_update_accum_stats(st.llStats1, ll1)
 
                 if not use3Way
                     f_safe_remove_float(st.qProbN, i)
@@ -3853,8 +3852,8 @@ coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
-alertPreBuyCond   = preBuyNow and not preBuyNow[1]
-alertPreShortCond = preShortNow and not preShortNow[1]
+alertPreBuyCond   = nz(preBuyNow) and not nz(preBuyNow[1])
+alertPreShortCond = nz(preShortNow) and not nz(preShortNow[1])
 
 alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
