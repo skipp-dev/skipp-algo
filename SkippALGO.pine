@@ -4311,8 +4311,8 @@ alertBuyCond   = buyEvent
 alertShortCond = shortEvent
 alertExitCond  = exitEvent
 alertCoverCond = coverEvent
-alertPreBuyCond   = preBuyNow and not preBuyNow[1]
-alertPreShortCond = preShortNow and not preShortNow[1]
+alertPreBuyCond   = (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
+alertPreShortCond = (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
 
 alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
