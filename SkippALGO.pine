@@ -393,7 +393,7 @@ vecAMax = input.float(3.0, "Vec A max", step=0.05, minval=0.5, group=grp_tri)
 vecBMin = input.float(-2.0, "Vec B min", step=0.1, group=grp_tri)
 vecBMax = input.float(2.0, "Vec B max", step=0.1, group=grp_tri)
 cal3AutoFallback = input.bool(true, "3-way auto fallback (weak bins)", group=grp_tri)
-cal3MinSamples  = input.int(120, "3-way min samples for calibrator", minval=10, maxval=5000, group=grp_tri)
+cal3MinSamples  = input.int(40, "3-way min samples for calibrator", minval=10, maxval=5000, group=grp_tri)
 calRegStrength  = input.float(0.002, "Calibrator stabilize strength", minval=0.0, step=0.001, group=grp_tri)
 useBullBearCal = input.bool(true, "Separate bull/bear calibrators", group=grp_tri)
 countDecay = input.float(0.9995, "Count decay (1.0=none)", minval=0.80, maxval=1.0, step=0.0005, group=grp_tri)
@@ -416,7 +416,7 @@ alphaN  = input.float(1.0, "Smoothing alpha (N)", minval=0.1, step=0.1)
 alpha1  = input.float(0.8, "Smoothing alpha (1)", minval=0.1, step=0.1)
 kShrink = input.int(5, "Base Rate Shrinkage k", minval=0, maxval=1000)
 
-calMinSamples = input.int(40, "Min samples per bin (activate)", minval=5, maxval=1000)
+calMinSamples = input.int(10, "Min samples per bin (activate)", minval=5, maxval=1000)
 
 predUpThr = input.float(0.55, "Pred up threshold", minval=0.50, maxval=0.80, step=0.01)
 predDnThr = input.float(0.45, "Pred down threshold", minval=0.20, maxval=0.50, step=0.01)
@@ -930,11 +930,7 @@ f_brier(p, y) =>
 f_logloss(p, y) =>
     // y in {0.0, 1.0}
     pc = f_epsClamp(p)
-    // Safety check for NaN
-    if na(pc) or na(y)
-        float(na)
-    else
-        -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
+    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
 
 // @function Adds value to rolling buffer and maintains running sum
 // @param buf Rolling buffer array
