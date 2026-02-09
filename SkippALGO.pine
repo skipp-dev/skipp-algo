@@ -134,22 +134,33 @@ f_log_regression_single(src, length) =>
         float sumY      = 0.0
         float sumXSqr   = 0.0
         float sumXY     = 0.0
+        bool failed     = false
         for i = 0 to length - 1
-            val = math.log(src[i])
+            v = src[i]
+            if na(v) or v <= 0
+                failed := true
+                break
+            val = math.log(v)
             per = i + 1.0
             sumX += per
             sumY += val
             sumXSqr += per * per
             sumXY += val * per
-        slope = (length * sumXY - sumX * sumY) / (length * sumXSqr - sumX * sumX)
-        slope * -1
+        
+        if failed
+            float(na)
+        else
+            slope = (length * sumXY - sumX * sumY) / (length * sumXSqr - sumX * sumX)
+            slope * -1
 
 f_calc_reg_slope_osc(src, minR, maxR, stepV) =>
     float slopeSum = 0.0
     int slopeCount = 0
     for i = minR to maxR by stepV
-        slopeSum += f_log_regression_single(src, i)
-        slopeCount += 1
+        res = f_log_regression_single(src, i)
+        if not na(res)
+            slopeSum += res
+            slopeCount += 1
     slopeCount > 0 ? slopeSum / slopeCount : 0.0
 
 //====================
@@ -4295,11 +4306,15 @@ alertBuyCond   = buyEvent
 alertShortCond = shortEvent
 alertExitCond  = exitEvent
 alertCoverCond = coverEvent
+alertPreBuyCond   = preBuyNow and not preBuyNow[1]
+alertPreShortCond = preShortNow and not preShortNow[1]
 
 alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertPreBuyCond,   title="PRE-BUY",   message="SkippALGO PRE-BUY | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHORT | {{ticker}} @ {{close}} | {{time}}")
 
 // v6.1.3: TradersPost JSON Payload Generator
 f_tp_json(action) =>
@@ -4329,3 +4344,5 @@ f_send_alert(buyEvent, "BUY")
 f_send_alert(shortEvent, "SHORT")
 f_send_alert(exitEvent, "EXIT")
 f_send_alert(coverEvent, "COVER")
+f_send_alert(alertPreBuyCond, "PRE-BUY")
+f_send_alert(alertPreShortCond, "PRE-SHORT")

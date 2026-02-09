@@ -3850,10 +3850,15 @@ coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
+alertPreBuyCond   = preBuyNow and not preBuyNow[1]
+alertPreShortCond = preShortNow and not preShortNow[1]
+
 alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and exitEvent,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and coverEvent, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and alertPreBuyCond,   title="PRE-BUY",   message="SkippALGO PRE-BUY | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHORT | {{ticker}} @ {{close}} | {{time}}")
 
 f_send_alert(cond, label) =>
     if useAlertCalls and cond and barstate.isconfirmed and barstate.isrealtime
@@ -3863,6 +3868,8 @@ f_send_alert(buyEvent, "BUY")
 f_send_alert(shortEvent, "SHORT")
 f_send_alert(exitEvent, "EXIT")
 f_send_alert(coverEvent, "COVER")
+f_send_alert(alertPreBuyCond, "PRE-BUY")
+f_send_alert(alertPreShortCond, "PRE-SHORT")
 
 // Highlighting
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
