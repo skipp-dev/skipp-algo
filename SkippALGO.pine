@@ -930,7 +930,10 @@ f_brier(p, y) =>
 f_logloss(p, y) =>
     // y in {0.0, 1.0}
     pc = f_epsClamp(p)
-    -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
+    if na(pc) or na(y)
+        float(na)
+    else
+        -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
 
 // @function Adds value to rolling buffer and maintains running sum
 // @param buf Rolling buffer array
