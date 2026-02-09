@@ -3305,14 +3305,17 @@ if swingMaxAgeBars > 0
 bool breakHigh = false
 bool breakLow  = false
 
+bool _xoWick = ta.crossover(high, lastSwingHigh)
+bool _xuWick = ta.crossunder(low, lastSwingLow)
+
 if breakoutSource == "Close"
     breakHigh := close > lastSwingHigh and close[1] <= lastSwingHigh
     breakLow  := close < lastSwingLow  and close[1] >= lastSwingLow
 else // Wick
     if not na(lastSwingHigh)
-        breakHigh := ta.crossover(high, lastSwingHigh)
+        breakHigh := _xoWick
     if not na(lastSwingLow)
-        breakLow  := ta.crossunder(low,  lastSwingLow)
+        breakLow  := _xuWick
 
 breakoutLong  = not na(lastSwingHigh) and breakHigh
 breakoutShort = not na(lastSwingLow)  and breakLow

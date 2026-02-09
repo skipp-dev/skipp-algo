@@ -3485,14 +3485,17 @@ if swingMaxAgeBars > 0
 bool breakHigh = false
 bool breakLow  = false
 
+bool _xoWick = ta.crossover(high, lastSwingHigh)
+bool _xuWick = ta.crossunder(low, lastSwingLow)
+
 if breakoutSource == "Close"
     breakHigh := close > lastSwingHigh and close[1] <= lastSwingHigh
     breakLow  := close < lastSwingLow  and close[1] >= lastSwingLow
 else // Wick
     if not na(lastSwingHigh)
-        breakHigh := ta.crossover(high, lastSwingHigh)
+        breakHigh := _xoWick
     if not na(lastSwingLow)
-        breakLow  := ta.crossunder(low,  lastSwingLow)
+        breakLow  := _xuWick
 
 breakoutLong  = not na(lastSwingHigh) and breakHigh
 breakoutShort = not na(lastSwingLow)  and breakLow
@@ -3852,8 +3855,13 @@ coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
-alertPreBuyCond   = nz(preBuyNow) and not nz(preBuyNow[1])
-alertPreShortCond = nz(preShortNow) and not nz(preShortNow[1])
+bool _pbNow = not na(preBuyNow) and preBuyNow
+bool _pbPrev = not na(preBuyNow[1]) and preBuyNow[1]
+alertPreBuyCond   = _pbNow and not _pbPrev
+
+bool _psNow = not na(preShortNow) and preShortNow
+bool _psPrev = not na(preShortNow[1]) and preShortNow[1]
+alertPreShortCond = _psNow and not _psPrev
 
 alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
