@@ -3855,13 +3855,8 @@ coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
-bool _pbNow = not na(preBuyNow) and preBuyNow
-bool _pbPrev = not na(preBuyNow[1]) and preBuyNow[1]
-alertPreBuyCond   = _pbNow and not _pbPrev
-
-bool _psNow = not na(preShortNow) and preShortNow
-bool _psPrev = not na(preShortNow[1]) and preShortNow[1]
-alertPreShortCond = _psNow and not _psPrev
+alertPreBuyCond   = (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
+alertPreShortCond = (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
 
 alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
@@ -3872,7 +3867,7 @@ alertcondition((not useAlertCalls) and alertPreShortCond, title="PRE-SHORT", mes
 
 f_send_alert(cond, label) =>
     if useAlertCalls and cond and barstate.isconfirmed and barstate.isrealtime
-        alert("SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(confidence * 100, "#.0") + "%", alertFreq)
+        alert("SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%", alertFreq)
 
 f_send_alert(buyEvent, "BUY")
 f_send_alert(shortEvent, "SHORT")
