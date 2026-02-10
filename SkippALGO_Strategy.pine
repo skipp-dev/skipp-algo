@@ -3149,9 +3149,40 @@ canF17 = array.get(canF1Arr, 6)
 curBrierRaw = f_getBrier_raw(relFilterTF, relFilterModel)
 curBrier = nz(curBrierRaw, 0.5)
 relBull = relFilterTF == "F1" ? isBull1 : relFilterTF == "F2" ? isBull2 : relFilterTF == "F3" ? isBull3 : relFilterTF == "F4" ? isBull4 : relFilterTF == "F5" ? isBull5 : relFilterTF == "F6" ? isBull6 : isBull7
-totSamp = f_get_total_samples(relFilterTF, relFilterModel, relBull)
-reliabilityOk = (not forecastAllowed) or (not useRelFilter) or (not na(curBrierRaw) and not na(totSamp) and totSamp > 0 and curBrierRaw <= maxBrier)
-evidenceOk = (not forecastAllowed) or (not evidenceGate) or (not na(totSamp) and totSamp >= evidenceMinTotal)
+
+// === Population Management (Variante B-Safe) ===
+// Evidence check counts SPECIFIC subset samples (Bull OR Bear).
+totSampSub = f_get_total_samples(relFilterTF, relFilterModel, relBull)
+
+// Reliability check aligns with GLOBAL Brier score (Bull + Bear).
+// Optimization: Compute global sum only if strictly needed (Forecast+Filter+Split active).
+totSampGlob = totSampSub
+if useBullBearCal and useForecast and useRelFilter
+    totSampGlob := f_get_total_samples(relFilterTF, relFilterModel, true) + f_get_total_samples(relFilterTF, relFilterModel, false)
+
+// HELPER: Fail-Closed Gates
+f_fc_bool(x) => x == true
+f_fc_num(x)  => not na(x)
+
+// VARIANT B: Explicit Forecast Activation
+// If forecastAllowed is na, we treat it as false (Baseline Mode).
+useForecast = (forecastAllowed == true)
+
+// GATE 1: Reliability
+// If Forecast OFF or Filter OFF -> Pass (True).
+// If ON -> STRICT Fail-Closed (na blocks).
+// Uses GLOBAL metrics (Brier + Global Count) to match data source.
+reliabilityOk =
+     (not useForecast)  ? true :
+     (not useRelFilter) ? true :
+     (f_fc_num(curBrierRaw) and f_fc_num(totSampGlob) and (totSampGlob > 0) and (curBrierRaw <= maxBrier))
+
+// GATE 2: Evidence
+// Uses SPECIFIC subset count.
+evidenceOk =
+     (not useForecast)  ? true :
+     (not evidenceGate) ? true :
+     (f_fc_num(totSampSub) and (totSampSub >= evidenceMinTotal))
 
 [pRelU_t, pRelF_t, pRelD_t, nRel_t, totRel_t] = f_get_rel_vals(relFilterTF, relFilterModel)
 pRelU = pRelU_t

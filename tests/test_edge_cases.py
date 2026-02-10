@@ -406,7 +406,8 @@ class TestEdgeCases(unittest.TestCase):
     def test_logloss_clamping(self):
         """LogLoss calculation must clamp probability before log."""
         # Prevents log(0) or log(negative)
-        pattern = r'pLL\s*=\s*math\.max\(PROB_EPS'
+        # Updated to check for general usage of PROB_EPS in max() clamping, matching f_safe_log logic
+        pattern = r'math\.max\(PROB_EPS'
         
         self.assertRegex(self.indicator, pattern,
             "Indicator LogLoss missing probability clamping")

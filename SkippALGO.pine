@@ -3071,11 +3071,42 @@ canF16 = array.get(canF1Arr, 5)
 canF17 = array.get(canF1Arr, 6)
 
 curBrierRaw = f_getBrier_raw(relFilterTF, relFilterModel)
-curBrier = nz(curBrierRaw, 0.5)
+// curBrier (Display) removed to prevent '0.5' fallacy. Logic uses curBrierRaw explicitly.
 relBull = relFilterTF == "F1" ? isBull1 : relFilterTF == "F2" ? isBull2 : relFilterTF == "F3" ? isBull3 : relFilterTF == "F4" ? isBull4 : relFilterTF == "F5" ? isBull5 : relFilterTF == "F6" ? isBull6 : isBull7
-totSamp = f_get_total_samples(relFilterTF, relFilterModel, relBull)
-reliabilityOk = (not forecastAllowed) or (not useRelFilter) or (not na(curBrierRaw) and not na(totSamp) and totSamp > 0 and curBrierRaw <= maxBrier)
-evidenceOk = (not forecastAllowed) or (not evidenceGate) or (not na(totSamp) and totSamp >= evidenceMinTotal)
+
+// === Population Management (Variante B-Safe) ===
+// Evidence check counts SPECIFIC subset samples (Bull OR Bear).
+totSampSub = f_get_total_samples(relFilterTF, relFilterModel, relBull)
+
+// Reliability check aligns with GLOBAL Brier score (Bull + Bear).
+// Optimization: Compute global sum only if strictly needed (Forecast+Filter+Split active).
+totSampGlob = totSampSub
+if useBullBearCal and useForecast and useRelFilter
+    totSampGlob := f_get_total_samples(relFilterTF, relFilterModel, true) + f_get_total_samples(relFilterTF, relFilterModel, false)
+
+// HELPER: Fail-Closed Gates
+f_fc_bool(x) => x == true
+f_fc_num(x)  => not na(x)
+
+// VARIANT B: Explicit Forecast Activation
+// If forecastAllowed is na, we treat it as false (Baseline Mode).
+useForecast = (forecastAllowed == true)
+
+// GATE 1: Reliability
+// If Forecast OFF or Filter OFF -> Pass (True).
+// If ON -> STRICT Fail-Closed (na blocks).
+// Uses GLOBAL metrics (Brier + Global Count) to match data source.
+reliabilityOk =
+     (not useForecast)  ? true :
+     (not useRelFilter) ? true :
+     (f_fc_num(curBrierRaw) and f_fc_num(totSampGlob) and (totSampGlob > 0) and (curBrierRaw <= maxBrier))
+
+// GATE 2: Evidence
+// Uses SPECIFIC subset count.
+evidenceOk =
+     (not useForecast)  ? true :
+     (not evidenceGate) ? true :
+     (f_fc_num(totSampSub) and (totSampSub >= evidenceMinTotal))
 
 [pRelU_t, pRelF_t, pRelD_t, nRel_t, totRel_t] = f_get_rel_vals(relFilterTF, relFilterModel)
 pRelU = pRelU_t
@@ -3094,9 +3125,20 @@ decisionEdgeTxt = (not use3Way or na(decisionEdge)) ? "—" : str.tostring(decis
 [evalEce, evalDriftPP, evalN] = f_eval_metrics_for_tf(relFilterTF)
 // A5 – store ECE for next bar's recal decision
 prevEvalEce := evalEce
-eceOk = (not useEceGate) or (not na(evalEce) and evalEce <= eceMax)
-driftOk = (not useDriftGate) or (not na(evalDriftPP) and math.abs(evalDriftPP) <= driftMaxPP)
-evalOk = (not forecastAllowed) or (eceOk and driftOk)
+
+// GATE 3: Evaluation Metrics (ECE / Drift)
+eceOk =
+     (not useForecast) ? true :
+     (not useEceGate)  ? true :
+     (f_fc_num(evalEce) and (evalEce <= eceMax))
+
+driftOk =
+     (not useForecast)  ? true :
+     (not useDriftGate) ? true :
+     (f_fc_num(evalDriftPP) and (math.abs(evalDriftPP) <= driftMaxPP))
+
+evalOk = (not useForecast) ? true : (eceOk and driftOk)
+
 evalSoftHit = useEvalPenalty and ((not na(evalEce) and evalEce >= eceWarn) or (not na(evalDriftPP) and math.abs(evalDriftPP) >= driftWarnPP))
 confGate = evalSoftHit ? f_clamp01(confidence * (1.0 - evalPenalty)) : confidence
 
@@ -3112,23 +3154,21 @@ macOkShort_ = (macroGateShort == true)
 gateLongNow  = confOk and mtfOkLong_  and macOkLong_  and ddOk
 gateShortNow = confOk and mtfOkShort_ and macOkShort_ and ddOk
 
-decisionOkSafe     = (not use3Way) ? true : (decisionOk == true)
-// High confidence override: If the calibrated confidence is extremely high (e.g. > 0.85),
-// it means the "Shrinkage" algorithm already validated the signal despite low sample count.
-// In such cases, we should NOT block it with a brute-force sample count gate.
-isHighConf = (confidence >= abstainOverrideConf)
-decisionFinal = decisionOkSafe or isHighConf
+// Hardened Fail-Closed Logic (Ref: User Request 2026-02-10)
+decisionOkSafe     = (not use3Way) ? true : f_fc_bool(decisionOk)
+isHighConf         = f_fc_bool(confidence >= abstainOverrideConf)
+decisionFinal      = decisionOkSafe or isHighConf
 
-cooldownOkSafe     = (cooldownOk == true)
-nearCloseOk        = (blockNearClose == false)
+cooldownOkSafe     = f_fc_bool(cooldownOk)
+blockNearCloseSafe = f_fc_bool(not blockNearClose)
 
 allowEntry =
      barstate.isconfirmed
  and cooldownOkSafe
- and nearCloseOk
- and (reliabilityOk == true)
- and (evidenceOk == true)
- and (evalOk == true)
+ and blockNearCloseSafe
+ and f_fc_bool(reliabilityOk)
+ and f_fc_bool(evidenceOk)
+ and f_fc_bool(evalOk)
  and (not abstainGate or decisionFinal)
 
 f_bool_to_num(x) => x ? 1.0 : 0.0
