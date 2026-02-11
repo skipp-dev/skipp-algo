@@ -3512,6 +3512,7 @@ coverSignal = false
 // Table helpers MUST be global (cannot be defined inside if-block)
 //====================
 var table gT = na
+var int prevQDepth = na
 if na(gT)
     tblCols = 10
     tblRows = 22
@@ -3808,12 +3809,16 @@ if renderTable
             // Skip reasons compact
             skipTxt = skipTotal == 0 ? "—" : "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
             table.cell(gT, 4, 20, skipTxt, text_size=size.tiny, text_color=skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), bgcolor=covBg)
-            // Pending queue depth (desync check)
+            // Pending queue depth (desync check) + ΔQ
             qDepth = array.size(st_base.qAge)
             qSync = array.size(st_base.qAge) == array.size(st_base.qEntry) and array.size(st_base.qAge) == array.size(st_base.qAtr)
-            qTxt = qSync ? "Q:" + str.tostring(qDepth) : "Q:ERR"
-            table.cell(gT, 5, 20, qTxt, text_size=size.tiny, text_color=qSync ? tblTextDim : color.red, bgcolor=covBg)
+            dq = na(prevQDepth) ? na : qDepth - prevQDepth
+            dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
+            qTxt = qSync ? "Q:" + str.tostring(qDepth) + dqTxt : "Q:ERR"
+            qCol = not qSync ? color.red : (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
+            table.cell(gT, 5, 20, qTxt, text_size=size.tiny, text_color=qCol, bgcolor=covBg)
             f_fill_cells(gT, 20, 6, 9, "", tblTextDim, covBg, size.tiny)
+            prevQDepth := qDepth
 
     // Footer row (row 21)
     table.cell(gT, 0, 21, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
