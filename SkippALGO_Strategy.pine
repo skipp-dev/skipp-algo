@@ -255,6 +255,7 @@ preSetPulseOnly    = input.bool(true, "PRE: pulse-only SET", tooltip="When enabl
 showSetMarkers   = input.bool(true, "Show SET markers")
 setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SET prints only on the transition into a SET state")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
+showDebugPulse   = input.bool(false, "Show Pulse Debug (Patch A)", group="Debug")
 ui_tableShowMode       = input.bool(true, "Table: show LIVE/CONFIRMED tag")
 tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
 labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"])
@@ -1241,7 +1242,8 @@ f_tf_pack(tf) =>
     )
     // NOTE: barstate.isconfirmed moved outside request.security() to avoid
     //       TradingView repainting warning that blocks alert creation.
-    [t, c, h, l, ef, es, r, a, vr, barstate.isconfirmed]
+    // Patch A: Return clear HTF data (without forced LTF confirmation boolean)
+    [t, c, h, l, ef, es, r, a, vr]
 
 f_score_tf(c, ef, es, r) =>
     f_state_score(c, ef, es, r)
@@ -2711,13 +2713,46 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
 //====================
-[t1, c1, h1, l1, ef1, es1, r1, a1, vR1, conf1] = f_tf_pack(tfF1)
-[t2, c2, h2, l2, ef2, es2, r2, a2, vR2, conf2] = f_tf_pack(tfF2)
-[t3, c3, h3, l3, ef3, es3, r3, a3, vR3, conf3] = f_tf_pack(tfF3)
-[t4, c4, h4, l4, ef4, es4, r4, a4, vR4, conf4] = f_tf_pack(tfF4)
-[t5, c5, h5, l5, ef5, es5, r5, a5, vR5, conf5] = f_tf_pack(tfF5)
-[t6, c6, h6, l6, ef6, es6, r6, a6, vR6, conf6] = f_tf_pack(tfF6)
-[t7, c7, h7, l7, ef7, es7, r7, a7, vR7, conf7] = f_tf_pack(tfF7)
+// PATCH A REPAINTING FIX: HTF Stable Sync (Strategy)
+// We retrieve only raw HTF data and manage confirmation/sync manually
+// to avoid updating stateful logic on "in-progress" HTF bars.
+
+f_stable_val(isSame, valRaw, valPrev) => isSame ? valRaw : valPrev
+f_stable_pulse(isSame, timeRaw)       => isSame ? barstate.isconfirmed : ta.change(timeRaw)
+
+[t1_r, c1_r, h1_r, l1_r, ef1_r, es1_r, r1_r, a1_r, vR1_r] = f_tf_pack(tfF1)
+[t2_r, c2_r, h2_r, l2_r, ef2_r, es2_r, r2_r, a2_r, vR2_r] = f_tf_pack(tfF2)
+[t3_r, c3_r, h3_r, l3_r, ef3_r, es3_r, r3_r, a3_r, vR3_r] = f_tf_pack(tfF3)
+[t4_r, c4_r, h4_r, l4_r, ef4_r, es4_r, r4_r, a4_r, vR4_r] = f_tf_pack(tfF4)
+[t5_r, c5_r, h5_r, l5_r, ef5_r, es5_r, r5_r, a5_r, vR5_r] = f_tf_pack(tfF5)
+[t6_r, c6_r, h6_r, l6_r, ef6_r, es6_r, r6_r, a6_r, vR6_r] = f_tf_pack(tfF6)
+[t7_r, c7_r, h7_r, l7_r, ef7_r, es7_r, r7_r, a7_r, vR7_r] = f_tf_pack(tfF7)
+
+// 1) Define Pulses (When to Resolves/Update)
+same1 = tfF1 == timeframe.period
+same2 = tfF2 == timeframe.period
+same3 = tfF3 == timeframe.period
+same4 = tfF4 == timeframe.period
+same5 = tfF5 == timeframe.period
+same6 = tfF6 == timeframe.period
+same7 = tfF7 == timeframe.period
+
+pulse1 = f_stable_pulse(same1, t1_r)
+pulse2 = f_stable_pulse(same2, t2_r)
+pulse3 = f_stable_pulse(same3, t3_r)
+pulse4 = f_stable_pulse(same4, t4_r)
+pulse5 = f_stable_pulse(same5, t5_r)
+pulse6 = f_stable_pulse(same6, t6_r)
+pulse7 = f_stable_pulse(same7, t7_r)
+
+// 2) Define Stable Values (At pulse moment, use Finished Bar)
+t1 = f_stable_val(same1, t1_r, t1_r[1]), c1 = f_stable_val(same1, c1_r, c1_r[1]), h1 = f_stable_val(same1, h1_r, h1_r[1]), l1 = f_stable_val(same1, l1_r, l1_r[1]), ef1 = f_stable_val(same1, ef1_r, ef1_r[1]), es1 = f_stable_val(same1, es1_r, es1_r[1]), r1 = f_stable_val(same1, r1_r, r1_r[1]), a1 = f_stable_val(same1, a1_r, a1_r[1]), vR1 = f_stable_val(same1, vR1_r, vR1_r[1])
+t2 = f_stable_val(same2, t2_r, t2_r[1]), c2 = f_stable_val(same2, c2_r, c2_r[1]), h2 = f_stable_val(same2, h2_r, h2_r[1]), l2 = f_stable_val(same2, l2_r, l2_r[1]), ef2 = f_stable_val(same2, ef2_r, ef2_r[1]), es2 = f_stable_val(same2, es2_r, es2_r[1]), r2 = f_stable_val(same2, r2_r, r2_r[1]), a2 = f_stable_val(same2, a2_r, a2_r[1]), vR2 = f_stable_val(same2, vR2_r, vR2_r[1])
+t3 = f_stable_val(same3, t3_r, t3_r[1]), c3 = f_stable_val(same3, c3_r, c3_r[1]), h3 = f_stable_val(same3, h3_r, h3_r[1]), l3 = f_stable_val(same3, l3_r, l3_r[1]), ef3 = f_stable_val(same3, ef3_r, ef3_r[1]), es3 = f_stable_val(same3, es3_r, es3_r[1]), r3 = f_stable_val(same3, r3_r, r3_r[1]), a3 = f_stable_val(same3, a3_r, a3_r[1]), vR3 = f_stable_val(same3, vR3_r, vR3_r[1])
+t4 = f_stable_val(same4, t4_r, t4_r[1]), c4 = f_stable_val(same4, c4_r, c4_r[1]), h4 = f_stable_val(same4, h4_r, h4_r[1]), l4 = f_stable_val(same4, l4_r, l4_r[1]), ef4 = f_stable_val(same4, ef4_r, ef4_r[1]), es4 = f_stable_val(same4, es4_r, es4_r[1]), r4 = f_stable_val(same4, r4_r, r4_r[1]), a4 = f_stable_val(same4, a4_r, a4_r[1]), vR4 = f_stable_val(same4, vR4_r, vR4_r[1])
+t5 = f_stable_val(same5, t5_r, t5_r[1]), c5 = f_stable_val(same5, c5_r, c5_r[1]), h5 = f_stable_val(same5, h5_r, h5_r[1]), l5 = f_stable_val(same5, l5_r, l5_r[1]), ef5 = f_stable_val(same5, ef5_r, ef5_r[1]), es5 = f_stable_val(same5, es5_r, es5_r[1]), r5 = f_stable_val(same5, r5_r, r5_r[1]), a5 = f_stable_val(same5, a5_r, a5_r[1]), vR5 = f_stable_val(same5, vR5_r, vR5_r[1])
+t6 = f_stable_val(same6, t6_r, t6_r[1]), c6 = f_stable_val(same6, c6_r, c6_r[1]), h6 = f_stable_val(same6, h6_r, h6_r[1]), l6 = f_stable_val(same6, l6_r, l6_r[1]), ef6 = f_stable_val(same6, ef6_r, ef6_r[1]), es6 = f_stable_val(same6, es6_r, es6_r[1]), r6 = f_stable_val(same6, r6_r, r6_r[1]), a6 = f_stable_val(same6, a6_r, a6_r[1]), vR6 = f_stable_val(same6, vR6_r, vR6_r[1])
+t7 = f_stable_val(same7, t7_r, t7_r[1]), c7 = f_stable_val(same7, c7_r, c7_r[1]), h7 = f_stable_val(same7, h7_r, h7_r[1]), l7 = f_stable_val(same7, l7_r, l7_r[1]), ef7 = f_stable_val(same7, ef7_r, ef7_r[1]), es7 = f_stable_val(same7, es7_r, es7_r[1]), r7 = f_stable_val(same7, r7_r, r7_r[1]), a7 = f_stable_val(same7, a7_r, a7_r[1]), vR7 = f_stable_val(same7, vR7_r, vR7_r[1])
 
 // Get Target Params per TF
 [fcT1, kB1, aT1, pH1, tp1, sl1] = f_get_params(tfF1)
@@ -2728,13 +2763,13 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
 [fcT6, kB6, aT6, pH6, tp6, sl6] = f_get_params(tfF6)
 [fcT7, kB7, aT7, pH7, tp7, sl7] = f_get_params(tfF7)
 
-tfCloseF1 = conf1
-tfCloseF2 = conf2
-tfCloseF3 = conf3
-tfCloseF4 = conf4
-tfCloseF5 = conf5
-tfCloseF6 = conf6
-tfCloseF7 = conf7
+tfCloseF1 = pulse1
+tfCloseF2 = pulse2
+tfCloseF3 = pulse3
+tfCloseF4 = pulse4
+tfCloseF5 = pulse5
+tfCloseF6 = pulse6
+tfCloseF7 = pulse7
 
 // Outlook scores + components
 outScore1 = f_state_score(c1, ef1, es1, r1)
@@ -2763,7 +2798,7 @@ esForecastArr = array.from(es1, es2, es3, es4, es5, es6, es7)
 rForecastArr = array.from(r1, r2, r3, r4, r5, r6, r7)
 aForecastArr = array.from(a1, a2, a3, a4, a5, a6, a7)
 vRForecastArr = array.from(vR1, vR2, vR3, vR4, vR5, vR6, vR7)
-confForecastArr = array.from(conf1, conf2, conf3, conf4, conf5, conf6, conf7)
+confForecastArr = array.from(pulse1, pulse2, pulse3, pulse4, pulse5, pulse6, pulse7)
 outScoreArr = array.from(outScore1, outScore2, outScore3, outScore4, outScore5, outScore6, outScore7)
 tArr = array.from(t1c, t2c, t3c, t4c, t5c, t6c, t7c)
 mArr = array.from(m1c, m2c, m3c, m4c, m5c, m6c, m7c)
@@ -2805,15 +2840,15 @@ f_entry_forecast_gate(isLong) =>
     ok
 
 // MTF packs (for normalized score access)
-[tS1, cS1, hS1, lS1, efS1, esS1, rS1, aS1, vRS1, confS1] = f_tf_pack(tfShort1)
-[tS2, cS2, hS2, lS2, efS2, esS2, rS2, aS2, vRS2, confS2] = f_tf_pack(tfShort2)
-[tS3, cS3, hS3, lS3, efS3, esS3, rS3, aS3, vRS3, confS3] = f_tf_pack(tfShort3)
-[tM1, cM1, hM1, lM1, efM1, esM1, rM1, aM1, vRM1, confM1] = f_tf_pack(tfMedium1)
-[tM2, cM2, hM2, lM2, efM2, esM2, rM2, aM2, vRM2, confM2] = f_tf_pack(tfMedium2)
-[tM3, cM3, hM3, lM3, efM3, esM3, rM3, aM3, vRM3, confM3] = f_tf_pack(tfMedium3)
-[tL1, cL1, hL1, lL1, efL1, esL1, rL1, aL1, vRL1, confL1] = f_tf_pack(tfLong1)
-[tL2, cL2, hL2, lL2, efL2, esL2, rL2, aL2, vRL2, confL2] = f_tf_pack(tfLong2)
-[tL3, cL3, hL3, lL3, efL3, esL3, rL3, aL3, vRL3, confL3] = f_tf_pack(tfLong3)
+[tS1, cS1, hS1, lS1, efS1, esS1, rS1, aS1, vRS1] = f_tf_pack(tfShort1), confS1 = barstate.isconfirmed
+[tS2, cS2, hS2, lS2, efS2, esS2, rS2, aS2, vRS2] = f_tf_pack(tfShort2), confS2 = barstate.isconfirmed
+[tS3, cS3, hS3, lS3, efS3, esS3, rS3, aS3, vRS3] = f_tf_pack(tfShort3), confS3 = barstate.isconfirmed
+[tM1, cM1, hM1, lM1, efM1, esM1, rM1, aM1, vRM1] = f_tf_pack(tfMedium1), confM1 = barstate.isconfirmed
+[tM2, cM2, hM2, lM2, efM2, esM2, rM2, aM2, vRM2] = f_tf_pack(tfMedium2), confM2 = barstate.isconfirmed
+[tM3, cM3, hM3, lM3, efM3, esM3, rM3, aM3, vRM3] = f_tf_pack(tfMedium3), confM3 = barstate.isconfirmed
+[tL1, cL1, hL1, lL1, efL1, esL1, rL1, aL1, vRL1] = f_tf_pack(tfLong1), confL1 = barstate.isconfirmed
+[tL2, cL2, hL2, lL2, efL2, esL2, rL2, aL2, vRL2] = f_tf_pack(tfLong2), confL2 = barstate.isconfirmed
+[tL3, cL3, hL3, lL3, efL3, esL3, rL3, aL3, vRL3] = f_tf_pack(tfLong3), confL3 = barstate.isconfirmed
 
 tfMtfArr = array.from(tfShort1, tfShort2, tfShort3, tfMedium1, tfMedium2, tfMedium3, tfLong1, tfLong2, tfLong3)
 cMtfArr = array.from(cS1, cS2, cS3, cM1, cM2, cM3, cL1, cL2, cL3)
@@ -3157,7 +3192,7 @@ totSampSub = f_get_total_samples(relFilterTF, relFilterModel, relBull)
 // Reliability check aligns with GLOBAL Brier score (Bull + Bear).
 // Optimization: Compute global sum only if strictly needed (Forecast+Filter+Split active).
 totSampGlob = totSampSub
-if useBullBearCal and useForecast and useRelFilter
+if useBullBearCal and forecastAllowed and useRelFilter
     totSampGlob := f_get_total_samples(relFilterTF, relFilterModel, true) + f_get_total_samples(relFilterTF, relFilterModel, false)
 
 // HELPER: Fail-Closed Gates
@@ -3362,6 +3397,15 @@ f_rowRel(tf, statsN, stats1, rRow) =>
     tc1 = tc1_t
     cc1 = cc1_t
     table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
+
+// PATCH A: Debug for Pulse/Sync
+plotchar(showDebugPulse and pulse1, "Pulse F1", "1", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showDebugPulse and pulse2, "Pulse F2", "2", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showDebugPulse and pulse3, "Pulse F3", "3", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showDebugPulse and pulse4, "Pulse F4", "4", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showDebugPulse and pulse5, "Pulse F5", "5", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showDebugPulse and pulse6, "Pulse F6", "6", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showDebugPulse and pulse7, "Pulse F7", "7", location.bottom, size=size.tiny, color=color.gray)
 
 //====================
 // Table (10 columns) — rendered on confirmed bars (stable)

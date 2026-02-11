@@ -1303,7 +1303,8 @@ f_tf_pack(tf) =>
     )
     // NOTE: barstate.isconfirmed moved outside request.security() to avoid
     //       TradingView repainting warning that blocks alert creation.
-    [t, c, h, l, ef, es, r, a, vr, barstate.isconfirmed]
+    // Patch A: Return clear HTF data (without forced LTF confirmation boolean)
+    [t, c, h, l, ef, es, r, a, vr]
 
 f_score_tf(c, ef, es, r) =>
     f_state_score(c, ef, es, r)
@@ -2698,21 +2699,54 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
 //====================
 // Outlook/Forecast packs (one security call per horizon TF)
 //====================
-[t1, c1, h1, l1, ef1, es1, r1, a1, vR1, conf1] = f_tf_pack(tfF1)
-[t2, c2, h2, l2, ef2, es2, r2, a2, vR2, conf2] = f_tf_pack(tfF2)
-[t3, c3, h3, l3, ef3, es3, r3, a3, vR3, conf3] = f_tf_pack(tfF3)
-[t4, c4, h4, l4, ef4, es4, r4, a4, vR4, conf4] = f_tf_pack(tfF4)
-[t5, c5, h5, l5, ef5, es5, r5, a5, vR5, conf5] = f_tf_pack(tfF5)
-[t6, c6, h6, l6, ef6, es6, r6, a6, vR6, conf6] = f_tf_pack(tfF6)
-[t7, c7, h7, l7, ef7, es7, r7, a7, vR7, conf7] = f_tf_pack(tfF7)
+// PATCH A REPAINTING FIX: HTF Stable Sync
+// We retrieve only raw HTF data and manage confirmation/sync manually
+// to avoid updating stateful logic on "in-progress" HTF bars.
 
-tfCloseF1 = conf1
-tfCloseF2 = conf2
-tfCloseF3 = conf3
-tfCloseF4 = conf4
-tfCloseF5 = conf5
-tfCloseF6 = conf6
-tfCloseF7 = conf7
+f_stable_val(isSame, valRaw, valPrev) => isSame ? valRaw : valPrev
+f_stable_pulse(isSame, timeRaw)       => isSame ? barstate.isconfirmed : ta.change(timeRaw)
+
+[t1_r, c1_r, h1_r, l1_r, ef1_r, es1_r, r1_r, a1_r, vR1_r] = f_tf_pack(tfF1)
+[t2_r, c2_r, h2_r, l2_r, ef2_r, es2_r, r2_r, a2_r, vR2_r] = f_tf_pack(tfF2)
+[t3_r, c3_r, h3_r, l3_r, ef3_r, es3_r, r3_r, a3_r, vR3_r] = f_tf_pack(tfF3)
+[t4_r, c4_r, h4_r, l4_r, ef4_r, es4_r, r4_r, a4_r, vR4_r] = f_tf_pack(tfF4)
+[t5_r, c5_r, h5_r, l5_r, ef5_r, es5_r, r5_r, a5_r, vR5_r] = f_tf_pack(tfF5)
+[t6_r, c6_r, h6_r, l6_r, ef6_r, es6_r, r6_r, a6_r, vR6_r] = f_tf_pack(tfF6)
+[t7_r, c7_r, h7_r, l7_r, ef7_r, es7_r, r7_r, a7_r, vR7_r] = f_tf_pack(tfF7)
+
+// 1) Define Pulses (When to Resolves/Update)
+same1 = tfF1 == timeframe.period
+same2 = tfF2 == timeframe.period
+same3 = tfF3 == timeframe.period
+same4 = tfF4 == timeframe.period
+same5 = tfF5 == timeframe.period
+same6 = tfF6 == timeframe.period
+same7 = tfF7 == timeframe.period
+
+pulse1 = f_stable_pulse(same1, t1_r)
+pulse2 = f_stable_pulse(same2, t2_r)
+pulse3 = f_stable_pulse(same3, t3_r)
+pulse4 = f_stable_pulse(same4, t4_r)
+pulse5 = f_stable_pulse(same5, t5_r)
+pulse6 = f_stable_pulse(same6, t6_r)
+pulse7 = f_stable_pulse(same7, t7_r)
+
+// 2) Define Stable Values (At pulse moment, use Finished Bar)
+t1 = f_stable_val(same1, t1_r, t1_r[1]), c1 = f_stable_val(same1, c1_r, c1_r[1]), h1 = f_stable_val(same1, h1_r, h1_r[1]), l1 = f_stable_val(same1, l1_r, l1_r[1]), ef1 = f_stable_val(same1, ef1_r, ef1_r[1]), es1 = f_stable_val(same1, es1_r, es1_r[1]), r1 = f_stable_val(same1, r1_r, r1_r[1]), a1 = f_stable_val(same1, a1_r, a1_r[1]), vR1 = f_stable_val(same1, vR1_r, vR1_r[1])
+t2 = f_stable_val(same2, t2_r, t2_r[1]), c2 = f_stable_val(same2, c2_r, c2_r[1]), h2 = f_stable_val(same2, h2_r, h2_r[1]), l2 = f_stable_val(same2, l2_r, l2_r[1]), ef2 = f_stable_val(same2, ef2_r, ef2_r[1]), es2 = f_stable_val(same2, es2_r, es2_r[1]), r2 = f_stable_val(same2, r2_r, r2_r[1]), a2 = f_stable_val(same2, a2_r, a2_r[1]), vR2 = f_stable_val(same2, vR2_r, vR2_r[1])
+t3 = f_stable_val(same3, t3_r, t3_r[1]), c3 = f_stable_val(same3, c3_r, c3_r[1]), h3 = f_stable_val(same3, h3_r, h3_r[1]), l3 = f_stable_val(same3, l3_r, l3_r[1]), ef3 = f_stable_val(same3, ef3_r, ef3_r[1]), es3 = f_stable_val(same3, es3_r, es3_r[1]), r3 = f_stable_val(same3, r3_r, r3_r[1]), a3 = f_stable_val(same3, a3_r, a3_r[1]), vR3 = f_stable_val(same3, vR3_r, vR3_r[1])
+t4 = f_stable_val(same4, t4_r, t4_r[1]), c4 = f_stable_val(same4, c4_r, c4_r[1]), h4 = f_stable_val(same4, h4_r, h4_r[1]), l4 = f_stable_val(same4, l4_r, l4_r[1]), ef4 = f_stable_val(same4, ef4_r, ef4_r[1]), es4 = f_stable_val(same4, es4_r, es4_r[1]), r4 = f_stable_val(same4, r4_r, r4_r[1]), a4 = f_stable_val(same4, a4_r, a4_r[1]), vR4 = f_stable_val(same4, vR4_r, vR4_r[1])
+t5 = f_stable_val(same5, t5_r, t5_r[1]), c5 = f_stable_val(same5, c5_r, c5_r[1]), h5 = f_stable_val(same5, h5_r, h5_r[1]), l5 = f_stable_val(same5, l5_r, l5_r[1]), ef5 = f_stable_val(same5, ef5_r, ef5_r[1]), es5 = f_stable_val(same5, es5_r, es5_r[1]), r5 = f_stable_val(same5, r5_r, r5_r[1]), a5 = f_stable_val(same5, a5_r, a5_r[1]), vR5 = f_stable_val(same5, vR5_r, vR5_r[1])
+t6 = f_stable_val(same6, t6_r, t6_r[1]), c6 = f_stable_val(same6, c6_r, c6_r[1]), h6 = f_stable_val(same6, h6_r, h6_r[1]), l6 = f_stable_val(same6, l6_r, l6_r[1]), ef6 = f_stable_val(same6, ef6_r, ef6_r[1]), es6 = f_stable_val(same6, es6_r, es6_r[1]), r6 = f_stable_val(same6, r6_r, r6_r[1]), a6 = f_stable_val(same6, a6_r, a6_r[1]), vR6 = f_stable_val(same6, vR6_r, vR6_r[1])
+t7 = f_stable_val(same7, t7_r, t7_r[1]), c7 = f_stable_val(same7, c7_r, c7_r[1]), h7 = f_stable_val(same7, h7_r, h7_r[1]), l7 = f_stable_val(same7, l7_r, l7_r[1]), ef7 = f_stable_val(same7, ef7_r, ef7_r[1]), es7 = f_stable_val(same7, es7_r, es7_r[1]), r7 = f_stable_val(same7, r7_r, r7_r[1]), a7 = f_stable_val(same7, a7_r, a7_r[1]), vR7 = f_stable_val(same7, vR7_r, vR7_r[1])
+
+tfCloseF1 = pulse1
+tfCloseF2 = pulse2
+tfCloseF3 = pulse3
+tfCloseF4 = pulse4
+tfCloseF5 = pulse5
+tfCloseF6 = pulse6
+tfCloseF7 = pulse7
 
 // Outlook scores + components
 outScore1 = f_state_score(c1, ef1, es1, r1)
@@ -2741,7 +2775,8 @@ esForecastArr = array.from(es1, es2, es3, es4, es5, es6, es7)
 rForecastArr = array.from(r1, r2, r3, r4, r5, r6, r7)
 aForecastArr = array.from(a1, a2, a3, a4, a5, a6, a7)
 vRForecastArr = array.from(vR1, vR2, vR3, vR4, vR5, vR6, vR7)
-confForecastArr = array.from(conf1, conf2, conf3, conf4, conf5, conf6, conf7)
+// Update: Use pulse signals for sync
+confForecastArr = array.from(pulse1, pulse2, pulse3, pulse4, pulse5, pulse6, pulse7)
 outScoreArr = array.from(outScore1, outScore2, outScore3, outScore4, outScore5, outScore6, outScore7)
 tArr = array.from(t1c, t2c, t3c, t4c, t5c, t6c, t7c)
 mArr = array.from(m1c, m2c, m3c, m4c, m5c, m6c, m7c)
@@ -2783,15 +2818,16 @@ f_entry_forecast_gate(isLong) =>
     ok
 
 // MTF packs (for normalized score access)
-[tS1, cS1, hS1, lS1, efS1, esS1, rS1, aS1, vRS1, confS1] = f_tf_pack(tfShort1)
-[tS2, cS2, hS2, lS2, efS2, esS2, rS2, aS2, vRS2, confS2] = f_tf_pack(tfShort2)
-[tS3, cS3, hS3, lS3, efS3, esS3, rS3, aS3, vRS3, confS3] = f_tf_pack(tfShort3)
-[tM1, cM1, hM1, lM1, efM1, esM1, rM1, aM1, vRM1, confM1] = f_tf_pack(tfMedium1)
-[tM2, cM2, hM2, lM2, efM2, esM2, rM2, aM2, vRM2, confM2] = f_tf_pack(tfMedium2)
-[tM3, cM3, hM3, lM3, efM3, esM3, rM3, aM3, vRM3, confM3] = f_tf_pack(tfMedium3)
-[tL1, cL1, hL1, lL1, efL1, esL1, rL1, aL1, vRL1, confL1] = f_tf_pack(tfLong1)
-[tL2, cL2, hL2, lL2, efL2, esL2, rL2, aL2, vRL2, confL2] = f_tf_pack(tfLong2)
-[tL3, cL3, hL3, lL3, efL3, esL3, rL3, aL3, vRL3, confL3] = f_tf_pack(tfLong3)
+// NOTE: For Macro/Trend Context, we use live HTF data but ensure calls match the new signature (9 args)
+[tS1, cS1, hS1, lS1, efS1, esS1, rS1, aS1, vRS1] = f_tf_pack(tfShort1), confS1 = barstate.isconfirmed
+[tS2, cS2, hS2, lS2, efS2, esS2, rS2, aS2, vRS2] = f_tf_pack(tfShort2), confS2 = barstate.isconfirmed
+[tS3, cS3, hS3, lS3, efS3, esS3, rS3, aS3, vRS3] = f_tf_pack(tfShort3), confS3 = barstate.isconfirmed
+[tM1, cM1, hM1, lM1, efM1, esM1, rM1, aM1, vRM1] = f_tf_pack(tfMedium1), confM1 = barstate.isconfirmed
+[tM2, cM2, hM2, lM2, efM2, esM2, rM2, aM2, vRM2] = f_tf_pack(tfMedium2), confM2 = barstate.isconfirmed
+[tM3, cM3, hM3, lM3, efM3, esM3, rM3, aM3, vRM3] = f_tf_pack(tfMedium3), confM3 = barstate.isconfirmed
+[tL1, cL1, hL1, lL1, efL1, esL1, rL1, aL1, vRL1] = f_tf_pack(tfLong1), confL1 = barstate.isconfirmed
+[tL2, cL2, hL2, lL2, efL2, esL2, rL2, aL2, vRL2] = f_tf_pack(tfLong2), confL2 = barstate.isconfirmed
+[tL3, cL3, hL3, lL3, efL3, esL3, rL3, aL3, vRL3] = f_tf_pack(tfLong3), confL3 = barstate.isconfirmed
 
 tfMtfArr = array.from(tfShort1, tfShort2, tfShort3, tfMedium1, tfMedium2, tfMedium3, tfLong1, tfLong2, tfLong3)
 cMtfArr = array.from(cS1, cS2, cS3, cM1, cM2, cM3, cL1, cL2, cL3)
@@ -3070,18 +3106,22 @@ canF15 = array.get(canF1Arr, 4)
 canF16 = array.get(canF1Arr, 5)
 canF17 = array.get(canF1Arr, 6)
 
-curBrierRaw = f_getBrier_raw(relFilterTF, relFilterModel)
+// Optimization: Gates active check
+needRelVal = forecastAllowed and useRelFilter
+needEvdVal = forecastAllowed and evidenceGate
+
+curBrierRaw = needRelVal ? f_getBrier_raw(relFilterTF, relFilterModel) : na
 // curBrier (Display) removed to prevent '0.5' fallacy. Logic uses curBrierRaw explicitly.
 relBull = relFilterTF == "F1" ? isBull1 : relFilterTF == "F2" ? isBull2 : relFilterTF == "F3" ? isBull3 : relFilterTF == "F4" ? isBull4 : relFilterTF == "F5" ? isBull5 : relFilterTF == "F6" ? isBull6 : isBull7
 
 // === Population Management (Variante B-Safe) ===
 // Evidence check counts SPECIFIC subset samples (Bull OR Bear).
-totSampSub = f_get_total_samples(relFilterTF, relFilterModel, relBull)
+totSampSub = (needRelVal or needEvdVal) ? f_get_total_samples(relFilterTF, relFilterModel, relBull) : na
 
 // Reliability check aligns with GLOBAL Brier score (Bull + Bear).
 // Optimization: Compute global sum only if strictly needed (Forecast+Filter+Split active).
 totSampGlob = totSampSub
-if useBullBearCal and useForecast and useRelFilter
+if useBullBearCal and needRelVal
     totSampGlob := f_get_total_samples(relFilterTF, relFilterModel, true) + f_get_total_samples(relFilterTF, relFilterModel, false)
 
 // HELPER: Fail-Closed Gates
@@ -3182,7 +3222,7 @@ bool didShort = false
 bool didExit = false
 bool didCover = false
 
-plot(showEvidencePackDebug ? totSamp : na, "totSamp", display=display.data_window)
+plot(showEvidencePackDebug ? totSampSub : na, "totSamp", display=display.data_window)
 plot(showEvidencePackDebug ? curBrierRaw : na, "curBrierRaw", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(reliabilityOk) : na, "reliabilityOk", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(evidenceOk) : na, "evidenceOk", display=display.data_window)
@@ -3208,6 +3248,15 @@ plot(showEvidencePackDebug ? f_bool_to_num(gateLongNow) : na, "gateLongNow", dis
 plot(showEvidencePackDebug ? f_bool_to_num(gateShortNow) : na, "gateShortNow", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(buySignal) : na, "buySignal", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(shortSignal) : na, "shortSignal", display=display.data_window)
+
+// PATCH A: Debug for Pulse/Sync
+plotchar(showEvidencePackDebug and pulse1, "Pulse F1", "1", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showEvidencePackDebug and pulse2, "Pulse F2", "2", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showEvidencePackDebug and pulse3, "Pulse F3", "3", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showEvidencePackDebug and pulse4, "Pulse F4", "4", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showEvidencePackDebug and pulse5, "Pulse F5", "5", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showEvidencePackDebug and pulse6, "Pulse F6", "6", location.bottom, size=size.tiny, color=color.gray)
+plotchar(showEvidencePackDebug and pulse7, "Pulse F7", "7", location.bottom, size=size.tiny, color=color.gray)
 plot(showEvidencePackDebug ? f_bool_to_num(didBuy) : na, "didBuy", display=display.data_window)
 plot(showEvidencePackDebug ? f_bool_to_num(didShort) : na, "didShort", display=display.data_window)
 
@@ -3364,16 +3413,18 @@ breakoutShort = not na(lastSwingLow)  and breakLow
 bool sweepHigh = false
 bool reclaimLow = false
 
+// Pre-calc cross to avoid conditional execution warning
+bool cx_sweepHigh = ta.crossunder(low, lastSwingHigh)
+bool cx_reclaimLow = ta.crossover(high, lastSwingLow)
+
 if structureLogic == "SMC+Sweep" and not na(lastSwingHigh) and not na(lastSwingLow)
     // Sweep High (Bearish Reversal Pattern): Price crossed above High then fell back below
     if breakoutSource == "Close"
         sweepHigh := close < lastSwingHigh and high > lastSwingHigh and close[1] > lastSwingHigh
         reclaimLow := close > lastSwingLow and low < lastSwingLow and close[1] < lastSwingLow
     else // Wick (Crossunder/Crossover Logic matches Reference Script)
-        // Legacy Logic: ChoCH Sell = crossunder(low, last_high)
-        sweepHigh := ta.crossunder(low, lastSwingHigh) 
-        // Legacy Logic: ChoCH Buy = crossover(high, last_low)
-        reclaimLow := ta.crossover(high, lastSwingLow)
+        sweepHigh := cx_sweepHigh
+        reclaimLow := cx_reclaimLow
 
 // --- Market Structure State (BOS vs ChoCH) ---
 var int structState = 0 // 0=Neutral, 1=Bullish, -1=Bearish
@@ -3540,12 +3591,12 @@ allowRescue = (allowRescueLong or allowRescueShort)
 if showDebugLabels and recentChoCH_L and barstate.isconfirmed
     bool _isRev = (isChoCH_Long or recentChoCH_L) and (pU >= 0.50) and volOk
     string gates = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
-    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevB:" + str.tostring(_isRev) + "\nGate:" + gates + "\nEng:" + engine, color=color.gray, style=label.style_label_up, size=size.tiny, force_overlay=true)
+    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevB:" + str.tostring(_isRev) + "\nGate:" + gates + "\nEng:" + engine, color=color.gray, style=label.style_label_up, size=size.tiny)
 
 if showDebugLabels and recentChoCH_S and barstate.isconfirmed
     bool _isRevS = (isChoCH_Short or recentChoCH_S) and (pD >= 0.50) and volOk
     string gatesS = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
-    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevS:" + str.tostring(_isRevS) + "\nGate:" + gatesS + "\nEng:" + engine, color=color.gray, style=label.style_label_down, size=size.tiny, force_overlay=true)
+    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevS:" + str.tostring(_isRevS) + "\nGate:" + gatesS + "\nEng:" + engine, color=color.gray, style=label.style_label_down, size=size.tiny)
 
 
 // Signals (enhancement filters wired in)
@@ -3556,7 +3607,7 @@ bool isRevShort = false
 
 if pos == 0 and (allowEntry or allowRescue)
     if showDebugLabels and allowRescue
-        label.new(bar_index, high, "Main Loop Entered", force_overlay=true)
+        label.new(bar_index, high, "Main Loop Entered")
 
     // Reversal Logic (Global — Applies to All Engines)
     // Refined to filter stale reversals (older than 5 bars) on low volume to prevent "fake" late entries
@@ -3598,7 +3649,7 @@ if pos == 0 and (allowEntry or allowRescue)
 
     if engine == "Hybrid"
         if showDebugLabels and allowRescue
-            label.new(bar_index, high, "Hybrid Loop Entered", style=label.style_label_down, force_overlay=true)
+            label.new(bar_index, high, "Hybrid Loop Entered", style=label.style_label_down)
         // Base triggers
         gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         
