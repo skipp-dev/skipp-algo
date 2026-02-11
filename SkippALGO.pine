@@ -204,13 +204,6 @@ BRIER_GOOD          = 0.22    // Brier score: B grade
 BRIER_BASELINE      = 0.25    // Brier score: C grade (random)
 BRIER_POOR          = 0.30    // Brier score: D grade
 
-// Platt scaling stability bounds
-PLATT_A_LO          = 0.7     // Platt A lower bound (converged)
-PLATT_A_HI          = 1.5     // Platt A upper bound (converged)
-PLATT_B_BOUND       = 0.5     // Platt B abs bound (converged)
-PLATT_A_UNSTABLE_LO = 0.3     // Platt A lower bound (unstable)
-PLATT_A_UNSTABLE_HI = 3.0     // Platt A upper bound (unstable)
-
 penaltyGuardrail  = input.float(0.20, "Penalty per guardrail flag", minval=0.0, step=0.05)
 penaltyRegimeHigh = input.float(0.20, "Penalty: high-vol regime", minval=0.0, step=0.05)
 penaltyRegimeMed  = input.float(0.10, "Penalty: medium-vol regime", minval=0.0, step=0.05)
@@ -502,13 +495,9 @@ useEceRecal     = input.bool(false, "ECE-triggered recal (boost LR)", tooltip="T
 eceRecalBoost   = input.float(3.0, "ECE recal LR multiplier", minval=1.5, maxval=10.0, step=0.5)
 
 //====================
-// Inputs — Calibration Diagnostics (Debug Panel)
+// Inputs — Debug
 //====================
-grp_diag = "🔧 Calibration Diagnostics"
-showDiagPanel   = input.bool(false, "Show Calibration Debug Panel", group=grp_diag, tooltip="Displays Platt params, convergence, bin samples")
-diagHorizon     = input.string("F1", "Diagnostic Horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group=grp_diag)
-diagModel       = input.string("N", "Diagnostic Model", options=["N","1"], group=grp_diag, tooltip="N=Multi-factor, 1=Single-factor")
-showEvidencePackDebug = input.bool(false, "Evidence Pack Debug (data window)", group=grp_diag, tooltip="Outputs gate/decision signals to Data Window")
+showEvidencePackDebug = input.bool(false, "Evidence Pack Debug (data window)", group="🔧 Debug", tooltip="Outputs gate/decision signals to Data Window")
 
 //====================
 // Inputs — Exit Filters
@@ -4622,126 +4611,6 @@ if renderTable
     table.cell(gT, 0, 21, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
     f_fill_cells(gT, 21, 1, 9, "", tblTextDim, tblHeader, size.tiny)
     table.merge_cells(gT, 0, 21, 9, 21)
-
-//====================
-// Calibration Diagnostics Panel (Debug)
-//====================
-var table diagTbl = na
-if showDiagPanel and na(diagTbl)
-    diagTbl := table.new(position.top_right, 2, 14, bgcolor=color.new(color.black, 85), frame_color=color.gray, frame_width=1, border_color=color.gray, border_width=1)
-
-// Helper to get selected TfState
-f_get_diag_state() =>
-    diagHorizon == "F1" ? tf1State : diagHorizon == "F2" ? tf2State : diagHorizon == "F3" ? tf3State : diagHorizon == "F4" ? tf4State : diagHorizon == "F5" ? tf5State : diagHorizon == "F6" ? tf6State : tf7State
-
-f_diag_row(tbl, r, lbl, val, valColor) =>
-    table.cell(tbl, 0, r, lbl, text_color=color.gray, text_size=size.tiny)
-    table.cell(tbl, 1, r, val, text_color=valColor, text_size=size.tiny)
-
-f_diag_sep(tbl, r) =>
-    table.cell(tbl, 0, r, "─────────", text_color=color.gray, text_size=size.tiny)
-    table.cell(tbl, 1, r, "─────────", text_color=color.gray, text_size=size.tiny)
-
-if showDiagPanel and barstate.islast and (not tableOnConfirmed or barstate.isconfirmed)
-    st = f_get_diag_state()
-    if na(st)
-        table.cell(diagTbl, 0, 0, "🔧 Calibration Diagnostics", text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
-        table.cell(diagTbl, 1, 0, "—", text_color=color.gray, bgcolor=color.new(color.blue, 70), text_size=size.small)
-    else
-        diagIdx = f_tf_index(diagHorizon)
-        diagScore = array.get(outScoreArr, diagIdx)
-        diagEmaF = array.get(efForecastArr, diagIdx)
-        diagEmaS = array.get(esForecastArr, diagIdx)
-        isBullDiag = f_is_bull_bias(diagScore, diagEmaF, diagEmaS)
-        
-        // Select model arrays
-        cntArr = diagModel == "N" ? (useBullBearCal ? (isBullDiag ? st.cntN_bull_raw : st.cntN_bear_raw) : st.cntN_raw) : (useBullBearCal ? (isBullDiag ? st.cnt1_bull_raw : st.cnt1_bear_raw) : st.cnt1_raw)
-        upArr  = diagModel == "N" ? (useBullBearCal ? (isBullDiag ? st.upN_bull_raw  : st.upN_bear_raw)  : st.upN_raw)  : (useBullBearCal ? (isBullDiag ? st.up1_bull_raw  : st.up1_bear_raw)  : st.up1_raw)
-        plattArr = diagModel == "N" ? st.plattN : st.platt1
-        brierStats = diagModel == "N" ? st.brierStatsN : st.brierStats1
-        llStats = diagModel == "N" ? st.llStatsN : st.llStats1
-    
-        // Platt params
-        plattA = array.get(plattArr, 0)
-        plattB = array.get(plattArr, 1)
-        
-        // Brier/LogLoss
-        brierSum = array.get(brierStats, 0)
-        brierCnt = array.get(brierStats, 1)
-        brierAvg = brierCnt > 0 ? brierSum / brierCnt : na
-        
-        llSum = array.get(llStats, 0)
-        llCnt = array.get(llStats, 1)
-        llAvg = llCnt > 0 ? llSum / llCnt : na
-        
-        // Bin samples (total and per-bin distribution)
-        totalSamples = array.sum(cntArr)
-        numBins = array.size(cntArr)
-        
-        // Bin distribution (min/max/avg samples per bin)
-        minBin = numBins > 0 ? array.min(cntArr) : 0
-        maxBin = numBins > 0 ? array.max(cntArr) : 0
-        avgBin = numBins > 0 ? totalSamples / numBins : 0
-        
-        // Win rate (overall calibrated base rate)
-        totalUp = array.sum(upArr)
-        baseRate = totalSamples > 0 ? totalUp * 100.0 / totalSamples : 50.0
-        
-        // Convergence check: Is Platt A stable (should be near 1.0 if well-calibrated)?
-        plattStable = (plattA >= PLATT_A_LO and plattA <= PLATT_A_HI) and (plattB >= -PLATT_B_BOUND and plattB <= PLATT_B_BOUND)
-        convStatus = plattStable ? "✅ Converged" : (plattA < PLATT_A_UNSTABLE_LO or plattA > PLATT_A_UNSTABLE_HI) ? "⚠️ Unstable" : "🔄 Adjusting"
-        convColor = plattStable ? color.lime : (plattA < PLATT_A_UNSTABLE_LO or plattA > PLATT_A_UNSTABLE_HI) ? color.red : color.yellow
-        
-        // Quality grade
-        qualityGrade = na(brierAvg) ? "—" : brierAvg < BRIER_EXCELLENT ? "A (Excellent)" : brierAvg < BRIER_GOOD ? "B (Good)" : brierAvg < BRIER_BASELINE ? "C (Baseline)" : brierAvg < BRIER_POOR ? "D (Poor)" : "F (No Skill)"
-        qualityColor = na(brierAvg) ? color.gray : brierAvg < BRIER_EXCELLENT ? color.lime : brierAvg < BRIER_GOOD ? color.green : brierAvg < BRIER_BASELINE ? color.yellow : brierAvg < BRIER_POOR ? color.orange : color.red
-        
-        // Row 0: Header
-        table.cell(diagTbl, 0, 0, "🔧 Calibration Diagnostics", text_color=color.white, bgcolor=color.new(color.blue, 70), text_size=size.small)
-        table.cell(diagTbl, 1, 0, diagHorizon + " / " + diagModel, text_color=color.aqua, bgcolor=color.new(color.blue, 70), text_size=size.small)
-        
-        // Row 1: Platt A
-        f_diag_row(diagTbl, 1, "Platt A (slope)", str.tostring(plattA, "#.###"), color.white)
-        
-        // Row 2: Platt B
-        f_diag_row(diagTbl, 2, "Platt B (intercept)", str.tostring(plattB, "#.###"), color.white)
-        
-        // Row 3: Convergence status
-        f_diag_row(diagTbl, 3, "SGD Status", convStatus, convColor)
-        
-        // Row 4: Separator
-        f_diag_sep(diagTbl, 4)
-        
-        // Row 5: Brier Score
-        f_diag_row(diagTbl, 5, "Brier Score", na(brierAvg) ? "—" : str.tostring(brierAvg, "#.####"), na(brierAvg) ? color.gray : brierAvg < 0.25 ? color.lime : color.red)
-        
-        // Row 6: LogLoss
-        f_diag_row(diagTbl, 6, "LogLoss", na(llAvg) ? "—" : str.tostring(llAvg, "#.####"), na(llAvg) ? color.gray : llAvg < 0.65 ? color.lime : color.red)
-        
-        // Row 7: Quality Grade
-        f_diag_row(diagTbl, 7, "Quality Grade", qualityGrade, qualityColor)
-        
-        // Row 8: Separator
-        f_diag_sep(diagTbl, 8)
-        
-        // Row 9: Total samples
-        f_diag_row(diagTbl, 9, "Total Samples", str.tostring(totalSamples), totalSamples >= calMinSamples * numBins ? color.lime : color.yellow)
-        
-        // Row 10: Bin distribution
-        f_diag_row(diagTbl, 10, "Bin Min/Avg/Max", str.tostring(minBin) + "/" + str.tostring(avgBin, "#") + "/" + str.tostring(maxBin), color.white)
-        
-        // Row 11: Warmup label (mirrors table behavior)
-        warmupLbl = f_samp_label(enableForecast, totalSamples)
-        warmupPct = math.min(100, totalSamples * 100.0 / (calMinSamples * numBins))
-        warmupTxt = warmupLbl == "off" ? "off" : warmupLbl == "…" ? "…" : warmupLbl + " (" + str.tostring(warmupPct, "#.0") + "%)"
-        warmupCol = warmupLbl == "strong" ? color.lime : warmupLbl == "ok" ? color.yellow : warmupLbl == "…" ? color.red : color.gray
-        f_diag_row(diagTbl, 11, "Warmup", warmupTxt, warmupCol)
-        
-        // Row 12: Base Rate
-        f_diag_row(diagTbl, 12, "Base Rate (Up%)", str.tostring(baseRate, "#.1") + "%", math.abs(baseRate - 50) > 15 ? color.orange : color.white)
-        
-        // Row 13: Observations count
-        f_diag_row(diagTbl, 13, "Resolutions", str.tostring(int(brierCnt)), color.white)
 
 //====================
 // UT Bot Logic (Overlay, V4 Port) + Enhanced Filters
