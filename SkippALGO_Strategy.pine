@@ -4204,8 +4204,8 @@ coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
-alertPreBuyCond   = (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
-alertPreShortCond = (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
+alertPreBuyCond   = barstate.isconfirmed and (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
+alertPreShortCond = barstate.isconfirmed and (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
 
 alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
