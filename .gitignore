@@ -2,3 +2,4 @@ __pycache__/
 test_output*.txt
 *.pyc
 .DS_Store
+.commit_msg.txt
