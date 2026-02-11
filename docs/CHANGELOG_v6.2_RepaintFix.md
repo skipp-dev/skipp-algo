@@ -67,7 +67,8 @@ doBrier = enableForecast and (calibrateInBackground or showTable or showEvalSect
 
 ### Fixes
 
-* **Invalid Parameter:** Removed `force_overlay=true` from `label.new()` calls. This parameter does not exist in Pine Script v6 `label.new` signature and was causing warnings/errors.
+- **Invalid Parameter:** Removed `force_overlay=true` from `label.new()` calls. This parameter does not exist in Pine Script v6 `label.new` signature and was causing warnings/errors.
+
 - **Debug Isolation:**
   - **Indicator:** Uses `showEvidencePackDebug` input.
   - **Strategy:** Uses a distinct `showDebugPulse` input.
@@ -95,6 +96,7 @@ Three issues were discovered and fixed after the initial merge:
 **Cause:** `ta.change(timeRaw)` returns `int` (time difference in ms), but the ternary also returns `barstate.isconfirmed` (bool). Pine requires both branches to have the same type.
 
 **Fix:** Explicit boolean cast with `nz()`:
+
 ```pine
 f_stable_pulse(isSame, timeRaw) => isSame ? barstate.isconfirmed : (nz(ta.change(timeRaw)) != 0)
 ```
@@ -104,12 +106,14 @@ f_stable_pulse(isSame, timeRaw) => isSame ? barstate.isconfirmed : (nz(ta.change
 **Error:** No trade signals appeared on the chart despite CHoCH/BOS markers being visible.
 
 **Root Cause:** `confForecastArr` was changed from `barstate.isconfirmed` to `pulse1..pulse7`. Since pulse values are only `true` when an HTF bar completes (e.g., once every ~288 bars for Daily on 5min chart), the calibration system (`f_process_tf`) accumulated samples ~100-300x slower than intended. This kept forecast probabilities at uniform priors (~33%), which permanently blocked:
+
 - `reliabilityOk` (too few samples / Brier undefined)
 - `evidenceOk` (samples below minimum)
 - `fcGateLong` (pU < minDirProb)
 - Result: `allowEntry = false` on every bar
 
 **Fix:** `confForecastArr` reverted to `barstate.isconfirmed` for all 7 horizons. The anti-repainting protection remains correctly applied through `f_stable_val()` on the **data values** (`c1`, `ef1`, `es1`, ...) that feed into the learner. These are two separate concerns:
+
 - **Data stability** (anti-repaint) → `f_stable_val` latches HTF data to confirmed bars
 - **Calibration cadence** (learning rate) → `barstate.isconfirmed` on every chart bar
 
