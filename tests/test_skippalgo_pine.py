@@ -88,7 +88,8 @@ class TestSkippAlgoIndicator(unittest.TestCase):
     def test_forecast_pack_block_present(self):
         """Ensure all tfF1..tfF7 packs exist with direct tuple destructuring."""
         for i in range(1, 8):
-            self.assertIn(f"[t{i}, c{i}, h{i}, l{i}", self.text)
+            # Patch A: checking for raw unpacking
+            self.assertIn(f"[t{i}_r, c{i}_r, h{i}_r, l{i}_r", self.text)
             self.assertIn(f"= f_tf_pack(tfF{i})", self.text)
 
     def test_decision_quality_uses_trade_gate_thresholds(self):

@@ -148,10 +148,14 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("[newStop, newTp, newTrail] = f_set_risk_on_entry(true", self.text)
 
     def test_forecast_pack_block_present(self):
-        """Ensure all tfF1..tfF7 packs exist with direct tuple destructuring."""
+        """Ensure all tfF1..tfF7 packs exist. 
+        Patch A Change: We now expect _r suffixes for raw data, followed by stable sync."""
         for i in range(1, 8):
-            self.assertIn(f"[t{i}, c{i}, h{i}, l{i}", self.text)
+            # Check for Raw retrieval
+            self.assertIn(f"[t{i}_r, c{i}_r, h{i}_r, l{i}_r", self.text)
             self.assertIn(f"= f_tf_pack(tfF{i})", self.text)
+            # Check for Stable Sync assignment
+            self.assertIn(f"t{i} = f_stable_val(same{i}, t{i}_r", self.text)
 
     def test_decision_quality_uses_trade_gate_thresholds(self):
         """Decision gate should use tradeMin* thresholds rather than calMinSamples."""
