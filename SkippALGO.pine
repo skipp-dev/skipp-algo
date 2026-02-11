@@ -489,6 +489,7 @@ evalMinEvents   = input.int(30, "Eval min events to display", minval=5, maxval=5
 evalBucketCount = use3Way ? evalBuckets * 3 : evalBuckets
 
 driftWarnPP     = input.float(8.0, "Drift warn threshold (pp)", minval=1.0, maxval=50.0, step=0.5)
+deltaDeadzone   = input.float(0.01, "\u0394 dead-zone (verdict threshold)", minval=0.001, maxval=0.10, step=0.005)
 useEceGate      = input.bool(false, "Gate entries by ECE")
 eceMax          = input.float(0.10, "Max ECE (gate)", minval=0.01, maxval=0.50, step=0.01)
 useDriftGate    = input.bool(false, "Gate entries by drift")
@@ -549,6 +550,7 @@ type TfState
     float[] qMinL
     int[]   qAge
     int[]   qBias
+    bool[]  qUseForecast  // forecast-eligible flag captured at enqueue time
     float[] qProbN
     float[] qProb1
     float[] qLogitN
@@ -648,6 +650,50 @@ type TfState
     float[] qScoreBuf
     float[] qCutsN
     float[] qCuts1
+    // --- Baseline comparator buffers ---
+    // Uniform baseline (N + 1 heads)
+    float[] evBrierBaseU_N
+    float[] evSumBrierBaseU_N
+    float[] evLogBaseU_N
+    float[] evSumLogBaseU_N
+    float[] evBrierBaseU_1
+    float[] evSumBrierBaseU_1
+    float[] evLogBaseU_1
+    float[] evSumLogBaseU_1
+    // Prior baseline (N + 1 heads)
+    float[] evBrierBaseP_N
+    float[] evSumBrierBaseP_N
+    float[] evLogBaseP_N
+    float[] evSumLogBaseP_N
+    float[] evBrierBaseP_1
+    float[] evSumBrierBaseP_1
+    float[] evLogBaseP_1
+    float[] evSumLogBaseP_1
+    // Prior outcome counts [nUp, nFlat, nDown]
+    float[] priorCounts3
+    // --- Eligible population (Variant B active at enqueue) ---
+    // Model eligible
+    float[] evBrierN_Elig
+    float[] evSumBrierN_Elig
+    float[] evLogN_Elig
+    float[] evSumLogN_Elig
+    float[] evBrier1_Elig
+    float[] evSumBrier1_Elig
+    float[] evLog1_Elig
+    float[] evSumLog1_Elig
+    // Uniform baseline eligible
+    float[] evBrierBaseU_N_Elig
+    float[] evSumBrierBaseU_N_Elig
+    float[] evLogBaseU_N_Elig
+    float[] evSumLogBaseU_N_Elig
+    // Prior baseline eligible (head-independent: prior uses outcome
+    // frequencies only, so one track serves both N and 1 heads)
+    float[] evBrierBaseP_N_Elig
+    float[] evSumBrierBaseP_N_Elig
+    float[] evLogBaseP_N_Elig
+    float[] evSumLogBaseP_N_Elig
+    // Eligible prior outcome counts (shared across heads)
+    float[] priorCounts3_Elig
 
 // Helper to initialize TfState
 // Arguments map 1-to-1 to UDT fields in declaration order.
@@ -666,6 +712,7 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
             array.new_int(), array.new_int(),
       array.new_float(), array.new_float(), array.new_float(), array.new_float(), array.new_int(),
             array.new_int(),
+            array.new_bool(),  // qUseForecast
         // --- Temperature / ensemble vectors ---
             array.new_float(), array.new_float(), array.new_float(), array.new_float(), array.new_float(), array.new_float(),
     array.new_float(), array.new_float(), array.new_float(),
@@ -706,7 +753,26 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
         // --- A2: SGD momentum buffers ---
     array.new_float(2, 0.0), array.new_float(2, 0.0),
         // --- Quantile buffers ---
-    array.new_float(), array.new_float(int(math.max(nBinsN - 1, 0)), na), array.new_float(int(math.max(nBins1 - 1, 0)), na)
+    array.new_float(), array.new_float(int(math.max(nBinsN - 1, 0)), na), array.new_float(int(math.max(nBins1 - 1, 0)), na),
+    // --- Baseline comparator buffers ---
+    // Uniform baseline (N + 1)
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    // Prior baseline (N + 1)
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    // Prior outcome counts
+    array.new_float(3, 0.0),
+    // --- Eligible population ---
+    // Model eligible (N + 1)
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    // Uniform baseline eligible
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    // Prior baseline eligible (N only, head-independent)
+    array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
+    // Eligible prior counts
+    array.new_float(3, 0.0)
     )
 
 var TfState tf1State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
@@ -758,6 +824,13 @@ f_safe_get_float(float[] arr, int idx, float fallback) =>
     idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
 
 f_safe_get_int(int[] arr, int idx, int fallback) =>
+    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+
+f_safe_remove_bool(bool[] arr, int idx) =>
+    if idx >= 0 and idx < array.size(arr)
+        array.remove(arr, idx)
+
+f_safe_get_bool(bool[] arr, int idx, bool fallback) =>
     idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
 
 // --- TF selector helpers (avoid long ternary chains)
@@ -1105,6 +1178,16 @@ f_ppSigned(x) =>
     // x in [-1,1] -> "+4.0pp"
     pp = x * 100.0
     (pp >= 0 ? "+" : "") + str.tostring(pp, "#.0") + "pp"
+
+// ── Delta helpers (baseline comparison) ──
+f_deltaVerdict(val) =>
+    na(val) ? "" : val <= -deltaDeadzone ? " ✓" : val >= deltaDeadzone ? " ✗" : " ~"
+
+f_fmtDelta(val) =>
+    na(val) ? "—" : (val >= 0 ? "+" : "") + str.tostring(val, "#.3f") + f_deltaVerdict(val)
+
+f_colDelta(val) =>
+    na(val) ? color.new(color.gray, 60) : val < 0 ? color.new(color.lime, 40) : val > 0 ? color.new(color.red, 40) : color.new(color.gray, 60)
 
 f_colLowerBetter(x, good, ok) =>
     na(x) ? color.new(color.white, 60) : x <= good ? color.lime : x <= ok ? color.yellow : color.red
@@ -1639,6 +1722,7 @@ f_reset_tf(TfState st) =>
     array.clear(st.qMinL)
     array.clear(st.qAge)
     array.clear(st.qBias)
+    array.clear(st.qUseForecast)
     
     // Brier tracking clear
     array.clear(st.qProbN)
@@ -1745,6 +1829,26 @@ f_reset_one_state_eval(TfState st) =>
     f_reset_sum1(st.evSumYL_1)
     array.fill(st.evCalCnt1, 0), array.fill(st.evCalSumP1, 0.0), array.fill(st.evCalSumY1, 0.0)
     array.clear(st.evCalBBuf1), array.clear(st.evCalPBuf1), array.clear(st.evCalYBuf1)
+    // Baseline comparators
+    array.clear(st.evBrierBaseU_N), f_reset_sum1(st.evSumBrierBaseU_N)
+    array.clear(st.evLogBaseU_N),   f_reset_sum1(st.evSumLogBaseU_N)
+    array.clear(st.evBrierBaseU_1), f_reset_sum1(st.evSumBrierBaseU_1)
+    array.clear(st.evLogBaseU_1),   f_reset_sum1(st.evSumLogBaseU_1)
+    array.clear(st.evBrierBaseP_N), f_reset_sum1(st.evSumBrierBaseP_N)
+    array.clear(st.evLogBaseP_N),   f_reset_sum1(st.evSumLogBaseP_N)
+    array.clear(st.evBrierBaseP_1), f_reset_sum1(st.evSumBrierBaseP_1)
+    array.clear(st.evLogBaseP_1),   f_reset_sum1(st.evSumLogBaseP_1)
+    array.fill(st.priorCounts3, 0.0)
+    // Eligible population
+    array.clear(st.evBrierN_Elig), f_reset_sum1(st.evSumBrierN_Elig)
+    array.clear(st.evLogN_Elig),   f_reset_sum1(st.evSumLogN_Elig)
+    array.clear(st.evBrier1_Elig), f_reset_sum1(st.evSumBrier1_Elig)
+    array.clear(st.evLog1_Elig),   f_reset_sum1(st.evSumLog1_Elig)
+    array.clear(st.evBrierBaseU_N_Elig), f_reset_sum1(st.evSumBrierBaseU_N_Elig)
+    array.clear(st.evLogBaseU_N_Elig),   f_reset_sum1(st.evSumLogBaseU_N_Elig)
+    array.clear(st.evBrierBaseP_N_Elig), f_reset_sum1(st.evSumBrierBaseP_N_Elig)
+    array.clear(st.evLogBaseP_N_Elig),   f_reset_sum1(st.evSumLogBaseP_N_Elig)
+    array.fill(st.priorCounts3_Elig, 0.0)
 
 f_reset_eval_all() =>
     f_reset_one_state_eval(tf1State)
@@ -1815,6 +1919,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
             bN_i    = f_safe_get_int(st.qBinN,  i, 0)
             b1_i    = f_safe_get_int(st.qBin1,  i, 0)
             bias_i  = f_safe_get_int(st.qBias,  i, 0)
+            useFc_i = f_safe_get_bool(st.qUseForecast, i, false)
 
             // Stored at entry
             float probN_i = na
@@ -1993,6 +2098,76 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                     if use3Way
                         f_eval_update_one3(pUpN_i, pFlN_i, pDnN_i, outcome, st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN, st.evCalBBufN, st.evCalPBufN, st.evCalYBufN)
                         f_eval_update_one3(pUp1_i, pFl1_i, pDn1_i, outcome, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
+
+                        // --- Baseline scoring (same event population, no leakage) ---
+                        canEvalBase = (showEvalSection or evalInBackground) and barstate.isconfirmed
+                        if canEvalBase
+                            // A) Uniform baseline: 1/3 each class
+                            uProb = 1.0 / 3.0
+                            uB3 = f_brier3(uProb, uProb, uProb, outcome)
+                            uLL  = f_logloss3(uProb, uProb, uProb, outcome)
+                            f_roll_add(st.evBrierBaseU_N, st.evSumBrierBaseU_N, uB3, evalRollScore)
+                            f_roll_add(st.evLogBaseU_N,   st.evSumLogBaseU_N,   uLL, evalRollScore)
+                            f_roll_add(st.evBrierBaseU_1, st.evSumBrierBaseU_1, uB3, evalRollScore)
+                            f_roll_add(st.evLogBaseU_1,   st.evSumLogBaseU_1,   uLL, evalRollScore)
+
+                            // B) Prior baseline (Laplace / Dirichlet(1,1,1) smoothing)
+                            nUp_pr = array.get(st.priorCounts3, 0)
+                            nFl_pr = array.get(st.priorCounts3, 1)
+                            nDn_pr = array.get(st.priorCounts3, 2)
+                            nTot_pr = nUp_pr + nFl_pr + nDn_pr
+                            prU = (nUp_pr + 1.0) / (nTot_pr + 3.0)
+                            prF = (nFl_pr + 1.0) / (nTot_pr + 3.0)
+                            prD = (nDn_pr + 1.0) / (nTot_pr + 3.0)
+                            pB3 = f_brier3(prU, prF, prD, outcome)
+                            pLL = f_logloss3(prU, prF, prD, outcome)
+                            f_roll_add(st.evBrierBaseP_N, st.evSumBrierBaseP_N, pB3, evalRollScore)
+                            f_roll_add(st.evLogBaseP_N,   st.evSumLogBaseP_N,   pLL, evalRollScore)
+                            f_roll_add(st.evBrierBaseP_1, st.evSumBrierBaseP_1, pB3, evalRollScore)
+                            f_roll_add(st.evLogBaseP_1,   st.evSumLogBaseP_1,   pLL, evalRollScore)
+
+                            // Update prior counts AFTER scoring (no leakage)
+                            if outcome == 1
+                                array.set(st.priorCounts3, 0, nUp_pr + 1.0)
+                            else if outcome == 0
+                                array.set(st.priorCounts3, 1, nFl_pr + 1.0)
+                            else
+                                array.set(st.priorCounts3, 2, nDn_pr + 1.0)
+
+                            // --- Eligible population scoring (Variant B active at enqueue) ---
+                            if useFc_i
+                                // Model eligible
+                                b3_eN = f_brier3(pUpN_i, pFlN_i, pDnN_i, outcome)
+                                ll_eN = f_logloss3(pUpN_i, pFlN_i, pDnN_i, outcome)
+                                f_roll_add(st.evBrierN_Elig, st.evSumBrierN_Elig, b3_eN, evalRollScore)
+                                f_roll_add(st.evLogN_Elig,   st.evSumLogN_Elig,   ll_eN, evalRollScore)
+                                b3_e1 = f_brier3(pUp1_i, pFl1_i, pDn1_i, outcome)
+                                ll_e1 = f_logloss3(pUp1_i, pFl1_i, pDn1_i, outcome)
+                                f_roll_add(st.evBrier1_Elig, st.evSumBrier1_Elig, b3_e1, evalRollScore)
+                                f_roll_add(st.evLog1_Elig,   st.evSumLog1_Elig,   ll_e1, evalRollScore)
+                                // Uniform baseline eligible
+                                f_roll_add(st.evBrierBaseU_N_Elig, st.evSumBrierBaseU_N_Elig, uB3, evalRollScore)
+                                f_roll_add(st.evLogBaseU_N_Elig,   st.evSumLogBaseU_N_Elig,   uLL, evalRollScore)
+                                // Prior baseline eligible (separate prior counts)
+                                neUp = array.get(st.priorCounts3_Elig, 0)
+                                neFl = array.get(st.priorCounts3_Elig, 1)
+                                neDn = array.get(st.priorCounts3_Elig, 2)
+                                neTot = neUp + neFl + neDn
+                                peU = (neUp + 1.0) / (neTot + 3.0)
+                                peF = (neFl + 1.0) / (neTot + 3.0)
+                                peD = (neDn + 1.0) / (neTot + 3.0)
+                                peB3 = f_brier3(peU, peF, peD, outcome)
+                                peLL = f_logloss3(peU, peF, peD, outcome)
+                                f_roll_add(st.evBrierBaseP_N_Elig, st.evSumBrierBaseP_N_Elig, peB3, evalRollScore)
+                                f_roll_add(st.evLogBaseP_N_Elig,   st.evSumLogBaseP_N_Elig,   peLL, evalRollScore)
+                                // Update eligible prior AFTER scoring (no leakage)
+                                if outcome == 1
+                                    array.set(st.priorCounts3_Elig, 0, neUp + 1.0)
+                                else if outcome == 0
+                                    array.set(st.priorCounts3_Elig, 1, neFl + 1.0)
+                                else
+                                    array.set(st.priorCounts3_Elig, 2, neDn + 1.0)
+
                     else
                         f_eval_on_resolve(st, pPredN_i, pPred1_i, isUp)
 
@@ -2162,6 +2337,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                 f_safe_remove_int(st.qBinN,  i)
                 f_safe_remove_int(st.qBin1,  i)
                 f_safe_remove_int(st.qBias,  i)
+                f_safe_remove_bool(st.qUseForecast, i)
                 if not use3Way
                     f_safe_remove_float(st.qProbN, i)
                     f_safe_remove_float(st.qProb1, i)
@@ -2275,6 +2451,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
 
                 array.push(st.qAge,   0)
                 array.push(st.qBias,  dirFlag)
+                array.push(st.qUseForecast, enableForecast and f_forecast_allowed())
 
                 array.push(st.qPUpN, pUN)
                 array.push(st.qPFlN, pFN)
@@ -2312,6 +2489,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
 
                 array.push(st.qAge,   0)
                 array.push(st.qBias,  dirFlag)
+                array.push(st.qUseForecast, enableForecast and f_forecast_allowed())
 
                 array.push(st.qProbN, pNowN)
                 array.push(st.qProb1, pNow1)
@@ -3992,7 +4170,7 @@ fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 var table gT = na
 if na(gT)
     tblCols = 10
-    tblRows = 17
+    tblRows = 21
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
 f_status_row(lbl, val, rRow, valCol) =>
@@ -4226,7 +4404,7 @@ hdrForecast = "Forecast" + hdrSuffix
 
 if renderTable
     tblCols = 10
-    table.clear(gT, 0, 0, tblCols - 1, 16)
+    table.clear(gT, 0, 0, tblCols - 1, 20)
 
     // Status rows
     table.cell(gT, 0, 0, "Confidence", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
@@ -4266,9 +4444,102 @@ if renderTable
     for i = 0 to 6
         f_rowTF_idx(i, 9 + i)
 
-    table.cell(gT, 0, 16, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
-    f_fill_cells(gT, 16, 1, 9, "", tblTextDim, tblHeader, size.tiny)
-    table.merge_cells(gT, 0, 16, 9, 16)
+    // --- Baseline comparator rows ---
+    if showEvalSection
+        st_base = f_get_state_for_tf(entryFcTF)
+        if not na(st_base)
+            // Model all-population metrics (for Δ computation)
+            bBufM = (evalWhichHead == "N") ? st_base.evBrierN : st_base.evBrier1
+            sBufM = (evalWhichHead == "N") ? st_base.evSumBrierN : st_base.evSumBrier1
+            lBufM = (evalWhichHead == "N") ? st_base.evLogN : st_base.evLog1
+            sLBufM = (evalWhichHead == "N") ? st_base.evSumLogN : st_base.evSumLog1
+            nM_all = array.size(bBufM)
+            bsM = nM_all == 0 ? na : array.get(sBufM, 0) / nM_all
+            llM = nM_all == 0 ? na : array.get(sLBufM, 0) / nM_all
+
+            // Uniform baseline row (row 16) with Δ
+            bBufU = (evalWhichHead == "N") ? st_base.evBrierBaseU_N : st_base.evBrierBaseU_1
+            sBufU = (evalWhichHead == "N") ? st_base.evSumBrierBaseU_N : st_base.evSumBrierBaseU_1
+            lBufU = (evalWhichHead == "N") ? st_base.evLogBaseU_N : st_base.evLogBaseU_1
+            sLBufU = (evalWhichHead == "N") ? st_base.evSumLogBaseU_N : st_base.evSumLogBaseU_1
+            nU_base = array.size(bBufU)
+            bsU = nU_base == 0 ? na : array.get(sBufU, 0) / nU_base
+            llU = nU_base == 0 ? na : array.get(sLBufU, 0) / nU_base
+            dBU = (na(bsM) or na(bsU)) ? na : bsM - bsU
+            dLU = (na(llM) or na(llU)) ? na : llM - llU
+            table.cell(gT, 0, 16, "⊘ Uniform", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
+            if na(bsU)
+                table.cell(gT, 1, 16, "Wait", text_size=size.tiny, bgcolor=color.new(color.gray, 85))
+                f_fill_cells(gT, 16, 2, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
+            else
+                table.cell(gT, 1, 16, str.tostring(bsU, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
+                table.cell(gT, 2, 16, str.tostring(llU, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
+                table.cell(gT, 3, 16, f_fmtDelta(dBU), text_size=size.tiny, bgcolor=f_colDelta(dBU))
+                table.cell(gT, 4, 16, f_fmtDelta(dLU), text_size=size.tiny, bgcolor=f_colDelta(dLU))
+                f_fill_cells(gT, 16, 5, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
+
+            // Prior baseline row (row 17) with Δ
+            bBufP = (evalWhichHead == "N") ? st_base.evBrierBaseP_N : st_base.evBrierBaseP_1
+            sBufP = (evalWhichHead == "N") ? st_base.evSumBrierBaseP_N : st_base.evSumBrierBaseP_1
+            lBufP = (evalWhichHead == "N") ? st_base.evLogBaseP_N : st_base.evLogBaseP_1
+            sLBufP = (evalWhichHead == "N") ? st_base.evSumLogBaseP_N : st_base.evSumLogBaseP_1
+            nP_base = array.size(bBufP)
+            bsP = nP_base == 0 ? na : array.get(sBufP, 0) / nP_base
+            llP = nP_base == 0 ? na : array.get(sLBufP, 0) / nP_base
+            dBP = (na(bsM) or na(bsP)) ? na : bsM - bsP
+            dLP = (na(llM) or na(llP)) ? na : llM - llP
+            table.cell(gT, 0, 17, "⊘ Prior", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
+            if na(bsP)
+                table.cell(gT, 1, 17, "Wait", text_size=size.tiny, bgcolor=color.new(color.gray, 85))
+                f_fill_cells(gT, 17, 2, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
+            else
+                table.cell(gT, 1, 17, str.tostring(bsP, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
+                table.cell(gT, 2, 17, str.tostring(llP, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
+                table.cell(gT, 3, 17, f_fmtDelta(dBP), text_size=size.tiny, bgcolor=f_colDelta(dBP))
+                table.cell(gT, 4, 17, f_fmtDelta(dLP), text_size=size.tiny, bgcolor=f_colDelta(dLP))
+                f_fill_cells(gT, 17, 5, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
+
+            // Eligible model row (row 18)
+            bBufME = (evalWhichHead == "N") ? st_base.evBrierN_Elig : st_base.evBrier1_Elig
+            sBufME = (evalWhichHead == "N") ? st_base.evSumBrierN_Elig : st_base.evSumBrier1_Elig
+            lBufME = (evalWhichHead == "N") ? st_base.evLogN_Elig : st_base.evLog1_Elig
+            sLBufME = (evalWhichHead == "N") ? st_base.evSumLogN_Elig : st_base.evSumLog1_Elig
+            nME = array.size(bBufME)
+            bsME = nME == 0 ? na : array.get(sBufME, 0) / nME
+            llME = nME == 0 ? na : array.get(sLBufME, 0) / nME
+            table.cell(gT, 0, 18, "✦ Elig", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.teal, 85))
+            if na(bsME)
+                table.cell(gT, 1, 18, "Wait", text_size=size.tiny, bgcolor=color.new(color.teal, 85))
+                f_fill_cells(gT, 18, 2, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
+            else
+                table.cell(gT, 1, 18, str.tostring(bsME, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.teal, 80))
+                table.cell(gT, 2, 18, str.tostring(llME, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.teal, 80))
+                table.cell(gT, 3, 18, "n=" + str.tostring(nME, "#"), text_size=size.tiny, bgcolor=color.new(color.teal, 85))
+                f_fill_cells(gT, 18, 4, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
+
+            // Eligible Δ vs Prior row (row 19)
+            bBufPE = st_base.evBrierBaseP_N_Elig
+            sBufPE = st_base.evSumBrierBaseP_N_Elig
+            lBufPE = st_base.evLogBaseP_N_Elig
+            sLBufPE = st_base.evSumLogBaseP_N_Elig
+            nPE = array.size(bBufPE)
+            bsPE = nPE == 0 ? na : array.get(sBufPE, 0) / nPE
+            llPE = nPE == 0 ? na : array.get(sLBufPE, 0) / nPE
+            dBPE = (na(bsME) or na(bsPE)) ? na : bsME - bsPE
+            dLPE = (na(llME) or na(llPE)) ? na : llME - llPE
+            table.cell(gT, 0, 19, "✦ Elig Δ", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.teal, 85))
+            if na(dBPE)
+                table.cell(gT, 1, 19, "Wait", text_size=size.tiny, bgcolor=color.new(color.teal, 85))
+                f_fill_cells(gT, 19, 2, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
+            else
+                table.cell(gT, 1, 19, f_fmtDelta(dBPE), text_size=size.tiny, bgcolor=f_colDelta(dBPE))
+                table.cell(gT, 2, 19, f_fmtDelta(dLPE), text_size=size.tiny, bgcolor=f_colDelta(dLPE))
+                f_fill_cells(gT, 19, 3, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
+
+    // Footer row (row 20)
+    table.cell(gT, 0, 20, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
+    f_fill_cells(gT, 20, 1, 9, "", tblTextDim, tblHeader, size.tiny)
+    table.merge_cells(gT, 0, 20, 9, 20)
 
 //====================
 // Calibration Diagnostics Panel (Debug)

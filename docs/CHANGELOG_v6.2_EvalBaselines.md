@@ -27,6 +27,7 @@ Two baselines are scored on the **same event population** as the model:
 Predicts each class with equal probability: `(1/3, 1/3, 1/3)`.
 
 Expected constants (given `f_brier3` divides by 3.0):
+
 - **Brier = 2/9 ≈ 0.222222** (not 0.667 — the `/3.0` normalizes per-class)
 - **LogLoss = −ln(1/3) ≈ 1.098612**
 
