@@ -694,6 +694,17 @@ type TfState
     float[] evSumLogBaseP_N_Elig
     // Eligible prior outcome counts (shared across heads)
     float[] priorCounts3_Elig
+    // --- Coverage & skip diagnostics ---
+    int enqCount           // total enqueued
+    int resolvedScored     // resolved + scorable (doUpdate=true)
+    int enqCountElig       // enqueued while forecast-eligible
+    int resolvedScoredElig // resolved + scorable + eligible
+    int skipBias0          // skipped: bias == 0 (PathTPvsSL only)
+    int skipAtrInvalid     // skipped: ATR na/zero
+    int skipIgnore         // skipped: no-hit Ignore policy
+    int skipTieNeutral2Way // skipped: tie Neutral in 2-way mode
+    float[] ageAtResolve   // rolling buffer of ages at scorable resolve
+    float[] sumAgeResolve  // rolling sum [1]
 
 // Helper to initialize TfState
 // Arguments map 1-to-1 to UDT fields in declaration order.
@@ -772,7 +783,12 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
     // Prior baseline eligible (N only, head-independent)
     array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
     // Eligible prior counts
-    array.new_float(3, 0.0)
+    array.new_float(3, 0.0),
+    // --- Coverage & skip diagnostics ---
+    0, 0, 0, 0,           // enqCount, resolvedScored, enqCountElig, resolvedScoredElig
+    0, 0, 0, 0,           // skipBias0, skipAtrInvalid, skipIgnore, skipTieNeutral2Way
+    array.new_float(),    // ageAtResolve
+    array.new_float(1, 0.0) // sumAgeResolve
     )
 
 var TfState tf1State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
@@ -1849,6 +1865,11 @@ f_reset_one_state_eval(TfState st) =>
     array.clear(st.evBrierBaseP_N_Elig), f_reset_sum1(st.evSumBrierBaseP_N_Elig)
     array.clear(st.evLogBaseP_N_Elig),   f_reset_sum1(st.evSumLogBaseP_N_Elig)
     array.fill(st.priorCounts3_Elig, 0.0)
+    // Coverage & skip diagnostics
+    st.enqCount := 0, st.resolvedScored := 0
+    st.enqCountElig := 0, st.resolvedScoredElig := 0
+    st.skipBias0 := 0, st.skipAtrInvalid := 0, st.skipIgnore := 0, st.skipTieNeutral2Way := 0
+    array.clear(st.ageAtResolve), f_reset_sum1(st.sumAgeResolve)
 
 f_reset_eval_all() =>
     f_reset_one_state_eval(tf1State)
@@ -1967,6 +1988,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
             doUpdate = false
             isUp     = false
             int outcome = 0
+            int skipReason = 0  // 0=none, 1=bias0, 2=atrInvalid, 3=ignore, 4=tieNeutral2way
 
             // --- Phase 1: Local Target Logic ---
             if fcTgt == "NextBar"
@@ -2001,6 +2023,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                     // Skip calibration update if ATR is invalid (prevents misleading ratios)
                     if na(atr_i) or atr_i == 0.0
                         doUpdate := false
+                        skipReason := 2
                     else
                         doUpdate := true
                         if use3Way
@@ -2018,10 +2041,12 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                     if age_i >= pH
                         resolved := true
                         doUpdate := false
+                        skipReason := 1
                 else if na(atr_i) or atr_i <= 0.0
                     if age_i >= pH
                         resolved := true
                         doUpdate := false
+                        skipReason := 2
                 else
                     dir = bias_i > 0 ? 1 : -1
                     tpPx = dir == 1 ? (entry_i + tpA * atr_i) : (entry_i - tpA * atr_i)
@@ -2040,6 +2065,7 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                                     outcome := 0
                                 else
                                     doUpdate := false
+                                    skipReason := 4
                             else
                                 outcome := -dir
                             isUp := outcome == 1
@@ -2058,9 +2084,15 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             outcome := 0
                         else
                             doUpdate := false
+                            skipReason := 3
 
             if resolved
                 if doUpdate
+                    // Coverage: count scorable resolve + age
+                    st.resolvedScored += 1
+                    f_roll_add(st.ageAtResolve, st.sumAgeResolve, age_i, evalRollScore)
+                    if useFc_i
+                        st.resolvedScoredElig += 1
                     if not use3Way
                         outcome := isUp ? 1 : -1
                     if use3Way
@@ -2329,6 +2361,17 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                             ll1 = f_logloss(pAdj1, outcomeVal)
                             f_update_accum_stats(st.llStats1, ll1)
 
+                else
+                    // Skip tracking: resolved but not scorable
+                    if skipReason == 1
+                        st.skipBias0 += 1
+                    else if skipReason == 2
+                        st.skipAtrInvalid += 1
+                    else if skipReason == 3
+                        st.skipIgnore += 1
+                    else if skipReason == 4
+                        st.skipTieNeutral2Way += 1
+
                 f_safe_remove_int(st.qAge,   i)
                 f_safe_remove_float(st.qMaxH,  i)
                 f_safe_remove_float(st.qMinL,  i)
@@ -2452,6 +2495,9 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                 array.push(st.qAge,   0)
                 array.push(st.qBias,  dirFlag)
                 array.push(st.qUseForecast, enableForecast and f_forecast_allowed())
+                st.enqCount += 1
+                if enableForecast and f_forecast_allowed()
+                    st.enqCountElig += 1
 
                 array.push(st.qPUpN, pUN)
                 array.push(st.qPFlN, pFN)
@@ -2490,6 +2536,9 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                 array.push(st.qAge,   0)
                 array.push(st.qBias,  dirFlag)
                 array.push(st.qUseForecast, enableForecast and f_forecast_allowed())
+                st.enqCount += 1
+                if enableForecast and f_forecast_allowed()
+                    st.enqCountElig += 1
 
                 array.push(st.qProbN, pNowN)
                 array.push(st.qProb1, pNow1)
@@ -4170,7 +4219,7 @@ fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 var table gT = na
 if na(gT)
     tblCols = 10
-    tblRows = 21
+    tblRows = 22
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
 f_status_row(lbl, val, rRow, valCol) =>
@@ -4404,7 +4453,7 @@ hdrForecast = "Forecast" + hdrSuffix
 
 if renderTable
     tblCols = 10
-    table.clear(gT, 0, 0, tblCols - 1, 20)
+    table.clear(gT, 0, 0, tblCols - 1, 21)
 
     // Status rows
     table.cell(gT, 0, 0, "Confidence", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
@@ -4536,10 +4585,29 @@ if renderTable
                 table.cell(gT, 2, 19, f_fmtDelta(dLPE), text_size=size.tiny, bgcolor=f_colDelta(dLPE))
                 f_fill_cells(gT, 19, 3, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
 
-    // Footer row (row 20)
-    table.cell(gT, 0, 20, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
-    f_fill_cells(gT, 20, 1, 9, "", tblTextDim, tblHeader, size.tiny)
-    table.merge_cells(gT, 0, 20, 9, 20)
+            // Coverage + staleness row (row 20)
+            covAll = st_base.enqCount > 0 ? st_base.resolvedScored * 100.0 / st_base.enqCount : na
+            covElig = st_base.enqCountElig > 0 ? st_base.resolvedScoredElig * 100.0 / st_base.enqCountElig : na
+            nAge = array.size(st_base.ageAtResolve)
+            meanAge = nAge > 0 ? array.get(st_base.sumAgeResolve, 0) / nAge : na
+            skipTotal = st_base.skipBias0 + st_base.skipAtrInvalid + st_base.skipIgnore + st_base.skipTieNeutral2Way
+            covBg = color.new(color.rgb(40, 40, 60), 0)
+            table.cell(gT, 0, 20, "⚙ Cov", text_halign=text.align_left, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
+            covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%"
+            covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%"
+            ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
+            table.cell(gT, 1, 20, covAllTxt, text_size=size.tiny, text_color=na(covAll) ? tblTextDim : covAll >= 80 ? color.lime : covAll >= 50 ? color.yellow : color.red, bgcolor=covBg)
+            table.cell(gT, 2, 20, "E:" + covEligTxt, text_size=size.tiny, text_color=na(covElig) ? tblTextDim : covElig >= 80 ? color.lime : covElig >= 50 ? color.yellow : color.red, bgcolor=covBg)
+            table.cell(gT, 3, 20, "ā=" + ageTxt, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
+            // Skip reasons compact
+            skipTxt = skipTotal == 0 ? "—" : "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
+            table.cell(gT, 4, 20, skipTxt, text_size=size.tiny, text_color=skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), bgcolor=covBg)
+            f_fill_cells(gT, 20, 5, 9, "", tblTextDim, covBg, size.tiny)
+
+    // Footer row (row 21)
+    table.cell(gT, 0, 21, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
+    f_fill_cells(gT, 21, 1, 9, "", tblTextDim, tblHeader, size.tiny)
+    table.merge_cells(gT, 0, 21, 9, 21)
 
 //====================
 // Calibration Diagnostics Panel (Debug)
