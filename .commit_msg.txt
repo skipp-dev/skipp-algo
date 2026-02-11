@@ -1,0 +1,7 @@
+feat(eval): configurable delta deadzone threshold
+
+- Add input.float deltaDeadzone (default 0.01, range 0.001-0.10,
+  step 0.005) alongside eval inputs
+- f_deltaVerdict now uses deltaDeadzone instead of hardcoded 0.01
+- Allows users to tune verdict glyph sensitivity per market
+- 247/247 tests pass, no lint errors

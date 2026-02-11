@@ -454,6 +454,7 @@ evalMinEvents   = input.int(30, "Eval min events to display", minval=5, maxval=5
 evalBucketCount = use3Way ? evalBuckets * 3 : evalBuckets
 
 driftWarnPP     = input.float(8.0, "Drift warn threshold (pp)", minval=1.0, maxval=50.0, step=0.5)
+deltaDeadzone   = input.float(0.01, "\u0394 dead-zone (verdict threshold)", minval=0.001, maxval=0.10, step=0.005)
 useEceGate      = input.bool(false, "Gate entries by ECE")
 eceMax          = input.float(0.10, "Max ECE (gate)", minval=0.01, maxval=0.50, step=0.01)
 useDriftGate    = input.bool(false, "Gate entries by drift")
@@ -1598,7 +1599,7 @@ f_ppSigned(val) =>
     na(val) ? "—" : (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
 
 f_deltaVerdict(val) =>
-    na(val) ? "" : val <= -0.01 ? " ✓" : val >= 0.01 ? " ✗" : " ~"
+    na(val) ? "" : val <= -deltaDeadzone ? " ✓" : val >= deltaDeadzone ? " ✗" : " ~"
 
 f_fmtDelta(val) =>
     na(val) ? "—" : (val >= 0 ? "+" : "") + str.tostring(val, "#.3f") + f_deltaVerdict(val)
