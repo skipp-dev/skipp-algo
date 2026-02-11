@@ -2718,7 +2718,7 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
 // to avoid updating stateful logic on "in-progress" HTF bars.
 
 f_stable_val(isSame, valRaw, valPrev) => isSame ? valRaw : valPrev
-f_stable_pulse(isSame, timeRaw)       => isSame ? barstate.isconfirmed : (ta.change(timeRaw) != 0)
+f_stable_pulse(isSame, timeRaw)       => isSame ? barstate.isconfirmed : (nz(ta.change(timeRaw)) != 0)
 
 [t1_r, c1_r, h1_r, l1_r, ef1_r, es1_r, r1_r, a1_r, vR1_r] = f_tf_pack(tfF1)
 [t2_r, c2_r, h2_r, l2_r, ef2_r, es2_r, r2_r, a2_r, vR2_r] = f_tf_pack(tfF2)
