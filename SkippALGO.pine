@@ -2775,8 +2775,10 @@ esForecastArr = array.from(es1, es2, es3, es4, es5, es6, es7)
 rForecastArr = array.from(r1, r2, r3, r4, r5, r6, r7)
 aForecastArr = array.from(a1, a2, a3, a4, a5, a6, a7)
 vRForecastArr = array.from(vR1, vR2, vR3, vR4, vR5, vR6, vR7)
-// Update: Use pulse signals for sync
-confForecastArr = array.from(pulse1, pulse2, pulse3, pulse4, pulse5, pulse6, pulse7)
+// PATCH A: confForecastArr uses barstate.isconfirmed (not pulse) so calibration
+// accumulates samples at the normal rate.  Anti-repainting is handled by
+// f_stable_val on the DATA values (c1, ef1, …) fed into the learner.
+confForecastArr = array.from(barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed)
 outScoreArr = array.from(outScore1, outScore2, outScore3, outScore4, outScore5, outScore6, outScore7)
 tArr = array.from(t1c, t2c, t3c, t4c, t5c, t6c, t7c)
 mArr = array.from(m1c, m2c, m3c, m4c, m5c, m6c, m7c)
