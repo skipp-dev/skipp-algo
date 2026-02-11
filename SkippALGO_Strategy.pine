@@ -3810,7 +3810,7 @@ if renderTable
             table.cell(gT, 4, 20, skipTxt, text_size=size.tiny, text_color=skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), bgcolor=covBg)
             // Pending queue depth (desync check)
             qDepth = array.size(st_base.qAge)
-            qSync = array.size(st_base.qAge) == array.size(st_base.qEntry)
+            qSync = array.size(st_base.qAge) == array.size(st_base.qEntry) and array.size(st_base.qAge) == array.size(st_base.qAtr)
             qTxt = qSync ? "Q:" + str.tostring(qDepth) : "Q:ERR"
             table.cell(gT, 5, 20, qTxt, text_size=size.tiny, text_color=qSync ? tblTextDim : color.red, bgcolor=covBg)
             f_fill_cells(gT, 20, 6, 9, "", tblTextDim, covBg, size.tiny)
