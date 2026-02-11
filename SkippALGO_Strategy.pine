@@ -657,12 +657,13 @@ type TfState
     float[] evSumBrierBaseU_N_Elig
     float[] evLogBaseU_N_Elig
     float[] evSumLogBaseU_N_Elig
-    // Prior baseline eligible
+    // Prior baseline eligible (head-independent: prior uses outcome
+    // frequencies only, so one track serves both N and 1 heads)
     float[] evBrierBaseP_N_Elig
     float[] evSumBrierBaseP_N_Elig
     float[] evLogBaseP_N_Elig
     float[] evSumLogBaseP_N_Elig
-    // Eligible prior outcome counts
+    // Eligible prior outcome counts (shared across heads)
     float[] priorCounts3_Elig
 
 // Helper to initialize TfState
@@ -1596,8 +1597,11 @@ f_colLowerBetter(val, goodThr, badThr) =>
 f_ppSigned(val) =>
     na(val) ? "—" : (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
 
+f_deltaVerdict(val) =>
+    na(val) ? "" : val <= -0.01 ? " ✓" : val >= 0.01 ? " ✗" : " ~"
+
 f_fmtDelta(val) =>
-    na(val) ? "—" : (val >= 0 ? "+" : "") + str.tostring(val, "#.3f")
+    na(val) ? "—" : (val >= 0 ? "+" : "") + str.tostring(val, "#.3f") + f_deltaVerdict(val)
 
 f_colDelta(val) =>
     na(val) ? color.new(color.gray, 60) : val < 0 ? color.new(color.lime, 40) : val > 0 ? color.new(color.red, 40) : color.new(color.gray, 60)
@@ -3718,6 +3722,7 @@ if renderTable
                 f_fill_cells(gT, 18, 4, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
 
             // Eligible Δ vs Prior row (row 19)
+            // Prior baseline is head-independent (outcome frequencies only)
             bBufPE = st_base.evBrierBaseP_N_Elig
             sBufPE = st_base.evSumBrierBaseP_N_Elig
             lBufPE = st_base.evLogBaseP_N_Elig
