@@ -250,26 +250,10 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     # CALIBRATION DIAGNOSTICS CONSISTENCY
     # ========================================
     
-    def test_diagnostics_panel_exists_in_indicator(self):
-        """Calibration diagnostics panel must exist in the Indicator.
-        
-        Note: Removed from Strategy (token-limit reduction).
-        """
-        pattern = r'showDiagPanel\s*=\s*input\.bool'
-        
-        self.assertRegex(self.indicator, pattern, 
-            "Indicator missing diagnostics panel input")
-    
-    def test_diagnostics_horizon_exists_in_indicator(self):
-        """Diagnostics horizon options must exist in the Indicator.
-        
-        Note: Removed from Strategy (token-limit reduction).
-        """
-        pattern = r'diagHorizon\s*=\s*input\.string\("[^"]+",\s*"[^"]+",\s*options\s*=\s*\[([^\]]+)\]'
-        
-        ind_match = re.search(pattern, self.indicator)
-        self.assertIsNotNone(ind_match, "Indicator missing diagHorizon options")
-    
+    # NOTE: Calibration diagnostics panel removed from both files (token-limit reduction).
+    # Tests test_diagnostics_panel_exists_in_indicator and
+    # test_diagnostics_horizon_exists_in_indicator removed.
+
     # ========================================
     # EVALUATION METRICS CONSISTENCY
     # ========================================
