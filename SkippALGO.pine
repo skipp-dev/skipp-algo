@@ -4223,9 +4223,12 @@ if na(gT)
     tblRows = 22
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
+f_cell(c, r, t, tc, bg) =>
+    table.cell(gT, c, r, t, text_size=size.tiny, text_color=tc, bgcolor=bg)
+
 f_status_row(lbl, val, rRow, valCol) =>
-    table.cell(gT, 0, rRow, lbl, text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, rRow, val, text_color=valCol, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(0, rRow, lbl, tblTextDim, tblHeader)
+    f_cell(1, rRow, val, valCol, tblCell)
 
 
 f_bin_quality(pTop, nBin) =>
@@ -4242,11 +4245,11 @@ f_bin_quality(pTop, nBin) =>
 f_rowTF(_tf, score, tC, mC, lC, rV,
     pUN, pFN, pDN, nBin, nTot, nBin1,
         rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(_tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 1, rRow, outSym(score),  text_color=outCol(score), bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 2, rRow, str.tostring(score, "#.00"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 4, rRow, str.tostring(rV, "#.0"), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(0, rRow, f_tfLabel(_tf), tblTfColor, tblCell)
+    f_cell(1, rRow, outSym(score), outCol(score), tblCell)
+    f_cell(2, rRow, str.tostring(score, "#.00"), tblText, tblCell)
+    f_cell(3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), tblTextDim, tblCell)
+    f_cell(4, rRow, str.tostring(rV, "#.0"), tblText, tblCell)
 
     enabled = forecastAllowed
     useCalN = enabled and (nBin >= calMinSamples)
@@ -4266,17 +4269,17 @@ f_rowTF(_tf, score, tC, mC, lC, rV,
     dirSym = maxP < dirMinProb ? "·" : (isMaxU and not (isMaxF or isMaxD)) ? "▲" : (isMaxD and not (isMaxU or isMaxF)) ? "▼" : "■"
     dirCol = (isMaxU and not (isMaxF or isMaxD)) ? color.lime : (isMaxD and not (isMaxU or isMaxF)) ? color.red : color.yellow
 
-    table.cell(gT, 5, rRow, dirSym, text_color=dirCol, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 6, rRow, str.tostring(pU_local * 100, "#.0") + "%", text_color=color.lime, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 7, rRow, str.tostring(pF_local * 100, "#.0") + "%", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 8, rRow, str.tostring(pD_local * 100, "#.0") + "%", text_color=color.red, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(5, rRow, dirSym, dirCol, tblCell)
+    f_cell(6, rRow, str.tostring(pU_local * 100, "#.0") + "%", color.lime, tblCell)
+    f_cell(7, rRow, str.tostring(pF_local * 100, "#.0") + "%", tblTextDim, tblCell)
+    f_cell(8, rRow, str.tostring(pD_local * 100, "#.0") + "%", color.red, tblCell)
 
     [qLbl_t, qCol_t] = f_bin_quality(maxP, nBin)
     qLbl = qLbl_t
     qCol = qCol_t
     // Updated to show N and 1 counts
     nTxt = "N:" + str.tostring(nBin, "#") + " 1:" + str.tostring(nBin1, "#") // + " " + qLbl
-    table.cell(gT, 9, rRow, nTxt, text_color=qCol, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(9, rRow, nTxt, qCol, tblCell)
 
 f_rowTF_idx(i, rRow) =>
     f_rowTF(
@@ -4313,27 +4316,27 @@ f_fmtCnt(stats) =>
     [str.tostring(c, "#"), c < 10 ? tblTextDim : tblText]
 
 f_rowRel(tf, statsN, stats1, rRow) =>
-    table.cell(gT, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(0, rRow, f_tfLabel(tf), tblTfColor, tblCell)
     
     [tBN_t, cBN_t] = f_fmtBrier(statsN)
     tBN = tBN_t
     cBN = cBN_t
-    table.cell(gT, 1, rRow, tBN, text_color=cBN, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(1, rRow, tBN, cBN, tblCell)
     
     [tB1_t, cB1_t] = f_fmtBrier(stats1)
     tB1 = tB1_t
     cB1 = cB1_t
-    table.cell(gT, 2, rRow, tB1, text_color=cB1, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(2, rRow, tB1, cB1, tblCell)
     
     [tcN_t, ccN_t] = f_fmtCnt(statsN)
     tcN = tcN_t
     ccN = ccN_t
-    table.cell(gT, 3, rRow, tcN, text_color=ccN, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(3, rRow, tcN, ccN, tblCell)
     
     [tc1_t, cc1_t] = f_fmtCnt(stats1)
     tc1 = tc1_t
     cc1 = cc1_t
-    table.cell(gT, 4, rRow, tc1, text_color=cc1, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(4, rRow, tc1, cc1, tblCell)
 
 // --- Evaluation Helpers
 f_eval_get(hid) =>
@@ -4457,15 +4460,14 @@ if renderTable
     table.clear(gT, 0, 0, tblCols - 1, 21)
 
     // Status rows
-    table.cell(gT, 0, 0, "Confidence", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 1, 0, confStr,       text_color=c_conf,    bgcolor=tblCell,   text_size=size.tiny)
-    table.cell(gT, 2, 0, "Decision", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 3, 0, decisionLabel, text_color=decisionColor, bgcolor=tblCell, text_size=size.tiny)
-    table.cell(gT, 4, 0, decisionEdgeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(0, 0, "Confidence", tblTextDim, tblHeader)
+    f_cell(1, 0, confStr, c_conf, tblCell)
+    f_cell(2, 0, "Decision", tblTextDim, tblHeader)
+    f_cell(3, 0, decisionLabel, decisionColor, tblCell)
+    f_cell(4, 0, decisionEdgeTxt, tblTextDim, tblCell)
     
-    // Configurable display of ATR in previously empty fields
-    table.cell(gT, 5, 0, "ATR", text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
-    table.cell(gT, 6, 0, str.tostring(atr, format.mintick), text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(5, 0, "ATR", tblTextDim, tblHeader)
+    f_cell(6, 0, str.tostring(atr, format.mintick), tblText, tblCell)
 
     // T/M/L Legend (User Request)
     table.merge_cells(gT, 2, 1, 9, 1)
@@ -4476,7 +4478,7 @@ if renderTable
     table.cell(gT, 2, 3, "L: Loc (Location/Price vs Slow EMA)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
     
     f_fill_cells(gT, 0, 7, 8, "", tblText, tblCell, size.tiny)
-    table.cell(gT, 9, 0, modeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
+    f_cell(9, 0, modeTxt, tblTextDim, tblCell)
 
     f_status_row("MinTrust", str.tostring(minTrust, format.mintick), 1, tblText)
     f_status_row("Volume", volStr, 2, c_vol)
@@ -4489,7 +4491,7 @@ if renderTable
     // Outlook header + forecast columns
     hdrLabels = array.from(hdrOutlook, "Bias", "Score", "T/M/L", "RSI", hdrForecast + "\nDir", "Up%", "Flat%", "Down%", "n(N) | n(1)")
     for c = 0 to 9
-        table.cell(gT, c, 8, array.get(hdrLabels, c), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny)
+        f_cell(c, 8, array.get(hdrLabels, c), tblTextDim, tblHeader)
 
     for i = 0 to 6
         f_rowTF_idx(i, 9 + i)
@@ -4597,20 +4599,22 @@ if renderTable
             covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%"
             covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%"
             ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
-            table.cell(gT, 1, 20, covAllTxt, text_size=size.tiny, text_color=na(covAll) ? tblTextDim : covAll >= 80 ? color.lime : covAll >= 50 ? color.yellow : color.red, bgcolor=covBg)
-            table.cell(gT, 2, 20, "E:" + covEligTxt, text_size=size.tiny, text_color=na(covElig) ? tblTextDim : covElig >= 80 ? color.lime : covElig >= 50 ? color.yellow : color.red, bgcolor=covBg)
-            table.cell(gT, 3, 20, "ā=" + ageTxt, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
+            covCol = na(covAll) ? tblTextDim : covAll >= 80 ? color.lime : covAll >= 50 ? color.yellow : color.red
+            eCol = na(covElig) ? tblTextDim : covElig >= 80 ? color.lime : covElig >= 50 ? color.yellow : color.red
+            f_cell(1, 20, covAllTxt, covCol, covBg)
+            f_cell(2, 20, "E:" + covEligTxt, eCol, covBg)
+            f_cell(3, 20, "ā=" + ageTxt, tblTextDim, covBg)
             // Skip reasons compact
             skipTxt = skipTotal == 0 ? "—" : "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
-            table.cell(gT, 4, 20, skipTxt, text_size=size.tiny, text_color=skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), bgcolor=covBg)
+            f_cell(4, 20, skipTxt, skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), covBg)
             // Pending queue depth (desync check) + ΔQ
             qDepth = array.size(st_base.qAge)
-            qSync = array.size(st_base.qAge) == array.size(st_base.qEntry) and array.size(st_base.qAge) == array.size(st_base.qAtr)
+            qSync = qDepth == array.size(st_base.qEntry) and qDepth == array.size(st_base.qAtr)
             dq = na(prevQDepth) ? na : qDepth - prevQDepth
             dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
             qTxt = qSync ? "Q:" + str.tostring(qDepth) + dqTxt : "Q:ERR"
             qCol = not qSync ? color.red : (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
-            table.cell(gT, 5, 20, qTxt, text_size=size.tiny, text_color=qCol, bgcolor=covBg)
+            f_cell(5, 20, qTxt, qCol, covBg)
             f_fill_cells(gT, 20, 6, 9, "", tblTextDim, covBg, size.tiny)
             prevQDepth := qDepth
 
