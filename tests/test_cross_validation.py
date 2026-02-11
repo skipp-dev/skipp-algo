@@ -250,27 +250,25 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     # CALIBRATION DIAGNOSTICS CONSISTENCY
     # ========================================
     
-    def test_diagnostics_panel_exists_in_both(self):
-        """Calibration diagnostics panel must exist in both."""
+    def test_diagnostics_panel_exists_in_indicator(self):
+        """Calibration diagnostics panel must exist in the Indicator.
+        
+        Note: Removed from Strategy (token-limit reduction).
+        """
         pattern = r'showDiagPanel\s*=\s*input\.bool'
         
         self.assertRegex(self.indicator, pattern, 
             "Indicator missing diagnostics panel input")
-        self.assertRegex(self.strategy, pattern, 
-            "Strategy missing diagnostics panel input")
     
-    def test_diagnostics_horizon_options_match(self):
-        """Diagnostics horizon options must be identical."""
+    def test_diagnostics_horizon_exists_in_indicator(self):
+        """Diagnostics horizon options must exist in the Indicator.
+        
+        Note: Removed from Strategy (token-limit reduction).
+        """
         pattern = r'diagHorizon\s*=\s*input\.string\("[^"]+",\s*"[^"]+",\s*options\s*=\s*\[([^\]]+)\]'
         
         ind_match = re.search(pattern, self.indicator)
-        strat_match = re.search(pattern, self.strategy)
-        
         self.assertIsNotNone(ind_match, "Indicator missing diagHorizon options")
-        self.assertIsNotNone(strat_match, "Strategy missing diagHorizon options")
-        
-        self.assertEqual(ind_match.group(1), strat_match.group(1),
-            "diagHorizon options mismatch between files")
     
     # ========================================
     # EVALUATION METRICS CONSISTENCY
