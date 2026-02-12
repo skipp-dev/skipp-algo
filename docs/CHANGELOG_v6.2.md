@@ -1,5 +1,36 @@
 # Changelog — SkippALGO v6.2
 
+## Latest updates (12 Feb 2026)
+
+### PRE-BUY / PRE-SHORT label upgrade
+
+- Replaced static PRE markers (`plotshape`) with dynamic `label.new()` labels in:
+  - `SkippALGO.pine`
+  - `SkippALGO_Strategy.pine`
+- PRE labels now include actionable pre-entry context:
+  - `Gap` (distance to trigger in ATR)
+  - directional probability (`pU` / `pD`)
+  - model confidence (`Conf`)
+- Added per-engine trigger-gap computation so the `Gap` reflects actual trigger geometry:
+  - Hybrid: EMA fast reclaim distance
+  - Breakout: distance to swing breakout level
+  - Trend+Pullback: EMA flip/reclaim proximity
+  - Loose: EMA fast crossover proximity
+
+### ChoCH parity clarification (v6.2.18 behavior restored)
+
+- Confirmed and documented intended split:
+  - ChoCH **visual** structure tags remain raw structure markers (no probability gate)
+  - ChoCH **entries** continue to use entry-side probability controls (`chochMinProb`, REV path gates)
+
+### Test-suite expansion
+
+- Added dedicated PRE regression tests in:
+  - `tests/test_skippalgo_pine.py`
+  - `tests/test_skippalgo_strategy_pine.py`
+- Added explicit BUY / REV-BUY / EXIT label+alert regression checks in the same two modules.
+- Current suite status: **313 passed, 8 subtests passed**.
+
 ## Overview
 
 This release contains three parity bug-fixes between Indicator and Strategy,
@@ -16,7 +47,7 @@ Three signal-affecting bugs were found during a deep code review and fixed in
 both `SkippALGO.pine` (Indicator) and `SkippALGO_Strategy.pine` (Strategy):
 
 | Bug | File(s) | Description |
-|-----|---------|-------------|
+| --- | ------- | ----------- |
 | **BUG 1 — Loose `enhOk` gap** | Both | Loose engine was missing the `enhOk` signal-enhancement gate that Hybrid/Breakout/Trend+Pullback all apply. Loose entries could bypass pre-momentum, EMA-accel, VWAP, ADX, smooth-trend, and RegSlope filters. Fixed by inserting `and enhOk` into the Loose branch. |
 | **BUG 2 — RegSlope missing from Strategy** | Strategy | The entire Regression Slope Oscillator subsystem (`f_log_regression_single`, `f_calc_reg_slope_osc`, `useRegSlope` input, `regSlopeOk` gate) was absent from Strategy. Ported ~30 lines. |
 | **BUG 3 — `barsSinceEntry` decay phase-shift** | Both | `barsSinceEntry` was incremented *before* the risk-decay interpolation, causing the sustained-risk level to kick in one bar early. Moved the increment to *after* the decay computation. |
@@ -46,7 +77,7 @@ entry-gating logic is **preserved** — only display was removed.
 #### Indicator changes (`SkippALGO.pine`, ~447 lines removed)
 
 | Area | Detail |
-|------|--------|
+| ---- | ------ |
 | Table dimensions | 10 cols × 22 rows → 5 cols × 17 rows |
 | `f_rowTF` | Removed forecast columns 5-9 (Dir, Up%, Flat%, Down%, n(N)\|n(1)); simplified parameter list |
 | `f_rowTF_idx` | No longer passes `dispPUN/dispPFN/dispPDN/dispNN/totNArr/dispN1` arrays |
@@ -85,7 +116,7 @@ those display elements):
 ## Test Suite Summary
 
 | Metric | Value |
-|--------|-------|
+| ------ | ----- |
 | Total tests | 271 |
 | Passed | 271 |
 | Failed | 0 |

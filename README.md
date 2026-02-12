@@ -37,6 +37,21 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
+- **Latest (12 Feb 2026) — PRE label intelligence + parity hardening:**
+  - PRE labels were upgraded from static `plotshape` markers to dynamic `label.new()` payloads in **both** scripts.
+  - PRE-BUY / PRE-SHORT now show:
+    - trigger **Gap** in ATR units (distance-to-trigger),
+    - directional probability (`pU` / `pD`),
+    - model confidence (`Conf`).
+  - Gap semantics are engine-aware:
+    - **Hybrid:** close ↔ EMA fast distance
+    - **Breakout:** close ↔ swing high/low distance
+    - **Trend+Pullback:** EMA flip/reclaim proximity
+    - **Loose:** close ↔ EMA fast proximity
+  - ChoCH behavior was aligned back to v6.2.18 intent:
+    - visual ChoCH structure tags are not probability-filtered,
+    - `chochMinProb` remains an entry-level gate (not a visual marker gate).
+
 - **TradingView settings persistence:**
   - Script titles were stabilized to avoid input resets on updates:
     - `indicator("SkippALGO", ...)`
@@ -56,6 +71,14 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
   - `barsSinceEntry` now starts at `0` on the entry bar in both scripts (no risk-decay tightening on the entry bar) and uses `>=` for `canStructExit`.
   - Regression Slope (RegSlope) subsystem is now supported in the Strategy as well (inputs + helpers + gating in `enhLongOk/enhShortOk`).
 - **Governance:** added regression tests to lock these behaviors and keep future edits honest.
+
+## Current verification status
+
+- **Pytest:** `313 passed, 8 subtests passed`
+- Includes dedicated regression coverage for:
+  - PRE-BUY / PRE-SHORT signal plumbing and dynamic label payloads,
+  - BUY / REV-BUY / EXIT label + alert wiring,
+  - Indicator/Strategy parity-critical entry/exit invariants.
 
 ## License
 
