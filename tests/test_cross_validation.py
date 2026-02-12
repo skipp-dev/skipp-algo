@@ -367,5 +367,79 @@ class TestIntentionalDifferences(unittest.TestCase):
                 f"{name} has duplicate function definitions: {duplicates}")
 
 
+class TestSignalParity(unittest.TestCase):
+    """Verify signal-affecting logic matches between Indicator and Strategy."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(INDICATOR_PATH, 'r') as f:
+            cls.indicator = f.read()
+        with open(STRATEGY_PATH, 'r') as f:
+            cls.strategy = f.read()
+
+    # -- useInfiniteTP regression --
+
+    def test_useInfiniteTP_guards_tp_on_entry(self):
+        """Both files must set tpPx := useInfiniteTP ? na : ... on entry."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            hits = re.findall(r'tpPx\s*:=\s*useInfiniteTP\s*\?\s*na\s*:', content)
+            self.assertEqual(len(hits), 2,
+                f"{name}: expected 2 useInfiniteTP guards on entry (long+short), found {len(hits)}")
+
+    def test_useInfiniteTP_guards_risk_decay(self):
+        """Both files must gate TP tightening behind 'if not useInfiniteTP' in risk decay."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            hits = re.findall(r'if not useInfiniteTP', content)
+            self.assertGreaterEqual(len(hits), 2,
+                f"{name}: expected >=2 useInfiniteTP guards in risk decay (long+short), found {len(hits)}")
+
+    def test_f_risk_exit_hit_checks_na_tpVal(self):
+        """f_risk_exit_hit must check 'not na(tpVal)' before testing TP hit."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('not na(tpVal)', content,
+                f"{name}: f_risk_exit_hit must check 'not na(tpVal)' before TP evaluation")
+
+    # -- Reclaim parity --
+
+    def test_reclaim_logic_matches(self):
+        """Reclaim logic should be identical between files (strict cross only)."""
+        pattern = re.compile(r'reclaimUp\s*=\s*(.+)')
+        i_match = pattern.search(self.indicator)
+        s_match = pattern.search(self.strategy)
+        self.assertIsNotNone(i_match, "Indicator: reclaimUp not found")
+        self.assertIsNotNone(s_match, "Strategy: reclaimUp not found")
+        self.assertEqual(i_match.group(1).strip(), s_match.group(1).strip(),
+            "reclaimUp logic diverges between Indicator and Strategy")
+
+    # -- Conflict resolution parity --
+
+    def test_conflict_resolution_kills_both(self):
+        """Both files must cancel both signals when buy+short fire simultaneously."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('if buySignal and shortSignal', content,
+                f"{name}: conflict resolution block missing")
+            # Should NOT have trend-aligned preference
+            self.assertNotIn('if trendUpSmooth', content,
+                f"{name}: conflict resolution should kill both, not prefer trend-aligned")
+
+    # -- Zone formula correctness --
+
+    def test_zone_pullback_uses_pbDir(self):
+        """Pullback zone formula should use directional pbDir, not hardcoded signs."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('pbDir', content,
+                f"{name}: Pullback zone should use pbDir for directional bands")
+            # No-op ternary regression: the two branches must NOT be identical
+            aggr_lines = [l.strip() for l in content.splitlines()
+                          if 'aggrLower' in l and 'zoneMode' in l]
+            for line in aggr_lines:
+                parts = line.split('?')
+                if len(parts) == 2:
+                    sym_branch = parts[1].split(':')[0].strip()
+                    pb_branch = parts[1].split(':')[1].strip() if ':' in parts[1] else ''
+                    self.assertNotEqual(sym_branch, pb_branch,
+                        f"{name}: aggrLower Symmetric and Pullback branches must differ")
+
+
 if __name__ == '__main__':
     unittest.main()
