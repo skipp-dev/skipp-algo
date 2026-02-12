@@ -8,7 +8,7 @@
 // - Ensemble Score (Algo + Pullback + Regime)
 // - 2D Binning (Score x Volatility)
 // - Platt Scaling (SGD Probability Calibration)
-strategy("SkippALGO Strategy (Deep Upgrade v6.1)", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
+strategy("SkippALGO Strategy v6.2.18", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
