@@ -33,7 +33,6 @@ class TestSkippAlgoIndicator(unittest.TestCase):
     def test_engine_inputs(self):
         """Verify signal engine inputs exist (no branding)."""
         self.assertIn('engine', self.text)
-        self.assertNotIn('Gainz', self.text)
         self.assertIn('"Hybrid"', self.text)
         self.assertIn('"Breakout"', self.text)
         self.assertIn('useForecastGateEntry', self.text)

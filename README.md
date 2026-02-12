@@ -31,6 +31,8 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 ## Documentation
 
 - **Deep technical documentation:** `docs/SkippALGO_Deep_Technical_Documentation.md`
+- **Deep technical documentation (current):** `docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md`
+- **Kurzfassung für neue Nutzer:** `docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md`
 - **Roadmap enhancements:** `docs/SkippALGO_Roadmap_Enhancements.md`
 - **Wiki (local mirror):** `docs/wiki/Home.md`
 - **Changelog:** `CHANGELOG.md`
