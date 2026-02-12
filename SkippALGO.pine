@@ -4581,10 +4581,13 @@ if renderTable
             covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%"
             covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%"
             ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
+            // Eligibility utilization: what fraction of resolved forecasts passed gating?
+            util = st_base.resolvedScored > 0 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
+            utilTxt = na(util) ? "" : " U:" + str.tostring(util, "#.0") + "%"
             covCol = na(covAll) ? tblTextDim : covAll >= 80 ? color.lime : covAll >= 50 ? color.yellow : color.red
             eCol = na(covElig) ? tblTextDim : covElig >= 80 ? color.lime : covElig >= 50 ? color.yellow : color.red
             f_cell(1, 20, covAllTxt, covCol, covBg)
-            f_cell(2, 20, "E:" + covEligTxt, eCol, covBg)
+            f_cell(2, 20, "E:" + covEligTxt + utilTxt, eCol, covBg)
             f_cell(3, 20, "ā=" + ageTxt, tblTextDim, covBg)
             // Skip reasons compact
             skipTxt = skipTotal == 0 ? "—" : "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
