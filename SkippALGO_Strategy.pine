@@ -3788,8 +3788,9 @@ if renderTable
             f_cell(2, 20, "E:" + covEligTxt + eGlyph + utilTxt, eCol, covBg)
             f_cell(3, 20, "ā=" + ageTxt, tblTextDim, covBg)
             skipMax = math.max(st_base.skipBias0, math.max(st_base.skipAtrInvalid, math.max(st_base.skipIgnore, st_base.skipTieNeutral2Way)))
-            skipDom = skipTotal == 0 ? "—" : skipMax == st_base.skipBias0 ? "B0" : skipMax == st_base.skipAtrInvalid ? "A" : skipMax == st_base.skipIgnore ? "I" : "T"
-            skipTxt = skipTotal == 0 ? "—" : skipDom + "| B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
+            skipDom = skipTotal < 10 ? "" : skipMax == st_base.skipBias0 ? "B0" : skipMax == st_base.skipAtrInvalid ? "A" : skipMax == st_base.skipIgnore ? "I" : "T"
+            skipPfx = skipDom == "" ? "" : skipDom + "| "
+            skipTxt = skipTotal == 0 ? "—" : skipPfx + "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
             f_cell(4, 20, skipTxt, skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), covBg)
             qDepth = array.size(st_base.qAge)
             qSync = qDepth == array.size(st_base.qEntry) and qDepth == array.size(st_base.qAtr)
