@@ -3824,8 +3824,11 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   Only ddOk (portfolio drawdown) is kept as a hard safety gate.
     //   probOkGlobal restored to include hugeVol rescue fallback (pU >= 0.40 when Vol >= 1.5x).
     // v6.2.11: Lowered hugeVol threshold from 0.40 to 0.20 (see Indicator comment).
-    bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.20)
-    bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.20)
+    //   Require directional impulse candle on rescue path.
+    bool impulseLong  = isImpulse and (close > open)
+    bool impulseShort = isImpulse and (close < open)
+    bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong)
+    bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort)
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
