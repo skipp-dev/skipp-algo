@@ -281,7 +281,7 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 // Visual controls
 showLongLabels   = input.bool(true, "Show Long labels (BUY / EXIT)")
 showShortLabels  = input.bool(true, "Show Short labels (SHORT / COVER)")
-showDebugLabels  = input.bool(true, "Show Debug/Missed Signals")
+showDebugLabels  = input.bool(false, "Show Debug/Missed Signals", tooltip="WARNING: When enabled, debug labels consume the 500-label budget and may cause BUY labels to be evicted, producing orphan EXIT labels.")
 showPreEntryLabels = input.bool(false, "Show PRE labels (PRE-BUY / PRE-SHORT)")
 preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
 preSetPulseOnly    = input.bool(true, "PRE: pulse-only SET", tooltip="When enabled, PRE labels require a fresh SET transition (pulse) instead of a steady SET state")
@@ -3819,16 +3819,25 @@ bool allowRescueShort = isImpulse and (close < open) and barstate.isconfirmed an
 // Legacy support for debug label (OR logic)
 allowRescue = (allowRescueLong or allowRescueShort)
 
-// Force Debug Label (Global)
+// Force Debug Label (Global) — capped to prevent label budget exhaustion
+var label[] _dbgLabels = array.new_label(0)
+MAX_DEBUG_LABELS = 80  // reserve ~420 labels for signal labels (210 trade cycles)
+
+f_debug_label(x, y, txt, sty) =>
+    lbl = label.new(x, y, txt, color=color.gray, style=sty, size=size.tiny)
+    array.push(_dbgLabels, lbl)
+    if array.size(_dbgLabels) > MAX_DEBUG_LABELS
+        label.delete(array.shift(_dbgLabels))
+
 if showDebugLabels and recentChoCH_L and barstate.isconfirmed
     bool _isRev = (isChoCH_Long or recentChoCH_L) and (pU >= 0.50) and volOk
     string gates = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
-    label.new(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevB:" + str.tostring(_isRev) + "\nGate:" + gates + "\nEng:" + engine, color=color.gray, style=label.style_label_up, size=size.tiny)
+    f_debug_label(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevB:" + str.tostring(_isRev) + "\nGate:" + gates + "\nEng:" + engine, label.style_label_up)
 
 if showDebugLabels and recentChoCH_S and barstate.isconfirmed
     bool _isRevS = (isChoCH_Short or recentChoCH_S) and (pD >= 0.50) and volOk
     string gatesS = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
-    label.new(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevS:" + str.tostring(_isRevS) + "\nGate:" + gatesS + "\nEng:" + engine, color=color.gray, style=label.style_label_down, size=size.tiny)
+    f_debug_label(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevS:" + str.tostring(_isRevS) + "\nGate:" + gatesS + "\nEng:" + engine, label.style_label_down)
 
 
 // Signals (enhancement filters wired in)
@@ -3982,6 +3991,7 @@ else
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
+bool canChochExit = (barsSinceEntry >= math.min(2, exitGraceBars))
 
 // Capturing exit reasons for debugging/transparency
 string tempExitReason = ""
@@ -4024,8 +4034,9 @@ if pos == 1 and allowExit
     
     // Check for Reversal Exit (ChoCH Down)
     // breakLong = bearish EMA break; isChoCH_Short = bearish structure reversal
-    // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
-    structHit = ((breakLong and canStructExit) or isChoCH_Short)
+    // v6.2.6: ChoCH exits now respect a minimum 2-bar grace to prevent
+    //         immediate exit on the bar after entry (which causes orphan EXIT labels).
+    structHit = ((breakLong and canStructExit) or (isChoCH_Short and canChochExit))
 
     // ChoCh Filtering (Confirm Reversal)
     // Only exit if the Down Probability (pD) is high enough
@@ -4050,8 +4061,8 @@ if pos == -1 and allowExit
     
     // Check for Reversal Exit (ChoCH Up)
     // breakShort = bullish EMA break; isChoCH_Long = bullish structure reversal
-    // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
-    structHit = ((breakShort and canStructExit) or isChoCH_Long)
+    // v6.2.6: ChoCH exits now respect a minimum 2-bar grace.
+    structHit = ((breakShort and canStructExit) or (isChoCH_Long and canChochExit))
 
     // ChoCh Filtering (Confirm Reversal) - REMOVED for Bullish ChoCh per instruction
     // if structHit and not na(pU) and pU < exitConfChoCh
@@ -4179,16 +4190,14 @@ f_draw_lbl(showLongLabels, labelBuy, true, true, "BUY", color.white, color.new(c
 f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color.new(color.red, 0), size.auto)
 
 if showLongLabels and labelExit
-    // Exit label (Above bar)
-    // Reverted to standard sizing (removed size.auto) and included Confidence text to match previous working version
+    // Exit label (Above bar) — includes bars-held for traceability
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
-    label.new(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    label.new(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 
 if showShortLabels and labelCover
-    // Cover label (Below bar)
-    // Reverted to standard sizing (removed size.auto) and included Confidence text to match previous working version
+    // Cover label (Below bar) — includes bars-held for traceability
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
-    label.new(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    label.new(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
