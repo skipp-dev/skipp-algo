@@ -3465,6 +3465,9 @@ buySignal   = false
 exitSignal  = false
 shortSignal = false
 coverSignal = false
+// v6.2.13: Track reversal entry type for EXIT/COVER labels and REV-BUY/SHORT plotshapes
+bool isRevBuy   = false
+bool isRevShort = false
 
 
 //====================
@@ -3853,6 +3856,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     bool revBuyGlobal    = f_fc_bool(allowNeuralReversals and ddOk and isChoCH_Long and probOkGlobal and volOk)
     bool revShortGlobal  = f_fc_bool(allowNeuralReversals and ddOk and isChoCH_Short and probOkGlobalS and volOk)
 
+    // v6.2.13: Export reversal flags for label rendering
+    isRevBuy   := revBuyGlobal
+    isRevShort := revShortGlobal
+
     // Engine-specific signals only when standard entry is allowed (pos==0 + allowEntry/allowRescue).
     // When entered via allowRevBypass alone, only reversal injection below applies.
     bool standardEntryOk = (pos == 0) and (allowEntry or allowRescue)
@@ -4072,6 +4079,9 @@ if pos == -1 and allowExit
 // State Logic
 // v6.2.10: Same-bar reversal support (see Indicator for full explanation).
 // did* flags track state machine actions per bar (support COVER→BUY on same bar).
+// v6.2.13: Track whether position was entered via Neural Reversal so EXIT/COVER
+//          labels can indicate "(REV)".
+var bool lastEntryWasRev = false
 var string lastExitReason = ""
 bool didBuy   = false
 bool didShort = false
@@ -4118,6 +4128,7 @@ if barstate.isconfirmed
         enBar      := bar_index
         isBeHit    := false
         barsSinceEntry := 0  // reset for same-bar reversal
+        lastEntryWasRev := isRevBuy  // v6.2.13
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -4133,6 +4144,7 @@ if barstate.isconfirmed
         enBar      := bar_index
         isBeHit    := false
         barsSinceEntry := 0  // reset for same-bar reversal
+        lastEntryWasRev := isRevShort  // v6.2.13
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
@@ -4180,8 +4192,11 @@ plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.b
 plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
 
 // Label rendering (configurable source + price)
-labelBuy   = buyEvent
-labelShort = shortEvent
+// v6.2.13: Split into REV-BUY/REV-SHORT and standard BUY/SHORT (parity with Indicator)
+labelRevBuy   = buyEvent and isRevBuy
+labelRevShort = shortEvent and isRevShort
+labelBuy   = buyEvent and not isRevBuy
+labelShort = shortEvent and not isRevShort
 labelExit  = exitEvent
 labelCover = coverEvent
 
@@ -4193,6 +4208,9 @@ f_label_price(isLong, isEntry) =>
     labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
 // v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
+// v6.2.13: REV-BUY/REV-SHORT plotshapes added (size.normal, matching Indicator).
+plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
 plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
 plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
 
@@ -4207,25 +4225,32 @@ f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_exitLabels) > MAX_EXIT_LABELS
         label.delete(array.shift(_exitLabels))
 
+// v6.2.13: Snapshot lastEntryWasRev BEFORE Phase-2 overwrites it on same-bar reversal.
+bool _wasRevEntry = lastEntryWasRev
+
 if showLongLabels and labelExit
     // Exit label — includes bars-held for traceability
     // v6.2.12: On same-bar reversal (EXIT→SHORT), append " → SHORT" and render BELOW bar
     //          so the EXIT label doesn't hide the SHORT plotshape above bar.
+    // v6.2.13: Show "(REV)" when the position was entered via Neural Reversal.
+    string revTag    = _wasRevEntry ? " (REV)" : ""
     string exitSuffix = didShort ? " → SHORT" : ""
     bool isExitRev = didShort
     val = isExitRev ? low : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high)
     exitSty = isExitRev ? label.style_label_up : label.style_label_down
-    f_exit_label(bar_index, val, "EXIT" + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
+    f_exit_label(bar_index, val, "EXIT" + revTag + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
 if showShortLabels and labelCover
     // Cover label — includes bars-held for traceability
     // v6.2.12: On same-bar reversal (COVER→BUY), append " → BUY" and render ABOVE bar
     //          so the COVER label doesn't hide the BUY plotshape below bar.
+    // v6.2.13: Show "(REV)" when the position was entered via Neural Reversal.
+    string revTag    = _wasRevEntry ? " (REV)" : ""
     string coverSuffix = didBuy ? " → BUY" : ""
     bool isReversal = didBuy
     val = isReversal ? high : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low)
     labelSty = isReversal ? label.style_label_down : label.style_label_up
-    f_exit_label(bar_index, val, "COVER" + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
+    f_exit_label(bar_index, val, "COVER" + revTag + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
