@@ -34,6 +34,14 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 - **Roadmap enhancements:** `docs/SkippALGO_Roadmap_Enhancements.md`
 - **Wiki (local mirror):** `docs/wiki/Home.md`
 
+## Recent changes (Feb 2026)
+
+- **Parity fixes (Indicator ⇄ Strategy):**
+  - Loose engine now applies `enhLongOk/enhShortOk` consistently in both scripts.
+  - `barsSinceEntry` now starts at `0` on the entry bar in both scripts (no risk-decay tightening on the entry bar) and uses `>=` for `canStructExit`.
+  - Regression Slope (RegSlope) subsystem is now supported in the Strategy as well (inputs + helpers + gating in `enhLongOk/enhShortOk`).
+- **Governance:** added regression tests to lock these behaviors and keep future edits honest.
+
 ## License
 
 This project is distributed under the Mozilla Public License 2.0 (see source headers).
