@@ -85,6 +85,10 @@ grp_sigfilt = "Signal Filters"
 usePreMomentum = input.bool(false, "Pre-signal momentum gate", group=grp_sigfilt, tooltip="Require RSI alignment with trade direction")
 preMomRsiHi    = input.int(65, "Pre-signal RSI high (long)", minval=55, maxval=80, group=grp_sigfilt)
 preMomRsiLo    = input.int(35, "Pre-signal RSI low (short)", minval=20, maxval=45, group=grp_sigfilt)
+// Optional engulfing filter (3 opposite candles before engulfing candle)
+useEngulfing3Filter = input.bool(false, "Engulfing filter (3 candles)", group=grp_sigfilt, tooltip="Require 3 opposite candles before engulfing candle for LONG/SHORT entries.")
+engulfingRequireBodyDominance = input.bool(true, "Engulfing: body > prev body", group=grp_sigfilt, tooltip="Require engulfing candle body to be larger than previous candle body.")
+showEngulfingBarColors = input.bool(false, "Engulfing: color bars", group=grp_sigfilt, tooltip="Color bullish engulfing bars yellow and bearish engulfing bars white.")
 // C3 – EMA acceleration filter
 useEmaAccel    = input.bool(false, "EMA acceleration filter", group=grp_sigfilt, tooltip="Check that EMA gap is expanding")
 emaAccelLen    = input.int(5, "EMA accel lookback", minval=2, maxval=20, group=grp_sigfilt)
@@ -3676,6 +3680,19 @@ touchEmaF_Short = high >= emaF and close <= emaF
 bullReversal = close > open and close > emaF and low <= emaF
 bearReversal = close < open and close < emaF and high >= emaF
 
+// 3-candle context engulfing filter (noise reduction)
+prevThreeBear = (open[3] > close[3]) and (open[2] > close[2]) and (open[1] > close[1])
+prevThreeBull = (open[3] < close[3]) and (open[2] < close[2]) and (open[1] < close[1])
+prevBody = math.abs(open[1] - close[1])
+bullBody = close - open
+bearBody = open - close
+
+bullEngulf3 = prevThreeBear and (close > open) and (close >= open[1]) and (close[1] >= open) and ((not engulfingRequireBodyDominance) or (bullBody > prevBody))
+bearEngulf3 = prevThreeBull and (open > close) and (open >= close[1]) and (open[1] >= close) and ((not engulfingRequireBodyDominance) or (bearBody > prevBody))
+
+engulfLongOk = (not useEngulfing3Filter) or bullEngulf3
+engulfShortOk = (not useEngulfing3Filter) or bearEngulf3
+
 setOkLong  = (not requireSET) or setLong
 setOkShort = (not requireSET) or setShort
 
@@ -3833,6 +3850,8 @@ vwapLongOkSafe    = (vwapLongOk == true)
 vwapShortOkSafe   = (vwapShortOk == true)
 regSlopeLongOkSafe  = (regSlopeLongOk == true)
 regSlopeShortOkSafe = (regSlopeShortOk == true)
+engulfLongOkSafe  = (engulfLongOk == true)
+engulfShortOkSafe = (engulfShortOk == true)
 
 // Enhancement composite gates
 enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe and regSlopeLongOkSafe
@@ -3901,7 +3920,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     if engine == "Hybrid"
         // Base triggers
-        gateBuy   = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
+        gateBuy   = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger and engulfLongOkSafe
         
         // ChoCH Filter (Strict)
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
@@ -3909,7 +3928,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
         buySignal   := gateBuy and chochFilterOk
         
-        gateShort = standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk
+        gateShort = standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and hybridShortTrigger and enhShortOk and engulfShortOkSafe
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
@@ -3917,24 +3936,24 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     else if engine == "Breakout"
         // Base
-        baseBuy = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe  and enhLongOk
+        baseBuy = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and breakoutLongSafe  and enhLongOk and engulfLongOkSafe
         isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
         buySignal   := baseBuy and chochFilterOk
         
-        baseShort = standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk
+        baseShort = standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and breakoutShortSafe and enhShortOk and engulfShortOkSafe
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
         shortSignal := baseShort and chochShortFilterOk
 
     else if engine == "Trend+Pullback"
-        buySignal   := standardEntryOk and gateLongNow and (trendFlipUpSafe or reclaimUpSafe) and enhLongOk
-        shortSignal := standardEntryOk and enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe) and enhShortOk
+        buySignal   := standardEntryOk and gateLongNow and (trendFlipUpSafe or reclaimUpSafe) and enhLongOk and engulfLongOkSafe
+        shortSignal := standardEntryOk and enableShorts and gateShortNow and (trendFlipDownSafe or reclaimDownSafe) and enhShortOk and engulfShortOkSafe
     else // Loose
-        buySignal   := standardEntryOk and gateLongNow and crossClose_EmaF_upSafe and enhLongOk
-        shortSignal := standardEntryOk and enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
+        buySignal   := standardEntryOk and gateLongNow and crossClose_EmaF_upSafe and enhLongOk and engulfLongOkSafe
+        shortSignal := standardEntryOk and enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk and engulfShortOkSafe
 
     // v6.2.11: Hard probability floor for standard entries.
     // The forecast gate (fcGateLongSafe) silently passes when forecastAllowed is
@@ -4399,6 +4418,10 @@ plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, 
 plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
 plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
+
+barcolor(showEngulfingBarColors ? (bullEngulf3 ? color.yellow : bearEngulf3 ? color.white : na) : na)
+alertcondition((not useAlertCalls) and bullEngulf3, title="Bullish Engulfing (3 prior opposite)", message="SkippALGO Bullish Engulfing (3 prior bearish) | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and bearEngulf3, title="Bearish Engulfing (3 prior opposite)", message="SkippALGO Bearish Engulfing (3 prior bullish) | {{ticker}} @ {{close}} | {{time}}")
 
 // v6.2.16: Entry bar highlighting.
 bgcolor(buyEvent   ? color.new(color.green, 70) : na, title="BUY bar")
