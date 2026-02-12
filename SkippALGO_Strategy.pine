@@ -3938,6 +3938,17 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         buySignal   := buySignal   or revBuyGlobal
         shortSignal := shortSignal or revShortGlobal
 
+    // v6.2.22: Global ChoCH confidence hard gate (all engines + REV).
+    // Prevents ChoCH-context entries when directional probability is below
+    // chochMinProb, regardless of where the signal originated.
+    bool chochVolOk = (not chochReqVol) or volOk
+    bool chochLongContext = (structState == -1) or isChoCH_Long
+    bool chochShortContext = (structState == 1) or isChoCH_Short
+    if buySignal and chochLongContext and (na(pU) or pU < chochMinProb or not chochVolOk)
+        buySignal := false
+    if shortSignal and chochShortContext and (na(pD) or pD < chochMinProb or not chochVolOk)
+        shortSignal := false
+
     if buySignal and shortSignal
         buySignal := false
         shortSignal := false
