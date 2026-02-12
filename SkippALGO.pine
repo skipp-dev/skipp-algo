@@ -3905,11 +3905,15 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     isRevBuy   := revBuyGlobal
     isRevShort := revShortGlobal
 
+    // Engine-specific signals only when standard entry is allowed (pos==0 + allowEntry/allowRescue).
+    // When entered via allowRevBypass alone, only reversal injection below applies.
+    bool standardEntryOk = (pos == 0) and (allowEntry or allowRescue)
+
     if engine == "Hybrid"
         if showDebugLabels and allowRescue
             f_debug_label(bar_index, high, "Hybrid Loop Entered", label.style_label_down)
         // Base triggers
-        gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
+        gateBuy   = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         
         // ChoCH Filter (Strict)
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
@@ -3917,7 +3921,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
         buySignal   := gateBuy and chochFilterOk
         
-        gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
+        gateShort = standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
@@ -3926,7 +3930,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     else if engine == "Breakout"
 
         // Base
-        baseBuy = gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and enhLongOk  and breakoutLongSafe
+        baseBuy = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and trendUpSafe and enhLongOk  and breakoutLongSafe
         
         // Breakout Engine inherently handles Structure, but we can enforce strict ChoCH here too
         // Note: For Breakout engine, `breakoutLong` usually aligns with BOS unless it's the very first reversal.
@@ -3937,18 +3941,18 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
         buySignal   := baseBuy and chochFilterOk
         
-        baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
+        baseShort = standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
         shortSignal := baseShort and chochShortFilterOk
         
     else if engine == "Trend+Pullback"
-        buySignal   := gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
-        shortSignal := enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
+        buySignal   := standardEntryOk and gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
+        shortSignal := standardEntryOk and enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
     else // Loose
-        buySignal   := gateLongNow and crossClose_EmaF_upSafe and enhLongOk
-        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
+        buySignal   := standardEntryOk and gateLongNow and crossClose_EmaF_upSafe and enhLongOk
+        shortSignal := standardEntryOk and enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
 
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
