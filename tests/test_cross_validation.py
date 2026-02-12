@@ -440,6 +440,42 @@ class TestSignalParity(unittest.TestCase):
                     self.assertNotEqual(sym_branch, pb_branch,
                         f"{name}: aggrLower Symmetric and Pullback branches must differ")
 
+    # -- EP invariant regression --
+
+    def test_ep_negative_triggers_invariant_and_clamp(self):
+        """When eligPending < 0, EP must display as 0 and invOk must be false."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # 1) EP display must clamp via math.max(eligPending, 0)
+            self.assertIn('math.max(eligPending, 0)', content,
+                f"{name}: EP display must clamp negative values via math.max(eligPending, 0)")
+            # 2) epNeg must be derived from eligPending < 0
+            self.assertIn('epNeg = eligPending < 0', content,
+                f"{name}: epNeg flag must be set from eligPending < 0")
+            # 3) invOk must include (not epNeg)
+            inv_lines = [l for l in content.splitlines() if 'invOk' in l and 'epNeg' in l]
+            self.assertTrue(len(inv_lines) >= 1,
+                f"{name}: invOk must incorporate epNeg into invariant check")
+            self.assertTrue(any('not epNeg' in l for l in inv_lines),
+                f"{name}: invOk must include '(not epNeg)' to propagate EP<0 as invariant breach")
+
+    def test_enqCountElig_same_predicate_as_qUseForecast(self):
+        """enqCountElig must increment on the same predicate as qUseForecast push."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # Both should use the same eligibility expression
+            fc_pushes = re.findall(
+                r'array\.push\(st\.qUseForecast,\s*(.+)\)', content)
+            elig_guards = re.findall(
+                r'if\s+(.+?)\n\s+st\.enqCountElig\s*\+=\s*1', content)
+            self.assertGreaterEqual(len(fc_pushes), 2,
+                f"{name}: expected >=2 qUseForecast pushes, found {len(fc_pushes)}")
+            self.assertGreaterEqual(len(elig_guards), 2,
+                f"{name}: expected >=2 enqCountElig guards, found {len(elig_guards)}")
+            # The predicate pushed into qUseForecast must match the guard on enqCountElig
+            for push_val, guard_val in zip(fc_pushes, elig_guards):
+                self.assertEqual(push_val.strip(), guard_val.strip(),
+                    f"{name}: qUseForecast push predicate '{push_val.strip()}' != "
+                    f"enqCountElig guard '{guard_val.strip()}'")
+
 
 if __name__ == '__main__':
     unittest.main()
