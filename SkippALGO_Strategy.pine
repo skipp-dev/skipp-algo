@@ -3853,9 +3853,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   Require directional impulse candle on rescue path.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
+    float chochProbFloor = math.max(revMinProb, chochMinProb)
     // v6.2.20: inRevOpenWindow bypasses pU filter entirely for REV entries near market open
-    bool probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
-    bool probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= revMinProb) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
+    bool probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= chochProbFloor) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
+    bool probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= chochProbFloor) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
