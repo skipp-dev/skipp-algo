@@ -83,5 +83,14 @@ class TestSkippAlgoV6_1(unittest.TestCase):
         recency = r'bool revRecencyOkL\s*=\s*\(not na\(barsSinceChoCH_L\)\) and \(barsSinceChoCH_L <= \d+ or volRatioG >= 1.0\)'
         self.assertRegex(self.strat_text, recency, "Strategy stale reversal filter (Long) missing")
 
+    def test_reversal_entry_gate(self):
+        """Verify Neural Reversals bypass standard allowEntry gate."""
+        # The main entry block should include allowNeuralReversals as a bypass
+        # pattern: if pos == 0 and (allowEntry or allowRescue or (allowNeuralReversals ...))
+        bypass_pattern = r'if pos == 0 and \(allowEntry or allowRescue or \(allowNeuralReversals and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)\)\)'
+        
+        self.assertRegex(self.strat_text, bypass_pattern, "Strategy main entry loop blocks Neural Reversals (missing bypass logic)")
+        self.assertRegex(self.ind_text, bypass_pattern, "Indicator main entry loop blocks Neural Reversals (missing bypass logic)")
+
 if __name__ == '__main__':
     unittest.main()

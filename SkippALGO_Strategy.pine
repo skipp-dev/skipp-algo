@@ -3802,7 +3802,7 @@ hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullRe
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
 
 // Signals
-if pos == 0 and (allowEntry or allowRescue)
+if pos == 0 and (allowEntry or allowRescue or (allowNeuralReversals and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)))
 
     // Recency (Global Scope inside loop for safety)
     int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
