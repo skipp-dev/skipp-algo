@@ -108,6 +108,18 @@ rsMinRange     = input.int(10, "RegSlope Min Range", minval=5, group=grp_sigfilt
 rsStep         = input.int(5, "RegSlope Step", minval=1, group=grp_sigfilt)
 rsSigLine      = input.int(7, "RegSlope Signal Line", minval=1, group=grp_sigfilt)
 
+// Volatility context (light overlay, default OFF)
+useAtrRegimeOverlay = input.bool(false, "ATR regime overlay", group=grp_sigfilt, tooltip="Show volatility regime background based on ATR ratio to baseline.")
+showAtrRegimeLabel = input.bool(false, "ATR regime label", group=grp_sigfilt, tooltip="Show current ATR regime and ratio on last bar.")
+atrRegimeBaselineLen = input.int(50, "ATR regime baseline len", minval=20, maxval=300, group=grp_sigfilt)
+atrRegimeBaselineType = input.string("SMA", "ATR regime baseline", options=["SMA", "EMA"], group=grp_sigfilt)
+atrCompressionThr = input.float(0.70, "ATR compression threshold", minval=0.30, maxval=0.95, step=0.05, group=grp_sigfilt)
+atrExpansionThr = input.float(1.15, "ATR expansion threshold", minval=1.00, maxval=2.00, step=0.05, group=grp_sigfilt)
+atrHighVolThr = input.float(1.40, "ATR high-vol threshold", minval=1.10, maxval=3.00, step=0.05, group=grp_sigfilt)
+atrExhaustLookback = input.int(5, "ATR exhaustion lookback", minval=3, maxval=30, group=grp_sigfilt)
+enableAtrPercentile = input.bool(false, "ATR percentile context", group=grp_sigfilt, tooltip="Compute ATR percentile rank for context (0..100).")
+atrPercentileLookback = input.int(100, "ATR percentile lookback", minval=50, maxval=500, group=grp_sigfilt)
+
 // MTF use (filter / regime)
 useMtfConfirm = input.bool(true, "MTF confirmation")
 mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"])
@@ -2489,6 +2501,16 @@ crossClose_EmaS_down = ta.crossunder(close, emaS)
 // Vol regime (protect against close=0 on exotic instruments)
 atrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), volRankLen)
 
+// ATR regime + percentile (light context layer)
+atrBaselineReg = atrRegimeBaselineType == "EMA" ? ta.ema(atr, atrRegimeBaselineLen) : ta.sma(atr, atrRegimeBaselineLen)
+atrRatioReg = atrBaselineReg > 0 ? atr / atrBaselineReg : 1.0
+atrWasRecentlyHigh = ta.highest(atrRatioReg[1], atrExhaustLookback) >= atrHighVolThr
+atrDeclining = ta.falling(atr, atrExhaustLookback)
+int atrRegime = atrRatioReg < atrCompressionThr ? 1 : atrRatioReg >= atrHighVolThr ? 3 : (atrWasRecentlyHigh and atrDeclining and atrRatioReg < atrHighVolThr) ? 4 : atrRatioReg >= atrExpansionThr ? 2 : 0
+atrRegimeName = atrRegime == 1 ? "COMPRESSION" : atrRegime == 2 ? "EXPANSION" : atrRegime == 3 ? "HIGH VOL" : atrRegime == 4 ? "EXHAUSTION" : "NEUTRAL"
+atrRegimeBg = atrRegime == 1 ? color.new(color.lime, 88) : atrRegime == 2 ? color.new(color.orange, 88) : atrRegime == 3 ? color.new(color.red, 88) : atrRegime == 4 ? color.new(color.purple, 88) : na
+atrPercentile = enableAtrPercentile ? (f_pct_rank(atr, atrPercentileLookback) * 100.0) : na
+
 // Guardrails
 prevClose = close[1]
 gapPct    = (na(prevClose) or prevClose == 0.0) ? 0.0 : math.abs(open - prevClose) / prevClose
@@ -4426,6 +4448,13 @@ alertcondition((not useAlertCalls) and bearEngulf3, title="Bearish Engulfing (3 
 // v6.2.16: Entry bar highlighting.
 bgcolor(buyEvent   ? color.new(color.green, 70) : na, title="BUY bar")
 bgcolor(shortEvent ? color.new(color.red, 70)   : na, title="SHORT bar")
+bgcolor(useAtrRegimeOverlay ? atrRegimeBg : na, title="ATR regime background")
+
+var label atrRegimeInfoLabel = na
+if useAtrRegimeOverlay and showAtrRegimeLabel and barstate.islast
+    label.delete(atrRegimeInfoLabel)
+    atrRegTxt = "ATR " + atrRegimeName + "\nR: " + str.tostring(atrRatioReg, "#.##") + (enableAtrPercentile ? "\nPctl: " + str.tostring(atrPercentile, "#.0") + "%" : "")
+    atrRegimeInfoLabel := label.new(bar_index, high * 1.02, atrRegTxt, style=label.style_label_down, color=color.new(color.black, 30), textcolor=color.white, size=size.tiny)
 
 // v6.1.3: TradersPost JSON Payload Generator (Strategy version)
 f_tp_json(action, orderId, legacyMsg) =>
