@@ -1054,11 +1054,11 @@ f_get_params(tf) =>
     isMid  = (not na(sec)) and sec <= SEC_1H // <= 1h
     // Returns: [fcTarget, kBars, atrThr, pathH, tpATR, slATR]
     [isFast ? fcTargetF : isMid ? fcTargetM : fcTargetS, 
-    isFast ? kBarsF    : isMid ? kBarsM    : kBarsS, 
-    isFast ? atrThrF   : isMid ? atrThrM   : atrThrS, 
-    isFast ? pathHF    : isMid ? pathHM    : pathHS, 
-    isFast ? tpATRF    : isMid ? tpATRM    : tpATRS, 
-    isFast ? slATRF    : isMid ? slATRM    : slATRS]
+     isFast ? kBarsF    : isMid ? kBarsM    : kBarsS, 
+     isFast ? atrThrF   : isMid ? atrThrM   : atrThrS, 
+     isFast ? pathHF    : isMid ? pathHM    : pathHS, 
+     isFast ? tpATRF    : isMid ? tpATRM    : tpATRS, 
+     isFast ? slATRF    : isMid ? slATRM    : slATRS]
 
 // --- Phase 4 Helpers: Platt Scaling ---
 f_logit(p) =>
@@ -1310,8 +1310,8 @@ f_blend_prior(pU, pF, pD, pUpr, pFpr, pDpr, nRaw) =>
     eff = na(nRaw) ? 0.0 : nRaw
     w = calMinSamples <= 0 ? 1.0 : math.min(1.0, math.max(0.0, eff / calMinSamples))
     [pU * w + pUpr * (1.0 - w),
-    pF * w + pFpr * (1.0 - w),
-    pD * w + pDpr * (1.0 - w)]
+     pF * w + pFpr * (1.0 - w),
+     pD * w + pDpr * (1.0 - w)]
 
 f_samp_label(enabled, total) =>
     not enabled ? "off" : total < calMinSamples ? "…" : total < calMinSamples * 3 ? "ok" : "strong"
@@ -1327,11 +1327,11 @@ f_tf_pack(tf) =>
         syminfo.tickerid,
         tf,
         [time, close, high, low,
-        ta.ema(close, emaFastLen),
-        ta.ema(close, emaSlowLen),
-        ta.rsi(close, rsiStateLen),
-        ta.atr(atrTargetLen),
-        f_pct_rank(ta.atr(atrLen) / math.max(close, PRICE_EPS), volRankLen)],
+         ta.ema(close, emaFastLen),
+         ta.ema(close, emaSlowLen),
+         ta.rsi(close, rsiStateLen),
+         ta.atr(atrTargetLen),
+         f_pct_rank(ta.atr(atrLen) / math.max(close, PRICE_EPS), volRankLen)],
         barmerge.gaps_off,
         barmerge.lookahead_off
     )
@@ -2809,11 +2809,11 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
             ok = edgeOk and binOk and totalOk
 
             reason =
-                (tradeMinTotalSamples > 0 and total < tradeMinTotalSamples) ? "Low Total" :
-                (tradeMinBinSamples   > 0 and nBin  < tradeMinBinSamples)   ? "Weak Bin" :
-                (dir == 0)                                                  ? "Flat" :
-                (edge < abstainMinEdge)                                    ? "Low Edge" :
-                "OK"
+                 (tradeMinTotalSamples > 0 and total < tradeMinTotalSamples) ? "Low Total" :
+                 (tradeMinBinSamples   > 0 and nBin  < tradeMinBinSamples)   ? "Weak Bin" :
+                 (dir == 0)                                                  ? "Flat" :
+                 (edge < abstainMinEdge)                                    ? "Low Edge" :
+                 "OK"
 
             col = ok ? color.lime : color.orange
             [ok, reason, col, edge]
@@ -3393,16 +3393,16 @@ useForecast = (forecastAllowed == true)
 // If ON -> STRICT Fail-Closed (na blocks).
 // Uses GLOBAL metrics (Brier + Global Count) to match data source.
 reliabilityOk =
-    (not useForecast)  ? true :
-    (not useRelFilter) ? true :
-    (f_fc_num(curBrierRaw) and f_fc_num(totSampGlob) and (totSampGlob > 0) and (curBrierRaw <= maxBrier))
+     (not useForecast)  ? true :
+     (not useRelFilter) ? true :
+     (f_fc_num(curBrierRaw) and f_fc_num(totSampGlob) and (totSampGlob > 0) and (curBrierRaw <= maxBrier))
 
 // GATE 2: Evidence
 // Uses SPECIFIC subset count.
 evidenceOk =
-    (not useForecast)  ? true :
-    (not evidenceGate) ? true :
-    (f_fc_num(totSampSub) and (totSampSub >= evidenceMinTotal))
+     (not useForecast)  ? true :
+     (not evidenceGate) ? true :
+     (f_fc_num(totSampSub) and (totSampSub >= evidenceMinTotal))
 
 [pRelU_t, pRelF_t, pRelD_t, nRel_t, totRel_t] = f_get_rel_vals(relFilterTF, relFilterModel)
 pRelU = pRelU_t
@@ -3449,14 +3449,14 @@ nearCloseOk        = (blockNearClose == false)
 inSession = (not useSessionFilter) or (not na(time(timeframe.period, sessionWin)))
 
 allowEntry =
-    inSession
-and barstate.isconfirmed
-and cooldownOkSafe
-and nearCloseOk
-and (reliabilityOk == true)
-and (evidenceOk == true)
-and (evalOk == true)
-and (not abstainGate or decisionFinal)
+     inSession
+ and barstate.isconfirmed
+ and cooldownOkSafe
+ and nearCloseOk
+ and (reliabilityOk == true)
+ and (evidenceOk == true)
+ and (evalOk == true)
+ and (not abstainGate or decisionFinal)
 
 allowExit = barstate.isconfirmed
 

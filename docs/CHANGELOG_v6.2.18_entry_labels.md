@@ -26,6 +26,7 @@ mismatch caused users to overlook BUY labels between consecutive EXITs.
 **Files:** `SkippALGO.pine`, `SkippALGO_Strategy.pine`
 
 **Before:**
+
 ```pine
 plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup,
          location=location.belowbar, size=size.large, text="BUY",
@@ -33,6 +34,7 @@ plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup,
 ```
 
 **After:**
+
 ```pine
 if showLongLabels and labelBuy
     f_entry_label(bar_index, low, "BUY\npU: " + _probTxt + "\nConf: " + _confTxt,
@@ -44,11 +46,13 @@ All 4 entry types (BUY, SHORT, REV-BUY, REV-SHORT) converted identically.
 ### 2. Probability & confidence in entry labels
 
 Each entry label now shows:
+
 - **pU** (bullish probability) for BUY / REV-BUY labels
 - **pD** (bearish probability) for SHORT / REV-SHORT labels
 - **Confidence** score (percentage)
 
 Format example:
+
 ```
 BUY
 pU: 62.3%
