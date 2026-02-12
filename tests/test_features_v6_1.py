@@ -79,18 +79,18 @@ class TestSkippAlgoV6_1(unittest.TestCase):
 
     def test_stale_reversal_filter(self):
         """Verify Stale Reversal Filter Logic."""
-        # Should check for recency (<= 5 bars) OR high volume
-        recency = r'bool revRecencyOkL\s*=\s*\(not na\(barsSinceChoCH_L\)\) and \(barsSinceChoCH_L <= \d+ or volRatioG >= 1.0\)'
+        # Should check for recency (<= revRecencyBars) OR high volume
+        recency = r'bool revRecencyOkL\s*=\s*\(not na\(barsSinceChoCH_L\)\) and \(barsSinceChoCH_L <= revRecencyBars or volRatioG >= 1.0\)'
         self.assertRegex(self.strat_text, recency, "Strategy stale reversal filter (Long) missing")
 
     def test_reversal_entry_gate(self):
         """Verify Neural Reversals bypass standard allowEntry gate."""
-        # The main entry block should include allowRevBypass as a bypass
-        # pattern: allowRevBypass = ...
-        #          if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
+        # The main entry block should include allowRevBypass as an OR-bypass
+        # pattern: allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (...)
+        #          if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
-        define_pattern = r'allowRevBypass\s*=\s*allowNeuralReversals and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)'
-        usage_pattern  = r'if pos == 0 and \(allowEntry or allowRescue or allowRevBypass\)'
+        define_pattern = r'allowRevBypass\s*=\s*allowNeuralReversals and barstate\.isconfirmed and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)'
+        usage_pattern  = r'if \(pos == 0 and \(allowEntry or allowRescue\)\) or allowRevBypass'
 
         self.assertRegex(self.strat_text, define_pattern, "Strategy missing allowRevBypass definition")
         self.assertRegex(self.strat_text, usage_pattern,  "Strategy missing allowRevBypass usage in main loop")
