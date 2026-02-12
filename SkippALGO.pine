@@ -849,6 +849,10 @@ f_safe_remove_bool(bool[] arr, int idx) =>
 f_safe_get_bool(bool[] arr, int idx, bool fallback) =>
     idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
 
+// Resolve-horizon threshold: maps forecast target to its completion age
+f_resolve_thresh(string fcTarget, int kB, int pH) =>
+    fcTarget == "NextBar" ? 1 : (fcTarget == "KBarReturn" or fcTarget == "KBarATR") ? kB : pH
+
 // --- TF selector helpers (avoid long ternary chains)
 // Pine Script lacks generics, so one copy per return type is required.
 f_sel_tf_str(tfSel, v1, v2, v3, v4, v5, v6, v7) =>
@@ -4676,24 +4680,26 @@ if renderTable
             skipRateElig = resolvedEligTotal >= 20 ? st_base.skipTotalElig * 100.0 / resolvedEligTotal : na
             seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
             // Gate loss: eligible opportunities still pending (not resolved or skipped)
-            eligPending = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
-            epNeg = eligPending < 0
-            // EP decomposition: maturing (age <= resolve horizon) vs stuck (age > horizon)
-            // Resolve triggers at age >= threshold, so age == threshold means "resolving this bar" (not stuck)
-            // Suppressed when queue arrays are desynced (qSync=false) to avoid cross-index misalignment
-            [fcBase, kbBase, _atB, phBase, _tpB, _slB] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = fcBase == "NextBar" ? 1 : (fcBase == "KBarReturn" or fcBase == "KBarATR") ? kbBase : phBase
+            eligPendingRaw = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
+            eligPending = math.max(eligPendingRaw, 0)
+            epNeg = eligPendingRaw < 0
+            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
+            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
+            stuckThresh = f_resolve_thresh(fc, kB, pH)
             epMature = 0
-            epStuck = 0
-            if qSync and qDepth > 0
-                for j = 0 to qDepth - 1
+            epStuck  = 0
+            qN = qDepth
+            if qSync and qN > 0
+                for j = 0 to qN - 1
                     if f_safe_get_bool(st_base.qUseForecast, j, false)
+                        // resolve fires at age >= thresh, so stuck is strictly age > thresh
                         if f_safe_get_int(st_base.qAge, j, 0) > stuckThresh
                             epStuck += 1
                         else
                             epMature += 1
-            epDecomp = qSync and (epMature > 0 or epStuck > 0) ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
-            epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(math.max(eligPending, 0)) + epDecomp : ""
+            hasEpDecomp = qSync and qN > 0 and (epMature > 0 or epStuck > 0)
+            epDecomp = hasEpDecomp ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
+            epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(eligPending) + epDecomp : ""
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
             f_cell(6, 20, skipRateTxt + seTxt + epTxt, skipRateCol, covBg)
             // Leakage guard: invariant checks on eligible <= all counters + EP>=0
@@ -4701,7 +4707,7 @@ if renderTable
             // INV! first-failure latch: snapshot counters on first breach
             if not invOk and not invLatched
                 invLatched := true
-                invLatchInfo := entryFcTF + " " + fcBase + " enq=" + str.tostring(st_base.enqCount) + "/" + str.tostring(st_base.enqCountElig) + " res=" + str.tostring(st_base.resolvedScored) + "/" + str.tostring(st_base.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_base.skipTotalElig) + " EP=" + str.tostring(eligPending)
+                invLatchInfo := entryFcTF + " " + fc + " enq=" + str.tostring(st_base.enqCount) + "/" + str.tostring(st_base.enqCountElig) + " res=" + str.tostring(st_base.resolvedScored) + "/" + str.tostring(st_base.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_base.skipTotalElig) + " EP=" + str.tostring(eligPendingRaw)
             invTxt = not invOk ? "INV!" : invLatched ? "INV(L)" : ""
             invCol = not invOk ? color.red : invLatched ? color.new(color.orange, 30) : tblTextDim
             table.cell(gT, 7, 20, invTxt, text_size=size.tiny, text_color=invCol, bgcolor=covBg, tooltip=invLatched ? invLatchInfo : "")
@@ -4742,31 +4748,33 @@ if renderTable
             qSync = qDepth == array.size(st_ops.qEntry) and qDepth == array.size(st_ops.qAtr)
             skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
             skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
-            eligPending = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
-            epNeg = eligPending < 0
-            // EP decomposition (lightweight: iterate queue, O(n) — no sorts)
-            // Suppressed when queue arrays are desynced to avoid cross-index misalignment
-            [fcOps, kbOps, _atO, phOps, _tpO, _slO] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThreshOps = fcOps == "NextBar" ? 1 : (fcOps == "KBarReturn" or fcOps == "KBarATR") ? kbOps : phOps
-            epMat = 0
-            epStk = 0
-            qSzO = array.size(st_ops.qAge)
-            if qSync and qSzO > 0
-                for j = 0 to qSzO - 1
+            eligPendingRaw = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
+            eligPending = math.max(eligPendingRaw, 0)
+            epNeg = eligPendingRaw < 0
+            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
+            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
+            stuckThresh = f_resolve_thresh(fc, kB, pH)
+            epMature = 0
+            epStuck  = 0
+            qN = array.size(st_ops.qAge)
+            if qSync and qN > 0
+                for j = 0 to qN - 1
                     if f_safe_get_bool(st_ops.qUseForecast, j, false)
-                        if f_safe_get_int(st_ops.qAge, j, 0) > stuckThreshOps
-                            epStk += 1
+                        // resolve fires at age >= thresh, so stuck is strictly age > thresh
+                        if f_safe_get_int(st_ops.qAge, j, 0) > stuckThresh
+                            epStuck += 1
                         else
-                            epMat += 1
-            epDec = qSync and (epMat > 0 or epStk > 0) ? " m:" + str.tostring(epMat) + "/s:" + str.tostring(epStk) : ""
-            epTxt = st_ops.enqCountElig >= 20 ? " EP:" + str.tostring(math.max(eligPending, 0)) + epDec : ""
+                            epMature += 1
+            hasEpDecomp = qSync and qN > 0 and (epMature > 0 or epStuck > 0)
+            epDecomp = hasEpDecomp ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
+            epTxt = st_ops.enqCountElig >= 20 ? " EP:" + str.tostring(eligPending) + epDecomp : ""
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
             f_cell(3, 16, skipRateTxt + epTxt, skipRateCol, covBg)
             // INV! with latch
             invOk = st_ops.resolvedScoredElig <= st_ops.resolvedScored and st_ops.skipTotalElig <= skipTotal and st_ops.enqCountElig <= st_ops.enqCount and (not epNeg)
             if not invOk and not invLatched
                 invLatched := true
-                invLatchInfo := entryFcTF + " " + opsTarget + " enq=" + str.tostring(st_ops.enqCount) + "/" + str.tostring(st_ops.enqCountElig) + " res=" + str.tostring(st_ops.resolvedScored) + "/" + str.tostring(st_ops.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_ops.skipTotalElig) + " EP=" + str.tostring(eligPending)
+                invLatchInfo := entryFcTF + " " + opsTarget + " enq=" + str.tostring(st_ops.enqCount) + "/" + str.tostring(st_ops.enqCountElig) + " res=" + str.tostring(st_ops.resolvedScored) + "/" + str.tostring(st_ops.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_ops.skipTotalElig) + " EP=" + str.tostring(eligPendingRaw)
             invTxt = not invOk ? "INV!" : invLatched ? "INV(L)" : ""
             invCol = not invOk ? color.red : invLatched ? color.new(color.orange, 30) : tblTextDim
             table.cell(gT, 4, 16, invTxt, text_size=size.tiny, text_color=invCol, bgcolor=covBg, tooltip=invLatched ? invLatchInfo : "")

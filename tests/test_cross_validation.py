@@ -445,12 +445,12 @@ class TestSignalParity(unittest.TestCase):
     def test_ep_negative_triggers_invariant_and_clamp(self):
         """When eligPending < 0, EP must display as 0 and invOk must be false."""
         for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            # 1) EP display must clamp via math.max(eligPending, 0)
-            self.assertIn('math.max(eligPending, 0)', content,
-                f"{name}: EP display must clamp negative values via math.max(eligPending, 0)")
-            # 2) epNeg must be derived from eligPending < 0
-            self.assertIn('epNeg = eligPending < 0', content,
-                f"{name}: epNeg flag must be set from eligPending < 0")
+            # 1) EP display must clamp via eligPending = math.max(eligPendingRaw, 0)
+            self.assertIn('math.max(eligPendingRaw, 0)', content,
+                f"{name}: EP display must clamp negative values via math.max(eligPendingRaw, 0)")
+            # 2) epNeg must be derived from eligPendingRaw < 0
+            self.assertIn('epNeg = eligPendingRaw < 0', content,
+                f"{name}: epNeg flag must be set from eligPendingRaw < 0")
             # 3) invOk must include (not epNeg)
             inv_lines = [l for l in content.splitlines() if 'invOk' in l and 'epNeg' in l]
             self.assertTrue(len(inv_lines) >= 1,
@@ -573,22 +573,51 @@ class TestSignalParity(unittest.TestCase):
     def test_ep_decomp_guarded_by_qsync(self):
         """EP decomposition loop + string must be suppressed when qSync=false."""
         for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            # The EP loop must be gated on qSync (both full row and ops-only row)
-            self.assertRegex(content, r'if\s+qSync\s+and\s+q(Depth|SzO|SzEp)\s*>\s*0',
-                f"{name}: EP decomp loop must be gated on 'if qSync and qDepth/qSzO > 0'")
-            # The decomposition string must also check qSync
-            self.assertRegex(content, r'qSync\s+and\s+\(ep(Mature|Mat)\s*>\s*0',
-                f"{name}: EP decomp string in full row must be gated on qSync")
+            # The EP loop must be gated on qSync
+            self.assertRegex(content, r'if\s+qSync\s+and\s+qN\s*>\s*0',
+                f"{name}: EP decomp loop must be gated on 'if qSync and qN > 0'")
+            # The decomposition string must also check qSync via hasEpDecomp
+            self.assertIn('hasEpDecomp', content,
+                f"{name}: EP decomp string must use hasEpDecomp gate")
+            self.assertRegex(content, r'hasEpDecomp\s*=\s*qSync\s+and\s+qN',
+                f"{name}: hasEpDecomp must be gated on qSync and qN")
 
     def test_ep_decomp_no_dangling_qSzEp(self):
-        """qSzEp must not be referenced without a corresponding assignment."""
+        """Old EP loop-bound variables (qSzEp, qSzO) must not exist — unified to qN."""
         for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            lines = content.splitlines()
-            has_ref = any('qSzEp' in l and 'qSzEp' not in l.split('=')[0] if '=' in l else 'qSzEp' in l for l in lines)
-            has_def = any('qSzEp' in l.split('=')[0] for l in lines if '=' in l and '//' not in l.split('=')[0])
-            if has_ref:
-                self.assertTrue(has_def,
-                    f"{name}: qSzEp is referenced but never assigned — dangling variable")
+            for old_var in ['qSzEp', 'qSzO']:
+                self.assertNotIn(old_var, content,
+                    f"{name}: legacy variable '{old_var}' still present — should be 'qN'")
+
+    def test_resolve_thresh_helper_exists(self):
+        """f_resolve_thresh helper must exist and be used for stuck-threshold computation."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('f_resolve_thresh', content,
+                f"{name}: f_resolve_thresh helper missing")
+            self.assertRegex(content, r'stuckThresh\s*=\s*f_resolve_thresh',
+                f"{name}: stuckThresh must be computed via f_resolve_thresh helper")
+
+    def test_ep_naming_consistency(self):
+        """EP decomposition must use unified naming: epMature, epStuck, epDecomp, stuckThresh, qN."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # Old naming must not exist
+            for old_name in ['epMat ', 'epStk ', 'epDec ', 'stuckThreshOps']:
+                self.assertNotIn(old_name, content,
+                    f"{name}: legacy EP variable '{old_name.strip()}' still present")
+            # New naming must exist
+            for new_name in ['epMature', 'epStuck', 'epDecomp', 'stuckThresh']:
+                self.assertIn(new_name, content,
+                    f"{name}: unified EP variable '{new_name}' missing")
+
+    def test_eligpending_raw_clamped_split(self):
+        """eligPending must have raw/clamped split for clear semantics."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('eligPendingRaw', content,
+                f"{name}: eligPendingRaw (unclamped EP) missing")
+            self.assertRegex(content, r'eligPending\s*=\s*math\.max\(eligPendingRaw',
+                f"{name}: eligPending must be clamped via math.max(eligPendingRaw, 0)")
+            self.assertRegex(content, r'epNeg\s*=\s*eligPendingRaw\s*<\s*0',
+                f"{name}: epNeg must derive from eligPendingRaw, not clamped value")
 
 
 if __name__ == '__main__':
