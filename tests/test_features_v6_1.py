@@ -85,12 +85,18 @@ class TestSkippAlgoV6_1(unittest.TestCase):
 
     def test_reversal_entry_gate(self):
         """Verify Neural Reversals bypass standard allowEntry gate."""
-        # The main entry block should include allowNeuralReversals as a bypass
-        # pattern: if pos == 0 and (allowEntry or allowRescue or (allowNeuralReversals ...))
-        bypass_pattern = r'if pos == 0 and \(allowEntry or allowRescue or \(allowNeuralReversals and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)\)\)'
+        # The main entry block should include allowRevBypass as a bypass
+        # pattern: allowRevBypass = ...
+        #          if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
         
-        self.assertRegex(self.strat_text, bypass_pattern, "Strategy main entry loop blocks Neural Reversals (missing bypass logic)")
-        self.assertRegex(self.ind_text, bypass_pattern, "Indicator main entry loop blocks Neural Reversals (missing bypass logic)")
+        define_pattern = r'allowRevBypass\s*=\s*allowNeuralReversals and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)'
+        usage_pattern  = r'if pos == 0 and \(allowEntry or allowRescue or allowRevBypass\)'
+
+        self.assertRegex(self.strat_text, define_pattern, "Strategy missing allowRevBypass definition")
+        self.assertRegex(self.strat_text, usage_pattern,  "Strategy missing allowRevBypass usage in main loop")
+
+        self.assertRegex(self.ind_text, define_pattern, "Indicator missing allowRevBypass definition")
+        self.assertRegex(self.ind_text, usage_pattern,  "Indicator missing allowRevBypass usage in main loop")
 
 if __name__ == '__main__':
     unittest.main()

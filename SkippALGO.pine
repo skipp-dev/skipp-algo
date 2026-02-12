@@ -3846,8 +3846,11 @@ bool rawShortSignal = false
 bool isRevBuy   = false
 bool isRevShort = false
 
-if pos == 0 and (allowEntry or allowRescue or (allowNeuralReversals and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)))
-    if showDebugLabels and (allowRescue or isChoCH_Long or isChoCH_Short)
+// v6.2.7 Refactor: Named bypass variable for clarity
+allowRevBypass = allowNeuralReversals and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
+
+if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
+    if showDebugLabels and (allowRescue or allowRevBypass)
         label.new(bar_index, high, "Main Loop Entered")
 
     // Reversal Logic (Global — Applies to All Engines)
