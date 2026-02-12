@@ -4219,7 +4219,7 @@ var label[] _entryLabels = array.new_label(0)
 MAX_ENTRY_LABELS = 150
 
 f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
-    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol)
+    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.large)
     array.push(_entryLabels, lbl)
     if array.size(_entryLabels) > MAX_ENTRY_LABELS
         label.delete(array.shift(_entryLabels))
