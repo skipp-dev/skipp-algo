@@ -105,9 +105,10 @@ class TestSkippAlgoV6_1(unittest.TestCase):
         conflict resolution, ensuring all engines (including Loose) honour
         revBuyGlobal / revShortGlobal.
         """
-        # Pattern: the two injection lines must appear together
+        # Pattern: comment + guard + two injection lines must appear together
         injection_pattern = (
             r'// Unified Neural Reversal injection \(all engines, including Loose\)\s*\n'
+            r'\s*if allowNeuralReversals\s*\n'
             r'\s*buySignal\s*:=\s*buySignal\s+or\s+revBuyGlobal\s*\n'
             r'\s*shortSignal\s*:=\s*shortSignal\s+or\s+revShortGlobal'
         )
