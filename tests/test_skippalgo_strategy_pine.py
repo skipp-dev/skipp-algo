@@ -128,10 +128,6 @@ class TestSkippAlgoStrategyEvaluation(unittest.TestCase):
         """Verify evaluation update function exists."""
         self.assertIn("f_eval_update_one(", self.text)
 
-    def test_eval_get_function(self):
-        """Verify evaluation getter function exists."""
-        self.assertIn("f_eval_get(", self.text)
-
     def test_brier_score_calculation(self):
         """Verify Brier score calculation."""
         self.assertIn("f_brier(", self.text)
@@ -140,10 +136,9 @@ class TestSkippAlgoStrategyEvaluation(unittest.TestCase):
         """Verify LogLoss calculation."""
         self.assertIn("f_logloss(", self.text)
 
-    def test_evaluation_display(self):
-        """Verify evaluation section in table."""
+    def test_evaluation_gating(self):
+        """Verify evaluation section gating via showEvalSection input."""
         self.assertIn("showEvalSection", self.text)
-        self.assertIn("f_rowEval(", self.text)
 
 
 class TestSkippAlgoStrategyTfStateArchitecture(unittest.TestCase):

@@ -259,23 +259,17 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     # ========================================
     
     def test_evaluation_functions_exist(self):
-        """Evaluation helper functions must exist in Strategy.
+        """Calibration helpers f_brier/f_logloss must exist in both files.
         
-        NOTE: f_eval_get was removed from Indicator as part of the forecast
-        table removal (Pine token limit compliance).  f_brier and f_logloss
-        are still present in both files (used by calibration logic).
+        NOTE: f_eval_get, f_rowEval removed from both files as part of the
+        forecast table removal (Pine token limit compliance).
         """
-        # Shared calibration helpers — must exist in both
         for func in ['f_brier', 'f_logloss']:
             pattern = rf'{func}\([^)]+\)\s*=>'
             self.assertRegex(self.indicator, pattern,
                 f"Indicator missing {func}")
             self.assertRegex(self.strategy, pattern,
                 f"Strategy missing {func}")
-        # Display-only helper — Strategy only (removed from Indicator for token limit)
-        pattern = rf'f_eval_get\([^)]+\)\s*=>'
-        self.assertRegex(self.strategy, pattern,
-            "Strategy missing f_eval_get")
     
     def test_fp_drift_prevention_exists(self):
         """FP drift prevention (ROLL_RECALC_INTERVAL) must be used in both."""
@@ -450,25 +444,9 @@ class TestSignalParity(unittest.TestCase):
 
     # -- EP invariant regression --
 
-    def test_ep_negative_triggers_invariant_and_clamp(self):
-        """When eligPending < 0, EP must display as 0 and invOk must be false.
-        
-        NOTE: EP display code was removed from Indicator for token limit.
-        Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            # 1) EP display must clamp via eligPending = math.max(eligPendingRaw, 0)
-            self.assertIn('math.max(eligPendingRaw, 0)', content,
-                f"{name}: EP display must clamp negative values via math.max(eligPendingRaw, 0)")
-            # 2) epNeg must be derived from eligPendingRaw < 0
-            self.assertIn('epNeg = eligPendingRaw < 0', content,
-                f"{name}: epNeg flag must be set from eligPendingRaw < 0")
-            # 3) invOk must include (not epNeg)
-            inv_lines = [l for l in content.splitlines() if 'invOk' in l and 'epNeg' in l]
-            self.assertTrue(len(inv_lines) >= 1,
-                f"{name}: invOk must incorporate epNeg into invariant check")
-            self.assertTrue(any('not epNeg' in l for l in inv_lines),
-                f"{name}: invOk must include '(not epNeg)' to propagate EP<0 as invariant breach")
+    # NOTE: test_ep_negative_triggers_invariant_and_clamp removed —
+    #       EP display code (eligPendingRaw, epNeg, invOk) removed from
+    #       both files as part of forecast table removal (token limit compliance).
 
     def test_enqCountElig_same_predicate_as_qUseForecast(self):
         """enqCountElig must increment on the same predicate as qUseForecast push."""
@@ -489,182 +467,53 @@ class TestSignalParity(unittest.TestCase):
                     f"enqCountElig guard '{guard_val.strip()}'")
 
     # -- showOpsRow independence --
-
-    def test_showOpsRow_input_exists(self):
-        """Both files must have a showOpsRow input toggle."""
-        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            self.assertIn('showOpsRow', content,
-                f"{name}: showOpsRow input missing")
-            self.assertRegex(content, r'showOpsRow\s*=\s*input\.bool\(true',
-                f"{name}: showOpsRow must default to true")
-
-    def test_ops_row_independent_of_showEvalSection(self):
-        """Ops row must render outside showEvalSection when showOpsRow is true.
-        
-        NOTE: Ops row removed from Indicator for token limit. Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            # Must have a code path: showOpsRow and not showEvalSection
-            self.assertIn('showOpsRow and not showEvalSection', content,
-                f"{name}: ops row must have independent render path")
+    # NOTE: showOpsRow and ops row display removed from both files
+    #       as part of forecast table removal (token limit compliance).
 
     # -- INV! latch --
 
     def test_inv_latch_exists(self):
-        """Both files must have INV! first-failure latch variables.
+        """Indicator must have INV! first-failure latch variables.
         
-        NOTE: INV(L) display string was removed from Indicator with the
-        forecast table.  The latch variables themselves remain in both.
+        NOTE: invLatched/invLatchInfo removed from Strategy with
+        forecast table removal (token limit compliance).
         """
-        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            self.assertIn('invLatched', content,
-                f"{name}: invLatched variable missing")
-            self.assertIn('invLatchInfo', content,
-                f"{name}: invLatchInfo variable missing")
-        # INV(L) display string — Strategy only
-        self.assertIn('INV(L)', self.strategy,
-            "Strategy: INV(L) latched display string missing")
+        self.assertIn('invLatched', self.indicator,
+            "Indicator: invLatched variable missing")
+        self.assertIn('invLatchInfo', self.indicator,
+            "Indicator: invLatchInfo variable missing")
 
     def test_inv_latch_reset_on_eval_reset(self):
-        """INV latch must be cleared when eval is reset (resetWhich == 'All')."""
-        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            # Find the reset block and confirm latch is cleared
-            reset_block = content[content.find('if doReset'):content.find('if doReset') + 500]
-            self.assertIn('invLatched := false', reset_block,
-                f"{name}: invLatched must be reset in doReset/All block")
-            self.assertIn('invLatchInfo := ""', reset_block,
-                f"{name}: invLatchInfo must be cleared in doReset/All block")
-
-    def test_inv_latch_snapshot_includes_tf(self):
-        """INV latch snapshot string must include the horizon TF label.
+        """INV latch must be cleared when eval is reset (resetWhich == 'All').
         
-        NOTE: Snapshot assignment removed from Indicator with forecast table.
-        Strategy only.
+        NOTE: Indicator only — latch removed from Strategy for token limit.
         """
-        for name, content in [("Strategy", self.strategy)]:
-            # invLatchInfo assignment should reference entryFcTF
-            latch_lines = [l for l in content.splitlines() if 'invLatchInfo' in l and 'entryFcTF' in l]
-            self.assertGreaterEqual(len(latch_lines), 1,
-                f"{name}: invLatchInfo snapshot must include entryFcTF for TF identification")
+        reset_block = self.indicator[self.indicator.find('if doReset'):self.indicator.find('if doReset') + 500]
+        self.assertIn('invLatched := false', reset_block,
+            "Indicator: invLatched must be reset in doReset/All block")
+        self.assertIn('invLatchInfo := ""', reset_block,
+            "Indicator: invLatchInfo must be cleared in doReset/All block")
 
     # -- EP decomposition --
 
-    def test_ep_decomposition_exists(self):
-        """Strategy must decompose EP into maturing (m:) and stuck (s:) components.
-        
-        NOTE: EP decomposition display removed from Indicator for token limit.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            self.assertIn('stuckThresh', content,
-                f"{name}: stuckThresh (resolve horizon for EP decomposition) missing")
-            # Must have m: and s: in EP display
-            self.assertRegex(content, r'm:.*s:',
-                f"{name}: EP decomposition must show m:/s: breakdown")
-
-    def test_ep_stuck_boundary_uses_strict_greater(self):
-        """EP stuck classification must use > threshold (not >=) to avoid counting resolve-bar items."""
-        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            # In EP decomposition loop, stuck must be: age > stuckThresh (not >=)
-            # Find all lines that classify stuck in EP context
-            stuck_lines = [l.strip() for l in content.splitlines()
-                          if 'stuckThresh' in l and ('> ' in l or '>=' in l) and 'qAge' not in l and '==' not in l]
-            # Lines that set stuckThresh are OK, we want the comparison lines
-            compare_lines = [l.strip() for l in content.splitlines()
-                            if ('> stuckThresh' in l or '>= stuckThresh' in l)]
-            for line in compare_lines:
-                self.assertNotIn('>= stuckThresh', line,
-                    f"{name}: EP stuck must use '> stuckThresh' not '>= stuckThresh' "
-                    f"(age == threshold means resolving this bar, not stuck)")
-
-    def test_ops_row_shows_tf_label(self):
-        """Ops row must display the horizon TF and target type for context.
-        
-        NOTE: Ops row removed from Indicator for token limit. Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            self.assertIn('entryFcTF', content,
-                f"{name}: ops row must reference entryFcTF")
-            # Must show a target label (Next/KBar/ATR/Path)
-            self.assertIn('opsTfLbl', content,
-                f"{name}: ops row must compute opsTfLbl target label")
+    # NOTE: test_ep_decomposition_exists, test_ep_stuck_boundary_uses_strict_greater,
+    #       and test_ops_row_shows_tf_label removed — EP decomposition display and
+    #       ops row removed from both files for token limit compliance.
 
     # -- Dynamic footer row --
 
-    def test_footer_row_is_dynamic(self):
-        """Footer row must adjust position based on visible sections.
-        
-        NOTE: Indicator footer is fixed at row 16 after forecast table removal.
-        Dynamic footer logic only in Strategy.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            self.assertIn('footerR', content,
-                f"{name}: footerR dynamic row variable missing")
-            self.assertRegex(content, r'showEvalSection\s*\?\s*21',
-                f"{name}: footer must be at row 21 when eval is shown")
+    def test_footer_row_is_fixed(self):
+        """Footer row must be fixed at row 16 after forecast table removal."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('merge_cells(gT, 0, 16, 4, 16)', content,
+                f"{name}: footer must merge cells at fixed row 16")
 
     # -- qSync EP suppression --
 
-    def test_ep_decomp_guarded_by_qsync(self):
-        """EP decomposition loop + string must be suppressed when qSync=false.
-        
-        NOTE: EP decomposition removed from Indicator for token limit. Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            # The EP loop must be gated on qSync
-            self.assertRegex(content, r'if\s+qSync\s+and\s+qN\s*>\s*0',
-                f"{name}: EP decomp loop must be gated on 'if qSync and qN > 0'")
-            # The decomposition string must also check qSync via hasEpDecomp
-            self.assertIn('hasEpDecomp', content,
-                f"{name}: EP decomp string must use hasEpDecomp gate")
-            self.assertRegex(content, r'hasEpDecomp\s*=\s*qSync\s+and\s+qN',
-                f"{name}: hasEpDecomp must be gated on qSync and qN")
-
-    def test_ep_decomp_no_dangling_qSzEp(self):
-        """Old EP loop-bound variables (qSzEp, qSzO) must not exist — unified to qN."""
-        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            for old_var in ['qSzEp', 'qSzO']:
-                self.assertNotIn(old_var, content,
-                    f"{name}: legacy variable '{old_var}' still present — should be 'qN'")
-
-    def test_resolve_thresh_helper_exists(self):
-        """f_resolve_thresh helper must exist and be used for stuck-threshold computation.
-        
-        NOTE: f_resolve_thresh and stuckThresh removed from Indicator for token limit.
-        Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            self.assertIn('f_resolve_thresh', content,
-                f"{name}: f_resolve_thresh helper missing")
-            self.assertRegex(content, r'stuckThresh\s*=\s*f_resolve_thresh',
-                f"{name}: stuckThresh must be computed via f_resolve_thresh helper")
-
-    def test_ep_naming_consistency(self):
-        """EP decomposition must use unified naming: epMature, epStuck, epDecomp, stuckThresh, qN.
-        
-        NOTE: EP decomposition removed from Indicator for token limit. Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            # Old naming must not exist
-            for old_name in ['epMat ', 'epStk ', 'epDec ', 'stuckThreshOps']:
-                self.assertNotIn(old_name, content,
-                    f"{name}: legacy EP variable '{old_name.strip()}' still present")
-            # New naming must exist
-            for new_name in ['epMature', 'epStuck', 'epDecomp', 'stuckThresh']:
-                self.assertIn(new_name, content,
-                    f"{name}: unified EP variable '{new_name}' missing")
-
-    def test_eligpending_raw_clamped_split(self):
-        """eligPending must have raw/clamped split for clear semantics.
-        
-        NOTE: EP display code removed from Indicator for token limit. Strategy only.
-        """
-        for name, content in [("Strategy", self.strategy)]:
-            self.assertIn('eligPendingRaw', content,
-                f"{name}: eligPendingRaw (unclamped EP) missing")
-            self.assertRegex(content, r'eligPending\s*=\s*math\.max\(eligPendingRaw',
-                f"{name}: eligPending must be clamped via math.max(eligPendingRaw, 0)")
-            self.assertRegex(content, r'epNeg\s*=\s*eligPendingRaw\s*<\s*0',
-                f"{name}: epNeg must derive from eligPendingRaw, not clamped value")
+    # NOTE: test_ep_decomp_guarded_by_qsync, test_ep_decomp_no_dangling_qSzEp,
+    #       test_resolve_thresh_helper_exists, test_ep_naming_consistency,
+    #       and test_eligpending_raw_clamped_split removed — EP decomposition
+    #       display removed from both files for token limit compliance.
 
     # -- BUG 1 fix: Loose engine parity --
 
