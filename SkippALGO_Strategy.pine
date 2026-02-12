@@ -677,6 +677,7 @@ type TfState
     int skipTieNeutral2WayElig
     float[] ageAtResolve
     float[] sumAgeResolve
+    int prevQDepth
 
 // Helper to initialize TfState
 f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
@@ -739,7 +740,8 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
     array.new_float(3, 0.0),
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     array.new_float(),
-    array.new_float(1, 0.0)
+    array.new_float(1, 0.0),
+    na
     )
 
 var TfState tf1State = f_init_tf_state(predBinsN, predBins1, dim2Bins, evalBucketCount)
@@ -1791,6 +1793,7 @@ f_reset_one_state_eval(TfState st) =>
     st.skipBias0 := 0, st.skipAtrInvalid := 0, st.skipIgnore := 0, st.skipTieNeutral2Way := 0, st.skipTotalElig := 0
     st.skipBias0Elig := 0, st.skipAtrInvalidElig := 0, st.skipIgnoreElig := 0, st.skipTieNeutral2WayElig := 0
     array.clear(st.ageAtResolve), f_reset_sum1(st.sumAgeResolve)
+    st.prevQDepth := na
 
 f_reset_eval_all() =>
     f_reset_one_state_eval(tf1State)
@@ -3500,7 +3503,6 @@ coverSignal = false
 // Table helpers MUST be global (cannot be defined inside if-block)
 //====================
 var table gT = na
-var int prevQDepth = na
 if na(gT)
     tblCols = 10
     tblRows = 22
@@ -3508,6 +3510,27 @@ if na(gT)
 
 f_cell(c, r, t, tc, bg) =>
     table.cell(gT, c, r, t, text_size=size.tiny, text_color=tc, bgcolor=bg)
+
+// Percentile helpers (sort copy + index)
+f_pctl_float(float[] arr, float pct, int minN) =>
+    n = array.size(arr)
+    if n < minN
+        float(na)
+    else
+        s = array.copy(arr)
+        array.sort(s)
+        idx = int(math.floor(n * pct))
+        array.get(s, math.min(idx, n - 1))
+
+f_pctl_int(int[] arr, float pct, int minN) =>
+    n = array.size(arr)
+    if n < minN
+        float(na)
+    else
+        s = array.copy(arr)
+        array.sort(s)
+        idx = int(math.floor(n * pct))
+        float(array.get(s, math.min(idx, n - 1)))
 
 f_cellL(c, r, t, bg) =>
     table.cell(gT, c, r, t, text_size=size.tiny, text_halign=text.align_left, bgcolor=bg)
@@ -3790,17 +3813,16 @@ if renderTable
             nAge = array.size(st_base.ageAtResolve)
             meanAge = nAge > 0 ? array.get(st_base.sumAgeResolve, 0) / nAge : na
             // P90 age quantile (sort copy of rolling buffer)
-            float ageP90 = na
-            if nAge >= 10
-                ageSorted = array.copy(st_base.ageAtResolve)
-                array.sort(ageSorted)
-                p90Idx = int(math.floor(nAge * 0.9))
-                ageP90 := array.get(ageSorted, math.min(p90Idx, nAge - 1))
+            ageP90 = f_pctl_float(st_base.ageAtResolve, 0.9, 10)
             skipTotal = st_base.skipBias0 + st_base.skipAtrInvalid + st_base.skipIgnore + st_base.skipTieNeutral2Way
             covBg = color.new(color.rgb(40, 40, 60), 0)
             f_cellL(0, 20, "⚙ Cov", covBg)
-            covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%"
-            covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%"
+            // Confidence guard: append * when sample size is small
+            resolvedTotal = st_base.resolvedScored + skipTotal
+            loConf = resolvedTotal < 20
+            lcs = loConf ? "*" : ""
+            covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%" + lcs
+            covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%" + lcs
             ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
             p90Txt = na(ageP90) ? "" : " p90=" + str.tostring(ageP90, "#")
             util = st_base.resolvedScored >= 20 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
@@ -3821,36 +3843,38 @@ if renderTable
             skipDomE = skipEligTotal < 10 ? "" : skipMaxE == st_base.skipBias0Elig ? "B0" : skipMaxE == st_base.skipAtrInvalidElig ? "A" : skipMaxE == st_base.skipIgnoreElig ? "I" : "T"
             skipEligSfx = skipDomE == "" ? "" : " E:" + skipDomE + "(" + str.tostring(skipEligTotal) + ")"
             f_cell(4, 20, skipTxt + skipEligSfx, skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), covBg)
+            // Pending queue depth (desync check) + per-TF ΔQ
             qDepth = array.size(st_base.qAge)
             qSync = qDepth == array.size(st_base.qEntry) and qDepth == array.size(st_base.qAtr)
-            dq = na(prevQDepth) ? na : qDepth - prevQDepth
+            dq = na(st_base.prevQDepth) ? na : qDepth - st_base.prevQDepth
             dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
             qTxt = qSync ? "Q:" + str.tostring(qDepth) + dqTxt : "Q:ERR"
             // Pending queue age p90
-            float qAgeP90 = na
-            nQ = array.size(st_base.qAge)
-            if nQ >= 5
-                qAgeCopy = array.copy(st_base.qAge)
-                array.sort(qAgeCopy)
-                qP90Idx = int(math.floor(nQ * 0.9))
-                qAgeP90 := array.get(qAgeCopy, math.min(qP90Idx, nQ - 1))
+            qAgeP90 = f_pctl_int(st_base.qAge, 0.9, 5)
             qP90Txt = na(qAgeP90) ? "" : " Qp90=" + str.tostring(qAgeP90, "#")
             qCol = not qSync ? color.red : (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
             f_cell(5, 20, qTxt + qP90Txt, qCol, covBg)
-            resolvedTotal = st_base.resolvedScored + skipTotal
             skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
-            skipRateTxt = na(skipRate) ? "" : "S:" + str.tostring(skipRate, "#.0") + "%"
+            skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
             // Eligible skip rate: skips among forecast-eligible resolves
             resolvedEligTotal = st_base.resolvedScoredElig + st_base.skipTotalElig
             skipRateElig = resolvedEligTotal >= 20 ? st_base.skipTotalElig * 100.0 / resolvedEligTotal : na
             seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
+            // Gate loss: eligible opportunities still pending (not resolved or skipped)
+            eligPending = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
+            epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(eligPending) : ""
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
-            f_cell(6, 20, skipRateTxt + seTxt, skipRateCol, covBg)
+            f_cell(6, 20, skipRateTxt + seTxt + epTxt, skipRateCol, covBg)
             // Leakage guard: invariant checks on eligible <= all counters
             invOk = st_base.resolvedScoredElig <= st_base.resolvedScored and st_base.skipTotalElig <= skipTotal and st_base.enqCountElig <= st_base.enqCount
             f_cell(7, 20, invOk ? "" : "INV!", invOk ? tblTextDim : color.red, covBg)
-            f_clr(20, 8, 9, covBg)
-            prevQDepth := qDepth
+            // Health summary glyph: at-a-glance triage
+            bool hBad = (not na(covElig) and covElig < covOkLo) or (not na(skipRate) and skipRate > 20) or (not invOk)
+            bool hGood = (not hBad) and (not na(covElig) and covElig >= covOkHi) and (na(skipRate) or skipRate <= 5) and (na(dq) or dq <= 0) and invOk
+            hGlyph = hBad ? "❌" : hGood ? "✅" : "⚠️"
+            f_cell(8, 20, hGlyph, tblTextDim, covBg)
+            f_clr(20, 9, 9, covBg)
+            st_base.prevQDepth := qDepth
 
     f_cellL(0, 21, f_target_footer_text(), tblHeader)
     f_clr(21, 1, 9, tblHeader)
