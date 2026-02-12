@@ -76,10 +76,8 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("f_init_tf_state(", self.text)
 
     def test_forecast_display_headers(self):
-        # Ensure forecast display input and dynamic headers exist
+        # Ensure forecast display input exists (pHdrN/pHdr1 removed as dead code)
         self.assertIn('fcDisplay = input.string("Up% (N)"', self.text)
-        self.assertIn('pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"', self.text)
-        self.assertIn('pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"', self.text)
 
     def test_ensemble_weights_used_in_display(self):
         # Display probabilities should use the same ensemble weights as calibration
@@ -193,6 +191,18 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("isBeHit :=", self.text)
         self.assertRegex(self.text, r"staleExit\s*=")
         self.assertRegex(self.text, r"enBar\s*=")
+
+    def test_abstain_override_conf_parity(self):
+        """BUG FIX: abstainOverrideConf must exist in Strategy for parity with Indicator."""
+        self.assertIn('abstainOverrideConf = input.float(0.85', self.text)
+        self.assertIn('isHighConf', self.text)
+        self.assertIn('decisionFinal', self.text)
+        # allowEntry must use decisionFinal, not decisionOkSafe
+        self.assertRegex(self.text, r'not abstainGate or decisionFinal')
+
+    def test_exit_grace_bars_default_parity(self):
+        """BUG FIX: exitGraceBars default must match Indicator (5)."""
+        self.assertIn('exitGraceBars = input.int(5,', self.text)
 
 if __name__ == "__main__":
     unittest.main()

@@ -581,6 +581,27 @@ class TestSignalParity(unittest.TestCase):
             self.assertIn('regSlopeLongOkSafe', enh_line,
                 f"{name}: enhLongOk must include regSlopeLongOkSafe")
 
+    def test_abstain_override_conf_parity(self):
+        """abstainOverrideConf / isHighConf / decisionFinal must exist in both files."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('abstainOverrideConf', content,
+                f"{name}: abstainOverrideConf input missing")
+            self.assertIn('isHighConf', content,
+                f"{name}: isHighConf variable missing")
+            self.assertIn('decisionFinal', content,
+                f"{name}: decisionFinal variable missing")
+            self.assertRegex(content, r'not abstainGate or decisionFinal',
+                f"{name}: allowEntry must use decisionFinal, not decisionOkSafe")
+
+    def test_exit_grace_bars_default_parity(self):
+        """exitGraceBars default must be identical in both files."""
+        ind_match = re.search(r'exitGraceBars\s*=\s*input\.int\((\d+)', self.indicator)
+        strat_match = re.search(r'exitGraceBars\s*=\s*input\.int\((\d+)', self.strategy)
+        self.assertIsNotNone(ind_match, "Indicator: exitGraceBars input not found")
+        self.assertIsNotNone(strat_match, "Strategy: exitGraceBars input not found")
+        self.assertEqual(ind_match.group(1), strat_match.group(1),
+            f"exitGraceBars default mismatch: Indicator={ind_match.group(1)}, Strategy={strat_match.group(1)}")
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -62,7 +62,7 @@ decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
 decayBars    = input.int(6, "Decay Duration (Bars)", minval=1)
 
-exitGraceBars = input.int(3, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
+exitGraceBars = input.int(5, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
 swingL = input.int(5, "Breakout swing left", minval=1, maxval=20)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=20)
@@ -331,8 +331,7 @@ allowForecastOnNonFixed = input.bool(false, "Forecast: allow on non-fixed TFs", 
 
 // Forecast value display
 fcDisplay = input.string("Up% (N)", "Forecast value display", options=["Up% (N)", "Edge pp (N)"])
-pHdrN = fcDisplay == "Edge pp (N)" ? "Edge(N)" : "Up%(N)"
-pHdr1 = fcDisplay == "Edge pp (N)" ? "Edge(1)" : "Up%(1)"
+
 atrTargetLen  = input.int(14, "ATR len (forecast targets)", minval=2)
 
 //====================
@@ -469,6 +468,7 @@ evidenceGate = input.bool(false, "Evidence gate (block weak bins)")
 evidenceMinTotal = input.int(120, "Evidence min total samples", minval=1, maxval=10000)
 abstainGate = input.bool(true, "Abstain on weak decisions")
 abstainMinEdge = input.float(0.08, "Abstain min edge (pp)", minval=0.0, maxval=0.50, step=0.01)
+abstainOverrideConf = input.float(0.85, "Abstain override: High Conf", minval=0.5, step=0.05, tooltip="If Confidence > this level, ignore sample size gates. Allows rare but high-quality signals.")
 
 // Trade-gate thresholds (separate from calibration thresholds)
 tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, maxval=200)
@@ -3458,6 +3458,8 @@ gateLongNow  = confOk and mtfOkLong_  and macOkLong_  and ddOk
 gateShortNow = confOk and mtfOkShort_ and macOkShort_ and ddOk
 
 decisionOkSafe     = (not use3Way) ? true : (decisionOk == true)
+isHighConf         = (not na(confidence)) and (confidence >= abstainOverrideConf)
+decisionFinal      = decisionOkSafe or isHighConf
 cooldownOkSafe     = (cooldownOk == true)
 nearCloseOk        = (blockNearClose == false)
 
@@ -3472,7 +3474,7 @@ allowEntry =
  and (reliabilityOk == true)
  and (evidenceOk == true)
  and (evalOk == true)
- and (not abstainGate or decisionOkSafe)
+ and (not abstainGate or decisionFinal)
 
 allowExit = barstate.isconfirmed
 
