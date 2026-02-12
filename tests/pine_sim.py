@@ -290,7 +290,7 @@ class SkippAlgoSim:
             smc_ok_s = True
 
             # Reversal logic (global)
-            prob_ok_global = cfg.p_u >= 0.50
+            prob_ok_global = cfg.p_u >= 0.37
             prob_ok_global_s = cfg.p_d >= 0.50
 
             rev_buy_global = (cfg.allow_neural_reversals
