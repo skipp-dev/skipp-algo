@@ -3922,6 +3922,7 @@ else
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
+bool canChochExit = (barsSinceEntry >= math.min(2, exitGraceBars))
 
 // Risk Decay Calculation (Linear interpolation)
 // Gated: decay pauses during huge volume shock (prevents premature tightening)
@@ -3995,7 +3996,8 @@ if pos == 1 and allowExit
     
     // Check for Reversal Exit (ChoCH Down)
     // breakLong = bearish EMA break; isChoCH_Short = bearish structure reversal
-    structHit = ((breakLong and canStructExit) or isChoCH_Short)
+    // v6.2.6: ChoCH exits now respect a minimum 2-bar grace.
+    structHit = ((breakLong and canStructExit) or (isChoCH_Short and canChochExit))
 
     // ChoCh Filtering (Confirm Reversal)
     // Only exit if the Down Probability (pD) is high enough
@@ -4018,7 +4020,8 @@ if pos == -1 and allowExit
     
     // Check for Reversal Exit (ChoCH Up)
     // breakShort = bullish EMA break; isChoCH_Long = bullish structure reversal
-    structHit = ((breakShort and canStructExit) or isChoCH_Long)
+    // v6.2.6: ChoCH exits now respect a minimum 2-bar grace.
+    structHit = ((breakShort and canStructExit) or (isChoCH_Long and canChochExit))
 
     // ChoCh Filtering (Confirm Reversal) - REMOVED for Bullish ChoCh per instruction
     // if structHit and not na(pU) and pU < exitConfChoCh
@@ -4135,14 +4138,14 @@ f_draw_lbl(showLongLabels, labelBuy, true, true, "BUY", color.white, color.new(c
 f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color.new(color.red, 0))
 
 if showLongLabels and labelExit
-    // Reverted to standard sizing (removed size.auto)
+    // Exit label — includes bars-held for traceability
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
-    label.new(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    label.new(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
 
 if showShortLabels and labelCover
-    // Reverted to standard sizing (removed size.auto)
+    // Cover label — includes bars-held for traceability
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
-    label.new(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick), style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    label.new(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))

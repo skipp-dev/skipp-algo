@@ -63,17 +63,18 @@ class TestSkippAlgoV6_1(unittest.TestCase):
         self.assertRegex(self.strat_text, gate_bull, "Strategy missing smcOkL gate")
 
     def test_choch_failsafe_exit(self):
-        """Verify ChoCH exits bypass the grace period (Fail-Safe).
+        """Verify ChoCH exits respect minimum grace period (v6.2.6).
         
-        structHit for LONG exit uses breakLong (bearish) + isChoCH_Short
-        structHit for SHORT cover uses breakShort (bullish) + isChoCH_Long
+        structHit for LONG exit uses breakLong (bearish) + (isChoCH_Short and canChochExit)
+        structHit for SHORT cover uses breakShort (bullish) + (isChoCH_Long and canChochExit)
+        canChochExit enforces a minimum 2-bar hold before ChoCH can trigger exit.
         """
         # Verify Long Exit: breakLong (bearish EMA break) for pos==1 exit
-        long_exit = r'structHit = \(\(breakLong and canStructExit\) or isChoCH_Short\)'
+        long_exit = r'structHit = \(\(breakLong and canStructExit\) or \(isChoCH_Short and canChochExit\)\)'
         self.assertRegex(self.strat_text, long_exit, "Strategy long exit fail-safe missing")
         
         # Verify Short Cover: breakShort (bullish EMA break) for pos==-1 cover
-        short_cover = r'structHit = \(\(breakShort and canStructExit\) or isChoCH_Long\)'
+        short_cover = r'structHit = \(\(breakShort and canStructExit\) or \(isChoCH_Long and canChochExit\)\)'
         self.assertRegex(self.strat_text, short_cover, "Strategy short cover fail-safe missing")
 
     def test_stale_reversal_filter(self):
