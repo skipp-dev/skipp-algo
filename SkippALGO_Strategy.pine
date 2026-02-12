@@ -670,6 +670,7 @@ type TfState
     int skipAtrInvalid
     int skipIgnore
     int skipTieNeutral2Way
+    int skipTotalElig
     float[] ageAtResolve
     float[] sumAgeResolve
 
@@ -732,7 +733,7 @@ f_init_tf_state(int nBinsN, int nBins1, int dim2, int evBuckets) =>
     array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
     array.new_float(), array.new_float(1, 0.0), array.new_float(), array.new_float(1, 0.0),
     array.new_float(3, 0.0),
-    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0,
     array.new_float(),
     array.new_float(1, 0.0)
     )
@@ -1783,7 +1784,7 @@ f_reset_one_state_eval(TfState st) =>
     // Coverage & skip diagnostics
     st.enqCount := 0, st.resolvedScored := 0
     st.enqCountElig := 0, st.resolvedScoredElig := 0
-    st.skipBias0 := 0, st.skipAtrInvalid := 0, st.skipIgnore := 0, st.skipTieNeutral2Way := 0
+    st.skipBias0 := 0, st.skipAtrInvalid := 0, st.skipIgnore := 0, st.skipTieNeutral2Way := 0, st.skipTotalElig := 0
     array.clear(st.ageAtResolve), f_reset_sum1(st.sumAgeResolve)
 
 f_reset_eval_all() =>
@@ -2275,6 +2276,8 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
                         st.skipIgnore += 1
                     else if skipReason == 4
                         st.skipTieNeutral2Way += 1
+                    if useFc_i
+                        st.skipTotalElig += 1
 
                 if not use3Way
                     f_safe_remove_float(st.qProbN, i)
@@ -3773,12 +3776,20 @@ if renderTable
             covElig = st_base.enqCountElig > 0 ? st_base.resolvedScoredElig * 100.0 / st_base.enqCountElig : na
             nAge = array.size(st_base.ageAtResolve)
             meanAge = nAge > 0 ? array.get(st_base.sumAgeResolve, 0) / nAge : na
+            // P90 age quantile (sort copy of rolling buffer)
+            float ageP90 = na
+            if nAge >= 10
+                ageSorted = array.copy(st_base.ageAtResolve)
+                array.sort(ageSorted)
+                p90Idx = int(math.floor(nAge * 0.9))
+                ageP90 := array.get(ageSorted, math.min(p90Idx, nAge - 1))
             skipTotal = st_base.skipBias0 + st_base.skipAtrInvalid + st_base.skipIgnore + st_base.skipTieNeutral2Way
             covBg = color.new(color.rgb(40, 40, 60), 0)
             f_cellL(0, 20, "⚙ Cov", covBg)
             covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%"
             covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%"
             ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
+            p90Txt = na(ageP90) ? "" : " p90=" + str.tostring(ageP90, "#")
             util = st_base.resolvedScored >= 20 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
             utilTxt = na(util) ? "" : " U:" + str.tostring(util, "#.0") + "%"
             covCol = na(covAll) ? tblTextDim : covAll >= covOkHi ? color.lime : covAll >= covOkLo ? color.yellow : color.red
@@ -3786,7 +3797,7 @@ if renderTable
             eGlyph = na(covElig) ? "" : covElig >= covOkHi ? " ✓" : covElig < covOkLo ? " ✗" : ""
             f_cell(1, 20, covAllTxt, covCol, covBg)
             f_cell(2, 20, "E:" + covEligTxt + eGlyph + utilTxt, eCol, covBg)
-            f_cell(3, 20, "ā=" + ageTxt, tblTextDim, covBg)
+            f_cell(3, 20, "ā=" + ageTxt + p90Txt, tblTextDim, covBg)
             skipMax = math.max(st_base.skipBias0, math.max(st_base.skipAtrInvalid, math.max(st_base.skipIgnore, st_base.skipTieNeutral2Way)))
             skipDom = skipTotal < 10 ? "" : skipMax == st_base.skipBias0 ? "B0" : skipMax == st_base.skipAtrInvalid ? "A" : skipMax == st_base.skipIgnore ? "I" : "T"
             skipPfx = skipDom == "" ? "" : skipDom + "(" + str.tostring(skipTotal) + ") "
@@ -3802,8 +3813,12 @@ if renderTable
             resolvedTotal = st_base.resolvedScored + skipTotal
             skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
             skipRateTxt = na(skipRate) ? "" : "S:" + str.tostring(skipRate, "#.0") + "%"
+            // Eligible skip rate: skips among forecast-eligible resolves
+            resolvedEligTotal = st_base.resolvedScoredElig + st_base.skipTotalElig
+            skipRateElig = resolvedEligTotal >= 20 ? st_base.skipTotalElig * 100.0 / resolvedEligTotal : na
+            seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
-            f_cell(6, 20, skipRateTxt, skipRateCol, covBg)
+            f_cell(6, 20, skipRateTxt + seTxt, skipRateCol, covBg)
             f_clr(20, 7, 9, covBg)
             prevQDepth := qDepth
 
