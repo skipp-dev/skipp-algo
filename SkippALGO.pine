@@ -4549,24 +4549,34 @@ f_tp_json(action) =>
 
 // v6.2.12: Watchlist stability — force bar_close frequency to reduce alert rate
 // and prevent TradingView "limited functionality" throttling on multi-symbol watchlists.
+// v6.2.21: Consolidated into a SINGLE alert() call per bar to stay within
+//          TradingView's rate limits on large watchlists.
 alertFreqSafe = alert.freq_once_per_bar_close
 
-f_send_alert(cond, label) =>
-    if cond and barstate.isconfirmed and barstate.isrealtime
-        // v6.1.3: TradersPost JSON support
+if barstate.isconfirmed and barstate.isrealtime
+    // Collect all signals that fired on this bar into one message
+    string[] _parts = array.new_string(0)
+    if buyEvent
+        array.push(_parts, "BUY")
+    if shortEvent
+        array.push(_parts, "SHORT")
+    if exitEvent
+        array.push(_parts, "EXIT")
+    if coverEvent
+        array.push(_parts, "COVER")
+    if alertPreBuyCond
+        array.push(_parts, "PRE-BUY")
+    if alertPreShortCond
+        array.push(_parts, "PRE-SHORT")
+
+    if array.size(_parts) > 0
+        string labels = array.join(_parts, "+")
         string msg = ""
-        string action = label == "BUY" ? "buy" : label == "SHORT" ? "sell" : label == "EXIT" ? "exit" : label == "COVER" ? "exit" : "flat"
-        
         if useJsonAlerts
+            // JSON: use first action for TradersPost compatibility
+            string firstLabel = array.get(_parts, 0)
+            string action = firstLabel == "BUY" ? "buy" : firstLabel == "SHORT" ? "sell" : firstLabel == "EXIT" ? "exit" : firstLabel == "COVER" ? "exit" : "flat"
             msg := f_tp_json(action)
         else
-            msg := "SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%"
-            
+            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%"
         alert(msg, alertFreqSafe)
-
-f_send_alert(buyEvent, "BUY")
-f_send_alert(shortEvent, "SHORT")
-f_send_alert(exitEvent, "EXIT")
-f_send_alert(coverEvent, "COVER")
-f_send_alert(alertPreBuyCond, "PRE-BUY")
-f_send_alert(alertPreShortCond, "PRE-SHORT")

@@ -4196,18 +4196,30 @@ alertcondition((not useAlertCalls) and alertPreShortCond, title="PRE-SHORT", mes
 
 // v6.2.12: Watchlist stability — force bar_close frequency to reduce alert rate
 // and prevent TradingView "limited functionality" throttling on multi-symbol watchlists.
+// v6.2.21: Consolidated into a SINGLE alert() call per bar to stay within
+//          TradingView's rate limits on large watchlists.
 alertFreqSafe = alert.freq_once_per_bar_close
 
-f_send_alert(cond, label) =>
-    if useAlertCalls and cond and barstate.isconfirmed and barstate.isrealtime
-        alert("SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%", alertFreqSafe)
+if useAlertCalls and barstate.isconfirmed and barstate.isrealtime
+    // Collect all signals that fired on this bar into one message
+    string[] _parts = array.new_string(0)
+    if buyEvent
+        array.push(_parts, "BUY")
+    if shortEvent
+        array.push(_parts, "SHORT")
+    if exitEvent
+        array.push(_parts, "EXIT")
+    if coverEvent
+        array.push(_parts, "COVER")
+    if alertPreBuyCond
+        array.push(_parts, "PRE-BUY")
+    if alertPreShortCond
+        array.push(_parts, "PRE-SHORT")
 
-f_send_alert(buyEvent, "BUY")
-f_send_alert(shortEvent, "SHORT")
-f_send_alert(exitEvent, "EXIT")
-f_send_alert(coverEvent, "COVER")
-f_send_alert(alertPreBuyCond, "PRE-BUY")
-f_send_alert(alertPreShortCond, "PRE-SHORT")
+    if array.size(_parts) > 0
+        string labels = array.join(_parts, "+")
+        string msg = "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%"
+        alert(msg, alertFreqSafe)
 
 // Highlighting
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
