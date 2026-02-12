@@ -4582,7 +4582,7 @@ if renderTable
             covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%"
             ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
             // Eligibility utilization: what fraction of resolved forecasts passed gating?
-            util = st_base.resolvedScored > 0 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
+            util = st_base.resolvedScored >= 20 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
             utilTxt = na(util) ? "" : " U:" + str.tostring(util, "#.0") + "%"
             covCol = na(covAll) ? tblTextDim : covAll >= 80 ? color.lime : covAll >= 50 ? color.yellow : color.red
             eCol = na(covElig) ? tblTextDim : covElig >= 80 ? color.lime : covElig >= 50 ? color.yellow : color.red
