@@ -17,6 +17,9 @@ The missing REV-BUY was caused by **four independent, layered blockers** that ha
 | 2 | Same-bar COVER→BUY conflict | `if/else if` state machine | COVER consumed the bar | Two-phase state machine (v6.2.11) |
 | 3 | Signal block gated by `pos == 0` | Main loop guard | `pos == -1` at computation time | Changed to `(pos==0 and ...) or allowRevBypass` (v6.2.11) |
 | 4 | Probability too low for rescue path | `probOkGlobal` | `pU = 0.27` (below 0.40 threshold) | Lowered to 0.20 + added impulse requirement (v6.2.11) |
+| 5 | False standard BUYs (same-dir re-entry) | Phase 2 guard | EXIT→BUY on same bar | `not didExit` / `not didCover` guards (v6.2.11) |
+| 6 | False standard BUYs (`allowRevBypass` leak) | Engine gate | Engine signals fire without `allowEntry` | `standardEntryOk` gate on all engine branches (v6.2.11) |
+| 7 | False standard BUYs (no probability floor) | Forecast gate bypass | pU=0.20–0.47 passed | Hard floor pU/pD ≥ 0.50 for standard entries (v6.2.11) |
 
 ---
 
@@ -142,6 +145,10 @@ probOkGlobal = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impu
 | `fd27179` | v6.2.11: Lower hugeVol probability threshold 0.40 → 0.20 |
 | `5816caf` | v6.2.11: Add directional impulse requirement to rescue path |
 | `79612e2` | v6.2.11: Restore `not na(pU)` check on probOkGlobal |
+| `7a31518` | v6.2.11: Block same-direction re-entry (`didExit`/`didCover` guards) |
+| `ce33d7c` | v6.2.11: Remove ChoCH diagnostic label |
+| `12d320b` | v6.2.11: Gate engine signals with `standardEntryOk` |
+| `0030085` | v6.2.11: Hard probability floor pU/pD ≥ 0.50 for standard entries |
 
 ---
 
@@ -149,8 +156,8 @@ probOkGlobal = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impu
 
 | File | Changes |
 |------|---------|
-| `SkippALGO.pine` | State machine restructure, signal gate fix, probOkGlobal tuning, diagnostic label |
-| `SkippALGO_Strategy.pine` | Parity: same state machine, `did*` flags, probOkGlobal tuning |
+| `SkippALGO.pine` | State machine restructure, signal gate fix, probOkGlobal tuning, `standardEntryOk` gate, pU/pD ≥ 0.50 floor |
+| `SkippALGO_Strategy.pine` | Parity: same state machine, `did*` flags, probOkGlobal tuning, `standardEntryOk` gate, pU/pD ≥ 0.50 floor |
 
 ---
 
@@ -168,7 +175,64 @@ The REV-BUY signal chain has **two independent dimensions** that must both be sa
    - `volOk` (volume confirmation)
    - `ddOk` (drawdown safety)
 
-Blockers 1–3 were reachability issues. Blocker 4 was a gate qualification issue. Previous fix attempts only addressed one dimension at a time, which is why each fix exposed the next blocker.
+Blockers 1–3 were reachability issues. Blocker 4 was a gate qualification issue. Blockers 5–7 were **side effects** of the reachability fixes — opening the signal block to reversals also opened it to false standard entries. Previous fix attempts only addressed one dimension at a time, which is why each fix exposed the next blocker.
+
+---
+
+### Blocker 5: False standard BUYs — same-direction re-entry (commit `7a31518`)
+
+**Problem**: After fixing the REV-BUY chain, same-bar same-direction re-entries appeared. When Phase 1 processed an EXIT (long → flat), Phase 2 would immediately re-enter BUY if the engine signal was still true — producing EXIT→BUY on the same bar.
+
+**Fix**: Added guards to Phase 2:
+- `if buySignal and pos == 0 and not didExit` — blocks EXIT→BUY
+- `else if shortSignal and pos == 0 and not didCover` — blocks COVER→SHORT
+
+Cross-direction reversals (COVER→BUY, EXIT→SHORT) remain allowed.
+
+**Result**: Partially fixed. Some false BUYs persisted.
+
+---
+
+### Blocker 6: False standard BUYs — `allowRevBypass` leaking engine signals (commit `12d320b`)
+
+**Problem**: When `allowRevBypass` entered the signal block (because a ChoCH was present), ALL engine-specific computations ran (`gateBuy`, `baseBuy`, etc.) — they assumed the outer guard already verified `allowEntry`/`allowRescue`. This produced false BUY labels on ChoCH bars where only reversal signals should be considered.
+
+**Fix**: Added `standardEntryOk = (pos == 0) and (allowEntry or allowRescue)` and prepended it to all four engine branches (Hybrid, Breakout, Trend+Pullback, Loose). When entered via `allowRevBypass` alone, engine signals stay false — only the unified reversal injection applies.
+
+**Result**: Fixed some false BUYs, but others persisted with `allowEntry=true` and low pU.
+
+---
+
+### Blocker 7: False standard BUYs — no probability floor (commits `9bb4f22`, `0030085`)
+
+**Discovery**: Diagnostic label on the false BUY bar showed:
+```
+BUY-DIAG
+aE:true aR:false aRB:false
+pos:0 stdOk:true
+revB:false eng:Hybrid
+pU:0.20 vol:2
+cool:true dd:true
+```
+
+**Root cause**: The forecast gate (`fcGateLongSafe`) defaults to `true` when `forecastAllowed` is false (e.g., when `use3Way` is off, or `f_forecast_allowed()` returns false). This silently bypasses ALL probability checks in `f_entry_forecast_gate()`, including `pU >= minDirProb` (default 0.42). A standard BUY could fire with pU as low as 0.20 — the model predicted 80% bearish.
+
+First fix set floor to 0.40, but pU=0.47 slipped through (model still predicted bearish at <50%). Raised to 0.50.
+
+**Fix**: Added a hard probability floor AFTER engine signal computation and BEFORE reversal injection:
+
+```pine
+if buySignal and (na(pU) or pU < 0.50)
+    buySignal := false
+if shortSignal and (na(pD) or pD < 0.50)
+    shortSignal := false
+```
+
+- Standard entries require the model to actually predict the direction (≥ 50%)
+- `na(pU)` is fail-closed (blocked)
+- Reversal entries are unaffected — injected AFTER this check with their own `probOkGlobal` handling
+
+**Result**: All false BUYs eliminated. REV-BUY at Feb 6 15:27 still fires correctly.
 
 ---
 
