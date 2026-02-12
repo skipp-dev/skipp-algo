@@ -2619,8 +2619,11 @@ zoneAnchorPrice = zoneAnchor == "Entry" and not na(entryPrice) ? entryPrice : zo
 neutralUpper = zoneAnchorPrice + zoneNeutralMult * atr
 neutralLower = zoneAnchorPrice - zoneNeutralMult * atr
 
-aggrUpper = zoneMode == "Symmetric" ? (zoneAnchorPrice + zoneAggressiveMult1 * atr) : (zoneAnchorPrice - zoneAggressiveMult1 * atr)
-aggrLower = zoneMode == "Symmetric" ? (zoneAnchorPrice - zoneAggressiveMult2 * atr) : (zoneAnchorPrice - zoneAggressiveMult2 * atr)
+// Pullback mode: directional bands based on current bias
+// bullBias → bands below anchor (dip-buy zone); bearBias → bands above (pop-sell zone)
+float pbDir = bullBias ? -1.0 : 1.0
+aggrUpper = zoneMode == "Symmetric" ? (zoneAnchorPrice + zoneAggressiveMult1 * atr) : (zoneAnchorPrice + pbDir * zoneAggressiveMult1 * atr)
+aggrLower = zoneMode == "Symmetric" ? (zoneAnchorPrice - zoneAggressiveMult2 * atr) : (zoneAnchorPrice + pbDir * zoneAggressiveMult2 * atr)
 
 //====================
 // SET marker (Trend Continuation Setup)
@@ -4228,7 +4231,7 @@ if barstate.isconfirmed
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
-            tpPx    := newTp
+            tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
         lastSignalBar := bar_index
         lastSig := "BUY"
@@ -4241,7 +4244,7 @@ if barstate.isconfirmed
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
-            tpPx    := sTp
+            tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
         lastSignalBar := bar_index
         lastSig := "SHORT"
