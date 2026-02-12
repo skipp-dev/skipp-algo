@@ -505,6 +505,24 @@ class TestSignalParity(unittest.TestCase):
             self.assertIn('INV(L)', content,
                 f"{name}: INV(L) latched display string missing")
 
+    def test_inv_latch_reset_on_eval_reset(self):
+        """INV latch must be cleared when eval is reset (resetWhich == 'All')."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # Find the reset block and confirm latch is cleared
+            reset_block = content[content.find('if doReset'):content.find('if doReset') + 500]
+            self.assertIn('invLatched := false', reset_block,
+                f"{name}: invLatched must be reset in doReset/All block")
+            self.assertIn('invLatchInfo := ""', reset_block,
+                f"{name}: invLatchInfo must be cleared in doReset/All block")
+
+    def test_inv_latch_snapshot_includes_tf(self):
+        """INV latch snapshot string must include the horizon TF label."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # invLatchInfo assignment should reference entryFcTF
+            latch_lines = [l for l in content.splitlines() if 'invLatchInfo' in l and 'entryFcTF' in l]
+            self.assertGreaterEqual(len(latch_lines), 1,
+                f"{name}: invLatchInfo snapshot must include entryFcTF for TF identification")
+
     # -- EP decomposition --
 
     def test_ep_decomposition_exists(self):
@@ -515,6 +533,30 @@ class TestSignalParity(unittest.TestCase):
             # Must have m: and s: in EP display
             self.assertRegex(content, r'm:.*s:',
                 f"{name}: EP decomposition must show m:/s: breakdown")
+
+    def test_ep_stuck_boundary_uses_strict_greater(self):
+        """EP stuck classification must use > threshold (not >=) to avoid counting resolve-bar items."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # In EP decomposition loop, stuck must be: age > stuckThresh (not >=)
+            # Find all lines that classify stuck in EP context
+            stuck_lines = [l.strip() for l in content.splitlines()
+                          if 'stuckThresh' in l and ('> ' in l or '>=' in l) and 'qAge' not in l and '==' not in l]
+            # Lines that set stuckThresh are OK, we want the comparison lines
+            compare_lines = [l.strip() for l in content.splitlines()
+                            if ('> stuckThresh' in l or '>= stuckThresh' in l)]
+            for line in compare_lines:
+                self.assertNotIn('>= stuckThresh', line,
+                    f"{name}: EP stuck must use '> stuckThresh' not '>= stuckThresh' "
+                    f"(age == threshold means resolving this bar, not stuck)")
+
+    def test_ops_row_shows_tf_label(self):
+        """Ops row must display the horizon TF and target type for context."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('entryFcTF', content,
+                f"{name}: ops row must reference entryFcTF")
+            # Must show a target label (Next/KBar/ATR/Path)
+            self.assertIn('opsTfLbl', content,
+                f"{name}: ops row must compute opsTfLbl target label")
 
     # -- Dynamic footer row --
 

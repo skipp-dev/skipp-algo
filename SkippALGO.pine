@@ -3145,6 +3145,8 @@ prevResetNow := resetNow
 if doReset
     if resetWhich == "All"
         f_reset_eval_all()
+        invLatched := false
+        invLatchInfo := ""
     
     if resetWhich == "All" or resetWhich == "F1" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF1))
         f_reset_tf(tf1State)
@@ -4676,7 +4678,8 @@ if renderTable
             // Gate loss: eligible opportunities still pending (not resolved or skipped)
             eligPending = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
             epNeg = eligPending < 0
-            // EP decomposition: maturing (age < resolve horizon) vs stuck (age >= horizon)
+            // EP decomposition: maturing (age <= resolve horizon) vs stuck (age > horizon)
+            // Resolve triggers at age >= threshold, so age == threshold means "resolving this bar" (not stuck)
             [fcBase, kbBase, _atB, phBase, _tpB, _slB] = f_get_params(f_tf_from_horizon(entryFcTF))
             stuckThresh = fcBase == "NextBar" ? 1 : (fcBase == "KBarReturn" or fcBase == "KBarATR") ? kbBase : phBase
             epMature = 0
@@ -4685,7 +4688,7 @@ if renderTable
             if qSzEp > 0
                 for j = 0 to qSzEp - 1
                     if f_safe_get_bool(st_base.qUseForecast, j, false)
-                        if f_safe_get_int(st_base.qAge, j, 0) >= stuckThresh
+                        if f_safe_get_int(st_base.qAge, j, 0) > stuckThresh
                             epStuck += 1
                         else
                             epMature += 1
@@ -4698,7 +4701,7 @@ if renderTable
             // INV! first-failure latch: snapshot counters on first breach
             if not invOk and not invLatched
                 invLatched := true
-                invLatchInfo := "enq=" + str.tostring(st_base.enqCount) + "/" + str.tostring(st_base.enqCountElig) + " res=" + str.tostring(st_base.resolvedScored) + "/" + str.tostring(st_base.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_base.skipTotalElig) + " EP=" + str.tostring(eligPending)
+                invLatchInfo := entryFcTF + " " + fcBase + " enq=" + str.tostring(st_base.enqCount) + "/" + str.tostring(st_base.enqCountElig) + " res=" + str.tostring(st_base.resolvedScored) + "/" + str.tostring(st_base.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_base.skipTotalElig) + " EP=" + str.tostring(eligPending)
             invTxt = not invOk ? "INV!" : invLatched ? "INV(L)" : ""
             invCol = not invOk ? color.red : invLatched ? color.new(color.orange, 30) : tblTextDim
             table.cell(gT, 7, 20, invTxt, text_size=size.tiny, text_color=invCol, bgcolor=covBg, tooltip=invLatched ? invLatchInfo : "")
@@ -4723,7 +4726,11 @@ if renderTable
             covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%" + lcs
             eCol = na(covElig) ? tblTextDim : covElig >= covOkHi ? color.lime : covElig >= covOkLo ? color.yellow : color.red
             eGlyph = na(covElig) ? "" : covElig >= covOkHi ? " ✓" : covElig < covOkLo ? " ✗" : ""
-            table.cell(gT, 0, 16, "⚙ Ops", text_halign=text.align_left, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
+            // TF + target label for context
+            opsTf = f_tf_from_horizon(entryFcTF)
+            opsTarget = f_target_for_tf(opsTf)
+            opsTfLbl = opsTarget == "NextBar" ? "Next" : opsTarget == "KBarReturn" ? "KBar" : opsTarget == "KBarATR" ? "ATR" : "Path"
+            table.cell(gT, 0, 16, "⚙ " + entryFcTF + " " + opsTfLbl, text_halign=text.align_left, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
             f_cell(1, 16, "E:" + covEligTxt + eGlyph, eCol, covBg)
             // Queue + ΔQ (cheap)
             qDepth = array.size(st_ops.qAge)
@@ -4736,7 +4743,7 @@ if renderTable
             skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
             eligPending = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
             epNeg = eligPending < 0
-            // EP decomposition (lightweight: iterate queue)
+            // EP decomposition (lightweight: iterate queue, O(n) — no sorts)
             [fcOps, kbOps, _atO, phOps, _tpO, _slO] = f_get_params(f_tf_from_horizon(entryFcTF))
             stuckThreshOps = fcOps == "NextBar" ? 1 : (fcOps == "KBarReturn" or fcOps == "KBarATR") ? kbOps : phOps
             epMat = 0
@@ -4745,7 +4752,7 @@ if renderTable
             if qSzO > 0
                 for j = 0 to qSzO - 1
                     if f_safe_get_bool(st_ops.qUseForecast, j, false)
-                        if f_safe_get_int(st_ops.qAge, j, 0) >= stuckThreshOps
+                        if f_safe_get_int(st_ops.qAge, j, 0) > stuckThreshOps
                             epStk += 1
                         else
                             epMat += 1
@@ -4757,7 +4764,7 @@ if renderTable
             invOk = st_ops.resolvedScoredElig <= st_ops.resolvedScored and st_ops.skipTotalElig <= skipTotal and st_ops.enqCountElig <= st_ops.enqCount and (not epNeg)
             if not invOk and not invLatched
                 invLatched := true
-                invLatchInfo := "enq=" + str.tostring(st_ops.enqCount) + "/" + str.tostring(st_ops.enqCountElig) + " res=" + str.tostring(st_ops.resolvedScored) + "/" + str.tostring(st_ops.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_ops.skipTotalElig) + " EP=" + str.tostring(eligPending)
+                invLatchInfo := entryFcTF + " " + opsTarget + " enq=" + str.tostring(st_ops.enqCount) + "/" + str.tostring(st_ops.enqCountElig) + " res=" + str.tostring(st_ops.resolvedScored) + "/" + str.tostring(st_ops.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_ops.skipTotalElig) + " EP=" + str.tostring(eligPending)
             invTxt = not invOk ? "INV!" : invLatched ? "INV(L)" : ""
             invCol = not invOk ? color.red : invLatched ? color.new(color.orange, 30) : tblTextDim
             table.cell(gT, 4, 16, invTxt, text_size=size.tiny, text_color=invCol, bgcolor=covBg, tooltip=invLatched ? invLatchInfo : "")
