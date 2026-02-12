@@ -203,5 +203,36 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         self.assertNotIn('plotshape(preBuyPulse, title="PRE-BUY"', self.text)
         self.assertNotIn('plotshape(preShortPulse, title="PRE-SHORT"', self.text)
 
+
+class TestSkippAlgoIndicatorEntryExitLabels(unittest.TestCase):
+    """Explicit regression checks for BUY / REV-BUY / EXIT wiring and payloads."""
+
+    text: str = ""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = INDICATOR_PATH.read_text(encoding="utf-8")
+
+    def test_buy_and_rev_buy_label_flags_exist(self):
+        """BUY and REV-BUY label flags must stay split."""
+        self.assertIn("labelRevBuy   = buyEvent and isRevBuy", self.text)
+        self.assertIn("labelBuy      = buyEvent and not isRevBuy", self.text)
+
+    def test_buy_and_rev_buy_label_payloads(self):
+        """BUY and REV-BUY labels should show probability and confidence."""
+        self.assertIn('"REV-BUY\\npU: " + _probTxt + "\\nConf: " + _confTxt', self.text)
+        self.assertIn('"BUY\\npU: " + _probTxt + "\\nConf: " + _confTxt', self.text)
+
+    def test_exit_and_cover_label_payloads(self):
+        """EXIT/COVER labels should include reason + held bars text."""
+        self.assertIn("if showLongLabels and labelExit", self.text)
+        self.assertIn('"EXIT" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"', self.text)
+        self.assertIn('"COVER" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"', self.text)
+
+    def test_buy_and_exit_alertconditions_exist(self):
+        """Indicator should expose BUY/EXIT alert conditions."""
+        self.assertRegex(self.text, r'alertcondition\(alertBuyCond,\s*title="BUY"')
+        self.assertRegex(self.text, r'alertcondition\(alertExitCond,\s*title="EXIT"')
+
 if __name__ == "__main__":
     unittest.main()
