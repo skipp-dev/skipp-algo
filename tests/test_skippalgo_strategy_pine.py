@@ -525,6 +525,10 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
     def test_strict_signal_visualization_exists(self):
         self.assertIn("showStrictIcon", self.text)
         self.assertIn("showStrictLabel", self.text)
+        self.assertIn("showLongLabels and showStrictIcon and strictBuyConfirmed", self.text)
+        self.assertIn("showShortLabels and showStrictIcon and strictShortConfirmed", self.text)
+        self.assertIn("showLongLabels and showStrictLabel and strictBuyConfirmed", self.text)
+        self.assertIn("showShortLabels and showStrictLabel and strictShortConfirmed", self.text)
         self.assertIn('title="STRICT-CONF BUY"', self.text)
         self.assertIn('title="STRICT-CONF SHORT"', self.text)
         self.assertIn("STRICT-CONFIRMED BUY", self.text)

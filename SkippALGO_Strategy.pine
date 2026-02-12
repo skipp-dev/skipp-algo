@@ -4280,8 +4280,8 @@ if useAlertCalls and barstate.isconfirmed and barstate.isrealtime
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
 showStrictIcon = showStrictSignalMarkers and (strictMarkerStyle == "Icon" or strictMarkerStyle == "Both")
 showStrictLabel = showStrictSignalMarkers and (strictMarkerStyle == "Label" or strictMarkerStyle == "Both")
-plotshape(showStrictIcon and strictBuyConfirmed, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
-plotshape(showStrictIcon and strictShortConfirmed, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
+plotshape(showLongLabels and showStrictIcon and strictBuyConfirmed, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showShortLabels and showStrictIcon and strictShortConfirmed, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
 var label[] _strictLabels = array.new_label(0)
 MAX_STRICT_LABELS = 80
@@ -4291,9 +4291,9 @@ f_strict_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_strictLabels) > MAX_STRICT_LABELS
         label.delete(array.shift(_strictLabels))
 
-if showStrictLabel and strictBuyConfirmed
+if showLongLabels and showStrictLabel and strictBuyConfirmed
     f_strict_label(bar_index, low, "STRICT-CONFIRMED BUY", label.style_label_up, color.black, color.new(color.aqua, 0))
-if showStrictLabel and strictShortConfirmed
+if showShortLabels and showStrictLabel and strictShortConfirmed
     f_strict_label(bar_index, high, "STRICT-CONFIRMED SHORT", label.style_label_down, color.black, color.new(color.fuchsia, 0))
 // PRE-BUY / PRE-SHORT labels: show distance-to-trigger, pU/pD, confidence
 var label[] _preLabels = array.new_label(0)
