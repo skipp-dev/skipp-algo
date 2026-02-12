@@ -304,7 +304,6 @@ labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Ex
 
 // Alerts
 alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
-useStrictAlertMode = input.bool(false, "Alerts: Strict mode", tooltip="Conservative alerts: 1-bar delayed confirmation for BUY/SHORT with stricter MTF/ChoCH checks. EXIT/COVER remain same-bar. Disabled automatically during open window ± minutes.")
 strictMtfMargin = input.float(0.02, "Strict: MTF extra margin", minval=0.0, maxval=0.20, step=0.01, tooltip="Additional margin above/below SCORE_NEUTRAL_BAND required for strict BUY/SHORT confirmation.")
 strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, maxval=5, tooltip="For REV entries in strict mode, ChoCH must remain recent within this many bars on confirmation.")
 useAdaptiveStrictMargin = input.bool(false, "Strict: adaptive MTF margin", tooltip="Adapts strictMtfMargin by ATR regime: stricter in high vol, looser in calm markets.")
@@ -4313,7 +4312,7 @@ alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_onc
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
 strictAtrRankVis = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
 strictMtfMarginEffVis = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRankVis - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
-strictAlertsEnabledVis = useStrictAlertMode and not inRevOpenWindow
+strictAlertsEnabledVis = not inRevOpenWindow
 strictMtfLongOkVis = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
 strictMtfShortOkVis = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
 strictChochLongOkVis = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
@@ -4607,7 +4606,7 @@ if renderTable
 // - Automatically disabled during opening windows (LONG/SHORT configured mins)
 strictAtrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
 strictMtfMarginEff = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRank - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
-strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow
+strictAlertsEnabled = not inRevOpenWindow
 strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
 strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
 strictChochLongOk = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)

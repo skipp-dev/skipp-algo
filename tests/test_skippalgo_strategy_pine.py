@@ -487,7 +487,6 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         cls.text = STRATEGY_PATH.read_text(encoding="utf-8")
 
     def test_strict_inputs_exist(self):
-        self.assertIn("useStrictAlertMode", self.text)
         self.assertIn("strictMtfMargin", self.text)
         self.assertIn("strictChochConfirmBars", self.text)
         self.assertIn("useAdaptiveStrictMargin", self.text)
@@ -507,7 +506,7 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
-        self.assertIn("strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow", self.text)
+        self.assertIn("strictAlertsEnabled = not inRevOpenWindow", self.text)
 
     def test_strict_buy_short_use_one_bar_delay(self):
         self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
