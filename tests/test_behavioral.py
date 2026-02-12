@@ -404,13 +404,9 @@ class TestAllEngines(unittest.TestCase):
         r = sim.process_bar(Bar(), BarSignals())
         self.assertTrue(r.did_buy)
 
-    def test_reversal_works_in_supported_engines(self):
-        """REV-BUY fires in engines that inject revBuyGlobal.
-
-        NOTE: Loose engine does NOT inject revBuyGlobal in Pine code —
-        this is a known gap (see SkippALGO.pine L3940-3942).
-        """
-        for eng in ["Hybrid", "Breakout", "Trend+Pullback"]:
+    def test_reversal_works_in_all_engines(self):
+        """REV-BUY fires in all engines via unified post-engine injection."""
+        for eng in ["Hybrid", "Breakout", "Trend+Pullback", "Loose"]:
             with self.subTest(engine=eng):
                 cfg = SimConfig(
                     engine=eng,
@@ -422,22 +418,9 @@ class TestAllEngines(unittest.TestCase):
                 r = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
                 self.assertTrue(r.did_buy, f"REV-BUY should work in {eng} engine")
 
-    def test_loose_engine_skips_reversal_injection(self):
-        """Loose engine does NOT inject revBuyGlobal — matches Pine code."""
-        cfg = SimConfig(
-            engine="Loose",
-            reliability_ok=False,  # blocks allowEntry
-            allow_neural_reversals=True,
-            p_u=0.60,
-        )
-        sim = SkippAlgoSim(cfg)
-        r = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
-        # revBypass gets us into the entry block, but Loose doesn't OR revBuyGlobal
-        self.assertFalse(r.did_buy, "Loose engine should NOT fire REV-BUY")
-
-    def test_reversal_short_works_in_supported_engines(self):
-        """REV-SHORT fires in engines that inject revShortGlobal."""
-        for eng in ["Hybrid", "Breakout", "Trend+Pullback"]:
+    def test_reversal_short_works_in_all_engines(self):
+        """REV-SHORT fires in all engines via unified post-engine injection."""
+        for eng in ["Hybrid", "Breakout", "Trend+Pullback", "Loose"]:
             with self.subTest(engine=eng):
                 cfg = SimConfig(
                     engine=eng,

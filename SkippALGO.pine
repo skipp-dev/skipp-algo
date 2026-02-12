@@ -3901,14 +3901,13 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        // REV-BUY (Neural Reversal) injection
-        buySignal   := (gateBuy and chochFilterOk) or revBuyGlobal
+        buySignal   := gateBuy and chochFilterOk
         
         gateShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and pullbackShortOkSafe and enhShortOk and hybridShortTrigger
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) // Currently Bullish OR Just Flipped
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        shortSignal := (gateShort and chochShortFilterOk) or revShortGlobal
+        shortSignal := gateShort and chochShortFilterOk
 
     else if engine == "Breakout"
 
@@ -3922,24 +3921,24 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
         isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
         chochFilterOk = (not isChoCH_Entry) or ((pU >= chochMinProb) and (not chochReqVol or volOk))
         
-        buySignal   := (baseBuy and chochFilterOk) or revBuyGlobal
+        buySignal   := baseBuy and chochFilterOk
         
         baseShort = enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and enhShortOk and breakoutShortSafe
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((pD >= chochMinProb) and (not chochReqVol or volOk))
         
-        shortSignal := (baseShort and chochShortFilterOk) or revShortGlobal
+        shortSignal := baseShort and chochShortFilterOk
         
     else if engine == "Trend+Pullback"
         buySignal   := gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe)
         shortSignal := enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe)
-        
-        // Inject Reversal Logic
-        buySignal   := buySignal   or revBuyGlobal
-        shortSignal := shortSignal or revShortGlobal
     else // Loose
         buySignal   := gateLongNow and crossClose_EmaF_upSafe and enhLongOk
         shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
+
+    // Unified Neural Reversal injection (all engines, including Loose)
+    buySignal   := buySignal   or revBuyGlobal
+    shortSignal := shortSignal or revShortGlobal
     
     // Capture raw signals before conflict logic
     rawBuySignal := buySignal

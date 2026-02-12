@@ -308,7 +308,7 @@ class SkippAlgoSim:
                 choch_filter_ok = (not is_choch_entry) or (
                     (cfg.p_u >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
 
-                buy_signal = (gate_buy and choch_filter_ok) or rev_buy_global
+                buy_signal = (gate_buy and choch_filter_ok)
 
                 gate_short_sig = (cfg.enable_shorts and gate_short and cfg.fc_gate_short_safe
                                   and cfg.vol_ok and cfg.set_ok_short and cfg.pullback_short_ok
@@ -317,7 +317,7 @@ class SkippAlgoSim:
                 choch_short_filter_ok = (not is_choch_short_entry) or (
                     (cfg.p_d >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
 
-                short_signal = (gate_short_sig and choch_short_filter_ok) or rev_short_global
+                short_signal = (gate_short_sig and choch_short_filter_ok)
 
             elif cfg.engine == "Breakout":
                 base_buy = (gate_long and cfg.fc_gate_long_safe and cfg.vol_ok
@@ -325,7 +325,7 @@ class SkippAlgoSim:
                 is_choch_entry = base_buy and (st.struct_state == -1 or signals.is_choch_long)
                 choch_filter_ok = (not is_choch_entry) or (
                     (cfg.p_u >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
-                buy_signal = (base_buy and choch_filter_ok) or rev_buy_global
+                buy_signal = (base_buy and choch_filter_ok)
 
                 base_short = (cfg.enable_shorts and gate_short and cfg.fc_gate_short_safe
                               and cfg.vol_ok and cfg.trend_dn and cfg.enh_short_ok
@@ -333,20 +333,22 @@ class SkippAlgoSim:
                 is_choch_short_entry = base_short and (st.struct_state == 1 or signals.is_choch_short)
                 choch_short_filter_ok = (not is_choch_short_entry) or (
                     (cfg.p_d >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
-                short_signal = (base_short and choch_short_filter_ok) or rev_short_global
+                short_signal = (base_short and choch_short_filter_ok)
 
             elif cfg.engine == "Trend+Pullback":
                 buy_signal = (gate_long and cfg.enh_long_ok
                               and (cfg.trend_flip_up or cfg.reclaim_up))
                 short_signal = (cfg.enable_shorts and gate_short and cfg.enh_short_ok
                                 and (cfg.trend_flip_down or cfg.reclaim_down))
-                buy_signal = buy_signal or rev_buy_global
-                short_signal = short_signal or rev_short_global
 
             else:  # Loose
                 buy_signal = (gate_long and cfg.cross_close_ema_f_up and cfg.enh_long_ok)
                 short_signal = (cfg.enable_shorts and gate_short
                                 and cfg.cross_close_ema_f_down and cfg.enh_short_ok)
+
+            # Unified Neural Reversal injection (all engines, including Loose)
+            buy_signal = buy_signal or rev_buy_global
+            short_signal = short_signal or rev_short_global
 
             # Conflict resolution
             result.raw_buy_signal = buy_signal
