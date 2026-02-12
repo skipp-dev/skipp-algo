@@ -3875,20 +3875,21 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
     // This logic was previously stuck inside "Hybrid" engine block, causing other engines to miss Neural Reversals.
     // Moved here to ensure global availability.
     // NA safety handled by f_fc_bool wrapper on revBuyGlobal/revShortGlobal below.
-    probOkGlobal    = (pU >= 0.50)
-    probOkGlobalS   = (pD >= 0.50)
+    // v6.2.10: Restore original lightweight gates. Rev-buys bypass MTF, Macro,
+    //   and SMC (these are standard-entry filters that contradict reversal purpose).
+    //   Only ddOk (portfolio drawdown) is kept as a hard safety gate.
+    //   probOkGlobal restored to include hugeVol rescue fallback (pU >= 0.40 when Vol >= 1.5x).
+    probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.40)
+    probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.40)
     
     // Global Gate: allowNeuralReversals
-    // Reversals bypass MTF (Trend) but MUST respect Safety Gates (Macro + Drawdown) to avoid catching falling knives
-    // Added Impulse check to filter "Short Candles" in downtrends
-    bool impulseOkL = isImpulse and (close > open)
-    bool impulseOkS = isImpulse and (close < open)
-    // CHoCH REQUIREMENT (v6.2.5): Strict CHoCH for REV-BUY.
-    // Must be CHoCH bar. No late checking.
-    // 'impulseOkL' constraint removed (v6.2.4) to allow non-impulse CHoCHs to trigger if other gates pass.
-    // v6.2.7 Fix: Wrap in f_fc_bool to prevent NA propagation from volOk/smcOkL
-    revBuyGlobal    = f_fc_bool(allowNeuralReversals and macOkLong_  and ddOk and isChoCH_Long and probOkGlobal and volOk and smcOkL)
-    revShortGlobal  = f_fc_bool(allowNeuralReversals and macOkShort_ and ddOk and isChoCH_Short and probOkGlobalS and volOk and smcOkS)
+    // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
+    //   standard engine triggers (Hybrid/Breakout/Trend+Pullback gates).
+    // Neural Reversals respect: ddOk (drawdown hard gate), probOkGlobal (forecast),
+    //   volOk (volume), isChoCH (structure reversal).
+    // CHoCH REQUIREMENT (v6.2.5): Strict CHoCH for REV-BUY. Must be ChoCH bar.
+    revBuyGlobal    = f_fc_bool(allowNeuralReversals and ddOk and isChoCH_Long and probOkGlobal and volOk)
+    revShortGlobal  = f_fc_bool(allowNeuralReversals and ddOk and isChoCH_Short and probOkGlobalS and volOk)
 
     // Export for debug
     isRevBuy   := revBuyGlobal
