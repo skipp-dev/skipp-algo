@@ -4179,6 +4179,9 @@ plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
 // then immediately enter the new position. Without this, the if/else-if chain
 // consumed the bar on the exit, and isChoCH resets to false on the next bar,
 // permanently losing the reversal entry.
+// v6.2.13: Track whether position was entered via Neural Reversal so EXIT/COVER
+//          labels can indicate "(REV)" — helps users locate the matching REV-BUY/SHORT.
+var bool lastEntryWasRev = false
 if barstate.isconfirmed
     // --- Phase 1: Process exits ---
     if exitSignal and pos == 1
@@ -4215,6 +4218,7 @@ if barstate.isconfirmed
         isBeHit := false
         enBar   := bar_index
         barsSinceEntry := 0  // reset for same-bar reversal
+        lastEntryWasRev := isRevBuy  // v6.2.13
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -4230,6 +4234,7 @@ if barstate.isconfirmed
         isBeHit := false
         enBar   := bar_index
         barsSinceEntry := 0  // reset for same-bar reversal
+        lastEntryWasRev := isRevShort  // v6.2.13
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
@@ -4283,8 +4288,10 @@ f_label_price(isLong, isEntry) =>
 // v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
 // Previously, label.new() BUY labels were silently evicted on charts with >250 trades,
 // creating orphan EXIT labels ("Exit without Buy").
-plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.small, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
-plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.small, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
+// v6.2.13: REV-BUY/REV-SHORT upgraded to size.normal — size.small was hidden
+// under ChoCH plotshape (same bar, same location), creating "orphan EXIT" illusion.
+plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
 plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
 plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
@@ -4300,25 +4307,33 @@ f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_exitLabels) > MAX_EXIT_LABELS
         label.delete(array.shift(_exitLabels))
 
+// v6.2.13: Snapshot lastEntryWasRev BEFORE Phase-2 overwrites it on same-bar reversal.
+bool _wasRevEntry = lastEntryWasRev
+
 if showLongLabels and labelExit
     // Exit label (Above bar) — includes bars-held for traceability
     // v6.2.12: On same-bar reversal (EXIT→SHORT), append " → SHORT" and render BELOW bar
     //          so the EXIT label doesn't hide the SHORT plotshape above bar.
+    // v6.2.13: Show "(REV)" when the position was entered via Neural Reversal,
+    //          so user knows to look for a REV-BUY label, not a standard BUY.
+    string revTag    = _wasRevEntry ? " (REV)" : ""
     string exitSuffix = didShort ? " → SHORT" : ""
     bool isExitRev = didShort
     val = isExitRev ? low : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high)
     exitSty = isExitRev ? label.style_label_up : label.style_label_down
-    f_exit_label(bar_index, val, "EXIT" + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
+    f_exit_label(bar_index, val, "EXIT" + revTag + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
 if showShortLabels and labelCover
     // Cover label — includes bars-held for traceability
     // v6.2.12: On same-bar reversal (COVER→BUY), append " → BUY" and render ABOVE bar
     //          so the COVER label doesn't hide the BUY plotshape below bar.
+    // v6.2.13: Show "(REV)" when the position was entered via Neural Reversal.
+    string revTag    = _wasRevEntry ? " (REV)" : ""
     string coverSuffix = didBuy ? " → BUY" : ""
     bool isReversal = didBuy
     val = isReversal ? high : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low)
     labelSty = isReversal ? label.style_label_down : label.style_label_up
-    f_exit_label(bar_index, val, "COVER" + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
+    f_exit_label(bar_index, val, "COVER" + revTag + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
