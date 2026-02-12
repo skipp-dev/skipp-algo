@@ -3887,6 +3887,17 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         buySignal   := standardEntryOk and gateLongNow and crossClose_EmaF_upSafe and enhLongOk
         shortSignal := standardEntryOk and enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
 
+    // v6.2.11: Hard probability floor for standard entries.
+    // The forecast gate (fcGateLongSafe) silently passes when forecastAllowed is
+    // false, leaving NO directional probability check on engine signals.
+    // Safety net: block standard long when pU < 0.40, short when pD < 0.40.
+    // Reversal entries have their own probability handling (probOkGlobal) and
+    // are injected AFTER this check, so they are not affected.
+    if buySignal and not na(pU) and pU < 0.40
+        buySignal := false
+    if shortSignal and not na(pD) and pD < 0.40
+        shortSignal := false
+
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
         buySignal   := buySignal   or revBuyGlobal
