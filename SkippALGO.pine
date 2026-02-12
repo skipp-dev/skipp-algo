@@ -47,11 +47,21 @@ useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="D
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
+// Breakeven
+useBreakeven = input.bool(false, "+BE Trigger", tooltip="Move Stop to Breakeven when price reaches +N ATR profit.")
+beTrigger    = input.float(1.5, "Move to BE at (ATR)", minval=0.1, step=0.1)
+beOffset     = input.float(0.1, "BE Offset (ATR)", minval=0.0, step=0.05, tooltip="Small buffer above entry to cover fees.")
+
+// Stalemate Exit
+useStalemate = input.bool(false, "Stalemate Exit", tooltip="Exit if trade makes no progress after N bars.")
+staleBars    = input.int(12, "Stalemate Check (Bars)", minval=1)
+staleMinATR  = input.float(0.5, "Min Profit Required (ATR)", minval=0.0, step=0.1)
+
 // Dynamic Risk Decay
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
 decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
-decayBars    = input.int(3, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Example: At 50% duration, Stop is halfway between Initial and Sustained.")
+decayBars    = input.int(3, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Note: if decayBars < exitGraceBars, stop reaches sustained before structural exits are allowed — this is intentional to tighten risk while giving the trade time to develop.")
 // Note: Uses same exitGraceBars duration defined below
 
 swingL = input.int(5, "Breakout swing left (L)", minval=1, maxval=20)
@@ -460,6 +470,9 @@ tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, ma
 tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", minval=0, maxval=20000)
 rescueVolMult = input.float(1.5, "Rescue Mode: Min Volume (xSMA)", minval=1.0, maxval=50.0, step=0.1, tooltip="Volume ratio required to trigger Rescue Mode (bypasses gates).")
 rescueImpulseATR = input.float(0.7, "Rescue Mode: Min Impulse (xATR)", minval=0.1, step=0.1, tooltip="Minimum candle body size (in ATR) to validate a Rescue Reversal.")
+rescueMinProb    = input.float(0.30, "Rescue Mode: Min Probability", minval=0.15, maxval=0.50, step=0.01, tooltip="Minimum directional probability for rescue path. Below random chance (~0.33) means model disagrees; structure+volume must compensate.")
+revRecencyBars   = input.int(5, "Rev Recency (bars)", minval=1, maxval=20, tooltip="Max bars since ChoCH for a reversal signal to be considered recent enough.")
+chochGraceBars   = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 
 
 //====================
@@ -2696,6 +2709,8 @@ blockNearClose = useRthCloseFilter and timeframe.isintraday and (minsToClose >= 
 //====================
 var float entryPrice = na
 var float entryAtr   = na
+var bool  isBeHit = false
+var int   enBar   = 0
 vwapVal   = ta.vwap(hlc3)
 sma200Val = ta.sma(close, 200)
 
@@ -3858,9 +3873,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         f_debug_label(bar_index, high, "Main Loop Entered", label.style_label_down)
 
     // Reversal Logic (Global — Applies to All Engines)
-    // Refined to filter stale reversals (older than 5 bars) on low volume to prevent "fake" late entries
-    bool revRecencyOkL = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 5 or volRatioG >= 1.0)
-    bool revRecencyOkS = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 5 or volRatioG >= 1.0)
+    // Refined to filter stale reversals (older than revRecencyBars) on low volume to prevent "fake" late entries
+    bool revRecencyOkL = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= revRecencyBars or volRatioG >= 1.0)
+    bool revRecencyOkS = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= revRecencyBars or volRatioG >= 1.0)
     
     // SMC Liquidity Sweep Filter (v6.1.4)
     bool isSweep_Bull = not na(lastSwingLow) and (low < lastSwingLow) and (close > lastSwingLow)
@@ -3889,8 +3904,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong))
-    probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort))
+    probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= rescueMinProb and impulseLong))
+    probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= rescueMinProb and impulseShort))
     
     // Global Gate: allowNeuralReversals
     // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
@@ -3958,13 +3973,15 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // The forecast gate (fcGateLongSafe) silently passes when forecastAllowed is
     // false, leaving NO directional probability check on engine signals.
     // Safety net: block standard long when pU < 0.50, short when pD < 0.50.
-    // The model must actually favour the direction for a standard entry.
+    // Only active when forecast gate is not already checking probability.
+    // When forecastAllowed is true, fcGateLongSafe already enforces minDirProb.
     // Reversal entries have their own probability handling (probOkGlobal) and
     // are injected AFTER this check, so they are not affected.
-    if buySignal and (na(pU) or pU < 0.50)
-        buySignal := false
-    if shortSignal and (na(pD) or pD < 0.50)
-        shortSignal := false
+    if not forecastAllowed
+        if buySignal and (na(pU) or pU < 0.50)
+            buySignal := false
+        if shortSignal and (na(pD) or pD < 0.50)
+            shortSignal := false
 
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
@@ -4024,7 +4041,7 @@ else
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
-bool canChochExit = (barsSinceEntry >= math.min(2, exitGraceBars))
+bool canChochExit = (barsSinceEntry >= math.min(chochGraceBars, exitGraceBars))
 
 // Capturing exit reasons for debugging/transparency
 string tempExitReason = ""
@@ -4055,6 +4072,37 @@ if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
         if not useInfiniteTP
             tpPx   := math.max(tpPx, targetTp)
 
+// Breakeven Logic
+if useBreakeven and not isBeHit and pos != 0 and not na(entryPrice) and not na(atr)
+    if pos == 1
+        triggerPx = entryPrice + (beTrigger * atr)
+        if high >= triggerPx
+            newStop = entryPrice + (beOffset * atr)
+            if newStop > stopPx
+                stopPx := newStop
+                isBeHit := true
+    else
+        triggerPx = entryPrice - (beTrigger * atr)
+        if low <= triggerPx
+            newStop = entryPrice - (beOffset * atr)
+            if newStop < stopPx
+                stopPx := newStop
+                isBeHit := true
+
+// Stalemate Logic
+// Only active if no other exit signal triggers this bar
+bool staleExit = false
+if useStalemate and pos != 0 and (bar_index - enBar) >= staleBars and not na(atr) and atr > 0
+    // Check profit
+    float profitATR = 0.0
+    if pos == 1
+        profitATR := (close - entryPrice) / atr
+    else
+        profitATR := (entryPrice - close) / atr
+        
+    if profitATR < staleMinATR
+        staleExit := true
+
 if pos == 1 and allowExit
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
@@ -4076,11 +4124,13 @@ if pos == 1 and allowExit
     if structHit and not na(pD) and pD < exitConfChoCh
         structHit := false
     
-    exitSignal := rHit or structHit
+    exitSignal := rHit or structHit or staleExit
     if exitSignal
         string reason = rHit ? rMsg : "Struct"
         if not rHit and (breakLong or isChoCH_Short)
             reason := "ChoCH"
+        if staleExit and not rHit and not structHit
+            reason := "Stalemate"
         tempExitReason := reason
 
 if pos == -1 and allowExit
@@ -4101,11 +4151,13 @@ if pos == -1 and allowExit
     // if structHit and not na(pU) and pU < exitConfChoCh
     //     structHit := false
     
-    coverSignal := rHit or structHit
+    coverSignal := rHit or structHit or staleExit
     if coverSignal
         string reason = rHit ? rMsg : "Struct"
         if not rHit and (breakShort or isChoCH_Long)
             reason := "ChoCH"
+        if staleExit and not rHit and not structHit
+            reason := "Stalemate"
         tempExitReason := reason
 
 // Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
@@ -4137,6 +4189,7 @@ if barstate.isconfirmed
         stopPx := na
         tpPx := na
         trailPx := na
+        isBeHit := false
         lastSignalBar := bar_index
         lastSig := "EXIT"
     else if coverSignal and pos == -1
@@ -4147,6 +4200,7 @@ if barstate.isconfirmed
         stopPx := na
         tpPx := na
         trailPx := na
+        isBeHit := false
         lastSignalBar := bar_index
         lastSig := "COVER"
 
@@ -4158,6 +4212,8 @@ if barstate.isconfirmed
         pos := 1
         entryPrice := close
         entryAtr   := atr
+        isBeHit := false
+        enBar   := bar_index
         barsSinceEntry := 0  // reset for same-bar reversal
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
@@ -4171,6 +4227,8 @@ if barstate.isconfirmed
         pos := -1
         entryPrice := close
         entryAtr   := atr
+        isBeHit := false
+        enBar   := bar_index
         barsSinceEntry := 0  // reset for same-bar reversal
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)

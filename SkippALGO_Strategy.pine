@@ -60,7 +60,7 @@ staleMinATR  = input.float(0.5, "Min Profit Required (ATR)", minval=0.0, step=0.
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
 decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
-decayBars    = input.int(3, "Decay Duration (Bars)", minval=1)
+decayBars    = input.int(3, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Note: if decayBars < exitGraceBars, stop reaches sustained before structural exits are allowed — this is intentional to tighten risk while giving the trade time to develop.")
 
 exitGraceBars = input.int(5, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
@@ -476,6 +476,9 @@ tradeMinBinSamples   = input.int(10, "Trade gate: min BIN samples", minval=0, ma
 tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", minval=0, maxval=20000)
 rescueVolMult = input.float(1.5, "Rescue Mode: Min Volume (xSMA)", minval=1.0, maxval=50.0, step=0.1, tooltip="Volume ratio required to trigger Rescue Mode (bypasses gates).")
 rescueImpulseATR = input.float(0.7, "Rescue Mode: Min Impulse (xATR)", minval=0.1, step=0.1, tooltip="Minimum candle body size (in ATR) to validate a Rescue Reversal.")
+rescueMinProb    = input.float(0.30, "Rescue Mode: Min Probability", minval=0.15, maxval=0.50, step=0.01, tooltip="Minimum directional probability for rescue path. Below random chance (~0.33) means model disagrees; structure+volume must compensate.")
+revRecencyBars   = input.int(5, "Rev Recency (bars)", minval=1, maxval=20, tooltip="Max bars since ChoCH for a reversal signal to be considered recent enough.")
+chochGraceBars   = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 
 
 //====================
@@ -3585,8 +3588,8 @@ bool hugeVolG   = volRatioG >= rescueVolMult
 float bodySize = math.abs(close - open)
 bool isImpulse = bodySize > (atr * rescueImpulseATR)
 
-bool allowRescueLong  = isImpulse and (close > open) and barstate.isconfirmed and cooldownOk
-bool allowRescueShort = isImpulse and (close < open) and barstate.isconfirmed and cooldownOk
+bool allowRescueLong  = isImpulse and (close > open) and barstate.isconfirmed and cooldownOkSafe
+bool allowRescueShort = isImpulse and (close < open) and barstate.isconfirmed and cooldownOkSafe
 
 // Legacy support (OR logic)
 bool allowRescue = (allowRescueLong or allowRescueShort)
@@ -3613,8 +3616,10 @@ preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMom
 // C3 – EMA acceleration (gap expanding)
 emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
 emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
-emaAccelLongOk  = (not useEmaAccel) or (emaGap >= emaGapPrev)
-emaAccelShortOk = (not useEmaAccel) or (emaGap <= emaGapPrev)
+// NOTE: small 5% tolerance added to prevent repainting rejection on borderline bars
+emaAccelTol = 0.05 * (emaGapPrev + 0.0001)
+emaAccelLongOk  = (not useEmaAccel) or (emaGap >= (emaGapPrev - emaAccelTol))
+emaAccelShortOk = (not useEmaAccel) or (emaGap <= (emaGapPrev + emaAccelTol))
 
 // C4 – VWAP alignment (intraday only; vwapVal computed in Zones section)
 vwapLongOk  = (not useVwap) or (not timeframe.isintraday) or (na(vwapVal) or close >= vwapVal)
@@ -3641,8 +3646,10 @@ bearReversal = close < open and close < emaF and high >= emaF
 setOkLong  = (not requireSET) or setLong
 setOkShort = (not requireSET) or setShort
 
-pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= pbMinATR) and (pbDepthLong <= pbMaxATR) and (close > emaS)
-pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= pbMinATR) and (pbDepthShort <= pbMaxATR) and (close < emaS)
+// NOTE: Tolerance added to Pullback Depth (0.25 ATR) to handle repaint/wick differences
+pbTol = 0.25
+pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= (pbMinATR - pbTol)) and (pbDepthLong <= (pbMaxATR + pbTol)) and (close > emaS)
+pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= (pbMinATR - pbTol)) and (pbDepthShort <= (pbMaxATR + pbTol)) and (close < emaS)
 
 // Breakout
 var float lastSwingHigh = na
@@ -3813,22 +3820,22 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // Recency (Global Scope inside loop for safety)
     int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
-    bool revRecencyOkL   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 5 or volRatioG >= 1.0)
+    bool revRecencyOkL   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= revRecencyBars or volRatioG >= 1.0)
     int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
-    bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 5 or volRatioG >= 1.0)
+    bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= revRecencyBars or volRatioG >= 1.0)
 
     // Reversal Logic (Global)
     // NA safety handled by f_fc_bool wrapper on revBuyGlobal/revShortGlobal below.
     // v6.2.10: Restore original lightweight gates. Rev-buys bypass MTF, Macro,
     //   and SMC (these are standard-entry filters that contradict reversal purpose).
     //   Only ddOk (portfolio drawdown) is kept as a hard safety gate.
-    //   probOkGlobal restored to include hugeVol rescue fallback (pU >= 0.40 when Vol >= 1.5x).
+    //   probOkGlobal restored to include hugeVol rescue fallback (pU >= 0.20 when Vol >= 1.5x).
     // v6.2.11: Lowered hugeVol threshold from 0.40 to 0.20 (see Indicator comment).
     //   Require directional impulse candle on rescue path.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    bool probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong))
-    bool probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort))
+    bool probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= rescueMinProb and impulseLong))
+    bool probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= rescueMinProb and impulseShort))
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
@@ -3852,7 +3859,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     if engine == "Hybrid"
         // Base triggers
-        gateBuy   = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and hybridLongTrigger  and enhLongOk
+        gateBuy   = standardEntryOk and gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         
         // ChoCH Filter (Strict)
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) // Currently Bearish OR Just Flipped
@@ -3891,13 +3898,15 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // The forecast gate (fcGateLongSafe) silently passes when forecastAllowed is
     // false, leaving NO directional probability check on engine signals.
     // Safety net: block standard long when pU < 0.50, short when pD < 0.50.
-    // The model must actually favour the direction for a standard entry.
+    // Only active when forecast gate is not already checking probability.
+    // When forecastAllowed is true, fcGateLongSafe already enforces minDirProb.
     // Reversal entries have their own probability handling (probOkGlobal) and
     // are injected AFTER this check, so they are not affected.
-    if buySignal and (na(pU) or pU < 0.50)
-        buySignal := false
-    if shortSignal and (na(pD) or pD < 0.50)
-        shortSignal := false
+    if not forecastAllowed
+        if buySignal and (na(pU) or pU < 0.50)
+            buySignal := false
+        if shortSignal and (na(pD) or pD < 0.50)
+            shortSignal := false
 
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
@@ -3951,7 +3960,7 @@ else
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
-bool canChochExit = (barsSinceEntry >= math.min(2, exitGraceBars))
+bool canChochExit = (barsSinceEntry >= math.min(chochGraceBars, exitGraceBars))
 
 // Risk Decay Calculation (Linear interpolation)
 // Gated: decay pauses during huge volume shock (prevents premature tightening)
