@@ -36,6 +36,20 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
+- **TradingView settings persistence:**
+  - Script titles were stabilized to avoid input resets on updates:
+    - `indicator("SkippALGO", ...)`
+    - `strategy("SkippALGO Strategy", ...)`
+- **REV probability controls (clarified and exposed):**
+  - Added `REV: Min pU` (`revMinProb`, default `0.50`) for the normal REV entry path.
+  - `Rescue Mode: Min Probability` (`rescueMinProb`) continues to govern only the rescue fallback path (with huge volume + impulse).
+- **Open-window behavior:**
+  - Near market open (±window), pU filter bypass applies to standard and reversal entries as configured.
+- **Exit/Cover label formatting:**
+  - Long first line was split into multiple rows for better readability on chart labels.
+- **Watchlist alert stability:**
+  - Reworked alert dispatch to send at most **one consolidated `alert()` per bar** per symbol (instead of multiple independent alert calls), reducing TradingView throttling / “eingeschränkte Funktionalität” risk on large watchlists.
+
 - **Parity fixes (Indicator ⇄ Strategy):**
   - Loose engine now applies `enhLongOk/enhShortOk` consistently in both scripts.
   - `barsSinceEntry` now starts at `0` on the entry bar in both scripts (no risk-decay tightening on the entry bar) and uses `>=` for `canStructExit`.
