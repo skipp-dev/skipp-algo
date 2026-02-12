@@ -4213,17 +4213,34 @@
         entryVal = na(entryBase) ? close : entryBase
         labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
-    // v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
-    // v6.2.15: All entry labels size.large — maximum visual prominence.
-    plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.large, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
-    plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.large, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
-    plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.large, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
-    plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.large, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
+    // v6.2.18: Entry labels switched from plotshape() to label.new() for matching
+    //          EXIT label size and dynamic text (probability, confidence).
+    var label[] _entryLabels = array.new_label(0)
+    MAX_ENTRY_LABELS = 150
+
+    f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
+        lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.normal)
+        array.push(_entryLabels, lbl)
+        if array.size(_entryLabels) > MAX_ENTRY_LABELS
+            label.delete(array.shift(_entryLabels))
+
+    string _probTxt = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
+    string _probTxtD = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
+    string _confTxt = str.tostring(confidence * 100.0, "#.0") + "%"
+
+    if showLongLabels and labelRevBuy
+        f_entry_label(bar_index, low, "REV-BUY\npU: " + _probTxt + "\nConf: " + _confTxt, label.style_label_up, color.black, color.new(color.aqua, 0))
+    if showShortLabels and labelRevShort
+        f_entry_label(bar_index, high, "REV-SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt, label.style_label_down, color.black, color.new(color.fuchsia, 0))
+    if showLongLabels and labelBuy
+        f_entry_label(bar_index, low, "BUY\npU: " + _probTxt + "\nConf: " + _confTxt, label.style_label_up, color.white, color.new(color.green, 0))
+    if showShortLabels and labelShort
+        f_entry_label(bar_index, high, "SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt, label.style_label_down, color.white, color.new(color.red, 0))
 
     // EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
     // Capped via array to guarantee they never evict each other.
     var label[] _exitLabels = array.new_label(0)
-    MAX_EXIT_LABELS = 400
+    MAX_EXIT_LABELS = 300  // v6.2.18: reduced to share budget with entry labels
 
     f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
         lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol)
