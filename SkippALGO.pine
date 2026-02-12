@@ -4016,20 +4016,19 @@ if pos == 1 and allowExit
         rHit := false 
     
     // Check for Reversal Exit (ChoCH Down)
-    // If breakShort happens while we are Long, that is a bearish structure break.
-    // Explicitly include isChoCH_Short (the visual label signal) to ensure we catch all reversals.
+    // breakLong = bearish EMA break; isChoCH_Short = bearish structure reversal
     // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
-    structHit = ((breakShort and canStructExit) or isChoCH_Short)
+    structHit = ((breakLong and canStructExit) or isChoCH_Short)
 
     // ChoCh Filtering (Confirm Reversal)
-    // Only exit Short if the Down Probability (pD) is high enough
+    // Only exit if the Down Probability (pD) is high enough
     if structHit and not na(pD) and pD < exitConfChoCh
         structHit := false
     
     exitSignal := rHit or structHit
     if exitSignal
         string reason = rHit ? rMsg : "Struct"
-        if not rHit and (breakShort or isChoCH_Short)
+        if not rHit and (breakLong or isChoCH_Short)
             reason := "ChoCH"
         tempExitReason := reason
 
@@ -4043,10 +4042,9 @@ if pos == -1 and allowExit
         rHit := false 
     
     // Check for Reversal Exit (ChoCH Up)
-    // If breakLong happens while we are Short, that is a bullish structure break.
-    // Explicitly include isChoCH_Long (the visual label signal).
+    // breakShort = bullish EMA break; isChoCH_Long = bullish structure reversal
     // v6.1.2: Allow ChoCH to bypass grace period (fail-safe)
-    structHit = ((breakLong and canStructExit) or isChoCH_Long)
+    structHit = ((breakShort and canStructExit) or isChoCH_Long)
 
     // ChoCh Filtering (Confirm Reversal) - REMOVED for Bullish ChoCh per instruction
     // if structHit and not na(pU) and pU < exitConfChoCh
@@ -4055,7 +4053,7 @@ if pos == -1 and allowExit
     coverSignal := rHit or structHit
     if coverSignal
         string reason = rHit ? rMsg : "Struct"
-        if not rHit and (breakLong or isChoCH_Long)
+        if not rHit and (breakShort or isChoCH_Long)
             reason := "ChoCH"
         tempExitReason := reason
 

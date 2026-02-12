@@ -4162,10 +4162,11 @@ if pos == 1 and allowExit
         rHit := false 
     
     // Check for Reversal Exit (ChoCH Down)
-    structHit = ((breakShort and canStructExit) or isChoCH_Short)
+    // breakLong = bearish EMA break; isChoCH_Short = bearish structure reversal
+    structHit = ((breakLong and canStructExit) or isChoCH_Short)
 
     // ChoCh Filtering (Confirm Reversal)
-    // Only exit Short if the Down Probability (pD) is high enough
+    // Only exit if the Down Probability (pD) is high enough
     if structHit and not na(pD) and pD < exitConfChoCh
         structHit := false
     
@@ -4184,7 +4185,8 @@ if pos == -1 and allowExit
         rHit := false 
     
     // Check for Reversal Exit (ChoCH Up)
-    structHit = ((breakLong and canStructExit) or isChoCH_Long)
+    // breakShort = bullish EMA break; isChoCH_Long = bullish structure reversal
+    structHit = ((breakShort and canStructExit) or isChoCH_Long)
 
     // ChoCh Filtering (Confirm Reversal) - REMOVED for Bullish ChoCh per instruction
     // if structHit and not na(pU) and pU < exitConfChoCh
