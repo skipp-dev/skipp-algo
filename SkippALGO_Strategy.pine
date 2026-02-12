@@ -3225,6 +3225,10 @@ cnt17RawArr = useBullBearCal ? (isBull7 ? tf7State.cnt1_bull_raw : tf7State.cnt1
 f_is_chart_tf(tf) =>
     timeframe.period == tf
 
+// INV! first-failure latch (persists until chart refresh)
+var bool invLatched = false
+var string invLatchInfo = ""
+
 var bool prevResetNow = false
 doReset = resetNow and not prevResetNow
 prevResetNow := resetNow
@@ -3561,10 +3565,6 @@ if na(gT)
     tblCols = 10
     tblRows = 22
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
-
-// INV! first-failure latch (persists until chart refresh)
-var bool invLatched = false
-var string invLatchInfo = ""
 
 f_cell(c, r, t, tc, bg) =>
     table.cell(gT, c, r, t, text_size=size.tiny, text_color=tc, bgcolor=bg)
