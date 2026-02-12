@@ -39,6 +39,18 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
+- **Latest (12 Feb 2026) — QuickALGO signal/context upgrade:**
+  - Added optional **3-candle engulfing filter** (default OFF) in both indicator and strategy:
+    - Long entries require bullish engulfing after 3 bearish candles.
+    - Short entries require bearish engulfing after 3 bullish candles.
+    - Optional body-dominance check (`body > previous body`).
+    - Optional engulfing bar coloring (bullish yellow / bearish white).
+  - Added optional **ATR volatility context layer** (default OFF) in both scripts:
+    - Regime overlay: `COMPRESSION`, `EXPANSION`, `HIGH VOL`, `EXHAUSTION`.
+    - Regime label with ATR ratio.
+    - Optional ATR percentile context (`0..100`) with configurable lookback.
+  - All additions were implemented with **Indicator ⇄ Strategy parity** and validated without diagnostics errors.
+
 - **Latest (12 Feb 2026) — PRE label intelligence + parity hardening:**
   - PRE labels were upgraded from static `plotshape` markers to dynamic `label.new()` payloads in **both** scripts.
   - PRE-BUY / PRE-SHORT now show:
