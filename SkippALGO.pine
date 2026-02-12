@@ -4231,8 +4231,8 @@ fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 //====================
 var table gT = na
 if na(gT)
-    tblCols = 10
-    tblRows = 22
+    tblCols = 5
+    tblRows = 17
     gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
 
 f_cell(c, r, t, tc, bg) =>
@@ -4264,55 +4264,12 @@ f_status_row(lbl, val, rRow, valCol) =>
     f_cell(1, rRow, val, valCol, tblCell)
 
 
-f_bin_quality(pTop, nBin) =>
-    if nBin <= 0
-        ["warmup", tblTextDim]
-    else if nBin < calMinSamples
-        ["warmup", tblTextDim]
-    else
-        hw = f_ci95_halfwidth(pTop, nBin)
-        lbl = na(hw) ? "warmup" : hw <= HW_STRONG ? "strong" : hw <= HW_OK ? "ok" : "weak"
-        col = na(hw) ? tblTextDim : hw <= HW_STRONG ? color.lime : hw <= HW_OK ? color.yellow : color.orange
-        [lbl, col]
-
-f_rowTF(_tf, score, tC, mC, lC, rV,
-    pUN, pFN, pDN, nBin, nTot, nBin1,
-        rRow) =>
+f_rowTF(_tf, score, tC, mC, lC, rV, rRow) =>
     f_cell(0, rRow, f_tfLabel(_tf), tblTfColor, tblCell)
     f_cell(1, rRow, outSym(score), outCol(score), tblCell)
     f_cell(2, rRow, str.tostring(score, "#.00"), tblText, tblCell)
     f_cell(3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), tblTextDim, tblCell)
     f_cell(4, rRow, str.tostring(rV, "#.0"), tblText, tblCell)
-
-    enabled = forecastAllowed
-    useCalN = enabled and (nBin >= calMinSamples)
-    [pUprio_t, pFprio_t, pDprio_t] = f_prior3(_tf, score)
-    pUprio = pUprio_t
-    pFprio = pFprio_t
-    pDprio = pDprio_t
-    pU_local = useCalN ? pUN : pUprio
-    pF_local = useCalN ? pFN : pFprio
-    pD_local = useCalN ? pDN : pDprio
-
-    maxP = math.max(pU_local, math.max(pF_local, pD_local))
-    tieEps = 1e-10
-    isMaxU = math.abs(pU_local - maxP) <= tieEps
-    isMaxF = math.abs(pF_local - maxP) <= tieEps
-    isMaxD = math.abs(pD_local - maxP) <= tieEps
-    dirSym = maxP < dirMinProb ? "·" : (isMaxU and not (isMaxF or isMaxD)) ? "▲" : (isMaxD and not (isMaxU or isMaxF)) ? "▼" : "■"
-    dirCol = (isMaxU and not (isMaxF or isMaxD)) ? color.lime : (isMaxD and not (isMaxU or isMaxF)) ? color.red : color.yellow
-
-    f_cell(5, rRow, dirSym, dirCol, tblCell)
-    f_cell(6, rRow, str.tostring(pU_local * 100, "#.0") + "%", color.lime, tblCell)
-    f_cell(7, rRow, str.tostring(pF_local * 100, "#.0") + "%", tblTextDim, tblCell)
-    f_cell(8, rRow, str.tostring(pD_local * 100, "#.0") + "%", color.red, tblCell)
-
-    [qLbl_t, qCol_t] = f_bin_quality(maxP, nBin)
-    qLbl = qLbl_t
-    qCol = qCol_t
-    // Updated to show N and 1 counts
-    nTxt = "N:" + str.tostring(nBin, "#") + " 1:" + str.tostring(nBin1, "#") // + " " + qLbl
-    f_cell(9, rRow, nTxt, qCol, tblCell)
 
 f_rowTF_idx(i, rRow) =>
     f_rowTF(
@@ -4322,150 +4279,12 @@ f_rowTF_idx(i, rRow) =>
         array.get(mArr, i),
         array.get(lArr, i),
         array.get(rForecastArr, i),
-        array.get(dispPUN, i),
-        array.get(dispPFN, i),
-        array.get(dispPDN, i),
-        array.get(dispNN, i),
-        array.get(totNArr, i),
-        array.get(dispN1, i),
         rRow
     )
 
 f_fill_cells(tbl, rRow, cStart, cEnd, txt, txtColor, bgColor, txtSize) =>
     for c = cStart to cEnd
         table.cell(tbl, c, rRow, txt, text_color=txtColor, bgcolor=bgColor, text_size=txtSize)
-
-
-f_fmtBrier(stats) =>
-    s = array.get(stats, 0)
-    c = array.get(stats, 1)
-    val = c > 0 ? s / c : na
-    txt = na(val) ? "—" : str.tostring(val, "#.###")
-    col = na(val) ? tblTextDim : val < BRIER_GOOD ? color.green : val < BRIER_BASELINE ? color.lime : val < BRIER_POOR ? color.yellow : color.red
-    [txt, col]
-
-f_fmtCnt(stats) =>
-    c = array.get(stats, 1)
-    [str.tostring(c, "#"), c < 10 ? tblTextDim : tblText]
-
-f_rowRel(tf, statsN, stats1, rRow) =>
-    f_cell(0, rRow, f_tfLabel(tf), tblTfColor, tblCell)
-    
-    [tBN_t, cBN_t] = f_fmtBrier(statsN)
-    tBN = tBN_t
-    cBN = cBN_t
-    f_cell(1, rRow, tBN, cBN, tblCell)
-    
-    [tB1_t, cB1_t] = f_fmtBrier(stats1)
-    tB1 = tB1_t
-    cB1 = cB1_t
-    f_cell(2, rRow, tB1, cB1, tblCell)
-    
-    [tcN_t, ccN_t] = f_fmtCnt(statsN)
-    tcN = tcN_t
-    ccN = ccN_t
-    f_cell(3, rRow, tcN, ccN, tblCell)
-    
-    [tc1_t, cc1_t] = f_fmtCnt(stats1)
-    tc1 = tc1_t
-    cc1 = cc1_t
-    f_cell(4, rRow, tc1, cc1, tblCell)
-
-// --- Evaluation Helpers
-f_eval_get(hid) =>
-    float bAvg = na
-    float lAvg = na
-    float ece = na
-    float mErr = na
-    float wS = na
-    float wL = na
-    float drift = na
-    float nSc = na
-    
-    TfState st = na
-    if hid == 1
-        st := tf1State
-    else if hid == 2
-        st := tf2State
-    else if hid == 3
-        st := tf3State
-    else if hid == 4
-        st := tf4State
-    else if hid == 5
-        st := tf5State
-    else if hid == 6
-        st := tf6State
-    else 
-        st := tf7State
-
-    if not na(st)
-        // Switch to get arrays based on head (N or 1)
-        if evalWhichHead == "N"
-            [b0_t, b1_t, e0_t, e1_t, w0_t, w1_t, d0_t, n0_t] = f_eval_stats_one(st.evBrierN, st.evSumBrierN, st.evLogN, st.evSumLogN, st.evYS_N, st.evSumYS_N, st.evYL_N, st.evSumYL_N, st.evCalCntN, st.evCalSumPN, st.evCalSumYN)
-            bAvg := b0_t
-            lAvg := b1_t
-            ece := e0_t
-            mErr := e1_t
-            wS := w0_t
-            wL := w1_t
-            drift := d0_t
-            nSc := n0_t
-        else
-            [b0_t, b1_t, e0_t, e1_t, w0_t, w1_t, d0_t, n0_t] = f_eval_stats_one(st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1)
-            bAvg := b0_t
-            lAvg := b1_t
-            ece := e0_t
-            mErr := e1_t
-            wS := w0_t
-            wL := w1_t
-            drift := d0_t
-            nSc := n0_t
-        
-    [bAvg, lAvg, ece, mErr, wS, wL, drift, nSc]
-
-f_rowEval(tbl, tf, hid, rRow) =>
-    [bAvg_t, lAvg_t, ece_t, mErr_t, wS_t, wL_t, drift_t, nSc_t] = f_eval_get(hid)
-    bAvg = bAvg_t
-    lAvg = lAvg_t
-    ece = ece_t
-    mErr = mErr_t
-    wS = wS_t
-    wL = wL_t
-    drift = drift_t
-    nSc = nSc_t
-    
-    // Label
-    table.cell(tbl, 0, rRow, f_tfLabel(tf), text_color=tblTfColor, bgcolor=tblCell, text_size=size.tiny)
-
-    if na(nSc) or nSc == 0
-        table.cell(tbl, 1, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 2, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 3, rRow, "—", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-        table.cell(tbl, 4, rRow, "0",   text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
-    else
-        // LogLoss
-        // ideal ~ 0.693 for random 50/50. Good < 0.65 ?? 
-        // We'll just color based on existence
-        llTxt = str.tostring(lAvg, "#.000")
-        table.cell(tbl, 1, rRow, llTxt, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-
-        // ConfErr (pTrue) / Max
-        eceT = str.tostring(ece * 100, "#.0")
-        maxT = str.tostring(mErr * 100, "#.0")
-        comb = eceT + "/" + maxT
-        // Color ECE: < 5% is great, <10% ok
-        cEce = ece < ECE_GOOD ? color.lime : ece < ECE_FAIR ? color.yellow : color.red
-        table.cell(tbl, 2, rRow, comb, text_color=cEce, bgcolor=tblCell, text_size=size.tiny)
-
-        // Drift
-        drT = f_ppSigned(drift)
-        // positive drift = Short yield > Long yield? 
-        // Actually wS - wL. If > 0 => Short doing better.
-        // We assume neutral is 0.
-        table.cell(tbl, 3, rRow, drT, text_color=tblText, bgcolor=tblCell, text_size=size.tiny)
-        
-        // Count
-        table.cell(tbl, 4, rRow, str.tostring(nSc, "#"), text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny)
 
 
 //====================
@@ -4486,11 +4305,10 @@ renderTable = showTable and barstate.islast and (not tableOnConfirmed or barstat
 modeTxt = tableOnConfirmed ? "CONF" : "LIVE"
 hdrSuffix = ui_tableShowMode ? " • " + modeTxt : ""
 hdrOutlook = "Outlook" + hdrSuffix
-hdrForecast = "Forecast" + hdrSuffix
 
 if renderTable
-    tblCols = 10
-    table.clear(gT, 0, 0, tblCols - 1, 21)
+    tblCols = 5
+    table.clear(gT, 0, 0, tblCols - 1, 16)
 
     // Status rows
     f_cell(0, 0, "Confidence", tblTextDim, tblHeader)
@@ -4499,19 +4317,11 @@ if renderTable
     f_cell(3, 0, decisionLabel, decisionColor, tblCell)
     f_cell(4, 0, decisionEdgeTxt, tblTextDim, tblCell)
     
-    f_cell(5, 0, "ATR", tblTextDim, tblHeader)
-    f_cell(6, 0, str.tostring(atr, format.mintick), tblText, tblCell)
-
     // T/M/L Legend (User Request)
-    table.merge_cells(gT, 2, 1, 9, 1)
-    table.cell(gT, 2, 1, "T: Trend (Fast EMA vs Slow EMA)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
-    table.merge_cells(gT, 2, 2, 9, 2)
-    table.cell(gT, 2, 2, "M: Mom (Momentum/RSI state)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
-    table.merge_cells(gT, 2, 3, 9, 3)
-    table.cell(gT, 2, 3, "L: Loc (Location/Price vs Slow EMA)", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
-    
-    f_fill_cells(gT, 0, 7, 8, "", tblText, tblCell, size.tiny)
-    f_cell(9, 0, modeTxt, tblTextDim, tblCell)
+    table.merge_cells(gT, 2, 1, 4, 1)
+    table.cell(gT, 2, 1, "T: Trend  M: Mom  L: Loc", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
+    table.merge_cells(gT, 2, 2, 4, 2)
+    table.cell(gT, 2, 2, "ATR: " + str.tostring(atr, format.mintick) + "  " + modeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
 
     f_status_row("MinTrust", str.tostring(minTrust, format.mintick), 1, tblText)
     f_status_row("Volume", volStr, 2, c_vol)
@@ -4521,274 +4331,18 @@ if renderTable
     f_status_row("LastSig", lastSig, 6, tblText)
     f_status_row("Time", str.format_time(timenow, "HH:mm"), 7, tblText)
 
-    // Outlook header + forecast columns
-    hdrLabels = array.from(hdrOutlook, "Bias", "Score", "T/M/L", "RSI", hdrForecast + "\nDir", "Up%", "Flat%", "Down%", "n(N) | n(1)")
-    for c = 0 to 9
+    // Outlook header
+    hdrLabels = array.from(hdrOutlook, "Bias", "Score", "T/M/L", "RSI")
+    for c = 0 to 4
         f_cell(c, 8, array.get(hdrLabels, c), tblTextDim, tblHeader)
 
     for i = 0 to 6
         f_rowTF_idx(i, 9 + i)
 
-    // --- Baseline comparator rows ---
-    if showEvalSection
-        st_base = f_get_state_for_tf(entryFcTF)
-        if not na(st_base)
-            // Model all-population metrics (for Δ computation)
-            bBufM = (evalWhichHead == "N") ? st_base.evBrierN : st_base.evBrier1
-            sBufM = (evalWhichHead == "N") ? st_base.evSumBrierN : st_base.evSumBrier1
-            lBufM = (evalWhichHead == "N") ? st_base.evLogN : st_base.evLog1
-            sLBufM = (evalWhichHead == "N") ? st_base.evSumLogN : st_base.evSumLog1
-            nM_all = array.size(bBufM)
-            bsM = nM_all == 0 ? na : array.get(sBufM, 0) / nM_all
-            llM = nM_all == 0 ? na : array.get(sLBufM, 0) / nM_all
-
-            // Uniform baseline row (row 16) with Δ
-            bBufU = (evalWhichHead == "N") ? st_base.evBrierBaseU_N : st_base.evBrierBaseU_1
-            sBufU = (evalWhichHead == "N") ? st_base.evSumBrierBaseU_N : st_base.evSumBrierBaseU_1
-            lBufU = (evalWhichHead == "N") ? st_base.evLogBaseU_N : st_base.evLogBaseU_1
-            sLBufU = (evalWhichHead == "N") ? st_base.evSumLogBaseU_N : st_base.evSumLogBaseU_1
-            nU_base = array.size(bBufU)
-            bsU = nU_base == 0 ? na : array.get(sBufU, 0) / nU_base
-            llU = nU_base == 0 ? na : array.get(sLBufU, 0) / nU_base
-            dBU = (na(bsM) or na(bsU)) ? na : bsM - bsU
-            dLU = (na(llM) or na(llU)) ? na : llM - llU
-            table.cell(gT, 0, 16, "⊘ Uniform", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
-            if na(bsU)
-                table.cell(gT, 1, 16, "Wait", text_size=size.tiny, bgcolor=color.new(color.gray, 85))
-                f_fill_cells(gT, 16, 2, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
-            else
-                table.cell(gT, 1, 16, str.tostring(bsU, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
-                table.cell(gT, 2, 16, str.tostring(llU, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
-                table.cell(gT, 3, 16, f_fmtDelta(dBU), text_size=size.tiny, bgcolor=f_colDelta(dBU))
-                table.cell(gT, 4, 16, f_fmtDelta(dLU), text_size=size.tiny, bgcolor=f_colDelta(dLU))
-                f_fill_cells(gT, 16, 5, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
-
-            // Prior baseline row (row 17) with Δ
-            bBufP = (evalWhichHead == "N") ? st_base.evBrierBaseP_N : st_base.evBrierBaseP_1
-            sBufP = (evalWhichHead == "N") ? st_base.evSumBrierBaseP_N : st_base.evSumBrierBaseP_1
-            lBufP = (evalWhichHead == "N") ? st_base.evLogBaseP_N : st_base.evLogBaseP_1
-            sLBufP = (evalWhichHead == "N") ? st_base.evSumLogBaseP_N : st_base.evSumLogBaseP_1
-            nP_base = array.size(bBufP)
-            bsP = nP_base == 0 ? na : array.get(sBufP, 0) / nP_base
-            llP = nP_base == 0 ? na : array.get(sLBufP, 0) / nP_base
-            dBP = (na(bsM) or na(bsP)) ? na : bsM - bsP
-            dLP = (na(llM) or na(llP)) ? na : llM - llP
-            table.cell(gT, 0, 17, "⊘ Prior", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.gray, 85))
-            if na(bsP)
-                table.cell(gT, 1, 17, "Wait", text_size=size.tiny, bgcolor=color.new(color.gray, 85))
-                f_fill_cells(gT, 17, 2, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
-            else
-                table.cell(gT, 1, 17, str.tostring(bsP, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
-                table.cell(gT, 2, 17, str.tostring(llP, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.gray, 80))
-                table.cell(gT, 3, 17, f_fmtDelta(dBP), text_size=size.tiny, bgcolor=f_colDelta(dBP))
-                table.cell(gT, 4, 17, f_fmtDelta(dLP), text_size=size.tiny, bgcolor=f_colDelta(dLP))
-                f_fill_cells(gT, 17, 5, 9, "", tblTextDim, color.new(color.gray, 85), size.tiny)
-
-            // Eligible model row (row 18)
-            bBufME = (evalWhichHead == "N") ? st_base.evBrierN_Elig : st_base.evBrier1_Elig
-            sBufME = (evalWhichHead == "N") ? st_base.evSumBrierN_Elig : st_base.evSumBrier1_Elig
-            lBufME = (evalWhichHead == "N") ? st_base.evLogN_Elig : st_base.evLog1_Elig
-            sLBufME = (evalWhichHead == "N") ? st_base.evSumLogN_Elig : st_base.evSumLog1_Elig
-            nME = array.size(bBufME)
-            bsME = nME == 0 ? na : array.get(sBufME, 0) / nME
-            llME = nME == 0 ? na : array.get(sLBufME, 0) / nME
-            table.cell(gT, 0, 18, "✦ Elig", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.teal, 85))
-            if na(bsME)
-                table.cell(gT, 1, 18, "Wait", text_size=size.tiny, bgcolor=color.new(color.teal, 85))
-                f_fill_cells(gT, 18, 2, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
-            else
-                table.cell(gT, 1, 18, str.tostring(bsME, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.teal, 80))
-                table.cell(gT, 2, 18, str.tostring(llME, "#.3f"), text_size=size.tiny, bgcolor=color.new(color.teal, 80))
-                table.cell(gT, 3, 18, "n=" + str.tostring(nME, "#"), text_size=size.tiny, bgcolor=color.new(color.teal, 85))
-                f_fill_cells(gT, 18, 4, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
-
-            // Eligible Δ vs Prior row (row 19)
-            bBufPE = st_base.evBrierBaseP_N_Elig
-            sBufPE = st_base.evSumBrierBaseP_N_Elig
-            lBufPE = st_base.evLogBaseP_N_Elig
-            sLBufPE = st_base.evSumLogBaseP_N_Elig
-            nPE = array.size(bBufPE)
-            bsPE = nPE == 0 ? na : array.get(sBufPE, 0) / nPE
-            llPE = nPE == 0 ? na : array.get(sLBufPE, 0) / nPE
-            dBPE = (na(bsME) or na(bsPE)) ? na : bsME - bsPE
-            dLPE = (na(llME) or na(llPE)) ? na : llME - llPE
-            table.cell(gT, 0, 19, "✦ Elig Δ", text_halign=text.align_left, text_size=size.tiny, bgcolor=color.new(color.teal, 85))
-            if na(dBPE)
-                table.cell(gT, 1, 19, "Wait", text_size=size.tiny, bgcolor=color.new(color.teal, 85))
-                f_fill_cells(gT, 19, 2, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
-            else
-                table.cell(gT, 1, 19, f_fmtDelta(dBPE), text_size=size.tiny, bgcolor=f_colDelta(dBPE))
-                table.cell(gT, 2, 19, f_fmtDelta(dLPE), text_size=size.tiny, bgcolor=f_colDelta(dLPE))
-                f_fill_cells(gT, 19, 3, 9, "", tblTextDim, color.new(color.teal, 85), size.tiny)
-
-            // Coverage + staleness row (row 20)
-            covAll = st_base.enqCount > 0 ? st_base.resolvedScored * 100.0 / st_base.enqCount : na
-            covElig = st_base.enqCountElig > 0 ? st_base.resolvedScoredElig * 100.0 / st_base.enqCountElig : na
-            nAge = array.size(st_base.ageAtResolve)
-            meanAge = nAge > 0 ? array.get(st_base.sumAgeResolve, 0) / nAge : na
-            // P90 age quantile (sort copy of rolling buffer)
-            ageP90 = f_pctl_float(st_base.ageAtResolve, 0.9, 10)
-            skipTotal = st_base.skipBias0 + st_base.skipAtrInvalid + st_base.skipIgnore + st_base.skipTieNeutral2Way
-            covBg = color.new(color.rgb(40, 40, 60), 0)
-            table.cell(gT, 0, 20, "⚙ Cov", text_halign=text.align_left, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
-            // Confidence guard: append * when sample size is small
-            resolvedTotal = st_base.resolvedScored + skipTotal
-            loConf = resolvedTotal < 20
-            lcs = loConf ? "*" : ""
-            covAllTxt = na(covAll) ? "—" : str.tostring(covAll, "#.0") + "%" + lcs
-            covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%" + lcs
-            ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
-            p90Txt = na(ageP90) ? "" : " p90=" + str.tostring(ageP90, "#")
-            // Eligibility utilization: what fraction of resolved forecasts passed gating?
-            util = st_base.resolvedScored >= 20 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
-            utilTxt = na(util) ? "" : " U:" + str.tostring(util, "#.0") + "%"
-            covCol = na(covAll) ? tblTextDim : covAll >= covOkHi ? color.lime : covAll >= covOkLo ? color.yellow : color.red
-            eCol = na(covElig) ? tblTextDim : covElig >= covOkHi ? color.lime : covElig >= covOkLo ? color.yellow : color.red
-            eGlyph = na(covElig) ? "" : covElig >= covOkHi ? " ✓" : covElig < covOkLo ? " ✗" : ""
-            f_cell(1, 20, covAllTxt, covCol, covBg)
-            f_cell(2, 20, "E:" + covEligTxt + eGlyph + utilTxt, eCol, covBg)
-            f_cell(3, 20, "ā=" + ageTxt + p90Txt, tblTextDim, covBg)
-            // Skip reasons compact + dominant reason label (argmax, suppressed when n<10)
-            skipMax = math.max(st_base.skipBias0, math.max(st_base.skipAtrInvalid, math.max(st_base.skipIgnore, st_base.skipTieNeutral2Way)))
-            skipDom = skipTotal < 10 ? "" : skipMax == st_base.skipBias0 ? "B0" : skipMax == st_base.skipAtrInvalid ? "A" : skipMax == st_base.skipIgnore ? "I" : "T"
-            skipPfx = skipDom == "" ? "" : skipDom + "(" + str.tostring(skipTotal) + ") "
-            skipTxt = skipTotal == 0 ? "—" : skipPfx + "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
-            // Eligible dominant skip reason (argmax, suppressed when skipTotalElig<10)
-            skipEligTotal = st_base.skipTotalElig
-            skipMaxE = math.max(st_base.skipBias0Elig, math.max(st_base.skipAtrInvalidElig, math.max(st_base.skipIgnoreElig, st_base.skipTieNeutral2WayElig)))
-            skipDomE = skipEligTotal < 10 ? "" : skipMaxE == st_base.skipBias0Elig ? "B0" : skipMaxE == st_base.skipAtrInvalidElig ? "A" : skipMaxE == st_base.skipIgnoreElig ? "I" : "T"
-            skipEligSfx = skipDomE == "" ? "" : " E:" + skipDomE + "(" + str.tostring(skipEligTotal) + ")"
-            f_cell(4, 20, skipTxt + skipEligSfx, skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), covBg)
-            // Pending queue depth (desync check) + per-TF ΔQ
-            qDepth = array.size(st_base.qAge)
-            qSync = qDepth == array.size(st_base.qEntry) and qDepth == array.size(st_base.qAtr)
-            dq = na(st_base.prevQDepth) ? na : qDepth - st_base.prevQDepth
-            dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
-            qTxt = qSync ? "Q:" + str.tostring(qDepth) + dqTxt : "Q:ERR"
-            // Pending queue age p90
-            qAgeP90 = f_pctl_int(st_base.qAge, 0.9, 5)
-            qP90Txt = na(qAgeP90) ? "" : " Qp90=" + str.tostring(qAgeP90, "#")
-            qCol = not qSync ? color.red : (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
-            f_cell(5, 20, qTxt + qP90Txt, qCol, covBg)
-            // Unscorable rate: what fraction of resolved events were skipped?
-            skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
-            skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
-            // Eligible skip rate: skips among forecast-eligible resolves
-            resolvedEligTotal = st_base.resolvedScoredElig + st_base.skipTotalElig
-            skipRateElig = resolvedEligTotal >= 20 ? st_base.skipTotalElig * 100.0 / resolvedEligTotal : na
-            seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
-            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
-            qN = qDepth
-            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = f_resolve_thresh(fc, kB, pH)
-            // Gate loss: eligible opportunities still pending (not resolved or skipped)
-            eligPendingRaw = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
-            eligPending = math.max(eligPendingRaw, 0)
-            epNeg = eligPendingRaw < 0
-            epMature = 0
-            epStuck  = 0
-            if qSync and qN > 0
-                for j = 0 to qN - 1
-                    if f_safe_get_bool(st_base.qUseForecast, j, false)
-                        // resolve fires at age >= thresh, so stuck is strictly age > thresh
-                        if f_safe_get_int(st_base.qAge, j, 0) > stuckThresh
-                            epStuck += 1
-                        else
-                            epMature += 1
-            hasEpDecomp = qSync and qN > 0 and (epMature > 0 or epStuck > 0)
-            epDecomp = hasEpDecomp ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
-            epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(eligPending) + epDecomp : ""
-            skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
-            f_cell(6, 20, skipRateTxt + seTxt + epTxt, skipRateCol, covBg)
-            // Leakage guard: invariant checks on eligible <= all counters + EP>=0
-            invOk = st_base.resolvedScoredElig <= st_base.resolvedScored and st_base.skipTotalElig <= skipTotal and st_base.enqCountElig <= st_base.enqCount and (not epNeg)
-            // INV! first-failure latch: snapshot counters on first breach
-            if not invOk and not invLatched
-                invLatched := true
-                invLatchInfo := entryFcTF + " " + fc + " enq=" + str.tostring(st_base.enqCount) + "/" + str.tostring(st_base.enqCountElig) + " res=" + str.tostring(st_base.resolvedScored) + "/" + str.tostring(st_base.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_base.skipTotalElig) + " EP=" + str.tostring(eligPendingRaw)
-            invTxt = not invOk ? "INV!" : invLatched ? "INV(L)" : ""
-            invCol = not invOk ? color.red : invLatched ? color.new(color.orange, 30) : tblTextDim
-            table.cell(gT, 7, 20, invTxt, text_size=size.tiny, text_color=invCol, bgcolor=covBg, tooltip=invLatched ? invLatchInfo : "")
-            // Health summary glyph: at-a-glance triage
-            bool hBad = (not na(covElig) and covElig < covOkLo) or (not na(skipRate) and skipRate > 20) or (not invOk)
-            bool hGood = (not hBad) and (not na(covElig) and covElig >= covOkHi) and (na(skipRate) or skipRate <= 5) and (na(dq) or dq <= 0) and invOk
-            hGlyph = hBad ? "❌" : hGood ? "✅" : "⚠️"
-            f_cell(8, 20, hGlyph, tblTextDim, covBg)
-            f_fill_cells(gT, 20, 9, 9, "", tblTextDim, covBg, size.tiny)
-            st_base.prevQDepth := qDepth
-
-    // Lightweight ops row when eval section is hidden but ops HUD is on
-    if showOpsRow and not showEvalSection
-        st_ops = f_get_state_for_tf(entryFcTF)
-        if not na(st_ops)
-            covBg = color.new(color.rgb(40, 40, 60), 0)
-            covElig = st_ops.enqCountElig > 0 ? st_ops.resolvedScoredElig * 100.0 / st_ops.enqCountElig : na
-            skipTotal = st_ops.skipBias0 + st_ops.skipAtrInvalid + st_ops.skipIgnore + st_ops.skipTieNeutral2Way
-            resolvedTotal = st_ops.resolvedScored + skipTotal
-            loConf = resolvedTotal < 20
-            lcs = loConf ? "*" : ""
-            covEligTxt = na(covElig) ? "—" : str.tostring(covElig, "#.0") + "%" + lcs
-            eCol = na(covElig) ? tblTextDim : covElig >= covOkHi ? color.lime : covElig >= covOkLo ? color.yellow : color.red
-            eGlyph = na(covElig) ? "" : covElig >= covOkHi ? " ✓" : covElig < covOkLo ? " ✗" : ""
-            // TF + target label for context
-            opsTf = f_tf_from_horizon(entryFcTF)
-            opsTarget = f_target_for_tf(opsTf)
-            opsTfLbl = opsTarget == "NextBar" ? "Next" : opsTarget == "KBarReturn" ? "KBar" : opsTarget == "KBarATR" ? "ATR" : "Path"
-            table.cell(gT, 0, 16, "⚙ " + entryFcTF + " " + opsTfLbl, text_halign=text.align_left, text_size=size.tiny, text_color=tblTextDim, bgcolor=covBg)
-            f_cell(1, 16, "E:" + covEligTxt + eGlyph, eCol, covBg)
-            // Queue + ΔQ (cheap)
-            qDepth = array.size(st_ops.qAge)
-            dq = na(st_ops.prevQDepth) ? na : qDepth - st_ops.prevQDepth
-            dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
-            qCol = (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
-            f_cell(2, 16, "Q:" + str.tostring(qDepth) + dqTxt, qCol, covBg)
-            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
-            qSync = qDepth == array.size(st_ops.qEntry) and qDepth == array.size(st_ops.qAtr)
-            qN = array.size(st_ops.qAge)
-            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = f_resolve_thresh(fc, kB, pH)
-            // Skip rate + gate loss
-            skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
-            skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
-            eligPendingRaw = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
-            eligPending = math.max(eligPendingRaw, 0)
-            epNeg = eligPendingRaw < 0
-            epMature = 0
-            epStuck  = 0
-            if qSync and qN > 0
-                for j = 0 to qN - 1
-                    if f_safe_get_bool(st_ops.qUseForecast, j, false)
-                        // resolve fires at age >= thresh, so stuck is strictly age > thresh
-                        if f_safe_get_int(st_ops.qAge, j, 0) > stuckThresh
-                            epStuck += 1
-                        else
-                            epMature += 1
-            hasEpDecomp = qSync and qN > 0 and (epMature > 0 or epStuck > 0)
-            epDecomp = hasEpDecomp ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
-            epTxt = st_ops.enqCountElig >= 20 ? " EP:" + str.tostring(eligPending) + epDecomp : ""
-            skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
-            f_cell(3, 16, skipRateTxt + epTxt, skipRateCol, covBg)
-            // INV! with latch
-            invOk = st_ops.resolvedScoredElig <= st_ops.resolvedScored and st_ops.skipTotalElig <= skipTotal and st_ops.enqCountElig <= st_ops.enqCount and (not epNeg)
-            if not invOk and not invLatched
-                invLatched := true
-                invLatchInfo := entryFcTF + " " + opsTarget + " enq=" + str.tostring(st_ops.enqCount) + "/" + str.tostring(st_ops.enqCountElig) + " res=" + str.tostring(st_ops.resolvedScored) + "/" + str.tostring(st_ops.resolvedScoredElig) + " sk=" + str.tostring(skipTotal) + "/" + str.tostring(st_ops.skipTotalElig) + " EP=" + str.tostring(eligPendingRaw)
-            invTxt = not invOk ? "INV!" : invLatched ? "INV(L)" : ""
-            invCol = not invOk ? color.red : invLatched ? color.new(color.orange, 30) : tblTextDim
-            table.cell(gT, 4, 16, invTxt, text_size=size.tiny, text_color=invCol, bgcolor=covBg, tooltip=invLatched ? invLatchInfo : "")
-            // Health glyph
-            bool hBad = (not na(covElig) and covElig < covOkLo) or (not na(skipRate) and skipRate > 20) or (not invOk)
-            bool hGood = (not hBad) and (not na(covElig) and covElig >= covOkHi) and (na(skipRate) or skipRate <= 5) and (na(dq) or dq <= 0) and invOk
-            hGlyph = hBad ? "❌" : hGood ? "✅" : "⚠️"
-            f_cell(5, 16, hGlyph, tblTextDim, covBg)
-            f_fill_cells(gT, 16, 6, 9, "", tblTextDim, covBg, size.tiny)
-            st_ops.prevQDepth := qDepth
-
-    // Footer row (dynamic position)
-    int footerR = showEvalSection ? 21 : (showOpsRow ? 17 : 16)
-    table.cell(gT, 0, footerR, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
-    f_fill_cells(gT, footerR, 1, 9, "", tblTextDim, tblHeader, size.tiny)
-    table.merge_cells(gT, 0, footerR, 9, footerR)
+    // Footer row
+    table.cell(gT, 0, 16, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
+    f_fill_cells(gT, 16, 1, 4, "", tblTextDim, tblHeader, size.tiny)
+    table.merge_cells(gT, 0, 16, 4, 16)
 
 //====================
 // UT Bot Logic (Overlay, V4 Port) + Enhanced Filters
