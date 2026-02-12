@@ -3957,12 +3957,13 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // v6.2.11: Hard probability floor for standard entries.
     // The forecast gate (fcGateLongSafe) silently passes when forecastAllowed is
     // false, leaving NO directional probability check on engine signals.
-    // Safety net: block standard long when pU < 0.40, short when pD < 0.40.
+    // Safety net: block standard long when pU < 0.50, short when pD < 0.50.
+    // The model must actually favour the direction for a standard entry.
     // Reversal entries have their own probability handling (probOkGlobal) and
     // are injected AFTER this check, so they are not affected.
-    if buySignal and not na(pU) and pU < 0.40
+    if buySignal and (na(pU) or pU < 0.50)
         buySignal := false
-    if shortSignal and not na(pD) and pD < 0.40
+    if shortSignal and (na(pD) or pD < 0.50)
         shortSignal := false
 
     // Unified Neural Reversal injection (all engines, including Loose)
@@ -3973,10 +3974,6 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // Capture raw signals before conflict logic
     rawBuySignal := buySignal
     rawShortSignal := shortSignal
-
-    // Temporary: Final BUY diagnostic AFTER all gates
-    if buySignal
-        f_debug_label(bar_index, low, "FINAL-BUY\nrevB:" + str.tostring(revBuyGlobal) + "\npU:" + str.tostring(pU, "#.##") + " pU-na:" + str.tostring(na(pU)) + "\nstdOk:" + str.tostring(standardEntryOk) + "\naE:" + str.tostring(allowEntry) + " aR:" + str.tostring(allowRescue), label.style_label_up)
 
     // Conflict resolution: if both signals fire, cancel both (safety-first)
     if buySignal and shortSignal
