@@ -3957,6 +3957,23 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         buySignal := false
         shortSignal := false
 
+// v6.2.11 Diagnostic: REV-BUY gate audit (fires on every ChoCH bar)
+// Check Data Window on the 15:27 bar to see which gate blocked.
+plot(isChoCH_Long ? 1.0 : 0.0, "D:isChoCH_Long", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(allowNeuralReversals) : na, "D:allowNeuralRev", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(ddOk) : na, "D:ddOk", display=display.data_window)
+plot(isChoCH_Long ? (na(pU) ? -1.0 : pU) : na, "D:pU", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(volOk) : na, "D:volOk", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(cooldownOkSafe) : na, "D:cooldownOk", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(allowRevBypass) : na, "D:allowRevBypass", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(allowEntry) : na, "D:allowEntry", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(allowRescue) : na, "D:allowRescue", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(isRevBuy) : na, "D:isRevBuy", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(buySignal) : na, "D:buySignal", display=display.data_window)
+plot(isChoCH_Long ? pos * 1.0 : na, "D:pos", display=display.data_window)
+plot(isChoCH_Long ? f_bool_to_num(hugeVolG) : na, "D:hugeVolG", display=display.data_window)
+plot(isChoCH_Long ? volRatioG : na, "D:volRatio", display=display.data_window)
+
 preBuyNow = false
 preShortNow = false
 if pos == 0 and allowEntry
