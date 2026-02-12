@@ -4670,11 +4670,12 @@ if renderTable
             seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
             // Gate loss: eligible opportunities still pending (not resolved or skipped)
             eligPending = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
-            epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(eligPending) : ""
+            epNeg = eligPending < 0
+            epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(math.max(eligPending, 0)) : ""
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
             f_cell(6, 20, skipRateTxt + seTxt + epTxt, skipRateCol, covBg)
-            // Leakage guard: invariant checks on eligible <= all counters
-            invOk = st_base.resolvedScoredElig <= st_base.resolvedScored and st_base.skipTotalElig <= skipTotal and st_base.enqCountElig <= st_base.enqCount
+            // Leakage guard: invariant checks on eligible <= all counters + EP>=0
+            invOk = st_base.resolvedScoredElig <= st_base.resolvedScored and st_base.skipTotalElig <= skipTotal and st_base.enqCountElig <= st_base.enqCount and (not epNeg)
             f_cell(7, 20, invOk ? "" : "INV!", invOk ? tblTextDim : color.red, covBg)
             // Health summary glyph: at-a-glance triage
             bool hBad = (not na(covElig) and covElig < covOkLo) or (not na(skipRate) and skipRate > 20) or (not invOk)
