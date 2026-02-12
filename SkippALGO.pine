@@ -4096,7 +4096,13 @@ plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
 
 
 // State transitions
+// v6.2.10: Same-bar reversal support. When a ChoCH triggers both COVER and
+// REV-BUY (or EXIT and REV-SHORT) on the same bar, we process the exit first
+// then immediately enter the new position. Without this, the if/else-if chain
+// consumed the bar on the exit, and isChoCH resets to false on the next bar,
+// permanently losing the reversal entry.
 if barstate.isconfirmed
+    // --- Phase 1: Process exits ---
     if exitSignal and pos == 1
         didExit := true
         lastExitReason := tempExitReason
@@ -4117,11 +4123,14 @@ if barstate.isconfirmed
         trailPx := na
         lastSignalBar := bar_index
         lastSig := "COVER"
-    else if buySignal and pos == 0
+
+    // --- Phase 2: Process entries (including same-bar reversal after exit) ---
+    if buySignal and pos == 0
         didBuy := true
         pos := 1
         entryPrice := close
         entryAtr   := atr
+        barsSinceEntry := 0  // reset for same-bar reversal
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -4134,6 +4143,7 @@ if barstate.isconfirmed
         pos := -1
         entryPrice := close
         entryAtr   := atr
+        barsSinceEntry := 0  // reset for same-bar reversal
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop

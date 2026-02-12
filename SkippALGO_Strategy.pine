@@ -4038,9 +4038,22 @@ if pos == -1 and allowExit
         tempExitReason := rHit ? rMsg : staleExit ? "Stalemate" : "ChoCH"
 
 // State Logic
+// v6.2.10: Same-bar reversal support (see Indicator for full explanation).
+// did* flags track state machine actions per bar (support COVER→BUY on same bar).
 var string lastExitReason = ""
+bool didBuy   = false
+bool didShort = false
+bool didExit  = false
+bool didCover = false
 if barstate.isconfirmed
+    didBuy   := false
+    didShort := false
+    didExit  := false
+    didCover := false
+
+    // --- Phase 1: Process exits ---
     if exitSignal and pos == 1
+        didExit := true
         pos := 0
         lastExitReason := tempExitReason
         entryPrice := na
@@ -4051,6 +4064,7 @@ if barstate.isconfirmed
         lastSignalBar := bar_index
         lastSig := "EXIT"
     else if coverSignal and pos == -1
+        didCover := true
         pos := 0
         lastExitReason := tempExitReason
         entryPrice := na
@@ -4060,12 +4074,16 @@ if barstate.isconfirmed
         isBeHit := false
         lastSignalBar := bar_index
         lastSig := "COVER"
-    else if buySignal and pos == 0
+
+    // --- Phase 2: Process entries (including same-bar reversal after exit) ---
+    if buySignal and pos == 0
+        didBuy := true
         pos := 1
         entryPrice := close
         entryAtr   := atr
         enBar      := bar_index
         isBeHit    := false
+        barsSinceEntry := 0  // reset for same-bar reversal
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -4074,11 +4092,13 @@ if barstate.isconfirmed
         lastSignalBar := bar_index
         lastSig := "BUY"
     else if shortSignal and pos == 0
+        didShort := true
         pos := -1
         entryPrice := close
         entryAtr   := atr
         enBar      := bar_index
         isBeHit    := false
+        barsSinceEntry := 0  // reset for same-bar reversal
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
@@ -4087,10 +4107,10 @@ if barstate.isconfirmed
         lastSignalBar := bar_index
         lastSig := "SHORT"
 
-buyEvent   = barstate.isconfirmed and pos == 1 and pos[1] == 0
-shortEvent = barstate.isconfirmed and pos == -1 and pos[1] == 0
-exitEvent  = barstate.isconfirmed and pos == 0 and pos[1] == 1
-coverEvent = barstate.isconfirmed and pos == 0 and pos[1] == -1
+buyEvent   = didBuy
+shortEvent = didShort
+exitEvent  = didExit
+coverEvent = didCover
 
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
