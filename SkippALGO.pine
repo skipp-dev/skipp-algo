@@ -311,6 +311,12 @@ rthCloseHour      = input.int(16, "RTH close hour (exchange tz)", minval=0, maxv
 rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
+// v6.2.20: REV-BUY opening window — bypass pU filter around market open
+useRevOpenWindow  = input.bool(true, "REV: bypass pU near market open", tooltip="Allow REV-BUY/REV-SHORT to fire regardless of pU during a window around the stock exchange open.")
+rthOpenHour       = input.int(9,  "RTH open hour (exchange tz)", minval=0, maxval=23)
+rthOpenMinute     = input.int(30, "RTH open minute", minval=0, maxval=59)
+revOpenWindowMins = input.int(10, "REV open window ± minutes", minval=1, maxval=60, tooltip="Minutes before and after RTH open where REV signals bypass the probability filter.")
+
 //====================
 // Inputs — Forecast Calibration Enhancements
 //====================
@@ -2704,6 +2710,11 @@ sessClose      = timestamp(syminfo.timezone, year, month, dayofmonth, rthCloseHo
 minsToClose    = (sessClose - time) / 60000.0
 blockNearClose = useRthCloseFilter and timeframe.isintraday and (minsToClose >= 0) and (minsToClose <= avoidCloseMins)
 
+// v6.2.20: REV opening window — bypass pU around market open
+sessOpen       = timestamp(syminfo.timezone, year, month, dayofmonth, rthOpenHour, rthOpenMinute)
+minsFromOpen   = (time - sessOpen) / 60000.0
+inRevOpenWindow = useRevOpenWindow and timeframe.isintraday and (minsFromOpen >= -revOpenWindowMins) and (minsFromOpen <= revOpenWindowMins)
+
 //====================
 // Zones (anchored)
 //====================
@@ -3904,8 +3915,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= rescueMinProb and impulseLong))
-    probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= rescueMinProb and impulseShort))
+    // v6.2.20: inRevOpenWindow bypasses pU filter entirely for REV entries near market open
+    probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
+    probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
     
     // Global Gate: allowNeuralReversals
     // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
