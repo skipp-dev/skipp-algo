@@ -490,6 +490,21 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("useStrictAlertMode", self.text)
         self.assertIn("strictMtfMargin", self.text)
         self.assertIn("strictChochConfirmBars", self.text)
+        self.assertIn("useAdaptiveStrictMargin", self.text)
+        self.assertIn("strictAdaptiveRange", self.text)
+        self.assertIn("strictAdaptiveLen", self.text)
+        self.assertIn("showStrictSignalMarkers", self.text)
+        self.assertIn("strictMarkerStyle", self.text)
+
+    def test_open_window_fine_controls_exist(self):
+        self.assertIn("revOpenWindowLongMins", self.text)
+        self.assertIn("revOpenWindowShortMins", self.text)
+        self.assertIn("revOpenWindowMode", self.text)
+        self.assertIn("revOpenWindowEngine", self.text)
+        self.assertIn("openWindowEngineOk", self.text)
+        self.assertIn("openWindowBypassEntries", self.text)
+        self.assertIn("inRevOpenWindowLong", self.text)
+        self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
         self.assertIn("strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow", self.text)
@@ -503,6 +518,24 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("strictMtfShortOk", self.text)
         self.assertIn("strictChochLongOk", self.text)
         self.assertIn("strictChochShortOk", self.text)
+        self.assertIn("strictMtfMarginEff", self.text)
+        self.assertIn("strictAtrRank", self.text)
+        self.assertIn("strictBuyConfirmed", self.text)
+        self.assertIn("strictShortConfirmed", self.text)
+
+    def test_strict_signal_visualization_exists(self):
+        self.assertIn("showStrictIcon", self.text)
+        self.assertIn("showStrictLabel", self.text)
+        self.assertIn('title="STRICT-CONF BUY"', self.text)
+        self.assertIn('title="STRICT-CONF SHORT"', self.text)
+        self.assertIn("STRICT-CONFIRMED BUY", self.text)
+        self.assertIn("STRICT-CONFIRMED SHORT", self.text)
+
+    def test_runtime_alert_payload_has_mode_and_delay(self):
+        self.assertIn('"mode"', self.text)
+        self.assertIn('"confirm_delay"', self.text)
+        self.assertIn("mode=", self.text)
+        self.assertIn("confirm_delay=", self.text)
 
     def test_alert_conditions_switch_strict_entries_only(self):
         self.assertIn("alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent", self.text)

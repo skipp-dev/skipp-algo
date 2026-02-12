@@ -123,6 +123,14 @@ class SimConfig:
     p_u: float = 0.60  # prob up
     p_d: float = 0.30  # prob down
 
+    # Strict alert mode simulation
+    use_strict_alert_mode: bool = False
+    in_rev_open_window: bool = False
+    strict_mtf_long_ok: bool = True
+    strict_mtf_short_ok: bool = True
+    strict_choch_long_ok: bool = True
+    strict_choch_short_ok: bool = True
+
 
 @dataclass
 class SimState:
@@ -138,6 +146,8 @@ class SimState:
     bar_index: int = 0
     struct_state: int = 0  # 0=neutral, 1=bullish, -1=bearish
     last_exit_reason: str = ""
+    prev_buy_event: bool = False
+    prev_short_event: bool = False
 
 
 @dataclass
@@ -179,6 +189,13 @@ class BarResult:
     raw_buy_signal: bool = False
     raw_short_signal: bool = False
     exit_reason: str = ""
+    strict_alerts_enabled: bool = False
+    buy_event_strict: bool = False
+    short_event_strict: bool = False
+    alert_buy_cond: bool = False
+    alert_short_cond: bool = False
+    alert_exit_cond: bool = False
+    alert_cover_cond: bool = False
 
 
 class SkippAlgoSim:
@@ -437,6 +454,27 @@ class SkippAlgoSim:
             st.last_signal_bar = st.bar_index
 
         result.pos_after = st.pos
+
+        # -- Strict alert-mode conditions (event-layer simulation) --
+        strict_alerts_enabled = cfg.use_strict_alert_mode and (not cfg.in_rev_open_window)
+        buy_event_strict = (st.prev_buy_event
+                    and cfg.strict_mtf_long_ok
+                    and cfg.strict_choch_long_ok)
+        short_event_strict = (st.prev_short_event
+                      and cfg.strict_mtf_short_ok
+                      and cfg.strict_choch_short_ok)
+
+        result.strict_alerts_enabled = strict_alerts_enabled
+        result.buy_event_strict = buy_event_strict
+        result.short_event_strict = short_event_strict
+        result.alert_buy_cond = buy_event_strict if strict_alerts_enabled else result.did_buy
+        result.alert_short_cond = short_event_strict if strict_alerts_enabled else result.did_short
+        result.alert_exit_cond = result.did_exit
+        result.alert_cover_cond = result.did_cover
+
+        # Prepare previous-event memory for next bar strict-delay checks
+        st.prev_buy_event = result.did_buy
+        st.prev_short_event = result.did_short
 
         # -- Update bar counting (AFTER state transitions, for NEXT bar) --
         # On entry bar: pos changed from 0 to ±1, so next bar barsSinceEntry = 1

@@ -644,5 +644,60 @@ class TestCooldownBehavior(unittest.TestCase):
         self.assertTrue(r_after.did_buy, "should re-enter after cooldown expires")
 
 
+class TestStrictEventBehavior(unittest.TestCase):
+    """Targeted simulation tests for strict alert event ordering."""
+
+    def test_strict_buy_only_on_followup_bar(self):
+        """In strict mode, BUY alert condition must trigger one bar after BUY event."""
+        cfg = SimConfig(
+            engine="Hybrid",
+            hybrid_long_trigger=True,
+            use_strict_alert_mode=True,
+            in_rev_open_window=False,
+            strict_mtf_long_ok=True,
+            strict_choch_long_ok=True,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r0.did_buy, "bar 0 should execute BUY event")
+        self.assertFalse(r0.alert_buy_cond, "strict BUY alert is delayed by one bar")
+
+        r1 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r1.alert_buy_cond, "bar 1 should fire strict BUY alert condition")
+
+    def test_exit_stays_same_bar_in_strict(self):
+        """EXIT alert condition remains same-bar even with strict mode enabled."""
+        cfg = SimConfig(
+            allow_neural_reversals=True,
+            use_strict_alert_mode=True,
+            in_rev_open_window=False,
+            exit_grace_bars=0,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
+        self.assertTrue(r0.did_buy)
+
+        r1 = sim.process_bar(Bar(), BarSignals(risk_hit=True, risk_msg="SL"))
+        self.assertTrue(r1.did_exit)
+        self.assertTrue(r1.alert_exit_cond, "EXIT alert condition should be same-bar")
+
+    def test_strict_disabled_in_open_window(self):
+        """Open-window should disable strict delay and fall back to normal event alerts."""
+        cfg = SimConfig(
+            engine="Hybrid",
+            hybrid_long_trigger=True,
+            use_strict_alert_mode=True,
+            in_rev_open_window=True,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r0.did_buy)
+        self.assertFalse(r0.strict_alerts_enabled, "strict should be disabled in open window")
+        self.assertTrue(r0.alert_buy_cond, "falls back to normal same-bar BUY alert")
+
+
 if __name__ == '__main__':
     unittest.main()

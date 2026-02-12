@@ -307,6 +307,11 @@ alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
 useStrictAlertMode = input.bool(false, "Alerts: Strict mode", tooltip="Conservative alerts: 1-bar delayed confirmation for BUY/SHORT with stricter MTF/ChoCH checks. EXIT/COVER remain same-bar. Disabled automatically during open window ± minutes.")
 strictMtfMargin = input.float(0.02, "Strict: MTF extra margin", minval=0.0, maxval=0.20, step=0.01, tooltip="Additional margin above/below SCORE_NEUTRAL_BAND required for strict BUY/SHORT confirmation.")
 strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, maxval=5, tooltip="For REV entries in strict mode, ChoCH must remain recent within this many bars on confirmation.")
+useAdaptiveStrictMargin = input.bool(false, "Strict: adaptive MTF margin", tooltip="Adapts strictMtfMargin by ATR regime: stricter in high vol, looser in calm markets.")
+strictAdaptiveRange = input.float(0.02, "Strict: adaptive range", minval=0.0, maxval=0.10, step=0.005, tooltip="Max additional/subtracted margin around strictMtfMargin based on ATR regime.")
+strictAdaptiveLen = input.int(100, "Strict: adaptive ATR rank len", minval=20, maxval=500)
+showStrictSignalMarkers = input.bool(true, "Show Strict confirmed markers")
+strictMarkerStyle = input.string("Icon", "Strict marker style", options=["Icon", "Label", "Both"])
 
 // Avoid entries right before close
 useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close")
@@ -319,6 +324,10 @@ useRevOpenWindow  = input.bool(true, "Bypass pU near market open", tooltip="Allo
 rthOpenHour       = input.int(9,  "RTH open hour (exchange tz)", minval=0, maxval=23)
 rthOpenMinute     = input.int(30, "RTH open minute", minval=0, maxval=59)
 revOpenWindowMins = input.int(10, "Open window ± minutes", minval=1, maxval=60, tooltip="Minutes before and after RTH open where entry signals bypass the probability filter.")
+revOpenWindowLongMins = input.int(10, "Open window LONG ± min", minval=1, maxval=120, tooltip="Long-side bypass window around RTH open.")
+revOpenWindowShortMins = input.int(10, "Open window SHORT ± min", minval=1, maxval=120, tooltip="Short-side bypass window around RTH open.")
+revOpenWindowMode = input.string("All Entries", "Open window applies to", options=["All Entries", "Reversals Only"], tooltip="All Entries: bypass forecast gate + reversal pU/pD. Reversals Only: bypass only REV probability filter.")
+revOpenWindowEngine = input.string("All", "Open window engine scope", options=["All", "Hybrid", "Breakout", "Trend+Pullback", "Loose"], tooltip="Limit open-window bypass to specific engines.")
 
 //====================
 // Inputs — Forecast Calibration Enhancements
@@ -2717,7 +2726,11 @@ blockNearClose = useRthCloseFilter and timeframe.isintraday and (minsToClose >= 
 // v6.2.20: REV opening window — bypass pU around market open
 sessOpen       = timestamp(syminfo.timezone, year, month, dayofmonth, rthOpenHour, rthOpenMinute)
 minsFromOpen   = (time - sessOpen) / 60000.0
-inRevOpenWindow = useRevOpenWindow and timeframe.isintraday and (minsFromOpen >= -revOpenWindowMins) and (minsFromOpen <= revOpenWindowMins)
+openWindowEngineOk = revOpenWindowEngine == "All" or revOpenWindowEngine == engine
+inRevOpenWindowLong = useRevOpenWindow and openWindowEngineOk and timeframe.isintraday and (minsFromOpen >= -revOpenWindowLongMins) and (minsFromOpen <= revOpenWindowLongMins)
+inRevOpenWindowShort = useRevOpenWindow and openWindowEngineOk and timeframe.isintraday and (minsFromOpen >= -revOpenWindowShortMins) and (minsFromOpen <= revOpenWindowShortMins)
+inRevOpenWindow = inRevOpenWindowLong or inRevOpenWindowShort
+openWindowBypassEntries = revOpenWindowMode == "All Entries"
 
 //====================
 // Zones (anchored)
@@ -3040,7 +3053,7 @@ lArr = array.from(l1c, l2c, l3c, l4c, l5c, l6c, l7c)
 
 f_entry_forecast_gate(isLong) =>
     // v6.2.20: bypass entire forecast gate during opening window
-    if inRevOpenWindow
+    if openWindowBypassEntries and (isLong ? inRevOpenWindowLong : inRevOpenWindowShort)
         true
     else
         bool ok = true
@@ -3923,9 +3936,11 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    // v6.2.20: inRevOpenWindow bypasses pU filter entirely for REV entries near market open
-    probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
-    probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= revMinProb) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
+    // v6.2.20: open-window bypass can be scoped by side/engine/mode
+    bypassRevLong  = inRevOpenWindowLong
+    bypassRevShort = inRevOpenWindowShort
+    probOkGlobal    = bypassRevLong or (not na(pU) and ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
+    probOkGlobalS   = bypassRevShort or (not na(pD) and ((pD >= revMinProb) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
     
     // Global Gate: allowNeuralReversals
     // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
@@ -4295,6 +4310,23 @@ alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_onc
 // Visuals
 //====================
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
+showStrictIcon = showStrictSignalMarkers and (strictMarkerStyle == "Icon" or strictMarkerStyle == "Both")
+showStrictLabel = showStrictSignalMarkers and (strictMarkerStyle == "Label" or strictMarkerStyle == "Both")
+plotshape(showStrictIcon and strictBuyConfirmed, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showStrictIcon and strictShortConfirmed, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
+
+var label[] _strictLabels = array.new_label(0)
+MAX_STRICT_LABELS = 80
+f_strict_label(x, y, txt, sty, txtCol, bgCol) =>
+    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.tiny)
+    array.push(_strictLabels, lbl)
+    if array.size(_strictLabels) > MAX_STRICT_LABELS
+        label.delete(array.shift(_strictLabels))
+
+if showStrictLabel and strictBuyConfirmed
+    f_strict_label(bar_index, low, "STRICT-CONFIRMED BUY", label.style_label_up, color.black, color.new(color.aqua, 0))
+if showStrictLabel and strictShortConfirmed
+    f_strict_label(bar_index, high, "STRICT-CONFIRMED SHORT", label.style_label_down, color.black, color.new(color.fuchsia, 0))
 // PRE-BUY / PRE-SHORT labels: show distance-to-trigger, pU/pD, confidence
 var label[] _preLabels = array.new_label(0)
 MAX_PRE_LABELS = 100
@@ -4563,13 +4595,17 @@ if renderTable
 // - BUY/SHORT: 1-bar confirmation + conservative MTF/ChoCH checks
 // - EXIT/COVER: no delay (same bar)
 // - Automatically disabled during opening window (± revOpenWindowMins)
+strictAtrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
+strictMtfMarginEff = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRank - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
 strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow
-strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMargin)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMargin)))
-strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMargin)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMargin)))
+strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
+strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
 strictChochLongOk = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
 strictChochShortOk = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
 buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOk and strictChochLongOk
 shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOk and strictChochShortOk
+strictBuyConfirmed = strictAlertsEnabled and buyEventStrict
+strictShortConfirmed = strictAlertsEnabled and shortEventStrict
 
 alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent
 alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent
@@ -4587,13 +4623,15 @@ alertcondition(alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHOR
 
 // v6.1.3: TradersPost JSON Payload Generator
 f_tp_json(action) =>
-    str.format('{{"ticker": "{0}", "action": "{1}", "price": {2}, "uniqueId": "{0}-{3}-{4}-{1}", "refId": "{5}"}}', 
+    str.format('{{"ticker": "{0}", "action": "{1}", "price": {2}, "uniqueId": "{0}-{3}-{4}-{1}", "refId": "{5}", "mode": "{6}", "confirm_delay": {7}}}', 
          syminfo.ticker, 
          action, 
          str.tostring(close, "#.##"), 
          timeframe.period, 
          str.tostring(timenow),
-         tpStrategyId
+         tpStrategyId,
+         strictAlertsEnabled ? "strict" : "normal",
+         (strictAlertsEnabled and (alertBuyCond or alertShortCond) ? "1" : "0")
      )
 
 // v6.2.12: Watchlist stability — force bar_close frequency to reduce alert rate
@@ -4627,5 +4665,7 @@ if barstate.isconfirmed and barstate.isrealtime
             string action = firstLabel == "BUY" ? "buy" : firstLabel == "SHORT" ? "sell" : firstLabel == "EXIT" ? "exit" : firstLabel == "COVER" ? "exit" : "flat"
             msg := f_tp_json(action)
         else
-            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%"
+            modeTxt = strictAlertsEnabled ? "strict" : "normal"
+            delayTxt = strictAlertsEnabled and (alertBuyCond or alertShortCond) ? "1" : "0"
+            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxt + " | confirm_delay=" + delayTxt
         alert(msg, alertFreqSafe)
