@@ -3872,19 +3872,19 @@ if renderTable
             epNeg = eligPending < 0
             // EP decomposition: maturing (age <= resolve horizon) vs stuck (age > horizon)
             // Resolve triggers at age >= threshold, so age == threshold means "resolving this bar" (not stuck)
+            // Suppressed when queue arrays are desynced (qSync=false) to avoid cross-index misalignment
             [fcBase, kbBase, _atB, phBase, _tpB, _slB] = f_get_params(f_tf_from_horizon(entryFcTF))
             stuckThresh = fcBase == "NextBar" ? 1 : (fcBase == "KBarReturn" or fcBase == "KBarATR") ? kbBase : phBase
             epMature = 0
             epStuck = 0
-            qSzEp = array.size(st_base.qAge)
-            if qSzEp > 0
-                for j = 0 to qSzEp - 1
+            if qSync and qDepth > 0
+                for j = 0 to qDepth - 1
                     if f_safe_get_bool(st_base.qUseForecast, j, false)
                         if f_safe_get_int(st_base.qAge, j, 0) > stuckThresh
                             epStuck += 1
                         else
                             epMature += 1
-            epDecomp = (epMature > 0 or epStuck > 0) ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
+            epDecomp = qSync and (epMature > 0 or epStuck > 0) ? " m:" + str.tostring(epMature) + "/s:" + str.tostring(epStuck) : ""
             epTxt = st_base.enqCountElig >= 20 ? " EP:" + str.tostring(math.max(eligPending, 0)) + epDecomp : ""
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
             f_cell(6, 20, skipRateTxt + seTxt + epTxt, skipRateCol, covBg)
@@ -3936,19 +3936,21 @@ if renderTable
             eligPending = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
             epNeg = eligPending < 0
             // EP decomposition (lightweight: iterate queue, O(n) — no sorts)
+            // Suppressed when queue arrays are desynced to avoid cross-index misalignment
+            qSync = qDepth == array.size(st_ops.qEntry) and qDepth == array.size(st_ops.qAtr)
             [fcOps, kbOps, _atO, phOps, _tpO, _slO] = f_get_params(f_tf_from_horizon(entryFcTF))
             stuckThreshOps = fcOps == "NextBar" ? 1 : (fcOps == "KBarReturn" or fcOps == "KBarATR") ? kbOps : phOps
             epMat = 0
             epStk = 0
             qSzO = array.size(st_ops.qAge)
-            if qSzO > 0
+            if qSync and qSzO > 0
                 for j = 0 to qSzO - 1
                     if f_safe_get_bool(st_ops.qUseForecast, j, false)
                         if f_safe_get_int(st_ops.qAge, j, 0) > stuckThreshOps
                             epStk += 1
                         else
                             epMat += 1
-            epDec = (epMat > 0 or epStk > 0) ? " m:" + str.tostring(epMat) + "/s:" + str.tostring(epStk) : ""
+            epDec = qSync and (epMat > 0 or epStk > 0) ? " m:" + str.tostring(epMat) + "/s:" + str.tostring(epStk) : ""
             epTxt = st_ops.enqCountElig >= 20 ? " EP:" + str.tostring(math.max(eligPending, 0)) + epDec : ""
             skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
             f_cell(3, 16, skipRateTxt + epTxt, skipRateCol, covBg)

@@ -568,6 +568,28 @@ class TestSignalParity(unittest.TestCase):
             self.assertRegex(content, r'showEvalSection\s*\?\s*21',
                 f"{name}: footer must be at row 21 when eval is shown")
 
+    # -- qSync EP suppression --
+
+    def test_ep_decomp_guarded_by_qsync(self):
+        """EP decomposition loop + string must be suppressed when qSync=false."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # The EP loop must be gated on qSync (both full row and ops-only row)
+            self.assertRegex(content, r'if\s+qSync\s+and\s+q(Depth|SzO|SzEp)\s*>\s*0',
+                f"{name}: EP decomp loop must be gated on 'if qSync and qDepth/qSzO > 0'")
+            # The decomposition string must also check qSync
+            self.assertRegex(content, r'qSync\s+and\s+\(ep(Mature|Mat)\s*>\s*0',
+                f"{name}: EP decomp string in full row must be gated on qSync")
+
+    def test_ep_decomp_no_dangling_qSzEp(self):
+        """qSzEp must not be referenced without a corresponding assignment."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            lines = content.splitlines()
+            has_ref = any('qSzEp' in l and 'qSzEp' not in l.split('=')[0] if '=' in l else 'qSzEp' in l for l in lines)
+            has_def = any('qSzEp' in l.split('=')[0] for l in lines if '=' in l and '//' not in l.split('=')[0])
+            if has_ref:
+                self.assertTrue(has_def,
+                    f"{name}: qSzEp is referenced but never assigned — dangling variable")
+
 
 if __name__ == '__main__':
     unittest.main()
