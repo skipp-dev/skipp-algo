@@ -4304,8 +4304,10 @@ labelShort    = shortEvent and not isRevShort
 
 labelBOS_L   = useStructureTags and isBOS_Long
 // v6.2.22: ChoCH tags respect chochMinProb — only show when probability meets threshold
-bool chochProbOkL = not na(pU) and pU >= chochMinProb
-bool chochProbOkS = not na(pD) and pD >= chochMinProb
+//          During the opening window (inRevOpenWindow) or when pU/pD is na, bypass the filter
+//          so that ChoCH markers behave the same as entry signals near market open.
+bool chochProbOkL = inRevOpenWindow or na(pU) or pU >= chochMinProb
+bool chochProbOkS = inRevOpenWindow or na(pD) or pD >= chochMinProb
 labelChoCH_L = useStructureTags and isChoCH_Long  and chochProbOkL and not labelRevBuy
 labelBOS_S   = useStructureTags and isBOS_Short
 labelChoCH_S = useStructureTags and isChoCH_Short and chochProbOkS and not labelRevShort
