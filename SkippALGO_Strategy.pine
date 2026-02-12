@@ -3827,8 +3827,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   Require directional impulse candle on rescue path.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    bool probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong)
-    bool probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort)
+    bool probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong))
+    bool probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort))
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)

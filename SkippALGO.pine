@@ -3889,8 +3889,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    probOkGlobal    = (pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong)
-    probOkGlobalS   = (pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort)
+    probOkGlobal    = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong))
+    probOkGlobalS   = not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= 0.20 and impulseShort))
     
     // Global Gate: allowNeuralReversals
     // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
