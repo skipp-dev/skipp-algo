@@ -483,6 +483,7 @@ tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", mi
 rescueVolMult = input.float(1.5, "Rescue Mode: Min Volume (xSMA)", minval=1.0, maxval=50.0, step=0.1, tooltip="Volume ratio required to trigger Rescue Mode (bypasses gates).")
 rescueImpulseATR = input.float(0.7, "Rescue Mode: Min Impulse (xATR)", minval=0.1, step=0.1, tooltip="Minimum candle body size (in ATR) to validate a Rescue Reversal.")
 rescueMinProb    = input.float(0.30, "Rescue Mode: Min Probability", minval=0.15, maxval=0.50, step=0.01, tooltip="Minimum directional probability for rescue path. Below random chance (~0.33) means model disagrees; structure+volume must compensate.")
+revMinProb       = input.float(0.50, "REV: Min pU", minval=0.20, maxval=0.80, step=0.01, tooltip="Minimum directional probability for REV-BUY / REV-SHORT (normal path). Raise to require stronger forecast conviction for reversals.")
 revRecencyBars   = input.int(5, "Rev Recency (bars)", minval=1, maxval=20, tooltip="Max bars since ChoCH for a reversal signal to be considered recent enough.")
 chochGraceBars   = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 
@@ -3853,8 +3854,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
     // v6.2.20: inRevOpenWindow bypasses pU filter entirely for REV entries near market open
-    bool probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
-    bool probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= 0.50) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
+    bool probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
+    bool probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= revMinProb) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
