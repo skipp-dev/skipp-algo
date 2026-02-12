@@ -165,5 +165,43 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         self.assertIn("float[] momPlattN", self.text)
         self.assertIn("float[] momPlatt1", self.text)
 
+    def test_pre_signal_core_variables_exist(self):
+        """PRE-signal path defines core state and pulse variables."""
+        self.assertIn("preBuyNow = false", self.text)
+        self.assertIn("preShortNow = false", self.text)
+        self.assertIn("preBuyPrev = (preBuyNow[1] == true)", self.text)
+        self.assertIn("preShortPrev = (preShortNow[1] == true)", self.text)
+        self.assertIn("preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev", self.text)
+        self.assertIn("preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev", self.text)
+
+    def test_pre_signal_distance_metrics_exist(self):
+        """PRE labels should expose distance-to-trigger in points and ATR units."""
+        self.assertIn("float preGapLong  = na", self.text)
+        self.assertIn("float preGapShort = na", self.text)
+        self.assertIn("float preGapATR_L =", self.text)
+        self.assertIn("float preGapATR_S =", self.text)
+
+    def test_pre_signal_engine_paths_compute_gap(self):
+        """All engines should compute PRE gap distance before label rendering."""
+        self.assertIn('if engine == "Hybrid"', self.text)
+        self.assertIn('else if engine == "Breakout"', self.text)
+        self.assertIn('else if engine == "Trend+Pullback"', self.text)
+        self.assertIn("else // Loose", self.text)
+        self.assertIn("preGapLong  := (not na(emaF)) ? math.max(0.0, emaF - close) : na", self.text)
+        self.assertIn("preGapLong  := (not na(lastSwingHigh)) ? math.max(0.0, lastSwingHigh - close) : na", self.text)
+        self.assertIn("preGapLong  := nearFlipUp ? (emaS - emaF) : nearReclaimUp ? (emaF - close) : na", self.text)
+        self.assertIn("preGapLong  := nearEmaFUp  ? (emaF - close) : na", self.text)
+
+    def test_pre_labels_are_dynamic_label_new_not_plotshape(self):
+        """PRE labels are rendered via label.new helper with dynamic text payload."""
+        self.assertIn("var label[] _preLabels = array.new_label(0)", self.text)
+        self.assertIn("MAX_PRE_LABELS = 100", self.text)
+        self.assertIn("f_pre_label(x, y, txt, sty, txtCol, bgCol) =>", self.text)
+        self.assertIn("lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.small)", self.text)
+        self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', self.text)
+        self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', self.text)
+        self.assertNotIn('plotshape(preBuyPulse, title="PRE-BUY"', self.text)
+        self.assertNotIn('plotshape(preShortPulse, title="PRE-SHORT"', self.text)
+
 if __name__ == "__main__":
     unittest.main()
