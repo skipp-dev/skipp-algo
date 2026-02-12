@@ -3920,10 +3920,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    float chochProbFloor = math.max(revMinProb, chochMinProb)
     // v6.2.20: inRevOpenWindow bypasses pU filter entirely for REV entries near market open
-    probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= chochProbFloor) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
-    probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= chochProbFloor) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
+    probOkGlobal    = inRevOpenWindow or (not na(pU) and ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
+    probOkGlobalS   = inRevOpenWindow or (not na(pD) and ((pD >= revMinProb) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
     
     // Global Gate: allowNeuralReversals
     // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
@@ -4005,17 +4004,6 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     if allowNeuralReversals
         buySignal   := buySignal   or revBuyGlobal
         shortSignal := shortSignal or revShortGlobal
-
-    // v6.2.22: Global ChoCH confidence hard gate (all engines + REV).
-    // Prevents ChoCH-context entries when directional probability is below
-    // chochMinProb, regardless of where the signal originated.
-    bool chochVolOk = (not chochReqVol) or volOk
-    bool chochLongContext = (structState == -1) or isChoCH_Long
-    bool chochShortContext = (structState == 1) or isChoCH_Short
-    if buySignal and chochLongContext and (na(pU) or pU < chochMinProb or not chochVolOk)
-        buySignal := false
-    if shortSignal and chochShortContext and (na(pD) or pD < chochMinProb or not chochVolOk)
-        shortSignal := false
 
     // Capture raw signals before conflict logic
     rawBuySignal := buySignal
