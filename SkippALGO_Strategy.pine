@@ -1005,10 +1005,10 @@ f_target_profile_desc(profile) =>
     tp = profile == "Fast" ? tpATRF   : profile == "Mid" ? tpATRM    : tpATRS
     sl = profile == "Fast" ? slATRF   : profile == "Mid" ? slATRM    : slATRS
     t == "NextBar" ? "NextBar" :
-    t == "KBarReturn" ? "K" + str.tostring(k) :
-    t == "KBarATR" ? "K" + str.tostring(k) + " " + str.tostring(a, "#.#") + "A" :
-    t == "PathTPvsSL" ? "P" + str.tostring(h) + " " + str.tostring(tp, "#.#") + "/" + str.tostring(sl, "#.#") :
-    "Target"
+     t == "KBarReturn" ? "K" + str.tostring(k) :
+     t == "KBarATR" ? "K" + str.tostring(k) + " " + str.tostring(a, "#.#") + "A" :
+     t == "PathTPvsSL" ? "P" + str.tostring(h) + " " + str.tostring(tp, "#.#") + "/" + str.tostring(sl, "#.#") :
+     "Target"
 
 f_target_footer_text() =>
     "F=" + f_target_profile_desc("Fast") + " M=" + f_target_profile_desc("Mid") + " S=" + f_target_profile_desc("Slow")
