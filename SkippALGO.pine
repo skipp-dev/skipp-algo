@@ -913,11 +913,6 @@ f_bin_quantile(score, cuts, bins) =>
 f_regime_bin(trendScore) =>
     trendScore > 0.5 ? 2 : trendScore < -0.5 ? 0 : 1
 
-// --- Human name for "chance" depending on forecast target
-f_chance_word() =>
-    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
-    anyWin ? "Win" : "Up"
-
 // --- 95% CI half-width (approx) for Bernoulli p with n samples
 f_ci95_halfwidth(p, n) =>
     if na(p) or na(n) or n <= 0
@@ -1194,11 +1189,6 @@ f_pp(x) =>
     // x in [0,1] -> "12.3%"
     str.tostring(x * 100.0, "#.0") + "%"
 
-f_ppSigned(x) =>
-    // x in [-1,1] -> "+4.0pp"
-    pp = x * 100.0
-    (pp >= 0 ? "+" : "") + str.tostring(pp, "#.0") + "pp"
-
 // ── Delta helpers (baseline comparison) ──
 f_deltaVerdict(val) =>
     na(val) ? "" : val <= -deltaDeadzone ? " ✓" : val >= deltaDeadzone ? " ✗" : " ~"
@@ -1342,12 +1332,6 @@ f_pullback_score(c, ef, es, bias) =>
     // Bias -1 (Bear): mirror logic
     bias == 1 ? (c > ef ? 0.5 : c > es ? 1.0 : -1.0) : bias == -1 ? (c < ef ? 0.5 : c < es ? 1.0 : -1.0) : 0.0
 
-f_ensemble(sA, sB, sC, wA, wB, wC) =>
-    num = wA * sA + wB * sB + wC * sC
-    den = wA + wB + wC
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
-
 // @function Computes trend regime score (bull/bear/sideways)
 // @param emaF Fast EMA value
 // @param emaS Slow EMA value
@@ -1383,13 +1367,6 @@ f_vol_score(vol, volSmaLen) =>
         ratio = na(sma) or sma == 0.0 ? 0.0 : (vol / sma - 1.0)
         math.max(-1.0, math.min(1.0, ratio))
 
-
-// Extended ensemble with 6 factors (state + pullback + vol regime + trend + ROC + volume)
-f_ensemble6(sA, sB, sC, sD, sE, sF, wA, wB, wC, wD, wE, wF) =>
-    num = wA * sA + wB * sB + wC * sC + wD * sD + wE * sE + wF * sF
-    den = wA + wB + wC + wD + wE + wF
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
 
 f_tf_pack(tf) =>
     [t, c, h, l, ef, es, r, a, vr] = request.security(
@@ -1641,9 +1618,13 @@ f_cal_update(cntArr, upArr, bin, isUp) =>
         array.set(upArr,  b, u0 + (isUp ? 1.0 : 0.0))
 
 f_cal_cur(cntArr, upArr, bin, alpha, shrinkK) =>
+    // Clamp bin to valid range (defensive, mirrors f_cal_update)
+    b = int(bin)
+    maxIdx = array.size(cntArr) - 1
+    b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
     // Bin raw
-    n = array.get(cntArr, bin)
-    u = array.get(upArr,  bin)
+    n = array.get(cntArr, b)
+    u = array.get(upArr,  b)
     pBin = n == 0 ? 0.5 : f_prob(u, n, alpha)
 
     // Base rate (pooling)

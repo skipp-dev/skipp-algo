@@ -130,8 +130,8 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         self.assertIn("volEnsLongOk", self.text)
 
     def test_ensemble6_function(self):
-        """6-factor ensemble function exists."""
-        self.assertIn("f_ensemble6(", self.text)
+        """6-factor ensemble removed as dead code; 4-factor ensemble exists."""
+        self.assertIn("f_ensemble4(", self.text)
 
     def test_adx_filter(self):
         """D2: ADX filter inputs and gate exist."""

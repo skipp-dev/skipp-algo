@@ -92,7 +92,7 @@ class TestSkippAlgoStrategyForecasting(unittest.TestCase):
 
     def test_ensemble_scoring(self):
         """Verify ensemble scoring system with weights."""
-        self.assertIn("f_ensemble(", self.text)
+        self.assertIn("f_ensemble4(", self.text)
         # After harmonization, Strategy uses same names as Indicator
         self.assertIn("wState", self.text)
         self.assertIn("wPullback", self.text)
@@ -106,8 +106,7 @@ class TestSkippAlgoStrategyForecasting(unittest.TestCase):
         self.assertIn("dim2Bins", self.text)
 
     def test_platt_scaling(self):
-        """Verify Platt scaling calibration."""
-        self.assertIn("f_platt_prob(", self.text)
+        """Verify Platt scaling calibration (f_platt_prob removed as dead code; core functions remain)."""
         self.assertIn("f_logit(", self.text)
         self.assertIn("f_sigmoid(", self.text)
         self.assertIn("usePlatt", self.text)
@@ -363,8 +362,8 @@ class TestSkippAlgoStrategyDeferredFeatures(unittest.TestCase):
         self.assertIn("volEnsLongOk", self.text)
 
     def test_ensemble6_function(self):
-        """6-factor ensemble function exists."""
-        self.assertIn("f_ensemble6(", self.text)
+        """6-factor ensemble removed as dead code; 4-factor ensemble exists."""
+        self.assertIn("f_ensemble4(", self.text)
 
     def test_adx_filter(self):
         """D2: ADX filter inputs and gate exist."""

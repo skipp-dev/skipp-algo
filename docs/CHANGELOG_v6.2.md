@@ -22,6 +22,7 @@ both `SkippALGO.pine` (Indicator) and `SkippALGO_Strategy.pine` (Strategy):
 | **BUG 3 — `barsSinceEntry` decay phase-shift** | Both | `barsSinceEntry` was incremented *before* the risk-decay interpolation, causing the sustained-risk level to kick in one bar early. Moved the increment to *after* the decay computation. |
 
 Five new regression tests were added in `tests/test_cross_validation.py`:
+
 - `test_loose_engine_uses_enhOk`
 - `test_barsSinceEntry_zero_on_entry`
 - `test_canStructExit_uses_gte`

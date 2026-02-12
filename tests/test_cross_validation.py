@@ -226,15 +226,17 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     # ========================================
     
     def test_platt_scaling_functions_exist(self):
-        """Platt scaling functions must exist in both."""
-        functions = ['f_sigmoid', 'f_platt_prob']
-        
-        for func in functions:
-            pattern = rf'{func}\([^)]+\)\s*=>'
-            self.assertRegex(self.indicator, pattern, 
-                f"Indicator missing {func}")
-            self.assertRegex(self.strategy, pattern, 
-                f"Strategy missing {func}")
+        """Platt scaling functions must exist in both (f_platt_prob kept in Indicator only, removed as dead code from Strategy)."""
+        # f_sigmoid must exist in both
+        pattern_sig = rf'f_sigmoid\([^)]+\)\s*=>'
+        self.assertRegex(self.indicator, pattern_sig,
+            "Indicator missing f_sigmoid")
+        self.assertRegex(self.strategy, pattern_sig,
+            "Strategy missing f_sigmoid")
+        # f_platt_prob only in Indicator (called there, dead in Strategy)
+        pattern_platt = rf'f_platt_prob\([^)]+\)\s*=>'
+        self.assertRegex(self.indicator, pattern_platt,
+            "Indicator missing f_platt_prob")
     
     def test_platt_sgd_update_exists(self):
         """Platt SGD update logic must exist in both."""

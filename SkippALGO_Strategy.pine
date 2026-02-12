@@ -68,6 +68,7 @@ swingL = input.int(5, "Breakout swing left", minval=1, maxval=20)
 swingR = input.int(3, "Breakout swing right", minval=1, maxval=20)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
 breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.")
+structureLogic = input.string("Standard", "Structure Logic", options=["Standard", "SMC+Sweep"], tooltip="Standard: ChoCH = Trend Reversal (Break of Swing Low). SMC+Sweep: ChoCH includes Failed Breakouts (Reclaim of Level).")
 
 // Market Structure (BOS / ChoCH)
 useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags")
@@ -959,10 +960,6 @@ f_confColor(val) =>
 f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
-f_chance_word() =>
-    anyWin = fcTargetF == "PathTPvsSL" or fcTargetM == "PathTPvsSL" or fcTargetS == "PathTPvsSL"
-    anyWin ? "Win" : "Up"
-
 // Map a TF into your "Fast/Mid/Slow" profiles.
 f_profile(tf) =>
     s = timeframe.in_seconds(tf)
@@ -1070,9 +1067,6 @@ f_sigmoid(x) =>
     // Prevent overflow for extreme x values
     x < -500 ? 0.0 : x > 500 ? 1.0 : 1.0 / (1.0 + math.exp(-x))
 
-f_platt_prob(pRaw, a, b) =>
-    usePlatt ? f_sigmoid(a * f_logit(pRaw) + b) : pRaw
-
 // --- Phase 3 Helpers: Ensemble ---
 f_pullback_score(c, ef, es, bias) =>
     // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
@@ -1092,15 +1086,6 @@ f_trend_regime(emaF, emaS, atrNorm) =>
     isBull = emaF > emaS and not isSideways
     isBear = emaF < emaS and not isSideways
     isBull ? 1.0 : isBear ? -1.0 : 0.0
-
-f_ensemble(sA, sB, sC, wA, wB, wC) =>
-    // sA: Algo State (-1..1)
-    // sB: Pullback Score (-1..1)
-    // sC: Regime Score (-1..1)
-    num = wA * sA + wB * sB + wC * sC
-    den = wA + wB + wC
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
 
 // Extended ensemble with trend regime (4 factors)
 f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
@@ -1128,13 +1113,6 @@ f_vol_score(vol, volSmaLen) =>
         sma = ta.sma(vol, volSmaLen)
         ratio = na(sma) or sma == 0.0 ? 0.0 : (vol / sma - 1.0)
         math.max(-1.0, math.min(1.0, ratio))
-
-// Extended ensemble with 6 factors (state + pullback + vol regime + trend + ROC + volume)
-f_ensemble6(sA, sB, sC, sD, sE, sF, wA, wB, wC, wD, wE, wF) =>
-    num = wA * sA + wB * sB + wC * sC + wD * sD + wE * sE + wF * sF
-    den = wA + wB + wC + wD + wE + wF
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
 
 // --- Phase 2 Helpers: 2D Binning ---
 // @function Computes 2D bin index from score and trend regime
@@ -1384,9 +1362,13 @@ f_cal_update(cntArr, upArr, bin, isUp) =>
         array.set(upArr,  b, u0 + (isUp ? 1.0 : 0.0))
 
 f_cal_cur(cntArr, upArr, bin, alpha, shrinkK) =>
+    // Clamp bin to valid range (defensive, mirrors f_cal_update)
+    b = int(bin)
+    maxIdx = array.size(cntArr) - 1
+    b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
     // Bin raw
-    n = array.get(cntArr, bin)
-    u = array.get(upArr,  bin)
+    n = array.get(cntArr, b)
+    u = array.get(upArr,  b)
     pBin = n == 0 ? 0.5 : f_prob(u, n, alpha)
 
     // Base rate (pooling)
@@ -1617,9 +1599,6 @@ f_eval_on_resolve(TfState st, pPredN, pPred1, isUp) =>
     f_eval_update_one(pPred1, y, st.evBrier1, st.evSumBrier1, st.evLog1, st.evSumLog1, st.evYS_1, st.evSumYS_1, st.evYL_1, st.evSumYL_1, st.evCalCnt1, st.evCalSumP1, st.evCalSumY1, st.evCalBBuf1, st.evCalPBuf1, st.evCalYBuf1)
 
 // Table Helpers
-f_ppSigned(val) =>
-    na(val) ? "—" : (val > 0 ? "+" : "") + str.tostring(val, "#.1") + "pp"
-
 f_reset_tf(TfState st) =>
     array.fill(st.cntN, 0.0), array.fill(st.upN, 0.0), array.fill(st.dnN, 0.0)
     array.fill(st.cnt1, 0.0), array.fill(st.up1, 0.0), array.fill(st.dn1, 0.0)
@@ -3705,6 +3684,23 @@ else // Wick
 breakoutLong  = not na(lastSwingHigh) and breakHigh
 breakoutShort = not na(lastSwingLow)  and breakLow
 
+// Expanded Logic for Sweep/Reclaim Mode
+bool sweepHigh = false
+bool reclaimLow = false
+
+// Pre-calc cross to avoid conditional execution warning
+bool cx_sweepHigh = ta.crossunder(low, lastSwingHigh)
+bool cx_reclaimLow = ta.crossover(high, lastSwingLow)
+
+if structureLogic == "SMC+Sweep" and not na(lastSwingHigh) and not na(lastSwingLow)
+    // Sweep High (Bearish Reversal Pattern): Price crossed above High then fell back below
+    if breakoutSource == "Close"
+        sweepHigh := close < lastSwingHigh and high > lastSwingHigh and close[1] > lastSwingHigh
+        reclaimLow := close > lastSwingLow and low < lastSwingLow and close[1] < lastSwingLow
+    else // Wick (Crossunder/Crossover Logic matches Reference Script)
+        sweepHigh := cx_sweepHigh
+        reclaimLow := cx_reclaimLow
+
 // Liquidity Sweeps (SMC)
 bool isSweep_Bull = not na(lastSwingLow) and (low < lastSwingLow) and (close > lastSwingLow)
 bool isSweep_Bear = not na(lastSwingHigh) and (high > lastSwingHigh) and (close < lastSwingHigh)
@@ -3720,21 +3716,47 @@ bool isBOS_Long   = false
 bool isChoCH_Short = false
 bool isBOS_Short   = false
 
-// Long Break Logic
-if breakoutLong
-    if structState == -1 // Was Bearish -> Reversal
-        isChoCH_Long := true
-    else // Neutral or Bullish -> Continuation
-        isBOS_Long := true
-    structState := 1 // Set to Bullish
+if structureLogic == "Standard"
+    // Standard Trend Logic
+    if breakoutLong
+        if structState == -1
+            isChoCH_Long := true
+        else
+            isBOS_Long := true
+        structState := 1
 
-// Short Break Logic
-if breakoutShort
-    if structState == 1 // Was Bullish -> Reversal
+    if breakoutShort
+        if structState == 1
+            isChoCH_Short := true
+        else
+            isBOS_Short := true
+        structState := -1
+
+else // SMC+Sweep (Standard Style)
+    // Combined Logic: ChoCH = Reversal (Break of High) OR Sweep (Reclaim of Low)
+    
+    // Bullish Event: Break High
+    if breakoutLong
+        if structState == -1
+            isChoCH_Long := true // Reversal via Structure Break
+        else
+            isBOS_Long := true   // Continuation
+        structState := 1
+        
+    // Bearish Event: Break Low
+    if breakoutShort
+        if structState == 1
+            isChoCH_Short := true // Reversal via Structure Break
+        else
+            isBOS_Short := true   // Continuation
+        structState := -1
+        
+    // Extra Sweep Logic (Turtle Soup) - Also triggers ChoCH Signal
+    if reclaimLow
+        isChoCH_Long := true
+        
+    if sweepHigh
         isChoCH_Short := true
-    else // Neutral or Bearish -> Continuation
-        isBOS_Short := true
-    structState := -1 // Set to Bearish
 
 // Fail-closed signal subconditions: any na => deny (== true coerces na to false)
 fcGateLongSafe  = (fcGateLong == true)
