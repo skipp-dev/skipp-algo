@@ -4083,6 +4083,8 @@ if pos == -1 and allowExit
 //          labels can indicate "(REV)".
 var bool lastEntryWasRev = false
 var string lastExitReason = ""
+// v6.2.14: Snapshot BEFORE phase-2 can overwrite it on same-bar reversal.
+bool _wasRevEntry = lastEntryWasRev
 bool didBuy   = false
 bool didShort = false
 bool didExit  = false
@@ -4224,9 +4226,6 @@ f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     array.push(_exitLabels, lbl)
     if array.size(_exitLabels) > MAX_EXIT_LABELS
         label.delete(array.shift(_exitLabels))
-
-// v6.2.13: Snapshot lastEntryWasRev BEFORE Phase-2 overwrites it on same-bar reversal.
-bool _wasRevEntry = lastEntryWasRev
 
 if showLongLabels and labelExit
     // Exit label — includes bars-held for traceability
