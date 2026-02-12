@@ -3851,7 +3851,7 @@ allowRevBypass = allowNeuralReversals and cooldownOkSafe and (isChoCH_Long or is
 
 if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
     if showDebugLabels and (allowRescue or allowRevBypass)
-        label.new(bar_index, high, "Main Loop Entered")
+        f_debug_label(bar_index, high, "Main Loop Entered", label.style_label_down)
 
     // Reversal Logic (Global — Applies to All Engines)
     // Refined to filter stale reversals (older than 5 bars) on low volume to prevent "fake" late entries
@@ -3873,10 +3873,9 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
 
     // This logic was previously stuck inside "Hybrid" engine block, causing other engines to miss Neural Reversals.
     // Moved here to ensure global availability.
-    // v6.2.7 Fix: Explicit NA-check to prevent "Phantom Entry" syndrome (Execution without Labels).
-    // If pU is NA (history gap), previously returned NA, poisoning the signal chain.
-    probOkGlobal    = (not na(pU) and pU >= 0.50)
-    probOkGlobalS   = (not na(pD) and pD >= 0.50)
+    // NA safety handled by f_fc_bool wrapper on revBuyGlobal/revShortGlobal below.
+    probOkGlobal    = (pU >= 0.50)
+    probOkGlobalS   = (pD >= 0.50)
     
     // Global Gate: allowNeuralReversals
     // Reversals bypass MTF (Trend) but MUST respect Safety Gates (Macro + Drawdown) to avoid catching falling knives
@@ -3896,7 +3895,7 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
 
     if engine == "Hybrid"
         if showDebugLabels and allowRescue
-            label.new(bar_index, high, "Hybrid Loop Entered", style=label.style_label_down)
+            f_debug_label(bar_index, high, "Hybrid Loop Entered", label.style_label_down)
         // Base triggers
         gateBuy   = gateLongNow  and fcGateLongSafe  and volOkSafe and setOkLongSafe  and pullbackLongOkSafe  and enhLongOk  and hybridLongTrigger
         
@@ -4198,15 +4197,26 @@ plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labe
 plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
 plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
 
+// EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
+// Capped via array to guarantee they never evict each other.
+var label[] _exitLabels = array.new_label(0)
+MAX_EXIT_LABELS = 400  // leaves 100 for debug labels
+
+f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
+    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol)
+    array.push(_exitLabels, lbl)
+    if array.size(_exitLabels) > MAX_EXIT_LABELS
+        label.delete(array.shift(_exitLabels))
+
 if showLongLabels and labelExit
     // Exit label (Above bar) — includes bars-held for traceability
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
-    label.new(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", style=label.style_label_down, textcolor=color.white, color=color.new(color.red, 0))
+    f_exit_label(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", label.style_label_down, color.white, color.new(color.red, 0))
 
 if showShortLabels and labelCover
     // Cover label (Below bar) — includes bars-held for traceability
     val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
-    label.new(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", style=label.style_label_up, textcolor=color.white, color=color.new(color.green, 0))
+    f_exit_label(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", label.style_label_up, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
