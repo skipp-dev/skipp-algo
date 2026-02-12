@@ -3850,7 +3850,10 @@ bool isRevShort = false
 // v6.2.9: Added barstate.isconfirmed to prevent intra-bar evaluation (parity with allowEntry/allowRescue)
 allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
 
-if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
+// v6.2.11: allowRevBypass enters this block even when pos != 0 so reversal
+// signals are computed BEFORE the state machine. Phase 1 (COVER/EXIT) sets
+// pos := 0, then Phase 2 can immediately use the pre-computed buySignal.
+if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     if showDebugLabels and (allowRescue or allowRevBypass)
         f_debug_label(bar_index, high, "Main Loop Entered", label.style_label_down)
 
