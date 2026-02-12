@@ -3873,8 +3873,10 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
 
     // This logic was previously stuck inside "Hybrid" engine block, causing other engines to miss Neural Reversals.
     // Moved here to ensure global availability.
-    probOkGlobal    = (pU >= 0.50) 
-    probOkGlobalS   = (pD >= 0.50)
+    // v6.2.7 Fix: Explicit NA-check to prevent "Phantom Entry" syndrome (Execution without Labels).
+    // If pU is NA (history gap), previously returned NA, poisoning the signal chain.
+    probOkGlobal    = (not na(pU) and pU >= 0.50)
+    probOkGlobalS   = (not na(pD) and pD >= 0.50)
     
     // Global Gate: allowNeuralReversals
     // Reversals bypass MTF (Trend) but MUST respect Safety Gates (Macro + Drawdown) to avoid catching falling knives
@@ -3884,8 +3886,9 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
     // CHoCH REQUIREMENT (v6.2.5): Strict CHoCH for REV-BUY.
     // Must be CHoCH bar. No late checking.
     // 'impulseOkL' constraint removed (v6.2.4) to allow non-impulse CHoCHs to trigger if other gates pass.
-    revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and isChoCH_Long and probOkGlobal and volOk and smcOkL
-    revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and isChoCH_Short and probOkGlobalS and volOk and smcOkS
+    // v6.2.7 Fix: Wrap in f_fc_bool to prevent NA propagation from volOk/smcOkL
+    revBuyGlobal    = f_fc_bool(allowNeuralReversals and macOkLong_  and ddOk and isChoCH_Long and probOkGlobal and volOk and smcOkL)
+    revShortGlobal  = f_fc_bool(allowNeuralReversals and macOkShort_ and ddOk and isChoCH_Short and probOkGlobalS and volOk and smcOkS)
 
     // Export for debug
     isRevBuy   := revBuyGlobal
