@@ -476,6 +476,56 @@ class TestSignalParity(unittest.TestCase):
                     f"{name}: qUseForecast push predicate '{push_val.strip()}' != "
                     f"enqCountElig guard '{guard_val.strip()}'")
 
+    # -- showOpsRow independence --
+
+    def test_showOpsRow_input_exists(self):
+        """Both files must have a showOpsRow input toggle."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('showOpsRow', content,
+                f"{name}: showOpsRow input missing")
+            self.assertRegex(content, r'showOpsRow\s*=\s*input\.bool\(true',
+                f"{name}: showOpsRow must default to true")
+
+    def test_ops_row_independent_of_showEvalSection(self):
+        """Ops row must render outside showEvalSection when showOpsRow is true."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # Must have a code path: showOpsRow and not showEvalSection
+            self.assertIn('showOpsRow and not showEvalSection', content,
+                f"{name}: ops row must have independent render path")
+
+    # -- INV! latch --
+
+    def test_inv_latch_exists(self):
+        """Both files must have INV! first-failure latch variables and logic."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('invLatched', content,
+                f"{name}: invLatched variable missing")
+            self.assertIn('invLatchInfo', content,
+                f"{name}: invLatchInfo variable missing")
+            self.assertIn('INV(L)', content,
+                f"{name}: INV(L) latched display string missing")
+
+    # -- EP decomposition --
+
+    def test_ep_decomposition_exists(self):
+        """Both files must decompose EP into maturing (m:) and stuck (s:) components."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('stuckThresh', content,
+                f"{name}: stuckThresh (resolve horizon for EP decomposition) missing")
+            # Must have m: and s: in EP display
+            self.assertRegex(content, r'm:.*s:',
+                f"{name}: EP decomposition must show m:/s: breakdown")
+
+    # -- Dynamic footer row --
+
+    def test_footer_row_is_dynamic(self):
+        """Footer row must adjust position based on visible sections."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertIn('footerR', content,
+                f"{name}: footerR dynamic row variable missing")
+            self.assertRegex(content, r'showEvalSection\s*\?\s*21',
+                f"{name}: footer must be at row 21 when eval is shown")
+
 
 if __name__ == '__main__':
     unittest.main()
