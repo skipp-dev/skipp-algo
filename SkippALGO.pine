@@ -3959,6 +3959,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         buySignal   := buySignal   or revBuyGlobal
         shortSignal := shortSignal or revShortGlobal
     
+    // Diagnostic: show conditions on BUY bars
+    if showDebugLabels and buySignal
+        f_debug_label(bar_index, low, "BUY-DIAG\naE:" + str.tostring(allowEntry) + " aR:" + str.tostring(allowRescue) + " aRB:" + str.tostring(allowRevBypass) + "\npos:" + str.tostring(pos) + " stdOk:" + str.tostring(standardEntryOk) + "\nrevB:" + str.tostring(revBuyGlobal) + " eng:" + engine + "\npU:" + str.tostring(pU, "#.2") + " vol:" + str.tostring(volRatioG, "#.#") + "\ncool:" + str.tostring(cooldownOkSafe) + " dd:" + str.tostring(ddOk), label.style_label_up)
+
     // Capture raw signals before conflict logic
     rawBuySignal := buySignal
     rawShortSignal := shortSignal
