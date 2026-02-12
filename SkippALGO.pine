@@ -4310,10 +4310,19 @@ alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_onc
 // Visuals
 //====================
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
+strictAtrRankVis = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
+strictMtfMarginEffVis = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRankVis - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
+strictAlertsEnabledVis = useStrictAlertMode and not inRevOpenWindow
+strictMtfLongOkVis = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
+strictMtfShortOkVis = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
+strictChochLongOkVis = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
+strictChochShortOkVis = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
+strictBuyConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis
+strictShortConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
 showStrictIcon = showStrictSignalMarkers and (strictMarkerStyle == "Icon" or strictMarkerStyle == "Both")
 showStrictLabel = showStrictSignalMarkers and (strictMarkerStyle == "Label" or strictMarkerStyle == "Both")
-plotshape(showStrictIcon and strictBuyConfirmed, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
-plotshape(showStrictIcon and strictShortConfirmed, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
+plotshape(showStrictIcon and strictBuyConfirmedVis, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showStrictIcon and strictShortConfirmedVis, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
 var label[] _strictLabels = array.new_label(0)
 MAX_STRICT_LABELS = 80
@@ -4323,9 +4332,9 @@ f_strict_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_strictLabels) > MAX_STRICT_LABELS
         label.delete(array.shift(_strictLabels))
 
-if showStrictLabel and strictBuyConfirmed
+if showStrictLabel and strictBuyConfirmedVis
     f_strict_label(bar_index, low, "STRICT-CONFIRMED BUY", label.style_label_up, color.black, color.new(color.aqua, 0))
-if showStrictLabel and strictShortConfirmed
+if showStrictLabel and strictShortConfirmedVis
     f_strict_label(bar_index, high, "STRICT-CONFIRMED SHORT", label.style_label_down, color.black, color.new(color.fuchsia, 0))
 // PRE-BUY / PRE-SHORT labels: show distance-to-trigger, pU/pD, confidence
 var label[] _preLabels = array.new_label(0)
@@ -4665,7 +4674,7 @@ if barstate.isconfirmed and barstate.isrealtime
             string action = firstLabel == "BUY" ? "buy" : firstLabel == "SHORT" ? "sell" : firstLabel == "EXIT" ? "exit" : firstLabel == "COVER" ? "exit" : "flat"
             msg := f_tp_json(action)
         else
-            modeTxt = strictAlertsEnabled ? "strict" : "normal"
+            modeTxtAlert = strictAlertsEnabled ? "strict" : "normal"
             delayTxt = strictAlertsEnabled and (alertBuyCond or alertShortCond) ? "1" : "0"
-            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxt + " | confirm_delay=" + delayTxt
+            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxtAlert + " | confirm_delay=" + delayTxt
         alert(msg, alertFreqSafe)
