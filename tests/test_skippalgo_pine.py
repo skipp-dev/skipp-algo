@@ -234,5 +234,39 @@ class TestSkippAlgoIndicatorEntryExitLabels(unittest.TestCase):
         self.assertRegex(self.text, r'alertcondition\(alertBuyCond,\s*title="BUY"')
         self.assertRegex(self.text, r'alertcondition\(alertExitCond,\s*title="EXIT"')
 
+
+class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
+    """Regression checks for strict alert mode entry delay + open-window bypass."""
+
+    text: str = ""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = INDICATOR_PATH.read_text(encoding="utf-8")
+
+    def test_strict_inputs_exist(self):
+        self.assertIn("useStrictAlertMode", self.text)
+        self.assertIn("strictMtfMargin", self.text)
+        self.assertIn("strictChochConfirmBars", self.text)
+
+    def test_strict_mode_disabled_in_open_window(self):
+        self.assertIn("strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow", self.text)
+
+    def test_strict_buy_short_use_one_bar_delay(self):
+        self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
+        self.assertIn("shortEventStrict = barstate.isconfirmed and shortEvent[1]", self.text)
+
+    def test_strict_conservative_filters_exist(self):
+        self.assertIn("strictMtfLongOk", self.text)
+        self.assertIn("strictMtfShortOk", self.text)
+        self.assertIn("strictChochLongOk", self.text)
+        self.assertIn("strictChochShortOk", self.text)
+
+    def test_alert_conditions_switch_strict_entries_only(self):
+        self.assertIn("alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent", self.text)
+        self.assertIn("alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent", self.text)
+        self.assertIn("alertExitCond  = exitEvent", self.text)
+        self.assertIn("alertCoverCond = coverEvent", self.text)
+
 if __name__ == "__main__":
     unittest.main()

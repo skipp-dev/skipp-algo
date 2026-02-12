@@ -312,19 +312,19 @@ class TestSkippAlgoStrategyAlerts(unittest.TestCase):
 
     def test_buy_alert(self):
         """Verify BUY alert condition."""
-        self.assertIn('alertcondition((not useAlertCalls) and buyEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and alertBuyCond,', self.text)
 
     def test_exit_alert(self):
         """Verify EXIT alert condition."""
-        self.assertIn('alertcondition((not useAlertCalls) and exitEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and alertExitCond,', self.text)
 
     def test_short_alert(self):
         """Verify SHORT alert condition."""
-        self.assertIn('alertcondition((not useAlertCalls) and shortEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and alertShortCond,', self.text)
 
     def test_cover_alert(self):
         """Verify COVER alert condition."""
-        self.assertIn('alertcondition((not useAlertCalls) and coverEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and alertCoverCond,', self.text)
 
 
 class TestSkippAlgoStrategyDeferredFeatures(unittest.TestCase):
@@ -473,8 +473,42 @@ class TestSkippAlgoStrategyEntryExitLabels(unittest.TestCase):
 
     def test_buy_and_exit_alertconditions_exist(self):
         """Strategy should expose BUY/EXIT alertconditions (guarded by useAlertCalls)."""
-        self.assertIn('alertcondition((not useAlertCalls) and buyEvent,', self.text)
-        self.assertIn('alertcondition((not useAlertCalls) and exitEvent,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and alertBuyCond,', self.text)
+        self.assertIn('alertcondition((not useAlertCalls) and alertExitCond,', self.text)
+
+
+class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
+    """Regression checks for strict alert mode wiring and behavior contract."""
+
+    text: str = ""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = STRATEGY_PATH.read_text(encoding="utf-8")
+
+    def test_strict_inputs_exist(self):
+        self.assertIn("useStrictAlertMode", self.text)
+        self.assertIn("strictMtfMargin", self.text)
+        self.assertIn("strictChochConfirmBars", self.text)
+
+    def test_strict_mode_disabled_in_open_window(self):
+        self.assertIn("strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow", self.text)
+
+    def test_strict_buy_short_use_one_bar_delay(self):
+        self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
+        self.assertIn("shortEventStrict = barstate.isconfirmed and shortEvent[1]", self.text)
+
+    def test_strict_conservative_filters_exist(self):
+        self.assertIn("strictMtfLongOk", self.text)
+        self.assertIn("strictMtfShortOk", self.text)
+        self.assertIn("strictChochLongOk", self.text)
+        self.assertIn("strictChochShortOk", self.text)
+
+    def test_alert_conditions_switch_strict_entries_only(self):
+        self.assertIn("alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent", self.text)
+        self.assertIn("alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent", self.text)
+        self.assertIn("alertExitCond  = exitEvent", self.text)
+        self.assertIn("alertCoverCond = coverEvent", self.text)
 
 
 if __name__ == "__main__":

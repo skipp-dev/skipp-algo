@@ -307,6 +307,9 @@ labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Ex
 // Alerts
 useAlertCalls       = input.bool(true, "Alerts: use alert() calls", tooltip="Strategy scripts ignore alertcondition(); use alert() instead (recommended ON)")
 alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
+useStrictAlertMode = input.bool(false, "Alerts: Strict mode", tooltip="Conservative alerts: 1-bar delayed confirmation for BUY/SHORT with stricter MTF/ChoCH checks. EXIT/COVER remain same-bar. Disabled automatically during open window ± minutes.")
+strictMtfMargin = input.float(0.02, "Strict: MTF extra margin", minval=0.0, maxval=0.20, step=0.01, tooltip="Additional margin above/below SCORE_NEUTRAL_BAND required for strict BUY/SHORT confirmation.")
+strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, maxval=5, tooltip="For REV entries in strict mode, ChoCH must remain recent within this many bars on confirmation.")
 
 // Trading Session Time Window
 useSessionFilter = input.bool(false, "Session Filter (Time Window)")
@@ -3829,6 +3832,8 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 
 // v6.2.7 Refactor: Named bypass variable for clarity
 // v6.2.9: Added barstate.isconfirmed to prevent intra-bar evaluation (parity with allowEntry/allowRescue)
+int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
+int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
 allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
 
 // Signals
@@ -3838,9 +3843,7 @@ allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSaf
 if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // Recency (Global Scope inside loop for safety)
-    int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
     bool revRecencyOkL   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= revRecencyBars or volRatioG >= 1.0)
-    int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
     bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= revRecencyBars or volRatioG >= 1.0)
 
     // Reversal Logic (Global)
@@ -4199,13 +4202,29 @@ coverEvent = didCover
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 // Alerts
+// Strict alert mode (entries only):
+// - BUY/SHORT: 1-bar confirmation + conservative MTF/ChoCH checks
+// - EXIT/COVER: no delay (same bar)
+// - Automatically disabled during opening window (± revOpenWindowMins)
+strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow
+strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMargin)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMargin)))
+strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMargin)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMargin)))
+strictChochLongOk = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
+strictChochShortOk = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
+buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOk and strictChochLongOk
+shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOk and strictChochShortOk
+
+alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent
+alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent
+alertExitCond  = exitEvent
+alertCoverCond = coverEvent
 alertPreBuyCond   = barstate.isconfirmed and (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
 alertPreShortCond = barstate.isconfirmed and (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
 
-alertcondition((not useAlertCalls) and buyEvent,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
-alertcondition((not useAlertCalls) and shortEvent, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
-alertcondition((not useAlertCalls) and exitEvent,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
-alertcondition((not useAlertCalls) and coverEvent, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and alertExitCond,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition((not useAlertCalls) and alertCoverCond, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and alertPreBuyCond,   title="PRE-BUY",   message="SkippALGO PRE-BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition((not useAlertCalls) and alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHORT | {{ticker}} @ {{close}} | {{time}}")
 
@@ -4218,13 +4237,13 @@ alertFreqSafe = alert.freq_once_per_bar_close
 if useAlertCalls and barstate.isconfirmed and barstate.isrealtime
     // Collect all signals that fired on this bar into one message
     string[] _parts = array.new_string(0)
-    if buyEvent
+    if alertBuyCond
         array.push(_parts, "BUY")
-    if shortEvent
+    if alertShortCond
         array.push(_parts, "SHORT")
-    if exitEvent
+    if alertExitCond
         array.push(_parts, "EXIT")
-    if coverEvent
+    if alertCoverCond
         array.push(_parts, "COVER")
     if alertPreBuyCond
         array.push(_parts, "PRE-BUY")
