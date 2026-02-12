@@ -3941,8 +3941,8 @@ if pos == 0 and (allowEntry or allowRescue)
         buySignal   := buySignal   or revBuyGlobal
         shortSignal := shortSignal or revShortGlobal
     else // Loose
-        buySignal   := gateLongNow and crossClose_EmaF_upSafe
-        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe
+        buySignal   := gateLongNow and crossClose_EmaF_upSafe and enhLongOk
+        shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
     
     // Capture raw signals before conflict logic
     rawBuySignal := buySignal
@@ -3989,16 +3989,14 @@ preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
 
 // Robust Bar Counting (match Strategy)
 var int barsSinceEntry = 0
-// pos starts as 0. Updates to 1/-1 at END of bar. 
-// On Next Bar: pos is 1, pos[1] is 0.
 if pos != pos[1] and pos != 0
-    barsSinceEntry := 1
+    barsSinceEntry := 0
 else if pos != 0
     barsSinceEntry += 1
 else
     barsSinceEntry := 0
 
-bool canStructExit = (barsSinceEntry > exitGraceBars) // Strict > ensures full grace period coverage
+bool canStructExit = (barsSinceEntry >= exitGraceBars)
 
 // Capturing exit reasons for debugging/transparency
 string tempExitReason = ""
@@ -4679,16 +4677,16 @@ if renderTable
             resolvedEligTotal = st_base.resolvedScoredElig + st_base.skipTotalElig
             skipRateElig = resolvedEligTotal >= 20 ? st_base.skipTotalElig * 100.0 / resolvedEligTotal : na
             seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
+            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
+            qN = qDepth
+            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
+            stuckThresh = f_resolve_thresh(fc, kB, pH)
             // Gate loss: eligible opportunities still pending (not resolved or skipped)
             eligPendingRaw = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
             eligPending = math.max(eligPendingRaw, 0)
             epNeg = eligPendingRaw < 0
-            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
-            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = f_resolve_thresh(fc, kB, pH)
             epMature = 0
             epStuck  = 0
-            qN = qDepth
             if qSync and qN > 0
                 for j = 0 to qN - 1
                     if f_safe_get_bool(st_base.qUseForecast, j, false)
@@ -4744,19 +4742,19 @@ if renderTable
             dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
             qCol = (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
             f_cell(2, 16, "Q:" + str.tostring(qDepth) + dqTxt, qCol, covBg)
-            // Skip rate + EP (cheap)
+            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
             qSync = qDepth == array.size(st_ops.qEntry) and qDepth == array.size(st_ops.qAtr)
+            qN = array.size(st_ops.qAge)
+            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
+            stuckThresh = f_resolve_thresh(fc, kB, pH)
+            // Skip rate + gate loss
             skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
             skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
             eligPendingRaw = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
             eligPending = math.max(eligPendingRaw, 0)
             epNeg = eligPendingRaw < 0
-            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
-            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = f_resolve_thresh(fc, kB, pH)
             epMature = 0
             epStuck  = 0
-            qN = array.size(st_ops.qAge)
             if qSync and qN > 0
                 for j = 0 to qN - 1
                     if f_safe_get_bool(st_ops.qUseForecast, j, false)

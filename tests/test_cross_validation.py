@@ -619,6 +619,72 @@ class TestSignalParity(unittest.TestCase):
             self.assertRegex(content, r'epNeg\s*=\s*eligPendingRaw\s*<\s*0',
                 f"{name}: epNeg must derive from eligPendingRaw, not clamped value")
 
+    # -- BUG 1 fix: Loose engine parity --
+
+    def test_loose_engine_uses_enhOk(self):
+        """Loose engine branch must include enhLongOk/enhShortOk in both files."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # Find the Loose engine block
+            loose_idx = content.find('else // Loose')
+            self.assertNotEqual(loose_idx, -1, f"{name}: Loose engine branch not found")
+            # Get the ~200 chars after 'else // Loose' to capture both signal lines
+            snippet = content[loose_idx:loose_idx+300]
+            self.assertIn('enhLongOk', snippet,
+                f"{name}: Loose engine buySignal missing 'enhLongOk'")
+            self.assertIn('enhShortOk', snippet,
+                f"{name}: Loose engine shortSignal missing 'enhShortOk'")
+
+    # -- BUG 3 fix: barsSinceEntry decay alignment --
+
+    def test_barsSinceEntry_zero_on_entry(self):
+        """barsSinceEntry must be 0 (not 1) on entry bar → no decay on entry bar."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # The entry-bar assignment must be := 0
+            self.assertRegex(content,
+                r'if\s+pos\s*!=\s*pos\[1\]\s+and\s+pos\s*!=\s*0\s*\n\s*barsSinceEntry\s*:=\s*0',
+                f"{name}: barsSinceEntry must be 0 on entry bar (not 1)")
+
+    def test_canStructExit_uses_gte(self):
+        """canStructExit must use >= (not >) to match 0-indexed barsSinceEntry."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            self.assertRegex(content,
+                r'canStructExit\s*=\s*\(barsSinceEntry\s*>=\s*exitGraceBars\)',
+                f"{name}: canStructExit must use >= with 0-indexed barsSinceEntry")
+
+    # -- BUG 2 fix: RegSlope parity --
+
+    def test_regslope_subsystem_exists_both(self):
+        """RegSlope inputs, helpers, computation, and enhOk integration in both files."""
+        for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
+            # Inputs
+            self.assertIn('useRegSlope', content,
+                f"{name}: useRegSlope input missing")
+            self.assertIn('rsMaxRange', content,
+                f"{name}: rsMaxRange input missing")
+            self.assertIn('rsMinRange', content,
+                f"{name}: rsMinRange input missing")
+            # Helper functions
+            self.assertIn('f_log_regression_single', content,
+                f"{name}: f_log_regression_single helper missing")
+            self.assertIn('f_calc_reg_slope_osc', content,
+                f"{name}: f_calc_reg_slope_osc helper missing")
+            # Computation vars
+            self.assertIn('regSlopeLongOk', content,
+                f"{name}: regSlopeLongOk variable missing")
+            self.assertIn('regSlopeShortOk', content,
+                f"{name}: regSlopeShortOk variable missing")
+            # Safe coercion
+            self.assertIn('regSlopeLongOkSafe', content,
+                f"{name}: regSlopeLongOkSafe coercion missing")
+            self.assertIn('regSlopeShortOkSafe', content,
+                f"{name}: regSlopeShortOkSafe coercion missing")
+            # Included in enhOk
+            enh_long_idx = content.find('enhLongOk  =')
+            self.assertNotEqual(enh_long_idx, -1, f"{name}: enhLongOk definition not found")
+            enh_line = content[enh_long_idx:content.find('\n', enh_long_idx)]
+            self.assertIn('regSlopeLongOkSafe', enh_line,
+                f"{name}: enhLongOk must include regSlopeLongOkSafe")
+
 
 if __name__ == '__main__':
     unittest.main()

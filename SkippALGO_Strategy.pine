@@ -96,6 +96,13 @@ useAdx         = input.bool(false, "ADX trend strength filter", group=grp_sigfil
 adxLen         = input.int(14, "ADX length", minval=5, maxval=50, group=grp_sigfilt)
 adxThresh      = input.float(20.0, "ADX min threshold", minval=5.0, maxval=50.0, step=1.0, group=grp_sigfilt)
 
+// D3 – Regression Slope Oscillator Gates
+useRegSlope    = input.bool(false, "Regression Slope filter", group=grp_sigfilt, tooltip="Require positive slope osc for Longs, negative for Shorts")
+rsMaxRange     = input.int(100, "RegSlope Max Range", minval=10, group=grp_sigfilt)
+rsMinRange     = input.int(10, "RegSlope Min Range", minval=5, group=grp_sigfilt)
+rsStep         = input.int(5, "RegSlope Step", minval=1, group=grp_sigfilt)
+rsSigLine      = input.int(7, "RegSlope Signal Line", minval=1, group=grp_sigfilt)
+
 // MTF use (filter / regime)
 useMtfConfirm = input.bool(true, "MTF confirmation")
 mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"])
@@ -124,6 +131,46 @@ trustWRegime    = input.float(0.30, "Trust weight: regime", minval=0.0, step=0.0
 trustWGuardrail = input.float(0.20, "Trust weight: guardrails", minval=0.0, step=0.05)
 trustWData      = input.float(0.10, "Trust weight: data quality", minval=0.0, step=0.05)
 trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, step=0.05)
+
+//====================
+// Custom Logic: Regression Slope Oscillator
+//====================
+f_log_regression_single(src, length) =>
+    if length < 2
+        0.0
+    else
+        float sumX      = 0.0
+        float sumY      = 0.0
+        float sumXSqr   = 0.0
+        float sumXY     = 0.0
+        bool failed     = false
+        for i = 0 to length - 1
+            v = src[i]
+            if na(v) or v <= 0
+                failed := true
+                break
+            val = math.log(v)
+            per = i + 1.0
+            sumX += per
+            sumY += val
+            sumXSqr += per * per
+            sumXY += val * per
+        
+        if failed
+            float(na)
+        else
+            slope = (length * sumXY - sumX * sumY) / (length * sumXSqr - sumX * sumX)
+            slope * -1
+
+f_calc_reg_slope_osc(src, minR, maxR, stepV) =>
+    float slopeSum = 0.0
+    int slopeCount = 0
+    for i = minR to maxR by stepV
+        res = f_log_regression_single(src, i)
+        if not na(res)
+            slopeSum += res
+            slopeCount += 1
+    slopeCount > 0 ? slopeSum / slopeCount : 0.0
 
 //====================
 // Constants — Avoid Magic Numbers
@@ -3871,16 +3918,16 @@ if renderTable
             resolvedEligTotal = st_base.resolvedScoredElig + st_base.skipTotalElig
             skipRateElig = resolvedEligTotal >= 20 ? st_base.skipTotalElig * 100.0 / resolvedEligTotal : na
             seTxt = na(skipRateElig) ? "" : " SE:" + str.tostring(skipRateElig, "#.0") + "%"
+            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
+            qN = qDepth
+            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
+            stuckThresh = f_resolve_thresh(fc, kB, pH)
             // Gate loss: eligible opportunities still pending (not resolved or skipped)
             eligPendingRaw = st_base.enqCountElig - (st_base.resolvedScoredElig + st_base.skipTotalElig)
             eligPending = math.max(eligPendingRaw, 0)
             epNeg = eligPendingRaw < 0
-            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
-            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = f_resolve_thresh(fc, kB, pH)
             epMature = 0
             epStuck  = 0
-            qN = qDepth
             if qSync and qN > 0
                 for j = 0 to qN - 1
                     if f_safe_get_bool(st_base.qUseForecast, j, false)
@@ -3936,19 +3983,19 @@ if renderTable
             dqTxt = na(dq) ? "" : dq > 0 ? " Δ:+" + str.tostring(dq) : dq < 0 ? " Δ:" + str.tostring(dq) : " Δ:0"
             qCol = (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
             f_cell(2, 16, "Q:" + str.tostring(qDepth) + dqTxt, qCol, covBg)
-            // Skip rate + EP (cheap)
+            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
+            qSync = qDepth == array.size(st_ops.qEntry) and qDepth == array.size(st_ops.qAtr)
+            qN = array.size(st_ops.qAge)
+            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
+            stuckThresh = f_resolve_thresh(fc, kB, pH)
+            // Skip rate + gate loss
             skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
             skipRateTxt = na(skipRate) ? "S:—" : "S:" + str.tostring(skipRate, "#.0") + "%"
             eligPendingRaw = st_ops.enqCountElig - (st_ops.resolvedScoredElig + st_ops.skipTotalElig)
             eligPending = math.max(eligPendingRaw, 0)
             epNeg = eligPendingRaw < 0
-            // EP decomp: maturing (age <= thresh) vs stuck (age > thresh); guarded by qSync
-            qSync = qDepth == array.size(st_ops.qEntry) and qDepth == array.size(st_ops.qAtr)
-            [fc, kB, _at, pH, _tp, _sl] = f_get_params(f_tf_from_horizon(entryFcTF))
-            stuckThresh = f_resolve_thresh(fc, kB, pH)
             epMature = 0
             epStuck  = 0
-            qN = array.size(st_ops.qAge)
             if qSync and qN > 0
                 for j = 0 to qN - 1
                     if f_safe_get_bool(st_ops.qUseForecast, j, false)
@@ -4006,6 +4053,20 @@ bool allowRescueShort = isImpulse and (close < open) and barstate.isconfirmed an
 
 // Legacy support (OR logic)
 bool allowRescue = (allowRescueLong or allowRescueShort)
+
+// D3 – Regression Slope Oscillator Calculation
+float regSlopeOsc = 0.0
+bool regSlopeLongOk = true
+bool regSlopeShortOk = true
+
+if useRegSlope
+    regSlopeOsc := f_calc_reg_slope_osc(close, rsMinRange, rsMaxRange, rsStep)
+    
+    // Gate Logic:
+    // Long: Oscillator > 0 (Trend is Up)
+    // Short: Oscillator < 0 (Trend is Down)
+    regSlopeLongOk  := regSlopeOsc > 0
+    regSlopeShortOk := regSlopeOsc < 0
 
 // C1 – Pre-signal momentum (RSI alignment)
 chartRsi = ta.rsi(close, rsiStateLen)
@@ -4150,10 +4211,12 @@ emaAccelLongOkSafe  = (emaAccelLongOk == true)
 emaAccelShortOkSafe = (emaAccelShortOk == true)
 vwapLongOkSafe    = (vwapLongOk == true)
 vwapShortOkSafe   = (vwapShortOk == true)
+regSlopeLongOkSafe  = (regSlopeLongOk == true)
+regSlopeShortOkSafe = (regSlopeShortOk == true)
 
 // Enhancement composite gates
-enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe
-enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe
+enhLongOk  = adxOkSafe and rocLongOkSafe and volEnsLongOkSafe and preMomLongOkSafe and emaAccelLongOkSafe and vwapLongOkSafe and regSlopeLongOkSafe
+enhShortOk = adxOkSafe and rocShortOkSafe and volEnsShortOkSafe and preMomShortOkSafe and emaAccelShortOkSafe and vwapShortOkSafe and regSlopeShortOkSafe
 
 hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
