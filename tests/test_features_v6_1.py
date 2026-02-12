@@ -98,5 +98,34 @@ class TestSkippAlgoV6_1(unittest.TestCase):
         self.assertRegex(self.ind_text, define_pattern, "Indicator missing allowRevBypass definition")
         self.assertRegex(self.ind_text, usage_pattern,  "Indicator missing allowRevBypass usage in main loop")
 
+    def test_unified_reversal_injection(self):
+        """Verify unified Neural Reversal injection exists after ALL engine blocks.
+
+        The injection must appear AFTER the engine if/else-if chain and BEFORE
+        conflict resolution, ensuring all engines (including Loose) honour
+        revBuyGlobal / revShortGlobal.
+        """
+        # Pattern: the two injection lines must appear together
+        injection_pattern = (
+            r'// Unified Neural Reversal injection \(all engines, including Loose\)\s*\n'
+            r'\s*buySignal\s*:=\s*buySignal\s+or\s+revBuyGlobal\s*\n'
+            r'\s*shortSignal\s*:=\s*shortSignal\s+or\s+revShortGlobal'
+        )
+
+        self.assertRegex(self.ind_text, injection_pattern,
+                         "Indicator missing unified reversal injection after engine block")
+        self.assertRegex(self.strat_text, injection_pattern,
+                         "Strategy missing unified reversal injection after engine block")
+
+        # The injection must appear BEFORE conflict resolution
+        for label, text in [("Indicator", self.ind_text), ("Strategy", self.strat_text)]:
+            import re
+            inj_match = re.search(r'buySignal\s*:=\s*buySignal\s+or\s+revBuyGlobal', text)
+            conflict_match = re.search(r'if buySignal and shortSignal', text)
+            self.assertIsNotNone(inj_match, f"{label}: injection line not found")
+            self.assertIsNotNone(conflict_match, f"{label}: conflict resolution not found")
+            self.assertLess(inj_match.start(), conflict_match.start(),
+                            f"{label}: reversal injection must appear before conflict resolution")
+
 if __name__ == '__main__':
     unittest.main()
