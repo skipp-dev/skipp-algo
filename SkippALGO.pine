@@ -4337,6 +4337,12 @@ plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, 
 plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
 plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
 
+// v6.2.16: Entry bar highlighting — full-width vertical stripe that is impossible
+// to miss at any zoom level. State machine guarantees a BUY always exists between
+// two EXITs; this makes the entry bar visually unmissable.
+bgcolor(buyEvent   ? color.new(color.green, 85) : na, title="BUY bar")
+bgcolor(shortEvent ? color.new(color.red, 85)   : na, title="SHORT bar")
+
 pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
 pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
 fill(pNeutralUpper, pNeutralLower, color=color.new(color.blue, 90))

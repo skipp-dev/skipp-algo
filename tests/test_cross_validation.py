@@ -177,7 +177,7 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     def test_tfstate_fields_match(self):
         """TfState UDT must have same fields in both files."""
         # Extract TfState type definition block (up to next major section)
-        pattern = r'type TfState\n([\s\S]+?)(?=\n(?://\s*Helper|f_init_tf_state|var TfState))'
+        pattern = r'type TfState\n([\s\S]+?)(?=\n\s*(?://\s*Helper|f_init_tf_state|var TfState))'
         
         ind_match = re.search(pattern, self.indicator)
         strat_match = re.search(pattern, self.strategy)
