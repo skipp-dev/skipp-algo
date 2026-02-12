@@ -4219,7 +4219,7 @@ var label[] _entryLabels = array.new_label(0)
 MAX_ENTRY_LABELS = 150
 
 f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
-    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.huge)
+    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol)
     array.push(_entryLabels, lbl)
     if array.size(_entryLabels) > MAX_ENTRY_LABELS
         label.delete(array.shift(_entryLabels))
@@ -4229,13 +4229,13 @@ string _probTxtD = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
 string _confTxt = str.tostring(confidence * 100.0, "#.0") + "%"
 
 if showLongLabels and labelRevBuy
-    f_entry_label(bar_index, low, "★ REV-BUY ★\npU: " + _probTxt + "\nConf: " + _confTxt, label.style_label_up, color.black, color.new(color.aqua, 0))
+    f_entry_label(bar_index, low, "REV-BUY\npU: " + _probTxt + "\nConf: " + _confTxt, label.style_label_up, color.black, color.new(color.aqua, 0))
 if showShortLabels and labelRevShort
-    f_entry_label(bar_index, high, "★ REV-SHORT ★\npD: " + _probTxtD + "\nConf: " + _confTxt, label.style_label_down, color.black, color.new(color.fuchsia, 0))
+    f_entry_label(bar_index, high, "REV-SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt, label.style_label_down, color.black, color.new(color.fuchsia, 0))
 if showLongLabels and labelBuy
-    f_entry_label(bar_index, low, "★ BUY ★\npU: " + _probTxt + "\nConf: " + _confTxt, label.style_label_up, color.white, color.new(color.green, 0))
+    f_entry_label(bar_index, low, "BUY\npU: " + _probTxt + "\nConf: " + _confTxt, label.style_label_up, color.white, color.new(color.green, 0))
 if showShortLabels and labelShort
-    f_entry_label(bar_index, high, "★ SHORT ★\npD: " + _probTxtD + "\nConf: " + _confTxt, label.style_label_down, color.white, color.new(color.red, 0))
+    f_entry_label(bar_index, high, "SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt, label.style_label_down, color.white, color.new(color.red, 0))
 
 // EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
 // Capped via array to guarantee they never evict each other.
