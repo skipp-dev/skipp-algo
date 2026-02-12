@@ -4139,8 +4139,9 @@ f_draw_lbl(show, cond, isBelow, isEntry, txt, txtCol, bgCol) =>
         y = f_label_price(isBelow, isEntry)
         label.new(bar_index, y, txt, style=style, textcolor=txtCol, color=bgCol)
 
-f_draw_lbl(showLongLabels, labelBuy, true, true, "BUY", color.white, color.new(color.green, 0))
-f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color.new(color.red, 0))
+// v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
+plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
+plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
 
 if showLongLabels and labelExit
     // Exit label — includes bars-held for traceability

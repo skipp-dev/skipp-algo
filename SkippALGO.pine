@@ -4189,11 +4189,14 @@ f_draw_lbl(show, cond, isBelow, isEntry, txt, txtCol, bgCol, sz) =>
         y = f_label_price(isBelow, isEntry)
         label.new(bar_index, y, txt, style=style, textcolor=txtCol, color=bgCol, size=sz)
 
-f_draw_lbl(showLongLabels, labelRevBuy, true, true, "REV-BUY", color.black, color.new(color.aqua, 0), size.small)
-f_draw_lbl(showShortLabels, labelRevShort, false, true, "REV-SHORT", color.black, color.new(color.fuchsia, 0), size.small)
+// v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
+// Previously, label.new() BUY labels were silently evicted on charts with >250 trades,
+// creating orphan EXIT labels ("Exit without Buy").
+plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.small, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.small, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
-f_draw_lbl(showLongLabels, labelBuy, true, true, "BUY", color.white, color.new(color.green, 0), size.auto)
-f_draw_lbl(showShortLabels, labelShort, false, true, "SHORT", color.white, color.new(color.red, 0), size.auto)
+plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
+plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
 
 if showLongLabels and labelExit
     // Exit label (Above bar) — includes bars-held for traceability
