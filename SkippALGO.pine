@@ -3974,6 +3974,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     rawBuySignal := buySignal
     rawShortSignal := shortSignal
 
+    // Temporary: Final BUY diagnostic AFTER all gates
+    if buySignal
+        f_debug_label(bar_index, low, "FINAL-BUY\nrevB:" + str.tostring(revBuyGlobal) + "\npU:" + str.tostring(pU, "#.##") + " pU-na:" + str.tostring(na(pU)) + "\nstdOk:" + str.tostring(standardEntryOk) + "\naE:" + str.tostring(allowEntry) + " aR:" + str.tostring(allowRescue), label.style_label_up)
+
     // Conflict resolution: if both signals fire, cancel both (safety-first)
     if buySignal and shortSignal
         buySignal := false
