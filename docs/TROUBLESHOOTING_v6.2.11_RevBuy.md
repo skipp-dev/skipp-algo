@@ -41,12 +41,14 @@ The missing REV-BUY was caused by **four independent, layered blockers** that ha
 ### Blocker 2: Same-bar COVER→BUY conflict (commit `7884419`)
 
 **Problem**: When a bullish ChoCH fires while in a short position (`pos == -1`), the same `isChoCH_Long` signal triggers both:
+
 1. **COVER** (exit the short) — via `structHit` in the exit logic
 2. **REV-BUY** (enter long) — via `revBuyGlobal`
 
 The old single `if/else if` state machine processed COVER but blocked BUY because only one branch could fire per bar. Since `isChoCH_Long` is a single-bar pulse (resets to `false` on the next bar), the REV-BUY was permanently lost.
 
 **Fix**: Split the state machine into two phases:
+
 - **Phase 1**: Process exits (EXIT/COVER) — `if exitSignal ... else if coverSignal ...`
 - **Phase 2**: Process entries (BUY/SHORT) — separate `if buySignal ... else if shortSignal ...`
 
@@ -116,6 +118,7 @@ vRat:1.6       ✓
 3. **Restored `not na(pU)` check**: Prevents NA poisoning at history start where `pU` is `na`.
 
 **Final formula**:
+
 ```pine
 probOkGlobal = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impulseLong))
 ```

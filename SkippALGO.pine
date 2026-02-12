@@ -4153,7 +4153,9 @@ if barstate.isconfirmed
         lastSig := "COVER"
 
     // --- Phase 2: Process entries (including same-bar reversal after exit) ---
-    if buySignal and pos == 0
+    // Guard: block same-direction re-entry (EXIT→BUY or COVER→SHORT).
+    // Only allow: normal entry (no Phase 1), COVER→BUY, or EXIT→SHORT.
+    if buySignal and pos == 0 and not didExit
         didBuy := true
         pos := 1
         entryPrice := close
@@ -4166,7 +4168,7 @@ if barstate.isconfirmed
             trailPx := newTrail
         lastSignalBar := bar_index
         lastSig := "BUY"
-    else if shortSignal and pos == 0
+    else if shortSignal and pos == 0 and not didCover
         didShort := true
         pos := -1
         entryPrice := close
