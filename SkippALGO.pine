@@ -3964,24 +3964,6 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         buySignal := false
         shortSignal := false
 
-// v6.2.11 Diagnostic: REV-BUY gate audit (single label on ChoCH bars, no plot limit impact)
-if isChoCH_Long and barstate.isconfirmed
-    string dg = "ChoCH DIAG" +
-     "\nNeuRev:" + str.tostring(allowNeuralReversals) +
-     "\nddOk:" + str.tostring(ddOk) +
-     "\npU:" + str.tostring(pU, "#.##") +
-     "\nvolOk:" + str.tostring(volOk) +
-     "\ncoolOk:" + str.tostring(cooldownOkSafe) +
-     "\nRevByp:" + str.tostring(allowRevBypass) +
-     "\nEntry:" + str.tostring(allowEntry) +
-     "\nRescue:" + str.tostring(allowRescue) +
-     "\nisRevB:" + str.tostring(isRevBuy) +
-     "\nbuySig:" + str.tostring(buySignal) +
-     "\npos:" + str.tostring(pos) +
-     "\nhugeV:" + str.tostring(hugeVolG) +
-     "\nvRat:" + str.tostring(volRatioG, "#.#")
-    f_debug_label(bar_index, low, dg, label.style_label_up)
-
 preBuyNow = false
 preShortNow = false
 if pos == 0 and allowEntry
