@@ -4302,13 +4302,23 @@ f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
 
 if showLongLabels and labelExit
     // Exit label (Above bar) — includes bars-held for traceability
-    val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high
-    f_exit_label(bar_index, val, "EXIT\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", label.style_label_down, color.white, color.new(color.red, 0))
+    // v6.2.12: On same-bar reversal (EXIT→SHORT), append " → SHORT" and render BELOW bar
+    //          so the EXIT label doesn't hide the SHORT plotshape above bar.
+    string exitSuffix = didShort ? " → SHORT" : ""
+    bool isExitRev = didShort
+    val = isExitRev ? low : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high)
+    exitSty = isExitRev ? label.style_label_up : label.style_label_down
+    f_exit_label(bar_index, val, "EXIT" + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
 if showShortLabels and labelCover
-    // Cover label (Below bar) — includes bars-held for traceability
-    val = labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low
-    f_exit_label(bar_index, val, "COVER\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", label.style_label_up, color.white, color.new(color.green, 0))
+    // Cover label — includes bars-held for traceability
+    // v6.2.12: On same-bar reversal (COVER→BUY), append " → BUY" and render ABOVE bar
+    //          so the COVER label doesn't hide the BUY plotshape below bar.
+    string coverSuffix = didBuy ? " → BUY" : ""
+    bool isReversal = didBuy
+    val = isReversal ? high : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low)
+    labelSty = isReversal ? label.style_label_down : label.style_label_up
+    f_exit_label(bar_index, val, "COVER" + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
@@ -4480,6 +4490,10 @@ f_tp_json(action) =>
          tpStrategyId
      )
 
+// v6.2.12: Watchlist stability — force bar_close frequency to reduce alert rate
+// and prevent TradingView "limited functionality" throttling on multi-symbol watchlists.
+alertFreqSafe = alert.freq_once_per_bar_close
+
 f_send_alert(cond, label) =>
     if cond and barstate.isconfirmed and barstate.isrealtime
         // v6.1.3: TradersPost JSON support
@@ -4491,7 +4505,7 @@ f_send_alert(cond, label) =>
         else
             msg := "SkippALGO " + label + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "%"
             
-        alert(msg, alertFreq)
+        alert(msg, alertFreqSafe)
 
 f_send_alert(buyEvent, "BUY")
 f_send_alert(shortEvent, "SHORT")

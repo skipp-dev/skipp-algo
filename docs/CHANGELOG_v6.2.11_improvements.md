@@ -75,6 +75,7 @@ to both `exitSignal` and `coverSignal` paths.
 
 **File:** `SkippALGO_Strategy.pine`
 **Problem:** Several minor parity gaps vs the Indicator:
+
 - `emaAccelTol` calculation missing in Strategy
 - `pbTol = 0.25` pullback tolerance missing in Strategy
 - `enhLongOk and hybridLongTrigger` operand ordering differed
@@ -86,10 +87,12 @@ Strategy. Aligned operand ordering in Hybrid engine to match Indicator.
 
 **Files:** `SkippALGO.pine`, `SkippALGO_Strategy.pine`
 **Problem:** Two magic numbers were embedded in signal logic:
+
 - Reversal recency window: hardcoded `5` bars
 - ChoCH grace period: hardcoded `2` bars
 
 **Fix:** Extracted to configurable inputs:
+
 - `revRecencyBars` (default 5): Maximum bars after ChoCH for reversal validity
 - `chochGraceBars` (default 2): Minimum bars held before ChoCH can trigger exit
 
