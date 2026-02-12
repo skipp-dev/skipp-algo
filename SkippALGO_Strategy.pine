@@ -252,6 +252,8 @@ showSetMarkers   = input.bool(true, "Show SET markers")
 setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SET prints only on the transition into a SET state")
 showTable        = input.bool(true, "Show Outlook/Forecast table")
 showDebugPulse   = input.bool(false, "Show Pulse Debug (Patch A)", group="Debug")
+covOkHi = input.float(80.0, "Coverage ✓ threshold (%)", minval=50.0, maxval=100.0, step=5.0, group="Debug", tooltip="E:% at or above this shows ✓ (healthy)")
+covOkLo = input.float(50.0, "Coverage ✗ threshold (%)", minval=10.0, maxval=80.0, step=5.0, group="Debug", tooltip="E:% below this shows ✗ (unhealthy)")
 ui_tableShowMode       = input.bool(true, "Table: show LIVE/CONFIRMED tag")
 tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
 labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"])
@@ -3779,13 +3781,15 @@ if renderTable
             ageTxt = na(meanAge) ? "—" : str.tostring(meanAge, "#.1")
             util = st_base.resolvedScored >= 20 ? st_base.resolvedScoredElig * 100.0 / st_base.resolvedScored : na
             utilTxt = na(util) ? "" : " U:" + str.tostring(util, "#.0") + "%"
-            covCol = na(covAll) ? tblTextDim : covAll >= 80 ? color.lime : covAll >= 50 ? color.yellow : color.red
-            eCol = na(covElig) ? tblTextDim : covElig >= 80 ? color.lime : covElig >= 50 ? color.yellow : color.red
-            eGlyph = na(covElig) ? "" : covElig >= 80 ? " ✓" : covElig < 50 ? " ✗" : ""
+            covCol = na(covAll) ? tblTextDim : covAll >= covOkHi ? color.lime : covAll >= covOkLo ? color.yellow : color.red
+            eCol = na(covElig) ? tblTextDim : covElig >= covOkHi ? color.lime : covElig >= covOkLo ? color.yellow : color.red
+            eGlyph = na(covElig) ? "" : covElig >= covOkHi ? " ✓" : covElig < covOkLo ? " ✗" : ""
             f_cell(1, 20, covAllTxt, covCol, covBg)
             f_cell(2, 20, "E:" + covEligTxt + eGlyph + utilTxt, eCol, covBg)
             f_cell(3, 20, "ā=" + ageTxt, tblTextDim, covBg)
-            skipTxt = skipTotal == 0 ? "—" : "B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
+            skipMax = math.max(st_base.skipBias0, math.max(st_base.skipAtrInvalid, math.max(st_base.skipIgnore, st_base.skipTieNeutral2Way)))
+            skipDom = skipTotal == 0 ? "—" : skipMax == st_base.skipBias0 ? "B0" : skipMax == st_base.skipAtrInvalid ? "A" : skipMax == st_base.skipIgnore ? "I" : "T"
+            skipTxt = skipTotal == 0 ? "—" : skipDom + "| B0:" + str.tostring(st_base.skipBias0) + " A:" + str.tostring(st_base.skipAtrInvalid) + " I:" + str.tostring(st_base.skipIgnore) + " T:" + str.tostring(st_base.skipTieNeutral2Way)
             f_cell(4, 20, skipTxt, skipTotal == 0 ? tblTextDim : color.new(color.orange, 30), covBg)
             qDepth = array.size(st_base.qAge)
             qSync = qDepth == array.size(st_base.qEntry) and qDepth == array.size(st_base.qAtr)
