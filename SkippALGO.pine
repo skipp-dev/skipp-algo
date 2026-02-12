@@ -4182,6 +4182,8 @@ plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
 // v6.2.13: Track whether position was entered via Neural Reversal so EXIT/COVER
 //          labels can indicate "(REV)" — helps users locate the matching REV-BUY/SHORT.
 var bool lastEntryWasRev = false
+var int  lastBuyBarIdx  = na   // v6.2.17: Track BUY bar_index for EXIT label debugging
+var int  lastShortBarIdx = na  // v6.2.17: Track SHORT bar_index for COVER label debugging
 // v6.2.14: Snapshot BEFORE phase-2 can overwrite it on same-bar reversal (EXIT→SHORT).
 bool _wasRevEntry = lastEntryWasRev
 if barstate.isconfirmed
@@ -4221,6 +4223,7 @@ if barstate.isconfirmed
         enBar   := bar_index
         barsSinceEntry := 0  // reset for same-bar reversal
         lastEntryWasRev := isRevBuy  // v6.2.13
+        lastBuyBarIdx := bar_index   // v6.2.17
         if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
@@ -4237,6 +4240,7 @@ if barstate.isconfirmed
         enBar   := bar_index
         barsSinceEntry := 0  // reset for same-bar reversal
         lastEntryWasRev := isRevShort  // v6.2.13
+        lastShortBarIdx := bar_index   // v6.2.17
         if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
@@ -4315,19 +4319,25 @@ if showLongLabels and labelExit
     //          State machine guarantees a BUY always exists between two EXITs.
     string entryTag  = _wasRevEntry ? " ← REV-BUY" : " ← BUY"
     string exitSuffix = didShort ? " → SHORT" : ""
+    // v6.2.17: Show how far back the BUY was so user can find it
+    int _buyAgo = na(lastBuyBarIdx) ? 0 : (bar_index - lastBuyBarIdx)
+    string buyAgoTxt = " (" + str.tostring(_buyAgo) + " bars ago)"
     bool isExitRev = didShort
     val = isExitRev ? low : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high)
     exitSty = isExitRev ? label.style_label_up : label.style_label_down
-    f_exit_label(bar_index, val, "EXIT" + entryTag + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
+    f_exit_label(bar_index, val, "EXIT" + entryTag + buyAgoTxt + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
 if showShortLabels and labelCover
     // v6.2.15: COVER label explicitly names the preceding entry type.
     string entryTag  = _wasRevEntry ? " ← REV-SHORT" : " ← SHORT"
     string coverSuffix = didBuy ? " → BUY" : ""
+    // v6.2.17: Show how far back the SHORT was so user can find it
+    int _shortAgo = na(lastShortBarIdx) ? 0 : (bar_index - lastShortBarIdx)
+    string shortAgoTxt = " (" + str.tostring(_shortAgo) + " bars ago)"
     bool isReversal = didBuy
     val = isReversal ? high : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low)
     labelSty = isReversal ? label.style_label_down : label.style_label_up
-    f_exit_label(bar_index, val, "COVER" + entryTag + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
+    f_exit_label(bar_index, val, "COVER" + entryTag + shortAgoTxt + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
@@ -4340,8 +4350,8 @@ plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, 
 // v6.2.16: Entry bar highlighting — full-width vertical stripe that is impossible
 // to miss at any zoom level. State machine guarantees a BUY always exists between
 // two EXITs; this makes the entry bar visually unmissable.
-bgcolor(buyEvent   ? color.new(color.green, 85) : na, title="BUY bar")
-bgcolor(shortEvent ? color.new(color.red, 85)   : na, title="SHORT bar")
+bgcolor(buyEvent   ? color.new(color.green, 70) : na, title="BUY bar")
+bgcolor(shortEvent ? color.new(color.red, 70)   : na, title="SHORT bar")
 
 pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
 pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
