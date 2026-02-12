@@ -319,11 +319,10 @@ rthCloseHour      = input.int(16, "RTH close hour (exchange tz)", minval=0, maxv
 rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120)
 
-// v6.2.20: Opening window — bypass pU filter around market open
-useRevOpenWindow  = input.bool(true, "Bypass pU near market open", tooltip="Allow BUY/REV-BUY/SHORT/REV-SHORT to fire regardless of pU during a window around the stock exchange open.")
+// v6.2.20: Opening window — bypass directional probability filter around market open
+useRevOpenWindow  = input.bool(true, "Bypass pU/pD near market open", tooltip="Allow BUY/REV-BUY/SHORT/REV-SHORT to fire regardless of directional probability (pU/pD) during a window around the stock exchange open.")
 rthOpenHour       = input.int(9,  "RTH open hour (exchange tz)", minval=0, maxval=23)
 rthOpenMinute     = input.int(30, "RTH open minute", minval=0, maxval=59)
-revOpenWindowMins = input.int(10, "Open window ± minutes", minval=1, maxval=60, tooltip="Minutes before and after RTH open where entry signals bypass the probability filter.")
 revOpenWindowLongMins = input.int(10, "Open window LONG ± min", minval=1, maxval=120, tooltip="Long-side bypass window around RTH open.")
 revOpenWindowShortMins = input.int(10, "Open window SHORT ± min", minval=1, maxval=120, tooltip="Short-side bypass window around RTH open.")
 revOpenWindowMode = input.string("All Entries", "Open window applies to", options=["All Entries", "Reversals Only"], tooltip="All Entries: bypass forecast gate + reversal pU/pD. Reversals Only: bypass only REV probability filter.")
@@ -489,7 +488,7 @@ tradeMinTotalSamples = input.int(0,  "Trade gate: min TOTAL samples (0=off)", mi
 rescueVolMult = input.float(1.5, "Rescue Mode: Min Volume (xSMA)", minval=1.0, maxval=50.0, step=0.1, tooltip="Volume ratio required to trigger Rescue Mode (bypasses gates).")
 rescueImpulseATR = input.float(0.7, "Rescue Mode: Min Impulse (xATR)", minval=0.1, step=0.1, tooltip="Minimum candle body size (in ATR) to validate a Rescue Reversal.")
 rescueMinProb    = input.float(0.30, "Rescue Mode: Min Probability", minval=0.15, maxval=0.50, step=0.01, tooltip="Minimum directional probability for rescue path. Below random chance (~0.33) means model disagrees; structure+volume must compensate.")
-revMinProb       = input.float(0.50, "REV: Min pU", minval=0.20, maxval=0.80, step=0.01, tooltip="Minimum directional probability for REV-BUY / REV-SHORT (normal path). Raise to require stronger forecast conviction for reversals.")
+revMinProb       = input.float(0.50, "REV: Min dir prob", minval=0.20, maxval=0.80, step=0.01, tooltip="Minimum directional probability for REV-BUY / REV-SHORT (normal path). Raise to require stronger forecast conviction for reversals.")
 revRecencyBars   = input.int(5, "Rev Recency (bars)", minval=1, maxval=20, tooltip="Max bars since ChoCH for a reversal signal to be considered recent enough.")
 chochGraceBars   = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 
@@ -3936,10 +3935,12 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
+    // v6.2.22: enforce hard REV-BUY floor (pU >= 0.37) even inside open-window bypass
+    revBuyMinProbFloor = 0.37
     // v6.2.20: open-window bypass can be scoped by side/engine/mode
     bypassRevLong  = inRevOpenWindowLong
     bypassRevShort = inRevOpenWindowShort
-    probOkGlobal    = bypassRevLong or (not na(pU) and ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
+    probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong or ((pU >= revMinProb) or (hugeVolG and pU >= rescueMinProb and impulseLong)))
     probOkGlobalS   = bypassRevShort or (not na(pD) and ((pD >= revMinProb) or (hugeVolG and pD >= rescueMinProb and impulseShort)))
     
     // Global Gate: allowNeuralReversals
@@ -4603,7 +4604,7 @@ if renderTable
 // Strict alert mode (entries only):
 // - BUY/SHORT: 1-bar confirmation + conservative MTF/ChoCH checks
 // - EXIT/COVER: no delay (same bar)
-// - Automatically disabled during opening window (± revOpenWindowMins)
+// - Automatically disabled during opening windows (LONG/SHORT configured mins)
 strictAtrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
 strictMtfMarginEff = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRank - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
 strictAlertsEnabled = useStrictAlertMode and not inRevOpenWindow

@@ -520,7 +520,7 @@ class TestMultiBarScenarios(unittest.TestCase):
         cfg = SimConfig(
             reliability_ok=False,
             allow_neural_reversals=True,
-            p_u=0.40,  # too low
+              p_u=0.30,  # updated to reflect new minimum probability floor
         )
         sim = SkippAlgoSim(cfg)
         r = sim.process_bar(Bar(), BarSignals(is_choch_long=True))

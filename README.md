@@ -57,7 +57,7 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
     - `indicator("SkippALGO", ...)`
     - `strategy("SkippALGO Strategy", ...)`
 - **REV probability controls (clarified and exposed):**
-  - Added `REV: Min pU` (`revMinProb`, default `0.50`) for the normal REV entry path.
+  - Added `REV: Min dir prob` (`revMinProb`, default `0.50`) for the normal REV entry path.
   - `Rescue Mode: Min Probability` (`rescueMinProb`) continues to govern only the rescue fallback path (with huge volume + impulse).
 - **Open-window behavior:**
   - Near market open (±window), pU filter bypass applies to standard and reversal entries as configured.
@@ -74,7 +74,7 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Current verification status
 
-- **Pytest:** `313 passed, 8 subtests passed`
+- **Pytest:** See latest CI run attached to the active pull request (count evolves as tests are added).
 - Includes dedicated regression coverage for:
   - PRE-BUY / PRE-SHORT signal plumbing and dynamic label payloads,
   - BUY / REV-BUY / EXIT label + alert wiring,

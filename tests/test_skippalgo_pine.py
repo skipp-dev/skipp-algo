@@ -301,5 +301,9 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("alertExitCond  = exitEvent", self.text)
         self.assertIn("alertCoverCond = coverEvent", self.text)
 
+    def test_rev_buy_min_prob_floor_including_open_window(self):
+        self.assertIn("revBuyMinProbFloor = 0.37", self.text)
+        self.assertIn("probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor)", self.text)
+
 if __name__ == "__main__":
     unittest.main()
