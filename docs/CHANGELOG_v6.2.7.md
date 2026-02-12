@@ -145,6 +145,22 @@ Added `test_unified_reversal_injection` to `tests/test_features_v6_1.py`:
 
 ---
 
+## Critical Hotfix
+
+### 6. Phantom Entry / NA Poisoning Fix — `4225ce0`
+
+**Problem:** "Exit without Buy" persisted because trades were entering without labels.
+Root cause: `revBuyGlobal` became `na` due to `pU` (probability) being `na` at history start.
+Pine treats `buySignal = true or na` as `true` (Entry!), but `labelBuy = true and not na` as `na` (No Label!).
+
+**Fix (Indicator + Strategy):**
+
+- **Strict NA Check**: `probOkGlobal = (not na(pU) and pU >= 0.50)`
+- **Fail-Closed Logic**: Wrapped `revBuyGlobal` in `f_fc_bool()` to force any lingering `na` to `false`.
+- This ensures atomic signal behavior: either fully True or fully False.
+
+---
+
 ## Files changed (cumulative)
 
 | File | Changes |
