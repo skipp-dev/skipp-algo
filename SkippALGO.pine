@@ -3847,7 +3847,8 @@ bool isRevBuy   = false
 bool isRevShort = false
 
 // v6.2.7 Refactor: Named bypass variable for clarity
-allowRevBypass = allowNeuralReversals and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
+// v6.2.9: Added barstate.isconfirmed to prevent intra-bar evaluation (parity with allowEntry/allowRescue)
+allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
 
 if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
     if showDebugLabels and (allowRescue or allowRevBypass)
@@ -4181,12 +4182,6 @@ f_label_price(isLong, isEntry) =>
     entryBase = isEntry ? entryPrice : entryPxPrev
     entryVal = na(entryBase) ? close : entryBase
     labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
-
-f_draw_lbl(show, cond, isBelow, isEntry, txt, txtCol, bgCol, sz) =>
-    if show and cond
-        style = isBelow ? label.style_label_up : label.style_label_down
-        y = f_label_price(isBelow, isEntry)
-        label.new(bar_index, y, txt, style=style, textcolor=txtCol, color=bgCol, size=sz)
 
 // v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
 // Previously, label.new() BUY labels were silently evicted on charts with >250 trades,
