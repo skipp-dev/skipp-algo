@@ -4210,11 +4210,11 @@ f_label_price(isLong, isEntry) =>
     labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
 // v6.2.8: Entry labels use plotshape() — immune to TradingView's 500 label FIFO limit.
-// v6.2.13: REV-BUY/REV-SHORT plotshapes added (size.normal, matching Indicator).
-plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
-plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
-plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.normal, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
-plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.normal, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
+// v6.2.15: All entry labels size.large — maximum visual prominence.
+plotshape(showLongLabels and labelRevBuy, title="REV-BUY", style=shape.labelup, location=location.belowbar, size=size.large, text="REV\nBUY", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showShortLabels and labelRevShort, title="REV-SHORT", style=shape.labeldown, location=location.abovebar, size=size.large, text="REV\nSHORT", textcolor=color.black, color=color.new(color.fuchsia, 0))
+plotshape(showLongLabels and labelBuy, title="BUY", style=shape.labelup, location=location.belowbar, size=size.large, text="BUY", textcolor=color.white, color=color.new(color.green, 0))
+plotshape(showShortLabels and labelShort, title="SHORT", style=shape.labeldown, location=location.abovebar, size=size.large, text="SHORT", textcolor=color.white, color=color.new(color.red, 0))
 
 // EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
 // Capped via array to guarantee they never evict each other.
@@ -4228,28 +4228,22 @@ f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
         label.delete(array.shift(_exitLabels))
 
 if showLongLabels and labelExit
-    // Exit label — includes bars-held for traceability
-    // v6.2.12: On same-bar reversal (EXIT→SHORT), append " → SHORT" and render BELOW bar
-    //          so the EXIT label doesn't hide the SHORT plotshape above bar.
-    // v6.2.13: Show "(REV)" when the position was entered via Neural Reversal.
-    string revTag    = _wasRevEntry ? " (REV)" : ""
+    // v6.2.15: EXIT label explicitly names the preceding entry type.
+    string entryTag  = _wasRevEntry ? " ← REV-BUY" : " ← BUY"
     string exitSuffix = didShort ? " → SHORT" : ""
     bool isExitRev = didShort
     val = isExitRev ? low : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high)
     exitSty = isExitRev ? label.style_label_up : label.style_label_down
-    f_exit_label(bar_index, val, "EXIT" + revTag + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
+    f_exit_label(bar_index, val, "EXIT" + entryTag + exitSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
 if showShortLabels and labelCover
-    // Cover label — includes bars-held for traceability
-    // v6.2.12: On same-bar reversal (COVER→BUY), append " → BUY" and render ABOVE bar
-    //          so the COVER label doesn't hide the BUY plotshape below bar.
-    // v6.2.13: Show "(REV)" when the position was entered via Neural Reversal.
-    string revTag    = _wasRevEntry ? " (REV)" : ""
+    // v6.2.15: COVER label explicitly names the preceding entry type.
+    string entryTag  = _wasRevEntry ? " ← REV-SHORT" : " ← SHORT"
     string coverSuffix = didBuy ? " → BUY" : ""
     bool isReversal = didBuy
     val = isReversal ? high : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low)
     labelSty = isReversal ? label.style_label_down : label.style_label_up
-    f_exit_label(bar_index, val, "COVER" + revTag + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
+    f_exit_label(bar_index, val, "COVER" + entryTag + coverSuffix + "\n" + lastExitReason + "\nConf " + str.tostring(confidence, format.mintick) + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
