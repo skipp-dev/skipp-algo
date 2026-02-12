@@ -184,6 +184,7 @@ Blockers 1–3 were reachability issues. Blocker 4 was a gate qualification issu
 **Problem**: After fixing the REV-BUY chain, same-bar same-direction re-entries appeared. When Phase 1 processed an EXIT (long → flat), Phase 2 would immediately re-enter BUY if the engine signal was still true — producing EXIT→BUY on the same bar.
 
 **Fix**: Added guards to Phase 2:
+
 - `if buySignal and pos == 0 and not didExit` — blocks EXIT→BUY
 - `else if shortSignal and pos == 0 and not didCover` — blocks COVER→SHORT
 
@@ -206,6 +207,7 @@ Cross-direction reversals (COVER→BUY, EXIT→SHORT) remain allowed.
 ### Blocker 7: False standard BUYs — no probability floor (commits `9bb4f22`, `0030085`)
 
 **Discovery**: Diagnostic label on the false BUY bar showed:
+
 ```
 BUY-DIAG
 aE:true aR:false aRB:false

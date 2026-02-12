@@ -51,7 +51,7 @@ trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
 decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
-decayBars    = input.int(6, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Example: At 50% duration, Stop is halfway between Initial and Sustained.")
+decayBars    = input.int(3, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Example: At 50% duration, Stop is halfway between Initial and Sustained.")
 // Note: Uses same exitGraceBars duration defined below
 
 swingL = input.int(5, "Breakout swing left (L)", minval=1, maxval=20)

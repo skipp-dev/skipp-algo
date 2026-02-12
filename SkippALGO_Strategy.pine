@@ -60,7 +60,7 @@ staleMinATR  = input.float(0.5, "Min Profit Required (ATR)", minval=0.0, step=0.
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.")
 decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1)
-decayBars    = input.int(6, "Decay Duration (Bars)", minval=1)
+decayBars    = input.int(3, "Decay Duration (Bars)", minval=1)
 
 exitGraceBars = input.int(5, "Exit Grace Period (Bars)", minval=0, tooltip="Prevents structural exits (trend flips) for the first N bars after entry to avoid immediate wicks/noise.")
 
