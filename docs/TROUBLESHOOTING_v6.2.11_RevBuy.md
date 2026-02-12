@@ -149,6 +149,7 @@ probOkGlobal = not na(pU) and ((pU >= 0.50) or (hugeVolG and pU >= 0.20 and impu
 | `ce33d7c` | v6.2.11: Remove ChoCH diagnostic label |
 | `12d320b` | v6.2.11: Gate engine signals with `standardEntryOk` |
 | `0030085` | v6.2.11: Hard probability floor pU/pD ≥ 0.50 for standard entries |
+| `5fdcdaa` | v6.2.11: Faster risk decay — 6 bars → 3 bars |
 
 ---
 
@@ -241,6 +242,45 @@ if shortSignal and (na(pD) or pD < 0.50)
 ## Diagnostic Label (Temporary)
 
 A diagnostic label fires on every `isChoCH_Long` bar when "Show Debug Labels" is enabled. It shows all gate values for quick triage. To remove, delete the `// v6.2.11 Diagnostic` block in `SkippALGO.pine` (after the conflict resolution section).
+
+---
+
+## Risk Decay Configuration (commit `5fdcdaa`)
+
+After entry, Stop/TP levels linearly tighten from Initial to Sustained values over N bars. Decay is paused during huge-volume bars (`hugeVolG`).
+
+### Current Values
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Initial Stop | 2.00 × ATR | Wide to survive entry noise |
+| Sustained Stop | 1.00 × ATR | Tight final stop |
+| Initial TP | 5.00 × ATR | Initial target |
+| Sustained TP | 3.00 × ATR | Tightened target |
+| Trail | 2.50 × ATR | Fixed (not decayed) |
+| Trail activation | 1.50 R | Fixed |
+| **Decay Duration** | **3 bars** | Changed from 6 → 3 for faster stop reaction |
+
+### Stop Tightening Schedule (3-bar decay)
+
+| Bar after entry | Stop (ATR) | TP (ATR) |
+|----------------|-----------|---------|
+| 0 (entry) | 2.00 | 5.00 |
+| 1 | 1.67 | 4.33 |
+| 2 | 1.33 | 3.67 |
+| 3+ | 1.00 | 3.00 |
+
+### Previous Schedule (6-bar decay, before `5fdcdaa`)
+
+| Bar after entry | Stop (ATR) | TP (ATR) |
+|----------------|-----------|---------|
+| 0 (entry) | 2.00 | 5.00 |
+| 2 | 1.67 | 4.33 |
+| 3 | 1.50 | 4.00 |
+| 4 | 1.33 | 3.67 |
+| 6+ | 1.00 | 3.00 |
+
+**Rationale**: Faster tightening reduces adverse movement after entry. The previous 6-bar window allowed too much time at wide stops, increasing stop-loss magnitude on failed trades.
 
 ---
 
