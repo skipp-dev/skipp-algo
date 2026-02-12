@@ -3943,6 +3943,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
 preBuyNow = false
 preShortNow = false
+float preGapLong  = na   // distance to trigger (points)
+float preGapShort = na
 if pos == 0 and allowEntry
     float preDist = preWarnDistATR * atr
     distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
@@ -3950,11 +3952,16 @@ if pos == 0 and allowEntry
     preSetOkShort = (not requireSET) or (preSetPulseOnly ? setShortPulse : setShortStrict)
 
     if engine == "Hybrid"
+        // Hybrid: distance = how far close is below emaF
+        preGapLong  := (not na(emaF)) ? math.max(0.0, emaF - close) : na
+        preGapShort := (not na(emaF)) ? math.max(0.0, close - emaF) : na
         preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
         preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
     else if engine == "Breakout"
         nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
         nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
+        preGapLong  := (not na(lastSwingHigh)) ? math.max(0.0, lastSwingHigh - close) : na
+        preGapShort := (not na(lastSwingLow))  ? math.max(0.0, close - lastSwingLow)  : na
         preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe
         preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe
     else if engine == "Trend+Pullback"
@@ -3962,11 +3969,15 @@ if pos == 0 and allowEntry
         nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
         nearReclaimUp = distOk and (not na(emaF)) and (bullBias == true) and (close < emaF) and ((emaF - close) <= preDist)
         nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (close > emaF) and ((close - emaF) <= preDist)
+        preGapLong  := nearFlipUp ? (emaS - emaF) : nearReclaimUp ? (emaF - close) : na
+        preGapShort := nearFlipDown ? (emaF - emaS) : nearReclaimDown ? (close - emaF) : na
         preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
         preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
     else // Loose
         nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
         nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
+        preGapLong  := nearEmaFUp  ? (emaF - close) : na
+        preGapShort := nearEmaFDown ? (close - emaF) : na
         preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
         preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
 
@@ -3974,6 +3985,10 @@ preBuyPrev = (preBuyNow[1] == true)
 preShortPrev = (preShortNow[1] == true)
 preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
 preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
+
+// PRE-BUY / PRE-SHORT distance in ATR units (0.00 = at trigger)
+float preGapATR_L = (not na(preGapLong)  and not na(atr) and atr > 0) ? (preGapLong  / atr) : na
+float preGapATR_S = (not na(preGapShort) and not na(atr) and atr > 0) ? (preGapShort / atr) : na
 
 var int barsSinceEntry = 0
 if pos != pos[1] and pos != 0
@@ -4223,8 +4238,27 @@ if useAlertCalls and barstate.isconfirmed and barstate.isrealtime
 
 // Highlighting
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
-plotshape(preBuyPulse, title="PRE-BUY", style=shape.labelup, location=location.belowbar, size=size.tiny, text="PRE\nBUY", textcolor=color.black, color=color.new(color.yellow, 0))
-plotshape(preShortPulse, title="PRE-SHORT", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="PRE\nSHORT", textcolor=color.black, color=color.new(color.orange, 0))
+// PRE-BUY / PRE-SHORT labels: show distance-to-trigger, pU/pD, confidence
+var label[] _preLabels = array.new_label(0)
+MAX_PRE_LABELS = 100
+
+f_pre_label(x, y, txt, sty, txtCol, bgCol) =>
+    lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.small)
+    array.push(_preLabels, lbl)
+    if array.size(_preLabels) > MAX_PRE_LABELS
+        label.delete(array.shift(_preLabels))
+
+if preBuyPulse
+    string _gapTxt = not na(preGapATR_L) ? str.tostring(preGapATR_L, "#.##") + " ATR" : "—"
+    string _pTxt   = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
+    string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
+    f_pre_label(bar_index, low, "PRE-BUY\nGap: " + _gapTxt + "\npU: " + _pTxt + "\nConf: " + _cTxt, label.style_label_up, color.black, color.new(color.yellow, 0))
+
+if preShortPulse
+    string _gapTxt = not na(preGapATR_S) ? str.tostring(preGapATR_S, "#.##") + " ATR" : "—"
+    string _pTxt   = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
+    string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
+    f_pre_label(bar_index, high, "PRE-SHORT\nGap: " + _gapTxt + "\npD: " + _pTxt + "\nConf: " + _cTxt, label.style_label_down, color.black, color.new(color.orange, 0))
 
 // Label rendering (configurable source + price)
 // v6.2.13: Split into REV-BUY/REV-SHORT and standard BUY/SHORT (parity with Indicator)
