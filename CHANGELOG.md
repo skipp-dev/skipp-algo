@@ -6,11 +6,11 @@ All notable changes to this project are documented in this file.
 
 ## [2026-02-12]
 
-### Added
+### Added (Signals & Volatility)
 
 - New input: `REV: Min pU` (`revMinProb`, default `0.50`) for the normal REV entry probability path.
 
-### Changed
+### Changed (Parity)
 
 - Stabilized script titles to preserve TradingView input settings across updates:
   - `indicator("SkippALGO", ...)`
@@ -26,6 +26,22 @@ All notable changes to this project are documented in this file.
 ### Fixed
 
 - Corrected Strategy-side forecast gate indentation/structure parity so open-window bypass behavior is consistently applied.
+
+### Added
+
+- Optional **3-candle engulfing filter** (default OFF) in both `SkippALGO.pine` and `SkippALGO_Strategy.pine`:
+  - Long entries require bullish engulfing after 3 bearish candles.
+  - Short entries require bearish engulfing after 3 bullish candles.
+  - Optional body-dominance condition (`body > previous body`).
+  - Optional engulfing bar coloring (bullish yellow / bearish white).
+- Optional **ATR volatility context layer** (default OFF) in both scripts:
+  - Regime overlay and label: `COMPRESSION`, `EXPANSION`, `HIGH VOL`, `EXHAUSTION`.
+  - ATR ratio to configurable baseline (`SMA`/`EMA`).
+  - Optional ATR percentile context (`0..100`) with configurable lookback.
+
+### Changed
+
+- Maintained strict **Indicator ⇄ Strategy parity** for new signal/context features to avoid behavior drift between visual and strategy paths.
 
 ---
 
