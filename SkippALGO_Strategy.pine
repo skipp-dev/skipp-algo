@@ -3873,8 +3873,9 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
         shortSignal := enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk
 
     // Unified Neural Reversal injection (all engines, including Loose)
-    buySignal   := buySignal   or revBuyGlobal
-    shortSignal := shortSignal or revShortGlobal
+    if allowNeuralReversals
+        buySignal   := buySignal   or revBuyGlobal
+        shortSignal := shortSignal or revShortGlobal
 
     if buySignal and shortSignal
         buySignal := false
