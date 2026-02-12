@@ -3814,8 +3814,10 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
     bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 5 or volRatioG >= 1.0)
 
     // Reversal Logic (Global)
-    bool probOkGlobal    = (pU >= 0.50)
-    bool probOkGlobalS   = (pD >= 0.50)
+    // v6.2.7 Fix: Explicit NA-check to prevent "Phantom Entry" syndrome (Execution without Labels).
+    // If pU is NA (history gap), previously returned NA, poisoning the signal chain.
+    bool probOkGlobal    = (not na(pU) and pU >= 0.50)
+    bool probOkGlobalS   = (not na(pD) and pD >= 0.50)
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
@@ -3832,8 +3834,9 @@ if pos == 0 and (allowEntry or allowRescue or allowRevBypass)
     // CHoCH REQUIREMENT (v6.2.5): Strict CHoCH for REV-BUY.
     // Must be CHoCH bar. No late checking.
     // 'impulseOkL' constraint removed (v6.2.4) to allow non-impulse CHoCHs to trigger if other gates pass.
-    bool revBuyGlobal    = allowNeuralReversals and macOkLong_  and ddOk and isChoCH_Long and probOkGlobal and volOk and smcOkL
-    bool revShortGlobal  = allowNeuralReversals and macOkShort_ and ddOk and isChoCH_Short and probOkGlobalS and volOk and smcOkS
+    // v6.2.7 Fix: Wrap in f_fc_bool to prevent NA propagation from volOk/smcOkL
+    bool revBuyGlobal    = f_fc_bool(allowNeuralReversals and macOkLong_  and ddOk and isChoCH_Long and probOkGlobal and volOk and smcOkL)
+    bool revShortGlobal  = f_fc_bool(allowNeuralReversals and macOkShort_ and ddOk and isChoCH_Short and probOkGlobalS and volOk and smcOkS)
 
     if engine == "Hybrid"
         // Base triggers
