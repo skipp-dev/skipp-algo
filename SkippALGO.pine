@@ -4606,7 +4606,13 @@ if renderTable
             qTxt = qSync ? "Q:" + str.tostring(qDepth) + dqTxt : "Q:ERR"
             qCol = not qSync ? color.red : (not na(dq) and dq > 0) ? color.new(color.orange, 30) : tblTextDim
             f_cell(5, 20, qTxt, qCol, covBg)
-            f_fill_cells(gT, 20, 6, 9, "", tblTextDim, covBg, size.tiny)
+            // Unscorable rate: what fraction of resolved events were skipped?
+            resolvedTotal = st_base.resolvedScored + skipTotal
+            skipRate = resolvedTotal >= 20 ? skipTotal * 100.0 / resolvedTotal : na
+            skipRateTxt = na(skipRate) ? "" : "S:" + str.tostring(skipRate, "#.0") + "%"
+            skipRateCol = na(skipRate) ? tblTextDim : skipRate <= 5 ? color.lime : skipRate <= 20 ? color.yellow : color.red
+            f_cell(6, 20, skipRateTxt, skipRateCol, covBg)
+            f_fill_cells(gT, 20, 7, 9, "", tblTextDim, covBg, size.tiny)
             prevQDepth := qDepth
 
     // Footer row (row 21)
