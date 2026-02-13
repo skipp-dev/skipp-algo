@@ -526,7 +526,7 @@ class TestSignalParity(unittest.TestCase):
             loose_idx = content.find('else // Loose')
             self.assertNotEqual(loose_idx, -1, f"{name}: Loose engine branch not found")
             # Get the ~200 chars after 'else // Loose' to capture both signal lines
-            snippet = content[loose_idx:loose_idx+300]
+            snippet = content[loose_idx:loose_idx+500]
             self.assertIn('enhLongOk', snippet,
                 f"{name}: Loose engine buySignal missing 'enhLongOk'")
             self.assertIn('enhShortOk', snippet,

@@ -1,14 +1,13 @@
 //@version=5
 // © QuickALGO
 
-indicator("QuickALGO", overlay=true)
+indicator("QuickALGO", overlay=true, max_labels_count=500)
 
 length = input.int(5, "Pivot Length", minval=1, maxval=20, step=1, tooltip="Number of bars to identify pivot highs and lows.")
 momentum_threshold_base = input.float(0.01, "Base Momentum Threshold (%)", minval=0.001, maxval=1.0, step=0.001, tooltip="Base percentage change for signals.")
 tp_points = input.int(10, "Take Profit (points)", minval=5, maxval=500, step=5)
 sl_points = input.int(10, "Stop Loss (points)", minval=5, maxval=500, step=5)
 min_signal_distance = input.int(5, "Min Signal Distance (bars)", minval=1, maxval=50, step=1)
-tp_box_height = input.float(0.5, "TP Box Height % (Optional)", minval=0.1, maxval=2.0, step=0.1)
 pre_momentum_factor_base = input.float(0.5, "Base Pre-Momentum Factor", minval=0.1, maxval=1.0, step=0.1, tooltip="Base factor for Get Ready signals.")
 shortTrendPeriod = input.int(30, title="Short Trend Period", minval=10, maxval=100)
 longTrendPeriod = input.int(100, title="Long Trend Period", minval=50, maxval=200)
@@ -46,7 +45,6 @@ pre_momentum_threshold = momentum_threshold * pre_momentum_factor
 var float raw_cvd = 0.0
 delta_volume = close > close[1] ? volume : close < close[1] ? -volume : 0
 raw_cvd := raw_cvd + delta_volume
-cvd_level = math.abs(raw_cvd) < 10000 ? "Low" : math.abs(raw_cvd) < 50000 ? "Medium" : "High"
 cvd_color = raw_cvd > 0 ? color.lime : raw_cvd < 0 ? color.red : color.yellow
 
 price_change = ((close - close[1]) / close[1]) * 100
@@ -207,14 +205,16 @@ if enable_liquidity_zones
         label.new(bar_index, low, "💧 LIQ", color=color.new(#FF6B35, 80), style=label.style_label_up, textcolor=#FF6B35, size=size.tiny)
 
 if enable_market_profile
-    var float recent_buy_vol = 0.0
-    var float recent_sell_vol = 0.0
-    if close > open
-        recent_buy_vol := ta.sma(volume, 20)
-    else if close < open
-        recent_sell_vol := ta.sma(volume, 20)
-    vol_ratio = recent_buy_vol > 0 and recent_sell_vol > 0 ? recent_buy_vol / (recent_buy_vol + recent_sell_vol) : 0.5
-    strong_buy_flow = vol_ratio > 0.65 and volume > volAvg50 * 1.5
+    // Body-weighted volume: approximate buy vs sell pressure
+    // from candle direction and body-to-range ratio
+    bodyRange = math.max(high - low, syminfo.mintick)
+    buyPressure  = close >= open ? volume * ((close - open) / bodyRange) : 0.0
+    sellPressure = close <  open ? volume * ((open - close) / bodyRange) : 0.0
+    avgBuyPressure  = ta.sma(buyPressure, 20)
+    avgSellPressure = ta.sma(sellPressure, 20)
+    totalPressure = avgBuyPressure + avgSellPressure
+    vol_ratio = totalPressure > 0 ? avgBuyPressure / totalPressure : 0.5
+    strong_buy_flow  = vol_ratio > 0.65 and volume > volAvg50 * 1.5
     strong_sell_flow = vol_ratio < 0.35 and volume > volAvg50 * 1.5
     if strong_buy_flow
         label.new(bar_index, low, "🔥 BUY", color=color.new(#00D9FF, 70), style=label.style_label_up, textcolor=color.white, size=size.small)
@@ -316,9 +316,9 @@ var line sup = na
 var line res = na
 
 if barstate.islast
-    float lowest_y2 = 60000
+    float lowest_y2 = 10e10
     int lowest_x2 = 0
-    float highest_y2 = 0
+    float highest_y2 = -10e10
     int highest_x2 = 0
     int maxShortBars = math.min(shortTrendPeriod, bar_index)
     for i = 1 to maxShortBars
@@ -328,9 +328,9 @@ if barstate.islast
         if high[i] > highest_y2
             highest_y2 := high[i]
             highest_x2 := i
-    float lowest_y1 = 60000
+    float lowest_y1 = 10e10
     int lowest_x1 = 0
-    float highest_y1 = 0
+    float highest_y1 = -10e10
     int highest_x1 = 0
     int maxLongBars = math.min(longTrendPeriod, bar_index)
     for j = shortTrendPeriod + 1 to maxLongBars
@@ -446,3 +446,7 @@ if enable_trend_analysis
         table.cell(ai_table, 4, 1, pred_1h, text_color=pred_1h == "▲" ? color.new(#00E676, 0) : pred_1h == "▼" ? color.new(#FF1744, 0) : color.new(#FFB627, 40), text_size=size.normal, bgcolor=color.new(#0F1629, 40))
         table.cell(ai_table, 5, 1, pred_4h, text_color=pred_4h == "▲" ? color.new(#00E676, 0) : pred_4h == "▼" ? color.new(#FF1744, 0) : color.new(#FFB627, 40), text_size=size.normal, bgcolor=color.new(#0F1629, 40))
         table.cell(ai_table, 6, 1, pred_d, text_color=pred_d == "▲" ? color.new(#00E676, 0) : pred_d == "▼" ? color.new(#FF1744, 0) : color.new(#FFB627, 40), text_size=size.normal, bgcolor=color.new(#0F1629, 40))
+
+// ── Alerts ───────────────────────────────────────────────────────────────────
+alertcondition(did_buy,  title="QuickALGO Buy",  message="QuickALGO BUY signal — Conf: {{close}}")
+alertcondition(did_sell, title="QuickALGO Sell", message="QuickALGO SELL signal — Conf: {{close}}")

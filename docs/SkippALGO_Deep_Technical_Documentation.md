@@ -1,4 +1,4 @@
-# SkippALGO — Deep Upgrade v6.1 Technical Documentation
+# SkippALGO — Deep Upgrade v6.1–v6.2 Technical Documentation
 
 ## Pine Script v6 | Non-repainting | Online Learning (SGD) | Ensemble Architecture
 
@@ -516,6 +516,116 @@ Version 6.2.1 introduces robust risk control mechanisms typically found in profe
 * **Parameters**:
   * `Session Filter`: Enable toggle.
   * `Session String`: Standard TradingView session format (e.g., "0930-1600" or "0930-1600:1234567").
+
+### 2.8) Cooldown Fix — EXIT/COVER No Longer Reset Cooldown (v6.2.23)
+
+#### Problem
+
+When EXIT or COVER events fired, they reset `lastSignalBar` to `bar_index`, which restarted the cooldown timer. This caused the **next valid BUY/SHORT** to be suppressed because the cooldown clock appeared to have just started — even though the preceding signal (the one that *should* anchor cooldown) had fired many bars ago.
+
+In practice, a trade could exit via TP/SL, and the system would then miss the very next valid entry because the exit event itself was treated as a "signal" for cooldown purposes.
+
+#### Fix
+
+Only BUY and SHORT events set `lastSignalBar`. EXIT and COVER events no longer touch the cooldown timer:
+
+```pine
+// Before (broken):
+if buyEvent or shortEvent or exitEvent or coverEvent
+    lastSignalBar := bar_index
+
+// After (v6.2.23):
+if buyEvent or shortEvent
+    lastSignalBar := bar_index
+```
+
+This ensures the cooldown window measures bar-distance from the *last entry signal*, not from the last exit.
+
+---
+
+### 2.9) Strict Alert Confirmation Toggle (v6.2.23)
+
+A new input `useStrictAlertConfirm` (default `true`, group `⚡ Alerts`) controls whether alert-condition signals require strict bar confirmation:
+
+```pine
+strictAlertsEnabled = useStrictAlertConfirm and not inRevOpenWindow
+```
+
+When **enabled** (default): alerts only fire when `barstate.isconfirmed` conditions are met and the market is outside the Revenue-Open window — preventing premature alert delivery on intra-bar ticks.
+
+When **disabled**: the `strictAlertsEnabled` flag is always false, allowing alerts to fire earlier (useful for very fast scalping setups where the user accepts the risk of intra-bar signals).
+
+---
+
+### 2.10) USI Quantum Pulse Integration (v6.2.24)
+
+#### Overview
+
+USI (Universal Strength Index) Quantum Pulse adds a **multi-length zero-lag RSI stacking** system inspired by the USI Quantum Pulse PRO indicator. It improves trend/reversal detection at three integration points in the signal pipeline.
+
+#### Architecture
+
+**Zero-Lag Source**: A 2×EMA − EMA(EMA) transform removes lag from the RSI source:
+
+```pine
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2 * e1 - e2
+```
+
+**5 RSI Lines**: Computed at lengths 13, 11, 7, 5, 3 (configurable). Each RSI is evaluated against the 50-level to produce a directional vote (+1 bull, −1 bear).
+
+**Stacking Detection**: When ≥ `usiMinStack` (default 4) of 5 RSI lines agree on direction, a "stack" is detected:
+* `usiBullStack` — majority above 50
+* `usiBearStack` — majority below 50
+
+The `usiStackDir` variable encodes the direction: +1 (bull stack), −1 (bear stack), or 0 (no stack).
+
+**Composite Score**: `usiScore` = average of all 5 directional votes, normalized to [−1, +1].
+
+#### Three Integration Points
+
+| Touch Point | Location | Effect |
+|---|---|---|
+| **Decision Override** | `decisionFinal` computation | `usiStackOverride` bypasses the decision-quality abstain gate when a strong USI stack aligns with `trustDir`. Allows entries that would otherwise be blocked by `decisionOkSafe = false`. |
+| **Confidence Boost** | After `crsiFactor` in confidence calc | When stacking direction matches `trustDir`, adds `usiConfBoost` (default +0.15) to the composite confidence score, amplifying conviction on aligned moves. |
+| **MTF Vote** | `getVoteScore()` function | Injects `usiMtfWeight * usiScore` (default weight 1.5) as an additional voter in the multi-timeframe consensus, alongside the existing TF-hierarchy votes. |
+
+#### Inputs (Group: ⚡ USI Quantum Pulse)
+
+| Input | Default | Description |
+|---|---|---|
+| `useUsi` | `true` | Master enable/disable for all USI features |
+| `usiLen1` – `usiLen5` | 13, 11, 7, 5, 3 | RSI periods for the 5 pulse lines |
+| `usiZeroLag` | `true` | Use zero-lag EMA source (vs raw close) |
+| `usiMinStack` | 4 | Minimum agreeing lines for stack detection |
+| `usiConfBoost` | 0.15 | Confidence bonus on aligned stacks |
+| `usiMtfWeight` | 1.5 | Vote weight in MTF consensus |
+
+#### When USI is Disabled
+
+Setting `useUsi = false` cleanly removes all USI influence:
+* `usiStackOverride` = false → no decision bypass
+* Confidence boost = 0
+* MTF vote contribution = 0
+* No additional computation cost
+
+---
+
+### 2.11) Debug System (v6.2.24 — Removed)
+
+During development of v6.2.23–v6.2.24, temporary debug instrumentation was added to diagnose signal-pipeline gate failures:
+
+1. **Pre-engine debug label** — displayed all gate states (ENTRY, gL, gS, rel, evd, eval, dec, conf, mtfL, macL, dd, cool, cd, blkC, lSig, usi) on every bar.
+2. **Post-engine debug label** — displayed engine outputs (BUY, SH, pos, std, rvB, fcG, vol, set, pb, enh, hyb, eng, tch, crX, rev, pbD, isR) after the signal engine.
+3. **7 plotchar pulse lines** (F1–F7) — visual pulse indicators for individual gate flags.
+
+These were implemented using `label.new()` and `plotchar()` directly, without user-toggleable inputs, making them impossible to disable from TradingView settings.
+
+**Resolution**: All debug instrumentation was removed entirely in v6.2.24. The associated inputs (`showEvidencePackDebug` in Indicator, `showDebugPulse` in Strategy) were also removed. This recovered ~7 plot slots per file from the TradingView 64-plot budget.
+
+**Current plot usage**: ~31 plots (Indicator), well within the 64-plot limit.
 
 ---
 

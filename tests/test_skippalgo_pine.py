@@ -194,7 +194,7 @@ class TestSkippAlgoIndicator(unittest.TestCase):
     def test_pre_labels_are_dynamic_label_new_not_plotshape(self):
         """PRE labels are rendered via label.new helper with dynamic text payload."""
         self.assertIn("var label[] _preLabels = array.new_label(0)", self.text)
-        self.assertIn("MAX_PRE_LABELS = 100", self.text)
+        self.assertIn("MAX_PRE_LABELS = 60", self.text)
         self.assertIn("f_pre_label(x, y, txt, sty, txtCol, bgCol) =>", self.text)
         self.assertIn("lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.small)", self.text)
         self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', self.text)
@@ -263,7 +263,7 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
-        self.assertIn("strictAlertsEnabled = not inRevOpenWindow", self.text)
+        self.assertIn("strictAlertsEnabled = useStrictAlertConfirm and not inRevOpenWindow", self.text)
 
     def test_strict_buy_short_use_one_bar_delay(self):
         self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
@@ -282,10 +282,10 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
     def test_strict_signal_visualization_exists(self):
         self.assertIn("showStrictIcon", self.text)
         self.assertIn("showStrictLabel", self.text)
-        self.assertIn("showLongLabels and showStrictIcon and strictBuyConfirmedVis", self.text)
-        self.assertIn("showShortLabels and showStrictIcon and strictShortConfirmedVis", self.text)
-        self.assertIn("showLongLabels and showStrictLabel and strictBuyConfirmedVis", self.text)
-        self.assertIn("showShortLabels and showStrictLabel and strictShortConfirmedVis", self.text)
+        self.assertIn("showLongLabels and showStrictIcon and strictBuyConfirmed", self.text)
+        self.assertIn("showShortLabels and showStrictIcon and strictShortConfirmed", self.text)
+        self.assertIn("showLongLabels and showStrictLabel and strictBuyConfirmed", self.text)
+        self.assertIn("showShortLabels and showStrictLabel and strictShortConfirmed", self.text)
         self.assertIn('title="STRICT-CONF BUY"', self.text)
         self.assertIn('title="STRICT-CONF SHORT"', self.text)
         self.assertIn("STRICT-CONFIRMED BUY", self.text)
@@ -304,7 +304,8 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("alertCoverCond = coverEvent", self.text)
 
     def test_rev_buy_min_prob_floor_including_open_window(self):
-        self.assertIn("revBuyMinProbFloor = 0.37", self.text)
+        self.assertIn("REV_BUY_PROB_FLOOR", self.text)
+        self.assertIn("revBuyMinProbFloor = REV_BUY_PROB_FLOOR", self.text)
         self.assertIn("probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor)", self.text)
 
 if __name__ == "__main__":

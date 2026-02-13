@@ -212,6 +212,14 @@ PRICE_EPS       = 0.0001  // Epsilon for price/ATR divisions
 // Rolling buffer recalculation interval (prevent FP drift)
 ROLL_RECALC_INTERVAL = 500
 
+// Signal-layer safety constants (v6.2.25)
+REV_BUY_PROB_FLOOR  = 0.37    // Hard pU floor for REV-BUY (even inside open-window)
+STD_ENTRY_PROB_FLOOR = 0.50   // pU/pD floor for standard engine entries when forecast OFF
+CHOCH_RECENCY_BARS  = 12      // Max bars after ChoCH to still count as "recent"
+EMA_TOUCH_TOL_ATR   = 0.05    // Touch-EMA tolerance as ATR fraction
+PB_DEPTH_TOL_ATR    = 0.25    // Pullback depth tolerance as ATR fraction
+VOL_TOLERANCE       = 0.50    // Volume threshold scaling factor (50% of volSma * volMult)
+
 // Sideways/choppy market detection thresholds
 SIDEWAYS_EMA_THRESH = 0.005   // Max EMA diff ratio for sideways
 SIDEWAYS_ATR_THRESH = 0.015   // Max ATR norm for sideways
@@ -320,6 +328,7 @@ labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Ex
 
 // Alerts
 alertOnBarCloseOnly = input.bool(true,  "Alerts: bar close only")
+useStrictAlertConfirm = input.bool(true, "Use strict alert confirmations", tooltip="When enabled, BUY/SHORT alerts use 1-bar strict confirmation (MTF/ChoCH checks). Disable for immediate non-strict BUY/SHORT alerts.")
 strictMtfMargin = input.float(0.02, "Strict: MTF extra margin", minval=0.0, maxval=0.20, step=0.01, tooltip="Additional margin above/below SCORE_NEUTRAL_BAND required for strict BUY/SHORT confirmation.")
 strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, maxval=5, tooltip="For REV entries in strict mode, ChoCH must remain recent within this many bars on confirmation.")
 useAdaptiveStrictMargin = input.bool(false, "Strict: adaptive MTF margin", tooltip="Adapts strictMtfMargin by ATR regime: stricter in high vol, looser in calm markets.")
@@ -507,6 +516,19 @@ revMinProb       = input.float(0.50, "REV: Min dir prob", minval=0.20, maxval=0.
 revRecencyBars   = input.int(5, "Rev Recency (bars)", minval=1, maxval=20, tooltip="Max bars since ChoCH for a reversal signal to be considered recent enough.")
 chochGraceBars   = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 
+//====================
+// Inputs — USI Quantum Pulse (Zero-Lag multi-length RSI stacking)
+//====================
+useUsi          = input.bool(true, "Enable USI Quantum Pulse", group="⚡ USI Quantum Pulse", tooltip="Multi-length RSI stacking for faster trend/reversal detection. Feeds into decision override, confidence boost, and MTF voting.")
+usiLen1         = input.int(13, "Length 1 (slowest / Blue)", minval=2, group="⚡ USI Quantum Pulse")
+usiLen2         = input.int(11, "Length 2 (Green)", minval=2, group="⚡ USI Quantum Pulse")
+usiLen3         = input.int(7,  "Length 3 (Yellow)", minval=2, group="⚡ USI Quantum Pulse")
+usiLen4         = input.int(5,  "Length 4 (Orange)", minval=2, group="⚡ USI Quantum Pulse")
+usiLen5         = input.int(3,  "Length 5 (fastest / Red)", minval=2, group="⚡ USI Quantum Pulse")
+usiZeroLag      = input.bool(true, "Zero-Lag mode", group="⚡ USI Quantum Pulse", tooltip="Error-corrected EMA on source before RSI. Gives 2-5 bar lead over standard RSI.")
+usiMinStack     = input.int(4, "Min stacking for dec override", minval=2, maxval=5, group="⚡ USI Quantum Pulse", tooltip="Lines in correct order (out of 4 pairs) required to override 3-Way decision gate.")
+usiConfBoost    = input.float(0.15, "Confidence boost (full stack)", minval=0.0, maxval=0.30, step=0.01, group="⚡ USI Quantum Pulse", tooltip="Added to confidence when USI stacking matches trend direction.")
+usiMtfWeight    = input.float(1.5, "MTF vote weight", minval=0.0, maxval=3.0, step=0.1, group="⚡ USI Quantum Pulse", tooltip="Weight of USI score in the MTF voting system. 0 = disabled.")
 
 //====================
 // Inputs — Evaluation (live scoring)
@@ -540,13 +562,7 @@ evalPenalty     = input.float(0.10, "Eval penalty (confidence)", minval=0.0, max
 useEceRecal     = input.bool(false, "ECE-triggered recal (boost LR)", tooltip="Temporarily boost Platt LR when ECE exceeds warn")
 eceRecalBoost   = input.float(3.0, "ECE recal LR multiplier", minval=1.5, maxval=10.0, step=0.5)
 
-//====================
-// Inputs — Debug
-//====================
-showEvidencePackDebug = input.bool(false, "Evidence Pack Debug (data window)", group="🔧 Debug", tooltip="Outputs gate/decision signals to Data Window")
-covOkHi = input.float(80.0, "Coverage ✓ threshold (%)", minval=50.0, maxval=100.0, step=5.0, group="🔧 Debug", tooltip="E:% at or above this shows ✓ (healthy)")
-covOkLo = input.float(50.0, "Coverage ✗ threshold (%)", minval=10.0, maxval=80.0, step=5.0, group="🔧 Debug", tooltip="E:% below this shows ✗ (unhealthy)")
-showOpsRow = input.bool(true, "Ops row (always-on safety HUD)", group="🔧 Debug", tooltip="Shows coverage + EP + INV! + health glyph even when Evaluation rows are hidden")
+// (Debug inputs covOkHi, covOkLo, showOpsRow removed in v6.2.25 — dead code)
 
 //====================
 // Inputs — Exit Filters
@@ -1741,6 +1757,9 @@ f_eval_update_one3(pU, pF, pD, outcome,
 
         f_cal_roll_update3(calCnt, calSumP, calSumY, calBBuf, calPBuf, calYBuf, pU, pF, pD, outcome, evalRollScore)
 
+// LEGACY: f_eval_on_resolve — only used in 2-way mode (!use3Way). Since use3Way
+// defaults true and is the standard operating mode, this function is effectively
+// dead code. Retained for backward compatibility if 3-way is ever disabled.
 f_eval_on_resolve(TfState st, pN, p1, isUpBool) =>
     y = isUpBool ? 1.0 : 0.0
 
@@ -2463,8 +2482,8 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
             bN = f_bin2D(sEns, sD, predBinsN, dim2Bins, st.qCutsN)
             b1 = f_bin2D(sEns, sD, predBins1, dim2Bins, st.qCuts1)
 
-            dirFlag = f_bias_from_score(sA)
-            biasSel = f_bias_from_score(sA)
+            dirFlag = f_bias_from_score(sA)   // raw score bias (pushed to qBias)
+            biasSel = dirFlag
             if biasSel == 0
                 biasSel := bias == 0 ? 1 : bias
             cntN_sel = useBullBearCal ? (biasSel > 0 ? st.cntN_bull : st.cntN_bear) : st.cntN
@@ -2601,6 +2620,44 @@ baseSecs = timeframe.in_seconds(timeframe.period)
 rsiLenUse = useAdaptiveRsi ? ((not na(baseSecs) and baseSecs <= SEC_5M) ? rsiLenFastTF : (not na(baseSecs) and baseSecs <= SEC_1H) ? rsiLenMidTF : rsiLenSlowTF) : rsiLenSlowTF
 rsiConf = ta.rsi(close, rsiLenUse)
 
+// USI Quantum Pulse — Zero-Lag multi-length RSI stacking
+// Zero-lag source: 2*EMA - EMA(EMA) removes one layer of lag
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+usiSrc1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
+usiSrc2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
+usiSrc3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
+usiSrc4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
+usiSrc5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+
+usiLine1 = ta.rsi(usiSrc1, usiLen1)  // slowest (Blue)
+usiLine2 = ta.rsi(usiSrc2, usiLen2)  // Green
+usiLine3 = ta.rsi(usiSrc3, usiLen3)  // Yellow
+usiLine4 = ta.rsi(usiSrc4, usiLen4)  // Orange
+usiLine5 = ta.rsi(usiSrc5, usiLen5)  // fastest (Red)
+
+// Count ordered pairs for stacking (0–4 pairs)
+// Bull (ROYGB = fastest on top): R>O>Y>G>B
+usiBullStack = (usiLine5 > usiLine4 ? 1 : 0) +
+     (usiLine4 > usiLine3 ? 1 : 0) +
+     (usiLine3 > usiLine2 ? 1 : 0) +
+     (usiLine2 > usiLine1 ? 1 : 0)
+// Bear (BGYOR = slowest on top): B>G>Y>O>R
+usiBearStack = (usiLine1 > usiLine2 ? 1 : 0) +
+     (usiLine2 > usiLine3 ? 1 : 0) +
+     (usiLine3 > usiLine4 ? 1 : 0) +
+     (usiLine4 > usiLine5 ? 1 : 0)
+
+usiStackMax = math.max(usiBullStack, usiBearStack)
+usiStackDir = usiBullStack >= usiMinStack ? 1 : usiBearStack >= usiMinStack ? -1 : 0
+
+// USI composite score [-1, +1]: average of all 5 lines mapped from [0,100]
+usiAvg   = (usiLine1 + usiLine2 + usiLine3 + usiLine4 + usiLine5) / 5.0
+usiScore = useUsi ? (usiAvg - 50.0) / 50.0 : 0.0
+
 // Crosses (computed every bar)
 crossEmaF_EmaS_up   = ta.crossover(emaF, emaS)
 crossEmaF_EmaS_down = ta.crossunder(emaF, emaS)
@@ -2621,7 +2678,10 @@ atrWasRecentlyHigh = ta.highest(atrRatioReg[1], atrExhaustLookback) >= atrHighVo
 atrDeclining = ta.falling(atr, atrExhaustLookback)
 int atrRegime = atrRatioReg < atrCompressionThr ? 1 : atrRatioReg >= atrHighVolThr ? 3 : (atrWasRecentlyHigh and atrDeclining and atrRatioReg < atrHighVolThr) ? 4 : atrRatioReg >= atrExpansionThr ? 2 : 0
 atrRegimeName = atrRegime == 1 ? "COMPRESSION" : atrRegime == 2 ? "EXPANSION" : atrRegime == 3 ? "HIGH VOL" : atrRegime == 4 ? "EXHAUSTION" : "NEUTRAL"
+atrRegimeLabelName = atrRegime == 2 ? "DYNAMIC" : (atrRegime == 3 or atrRegime == 4) ? "HOT" : "CALM"
 atrRegimeBg = atrRegime == 1 ? color.new(color.lime, 88) : atrRegime == 2 ? color.new(color.orange, 88) : atrRegime == 3 ? color.new(color.red, 88) : atrRegime == 4 ? color.new(color.purple, 88) : na
+atrRegimeLabelBg = atrRegime == 2 ? color.new(color.green, 20) : (atrRegime == 3 or atrRegime == 4) ? color.new(color.red, 20) : color.new(color.gray, 20)
+atrRegimeLabelText = color.white
 atrPercentile = enableAtrPercentile ? (f_pct_rank(atr, atrPercentileLookback) * 100.0) : na
 
 // Guardrails
@@ -2739,6 +2799,10 @@ trustRaw   = f_trust_score(trustDir, guardrailCount, atrRank, dataQualityScore, 
 confidence = f_clamp01(trustRaw * confMultiplier)
 confidence := f_clamp01(confidence * (1.0 - ddPenalty))
 confidence := f_clamp01(confidence * crsiFactor)
+
+// USI confidence boost: when stacking aligns with trust direction
+usiConfApplied = useUsi and (usiStackDir != 0) and (usiStackDir == trustDir) and (usiStackMax >= usiMinStack)
+confidence := usiConfApplied ? f_clamp01(confidence + usiConfBoost) : confidence
 
 //====================
 // Close filter (avoid entries right before RTH close)
@@ -3067,8 +3131,11 @@ rForecastArr = array.from(r1, r2, r3, r4, r5, r6, r7)
 aForecastArr = array.from(a1, a2, a3, a4, a5, a6, a7)
 vRForecastArr = array.from(vR1, vR2, vR3, vR4, vR5, vR6, vR7)
 // PATCH A: confForecastArr uses barstate.isconfirmed (not pulse) so calibration
-// accumulates samples at the normal rate.  Anti-repainting is handled by
-// f_stable_val on the DATA values (c1, ef1, …) fed into the learner.
+// accumulates samples at the chart-TF rate (every confirmed bar), not the HTF rate.
+// This means HTF horizons get SGD/bin updates on every chart bar — even when the
+// HTF candle hasn't closed — which is intentional for faster warm-up.  The DATA
+// values (c1, ef1, …) are anti-repaint-protected via f_stable_val, so calibration
+// only ever sees completed HTF bar data.
 confForecastArr = array.from(barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed, barstate.isconfirmed)
 outScoreArr = array.from(outScore1, outScore2, outScore3, outScore4, outScore5, outScore6, outScore7)
 tArr = array.from(t1c, t2c, t3c, t4c, t5c, t6c, t7c)
@@ -3181,6 +3248,11 @@ getVoteScore() =>
     if f_is_tf_higher_or_equal(tf3)
         sum += 2.0 * f_score_tf_cached(tf3)
         wgt += 2.0
+
+    // USI Quantum Pulse vote (fast directional signal)
+    if useUsi and usiMtfWeight > 0.0
+        sum += usiMtfWeight * usiScore
+        wgt += usiMtfWeight
 
     wgt == 0 ? 0.0 : sum / wgt
 
@@ -3500,7 +3572,8 @@ gateShortNow = confOk and mtfOkShort_ and macOkShort_ and ddOk
 // Hardened Fail-Closed Logic (Ref: User Request 2026-02-10)
 decisionOkSafe     = (not use3Way) ? true : f_fc_bool(decisionOk)
 isHighConf         = f_fc_bool(confidence >= abstainOverrideConf)
-decisionFinal      = decisionOkSafe or isHighConf
+usiStackOverride   = useUsi and (usiStackDir != 0) and (usiStackMax >= usiMinStack)
+decisionFinal      = decisionOkSafe or isHighConf or usiStackOverride
 
 cooldownOkSafe     = f_fc_bool(cooldownOk)
 blockNearCloseSafe = f_fc_bool(not blockNearClose)
@@ -3524,44 +3597,6 @@ bool didBuy = false
 bool didShort = false
 bool didExit = false
 bool didCover = false
-
-plot(showEvidencePackDebug ? totSampSub : na, "totSamp", display=display.data_window)
-plot(showEvidencePackDebug ? curBrierRaw : na, "curBrierRaw", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(reliabilityOk) : na, "reliabilityOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(evidenceOk) : na, "evidenceOk", display=display.data_window)
-plot(showEvidencePackDebug ? evalEce : na, "evalEce", display=display.data_window)
-plot(showEvidencePackDebug ? evalDriftPP : na, "evalDriftPP", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(eceOk) : na, "eceOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(driftOk) : na, "driftOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(evalOk) : na, "evalOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(evalSoftHit) : na, "evalSoftHit", display=display.data_window)
-plot(showEvidencePackDebug ? confGate : na, "confGate", display=display.data_window)
-plot(showEvidencePackDebug ? minTrust : na, "minTrust", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(mtfOkLong) : na, "mtfOkLong", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(mtfOkShort) : na, "mtfOkShort", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(macroGateLong) : na, "macroGateLong", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(macroGateShort) : na, "macroGateShort", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(ddHardGateHit) : na, "ddHardGateHit", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(cooldownOk) : na, "cooldownOk", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(blockNearClose) : na, "blockNearClose", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(decisionOk) : na, "decisionOk", display=display.data_window)
-plot(showEvidencePackDebug ? decisionEdge : na, "decisionEdge", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(allowEntry) : na, "allowEntry", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(gateLongNow) : na, "gateLongNow", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(gateShortNow) : na, "gateShortNow", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(buySignal) : na, "buySignal", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(shortSignal) : na, "shortSignal", display=display.data_window)
-
-// PATCH A: Debug for Pulse/Sync
-plotchar(showEvidencePackDebug and pulse1, "Pulse F1", "1", location.bottom, size=size.tiny, color=color.gray)
-plotchar(showEvidencePackDebug and pulse2, "Pulse F2", "2", location.bottom, size=size.tiny, color=color.gray)
-plotchar(showEvidencePackDebug and pulse3, "Pulse F3", "3", location.bottom, size=size.tiny, color=color.gray)
-plotchar(showEvidencePackDebug and pulse4, "Pulse F4", "4", location.bottom, size=size.tiny, color=color.gray)
-plotchar(showEvidencePackDebug and pulse5, "Pulse F5", "5", location.bottom, size=size.tiny, color=color.gray)
-plotchar(showEvidencePackDebug and pulse6, "Pulse F6", "6", location.bottom, size=size.tiny, color=color.gray)
-plotchar(showEvidencePackDebug and pulse7, "Pulse F7", "7", location.bottom, size=size.tiny, color=color.gray)
-plot(showEvidencePackDebug ? f_bool_to_num(didBuy) : na, "didBuy", display=display.data_window)
-plot(showEvidencePackDebug ? f_bool_to_num(didShort) : na, "didShort", display=display.data_window)
 
 allowExit = barstate.isconfirmed
 
@@ -3592,9 +3627,9 @@ adxOk = (not useAdx) or (not na(adxRaw) and adxRaw >= adxThresh)
 
 // Volume confirmation (optional)
 volSma = ta.sma(volume, volLen)
-// NOTE: Added 5% tolerance to volume check to handle data feed discrepancies
-volTol = 0.50
-volOk = (not useVolConfirm) or (not na(volume) and volume > (volSma * volMult * volTol))
+// NOTE: 50% tolerance applied to volume threshold to handle data feed discrepancies
+//       and avoid false rejections on thinly-traded instruments.
+volOk = (not useVolConfirm) or (not na(volume) and volume > (volSma * volMult * VOL_TOLERANCE))
 
 // B2 – ROC momentum score at signal layer
 rocScore = f_roc_score(close, rocLen)
@@ -3616,8 +3651,8 @@ pbDepthLong = (emaF - pbLow) / math.max(atr, PRICE_EPS)
 pbDepthShort = (pbHigh - emaF) / math.max(atr, PRICE_EPS)
 
 // “touch EMA fast then reclaim” style trigger
-// NOTE: touchTolerance is hardcoded here to 0.05 ATR to robustify against repainting data drift
-touchTol = 0.05 * atr
+// Touch-EMA tolerance (ATR fraction) to robustify against repainting data drift
+touchTol = EMA_TOUCH_TOL_ATR * atr
 touchEmaF_Long  = low <= (emaF + touchTol) and close >= emaF
 touchEmaF_Short = high >= (emaF - touchTol) and close <= emaF
 
@@ -3664,7 +3699,8 @@ emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
 // NOTE: small 5% tolerance added to prevent repainting rejection on borderline bars
 emaAccelTol = 0.05 * (emaGapPrev + 0.0001)
 emaAccelLongOk  = (not useEmaAccel) or (emaGap >= (emaGapPrev - emaAccelTol))
-emaAccelShortOk = (not useEmaAccel) or (emaGap <= (emaGapPrev + emaAccelTol))
+// v6.2.25: Fixed — was inverted (<=). Shorts also need expanding gap (accelerating trend).
+emaAccelShortOk = (not useEmaAccel) or (emaGap >= (emaGapPrev - emaAccelTol))
 
 // C4 – VWAP alignment filter (intraday only; vwapVal computed in Zones section)
 isIntraday = timeframe.isintraday
@@ -3679,8 +3715,8 @@ fcGateLong  = f_entry_forecast_gate(true)
 fcGateShort = f_entry_forecast_gate(false)
 
 // Entry setups (use smooth trend when enabled)
-// NOTE: Tolerance added to Pullback Depth (0.25 ATR) to handle repaint/wick differences
-pbTol = 0.25
+// Pullback depth tolerance (ATR units) to handle repaint/wick differences
+pbTol = PB_DEPTH_TOL_ATR
 pullbackLongOk  = trendUpSmooth and bullBias and (pbDepthLong >= (pbMinATR - pbTol)) and (pbDepthLong <= (pbMaxATR + pbTol)) and (close > emaS)
 pullbackShortOk = trendDnSmooth and bearBias and (pbDepthShort >= (pbMinATR - pbTol)) and (pbDepthShort <= (pbMaxATR + pbTol)) and (close < emaS)
 
@@ -3884,10 +3920,10 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 
 // --- Global Recency Calculation (Safe Scope) ---
 int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
-bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12)
+bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= CHOCH_RECENCY_BARS)
 
 int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
-bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
+bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= CHOCH_RECENCY_BARS)
 
 // Global Volume Ratio (Kept for Risk Decay)
 float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
@@ -3907,7 +3943,7 @@ allowRescue = (allowRescueLong or allowRescueShort)
 
 // Force Debug Label (Global) — capped to prevent label budget exhaustion
 var label[] _dbgLabels = array.new_label(0)
-MAX_DEBUG_LABELS = 50  // reserve labels for entry + exit labels
+MAX_DEBUG_LABELS = 30  // v6.2.25: reduced to fit within max_labels_count=500 global budget
 
 f_debug_label(x, y, txt, sty) =>
     lbl = label.new(x, y, txt, color=color.gray, style=sty, size=size.tiny)
@@ -3916,12 +3952,12 @@ f_debug_label(x, y, txt, sty) =>
         label.delete(array.shift(_dbgLabels))
 
 if showDebugLabels and recentChoCH_L and barstate.isconfirmed
-    bool _isRev = (isChoCH_Long or recentChoCH_L) and (pU >= 0.50) and volOk
+    bool _isRev = (isChoCH_Long or recentChoCH_L) and (pU >= STD_ENTRY_PROB_FLOOR) and volOk
     string gates = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
     f_debug_label(bar_index, low, "W:" + str.tostring(barsSinceChoCH_L) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pU, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevB:" + str.tostring(_isRev) + "\nGate:" + gates + "\nEng:" + engine, label.style_label_up)
 
 if showDebugLabels and recentChoCH_S and barstate.isconfirmed
-    bool _isRevS = (isChoCH_Short or recentChoCH_S) and (pD >= 0.50) and volOk
+    bool _isRevS = (isChoCH_Short or recentChoCH_S) and (pD >= STD_ENTRY_PROB_FLOOR) and volOk
     string gatesS = (reliabilityOk?"":"Rel ") + (evidenceOk?"":"Ev ") + (evalOk?"":"Eval ") + ((not abstainGate or decisionFinal)?"":"Abs ") + (cooldownOkSafe?"":"Cool")
     f_debug_label(bar_index, high, "W:" + str.tostring(barsSinceChoCH_S) + "\nV:" + str.tostring(volRatioG, "#.#") + "\nP:" + str.tostring(pD, "#.2") + "\nPos:" + str.tostring(pos) + "\nRes:" + str.tostring(allowRescue) + "\nVO:" + str.tostring(volOk) + " RevS:" + str.tostring(_isRevS) + "\nGate:" + gatesS + "\nEng:" + engine, label.style_label_down)
 
@@ -3975,8 +4011,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
     bool impulseLong  = isImpulse and (close > open)
     bool impulseShort = isImpulse and (close < open)
-    // v6.2.22: enforce hard REV-BUY floor (pU >= 0.37) even inside open-window bypass
-    revBuyMinProbFloor = 0.37
+    // v6.2.22: enforce hard REV-BUY floor even inside open-window bypass
+    revBuyMinProbFloor = REV_BUY_PROB_FLOOR
     // v6.2.20: open-window bypass can be scoped by side/engine/mode
     bypassRevLong  = inRevOpenWindowLong
     bypassRevShort = inRevOpenWindowShort
@@ -4039,11 +4075,13 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         shortSignal := baseShort and chochShortFilterOk
         
     else if engine == "Trend+Pullback"
-        buySignal   := standardEntryOk and gateLongNow and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe) and engulfLongOkSafe
-        shortSignal := standardEntryOk and enableShorts and gateShortNow and enhShortOk and (trendFlipDownSafe or reclaimDownSafe) and engulfShortOkSafe
+        // v6.2.25: Added fcGate + volOk + setOk to match Hybrid/Breakout parity
+        buySignal   := standardEntryOk and gateLongNow and fcGateLongSafe and volOkSafe and setOkLongSafe and enhLongOk  and (trendFlipUpSafe or reclaimUpSafe) and engulfLongOkSafe
+        shortSignal := standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and enhShortOk and (trendFlipDownSafe or reclaimDownSafe) and engulfShortOkSafe
     else // Loose
-        buySignal   := standardEntryOk and gateLongNow and crossClose_EmaF_upSafe and enhLongOk and engulfLongOkSafe
-        shortSignal := standardEntryOk and enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk and engulfShortOkSafe
+        // v6.2.25: Added fcGate + volOk + setOk to match Hybrid/Breakout parity
+        buySignal   := standardEntryOk and gateLongNow and fcGateLongSafe and volOkSafe and setOkLongSafe and crossClose_EmaF_upSafe and enhLongOk and engulfLongOkSafe
+        shortSignal := standardEntryOk and enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and setOkShortSafe and crossClose_EmaF_downSafe and enhShortOk and engulfShortOkSafe
 
     // v6.2.11: Hard probability floor for standard entries.
     // The forecast gate (fcGateLongSafe) silently passes when forecastAllowed is
@@ -4054,9 +4092,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // Reversal entries have their own probability handling (probOkGlobal) and
     // are injected AFTER this check, so they are not affected.
     if not forecastAllowed
-        if buySignal and (na(pU) or pU < 0.50)
+        if buySignal and (na(pU) or pU < STD_ENTRY_PROB_FLOOR)
             buySignal := false
-        if shortSignal and (na(pD) or pD < 0.50)
+        if shortSignal and (na(pD) or pD < STD_ENTRY_PROB_FLOOR)
             shortSignal := false
 
     // Unified Neural Reversal injection (all engines, including Loose)
@@ -4238,7 +4276,10 @@ if pos == -1 and allowExit
     // v6.2.6: ChoCH exits now respect a minimum 2-bar grace.
     structHit = ((breakShort and canStructExit) or (isChoCH_Long and canChochExit))
 
-    // ChoCh Filtering (Confirm Reversal) - REMOVED for Bullish ChoCh per instruction
+    // ChoCh Filtering — intentionally DISABLED for bullish ChoCH exits (v6.2.5).
+    // Rationale: short-side exits should be aggressive on reversal to prevent
+    // holding into a bullish trend change.  Long-side exits (bearish ChoCH) use
+    // exitConfChoCh to avoid premature exit on weak reversals.
     // if structHit and not na(pU) and pU < exitConfChoCh
     //     structHit := false
     
@@ -4288,7 +4329,7 @@ if barstate.isconfirmed
         tpPx := na
         trailPx := na
         isBeHit := false
-        lastSignalBar := bar_index
+        // v6.2.23: EXIT no longer resets cooldown — only entries (BUY/SHORT) start cooldown
         lastSig := "EXIT"
     else if coverSignal and pos == -1
         didCover := true
@@ -4299,7 +4340,7 @@ if barstate.isconfirmed
         tpPx := na
         trailPx := na
         isBeHit := false
-        lastSignalBar := bar_index
+        // v6.2.23: COVER no longer resets cooldown — only entries (BUY/SHORT) start cooldown
         lastSig := "COVER"
 
     // --- Phase 2: Process entries (including same-bar reversal after exit) ---
@@ -4351,35 +4392,39 @@ alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_onc
 // Visuals
 //====================
 plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
-strictAtrRankVis = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
-strictMtfMarginEffVis = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRankVis - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
-strictAlertsEnabledVis = not inRevOpenWindow
-strictMtfLongOkVis = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
-strictMtfShortOkVis = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
-strictChochLongOkVis = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
-strictChochShortOkVis = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
-strictBuyConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis
-strictShortConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
+// v6.2.25: Strict alert computation factored out — shared between visuals and alert section.
+// Computed once here, reused by both plotshape/label visuals and alertcondition block.
+strictAtrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
+strictMtfMarginEff = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRank - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
+strictAlertsEnabled = useStrictAlertConfirm and not inRevOpenWindow
+strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
+strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
+strictChochLongOk = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
+strictChochShortOk = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
+buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOk and strictChochLongOk
+shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOk and strictChochShortOk
+strictBuyConfirmed = strictAlertsEnabled and buyEventStrict
+strictShortConfirmed = strictAlertsEnabled and shortEventStrict
 showStrictIcon = showStrictSignalMarkers and (strictMarkerStyle == "Icon" or strictMarkerStyle == "Both")
 showStrictLabel = showStrictSignalMarkers and (strictMarkerStyle == "Label" or strictMarkerStyle == "Both")
-plotshape(showLongLabels and showStrictIcon and strictBuyConfirmedVis, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
-plotshape(showShortLabels and showStrictIcon and strictShortConfirmedVis, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
+plotshape(showLongLabels and showStrictIcon and strictBuyConfirmed, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
+plotshape(showShortLabels and showStrictIcon and strictShortConfirmed, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
 var label[] _strictLabels = array.new_label(0)
-MAX_STRICT_LABELS = 80
+MAX_STRICT_LABELS = 50  // v6.2.25: reduced for label budget parity
 f_strict_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.tiny)
     array.push(_strictLabels, lbl)
     if array.size(_strictLabels) > MAX_STRICT_LABELS
         label.delete(array.shift(_strictLabels))
 
-if showLongLabels and showStrictLabel and strictBuyConfirmedVis
+if showLongLabels and showStrictLabel and strictBuyConfirmed
     f_strict_label(bar_index, low, "STRICT-CONFIRMED BUY", label.style_label_up, color.black, color.new(color.aqua, 0))
-if showShortLabels and showStrictLabel and strictShortConfirmedVis
+if showShortLabels and showStrictLabel and strictShortConfirmed
     f_strict_label(bar_index, high, "STRICT-CONFIRMED SHORT", label.style_label_down, color.black, color.new(color.fuchsia, 0))
 // PRE-BUY / PRE-SHORT labels: show distance-to-trigger, pU/pD, confidence
 var label[] _preLabels = array.new_label(0)
-MAX_PRE_LABELS = 100
+MAX_PRE_LABELS = 60  // v6.2.25: reduced for label budget parity
 
 f_pre_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.small)
@@ -4432,7 +4477,7 @@ f_label_price(isLong, isEntry) =>
 // v6.2.18: Entry labels switched from plotshape() to label.new() for matching
 //          EXIT label size and dynamic text (probability, confidence).
 var label[] _entryLabels = array.new_label(0)
-MAX_ENTRY_LABELS = 150
+MAX_ENTRY_LABELS = 120  // v6.2.25: reduced for label budget parity
 
 f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol)
@@ -4456,7 +4501,7 @@ if showShortLabels and labelShort
 // EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
 // Capped via array to guarantee they never evict each other.
 var label[] _exitLabels = array.new_label(0)
-MAX_EXIT_LABELS = 250  // v6.2.18: reduced to share budget with entry labels
+MAX_EXIT_LABELS = 200  // v6.2.25: reduced; total budget 30+50+60+120+200=460 < 500 global cap
 
 f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol)
@@ -4512,8 +4557,8 @@ bgcolor(useAtrRegimeOverlay ? atrRegimeBg : na, title="ATR regime background")
 var label atrRegimeInfoLabel = na
 if useAtrRegimeOverlay and showAtrRegimeLabel and barstate.islast
     label.delete(atrRegimeInfoLabel)
-    atrRegTxt = "ATR " + atrRegimeName + "\nR: " + str.tostring(atrRatioReg, "#.##") + (enableAtrPercentile ? "\nPctl: " + str.tostring(atrPercentile, "#.0") + "%" : "")
-    atrRegimeInfoLabel := label.new(bar_index, high * 1.02, atrRegTxt, style=label.style_label_down, color=color.new(color.black, 30), textcolor=color.white, size=size.tiny)
+    atrRegTxt = "ATR " + atrRegimeLabelName + "\nR: " + str.tostring(atrRatioReg, "#.##") + (enableAtrPercentile ? "\nPctl: " + str.tostring(atrPercentile, "#.0") + "%" : "")
+    atrRegimeInfoLabel := label.new(bar_index, high * 1.02, atrRegTxt, style=label.style_label_down, color=atrRegimeLabelBg, textcolor=atrRegimeLabelText, size=size.tiny)
 
 pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
 pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
@@ -4536,26 +4581,7 @@ if na(gT)
 f_cell(c, r, t, tc, bg) =>
     table.cell(gT, c, r, t, text_size=size.tiny, text_color=tc, bgcolor=bg)
 
-// Percentile helpers (sort copy + index)
-f_pctl_float(float[] arr, float pct, int minN) =>
-    n = array.size(arr)
-    if n < minN
-        float(na)
-    else
-        s = array.copy(arr)
-        array.sort(s)
-        idx = int(math.floor(n * pct))
-        array.get(s, math.min(idx, n - 1))
-
-f_pctl_int(int[] arr, float pct, int minN) =>
-    n = array.size(arr)
-    if n < minN
-        float(na)
-    else
-        s = array.copy(arr)
-        array.sort(s)
-        idx = int(math.floor(n * pct))
-        float(array.get(s, math.min(idx, n - 1)))
+// (Percentile helpers f_pctl_float/f_pctl_int removed in v6.2.25 — dead code, no call sites)
 
 f_status_row(lbl, val, rRow, valCol) =>
     f_cell(0, rRow, lbl, tblTextDim, tblHeader)
@@ -4643,30 +4669,12 @@ if renderTable
     table.merge_cells(gT, 0, 16, 4, 16)
 
 //====================
-// UT Bot Logic (Overlay, V4 Port) + Enhanced Filters
-//====================
-
-
-//====================
 // Alerts (bar close)
 //====================
 // NOTE: barstate.isconfirmed already gated via allowEntry; redundant use here
 //       triggers TradingView's repainting warning that blocks alert creation.
-// Strict alert mode (entries only):
-// - BUY/SHORT: 1-bar confirmation + conservative MTF/ChoCH checks
-// - EXIT/COVER: no delay (same bar)
-// - Automatically disabled during opening windows (LONG/SHORT configured mins)
-strictAtrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
-strictMtfMarginEff = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRank - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
-strictAlertsEnabled = not inRevOpenWindow
-strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
-strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
-strictChochLongOk = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
-strictChochShortOk = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
-buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOk and strictChochLongOk
-shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOk and strictChochShortOk
-strictBuyConfirmed = strictAlertsEnabled and buyEventStrict
-strictShortConfirmed = strictAlertsEnabled and shortEventStrict
+// v6.2.25: Strict alert variables now computed once in Visuals section above.
+// Reused here by alertcondition block — no duplicate computation.
 
 alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent
 alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent
