@@ -30,3 +30,50 @@ Implemented "Pattern A: Premium vs Standard" logic for USI (Universal Strength I
 5. **Verified**:
     * Logic ensures main signals fire regardless of USI state.
     * Test suite passed (335 tests).
+
+---
+
+## Follow-up updates (14 Feb 2026)
+
+### A) Engulfing contextual exit parity (USI envelope-aware)
+
+To keep entry/exit interpretation of USI aligned, contextual engulfing exits were updated to accept either stack-direction **or** envelope state:
+
+* Long-side engulfing exit context now checks: `usiStackDir == -1 OR usiBearState`
+* Short-side engulfing cover context now checks: `usiStackDir == 1 OR usiBullState`
+
+Applied in:
+
+* `SkippALGO.pine`
+* `SkippALGO_Strategy.pine`
+
+### B) Cooldown upgraded to Bars/Minutes dual mode
+
+Added timeframe-friendly cooldown mode while preserving legacy behavior:
+
+* `cooldownMode = "Bars" | "Minutes"` (default: `Bars`)
+* `cooldownMinutes` input for real-time cooldown control on higher TFs
+* adaptive high-confidence shortening applies in both modes
+* cooldown tracking now supports both bar index and timestamp paths
+
+Applied in:
+
+* `SkippALGO.pine`
+* `SkippALGO_Strategy.pine`
+
+### C) Pine compile fix: invalid `na()` on bool removed
+
+Resolved compiler error pattern:
+
+> Cannot call `na` with argument `x`=`series bool`
+
+Cause: `ta.barssince(...) <= 3` already returns boolean expression semantics suitable for direct use.
+
+Fix:
+
+* removed `if na(usiBuyRecent)` / `if na(usiSellRecent)` guards
+* explicitly typed recent flags as `bool`
+* applied parity fix in all three scripts:
+  * `SkippALGO.pine`
+  * `SkippALGO_Strategy.pine`
+  * `QuickALGO.pine`
