@@ -554,7 +554,6 @@ evalMinEvents   = input.int(30, "Eval min events to display", minval=5, maxval=5
 evalBucketCount = use3Way ? evalBuckets * 3 : evalBuckets
 
 driftWarnPP     = input.float(8.0, "Drift warn threshold (pp)", minval=1.0, maxval=50.0, step=0.5)
-deltaDeadzone   = input.float(0.01, "\u0394 dead-zone (verdict threshold)", minval=0.001, maxval=0.10, step=0.005)
 useEceGate      = input.bool(false, "Gate entries by ECE")
 eceMax          = input.float(0.10, "Max ECE (gate)", minval=0.01, maxval=0.50, step=0.01)
 useDriftGate    = input.bool(false, "Gate entries by drift")
@@ -585,10 +584,6 @@ usiTightFactor  = input.float(0.40, "USI Tight Spread Factor", minval=0.05, step
 usiSpreadLookback = input.int(100, "Spread Lookback", minval=20, group="⚡ USI Quantum Pulse")
 hardenHold      = input.bool(true, "Hardened Hold (L5 > L4)", group="⚡ USI Quantum Pulse", tooltip="Requires L5 to be above/below L4 in addition to Cluster, reducing fakeouts.")
 usiUseStrictHold  = input.bool(false, "Strict Hold vs hi/lo (instead of cluster)", inline="hold", group="⚡ USI Quantum Pulse")
-// v6.3.3: USI Debug
-debugUsiPulse   = input.bool(true, "Debug: Show USI Internals", group="⚡ USI Quantum Pulse", tooltip="Shows details about Fast Signal, Verification, and Gate failures.")
-debugUsiLevel   = input.string("Full", "Debug: Level", options=["Off", "Lean", "Full"], group="⚡ USI Quantum Pulse")
-debugUsiWhere   = input.string("Bottom", "Debug: Location", options=["Top", "Bottom"], group="⚡ USI Quantum Pulse")
 
 //====================
 // Inputs — Score Engine (Option C)
@@ -954,24 +949,6 @@ f_safe_remove_bool(bool[] arr, int idx) =>
 f_safe_get_bool(bool[] arr, int idx, bool fallback) =>
     idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
 
-// Resolve-horizon threshold: maps forecast target to its completion age
-f_resolve_thresh(string fcTarget, int kB, int pH) =>
-    fcTarget == "NextBar" ? 1 : (fcTarget == "KBarReturn" or fcTarget == "KBarATR") ? kB : pH
-
-// --- TF selector helpers (avoid long ternary chains)
-// Pine Script lacks generics, so one copy per return type is required.
-f_sel_tf_str(tfSel, v1, v2, v3, v4, v5, v6, v7) =>
-    tfSel == "F1" ? v1 : tfSel == "F2" ? v2 : tfSel == "F3" ? v3 : tfSel == "F4" ? v4 : tfSel == "F5" ? v5 : tfSel == "F6" ? v6 : v7
-
-f_sel_tf_float(tfSel, v1, v2, v3, v4, v5, v6, v7) =>
-    tfSel == "F1" ? v1 : tfSel == "F2" ? v2 : tfSel == "F3" ? v3 : tfSel == "F4" ? v4 : tfSel == "F5" ? v5 : tfSel == "F6" ? v6 : v7
-
-f_sel_tf_bool(tfSel, v1, v2, v3, v4, v5, v6, v7) =>
-    tfSel == "F1" ? v1 : tfSel == "F2" ? v2 : tfSel == "F3" ? v3 : tfSel == "F4" ? v4 : tfSel == "F5" ? v5 : tfSel == "F6" ? v6 : v7
-
-f_sel_tf_farr(tfSel, v1, v2, v3, v4, v5, v6, v7) =>
-    tfSel == "F1" ? v1 : tfSel == "F2" ? v2 : tfSel == "F3" ? v3 : tfSel == "F4" ? v4 : tfSel == "F5" ? v5 : tfSel == "F6" ? v6 : v7
-
 // --- Update quantile cutpoints (score dimension)
 f_fill_cuts(sorted, cuts, bins) =>
     cutCount = bins - 1
@@ -1042,18 +1019,6 @@ f_rel_label(p, nBin, total, canCal) =>
         lbl := na(hw) ? "warmup" : hw <= HW_STRONG ? "strong" : hw <= HW_OK ? "ok" : "weak"
     lbl
 
-// --- Color for reliability label (subtle; does NOT conflict with up/down coloring)
-f_rel_color(p, nBin, total, canCal) =>
-    if not canCal
-        color.new(color.white, 70)
-    else if total <= 0
-        color.new(color.white, 60)
-    else if nBin < calMinSamples
-        color.new(color.white, 60)
-    else
-        hw = f_ci95_halfwidth(p, nBin)
-        na(hw) ? color.new(color.white, 60) : hw <= HW_STRONG ? color.lime : hw <= HW_OK ? color.yellow : tblTextDim
-
 //====================
 // Forecast display helpers (human formatting)
 //====================
@@ -1067,11 +1032,6 @@ f_profile(tf) =>
 f_target_for_tf(tf) =>
     prof = f_profile(tf)
     prof == "Fast" ? fcTargetF : prof == "Mid" ? fcTargetM : fcTargetS
-
-// Short, human label for the target (what "Win" means on that row)
-f_target_label(tf) =>
-    t = f_target_for_tf(tf)
-    t == "NextBar" ? "Next-up" : t == "KBarReturn" ? "Up-close" : t == "KBarATR" ? "ATR-hit" : t == "PathTPvsSL" ? "TP-first" : "Win"
 
 // Full target description for footer (per profile)
 f_target_profile_desc(profile) =>
@@ -1089,24 +1049,6 @@ f_target_profile_desc(profile) =>
 
 f_target_footer_text() =>
     "F=" + f_target_profile_desc("Fast") + " M=" + f_target_profile_desc("Mid") + " S=" + f_target_profile_desc("Slow")
-
-// Uncertainty band in percentage points using a binomial approx (≈95% band).
-f_unc_pp(p, n) =>
-    n <= 0 ? na : Z_95 * math.sqrt(math.max(p * (1.0 - p), 0.0) / n) * 100.0
-
-// Sample-strength label derived from CURRENT BIN sample size (nBin).
-f_strength_label_fc(nBin) =>
-    nBin < calMinSamples ? "weak" : nBin < calMinSamples * 4 ? "ok" : "strong"
-
-// Format probability range text like "34–46%" (bounded to 0..100)
-f_prob_range_text(p, nBin) =>
-    if nBin < calMinSamples or nBin <= 0
-        "build n" + str.tostring(nBin)
-    else
-        band = f_unc_pp(p, nBin) / 100.0
-        lo = math.max(0.0, p - band)
-        hi = math.min(1.0, p + band)
-        str.tostring(lo * 100.0, "#.0") + "–" + str.tostring(hi * 100.0, "#.0") + "%"
 
 //====================
 // Helpers — Evaluation (proper scoring + rolling stats)
@@ -1280,47 +1222,6 @@ f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL,
         maxErr := mTot
 
     [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
-
-f_strengthLabel(n) =>
-    n < 30 ? "weak" : n < 100 ? "ok" : "strong"
-
-f_pp(x) =>
-    // x in [0,1] -> "12.3%"
-    str.tostring(x * 100.0, "#.0") + "%"
-
-// ── Delta helpers (baseline comparison) ──
-f_deltaVerdict(val) =>
-    na(val) ? "" : val <= -deltaDeadzone ? " ✓" : val >= deltaDeadzone ? " ✗" : " ~"
-
-f_fmtDelta(val) =>
-    na(val) ? "—" : (val >= 0 ? "+" : "") + str.tostring(val, "#.3f") + f_deltaVerdict(val)
-
-f_colDelta(val) =>
-    na(val) ? color.new(color.gray, 60) : val < 0 ? color.new(color.lime, 40) : val > 0 ? color.new(color.red, 40) : color.new(color.gray, 60)
-
-f_colLowerBetter(x, good, ok) =>
-    na(x) ? color.new(color.white, 60) : x <= good ? color.lime : x <= ok ? color.yellow : color.red
-
-// --- “Chance” cell text (arrow + percent), but human warmup/off states
-f_chance_text(tf, pUp, nBin, total, canCal) =>
-    if not canCal or total <= 0
-        "—"
-    else if nBin < calMinSamples
-        f_target_label(tf) + " …"
-    else
-        sym = pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
-        sym + " " + f_target_label(tf) + " " + str.tostring(pUp * 100.0, "#.0") + "%"
-
-// --- “Data” cell text: bin/total + label + optional ±CI
-f_data_text(pUp, nBin, total, canCal) =>
-    if not canCal
-        "off"
-    else if total <= 0
-        "n0"
-    else
-        lbl = f_strength_label_fc(nBin)
-        rng = f_prob_range_text(pUp, nBin)
-        str.tostring(nBin) + "/" + str.tostring(total) + "\n" + lbl + " (" + rng + ")"
 
 f_clamp01(x) =>
     math.max(0.0, math.min(1.0, x))
@@ -1663,9 +1564,6 @@ f_blend_prior(pU, pF, pD, pUpr, pFpr, pDpr, nRaw) =>
      pF * w + pFpr * (1.0 - w),
      pD * w + pDpr * (1.0 - w)]
 
-f_samp_label(enabled, total) =>
-    not enabled ? "off" : total < calMinSamples ? "…" : total < calMinSamples * 3 ? "ok" : "strong"
-
 f_prob_platt(up, n, alpha, aPlatt, bPlatt) =>
     denom = n + 2.0 * alpha
     pRaw = denom == 0.0 ? 0.5 : (up + alpha) / denom
@@ -1706,15 +1604,6 @@ f_cal_cur(cntArr, upArr, bin, alpha, shrinkK) =>
     w = (shrinkK <= 0) ? 1.0 : (n / (n + shrinkK + 0.0))
     pFinal = w * pBin + (1.0 - w) * pBase
     [pFinal, n]
-
-f_predSymbolP(pUp, n, canCal) =>
-    not canCal ? "—" : n < calMinSamples ? "…" : pUp > predUpThr ? "▲" : pUp < predDnThr ? "▼" : "−"
-
-f_predColorP(pUp, n, canCal, neutralCol) =>
-    not canCal ? color.new(color.white, 70) : n < calMinSamples ? color.new(color.white, 60) : pUp > predUpThr ? color.lime : pUp < predDnThr ? color.red : neutralCol
-
-f_pupText(pUp, n, canCal) =>
-    not canCal ? "OFF" : n == 0 ? "—" : n < calMinSamples ? "Warm " + str.tostring(n) + "/" + str.tostring(calMinSamples) : fcDisplay == "Edge pp (N)" ? ((pUp - 0.5) * 100.0 > 0 ? "+" + str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")" : str.tostring((pUp - 0.5) * 100.0, "#.0") + "pp (" + str.tostring(n) + ")") : "Up " + str.tostring(pUp * 100.0, "#.0") + "% (" + str.tostring(n) + ")"
 
 f_eval_update_one(p, y,
     brierBuf, sumBrier,
@@ -2761,37 +2650,6 @@ else
 qFinalEntryBuy  = useUsi and qVerifyBuy and qGatesValidBuy
 qFinalEntrySell = useUsi and qVerifySell and qGatesValidSell
 
-// USI Debug Plots
-dbgLoc = debugUsiWhere == "Top" ? location.top : location.bottom
-
-// Rejections (Fail Reasons) - Calculate unconditionally for plotchar
-buyRejectedVerify  = qFastSignalBuy[1] and not qVerifyBuy
-sellRejectedVerify = qFastSignalSell[1] and not qVerifySell
-buyRejectedGates   = qVerifyBuy and not (qGatesValidBuy)
-sellRejectedGates  = qVerifySell and not (qGatesValidSell)
-
-// DEBUG PLOTS (Must be global scope, controlled by boolean AND)
-// FAST (Bar 0)
-plotchar(debugUsiPulse and qFastSignalBuy,  title="USI Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
-plotchar(debugUsiPulse and qFastSignalSell, title="USI Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
-
-// Verify (Bar 1)
-plotchar(debugUsiPulse and qVerifyBuy,  title="USI Verify BUY",  char="V", location=dbgLoc, size=size.tiny, color=color.blue)
-plotchar(debugUsiPulse and qVerifySell, title="USI Verify SELL", char="V", location=dbgLoc, size=size.tiny, color=color.blue)
-
-// Gates NOW (Entry bar)
-plotchar(debugUsiPulse and qGatesValidBuy,  title="Gates BUY ok",  char="G", location=dbgLoc, size=size.tiny, color=color.green)
-plotchar(debugUsiPulse and qGatesValidSell, title="Gates SELL ok", char="G", location=dbgLoc, size=size.tiny, color=color.red)
-
-// 30m Regime
-plotchar(debugUsiPulse and qRegimeBuy,  title="30m Regime BUY",  char="R", location=dbgLoc, size=size.tiny, color=color.teal)
-plotchar(debugUsiPulse and qRegimeSell, title="30m Regime SELL", char="R", location=dbgLoc, size=size.tiny, color=color.maroon)
-
-plotchar(debugUsiPulse and buyRejectedVerify,  title="BUY rej verify",  char="x", location=dbgLoc, size=size.tiny, color=color.black)
-plotchar(debugUsiPulse and buyRejectedGates,   title="BUY rej gates",   char="!", location=dbgLoc, size=size.tiny, color=color.black)
-plotchar(debugUsiPulse and sellRejectedVerify, title="SELL rej verify", char="x", location=dbgLoc, size=size.tiny, color=color.black)
-plotchar(debugUsiPulse and sellRejectedGates,  title="SELL rej gates",  char="!", location=dbgLoc, size=size.tiny, color=color.black)
-
 // Plot & Alert
 plotshape(qFinalEntryBuy, "QP Buy", shape.triangleup, location.belowbar, color.new(color.aqua, 0), size=size.small, text="QP")
 plotshape(qFinalEntrySell, "QP Sell", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.small, text="QP")
@@ -3582,30 +3440,6 @@ for i = 0 to 6
 
 forecastAllowed = enableForecast and f_forecast_allowed()
 
-canFNArr = array.new_bool(7, false)
-canF1Arr = array.new_bool(7, false)
-for i = 0 to 6
-    totN = array.get(totNArr, i)
-    tot1 = array.get(tot1Arr, i)
-    array.set(canFNArr, i, forecastAllowed and (not na(totN) and totN > 0))
-    array.set(canF1Arr, i, forecastAllowed and (not na(tot1) and tot1 > 0))
-
-canF1N = array.get(canFNArr, 0)
-canF2N = array.get(canFNArr, 1)
-canF3N = array.get(canFNArr, 2)
-canF4N = array.get(canFNArr, 3)
-canF5N = array.get(canFNArr, 4)
-canF6N = array.get(canFNArr, 5)
-canF7N = array.get(canFNArr, 6)
-
-canF11 = array.get(canF1Arr, 0)
-canF12 = array.get(canF1Arr, 1)
-canF13 = array.get(canF1Arr, 2)
-canF14 = array.get(canF1Arr, 3)
-canF15 = array.get(canF1Arr, 4)
-canF16 = array.get(canF1Arr, 5)
-canF17 = array.get(canF1Arr, 6)
-
 // Optimization: Gates active check
 needRelVal = forecastAllowed and useRelFilter
 needEvdVal = forecastAllowed and evidenceGate
@@ -3810,9 +3644,6 @@ bearBody = open - close
 bullEngulf3 = prevThreeBear and (close > open) and (close >= open[1]) and (close[1] >= open) and ((not engulfingRequireBodyDominance) or (bullBody > prevBody))
 bearEngulf3 = prevThreeBull and (open > close) and (open >= close[1]) and (open[1] >= close) and ((not engulfingRequireBodyDominance) or (bearBody > prevBody))
 
-// Standard Engulfing (No 3-candle filter)
-bullEngulfStd = (close > open) and (close >= open[1]) and (close[1] >= open) and ((not engulfingRequireBodyDominance) or (bullBody > prevBody))
-bearEngulfStd = (open > close) and (open >= close[1]) and (open[1] >= close) and ((not engulfingRequireBodyDominance) or (bearBody > prevBody))
 
 // v6.2.31: Forced disable of engulfing filter to ensure signal consistency (Hard Bypass)
 engulfLongOk = true 
@@ -4602,16 +4433,6 @@ var string lastExitReason = ""
 plot(emaF, "EMA Fast", color=color.new(color.yellow, 0))
 plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
 
-// -- USI Quantum Pulse plots (visual overlay, no signal influence) --
-// Hidden by default to avoid cluttering the chart with an extra pane or status line text.
-// Users can enable them via Style tab or if we add a dedicated "Show USI" input.
-plot(useUsi ? usiLine1 : na, "USI L1 (Blue)",   color=color.new(color.blue, 30),   display=display.none)
-plot(useUsi ? usiLine2 : na, "USI L2 (Green)",  color=color.new(color.green, 30),  display=display.none)
-plot(useUsi ? usiLine3 : na, "USI L3 (Yellow)", color=color.new(color.yellow, 30), display=display.none)
-plot(useUsi ? usiLine4 : na, "USI L4 (Orange)", color=color.new(color.orange, 30), display=display.none)
-plot(useUsi ? usiLine5 : na, "USI L5 (Red)",    color=color.new(color.red, 30),    display=display.none)
-
-
 // State transitions (same-bar reversal support)
 var bool lastEntryWasRev = false
 var int  lastBuyBarIdx  = na   // v6.2.17: Track BUY bar_index for EXIT label debugging
@@ -4896,10 +4717,6 @@ labelCover = coverEvent
 
 entryPxPrev = entryPrice[1]
 
-f_label_price(isLong, isEntry) =>
-    entryBase = isEntry ? entryPrice : entryPxPrev
-    entryVal = na(entryBase) ? close : entryBase
-    labelPriceMode == "Entry Price" ? entryVal : labelPriceMode == "Close" ? close : isLong ? low : high
 
 // v6.2.18: Entry labels switched from plotshape() to label.new() for matching
 //          EXIT label size and dynamic text (probability, confidence).
@@ -4997,8 +4814,6 @@ plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, 
 barcolor(showEngulfingBarColors ? (bullEngulf3 ? color.yellow : bearEngulf3 ? color.white : na) : na)
 alertcondition(bullEngulf3, title="Bullish Engulfing (3 prior opposite)", message="SkippALGO Bullish Engulfing (3 prior bearish) | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(bearEngulf3, title="Bearish Engulfing (3 prior opposite)", message="SkippALGO Bearish Engulfing (3 prior bullish) | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(bullEngulfStd, title="Bullish Engulfing (Standard)", message="SkippALGO Bullish Engulfing (Standard) | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(bearEngulfStd, title="Bearish Engulfing (Standard)", message="SkippALGO Bearish Engulfing (Standard) | {{ticker}} @ {{close}} | {{time}}")
 
 // v6.2.16: Entry bar highlighting — full-width vertical stripe that is impossible
 // to miss at any zoom level. State machine guarantees a BUY always exists between
@@ -5033,27 +4848,6 @@ if na(gT)
 
 f_cell(c, r, t, tc, bg) =>
     table.cell(gT, c, r, t, text_size=size.tiny, text_color=tc, bgcolor=bg)
-
-// Percentile helpers (sort copy + index)
-f_pctl_float(float[] arr, float pct, int minN) =>
-    n = array.size(arr)
-    if n < minN
-        float(na)
-    else
-        s = array.copy(arr)
-        array.sort(s)
-        idx = int(math.floor(n * pct))
-        array.get(s, math.min(idx, n - 1))
-
-f_pctl_int(int[] arr, float pct, int minN) =>
-    n = array.size(arr)
-    if n < minN
-        float(na)
-    else
-        s = array.copy(arr)
-        array.sort(s)
-        idx = int(math.floor(n * pct))
-        float(array.get(s, math.min(idx, n - 1)))
 
 f_status_row(lbl, val, rRow, valCol) =>
     f_cell(0, rRow, lbl, tblTextDim, tblHeader)
@@ -5143,21 +4937,12 @@ if renderTable
     f_fill_cells(gT, 16, 1, 4, "", tblTextDim, tblHeader, size.tiny)
     table.merge_cells(gT, 0, 16, 4, 16)
 
-// Alerts (bar close)
-strictAtrRank = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
-strictMtfMarginEff = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRank - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
-strictAlertsEnabled = not inRevOpenWindow
-strictMtfLongOk = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
-strictMtfShortOk = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEff)))
-strictChochLongOk = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
-strictChochShortOk = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
-buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOk and strictChochLongOk
-shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOk and strictChochShortOk
-strictBuyConfirmed = strictAlertsEnabled and buyEventStrict
-strictShortConfirmed = strictAlertsEnabled and shortEventStrict
+// Alerts (bar close) — reuse strict*Vis variables from visual section
+buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis
+shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
 
-alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent
-alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent
+alertBuyCond   = strictAlertsEnabledVis ? buyEventStrict : buyEvent
+alertShortCond = strictAlertsEnabledVis ? shortEventStrict : shortEvent
 alertExitCond  = exitEvent
 alertCoverCond = coverEvent
 alertPreBuyCond   = barstate.isconfirmed and (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
@@ -5179,8 +4964,8 @@ f_tp_json(action) =>
          timeframe.period, 
          str.tostring(timenow),
          tpStrategyId,
-         strictAlertsEnabled ? "strict" : "normal",
-         (strictAlertsEnabled and (alertBuyCond or alertShortCond) ? "1" : "0")
+         strictAlertsEnabledVis ? "strict" : "normal",
+         (strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? "1" : "0")
      )
 
 // v6.2.12: Watchlist stability — force bar_close frequency to reduce alert rate
@@ -5214,7 +4999,7 @@ if barstate.isconfirmed and barstate.isrealtime
             string action = firstLabel == "BUY" ? "buy" : firstLabel == "SHORT" ? "sell" : firstLabel == "EXIT" ? "exit" : firstLabel == "COVER" ? "exit" : "flat"
             msg := f_tp_json(action)
         else
-            modeTxtAlert = strictAlertsEnabled ? "strict" : "normal"
-            delayTxt = strictAlertsEnabled and (alertBuyCond or alertShortCond) ? "1" : "0"
+            modeTxtAlert = strictAlertsEnabledVis ? "strict" : "normal"
+            delayTxt = strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? "1" : "0"
             msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxtAlert + " | confirm_delay=" + delayTxt
         alert(msg, alertFreqSafe)

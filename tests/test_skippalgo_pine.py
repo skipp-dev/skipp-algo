@@ -265,7 +265,7 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
-        self.assertIn("strictAlertsEnabled = not inRevOpenWindow", self.text)
+        self.assertIn("strictAlertsEnabledVis = not inRevOpenWindow", self.text)
 
     def test_strict_buy_short_use_one_bar_delay(self):
         self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
@@ -300,8 +300,8 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("confirm_delay=", self.text)
 
     def test_alert_conditions_switch_strict_entries_only(self):
-        self.assertIn("alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent", self.text)
-        self.assertIn("alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent", self.text)
+        self.assertIn("alertBuyCond   = strictAlertsEnabledVis ? buyEventStrict : buyEvent", self.text)
+        self.assertIn("alertShortCond = strictAlertsEnabledVis ? shortEventStrict : shortEvent", self.text)
         self.assertIn("alertExitCond  = exitEvent", self.text)
         self.assertIn("alertCoverCond = coverEvent", self.text)
 
