@@ -368,7 +368,7 @@ grp_auto   = "Automation"
 useJsonAlerts = input.bool(false, "Enable JSON Webhook Payloads", group=grp_auto, tooltip="Formats alerts as JSON for TradersPost or other bots. If disabled, sends human-readable text.")
 
 //====================
-// Inputs — Forecast Calibration Enhancements (Deep Upgrade v6.1)
+// Inputs — Forecast Calibration Enhancements
 //====================
 enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)")
 allowForecastOnNonFixed = input.bool(false, "Forecast: allow on non-fixed TFs", tooltip="If chart timeframe can't be resolved to seconds, allow forecast gating instead of disabling it")
