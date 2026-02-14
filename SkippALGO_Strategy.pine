@@ -84,6 +84,10 @@ enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
 cooldownBars = input.int(6, "Cooldown bars", minval=0)
 minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
 
+// --- Cooldown mode (legacy Bars vs Minutes) ---
+cooldownMode = input.string("Bars", "Cooldown mode", options=["Bars", "Minutes"])
+cooldownMinutes = input.int(30, "Cooldown minutes", minval=1)
+
 // --- Signal Enhancement Filters ---
 grp_sigfilt = "Signal Filters"
 // C1 – Pre-signal momentum gate
@@ -2759,11 +2763,17 @@ breakShort = crossClose_EmaS_up   or trendFlipUp
 
 var int pos = 0
 var int lastSignalBar = na
+var int lastSignalTime = na
 var string lastSig = "—"
 
 // C2 – Adaptive cooldown: halve wait when model confidence is high
-effectiveCooldown = (confidence >= 0.80) ? math.max(2, math.round(cooldownBars / 2)) : cooldownBars
-cooldownOk   = na(lastSignalBar) ? true : (bar_index - lastSignalBar > effectiveCooldown)
+effectiveCooldownBars = (confidence >= 0.80) ? math.max(2, math.round(cooldownBars / 2)) : cooldownBars
+effectiveCooldownMin  = (confidence >= 0.80) ? math.max(2, math.round(cooldownMinutes / 2)) : cooldownMinutes
+
+cooldownOk =
+     cooldownMode == "Bars"
+         ? (na(lastSignalBar) ? true : (bar_index - lastSignalBar > effectiveCooldownBars))
+         : (na(lastSignalTime) ? true : (time - lastSignalTime > (effectiveCooldownMin * 60 * 1000)))
 
 f_getBrier_raw(tfSel, modSel) =>
     float score = na
@@ -4321,6 +4331,7 @@ if barstate.isconfirmed
         trailPx := na
         isBeHit := false
         lastSignalBar := bar_index
+        lastSignalTime := time
         lastSig := "EXIT"
     else if coverSignal and pos == -1
         didCover := true
@@ -4332,6 +4343,7 @@ if barstate.isconfirmed
         trailPx := na
         isBeHit := false
         lastSignalBar := bar_index
+        lastSignalTime := time
         lastSig := "COVER"
 
     // --- Phase 2: Process entries (including same-bar reversal after exit) ---
@@ -4353,6 +4365,7 @@ if barstate.isconfirmed
             tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
         lastSignalBar := bar_index
+        lastSignalTime := time
         lastSig := "BUY"
     else if shortSignal and pos == 0 and not didCover
         didShort := true
@@ -4370,6 +4383,7 @@ if barstate.isconfirmed
             tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
         lastSignalBar := bar_index
+        lastSignalTime := time
         lastSig := "SHORT"
 
 buyEvent   = didBuy
