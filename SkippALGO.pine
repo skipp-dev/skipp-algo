@@ -2790,19 +2790,6 @@ else
     // Standard Mode: 2 of 3
     qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= 2)
 
-// Verify Decisions Sell
-// Same logic mirrored for short side
-bool qVerifySell = false
-if isTightSpread
-// Verify Decisions Buy
-bool qVerifyBuy = false
-if isTightSpread
-    // Strict Mode for tight spread: Must have Hold AND Continuation
-    qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont
-else
-    // Standard Mode: 2 of 3
-    qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= 2)
-
 
 // Verify Criteria SELL (Bar 1)
 // 1. Hold: L5 < Cluster (Avg) [Hardened: AND L5 < L4]
