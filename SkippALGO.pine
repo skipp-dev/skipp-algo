@@ -2,15 +2,15 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO v6.3.2
+// SkippALGO v6.3.3
 // Implements advanced calibration and forecasting logic:
 // Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
 // Phase 2: 2D Binning (Algorithm Score + Volatility Regime)
 // Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
-// v6.3.2: Hotfix for deprecated color constant (cyan -> aqua)
+// v6.3.3: Hotfix for `plotchar` scope (moved to global)
 
-indicator("SkippALGO v6.3.2", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO v6.3.3", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -2814,33 +2814,34 @@ qFinalEntrySell = useUsi and qVerifySell and qGatesValidSell
 
 // USI Debug Plots
 dbgLoc = debugUsiWhere == "Top" ? location.top : location.bottom
-if debugUsiPulse
-    // FAST (Bar 0)
-    plotchar(qFastSignalBuy,  title="USI Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
-    plotchar(qFastSignalSell, title="USI Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
 
-    // Verify (Bar 1)
-    plotchar(qVerifyBuy,  title="USI Verify BUY",  char="V", location=dbgLoc, size=size.tiny, color=color.blue)
-    plotchar(qVerifySell, title="USI Verify SELL", char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+// Rejections (Fail Reasons) - Calculate unconditionally for plotchar
+buyRejectedVerify  = qFastSignalBuy[1] and not qVerifyBuy
+sellRejectedVerify = qFastSignalSell[1] and not qVerifySell
+buyRejectedGates   = qVerifyBuy and not (qGatesValidBuy)
+sellRejectedGates  = qVerifySell and not (qGatesValidSell)
 
-    // Gates NOW (Entry bar)
-    plotchar(qGatesValidBuy,  title="Gates BUY ok",  char="G", location=dbgLoc, size=size.tiny, color=color.green)
-    plotchar(qGatesValidSell, title="Gates SELL ok", char="G", location=dbgLoc, size=size.tiny, color=color.red)
+// DEBUG PLOTS (Must be global scope, controlled by boolean AND)
+// FAST (Bar 0)
+plotchar(debugUsiPulse and qFastSignalBuy,  title="USI Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
+plotchar(debugUsiPulse and qFastSignalSell, title="USI Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
 
-    // 30m Regime
-    plotchar(qRegimeBuy,  title="30m Regime BUY",  char="R", location=dbgLoc, size=size.tiny, color=color.teal)
-    plotchar(qRegimeSell, title="30m Regime SELL", char="R", location=dbgLoc, size=size.tiny, color=color.maroon)
+// Verify (Bar 1)
+plotchar(debugUsiPulse and qVerifyBuy,  title="USI Verify BUY",  char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+plotchar(debugUsiPulse and qVerifySell, title="USI Verify SELL", char="V", location=dbgLoc, size=size.tiny, color=color.blue)
 
-    // Rejections (Fail Reasons)
-    buyRejectedVerify = qFastSignalBuy[1] and not qVerifyBuy
-    sellRejectedVerify = qFastSignalSell[1] and not qVerifySell
-    buyRejectedGates = qVerifyBuy and not (qGatesValidBuy)
-    sellRejectedGates = qVerifySell and not (qGatesValidSell)
+// Gates NOW (Entry bar)
+plotchar(debugUsiPulse and qGatesValidBuy,  title="Gates BUY ok",  char="G", location=dbgLoc, size=size.tiny, color=color.green)
+plotchar(debugUsiPulse and qGatesValidSell, title="Gates SELL ok", char="G", location=dbgLoc, size=size.tiny, color=color.red)
 
-    plotchar(buyRejectedVerify,  title="BUY rej verify",  char="x", location=dbgLoc, size=size.tiny, color=color.black)
-    plotchar(buyRejectedGates,   title="BUY rej gates",   char="!", location=dbgLoc, size=size.tiny, color=color.black)
-    plotchar(sellRejectedVerify, title="SELL rej verify", char="x", location=dbgLoc, size=size.tiny, color=color.black)
-    plotchar(sellRejectedGates,  title="SELL rej gates",  char="!", location=dbgLoc, size=size.tiny, color=color.black)
+// 30m Regime
+plotchar(debugUsiPulse and qRegimeBuy,  title="30m Regime BUY",  char="R", location=dbgLoc, size=size.tiny, color=color.teal)
+plotchar(debugUsiPulse and qRegimeSell, title="30m Regime SELL", char="R", location=dbgLoc, size=size.tiny, color=color.maroon)
+
+plotchar(debugUsiPulse and buyRejectedVerify,  title="BUY rej verify",  char="x", location=dbgLoc, size=size.tiny, color=color.black)
+plotchar(debugUsiPulse and buyRejectedGates,   title="BUY rej gates",   char="!", location=dbgLoc, size=size.tiny, color=color.black)
+plotchar(debugUsiPulse and sellRejectedVerify, title="SELL rej verify", char="x", location=dbgLoc, size=size.tiny, color=color.black)
+plotchar(debugUsiPulse and sellRejectedGates,  title="SELL rej gates",  char="!", location=dbgLoc, size=size.tiny, color=color.black)
 
 // Plot & Alert
 plotshape(qFinalEntryBuy, "QP Buy", shape.triangleup, location.belowbar, color.new(color.aqua, 0), size=size.small, text="QP")

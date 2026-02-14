@@ -4,9 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v6.3.3] - 2026-02-14
+
+### Fixed
+
+- **SkippALGO Indicator**: Moved `plotchar()` debug calls from local scope (if-block) to global scope with conditional `debugUsiPulse and ...` logic to fix "Cannot use plotchar in local scope" errors.
+
 ## [v6.3.2] - 2026-02-14
 
 ### Fixed
+
 - **SkippALGO Indicator**: Replaced `color.cyan` with `color.aqua` to resolve an undeclared identifier error (Pine v6 standard).
 
 ## [v6.3.1] - 2026-02-14
