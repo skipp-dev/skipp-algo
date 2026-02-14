@@ -4364,8 +4364,9 @@ if barstate.isconfirmed
             stopPx  := newStop
             tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
-        lastSignalBar := bar_index
-        lastSignalTime := time
+        // Option B: Cooldown update removed so entries don't block subsequent entries
+        // lastSignalBar := bar_index
+        // lastSignalTime := time
         lastSig := "BUY"
     else if shortSignal and pos == 0 and not didCover
         didShort := true
@@ -4382,8 +4383,9 @@ if barstate.isconfirmed
             stopPx  := sStop
             tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
-        lastSignalBar := bar_index
-        lastSignalTime := time
+        // Option B: Cooldown update removed
+        // lastSignalBar := bar_index
+        // lastSignalTime := time
         lastSig := "SHORT"
 
 buyEvent   = didBuy
