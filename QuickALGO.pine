@@ -19,7 +19,7 @@ use_lower_tf_filter = input.bool(true, "Use Lower Timeframe Filter", group="Sign
 lower_tf_choice = input.string("5M", "Lower Timeframe", options=["1M", "5M", "15M", "30M", "1H", "4H", "D"], group="Signal Filters", tooltip="Choose the timeframe for the lower timeframe filter.")
 use_volume_filter = input.bool(true, "Use Volume Filter", group="Signal Filters", tooltip="Require volume above average (optional).")
 use_breakout_filter = input.bool(true, "Use Breakout Filter", group="Signal Filters", tooltip="Require price to break previous high/low (optional).")
-show_get_ready = input.bool(false, "Show Get Ready Signals", group="Signal Filters", tooltip="Enable or disable Get Ready signals.")
+show_get_ready = input.bool(true, "Show Get Ready Signals", group="Signal Filters", tooltip="Enable or disable Get Ready signals.")
 restrict_repeated_signals = input.bool(true, "Restrict Repeated Signals", group="Signal Filters", tooltip="Prevent multiple signals in the same trend direction until trend changes.")
 restrict_trend_tf_choice = input.string("5M", "Restrict Trend Timeframe", options=["1M", "5M", "15M", "30M", "1H", "4H", "D"], group="Signal Filters", tooltip="Choose the timeframe to check trend for restricting repeated signals.")
 
@@ -44,7 +44,7 @@ usiEmaLen       = input.int(100, "EMA Length (Gate)", minval=1, group="USI Setti
 usiSpreadLookback = input.int(100, "Spread Median Lookback", minval=20, group="USI Settings")
 usiTightFactor    = input.float(0.40, "Tight Spread Factor", minval=0.05, step=0.05, group="USI Settings")
 hardenHold      = input.bool(true, "Harden Hold (L5 vs L4)", group="USI Settings")
-debugUsiLevel   = input.string("Off", "Debug: Level", options=["Off", "Lean", "Full"], group="USI Settings")
+debugUsiLevel   = input.string("Full", "Debug: Level", options=["Off", "Lean", "Full"], group="USI Settings")
 debugUsiWhere   = input.string("Bottom", "Debug: Location", options=["Top", "Bottom"], group="USI Settings")
 
 volumeLongPeriod = input.int(50, "Long Volume Period", minval=10, maxval=100, group="Volume Filter Settings")

@@ -331,7 +331,7 @@ zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4
 showLongLabels   = input.bool(true, "Show Long labels (BUY / EXIT)")
 showShortLabels  = input.bool(true, "Show Short labels (SHORT / COVER)")
 // Removed showDebugLabels to cleanup user interface
-showPreEntryLabels = input.bool(false, "Show PRE labels (PRE-BUY / PRE-SHORT)")
+showPreEntryLabels = input.bool(true, "Show PRE labels (PRE-BUY / PRE-SHORT)")
 preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
 preSetPulseOnly    = input.bool(true, "PRE: pulse-only SET", tooltip="When enabled, PRE labels require a fresh SET transition (pulse) instead of a steady SET state")
 showSetMarkers   = input.bool(true, "Show SET markers")
@@ -585,8 +585,8 @@ usiSpreadLookback = input.int(100, "Spread Lookback", minval=20, group="⚡ USI 
 hardenHold      = input.bool(true, "Hardened Hold (L5 > L4)", group="⚡ USI Quantum Pulse", tooltip="Requires L5 to be above/below L4 in addition to Cluster, reducing fakeouts.")
 usiUseStrictHold  = input.bool(false, "Strict Hold vs hi/lo (instead of cluster)", inline="hold", group="⚡ USI Quantum Pulse")
 // v6.3.3: USI Debug
-debugUsiPulse   = input.bool(false, "Debug: Show USI Internals", group="⚡ USI Quantum Pulse", tooltip="Shows details about Fast Signal, Verification, and Gate failures.")
-debugUsiLevel   = input.string("Off", "Debug: Level", options=["Off", "Lean", "Full"], group="⚡ USI Quantum Pulse")
+debugUsiPulse   = input.bool(true, "Debug: Show USI Internals", group="⚡ USI Quantum Pulse", tooltip="Shows details about Fast Signal, Verification, and Gate failures.")
+debugUsiLevel   = input.string("Full", "Debug: Level", options=["Off", "Lean", "Full"], group="⚡ USI Quantum Pulse")
 debugUsiWhere   = input.string("Bottom", "Debug: Location", options=["Top", "Bottom"], group="⚡ USI Quantum Pulse")
 
 //====================
