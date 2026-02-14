@@ -4315,7 +4315,7 @@ if pos == 1 and allowExit
     if useEngulfExit and bearEngulf3
         if engulfExitMode == "Contextual Exit"
             // Exit if Bearish Engulfing AND (USI turns bearish OR Outlook turns bearish OR Momentum fails)
-            if (usiStackDir == -1) or (outScore1 < -0.05) or not f_soft(fcGateLong)
+            if ((usiStackDir == -1) or usiBearState) or (outScore1 < -0.05) or not f_soft(fcGateLong)
                 engExitHit := true
         else if engulfExitMode == "Tighten Risk"
             // Signal to tighten risk (applied in Risk update section next bar, or we force it here)
@@ -4370,7 +4370,7 @@ if pos == -1 and allowExit
     if useEngulfExit and bullEngulf3
         if engulfExitMode == "Contextual Exit"
             // Exit if Bullish Engulfing AND (USI turns bullish OR Outlook turns bullish OR Momentum fails)
-            if (usiStackDir == 1) or (outScore1 > 0.05) or not f_soft(fcGateShort)
+            if ((usiStackDir == 1) or usiBullState) or (outScore1 > 0.05) or not f_soft(fcGateShort)
                 engExitHit := true
         else if engulfExitMode == "Tighten Risk"
             engTightenHit := true
