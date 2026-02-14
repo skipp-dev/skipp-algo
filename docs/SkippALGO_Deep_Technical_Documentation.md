@@ -277,6 +277,20 @@ The `engine` input selects one of four signal-generation modes. Each mode requir
   * **Trigger**: Fires whenever price closes above/below the Fast EMA.
   * **Best For**: High-frequency scanning or testing. Prone to false signals in chop.
 
+* **Score Engine (Option C) - v6.3.5 Add-on**:
+  * **Philosophy**: "Accumulate evidence, don't block on details."
+  * **Mechanism**: Runs parallel to the selected Engine. It sums points from independent evidence buckets (USI, Liquidity, Momentum, Trend).
+  * **Trigger**: Fires if `Score >= Threshold` (Default 6).
+  * **Fail-Open**: Missing data (e.g., incomplete ADX) contributes 0 points but does NOT block the trade.
+  * **Risk Safety**: Strictly enforces the portfolio **Drawdown Gate (`ddOk`)**.
+  * **Score Components**:
+    * **USI Cross/Sweep**: +4 / +2 points (Primary Driver).
+    * **Liquidity/ChoCH**: +2 points.
+    * **Momentum (ROC/ADX)**: +2 points.
+    * **Trend Context**: +1 point.
+    * **Chop Penalty**: -3 points.
+  * **Best For**: Capturing high-quality setups that might be filtered by rigid Engine "AND" gates (e.g., slight volume miss).
+
 Short signals mirror the long logic with bearish equivalents. If both a buy and short signal fire on the same bar, both are suppressed to avoid ambiguity.
 
 #### Neural Reversals (Counter-Trend Injection)
