@@ -10,6 +10,12 @@ Completed in v6.1 (Indicator + Strategy):
 * 3‑way calibrator auto‑fallback on weak bins (safety).
 * Temperature/vector scaling applied to displayed 3‑way probabilities when eligible.
 
+Completed in v6.3 — Enterprise Cooldown Hardening (Feb 14, 2026):
+
+* **H1 / HTF Fix**: `cooldownMode` now supports "Minutes" alongside "Bars" to prevent blocking valid entries on higher timeframes.
+* **Fast-Entry Logic**: `cooldownTriggers` default ("ExitsOnly") ensures entries do not self-jam; logic explicitly guarded by `if cooldownTriggers == "AllSignals"`.
+* **QuickALGO Optimization**: Score+Verify logic replaces Hard-AND; MTF Repainting fixed via `lookahead_off`.
+
 Completed in v6.2 — Forecast Quality & Signal Enhancements (Feb 05–06, 2026):
 
 **Safe calibration defaults (A1/A3/A4/A6/A7):**
