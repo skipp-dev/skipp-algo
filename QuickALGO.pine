@@ -31,6 +31,15 @@ enable_market_profile = input.bool(true, "Enable Market Profile Analysis", group
 enable_divergence_scanner = input.bool(true, "Enable Divergence Scanner", group="Advanced Analysis Tools", tooltip="Detects price and momentum divergences for reversal signals")
 enable_trend_analysis = input.bool(true, "Enable Trend Strength Matrix", group="Advanced Analysis Tools", tooltip="Show detailed predictions for future trends across timeframes.")
 
+// USI Inputs
+useUsi          = input.bool(true, "Enable USI Premium Filter", group="USI Settings", tooltip="Uses 5-RSI stacking logic to identify high-quality 'Premium' entries.")
+usiLen1         = input.int(13, "Length 1 (slowest)", minval=2, group="USI Settings")
+usiLen2         = input.int(11, "Length 2", minval=2, group="USI Settings")
+usiLen3         = input.int(7,  "Length 3", minval=2, group="USI Settings")
+usiLen4         = input.int(5,  "Length 4", minval=2, group="USI Settings")
+usiLen5         = input.int(3,  "Length 5 (fastest)", minval=2, group="USI Settings")
+usiZeroLag      = input.bool(true, "Zero-Lag mode", group="USI Settings")
+
 volumeLongPeriod = input.int(50, "Long Volume Period", minval=10, maxval=100, group="Volume Filter Settings")
 volumeShortPeriod = input.int(5, "Short Volume Period", minval=1, maxval=20, group="Volume Filter Settings")
 breakoutPeriod = input.int(5, "Breakout Period", minval=1, maxval=50, group="Breakout Filter Settings")
@@ -239,6 +248,46 @@ if show_get_ready and get_ready_sell
 if show_get_ready and get_ready_buy
     label.new(bar_index, low, "⚠ READY", color=color.new(#FFB627, 70), style=label.style_label_up, textcolor=color.white, size=size.small)
 
+// USI Quantum Pulse Logic (Premium Filter Enhancement)
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+usiSrc1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
+usiSrc2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
+usiSrc3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
+usiSrc4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
+usiSrc5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+
+usiLine1 = ta.rsi(usiSrc1, usiLen1)
+usiLine2 = ta.rsi(usiSrc2, usiLen2)
+usiLine3 = ta.rsi(usiSrc3, usiLen3)
+usiLine4 = ta.rsi(usiSrc4, usiLen4)
+usiLine5 = ta.rsi(usiSrc5, usiLen5)
+
+usiMaxEnv = math.max(math.max(usiLine1, usiLine2), math.max(usiLine3, usiLine4))
+usiMinEnv = math.min(math.min(usiLine1, usiLine2), math.min(usiLine3, usiLine4))
+
+usiWasBelowAll = usiLine5[1] < usiMinEnv[1]
+usiWasAboveAll = usiLine5[1] > usiMaxEnv[1]
+_usiXUp_Q = ta.crossover(usiLine5, usiMaxEnv)
+_usiXDn_Q = ta.crossunder(usiLine5, usiMinEnv)
+usiBuySignal  = usiWasBelowAll and _usiXUp_Q
+usiSellSignal = usiWasAboveAll and _usiXDn_Q
+usiBullState = usiLine5 > usiMaxEnv
+usiBearState = usiLine5 < usiMinEnv
+
+usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
+usiSellRecent = ta.barssince(usiSellSignal) <= 3
+if na(usiBuyRecent)
+    usiBuyRecent := false
+if na(usiSellRecent)
+    usiSellRecent := false
+
+bool _usiPremBuy   = (usiBullState or usiBuyRecent) and not usiSellRecent
+bool _usiPremShort = (usiBearState or usiSellRecent) and not usiBuyRecent
+
 did_buy := false
 did_sell := false
 
@@ -254,7 +303,8 @@ if did_buy and did_sell
 confTxt = str.tostring(signal_confidence, "#.0") + "%"
 
 if showShortLabels and did_sell
-    label.new(bar_index, high, "🔴 SELL\nConf: " + confTxt, color=color.new(#FF1744, 0), style=label.style_label_down, textcolor=color.white, size=size.normal)
+    string sellTag = (useUsi and _usiPremShort) ? "🔴 SELL (Prem)" : "🔴 SELL"
+    label.new(bar_index, high, sellTag + "\nConf: " + confTxt, color=color.new(#FF1744, 0), style=label.style_label_down, textcolor=color.white, size=size.normal)
     tp_sell_level := low - tp_points
     sl_sell_level := high + sl_points
     last_signal := "Sell"
@@ -263,7 +313,8 @@ if showShortLabels and did_sell
     pos := -1
 
 if showLongLabels and did_buy
-    label.new(bar_index, low, "🟢 BUY\nConf: " + confTxt, color=color.new(#00E676, 0), style=label.style_label_up, textcolor=color.white, size=size.normal)
+    string buyTag = (useUsi and _usiPremBuy) ? "🟢 BUY (Prem)" : "🟢 BUY"
+    label.new(bar_index, low, buyTag + "\nConf: " + confTxt, color=color.new(#00E676, 0), style=label.style_label_up, textcolor=color.white, size=size.normal)
     tp_buy_level := high + tp_points
     sl_buy_level := low - sl_points
     last_signal := "Buy"
