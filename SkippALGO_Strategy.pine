@@ -2,14 +2,14 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO Strategy v6.3.3
-// - Synchronized with Main Indicator v6.3.3
+// SkippALGO Strategy v6.3.4
+// - Synchronized with Main Indicator v6.3.4
 // - Target Profiles (Fixed, KReturn, KATR, TPorSL)
 // - Ensemble Score (Algo + Pullback + Regime)
 // - 2D Binning (Score x Volatility)
 // - Platt Scaling (SGD Probability Calibration)
-// - v6.3.3: Synchronized release
-strategy("SkippALGO Strategy v6.3.3", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
+// - v6.3.4: Final Parity Sync (Scope Fix)
+strategy("SkippALGO Strategy v6.3.4", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -2687,44 +2687,42 @@ dbgOn   = debugUsiLevel != "Off"
 dbgFull = debugUsiLevel == "Full"
 dbgLoc = debugUsiWhere == "Top" ? location.top : location.bottom
 
-if dbgOn
-    // 1. LEAN: Final Valid Entry (The "Signal")
-    plotchar(qFinalEntryBuy,  title="USI Final BUY",  char="B", location=dbgLoc, size=size.tiny, color=color.blue)
-    plotchar(qFinalEntrySell, title="USI Final SELL", char="S", location=dbgLoc, size=size.tiny, color=color.red)
+// 1. LEAN: Final Valid Entry (The "Signal")
+plotchar(dbgOn and qFinalEntryBuy,  title="USI Final BUY",  char="B", location=dbgLoc, size=size.tiny, color=color.blue)
+plotchar(dbgOn and qFinalEntrySell, title="USI Final SELL", char="S", location=dbgLoc, size=size.tiny, color=color.red)
 
-    // 2. LEAN: Rejections (Why did we NOT enter?)
-    // Verify Fail: Fast Signal last bar exists, but Verify logic failed this bar.
-    buyRejectedVerify  = qFastSignalBuy[1]  and not qVerifyBuy
-    sellRejectedVerify = qFastSignalSell[1] and not qVerifySell
-    
-    // Gate Fail: Verified signal exists, but Gates blocked it.
-    // Explicitly check qSigWasBuy to ensure event coupling.
-    buyRejectedGates   = qSigWasBuy  and qVerifyBuy  and not qGatesValidBuy
-    sellRejectedGates  = qSigWasSell and qVerifySell and not qGatesValidSell
+// 2. LEAN: Rejections (Why did we NOT enter?)
+// Verify Fail: Fast Signal last bar exists, but Verify logic failed this bar.
+buyRejectedVerify  = qFastSignalBuy[1]  and not qVerifyBuy
+sellRejectedVerify = qFastSignalSell[1] and not qVerifySell
 
-    plotchar(buyRejectedVerify,  title="Fail Verify BUY",  char="x", location=dbgLoc, size=size.tiny, color=color.gray)
-    plotchar(sellRejectedVerify, title="Fail Verify SELL", char="x", location=dbgLoc, size=size.tiny, color=color.gray)
-    
-    plotchar(buyRejectedGates,   title="Fail Gates BUY",   char="!", location=dbgLoc, size=size.tiny, color=color.orange)
-    plotchar(sellRejectedGates,  title="Fail Gates SELL",  char="!", location=dbgLoc, size=size.tiny, color=color.orange)
+// Gate Fail: Verified signal exists, but Gates blocked it.
+// Explicitly check qSigWasBuy to ensure event coupling.
+buyRejectedGates   = qSigWasBuy  and qVerifyBuy  and not qGatesValidBuy
+sellRejectedGates  = qSigWasSell and qVerifySell and not qGatesValidSell
 
-    // 3. FULL: Verbose Details
-    if dbgFull
-        // Fast Signals (Bar 0)
-        plotchar(qFastSignalBuy,  title="USI Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
-        plotchar(qFastSignalSell, title="USI Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
+plotchar(dbgOn and buyRejectedVerify,  title="Fail Verify BUY",  char="x", location=dbgLoc, size=size.tiny, color=color.gray)
+plotchar(dbgOn and sellRejectedVerify, title="Fail Verify SELL", char="x", location=dbgLoc, size=size.tiny, color=color.gray)
 
-        // Verify Pass (Bar 1)
-        plotchar(qVerifyBuy,  title="USI Verify BUY",  char="V", location=dbgLoc, size=size.tiny, color=color.blue)
-        plotchar(qVerifySell, title="USI Verify SELL", char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+plotchar(dbgOn and buyRejectedGates,   title="Fail Gates BUY",   char="!", location=dbgLoc, size=size.tiny, color=color.orange)
+plotchar(dbgOn and sellRejectedGates,  title="Fail Gates SELL",  char="!", location=dbgLoc, size=size.tiny, color=color.orange)
 
-        // Gates Pass (Bar 1)
-        plotchar(qGatesValidBuy,  title="Gates BUY ok",  char="G", location=dbgLoc, size=size.tiny, color=color.green)
-        plotchar(qGatesValidSell, title="Gates SELL ok", char="G", location=dbgLoc, size=size.tiny, color=color.red)
+// 3. FULL: Verbose Details
+// Fast Signals (Bar 0)
+plotchar(dbgFull and qFastSignalBuy,  title="USI Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
+plotchar(dbgFull and qFastSignalSell, title="USI Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
 
-        // Regime/Filters
-        plotchar(qRegimeBuy,  title="30m Regime BUY",  char="R", location=dbgLoc, size=size.tiny, color=color.teal)
-        plotchar(qRegimeSell, title="30m Regime SELL", char="R", location=dbgLoc, size=size.tiny, color=color.maroon)
+// Verify Pass (Bar 1)
+plotchar(dbgFull and qVerifyBuy,  title="USI Verify BUY",  char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+plotchar(dbgFull and qVerifySell, title="USI Verify SELL", char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+
+// Gates Pass (Bar 1)
+plotchar(dbgFull and qGatesValidBuy,  title="Gates BUY ok",  char="G", location=dbgLoc, size=size.tiny, color=color.green)
+plotchar(dbgFull and qGatesValidSell, title="Gates SELL ok", char="G", location=dbgLoc, size=size.tiny, color=color.red)
+
+// Regime/Filters
+plotchar(dbgFull and qRegimeBuy,  title="30m Regime BUY",  char="R", location=dbgLoc, size=size.tiny, color=color.teal)
+plotchar(dbgFull and qRegimeSell, title="30m Regime SELL", char="R", location=dbgLoc, size=size.tiny, color=color.maroon)
 
 
 // Crosses (computed every bar)

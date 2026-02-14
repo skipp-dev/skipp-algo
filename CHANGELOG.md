@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v6.3.4] - 2026-02-14
+
+### Fixed
+- **SkippALGO Strategy**: Synchronized fix for `plotchar()` scope (global scope with conditional logic) to resolve "Cannot use plotchar in local scope".
+- **Maintenance**: Unified versioning across Indicator (v6.3.3 based) and Strategy.
+
 ## [v6.3.3] - 2026-02-14
 
 ### Fixed
