@@ -45,7 +45,7 @@ volumeShortPeriod = input.int(5, "Short Volume Period", minval=1, maxval=20, gro
 breakoutPeriod = input.int(5, "Breakout Period", minval=1, maxval=50, group="Breakout Filter Settings")
 
 atr_raw = ta.atr(14)
-atr = na(atr_raw) and bar_index > 0 ? (high - low) : atr_raw
+atr = (na(atr_raw) or atr_raw == 0) and bar_index > 0 ? (high - low) : atr_raw
 volatility_factor = atr / close
 momentum_threshold = momentum_threshold_base * (1 + volatility_factor * 2)
 pre_momentum_factor = pre_momentum_factor_base * (1 - volatility_factor * 0.5)
@@ -92,13 +92,13 @@ var bool did_sell = false
 [ema4H, vwap4H] = request.security(syminfo.tickerid, "240", [ta.ema(close, 20), ta.vwap(hlc3)])
 [emaD, vwapD] = request.security(syminfo.tickerid, "D", [ta.ema(close, 20), ta.vwap(hlc3)])
 
-trend1M = close > ema1M and close > vwap1M ? 1 : close < ema1M and close < vwap1M ? -1 : 0
-trend5M = close > ema5M and close > vwap5M ? 1 : close < ema5M and close < vwap5M ? -1 : 0
-trend15M = close > ema15M and close > vwap15M ? 1 : close < ema15M and close < vwap15M ? -1 : 0
-trend30M = close > ema30M and close > vwap30M ? 1 : close < ema30M and close < vwap30M ? -1 : 0
-trend1H = close > ema1H and close > vwap1H ? 1 : close < ema1H and close < vwap1H ? -1 : 0
-trend4H = close > ema4H and close > vwap4H ? 1 : close < ema4H and close < vwap4H ? -1 : 0
-trendD = close > emaD and close > vwapD ? 1 : close < emaD and close < vwapD ? -1 : 0
+trend1M = close > ema1M and (na(vwap1M) or close > vwap1M) ? 1 : close < ema1M and (na(vwap1M) or close < vwap1M) ? -1 : 0
+trend5M = close > ema5M and (na(vwap5M) or close > vwap5M) ? 1 : close < ema5M and (na(vwap5M) or close < vwap5M) ? -1 : 0
+trend15M = close > ema15M and (na(vwap15M) or close > vwap15M) ? 1 : close < ema15M and (na(vwap15M) or close < vwap15M) ? -1 : 0
+trend30M = close > ema30M and (na(vwap30M) or close > vwap30M) ? 1 : close < ema30M and (na(vwap30M) or close < vwap30M) ? -1 : 0
+trend1H = close > ema1H and (na(vwap1H) or close > vwap1H) ? 1 : close < ema1H and (na(vwap1H) or close < vwap1H) ? -1 : 0
+trend4H = close > ema4H and (na(vwap4H) or close > vwap4H) ? 1 : close < ema4H and (na(vwap4H) or close < vwap4H) ? -1 : 0
+trendD = close > emaD and (na(vwapD) or close > vwapD) ? 1 : close < emaD and (na(vwapD) or close < vwapD) ? -1 : 0
 
 trend_strength_raw = trend1M + trend5M + trend15M + trend30M + trend1H + trend4H + trendD
 trend_strength = (trend_strength_raw / 7) * 100
@@ -170,7 +170,7 @@ else if restrict_trend_tf_choice == "D"
 
 volAvg50 = ta.sma(volume, volumeLongPeriod)
 volShort = ta.sma(volume, volumeShortPeriod)
-volCondition = volume > volAvg50 and ta.change(volShort) > 0
+volCondition = (na(volume) or volume == 0) ? true : (volume > volAvg50 and ta.change(volShort) > 0)
 
 highestBreakout = ta.highest(high, breakoutPeriod)
 lowestBreakout = ta.lowest(low, breakoutPeriod)
@@ -230,6 +230,7 @@ if enable_market_profile
     if strong_sell_flow
         label.new(bar_index, high, "🔥 SELL", color=color.new(#FF006E, 70), style=label.style_label_down, textcolor=color.white, size=size.small)
 
+
 if enable_divergence_scanner
     rsi = ta.rsi(close, 14)
     price_lower_low = low < low[5] and low[5] < low[10]
@@ -278,12 +279,10 @@ usiSellSignal = usiWasAboveAll and _usiXDn_Q
 usiBullState = usiLine5 > usiMaxEnv
 usiBearState = usiLine5 < usiMinEnv
 
-usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
-usiSellRecent = ta.barssince(usiSellSignal) <= 3
-if na(usiBuyRecent)
-    usiBuyRecent := false
-if na(usiSellRecent)
-    usiSellRecent := false
+// USI Premium Logic (Option A)
+// Note: barssince returns na if never happened, comparison < 3 handles proper bool result.
+bool usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
+bool usiSellRecent = ta.barssince(usiSellSignal) <= 3
 
 bool _usiPremBuy   = (usiBullState or usiBuyRecent) and not usiSellRecent
 bool _usiPremShort = (usiBearState or usiSellRecent) and not usiBuyRecent
