@@ -2,7 +2,8 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO v6.3.4
+// SkippALGO v6.3.5
+// - New "Option C" Score Engine (Fail-open features, Risk-gated)
 // Implements advanced calibration and forecasting logic:
 // Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
 // Phase 2: 2D Binning (Algorithm Score + Volatility Regime)
@@ -10,7 +11,7 @@
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
 // v6.3.4: Final Parity Sync (Strategy Scope Fix)
 
-indicator("SkippALGO v6.3.4", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO v6.3.5", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
