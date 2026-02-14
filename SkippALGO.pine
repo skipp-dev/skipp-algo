@@ -2,15 +2,15 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO v6.3.1
+// SkippALGO v6.3.2
 // Implements advanced calibration and forecasting logic:
 // Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
 // Phase 2: 2D Binning (Algorithm Score + Volatility Regime)
 // Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
-// v6.3.1: Hotfix for syntax error in Verify Logic (duplicate block removal)
+// v6.3.2: Hotfix for deprecated color constant (cyan -> aqua)
 
-indicator("SkippALGO v6.3.1", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO v6.3.2", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -2843,7 +2843,7 @@ if debugUsiPulse
     plotchar(sellRejectedGates,  title="SELL rej gates",  char="!", location=dbgLoc, size=size.tiny, color=color.black)
 
 // Plot & Alert
-plotshape(qFinalEntryBuy, "QP Buy", shape.triangleup, location.belowbar, color.new(color.cyan, 0), size=size.small, text="QP")
+plotshape(qFinalEntryBuy, "QP Buy", shape.triangleup, location.belowbar, color.new(color.aqua, 0), size=size.small, text="QP")
 plotshape(qFinalEntrySell, "QP Sell", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.small, text="QP")
 
 if qFinalEntryBuy

@@ -4,9 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v6.3.2] - 2026-02-14
+
+### Fixed
+- **SkippALGO Indicator**: Replaced `color.cyan` with `color.aqua` to resolve an undeclared identifier error (Pine v6 standard).
+
 ## [v6.3.1] - 2026-02-14
 
 ### Fixed
+
 - **SkippALGO Indicator**: Removed duplicate/erroneous code block related to `qVerifyBuy` logic that caused a "Mismatched input bool" syntax error.
 - **Maintenance**: Parity version bump for Strategy script (no functional changes in Strategy).
 

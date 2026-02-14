@@ -2,14 +2,14 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO Strategy v6.3.1
-// - Synchronized with Main Indicator v6.3.1
+// SkippALGO Strategy v6.3.2
+// - Synchronized with Main Indicator v6.3.2
 // - Target Profiles (Fixed, KReturn, KATR, TPorSL)
 // - Ensemble Score (Algo + Pullback + Regime)
 // - 2D Binning (Score x Volatility)
 // - Platt Scaling (SGD Probability Calibration)
-// - v6.3.1: Parity bump and minor cleanups
-strategy("SkippALGO Strategy v6.3.1", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
+// - v6.3.2: Synchronized release
+strategy("SkippALGO Strategy v6.3.2", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
