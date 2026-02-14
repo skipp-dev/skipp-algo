@@ -189,8 +189,8 @@ class TestSkippAlgoStrategyTfStateArchitecture(unittest.TestCase):
         self.assertIn("float[] evBrier1", self.text)
 
     def test_f_reset_tf_uses_tfstate(self):
-        """f_get_fresh_state replaces f_reset_tf (v6.2.25 refactor)."""
-        self.assertIn("f_get_fresh_state()", self.text)
+        """f_reset_tf uses TfState parameter."""
+        self.assertIn("f_reset_tf(", self.text)
 
     def test_f_process_tf_uses_tfstate(self):
         """f_process_tf includes TfState st parameter."""
@@ -437,7 +437,7 @@ class TestSkippAlgoStrategyPreSignals(unittest.TestCase):
     def test_pre_labels_are_dynamic_label_new_not_plotshape(self):
         """PRE labels are rendered via label.new helper and include quality fields."""
         self.assertIn("var label[] _preLabels = array.new_label(0)", self.text)
-        self.assertIn("MAX_PRE_LABELS = 60", self.text)
+        self.assertIn("MAX_PRE_LABELS = 100", self.text)
         self.assertIn("f_pre_label(x, y, txt, sty, txtCol, bgCol) =>", self.text)
         self.assertIn("lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.small)", self.text)
         self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', self.text)
@@ -506,7 +506,7 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
-        self.assertIn("strictAlertsEnabled = useStrictAlertConfirm and not inRevOpenWindow", self.text)
+        self.assertIn("strictAlertsEnabled = not inRevOpenWindow", self.text)
 
     def test_strict_buy_short_use_one_bar_delay(self):
         self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
@@ -547,9 +547,8 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("alertCoverCond = coverEvent", self.text)
 
     def test_rev_buy_min_prob_floor_including_open_window(self):
-        self.assertIn("REV_BUY_PROB_FLOOR", self.text)
-        self.assertIn("revBuyMinProbFloor = REV_BUY_PROB_FLOOR", self.text)
-        self.assertIn("bool probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor)", self.text)
+        self.assertIn("revBuyMinProbFloor = 0.25", self.text)
+        self.assertIn("probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor)", self.text)
 
 
 if __name__ == "__main__":

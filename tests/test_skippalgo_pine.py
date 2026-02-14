@@ -72,8 +72,9 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         """Ensure trendUp/trendDn are defined (parity with strategy)."""
         self.assertIn("atrNormHere = atr / math.max(close, 0.0001)", self.text)
         self.assertIn("trendReg = f_trend_regime(emaF, emaS, atrNormHere)", self.text)
-        self.assertIn("trendUp  = trendReg == 1.0", self.text)
-        self.assertIn("trendDn  = trendReg == -1.0", self.text)
+        # v6.2.28: USI integration
+        self.assertIn("trendUp  = (trendReg == 1.0) or usiBull", self.text)
+        self.assertIn("trendDn  = (trendReg == -1.0) or usiBear", self.text)
 
     def test_risk_temp_declared_once(self):
         """Parent-scope float newStop/Tp/Trail = na removed to avoid shadow;
@@ -194,9 +195,10 @@ class TestSkippAlgoIndicator(unittest.TestCase):
     def test_pre_labels_are_dynamic_label_new_not_plotshape(self):
         """PRE labels are rendered via label.new helper with dynamic text payload."""
         self.assertIn("var label[] _preLabels = array.new_label(0)", self.text)
-        self.assertIn("MAX_PRE_LABELS = 60", self.text)
+        self.assertIn("MAX_PRE_LABELS = 100", self.text)
         self.assertIn("f_pre_label(x, y, txt, sty, txtCol, bgCol) =>", self.text)
-        self.assertIn("lbl = label.new(x, y, txt, style=sty, textcolor=txtCol, color=bgCol, size=size.small)", self.text)
+        self.assertIn("f_safe_label_text(txt)", self.text)
+        self.assertIn("lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol, size=size.small)", self.text)
         self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', self.text)
         self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', self.text)
         self.assertNotIn('plotshape(preBuyPulse, title="PRE-BUY"', self.text)
@@ -263,7 +265,7 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
-        self.assertIn("strictAlertsEnabled = useStrictAlertConfirm and not inRevOpenWindow", self.text)
+        self.assertIn("strictAlertsEnabled = not inRevOpenWindow", self.text)
 
     def test_strict_buy_short_use_one_bar_delay(self):
         self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
@@ -304,9 +306,17 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("alertCoverCond = coverEvent", self.text)
 
     def test_rev_buy_min_prob_floor_including_open_window(self):
-        self.assertIn("REV_BUY_PROB_FLOOR", self.text)
-        self.assertIn("revBuyMinProbFloor = REV_BUY_PROB_FLOOR", self.text)
-        self.assertIn("probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor)", self.text)
+        # Verify conditional floor logic
+        self.assertIn("_isOpenWindow ? 0.0 : 0.25", self.text)
+        # Verify bypass logic (Open Window OR Prob Check)
+        self.assertIn("probOkGlobal    = _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor)", self.text)
+
+    def test_exchange_open_bypass_window(self):
+        # 15:20 = 920 mins, 15:40 = 940 mins
+        self.assertIn("int _minOfDay = hour * 60 + minute", self.text)
+        self.assertIn("_isOpenWindow = (_minOfDay >= 920 and _minOfDay <= 940)", self.text)
+        self.assertIn("probOkGlobal    = _isOpenWindow or", self.text)
+        self.assertIn("probOkGlobalS   = _isOpenWindow or", self.text)
 
 if __name__ == "__main__":
     unittest.main()

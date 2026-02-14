@@ -147,6 +147,14 @@ tfLong2       = input.timeframe("5D", "Long TF 2")
 tfLong3       = input.timeframe("10D", "Long TF 3")
 
 // Forecast horizons (table rows)
+//====================
+// Internal Global Helpers
+//====================
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
 tfF1 = input.timeframe("1",   "Forecast 1")   // 1M
 tfF2 = input.timeframe("5",   "Forecast 2")   // 5M
 tfF3 = input.timeframe("15",  "Forecast 3")   // 15M
@@ -521,7 +529,6 @@ rescueImpulseATR = input.float(0.7, "Rescue Mode: Min Impulse (xATR)", minval=0.
 rescueMinProb    = input.float(0.30, "Rescue Mode: Min Probability", minval=0.15, maxval=0.50, step=0.01, tooltip="Minimum directional probability for rescue path. Below random chance (~0.33) means model disagrees; structure+volume must compensate.")
 revMinProb       = input.float(0.50, "REV: Min dir prob", minval=0.20, maxval=0.80, step=0.01, tooltip="Minimum directional probability for REV-BUY / REV-SHORT (normal path). Raise to require stronger forecast conviction for reversals.")
 revRecencyBars   = input.int(5, "Rev Recency (bars)", minval=1, maxval=20, tooltip="Max bars since ChoCH for a reversal signal to be considered recent enough.")
-chochGraceBars   = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 
 
 //====================
@@ -568,6 +575,18 @@ usiLen5         = input.int(3,  "Length 5 (fastest / Red)", minval=2, group="⚡
 usiZeroLag      = input.bool(true, "Zero-Lag mode", group="⚡ USI Quantum Pulse", tooltip="Error-corrected EMA on source before RSI. Gives 2-5 bar lead over standard RSI.")
 usiMinStack     = input.int(4, "Min stacking for visual highlight", minval=2, maxval=5, group="⚡ USI Quantum Pulse", tooltip="Lines in correct order (out of 4 pairs) for visual stacking highlight.")
 
+// v6.3.3: USI Fast+Verify Inputs
+usiTfGate = input.timeframe("30", "Gate TF (Regime)", group="⚡ USI Quantum Pulse")
+usiEmaLen = input.int(100, "EMA Length (Gate)", minval=1, group="⚡ USI Quantum Pulse")
+usiTightFactor  = input.float(0.40, "USI Tight Spread Factor", minval=0.05, step=0.05, group="⚡ USI Quantum Pulse") 
+usiSpreadLookback = input.int(100, "Spread Lookback", minval=20, group="⚡ USI Quantum Pulse")
+hardenHold      = input.bool(true, "Hardened Hold (L5 > L4)", group="⚡ USI Quantum Pulse", tooltip="Requires L5 to be above/below L4 in addition to Cluster, reducing fakeouts.")
+usiUseStrictHold  = input.bool(false, "Strict Hold vs hi/lo (instead of cluster)", inline="hold", group="⚡ USI Quantum Pulse")
+// v6.3.3: USI Debug
+debugUsiPulse   = input.bool(false, "Debug: Show USI Internals", group="⚡ USI Quantum Pulse", tooltip="Shows details about Fast Signal, Verification, and Gate failures.")
+debugUsiLevel   = input.string("Off", "Debug: Level", options=["Off", "Lean", "Full"], group="⚡ USI Quantum Pulse")
+debugUsiWhere   = input.string("Bottom", "Debug: Location", options=["Top", "Bottom"], group="⚡ USI Quantum Pulse")
+
 //====================
 // Inputs — Debug
 //====================
@@ -580,6 +599,7 @@ showOpsRow = input.bool(true, "Ops row (always-on safety HUD)", group="🔧 Debu
 // Inputs — Exit Filters
 //====================
 grp_exit = "Exit Filters (Confidence)"
+chochGraceBars = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, group=grp_exit, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit LONG positions on Bearish ChoCh if the reversal probability (pD) is above this level. Bullish ChoCh exits are not filtered.")
 exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
 
@@ -2632,10 +2652,7 @@ rsiConf = ta.rsi(close, rsiLenUse)
 //====================
 // USI Quantum Pulse computation (visual overlay only)
 //====================
-f_zl_src(src, len) =>
-    e1 = ta.ema(src, len)
-    e2 = ta.ema(e1, len)
-    2.0 * e1 - e2
+// removed here
 
 usiSrc1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
 usiSrc2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
@@ -2681,6 +2698,169 @@ usiSellSignal = usiWasAboveAll and _usiXDn
 // State: Red clearly dominant above/below all others
 usiBullState = usiLine5 > usiMaxEnv
 usiBearState = usiLine5 < usiMinEnv
+
+//====================
+// USI Quantum Pulse Logic (Fast+Verify) - v6.3.3
+//====================
+
+// 1. Cluster & Trend (Timeframe: Chart)
+// usiMaxEnv / usiMinEnv are already calculated above (L1-L4)
+// Def: cluster = avg(L1..L4)
+usiClusterHigh = usiMaxEnv
+usiClusterLow  = usiMinEnv
+usiClusterAvg  = math.avg(usiLine1, usiLine2, usiLine3, usiLine4)
+usiSpread      = usiClusterHigh - usiClusterLow
+
+// Tight Spread Detection (Dynamic using Median p50)
+// If spread is below X% of median spread -> "Tight"
+usiSpreadP50   = ta.percentile_linear_interpolation(usiSpread, usiSpreadLookback, 50)
+isTightSpread  = (usiSpreadP50 > 0) and (usiSpread < (usiSpreadP50 * usiTightFactor))
+
+usiEmaGate     = ta.ema(close, usiEmaLen)
+
+// 2. 30m Gate (Regime Context) - STABLE
+// Logic: Calculate normal 30m USI, but request with [1] to get the Last Completed Bar.
+f_usi_30m_calc_raw() =>
+    // Standard USI calc on the requested TF (no [1] shift here)
+    _c = close
+    _e = ta.ema(close, usiEmaLen)
+    
+    // Note: We access f_zl_src which is globally defined
+    _s1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
+    _s2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
+    _s3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
+    _s4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
+    _s5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+    
+    _r1 = ta.rsi(_s1, usiLen1)
+    _r2 = ta.rsi(_s2, usiLen2)
+    _r3 = ta.rsi(_s3, usiLen3)
+    _r4 = ta.rsi(_s4, usiLen4)
+    _r5 = ta.rsi(_s5, usiLen5)
+    
+    _cA = math.avg(_r1, _r2, _r3, _r4)
+    [_c, _e, _r5, _cA]
+
+// Fetch Stable 30m Data (Previous Closed Bar)
+// Variant A: Fetch raw, then shift. This avoids tuple indexing ambiguity.
+[qCl30_raw, qEma30_raw, qL5_30_raw, qClusterA30_raw] = request.security(syminfo.tickerid, usiTfGate, f_usi_30m_calc_raw(), lookahead = barmerge.lookahead_off)
+
+// Apply 1-bar shift to get the last COMPLETED 30m bar
+qCl30       = qCl30_raw[1]
+qEma30      = qEma30_raw[1]
+qL5_30      = qL5_30_raw[1]
+qClusterA30 = qClusterA30_raw[1]
+
+// Gate Check (Valid if regime in previous confirmed 30m bar was correct)
+qRegimeBuy  = qCl30 >= qEma30 and qL5_30 >= qClusterA30
+qRegimeSell = qCl30 <= qEma30 and qL5_30 <= qClusterA30
+
+// 3. Fast Signal (Bar 0) - Detection
+// _usiXUp / _usiXDn are ta.crossover(usiLine5, usiMaxEnv)
+// We just capture the raw crossover here. Gates are applied at verification to avoid "missing" a cross that happened just before gate opened.
+qFastSignalBuy  = _usiXUp
+qFastSignalSell = _usiXDn
+
+// 4. Verify & Enter (Bar 1) - USI Logic
+// Check if signal happened yesterday
+qSigWasBuy  = qFastSignalBuy[1]
+qSigWasSell = qFastSignalSell[1]
+
+// Gate Logic: Must be valid NOW (at moment of entry)
+qGatesValidBuy  = (close > usiEmaGate) and qRegimeBuy
+qGatesValidSell = (close < usiEmaGate) and qRegimeSell
+
+// Verify Criteria BUY (Bar 1)
+// 1. Hold: L5 > Cluster (Avg) [Hardened: AND L5 > L4]
+vBuy1_Hold_base = usiLine5 > usiClusterAvg
+vBuy1_Hold      = hardenHold ? (vBuy1_Hold_base and (usiLine5 > usiLine4)) : vBuy1_Hold_base
+// 2. Continuation: L5 > L5[1]
+vBuy2_Cont  = usiLine5 > usiLine5[1]
+// 3. Mini-Stack: L5 > L4 > L3
+vBuy3_Stack = (usiLine5 > usiLine4) and (usiLine4 > usiLine3)
+
+// Verify Decisions Buy
+bool qVerifyBuy = false
+if isTightSpread
+    // Strict Mode for tight spread: Must have Hold AND Continuation
+    qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont
+else
+    // Standard Mode: 2 of 3
+    qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= 2)
+
+// Verify Decisions Sell
+// Same logic mirrored for short side
+bool qVerifySell = false
+if isTightSpread
+// Verify Decisions Buy
+bool qVerifyBuy = false
+if isTightSpread
+    // Strict Mode for tight spread: Must have Hold AND Continuation
+    qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont
+else
+    // Standard Mode: 2 of 3
+    qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= 2)
+
+
+// Verify Criteria SELL (Bar 1)
+// 1. Hold: L5 < Cluster (Avg) [Hardened: AND L5 < L4]
+vSell1_Hold_base = usiLine5 < usiClusterAvg
+vSell1_Hold      = hardenHold ? (vSell1_Hold_base and (usiLine5 < usiLine4)) : vSell1_Hold_base
+// 2. Contin: L5 < L5[1]
+vSell2_Cont  = usiLine5 < usiLine5[1]
+// 3. Stack: L5 < L4 < L3
+vSell3_Stack = (usiLine5 < usiLine4) and (usiLine4 < usiLine3)
+
+// Verify Decisions Sell
+bool qVerifySell = false
+if isTightSpread
+    qVerifySell := qSigWasSell and vSell1_Hold and vSell2_Cont
+else
+    qVerifySell := qSigWasSell and ((vSell1_Hold?1:0) + (vSell2_Cont?1:0) + (vSell3_Stack?1:0) >= 2)
+
+// Final Entry (Trigger)
+// Combine Verification + Gates at the moment of entry (Bar 1)
+qFinalEntryBuy  = useUsi and qVerifyBuy and qGatesValidBuy
+qFinalEntrySell = useUsi and qVerifySell and qGatesValidSell
+
+// USI Debug Plots
+dbgLoc = debugUsiWhere == "Top" ? location.top : location.bottom
+if debugUsiPulse
+    // FAST (Bar 0)
+    plotchar(qFastSignalBuy,  title="USI Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
+    plotchar(qFastSignalSell, title="USI Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
+
+    // Verify (Bar 1)
+    plotchar(qVerifyBuy,  title="USI Verify BUY",  char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+    plotchar(qVerifySell, title="USI Verify SELL", char="V", location=dbgLoc, size=size.tiny, color=color.blue)
+
+    // Gates NOW (Entry bar)
+    plotchar(qGatesValidBuy,  title="Gates BUY ok",  char="G", location=dbgLoc, size=size.tiny, color=color.green)
+    plotchar(qGatesValidSell, title="Gates SELL ok", char="G", location=dbgLoc, size=size.tiny, color=color.red)
+
+    // 30m Regime
+    plotchar(qRegimeBuy,  title="30m Regime BUY",  char="R", location=dbgLoc, size=size.tiny, color=color.teal)
+    plotchar(qRegimeSell, title="30m Regime SELL", char="R", location=dbgLoc, size=size.tiny, color=color.maroon)
+
+    // Rejections (Fail Reasons)
+    buyRejectedVerify = qFastSignalBuy[1] and not qVerifyBuy
+    sellRejectedVerify = qFastSignalSell[1] and not qVerifySell
+    buyRejectedGates = qVerifyBuy and not (qGatesValidBuy)
+    sellRejectedGates = qVerifySell and not (qGatesValidSell)
+
+    plotchar(buyRejectedVerify,  title="BUY rej verify",  char="x", location=dbgLoc, size=size.tiny, color=color.black)
+    plotchar(buyRejectedGates,   title="BUY rej gates",   char="!", location=dbgLoc, size=size.tiny, color=color.black)
+    plotchar(sellRejectedVerify, title="SELL rej verify", char="x", location=dbgLoc, size=size.tiny, color=color.black)
+    plotchar(sellRejectedGates,  title="SELL rej gates",  char="!", location=dbgLoc, size=size.tiny, color=color.black)
+
+// Plot & Alert
+plotshape(qFinalEntryBuy, "QP Buy", shape.triangleup, location.belowbar, color.new(color.cyan, 0), size=size.small, text="QP")
+plotshape(qFinalEntrySell, "QP Sell", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.small, text="QP")
+
+if qFinalEntryBuy
+    alert("USI Quantum Pulse (QP) BUY: " + syminfo.ticker, alert.freq_once_per_bar_close)
+if qFinalEntrySell
+    alert("USI Quantum Pulse (QP) SELL: " + syminfo.ticker, alert.freq_once_per_bar_close)
 
 // Crosses (computed every bar)
 crossEmaF_EmaS_up   = ta.crossover(emaF, emaS)
@@ -3867,8 +4047,13 @@ var float trailPx = na
 
 // Calculate risk levels on entry; returns updated stop/tp/trail
 f_set_risk_on_entry(isLong, entry, atrNow) =>
-    float stopOut  = isLong ? (entry - stopATR * atrNow) : (entry + stopATR * atrNow)
-    float tpOut    = isLong ? (entry + tpATR   * atrNow) : (entry - tpATR   * atrNow)
+    // v6.3.0 Fix: Link Indicator Execution to Profile Inputs (Fast/Mid/Slow)
+    [pFc, pK, pA, pH, pTp, pSl] = f_get_params(timeframe.period)
+    float useStopMul = nz(pSl, stopATR) 
+    float useTpMul   = nz(pTp, tpATR)
+
+    float stopOut  = isLong ? (entry - useStopMul * atrNow) : (entry + useStopMul * atrNow)
+    float tpOut    = isLong ? (entry + useTpMul   * atrNow) : (entry - useTpMul   * atrNow)
     float trailOut = na
     [stopOut, tpOut, trailOut]
 
@@ -3887,9 +4072,11 @@ f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
     if not useAtrRisk or na(stopVal)
         [false, ""]
     else
-        stopHit  = isLong ? (low <= stopVal) : (high >= stopVal)
+        // User Request: Stop Loss on CLOSE only (ignore wicks)
+        stopHit  = isLong ? (close <= stopVal) : (close >= stopVal)
         tpHit    = not na(tpVal) and (isLong ? (high >= tpVal)  : (low  <= tpVal))
-        trailHit = not na(trailVal) and (isLong ? (low <= trailVal) : (high >= trailVal))
+        // Trailing Stop also on CLOSE
+        trailHit = not na(trailVal) and (isLong ? (close <= trailVal) : (close >= trailVal))
         
         // Optimistic Exit Priority on Favorable Candles (TP wins if bar closed in profit)
         bool favorableClose = isLong ? (close > open) : (close < open)
@@ -4034,8 +4221,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //   provides sufficient confirmation; pU just needs to be non-trivial.
     //   Require directional impulse candle (body > 0.7×ATR) on the rescue path
     //   to prevent low-probability doji/small-body ChoCH bars from triggering.
-    bool impulseLong  = isImpulse and (close > open)
-    bool impulseShort = isImpulse and (close < open)
+    // v6.2.37: Allow Engulfing signals to bypass strict ATR Impulse requirement.
+    // Engulfing is inherently impulsive relative to previous bar, even if absolute ATR range is low.
+    bool impulseLong  = (isImpulse and (close > open)) or bullEngulf3
+    bool impulseShort = (isImpulse and (close < open)) or bearEngulf3
     // v6.2.22: enforce hard REV-BUY floor (pU >= 0.37) even inside open-window bypass
     // v6.2.32: User reported missing REV-BUY on 0.26 prob. Lowered floor to 0.25 to catch oversold bounces.
     // v6.2.33: Added "Exchange Open" bypass (15:20-15:40) where probability is ignored completely.
@@ -4059,15 +4248,15 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // B) Rescue (Huge Vol + Impulse + Weak Prob >= rescueMinProb)
     // C) Open Window Bypass (Ignored pU requirement completely if within window)
     
-    // v6.2.34: When in Open Window (15:20-15:40), force pU/pD checks to TRUE regardless of value (even NaN).
-    // This is critical because some feeds might not even have probability data yet (e.g. warmup).
-    // The previous implementation still required `not na(pU)`, which could block valid trades.
+    // Logic: 
+    // 1. OpenWindow: Always True (bypass everything)
+    // 2. Normal: Floor(0.25) AND 
+    //    (BypassLong OR StrongProb OR (Structure/Vol Rescue + WeakProb))
+    // Rescue Trigger: HugeVol OR BullEngulf3.
+    // Rescue Min Prob: Use input `rescueMinProb` but clamp to floor (0.25).
     
-    // For Signal Short logic, ensure symmetry (mirror the Long logic)
-    // pD check matches pU check structure.
-    
-    probOkGlobal    = _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong  or ((pU >= revMinProb) or (hugeVolG and pU >= 0.25 and impulseLong))))
-    probOkGlobalS   = _isOpenWindow or ((not na(pD) and pD >= revBuyMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or (hugeVolG and pD >= 0.25 and impulseShort))))
+    probOkGlobal    = _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong  or ((pU >= revMinProb) or ((hugeVolG or bullEngulf3) and pU >= 0.25 and impulseLong))))
+    probOkGlobalS   = _isOpenWindow or ((not na(pD) and pD >= revBuyMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or ((hugeVolG or bearEngulf3) and pD >= 0.25 and impulseShort))))
     
     // Global Gate: allowNeuralReversals
     // Neural Reversals bypass: MTF trend, Macro direction, SMC sweep filter,
@@ -4191,15 +4380,15 @@ if pos == 0 and allowEntry
         // Hybrid: distance = how far close is below emaF
         preGapLong  := (not na(emaF)) ? math.max(0.0, emaF - close) : na
         preGapShort := (not na(emaF)) ? math.max(0.0, close - emaF) : na
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe)
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe)
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe) and not usiBear
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe) and not usiBull
     else if engine == "Breakout"
         nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
         nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
         preGapLong  := (not na(lastSwingHigh)) ? math.max(0.0, lastSwingHigh - close) : na
         preGapShort := (not na(lastSwingLow))  ? math.max(0.0, close - lastSwingLow)  : na
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe and not usiBear
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe and not usiBull
     else if engine == "Trend+Pullback"
         nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
         nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
@@ -4207,15 +4396,15 @@ if pos == 0 and allowEntry
         nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (close > emaF) and ((close - emaF) <= preDist)
         preGapLong  := nearFlipUp ? (emaS - emaF) : nearReclaimUp ? (emaF - close) : na
         preGapShort := nearFlipDown ? (emaF - emaS) : nearReclaimDown ? (close - emaF) : na
-        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe)
-        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe)
+        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe) and not usiBear
+        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe) and not usiBull
     else // Loose
         nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
         nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
         preGapLong  := nearEmaFUp  ? (emaF - close) : na
         preGapShort := nearEmaFDown ? (close - emaF) : na
-        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe
-        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe
+        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe and not usiBear
+        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe and not usiBull
 
 preBuyPrev = (preBuyNow[1] == true)
 preShortPrev = (preShortNow[1] == true)
@@ -4244,9 +4433,14 @@ string tempExitReason = ""
 // Risk Decay Calculation (Linear interpolation)
 if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
     float w   = math.min(1.0, float(barsSinceEntry) / float(decayBars))
+    // v6.3.1 Fix: Dynamic Risk Decay uses Profile Risk
     // Calculate current target Multipliers
-    float cStopM = math.max(0.1, stopATR + (decayStopATR - stopATR) * w)
-    float cTpM   = math.max(0.1, tpATR   + (decayTpATR   - tpATR)   * w)
+    [dFc, dK, dA, dH, dTp, dSl] = f_get_params(timeframe.period)
+    float baseStop = nz(dSl, stopATR) 
+    float baseTp   = nz(dTp, tpATR)
+    
+    float cStopM = math.max(0.1, baseStop + (decayStopATR - baseStop) * w)
+    float cTpM   = math.max(0.1, baseTp   + (decayTpATR   - baseTp)   * w)
     
     if pos == 1 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
         // Recalculate based on STATIC entry conditions to ensure stability

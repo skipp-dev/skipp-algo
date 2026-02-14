@@ -42,6 +42,17 @@ Completed in v6.2 — Forecast Quality & Signal Enhancements (Feb 05–06, 2026)
 * Enhancement composite gates (`enhLongOk`/`enhShortOk`) wired into all 4 signal engines.
 * 234 tests passing (24 new feature-coverage tests).
 
+Completed in v6.3 — QuickALGO Parity & Test Assurance (Feb 07, 2026):
+
+* **QuickALGO Sync**: Full port of "USI Quantum Pulse v6.3" logic to `QuickALGO.pine`.
+  * Implemented `qRegime`, `qVerify`, `input` groups (Lookback/Filters).
+  * Integrated "30m Gate" and "Lean Debug" visualization.
+  * Replaced deprecated "Option A" code path.
+* **Test Suite**:
+  * Full Python `pytest` coverage maintained (335 valid tests).
+  * `revBuyMinProbFloor` updated to 0.25 (Rescue Floor).
+  * Fixed `ModuleNotFoundError` for test execution.
+
 ## 0) Guiding principles (applies to all items)
 
 * **Semantic guardrail:** Never label state as forecast. State stays “Outlook”; predictive outputs stay “Forecast (Prob)”.

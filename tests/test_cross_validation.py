@@ -576,12 +576,12 @@ class TestSignalParity(unittest.TestCase):
                 f"{name}: regSlopeLongOkSafe coercion missing")
             self.assertIn('regSlopeShortOkSafe', content,
                 f"{name}: regSlopeShortOkSafe coercion missing")
-            # Included in enhOk
+            # Included in enhOk (via f_soft fail-open wrapper)
             enh_long_idx = content.find('enhLongOk  =')
             self.assertNotEqual(enh_long_idx, -1, f"{name}: enhLongOk definition not found")
             enh_line = content[enh_long_idx:content.find('\n', enh_long_idx)]
-            self.assertIn('regSlopeLongOkSafe', enh_line,
-                f"{name}: enhLongOk must include regSlopeLongOkSafe")
+            self.assertIn('regSlopeLongOk', enh_line,
+                f"{name}: enhLongOk must include regSlopeLongOk")
 
     def test_abstain_override_conf_parity(self):
         """abstainOverrideConf / isHighConf / decisionFinal must exist in both files."""

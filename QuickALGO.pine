@@ -31,14 +31,21 @@ enable_market_profile = input.bool(true, "Enable Market Profile Analysis", group
 enable_divergence_scanner = input.bool(true, "Enable Divergence Scanner", group="Advanced Analysis Tools", tooltip="Detects price and momentum divergences for reversal signals")
 enable_trend_analysis = input.bool(true, "Enable Trend Strength Matrix", group="Advanced Analysis Tools", tooltip="Show detailed predictions for future trends across timeframes.")
 
-// USI Inputs
-useUsi          = input.bool(true, "Enable USI Premium Filter", group="USI Settings", tooltip="Uses 5-RSI stacking logic to identify high-quality 'Premium' entries.")
+// USI Settings (Quantum Pulse v6.3)
+useUsi          = input.bool(true, "Enable USI Quantum Pulse Filter", group="USI Settings", tooltip="Uses Quantum Pulse v6.3 logic (Fast Signal + Verification + 30m Gate) to identify high-quality 'Premium' entries.")
 usiLen1         = input.int(13, "Length 1 (slowest)", minval=2, group="USI Settings")
 usiLen2         = input.int(11, "Length 2", minval=2, group="USI Settings")
 usiLen3         = input.int(7,  "Length 3", minval=2, group="USI Settings")
 usiLen4         = input.int(5,  "Length 4", minval=2, group="USI Settings")
 usiLen5         = input.int(3,  "Length 5 (fastest)", minval=2, group="USI Settings")
 usiZeroLag      = input.bool(true, "Zero-Lag mode", group="USI Settings")
+usiTfGate       = input.timeframe("30", "Gate TF (Regime)", group="USI Settings")
+usiEmaLen       = input.int(100, "EMA Length (Gate)", minval=1, group="USI Settings")
+usiSpreadLookback = input.int(100, "Spread Median Lookback", minval=20, group="USI Settings")
+usiTightFactor    = input.float(0.40, "Tight Spread Factor", minval=0.05, step=0.05, group="USI Settings")
+hardenHold      = input.bool(true, "Harden Hold (L5 vs L4)", group="USI Settings")
+debugUsiLevel   = input.string("Off", "Debug: Level", options=["Off", "Lean", "Full"], group="USI Settings")
+debugUsiWhere   = input.string("Bottom", "Debug: Location", options=["Top", "Bottom"], group="USI Settings")
 
 volumeLongPeriod = input.int(50, "Long Volume Period", minval=10, maxval=100, group="Volume Filter Settings")
 volumeShortPeriod = input.int(5, "Short Volume Period", minval=1, maxval=20, group="Volume Filter Settings")
@@ -249,7 +256,7 @@ if show_get_ready and get_ready_sell
 if show_get_ready and get_ready_buy
     label.new(bar_index, low, "⚠ READY", color=color.new(#FFB627, 70), style=label.style_label_up, textcolor=color.white, size=size.small)
 
-// USI Quantum Pulse Logic (Premium Filter Enhancement)
+// USI Quantum Pulse Logic (Fast+Verify) - v6.3.3
 f_zl_src(src, len) =>
     e1 = ta.ema(src, len)
     e2 = ta.ema(e1, len)
@@ -270,22 +277,113 @@ usiLine5 = ta.rsi(usiSrc5, usiLen5)
 usiMaxEnv = math.max(math.max(usiLine1, usiLine2), math.max(usiLine3, usiLine4))
 usiMinEnv = math.min(math.min(usiLine1, usiLine2), math.min(usiLine3, usiLine4))
 
-usiWasBelowAll = usiLine5[1] < usiMinEnv[1]
-usiWasAboveAll = usiLine5[1] > usiMaxEnv[1]
+// 1. Cluster & Trend (Timeframe: Chart)
+usiClusterHigh = usiMaxEnv
+usiClusterLow  = usiMinEnv
+usiClusterAvg  = math.avg(usiLine1, usiLine2, usiLine3, usiLine4)
+usiSpread      = usiClusterHigh - usiClusterLow
+
+// Tight Spread Detection (Dynamic using Median p50)
+usiSpreadP50   = ta.percentile_linear_interpolation(usiSpread, usiSpreadLookback, 50)
+isTightSpread  = (usiSpreadP50 > 0) and (usiSpread < (usiSpreadP50 * usiTightFactor))
+
+usiEmaGate     = ta.ema(close, usiEmaLen)
+
+// 2. 30m Gate (Regime Context)
+f_usi_30m_calc_raw() =>
+    _c = close
+    _e = ta.ema(close, usiEmaLen)
+    _s1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
+    _s2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
+    _s3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
+    _s4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
+    _s5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+    _r1 = ta.rsi(_s1, usiLen1)
+    _r2 = ta.rsi(_s2, usiLen2)
+    _r3 = ta.rsi(_s3, usiLen3)
+    _r4 = ta.rsi(_s4, usiLen4)
+    _r5 = ta.rsi(_s5, usiLen5)
+    _cA = math.avg(_r1, _r2, _r3, _r4)
+    [_c, _e, _r5, _cA]
+
+[qCl30_raw, qEma30_raw, qL5_30_raw, qClusterA30_raw] = request.security(syminfo.tickerid, usiTfGate, f_usi_30m_calc_raw(), lookahead = barmerge.lookahead_off)
+qCl30       = qCl30_raw[1]
+qEma30      = qEma30_raw[1]
+qL5_30      = qL5_30_raw[1]
+qClusterA30 = qClusterA30_raw[1]
+
+qRegimeBuy  = qCl30 >= qEma30 and qL5_30 >= qClusterA30
+qRegimeSell = qCl30 <= qEma30 and qL5_30 <= qClusterA30
+
+// 3. Fast Signal (Bar 0)
 _usiXUp_Q = ta.crossover(usiLine5, usiMaxEnv)
 _usiXDn_Q = ta.crossunder(usiLine5, usiMinEnv)
-usiBuySignal  = usiWasBelowAll and _usiXUp_Q
-usiSellSignal = usiWasAboveAll and _usiXDn_Q
+qFastSignalBuy  = _usiXUp_Q
+qFastSignalSell = _usiXDn_Q
 usiBullState = usiLine5 > usiMaxEnv
 usiBearState = usiLine5 < usiMinEnv
 
-// USI Premium Logic (Option A)
-// Note: barssince returns na if never happened, comparison < 3 handles proper bool result.
-bool usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
-bool usiSellRecent = ta.barssince(usiSellSignal) <= 3
+// 4. Verify & Enter (Bar 1)
+qSigWasBuy  = qFastSignalBuy[1]
+qSigWasSell = qFastSignalSell[1]
+qGatesValidBuy  = (close > usiEmaGate) and qRegimeBuy
+qGatesValidSell = (close < usiEmaGate) and qRegimeSell
 
-bool _usiPremBuy   = (usiBullState or usiBuyRecent) and not usiSellRecent
-bool _usiPremShort = (usiBearState or usiSellRecent) and not usiBuyRecent
+vBuy1_Hold_base = usiLine5 > usiClusterAvg
+vBuy1_Hold      = hardenHold ? (vBuy1_Hold_base and (usiLine5 > usiLine4)) : vBuy1_Hold_base
+vBuy2_Cont      = usiLine5 > usiLine5[1]
+vBuy3_Stack     = (usiLine5 > usiLine4) and (usiLine4 > usiLine3)
+
+bool qVerifyBuy = false
+if isTightSpread
+    qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont
+else
+    qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= 2)
+
+vSell1_Hold_base = usiLine5 < usiClusterAvg
+vSell1_Hold      = hardenHold ? (vSell1_Hold_base and (usiLine5 < usiLine4)) : vSell1_Hold_base
+vSell2_Cont      = usiLine5 < usiLine5[1]
+vSell3_Stack     = (usiLine5 < usiLine4) and (usiLine4 < usiLine3)
+
+bool qVerifySell = false
+if isTightSpread
+    qVerifySell := qSigWasSell and vSell1_Hold and vSell2_Cont
+else
+    qVerifySell := qSigWasSell and ((vSell1_Hold?1:0) + (vSell2_Cont?1:0) + (vSell3_Stack?1:0) >= 2)
+
+qFinalEntryBuy  = useUsi and qVerifyBuy and qGatesValidBuy
+qFinalEntrySell = useUsi and qVerifySell and qGatesValidSell
+
+// Compatibility Alias (Maps Pulse to Premium Flag)
+bool _usiPremBuy   = qFinalEntryBuy
+bool _usiPremShort = qFinalEntrySell
+
+// Debug Plots (Lean)
+dbgLoc = debugUsiWhere == "Top" ? location.top : location.bottom
+isLean = debugUsiLevel == "Lean"
+isFull = debugUsiLevel == "Full"
+
+// Compute Lean Signals
+// Priority: Enter > GateFail > VerifyFail
+leanBuyEnter  = isLean and qFinalEntryBuy
+leanBuyGate   = isLean and (not qFinalEntryBuy) and (qVerifyBuy and not qGatesValidBuy)
+leanBuyVerify = isLean and (not qFinalEntryBuy) and (qSigWasBuy and not qVerifyBuy)
+
+leanSellEnter  = isLean and qFinalEntrySell
+leanSellGate   = isLean and (not qFinalEntrySell) and (qVerifySell and not qGatesValidSell)
+leanSellVerify = isLean and (not qFinalEntrySell) and (qSigWasSell and not qVerifySell)
+
+plotchar(leanBuyEnter,  "USI Enter B", "B", location=dbgLoc, color=color.new(#00E676, 0), size=size.tiny)
+plotchar(leanBuyGate,   "USI Gate x",  "x", location=dbgLoc, color=color.new(color.gray, 30), size=size.tiny)
+plotchar(leanBuyVerify, "USI Verify !", "!", location=dbgLoc, color=color.new(color.red, 30), size=size.tiny)
+
+plotchar(leanSellEnter,  "USI Enter S", "S", location=dbgLoc, color=color.new(#FF1744, 0), size=size.tiny)
+plotchar(leanSellGate,   "USI Gate x",  "x", location=dbgLoc, color=color.new(color.gray, 30), size=size.tiny)
+plotchar(leanSellVerify, "USI Verify !", "!", location=dbgLoc, color=color.new(color.red, 30), size=size.tiny)
+
+// Full Plots
+plotchar(isFull ? qFastSignalBuy : na,  title="Fast BUY",  char="▲", location=dbgLoc, size=size.tiny, color=color.gray)
+plotchar(isFull ? qFastSignalSell : na, title="Fast SELL", char="▼", location=dbgLoc, size=size.tiny, color=color.gray)
 
 did_buy := false
 did_sell := false
@@ -302,7 +400,7 @@ if did_buy and did_sell
 confTxt = str.tostring(signal_confidence, "#.0") + "%"
 
 if showShortLabels and did_sell
-    string sellTag = (useUsi and _usiPremShort) ? "🔴 SELL (Prem)" : "🔴 SELL"
+    string sellTag = (useUsi and _usiPremShort) ? "🔴 SELL (Q-Pulse)" : "🔴 SELL"
     label.new(bar_index, high, sellTag + "\nConf: " + confTxt, color=color.new(#FF1744, 0), style=label.style_label_down, textcolor=color.white, size=size.normal)
     tp_sell_level := low - tp_points
     sl_sell_level := high + sl_points
@@ -312,7 +410,7 @@ if showShortLabels and did_sell
     pos := -1
 
 if showLongLabels and did_buy
-    string buyTag = (useUsi and _usiPremBuy) ? "🟢 BUY (Prem)" : "🟢 BUY"
+    string buyTag = (useUsi and _usiPremBuy) ? "🟢 BUY (Q-Pulse)" : "🟢 BUY"
     label.new(bar_index, low, buyTag + "\nConf: " + confTxt, color=color.new(#00E676, 0), style=label.style_label_up, textcolor=color.white, size=size.normal)
     tp_buy_level := high + tp_points
     sl_buy_level := low - sl_points
