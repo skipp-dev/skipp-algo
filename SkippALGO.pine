@@ -2658,15 +2658,23 @@ usiStackDir = usiBullStack >= usiMinStack ? 1 : usiBearStack >= usiMinStack ? -1
 
 // USI Quality Logic (Red vs All)
 // Pattern A: "Premium vs Standard" Signaling
+// Defined: Red (L5) vs Envelopes of Others (L1-L4)
 usiMaxEnv = math.max(math.max(usiLine1, usiLine2), math.max(usiLine3, usiLine4))
 usiMinEnv = math.min(math.min(usiLine1, usiLine2), math.min(usiLine3, usiLine4))
 
+// "Red under all, then crosses above all" -> BUY
+// Implies: Yesterday Red < MinEnv, Today Red crosses above MaxEnv
+// Note: This requires a very strong 1-bar move if strict [1] is used.
 usiWasBelowAll = usiLine5[1] < usiMinEnv[1]
 usiWasAboveAll = usiLine5[1] > usiMaxEnv[1]
 
-usiBuySignal  = usiWasBelowAll and ta.crossover(usiLine5, usiMaxEnv)
-usiSellSignal = usiWasAboveAll and ta.crossunder(usiLine5, usiMinEnv)
+_usiXUp = ta.crossover(usiLine5, usiMaxEnv)
+_usiXDn = ta.crossunder(usiLine5, usiMinEnv)
 
+usiBuySignal  = usiWasBelowAll and _usiXUp
+usiSellSignal = usiWasAboveAll and _usiXDn
+
+// State: Red clearly dominant above/below all others
 usiBullState = usiLine5 > usiMaxEnv
 usiBearState = usiLine5 < usiMinEnv
 
@@ -4397,11 +4405,13 @@ plot(emaF, "EMA Fast", color=color.new(color.yellow, 0))
 plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
 
 // -- USI Quantum Pulse plots (visual overlay, no signal influence) --
-plot(useUsi ? usiLine1 : na, "USI L1 (Blue)",   color=color.new(color.blue, 30),   display=display.pane)
-plot(useUsi ? usiLine2 : na, "USI L2 (Green)",  color=color.new(color.green, 30),  display=display.pane)
-plot(useUsi ? usiLine3 : na, "USI L3 (Yellow)", color=color.new(color.yellow, 30), display=display.pane)
-plot(useUsi ? usiLine4 : na, "USI L4 (Orange)", color=color.new(color.orange, 30), display=display.pane)
-plot(useUsi ? usiLine5 : na, "USI L5 (Red)",    color=color.new(color.red, 30),    display=display.pane)
+// Hidden by default to avoid cluttering the chart with an extra pane or status line text.
+// Users can enable them via Style tab or if we add a dedicated "Show USI" input.
+plot(useUsi ? usiLine1 : na, "USI L1 (Blue)",   color=color.new(color.blue, 30),   display=display.none)
+plot(useUsi ? usiLine2 : na, "USI L2 (Green)",  color=color.new(color.green, 30),  display=display.none)
+plot(useUsi ? usiLine3 : na, "USI L3 (Yellow)", color=color.new(color.yellow, 30), display=display.none)
+plot(useUsi ? usiLine4 : na, "USI L4 (Orange)", color=color.new(color.orange, 30), display=display.none)
+plot(useUsi ? usiLine5 : na, "USI L5 (Red)",    color=color.new(color.red, 30),    display=display.none)
 
 
 // State transitions
@@ -4714,8 +4724,13 @@ bool _sweepRecentBullLbl = (not na(barsSinceSweep_Bull)) and (barsSinceSweep_Bul
 bool _sweepRecentBearLbl = (not na(barsSinceSweep_Bear)) and (barsSinceSweep_Bear <= liqSweepLookback)
 
 // USI Premium Logic (Option A)
-usiBuyRecent  = ta.barssince(usiBuySignal) >= 0 and ta.barssince(usiBuySignal) <= 3
-usiSellRecent = ta.barssince(usiSellSignal) >= 0 and ta.barssince(usiSellSignal) <= 3
+usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
+usiSellRecent = ta.barssince(usiSellSignal) <= 3
+// Note: barssince returns na if never happened, comparison < 3 handles na properly (false) but just in case:
+if na(usiBuyRecent)
+    usiBuyRecent := false
+if na(usiSellRecent)
+    usiSellRecent := false
 
 bool _usiPremBuy   = (usiBullState or usiBuyRecent) and not usiSellRecent
 bool _usiPremShort = (usiBearState or usiSellRecent) and not usiBuyRecent
@@ -4737,10 +4752,10 @@ if showLongLabels and labelRevBuy
 if showShortLabels and labelRevShort
     f_entry_label(bar_index, high, _revShortConfluence ? _revShortPlus : _revShortBase, label.style_label_down, color.black, color.new(color.fuchsia, 0))
 if showLongLabels and labelBuy
-    bool _isPrem = ((not useUsi) or _usiPremBuy)
+    bool _isPrem = (useUsi and _usiPremBuy)
     f_entry_label(bar_index, low, _isPrem ? _premBuyTxt : _stdBuyTxt, label.style_label_up, color.white, color.new(color.green, 0))
 if showShortLabels and labelShort
-    bool _isPrem = ((not useUsi) or _usiPremShort)
+    bool _isPrem = (useUsi and _usiPremShort)
     f_entry_label(bar_index, high, _isPrem ? _premShortTxt : _stdShortTxt, label.style_label_down, color.white, color.new(color.red, 0))
 
 // EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
