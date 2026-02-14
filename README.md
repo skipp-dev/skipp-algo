@@ -39,10 +39,11 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
-- **Latest (v6.3.0 — 14 Feb 2026) — Enterprise Cooldown Hardening + QuickALGO Opt:**
-  - **Cooldown Fix**: `cooldownMode` "Minutes" support prevents H1/H4 charts from being blocked for hours.
-  - **Fast Entries**: `cooldownTriggers` "ExitsOnly" logic explicitly allows add-on entries without resetting the timer.
-  - **QuickALGO**: Optimized to **Score+Verify** logic for better sensitivity; fixed MTF repainting (`lookahead_off`).
+- **Latest (v6.3.1 — 14 Feb 2026) — Hotfix + Enterprise Hardening:**
+  - **Syntax Fix (v6.3.1)**: Removed erratic duplicate code block in indicator logic that caused a compilation error.
+  - **Cooldown Fix (v6.3.0)**: `cooldownMode` "Minutes" prevents H1/H4 charts from being blocked for hours.
+  - **Fast Entries (v6.3.0)**: `cooldownTriggers` "ExitsOnly" logic explicitly allows add-on entries.
+  - **QuickALGO (v6.3.0)**: Optimized to Score+Verify logic; fixed MTF repainting.
   - **Validation**: Full regression test suite passed (339 tests).
   - **Pine Hardening**: Fixed type-safety issues in `ta.barssince` logic across all scripts.
 

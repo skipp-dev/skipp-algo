@@ -4,13 +4,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [v6.3.1] - 2026-02-14
+
+### Fixed
+- **SkippALGO Indicator**: Removed duplicate/erroneous code block related to `qVerifyBuy` logic that caused a "Mismatched input bool" syntax error.
+- **Maintenance**: Parity version bump for Strategy script (no functional changes in Strategy).
+
 ## [v6.3.0] - 2026-02-14
 
 ### Added (System Hardening)
+
 - **Time-Based Cooldown**: `cooldownMode` input ("Bars" vs "Minutes") allows proper HTF trade management without multi-hour lockouts.
 - **Explicit Triggers**: `cooldownTriggers` input ("ExitsOnly" vs "AllSignals") strictly defines what resets the timer. "ExitsOnly" (default) ensures fast add-on entries are possible.
 
 ### Changed (Optimization)
+
 - **QuickALGO Logic**: Switched from restrictive "Hard-AND" momentum check to "Score+Verify" weighted approach.
 - **QuickALGO MTF Fix**: Added `lookahead=barmerge.lookahead_off` to prevent repainting.
 - **Cleanup**: Removed legacy "Deep Upgrade" branding from script headers.
