@@ -39,10 +39,11 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
-- **Latest (v6.3.2 — 14 Feb 2026) — Hotfix 2:**
-  - **Syntax Fix (v6.3.2)**: Replaced `color.cyan` with `color.aqua` to adhere to Pine Script v6 strictness.
-  - **Syntax Fix (v6.3.1)**: Removed erratic duplicate code block in indicator logic that caused a compilation error.
-  - **Cooldown Fix (v6.3.0)**: `cooldownMode` "Minutes" prevents H1/H4 charts from being blocked for hours.
+- **Latest (v6.3.3 — 14 Feb 2026) — Hotfix 3:**
+  - **Syntax Fix (v6.3.3)**: Moved `plotchar()` from local scope to global scope (Pine Script requirement).
+  - **Syntax Fix (v6.3.2)**: Replaced `color.cyan` with `color.aqua`.
+  - **Syntax Fix (v6.3.1)**: Removed erratic duplicate code block.
+  - **Cooldown Fix (v6.3.0)**: `cooldownMode` "Minutes" support.
   - **Fast Entries (v6.3.0)**: `cooldownTriggers` "ExitsOnly" logic explicitly allows add-on entries.
   - **QuickALGO (v6.3.0)**: Optimized to Score+Verify logic; fixed MTF repainting.
   - **Validation**: Full regression test suite passed (339 tests).
