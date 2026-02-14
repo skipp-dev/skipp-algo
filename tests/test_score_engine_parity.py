@@ -59,11 +59,27 @@ def test_score_inputs_parity():
         assert inp in strategy_content, f"Strategy missing input: {inp}"
         assert inp in indicator_content, f"Indicator missing input: {inp}"
 
+def test_score_ddok_safety():
+    """Confirms ddOk is included in baseEligible (Risk Regression Protection)."""
+    strategy_content = read_file_content(STRATEGY_FILE)
+    indicator_content = read_file_content(INDICATOR_FILE)
+
+    # Looking for: bool baseEligible = (pos == 0) and ddOk and (allowEntry or allowRescue)
+    # Flexible on whitespace, but enforcing 'ddOk' presence in the definition
+    pattern = re.compile(
+        r"bool\s+baseEligible\s+=\s+\(pos\s*==\s*0\)\s+and\s+ddOk\s+and\s+\(allowEntry\s+or\s+allowRescue\)"
+    )
+
+    for filename, content in [("Strategy", strategy_content), ("Indicator", indicator_content)]:
+        match = pattern.search(content)
+        assert match, f"{filename}: 'baseEligible' definition missing 'ddOk' (Risk Bypass!)"
+
 if __name__ == "__main__":
     # Manually run tests if executed primarily
     try:
         test_score_engine_integration_order()
         test_score_inputs_parity()
+        test_score_ddok_safety()
         print("✅ Score Engine Parity Tests Passed")
     except AssertionError as e:
         print(f"❌ Test Failed: {e}")

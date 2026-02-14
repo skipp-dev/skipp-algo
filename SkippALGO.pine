@@ -4381,8 +4381,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     scoreS += f_penalty(isChop, wChopPenalty)
 
     // Final Decision
-    // Base eligibility: Position 0, Allow Entry
-    bool baseEligible = (pos == 0) and (allowEntry or allowRescue)
+    // Base eligibility: Position 0, Allow Entry + Drawdown Check (ddOk)
+    bool baseEligible = (pos == 0) and ddOk and (allowEntry or allowRescue)
 
     bool scoreBuy   = baseEligible and (scoreL >= scoreThresholdLong)
     bool scoreShort = baseEligible and enableShorts and (scoreS >= scoreThresholdShort)
