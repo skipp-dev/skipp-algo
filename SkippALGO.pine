@@ -590,6 +590,20 @@ debugUsiLevel   = input.string("Full", "Debug: Level", options=["Off", "Lean", "
 debugUsiWhere   = input.string("Bottom", "Debug: Location", options=["Top", "Bottom"], group="⚡ USI Quantum Pulse")
 
 //====================
+// Inputs — Score Engine (Option C)
+//====================
+grp_score = "Score Engine (Option C)"
+useScoreEntries = input.bool(false, "Enable Score-Based Entries", group=grp_score, tooltip="Alternative entry logic based on accumulative evidence score.")
+scoreThresholdLong = input.int(6, "Score Threshold (Long)", minval=1, group=grp_score)
+scoreThresholdShort = input.int(6, "Score Threshold (Short)", minval=1, group=grp_score)
+wUsi        = input.int(4, "Weight: USI Cross", minval=0, group=grp_score)
+wLiquidity  = input.int(2, "Weight: Liquidity/Sweep", minval=0, group=grp_score)
+wMomentum   = input.int(2, "Weight: Momentum", minval=0, group=grp_score)
+wTrendContext = input.int(1, "Weight: Trend Context", minval=0, group=grp_score)
+wChopPenalty = input.int(-3, "Penalty: Chop/Consolidation", maxval=0, group=grp_score, tooltip="Negative points applied during low volatility phases.")
+scoreDebug  = input.bool(false, "Debug Score Breakdown", group=grp_score)
+
+//====================
 // Inputs — Debug
 //====================
 // Removed showEvidencePackDebug and debugProbeTime to cleanup user interface
@@ -4130,6 +4144,10 @@ f_soft(bool x) =>
 enhLongOk  = f_soft(adxOk) and f_soft(rocLongOk) and f_soft(volEnsLongOk) and f_soft(preMomLongOk) and f_soft(emaAccelLongOk) and f_soft(vwapLongOk) and f_soft(regSlopeLongOk)
 enhShortOk = f_soft(adxOk) and f_soft(rocShortOk) and f_soft(volEnsShortOk) and f_soft(preMomShortOk) and f_soft(emaAccelShortOk) and f_soft(vwapShortOk) and f_soft(regSlopeShortOk)
 
+// Score Engine Helpers (Option C)
+f_score_add(bool cond, int points) => cond ? points : 0
+f_penalty(bool cond, int penalties) => cond ? penalties : 0
+
 hybridLongTrigger  = touchEmaF_LongSafe  and (crossClose_EmaF_upSafe   or bullReversalSafe)
 hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearReversalSafe)
 
@@ -4307,6 +4325,76 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
             regimeScoreL -= 1.0
             regimeScoreS += 1.0
 
+    // --- SCORE ENGINE CALCULATION (Option C) ---
+    // Calculates independent score-based entry signals.
+    // Does not block on missing data (na -> 0).
+    
+    // 1. USI Evidence
+    // Red (Line 5) Cross Logic
+    // Buy: Red was below MinEnv, now crosses above MaxEnv (strongest) OR just crosses MaxEnv
+    float usiLine1 = na, float usiLine2 = na, float usiLine3 = na, float usiLine4 = na, float usiLine5 = na
+    // Note: USI lines are already calculated globally as usiLine1..5
+    // Re-accessing global scope variables:
+    float _uMax = usiMaxEnv
+    float _uMin = usiMinEnv
+    // Cross Logic
+    bool usiCrossUp   = ta.crossover(usiLine5, _uMax)
+    bool usiCrossDown = ta.crossunder(usiLine5, _uMin)
+    // Bonus for "Was Below All" (Clean Sweep)
+    bool usiSweepUp   = usiCrossUp and (usiLine5[1] < _uMin[1])
+    bool usiSweepDown = usiCrossDown and (usiLine5[1] > _uMax[1])
+
+    int scoreL = 0
+    int scoreS = 0
+    
+    // USI Contribution
+    if useUsi
+        scoreL += f_score_add(usiCrossUp, wUsi) + f_score_add(usiSweepUp, wUsi / 2)
+        scoreS += f_score_add(usiCrossDown, wUsi) + f_score_add(usiSweepDown, wUsi / 2)
+
+    // 2. Liquidity Evidence (Sweep / Reclaim / ChoCH)
+    // Long: reclaimUpSafe or isChoCH_Long
+    scoreL += f_score_add(reclaimUpSafe, wLiquidity)
+    scoreL += f_score_add(isChoCH_Long, wLiquidity)
+    // Short: reclaimDownSafe or isChoCH_Short
+    scoreS += f_score_add(reclaimDownSafe, wLiquidity)
+    scoreS += f_score_add(isChoCH_Short, wLiquidity)
+
+    // 3. Momentum Evidence
+    // Long: rocLongOk, adxOk, hugeVolG
+    scoreL += f_score_add(rocLongOk, wMomentum)
+    scoreL += f_score_add(adxOk, wMomentum / 2)
+    scoreL += f_score_add(hugeVolG, wMomentum / 2)
+    // Short
+    scoreS += f_score_add(rocShortOk, wMomentum)
+    scoreS += f_score_add(adxOk, wMomentum / 2)
+    scoreS += f_score_add(hugeVolG, wMomentum / 2)
+
+    // 4. Trend Context
+    scoreL += f_score_add(trendUpSafe, wTrendContext)
+    scoreS += f_score_add(trendDnSafe, wTrendContext)
+
+    // 5. Chop Penalty
+    // Detect low-vol chop: ADX < 20 and ATR/Close < 0.5%
+    bool isChop = (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005)
+    scoreL += f_penalty(isChop, wChopPenalty)
+    scoreS += f_penalty(isChop, wChopPenalty)
+
+    // Final Decision
+    // Base eligibility: Position 0, Allow Entry
+    bool baseEligible = (pos == 0) and (allowEntry or allowRescue)
+
+    bool scoreBuy   = baseEligible and (scoreL >= scoreThresholdLong)
+    bool scoreShort = baseEligible and enableShorts and (scoreS >= scoreThresholdShort)
+
+    // Debug Output
+    if scoreDebug
+        // Use a label to show score breakdown on potential signal
+        if scoreBuy
+            label.new(bar_index, low, text="Score BUY: " + str.tostring(scoreL) + "/" + str.tostring(scoreThresholdLong), color=color.lime, style=label.style_label_up, size=size.small)
+        if scoreShort
+            label.new(bar_index, high, text="Score SHORT: " + str.tostring(scoreS) + "/" + str.tostring(scoreThresholdShort), color=color.red, style=label.style_label_down, size=size.small)
+
     // 2. Veto Logic (Nur ECHTE Showstopper)
     bool isVetoL = false
     bool isVetoS = false
@@ -4398,6 +4486,12 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     //         buySignal := false
     //     if shortSignal and (na(pD) or pD < 0.20)
     //         shortSignal := false
+
+    // Option C: Score Engine Injection
+    // Added 2026-02-14: Independent evidence score route (Plan C)
+    if useScoreEntries
+        buySignal   := buySignal   or scoreBuy
+        shortSignal := shortSignal or scoreShort
 
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
