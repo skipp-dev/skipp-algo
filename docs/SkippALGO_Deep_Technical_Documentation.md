@@ -591,6 +591,7 @@ f_zl_src(src, len) =>
 **5 RSI Lines**: Computed at lengths 13, 11, 7, 5, 3 (configurable). Each RSI is evaluated against the 50-level to produce a directional vote (+1 bull, −1 bear).
 
 **Stacking Detection**: When ≥ `usiMinStack` (default 4) of 5 RSI lines agree on direction, a "stack" is detected:
+
 * `usiBullStack` — majority above 50
 * `usiBearStack` — majority below 50
 
@@ -620,6 +621,7 @@ The `usiStackDir` variable encodes the direction: +1 (bull stack), −1 (bear st
 #### When USI is Disabled
 
 Setting `useUsi = false` cleanly removes all USI influence:
+
 * `usiStackOverride` = false → no decision bypass
 * Confidence boost = 0
 * MTF vote contribution = 0
