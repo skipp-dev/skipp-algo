@@ -91,13 +91,24 @@ var int pos = 0
 var bool did_buy = false
 var bool did_sell = false
 
-[ema1M, vwap1M] = request.security(syminfo.tickerid, "1", [ta.ema(close, 20), ta.vwap(hlc3)])
-[ema5M, vwap5M] = request.security(syminfo.tickerid, "5", [ta.ema(close, 20), ta.vwap(hlc3)])
-[ema15M, vwap15M] = request.security(syminfo.tickerid, "15", [ta.ema(close, 20), ta.vwap(hlc3)])
-[ema30M, vwap30M] = request.security(syminfo.tickerid, "30", [ta.ema(close, 20), ta.vwap(hlc3)])
-[ema1H, vwap1H] = request.security(syminfo.tickerid, "60", [ta.ema(close, 20), ta.vwap(hlc3)])
-[ema4H, vwap4H] = request.security(syminfo.tickerid, "240", [ta.ema(close, 20), ta.vwap(hlc3)])
-[emaD, vwapD] = request.security(syminfo.tickerid, "D", [ta.ema(close, 20), ta.vwap(hlc3)])
+// --- FIX MTF REPAINTING ---
+// request confirmed previous bar data to stop flickering
+[ema1M_raw, vwap1M_raw] = request.security(syminfo.tickerid, "1", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+[ema5M_raw, vwap5M_raw] = request.security(syminfo.tickerid, "5", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+[ema15M_raw, vwap15M_raw] = request.security(syminfo.tickerid, "15", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+[ema30M_raw, vwap30M_raw] = request.security(syminfo.tickerid, "30", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+[ema1H_raw, vwap1H_raw] = request.security(syminfo.tickerid, "60", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+[ema4H_raw, vwap4H_raw] = request.security(syminfo.tickerid, "240", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+[emaD_raw, vwapD_raw] = request.security(syminfo.tickerid, "D", [ta.ema(close, 20), ta.vwap(hlc3)], lookahead=barmerge.lookahead_off)
+
+// Use the value from the *completed* bar to avoid intrabar flicker
+ema1M = ema1M_raw[1], vwap1M = vwap1M_raw[1]
+ema5M = ema5M_raw[1], vwap5M = vwap5M_raw[1]
+ema15M = ema15M_raw[1], vwap15M = vwap15M_raw[1]
+ema30M = ema30M_raw[1], vwap30M = vwap30M_raw[1]
+ema1H = ema1H_raw[1], vwap1H = vwap1H_raw[1]
+ema4H = ema4H_raw[1], vwap4H = vwap4H_raw[1]
+emaD = emaD_raw[1], vwapD = vwapD_raw[1]
 
 trend1M = close > ema1M and (na(vwap1M) or close > vwap1M) ? 1 : close < ema1M and (na(vwap1M) or close < vwap1M) ? -1 : 0
 trend5M = close > ema5M and (na(vwap5M) or close > vwap5M) ? 1 : close < ema5M and (na(vwap5M) or close < vwap5M) ? -1 : 0
@@ -177,15 +188,19 @@ else if restrict_trend_tf_choice == "D"
 
 volAvg50 = ta.sma(volume, volumeLongPeriod)
 volShort = ta.sma(volume, volumeShortPeriod)
-volCondition = (na(volume) or volume == 0) ? true : (volume > volAvg50 and ta.change(volShort) > 0)
+volChange = ta.change(volShort)
+volCondition = (na(volume) or volume == 0) ? true : (volume > volAvg50 and volChange > 0)
 
 highestBreakout = ta.highest(high, breakoutPeriod)
 lowestBreakout = ta.lowest(low, breakoutPeriod)
 
-choch_sell = ta.crossunder(low, last_high) and close < open
-choch_buy = ta.crossover(high, last_low) and close > open
-bos_sell = ta.crossunder(low, last_low[1]) and low < last_low[1] and close < open
-bos_buy = ta.crossover(high, last_high[1]) and high > last_high[1] and close > open
+// --- FIX CHOCH (Standard Structure) ---
+// Bullish CHoCH breaks High, Bearish CHoCH breaks Low. Using Close for stability.
+choch_sell = ta.crossunder(close, last_low)
+choch_buy = ta.crossover(close, last_high)
+// BOS definitions
+bos_sell = ta.crossunder(close, last_low[1]) and low < last_low[1]
+bos_buy = ta.crossover(close, last_high[1]) and high > last_high[1]
 
 early_sell_signal = use_momentum_filter ? price_change < -momentum_threshold : true
 early_buy_signal = use_momentum_filter ? price_change > momentum_threshold : true
@@ -193,8 +208,8 @@ early_buy_signal = use_momentum_filter ? price_change > momentum_threshold : tru
 sell_trend_ok = use_trend_filter ? bearish_trend_ok : true
 buy_trend_ok = use_trend_filter ? bullish_trend_ok : true
 
-sell_lower_tf_ok = use_lower_tf_filter ? (not lower_tf_bullish and lower_tf_not_neutral) : true
-buy_lower_tf_ok = use_lower_tf_filter ? (not lower_tf_bearish and lower_tf_not_neutral) : true
+sell_lower_tf_ok = use_lower_tf_filter ? (not lower_tf_bullish) : true
+buy_lower_tf_ok = use_lower_tf_filter ? (not lower_tf_bearish) : true
 
 sell_volume_ok = use_volume_filter ? volCondition : true
 buy_volume_ok = use_volume_filter ? volCondition : true
@@ -205,8 +220,81 @@ buy_breakout_ok = use_breakout_filter ? close > highestBreakout[1] : true
 sell_allowed = not restrict_repeated_signals or (last_signal != "Sell" or (last_signal == "Sell" and restrict_tf_trend != last_trend and restrict_tf_trend != -1))
 buy_allowed = not restrict_repeated_signals or (last_signal != "Buy" or (last_signal == "Buy" and restrict_tf_trend != last_trend and restrict_tf_trend != 1))
 
-sell_condition = early_sell_signal and (bar_index - last_signal_bar >= min_signal_distance) and sell_trend_ok and sell_lower_tf_ok and sell_volume_ok and sell_breakout_ok and sell_allowed
-buy_condition = early_buy_signal and (bar_index - last_signal_bar >= min_signal_distance) and buy_trend_ok and buy_lower_tf_ok and buy_volume_ok and buy_breakout_ok and buy_allowed
+// --- OPTIMIZATION: SCORE + VERIFY ARCHITECTURE ---
+// 1. Trigger (Ping)
+bool trigger_buy = early_buy_signal // Momentum
+bool trigger_sell = early_sell_signal
+
+// 2. Score (statt hard gates)
+var float scoreBuy = 0.0
+scoreBuy := 0.0
+if buy_trend_ok 
+    scoreBuy += 1
+if buy_volume_ok 
+    scoreBuy += 1
+if buy_breakout_ok 
+    scoreBuy += 1
+// Bonus für USI (wenn aktiv)
+if useUsi // and _usiPremBuy (Moved USI logic to end of script, cannot use here yet)
+    scoreBuy += 0 // Placeholder until USI block is moved up
+
+var float scoreSell = 0.0
+scoreSell := 0.0
+if sell_trend_ok 
+    scoreSell += 1
+if sell_volume_ok 
+    scoreSell += 1
+if sell_breakout_ok 
+    scoreSell += 1
+if useUsi // and _usiPremShort
+    scoreSell += 0
+
+// 3. Decision Logic
+// A) Strong Impulse: Trigger + min. 2 Bestätigungen
+bool strongEntryBuy = trigger_buy and (scoreBuy >= 2)
+bool strongEntrySell = trigger_sell and (scoreSell >= 2)
+
+// B) Verify (Next Bar) - HARDENED via TTL & Consume
+// TTL = Time To Live for pending signal (prevent stale fires)
+int pendingTTL = 2 
+var int pendingBuyBars = 0
+var int pendingSellBars = 0
+
+// Arm pending on trigger if not already armed (or re-arm)
+if trigger_buy and scoreBuy >= 1
+    pendingBuyBars := pendingTTL
+else if pendingBuyBars > 0
+    // Decrement TTL (Aging)
+    pendingBuyBars -= 1
+
+// Arm pending short
+if trigger_sell and scoreSell >= 1
+    pendingSellBars := pendingTTL
+else if pendingSellBars > 0
+    pendingSellBars -= 1
+
+// Early Cancel on Weakness (Stop hunting fakeouts)
+if pendingBuyBars > 0 and close < low[1]
+    pendingBuyBars := 0
+if pendingSellBars > 0 and close > high[1]
+    pendingSellBars := 0
+
+// Confirm: Must have had pending state previously + Continuation + Score ok + CONFIRMED bar
+bool verifiedEntryBuy = barstate.isconfirmed and (pendingBuyBars[1] > 0) and (close > high[1]) and (scoreBuy >= 1)
+bool verifiedEntrySell = barstate.isconfirmed and (pendingSellBars[1] > 0) and (close < low[1]) and (scoreSell >= 1)
+
+// Consumer Logic: If fired, clear pending to prevent double-tap
+if verifiedEntryBuy
+    pendingBuyBars := 0
+if verifiedEntrySell
+    pendingSellBars := 0
+
+sell_condition = (strongEntrySell or verifiedEntrySell) and (bar_index - last_signal_bar >= min_signal_distance) and sell_trend_ok and sell_lower_tf_ok and sell_allowed
+buy_condition  = (strongEntryBuy or verifiedEntryBuy)   and (bar_index - last_signal_bar >= min_signal_distance) and buy_trend_ok and buy_lower_tf_ok and buy_allowed
+
+// Old Hard-AND Logic (Deprecated)
+// sell_condition = early_sell_signal and (bar_index - last_signal_bar >= min_signal_distance) and sell_trend_ok and sell_lower_tf_ok and sell_volume_ok and sell_breakout_ok and sell_allowed
+// buy_condition = early_buy_signal and (bar_index - last_signal_bar >= min_signal_distance) and buy_trend_ok and buy_lower_tf_ok and buy_volume_ok and buy_breakout_ok and buy_allowed
 
 get_ready_sell = (use_momentum_filter ? (price_change < -pre_momentum_threshold and price_change > -momentum_threshold) : true) and (bar_index - last_signal_bar >= min_signal_distance) and sell_trend_ok and sell_lower_tf_ok and sell_volume_ok and sell_breakout_ok
 get_ready_buy = (use_momentum_filter ? (price_change > pre_momentum_threshold and price_change < momentum_threshold) : true) and (bar_index - last_signal_bar >= min_signal_distance) and buy_trend_ok and buy_lower_tf_ok and buy_volume_ok and buy_breakout_ok
@@ -399,25 +487,36 @@ if did_buy and did_sell
 
 confTxt = str.tostring(signal_confidence, "#.0") + "%"
 
-if showShortLabels and did_sell
-    string sellTag = (useUsi and _usiPremShort) ? "🔴 SELL (Q-Pulse)" : "🔴 SELL"
-    label.new(bar_index, high, sellTag + "\nConf: " + confTxt, color=color.new(#FF1744, 0), style=label.style_label_down, textcolor=color.white, size=size.normal)
-    tp_sell_level := low - tp_points
-    sl_sell_level := high + sl_points
-    last_signal := "Sell"
-    last_signal_bar := bar_index
-    last_trend := restrict_tf_trend
-    pos := -1
+// --- Unified Execution & State Commit (Hardened) ---
+// Update State ONLY on confirmed bars to prevent Ghost-Signals/Repainting
+if barstate.isconfirmed
+    if did_sell
+        // Commit State
+        last_signal := "Sell"
+        last_signal_bar := bar_index
+        last_trend := restrict_tf_trend
+        pos := -1
+        
+        // UI / Label (Confirmed only)
+        if showShortLabels
+            string sellTag = (useUsi and _usiPremShort) ? "🔴 SELL (Q-Pulse)" : "🔴 SELL"
+            label.new(bar_index, high, sellTag + "\nConf: " + confTxt, color=color.new(#FF1744, 0), style=label.style_label_down, textcolor=color.white, size=size.normal)
+            tp_sell_level := low - tp_points
+            sl_sell_level := high + sl_points
 
-if showLongLabels and did_buy
-    string buyTag = (useUsi and _usiPremBuy) ? "🟢 BUY (Q-Pulse)" : "🟢 BUY"
-    label.new(bar_index, low, buyTag + "\nConf: " + confTxt, color=color.new(#00E676, 0), style=label.style_label_up, textcolor=color.white, size=size.normal)
-    tp_buy_level := high + tp_points
-    sl_buy_level := low - sl_points
-    last_signal := "Buy"
-    last_signal_bar := bar_index
-    last_trend := restrict_tf_trend
-    pos := 1
+    if did_buy
+        // Commit State
+        last_signal := "Buy"
+        last_signal_bar := bar_index
+        last_trend := restrict_tf_trend
+        pos := 1
+        
+        // UI / Label (Confirmed only)
+        if showLongLabels
+            string buyTag = (useUsi and _usiPremBuy) ? "🟢 BUY (Q-Pulse)" : "🟢 BUY"
+            label.new(bar_index, low, buyTag + "\nConf: " + confTxt, color=color.new(#00E676, 0), style=label.style_label_up, textcolor=color.white, size=size.normal)
+            tp_buy_level := high + tp_points
+            sl_buy_level := low - sl_points
 
 var line choch_sell_line = na
 var line choch_buy_line = na

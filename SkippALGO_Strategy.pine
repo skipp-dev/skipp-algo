@@ -2,13 +2,14 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO Strategy (Deep Upgrade v6.1)
-// - Synchronized with Main Indicator v6.1
+// SkippALGO Strategy v6.3.0
+// - Synchronized with Main Indicator v6.3.0
 // - Target Profiles (Fixed, KReturn, KATR, TPorSL)
 // - Ensemble Score (Algo + Pullback + Regime)
 // - 2D Binning (Score x Volatility)
 // - Platt Scaling (SGD Probability Calibration)
-strategy("SkippALGO Strategy", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
+// - v6.3.0: Enterprise Cooldown Hardening (H1 Fix + Explicit Triggers)
+strategy("SkippALGO Strategy v6.3.0", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=100, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -87,6 +88,7 @@ minTrust     = input.float(0.55, "Min confidence (0..1)", minval=0.0, maxval=1.0
 // --- Cooldown mode (legacy Bars vs Minutes) ---
 cooldownMode = input.string("Bars", "Cooldown mode", options=["Bars", "Minutes"])
 cooldownMinutes = input.int(30, "Cooldown minutes", minval=1)
+cooldownTriggers = input.string("ExitsOnly", "Cooldown triggers", options=["ExitsOnly", "AllSignals"])
 
 // --- Signal Enhancement Filters ---
 grp_sigfilt = "Signal Filters"
@@ -4576,8 +4578,9 @@ if barstate.isconfirmed
             tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
         // Option B: Cooldown update removed so entries don't block subsequent entries
-        // lastSignalBar := bar_index
-        // lastSignalTime := time
+        if cooldownTriggers == "AllSignals"
+            lastSignalBar  := bar_index
+            lastSignalTime := time
         lastSig := "BUY"
     else if shortSignal and pos == 0 and not didCover
         didShort := true
@@ -4595,8 +4598,9 @@ if barstate.isconfirmed
             tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
         // Option B: Cooldown update removed
-        // lastSignalBar := bar_index
-        // lastSignalTime := time
+        if cooldownTriggers == "AllSignals"
+            lastSignalBar  := bar_index
+            lastSignalTime := time
         lastSig := "SHORT"
 
 buyEvent   = didBuy

@@ -2,14 +2,15 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO — Deep Upgrade (Phases 1-4)
+// SkippALGO v6.3.0
 // Implements advanced calibration and forecasting logic:
 // Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
 // Phase 2: 2D Binning (Algorithm Score + Volatility Regime)
 // Phase 3: Ensemble Scoring (Trend + Pullback + Volatility Bias)
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
+// v6.3.0: Enterprise Cooldown Hardening (H1 Fix + Explicit Triggers)
 
-indicator("SkippALGO", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO v6.3.0", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -90,6 +91,7 @@ minTrust     = input.float(0.40, "Min confidence (0..1)", minval=0.0, maxval=1.0
 // --- Cooldown mode (legacy Bars vs Minutes) ---
 cooldownMode = input.string("Bars", "Cooldown mode", options=["Bars", "Minutes"])
 cooldownMinutes = input.int(30, "Cooldown minutes", minval=1)
+cooldownTriggers = input.string("ExitsOnly", "Cooldown triggers", options=["ExitsOnly", "AllSignals"])
 
 // --- Signal Enhancement Filters ---
 grp_sigfilt = "Signal Filters"
@@ -4292,10 +4294,62 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     bool engOk_L = f_soft(setOkLong)  and f_soft(pullbackLongOk)
     bool engOk_S = f_soft(setOkShort) and f_soft(pullbackShortOk)
 
+    // --- OPTIMIZATION: DECOUPLED SCORING ---
+
+    // 1. Calculate Regime Score (Prior)
+    float regimeScoreL = 0.0
+    float regimeScoreS = 0.0
+    
+    // Forecast als Soft-Faktor (Fail Open) - Clamped to act as a gentle bias
+    if not na(pU)
+        regimeScoreL += math.max(math.min((pU - 0.50) * 2.0, 0.4), -0.4) 
+    
+    // Fix: Use pD via explicit variable to avoid Flat-Bias (Anti-pU would treat Flat as Short)
+    // Safe Fallback: If pD is na, use 0.0 (Neutral) to avoid polluting Score with NA or Flat-Bias.
+    // (Old fallback carried risk of interpreting Warmup/Flat as Short)
+    float rawShort = na(pD) ? 0.0 : (pD - 0.50)
+    regimeScoreS += math.max(math.min(rawShort * 2.0, 0.4), -0.4)
+
+    // 30m USI Gate als Soft-Faktor (Symmetric Dominance)
+    if useUsi 
+        if qRegimeBuy
+            regimeScoreL += 1.0
+            regimeScoreS -= 1.0 
+        else if qRegimeSell
+            regimeScoreL -= 1.0
+            regimeScoreS += 1.0
+
+    // 2. Veto Logic (Nur ECHTE Showstopper)
+    bool isVetoL = false
+    bool isVetoS = false
+    
+    // DD Risk Management (Immunity)
+    if ddOk == false
+        isVetoL := true 
+        isVetoS := true
+        
+    // Forecast Veto (Only if Strong Headwind existing)
+    // defined as: Low Prob AND Regime against us
+    if (not na(pU) and pU < 0.30 and regimeScoreL < -0.5)
+        isVetoL := true
+    if (not na(pD) and pD < 0.30 and regimeScoreS < -0.5)
+        isVetoS := true
+
+    // 3. Adaptive Triggering (Engine: Hybrid)
+    // If Engine is Hybrid, we use the Soft Context 
+    
     if engine == "Hybrid"
         // Hybrid: Trigger (EMA Touch) + Core Evidence + Enhancements (Soft)
         // Removed hard "Safe" walls.
-        gateBuy   = standardEntryOk and gateLongNow and liqOk_L and momOk_L and engOk_L and enhLongOk and hybridLongTrigger and f_soft(engulfLongOk)
+        
+        bool validTrendEntryL = standardEntryOk and gateLongNow and liqOk_L and momOk_L and engOk_L and enhLongOk and hybridLongTrigger
+        
+        // Context: Good Regime allows entry. Bad Regime requires Volume OR Engulfing.
+        bool contextL = (regimeScoreL > 0) or (f_soft(volOk) and f_soft(engulfLongOk))
+
+        
+        // Final Signal
+        gateBuy   = validTrendEntryL and contextL and not isVetoL
         
         // ChoCH Filter (Strict) - Kept strict for Reversals only as it is distinctive logic
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) 
@@ -4304,7 +4358,12 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
         buySignal   := gateBuy and chochFilterOk
         
-        gateShort = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and engOk_S and enhShortOk and hybridShortTrigger and f_soft(engulfShortOk)
+        
+        bool validTrendEntryS = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and engOk_S and enhShortOk and hybridShortTrigger
+        bool contextS = (regimeScoreS > 0) or (f_soft(volOk) and f_soft(engulfShortOk))
+        
+        gateShort = validTrendEntryS and contextS and not isVetoS
+        
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short)
         chochShortFilterOk = (not isChoCH_ShortEntry) or (na(pD) or pD >= chochMinProb)
         
@@ -4677,8 +4736,9 @@ if barstate.isconfirmed
             tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
         // Option B: Cooldown update removed so entries don't block subsequent entries
-        // lastSignalBar := bar_index
-        // lastSignalTime := time
+        if cooldownTriggers == "AllSignals"
+            lastSignalBar  := bar_index
+            lastSignalTime := time
         lastSig := "BUY"
     else if shortSignal and pos == 0 and not didCover
         didShort := true
@@ -4696,8 +4756,9 @@ if barstate.isconfirmed
             tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
         // Option B: Cooldown update removed
-        // lastSignalBar := bar_index
-        // lastSignalTime := time
+        if cooldownTriggers == "AllSignals"
+            lastSignalBar  := bar_index
+            lastSignalTime := time
         lastSig := "SHORT"
 
 buyEvent   = didBuy
