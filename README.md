@@ -39,6 +39,19 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
+- **Latest (14 Feb 2026) — Cooldown behavior + Pine compile hardening:**
+  - Added **time-based cooldown support** with backward compatibility in both indicator and strategy:
+    - `cooldownMode`: `Bars` (legacy default) or `Minutes`
+    - `cooldownMinutes`: real-time cooldown budget for higher timeframes
+    - Adaptive confidence halving now applies to both bar-based and minute-based cooldown paths.
+  - Fixed Pine type-safety issue in USI Premium “recent signal” logic:
+    - removed invalid `na()` checks on boolean expressions derived from `ta.barssince(...) <= 3`
+    - applied parity fix to all three scripts:
+      - `SkippALGO.pine`
+      - `SkippALGO_Strategy.pine`
+      - `QuickALGO.pine`
+  - Result: cleaner TradingView compilation behavior and more predictable cooldown semantics on 1H+ charts.
+
 - **Latest (12 Feb 2026) — QuickALGO signal/context upgrade:**
   - Added optional **3-candle engulfing filter** (default OFF) in both indicator and strategy:
     - Long entries require bullish engulfing after 3 bearish candles.

@@ -2,34 +2,46 @@
 
 ## Latest updates (12 Feb 2026)
 
+### Follow-up (14 Feb 2026): cooldown mode + compile stability
+
+* Added dual cooldown semantics in indicator/strategy:
+  * `cooldownMode`: `Bars` (legacy) or `Minutes`
+  * `cooldownMinutes`: timeframe-agnostic cooldown control for higher TF operation
+* Added timestamp-aware cooldown path (`lastSignalTime`) while preserving bar-index path (`lastSignalBar`) for backward compatibility.
+* Fixed Pine compile issue caused by calling `na()` on boolean recent-signal flags derived from `ta.barssince(...) <= 3`.
+* Applied USI recent-signal bool fix in all three scripts:
+  * `SkippALGO.pine`
+  * `SkippALGO_Strategy.pine`
+  * `QuickALGO.pine`
+
 ### PRE-BUY / PRE-SHORT label upgrade
 
-- Replaced static PRE markers (`plotshape`) with dynamic `label.new()` labels in:
-  - `SkippALGO.pine`
-  - `SkippALGO_Strategy.pine`
-- PRE labels now include actionable pre-entry context:
-  - `Gap` (distance to trigger in ATR)
-  - directional probability (`pU` / `pD`)
-  - model confidence (`Conf`)
-- Added per-engine trigger-gap computation so the `Gap` reflects actual trigger geometry:
-  - Hybrid: EMA fast reclaim distance
-  - Breakout: distance to swing breakout level
-  - Trend+Pullback: EMA flip/reclaim proximity
-  - Loose: EMA fast crossover proximity
+* Replaced static PRE markers (`plotshape`) with dynamic `label.new()` labels in:
+  * `SkippALGO.pine`
+  * `SkippALGO_Strategy.pine`
+* PRE labels now include actionable pre-entry context:
+  * `Gap` (distance to trigger in ATR)
+  * directional probability (`pU` / `pD`)
+  * model confidence (`Conf`)
+* Added per-engine trigger-gap computation so the `Gap` reflects actual trigger geometry:
+  * Hybrid: EMA fast reclaim distance
+  * Breakout: distance to swing breakout level
+  * Trend+Pullback: EMA flip/reclaim proximity
+  * Loose: EMA fast crossover proximity
 
 ### ChoCH parity clarification (v6.2.18 behavior restored)
 
-- Confirmed and documented intended split:
-  - ChoCH **visual** structure tags remain raw structure markers (no probability gate)
-  - ChoCH **entries** continue to use entry-side probability controls (`chochMinProb`, REV path gates)
+* Confirmed and documented intended split:
+  * ChoCH **visual** structure tags remain raw structure markers (no probability gate)
+  * ChoCH **entries** continue to use entry-side probability controls (`chochMinProb`, REV path gates)
 
 ### Test-suite expansion
 
-- Added dedicated PRE regression tests in:
-  - `tests/test_skippalgo_pine.py`
-  - `tests/test_skippalgo_strategy_pine.py`
-- Added explicit BUY / REV-BUY / EXIT label+alert regression checks in the same two modules.
-- Current suite status: **313 passed, 8 subtests passed**.
+* Added dedicated PRE regression tests in:
+  * `tests/test_skippalgo_pine.py`
+  * `tests/test_skippalgo_strategy_pine.py`
+* Added explicit BUY / REV-BUY / EXIT label+alert regression checks in the same two modules.
+* Current suite status: **313 passed, 8 subtests passed**.
 
 ## Overview
 
@@ -54,16 +66,16 @@ both `SkippALGO.pine` (Indicator) and `SkippALGO_Strategy.pine` (Strategy):
 
 Five new regression tests were added in `tests/test_cross_validation.py`:
 
-- `test_loose_engine_uses_enhOk`
-- `test_barsSinceEntry_zero_on_entry`
-- `test_canStructExit_uses_gte`
-- `test_regslope_subsystem_exists_both`
-- (plus existing parity tests that now pass)
+* `test_loose_engine_uses_enhOk`
+* `test_barsSinceEntry_zero_on_entry`
+* `test_canStructExit_uses_gte`
+* `test_regslope_subsystem_exists_both`
+* (plus existing parity tests that now pass)
 
 ### 2. Documentation & diagnostic fix — `d9b8ada`
 
-- Added `docs/REVIEW_v6.1.md`, `docs/TEST_REPORT_v6.1.md`, `docs/TRADINGVIEW_TEST_CHECKLIST.md`
-- Fixed Pine diagnostic warnings in both files
+* Added `docs/REVIEW_v6.1.md`, `docs/TEST_REPORT_v6.1.md`, `docs/TRADINGVIEW_TEST_CHECKLIST.md`
+* Fixed Pine diagnostic warnings in both files
 
 ### 3. Forecast table removal (Indicator) — *this commit*
 
@@ -96,18 +108,18 @@ entry-gating logic is **preserved** — only display was removed.
 Display-only assertions were scoped to Strategy only (Indicator no longer has
 those display elements):
 
-- `test_evaluation_functions_exist` — `f_eval_get` check → Strategy only
-- `test_ep_negative_triggers_invariant_and_clamp` → Strategy only
-- `test_ops_row_independent_of_showEvalSection` → Strategy only
-- `test_inv_latch_exists` — `INV(L)` display check → Strategy only
-- `test_inv_latch_snapshot_includes_tf` → Strategy only
-- `test_ep_decomposition_exists` → Strategy only
-- `test_ops_row_shows_tf_label` → Strategy only
-- `test_footer_row_is_dynamic` → Strategy only
-- `test_ep_decomp_guarded_by_qsync` → Strategy only
-- `test_resolve_thresh_helper_exists` → Strategy only
-- `test_ep_naming_consistency` → Strategy only
-- `test_eligpending_raw_clamped_split` → Strategy only
+* `test_evaluation_functions_exist` — `f_eval_get` check → Strategy only
+* `test_ep_negative_triggers_invariant_and_clamp` → Strategy only
+* `test_ops_row_independent_of_showEvalSection` → Strategy only
+* `test_inv_latch_exists` — `INV(L)` display check → Strategy only
+* `test_inv_latch_snapshot_includes_tf` → Strategy only
+* `test_ep_decomposition_exists` → Strategy only
+* `test_ops_row_shows_tf_label` → Strategy only
+* `test_footer_row_is_dynamic` → Strategy only
+* `test_ep_decomp_guarded_by_qsync` → Strategy only
+* `test_resolve_thresh_helper_exists` → Strategy only
+* `test_ep_naming_consistency` → Strategy only
+* `test_eligpending_raw_clamped_split` → Strategy only
 
 **All 271 tests pass.** Pine diagnostics: 0 errors, 0 warnings.
 
