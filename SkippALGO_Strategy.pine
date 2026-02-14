@@ -4528,12 +4528,9 @@ bool _sweepRecentBullLbl = (not na(barsSinceSweep_Bull)) and (barsSinceSweep_Bul
 bool _sweepRecentBearLbl = (not na(barsSinceSweep_Bear)) and (barsSinceSweep_Bear <= liqSweepLookback)
 
 // USI Premium Logic (Option A)
-usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
-usiSellRecent = ta.barssince(usiSellSignal) <= 3
-if na(usiBuyRecent)
-    usiBuyRecent := false
-if na(usiSellRecent)
-    usiSellRecent := false
+// Note: barssince returns na if never happened, comparison < 3 handles na properly (false).
+bool usiBuyRecent  = ta.barssince(usiBuySignal) <= 3
+bool usiSellRecent = ta.barssince(usiSellSignal) <= 3
 
 bool _usiPremBuy   = (usiBullState or usiBuyRecent) and not usiSellRecent
 bool _usiPremShort = (usiBearState or usiSellRecent) and not usiBuyRecent
