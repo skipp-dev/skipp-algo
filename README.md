@@ -39,7 +39,13 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 
 ## Recent changes (Feb 2026)
 
-- **Latest (v6.3.4 — 14 Feb 2026) — Final Parity Release:**
+- **Latest (v6.3.5 — 14 Feb 2026) — Score Engine (Option C):**
+  - **New Entry Path**: "Score Engine" (Option C) allows high-quality setups (USI Cross, Liquidity Sweeps) to trigger entries independent of the rigid Engine logic.
+  - **Fail-Open Design**: Missing feature data (e.g., waiting for USI calculation) contributes 0 points rather than blocking the trade.
+  - **Risk Safety**: Score entries strictly respect the global **Drawdown Hard Gate (`ddOk`)** to prevent trading during portfolio risk events.
+  - **Parity**: Fully synchronized between Strategy and Indicator.
+
+- **Previous (v6.3.4 — 14 Feb 2026) — Final Parity Release:**
   - **Strategy Fix (v6.3.4)**: Applied `plotchar` scope fix to Strategy script (parity with Indicator).
   - **Syntax Fix (v6.3.3)**: Moved `plotchar()` from local scope to global scope (Pine Script requirement).
   - **Syntax Fix (v6.3.2)**: Replaced `color.cyan` with `color.aqua`.
