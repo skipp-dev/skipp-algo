@@ -4057,6 +4057,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     if useUsi
         scoreL += f_score_add(usiCrossUp, wUsi) + f_score_add(usiSweepUp, wUsi / 2)
         scoreS += f_score_add(usiCrossDown, wUsi) + f_score_add(usiSweepDown, wUsi / 2)
+        // Add residual state score if cross happened earlier (supports late entries)
+        scoreL += f_score_add(usiBull and not usiCrossUp, wUsi / 2)
+        scoreS += f_score_add(usiBear and not usiCrossDown, wUsi / 2)
 
     // 2. Liquidity Evidence (Sweep / Reclaim / ChoCH)
     // Long: reclaimUpSafe or isChoCH_Long
@@ -4082,7 +4085,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // 5. Chop Penalty
     // Detect low-vol chop: ADX < 20 and ATR/Close < 0.5%
-    bool isChop = (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005)
+    // EXCEPTION: If we have impulse candle (breakout energy), ignore the penalty!
+    bool isBreakout = isImpulse or hugeVolG
+    bool isChop = (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005) and not isBreakout
     scoreL += f_penalty(isChop, wChopPenalty)
     scoreS += f_penalty(isChop, wChopPenalty)
 
