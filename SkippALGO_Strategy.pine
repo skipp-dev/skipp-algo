@@ -596,6 +596,7 @@ scoreThresholdShort = input.int(6, "Score Threshold (Short)", minval=1, group=gr
 wUsi        = input.int(4, "Weight: USI Cross", minval=0, group=grp_score)
 wLiquidity  = input.int(2, "Weight: Liquidity/Sweep", minval=0, group=grp_score)
 wMomentum   = input.int(2, "Weight: Momentum", minval=0, group=grp_score)
+wEngulfing  = input.int(2, "Weight: Engulfing", minval=0, group=grp_score)
 wTrendContext = input.int(1, "Weight: Trend Context", minval=0, group=grp_score)
 wChopPenalty = input.int(-3, "Penalty: Chop/Consolidation", maxval=0, group=grp_score, tooltip="Negative points applied during low volatility phases.")
 scoreDebug  = input.bool(false, "Debug Score Breakdown", group=grp_score)
@@ -4272,10 +4273,14 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     scoreS += f_score_add(trendDnSafe, wTrendContext)
 
     // 5. Chop Penalty
-    bool isBreakout = isImpulse or hugeVolG
+    bool isBreakout = isImpulse or hugeVolG or bullEngulf3 or bearEngulf3
     bool isChop = (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005) and not isBreakout
     scoreL += f_penalty(isChop, wChopPenalty)
     scoreS += f_penalty(isChop, wChopPenalty)
+
+    // 6. Engulfing Evidence (Pattern)
+    scoreL += f_score_add(bullEngulf3, wEngulfing)
+    scoreS += f_score_add(bearEngulf3, wEngulfing)
 
     // Final Decision
     // Base eligibility: Position 0, Allow Entry + Drawdown Check (ddOk)
