@@ -4105,6 +4105,16 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // Debug Output
     if scoreDebug
+        // Use a label to show score breakdown on potential signal (or near miss) -> Trigger debug if Score >= 3
+        if scoreL >= 3 or scoreS >= 3
+            string _dTxt = "L:" + str.tostring(scoreL) + " S:" + str.tostring(scoreS) + "\n"
+            _dTxt += "Tr:" + str.tostring(scoreThresholdLong) + "\n"
+            _dTxt += "Ok:" + (baseEligible ? "YES" : "NO") + "\n"
+            _dTxt += "dd:" + (ddOk?"1":"0") + " ent:" + (allowEntry?"1":"0") + " res:" + (allowRescue?"1":"0") + "\n"
+            _dTxt += "pos:" + str.tostring(pos)
+            
+            label.new(bar_index, high, text=_dTxt, color=color.gray, style=label.style_label_down, size=size.small, textcolor=color.white)
+
         // Use a label to show score breakdown on potential signal
         if scoreBuy
             label.new(bar_index, low, text="Score BUY: " + str.tostring(scoreL) + "/" + str.tostring(scoreThresholdLong), color=color.lime, style=label.style_label_up, size=size.small)
