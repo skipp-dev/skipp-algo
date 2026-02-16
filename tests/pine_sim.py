@@ -43,7 +43,11 @@ class SimConfig:
 
     # Cooldown
     cooldown_bars: int = 5
+    cooldown_mode: str = "Bars"
+    cooldown_minutes: int = 30
+    cooldown_triggers: str = "ExitsOnly"
     abstain_override_conf: float = 0.85
+    use_effective_abstain_override: bool = False
 
     # Exit
     exit_grace_bars: int = 5
@@ -62,6 +66,8 @@ class SimConfig:
     eval_ok: bool = True
     abstain_gate: bool = False
     use_3way: bool = False
+    decision_final: bool = True
+    decision_ok_safe: bool = True
 
     # Session / close filter
     in_session: bool = True
@@ -119,9 +125,16 @@ class SimConfig:
     choch_min_prob: float = 0.50
     choch_req_vol: bool = False
 
+    # Score/preset controls (simplified, needed for Phase-2 effective mapping)
+    entry_preset: str = "Manual"  # Manual | Intraday | Swing
+    preset_auto_cooldown: bool = False
+
     # Prob values (forecast model output, simplified)
     p_u: float = 0.60  # prob up
     p_d: float = 0.30  # prob down
+    rev_min_prob: float = 0.50
+    in_rev_open_window_long: bool = False
+    in_rev_open_window_short: bool = False
 
     # Strict alert mode simulation
     use_strict_alert_mode: bool = False
@@ -130,6 +143,16 @@ class SimConfig:
     strict_mtf_short_ok: bool = True
     strict_choch_long_ok: bool = True
     strict_choch_short_ok: bool = True
+
+    # RFC v6.4 Phase-1 scaffold (currently non-invasive in simulator behavior)
+    use_zero_lag_trend_core: bool = False
+    trend_core_mode: str = "AdaptiveHybrid"
+    use_regime_classifier2: bool = False
+    regime_auto_preset: bool = True
+    regime2_state: int = 0  # 0=off, 1=TREND, 2=RANGE, 3=CHOP, 4=VOL_SHOCK
+    regime_min_hold_bars: int = 3
+    regime_shock_release_delta: float = 5.0
+    regime_atr_shock_pct: float = 85.0
 
 
 @dataclass
@@ -148,6 +171,8 @@ class SimState:
     last_exit_reason: str = ""
     prev_buy_event: bool = False
     prev_short_event: bool = False
+    regime2_state_eff: int = 0
+    regime2_hold_bars: int = 0
 
 
 @dataclass
@@ -164,6 +189,9 @@ class BarSignals:
     risk_hit: bool = False
     risk_msg: str = ""
     stale_exit: bool = False
+    # Optional dynamic regime stream for Phase-3 hysteresis simulation
+    raw_regime2_state: Optional[int] = None
+    regime_atr_pct: Optional[float] = None
 
 
 @dataclass
@@ -186,6 +214,9 @@ class BarResult:
     entry_block_reached: bool = False
     rev_buy_global: bool = False
     rev_short_global: bool = False
+    rev_buy_min_prob_floor: float = 0.25
+    prob_ok_global: bool = False
+    prob_ok_global_s: bool = False
     raw_buy_signal: bool = False
     raw_short_signal: bool = False
     exit_reason: str = ""
@@ -196,6 +227,12 @@ class BarResult:
     alert_short_cond: bool = False
     alert_exit_cond: bool = False
     alert_cover_cond: bool = False
+    # Phase-2 effective controls (debug visibility)
+    cooldown_bars_eff: int = 0
+    choch_min_prob_eff: float = 0.50
+    abstain_override_conf_eff: float = 0.85
+    regime2_state_eff: int = 0
+    regime2_hold_bars: int = 0
 
 
 class SkippAlgoSim:
@@ -217,10 +254,11 @@ class SkippAlgoSim:
         """Reset state to initial conditions."""
         self.state = SimState()
 
-    def _cooldown_ok(self) -> bool:
+    def _cooldown_ok(self, effective_cooldown_bars: Optional[int] = None) -> bool:
+        use_bars = self.cfg.cooldown_bars if effective_cooldown_bars is None else effective_cooldown_bars
         if self.state.last_signal_bar is None:
             return True
-        return (self.state.bar_index - self.state.last_signal_bar) > self.cfg.cooldown_bars
+        return (self.state.bar_index - self.state.last_signal_bar) > use_bars
 
     def _conf_ok(self) -> bool:
         return self.cfg.confidence >= self.cfg.min_trust
@@ -237,6 +275,76 @@ class SkippAlgoSim:
                 and self.cfg.macro_gate_short
                 and self.cfg.dd_ok)
 
+    def _update_regime2_state(self, signals: BarSignals) -> int:
+        """Mirror Pine Phase-3 regime hysteresis (min-hold + shock release)."""
+        cfg = self.cfg
+        st = self.state
+
+        if not cfg.use_regime_classifier2:
+            st.regime2_state_eff = 0
+            st.regime2_hold_bars = 0
+            return 0
+
+        raw_state = cfg.regime2_state if signals.raw_regime2_state is None else int(signals.raw_regime2_state)
+        atr_pct = cfg.regime_atr_shock_pct if signals.regime_atr_pct is None else float(signals.regime_atr_pct)
+
+        candidate = raw_state
+        if st.regime2_state_eff == 4 and atr_pct > (cfg.regime_atr_shock_pct - cfg.regime_shock_release_delta):
+            candidate = 4
+
+        if candidate != st.regime2_state_eff:
+            can_switch = (
+                st.regime2_state_eff == 0
+                or candidate == 4
+                or st.regime2_hold_bars >= cfg.regime_min_hold_bars
+            )
+            if can_switch:
+                st.regime2_state_eff = candidate
+                st.regime2_hold_bars = 0
+            else:
+                st.regime2_hold_bars += 1
+        else:
+            st.regime2_hold_bars += 1
+
+        return st.regime2_state_eff
+
+    def _effective_controls(self, regime2_state_eff: int) -> tuple[int, float, float]:
+        """Compute simplified Phase-2 effective controls from Pine mapping."""
+        cfg = self.cfg
+        preset_is_manual = cfg.entry_preset == "Manual"
+        preset_is_intraday = cfg.entry_preset == "Intraday"
+        regime2_tune_on = cfg.use_regime_classifier2 and cfg.regime_auto_preset and regime2_state_eff > 0
+
+        cooldown_bars_eff = int(cfg.cooldown_bars)
+        choch_min_prob_eff = float(cfg.choch_min_prob)
+        abstain_override_conf_eff = float(cfg.abstain_override_conf)
+
+        # Preset-controlled cooldown (subset used by simulator)
+        if cfg.preset_auto_cooldown and not preset_is_manual:
+            cooldown_bars_eff = 0 if preset_is_intraday else max(0, cooldown_bars_eff)
+
+        if regime2_tune_on:
+            if regime2_state_eff == 1:  # TREND
+                cooldown_bars_eff = max(0, cooldown_bars_eff - 1)
+                choch_min_prob_eff = max(0.34, choch_min_prob_eff - 0.03)
+                abstain_override_conf_eff = max(0.50, abstain_override_conf_eff - 0.05)
+            elif regime2_state_eff == 2:  # RANGE
+                choch_min_prob_eff = min(0.95, choch_min_prob_eff + 0.02)
+            elif regime2_state_eff == 3:  # CHOP
+                cooldown_bars_eff = max(0, cooldown_bars_eff + 1)
+                choch_min_prob_eff = min(0.95, choch_min_prob_eff + 0.05)
+                abstain_override_conf_eff = min(0.99, abstain_override_conf_eff + 0.05)
+            elif regime2_state_eff == 4:  # VOL_SHOCK
+                cooldown_bars_eff = max(0, cooldown_bars_eff + 2)
+                choch_min_prob_eff = min(0.95, choch_min_prob_eff + 0.08)
+                abstain_override_conf_eff = min(0.99, abstain_override_conf_eff + 0.08)
+
+        # C2 adaptive cooldown
+        if cfg.confidence >= 0.80:
+            cooldown_bars_eff = max(2, int(round(cooldown_bars_eff / 2.0)))
+
+        return cooldown_bars_eff, choch_min_prob_eff, abstain_override_conf_eff
+
     def process_bar(self, bar: Bar, signals: BarSignals) -> BarResult:
         """Process a single confirmed bar. Returns the result."""
         result = BarResult()
@@ -244,19 +352,30 @@ class SkippAlgoSim:
         cfg = self.cfg
         st = self.state
 
+        regime2_state_eff = self._update_regime2_state(signals)
+        cooldown_bars_eff, choch_min_prob_eff, abstain_override_conf_eff = self._effective_controls(regime2_state_eff)
+        result.cooldown_bars_eff = cooldown_bars_eff
+        result.choch_min_prob_eff = choch_min_prob_eff
+        result.abstain_override_conf_eff = abstain_override_conf_eff
+        result.regime2_state_eff = st.regime2_state_eff
+        result.regime2_hold_bars = st.regime2_hold_bars
+
         # -- Update bar counting --
         prev_pos = st.pos
         # (bars_since_entry updated AFTER state transitions, see below)
 
         # -- Compute allowEntry --
-        cooldown_ok_safe = self._cooldown_ok()
+        cooldown_ok_safe = self._cooldown_ok(cooldown_bars_eff)
+        decision_final_eff = cfg.decision_final
+        if cfg.use_effective_abstain_override:
+            decision_final_eff = cfg.decision_ok_safe or (cfg.confidence >= abstain_override_conf_eff)
         allow_entry = (
             cooldown_ok_safe
             and not cfg.block_near_close
             and cfg.reliability_ok
             and cfg.evidence_ok
             and cfg.eval_ok
-            and (not cfg.abstain_gate or True)  # simplified: decisionFinal always true
+            and (not cfg.abstain_gate or decision_final_eff)
             and cfg.in_session
         )
         result.allow_entry = allow_entry
@@ -290,8 +409,32 @@ class SkippAlgoSim:
             smc_ok_s = True
 
             # Reversal logic (global)
-            prob_ok_global = cfg.p_u >= 0.37
-            prob_ok_global_s = cfg.p_d >= 0.50
+            is_open_window = cfg.in_rev_open_window_long or cfg.in_rev_open_window_short
+            rev_buy_min_prob_floor = 0.0 if is_open_window else 0.25
+            bypass_rev_long = cfg.in_rev_open_window_long
+            bypass_rev_short = cfg.in_rev_open_window_short
+
+            prob_ok_global = is_open_window or (
+                (cfg.p_u >= rev_buy_min_prob_floor)
+                and (
+                    bypass_rev_long
+                    or (cfg.p_u >= cfg.rev_min_prob)
+                    or ((signals.is_impulse and bar.close > bar.open) and cfg.p_u >= 0.25)
+                )
+            )
+
+            prob_ok_global_s = is_open_window or (
+                (cfg.p_d >= rev_buy_min_prob_floor)
+                and (
+                    bypass_rev_short
+                    or (cfg.p_d >= cfg.rev_min_prob)
+                    or ((signals.is_impulse and bar.close < bar.open) and cfg.p_d >= 0.25)
+                )
+            )
+
+            result.rev_buy_min_prob_floor = rev_buy_min_prob_floor
+            result.prob_ok_global = prob_ok_global
+            result.prob_ok_global_s = prob_ok_global_s
 
             rev_buy_global = (cfg.allow_neural_reversals
                               and cfg.macro_gate_long
@@ -323,7 +466,7 @@ class SkippAlgoSim:
                 # ChoCH filter
                 is_choch_entry = gate_buy and (st.struct_state == -1 or signals.is_choch_long)
                 choch_filter_ok = (not is_choch_entry) or (
-                    (cfg.p_u >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
+                    (cfg.p_u >= choch_min_prob_eff) and (not cfg.choch_req_vol or cfg.vol_ok))
 
                 buy_signal = (gate_buy and choch_filter_ok)
 
@@ -332,7 +475,7 @@ class SkippAlgoSim:
                                   and cfg.enh_short_ok and cfg.hybrid_short_trigger)
                 is_choch_short_entry = gate_short_sig and (st.struct_state == 1 or signals.is_choch_short)
                 choch_short_filter_ok = (not is_choch_short_entry) or (
-                    (cfg.p_d >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
+                    (cfg.p_d >= choch_min_prob_eff) and (not cfg.choch_req_vol or cfg.vol_ok))
 
                 short_signal = (gate_short_sig and choch_short_filter_ok)
 
@@ -341,7 +484,7 @@ class SkippAlgoSim:
                             and cfg.trend_up and cfg.enh_long_ok and cfg.breakout_long)
                 is_choch_entry = base_buy and (st.struct_state == -1 or signals.is_choch_long)
                 choch_filter_ok = (not is_choch_entry) or (
-                    (cfg.p_u >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
+                    (cfg.p_u >= choch_min_prob_eff) and (not cfg.choch_req_vol or cfg.vol_ok))
                 buy_signal = (base_buy and choch_filter_ok)
 
                 base_short = (cfg.enable_shorts and gate_short and cfg.fc_gate_short_safe
@@ -349,7 +492,7 @@ class SkippAlgoSim:
                               and cfg.breakout_short)
                 is_choch_short_entry = base_short and (st.struct_state == 1 or signals.is_choch_short)
                 choch_short_filter_ok = (not is_choch_short_entry) or (
-                    (cfg.p_d >= cfg.choch_min_prob) and (not cfg.choch_req_vol or cfg.vol_ok))
+                    (cfg.p_d >= choch_min_prob_eff) and (not cfg.choch_req_vol or cfg.vol_ok))
                 short_signal = (base_short and choch_short_filter_ok)
 
             elif cfg.engine == "Trend+Pullback":

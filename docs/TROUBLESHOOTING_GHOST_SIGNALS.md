@@ -91,3 +91,66 @@ reclaimUp  = bullBias and ( (crossClose_EmaF_up) or (close >= (emaF - reclaimTol
 ## 4. Summary
 
 By relaxing strict equality checks and introducing "Fuzzy Logic" (Tolerances) for historical calculations, we ensured that the **Chart Visualization** now accurately reflects the **Alert Behavior**, restoring confidence in the system.
+
+---
+
+## 5. New Guardrail (Feb 15, 2026): Prevent Contra-USI Entries
+
+### Symptom pattern
+
+Users observed occasional score-driven BUY signals while USI state was bearish (or SHORT while USI was bullish).
+
+### Root Cause
+
+The score engine could exceed threshold from non-USI factors (momentum, liquidity, breakout) even when the current USI state was directionally opposite.
+
+### Implemented Fix
+
+A hard state veto was added to final score decision logic:
+
+* `usiBearState` blocks BUY
+* `usiBullState` blocks SHORT
+
+This logic is applied in **both** indicator and strategy files to preserve parity.
+
+### Additional Related Improvement
+
+USI touch/cross behavior around Red vs Blue/Envelope transitions was refined to better capture practical touch flips used for exits.
+
+### Validation
+
+`tests/test_score_engine_parity.py` now includes explicit checks for:
+
+* USI state veto presence (`usiBlockL`, `usiBlockS`)
+* matching use in score buy/short assignments
+* parity across Indicator + Strategy
+
+## 6. High Score but No BUY? (Feb 15, 2026)
+
+### Symptom
+
+Debug box shows values like:
+
+* `SCORE BUY: 7.5/6`
+* `BuySig:0 didBuy:0`
+
+### Why this can happen
+
+Final signal is not just score; it is the merged signal after engine + score + vetoes.
+
+Current merge behavior (hybrid):
+
+* score can inject entries (`engine OR score`)
+* but chop can still block final entry when active (`chopVeto`)
+* and (new) score injection can require directional context (`scoreRequireDirectionalContext`)
+
+### New debug aid
+
+Score debug output now includes:
+
+* `chop:0/1` — chop condition detected
+* `veto:0/1` — chop veto currently active (`isChop and wChopPenalty < 0`)
+* `ctxL:0/1`, `ctxS:0/1` — directional-context gate pass/fail for score injection
+* `BLOCK:...` — explicit eligibility blocker (`IN_POSITION`, `DD_BLOCK`, `NO_ENTRY_WINDOW`, ...)
+
+This makes it immediately visible whether no-BUY is caused by position state, chop veto, or directional-context blocking.

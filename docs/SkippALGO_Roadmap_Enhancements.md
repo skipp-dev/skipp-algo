@@ -10,6 +10,17 @@ Completed in v6.1 (Indicator + Strategy):
 * 3‑way calibrator auto‑fallback on weak bins (safety).
 * Temperature/vector scaling applied to displayed 3‑way probabilities when eligible.
 
+Completed in v6.3.6 — Exit Logic Enhancements (Feb 15, 2026):
+
+* **Relaxed Trend Exits**: New input `useStrictEmaExit` (Default: `false`) allows disabling "Price Close < Slow EMA" exits. Exits now default to waiting for a full EMA Trend Flip (`EmaF` crosses `EmaS`), preventing shakeouts during deep pullbacks in strong trends.
+
+Completed in v6.3.8 — USI Safety + Responsiveness (Feb 15, 2026):
+
+* **USI contra-state hard veto**: BUY is blocked when USI is bearish; SHORT is blocked when USI is bullish.
+* **Optional de-lag Red line**: New controls `useUsiZeroLagRed` + `usiZlAggressiveness` for earlier Red-line flips (pre-RSI source transformation).
+* **Touch-aware USI flip handling**: Improved practical detection around Red-vs-Blue/Envelope touch transitions for exit timing.
+* **Parity tests expanded**: `tests/test_score_engine_parity.py` now validates USI de-lag inputs/implementation and hard state blocking across indicator + strategy.
+
 Completed in v6.3 — Enterprise Cooldown Hardening (Feb 14, 2026):
 
 * **H1 / HTF Fix**: `cooldownMode` now supports "Minutes" alongside "Bars" to prevent blocking valid entries on higher timeframes.

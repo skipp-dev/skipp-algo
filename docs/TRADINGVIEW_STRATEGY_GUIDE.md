@@ -1,7 +1,7 @@
 # Getting Started with SkippALGO Strategy in TradingView
 
-**Date:** 06 Feb 2026
-**Version:** v6.2
+**Date:** 15 Feb 2026
+**Version:** v6.3.8
 
 ## Introduction
 
@@ -53,3 +53,155 @@ Do not rush into complex automation. Start with this workflow:
     * Manually execute the trade in your IBKR Trading Panel.
 
 This "Semi-Automated" approach is safer and helps you learn the Algo's personality before trusting it with unattended money.
+
+## 4. Important Behavior Updates (Feb 14–15, 2026)
+
+### A) USI direction hard-filter is now strict
+
+For score-based entries, direction conflicts are blocked by design:
+
+* If USI is **Bearish** (`usiBearState`), **BUY is blocked**.
+* If USI is **Bullish** (`usiBullState`), **SHORT is blocked**.
+
+This prevents momentum-only counter-trend entries when USI structure disagrees.
+
+### B) Optional faster USI Red line (controlled)
+
+You can enable a de-lagged Red line (Line5) without changing all USI lines:
+
+* `useUsiZeroLagRed`
+* `usiZlAggressiveness`
+
+Recommended starting point for live A/B testing: **75%** aggressiveness.
+
+### C) USI touch-based flip sensitivity improved
+
+USI flip detection around Red-vs-Blue/Envelope transitions now handles practical touch behavior more reliably (not only hard visual separation), improving exit timing on fast transitions.
+
+### D) Score + Chop integration clarified
+
+Score integration now runs in hybrid mode:
+
+* Score can inject entries (`engine OR score`).
+* Active chop can still block final entry via `chopVeto`.
+* Optional directional context hardening is available via `scoreRequireDirectionalContext` (default ON):
+  * score BUY injection requires bullish context,
+  * score SHORT injection requires bearish context.
+
+For diagnostics, score debug output now includes:
+
+* `chop:0/1`
+* `veto:0/1`
+* `ctxL:0/1`, `ctxS:0/1`
+* `BLOCK:...` reason (for example `IN_POSITION`)
+
+If `SCORE BUY` is above threshold but no trade is opened, check in this order:
+
+1. `BLOCK` (position/state gate),
+2. `veto` (chop veto),
+3. `ctxL` / `ctxS` (directional-context gate).
+
+### E) Unified exit trigger (LONG and SHORT)
+
+Exit logic is now intentionally unified in both `SkippALGO.pine` and `SkippALGO_Strategy.pine`:
+
+* `riskExitHit` (TP / SL / Trailing)
+* `usiExitHit`
+* `engExitHit`
+
+The final close condition is an OR-union:
+
+* `riskExitHit OR usiExitHit OR engExitHit`
+
+So whichever exit source triggers first closes the open position (for both EXIT and COVER paths).
+
+### F) Cooldown semantics on exits restored
+
+Cooldown timestamp updates now occur again on real exit events:
+
+* If `cooldownTriggers = ExitsOnly` or `AllSignals`, EXIT/COVER events update the cooldown timer.
+* This applies symmetrically to LONG and SHORT handling.
+
+### G) Optional dynamic TP expansion
+
+You can now enable a dynamic TP mode that increases TP distance as the trade develops:
+
+* `useDynamicTpExpansion` (default ON)
+* `dynamicTpKickInR` (when expansion starts)
+* `dynamicTpAddATRPerR` (how fast TP expands)
+* `dynamicTpMaxAddATR` (hard cap)
+* optional gates: `dynamicTpRequireTrend`, `dynamicTpRequireConf`, `dynamicTpMinConf`
+
+Behavior details:
+
+* Expansion is **outward-only** (it will not tighten TP by itself).
+* Works for both LONG and SHORT.
+* Coexists with existing SL/Trail/USI/Engulfing exits; first active exit trigger still closes the position.
+
+### H) Dynamic SL profile (default ON)
+
+Adaptive stop behavior is available in both scripts:
+
+* `useDynamicSlProfile` (default ON)
+* Early anti-noise widening:
+  * `dynamicSlWidenUntilR`
+  * `dynamicSlMaxWidenATR`
+* Progressive tightening as trade matures:
+  * `dynamicSlTightenStartR`
+  * `dynamicSlTightenATRPerR`
+  * `dynamicSlMaxTightenATR`
+* optional gates: `dynamicSlRequireTrend`, `dynamicSlRequireConf`, `dynamicSlMinConf`
+
+Behavior details:
+
+* Widening is automatically disabled after BE hit or when trailing is active.
+* Tightening remains active under gate conditions.
+
+### I) Entry presets + optional preset-controlled cooldown
+
+Score Engine now supports profile-based tuning:
+
+* `entryPreset = Manual | Intraday | Swing`
+* `presetAutoCooldown` (default `false`)
+
+Preset behavior:
+
+* Presets map to effective score variables (`*_Eff`) for thresholds, weights, and probability floors.
+* `Manual` keeps the direct user inputs.
+
+Cooldown behavior:
+
+* If `presetAutoCooldown = false` (default), cooldown remains fully input-driven (`cooldownMode`, `cooldownMinutes`, `cooldownTriggers`).
+* If `presetAutoCooldown = true` and preset ≠ Manual:
+  * cooldown mode is forced to `Bars`,
+  * cooldown triggers are forced to `ExitsOnly`,
+  * preset cooldown minutes are applied (Intraday/Swing profile values).
+
+### J) Hard confidence gate for score entries (default ON)
+
+To filter low-confidence score entries, an explicit confidence-floor gate is available:
+
+* `scoreUseConfGate`
+* `scoreMinConfLong`
+* `scoreMinConfShort`
+
+Current defaults (indicator + strategy):
+
+* `scoreUseConfGate = true`
+* `scoreMinConfLong = 0.50`
+* `scoreMinConfShort = 0.50`
+
+Behavior details:
+
+* Score BUY requires score threshold and confidence floor (`conf >= scoreMinConfLong`) when enabled.
+* Score SHORT requires score threshold and confidence floor (`conf >= scoreMinConfShort`) when enabled.
+* This gate works together with existing probability and directional-context gates.
+
+### K) Strategy compile-token optimization note
+
+To keep the strategy safely under Pine compile-token limits, strategy-side visual payload was trimmed:
+
+* score debug text was compacted,
+* table rendering in `SkippALGO_Strategy.pine` was removed (visual-only).
+
+Important: signal generation, risk logic, and Indicator ⇄ Strategy parity for decision paths remain unchanged.

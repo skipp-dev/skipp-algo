@@ -6,6 +6,19 @@ Gültig für:
 - `SkippALGO.pine` (Indicator)
 - `SkippALGO_Strategy.pine` (Strategy)
 
+Addendum (2026-02-15):
+
+- USI Red Option-2 De-Lag ergänzt (`useUsiZeroLagRed`, `usiZlAggressiveness`).
+- Harte USI-Richtungs-Sperre im Score-Final-Decision-Block:
+  - kein BUY bei `usiBearState`
+  - kein SHORT bei `usiBullState`
+- Score-Injection-Kontext ergänzt: `scoreRequireDirectionalContext` (Default ON)
+  - BUY-Score-Injection nur mit bullischem Kontext,
+  - SHORT-Score-Injection nur mit bearischem Kontext.
+- Touch-nahe USI Flip/Exit-Erkennung verbessert (praktisches Touch-Verhalten).
+- Debug-Diagnostik erweitert: `veto:0/1`, `ctxL/ctxS` und `BLOCK:...` für eindeutige Ursachenanalyse.
+- Indicator/Strategy-Parität durch zusätzliche Tests abgesichert (`tests/test_score_engine_parity.py`).
+
 ---
 
 ## 1. Zielbild und Systemabgrenzung
