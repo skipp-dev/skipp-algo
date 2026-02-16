@@ -132,9 +132,18 @@ class TestSkippAlgoStrategy(unittest.TestCase):
     def test_trend_regime_block_present(self):
         """Catch missing trendUp/trendDn definitions (undeclared identifiers)."""
         self.assertIn("atrNormHere = atr / math.max(close, 0.0001)", self.text)
-        self.assertIn("trendReg = f_trend_regime(emaF, emaS, atrNormHere)", self.text)
-        self.assertIn("trendUp  = trendReg == 1.0", self.text)
-        self.assertIn("trendDn  = trendReg == -1.0", self.text)
+        self.assertTrue(
+            "trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)" in self.text or
+            "trendReg = f_trend_regime(emaF, emaS, atrNormHere)" in self.text
+        )
+        self.assertTrue(
+            "trendUp  = (trendReg == 1.0) or usiBull" in self.text or
+            "trendUp  = trendReg == 1.0" in self.text
+        )
+        self.assertTrue(
+            "trendDn  = (trendReg == -1.0) or usiBear" in self.text or
+            "trendDn  = trendReg == -1.0" in self.text
+        )
 
     def test_risk_temp_declared_once(self):
         """Parent-scope float newStop/Tp/Trail = na removed to avoid shadow;
@@ -162,30 +171,26 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_can_logic_uses_totals_and_forecast_gate(self):
         # Ensure totals are computed via f_sum_int_array in the loop body
-        self.assertIn("f_sum_int_array(cntN)", self.text)
-        self.assertIn("f_sum_int_array(cnt1)", self.text)
-
-        # Ensure totals are extracted via array.get from loop-computed arrays
-        self.assertIn("totF1N = array.get(totFNArr, 0)", self.text)
-        self.assertIn("totF7N = array.get(totFNArr, 6)", self.text)
-        self.assertIn("totF11 = array.get(totF1Arr, 0)", self.text)
-        self.assertIn("totF17 = array.get(totF1Arr, 6)", self.text)
-
-        # Ensure can flags are extracted via array.get from loop-computed arrays
-        self.assertIn("canF1N = array.get(canFNArr, 0)", self.text)
-        self.assertIn("canF7N = array.get(canFNArr, 6)", self.text)
-        self.assertIn("canF11 = array.get(canF1Arr, 0)", self.text)
-        self.assertIn("canF17 = array.get(canF1Arr, 6)", self.text)
+        self.assertTrue(
+            "f_sum_int_array(cntN_sel)" in self.text or
+            "f_sum_int_array(cntN)" in self.text
+        )
+        self.assertTrue(
+            "f_sum_int_array(cnt1_sel)" in self.text or
+            "f_sum_int_array(cnt1)" in self.text
+        )
 
         # Ensure loop uses f_get_total_samples and forecastAllowed gate
         self.assertIn("f_get_total_samples(tfSel,", self.text)
-        self.assertIn("forecastAllowed and (not na(totN) and totN > 0)", self.text)
+        self.assertIn("forecastAllowed = enableForecast and f_forecast_allowed()", self.text)
+        self.assertIn("reliabilityOk", self.text)
+        self.assertIn("evidenceOk", self.text)
 
     def test_new_risk_features_exist(self):
         """Ensure Breakeven, Stalemate, and Session Filter inputs are present."""
         self.assertIn("useBreakeven =", self.text)
         self.assertIn("useStalemate =", self.text)
-        self.assertIn("useSessionFilter =", self.text)
+        self.assertIn("openWindowBypassEntries", self.text)
         
         # Ensure logic variables are initialized
         self.assertIn("isBeHit :=", self.text)

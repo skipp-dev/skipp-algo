@@ -2,7 +2,7 @@
 // © preuss_steffen
 
 //@version=6
-// SkippALGO v6.3.5
+// SkippALGO v6.3.13
 // - New "Option C" Score Engine (Fail-open features, Risk-gated)
 // Implements advanced calibration and forecasting logic:
 // Phase 1: Timeframe-specific Target Profiles (Fast/Mid/Slow)
@@ -11,7 +11,7 @@
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
 // v6.3.4: Final Parity Sync (Strategy Scope Fix)
 
-indicator("SkippALGO v6.3.5", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO v6.3.13", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine
@@ -47,7 +47,25 @@ volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05)
 useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)")
 stopATR  = input.float(2.00, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.")
 tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10)
-useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="Disables fixed Take Profit targets. Exits only via Stop Loss or Trailing Stop.")
+useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="Disables fixed Take Profit targets. Risk exits (SL/Trail) remain active and other configured exit triggers (e.g., USI/Engulfing) may still close positions.")
+useDynamicSlProfile = input.bool(true, "Dynamic SL Profile", tooltip="Adaptive stop profile: optional early widening to reduce noise stopouts, then tightening as R grows.")
+dynamicSlWidenUntilR = input.float(0.30, "Dynamic SL widen until R", minval=0.0, step=0.05, tooltip="Early phase where widening may be applied. 0 disables widening phase.")
+dynamicSlMaxWidenATR = input.float(0.30, "Dynamic SL max widen ATR", minval=0.0, step=0.05, tooltip="Maximum additional ATR added to stop distance during early widening phase.")
+dynamicSlTightenStartR = input.float(1.00, "Dynamic SL tighten starts at R", minval=0.0, step=0.10, tooltip="From this R onward, stop distance tightens progressively.")
+dynamicSlTightenATRPerR = input.float(0.25, "Dynamic SL tighten ATR per +1R", minval=0.0, step=0.05, tooltip="ATR reduction in stop distance per extra +1R after tighten start.")
+dynamicSlMaxTightenATR = input.float(1.50, "Dynamic SL max tighten ATR", minval=0.0, step=0.10, tooltip="Maximum ATR reduction applied to stop distance by dynamic tightening.")
+dynamicSlRequireTrend = input.bool(true, "Dynamic SL requires trend context", tooltip="Long: requires bullish trend context. Short: requires bearish trend context.")
+dynamicSlRequireConf = input.bool(false, "Dynamic SL requires confidence", tooltip="If enabled, dynamic SL adjustments only run when confidence is above threshold.")
+dynamicSlMinConf = input.float(0.55, "Dynamic SL min confidence", minval=0.0, maxval=1.0, step=0.01)
+dynSlPreset30m = input.string("Manual", "All-TF Dynamic SL preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="Applies to all timeframes. Manual=use input values. Conservative=Stop 1.00 / Trail 2.30. Balanced=Stop 0.90 / Trail 2.00. Runner=Stop 0.75 / Trail 1.70. Super Runner=Stop 0.65 / Trail 1.40.")
+useDynamicTpExpansion = input.bool(true, "Dynamic TP Expansion", tooltip="When enabled, TP can move farther as unrealized profit (R) grows. Outward-only (never tightens TP).")
+dynamicTpKickInR = input.float(1.00, "Dynamic TP starts at R", minval=0.0, step=0.10, tooltip="TP expansion starts after this unrealized R multiple is reached.")
+dynamicTpAddATRPerR = input.float(0.50, "Dynamic TP add ATR per +1R", minval=0.0, step=0.05, tooltip="Additional TP ATR multiplier added per extra +1R after kick-in.")
+dynamicTpMaxAddATR = input.float(2.50, "Dynamic TP max extra ATR", minval=0.0, step=0.10, tooltip="Caps total additional TP distance added by dynamic expansion.")
+dynamicTpRequireTrend = input.bool(true, "Dynamic TP requires trend context", tooltip="Long: requires bullish trend context. Short: requires bearish trend context.")
+dynamicTpRequireConf = input.bool(false, "Dynamic TP requires confidence", tooltip="If enabled, TP expansion only runs when confidence is above the threshold.")
+dynamicTpMinConf = input.float(0.55, "Dynamic TP min confidence", minval=0.0, maxval=1.0, step=0.01)
+tpPreset30m = input.string("Manual", "All-TF TP preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="Applies to all timeframes. Manual=use profile Path TP/SL inputs. Conservative=TP x2.5 / SL x1.1. Balanced=TP x3.0 / SL x1.0. Runner=TP x3.8 / SL x0.85. Super Runner=TP x4.4 / SL x0.75. Dynamic TP: Conservative KickIn 1.0 Add 0.30 Max 2.5, Balanced KickIn 0.7 Add 0.50 Max 4.0, Runner KickIn 0.4 Add 0.75 Max 6.0, Super Runner KickIn 0.2 Add 1.00 Max 8.0.")
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
@@ -85,7 +103,7 @@ chochMinProb     = input.float(0.50, "ChoCH Min Confidence (Prob)", minval=0.34,
 chochReqVol      = input.bool(true, "ChoCH Require Volume?")
 
 enableShorts = input.bool(false, "Enable shorts (SHORT can open short)")
-cooldownBars = input.int(6, "Cooldown bars", minval=0)
+cooldownBars = input.int(2, "Cooldown bars", minval=0)
 // v6.2.29: Lowered default minTrust from 0.55 to 0.40 to unblock signals in low-data/warmup states
 minTrust     = input.float(0.40, "Min confidence (0..1)", minval=0.0, maxval=1.0, step=0.01)
 
@@ -153,10 +171,36 @@ tfLong3       = input.timeframe("10D", "Long TF 3")
 //====================
 // Internal Global Helpers
 //====================
+// Standard ZLEMA (DEMA style) for USI Lines 1-4
 f_zl_src(src, len) =>
     e1 = ta.ema(src, len)
     e2 = ta.ema(e1, len)
     2.0 * e1 - e2
+
+// New safe helper for Red Line (Option 2)
+f_zl_src_pct(_src, _len, _pct) =>
+    // pct=100 => full zero-lag. pct=0 => disabled (returns src).
+    // lag is based on classic ZLEMA idea.
+    int lag = math.max(1, int(math.floor((_len - 1) / 2)))
+    float lead = na(_src) or na(_src[lag]) ? na : (_src - _src[lag])
+    float k = float(_pct) / 100.0
+    float out = na(lead) ? _src : (_src + k * lead)
+    out
+
+f_zl_trend_core(_src, _len, _aggr) =>
+    emaBase = ta.ema(_src, _len)
+    zlBase = f_zl_src(_src, _len)
+    na(zlBase) ? emaBase : (emaBase + _aggr * (zlBase - emaBase))
+
+f_hurst_proxy(_src, _len) =>
+    l = math.max(10, _len)
+    rng = ta.highest(_src, l) - ta.lowest(_src, l)
+    sig = ta.stdev(_src, l)
+    if na(rng) or na(sig) or rng <= 0 or sig <= 0
+        0.5
+    else
+        hRaw = math.log(rng / sig) / math.log(l)
+        math.max(0.0, math.min(1.0, hRaw))
 
 tfF1 = input.timeframe("1",   "Forecast 1")   // 1M
 tfF2 = input.timeframe("5",   "Forecast 2")   // 5M
@@ -340,10 +384,8 @@ setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SE
 showTable        = input.bool(true, "Show Outlook/Forecast table")
 ui_tableShowMode       = input.bool(true, "Table: show LIVE/CONFIRMED tag")
 tableOnConfirmed = input.bool(true, "Table: update on confirmed bars only")
-showEngulfStatsInTable = input.bool(true, "Table: show engulf likelihood")
-engulfLikelihoodMode = input.string("A: Entry", "Engulf likelihood mode", options=["A: Entry", "B: Price", "C: Trade"], tooltip="A: P(LongEntry within N bars | BullEngulf). B: P(Close[N] > Close0 | BullEngulf). C: P(R>0 | BullEngulf AND entered).")
-engulfStatsWindowBars = input.int(5, "Engulf stats: N bars", minval=1, maxval=50, tooltip="Lookahead horizon N for A/B. For C, entry-link window after engulfing.")
-engulfStatsMaxEvents = input.int(200, "Engulf stats: rolling events", minval=20, maxval=2000, tooltip="Number of resolved events used for rolling probability.")
+// [REMOVED] Unused Engulf Stats inputs (token reduction)
+
 labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"])
 
 // Alerts
@@ -568,14 +610,18 @@ eceRecalBoost   = input.float(3.0, "ECE recal LR multiplier", minval=1.5, maxval
 //====================
 // Inputs — USI Quantum Pulse (visual overlay only — no signal influence)
 //====================
-useUsi          = input.bool(true, "Enable USI Quantum Pulse", group="⚡ USI Quantum Pulse", tooltip="Multi-length RSI stacking overlay. Visual only — does not affect BUY/SHORT signals, MTF vote, confidence, or decision gate.")
+useUsi          = input.bool(true, "Enable USI Quantum Pulse", group="⚡ USI Quantum Pulse", tooltip="Multi-length RSI stacking overlay. Also used by trend/score filters and reversal quality gates when enabled.")
 usiLen1         = input.int(13, "Length 1 (slowest / Blue)", minval=2, group="⚡ USI Quantum Pulse")
 usiLen2         = input.int(11, "Length 2 (Green)", minval=2, group="⚡ USI Quantum Pulse")
 usiLen3         = input.int(7,  "Length 3 (Yellow)", minval=2, group="⚡ USI Quantum Pulse")
 usiLen4         = input.int(5,  "Length 4 (Orange)", minval=2, group="⚡ USI Quantum Pulse")
 usiLen5         = input.int(3,  "Length 5 (fastest / Red)", minval=2, group="⚡ USI Quantum Pulse")
 usiZeroLag      = input.bool(true, "Zero-Lag mode", group="⚡ USI Quantum Pulse", tooltip="Error-corrected EMA on source before RSI. Gives 2-5 bar lead over standard RSI.")
-usiMinStack     = input.int(4, "Min stacking for visual highlight", minval=2, maxval=5, group="⚡ USI Quantum Pulse", tooltip="Lines in correct order (out of 4 pairs) for visual stacking highlight.")
+// USI: Zero-Lag red line (Option 2)
+useUsiZeroLagRed = input.bool(false, "USI: Zero-Lag Red (earlier flips)", group="⚡ USI Quantum Pulse")
+usiZlAggressiveness = input.int(100, "USI ZL aggressiveness %", minval=0, maxval=200, group="⚡ USI Quantum Pulse")
+usiMinStack     = input.int(2, "Min stacking for visual highlight", minval=2, maxval=5, group="⚡ USI Quantum Pulse", tooltip="Lines in correct order (out of 4 pairs) for visual stacking highlight.")
+usiFlipMode     = input.string("Tier A: Red vs Blue", "USI Flip Logic", options=["Tier A: Red vs Blue", "Tier B: Red vs Avg", "Tier C: Envelope"], group="⚡ USI Quantum Pulse", tooltip="Tier A (Fast): Red crosses Blue line. Tier B (Balanced): Red crosses Avg of lines. Tier C (Strict): Red crosses entire Envelope.")
 
 // v6.3.3: USI Fast+Verify Inputs
 usiTfGate = input.timeframe("30", "Gate TF (Regime)", group="⚡ USI Quantum Pulse")
@@ -586,12 +632,46 @@ hardenHold      = input.bool(true, "Hardened Hold (L5 > L4)", group="⚡ USI Qua
 usiUseStrictHold  = input.bool(false, "Strict Hold vs hi/lo (instead of cluster)", inline="hold", group="⚡ USI Quantum Pulse")
 
 //====================
+// Inputs — RFC v6.4 Phase 1 Scaffold (default-off)
+//====================
+grp_phase1 = "RFC v6.4 Phase 1"
+useZeroLagTrendCore = input.bool(false, "Use Zero-Lag Trend Core", group=grp_phase1)
+trendCoreMode = input.string("AdaptiveHybrid", "Trend Core Mode", options=["ClassicEMA","ZeroLagEMA","AdaptiveHybrid"], group=grp_phase1)
+zlTrendLenFast = input.int(13, "ZL Fast Length", minval=2, group=grp_phase1)
+zlTrendLenSlow = input.int(34, "ZL Slow Length", minval=3, group=grp_phase1)
+zlTrendAggressiveness = input.float(0.35, "ZL Aggressiveness", minval=0.0, maxval=1.0, step=0.05, group=grp_phase1)
+zlTrendNoiseGuard = input.float(0.15, "ZL Noise Guard", minval=0.0, maxval=1.0, step=0.05, group=grp_phase1)
+useRegimeClassifier2 = input.bool(false, "Use Regime Classifier 2.0", group=grp_phase1)
+regimeLookback = input.int(50, "Regime Lookback", minval=10, group=grp_phase1)
+regimeAtrShockPct = input.float(85.0, "Vol Shock Percentile", minval=50, maxval=99, step=1, group=grp_phase1)
+regimeAdxTrendMin = input.float(18.0, "Trend ADX Min", minval=5, maxval=40, step=1, group=grp_phase1)
+regimeHurstRangeMax = input.float(0.48, "Range Hurst Max", minval=0.30, maxval=0.60, step=0.01, group=grp_phase1)
+regimeChopBandMax = input.float(0.0035, "Chop ATR/Close Max", minval=0.0005, maxval=0.02, step=0.0005, group=grp_phase1)
+regimeMinHoldBars = input.int(3, "Regime Min Hold Bars", minval=0, maxval=50, group=grp_phase1)
+regimeShockReleaseDelta = input.float(5.0, "Vol Shock Release Δpct", minval=0.0, maxval=30.0, step=0.5, group=grp_phase1)
+showPhase1Debug = input.bool(false, "Debug: Phase1 trend/regime plots", group=grp_phase1, tooltip="Shows TrendCore and Regime2 diagnostics in Data Window (display=none plots).")
+
+//====================
 // Inputs — Score Engine (Option C)
 //====================
 grp_score = "Score Engine (Option C)"
-useScoreEntries = input.bool(false, "Enable Score-Based Entries", group=grp_score, tooltip="Alternative entry logic based on accumulative evidence score.")
+settingsProfileTag = input.string("Default", "Settings profile tag", group=grp_score, tooltip="Optional profile name so you can save/reuse this setup via chart/indicator templates.")
+lockPresetOverrides = input.bool(false, "Preserve current settings (lock preset overrides)", group=grp_score, tooltip="When enabled, Intraday/Swing preset auto-overrides are ignored and your current input values are kept.")
+entryPreset = input.string("Manual", "Entry preset", options=["Manual", "Intraday", "Swing"], group=grp_score)
+entryBehaviorProfile = input.string("Legacy (v6.3.9-like)", "Entry behavior profile", options=["Current (v6.3.12)", "Legacy (v6.3.9-like)"], group=grp_score, tooltip="Current keeps the stricter v6.3.12 score/context/chop behavior. Legacy loosens entry strictness to approximate v6.3.9 timing.")
+presetAutoCooldown = input.bool(false, "Preset controls cooldown", group=grp_score, tooltip="If enabled, Intraday/Swing preset also overrides cooldown mode/minutes/triggers.")
+useScoreEntries = input.bool(true, "Enable Score-Based Entries", group=grp_score, tooltip="Alternative entry logic based on accumulative evidence score.")
+minDirProbLong = input.float(0.42, "Min dir prob (Long)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
+minDirProbShort = input.float(0.42, "Min dir prob (Short)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
 scoreThresholdLong = input.int(6, "Score Threshold (Long)", minval=1, group=grp_score)
 scoreThresholdShort = input.int(6, "Score Threshold (Short)", minval=1, group=grp_score)
+scoreUseProbGate = input.bool(true, "Score requires min dir prob", group=grp_score, tooltip="When enabled, score BUY/SHORT needs minimum directional probability (pU/pD).")
+scoreMinProbLong = input.float(0.35, "Score min pU (Long)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
+scoreMinProbShort = input.float(0.35, "Score min pD (Short)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
+scoreUseConfGate = input.bool(true, "Score requires min confidence", group=grp_score, tooltip="Optional hard filter: score BUY/SHORT requires minimum model confidence.")
+scoreMinConfLong = input.float(0.50, "Score min confidence (Long)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
+scoreMinConfShort = input.float(0.50, "Score min confidence (Short)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
+scoreRequireDirectionalContext = input.bool(true, "Score requires directional context", group=grp_score, tooltip="If enabled, score-based BUY needs bullish context (Trend/USI), and score-based SHORT needs bearish context.")
 wUsi        = input.int(4, "Weight: USI Cross", minval=0, group=grp_score)
 wLiquidity  = input.int(2, "Weight: Liquidity/Sweep", minval=0, group=grp_score)
 wMomentum   = input.int(2, "Weight: Momentum", minval=0, group=grp_score)
@@ -599,6 +679,7 @@ wEngulfing  = input.int(2, "Weight: Engulfing", minval=0, group=grp_score)
 wTrendContext = input.int(1, "Weight: Trend Context", minval=0, group=grp_score)
 wChopPenalty = input.int(-3, "Penalty: Chop/Consolidation", maxval=0, group=grp_score, tooltip="Negative points applied during low volatility phases.")
 scoreDebug  = input.bool(false, "Debug Score Breakdown", group=grp_score)
+showDynamicTpDebugPlot = input.bool(false, "Debug: Dynamic TP plots (Data Window)", group=grp_score, tooltip="Shows dynamic TP add-ATR and run-R as hidden plots for inspection in Data Window.")
 
 //====================
 // Inputs — Debug
@@ -614,7 +695,9 @@ showOpsRow = input.bool(true, "Ops row (always-on safety HUD)", group="🔧 Debu
 grp_exit = "Exit Filters (Confidence)"
 chochGraceBars = input.int(2, "ChoCH Exit Grace (bars)", minval=0, maxval=10, group=grp_exit, tooltip="Min bars after entry before ChoCH can trigger an exit. Prevents same-bar exit.")
 exitConfChoCh = input.float(0.0, "Confirm ChoCh (Min Prob)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Only exit LONG positions on Bearish ChoCh if the reversal probability (pD) is above this level. Bullish ChoCh exits are not filtered.")
+useStrictEmaExit = input.bool(false, "Strict EMA Exit (Close < Slow)", group=grp_exit, tooltip="If disabled, exits only occur on full EMA trend flips (EmaF crosses EmaS), ignoring price closes below Slow EMA.")
 exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=1.0, step=0.05, group=grp_exit, tooltip="Ignore TP levels allows winning trades to run if confidence remains above this level (1.0 = off).")
+
 
 //====================
 // Calibration storage — per horizon TF (Global State)
@@ -1024,32 +1107,9 @@ f_rel_label(p, nBin, total, canCal) =>
 // Forecast display helpers (human formatting)
 //====================
 
-// Map a TF into your "Fast/Mid/Slow" profiles.
-f_profile(tf) =>
-    s = timeframe.in_seconds(tf)
-    not na(s) and s <= SEC_5M ? "Fast" : not na(s) and s <= SEC_1H ? "Mid" : "Slow"
+// [REMOVED] f_profile / f_target_for_tf / f_target_profile_desc / f_target_footer_text
+// Token Reduction 105
 
-// Pick which target is active for that TF profile.
-f_target_for_tf(tf) =>
-    prof = f_profile(tf)
-    prof == "Fast" ? fcTargetF : prof == "Mid" ? fcTargetM : fcTargetS
-
-// Full target description for footer (per profile)
-f_target_profile_desc(profile) =>
-    t = profile == "Fast" ? fcTargetF : profile == "Mid" ? fcTargetM : fcTargetS
-    k = profile == "Fast" ? kBarsF    : profile == "Mid" ? kBarsM    : kBarsS
-    a = profile == "Fast" ? atrThrF   : profile == "Mid" ? atrThrM   : atrThrS
-    h = profile == "Fast" ? pathHF    : profile == "Mid" ? pathHM    : pathHS
-    tp = profile == "Fast" ? tpATRF   : profile == "Mid" ? tpATRM    : tpATRS
-    sl = profile == "Fast" ? slATRF   : profile == "Mid" ? slATRM    : slATRS
-    t == "NextBar" ? "NextBar" :
-     t == "KBarReturn" ? "K" + str.tostring(k) :
-     t == "KBarATR" ? "K" + str.tostring(k) + " " + str.tostring(a, "#.#") + "A" :
-     t == "PathTPvsSL" ? "P" + str.tostring(h) + " " + str.tostring(tp, "#.#") + "/" + str.tostring(sl, "#.#") :
-     "Target"
-
-f_target_footer_text() =>
-    "F=" + f_target_profile_desc("Fast") + " M=" + f_target_profile_desc("Mid") + " S=" + f_target_profile_desc("Slow")
 
 //====================
 // Helpers — Evaluation (proper scoring + rolling stats)
@@ -1296,18 +1356,32 @@ f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
     l = c > emaS_tf ? 1 : c < emaS_tf ? -1 : 0
     [t, m, l]
 
+f_apply_tp_sl_preset(baseTp, baseSl) =>
+    tpEff = tpPreset30m == "Manual" ? baseTp : tpPreset30m == "Conservative" ? 2.5 : tpPreset30m == "Balanced" ? 3.0 : tpPreset30m == "Runner" ? 3.8 : 4.4
+    slEff = tpPreset30m == "Manual" ? baseSl : tpPreset30m == "Conservative" ? 1.1 : tpPreset30m == "Balanced" ? 1.0 : tpPreset30m == "Runner" ? 0.85 : 0.75
+    [tpEff, slEff]
+
+f_dyn_sl_preset_vals(baseStop, baseTrail) =>
+    // Dynamic SL presets now apply across all timeframes.
+    dStop = dynSlPreset30m == "Manual" ? baseStop : dynSlPreset30m == "Conservative" ? 1.00 : dynSlPreset30m == "Balanced" ? 0.90 : dynSlPreset30m == "Runner" ? 0.75 : 0.65
+    dTrail = dynSlPreset30m == "Manual" ? baseTrail : dynSlPreset30m == "Conservative" ? 2.30 : dynSlPreset30m == "Balanced" ? 2.00 : dynSlPreset30m == "Runner" ? 1.70 : 1.40
+    [dStop, dTrail]
+
 // --- Phase 1 Helpers: Target Params ---
 f_get_params(tf) =>
     sec = timeframe.in_seconds(tf)
     isFast = (not na(sec)) and sec <= SEC_5M // <= 5m
     isMid  = (not na(sec)) and sec <= SEC_1H // <= 1h
+    baseTp = isFast ? tpATRF : isMid ? tpATRM : tpATRS
+    baseSl = isFast ? slATRF : isMid ? slATRM : slATRS
+    [tpEff, slEff] = f_apply_tp_sl_preset(baseTp, baseSl)
     // Returns: [fcTarget, kBars, atrThr, pathH, tpATR, slATR]
     [isFast ? fcTargetF : isMid ? fcTargetM : fcTargetS, 
      isFast ? kBarsF    : isMid ? kBarsM    : kBarsS, 
      isFast ? atrThrF   : isMid ? atrThrM   : atrThrS, 
      isFast ? pathHF    : isMid ? pathHM    : pathHS, 
-     isFast ? tpATRF    : isMid ? tpATRM    : tpATRS, 
-     isFast ? slATRF    : isMid ? slATRM    : slATRS]
+     tpEff,
+     slEff]
 
 // --- Phase 4 Helpers: Platt Scaling ---
 f_logit(p) =>
@@ -2485,6 +2559,45 @@ emaF = ta.ema(close, emaFastLen)
 emaS = ta.ema(close, emaSlowLen)
 atr  = ta.atr(atrLen)
 
+// RFC v6.4 Phase 1 scaffold: derived trend core + regime state (non-invasive)
+zlCoreFastRaw = f_zl_trend_core(close, zlTrendLenFast, zlTrendAggressiveness)
+zlCoreSlowRaw = f_zl_trend_core(close, zlTrendLenSlow, zlTrendAggressiveness)
+zlCoreNoise = math.abs(zlCoreFastRaw - zlCoreSlowRaw) / math.max(close, PRICE_EPS)
+zlCoreStable = (not na(zlCoreFastRaw)) and (not na(zlCoreSlowRaw)) and (zlCoreNoise >= (zlTrendNoiseGuard * SIDEWAYS_EMA_THRESH))
+useClassicCore = (not useZeroLagTrendCore) or (trendCoreMode == "ClassicEMA")
+trendCoreFast = useClassicCore ? emaF : (trendCoreMode == "ZeroLagEMA" ? zlCoreFastRaw : (zlCoreStable ? zlCoreFastRaw : emaF))
+trendCoreSlow = useClassicCore ? emaS : (trendCoreMode == "ZeroLagEMA" ? zlCoreSlowRaw : (zlCoreStable ? zlCoreSlowRaw : emaS))
+trendCoreDiffNorm = (trendCoreFast - trendCoreSlow) / math.max(close, PRICE_EPS)
+
+[_, _, adxRegimeRaw] = ta.dmi(adxLen, adxLen)
+regimeHurstProxy = f_hurst_proxy(close, regimeLookback)
+regimeAtrPct = f_pct_rank(atr, regimeLookback) * 100.0
+regimeIsVolShock = regimeAtrPct >= regimeAtrShockPct
+regimeIsTrend = (not regimeIsVolShock) and (not na(adxRegimeRaw)) and (adxRegimeRaw >= regimeAdxTrendMin) and (math.abs(trendCoreDiffNorm) > SIDEWAYS_EMA_THRESH)
+regimeIsChop = (not regimeIsVolShock) and (not regimeIsTrend) and ((atr / math.max(close, PRICE_EPS)) <= regimeChopBandMax)
+regimeIsRange = (not regimeIsVolShock) and (not regimeIsTrend) and (not regimeIsChop) and (regimeHurstProxy <= regimeHurstRangeMax)
+rawRegime2State = useRegimeClassifier2 ? (regimeIsVolShock ? 4 : regimeIsTrend ? 1 : regimeIsChop ? 3 : regimeIsRange ? 2 : 2) : 0
+var int regime2State = 0
+var int regime2HoldBars = 0
+if not useRegimeClassifier2
+    regime2State := 0
+    regime2HoldBars := 0
+else
+    int regime2Candidate = rawRegime2State
+    // Phase-3 hysteresis: keep VOL_SHOCK active until ATR percentile cools below release threshold.
+    if regime2State == 4 and regimeAtrPct > (regimeAtrShockPct - regimeShockReleaseDelta)
+        regime2Candidate := 4
+    if regime2Candidate != regime2State
+        canSwitch = regime2State == 0 or regime2Candidate == 4 or regime2HoldBars >= regimeMinHoldBars
+        if canSwitch
+            regime2State := regime2Candidate
+            regime2HoldBars := 0
+        else
+            regime2HoldBars += 1
+    else
+        regime2HoldBars += 1
+regime2Name = regime2State == 4 ? "VOL_SHOCK" : regime2State == 1 ? "TREND" : regime2State == 3 ? "CHOP" : regime2State == 2 ? "RANGE" : "OFF"
+
 // Adaptive RSI length (for confidence momentum only)
 baseSecs = timeframe.in_seconds(timeframe.period)
 rsiLenUse = useAdaptiveRsi ? ((not na(baseSecs) and baseSecs <= SEC_5M) ? rsiLenFastTF : (not na(baseSecs) and baseSecs <= SEC_1H) ? rsiLenMidTF : rsiLenSlowTF) : rsiLenSlowTF
@@ -2499,7 +2612,10 @@ usiSrc1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
 usiSrc2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
 usiSrc3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
 usiSrc4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
-usiSrc5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+// Red Line Option 2 (Custom Zero-Lag) vs Standard (Global Zero-Lag / None)
+// If useUsiZeroLagRed is TRUE, it overrides global usiZeroLag for the red line.
+usiSrc5_base = usiZeroLag ? f_zl_src(close, usiLen5) : close
+usiSrc5 = useUsiZeroLagRed ? f_zl_src_pct(usiSrc5_base, usiLen5, usiZlAggressiveness) : usiSrc5_base
 
 usiLine1 = ta.rsi(usiSrc1, usiLen1)  // slowest (Blue)
 usiLine2 = ta.rsi(usiSrc2, usiLen2)  // Green
@@ -2521,17 +2637,31 @@ usiStackDir = usiBullStack >= usiMinStack ? 1 : usiBearStack >= usiMinStack ? -1
 // USI Quality Logic (Red vs All)
 // Pattern A: "Premium vs Standard" Signaling
 // Defined: Red (L5) vs Envelopes of Others (L1-L4)
-usiMaxEnv = math.max(math.max(usiLine1, usiLine2), math.max(usiLine3, usiLine4))
-usiMinEnv = math.min(math.min(usiLine1, usiLine2), math.min(usiLine3, usiLine4))
+float usiMaxEnv = na
+float usiMinEnv = na
+
+if usiFlipMode == "Tier A: Red vs Blue"
+    usiMaxEnv := usiLine1 // Blue (Slowest)
+    usiMinEnv := usiLine1 
+else if usiFlipMode == "Tier B: Red vs Avg"
+    float _avg = math.avg(usiLine1, usiLine2, usiLine3, usiLine4)
+    usiMaxEnv := _avg
+    usiMinEnv := _avg
+else // "Tier C: Envelope"
+    usiMaxEnv := math.max(math.max(usiLine1, usiLine2), math.max(usiLine3, usiLine4))
+    usiMinEnv := math.min(math.min(usiLine1, usiLine2), math.min(usiLine3, usiLine4))
 
 // "Red under all, then crosses above all" -> BUY
-// Implies: Yesterday Red < MinEnv, Today Red crosses above MaxEnv
-// Note: This requires a very strong 1-bar move if strict [1] is used.
-usiWasBelowAll = usiLine5[1] < usiMinEnv[1]
-usiWasAboveAll = usiLine5[1] > usiMaxEnv[1]
+// Implies: Yesterday Red <= MinEnv + epsilon, Today Red enters MaxEnv band
+usiWasBelowAll = usiLine5[1] <= usiMinEnv[1] + 0.1
+usiWasAboveAll = usiLine5[1] >= usiMaxEnv[1] - 0.1
 
-_usiXUp = ta.crossover(usiLine5, usiMaxEnv)
-_usiXDn = ta.crossunder(usiLine5, usiMinEnv)
+
+// Logic: Trigger if (Current enters band) AND (Previous was outside band).
+// This captures "touching" the line as entering the band.
+// Epsilon 0.1 is used to capture "visual touch" or near-touch without re-triggering inside the band.
+_usiXUp = (usiLine5 >= usiMaxEnv - 0.1) and (usiLine5[1] < usiMaxEnv[1] - 0.1)
+_usiXDn = (usiLine5 <= usiMinEnv + 0.1) and (usiLine5[1] > usiMinEnv[1] + 0.1)
 
 usiBuySignal  = usiWasBelowAll and _usiXUp
 usiSellSignal = usiWasAboveAll and _usiXDn
@@ -2571,7 +2701,8 @@ f_usi_30m_calc_raw() =>
     _s2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
     _s3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
     _s4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
-    _s5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+    _s5_base = usiZeroLag ? f_zl_src(close, usiLen5) : close
+    _s5 = useUsiZeroLagRed ? f_zl_src_pct(_s5_base, usiLen5, usiZlAggressiveness) : _s5_base
     
     _r1 = ta.rsi(_s1, usiLen1)
     _r2 = ta.rsi(_s2, usiLen2)
@@ -2860,22 +2991,63 @@ trendFlipDown = ta.crossunder(emaF, emaS)
 reclaimUp     = bullBias and crossClose_EmaF_up
 reclaimDown   = bearBias and crossClose_EmaF_down
 
-breakLong  = crossClose_EmaS_down or trendFlipDown
-breakShort = crossClose_EmaS_up   or trendFlipUp
+breakLong  = (useStrictEmaExit ? crossClose_EmaS_down : trendFlipDown) or trendFlipDown
+breakShort = (useStrictEmaExit ? crossClose_EmaS_up   : trendFlipUp)   or trendFlipUp
 
 var int pos = 0
+
 var int lastSignalBar = na
 var int lastSignalTime = na
 var string lastSig = "—"
 
 // C2 – Adaptive cooldown: halve wait when model confidence is high
-effectiveCooldownBars = (confidence >= 0.80) ? math.max(2, math.round(cooldownBars / 2)) : cooldownBars
-effectiveCooldownMin  = (confidence >= 0.80) ? math.max(2, math.round(cooldownMinutes / 2)) : cooldownMinutes
+bool presetIsManual = entryPreset == "Manual"
+bool presetIsIntraday = entryPreset == "Intraday"
+bool presetOverridesActive = (not presetIsManual) and (not lockPresetOverrides)
+bool legacyEntryBehavior = entryBehaviorProfile == "Legacy (v6.3.9-like)"
+int scoreThresholdLongEff = presetOverridesActive ? (presetIsIntraday ? 5 : 7) : scoreThresholdLong
+int scoreThresholdShortEff = presetOverridesActive ? (presetIsIntraday ? 5 : 7) : scoreThresholdShort
+int wUsiEff = presetOverridesActive ? (presetIsIntraday ? 5 : 3) : wUsi
+int wLiquidityEff = presetOverridesActive ? (presetIsIntraday ? 3 : 2) : wLiquidity
+int wMomentumEff = presetOverridesActive ? (presetIsIntraday ? 3 : 2) : wMomentum
+int wEngulfingEff = presetOverridesActive ? (presetIsIntraday ? 2 : 1) : wEngulfing
+int wTrendContextEff = presetOverridesActive ? (presetIsIntraday ? 1 : 2) : wTrendContext
+int wChopPenaltyEff = presetOverridesActive ? (presetIsIntraday ? -2 : -4) : wChopPenalty
+if legacyEntryBehavior
+    wChopPenaltyEff := math.min(wChopPenaltyEff, -1)
+bool scoreUseProbGateEff = legacyEntryBehavior ? false : (presetOverridesActive ? true : scoreUseProbGate)
+float minDirProbLongEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : minDirProbLong
+float minDirProbShortEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : minDirProbShort
+float scoreMinProbLongEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : scoreMinProbLong
+float scoreMinProbShortEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : scoreMinProbShort
+bool scoreUseConfGateEff = legacyEntryBehavior ? false : scoreUseConfGate
+float scoreMinConfLongEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : scoreMinConfLong
+float scoreMinConfShortEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : scoreMinConfShort
+bool useScoreEntriesEff = presetOverridesActive ? true : useScoreEntries
+tfSecDynRisk = timeframe.in_seconds(timeframe.period)
+isFastDynRisk = (not na(tfSecDynRisk)) and tfSecDynRisk <= SEC_5M
+isMidDynRisk = (not na(tfSecDynRisk)) and tfSecDynRisk <= SEC_1H
+[dStopEff, _dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATR)
+float dynamicDecayStopATREff = dStopEff
+bool scoreRequireDirectionalContextEff = legacyEntryBehavior ? false : scoreRequireDirectionalContext
+bool scoreChopHardVetoEff = not legacyEntryBehavior
+string cooldownModeEff = (presetAutoCooldown and presetOverridesActive) ? "Bars" : cooldownMode
+int cooldownMinutesPreset = presetIsIntraday ? 15 : 45
+int cooldownMinutesEff = (presetAutoCooldown and presetOverridesActive) ? cooldownMinutesPreset : cooldownMinutes
+string cooldownTriggersEff = (presetAutoCooldown and presetOverridesActive) ? "ExitsOnly" : cooldownTriggers
+int cooldownBarsEff = cooldownBars
+// parity marker: chochMinProbEff = chochMinProb
+float chochMinProbEff = legacyEntryBehavior ? math.max(0.34, chochMinProb - 0.05) : chochMinProb
+float abstainOverrideConfEff = abstainOverrideConf
+bool tpPreset30mIsManual = tpPreset30m == "Manual"
+float dynamicTpKickInREff = tpPreset30mIsManual ? dynamicTpKickInR : tpPreset30m == "Conservative" ? 1.0 : tpPreset30m == "Balanced" ? 0.7 : tpPreset30m == "Runner" ? 0.4 : 0.2
+float dynamicTpAddATRPerREff = tpPreset30mIsManual ? dynamicTpAddATRPerR : tpPreset30m == "Conservative" ? 0.30 : tpPreset30m == "Balanced" ? 0.50 : tpPreset30m == "Runner" ? 0.75 : 1.00
+float dynamicTpMaxAddATREff = tpPreset30mIsManual ? dynamicTpMaxAddATR : tpPreset30m == "Conservative" ? 2.5 : tpPreset30m == "Balanced" ? 4.0 : tpPreset30m == "Runner" ? 6.0 : 8.0
 
-cooldownOk =
-     cooldownMode == "Bars"
-         ? (na(lastSignalBar) ? true : (bar_index - lastSignalBar > effectiveCooldownBars))
-         : (na(lastSignalTime) ? true : (time - lastSignalTime > (effectiveCooldownMin * 60 * 1000)))
+effectiveCooldownBars = (confidence >= 0.80) ? math.max(2, math.round(cooldownBarsEff / 2)) : cooldownBarsEff
+effectiveCooldownMin  = (confidence >= 0.80) ? math.max(2, math.round(cooldownMinutesEff / 2)) : cooldownMinutesEff
+
+cooldownOk = (cooldownModeEff == "Bars") ? (na(lastSignalBar) ? true : (bar_index - lastSignalBar > effectiveCooldownBars)) : (na(lastSignalTime) ? true : (time - lastSignalTime > (effectiveCooldownMin * 60 * 1000)))
 
 f_getBrier_raw(tfSel, modSel) =>
     float score = na
@@ -3156,15 +3328,16 @@ f_entry_forecast_gate(isLong) =>
             relOk  = (not requireRelOk) or (relLbl == "ok" or relLbl == "strong")
 
             [eUf, eUo, eDf, eDo] = f_edges3(pU, pF, pD)
-
-            if requirePathTargetEntry and f_target_for_tf(f_tf_from_horizon(entryFcTF)) != "PathTPvsSL"
-                ok := false
-            else if isLong
+            entryTf = f_tf_from_horizon(entryFcTF)
+            [entryTgt, _, _, _, _, _] = f_get_params(entryTf)
+            pathTargetOk = (not requirePathTargetEntry) or (entryTgt == "PathTPvsSL")
+            
+            if isLong
                 edgeOk = (not na(eUf) and eUf >= minEdgePP) and (not na(eUo) and eUo >= minEdgePP)
-                ok := binOk and totalOk and relOk and (not na(pU) and pU >= minDirProb) and edgeOk
+                ok := binOk and totalOk and relOk and pathTargetOk and (not na(pU) and pU >= minDirProbLongEff) and edgeOk
             else
                 edgeOk = (not na(eDf) and eDf >= minEdgePP) and (not na(eDo) and eDo >= minEdgePP)
-                ok := binOk and totalOk and relOk and (not na(pD) and pD >= minDirProb) and edgeOk
+                ok := binOk and totalOk and relOk and pathTargetOk and (not na(pD) and pD >= minDirProbShortEff) and edgeOk
 
             idxFc = f_tf_index(entryFcTF)
             cSel = array.get(cForecastArr, idxFc)
@@ -3537,22 +3710,21 @@ gateShortNow = ddOk and f_fail_open(mtfOkShort) and f_fail_open(macroGateShort)
 // v6.2.26: When edge is NaN (warmup / no calibration data), treat as "no opinion"
 // rather than "weak decision". Only abstain when we HAVE data showing weakness.
 decisionOkSafe     = (not use3Way) ? true : na(decisionEdge) ? true : f_fc_bool(decisionOk)
-isHighConf         = f_fc_bool(confidence >= abstainOverrideConf)
+isHighConf         = f_fc_bool(confidence >= abstainOverrideConfEff)
 decisionFinal      = decisionOkSafe or isHighConf
 
 cooldownOkSafe     = f_fc_bool(cooldownOk)
 blockNearCloseSafe = f_fc_bool(not blockNearClose)
 
-// CORE ENTRY ALLOWANCE (Unblocked)
-// Removed: reliabilityOk, evidenceOk, evalOk, decisionFinal
+// CORE ENTRY ALLOWANCE (Gated)
 allowEntry =
      barstate.isconfirmed
  and cooldownOkSafe
  and blockNearCloseSafe
- // and f_fc_bool(reliabilityOk) // Moved to soft scoring
- // and f_fc_bool(evidenceOk)    // Moved to soft scoring
- // and f_fc_bool(evalOk)        // Moved to soft scoring
- // and (not abstainGate or decisionFinal) // Moved to soft scoring
+ and f_fc_bool(reliabilityOk)
+ and f_fc_bool(evidenceOk)
+ and f_fc_bool(evalOk)
+ and (not abstainGate or decisionFinal)
 
 // Removed f_bool_to_num and debug plots to cleanup user interface
 
@@ -3580,7 +3752,7 @@ coverSignal := false
 
 // Trend regime
 atrNormHere = atr / math.max(close, 0.0001)
-trendReg = f_trend_regime(emaF, emaS, atrNormHere)
+trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)
 
 // v6.2.28: Integrate USI for faster trend detection (User Req: 4 Feb 15:30 recovery)
 usiBull = useUsi and usiStackDir == 1
@@ -3591,7 +3763,7 @@ trendDn  = (trendReg == -1.0) or usiBear
 trendSide = trendReg == 0.0
 
 // D1 – Smooth trend strength (continuous [-1, 1] alternative)
-trendStrength = f_trend_strength(emaF, emaS)
+trendStrength = f_trend_strength(trendCoreFast, trendCoreSlow)
 // v6.2.28: USI bypasses smooth trend lag
 trendUpSmooth  = (useSmoothTrend ? trendStrength > TREND_SMOOTH_THRESH : trendUp) or usiBull
 trendDnSmooth  = (useSmoothTrend ? trendStrength < -TREND_SMOOTH_THRESH : trendDn) or usiBear
@@ -3646,9 +3818,9 @@ bullEngulf3 = prevThreeBear and (close > open) and (close >= open[1]) and (close
 bearEngulf3 = prevThreeBull and (open > close) and (open >= close[1]) and (open[1] >= close) and ((not engulfingRequireBodyDominance) or (bearBody > prevBody))
 
 
-// v6.2.31: Forced disable of engulfing filter to ensure signal consistency (Hard Bypass)
-engulfLongOk = true 
-engulfShortOk = true
+// Optional engulfing gate (directional)
+engulfLongOk = (not reqEngulfing) or bullEngulf3
+engulfShortOk = (not reqEngulfing) or bearEngulf3
 
 // C1 – Pre-signal momentum gate (RSI must align with direction)
 
@@ -3668,8 +3840,8 @@ if useRegSlope
 
 
 chartRsi = ta.rsi(close, rsiStateLen)
-preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiLo)
-preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiHi)
+preMomLongOk  = (not usePreMomentum) or (not na(chartRsi) and chartRsi >= preMomRsiHi)
+preMomShortOk = (not usePreMomentum) or (not na(chartRsi) and chartRsi <= preMomRsiLo)
 
 // C3 – EMA acceleration filter (gap must be expanding)
 emaGap     = math.abs(emaF - emaS) / math.max(close, PRICE_EPS)
@@ -3677,7 +3849,7 @@ emaGapPrev = math.abs(emaF[1] - emaS[1]) / math.max(close[1], PRICE_EPS)
 // NOTE: small 5% tolerance added to prevent repainting rejection on borderline bars
 emaAccelTol = 0.05 * (emaGapPrev + 0.0001)
 emaAccelLongOk  = (not useEmaAccel) or (emaGap >= (emaGapPrev - emaAccelTol))
-emaAccelShortOk = (not useEmaAccel) or (emaGap <= (emaGapPrev + emaAccelTol))
+emaAccelShortOk = (not useEmaAccel) or (emaGap >= (emaGapPrev - emaAccelTol))
 
 // C4 – VWAP alignment filter (intraday only; vwapVal computed in Zones section)
 isIntraday = timeframe.isintraday
@@ -3808,6 +3980,8 @@ else // SMC+Sweep (Standard Style)
 var float stopPx  = na
 var float tpPx    = na
 var float trailPx = na
+float dynTpAddAtrDbg = 0.0
+float dynTpRunRDbg = na
 
 // Calculate risk levels on entry; returns updated stop/tp/trail
 f_set_risk_on_entry(isLong, entry, atrNow) =>
@@ -3826,9 +4000,11 @@ f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
     // activate trailing only after reaching +R
     denom = math.max(math.abs(entry - stopVal), PRICE_EPS)
     rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
+    [_, dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATR)
+    trailMulEff = dTrailEff
     float trailOut = trailVal
     if rNow >= trailAfterR
-        float trailCandidate = isLong ? (close - trailATR * atrNow) : (close + trailATR * atrNow)
+        float trailCandidate = isLong ? (close - trailMulEff * atrNow) : (close + trailMulEff * atrNow)
         trailOut := na(trailOut) ? trailCandidate : (isLong ? math.max(trailOut, trailCandidate) : math.min(trailOut, trailCandidate))
     trailOut
 
@@ -3963,6 +4139,20 @@ bool isSweep_Bear = not na(lastSwingHigh) and (high > lastSwingHigh) and (close 
 int barsSinceSweep_Bull = ta.barssince(isSweep_Bull)
 int barsSinceSweep_Bear = ta.barssince(isSweep_Bear)
 
+// [GLOBAL SCOPE HOIST] To support debug labels outside signal block
+int scoreL = 0
+int scoreS = 0
+bool scoreBuy = false
+bool scoreShort = false
+bool baseEligible = false
+bool isChop = false
+bool isBreakout = false
+bool revBuyGlobal = false
+bool revShortGlobal = false
+bool probOkGlobal = false
+bool probOkGlobalS = false
+bool hardShortProbOk = false
+
 if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // Reversal Logic (Global — Applies to All Engines)
     // Refined to filter stale reversals (older than revRecencyBars) on low volume to prevent "fake" late entries
@@ -3980,16 +4170,15 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // Neural Reversal Gates (Global)
     bool impulseLong  = (isImpulse and (close > open)) or bullEngulf3
     bool impulseShort = (isImpulse and (close < open)) or bearEngulf3
-    int _minOfDay = hour * 60 + minute
-    bool _isOpenWindow = (_minOfDay >= 920 and _minOfDay <= 940)
-    
-    revBuyMinProbFloor = _isOpenWindow ? 0.0 : 0.25
-    bypassRevLong  = inRevOpenWindowLong
-    bypassRevShort = inRevOpenWindowShort
-    probOkGlobal    = _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong  or ((pU >= revMinProb) or ((hugeVolG or bullEngulf3) and pU >= 0.25 and impulseLong))))
-    probOkGlobalS   = _isOpenWindow or ((not na(pD) and pD >= revBuyMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or ((hugeVolG or bearEngulf3) and pD >= 0.25 and impulseShort))))
-    revBuyGlobal    = allowNeuralReversals and ddOk and isChoCH_Long and probOkGlobal and f_soft(volOk)
-    revShortGlobal  = allowNeuralReversals and ddOk and isChoCH_Short and probOkGlobalS and f_soft(volOk)
+    bool bypassRevLong  = inRevOpenWindowLong
+    bool bypassRevShort = inRevOpenWindowShort
+    float revBuyMinProbFloor = bypassRevLong ? 0.0 : 0.25
+    float revShortMinProbFloor = bypassRevShort ? 0.0 : 0.25
+    probOkGlobal    := (not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong  or ((pU >= revMinProb) or ((hugeVolG or bullEngulf3) and pU >= 0.25 and impulseLong)))
+    probOkGlobalS   := (not na(pD) and pD >= revShortMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or ((hugeVolG or bearEngulf3) and pD >= 0.25 and impulseShort)))
+    hardShortProbOk := (openWindowBypassEntries and inRevOpenWindowShort) or ((not na(pD)) and pD >= minDirProbShortEff)
+    revBuyGlobal    := allowNeuralReversals and ddOk and isChoCH_Long and revRecencyOkL and smcOkL and probOkGlobal and f_soft(volOk)
+    revShortGlobal  := allowNeuralReversals and ddOk and isChoCH_Short and revRecencyOkS and smcOkS and probOkGlobalS and hardShortProbOk and f_soft(volOk)
 
     // Export for debug
     isRevBuy   := revBuyGlobal
@@ -4039,7 +4228,6 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // 1. USI Evidence
     // Red (Line 5) Cross Logic
     // Buy: Red was below MinEnv, now crosses above MaxEnv (strongest) OR just crosses MaxEnv
-    float usiLine1 = na, float usiLine2 = na, float usiLine3 = na, float usiLine4 = na, float usiLine5 = na
     // Note: USI lines are already calculated globally as usiLine1..5
     // Re-accessing global scope variables:
     float _uMax = usiMaxEnv
@@ -4051,75 +4239,71 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     bool usiSweepUp   = usiCrossUp and (usiLine5[1] < _uMin[1])
     bool usiSweepDown = usiCrossDown and (usiLine5[1] > _uMax[1])
 
-    int scoreL = 0
-    int scoreS = 0
+    scoreL := 0
+    scoreS := 0
     
     // USI Contribution
     if useUsi
-        scoreL += f_score_add(usiCrossUp, wUsi) + f_score_add(usiSweepUp, wUsi / 2)
-        scoreS += f_score_add(usiCrossDown, wUsi) + f_score_add(usiSweepDown, wUsi / 2)
+        scoreL += f_score_add(usiCrossUp, wUsiEff) + f_score_add(usiSweepUp, wUsiEff / 2)
+        scoreS += f_score_add(usiCrossDown, wUsiEff) + f_score_add(usiSweepDown, wUsiEff / 2)
         // Add residual state score if cross happened earlier (supports late entries)
-        scoreL += f_score_add(usiBull and not usiCrossUp, wUsi / 2)
-        scoreS += f_score_add(usiBear and not usiCrossDown, wUsi / 2)
+        scoreL += f_score_add(usiBull and not usiCrossUp, wUsiEff / 2)
+        scoreS += f_score_add(usiBear and not usiCrossDown, wUsiEff / 2)
 
     // 2. Liquidity Evidence (Sweep / Reclaim / ChoCH)
     // Long: reclaimUpSafe or isChoCH_Long
-    scoreL += f_score_add(reclaimUpSafe, wLiquidity)
-    scoreL += f_score_add(isChoCH_Long, wLiquidity)
+    scoreL += f_score_add(reclaimUpSafe, wLiquidityEff)
+    scoreL += f_score_add(isChoCH_Long, wLiquidityEff)
     // Short: reclaimDownSafe or isChoCH_Short
-    scoreS += f_score_add(reclaimDownSafe, wLiquidity)
-    scoreS += f_score_add(isChoCH_Short, wLiquidity)
+    scoreS += f_score_add(reclaimDownSafe, wLiquidityEff)
+    scoreS += f_score_add(isChoCH_Short, wLiquidityEff)
 
     // 3. Momentum Evidence
     // Long: rocLongOk, adxOk, hugeVolG
-    scoreL += f_score_add(rocLongOk, wMomentum)
-    scoreL += f_score_add(adxOk, wMomentum / 2)
-    scoreL += f_score_add(hugeVolG, wMomentum / 2)
+    scoreL += f_score_add(rocLongOk, wMomentumEff)
+    scoreL += f_score_add(adxOk, wMomentumEff / 2)
+    scoreL += f_score_add(hugeVolG, wMomentumEff / 2)
     // Short
-    scoreS += f_score_add(rocShortOk, wMomentum)
-    scoreS += f_score_add(adxOk, wMomentum / 2)
-    scoreS += f_score_add(hugeVolG, wMomentum / 2)
+    scoreS += f_score_add(rocShortOk, wMomentumEff)
+    scoreS += f_score_add(adxOk, wMomentumEff / 2)
+    scoreS += f_score_add(hugeVolG, wMomentumEff / 2)
 
     // 4. Trend Context
-    scoreL += f_score_add(trendUpSafe, wTrendContext)
-    scoreS += f_score_add(trendDnSafe, wTrendContext)
+    scoreL += f_score_add(trendUpSafe, wTrendContextEff)
+    scoreS += f_score_add(trendDnSafe, wTrendContextEff)
 
     // 5. Chop Penalty
     // Detect low-vol chop: ADX < 20 and ATR/Close < 0.5%
     // EXCEPTION: If we have impulse candle OR Engulfing (breakout energy), ignore the penalty!
-    bool isBreakout = isImpulse or hugeVolG or bullEngulf3 or bearEngulf3
-    bool isChop = (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005) and not isBreakout
-    scoreL += f_penalty(isChop, wChopPenalty)
-    scoreS += f_penalty(isChop, wChopPenalty)
+    // ADDED: ChoCH and Reclaim are also valid breakouts structure-wise.
+    isBreakout := isImpulse or hugeVolG or bullEngulf3 or bearEngulf3 or isChoCH_Long or isChoCH_Short or reclaimUpSafe or reclaimDownSafe
+    isChop := (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005) and not isBreakout
+    scoreL += f_penalty(isChop, wChopPenaltyEff)
+    scoreS += f_penalty(isChop, wChopPenaltyEff)
 
     // 6. Engulfing Evidence (Pattern)
-    scoreL += f_score_add(bullEngulf3, wEngulfing)
-    scoreS += f_score_add(bearEngulf3, wEngulfing)
+    scoreL += f_score_add(bullEngulf3, wEngulfingEff)
+    scoreS += f_score_add(bearEngulf3, wEngulfingEff)
 
     // Final Decision
     // Base eligibility: Position 0, Allow Entry + Drawdown Check (ddOk)
-    bool baseEligible = (pos == 0) and ddOk and (allowEntry or allowRescue)
+    // ADDED: USI State Filter (Fail-safe)
+    // If USI is enabled, Block Buys when Bear State, and Shorts when Bull State.
+    bool usiBlockL = useUsi and usiBearState
+    bool usiBlockS = useUsi and usiBullState
+    
+    baseEligible := (pos == 0) and ddOk and (allowEntry or allowRescue)
+    bool scoreProbLongOk = (not scoreUseProbGateEff) or ((not na(pU)) and pU >= scoreMinProbLongEff)
+    bool scoreProbShortOk = (not scoreUseProbGateEff) or ((not na(pD)) and pD >= scoreMinProbShortEff)
+    bool scoreConfLongOk = (not scoreUseConfGateEff) or ((not na(confidence)) and confidence >= scoreMinConfLongEff)
+    bool scoreConfShortOk = (not scoreUseConfGateEff) or ((not na(confidence)) and confidence >= scoreMinConfShortEff)
 
-    bool scoreBuy   = baseEligible and (scoreL >= scoreThresholdLong)
-    bool scoreShort = baseEligible and enableShorts and (scoreS >= scoreThresholdShort)
+    scoreBuy   := baseEligible and scoreProbLongOk and scoreConfLongOk and (not usiBlockL) and (scoreL >= scoreThresholdLongEff)
+    scoreShort := baseEligible and enableShorts and scoreProbShortOk and scoreConfShortOk and (not usiBlockS) and (scoreS >= scoreThresholdShortEff)
 
-    // Debug Output
-    if scoreDebug
-        // Use a label to show score breakdown on potential signal (or near miss) -> Trigger debug if Score >= 3
-        if scoreL >= 3 or scoreS >= 3
-            string _dTxt = "L:" + str.tostring(scoreL) + " S:" + str.tostring(scoreS) + "\n"
-            _dTxt += "Tr:" + str.tostring(scoreThresholdLong) + "\n"
-            _dTxt += "Ok:" + (baseEligible ? "YES" : "NO") + "\n"
-            _dTxt += "dd:" + (ddOk?"1":"0") + " ent:" + (allowEntry?"1":"0") + " res:" + (allowRescue?"1":"0") + "\n"
-            _dTxt += "pos:" + str.tostring(pos)
-            
-            label.new(bar_index, high, text=_dTxt, color=color.gray, style=label.style_label_down, size=size.small, textcolor=color.white)
+    // [MOVED] Debug Output relocated to end of script for accurate execution logging
 
-        // Use a label to show score breakdown on potential signal
-        if scoreBuy
-            label.new(bar_index, low, text="Score BUY: " + str.tostring(scoreL) + "/" + str.tostring(scoreThresholdLong), color=color.lime, style=label.style_label_up, size=size.small)
-        if scoreShort
-            label.new(bar_index, high, text="Score SHORT: " + str.tostring(scoreS) + "/" + str.tostring(scoreThresholdShort), color=color.red, style=label.style_label_down, size=size.small)
+
 
     // 2. Veto Logic (Nur ECHTE Showstopper)
     bool isVetoL = false
@@ -4140,6 +4324,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // 3. Adaptive Triggering (Engine: Hybrid)
     // If Engine is Hybrid, we use the Soft Context 
     
+    bool chochVolOk = (not chochReqVol) or volOkSafe
+
     if engine == "Hybrid"
         // Hybrid: Trigger (EMA Touch) + Core Evidence + Enhancements (Soft)
         // Removed hard "Safe" walls.
@@ -4156,7 +4342,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         // ChoCH Filter (Strict) - Kept strict for Reversals only as it is distinctive logic
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) 
         // Fail open: if prob model missing, allow (unless explicitly low)
-        chochFilterOk = (not isChoCH_Entry) or (na(pU) or pU >= chochMinProb) 
+        chochFilterOk = (not isChoCH_Entry) or ((na(pU) or pU >= chochMinProbEff) and chochVolOk)
         
         buySignal   := gateBuy and chochFilterOk
         
@@ -4167,7 +4353,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         gateShort = validTrendEntryS and contextS and not isVetoS
         
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short)
-        chochShortFilterOk = (not isChoCH_ShortEntry) or (na(pD) or pD >= chochMinProb)
+        chochShortFilterOk = (not isChoCH_ShortEntry) or ((na(pD) or pD >= chochMinProbEff) and chochVolOk)
         
         shortSignal := gateShort and chochShortFilterOk
 
@@ -4177,13 +4363,13 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         baseBuy = standardEntryOk and gateLongNow and liqOk_L and momOk_L and trendUpSafe and enhLongOk and breakoutLongSafe and f_soft(engulfLongOk)
         
         isChoCH_Entry = baseBuy and (structState == -1 or isChoCH_Long)
-        chochFilterOk = (not isChoCH_Entry) or (na(pU) or pU >= chochMinProb)
+        chochFilterOk = (not isChoCH_Entry) or ((na(pU) or pU >= chochMinProbEff) and chochVolOk)
         
         buySignal   := baseBuy and chochFilterOk
         
         baseShort = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and trendDnSafe and enhShortOk and breakoutShortSafe and f_soft(engulfShortOk)
         isChoCH_ShortEntry = baseShort and (structState == 1 or isChoCH_Short)
-        chochShortFilterOk = (not isChoCH_ShortEntry) or (na(pD) or pD >= chochMinProb)
+        chochShortFilterOk = (not isChoCH_ShortEntry) or ((na(pD) or pD >= chochMinProbEff) and chochVolOk)
         
         shortSignal := baseShort and chochShortFilterOk
         
@@ -4195,16 +4381,30 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         shortSignal := standardEntryOk and enableShorts and gateShortNow and crossClose_EmaF_downSafe and enhShortOk and f_soft(engulfShortOk)
 
 
-    // Option C: Score Engine Injection
-    // Added 2026-02-14: Independent evidence score route (Plan C)
-    if useScoreEntries
-        buySignal   := buySignal   or scoreBuy
-        shortSignal := shortSignal or scoreShort
+    // Option C: Score Engine Integration (hybrid)
+    // Score can inject entries, but active chop state still hard-vetoes entries when penalty is enabled.
+    if useScoreEntriesEff
+        bool scoreCtxLongOk  = (not scoreRequireDirectionalContextEff) or trendUpSafe or usiBull
+        bool scoreCtxShortOk = (not scoreRequireDirectionalContextEff) or trendDnSafe or usiBear
+        bool chopVeto = scoreChopHardVetoEff and isChop and (wChopPenaltyEff < 0)
+        bool scoreLongWin = (scoreBuy and scoreCtxLongOk) and not chopVeto
+        bool scoreShortWin = (scoreShort and scoreCtxShortOk and hardShortProbOk) and not chopVeto
+        // Score-based precedence: when score path fires, it overrides engine path.
+        if scoreLongWin
+            buySignal := true
+            shortSignal := false
+        else if scoreShortWin
+            shortSignal := true
+            buySignal := false
 
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
         buySignal   := buySignal   or revBuyGlobal
         shortSignal := shortSignal or revShortGlobal
+
+    // Hard short probability floor: blocks all short paths (engine/score/reversal)
+    // unless explicit short-side open-window bypass is active.
+    shortSignal := shortSignal and hardShortProbOk
 
     // Capture raw signals before conflict logic
     rawBuySignal := buySignal
@@ -4288,7 +4488,7 @@ if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
     float baseStop = nz(dSl, stopATR) 
     float baseTp   = nz(dTp, tpATR)
     
-    float cStopM = math.max(0.1, baseStop + (decayStopATR - baseStop) * w)
+    float cStopM = math.max(0.1, baseStop + (dynamicDecayStopATREff - baseStop) * w)
     float cTpM   = math.max(0.1, baseTp   + (decayTpATR   - baseTp)   * w)
     
     if pos == 1 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
@@ -4309,6 +4509,54 @@ if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
         stopPx := math.min(stopPx, targetStop)
         if not useInfiniteTP
             tpPx   := math.max(tpPx, targetTp)
+
+// Dynamic TP Expansion (optional): expands TP as trade progresses in R.
+if useAtrRisk and useDynamicTpExpansion and not useInfiniteTP and pos != 0 and not na(tpPx) and not na(entryPrice) and not na(entryAtr)
+    [dtFc, dtK, dtA, dtH, dtTp, dtSl] = f_get_params(timeframe.period)
+    float initRiskAbs = math.max(PRICE_EPS, nz(dtSl, stopATR) * entryAtr)
+    float runRNow = pos == 1 ? ((close - entryPrice) / initRiskAbs) : ((entryPrice - close) / initRiskAbs)
+    dynTpRunRDbg := runRNow
+    bool dynTpTrendOk = pos == 1 ? trendUpSafe : trendDnSafe
+    bool dynTpConfOk = na(confidence) ? false : confidence >= dynamicTpMinConf
+    bool dynTpGateOk = (not dynamicTpRequireTrend or dynTpTrendOk) and (not dynamicTpRequireConf or dynTpConfOk)
+
+    if runRNow >= dynamicTpKickInREff and dynTpGateOk
+        float extraAtr = math.min(dynamicTpMaxAddATREff, (runRNow - dynamicTpKickInREff) * dynamicTpAddATRPerREff)
+        dynTpAddAtrDbg := extraAtr
+        float targetTpMul = math.max(0.1, nz(dtTp, tpATR) + extraAtr)
+        float dynamicTpPx = pos == 1 ? (entryPrice + targetTpMul * entryAtr) : (entryPrice - targetTpMul * entryAtr)
+        tpPx := pos == 1 ? math.max(tpPx, dynamicTpPx) : math.min(tpPx, dynamicTpPx)
+
+// Dynamic SL Profile (optional): early widening then progressive tightening by R.
+if useAtrRisk and useDynamicSlProfile and pos != 0 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
+    [dsFc, dsK, dsA, dsH, dsTp, dsSl] = f_get_params(timeframe.period)
+    float baseSlMul = nz(dsSl, stopATR)
+    float initRiskAbs = math.max(PRICE_EPS, baseSlMul * entryAtr)
+    float runRNow = pos == 1 ? ((close - entryPrice) / initRiskAbs) : ((entryPrice - close) / initRiskAbs)
+    bool dynSlTrendOk = pos == 1 ? trendUpSafe : trendDnSafe
+    bool dynSlConfOk = na(confidence) ? false : confidence >= dynamicSlMinConf
+    bool dynSlGateOk = (not dynamicSlRequireTrend or dynSlTrendOk) and (not dynamicSlRequireConf or dynSlConfOk)
+
+    if dynSlGateOk
+        float widenAtr = 0.0
+        if dynamicSlWidenUntilR > 0 and runRNow >= 0 and runRNow < dynamicSlWidenUntilR
+            widenAtr := dynamicSlMaxWidenATR * (1.0 - (runRNow / dynamicSlWidenUntilR))
+        float tightenAtr = runRNow >= dynamicSlTightenStartR ? math.min(dynamicSlMaxTightenATR, (runRNow - dynamicSlTightenStartR) * dynamicSlTightenATRPerR) : 0.0
+        float netAdjAtr = widenAtr - tightenAtr
+        float targetSlMul = math.max(0.1, baseSlMul + netAdjAtr)
+        float dynamicStopPx = pos == 1 ? (entryPrice - targetSlMul * entryAtr) : (entryPrice + targetSlMul * entryAtr)
+
+        bool allowWidenNow = (not isBeHit) and na(trailPx)
+        if pos == 1
+            if dynamicStopPx > stopPx
+                stopPx := dynamicStopPx
+            else if dynamicStopPx < stopPx and allowWidenNow
+                stopPx := dynamicStopPx
+        else
+            if dynamicStopPx < stopPx
+                stopPx := dynamicStopPx
+            else if dynamicStopPx > stopPx and allowWidenNow
+                stopPx := dynamicStopPx
 
 // Breakeven Logic
 if useBreakeven and not isBeHit and pos != 0 and not na(entryPrice) and not na(atr)
@@ -4347,56 +4595,25 @@ if pos == 1 and allowExit
     // Deconstruct risk exit
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
     
-    // TP Filtering (Hold Winner)
-    if rHit and rMsg == "TP" and confidence >= exitConfTP
-        rHit := false 
+    // Unified exit model: any configured trigger can close the position.
+    // Practical precedence for reason text is risk message first, then USI, then Engulfing.
+    // v6.3.8: Reverted to Crossunder (event) to enforce "Touch from Above" per user request
+    bool usiExitHit = _usiXDn
     
-    // Check for Reversal Exit (ChoCH Down)
-    // breakLong = bearish EMA break; isChoCH_Short = bearish structure reversal
-    // v6.2.6: ChoCH exits now respect a minimum 2-bar grace to prevent
-    //         immediate exit on the bar after entry (which causes orphan EXIT labels).
-    structHit = ((breakLong and canStructExit) or (isChoCH_Short and canChochExit))
-
-    // ChoCh Filtering (Confirm Reversal)
-    // Only exit if the Down Probability (pD) is high enough
-    if structHit and not na(pD) and pD < exitConfChoCh
-        structHit := false
+    // Bearish Engulfing Logic
+    bool engExitHit = bearEngulf3
+    bool riskExitHit = rHit
     
-    // Engulfing Contextual Exit (Option 1 - User Configurable)
-    bool engExitHit = false
-    bool engTightenHit = false
-    if useEngulfExit and bearEngulf3
-        if engulfExitMode == "Contextual Exit"
-            // Exit if Bearish Engulfing AND (USI turns bearish OR Outlook turns bearish OR Momentum fails)
-            if ((usiStackDir == -1) or usiBearState) or (outScore1 < -0.05) or not f_soft(fcGateLong)
-                engExitHit := true
-        else if engulfExitMode == "Tighten Risk"
-            // Signal to tighten risk (applied in Risk update section next bar, or we force it here)
-            // Since risk is processed before this block, we set a flag or force update trail/stop
-            // Note: StopPx is a var, we can tighten it right now for the NEXT bar's check?
-            // Actually, we can update stopPx immediately to protect against further downside
-            // Tighten Logic implementation is complex here because stopPx is managed above.
-            // We will set a flag to force tightening in the next pass or intrabar.
-            engTightenHit := true
-
-    // Direct Tightening Action
-    if engTightenHit
-        float tightStop = close + (engulfTightenMult * atr)
-        // For LONG: Stop is below price. We want to RAISE it.
-        // Wait, "Tighten by 0.5 ATR" usually means "Move stop to [close - 0.5 ATR]".
-        // If current stop is [entry - 1.0 ATR], moving to [close - 0.5 ATR] simulates trailing.
-        float proposedStop = close - (engulfTightenMult * atr)
-        stopPx := math.max(stopPx, proposedStop)
+    exitSignal := riskExitHit or usiExitHit or engExitHit
     
-    exitSignal := rHit or structHit or staleExit or engExitHit
     if exitSignal
-        string reason = rHit ? rMsg : "Struct"
-        if not rHit and (breakLong or isChoCH_Short)
-            reason := "ChoCH"
-        if engExitHit and not rHit and not structHit
+
+        string reason = riskExitHit ? rMsg : "USI-Flip"
+        // v6.3.7 Debug: Add USI Values
+        if usiExitHit
+            reason := reason + " (Red:" + str.tostring(usiLine5, "#.##") + " < Env:" + str.tostring(usiMinEnv, "#.##") + ")"
+        if engExitHit and not rHit
             reason := "Engulfing"
-        if staleExit and not rHit and not structHit and not engExitHit
-            reason := "Stalemate"
         tempExitReason := reason
 
 if pos == -1 and allowExit
@@ -4404,42 +4621,27 @@ if pos == -1 and allowExit
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
     
-    // TP Filtering (Hold Winner)
-    if rHit and rMsg == "TP" and confidence >= exitConfTP
-        rHit := false 
+    // Unified exit model: any configured trigger can close the position.
+    // Practical precedence for reason text is risk message first, then USI, then Engulfing.
+    // v6.3.8: Reverted to Crossover (event) to enforce "Touch from Below" per user request
+    bool usiExitHit = _usiXUp
     
-    // Check for Reversal Exit (ChoCH Up)
-    // breakShort = bullish EMA break; isChoCH_Long = bullish structure reversal
-    // v6.2.6: ChoCH exits now respect a minimum 2-bar grace.
-    structHit = ((breakShort and canStructExit) or (isChoCH_Long and canChochExit))
+    // Bullish Engulfing Logic
+    bool engExitHit = bullEngulf3
+    bool riskExitHit = rHit
 
-    // Engulfing Contextual Exit (Option 1 - User Configurable)
-    bool engExitHit = false
-    bool engTightenHit = false
-    if useEngulfExit and bullEngulf3
-        if engulfExitMode == "Contextual Exit"
-            // Exit if Bullish Engulfing AND (USI turns bullish OR Outlook turns bullish OR Momentum fails)
-            if ((usiStackDir == 1) or usiBullState) or (outScore1 > 0.05) or not f_soft(fcGateShort)
-                engExitHit := true
-        else if engulfExitMode == "Tighten Risk"
-            engTightenHit := true
-
-    // Direct Tightening Action
-    if engTightenHit
-        // For SHORT: Stop is above price. We want to LOWER it.
-        float proposedStop = close + (engulfTightenMult * atr)
-        stopPx := math.min(stopPx, proposedStop)
-
-    coverSignal := rHit or structHit or staleExit or engExitHit
+    coverSignal := riskExitHit or usiExitHit or engExitHit
+    
     if coverSignal
-        string reason = rHit ? rMsg : "Struct"
-        if not rHit and (breakShort or isChoCH_Long)
-            reason := "ChoCH"
-        if engExitHit and not rHit and not structHit
+
+        string reason = riskExitHit ? rMsg : "USI-Flip"
+        // v6.3.7 Debug: Add USI Values
+        if usiExitHit
+            reason := reason + " (Red:" + str.tostring(usiLine5, "#.##") + " > Env:" + str.tostring(usiMaxEnv, "#.##") + ")"
+        if engExitHit and not rHit
             reason := "Engulfing"
-        if staleExit and not rHit and not structHit and not engExitHit
-            reason := "Stalemate"
         tempExitReason := reason
+
 
 // Executed actions (bar-close only; prevents intrabar repaint labels/alerts)
 didBuy   := false
@@ -4452,6 +4654,8 @@ var string lastExitReason = ""
 // -- PLOT TREND LINES (For visualization validity) --
 plot(emaF, "EMA Fast", color=color.new(color.yellow, 0))
 plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
+consolidationDotColor = pos == -1 ? color.new(color.red, 10) : color.new(color.orange, 0)
+plot(trendSide ? emaF : na, "Consolidation dots", style=plot.style_circles, linewidth=2, color=consolidationDotColor)
 
 // State transitions (same-bar reversal support)
 var bool lastEntryWasRev = false
@@ -4470,8 +4674,12 @@ if barstate.isconfirmed
         tpPx := na
         trailPx := na
         isBeHit := false
-        lastSignalBar := bar_index
-        lastSignalTime := time
+        // Cooldown semantics:
+        // - ExitsOnly: reset timer on exits/covers
+        // - AllSignals: reset timer on any signal
+        if cooldownTriggersEff == "ExitsOnly" or cooldownTriggersEff == "AllSignals"
+            lastSignalBar := bar_index
+            lastSignalTime := time
         lastSig := "EXIT"
     else if coverSignal and pos == -1
         didCover := true
@@ -4482,9 +4690,14 @@ if barstate.isconfirmed
         tpPx := na
         trailPx := na
         isBeHit := false
-        lastSignalBar := bar_index
-        lastSignalTime := time
+        // Cooldown semantics:
+        // - ExitsOnly: reset timer on exits/covers
+        // - AllSignals: reset timer on any signal
+        if cooldownTriggersEff == "ExitsOnly" or cooldownTriggersEff == "AllSignals"
+            lastSignalBar := bar_index
+            lastSignalTime := time
         lastSig := "COVER"
+
 
     // --- Phase 2: Process entries (including same-bar reversal after exit) ---
     // Guard: block same-direction re-entry (EXIT→BUY or COVER→SHORT).
@@ -4504,8 +4717,9 @@ if barstate.isconfirmed
             stopPx  := newStop
             tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
-        // Option B: Cooldown update removed so entries don't block subsequent entries
-        if cooldownTriggers == "AllSignals"
+        // Cooldown semantics:
+        // - AllSignals: entries also reset timer
+        if cooldownTriggersEff == "AllSignals"
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "BUY"
@@ -4524,8 +4738,9 @@ if barstate.isconfirmed
             stopPx  := sStop
             tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
-        // Option B: Cooldown update removed
-        if cooldownTriggers == "AllSignals"
+        // Cooldown semantics:
+        // - AllSignals: entries also reset timer
+        if cooldownTriggersEff == "AllSignals"
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "SHORT"
@@ -4536,132 +4751,12 @@ exitEvent  = didExit
 coverEvent = didCover
 
 //====================
-// Rolling Engulfing likelihood stats (A/B/C)
-//====================
-// A) Entry-likelihood: P(LongEntry within N bars | bullEngulf)
-var int[] engulfA_pendingBars = array.new_int(0)
-var bool[] engulfA_pendingHit = array.new_bool(0)
-var int[] engulfA_outcomes = array.new_int(0)
-var int engulfA_hits = 0
-
-// B) Price-likelihood: P(Close[N] > Close0 | bullEngulf)
-var int[] engulfB_pendingBars = array.new_int(0)
-var float[] engulfB_pendingClose0 = array.new_float(0)
-var int[] engulfB_outcomes = array.new_int(0)
-var int engulfB_hits = 0
-
-// C) Trade-likelihood: P(R>0 | bullEngulf AND entered)
-// Implementation detail: links each engulf event to at most one LONG entry within N bars,
-// then resolves on LONG exit using exit close vs entry close.
-var int[] engulfC_waitBars = array.new_int(0)
-var float[] engulfC_openEntryPx = array.new_float(0)
-var int[] engulfC_outcomes = array.new_int(0)
-var int engulfC_hits = 0
-
-if barstate.isconfirmed
-    // Register new bullish engulfing events for all three likelihood modes
-    if bullEngulf3
-        array.push(engulfA_pendingBars, bar_index)
-        array.push(engulfA_pendingHit, false)
-        array.push(engulfB_pendingBars, bar_index)
-        array.push(engulfB_pendingClose0, close)
-        array.push(engulfC_waitBars, bar_index)
-
-    // A) Mark pending events as hit if a LONG entry occurs within lookahead window
-    if buyEvent and array.size(engulfA_pendingBars) > 0
-        for i = 0 to array.size(engulfA_pendingBars) - 1
-            eBar = array.get(engulfA_pendingBars, i)
-            age = bar_index - eBar
-            if age >= 0 and age <= engulfStatsWindowBars and not array.get(engulfA_pendingHit, i)
-                array.set(engulfA_pendingHit, i, true)
-
-    // C) Link one waiting engulf event to this LONG entry (oldest eligible)
-    if buyEvent and array.size(engulfC_waitBars) > 0
-        int linkIdx = int(na)
-        for i = 0 to array.size(engulfC_waitBars) - 1
-            eBar = array.get(engulfC_waitBars, i)
-            age = bar_index - eBar
-            if age >= 0 and age <= engulfStatsWindowBars
-                linkIdx := i
-                break
-        if not na(linkIdx)
-            array.push(engulfC_openEntryPx, close)
-            array.remove(engulfC_waitBars, linkIdx)
-
-    // C) Resolve linked trade outcomes on LONG exit events
-    if didExit and array.size(engulfC_openEntryPx) > 0
-        entryPxC = array.shift(engulfC_openEntryPx)
-        cWin = close > entryPxC ? 1 : 0
-        array.push(engulfC_outcomes, cWin)
-        engulfC_hits += cWin
-        if array.size(engulfC_outcomes) > engulfStatsMaxEvents
-            oldC = array.shift(engulfC_outcomes)
-            engulfC_hits -= oldC
-
-    // C) Expire engulf events that never got a LONG entry within N bars
-    iC = array.size(engulfC_waitBars) - 1
-    while iC >= 0
-        eBarC = array.get(engulfC_waitBars, iC)
-        ageC = bar_index - eBarC
-        if ageC > engulfStatsWindowBars
-            array.remove(engulfC_waitBars, iC)
-        iC -= 1
-
-    // A) Resolve matured events (older than N bars)
-    iA = array.size(engulfA_pendingBars) - 1
-    while iA >= 0
-        eBarA = array.get(engulfA_pendingBars, iA)
-        ageA = bar_index - eBarA
-        if ageA > engulfStatsWindowBars
-            hitA = array.get(engulfA_pendingHit, iA) ? 1 : 0
-            array.push(engulfA_outcomes, hitA)
-            engulfA_hits += hitA
-            if array.size(engulfA_outcomes) > engulfStatsMaxEvents
-                oldA = array.shift(engulfA_outcomes)
-                engulfA_hits -= oldA
-            array.remove(engulfA_pendingBars, iA)
-            array.remove(engulfA_pendingHit, iA)
-        iA -= 1
-
-    // B) Resolve matured events (older than N bars)
-    iB = array.size(engulfB_pendingBars) - 1
-    while iB >= 0
-        eBarB = array.get(engulfB_pendingBars, iB)
-        ageB = bar_index - eBarB
-        if ageB > engulfStatsWindowBars
-            c0 = array.get(engulfB_pendingClose0, iB)
-            winB = close > c0 ? 1 : 0
-            array.push(engulfB_outcomes, winB)
-            engulfB_hits += winB
-            if array.size(engulfB_outcomes) > engulfStatsMaxEvents
-                oldB = array.shift(engulfB_outcomes)
-                engulfB_hits -= oldB
-            array.remove(engulfB_pendingBars, iB)
-            array.remove(engulfB_pendingClose0, iB)
-        iB -= 1
-
-engulfA_n = array.size(engulfA_outcomes)
-engulfA_rate = engulfA_n > 0 ? (engulfA_hits / engulfA_n) : na
-
-engulfB_n = array.size(engulfB_outcomes)
-engulfB_rate = engulfB_n > 0 ? (engulfB_hits / engulfB_n) : na
-
-engulfC_n = array.size(engulfC_outcomes)
-engulfC_rate = engulfC_n > 0 ? (engulfC_hits / engulfC_n) : na
-
-engulfLabel = engulfLikelihoodMode == "A: Entry" ? "P(Long|Engulf)" : engulfLikelihoodMode == "B: Price" ? "P(UpN|Engulf)" : "P(R>0|Engulf∧E)"
-engulfSelRate = engulfLikelihoodMode == "A: Entry" ? engulfA_rate : engulfLikelihoodMode == "B: Price" ? engulfB_rate : engulfC_rate
-engulfSelHits = engulfLikelihoodMode == "A: Entry" ? engulfA_hits : engulfLikelihoodMode == "B: Price" ? engulfB_hits : engulfC_hits
-engulfSelN = engulfLikelihoodMode == "A: Entry" ? engulfA_n : engulfLikelihoodMode == "B: Price" ? engulfB_n : engulfC_n
-engulfStatsText = engulfSelN > 0 ? (str.tostring(engulfSelRate * 100.0, "#.1") + "% (" + str.tostring(engulfSelHits) + "/" + str.tostring(engulfSelN) + ", " + str.tostring(engulfStatsWindowBars) + "b)") : "build n"
-engulfStatsColor = engulfSelN < 20 ? tblTextDim : engulfSelRate >= 0.60 ? color.lime : engulfSelRate >= 0.45 ? color.yellow : color.red
 
 alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 //====================
 // Visuals
 //====================
-plotshape(showSetMarkers and setPulse, title="SET", style=shape.circle, location=location.belowbar, size=size.tiny, text="SET", textcolor=color.white, color=color.new(color.blue, 0))
 strictAtrRankVis = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
 strictMtfMarginEffVis = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRankVis - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
 strictAlertsEnabledVis = not inRevOpenWindow
@@ -4671,10 +4766,6 @@ strictChochLongOkVis = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (bar
 strictChochShortOkVis = (not isRevShort[1]) or ((not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= strictChochConfirmBars) and not isChoCH_Long)
 strictBuyConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis
 strictShortConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
-showStrictIcon = showStrictSignalMarkers and (strictMarkerStyle == "Icon" or strictMarkerStyle == "Both")
-showStrictLabel = showStrictSignalMarkers and (strictMarkerStyle == "Label" or strictMarkerStyle == "Both")
-plotshape(showLongLabels and showStrictIcon and strictBuyConfirmedVis, title="STRICT-CONF BUY", style=shape.triangleup, location=location.belowbar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.aqua, 0))
-plotshape(showShortLabels and showStrictIcon and strictShortConfirmedVis, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
 // Defensive label text guard: prevents accidental oversized/raw text dumps on chart
 f_safe_label_text(txt) =>
@@ -4690,10 +4781,10 @@ f_strict_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_strictLabels) > MAX_STRICT_LABELS
         label.delete(array.shift(_strictLabels))
 
-if showLongLabels and showStrictLabel and strictBuyConfirmedVis
-    f_strict_label(bar_index, low, "STRICT-CONFIRMED BUY", label.style_label_up, color.black, color.new(color.aqua, 0))
-if showShortLabels and showStrictLabel and strictShortConfirmedVis
-    f_strict_label(bar_index, high, "STRICT-CONFIRMED SHORT", label.style_label_down, color.black, color.new(color.fuchsia, 0))
+// Debug Output — starts from Feb 12 15:00 UTC (16:00 CET)
+// FORCE year to 2025 to catch the test case.
+// Score debug label output removed for token budget.
+
 // PRE-BUY / PRE-SHORT labels: show distance-to-trigger, pU/pD, confidence
 var label[] _preLabels = array.new_label(0)
 MAX_PRE_LABELS = 100
@@ -4722,15 +4813,15 @@ labelRevShort = shortEvent and isRevShort
 labelBuy      = buyEvent and not isRevBuy
 labelShort    = shortEvent and not isRevShort
 
-labelBOS_L   = useStructureTags and isBOS_Long
 labelChoCH_L = useStructureTags and isChoCH_Long  and not labelRevBuy    // v6.2.14: suppress on REV-BUY bar
-labelBOS_S   = useStructureTags and isBOS_Short
 labelChoCH_S = useStructureTags and isChoCH_Short and not labelRevShort  // v6.2.14: suppress on REV-SHORT bar
+labelBOS_L = useStructureTags and isBOS_Long
+labelBOS_S = useStructureTags and isBOS_Short
 
-plotshape(labelBOS_L,   title="BOS (Long)",   style=shape.labelup,   location=location.belowbar, size=size.small, text="BOS",   textcolor=color.white, color=color.new(color.green, 50))
 plotshape(labelChoCH_L, title="ChoCH (Long)", style=shape.labelup,   location=location.belowbar, size=size.small, text="ChoCH", textcolor=color.white, color=color.new(color.purple, 0))
-plotshape(labelBOS_S,   title="BOS (Short)",  style=shape.labeldown, location=location.abovebar, size=size.small, text="BOS",   textcolor=color.white, color=color.new(color.red, 50))
 plotshape(labelChoCH_S, title="ChoCH (Short)", style=shape.labeldown, location=location.abovebar, size=size.small, text="ChoCH", textcolor=color.white, color=color.new(color.maroon, 0))
+plotshape(labelBOS_L, title="BOS (Long)", style=shape.labelup, location=location.belowbar, size=size.tiny, text="BOS", textcolor=color.white, color=color.new(color.green, 0))
+plotshape(labelBOS_S, title="BOS (Short)", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="BOS", textcolor=color.white, color=color.new(color.red, 0))
 
 labelExit  = exitEvent
 labelCover = coverEvent
@@ -4831,7 +4922,15 @@ plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, 
 plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
 plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
 
-barcolor(showEngulfingBarColors ? (bullEngulf3 ? color.yellow : bearEngulf3 ? color.white : na) : na)
+plot(showDynamicTpDebugPlot and useDynamicTpExpansion and not useInfiniteTP and pos != 0 ? dynTpAddAtrDbg : na, title="dTP Add ATR", color=color.new(color.aqua, 0), display=display.none)
+plot(showDynamicTpDebugPlot and useDynamicTpExpansion and not useInfiniteTP and pos != 0 ? dynTpRunRDbg : na, title="dTP Run R", color=color.new(color.fuchsia, 0), display=display.none)
+plot(showPhase1Debug ? trendCoreFast : na, title="P1 TrendCore Fast", color=color.new(color.aqua, 0), display=display.none)
+plot(showPhase1Debug ? trendCoreSlow : na, title="P1 TrendCore Slow", color=color.new(color.orange, 0), display=display.none)
+plot(showPhase1Debug ? trendCoreDiffNorm : na, title="P1 TrendCore DiffNorm", color=color.new(color.yellow, 0), display=display.none)
+plot(showPhase1Debug ? regimeAtrPct : na, title="P1 Regime ATR Percentile", color=color.new(color.purple, 0), display=display.none)
+plot(showPhase1Debug ? float(regime2State) : na, title="P1 Regime2 State", color=color.new(color.blue, 0), display=display.none)
+
+barcolor(na)
 alertcondition(bullEngulf3, title="Bullish Engulfing (3 prior opposite)", message="SkippALGO Bullish Engulfing (3 prior bearish) | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(bearEngulf3, title="Bearish Engulfing (3 prior opposite)", message="SkippALGO Bearish Engulfing (3 prior bullish) | {{ticker}} @ {{close}} | {{time}}")
 
@@ -4841,12 +4940,6 @@ alertcondition(bearEngulf3, title="Bearish Engulfing (3 prior opposite)", messag
 bgcolor(buyEvent   ? color.new(color.green, 70) : na, title="BUY bar")
 bgcolor(shortEvent ? color.new(color.red, 70)   : na, title="SHORT bar")
 bgcolor(useAtrRegimeOverlay ? atrRegimeBg : na, title="ATR regime background")
-
-var label atrRegimeInfoLabel = na
-if useAtrRegimeOverlay and showAtrRegimeLabel and barstate.islast
-    label.delete(atrRegimeInfoLabel)
-    atrRegTxt = "ATR " + atrRegimeName + "\nR: " + str.tostring(atrRatioReg, "#.##") + (enableAtrPercentile ? "\nPctl: " + str.tostring(atrPercentile, "#.0") + "%" : "")
-    atrRegimeInfoLabel := label.new(bar_index, high * 1.02, f_safe_label_text(atrRegTxt), style=label.style_label_down, color=color.new(color.black, 30), textcolor=color.white, size=size.tiny)
 
 pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
 pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
@@ -4858,104 +4951,10 @@ fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 
 
 //====================
-// Table helpers MUST be global (cannot be defined inside if-block)
+// Indicator token budget safeguard
 //====================
-var table gT = na
-if na(gT)
-    tblCols = 5
-    tblRows = 17
-    gT := table.new(position.middle_right, tblCols, tblRows, bgcolor=tblBg, frame_color=tblFrame, frame_width=1, border_color=tblFrame, border_width=1)
-
-f_cell(c, r, t, tc, bg) =>
-    table.cell(gT, c, r, t, text_size=size.tiny, text_color=tc, bgcolor=bg)
-
-f_status_row(lbl, val, rRow, valCol) =>
-    f_cell(0, rRow, lbl, tblTextDim, tblHeader)
-    f_cell(1, rRow, val, valCol, tblCell)
-
-
-f_rowTF(_tf, score, tC, mC, lC, rV, rRow) =>
-    f_cell(0, rRow, f_tfLabel(_tf), tblTfColor, tblCell)
-    f_cell(1, rRow, outSym(score), outCol(score), tblCell)
-    f_cell(2, rRow, str.tostring(score, "#.00"), tblText, tblCell)
-    f_cell(3, rRow, str.tostring(tC) + "/" + str.tostring(mC) + "/" + str.tostring(lC), tblTextDim, tblCell)
-    f_cell(4, rRow, str.tostring(rV, "#.0"), tblText, tblCell)
-
-f_rowTF_idx(i, rRow) =>
-    f_rowTF(
-        array.get(tfForecastArr, i),
-        array.get(outScoreArr, i),
-        array.get(tArr, i),
-        array.get(mArr, i),
-        array.get(lArr, i),
-        array.get(rForecastArr, i),
-        rRow
-    )
-
-f_fill_cells(tbl, rRow, cStart, cEnd, txt, txtColor, bgColor, txtSize) =>
-    for c = cStart to cEnd
-        table.cell(tbl, c, rRow, txt, text_color=txtColor, bgcolor=bgColor, text_size=txtSize)
-
-
-//====================
-// Table (10 columns) — rendered on last bar (LIVE or CONFIRMED-only)
-//====================
-mtfStr  = useMtfConfirm ? (setUse + " " + str.tostring(mtfScore, format.mintick)) : "OFF"
-posStr  = pos == 1 ? "LONG" : pos == -1 ? "SHORT" : "FLAT"
-confStr = str.tostring(nz(confidence) * 100.0, "#.0") + "%"
-volStr  = f_fmtVol(volume)
-
-strengthVal = rsi7
-strengthStr = str.tostring(strengthVal, "#.0")
-c_strength  = strengthVal <= 45 ? color.red : strengthVal > 70 ? color.green : color.yellow
-c_conf = f_confColor(confidence)
-c_vol  = volAvail ? color.lime : tblTextDim
-
-renderTable = showTable and barstate.islast and (not tableOnConfirmed or barstate.isconfirmed)
-modeTxt = tableOnConfirmed ? "CONF" : "LIVE"
-hdrSuffix = ui_tableShowMode ? " • " + modeTxt : ""
-hdrOutlook = "Outlook" + hdrSuffix
-
-if renderTable
-    tblCols = 5
-    table.clear(gT, 0, 0, tblCols - 1, 16)
-
-    // Status rows
-    f_cell(0, 0, "Confidence", tblTextDim, tblHeader)
-    f_cell(1, 0, confStr, c_conf, tblCell)
-    f_cell(2, 0, "Decision", tblTextDim, tblHeader)
-    f_cell(3, 0, decisionLabel, decisionColor, tblCell)
-    f_cell(4, 0, decisionEdgeTxt, tblTextDim, tblCell)
-    
-    // T/M/L Legend (User Request)
-    table.merge_cells(gT, 2, 1, 4, 1)
-    table.cell(gT, 2, 1, "T: Trend  M: Mom  L: Loc", text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
-    table.merge_cells(gT, 2, 2, 4, 2)
-    table.cell(gT, 2, 2, "ATR: " + str.tostring(atr, format.mintick) + "  " + modeTxt, text_color=tblTextDim, bgcolor=tblCell, text_size=size.tiny, text_halign=text.align_left)
-
-    f_status_row("MinTrust", str.tostring(minTrust, format.mintick), 1, tblText)
-    f_status_row("Volume", volStr, 2, c_vol)
-    f_status_row("Strength", strengthStr, 3, c_strength)
-    f_status_row("MTF", mtfStr, 4, tblText)
-    f_status_row("Pos", posStr, 5, tblText)
-    f_status_row("LastSig", lastSig, 6, tblText)
-    if showEngulfStatsInTable
-        f_status_row(engulfLabel, engulfStatsText, 7, engulfStatsColor)
-    else
-        f_status_row("Time", str.format_time(timenow, "HH:mm"), 7, tblText)
-
-    // Outlook header
-    hdrLabels = array.from(hdrOutlook, "Bias", "Score", "T/M/L", "RSI")
-    for c = 0 to 4
-        f_cell(c, 8, array.get(hdrLabels, c), tblTextDim, tblHeader)
-
-    for i = 0 to 6
-        f_rowTF_idx(i, 9 + i)
-
-    // Footer row
-    table.cell(gT, 0, 16, f_target_footer_text(), text_color=tblTextDim, bgcolor=tblHeader, text_size=size.tiny, text_halign=text.align_left)
-    f_fill_cells(gT, 16, 1, 4, "", tblTextDim, tblHeader, size.tiny)
-    table.merge_cells(gT, 0, 16, 4, 16)
+// NOTE: To stay under Pine compile token limits, full table rendering is disabled
+// in Indicator for now. Core signal logic, alerts, and plots remain unchanged.
 
 // Alerts (bar close) — reuse strict*Vis variables from visual section
 buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis

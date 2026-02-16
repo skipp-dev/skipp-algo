@@ -34,10 +34,114 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 - **Deep technical documentation (current):** `docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md`
 - **Kurzfassung für neue Nutzer:** `docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md`
 - **Roadmap enhancements:** `docs/SkippALGO_Roadmap_Enhancements.md`
+- **Functional test matrix (behavior-driven):** `docs/FUNCTIONAL_TEST_MATRIX.md`
+- **RFC v6.4 (Adaptive Zero-Lag + Regime Classifier):** `docs/RFC_v6.4_AdaptiveZeroLag_RegimeClassifier.md`
 - **Wiki (local mirror):** `docs/wiki/Home.md`
 - **Changelog:** `CHANGELOG.md`
 
 ## Recent changes (Feb 2026)
+
+- **Latest (v6.3.13 — 16 Feb 2026) — Parity Hardening + Wiring Completion:**
+  - Restored strict Strategy entry-gate parity with Indicator (`reliability/evidence/eval/decision`).
+  - Added missing Strategy runtime modules for dynamic risk adaptation:
+    - Dynamic TP expansion (preset-aware effective mapping + trend/conf gates),
+    - Dynamic SL profile (widen/tighten phases + trend/conf gates).
+  - Wired previously dormant ChoCH volume requirement (`chochReqVol`) in both scripts.
+  - Completed structure tag wiring:
+    - Strategy now plots BOS/ChoCH tags,
+    - Indicator now plots BOS tags in addition to ChoCH.
+  - Verification: full suite green (**386 passed**).
+
+- **Latest (v6.3.12 — 15 Feb 2026) — Phase-3 Quality Tuning (Regime Hysteresis):**
+  - Added regime transition stability controls (both scripts):
+    - `regimeMinHoldBars`
+    - `regimeShockReleaseDelta`
+  - Implemented latched regime state flow:
+    - `rawRegime2State` (instant classifier output)
+    - `regime2State` + `regime2HoldBars` (hysteresis-governed effective state)
+  - VOL_SHOCK now persists until ATR percentile cools below the configured release threshold (reduces flapping around shock boundary).
+  - Added parity regression lock:
+    - `tests/test_score_engine_parity.py::test_phase3_regime_hysteresis_parity`
+  - Added behavioral snapshot coverage for hysteresis edge cases:
+    - `tests/test_functional_features.py::TestPhase3RegimeHysteresisBehavior`
+    - includes flapping damping and VOL_SHOCK sticky-release scenarios.
+  - Verification: full test suite green (**384 passed**).
+
+- **Latest (v6.3.11 — 15 Feb 2026) — Phase-2 Opt-In Wiring (Adaptive Zero-Lag + Regime Classifier):**
+  - Wired trend-core output directly into trend regime/strength decisions:
+    - `trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)`
+    - `trendStrength = f_trend_strength(trendCoreFast, trendCoreSlow)`
+  - Added regime-driven effective mappings under safe opt-in gate (`useRegimeClassifier2` + `regimeAutoPreset`):
+    - `cooldownBarsEff`
+    - `chochMinProbEff`
+    - `abstainOverrideConfEff`
+  - Switched ChoCH filters and abstain override to their effective thresholds for regime-aware behavior.
+  - Preserved safe defaults: behavior is unchanged unless the new regime classifier path is explicitly enabled.
+  - Added/updated parity regression checks:
+    - `tests/test_score_engine_parity.py` (`test_phase2_optin_wiring_parity`)
+    - trend-regime expectation updates in indicator/strategy test suites.
+  - Verification: full test suite green (**378 passed**).
+
+- **Latest (v6.3.10 — 15 Feb 2026) — Phase-1 Scaffold (Adaptive Zero-Lag + Regime Classifier):**
+  - Added default-off Phase-1 scaffold inputs in both scripts:
+    - `useZeroLagTrendCore`, `trendCoreMode`, `zlTrendLenFast/Slow`, `zlTrendAggressiveness`, `zlTrendNoiseGuard`
+    - `useRegimeClassifier2`, `regimeLookback`, `regimeAtrShockPct`, `regimeAdxTrendMin`, `regimeHurstRangeMax`, `regimeChopBandMax`, `regimeAutoPreset`
+  - Added derived internal helper logic (`f_zl_trend_core`, `f_hurst_proxy`) and non-invasive runtime diagnostics (`regime2State`, `regime2Name`).
+  - Added hidden Data Window debug plots under `showPhase1Debug` for trend-core/regime observability.
+  - Added parity + functional tests for the Phase-1 scaffold and invariance behavior.
+
+- **Latest (v6.3.9 — 15 Feb 2026) — CI + Test Coverage Hardening:**
+  - Added behavior-driven functional coverage in `tests/test_functional_features.py` (gates, open-window/strict, engines, risk-exit, reversals, flag matrix, invariants, golden snapshots).
+  - Added label/display regression coverage in `tests/test_label_display_regression.py` (payload/style/color contracts and event→label family mapping).
+  - Added functional test documentation in `docs/FUNCTIONAL_TEST_MATRIX.md`.
+  - Hardened CI workflow (`.github/workflows/ci.yml`) with explicit permissions, concurrency cancel-in-progress, workflow dispatch, timeout, and strict pytest guard.
+  - Synced script headers/titles and docs references to `v6.3.9`.
+
+- **Latest (15 Feb 2026) — USI behavior + safety hardening:**
+  - Added **Entry Presets** for Score Engine tuning:
+    - `entryPreset = Manual | Intraday | Swing`
+    - Presets drive effective score thresholds/weights/probability floors (`*_Eff`) without changing your manual inputs.
+  - Added optional **Preset-controlled Cooldown**:
+    - `presetAutoCooldown` (default `false`)
+    - when enabled with Intraday/Swing, cooldown uses effective preset profile (Bars + ExitsOnly, with profile minutes).
+  - Added optional **hard confidence gate** for score entries:
+    - `scoreUseConfGate`
+    - `scoreMinConfLong`, `scoreMinConfShort`
+    - **Default now enabled** with balanced floors:
+      - `scoreUseConfGate = true`
+      - `scoreMinConfLong = 0.50`
+      - `scoreMinConfShort = 0.50`
+  - Added optional **USI Red de-lag path (Option 2)** with:
+    - `useUsiZeroLagRed`
+    - `usiZlAggressiveness`
+  - Added **hard USI state veto** for score-based entries:
+    - no BUY while USI is bearish,
+    - no SHORT while USI is bullish.
+  - Refined **USI touch/cross handling** for practical flip timing (Red vs Blue/Envelope touch transitions are now recognized more reliably).
+  - Extended parity regression checks in `tests/test_score_engine_parity.py` for the new USI controls and blocking logic.
+  - Refined Score Engine merge behavior:
+    - score path can inject entries again (`engine OR score`),
+    - but active chop now hard-vetoes entries via `chopVeto`.
+  - Added score injection directional-context gate (`scoreRequireDirectionalContext`, default ON):
+    - score BUY injection requires bullish context,
+    - score SHORT injection requires bearish context.
+  - Added debug visibility for chop blocking with `veto:0/1` in score debug labels.
+  - Added debug visibility for score context and blockers:
+    - `ctxL:0/1`, `ctxS:0/1` (directional context pass/fail),
+    - explicit blocker line (for example `BLOCK:IN_POSITION`),
+    - safe last-signal age formatting (`LS:...@n/a` when unavailable).
+  - Unified exit trigger behavior is now explicit and parity-locked for both LONG and SHORT:
+    - `riskExitHit (TP/SL/Trailing) OR usiExitHit OR engExitHit`.
+    - First trigger wins and closes the active position.
+  - Restored cooldown semantics on exits/covers:
+    - with `cooldownTriggers = ExitsOnly` or `AllSignals`, cooldown timestamps are updated on both EXIT and COVER events.
+  - Dynamic risk profile defaults:
+    - `Dynamic TP Expansion` is ON by default,
+    - `Dynamic SL Profile` is ON by default.
+  - Strategy compile-budget hardening:
+    - score debug payload was compacted,
+    - strategy table rendering was removed (visual-only) to reduce Pine token load,
+    - trading logic and Indicator/Strategy parity remain intact.
 
 - **Latest (v6.3.5 — 14 Feb 2026) — Score Engine (Option C):**
   - **New Entry Path**: "Score Engine" (Option C) allows high-quality setups (USI Cross, Liquidity Sweeps) to trigger entries independent of the rigid Engine logic.
@@ -106,6 +210,7 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 ## Current verification status
 
 - **Pytest:** See latest CI run attached to the active pull request (count evolves as tests are added).
+- Current local baseline after this release: **386 passed**.
 - Includes dedicated regression coverage for:
   - PRE-BUY / PRE-SHORT signal plumbing and dynamic label payloads,
   - BUY / REV-BUY / EXIT label + alert wiring,

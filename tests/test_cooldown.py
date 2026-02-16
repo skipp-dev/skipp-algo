@@ -78,7 +78,7 @@ class TestCooldownHardening(unittest.TestCase):
             short_section = re.search(r'else if shortSignal.*', phase2_code, re.DOTALL).group(0)
             
             # Helper to check guard is present
-            guard_pattern = r'if\s+cooldownTriggers\s*==\s*"AllSignals"\s*\n\s*lastSignalBar\s*:=\s*bar_index\s*\n\s*lastSignalTime\s*:=\s*time'
+            guard_pattern = r'if\s+cooldownTriggers(?:Eff)?\s*==\s*"AllSignals"\s*\n\s*lastSignalBar\s*:=\s*bar_index\s*\n\s*lastSignalTime\s*:=\s*time'
             
             # Assert guard exists in BUY branch
             self.assertTrue(re.search(guard_pattern, buy_section, re.MULTILINE), f"{name}: BUY entry missing 'AllSignals' guard")

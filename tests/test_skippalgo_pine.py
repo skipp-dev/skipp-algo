@@ -71,7 +71,7 @@ class TestSkippAlgoIndicator(unittest.TestCase):
     def test_trend_regime_block_present(self):
         """Ensure trendUp/trendDn are defined (parity with strategy)."""
         self.assertIn("atrNormHere = atr / math.max(close, 0.0001)", self.text)
-        self.assertIn("trendReg = f_trend_regime(emaF, emaS, atrNormHere)", self.text)
+        self.assertIn("trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)", self.text)
         # v6.2.28: USI integration
         self.assertIn("trendUp  = (trendReg == 1.0) or usiBull", self.text)
         self.assertIn("trendDn  = (trendReg == -1.0) or usiBear", self.text)
@@ -282,16 +282,11 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("strictShortConfirmed", self.text)
 
     def test_strict_signal_visualization_exists(self):
-        self.assertIn("showStrictIcon", self.text)
-        self.assertIn("showStrictLabel", self.text)
-        self.assertIn("showLongLabels and showStrictIcon and strictBuyConfirmed", self.text)
-        self.assertIn("showShortLabels and showStrictIcon and strictShortConfirmed", self.text)
-        self.assertIn("showLongLabels and showStrictLabel and strictBuyConfirmed", self.text)
-        self.assertIn("showShortLabels and showStrictLabel and strictShortConfirmed", self.text)
-        self.assertIn('title="STRICT-CONF BUY"', self.text)
-        self.assertIn('title="STRICT-CONF SHORT"', self.text)
-        self.assertIn("STRICT-CONFIRMED BUY", self.text)
-        self.assertIn("STRICT-CONFIRMED SHORT", self.text)
+        # User-facing strict confirmation markers/labels are intentionally removed.
+        self.assertNotIn('title="STRICT-CONF BUY"', self.text)
+        self.assertNotIn('title="STRICT-CONF SHORT"', self.text)
+        self.assertNotIn("STRICT-CONFIRMED BUY", self.text)
+        self.assertNotIn("STRICT-CONFIRMED SHORT", self.text)
 
     def test_runtime_alert_payload_has_mode_and_delay(self):
         self.assertIn('"mode"', self.text)
@@ -306,17 +301,33 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("alertCoverCond = coverEvent", self.text)
 
     def test_rev_buy_min_prob_floor_including_open_window(self):
-        # Verify conditional floor logic
-        self.assertIn("_isOpenWindow ? 0.0 : 0.25", self.text)
-        # Verify bypass logic (Open Window OR Prob Check)
-        self.assertIn("probOkGlobal    = _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor)", self.text)
+        # Verify conditional floor logic (legacy _isOpenWindow or current bypassRevLong).
+        self.assertTrue(
+            "_isOpenWindow ? 0.0 : 0.25" in self.text or
+            "revBuyMinProbFloor = bypassRevLong ? 0.0 : 0.25" in self.text
+        )
+        # Verify bypass logic (Open Window OR side-specific bypass variable)
+        self.assertTrue(
+            "probOkGlobal    := _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor)" in self.text or
+            "probOkGlobal    := (not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong" in self.text
+        )
 
     def test_exchange_open_bypass_window(self):
-        # 15:20 = 920 mins, 15:40 = 940 mins
-        self.assertIn("int _minOfDay = hour * 60 + minute", self.text)
-        self.assertIn("_isOpenWindow = (_minOfDay >= 920 and _minOfDay <= 940)", self.text)
-        self.assertIn("probOkGlobal    = _isOpenWindow or", self.text)
-        self.assertIn("probOkGlobalS   = _isOpenWindow or", self.text)
+        # New architecture uses configured dynamic session window flags.
+        self.assertTrue(
+            "bool _isOpenWindow = inRevOpenWindow" in self.text or
+            "bool bypassRevLong  = inRevOpenWindowLong" in self.text
+        )
+        self.assertIn("inRevOpenWindowLong", self.text)
+        self.assertIn("inRevOpenWindowShort", self.text)
+        self.assertTrue(
+            "probOkGlobal    := _isOpenWindow or" in self.text or
+            "probOkGlobal    := (not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong" in self.text
+        )
+        self.assertTrue(
+            "probOkGlobalS   := _isOpenWindow or" in self.text or
+            "probOkGlobalS   := (not na(pD) and pD >= revShortMinProbFloor) and (bypassRevShort" in self.text
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,6 +18,15 @@
 * **Symmetric Targeting**: Mid/Slow profiles updated to symmetric TP/SL (Mid: 0.65/0.65, Slow: 1.0/1.0) to eliminate bearish bias in probabilities.
 * **Calibration Tuning**: "Vector" scaling is now the default mode; forecast display threshold lowered to 0.34.
 
+### Feb 15, 2026 Additions (USI Execution Safety + Responsiveness)
+
+* **USI Red De-lag Path (Option 2):** Added optional pre-RSI source de-lag for Line5 only (`useUsiZeroLagRed`, `usiZlAggressiveness`) to reduce Red-line lag without forcing full USI length changes.
+* **Hard Directional USI Veto:** Score-based entries now enforce directional consistency:
+  * block BUY when `usiBearState` is true,
+  * block SHORT when `usiBullState` is true.
+* **Touch-aware flip handling:** Red-vs-Blue/Envelope transition handling was refined for practical touch-to-flip behavior used by exit logic.
+* **Parity assurance:** Indicator and Strategy implementations were synchronized, including gate-timeframe USI calculation paths.
+
 While retaining the core philosophy of "State" vs "Forecast", the engine now employs:
 
 1. **Adaptive Targeting**: Different timeframes have different physics (Noise vs Trend).
@@ -277,12 +286,19 @@ The `engine` input selects one of four signal-generation modes. Each mode requir
   * **Trigger**: Fires whenever price closes above/below the Fast EMA.
   * **Best For**: High-frequency scanning or testing. Prone to false signals in chop.
 
-* **Score Engine (Option C) - v6.3.5 Add-on**:
+* **Score Engine (Option C) - v6.3.9 Add-on**:
   * **Philosophy**: "Accumulate evidence, don't block on details."
   * **Mechanism**: Runs parallel to the selected Engine. It sums points from independent evidence buckets (USI, Liquidity, Momentum, Trend).
   * **Trigger**: Fires if `Score >= Threshold` (Default 6).
+  * **Integration (current)**: Hybrid merge path allows score injection (`engine OR score`) while still applying final veto/gate layers.
   * **Fail-Open**: Missing data (e.g., incomplete ADX) contributes 0 points but does NOT block the trade.
   * **Risk Safety**: Strictly enforces the portfolio **Drawdown Gate (`ddOk`)**.
+  * **Preset Layer**: `entryPreset` profiles (`Manual`, `Intraday`, `Swing`) map into effective score params (`*_Eff`) for thresholds, weights, and probability floors.
+  * **Confidence Hard-Gate (optional, default ON)**:
+    * controlled by `scoreUseConfGate`,
+    * floors via `scoreMinConfLong` / `scoreMinConfShort` (current defaults: `0.50` / `0.50`).
+  * **Directional Context Gate (default ON)**: score BUY injection requires bullish context, score SHORT injection requires bearish context.
+  * **Chop Veto**: active chop with negative chop penalty vetoes final score entries.
   * **Score Components**:
     * **USI Cross/Sweep**: +4 / +2 points (Primary Driver).
     * **Liquidity/ChoCH**: +2 points.
