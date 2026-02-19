@@ -41,7 +41,7 @@
   * `tests/test_skippalgo_pine.py`
   * `tests/test_skippalgo_strategy_pine.py`
 * Added explicit BUY / REV-BUY / EXIT label+alert regression checks in the same two modules.
-* Current suite status: **313 passed, 8 subtests passed**.
+* Current suite status: full regression suite and subtests passing at release time.
 
 ## Overview
 

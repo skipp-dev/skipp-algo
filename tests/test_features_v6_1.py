@@ -81,11 +81,15 @@ class TestSkippAlgoV6_1(unittest.TestCase):
 
         has_exit_model = (
             'exitSignal := riskExitHit or usiExitHit or engExitHit' in self.strat_text or
-            'exitSignal := rHit or structHit or staleExit or engExitHit' in self.strat_text
+            'exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or engExitHit)' in self.strat_text or
+            'exitSignal := rHit or structHit or staleExit or engExitHit' in self.strat_text or
+            'exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or staleExit or engExitHit)' in self.strat_text
         )
         has_cover_model = (
             'coverSignal := riskExitHit or usiExitHit or engExitHit' in self.strat_text or
-            'coverSignal := rHit or structHit or staleExit or engExitHit' in self.strat_text
+            'coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or engExitHit)' in self.strat_text or
+            'coverSignal := rHit or structHit or staleExit or engExitHit' in self.strat_text or
+            'coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or staleExit or engExitHit)' in self.strat_text
         )
         self.assertTrue(has_exit_model, "Strategy unified long exit model missing")
         self.assertTrue(has_cover_model, "Strategy unified short exit model missing")
@@ -102,7 +106,7 @@ class TestSkippAlgoV6_1(unittest.TestCase):
         # pattern: allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (...)
         #          if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
-        define_pattern = r'allowRevBypass\s*=\s*allowNeuralReversals and barstate\.isconfirmed and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)'
+        define_pattern = r'allowRevBypass\s*=\s*allowNeuralReversals and (?:barstate\.isconfirmed|signalGateConfirmed) and cooldownOkSafe and \(isChoCH_Long or isChoCH_Short\)'
         usage_pattern  = r'if \(pos == 0 and \(allowEntry or allowRescue\)\) or allowRevBypass'
 
         self.assertRegex(self.strat_text, define_pattern, "Strategy missing allowRevBypass definition")

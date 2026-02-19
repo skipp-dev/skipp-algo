@@ -3,8 +3,8 @@ Regression tests for Cooldown Hardening (Patch A + Option B + Enterprise Hardeni
 
 Ensures:
 1. cooldownTriggers input exists in both files with default "ExitsOnly".
-2. Phase 1 stamps (Exit/Cover) are unconditional.
-3. Phase 2 stamps (Buy/Short) are strictly guarded by `if cooldownTriggers == "AllSignals"`.
+2. Phase 1 stamps (Exit/Cover) remain non-entry-only guarded.
+3. Phase 2 stamps (Buy/Short) are guarded by `AllSignals` or `EntriesOnly`.
 """
 import pathlib
 import re
@@ -27,13 +27,13 @@ class TestCooldownHardening(unittest.TestCase):
 
     def test_input_defaults(self):
         """Verify cooldownTriggers input exists and defaults to ExitsOnly."""
-        pattern = r'cooldownTriggers\s*=\s*input\.string\("ExitsOnly",\s*"Cooldown triggers",\s*options=\["ExitsOnly",\s*"AllSignals"\]\)'
+        pattern = r'cooldownTriggers\s*=\s*input\.string\("ExitsOnly",\s*"Cooldown triggers",\s*options=\["ExitsOnly",\s*"AllSignals",\s*"EntriesOnly"\]\)'
         
         self._assert_contains(self.indicator_text, pattern, "Indicator: cooldownTriggers input missing or incorrect default")
         self._assert_contains(self.strategy_text, pattern, "Strategy: cooldownTriggers input missing or incorrect default")
 
-    def test_phase1_unconditional_stamps(self):
-        """Verify Phase 1 (Exit/Cover) updates cooldown unconditionally."""
+    def test_phase1_non_entry_only_stamps(self):
+        """Verify Phase 1 (Exit/Cover) is not gated by EntriesOnly logic."""
         # Pattern looks for: if exitSignal ... lastSignalTime := time (without guard)
         # We check specific snippets to ensure no `if cooldownTriggers` block wraps it.
         
@@ -59,8 +59,8 @@ class TestCooldownHardening(unittest.TestCase):
             # Verify stamps exist
             self.assertIn('lastSignalTime := time', phase1_code, f"{name}: Phase 1 missing timestamp update")
             
-            # Verify guard is NOT present in Phase 1
-            self.assertNotIn('if cooldownTriggers == "AllSignals"', phase1_code, f"{name}: Phase 1 Exit/Cover incorrectly guarded")
+            # Verify phase-1 is not entry-only gated
+            self.assertNotIn('"EntriesOnly"', phase1_code, f"{name}: Phase 1 should not depend on EntriesOnly")
 
     def test_phase2_guarded_stamps(self):
         """Verify Phase 2 (Entries) updates are correctly guarded."""
@@ -78,13 +78,13 @@ class TestCooldownHardening(unittest.TestCase):
             short_section = re.search(r'else if shortSignal.*', phase2_code, re.DOTALL).group(0)
             
             # Helper to check guard is present
-            guard_pattern = r'if\s+cooldownTriggers(?:Eff)?\s*==\s*"AllSignals"\s*\n\s*lastSignalBar\s*:=\s*bar_index\s*\n\s*lastSignalTime\s*:=\s*time'
+            guard_pattern = r'if\s+cooldownTriggers(?:Eff)?\s*==\s*"AllSignals"\s+or\s+cooldownTriggers(?:Eff)?\s*==\s*"EntriesOnly"\s*\n\s*lastSignalBar\s*:=\s*bar_index\s*\n\s*lastSignalTime\s*:=\s*time'
             
             # Assert guard exists in BUY branch
-            self.assertTrue(re.search(guard_pattern, buy_section, re.MULTILINE), f"{name}: BUY entry missing 'AllSignals' guard")
+            self.assertTrue(re.search(guard_pattern, buy_section, re.MULTILINE), f"{name}: BUY entry missing 'AllSignals/EntriesOnly' guard")
             
             # Assert guard exists in SHORT branch
-            self.assertTrue(re.search(guard_pattern, short_section, re.MULTILINE), f"{name}: SHORT entry missing 'AllSignals' guard")
+            self.assertTrue(re.search(guard_pattern, short_section, re.MULTILINE), f"{name}: SHORT entry missing 'AllSignals/EntriesOnly' guard")
 
     def test_no_legacy_comments(self):
         """Ensure legacy commented-out assignments are removed to prevent confusion."""

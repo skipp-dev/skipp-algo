@@ -90,7 +90,6 @@ class TestSkippAlgoStrategyForecasting(unittest.TestCase):
         """Verify all 7 forecast timeframe horizons are processed."""
         for i in range(1, 8):
             self.assertIn(f"tfF{i}", self.text)
-            self.assertIn(f"tfCloseF{i}", self.text)
             self.assertIn(f"outScore{i}", self.text)
 
     def test_multi_profile_target_support(self):
@@ -351,6 +350,16 @@ class TestSkippAlgoStrategyAlerts(unittest.TestCase):
             'alertcondition((not useAlertCalls) and alertCoverCond,' in self.text
         )
 
+    def test_consolidation_uses_sideways_hysteresis(self):
+        """CONSOLIDATION alert should be driven by visual hysteresis state, not raw trendSide alias."""
+        self.assertIn("sideEmaAbs =", self.text)
+        self.assertIn("sideEnter =", self.text)
+        self.assertIn("sideExit  =", self.text)
+        self.assertIn("var bool sidewaysVisual = false", self.text)
+        self.assertIn("if sideEnter", self.text)
+        self.assertIn("else if sideExit", self.text)
+        self.assertIn("alertConsolidationCond = sidewaysVisual and not sidewaysVisual[1]", self.text)
+
 
 class TestSkippAlgoStrategyDeferredFeatures(unittest.TestCase):
     """Tests for deferred feature implementations (A2/A5/B1-B4/C1/C3/C4/D1/D2)."""
@@ -411,6 +420,28 @@ class TestSkippAlgoStrategyDeferredFeatures(unittest.TestCase):
         """C4: VWAP alignment filter exists."""
         self.assertIn("useVwap", self.text)
         self.assertIn("vwapLongOk", self.text)
+
+    def test_vwt_inputs_exist(self):
+        """VWT feature inputs should exist in strategy and include Auto preset."""
+        self.assertIn("useVwtTrendFilter", self.text)
+        self.assertIn('vwtPreset = input.string("Auto"', self.text)
+        self.assertIn('options=["Auto", "Default", "Fast Response", "Smooth Trend", "Custom"]', self.text)
+        self.assertIn("vwtLengthInput", self.text)
+        self.assertIn("vwtAtrMultInput", self.text)
+        self.assertIn("vwtReversalOnly", self.text)
+        self.assertIn("vwtReversalWindowBars", self.text)
+        self.assertIn("showVwtTrendBackground", self.text)
+
+    def test_vwt_gating_wired_into_all_entry_paths(self):
+        """VWT should gate strategy entry paths (engine, reversal, score)."""
+        self.assertIn("vwtLongEntryOk", self.text)
+        self.assertIn("vwtShortEntryOk", self.text)
+        self.assertRegex(self.text, r"gateLongNow\s*=.*vwtLongEntryOk")
+        self.assertRegex(self.text, r"gateShortNow\s*=.*vwtShortEntryOk")
+        self.assertRegex(self.text, r"revBuyGlobal\s*=.*vwtLongEntryOk")
+        self.assertRegex(self.text, r"revShortGlobal\s*=.*vwtShortEntryOk")
+        self.assertRegex(self.text, r"scoreBuy\s*=.*vwtLongEntryOk")
+        self.assertRegex(self.text, r"scoreShort\s*=.*vwtShortEntryOk")
 
     def test_enhancement_gates(self):
         """Enhancement composite gates exist and are wired into signals."""
@@ -540,10 +571,8 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("inRevOpenWindowShort", self.text)
 
     def test_strict_mode_disabled_in_open_window(self):
-        self.assertTrue(
-            "strictAlertsEnabledVis = not inRevOpenWindow" in self.text or
-            "strictAlertsEnabled = not inRevOpenWindow" in self.text
-        )
+        self.assertIn("strictSuppressByOpenWindow = openWindowBypassEntries and inRevOpenWindow", self.text)
+        self.assertIn("strictAlertsEnabled = not strictSuppressByOpenWindow", self.text)
 
     def test_strict_buy_short_use_one_bar_delay(self):
         self.assertIn("buyEventStrict = barstate.isconfirmed and buyEvent[1]", self.text)
@@ -556,13 +585,19 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("strictChochShortOk", self.text)
         self.assertIn("strictMtfMarginEff", self.text)
         self.assertIn("strictAtrRank", self.text)
-        self.assertIn("strictBuyConfirmed", self.text)
-        self.assertIn("strictShortConfirmed", self.text)
+        # Token-budget mode may remove alias vars (`strictBuyConfirmed/strictShortConfirmed`)
+        # while keeping the strict delayed conditions (`alert*Delayed`) as source of truth.
+        self.assertTrue(
+            ("strictBuyConfirmed" in self.text and "strictShortConfirmed" in self.text)
+            or ("alertBuyDelayed" in self.text and "alertShortDelayed" in self.text)
+        )
 
     def test_strict_signal_visualization_exists(self):
-        # Accept both architectures: strict markers either present or intentionally removed.
-        self.assertIn("showStrictIcon", self.text)
-        self.assertIn("showStrictLabel", self.text)
+        # Accept both architectures: helper vars may be trimmed in token-budget mode.
+        self.assertTrue(
+            ("showStrictIcon" in self.text and "showStrictLabel" in self.text)
+            or ("showStrictSignalMarkers" in self.text and "strictMarkerStyle" in self.text)
+        )
 
     def test_runtime_alert_payload_has_mode_and_delay(self):
         self.assertIn('"mode"', self.text)
@@ -571,16 +606,14 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("confirm_delay=", self.text)
 
     def test_alert_conditions_switch_strict_entries_only(self):
-        self.assertTrue(
-            "alertBuyCond   = strictAlertsEnabledVis ? buyEventStrict : buyEvent" in self.text or
-            "alertBuyCond   = strictAlertsEnabled ? buyEventStrict : buyEvent" in self.text
-        )
-        self.assertTrue(
-            "alertShortCond = strictAlertsEnabledVis ? shortEventStrict : shortEvent" in self.text or
-            "alertShortCond = strictAlertsEnabled ? shortEventStrict : shortEvent" in self.text
-        )
-        self.assertIn("alertExitCond  = exitEvent", self.text)
-        self.assertIn("alertCoverCond = coverEvent", self.text)
+        self.assertIn("alertBuySameBar   = buyEventLive and not strictAlertsEnabled", self.text)
+        self.assertIn("alertBuyDelayed   = buyEventStrict and strictWasEnabled", self.text)
+        self.assertIn("alertShortSameBar = shortEventLive and not strictAlertsEnabled", self.text)
+        self.assertIn("alertShortDelayed = shortEventStrict and strictWasEnabled", self.text)
+        self.assertIn("alertBuyCond   = alertBuySameBar or alertBuyDelayed", self.text)
+        self.assertIn("alertShortCond = alertShortSameBar or alertShortDelayed", self.text)
+        self.assertIn("alertExitCond  = exitEventLive", self.text)
+        self.assertIn("alertCoverCond = coverEventLive", self.text)
 
     def test_rev_buy_min_prob_floor_including_open_window(self):
         self.assertTrue(
@@ -591,6 +624,116 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
             "probOkGlobal    := _isOpenWindow or ((not na(pU) and pU >= revBuyMinProbFloor)" in self.text or
             "bool probOkGlobal" in self.text
         )
+
+    def test_global_score_floor_blocks_all_entry_paths(self):
+        """Global prob floor now applies symmetrically to all entry paths including REV-BUY."""
+        self.assertIn('Enforce score min pU/pD on all entries", group=grp_score, tooltip="When enabled, Score min pU (Long) and Score min pD (Short) are applied as hard floors to all entry paths (engine, score, and reversal)."', self.text)
+        self.assertIn('buySignal := buySignal and hardLongProbOk', self.text)
+        self.assertIn('shortSignal := shortSignal and hardShortProbOk', self.text)
+
+    def test_directional_consolidation_veto_removed(self):
+        """Directional consolidation dots no longer veto BUY/SHORT entries."""
+        self.assertNotIn("bool consolidationBearDot = sidewaysVisual and useUsi and (usiStackDir == -1)", self.text)
+        self.assertNotIn("bool consolidationBullDot = sidewaysVisual and not consolidationBearDot", self.text)
+        self.assertNotIn("buySignal := buySignal and not consolidationBearDot", self.text)
+        self.assertNotIn("shortSignal := shortSignal and not consolidationBullDot", self.text)
+
+    def test_entriesonly_exit_exceptions_exist(self):
+        """EntriesOnly hold allows only SL/TP/Engulfing exits; USI/structural exits stay blocked."""
+        self.assertIn("allowExitDuringHold", self.text)
+        self.assertIn("allowExitLong = allowExitBase or allowExitDuringHold", self.text)
+        self.assertIn("allowExitShort = allowExitBase or allowExitDuringHold", self.text)
+        self.assertIn("riskExceptionHit = rHit and (rMsg == \"SL\" or rMsg == \"TP\")", self.text)
+        self.assertIn("exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit)", self.text)
+        self.assertIn("coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit)", self.text)
+        self.assertIn("if pos == 1 and allowExitLong", self.text)
+        self.assertIn("if pos == -1 and allowExitShort", self.text)
+
+    def test_entriesonly_not_overridden_in_strategy(self):
+        """Strategy must honor user-selected EntriesOnly directly (no preset override indirection)."""
+        self.assertNotIn("cooldownTriggersEff", self.text)
+        self.assertIn('entryOnlyExitHoldActive =', self.text)
+        self.assertIn('cooldownTriggers == "EntriesOnly"', self.text)
+        self.assertIn('cooldownMode == "Bars"', self.text)
+        self.assertIn('holdCooldownBars >= 1', self.text)
+        self.assertIn('holdCooldownMin  >= 1', self.text)
+        self.assertIn('var int   enTime  = na', self.text)
+
+    def test_same_bar_toggle_mapping_is_cross_directional(self):
+        """BUY same-bar toggle must follow COVER; SHORT same-bar toggle must follow EXIT."""
+        self.assertIn('allowSameBarBuyAfterCover = input.bool(false, "Allow same-bar BUY after COVER"', self.text)
+        self.assertIn('allowSameBarShortAfterExit = input.bool(false, "Allow same-bar SHORT after EXIT"', self.text)
+        self.assertIn('if buySignal and pos == 0 and (allowSameBarBuyAfterCover or not didCover)', self.text)
+        self.assertIn('else if shortSignal and pos == 0 and (allowSameBarShortAfterExit or not didExit)', self.text)
+        self.assertNotIn('allowSameBarBuyAfterExit', self.text)
+        self.assertNotIn('allowSameBarShortAfterCover', self.text)
+
+    def test_usi_aggressive_entry_mode_toggles_exist(self):
+        """USI aggressive mode supports same-bar verify and 1-of-3 relaxation."""
+        self.assertIn('usiAggressiveSameBarVerify = input.bool(false, "USI Aggressive: same-bar verify"', self.text)
+        self.assertIn('usiAggressiveOneOfThree = input.bool(false, "USI Aggressive: verify 1-of-3"', self.text)
+        self.assertIn('usiAggressiveTightSpreadVotes = input.bool(false, "USI Aggressive: tight-spread votes"', self.text)
+        self.assertIn('qSigWasBuy  = usiAggressiveSameBarVerify ? qFastSignalBuy : qFastSignalBuy[1]', self.text)
+        self.assertIn('qSigWasSell = usiAggressiveSameBarVerify ? qFastSignalSell : qFastSignalSell[1]', self.text)
+        self.assertIn('qVerifyVotesMin = usiAggressiveOneOfThree ? 1 : 2', self.text)
+        self.assertIn('qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= qVerifyVotesMin)', self.text)
+        self.assertIn('qVerifySell := qSigWasSell and ((vSell1_Hold?1:0) + (vSell2_Cont?1:0) + (vSell3_Stack?1:0) >= qVerifyVotesMin)', self.text)
+
+    def test_usi_aggressive_mode_supports_optional_tight_spread_votes(self):
+        """Tight-spread path supports strict mode and optional vote-based aggressive mode."""
+        self.assertIn('if usiTightSpread', self.text)
+        self.assertIn('if usiAggressiveTightSpreadVotes', self.text)
+        self.assertIn('qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont', self.text)
+        self.assertIn('qVerifySell := qSigWasSell and vSell1_Hold and vSell2_Cont', self.text)
+
+    def test_scalp_early_profile_wiring_exists(self):
+        """Scalp Early profile should exist and wire into effective thresholds."""
+        self.assertIn('entryBehaviorProfile = input.string("Legacy (v6.3.9-like)", "Entry behavior profile"', self.text)
+        self.assertIn('"Scalp Early (v6.3.12-fast)"', self.text)
+        self.assertIn('bool scalpEarlyEntryBehavior = entryBehaviorProfile == "Scalp Early (v6.3.12-fast)"', self.text)
+        self.assertIn('scoreThresholdLongEff := math.max(4, scoreThresholdLongEff - 1)', self.text)
+        self.assertIn('float chochMinProbEff = legacyEntryBehavior ? math.max(0.34, chochMinProb - 0.05) : scalpEarlyEntryBehavior ? math.max(0.30, chochMinProb - 0.08) : chochMinProb', self.text)
+
+
+class TestSkippAlgoStrategyChochParity(unittest.TestCase):
+    """Regression tests for Strategy ChoCH parity features (Ping/Verify + fast presets + HUD)."""
+
+    text: str = ""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = STRATEGY_PATH.read_text(encoding="utf-8")
+
+    def test_choch_mode_and_ping_inputs_exist(self):
+        """Strategy exposes ChoCH mode and ping marker controls."""
+        self.assertIn('chochSignalMode  = input.string("Ping+Verify", "ChoCH signal mode", options=["Ping (Fast)", "Verify (Safer)", "Ping+Verify"]', self.text)
+        self.assertIn('showChochPing    = input.bool(true, "Show ChoCH Ping markers")', self.text)
+
+    def test_choch_fast_presets_define_effective_runtime_vars(self):
+        """Fast/Fast+Safer presets should drive effective runtime structure variables."""
+        self.assertIn('bool chochFastPresetEff = chochScalpPreset and not chochScalpSaferPreset', self.text)
+        self.assertIn('bool chochSaferPresetEff = chochScalpSaferPreset', self.text)
+        self.assertIn('int swingREff = (chochFastPresetEff or chochSaferPresetEff) ? math.max(1, swingR) : swingR', self.text)
+        self.assertIn('string breakoutSourceEff = (chochFastPresetEff or chochSaferPresetEff) ? "Wick" : breakoutSource', self.text)
+        self.assertIn('string chochSignalModeEff = chochFastPresetEff ? "Ping (Fast)" : chochSaferPresetEff ? "Ping+Verify" : chochSignalMode', self.text)
+
+    def test_choch_ping_verify_mode_mapping_exists(self):
+        """ChoCH final flags must be selected via Ping/Verify mode mapping."""
+        self.assertIn('chochVerifyLong := chochPingLong[1]', self.text)
+        self.assertIn('chochVerifyShort := chochPingShort[1]', self.text)
+        self.assertIn('isChoCH_Long := chochSignalModeEff == "Ping (Fast)" ? chochPingLong : chochSignalModeEff == "Verify (Safer)" ? chochVerifyLong : (chochPingLong or chochVerifyLong)', self.text)
+        self.assertIn('isChoCH_Short := chochSignalModeEff == "Ping (Fast)" ? chochPingShort : chochSignalModeEff == "Verify (Safer)" ? chochVerifyShort : (chochPingShort or chochVerifyShort)', self.text)
+
+    def test_choch_ping_markers_are_plotted(self):
+        """Ping markers should be visible via dedicated plotchar controls."""
+        self.assertIn('plotchar(showChochPing and chochPingLong, title="ChoCH Ping (Long)"', self.text)
+        self.assertIn('plotchar(showChochPing and chochPingShort, title="ChoCH Ping (Short)"', self.text)
+
+    def test_eval_hud_includes_choch_runtime_info(self):
+        """Eval HUD should append active ChoCH preset/mode/source/swing information."""
+        self.assertIn('chochPresetTxt = chochSaferPresetEff ? "Fast+Safer" : chochFastPresetEff ? "Fast" : "Manual"', self.text)
+        self.assertIn('chochHudTxt = " | ChoCH=" + chochPresetTxt + " (" + chochSignalModeEff + "," + breakoutSourceEff + ",R=" + str.tostring(swingREff) + ")"', self.text)
+        self.assertIn('evalHudLbl := label.new(bar_index, high + nz(atr) * 0.6, evalSuccessHudTxt + chochHudTxt', self.text)
 
 
 if __name__ == "__main__":

@@ -125,6 +125,15 @@ class SimConfig:
     choch_min_prob: float = 0.50
     choch_req_vol: bool = False
 
+    # Score Engine controls
+    use_score_entries: bool = False
+    score_buy: bool = False       # external: score says buy
+    score_short: bool = False     # external: score says short
+    score_ctx_long_ok: bool = True
+    score_ctx_short_ok: bool = True
+    score_chop_hard_veto: bool = False
+    is_chop: bool = False
+
     # Score/preset controls (simplified, needed for Phase-2 effective mapping)
     entry_preset: str = "Manual"  # Manual | Intraday | Swing
     preset_auto_cooldown: bool = False
@@ -132,6 +141,10 @@ class SimConfig:
     # Prob values (forecast model output, simplified)
     p_u: float = 0.60  # prob up
     p_d: float = 0.30  # prob down
+    model_global_score_floor: bool = False
+    enforce_global_prob_floor: bool = True
+    score_min_pu: float = 0.35
+    score_min_pd: float = 0.35
     rev_min_prob: float = 0.50
     in_rev_open_window_long: bool = False
     in_rev_open_window_short: bool = False
@@ -169,8 +182,10 @@ class SimState:
     bar_index: int = 0
     struct_state: int = 0  # 0=neutral, 1=bullish, -1=bearish
     last_exit_reason: str = ""
+    en_bar: Optional[int] = None
     prev_buy_event: bool = False
     prev_short_event: bool = False
+    prev_strict_alerts_enabled: bool = False
     regime2_state_eff: int = 0
     regime2_hold_bars: int = 0
 
@@ -189,6 +204,11 @@ class BarSignals:
     risk_hit: bool = False
     risk_msg: str = ""
     stale_exit: bool = False
+    # Exit-signal components used for EntriesOnly hold behavior tests
+    usi_exit_long: bool = False
+    usi_exit_short: bool = False
+    eng_exit_long: bool = False
+    eng_exit_short: bool = False
     # Optional dynamic regime stream for Phase-3 hysteresis simulation
     raw_regime2_state: Optional[int] = None
     regime_atr_pct: Optional[float] = None
@@ -217,9 +237,13 @@ class BarResult:
     rev_buy_min_prob_floor: float = 0.25
     prob_ok_global: bool = False
     prob_ok_global_s: bool = False
+    hard_long_prob_ok: bool = True
+    hard_short_prob_ok: bool = True
     raw_buy_signal: bool = False
     raw_short_signal: bool = False
     exit_reason: str = ""
+    score_long_win: bool = False
+    score_short_win: bool = False
     strict_alerts_enabled: bool = False
     buy_event_strict: bool = False
     short_event_strict: bool = False
@@ -233,6 +257,7 @@ class BarResult:
     abstain_override_conf_eff: float = 0.85
     regime2_state_eff: int = 0
     regime2_hold_bars: int = 0
+    entry_only_exit_hold_active: bool = False
 
 
 class SkippAlgoSim:
@@ -360,6 +385,16 @@ class SkippAlgoSim:
         result.regime2_state_eff = st.regime2_state_eff
         result.regime2_hold_bars = st.regime2_hold_bars
 
+        # EntriesOnly exit-hold (simulated bars-mode behavior)
+        entry_only_exit_hold_active = (
+            cfg.cooldown_triggers == "EntriesOnly"
+            and st.pos != 0
+            and st.en_bar is not None
+            and cooldown_bars_eff >= 1
+            and ((st.bar_index - st.en_bar) <= cooldown_bars_eff)
+        )
+        result.entry_only_exit_hold_active = entry_only_exit_hold_active
+
         # -- Update bar counting --
         prev_pos = st.pos
         # (bars_since_entry updated AFTER state transitions, see below)
@@ -400,6 +435,18 @@ class SkippAlgoSim:
         exit_signal = False
         cover_signal = False
 
+        # Global directional score floor (modeled after Pine runtime)
+        if cfg.model_global_score_floor:
+            hard_long_prob_ok = ((not cfg.enforce_global_prob_floor)
+                                 or (cfg.p_u >= cfg.score_min_pu))
+            hard_short_prob_ok = ((not cfg.enforce_global_prob_floor)
+                                  or (cfg.p_d >= cfg.score_min_pd))
+        else:
+            hard_long_prob_ok = True
+            hard_short_prob_ok = True
+        result.hard_long_prob_ok = hard_long_prob_ok
+        result.hard_short_prob_ok = hard_short_prob_ok
+
         # -- Entry evaluation block --
         if st.pos == 0 and (allow_entry or allow_rescue or allow_rev_bypass):
             result.entry_block_reached = True
@@ -409,26 +456,28 @@ class SkippAlgoSim:
             smc_ok_s = True
 
             # Reversal logic (global)
-            is_open_window = cfg.in_rev_open_window_long or cfg.in_rev_open_window_short
-            rev_buy_min_prob_floor = 0.0 if is_open_window else 0.25
+            rev_buy_min_prob_floor = 0.25
             bypass_rev_long = cfg.in_rev_open_window_long
             bypass_rev_short = cfg.in_rev_open_window_short
+            rev_short_min_prob_floor = 0.0 if bypass_rev_short else 0.25
+            impulse_long = signals.is_impulse and bar.close > bar.open
+            impulse_short = signals.is_impulse and bar.close < bar.open
 
-            prob_ok_global = is_open_window or (
+            prob_ok_global = (
                 (cfg.p_u >= rev_buy_min_prob_floor)
                 and (
                     bypass_rev_long
                     or (cfg.p_u >= cfg.rev_min_prob)
-                    or ((signals.is_impulse and bar.close > bar.open) and cfg.p_u >= 0.25)
+                    or (impulse_long and cfg.p_u >= 0.25)
                 )
             )
 
-            prob_ok_global_s = is_open_window or (
-                (cfg.p_d >= rev_buy_min_prob_floor)
+            prob_ok_global_s = (
+                (cfg.p_d >= rev_short_min_prob_floor)
                 and (
                     bypass_rev_short
                     or (cfg.p_d >= cfg.rev_min_prob)
-                    or ((signals.is_impulse and bar.close < bar.open) and cfg.p_d >= 0.25)
+                    or (impulse_short and cfg.p_d >= 0.25)
                 )
             )
 
@@ -506,9 +555,38 @@ class SkippAlgoSim:
                 short_signal = (cfg.enable_shorts and gate_short
                                 and cfg.cross_close_ema_f_down and cfg.enh_short_ok)
 
+            # Option C: Score Engine Integration (hybrid)
+            score_long_win = False
+            score_short_win = False
+            if cfg.use_score_entries:
+                chop_veto = cfg.score_chop_hard_veto and cfg.is_chop
+                score_long_win = (cfg.score_buy and cfg.score_ctx_long_ok and hard_long_prob_ok) and not chop_veto
+                # Keep precedence deterministic: LONG wins ties
+                score_short_win = (not score_long_win) and (cfg.score_short and cfg.score_ctx_short_ok and hard_short_prob_ok) and not chop_veto
+                if score_long_win:
+                    buy_signal = True
+                    short_signal = False
+                elif score_short_win:
+                    short_signal = True
+                    buy_signal = False
+
+            result.score_long_win = score_long_win
+            result.score_short_win = score_short_win
+
             # Unified Neural Reversal injection (all engines, including Loose)
-            buy_signal = buy_signal or rev_buy_global
-            short_signal = short_signal or rev_short_global
+            if cfg.allow_neural_reversals:
+                buy_signal = buy_signal or rev_buy_global
+                short_signal = short_signal or rev_short_global
+
+            # Keep score precedence when opposite-side reversal also fires on same bar.
+            if score_long_win and rev_short_global:
+                short_signal = False
+            if score_short_win and rev_buy_global:
+                buy_signal = False
+
+            # Global score floors: REV-BUY bypasses long floor; short side remains strict.
+            buy_signal = buy_signal and (hard_long_prob_ok or rev_buy_global)
+            short_signal = short_signal and hard_short_prob_ok
 
             # Conflict resolution
             result.raw_buy_signal = buy_signal
@@ -525,37 +603,67 @@ class SkippAlgoSim:
             # Long exit
             r_hit = signals.risk_hit
             r_msg = signals.risk_msg
+            usi_exit_hit = signals.usi_exit_long
+            eng_exit_hit = signals.eng_exit_long
 
             # TP filtering
             if r_hit and r_msg == "TP" and cfg.confidence >= cfg.exit_conf_tp:
                 r_hit = False
 
-            struct_hit = ((signals.break_long and can_struct_exit)
-                          or (signals.is_choch_short and can_choch_exit))
+            struct_exit_hit = signals.break_long and can_struct_exit
+            choch_exit_hit = signals.is_choch_short and can_choch_exit
 
-            # ChoCH filtering
-            if struct_hit and cfg.p_d < cfg.exit_conf_choch:
-                struct_hit = False
+            # ChoCH confidence filtering (only applies to ChoCH, not struct break)
+            if choch_exit_hit and cfg.p_d < cfg.exit_conf_choch:
+                choch_exit_hit = False
 
-            exit_signal = r_hit or struct_hit or signals.stale_exit
+            risk_exception_hit = r_hit and (r_msg in ("SL", "TP"))
+            if entry_only_exit_hold_active:
+                exit_signal = risk_exception_hit or eng_exit_hit
+            else:
+                exit_signal = r_hit or struct_exit_hit or choch_exit_hit or signals.stale_exit or usi_exit_hit or eng_exit_hit
             if exit_signal:
-                reason = r_msg if r_hit else ("Stalemate" if signals.stale_exit else "ChoCH")
+                if r_hit:
+                    reason = r_msg
+                elif struct_exit_hit:
+                    reason = "Struct-Break"
+                elif choch_exit_hit:
+                    reason = "ChoCH"
+                else:
+                    reason = "USI-Flip" if usi_exit_hit else "Engulfing" if eng_exit_hit else "Stalemate" if signals.stale_exit else "Exit"
                 result.exit_reason = reason
 
         elif st.pos == -1:
             # Short cover
             r_hit = signals.risk_hit
             r_msg = signals.risk_msg
+            usi_exit_hit = signals.usi_exit_short
+            eng_exit_hit = signals.eng_exit_short
 
             if r_hit and r_msg == "TP" and cfg.confidence >= cfg.exit_conf_tp:
                 r_hit = False
 
-            struct_hit = ((signals.break_short and can_struct_exit)
-                          or (signals.is_choch_long and can_choch_exit))
+            struct_exit_hit = signals.break_short and can_struct_exit
+            choch_exit_hit = signals.is_choch_long and can_choch_exit
 
-            cover_signal = r_hit or struct_hit or signals.stale_exit
+            # ChoCH confidence filtering (only applies to ChoCH, not struct break)
+            if choch_exit_hit and cfg.p_u < cfg.exit_conf_choch:
+                choch_exit_hit = False
+
+            risk_exception_hit = r_hit and (r_msg in ("SL", "TP"))
+            if entry_only_exit_hold_active:
+                cover_signal = risk_exception_hit or eng_exit_hit
+            else:
+                cover_signal = r_hit or struct_exit_hit or choch_exit_hit or signals.stale_exit or usi_exit_hit or eng_exit_hit
             if cover_signal:
-                reason = r_msg if r_hit else ("Stalemate" if signals.stale_exit else "ChoCH")
+                if r_hit:
+                    reason = r_msg
+                elif struct_exit_hit:
+                    reason = "Struct-Break"
+                elif choch_exit_hit:
+                    reason = "ChoCH"
+                else:
+                    reason = "USI-Flip" if usi_exit_hit else "Engulfing" if eng_exit_hit else "Stalemate" if signals.stale_exit else "Exit"
                 result.exit_reason = reason
 
         result.buy_signal = buy_signal
@@ -588,12 +696,14 @@ class SkippAlgoSim:
             st.pos = 1
             st.entry_price = bar.close
             st.entry_atr = 1.0  # simplified
+            st.en_bar = st.bar_index
             st.last_signal_bar = st.bar_index
         elif short_signal and st.pos == 0:
             result.did_short = True
             st.pos = -1
             st.entry_price = bar.close
             st.entry_atr = 1.0
+            st.en_bar = st.bar_index
             st.last_signal_bar = st.bar_index
 
         result.pos_after = st.pos
@@ -601,23 +711,26 @@ class SkippAlgoSim:
         # -- Strict alert-mode conditions (event-layer simulation) --
         strict_alerts_enabled = cfg.use_strict_alert_mode and (not cfg.in_rev_open_window)
         buy_event_strict = (st.prev_buy_event
-                    and cfg.strict_mtf_long_ok
-                    and cfg.strict_choch_long_ok)
+                                                        and st.prev_strict_alerts_enabled
+                                                        and cfg.strict_mtf_long_ok
+                                                        and cfg.strict_choch_long_ok)
         short_event_strict = (st.prev_short_event
-                      and cfg.strict_mtf_short_ok
-                      and cfg.strict_choch_short_ok)
+                                                            and st.prev_strict_alerts_enabled
+                                                            and cfg.strict_mtf_short_ok
+                                                            and cfg.strict_choch_short_ok)
 
         result.strict_alerts_enabled = strict_alerts_enabled
         result.buy_event_strict = buy_event_strict
         result.short_event_strict = short_event_strict
-        result.alert_buy_cond = buy_event_strict if strict_alerts_enabled else result.did_buy
-        result.alert_short_cond = short_event_strict if strict_alerts_enabled else result.did_short
+        result.alert_buy_cond = (result.did_buy and not strict_alerts_enabled) or buy_event_strict
+        result.alert_short_cond = (result.did_short and not strict_alerts_enabled) or short_event_strict
         result.alert_exit_cond = result.did_exit
         result.alert_cover_cond = result.did_cover
 
         # Prepare previous-event memory for next bar strict-delay checks
         st.prev_buy_event = result.did_buy
         st.prev_short_event = result.did_short
+        st.prev_strict_alerts_enabled = strict_alerts_enabled
 
         # -- Update bar counting (AFTER state transitions, for NEXT bar) --
         # On entry bar: pos changed from 0 to ±1, so next bar barsSinceEntry = 1

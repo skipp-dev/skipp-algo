@@ -6,7 +6,139 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-02-20)
+
+- **VWT integration (Volume Weighted Trend) in Indicator + Strategy:**
+  - Added configurable VWT filter inputs in both scripts:
+    - `useVwtTrendFilter`
+    - `vwtPreset` (`Auto`, `Default`, `Fast Response`, `Smooth Trend`, `Custom`)
+    - `vwtLengthInput`, `vwtAtrMultInput`
+    - `vwtReversalOnly`, `vwtReversalWindowBars`
+    - `showVwtTrendBackground`, `vwtBgTransparency`
+  - Added effective Auto mapping (`vwtPresetEff`, `vwtReversalWindowEff`) based on `entryPreset`.
+  - Added VWT runtime state and entry guards:
+    - `vwtTrendDirection`, `vwtTurnedBull/Bear`, `vwtBullRecent/BearRecent`
+    - `vwtLongEntryOk` / `vwtShortEntryOk`
+  - Wired VWT gates into all entry paths:
+    - engine gates (`gateLongNow`, `gateShortNow`),
+    - reversal globals (`revBuyGlobal`, `revShortGlobal`),
+    - score entries (`scoreBuy`, `scoreShort`).
+
+- **Optional VWT trend background overlay (Indicator + Strategy):**
+  - Added regime-based background coloring for bullish/bearish VWT trend state.
+
+- **New regression tests for VWT feature:**
+  - `tests/test_skippalgo_pine.py`
+    - `test_vwt_inputs_exist`
+    - `test_vwt_gating_wired_into_all_entry_paths`
+  - `tests/test_skippalgo_strategy_pine.py`
+    - `test_vwt_inputs_exist`
+    - `test_vwt_gating_wired_into_all_entry_paths`
+
+### Verification (2026-02-20)
+
+- Full test run completed locally:
+  - **478 passed, 16 subtests passed, 0 failed**.
+
 ### Added
+
+- **ChoCH fast-mode parity in Strategy (v6.3.13 line):**
+  - Added Strategy-side ChoCH runtime controls to match Indicator behavior:
+    - `ChoCH signal mode` (`Ping (Fast)`, `Verify (Safer)`, `Ping+Verify`),
+    - `Show ChoCH Ping markers`.
+  - Added Strategy ChoCH presets:
+    - `ChoCH Scalp Fast preset` (forces `Wick` + `Ping (Fast)` + effective `swingR=max(swingR,1)`),
+    - `ChoCH Fast+Safer preset` (forces `Wick` + `Ping+Verify` + effective `swingR=max(swingR,1)`).
+  - Strategy eval HUD now appends active ChoCH runtime configuration (`preset/mode/source/R`) for on-chart verification.
+
+- **Runtime Success-Rate HUD + Eval mode guidance (indicator + strategy):**
+  - Added a lightweight last-bar chart label showing live evaluation success rate and sample count:
+    - `Success rate (History+Live): xx% (N=yy)` or
+    - `Success rate (LiveOnly): xx% (N=yy)`
+  - Added explicit `Evaluation mode` tooltip guidance with practical examples:
+    - `History+Live` shows immediate populated values from confirmed history,
+    - `LiveOnly` starts at `0% (N=0)` on historical bars and grows only in realtime.
+
+- **Configurable BUY re-entry timing after COVER (indicator + strategy):**
+  - Added `allowSameBarBuyAfterCover` (default `false`) to both scripts.
+  - `false` keeps legacy one-bar delay after a `COVER` before the next `BUY`.
+  - `true` allows immediate same-bar `COVER → BUY` re-entry.
+
+- **Configurable SHORT re-entry timing after EXIT (strategy):**
+  - Added `allowSameBarShortAfterExit` (default `false`) to strategy.
+  - `false` keeps legacy one-bar delay after an `EXIT` before the next `SHORT`.
+  - `true` allows immediate same-bar `EXIT → SHORT` re-entry.
+
+- **Same-bar reversal mapping correction (indicator + strategy):**
+  - Corrected cross-directional pairing to match runtime exit semantics:
+    - `BUY` same-bar control is now `COVER → BUY` (`allowSameBarBuyAfterCover`),
+    - `SHORT` same-bar control is now `EXIT → SHORT` (`allowSameBarShortAfterExit`).
+  - Rewired phase-2 guards accordingly (`didCover` for BUY, `didExit` for SHORT).
+  - Added regression tests to lock this mapping and prevent future inversion.
+
+- **USI Length 5 lower-bound update (indicator + strategy):**
+  - `Length 5 (fastest / Red)` now supports `minval=1` (previously `2`) in both scripts.
+  - This allows a more aggressive fast-line configuration for USI Quantum Pulse tuning.
+
+- **USI Aggressive Entry Mode guidance (indicator + strategy):**
+  - Compact fast-scalping preset recommendation:
+    - `USI Aggressive: same-bar verify = ON`
+    - `USI Aggressive: verify 1-of-3 = ON`
+    - `USI Aggressive: tight-spread votes = ON` (optional)
+    - `Hardened Hold (L5 > L4) = OFF`
+
+- **Scalp Early entry behavior profile (indicator + strategy):**
+  - Added `Scalp Early (v6.3.12-fast)` to `Entry behavior profile`.
+  - Keeps v6.3.12 structure but biases for earlier entries via:
+    - slightly lower score thresholds,
+    - slightly lower directional/score probability thresholds,
+    - lower ChoCH probability threshold,
+    - disabled score confidence hard-gate.
+
+- **Cooldown trigger mode `EntriesOnly` (indicator + strategy):**
+  - Added new `cooldownTriggers` option `EntriesOnly` in both scripts.
+  - `EntriesOnly` updates cooldown timestamps only on entry signals (`BUY`/`SHORT`).
+  - In `EntriesOnly` with `cooldownBars >= 1`, exits are hold-gated by entry bar index to enforce one full bar after entry before `EXIT`/`COVER` can fire.
+  - Exception update: `EXIT SL` and `COVER` bypass this hold and may fire immediately after entry.
+  - Existing modes remain unchanged:
+    - `ExitsOnly` updates on `EXIT`/`COVER`.
+    - `AllSignals` updates on all signals.
+
+- **Global directional probability floors (indicator + strategy):**
+  - Added `Enforce score min pU/pD on all entries` (default `true`).
+  - When enabled, `Score min pU (Long)` / `Score min pD (Short)` are enforced as hard floors across BUY/SHORT entry paths.
+  - `REV-BUY` is exempt and keeps its dedicated reversal probability gates (`revMinProb` + reversal/open-window logic).
+  - Added `Global floor: bypass in open window` (default `true`) to optionally preserve open-window entry behavior.
+
+- **Dedicated REV alert conditions (indicator + strategy):**
+  - Added standalone `REV-BUY` and `REV-SHORT` alert conditions.
+  - Consolidated runtime alert text now prioritizes `REV-BUY`/`REV-SHORT` labels over generic `BUY`/`SHORT` when reversal entries fire.
+
+- **Dedicated consolidation alert condition (indicator + strategy):**
+  - Added standalone `CONSOLIDATION` alert condition.
+  - Trigger is phase-entry based (`sidewaysVisual and not sidewaysVisual[1]`) to avoid repeated alerts on every consolidation bar.
+
+- **Sideways visual hysteresis parity (strategy):**
+  - Strategy now uses the same visual consolidation hysteresis model as indicator (`sideEnter`/`sideExit` + latched `sidewaysVisual`).
+  - This aligns consolidation alert timing semantics across both scripts without changing engine-side entry gating.
+
+- **Consolidation dot color refinement (indicator):**
+  - Consolidation dots are now **reddish** when USI is short (`usiStackDir == -1`).
+  - All other consolidation states remain **orange**.
+
+- **Directional consolidation entry veto (indicator + strategy):**
+  - `BUY` is blocked during bearish/reddish consolidation.
+  - `SHORT` is blocked during bullish/orange consolidation.
+  - Veto applies to entries only; exits keep normal behavior.
+
+- **Directional consolidation entry veto removed (indicator + strategy):**
+  - Consolidation dot color/state is now informational only.
+  - `BUY`/`SHORT` are no longer directly blocked by bearish/bullish consolidation dot state.
+
+- **Intrabar alerts/labels default enabled (indicator + strategy):**
+  - `Alerts: bar close only` now defaults to `false`.
+  - Runtime alert/label flow is intrabar-first by default for BUY/SHORT/EXIT/COVER and PRE-BUY/PRE-SHORT.
+  - Close-confirmed-only behavior remains available by setting `Alerts: bar close only = true`.
 
 - **v6.3.13 parity hardening (indicator + strategy):**
   - restored strict entry gating parity in Strategy (`reliabilityOk`, `evidenceOk`, `evalOk`, `abstainGate/decisionFinal`) while preserving session filtering,
@@ -22,7 +154,8 @@ All notable changes to this project are documented in this file.
 
 ### Verification
 
-- Full regression suite after v6.3.13 fixes: **386 passed**.
+- Targeted strict-related suites (local, 2026-02-16): **152 passed, 8 subtests passed**.
+- Full regression suite (local, 2026-02-16): **390 passed, 16 subtests passed**.
 
 - **Entry behavior profile toggle (legacy timing fallback):** added `entryBehaviorProfile` in indicator + strategy under **Score Engine (Option C)**:
   - `Current (v6.3.12)` keeps stricter score gating/chop veto behavior.
@@ -273,7 +406,7 @@ All notable changes to this project are documented in this file.
 
 ### Added (Signals & Volatility)
 
-- New input: `REV: Min pU` (`revMinProb`, default `0.50`) for the normal REV entry probability path.
+- New input: `REV: Min dir prob` (`revMinProb`, default `0.50`) for the normal REV entry probability path.
 
 ### Changed (Parity)
 
@@ -282,7 +415,7 @@ All notable changes to this project are documented in this file.
   - `strategy("SkippALGO Strategy", ...)`
 - Consolidated runtime alert dispatch to one `alert()` call per bar per symbol, reducing watchlist alert-rate pressure and TradingView throttling risk.
 - EXIT/COVER label text layout split into shorter multi-line rows for better chart readability.
-- Open-window pU bypass behavior applies during configured market-open window as implemented in current logic.
+- Open-window directional probability (`pU`/`pD`) bypass behavior applies during configured market-open windows as implemented in current logic.
 
 ### Clarified
 

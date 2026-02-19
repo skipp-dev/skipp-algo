@@ -129,6 +129,9 @@ Run on same symbol/timeframe twice:
 - [ ] "Create Alert" dialog shows available conditions
 - [ ] Buy/Long alert fires correctly
 - [ ] Sell/Short alert fires correctly
+- [ ] REV-BUY alert fires correctly
+- [ ] REV-SHORT alert fires correctly
+- [ ] CONSOLIDATION alert fires on phase entry (not every consolidation bar)
 - [ ] Alert message contains expected info
 
 ---

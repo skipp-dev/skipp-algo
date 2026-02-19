@@ -67,6 +67,7 @@ dynamicTpRequireConf = input.bool(false, "Dynamic TP requires confidence", toolt
 dynamicTpMinConf = input.float(0.55, "Dynamic TP min confidence", minval=0.0, maxval=1.0, step=0.01)
 tpPreset30m = input.string("Manual", "All-TF TP preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="Applies to all timeframes. Manual=use profile Path TP/SL inputs. Conservative=TP x2.5 / SL x1.1. Balanced=TP x3.0 / SL x1.0. Runner=TP x3.8 / SL x0.85. Super Runner=TP x4.4 / SL x0.75. Dynamic TP: Conservative KickIn 1.0 Add 0.30 Max 2.5, Balanced KickIn 0.7 Add 0.50 Max 4.0, Runner KickIn 0.4 Add 0.75 Max 6.0, Super Runner KickIn 0.2 Add 1.00 Max 8.0.")
 trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10)
+useAutoTrailTNW = input.bool(true, "Auto Trail T/N/W (0.5/0.8-1.0/1.2)")
 trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10)
 
 // Breakeven
@@ -96,9 +97,13 @@ swingR = input.int(3, "Breakout swing right (R)", minval=1, maxval=20, tooltip="
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings")
 breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.")
 structureLogic = input.string("Standard", "Structure Logic", options=["Standard", "SMC+Sweep"], tooltip="Standard: ChoCH = Trend Reversal (Break of Swing Low). SMC+Sweep: ChoCH includes Failed Breakouts (Reclaim of Level).")
+chochScalpPreset = input.bool(false, "ChoCH Scalp Fast preset", tooltip="Preset values: breakoutSource=Wick, chochSignalMode=Ping (Fast), swingREff=max(swingR,1). Note: if Fast+Safer is also enabled, Fast+Safer takes precedence.")
+chochScalpSaferPreset = input.bool(false, "ChoCH Fast+Safer preset", tooltip="Preset values: breakoutSource=Wick, chochSignalMode=Ping+Verify, swingREff=max(swingR,1). Safer than Fast due to additional verify confirmation.")
 
 // Market Structure (BOS / ChoCH)
 useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags")
+chochSignalMode  = input.string("Ping+Verify", "ChoCH signal mode", options=["Ping (Fast)", "Verify (Safer)", "Ping+Verify"], tooltip="Manual mode selector when no ChoCH preset is active. Preset override: Fast => Ping (Fast), Fast+Safer => Ping+Verify.")
+showChochPing    = input.bool(true, "Show ChoCH Ping markers")
 chochMinProb     = input.float(0.50, "ChoCH Min Confidence (Prob)", minval=0.34, maxval=0.95, step=0.01)
 chochReqVol      = input.bool(true, "ChoCH Require Volume?")
 
@@ -110,7 +115,9 @@ minTrust     = input.float(0.40, "Min confidence (0..1)", minval=0.0, maxval=1.0
 // --- Cooldown mode (legacy Bars vs Minutes) ---
 cooldownMode = input.string("Bars", "Cooldown mode", options=["Bars", "Minutes"])
 cooldownMinutes = input.int(30, "Cooldown minutes", minval=1)
-cooldownTriggers = input.string("ExitsOnly", "Cooldown triggers", options=["ExitsOnly", "AllSignals"])
+cooldownTriggers = input.string("ExitsOnly", "Cooldown triggers", options=["ExitsOnly", "AllSignals", "EntriesOnly"])
+allowSameBarBuyAfterCover = input.bool(false, "Allow same-bar BUY after COVER", tooltip="When enabled, BUY can trigger on the same bar as a COVER. Disabled keeps one-bar delay after COVER.")
+allowSameBarShortAfterExit = input.bool(false, "Allow same-bar SHORT after EXIT", tooltip="When enabled, SHORT can trigger on the same bar as an EXIT. Disabled keeps one-bar delay after EXIT.")
 
 // --- Signal Enhancement Filters ---
 grp_sigfilt = "Signal Filters"
@@ -153,6 +160,16 @@ atrHighVolThr = input.float(1.40, "ATR high-vol threshold", minval=1.10, maxval=
 atrExhaustLookback = input.int(5, "ATR exhaustion lookback", minval=3, maxval=30, group=grp_sigfilt)
 enableAtrPercentile = input.bool(false, "ATR percentile context", group=grp_sigfilt, tooltip="Compute ATR percentile rank for context (0..100).")
 atrPercentileLookback = input.int(100, "ATR percentile lookback", minval=50, maxval=500, group=grp_sigfilt)
+
+// VWT (Volume Weighted Trend) integration
+useVwtTrendFilter = input.bool(false, "VWT trend/reversal filter", group=grp_sigfilt, tooltip="Entries only with VWT trend direction. Optional reversal window restricts entries to recent trend turns.")
+vwtPreset = input.string("Auto", "VWT preset", options=["Auto", "Default", "Fast Response", "Smooth Trend", "Custom"], group=grp_sigfilt, tooltip="Auto maps by Entry preset: Intraday→Fast Response, Swing→Smooth Trend, Manual→Default.")
+vwtLengthInput = input.int(34, "VWT VWMA length", minval=5, group=grp_sigfilt)
+vwtAtrMultInput = input.float(1.5, "VWT ATR multiplier", minval=0.5, step=0.1, group=grp_sigfilt)
+vwtReversalOnly = input.bool(true, "VWT entries only near reversal", group=grp_sigfilt, tooltip="If enabled, entries are allowed only for N bars after a VWT trend turn.")
+vwtReversalWindowBars = input.int(3, "VWT reversal window (bars)", minval=0, maxval=50, group=grp_sigfilt)
+showVwtTrendBackground = input.bool(false, "VWT trend background", group=grp_sigfilt, tooltip="Shows bullish/bearish VWT regime as chart background.")
+vwtBgTransparency = input.int(90, "VWT background transparency", minval=0, maxval=100, group=grp_sigfilt)
 
 // MTF use (filter / regime)
 useMtfConfirm = input.bool(true, "MTF confirmation")
@@ -377,6 +394,8 @@ showLongLabels   = input.bool(true, "Show Long labels (BUY / EXIT)")
 showShortLabels  = input.bool(true, "Show Short labels (SHORT / COVER)")
 // Removed showDebugLabels to cleanup user interface
 showPreEntryLabels = input.bool(true, "Show PRE labels (PRE-BUY / PRE-SHORT)")
+labelAlertPreset = input.string("Manual", "Label/alert preset", options=["Manual", "Close-only", "Intrabar-friendly"], tooltip="Manual uses your switches. Close-only forces close-confirmed alerts/labels. Intrabar-friendly allows live label/alert behavior.")
+useIntrabarLabelPreset = input.bool(false, "Use intrabar label preset", tooltip="Compatibility toggle: forces intrabar-friendly label/alert behavior.")
 preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)")
 preSetPulseOnly    = input.bool(true, "PRE: pulse-only SET", tooltip="When enabled, PRE labels require a fresh SET transition (pulse) instead of a steady SET state")
 showSetMarkers   = input.bool(true, "Show SET markers")
@@ -411,6 +430,15 @@ revOpenWindowLongMins = input.int(10, "Open window LONG ± min", minval=1, maxva
 revOpenWindowShortMins = input.int(10, "Open window SHORT ± min", minval=1, maxval=120, tooltip="Short-side bypass window around RTH open.")
 revOpenWindowMode = input.string("All Entries", "Open window applies to", options=["All Entries", "Reversals Only"], tooltip="All Entries: bypass forecast gate + reversal pU/pD. Reversals Only: bypass only REV probability filter.")
 revOpenWindowEngine = input.string("All", "Open window engine scope", options=["All", "Hybrid", "Breakout", "Trend+Pullback", "Loose"], tooltip="Limit open-window bypass to specific engines.")
+
+bool labelPresetCloseOnly = labelAlertPreset == "Close-only"
+bool labelPresetIntrabar = labelAlertPreset == "Intrabar-friendly"
+bool intrabarPresetEff = useIntrabarLabelPreset or labelPresetIntrabar
+bool signalOnCloseOnlyEff = labelPresetCloseOnly ? true : intrabarPresetEff ? false : alertOnBarCloseOnly
+bool showLongLabelsEff = showLongLabels
+bool showShortLabelsEff = showShortLabels
+bool showPreEntryLabelsEff = showPreEntryLabels
+bool alertOnBarCloseOnlyEff = signalOnCloseOnlyEff
 
 //====================
 // Inputs — Forecast Calibration Enhancements
@@ -630,6 +658,9 @@ usiTightFactor  = input.float(0.40, "USI Tight Spread Factor", minval=0.05, step
 usiSpreadLookback = input.int(100, "Spread Lookback", minval=20, group="⚡ USI Quantum Pulse")
 hardenHold      = input.bool(true, "Hardened Hold (L5 > L4)", group="⚡ USI Quantum Pulse", tooltip="Requires L5 to be above/below L4 in addition to Cluster, reducing fakeouts.")
 usiUseStrictHold  = input.bool(false, "Strict Hold vs hi/lo (instead of cluster)", inline="hold", group="⚡ USI Quantum Pulse")
+usiAggressiveSameBarVerify = input.bool(false, "USI Aggressive: same-bar verify", group="⚡ USI Quantum Pulse", tooltip="Uses the current bar cross for verification instead of waiting for [1] cross memory.")
+usiAggressiveOneOfThree = input.bool(false, "USI Aggressive: verify 1-of-3", group="⚡ USI Quantum Pulse", tooltip="Relaxes standard verify voting from 2-of-3 to 1-of-3 (tight-spread strict mode remains Hold+Continuation).")
+usiAggressiveTightSpreadVotes = input.bool(false, "USI Aggressive: tight-spread votes", group="⚡ USI Quantum Pulse", tooltip="When enabled, tight-spread mode also uses vote logic (2-of-3 or 1-of-3) instead of strict Hold+Continuation only.")
 
 //====================
 // Inputs — RFC v6.4 Phase 1 Scaffold (default-off)
@@ -658,7 +689,7 @@ grp_score = "Score Engine (Option C)"
 settingsProfileTag = input.string("Default", "Settings profile tag", group=grp_score, tooltip="Optional profile name so you can save/reuse this setup via chart/indicator templates.")
 lockPresetOverrides = input.bool(false, "Preserve current settings (lock preset overrides)", group=grp_score, tooltip="When enabled, Intraday/Swing preset auto-overrides are ignored and your current input values are kept.")
 entryPreset = input.string("Manual", "Entry preset", options=["Manual", "Intraday", "Swing"], group=grp_score)
-entryBehaviorProfile = input.string("Legacy (v6.3.9-like)", "Entry behavior profile", options=["Current (v6.3.12)", "Legacy (v6.3.9-like)"], group=grp_score, tooltip="Current keeps the stricter v6.3.12 score/context/chop behavior. Legacy loosens entry strictness to approximate v6.3.9 timing.")
+entryBehaviorProfile = input.string("Legacy (v6.3.9-like)", "Entry behavior profile", options=["Current (v6.3.12)", "Legacy (v6.3.9-like)", "Scalp Early (v6.3.12-fast)"], group=grp_score, tooltip="Current keeps the stricter v6.3.12 score/context/chop behavior. Legacy loosens entry strictness to approximate v6.3.9 timing. Scalp Early keeps v6.3.12 structure but lowers entry thresholds for earlier confirmations.")
 presetAutoCooldown = input.bool(false, "Preset controls cooldown", group=grp_score, tooltip="If enabled, Intraday/Swing preset also overrides cooldown mode/minutes/triggers.")
 useScoreEntries = input.bool(true, "Enable Score-Based Entries", group=grp_score, tooltip="Alternative entry logic based on accumulative evidence score.")
 minDirProbLong = input.float(0.42, "Min dir prob (Long)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
@@ -671,6 +702,7 @@ scoreMinProbShort = input.float(0.35, "Score min pD (Short)", minval=0.0, maxval
 scoreUseConfGate = input.bool(true, "Score requires min confidence", group=grp_score, tooltip="Optional hard filter: score BUY/SHORT requires minimum model confidence.")
 scoreMinConfLong = input.float(0.50, "Score min confidence (Long)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
 scoreMinConfShort = input.float(0.50, "Score min confidence (Short)", minval=0.0, maxval=1.0, step=0.01, group=grp_score)
+enforceGlobalProbFloor = input.bool(true, "Enforce score min pU/pD on all entries", group=grp_score, tooltip="When enabled, Score min pU (Long) and Score min pD (Short) are applied as hard floors to all entry paths (engine, score, and reversal).")
 scoreRequireDirectionalContext = input.bool(true, "Score requires directional context", group=grp_score, tooltip="If enabled, score-based BUY needs bullish context (Trend/USI), and score-based SHORT needs bearish context.")
 wUsi        = input.int(4, "Weight: USI Cross", minval=0, group=grp_score)
 wLiquidity  = input.int(2, "Weight: Liquidity/Sweep", minval=0, group=grp_score)
@@ -688,6 +720,7 @@ showDynamicTpDebugPlot = input.bool(false, "Debug: Dynamic TP plots (Data Window
 covOkHi = input.float(80.0, "Coverage ✓ threshold (%)", minval=50.0, maxval=100.0, step=5.0, group="🔧 Debug", tooltip="E:% at or above this shows ✓ (healthy)")
 covOkLo = input.float(50.0, "Coverage ✗ threshold (%)", minval=10.0, maxval=80.0, step=5.0, group="🔧 Debug", tooltip="E:% below this shows ✗ (unhealthy)")
 showOpsRow = input.bool(true, "Ops row (always-on safety HUD)", group="🔧 Debug", tooltip="Shows coverage + EP + INV! + health glyph even when Evaluation rows are hidden")
+showAtrStatusLine = input.bool(true, "ATR values in status line", group="🔧 Debug", tooltip="Show A/T/N-/N+/W in status line")
 
 //====================
 // Inputs — Exit Filters
@@ -2559,6 +2592,30 @@ emaF = ta.ema(close, emaFastLen)
 emaS = ta.ema(close, emaSlowLen)
 atr  = ta.atr(atrLen)
 
+// Volume Weighted Trend core (configurable)
+bool vwtAutoPreset = vwtPreset == "Auto"
+string vwtPresetEff = vwtAutoPreset ? (entryPreset == "Intraday" ? "Fast Response" : entryPreset == "Swing" ? "Smooth Trend" : "Default") : vwtPreset
+int vwtLenEff = vwtPresetEff == "Fast Response" ? 21 : vwtPresetEff == "Smooth Trend" ? 55 : vwtLengthInput
+float vwtAtrMultEff = vwtPresetEff == "Fast Response" ? 1.2 : vwtPresetEff == "Smooth Trend" ? 2.0 : vwtAtrMultInput
+int vwtReversalWindowEff = vwtAutoPreset ? (entryPreset == "Intraday" ? 2 : entryPreset == "Swing" ? 4 : vwtReversalWindowBars) : vwtReversalWindowBars
+vwtBasis = ta.vwma(close, vwtLenEff)
+vwtAtr = ta.atr(vwtLenEff)
+vwtUpperBand = vwtBasis + vwtAtr * vwtAtrMultEff
+vwtLowerBand = vwtBasis - vwtAtr * vwtAtrMultEff
+
+var int vwtTrendDirection = 0
+if close > vwtUpperBand
+    vwtTrendDirection := 1
+else if close < vwtLowerBand
+    vwtTrendDirection := -1
+
+vwtTurnedBull = vwtTrendDirection == 1 and vwtTrendDirection[1] != 1
+vwtTurnedBear = vwtTrendDirection == -1 and vwtTrendDirection[1] != -1
+vwtBullRecent = (not na(ta.barssince(vwtTurnedBull))) and (ta.barssince(vwtTurnedBull) <= vwtReversalWindowEff)
+vwtBearRecent = (not na(ta.barssince(vwtTurnedBear))) and (ta.barssince(vwtTurnedBear) <= vwtReversalWindowEff)
+vwtLongEntryOk = (not useVwtTrendFilter) or (vwtTrendDirection == 1 and ((not vwtReversalOnly) or vwtBullRecent))
+vwtShortEntryOk = (not useVwtTrendFilter) or (vwtTrendDirection == -1 and ((not vwtReversalOnly) or vwtBearRecent))
+
 // RFC v6.4 Phase 1 scaffold: derived trend core + regime state (non-invasive)
 zlCoreFastRaw = f_zl_trend_core(close, zlTrendLenFast, zlTrendAggressiveness)
 zlCoreSlowRaw = f_zl_trend_core(close, zlTrendLenSlow, zlTrendAggressiveness)
@@ -2685,7 +2742,8 @@ usiSpread      = usiClusterHigh - usiClusterLow
 // Tight Spread Detection (Dynamic using Median p50)
 // If spread is below X% of median spread -> "Tight"
 usiSpreadP50   = ta.percentile_linear_interpolation(usiSpread, usiSpreadLookback, 50)
-isTightSpread  = (usiSpreadP50 > 0) and (usiSpread < (usiSpreadP50 * usiTightFactor))
+usiTightSpread = (usiSpreadP50 > 0) and (usiSpread < (usiSpreadP50 * usiTightFactor))
+isTightSpread  = usiTightSpread
 
 usiEmaGate     = ta.ema(close, usiEmaLen)
 
@@ -2735,8 +2793,8 @@ qFastSignalSell = _usiXDn
 
 // 4. Verify & Enter (Bar 1) - USI Logic
 // Check if signal happened yesterday
-qSigWasBuy  = qFastSignalBuy[1]
-qSigWasSell = qFastSignalSell[1]
+qSigWasBuy  = usiAggressiveSameBarVerify ? qFastSignalBuy : qFastSignalBuy[1]
+qSigWasSell = usiAggressiveSameBarVerify ? qFastSignalSell : qFastSignalSell[1]
 
 // Gate Logic: Must be valid NOW (at moment of entry)
 qGatesValidBuy  = (close > usiEmaGate) and qRegimeBuy
@@ -2753,12 +2811,16 @@ vBuy3_Stack = (usiLine5 > usiLine4) and (usiLine4 > usiLine3)
 
 // Verify Decisions Buy
 bool qVerifyBuy = false
-if isTightSpread
-    // Strict Mode for tight spread: Must have Hold AND Continuation
-    qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont
+qVerifyVotesMin = usiAggressiveOneOfThree ? 1 : 2
+if usiTightSpread
+    if usiAggressiveTightSpreadVotes
+        qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= qVerifyVotesMin)
+    else
+        // Strict Mode for tight spread: Must have Hold AND Continuation
+        qVerifyBuy := qSigWasBuy and vBuy1_Hold and vBuy2_Cont
 else
-    // Standard Mode: 2 of 3
-    qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= 2)
+    // Standard Mode: 2 of 3 (or 1 of 3 in aggressive mode)
+    qVerifyBuy := qSigWasBuy and ((vBuy1_Hold?1:0) + (vBuy2_Cont?1:0) + (vBuy3_Stack?1:0) >= qVerifyVotesMin)
 
 
 // Verify Criteria SELL (Bar 1)
@@ -2772,10 +2834,13 @@ vSell3_Stack = (usiLine5 < usiLine4) and (usiLine4 < usiLine3)
 
 // Verify Decisions Sell
 bool qVerifySell = false
-if isTightSpread
-    qVerifySell := qSigWasSell and vSell1_Hold and vSell2_Cont
+if usiTightSpread
+    if usiAggressiveTightSpreadVotes
+        qVerifySell := qSigWasSell and ((vSell1_Hold?1:0) + (vSell2_Cont?1:0) + (vSell3_Stack?1:0) >= qVerifyVotesMin)
+    else
+        qVerifySell := qSigWasSell and vSell1_Hold and vSell2_Cont
 else
-    qVerifySell := qSigWasSell and ((vSell1_Hold?1:0) + (vSell2_Cont?1:0) + (vSell3_Stack?1:0) >= 2)
+    qVerifySell := qSigWasSell and ((vSell1_Hold?1:0) + (vSell2_Cont?1:0) + (vSell3_Stack?1:0) >= qVerifyVotesMin)
 
 // Final Entry (Trigger)
 // Combine Verification + Gates at the moment of entry (Bar 1)
@@ -2952,6 +3017,7 @@ var float entryPrice = na
 var float entryAtr   = na
 var bool  isBeHit = false
 var int   enBar   = 0
+var int   enTime  = na
 vwapVal   = ta.vwap(hlc3)
 sma200Val = ta.sma(close, 200)
 
@@ -2991,8 +3057,8 @@ trendFlipDown = ta.crossunder(emaF, emaS)
 reclaimUp     = bullBias and crossClose_EmaF_up
 reclaimDown   = bearBias and crossClose_EmaF_down
 
-breakLong  = (useStrictEmaExit ? crossClose_EmaS_down : trendFlipDown) or trendFlipDown
-breakShort = (useStrictEmaExit ? crossClose_EmaS_up   : trendFlipUp)   or trendFlipUp
+breakLong  = useStrictEmaExit ? crossClose_EmaS_down : trendFlipDown
+breakShort = useStrictEmaExit ? crossClose_EmaS_up   : trendFlipUp
 
 var int pos = 0
 
@@ -3005,8 +3071,17 @@ bool presetIsManual = entryPreset == "Manual"
 bool presetIsIntraday = entryPreset == "Intraday"
 bool presetOverridesActive = (not presetIsManual) and (not lockPresetOverrides)
 bool legacyEntryBehavior = entryBehaviorProfile == "Legacy (v6.3.9-like)"
+bool scalpEarlyEntryBehavior = entryBehaviorProfile == "Scalp Early (v6.3.12-fast)"
+bool chochFastPresetEff = chochScalpPreset and not chochScalpSaferPreset
+bool chochSaferPresetEff = chochScalpSaferPreset
+int swingREff = (chochFastPresetEff or chochSaferPresetEff) ? math.max(1, swingR) : swingR
+string breakoutSourceEff = (chochFastPresetEff or chochSaferPresetEff) ? "Wick" : breakoutSource
+string chochSignalModeEff = chochFastPresetEff ? "Ping (Fast)" : chochSaferPresetEff ? "Ping+Verify" : chochSignalMode
 int scoreThresholdLongEff = presetOverridesActive ? (presetIsIntraday ? 5 : 7) : scoreThresholdLong
 int scoreThresholdShortEff = presetOverridesActive ? (presetIsIntraday ? 5 : 7) : scoreThresholdShort
+if scalpEarlyEntryBehavior
+    scoreThresholdLongEff := math.max(4, scoreThresholdLongEff - 1)
+    scoreThresholdShortEff := math.max(4, scoreThresholdShortEff - 1)
 int wUsiEff = presetOverridesActive ? (presetIsIntraday ? 5 : 3) : wUsi
 int wLiquidityEff = presetOverridesActive ? (presetIsIntraday ? 3 : 2) : wLiquidity
 int wMomentumEff = presetOverridesActive ? (presetIsIntraday ? 3 : 2) : wMomentum
@@ -3023,6 +3098,14 @@ float scoreMinProbShortEff = (presetOverridesActive and presetIsIntraday) ? 0.35
 bool scoreUseConfGateEff = legacyEntryBehavior ? false : scoreUseConfGate
 float scoreMinConfLongEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : scoreMinConfLong
 float scoreMinConfShortEff = (presetOverridesActive and presetIsIntraday) ? 0.35 : scoreMinConfShort
+if scalpEarlyEntryBehavior
+    minDirProbLongEff := math.max(0.30, minDirProbLongEff - 0.05)
+    minDirProbShortEff := math.max(0.30, minDirProbShortEff - 0.05)
+    scoreMinProbLongEff := math.max(0.30, scoreMinProbLongEff - 0.05)
+    scoreMinProbShortEff := math.max(0.30, scoreMinProbShortEff - 0.05)
+    scoreMinConfLongEff := math.max(0.30, scoreMinConfLongEff - 0.05)
+    scoreMinConfShortEff := math.max(0.30, scoreMinConfShortEff - 0.05)
+    scoreUseConfGateEff := false
 bool useScoreEntriesEff = presetOverridesActive ? true : useScoreEntries
 tfSecDynRisk = timeframe.in_seconds(timeframe.period)
 isFastDynRisk = (not na(tfSecDynRisk)) and tfSecDynRisk <= SEC_5M
@@ -3034,10 +3117,10 @@ bool scoreChopHardVetoEff = not legacyEntryBehavior
 string cooldownModeEff = (presetAutoCooldown and presetOverridesActive) ? "Bars" : cooldownMode
 int cooldownMinutesPreset = presetIsIntraday ? 15 : 45
 int cooldownMinutesEff = (presetAutoCooldown and presetOverridesActive) ? cooldownMinutesPreset : cooldownMinutes
-string cooldownTriggersEff = (presetAutoCooldown and presetOverridesActive) ? "ExitsOnly" : cooldownTriggers
+string cooldownTriggersEff = (presetAutoCooldown and presetOverridesActive and cooldownTriggers != "EntriesOnly") ? "ExitsOnly" : cooldownTriggers
 int cooldownBarsEff = cooldownBars
 // parity marker: chochMinProbEff = chochMinProb
-float chochMinProbEff = legacyEntryBehavior ? math.max(0.34, chochMinProb - 0.05) : chochMinProb
+float chochMinProbEff = legacyEntryBehavior ? math.max(0.34, chochMinProb - 0.05) : scalpEarlyEntryBehavior ? math.max(0.30, chochMinProb - 0.08) : chochMinProb
 float abstainOverrideConfEff = abstainOverrideConf
 bool tpPreset30mIsManual = tpPreset30m == "Manual"
 float dynamicTpKickInREff = tpPreset30mIsManual ? dynamicTpKickInR : tpPreset30m == "Conservative" ? 1.0 : tpPreset30m == "Balanced" ? 0.7 : tpPreset30m == "Runner" ? 0.4 : 0.2
@@ -3230,7 +3313,7 @@ f_decision_quality(pU, pF, pD, nBin, total) =>
 // We retrieve only raw HTF data and manage confirmation/sync manually
 // to avoid updating stateful logic on "in-progress" HTF bars.
 
-f_stable_val(isSame, valRaw, valPrev) => isSame ? valRaw : valPrev
+f_stable_val(isSame, valRaw, valPrev) => (isSame and barstate.isconfirmed) ? valRaw : valPrev
 f_stable_pulse(isSame, timeRaw)       => isSame ? barstate.isconfirmed : (nz(ta.change(timeRaw)) != 0)
 
 [t1_r, c1_r, h1_r, l1_r, ef1_r, es1_r, r1_r, a1_r, vR1_r] = f_tf_pack(tfF1)
@@ -3408,14 +3491,18 @@ getVoteScore() =>
     tf3 = setUse == "Short" ? tfShort3 : setUse == "Medium" ? tfMedium3 : tfLong3
 
     // Weight higher timeframes more (tf3 > tf2 > tf1 by convention)
+    // nz(..., 0.0): prevent na contamination when a TF string is not found in
+    // either forecast or MTF cache (f_score_tf_cached returns na in that case).
+    // Without nz(), a single na would propagate through sum -> sum/wgt -> mtfScore
+    // -> mtfOkLong/Short = false -> silently blocks ALL entries via gateLongNow.
     if f_is_tf_higher_or_equal(tf1)
-        sum += 1.0 * f_score_tf_cached(tf1)
+        sum += 1.0 * nz(f_score_tf_cached(tf1), 0.0)
         wgt += 1.0
     if f_is_tf_higher_or_equal(tf2)
-        sum += 1.5 * f_score_tf_cached(tf2)
+        sum += 1.5 * nz(f_score_tf_cached(tf2), 0.0)
         wgt += 1.5
     if f_is_tf_higher_or_equal(tf3)
-        sum += 2.0 * f_score_tf_cached(tf3)
+        sum += 2.0 * nz(f_score_tf_cached(tf3), 0.0)
         wgt += 2.0
 
     wgt == 0 ? 0.0 : sum / wgt
@@ -3703,28 +3790,31 @@ ddOk        = (ddHardGateHit == false)
 // Gating Logic (Refactored for "Fst BUYs" - 2026-02-14)
 // We treat MTF and Macro as "Supportive" but not blocking if neutral/off.
 // Confidence (confOk) is removed as a hard gate.
-gateLongNow  = ddOk and f_fail_open(mtfOkLong) and f_fail_open(macroGateLong)
-gateShortNow = ddOk and f_fail_open(mtfOkShort) and f_fail_open(macroGateShort)
+gateLongNow  = ddOk and f_fail_open(mtfOkLong) and f_fail_open(macroGateLong) and vwtLongEntryOk
+gateShortNow = ddOk and f_fail_open(mtfOkShort) and f_fail_open(macroGateShort) and vwtShortEntryOk
 
 // Hardened Fail-Closed Logic (Ref: User Request 2026-02-10)
 // v6.2.26: When edge is NaN (warmup / no calibration data), treat as "no opinion"
 // rather than "weak decision". Only abstain when we HAVE data showing weakness.
 decisionOkSafe     = (not use3Way) ? true : na(decisionEdge) ? true : f_fc_bool(decisionOk)
-isHighConf         = f_fc_bool(confidence >= abstainOverrideConfEff)
+isHighConf         = f_fc_bool(confGate >= abstainOverrideConfEff)
 decisionFinal      = decisionOkSafe or isHighConf
 
 cooldownOkSafe     = f_fc_bool(cooldownOk)
 blockNearCloseSafe = f_fc_bool(not blockNearClose)
 
 // CORE ENTRY ALLOWANCE (Gated)
-allowEntry =
-     barstate.isconfirmed
- and cooldownOkSafe
+// `allowEntryRt` is used for intrabar preview calculations.
+// `allowEntry` remains close-confirmed for final position state transitions.
+allowEntryRt =
+     cooldownOkSafe
  and blockNearCloseSafe
  and f_fc_bool(reliabilityOk)
  and f_fc_bool(evidenceOk)
  and f_fc_bool(evalOk)
  and (not abstainGate or decisionFinal)
+
+allowEntry = barstate.isconfirmed and allowEntryRt
 
 // Removed f_bool_to_num and debug plots to cleanup user interface
 
@@ -3739,7 +3829,18 @@ bool didCover = false
 
 // Evidence-pack debug plots removed to cleanup user interface
 
-allowExit = barstate.isconfirmed
+holdCooldownBars = cooldownBarsEff
+holdCooldownMin  = cooldownMinutesEff
+entryOnlyExitHoldActive =
+     (cooldownTriggersEff == "EntriesOnly")
+ and pos != 0
+ and (
+        cooldownModeEff == "Bars"
+            ? (holdCooldownBars >= 1 and (not na(enBar)) and (bar_index - enBar <= holdCooldownBars))
+            : (holdCooldownMin  >= 1 and (not na(enTime)) and (time - enTime <= (holdCooldownMin * 60 * 1000)))
+    )
+allowExitLong = barstate.isconfirmed
+allowExitShort = barstate.isconfirmed
 
 buySignal   := false
 exitSignal  := false
@@ -3751,7 +3852,7 @@ coverSignal := false
 //====================
 
 // Trend regime
-atrNormHere = atr / math.max(close, 0.0001)
+atrNormHere = atr / math.max(close, PRICE_EPS)
 trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)
 
 // v6.2.28: Integrate USI for faster trend detection (User Req: 4 Feb 15:30 recovery)
@@ -3761,6 +3862,17 @@ usiBear = useUsi and usiStackDir == -1
 trendUp  = (trendReg == 1.0) or usiBull
 trendDn  = (trendReg == -1.0) or usiBear
 trendSide = trendReg == 0.0
+
+// Visual consolidation regime (UX only): hysteresis to reduce "sticky" state flips.
+// Does NOT alter engine gating/entries; it only drives consolidation alert state.
+sideEmaAbs = math.abs((trendCoreFast - trendCoreSlow) / math.max(nz(trendCoreSlow, 1.0), PRICE_EPS))
+sideEnter = sideEmaAbs < (SIDEWAYS_EMA_THRESH * 0.70) and atrNormHere < (SIDEWAYS_ATR_THRESH * 0.80)
+sideExit  = sideEmaAbs > (SIDEWAYS_EMA_THRESH * 1.15) or  atrNormHere > (SIDEWAYS_ATR_THRESH * 1.20)
+var bool sidewaysVisual = false
+if sideEnter
+    sidewaysVisual := true
+else if sideExit
+    sidewaysVisual := false
 
 // D1 – Smooth trend strength (continuous [-1, 1] alternative)
 trendStrength = f_trend_strength(trendCoreFast, trendCoreSlow)
@@ -3875,8 +3987,10 @@ var float lastSwingHigh = na
 var float lastSwingLow  = na
 var int lastSwingHighBar = na
 var int lastSwingLowBar  = na
-ph = ta.pivothigh(high, swingL, swingR)
-pl = ta.pivotlow(low,  swingL, swingR)
+ph = ta.pivothigh(high, swingL, swingREff)
+pl = ta.pivotlow(low,  swingL, swingREff)
+prevSwingHigh = lastSwingHigh
+prevSwingLow = lastSwingLow
 if not na(ph)
     lastSwingHigh := ph
     lastSwingHighBar := bar_index
@@ -3898,9 +4012,9 @@ bool breakLow  = false
 bool _xoWick = ta.crossover(high, lastSwingHigh)
 bool _xuWick = ta.crossunder(low, lastSwingLow)
 
-if breakoutSource == "Close"
-    breakHigh := close > lastSwingHigh and close[1] <= lastSwingHigh
-    breakLow  := close < lastSwingLow  and close[1] >= lastSwingLow
+if breakoutSourceEff == "Close"
+    breakHigh := (not na(lastSwingHigh)) and (not na(prevSwingHigh)) and close > lastSwingHigh and close[1] <= prevSwingHigh
+    breakLow  := (not na(lastSwingLow)) and (not na(prevSwingLow)) and close < lastSwingLow  and close[1] >= prevSwingLow
 else // Wick
     if not na(lastSwingHigh)
         breakHigh := _xoWick
@@ -3920,9 +4034,9 @@ bool cx_reclaimLow = ta.crossover(high, lastSwingLow)
 
 if structureLogic == "SMC+Sweep" and not na(lastSwingHigh) and not na(lastSwingLow)
     // Sweep High (Bearish Reversal Pattern): Price crossed above High then fell back below
-    if breakoutSource == "Close"
-        sweepHigh := close < lastSwingHigh and high > lastSwingHigh and close[1] > lastSwingHigh
-        reclaimLow := close > lastSwingLow and low < lastSwingLow and close[1] < lastSwingLow
+    if breakoutSourceEff == "Close"
+        sweepHigh := (not na(prevSwingHigh)) and close < lastSwingHigh and high > lastSwingHigh and close[1] > prevSwingHigh
+        reclaimLow := (not na(prevSwingLow)) and close > lastSwingLow and low < lastSwingLow and close[1] < prevSwingLow
     else // Wick (Crossunder/Crossover Logic matches Reference Script)
         sweepHigh := cx_sweepHigh
         reclaimLow := cx_reclaimLow
@@ -3933,48 +4047,51 @@ bool isChoCH_Long = false
 bool isBOS_Long   = false
 bool isChoCH_Short = false
 bool isBOS_Short   = false
+bool chochPingLong = false
+bool chochPingShort = false
+bool chochVerifyLong = false
+bool chochVerifyShort = false
 
 if structureLogic == "Standard"
     // Standard Trend Logic
     if breakoutLong
-        if structState == -1
-            isChoCH_Long := true
-        else
+        chochPingLong := structState == -1
+        if not chochPingLong
             isBOS_Long := true
         structState := 1
 
     if breakoutShort
-        if structState == 1
-            isChoCH_Short := true
-        else
+        chochPingShort := structState == 1
+        if not chochPingShort
             isBOS_Short := true
         structState := -1
 
 else // SMC+Sweep (Standard Style)
-    // Combined Logic: ChoCH = Reversal (Break of High) OR Sweep (Reclaim of Low)
-    
-    // Bullish Event: Break High
     if breakoutLong
-        if structState == -1
-            isChoCH_Long := true // Reversal via Structure Break
-        else
-            isBOS_Long := true   // Continuation
+        chochPingLong := structState == -1
+        if not chochPingLong
+            isBOS_Long := true
         structState := 1
-        
-    // Bearish Event: Break Low
+
     if breakoutShort
-        if structState == 1
-            isChoCH_Short := true // Reversal via Structure Break
-        else
-            isBOS_Short := true   // Continuation
+        chochPingShort := structState == 1
+        if not chochPingShort
+            isBOS_Short := true
         structState := -1
-        
-    // Extra Sweep Logic (Turtle Soup) - Also triggers ChoCH Signal
+
     if reclaimLow
-        isChoCH_Long := true
-        
+        chochPingLong := true
+
     if sweepHigh
-        isChoCH_Short := true
+        chochPingShort := true
+
+chochVerifyLong := chochPingLong[1] and (not na(lastSwingHigh) and close > lastSwingHigh)
+chochVerifyShort := chochPingShort[1] and (not na(lastSwingLow) and close < lastSwingLow)
+isChoCH_Long := chochSignalModeEff == "Ping (Fast)" ? chochPingLong : chochSignalModeEff == "Verify (Safer)" ? chochVerifyLong : (chochPingLong or chochVerifyLong)
+isChoCH_Short := chochSignalModeEff == "Ping (Fast)" ? chochPingShort : chochSignalModeEff == "Verify (Safer)" ? chochVerifyShort : (chochPingShort or chochVerifyShort)
+// Single-fire event stream for logic paths that must not trigger twice in Ping+Verify mode.
+chochEventLong = chochSignalModeEff == "Ping+Verify" ? chochPingLong : isChoCH_Long
+chochEventShort = chochSignalModeEff == "Ping+Verify" ? chochPingShort : isChoCH_Short
 
 // Risk model state
 var float stopPx  = na
@@ -3995,13 +4112,19 @@ f_set_risk_on_entry(isLong, entry, atrNow) =>
     float trailOut = na
     [stopOut, tpOut, trailOut]
 
+f_trail_mult_auto(atrNow) =>
+    isTrend = ((not na(emaF) and not na(emaS) and math.abs(emaF - emaS) > atrNow * 0.2) or (not na(confidence) and confidence >= minTrust + 0.10))
+    isHighVol = (not na(atrNow) and not na(close) and close > 0 and (atrNow / close) > 0.012)
+    isChop = (not isTrend) and (not na(evalSoftHit) and evalSoftHit)
+    isChop ? 0.5 : isTrend ? (isHighVol ? 1.0 : 0.8) : 1.2
+
 // Update trailing stop; returns updated trail
 f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
     // activate trailing only after reaching +R
     denom = math.max(math.abs(entry - stopVal), PRICE_EPS)
     rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
     [_, dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATR)
-    trailMulEff = dTrailEff
+    trailMulEff = dTrailEff * (useAutoTrailTNW ? f_trail_mult_auto(atrNow) : 1.0)
     float trailOut = trailVal
     if rNow >= trailAfterR
         float trailCandidate = isLong ? (close - trailMulEff * atrNow) : (close + trailMulEff * atrNow)
@@ -4093,10 +4216,10 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 // Deferred debug plots and probe label removed to cleanup user interface
 
 // --- Global Recency Calculation (Safe Scope) ---
-int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
+int barsSinceChoCH_L = ta.barssince(chochEventLong)
 bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12)
 
-int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
+int barsSinceChoCH_S = ta.barssince(chochEventShort)
 bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
 
 // Global Volume Ratio (Kept for Risk Decay)
@@ -4109,11 +4232,14 @@ bool hugeVolG   = volRatioG >= rescueVolMult
 float bodySize = math.abs(close - open)
 bool isImpulse = bodySize > (atr * rescueImpulseATR)
 
-bool allowRescueLong  = isImpulse and (close > open) and barstate.isconfirmed and cooldownOkSafe
-bool allowRescueShort = isImpulse and (close < open) and barstate.isconfirmed and cooldownOkSafe
+bool allowRescueLongRt  = isImpulse and (close > open) and cooldownOkSafe
+bool allowRescueShortRt = isImpulse and (close < open) and cooldownOkSafe
+bool allowRescueLong  = barstate.isconfirmed and allowRescueLongRt
+bool allowRescueShort = barstate.isconfirmed and allowRescueShortRt
 
 // Legacy support for debug label (OR logic)
 allowRescue = (allowRescueLong or allowRescueShort)
+allowRescueRt = (allowRescueLongRt or allowRescueShortRt)
 
 // Debug label logic removed to cleanup user interface
 
@@ -4125,8 +4251,9 @@ bool isRevBuy   = false
 bool isRevShort = false
 
 // v6.2.7 Refactor: Named bypass variable for clarity
-// v6.2.9: Added barstate.isconfirmed to prevent intra-bar evaluation (parity with allowEntry/allowRescue)
+// Keep close-confirmed bypass semantics aligned with strategy parity.
 allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
+allowRevBypassRt = allowNeuralReversals and cooldownOkSafe and (chochEventLong or chochEventShort)
 
 // v6.2.11: allowRevBypass enters this block even when pos != 0 so reversal
 // signals are computed BEFORE the state machine. Phase 1 (COVER/EXIT) sets
@@ -4151,6 +4278,7 @@ bool revBuyGlobal = false
 bool revShortGlobal = false
 bool probOkGlobal = false
 bool probOkGlobalS = false
+bool hardLongProbOk = false
 bool hardShortProbOk = false
 
 if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
@@ -4164,8 +4292,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     
     // allowRescue (Volume > 1.5x) allows bypassing strict SMC Structure (Restored v6.2)
     // Updated to use allowable rescue Direction (Impulse)
-    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescueLong
-    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescueShort
+    bool smcOkL = (not useLiqSweep) or sweepRecent_Bull or allowRescueLongRt
+    bool smcOkS = (not useLiqSweep) or sweepRecent_Bear or allowRescueShortRt
 
     // Neural Reversal Gates (Global)
     bool impulseLong  = (isImpulse and (close > open)) or bullEngulf3
@@ -4176,9 +4304,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     float revShortMinProbFloor = bypassRevShort ? 0.0 : 0.25
     probOkGlobal    := (not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong  or ((pU >= revMinProb) or ((hugeVolG or bullEngulf3) and pU >= 0.25 and impulseLong)))
     probOkGlobalS   := (not na(pD) and pD >= revShortMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or ((hugeVolG or bearEngulf3) and pD >= 0.25 and impulseShort)))
-    hardShortProbOk := (openWindowBypassEntries and inRevOpenWindowShort) or ((not na(pD)) and pD >= minDirProbShortEff)
-    revBuyGlobal    := allowNeuralReversals and ddOk and isChoCH_Long and revRecencyOkL and smcOkL and probOkGlobal and f_soft(volOk)
-    revShortGlobal  := allowNeuralReversals and ddOk and isChoCH_Short and revRecencyOkS and smcOkS and probOkGlobalS and hardShortProbOk and f_soft(volOk)
+    hardLongProbOk := (not enforceGlobalProbFloor) or ((openWindowBypassEntries and inRevOpenWindowLong) ? true : ((not na(pU)) and pU >= scoreMinProbLongEff))
+    hardShortProbOk := (not enforceGlobalProbFloor) or ((openWindowBypassEntries and inRevOpenWindowShort) ? true : ((not na(pD)) and pD >= scoreMinProbShortEff))
+    revBuyGlobal    := allowNeuralReversals and ddOk and revRecencyOkL and smcOkL and probOkGlobal and hardLongProbOk and f_soft(volOk) and vwtLongEntryOk
+    revShortGlobal  := allowNeuralReversals and ddOk and revRecencyOkS and smcOkS and probOkGlobalS and hardShortProbOk and f_soft(volOk) and vwtShortEntryOk
 
     // Export for debug
     isRevBuy   := revBuyGlobal
@@ -4186,7 +4315,7 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // Engine-specific signals only when standard entry is allowed (pos==0 + allowEntry or allowRescue).
     // When entered via allowRevBypass alone, only reversal injection below applies.
-    bool standardEntryOk = (pos == 0) and (allowEntry or allowRescue)
+    bool standardEntryOk = (pos == 0) and (allowEntryRt or allowRescueRt)
 
     // Core Evidence (Soft Scoring — fail-open)
     bool liqOk_L = f_soft(volOk)
@@ -4233,8 +4362,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     float _uMax = usiMaxEnv
     float _uMin = usiMinEnv
     // Cross Logic
-    bool usiCrossUp   = ta.crossover(usiLine5, _uMax)
-    bool usiCrossDown = ta.crossunder(usiLine5, _uMin)
+    bool usiCrossUp   = _usiXUp
+    bool usiCrossDown = _usiXDn
     // Bonus for "Was Below All" (Clean Sweep)
     bool usiSweepUp   = usiCrossUp and (usiLine5[1] < _uMin[1])
     bool usiSweepDown = usiCrossDown and (usiLine5[1] > _uMax[1])
@@ -4253,10 +4382,10 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // 2. Liquidity Evidence (Sweep / Reclaim / ChoCH)
     // Long: reclaimUpSafe or isChoCH_Long
     scoreL += f_score_add(reclaimUpSafe, wLiquidityEff)
-    scoreL += f_score_add(isChoCH_Long, wLiquidityEff)
+    scoreL += f_score_add(chochEventLong, wLiquidityEff)
     // Short: reclaimDownSafe or isChoCH_Short
     scoreS += f_score_add(reclaimDownSafe, wLiquidityEff)
-    scoreS += f_score_add(isChoCH_Short, wLiquidityEff)
+    scoreS += f_score_add(chochEventShort, wLiquidityEff)
 
     // 3. Momentum Evidence
     // Long: rocLongOk, adxOk, hugeVolG
@@ -4276,8 +4405,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // Detect low-vol chop: ADX < 20 and ATR/Close < 0.5%
     // EXCEPTION: If we have impulse candle OR Engulfing (breakout energy), ignore the penalty!
     // ADDED: ChoCH and Reclaim are also valid breakouts structure-wise.
-    isBreakout := isImpulse or hugeVolG or bullEngulf3 or bearEngulf3 or isChoCH_Long or isChoCH_Short or reclaimUpSafe or reclaimDownSafe
-    isChop := (not na(adxRaw) and adxRaw < 20) and (atr / close < 0.005) and not isBreakout
+    isBreakout := isImpulse or hugeVolG or bullEngulf3 or bearEngulf3 or chochEventLong or chochEventShort or reclaimUpSafe or reclaimDownSafe
+    isChop := (not na(adxRaw) and adxRaw < 20) and (atr / math.max(close, PRICE_EPS) < 0.005) and not isBreakout
     scoreL += f_penalty(isChop, wChopPenaltyEff)
     scoreS += f_penalty(isChop, wChopPenaltyEff)
 
@@ -4292,14 +4421,16 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     bool usiBlockL = useUsi and usiBearState
     bool usiBlockS = useUsi and usiBullState
     
+    bool baseEligibleL = (pos == 0) and ddOk and (allowEntryRt or allowRescueLongRt)
+    bool baseEligibleS = (pos == 0) and ddOk and (allowEntryRt or allowRescueShortRt)
     baseEligible := (pos == 0) and ddOk and (allowEntry or allowRescue)
     bool scoreProbLongOk = (not scoreUseProbGateEff) or ((not na(pU)) and pU >= scoreMinProbLongEff)
     bool scoreProbShortOk = (not scoreUseProbGateEff) or ((not na(pD)) and pD >= scoreMinProbShortEff)
-    bool scoreConfLongOk = (not scoreUseConfGateEff) or ((not na(confidence)) and confidence >= scoreMinConfLongEff)
-    bool scoreConfShortOk = (not scoreUseConfGateEff) or ((not na(confidence)) and confidence >= scoreMinConfShortEff)
+    bool scoreConfLongOk = (not scoreUseConfGateEff) or ((not na(confGate)) and confGate >= scoreMinConfLongEff)
+    bool scoreConfShortOk = (not scoreUseConfGateEff) or ((not na(confGate)) and confGate >= scoreMinConfShortEff)
 
-    scoreBuy   := baseEligible and scoreProbLongOk and scoreConfLongOk and (not usiBlockL) and (scoreL >= scoreThresholdLongEff)
-    scoreShort := baseEligible and enableShorts and scoreProbShortOk and scoreConfShortOk and (not usiBlockS) and (scoreS >= scoreThresholdShortEff)
+    scoreBuy   := baseEligibleL and scoreProbLongOk and scoreConfLongOk and (not usiBlockL) and (scoreL >= scoreThresholdLongEff) and vwtLongEntryOk
+    scoreShort := baseEligibleS and enableShorts and scoreProbShortOk and scoreConfShortOk and (not usiBlockS) and (scoreS >= scoreThresholdShortEff) and vwtShortEntryOk
 
     // [MOVED] Debug Output relocated to end of script for accurate execution logging
 
@@ -4383,12 +4514,15 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // Option C: Score Engine Integration (hybrid)
     // Score can inject entries, but active chop state still hard-vetoes entries when penalty is enabled.
+    bool scoreLongWin = false
+    bool scoreShortWin = false
     if useScoreEntriesEff
         bool scoreCtxLongOk  = (not scoreRequireDirectionalContextEff) or trendUpSafe or usiBull
         bool scoreCtxShortOk = (not scoreRequireDirectionalContextEff) or trendDnSafe or usiBear
         bool chopVeto = scoreChopHardVetoEff and isChop and (wChopPenaltyEff < 0)
-        bool scoreLongWin = (scoreBuy and scoreCtxLongOk) and not chopVeto
-        bool scoreShortWin = (scoreShort and scoreCtxShortOk and hardShortProbOk) and not chopVeto
+        scoreLongWin := (scoreBuy and scoreCtxLongOk and hardLongProbOk) and not chopVeto
+        // Keep precedence deterministic: LONG wins ties (matches if/else-if below).
+        scoreShortWin := (not scoreLongWin) and (scoreShort and scoreCtxShortOk and hardShortProbOk) and not chopVeto
         // Score-based precedence: when score path fires, it overrides engine path.
         if scoreLongWin
             buySignal := true
@@ -4402,8 +4536,17 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         buySignal   := buySignal   or revBuyGlobal
         shortSignal := shortSignal or revShortGlobal
 
+    // Keep score precedence when opposite-side reversal also fires on same bar.
+    // This avoids dual-fire -> conflict-cancel behavior while preserving the
+    // unified reversal injection contract used by tests/docs.
+    if scoreLongWin and revShortGlobal
+        shortSignal := false
+    if scoreShortWin and revBuyGlobal
+        buySignal := false
+
     // Hard short probability floor: blocks all short paths (engine/score/reversal)
     // unless explicit short-side open-window bypass is active.
+    buySignal := buySignal and hardLongProbOk
     shortSignal := shortSignal and hardShortProbOk
 
     // Capture raw signals before conflict logic
@@ -4419,7 +4562,7 @@ preBuyNow = false
 preShortNow = false
 float preGapLong  = na   // distance to trigger (points)
 float preGapShort = na
-if pos == 0 and allowEntry
+if pos == 0 and allowEntryRt
     float preDist = preWarnDistATR * atr
     distOk = (not na(preDist)) and (preDist > 0) and (not na(atr)) and (atr > 0)
     preSetOkLong = (not requireSET) or (preSetPulseOnly ? setLongPulse : setLongStrict)
@@ -4457,8 +4600,8 @@ if pos == 0 and allowEntry
 
 preBuyPrev = (preBuyNow[1] == true)
 preShortPrev = (preShortNow[1] == true)
-preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
-preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
+preBuyPulse = showPreEntryLabelsEff and preBuyNow and not preBuyPrev
+preShortPulse = showPreEntryLabelsEff and preShortNow and not preShortPrev
 
 // PRE-BUY / PRE-SHORT distance in ATR units (0.00 = at trigger)
 float preGapATR_L = (not na(preGapLong)  and not na(atr) and atr > 0) ? (preGapLong  / atr) : na
@@ -4517,7 +4660,7 @@ if useAtrRisk and useDynamicTpExpansion and not useInfiniteTP and pos != 0 and n
     float runRNow = pos == 1 ? ((close - entryPrice) / initRiskAbs) : ((entryPrice - close) / initRiskAbs)
     dynTpRunRDbg := runRNow
     bool dynTpTrendOk = pos == 1 ? trendUpSafe : trendDnSafe
-    bool dynTpConfOk = na(confidence) ? false : confidence >= dynamicTpMinConf
+    bool dynTpConfOk = na(confGate) ? false : confGate >= dynamicTpMinConf
     bool dynTpGateOk = (not dynamicTpRequireTrend or dynTpTrendOk) and (not dynamicTpRequireConf or dynTpConfOk)
 
     if runRNow >= dynamicTpKickInREff and dynTpGateOk
@@ -4534,7 +4677,7 @@ if useAtrRisk and useDynamicSlProfile and pos != 0 and not na(stopPx) and not na
     float initRiskAbs = math.max(PRICE_EPS, baseSlMul * entryAtr)
     float runRNow = pos == 1 ? ((close - entryPrice) / initRiskAbs) : ((entryPrice - close) / initRiskAbs)
     bool dynSlTrendOk = pos == 1 ? trendUpSafe : trendDnSafe
-    bool dynSlConfOk = na(confidence) ? false : confidence >= dynamicSlMinConf
+    bool dynSlConfOk = na(confGate) ? false : confGate >= dynamicSlMinConf
     bool dynSlGateOk = (not dynamicSlRequireTrend or dynSlTrendOk) and (not dynamicSlRequireConf or dynSlConfOk)
 
     if dynSlGateOk
@@ -4559,18 +4702,18 @@ if useAtrRisk and useDynamicSlProfile and pos != 0 and not na(stopPx) and not na
                 stopPx := dynamicStopPx
 
 // Breakeven Logic
-if useBreakeven and not isBeHit and pos != 0 and not na(entryPrice) and not na(atr)
+if useBreakeven and not isBeHit and pos != 0 and not na(entryPrice) and not na(entryAtr)
     if pos == 1
-        triggerPx = entryPrice + (beTrigger * atr)
+        triggerPx = entryPrice + (beTrigger * entryAtr)
         if high >= triggerPx
-            newStop = entryPrice + (beOffset * atr)
+            newStop = entryPrice + (beOffset * entryAtr)
             if newStop > stopPx
                 stopPx := newStop
                 isBeHit := true
     else
-        triggerPx = entryPrice - (beTrigger * atr)
+        triggerPx = entryPrice - (beTrigger * entryAtr)
         if low <= triggerPx
-            newStop = entryPrice - (beOffset * atr)
+            newStop = entryPrice - (beOffset * entryAtr)
             if newStop < stopPx
                 stopPx := newStop
                 isBeHit := true
@@ -4589,26 +4732,37 @@ if useStalemate and pos != 0 and (bar_index - enBar) >= staleBars and not na(atr
     if profitATR < staleMinATR
         staleExit := true
 
-if pos == 1 and allowExit
+if pos == 1 and allowExitLong
     if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
+        // Engulfing "Tighten Risk" mode: tighten stop instead of direct exit.
+        if useEngulfExit and engulfExitMode == "Tighten Risk" and bearEngulf3 and not na(stopPx) and not na(atr) and atr > 0
+            float tightenedStop = close - (engulfTightenMult * atr)
+            stopPx := math.max(stopPx, tightenedStop)
     // Deconstruct risk exit
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
+    bool holdTpByConf = (rMsg == "TP") and (not na(confGate)) and confGate >= exitConfTP
     
     // Unified exit model: any configured trigger can close the position.
-    // Practical precedence for reason text is risk message first, then USI, then Engulfing.
+    // Practical precedence for reason text is risk message first, then structural/ChoCH, then USI, then Engulfing/Stalemate.
     // v6.3.8: Reverted to Crossunder (event) to enforce "Touch from Above" per user request
-    bool usiExitHit = _usiXDn
+    bool usiExitHit = useUsi and _usiXDn
+    bool staleExitHit = staleExit and canStructExit
+    bool structExitHit = canStructExit and breakLong
+    bool chochExitHit = canChochExit and isChoCH_Short and (na(pD) or pD >= exitConfChoCh)
+    int engBearCtxScore = (usiExitHit ? 1 : 0) + ((rocShortOk or fcGateShortSafe) ? 1 : 0) + ((chochEventShort or reclaimDownSafe or sweepHigh) ? 1 : 0)
     
     // Bearish Engulfing Logic
-    bool engExitHit = bearEngulf3
-    bool riskExitHit = rHit
-    
-    exitSignal := riskExitHit or usiExitHit or engExitHit
+    bool engExitHit = useEngulfExit and bearEngulf3 and engulfExitMode == "Contextual Exit" and (engBearCtxScore >= 2)
+    bool riskExitHit = rHit and not holdTpByConf
+    bool riskExceptionHit = riskExitHit and (rMsg == "SL" or rMsg == "TP")
+    bool holdExceptionsOnly = entryOnlyExitHoldActive
+
+    exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit or staleExitHit)
     
     if exitSignal
 
-        string reason = riskExitHit ? rMsg : "USI-Flip"
+        string reason = riskExitHit ? rMsg : (structExitHit ? "Struct-Break" : (chochExitHit ? "ChoCH" : (usiExitHit ? "USI-Flip" : (staleExitHit ? "Stalemate" : "Exit"))))
         // v6.3.7 Debug: Add USI Values
         if usiExitHit
             reason := reason + " (Red:" + str.tostring(usiLine5, "#.##") + " < Env:" + str.tostring(usiMinEnv, "#.##") + ")"
@@ -4616,25 +4770,36 @@ if pos == 1 and allowExit
             reason := "Engulfing"
         tempExitReason := reason
 
-if pos == -1 and allowExit
+if pos == -1 and allowExitShort
     if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
+        // Engulfing "Tighten Risk" mode: tighten stop instead of direct exit.
+        if useEngulfExit and engulfExitMode == "Tighten Risk" and bullEngulf3 and not na(stopPx) and not na(atr) and atr > 0
+            float tightenedStop = close + (engulfTightenMult * atr)
+            stopPx := math.min(stopPx, tightenedStop)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
+    bool holdTpByConf = (rMsg == "TP") and (not na(confGate)) and confGate >= exitConfTP
     
     // Unified exit model: any configured trigger can close the position.
-    // Practical precedence for reason text is risk message first, then USI, then Engulfing.
+    // Practical precedence for reason text is risk message first, then structural/ChoCH, then USI, then Engulfing/Stalemate.
     // v6.3.8: Reverted to Crossover (event) to enforce "Touch from Below" per user request
-    bool usiExitHit = _usiXUp
+    bool usiExitHit = useUsi and _usiXUp
+    bool staleExitHit = staleExit and canStructExit
+    bool structExitHit = canStructExit and breakShort
+    bool chochExitHit = canChochExit and isChoCH_Long and (na(pU) or pU >= exitConfChoCh)
+    int engBullCtxScore = (usiExitHit ? 1 : 0) + ((rocLongOk or fcGateLongSafe) ? 1 : 0) + ((chochEventLong or reclaimUpSafe) ? 1 : 0)
     
     // Bullish Engulfing Logic
-    bool engExitHit = bullEngulf3
-    bool riskExitHit = rHit
+    bool engExitHit = useEngulfExit and bullEngulf3 and engulfExitMode == "Contextual Exit" and (engBullCtxScore >= 2)
+    bool riskExitHit = rHit and not holdTpByConf
+    bool riskExceptionHit = riskExitHit and (rMsg == "SL" or rMsg == "TP")
+    bool holdExceptionsOnly = entryOnlyExitHoldActive
 
-    coverSignal := riskExitHit or usiExitHit or engExitHit
+    coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit or staleExitHit)
     
     if coverSignal
 
-        string reason = riskExitHit ? rMsg : "USI-Flip"
+        string reason = riskExitHit ? rMsg : (structExitHit ? "Struct-Break" : (chochExitHit ? "ChoCH" : (usiExitHit ? "USI-Flip" : (staleExitHit ? "Stalemate" : "Exit"))))
         // v6.3.7 Debug: Add USI Values
         if usiExitHit
             reason := reason + " (Red:" + str.tostring(usiLine5, "#.##") + " > Env:" + str.tostring(usiMaxEnv, "#.##") + ")"
@@ -4655,7 +4820,7 @@ var string lastExitReason = ""
 plot(emaF, "EMA Fast", color=color.new(color.yellow, 0))
 plot(emaS, "EMA Slow", color=color.new(color.purple, 0))
 consolidationDotColor = pos == -1 ? color.new(color.red, 10) : color.new(color.orange, 0)
-plot(trendSide ? emaF : na, "Consolidation dots", style=plot.style_circles, linewidth=2, color=consolidationDotColor)
+plot(sidewaysVisual ? emaF : na, "Consolidation dots", style=plot.style_circles, linewidth=2, color=consolidationDotColor)
 
 // State transitions (same-bar reversal support)
 var bool lastEntryWasRev = false
@@ -4702,13 +4867,14 @@ if barstate.isconfirmed
     // --- Phase 2: Process entries (including same-bar reversal after exit) ---
     // Guard: block same-direction re-entry (EXIT→BUY or COVER→SHORT).
     // Only allow: normal entry (no Phase 1), COVER→BUY, or EXIT→SHORT.
-    if buySignal and pos == 0 and not didExit
+    if buySignal and pos == 0 and (allowSameBarBuyAfterCover or not didCover)
         didBuy := true
         pos := 1
         entryPrice := close
         entryAtr   := atr
         isBeHit := false
         enBar   := bar_index
+        enTime  := time
         barsSinceEntry := 0  // reset for same-bar reversal
         lastEntryWasRev := isRevBuy  // v6.2.13
         lastBuyBarIdx := bar_index   // v6.2.17
@@ -4719,17 +4885,18 @@ if barstate.isconfirmed
             trailPx := newTrail
         // Cooldown semantics:
         // - AllSignals: entries also reset timer
-        if cooldownTriggersEff == "AllSignals"
+        if cooldownTriggersEff == "AllSignals" or cooldownTriggersEff == "EntriesOnly"
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "BUY"
-    else if shortSignal and pos == 0 and not didCover
+    else if shortSignal and pos == 0 and (allowSameBarShortAfterExit or not didExit)
         didShort := true
         pos := -1
         entryPrice := close
         entryAtr   := atr
         isBeHit := false
         enBar   := bar_index
+        enTime  := time
         barsSinceEntry := 0  // reset for same-bar reversal
         lastEntryWasRev := isRevShort  // v6.2.13
         lastShortBarIdx := bar_index   // v6.2.17
@@ -4740,7 +4907,7 @@ if barstate.isconfirmed
             trailPx := sTrail
         // Cooldown semantics:
         // - AllSignals: entries also reset timer
-        if cooldownTriggersEff == "AllSignals"
+        if cooldownTriggersEff == "AllSignals" or cooldownTriggersEff == "EntriesOnly"
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "SHORT"
@@ -4750,16 +4917,62 @@ shortEvent = didShort
 exitEvent  = didExit
 coverEvent = didCover
 
+// Realtime preview pulses (intrabar labels/alerts) when close-only mode is disabled.
+varip bool rtBuyPreviewSent = false
+varip bool rtShortPreviewSent = false
+varip bool rtExitPreviewSent = false
+varip bool rtCoverPreviewSent = false
+varip bool rtPreBuyPreviewSent = false
+varip bool rtPreShortPreviewSent = false
+
+if barstate.isnew
+    rtBuyPreviewSent := false
+    rtShortPreviewSent := false
+    rtExitPreviewSent := false
+    rtCoverPreviewSent := false
+    rtPreBuyPreviewSent := false
+    rtPreShortPreviewSent := false
+
+buyPreviewPulse = (not signalOnCloseOnlyEff) and barstate.isrealtime and buySignal and pos == 0 and not rtBuyPreviewSent
+shortPreviewPulse = (not signalOnCloseOnlyEff) and barstate.isrealtime and shortSignal and pos == 0 and not rtShortPreviewSent
+exitPreviewPulse = (not signalOnCloseOnlyEff) and barstate.isrealtime and exitSignal and pos == 1 and not rtExitPreviewSent
+coverPreviewPulse = (not signalOnCloseOnlyEff) and barstate.isrealtime and coverSignal and pos == -1 and not rtCoverPreviewSent
+preBuyPreviewPulse = (not signalOnCloseOnlyEff) and barstate.isrealtime and preBuyNow and not rtPreBuyPreviewSent
+preShortPreviewPulse = (not signalOnCloseOnlyEff) and barstate.isrealtime and preShortNow and not rtPreShortPreviewSent
+
+if buyPreviewPulse
+    rtBuyPreviewSent := true
+if shortPreviewPulse
+    rtShortPreviewSent := true
+if exitPreviewPulse
+    rtExitPreviewSent := true
+if coverPreviewPulse
+    rtCoverPreviewSent := true
+if preBuyPreviewPulse
+    rtPreBuyPreviewSent := true
+if preShortPreviewPulse
+    rtPreShortPreviewSent := true
+
+buyEventLive = buyEvent or buyPreviewPulse
+shortEventLive = shortEvent or shortPreviewPulse
+exitEventLive = exitEvent or exitPreviewPulse
+coverEventLive = coverEvent or coverPreviewPulse
+preBuyEventLive = preBuyPulse or preBuyPreviewPulse
+preShortEventLive = preShortPulse or preShortPreviewPulse
+revBuyEventLive = (buyEvent and isRevBuy) or (buyPreviewPulse and isRevBuy)
+revShortEventLive = (shortEvent and isRevShort) or (shortPreviewPulse and isRevShort)
+
 //====================
 
-alertFreq = alertOnBarCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
+alertFreq = alertOnBarCloseOnlyEff ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
 //====================
 // Visuals
 //====================
 strictAtrRankVis = f_pct_rank(atr / math.max(close, PRICE_EPS), strictAdaptiveLen)
 strictMtfMarginEffVis = useAdaptiveStrictMargin ? f_clamp(strictMtfMargin + ((strictAtrRankVis - 0.5) * 2.0 * strictAdaptiveRange), 0.0, 0.20) : strictMtfMargin
-strictAlertsEnabledVis = not inRevOpenWindow
+strictSuppressByOpenWindow = openWindowBypassEntries and inRevOpenWindow
+strictAlertsEnabledVis = not strictSuppressByOpenWindow
 strictMtfLongOkVis = (not useMtfConfirm) or ((mtfScore > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] > (SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
 strictMtfShortOkVis = (not useMtfConfirm) or ((mtfScore < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)) and (mtfScore[1] < -(SCORE_NEUTRAL_BAND + strictMtfMarginEffVis)))
 strictChochLongOkVis = (not isRevBuy[1]) or ((not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= strictChochConfirmBars) and not isChoCH_Short)
@@ -4795,23 +5008,27 @@ f_pre_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_preLabels) > MAX_PRE_LABELS
         label.delete(array.shift(_preLabels))
 
-if preBuyPulse
+if showPreEntryLabelsEff and preBuyEventLive
     string _gapTxt = not na(preGapATR_L) ? str.tostring(preGapATR_L, "#.##") + " ATR" : "—"
     string _pTxt   = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
     string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
     f_pre_label(bar_index, low, "PRE-BUY\nGap: " + _gapTxt + "\npU: " + _pTxt + "\nConf: " + _cTxt, label.style_label_up, color.black, color.new(color.yellow, 0))
 
-if preShortPulse
+if showPreEntryLabelsEff and preShortEventLive
     string _gapTxt = not na(preGapATR_S) ? str.tostring(preGapATR_S, "#.##") + " ATR" : "—"
     string _pTxt   = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
     string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
     f_pre_label(bar_index, high, "PRE-SHORT\nGap: " + _gapTxt + "\npD: " + _pTxt + "\nConf: " + _cTxt, label.style_label_down, color.black, color.new(color.orange, 0))
 
 // Label rendering
-labelRevBuy   = buyEvent and isRevBuy
-labelRevShort = shortEvent and isRevShort
-labelBuy      = buyEvent and not isRevBuy
-labelShort    = shortEvent and not isRevShort
+// labelRevBuy   = buyEvent and isRevBuy
+// labelBuy      = buyEvent and not isRevBuy
+labelRevBuyConfirmed = buyEvent and isRevBuy
+labelBuyConfirmed = buyEvent and not isRevBuy
+labelRevBuy   = buyEventLive and isRevBuy
+labelRevShort = shortEventLive and isRevShort
+labelBuy      = buyEventLive and not isRevBuy
+labelShort    = shortEventLive and not isRevShort
 
 labelChoCH_L = useStructureTags and isChoCH_Long  and not labelRevBuy    // v6.2.14: suppress on REV-BUY bar
 labelChoCH_S = useStructureTags and isChoCH_Short and not labelRevShort  // v6.2.14: suppress on REV-SHORT bar
@@ -4820,11 +5037,15 @@ labelBOS_S = useStructureTags and isBOS_Short
 
 plotshape(labelChoCH_L, title="ChoCH (Long)", style=shape.labelup,   location=location.belowbar, size=size.small, text="ChoCH", textcolor=color.white, color=color.new(color.purple, 0))
 plotshape(labelChoCH_S, title="ChoCH (Short)", style=shape.labeldown, location=location.abovebar, size=size.small, text="ChoCH", textcolor=color.white, color=color.new(color.maroon, 0))
+plotchar(showChochPing and chochPingLong, title="ChoCH Ping (Long)", char="?", location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny)
+plotchar(showChochPing and chochPingShort, title="ChoCH Ping (Short)", char="?", location=location.abovebar, color=color.new(color.yellow, 0), size=size.tiny)
 plotshape(labelBOS_L, title="BOS (Long)", style=shape.labelup, location=location.belowbar, size=size.tiny, text="BOS", textcolor=color.white, color=color.new(color.green, 0))
 plotshape(labelBOS_S, title="BOS (Short)", style=shape.labeldown, location=location.abovebar, size=size.tiny, text="BOS", textcolor=color.white, color=color.new(color.red, 0))
+plotshape(showSetMarkers and setLongPulse, title="SET Long", style=shape.circle, location=location.belowbar, size=size.tiny, color=color.new(color.lime, 0), text="SET")
+plotshape(showSetMarkers and setShortPulse, title="SET Short", style=shape.circle, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0), text="SET")
 
-labelExit  = exitEvent
-labelCover = coverEvent
+labelExit  = exitEventLive
+labelCover = coverEventLive
 
 entryPxPrev = entryPrice[1]
 
@@ -4866,14 +5087,14 @@ string _stdShortTxt = "SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt
 string _premBuyTxt = "BUY (Prem)\npU: " + _probTxt + "\nConf: " + _confTxt
 string _premShortTxt = "SHORT (Prem)\npD: " + _probTxtD + "\nConf: " + _confTxt
 
-if showLongLabels and labelRevBuy
+if showLongLabelsEff and labelRevBuy
     f_entry_label(bar_index, low, _revBuyConfluence ? _revBuyPlus : _revBuyBase, label.style_label_up, color.black, color.new(color.aqua, 0))
-if showShortLabels and labelRevShort
+if showShortLabelsEff and labelRevShort
     f_entry_label(bar_index, high, _revShortConfluence ? _revShortPlus : _revShortBase, label.style_label_down, color.black, color.new(color.fuchsia, 0))
-if showLongLabels and labelBuy
+if showLongLabelsEff and labelBuy
     bool _isPrem = (useUsi and _usiPremBuy)
     f_entry_label(bar_index, low, _isPrem ? _premBuyTxt : _stdBuyTxt, label.style_label_up, color.white, color.new(color.green, 0))
-if showShortLabels and labelShort
+if showShortLabelsEff and labelShort
     bool _isPrem = (useUsi and _usiPremShort)
     f_entry_label(bar_index, high, _isPrem ? _premShortTxt : _stdShortTxt, label.style_label_down, color.white, color.new(color.red, 0))
 
@@ -4888,7 +5109,7 @@ f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     if array.size(_exitLabels) > MAX_EXIT_LABELS
         label.delete(array.shift(_exitLabels))
 
-if showLongLabels and labelExit
+if showLongLabelsEff and labelExit
     // v6.2.15: EXIT label explicitly names the preceding entry type so the user
     //          knows exactly what label to look for (green BUY vs aqua REV-BUY).
     //          State machine guarantees a BUY always exists between two EXITs.
@@ -4902,7 +5123,7 @@ if showLongLabels and labelExit
     exitSty = isExitRev ? label.style_label_up : label.style_label_down
     f_exit_label(bar_index, val, "EXIT" + entryTag + "\n" + buyAgoTxt + exitSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
-if showShortLabels and labelCover
+if showShortLabelsEff and labelCover
     // v6.2.15: COVER label explicitly names the preceding entry type.
     string entryTag  = _wasRevEntry ? " ← REV-SHORT" : " ← SHORT"
     string coverSuffix = didBuy ? " → BUY" : ""
@@ -4914,13 +5135,13 @@ if showShortLabels and labelCover
     labelSty = isReversal ? label.style_label_down : label.style_label_up
     f_exit_label(bar_index, val, "COVER" + entryTag + "\n" + shortAgoTxt + coverSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
-plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
-plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
+plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0), display=display.pane)
+plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0), display=display.pane)
+plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0), display=display.pane)
 
-plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
-plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
+plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0), display=display.pane)
+plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0), display=display.pane)
+plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0), display=display.pane)
 
 plot(showDynamicTpDebugPlot and useDynamicTpExpansion and not useInfiniteTP and pos != 0 ? dynTpAddAtrDbg : na, title="dTP Add ATR", color=color.new(color.aqua, 0), display=display.none)
 plot(showDynamicTpDebugPlot and useDynamicTpExpansion and not useInfiniteTP and pos != 0 ? dynTpRunRDbg : na, title="dTP Run R", color=color.new(color.fuchsia, 0), display=display.none)
@@ -4929,8 +5150,10 @@ plot(showPhase1Debug ? trendCoreSlow : na, title="P1 TrendCore Slow", color=colo
 plot(showPhase1Debug ? trendCoreDiffNorm : na, title="P1 TrendCore DiffNorm", color=color.new(color.yellow, 0), display=display.none)
 plot(showPhase1Debug ? regimeAtrPct : na, title="P1 Regime ATR Percentile", color=color.new(color.purple, 0), display=display.none)
 plot(showPhase1Debug ? float(regime2State) : na, title="P1 Regime2 State", color=color.new(color.blue, 0), display=display.none)
+plot(scoreDebug ? float(scoreL) : na, title="Score Long", color=color.new(color.green, 0), display=display.none)
+plot(scoreDebug ? float(scoreS) : na, title="Score Short", color=color.new(color.red, 0), display=display.none)
 
-barcolor(na)
+barcolor(showEngulfingBarColors ? (bullEngulf3 ? color.new(color.yellow, 0) : bearEngulf3 ? color.new(color.white, 0) : na) : na)
 alertcondition(bullEngulf3, title="Bullish Engulfing (3 prior opposite)", message="SkippALGO Bullish Engulfing (3 prior bearish) | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(bearEngulf3, title="Bearish Engulfing (3 prior opposite)", message="SkippALGO Bearish Engulfing (3 prior bullish) | {{ticker}} @ {{close}} | {{time}}")
 
@@ -4939,15 +5162,28 @@ alertcondition(bearEngulf3, title="Bearish Engulfing (3 prior opposite)", messag
 // two EXITs; this makes the entry bar visually unmissable.
 bgcolor(buyEvent   ? color.new(color.green, 70) : na, title="BUY bar")
 bgcolor(shortEvent ? color.new(color.red, 70)   : na, title="SHORT bar")
+vwtBgColor = vwtTrendDirection == 1 ? color.new(color.lime, vwtBgTransparency) : vwtTrendDirection == -1 ? color.new(color.red, vwtBgTransparency) : na
+bgcolor(showVwtTrendBackground and not buyEvent and not shortEvent ? vwtBgColor : na, title="VWT trend background")
 bgcolor(useAtrRegimeOverlay ? atrRegimeBg : na, title="ATR regime background")
 
-pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25))
-pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25))
+pNeutralUpper = plot(showZones ? neutralUpper : na, title="Neutral zone upper", linewidth=1, color=color.new(color.blue, 25), display=display.pane)
+pNeutralLower = plot(showZones ? neutralLower : na, title="Neutral zone lower", linewidth=1, color=color.new(color.blue, 25), display=display.pane)
 fill(pNeutralUpper, pNeutralLower, color=color.new(color.blue, 90))
 
-pAggUpper = plot(showZones ? aggrUpper : na, title="Aggressive zone upper", linewidth=1, color=color.new(color.orange, 25))
-pAggLower = plot(showZones ? aggrLower : na, title="Aggressive zone lower", linewidth=1, color=color.new(color.orange, 25))
+pAggUpper = plot(showZones ? aggrUpper : na, title="Aggressive zone upper", linewidth=1, color=color.new(color.orange, 25), display=display.pane)
+pAggLower = plot(showZones ? aggrLower : na, title="Aggressive zone lower", linewidth=1, color=color.new(color.orange, 25), display=display.pane)
 fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
+
+atrTightStatus = atr * 0.5
+atrNormalLoStatus = atr * 0.8
+atrNormalHiStatus = atr * 1.0
+atrWideStatus = atr * 1.2
+
+plot(showAtrStatusLine ? atr : na, "A", display=display.status_line)
+plot(showAtrStatusLine ? atrTightStatus : na, "T", display=display.status_line)
+plot(showAtrStatusLine ? atrNormalLoStatus : na, "N-", display=display.status_line)
+plot(showAtrStatusLine ? atrNormalHiStatus : na, "N+", display=display.status_line)
+plot(showAtrStatusLine ? atrWideStatus : na, "W", display=display.status_line)
 
 
 //====================
@@ -4959,20 +5195,42 @@ fill(pAggUpper, pAggLower, color=color.new(color.orange, 88))
 // Alerts (bar close) — reuse strict*Vis variables from visual section
 buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis
 shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
+revBuyEventStrict = barstate.isconfirmed and buyEvent[1] and isRevBuy[1] and strictMtfLongOkVis and strictChochLongOkVis
+revShortEventStrict = barstate.isconfirmed and shortEvent[1] and isRevShort[1] and strictMtfShortOkVis and strictChochShortOkVis
+strictWasEnabledVis = strictAlertsEnabledVis[1] == true
+strictWasEnabled = strictWasEnabledVis
+alertBuySameBar   = buyEventLive and not strictAlertsEnabledVis
+alertShortSameBar = shortEventLive and not strictAlertsEnabledVis
+alertRevBuySameBar = revBuyEventLive and not strictAlertsEnabledVis
+alertRevShortSameBar = revShortEventLive and not strictAlertsEnabledVis
+alertBuyDelayed   = buyEventStrict and strictWasEnabled and strictAlertsEnabledVis
+alertShortDelayed = shortEventStrict and strictWasEnabled and strictAlertsEnabledVis
+alertRevBuyDelayed = revBuyEventStrict and strictWasEnabled and strictAlertsEnabledVis
+alertRevShortDelayed = revShortEventStrict and strictWasEnabled and strictAlertsEnabledVis
 
-alertBuyCond   = strictAlertsEnabledVis ? buyEventStrict : buyEvent
-alertShortCond = strictAlertsEnabledVis ? shortEventStrict : shortEvent
-alertExitCond  = exitEvent
-alertCoverCond = coverEvent
-alertPreBuyCond   = barstate.isconfirmed and (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
-alertPreShortCond = barstate.isconfirmed and (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
+alertBuyCond   = alertBuySameBar or alertBuyDelayed
+alertShortCond = alertShortSameBar or alertShortDelayed
+alertRevBuyCond   = alertRevBuySameBar or alertRevBuyDelayed
+alertRevShortCond = alertRevShortSameBar or alertRevShortDelayed
+alertExitCond  = exitEventLive
+alertCoverCond = coverEventLive
+alertPreBuyCond   = preBuyEventLive
+alertPreShortCond = preShortEventLive
+alertChochBullCond = isChoCH_Long
+alertChochBearCond = isChoCH_Short
+alertConsolidationCond = sidewaysVisual and not sidewaysVisual[1]
 
 alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertRevBuyCond,   title="REV-BUY",   message="SkippALGO REV-BUY | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertRevShortCond, title="REV-SHORT", message="SkippALGO REV-SHORT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertPreBuyCond,   title="PRE-BUY",   message="SkippALGO PRE-BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHORT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertChochBullCond, title="ChoCH Bullish", message="SkippALGO ChoCH Bullish | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertChochBearCond, title="ChoCH Bearish", message="SkippALGO ChoCH Bearish | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertConsolidationCond, title="CONSOLIDATION", message="SkippALGO CONSOLIDATION | {{ticker}} @ {{close}} | {{time}}")
 
 // v6.1.3: TradersPost JSON Payload Generator
 f_tp_json(action) =>
@@ -4991,13 +5249,17 @@ f_tp_json(action) =>
 // and prevent TradingView "limited functionality" throttling on multi-symbol watchlists.
 // v6.2.21: Consolidated into a SINGLE alert() call per bar to stay within
 //          TradingView's rate limits on large watchlists.
-alertFreqSafe = alert.freq_once_per_bar_close
+alertFreqSafe = alertFreq
 
 if barstate.isconfirmed and barstate.isrealtime
     // Collect all signals that fired on this bar into one message
     string[] _parts = array.new_string(0)
+    if alertRevBuyCond
+        array.push(_parts, "REV-BUY")
     if alertBuyCond
         array.push(_parts, "BUY")
+    if alertRevShortCond
+        array.push(_parts, "REV-SHORT")
     if alertShortCond
         array.push(_parts, "SHORT")
     if alertExitCond
@@ -5008,6 +5270,8 @@ if barstate.isconfirmed and barstate.isrealtime
         array.push(_parts, "PRE-BUY")
     if alertPreShortCond
         array.push(_parts, "PRE-SHORT")
+    if alertConsolidationCond
+        array.push(_parts, "CONSOLIDATION")
 
     if array.size(_parts) > 0
         string labels = array.join(_parts, "+")
@@ -5015,7 +5279,7 @@ if barstate.isconfirmed and barstate.isrealtime
         if useJsonAlerts
             // JSON: use first action for TradersPost compatibility
             string firstLabel = array.get(_parts, 0)
-            string action = firstLabel == "BUY" ? "buy" : firstLabel == "SHORT" ? "sell" : firstLabel == "EXIT" ? "exit" : firstLabel == "COVER" ? "exit" : "flat"
+            string action = firstLabel == "BUY" or firstLabel == "REV-BUY" ? "buy" : firstLabel == "SHORT" or firstLabel == "REV-SHORT" ? "sell" : firstLabel == "EXIT" or firstLabel == "COVER" ? "exit" : "flat"
             msg := f_tp_json(action)
         else
             modeTxtAlert = strictAlertsEnabledVis ? "strict" : "normal"

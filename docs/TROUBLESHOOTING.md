@@ -1,5 +1,55 @@
 # Troubleshooting Log - SkippALGO v6.1 (Feb 2024)
 
+## Issue: BUY/SHORT seems "missing" during consolidation
+
+**Date**: Feb 16, 2026  
+**Description**: A valid-looking setup appears on chart, but no `BUY`/`SHORT` is emitted.
+
+### Expected behavior for EntriesOnly exceptions
+
+Directional consolidation veto has been removed in indicator and strategy.
+Consolidation dot state is now informational only and does not directly block `BUY`/`SHORT` entries.
+
+### Quick checks
+
+1. Confirm chart is currently in consolidation visualization (dot state).
+1. If you also run `cooldownTriggers = EntriesOnly` with `cooldownBars >= 1`, remember:
+    - generic exits are hold-gated for one full bar after entry,
+    - with `cooldownBars = 1`, earliest generic `EXIT` is bar $N+2$ for an entry on bar $N$,
+    - exceptions during hold are limited to protective `SL`/`TP` and directional engulfing exits,
+    - `USI-FLIP` is blocked during the hold window.
+
+### If you want more frequent entries
+
+- Wait for consolidation phase/direction to clear.
+- Reduce additional entry friction from other gates (cooldown, strict score thresholds, reliability/evidence/abstain constraints).
+- Keep indicator/strategy settings aligned to avoid parity surprises.
+
+## Issue: Some exits fire immediately after entry in EntriesOnly mode
+
+**Date**: Feb 16, 2026  
+**Description**: Users expect all exits to wait until $N+2$ with `cooldownTriggers = EntriesOnly` and `cooldownBars = 1`, but observe selective immediate exits.
+
+### Expected behavior (by design)
+
+In `EntriesOnly` mode, the post-entry hold applies to generic exits, but there are intentional safety exceptions:
+
+- `EXIT SL` / `COVER SL` may fire immediately after entry (risk protection).
+- `EXIT TP` / `COVER TP` may fire immediately after entry.
+- Directional engulfing exits may fire immediately after entry.
+- `USI-FLIP` does **not** bypass the hold and is blocked until hold expires.
+
+So with entry at bar $N$:
+
+- generic `EXIT` remains hold-gated (earliest $N+2$ when `cooldownBars = 1`),
+- protective `SL`/`TP` and directional engulfing exits are allowed immediately if conditions are met,
+- `USI-FLIP` and other non-exception exits wait until hold expires.
+
+### Why this exists
+
+- Prevents unnecessary exposure when stop-loss risk is hit right after entry.
+- Keeps protective profit/risk exits responsive while still suppressing whipsaw flips.
+
 ## Issue: Missed High-Volume Reversal Signals
 
 **Date**: Feb 7, 2026
