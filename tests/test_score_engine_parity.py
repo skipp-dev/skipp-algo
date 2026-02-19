@@ -243,6 +243,26 @@ def test_phase3_regime_hysteresis_parity():
             for token in required_phase3_tokens:
                 assert token in content, f"{filename}: Missing Phase-3 hysteresis token: {token}"
 
+
+def test_sideways_visual_hysteresis_parity():
+    """Confirms visual sideways hysteresis tokens are present in both indicator and strategy."""
+    strategy_content = read_file_content(STRATEGY_FILE)
+    indicator_content = read_file_content(INDICATOR_FILE)
+
+    required_tokens = [
+        "sideEmaAbs =",
+        "sideEnter =",
+        "sideExit  =",
+        "var bool sidewaysVisual = false",
+        "if sideEnter",
+        "else if sideExit",
+        "alertConsolidationCond = sidewaysVisual and not sidewaysVisual[1]",
+    ]
+
+    for filename, content in [("Strategy", strategy_content), ("Indicator", indicator_content)]:
+        for token in required_tokens:
+            assert token in content, f"{filename}: Missing sidewaysVisual hysteresis token: {token}"
+
 if __name__ == "__main__":
     # Manually run tests if executed primarily
     try:

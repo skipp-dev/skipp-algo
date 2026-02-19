@@ -1,6 +1,6 @@
 # SkippALGO — Outlook + Forecast (Calibrated Probabilities)
 
-Pine Script v6 · Non-repainting · Bar-close confirmed
+Pine Script v6 · Non-repainting core logic · Intrabar alerts/labels (default)
 
 SkippALGO combines a signal engine with a multi‑timeframe dashboard that clearly separates:
 
@@ -12,6 +12,9 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 - Multi‑timeframe **Outlook** with bias, score, and components (Trend/Momentum/Location).
 - **Forecast** block with Pred(N)/Pred(1) plus calibrated $P(\mathrm{Up})$.
 - Strict **non‑repainting** behavior (`lookahead_off`, `barstate.isconfirmed`).
+- Intrabar-first alert/label UX by default:
+  - `Alerts: bar close only = false` (default) sends preview alerts/labels before candle close,
+  - switching it to `true` restores bar-close-only signaling.
 - Confidence gating, macro + drawdown guards, and MTF confirmation.
 
 ## Quick start
@@ -21,12 +24,63 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 3. Let calibration warm up (watch sample sufficiency in Forecast rows).
 4. Read **Outlook first**, then confirm with **Forecast** probabilities.
 
+### Preset: Intrabar Labels (Repainting ON)
+
+Use this preset if you explicitly want labels to print **before candle close** (realtime preview behavior).
+
+- `Alerts: bar close only = false`
+- `Show Long labels (BUY / EXIT) = true`
+- `Show Short labels (SHORT / COVER) = true`
+- `Show PRE labels (PRE-BUY / PRE-SHORT) = true`
+
+Notes:
+
+- This mode is intentionally **repainting/intrabar** and can differ from final close-confirmed outcomes.
+- Preview labels are realtime-only; historical bars still reflect confirmed logic.
+
 ## Table guide (short)
 
 - **Outlook (State):** descriptive snapshot at the last confirmed bar for each TF.
 - **Forecast (Prob):** conditional probability for the defined target (default: next‑bar direction).
 - `…` and `n0` indicate insufficient data; do not treat as a signal.
 - Forecast rows include **nCur/Total** and a target footer describing active target definitions.
+
+## Sideways/Chop semantics (quick)
+
+- `sidewaysVisual`: visual consolidation state for dots/alerts (UX layer).
+- `chopRisk`: score-layer chop risk used to shape/veto score injections.
+- `usiTightSpread`: strict USI verify compression check (verification layer).
+
+These names separate chart UX, score risk handling, and USI verification strictness.
+For the full explanation, see `docs/TRADINGVIEW_STRATEGY_GUIDE.md` (section **L**).
+
+Global score floor note:
+
+- `Enforce score min pU/pD on all entries` does **not** block `REV-BUY`.
+- `REV-BUY` uses its own reversal probability gates (`revMinProb` + reversal/open-window path).
+
+## Cooldown same-bar toggles (indicator)
+
+In `SkippALGO.pine` (indicator), cooldown behavior now has symmetric same-bar re-entry controls:
+
+- `Allow same-bar BUY after COVER`
+- `Allow same-bar SHORT after EXIT`
+
+Default behavior remains conservative (`false`): re-entry waits until the next bar.
+
+Cooldown trigger modes now support:
+
+- `ExitsOnly` (default): cooldown timer updates on `EXIT`/`COVER`
+- `AllSignals`: timer updates on every signal (`BUY`/`SHORT`/`EXIT`/`COVER`)
+- `EntriesOnly`: timer updates only on entries (`BUY`/`SHORT`)
+
+Timing note:
+
+- State machine order is exits first, then entries per confirmed bar. A newly opened `BUY`/`SHORT` on bar $N$ cannot be exited on bar $N$; earliest `EXIT`/`COVER` is bar $N+1$.
+- With `cooldownBars = 1`, entry cooldown check uses `bar_index - lastSignalBar > cooldownBars`, so new entries are blocked on $N+1$ and allowed again from $N+2$.
+- Strategy/Indicator note: with `cooldownTriggers = EntriesOnly` and `cooldownBars >= 1`, exits are hold-gated by entry bar index; for `cooldownBars = 1`, generic exits are earliest on bar $N+2$.
+- Exceptions in `EntriesOnly` mode: only protective `SL`/`TP` and directional engulfing exits can bypass the hold gate immediately after entry.
+- `USI-FLIP` does **not** bypass `EntriesOnly` hold; it remains blocked until the hold window is over.
 
 ## Documentation
 
@@ -40,6 +94,21 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 - **Changelog:** `CHANGELOG.md`
 
 ## Recent changes (Feb 2026)
+
+- **Latest (v6.3.13b — 16 Feb 2026) — Alert Surface + Consolidation UX:**
+  - Added dedicated alert conditions in **indicator + strategy**:
+    - `REV-BUY`
+    - `REV-SHORT`
+    - `CONSOLIDATION` (fires on consolidation phase entry: `trendSide and not trendSide[1]`)
+  - Consolidated runtime alert labeling now prioritizes reversal labels (`REV-BUY`/`REV-SHORT`) over generic `BUY`/`SHORT` when applicable.
+  - Consolidation dot coloring in indicator refined:
+    - USI short state (`usiStackDir == -1`) → reddish dot,
+    - otherwise → orange dot.
+
+- **Latest (v6.3.13a — 16 Feb 2026) — Intrabar Default for Alerts/Labels:**
+  - `Alerts: bar close only` now defaults to `false` in both indicator and strategy.
+  - BUY/SHORT/EXIT/COVER and PRE-BUY/PRE-SHORT alerts + labels are intrabar-first by default (realtime preview pulses).
+  - Users can still force close-confirmed behavior by setting `Alerts: bar close only = true`.
 
 - **Latest (v6.3.13 — 16 Feb 2026) — Parity Hardening + Wiring Completion:**
   - Restored strict Strategy entry-gate parity with Indicator (`reliability/evidence/eval/decision`).
@@ -195,7 +264,7 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
   - Added `REV: Min dir prob` (`revMinProb`, default `0.50`) for the normal REV entry path.
   - `Rescue Mode: Min Probability` (`rescueMinProb`) continues to govern only the rescue fallback path (with huge volume + impulse).
 - **Open-window behavior:**
-  - Near market open (±window), pU filter bypass applies to standard and reversal entries as configured.
+  - Near market open (±window), directional probability bypass (`pU`/`pD`) can be configured by side, mode, and engine scope for standard and reversal entries.
 - **Exit/Cover label formatting:**
   - Long first line was split into multiple rows for better readability on chart labels.
 - **Watchlist alert stability:**
@@ -210,7 +279,6 @@ SkippALGO combines a signal engine with a multi‑timeframe dashboard that clear
 ## Current verification status
 
 - **Pytest:** See latest CI run attached to the active pull request (count evolves as tests are added).
-- Current local baseline after this release: **386 passed**.
 - Includes dedicated regression coverage for:
   - PRE-BUY / PRE-SHORT signal plumbing and dynamic label payloads,
   - BUY / REV-BUY / EXIT label + alert wiring,

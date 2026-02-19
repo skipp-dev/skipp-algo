@@ -88,17 +88,17 @@ class TestOpenWindowAndStrictBehavior(unittest.TestCase):
         self.assertFalse(r0.alert_buy_cond)
         self.assertTrue(r1.alert_buy_cond)
 
-    def test_open_window_reversal_floor_is_zero(self):
+    def test_open_window_reversal_bypass_keeps_base_floor(self):
         cfg = SimConfig(
             reliability_ok=False,
             allow_neural_reversals=True,
             in_rev_open_window_long=True,
-            p_u=0.10,
+            p_u=0.30,
             rev_min_prob=0.95,
         )
         sim = SkippAlgoSim(cfg)
         r = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
-        self.assertEqual(r.rev_buy_min_prob_floor, 0.0)
+        self.assertEqual(r.rev_buy_min_prob_floor, 0.25)
         self.assertTrue(r.prob_ok_global)
         self.assertTrue(r.did_buy)
 

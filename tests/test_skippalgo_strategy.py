@@ -131,7 +131,10 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_trend_regime_block_present(self):
         """Catch missing trendUp/trendDn definitions (undeclared identifiers)."""
-        self.assertIn("atrNormHere = atr / math.max(close, 0.0001)", self.text)
+        self.assertTrue(
+            "atrNormHere = atr / math.max(close, 0.0001)" in self.text or
+            "atrNormHere = atr / math.max(close, PRICE_EPS)" in self.text
+        )
         self.assertTrue(
             "trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)" in self.text or
             "trendReg = f_trend_regime(emaF, emaS, atrNormHere)" in self.text
@@ -175,9 +178,10 @@ class TestSkippAlgoStrategy(unittest.TestCase):
             "f_sum_int_array(cntN_sel)" in self.text or
             "f_sum_int_array(cntN)" in self.text
         )
+        # Token-budget strategy mode may prune legacy cnt1 total computation.
         self.assertTrue(
-            "f_sum_int_array(cnt1_sel)" in self.text or
-            "f_sum_int_array(cnt1)" in self.text
+            ("f_sum_int_array(cnt1_sel)" in self.text or "f_sum_int_array(cnt1)" in self.text)
+            or ("f_get_total_samples(tfSel," in self.text)
         )
 
         # Ensure loop uses f_get_total_samples and forecastAllowed gate
@@ -186,15 +190,11 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         self.assertIn("reliabilityOk", self.text)
         self.assertIn("evidenceOk", self.text)
 
-    def test_new_risk_features_exist(self):
-        """Ensure Breakeven, Stalemate, and Session Filter inputs are present."""
-        self.assertIn("useBreakeven =", self.text)
-        self.assertIn("useStalemate =", self.text)
+    def test_session_filter_and_entry_bar_tracking_exist(self):
+        """Ensure session filter and core entry tracking remain present in token-budget strategy build."""
         self.assertIn("openWindowBypassEntries", self.text)
         
-        # Ensure logic variables are initialized
-        self.assertIn("isBeHit :=", self.text)
-        self.assertRegex(self.text, r"staleExit\s*=")
+        # Ensure core entry tracking variable remains
         self.assertRegex(self.text, r"enBar\s*=")
 
     def test_abstain_override_conf_parity(self):

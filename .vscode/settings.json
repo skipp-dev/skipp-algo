@@ -1,3 +1,28 @@
 {
-    "CodeGPT.apiKey": "Github Copilot"
+    "CodeGPT.apiKey": "Github Copilot",
+    "editor.experimentalGpuAcceleration": "on",
+    "chat.useNestedAgentsMdFiles": true,
+    "chat.viewProgressBadge.enabled": true,
+    "inlineChat.notebookAgent": true,
+    "chat.tools.terminal.ignoreDefaultAutoApproveRules": true,
+    "chat.tools.terminal.autoReplyToPrompts": true,
+    "chat.restoreLastPanelSession": true,
+    "chat.mcp.discovery.enabled": {
+        "claude-desktop": true,
+        "windsurf": true,
+        "cursor-global": true,
+        "cursor-workspace": true
+    },
+    "chat.mcp.gallery.enabled": true,
+    "chat.mcp.assisted.nuget.enabled": true,
+    "chat.edits2.enabled": false,
+    "chat.experimental.useSkillAdherencePrompt": true,
+    "chat.customAgentInSubagent.enabled": true,
+    "chat.checkpoints.showFileChanges": true,
+    "chat.alternativeToolAction.enabled": true,
+    "chat.allowAnonymousAccess": true,
+    "chat.agentSessionProjection.enabled": true,
+    "notebook.formatOnSave.enabled": true,
+    "workbench.editor.highlightModifiedTabs": true,
+    "genieai.enableConversationHistory": true
 }

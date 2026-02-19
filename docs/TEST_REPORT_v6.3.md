@@ -70,7 +70,7 @@ Validated the latest USI-related updates in indicator and strategy parity:
    * Score merge updated to hybrid mode in both scripts:
      * `buySignal := (buySignal or scoreBuy) and not chopVeto`
      * `shortSignal := (shortSignal or scoreShort) and not chopVeto`
-   * `chopVeto` defined consistently as `isChop and (wChopPenalty < 0)`.
+   * `scoreChopVeto` defined consistently from `chopRisk` and penalty/veto settings.
    * Added directional-context hardening input `scoreRequireDirectionalContext` (default ON), applied in both scripts before score injection.
    * Debug output now shows `veto:0/1`, `ctxL:0/1`, `ctxS:0/1`, and explicit `BLOCK:...` reason in both scripts for direct blocker visibility.
 

@@ -70,6 +70,27 @@ class TestEntryGuardReachability(unittest.TestCase):
         self.assertTrue(result.did_buy, "should execute BUY")
         self.assertEqual(result.pos_after, 1, "pos should be LONG")
 
+    def test_rev_buy_bypasses_global_score_floor(self):
+        """REV-BUY remains valid even when global score pU floor fails."""
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            model_global_score_floor=True,
+            enforce_global_prob_floor=True,
+            score_min_pu=0.80,
+            p_u=0.55,
+            rev_min_prob=0.50,
+            vol_ok=True,
+            macro_gate_long=True,
+            dd_ok=True,
+        )
+        sim = SkippAlgoSim(cfg)
+        result = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
+
+        self.assertFalse(result.hard_long_prob_ok, "global score floor should fail")
+        self.assertTrue(result.rev_buy_global, "REV-BUY should still pass reversal gates")
+        self.assertTrue(result.did_buy, "REV-BUY must bypass global score floor")
+
     def test_reversal_bypass_short_when_allowentry_false(self):
         """Same test for SHORT direction."""
         cfg = SimConfig(
@@ -146,6 +167,24 @@ class TestEntryGuardReachability(unittest.TestCase):
         self.assertTrue(result.allow_entry)
         self.assertTrue(result.entry_block_reached)
         self.assertTrue(result.did_buy)
+
+    def test_non_reversal_buy_blocked_by_global_score_floor(self):
+        """Non-reversal BUY is blocked when global score pU floor fails."""
+        cfg = SimConfig(
+            engine="Hybrid",
+            hybrid_long_trigger=True,
+            allow_neural_reversals=False,
+            model_global_score_floor=True,
+            enforce_global_prob_floor=True,
+            score_min_pu=0.80,
+            p_u=0.40,
+        )
+        sim = SkippAlgoSim(cfg)
+        result = sim.process_bar(Bar(), BarSignals())
+
+        self.assertFalse(result.hard_long_prob_ok, "global score floor should fail")
+        self.assertFalse(result.rev_buy_global, "no reversal path in this scenario")
+        self.assertFalse(result.did_buy, "non-reversal BUY should be blocked by global score floor")
 
     def test_rescue_path_works(self):
         """Impulse candle bypasses allowEntry."""
@@ -642,6 +681,110 @@ class TestCooldownBehavior(unittest.TestCase):
         # After cooldown expires
         r_after = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
         self.assertTrue(r_after.did_buy, "should re-enter after cooldown expires")
+
+
+class TestEntriesOnlyUsiFlipBehavior(unittest.TestCase):
+    """Scenario tests for EntriesOnly hold behavior on USI-FLIP exits."""
+
+    def test_long_usi_flip_blocked_until_hold_expires(self):
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            cooldown_triggers="EntriesOnly",
+            cooldown_mode="Bars",
+            cooldown_bars=3,
+            exit_grace_bars=0,
+            p_u=0.60,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        # Enter LONG via reversal
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
+        self.assertTrue(r0.did_buy)
+
+        # During hold window: USI-FLIP must be blocked
+        for i in range(1, 4):
+            r = sim.process_bar(Bar(), BarSignals(usi_exit_long=True))
+            self.assertTrue(r.entry_only_exit_hold_active, f"bar {i}: hold should be active")
+            self.assertFalse(r.did_exit, f"bar {i}: USI-FLIP must be blocked during hold")
+
+        # After hold expires: USI-FLIP may exit
+        r4 = sim.process_bar(Bar(), BarSignals(usi_exit_long=True))
+        self.assertFalse(r4.entry_only_exit_hold_active)
+        self.assertTrue(r4.did_exit, "USI-FLIP should exit after hold expires")
+        self.assertEqual(r4.exit_reason, "USI-Flip")
+
+    def test_short_usi_flip_blocked_until_hold_expires(self):
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            cooldown_triggers="EntriesOnly",
+            cooldown_mode="Bars",
+            cooldown_bars=3,
+            exit_grace_bars=0,
+            p_d=0.60,
+            enable_shorts=True,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        # Enter SHORT via reversal
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_short=True))
+        self.assertTrue(r0.did_short)
+
+        # During hold window: USI-FLIP must be blocked
+        for i in range(1, 4):
+            r = sim.process_bar(Bar(), BarSignals(usi_exit_short=True))
+            self.assertTrue(r.entry_only_exit_hold_active, f"bar {i}: hold should be active")
+            self.assertFalse(r.did_cover, f"bar {i}: USI-FLIP must be blocked during hold")
+
+        # After hold expires: USI-FLIP may cover
+        r4 = sim.process_bar(Bar(), BarSignals(usi_exit_short=True))
+        self.assertFalse(r4.entry_only_exit_hold_active)
+        self.assertTrue(r4.did_cover, "USI-FLIP should cover after hold expires")
+        self.assertEqual(r4.exit_reason, "USI-Flip")
+
+    def test_entriesonly_exceptions_still_allowed_during_hold(self):
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            cooldown_triggers="EntriesOnly",
+            cooldown_mode="Bars",
+            cooldown_bars=3,
+            exit_grace_bars=0,
+            p_u=0.60,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
+        self.assertTrue(r0.did_buy)
+
+        # SL/TP exceptions should bypass hold immediately
+        r1 = sim.process_bar(Bar(), BarSignals(risk_hit=True, risk_msg="SL"))
+        self.assertTrue(r1.entry_only_exit_hold_active)
+        self.assertTrue(r1.did_exit, "SL exception should be allowed during hold")
+        self.assertEqual(r1.exit_reason, "SL")
+
+    def test_entriesonly_short_exceptions_still_allowed_during_hold(self):
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            cooldown_triggers="EntriesOnly",
+            cooldown_mode="Bars",
+            cooldown_bars=3,
+            exit_grace_bars=0,
+            p_d=0.60,
+            enable_shorts=True,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_short=True))
+        self.assertTrue(r0.did_short)
+
+        # SL/TP exceptions should bypass hold immediately on short side as well
+        r1 = sim.process_bar(Bar(), BarSignals(risk_hit=True, risk_msg="SL"))
+        self.assertTrue(r1.entry_only_exit_hold_active)
+        self.assertTrue(r1.did_cover, "SL exception should be allowed during short hold")
+        self.assertEqual(r1.exit_reason, "SL")
 
 
 class TestStrictEventBehavior(unittest.TestCase):

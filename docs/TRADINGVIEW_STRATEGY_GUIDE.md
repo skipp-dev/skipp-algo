@@ -1,7 +1,7 @@
 # Getting Started with SkippALGO Strategy in TradingView
 
-**Date:** 15 Feb 2026
-**Version:** v6.3.8
+**Date:** 17 Feb 2026
+**Version:** v6.3.13
 
 ## Introduction
 
@@ -74,6 +74,46 @@ You can enable a de-lagged Red line (Line5) without changing all USI lines:
 
 Recommended starting point for live A/B testing: **75%** aggressiveness.
 
+Fast scalping preset (aggressive USI verify):
+
+* `USI Aggressive: same-bar verify = ON`
+* `USI Aggressive: verify 1-of-3 = ON`
+* `USI Aggressive: tight-spread votes = ON` (optional; relaxes strict tight-spread Hold+Continuation)
+* `Hardened Hold (L5 > L4) = OFF`
+
+Optional profile for earlier entries:
+
+* `Entry behavior profile = Scalp Early (v6.3.12-fast)`
+  * lowers score thresholds,
+  * slightly lowers probability/ChoCH thresholds,
+  * disables score confidence hard-gate for faster confirmation timing.
+
+### B.1) Faster ChoCH detection (Strategy parity)
+
+ChoCH timing controls are now available in the Strategy exactly like in the Indicator:
+
+* `ChoCH signal mode`:
+  * `Ping (Fast)` = immediate structure ping,
+  * `Verify (Safer)` = requires one-bar confirmation,
+  * `Ping+Verify` = accepts either.
+* `Show ChoCH Ping markers` adds `?` ping markers on chart for visual timing checks.
+
+New fast presets:
+
+* `ChoCH Scalp Fast preset`
+  * forces `Breakout Source = Wick`,
+  * forces `ChoCH signal mode = Ping (Fast)`,
+  * uses effective `swingR = max(swingR, 1)`.
+* `ChoCH Fast+Safer preset`
+  * forces `Breakout Source = Wick`,
+  * forces `ChoCH signal mode = Ping+Verify`,
+  * uses effective `swingR = max(swingR, 1)`.
+
+HUD note:
+
+* the Strategy eval HUD now shows active ChoCH runtime mode, for example:
+  * `ChoCH=Fast (Ping (Fast),Wick,R=1)`.
+
 ### C) USI touch-based flip sensitivity improved
 
 USI flip detection around Red-vs-Blue/Envelope transitions now handles practical touch behavior more reliably (not only hard visual separation), improving exit timing on fast transitions.
@@ -87,6 +127,12 @@ Score integration now runs in hybrid mode:
 * Optional directional context hardening is available via `scoreRequireDirectionalContext` (default ON):
   * score BUY injection requires bullish context,
   * score SHORT injection requires bearish context.
+
+Global score-probability floor note:
+
+* `Enforce score min pU/pD on all entries` does **not** block `REV-BUY`.
+* `REV-BUY` keeps its dedicated reversal probability gates (`revMinProb` + reversal/open-window path logic).
+* Practical note: if `revMinProb` is already above your score `min pU`, toggling the score floor may appear to have no visible impact on `REV-BUY`.
 
 For diagnostics, score debug output now includes:
 
@@ -121,6 +167,42 @@ Cooldown timestamp updates now occur again on real exit events:
 
 * If `cooldownTriggers = ExitsOnly` or `AllSignals`, EXIT/COVER events update the cooldown timer.
 * This applies symmetrically to LONG and SHORT handling.
+
+Available cooldown trigger modes:
+
+* `ExitsOnly` (default): timer updates on EXIT/COVER.
+* `AllSignals`: timer updates on BUY/SHORT/EXIT/COVER.
+* `EntriesOnly`: timer updates only on BUY/SHORT.
+
+Indicator setting parity note:
+
+* `SkippALGO.pine` now exposes both same-bar re-entry toggles:
+  * `Allow same-bar BUY after COVER`
+  * `Allow same-bar SHORT after EXIT`
+
+Execution-order note (important for live expectations):
+
+* The runtime processes **exits first**, then **entries** on each confirmed bar.
+* Therefore, a freshly opened `BUY`/`SHORT` on bar $N$ cannot be exited on the same bar $N$ by this state machine.
+* In `EntriesOnly` mode with `cooldownBars >= 1`, the strategy enforces one full-bar hold after entry for generic exits.
+* For `cooldownBars = 1`, earliest possible generic `EXIT` is bar $N+2$.
+* Exceptions in `EntriesOnly`: `EXIT SL` and `COVER` can fire immediately after entry.
+
+Concrete example (your setup):
+
+* `cooldownBars = 1`
+* `cooldownTriggers = EntriesOnly`
+* `Allow same-bar BUY after COVER = true`
+* `Allow same-bar SHORT after EXIT = true`
+
+Behavior timeline:
+
+1. Bar $N$: `BUY` fires and opens long.
+1. Bar $N+1$: generic `EXIT` is still blocked by the one-full-bar hold rule.
+1. Cooldown stamping with `EntriesOnly` happens only on `BUY`/`SHORT`, not on `EXIT`/`COVER`.
+1. With `cooldownBars = 1` and checks `bar_index - enBar > 1` (generic exit hold) and `bar_index - lastSignalBar > 1` (entry cooldown), bar $N+1$ is blocked for generic exits and new entries, while bar $N+2$ allows both again.
+1. If Stop Loss is hit, `EXIT SL` is allowed immediately even during that hold window; short-side `COVER` is also allowed immediately.
+1. If an `EXIT`/`COVER` and opposite entry condition coincide on the same bar, the same-bar toggles allow immediate flip (`COVER → BUY`, `EXIT → SHORT`) as configured.
 
 ### G) Optional dynamic TP expansion
 
@@ -205,3 +287,45 @@ To keep the strategy safely under Pine compile-token limits, strategy-side visua
 * table rendering in `SkippALGO_Strategy.pine` was removed (visual-only).
 
 Important: signal generation, risk logic, and Indicator ⇄ Strategy parity for decision paths remain unchanged.
+
+### L) Preset: Intrabar labels (repainting ON)
+
+Use this preset when you intentionally want BUY/EXIT and SHORT/COVER labels before candle close (realtime preview behavior):
+
+* `Alerts: bar close only = false`
+* `Show Long labels (BUY / EXIT) = true`
+* `Show Short labels (SHORT / COVER) = true`
+* `Show PRE labels (PRE-BUY / PRE-SHORT) = true`
+
+Notes:
+
+* This mode is intentionally intrabar/repainting and may differ from close-confirmed outcomes.
+* Preview labels are realtime-only; historical bars still reflect confirmed logic.
+
+### M) Sideways/Chop semantics (naming + intent)
+
+To avoid confusion, the codebase now treats three concepts separately:
+
+* `sidewaysVisual` (UX / chart visibility)
+
+* Purpose: chart dots + consolidation alert wording.
+* It is a visual state, not a direct entry gate.
+* In the **indicator**, this visual state uses hysteresis so consolidation is less “sticky”.
+* In the **strategy**, the same hysteresis model is now applied for consolidation alert state parity.
+
+* `chopRisk` (score risk shaping)
+
+* Purpose: apply chop penalty and optional score-veto behavior.
+* Scope: score engine quality control (`scoreL/scoreS`, optional veto path).
+* Not the same as visual consolidation dots.
+
+* `usiTightSpread` (USI verify strictness)
+
+* Purpose: make QP verify logic stricter when spread compression is detected.
+* Scope: USI Fast+Verify step only (verification strictness), not the global consolidation state.
+
+Practical takeaway:
+
+* If you see long consolidation dots, inspect `sidewaysVisual` tuning.
+* If score entries are reduced, inspect `chopRisk` / score veto settings.
+* If QP entries feel stricter/looser, inspect `usiTightSpread` drivers (`usiTightFactor`, `usiSpreadLookback`).
