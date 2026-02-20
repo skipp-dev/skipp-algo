@@ -23,7 +23,7 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
     }
     distances = {name: round(atr * mult, 4) for name, mult in multipliers.items()}
 
-    stop_reference_source = "none"
+    stop_reference_source: str | None = None
     stop_reference_price = 0.0
     for field in ("entry_price", "vwap", "price"):
         candidate = _to_float(row.get(field), default=0.0)
@@ -47,7 +47,7 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
         "unit": "price_distance",
         "multipliers": multipliers,
         "distances": distances,
-        "stop_reference_source": stop_reference_source,
+        "stop_reference_source": stop_reference_source,  # field name or None
         "stop_reference_price": round(stop_reference_price, 4) if stop_reference_price > 0.0 else None,
         "stop_prices": stop_prices,
         "note": (
@@ -62,7 +62,9 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _setup_type_from_bias(bias: float) -> str:
+def _setup_type_from_bias(bias: float, allowed_setups: list[str] | None = None) -> str:
+    if allowed_setups and "orb" not in allowed_setups and "gap_go" not in allowed_setups:
+        return "VWAP-Reclaim only"
     if bias >= 0.25:
         return "ORB / Gap&Go"
     if bias <= -0.25:
@@ -70,7 +72,9 @@ def _setup_type_from_bias(bias: float) -> str:
     return "ORB or VWAP-Hold"
 
 
-def _risk_note_from_bias(bias: float) -> str:
+def _risk_note_from_bias(bias: float, allowed_setups: list[str] | None = None) -> str:
+    if allowed_setups and "orb" not in allowed_setups and "gap_go" not in allowed_setups:
+        return "macro_risk_off_extreme: only reclaim setups allowed."
     if bias >= 0.25:
         return "Risk-on day: allow momentum continuation entries."
     if bias <= -0.25:
@@ -85,13 +89,15 @@ def build_trade_cards(
 ) -> list[dict[str, Any]]:
     """Create deterministic trade cards suitable for human or LLM refinement."""
     cards: list[dict[str, Any]] = []
-    setup_type = _setup_type_from_bias(bias)
-    bias_note = _risk_note_from_bias(bias)
 
     for row in ranked_candidates[:top_n]:
         symbol = str(row.get("symbol", ""))
         if not symbol:
             continue
+
+        allowed_setups = row.get("allowed_setups")
+        setup_type = _setup_type_from_bias(bias, allowed_setups)
+        bias_note = _risk_note_from_bias(bias, allowed_setups)
 
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)
         if gap_pct >= 1.0:
@@ -119,6 +125,8 @@ def build_trade_cards(
                     "rel_volume": row.get("rel_volume"),
                     "long_allowed": bool(row.get("long_allowed", True)),
                     "no_trade_reason": row.get("no_trade_reason", []),
+                    "allowed_setups": allowed_setups,
+                    "max_trades": row.get("max_trades", 2),
                     "note": bias_note,
                 },
             }

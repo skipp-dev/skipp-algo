@@ -72,13 +72,26 @@ def rank_candidates(
         score -= risk_off_penalty_component
 
         no_trade_reason: list[str] = []
+        allowed_setups = ["orb", "gap_go", "vwap_reclaim", "hod_reclaim"]
+        max_trades = 2
+        data_sufficiency_low = False
+
         if price < 5.0:
             no_trade_reason.append("price_below_5")
         if bias <= -0.75:
             no_trade_reason.append("macro_risk_off_extreme")
+            allowed_setups = ["vwap_reclaim"]
+            max_trades = 1
+            if rel_vol <= 0.0:
+                no_trade_reason.append("missing_rvol")
+                data_sufficiency_low = True
         if gap_pct <= -8.0:
             no_trade_reason.append("severe_gap_down")
-        long_allowed = len(no_trade_reason) == 0
+        
+        long_allowed = not any(
+            r in no_trade_reason
+            for r in ["price_below_5", "severe_gap_down", "missing_rvol"]
+        )
 
         ranked.append(
             {
@@ -93,6 +106,13 @@ def rank_candidates(
                 "rel_volume_capped": round(rel_vol_capped, 4),
                 "macro_bias": round(bias, 4),
                 "news_catalyst_score": round(news_score, 4),
+                "allowed_setups": allowed_setups,
+                "max_trades": max_trades,
+                "data_sufficiency": {
+                    "low": data_sufficiency_low,
+                    "avg_volume_missing": avg_volume <= 0.0,
+                    "rel_volume_missing": rel_vol <= 0.0,
+                },
                 "score_breakdown": {
                     "gap_component": round(gap_component, 4),
                     "rvol_component": round(rvol_component, 4),

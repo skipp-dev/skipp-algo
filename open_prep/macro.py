@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 import json
 import os
 import re
@@ -84,6 +83,39 @@ MID_IMPACT_MACRO_NAME_PATTERNS: tuple[tuple[str, ...], ...] = (
 MID_IMPACT_EXCLUDE_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("cftc",),
     ("speculative", "net", "positions"),
+)
+
+FORCED_HIGH_IMPACT_CANONICAL_KEYS: set[str] = {
+    "core_pce_mom",
+    "core_cpi_mom",
+    "core_ppi_mom",
+    "cpi_mom",
+    "ppi_mom",
+    "cpi",
+    "core_cpi",
+    "ppi",
+    "core_ppi",
+    "nfp",
+    "unemployment",
+    "hourly_earnings",
+    "jobless_claims",
+    "jolts",
+    "ism",
+    "philly_fed",
+    "gdp_qoq",
+    "retail_sales",
+}
+
+FORCED_MID_IMPACT_CANONICAL_KEYS: set[str] = {
+    "pce_mom",
+    "pmi_sp_global",
+}
+
+CONSENSUS_FIELD_CANDIDATES: tuple[str, ...] = (
+    "consensus",
+    "estimate",
+    "forecast",
+    "expected",
 )
 
 
@@ -220,7 +252,116 @@ class FMPClient:
         return [item for item in data if isinstance(item, dict)]
 
 
-@functools.lru_cache(maxsize=512)
+CANONICAL_EVENT_PATTERNS = [
+    ("core_pce_mom", [r"\bcore\b", r"\bpce\b", r"\bmom\b"]),
+    ("pce_mom",      [r"(?<!core )\bpce\b", r"\bmom\b"]),
+    # YoY PCE entries must come AFTER the MoM entries so the longer/more-specific
+    # MoM patterns have priority when both "mom" and "yoy" appear in the same name.
+    ("core_pce_yoy", [r"\bcore\b", r"\bpce\b", r"\byoy\b"]),
+    ("pce_yoy",      [r"(?<!core )\bpce\b", r"\byoy\b"]),
+    ("gdp_qoq",      [r"\bgdp\b|\bgross domestic product\b", r"\bqoq\b"]),
+    ("jobless_claims", [r"\bjobless\b|\binitial claims\b|\bcontinuing claims\b"]),
+    ("philly_fed",   [r"\bphiladelphia\b|\bphilly\b", r"\bfed\b"]),
+    ("pmi_sp_global", [r"\bs&p\b|\bs and p\b", r"\bglobal\b", r"\bpmi\b"]),
+    ("ism",          [r"\bism\b"]),
+    ("retail_sales", [r"\bretail\b", r"\bsales\b"]),
+    ("cpi_mom",      [r"(?<!core )\bcpi\b", r"\bmom\b"]),
+    ("core_cpi_mom", [r"\bcore\b", r"\bcpi\b", r"\bmom\b"]),
+    ("ppi_mom",      [r"(?<!core )\bppi\b", r"\bmom\b"]),
+    ("core_ppi_mom", [r"\bcore\b", r"\bppi\b", r"\bmom\b"]),
+    ("cpi",          [r"(?<!core )\bcpi\b"]),
+    ("core_cpi",     [r"\bcore\b", r"\bcpi\b"]),
+    ("ppi",          [r"(?<!core )\bppi\b"]),
+    ("core_ppi",     [r"\bcore\b", r"\bppi\b"]),
+    ("nfp",          [r"\bnonfarm\b", r"\bpayroll\b"]),
+    ("unemployment", [r"\bunemployment\b", r"\brate\b"]),
+    ("hourly_earnings", [r"\baverage\b", r"\bhourly\b", r"\bearnings\b"]),
+    ("jolts",        [r"\bjolts\b|\bjob openings\b"]),
+]
+
+def canonicalize_event_name(raw: str) -> str | None:
+    name = _normalize_event_name(raw)
+    for key, pats in CANONICAL_EVENT_PATTERNS:
+        if all(re.search(p, name) for p in pats):
+            return key
+    return None
+
+def _impact_rank(v: str | None) -> int:
+    v = (v or "").lower()
+    return {"high": 3, "medium": 2, "mid": 2, "moderate": 2, "low": 1}.get(v, 0)
+
+
+def get_consensus(event: dict[str, Any]) -> tuple[Any, str | None]:
+    for field in CONSENSUS_FIELD_CANDIDATES:
+        value = event.get(field)
+        if value is not None:
+            return value, field
+    return None, None
+
+
+def _annotate_event_quality(event: dict[str, Any], actual: Any, consensus: Any, consensus_field: str | None) -> dict[str, Any]:
+    """Return quality annotations without mutating the original event dict."""
+    flags: list[str] = []
+    if actual is None:
+        flags.append("missing_actual")
+    if consensus is None:
+        flags.append("missing_consensus")
+    if not event.get("unit"):
+        flags.append("missing_unit")
+
+    return {"consensus_field": consensus_field, "data_quality_flags": flags}
+
+def dedupe_events(events: list[dict]) -> list[dict]:
+    buckets: dict[tuple[str, str, str], list[dict]] = {}
+    passthrough: list[dict] = []
+    for e in events:
+        country = e.get("country")
+        date = e.get("date", "1970-01-01") # Fallback for tests
+        raw_name = e.get("event") or e.get("name") or ""
+        key = canonicalize_event_name(raw_name)
+        if not country:
+            continue
+        if not key:
+            # Non-canonical events (e.g. Consumer Sentiment, Housing Starts)
+            # are passed through unchanged so downstream mid-impact filters
+            # and scoring can still see them.
+            passthrough.append(e)
+            continue
+        buckets.setdefault((country, date, key), []).append(e)
+
+    out = []
+    for k, items in buckets.items():
+        if len(items) == 1:
+            single = dict(items[0])  # copy to avoid mutating caller's dict
+            single["canonical_event"] = k[2]
+            out.append(single)
+            continue
+
+        def quality(e: dict) -> tuple:
+            actual = e.get("actual")
+            cons, _ = get_consensus(e)
+            return (
+                _impact_rank(e.get("impact")),
+                1 if actual is not None else 0,
+                1 if cons is not None else 0,
+                e.get("event", "")
+            )
+
+        sorted_items = sorted(items, key=quality, reverse=True)
+        chosen = sorted_items[0]
+        chosen = dict(chosen)  # copy
+        chosen["canonical_event"] = k[2]
+        chosen["dedup"] = {
+            "was_deduped": True,
+            "duplicates_count": len(items),
+            "duplicates": [i.get("event") for i in items],
+            "chosen_event": chosen.get("event") or chosen.get("name"),
+            "policy": "impact_then_fields_then_name",
+        }
+        out.append(chosen)
+
+    return out + passthrough
+
 def _normalize_event_name(name: str) -> str:
     lowered = name.lower()
     lowered = lowered.replace("&", " and ")
@@ -284,7 +425,11 @@ def filter_us_high_impact_events(events: list[dict[str, Any]]) -> list[dict[str,
     for event in filter_us_events(events):
         impact_level = _event_impact_level(event)
         name = str(event.get("event") or event.get("name") or "")
+        canonical_key = canonicalize_event_name(name)
         if impact_level in HIGH_IMPACT_LEVELS:
+            out.append(event)
+            continue
+        if canonical_key in FORCED_HIGH_IMPACT_CANONICAL_KEYS and impact_level != "low":
             out.append(event)
             continue
         if not impact_level and _is_high_impact_event_name(name, watchlist=DEFAULT_HIGH_IMPACT_EVENTS):
@@ -298,13 +443,23 @@ def _event_impact_level(event: dict[str, Any]) -> str:
 
 
 def filter_us_mid_impact_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """US-only subset for medium-impact releases based on provider impact tags."""
+    """Mid-impact US event subset based on provider impact tags and name patterns.
+
+    Expects pre-filtered US events (e.g. output of filter_us_events / dedupe_events).
+    No additional US country check is applied here; callers are responsible for
+    passing US-scoped events.
+    """
     out: list[dict[str, Any]] = []
-    for event in filter_us_events(events):
+    for event in events:
+        name = str(event.get("event") or event.get("name") or "")
+        canonical_key = canonicalize_event_name(name)
+        if canonical_key in FORCED_MID_IMPACT_CANONICAL_KEYS:
+            out.append(event)
+            continue
+
         if _event_impact_level(event) not in MID_IMPACT_LEVELS:
             continue
 
-        name = str(event.get("event") or event.get("name") or "")
         normalized_name = _normalize_event_name(name)
 
         if any(_contains_keywords(normalized_name, p) for p in MID_IMPACT_EXCLUDE_PATTERNS):
@@ -315,7 +470,197 @@ def filter_us_mid_impact_events(events: list[dict[str, Any]]) -> list[dict[str, 
     return out
 
 
-def macro_bias_score(events: list[dict[str, Any]], include_mid_if_no_high: bool = True) -> float:
+def _events_for_bias(
+    events: list[dict[str, Any]],
+    include_mid_if_no_high: bool,
+    include_headline_pce_confirm: bool = True,
+) -> list[dict[str, Any]]:
+    # Canonicalize+dedupe first across the full US event set so duplicates that
+    # straddle provider impact buckets cannot slip through.
+    us_events = dedupe_events(filter_us_events(events))
+
+    high_impact_events = filter_us_high_impact_events(us_events)
+    events_for_bias = list(high_impact_events)
+    if include_mid_if_no_high and not high_impact_events:
+        events_for_bias = filter_us_mid_impact_events(us_events)
+
+    # Always include headline PCE as a lightweight confirm/check signal,
+    # even when high-impact events are present.
+    if include_headline_pce_confirm:
+        existing_keys = {
+            (
+                str(e.get("country") or ""),
+                str(e.get("date") or ""),
+                str(e.get("canonical_event") or ""),
+            )
+            for e in events_for_bias
+        }
+        for event in us_events:
+            if event.get("canonical_event") != "pce_mom":
+                continue
+            key = (
+                str(event.get("country") or ""),
+                str(event.get("date") or ""),
+                str(event.get("canonical_event") or ""),
+            )
+            if key in existing_keys:
+                continue
+            events_for_bias.append(event)
+            existing_keys.add(key)
+
+    return events_for_bias
+
+
+def macro_bias_with_components(
+    events: list[dict[str, Any]],
+    include_mid_if_no_high: bool = True,
+    include_headline_pce_confirm: bool = True,
+) -> dict[str, Any]:
+    score = 0.0
+    components: list[dict[str, Any]] = []
+    # Make independent copies of every event so that:
+    #  (a) passthrough events (non-canonical, appended by-reference in dedupe_events)
+    #      do not get mutated from the caller's perspective, and
+    #  (b) downstream consumers of macro_analysis["events_for_bias"] (e.g. the BEA
+    #      audit) receive events that already carry computed data_quality_flags.
+    events_for_bias = [dict(e) for e in _events_for_bias(
+        events,
+        include_mid_if_no_high=include_mid_if_no_high,
+        include_headline_pce_confirm=include_headline_pce_confirm,
+    )]
+
+    for event in events_for_bias:
+        raw_name = str(event.get("event") or event.get("name") or "")
+        name = _normalize_event_name(raw_name)
+        canonical_key = event.get("canonical_event")
+        actual = event.get("actual")
+        consensus, consensus_field = get_consensus(event)
+        quality = _annotate_event_quality(event, actual=actual, consensus=consensus, consensus_field=consensus_field)
+        # Annotate the (already-copied) event so that downstream consumers
+        # such as build_bea_audit_payload can read data_quality_flags directly.
+        event["data_quality_flags"] = quality["data_quality_flags"]
+        event["consensus_field"] = quality["consensus_field"]
+
+        component: dict[str, Any] = {
+            "date": event.get("date"),
+            "country": event.get("country"),
+            "event": raw_name,
+            "canonical_event": canonical_key,
+            "impact": event.get("impact", event.get("importance", event.get("priority"))),
+            "actual": actual,
+            "consensus_value": consensus,
+            "consensus_field": consensus_field,
+            "surprise": None,
+            "weight": 0.0,
+            "contribution": 0.0,
+            "skip_reason": None,
+            "data_quality_flags": quality["data_quality_flags"],
+            "dedup": event.get("dedup"),
+        }
+
+        if actual is None or consensus is None:
+            component["skip_reason"] = "missing_actual_or_consensus"
+            components.append(component)
+            continue
+
+        try:
+            surprise = float(actual) - float(consensus)
+        except (TypeError, ValueError):
+            component["skip_reason"] = "non_numeric_actual_or_consensus"
+            components.append(component)
+            continue
+
+        component["surprise"] = round(surprise, 6)
+
+        if surprise == 0.0:
+            component["skip_reason"] = "on_consensus"
+            components.append(component)
+            continue
+
+        weight = 0.0
+        sign = 0.0
+
+        if canonical_key in (
+            "core_pce_mom",
+            "cpi_mom",
+            "core_cpi_mom",
+            "ppi_mom",
+            "core_ppi_mom",
+            "cpi",
+            "core_cpi",
+            "ppi",
+            "core_ppi",
+        ):
+            weight = 1.0
+            sign = -1.0 if surprise > 0 else +1.0
+        elif canonical_key in ("pce_mom", "pce_yoy", "core_pce_yoy"):
+            # Headline PCE MoM and YoY variants carry reduced weight.
+            # MoM is the primary Fed-watch print; YoY is derived from the same data.
+            weight = 0.25
+            sign = -1.0 if surprise > 0 else +1.0
+        elif canonical_key == "hourly_earnings" or "average hourly earnings" in name:
+            weight = 0.5
+            sign = -1.0 if surprise > 0 else +1.0
+        elif canonical_key == "unemployment" or "unemployment rate" in name:
+            weight = 0.5
+            sign = -1.0 if surprise > 0 else +1.0
+        elif canonical_key == "jobless_claims" or "jobless claims" in name or "initial claims" in name:
+            weight = 0.5
+            sign = -1.0 if surprise > 0 else +1.0
+        elif canonical_key == "jolts" or "jolts" in name or "job openings" in name:
+            weight = 0.5
+            sign = +1.0 if surprise > 0 else -1.0
+        elif canonical_key == "pmi_sp_global" or (
+            "pmi" in name and ("s p global" in name or "s and p global" in name)
+        ):
+            weight = 0.25
+            sign = +1.0 if surprise > 0 else -1.0
+        elif canonical_key in ("ism", "philly_fed") or "philadelphia fed" in name or "philly fed" in name or "ism" in name:
+            weight = 0.5
+            sign = +1.0 if surprise > 0 else -1.0
+        elif canonical_key == "nfp" or "nonfarm payroll" in name:
+            weight = 0.5
+            sign = +1.0 if surprise > 0 else -1.0
+        elif canonical_key in ("retail_sales", "gdp_qoq") or "retail sales" in name or (
+            "gdp" in name and "gdpnow" not in name
+        ):
+            weight = 0.5
+            sign = +1.0 if surprise > 0 else -1.0
+        elif any(_contains_keywords(name, p) for p in MID_IMPACT_MACRO_NAME_PATTERNS):
+            weight = 0.25
+            sign = +1.0 if surprise > 0 else -1.0
+        elif canonical_key is None and ("ppi" in name or "cpi" in name or "pce" in name):
+            # Non-canonical inflation variants (e.g. CPI YoY, PCE YoY) get
+            # reduced weight — the MoM prints already carry full 1.0 weight
+            # and YoY is derived from the same underlying data.
+            weight = 0.25
+            sign = -1.0 if surprise > 0 else +1.0
+        else:
+            component["skip_reason"] = "unmapped_event"
+            components.append(component)
+            continue
+
+        contribution = sign * weight
+        score += contribution
+
+        component["weight"] = weight
+        component["contribution"] = round(contribution, 6)
+        components.append(component)
+
+    normalized = max(-1.0, min(1.0, score / 2.0))
+    return {
+        "macro_bias": normalized,
+        "raw_score": score,
+        "events_for_bias": events_for_bias,
+        "score_components": components,
+    }
+
+
+def macro_bias_score(
+    events: list[dict[str, Any]],
+    include_mid_if_no_high: bool = True,
+    include_headline_pce_confirm: bool = True,
+) -> float:
     """Return bias in range [-1, 1], where +1 means risk-on and -1 risk-off.
 
     Scoring weights:
@@ -331,81 +676,10 @@ def macro_bias_score(events: list[dict[str, Any]], include_mid_if_no_high: bool 
     Dividing by 2.0 normalises the range so a CPI + PPI double-beat saturates
     the output at +1.0 / -1.0 without overflow for typical trading days.
     """
-    score = 0.0
-
-    high_impact_events = filter_us_high_impact_events(events)
-    events_for_bias = high_impact_events
-    if include_mid_if_no_high and not high_impact_events:
-        events_for_bias = filter_us_mid_impact_events(events)
-
-    for event in events_for_bias:
-        raw_name = str(event.get("event") or event.get("name") or "")
-        # Normalise to lowercase so matching is case-insensitive regardless of
-        # which FMP field variant (e.g. "CPI" vs "cpi") the response contains.
-        name = _normalize_event_name(raw_name)
-        actual = event.get("actual")
-        consensus = event.get("consensus", event.get("forecast", event.get("estimate")))
-
-        if actual is None or consensus is None:
-            continue
-
-        try:
-            surprise = float(actual) - float(consensus)
-        except (TypeError, ValueError):
-            continue
-
-        if "ppi" in name or "cpi" in name or "pce" in name:
-            if surprise > 0:
-                score += -1.0
-            elif surprise < 0:
-                score += +1.0
-            # surprise == 0.0: on-consensus print — no directional contribution
-        elif "average hourly earnings" in name:
-            # Wage inflation above consensus is hawkish (risk-off), not risk-on.
-            if surprise > 0:
-                score += -0.5
-            elif surprise < 0:
-                score += +0.5
-        elif "unemployment rate" in name:
-            # Rising unemployment = economic weakness = risk-off.
-            if surprise > 0:
-                score += -0.5
-            elif surprise < 0:
-                score += +0.5
-        elif "jobless claims" in name or "initial claims" in name:
-            if surprise > 0:
-                score += -0.5
-            elif surprise < 0:
-                score += +0.5
-        elif "jolts" in name or "job openings" in name:
-            # More openings = tight labor market = risk-on.
-            if surprise > 0:
-                score += +0.5
-            elif surprise < 0:
-                score += -0.5
-        elif "philadelphia fed" in name or "philly fed" in name or "ism" in name:
-            if surprise > 0:
-                score += +0.5
-            elif surprise < 0:
-                score += -0.5
-        elif "nonfarm payroll" in name:
-            if surprise > 0:
-                score += +0.5
-            elif surprise < 0:
-                score += -0.5
-        elif "retail sales" in name or ("gdp" in name and "gdpnow" not in name):
-            # Exclude GDPNow model updates — they are estimates, not official releases.
-            if surprise > 0:
-                score += +0.5
-            elif surprise < 0:
-                score += -0.5
-        elif any(_contains_keywords(name, p) for p in MID_IMPACT_MACRO_NAME_PATTERNS):
-            # Secondary mid-impact releases (housing, consumer sentiment, etc.).
-            if surprise > 0:
-                score += +0.25
-            elif surprise < 0:
-                score += -0.25
-
-    # See docstring for why 2.0 is the correct divisor.
-    normalized = score / 2.0
-    return max(-1.0, min(1.0, normalized))
+    return float(
+        macro_bias_with_components(
+            events,
+            include_mid_if_no_high=include_mid_if_no_high,
+            include_headline_pce_confirm=include_headline_pce_confirm,
+        )["macro_bias"]
+    )

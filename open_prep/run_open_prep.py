@@ -9,12 +9,15 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from .trade_cards import build_trade_cards
+from .bea import build_bea_audit_payload
 from .macro import (
     FMPClient,
+    dedupe_events,
     filter_us_events,
     filter_us_high_impact_events,
     filter_us_mid_impact_events,
-    macro_bias_score,
+    get_consensus,
+    macro_bias_with_components,
 )
 from .news import build_news_scores
 from .screen import rank_candidates
@@ -209,14 +212,29 @@ def _event_is_today(event: dict, today: date) -> bool:
 def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
     out: list[dict] = []
     for event in _sort_macro_events(events)[: max(max_events, 0)]:
+        consensus_value, consensus_field = get_consensus(event)
+        # Compute quality flags inline (same logic as macro._annotate_event_quality)
+        # to avoid depending on mutation side-effects.
+        quality_flags: list[str] = []
+        if event.get("actual") is None:
+            quality_flags.append("missing_actual")
+        if consensus_value is None:
+            quality_flags.append("missing_consensus")
+        if not event.get("unit"):
+            quality_flags.append("missing_unit")
         out.append(
             {
                 "date": event.get("date"),
                 "event": event.get("event") or event.get("name"),
+                "canonical_event": event.get("canonical_event"),
                 "impact": event.get("impact", event.get("importance", event.get("priority"))),
                 "actual": event.get("actual"),
-                "consensus": event.get("consensus", event.get("forecast", event.get("estimate"))),
+                "consensus": consensus_value,
+                "consensus_field": consensus_field,
                 "previous": event.get("previous"),
+                "unit": event.get("unit"),
+                "data_quality_flags": quality_flags,
+                "dedup": event.get("dedup"),
                 "country": event.get("country"),
                 "currency": event.get("currency"),
             }
@@ -321,11 +339,22 @@ def main() -> None:
         except ValueError as exc:
             raise SystemExit(f"[open_prep] Invalid --pre-open-cutoff-utc: {exc}") from exc
 
-    todays_us_events = filter_us_events(todays_events)
-    todays_us_high_impact_events = filter_us_high_impact_events(todays_events)
-    todays_us_mid_impact_events = filter_us_mid_impact_events(todays_events)
+    todays_us_events = dedupe_events(filter_us_events(todays_events))
+    todays_us_high_impact_events = filter_us_high_impact_events(todays_us_events)
+    todays_us_mid_impact_events = filter_us_mid_impact_events(todays_us_events)
 
-    bias = macro_bias_score(todays_events)
+    macro_analysis = macro_bias_with_components(todays_events)
+    bias = float(macro_analysis["macro_bias"])
+    bea_audit_enabled = str(os.environ.get("OPEN_PREP_BEA_AUDIT", "1")).strip().lower() not in {
+        "0",
+        "false",
+        "off",
+        "no",
+    }
+    bea_audit = build_bea_audit_payload(
+        macro_analysis.get("events_for_bias", []),
+        enabled=bea_audit_enabled,
+    )
 
     # Optional catalyst boost from latest FMP articles (stable endpoint).
     # If news fetch fails, ranking still proceeds with pure market+macro features.
@@ -377,10 +406,16 @@ def main() -> None:
         "pre_open_only": bool(args.pre_open_only),
         "pre_open_cutoff_utc": args.pre_open_cutoff_utc,
         "macro_bias": round(bias, 4),
+        "macro_raw_score": round(float(macro_analysis.get("raw_score", 0.0)), 4),
         "macro_event_count_today": len(todays_events),
         "macro_us_event_count_today": len(todays_us_events),
         "macro_us_high_impact_event_count_today": len(todays_us_high_impact_events),
         "macro_us_mid_impact_event_count_today": len(todays_us_mid_impact_events),
+        "macro_events_for_bias": _format_macro_events(
+            macro_analysis.get("events_for_bias", []), args.max_macro_events
+        ),
+        "macro_score_components": macro_analysis.get("score_components", []),
+        "bea_audit": bea_audit,
         "macro_us_high_impact_events_today": _format_macro_events(
             todays_us_high_impact_events, args.max_macro_events
         ),
