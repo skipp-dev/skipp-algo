@@ -168,6 +168,18 @@ class FMPClient:
             return []
         return [item for item in data if isinstance(item, dict)]
 
+    def get_fmp_articles(self, limit: int = 200) -> list[dict[str, Any]]:
+        """Fetch latest cross-market articles from FMP stable endpoint.
+
+        Note: this endpoint is not symbol-filtered; filtering is done locally
+        using the article `tickers` metadata and title/content matching.
+        """
+        safe_limit = max(1, min(int(limit), 1000))
+        data = self._get("/stable/fmp-articles", {"limit": safe_limit})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
 
 @functools.lru_cache(maxsize=512)
 def _normalize_event_name(name: str) -> str:

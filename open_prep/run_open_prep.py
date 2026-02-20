@@ -13,6 +13,7 @@ from .macro import (
     filter_us_mid_impact_events,
     macro_bias_score,
 )
+from .news import build_news_scores
 from .screen import rank_candidates
 
 DEFAULT_UNIVERSE = [
@@ -232,11 +233,28 @@ def main() -> None:
     todays_us_mid_impact_events = filter_us_mid_impact_events(todays_events)
 
     bias = macro_bias_score(todays_events)
+
+    # Optional catalyst boost from latest FMP articles (stable endpoint).
+    # If news fetch fails, ranking still proceeds with pure market+macro features.
+    news_scores: dict[str, float] = {}
+    news_metrics: dict[str, dict] = {}
+    news_fetch_error: str | None = None
+    try:
+        articles = client.get_fmp_articles(limit=250)
+        news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
+    except RuntimeError as exc:
+        news_fetch_error = str(exc)
+
     try:
         quotes = client.get_batch_quotes(symbols)
     except RuntimeError as exc:
         raise SystemExit(f"[open_prep] Quote fetch failed: {exc}") from exc
-    ranked = rank_candidates(quotes=quotes, bias=bias, top_n=max(args.top, 1))
+    ranked = rank_candidates(
+        quotes=quotes,
+        bias=bias,
+        top_n=max(args.top, 1),
+        news_scores=news_scores,
+    )
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=max(args.trade_cards, 1))
 
     result = {
@@ -254,6 +272,8 @@ def main() -> None:
         "macro_us_mid_impact_events_today": _format_macro_events(
             todays_us_mid_impact_events, args.max_macro_events
         ),
+        "news_catalyst_by_symbol": news_metrics,
+        "news_fetch_error": news_fetch_error,
         "ranked_candidates": ranked,
         "trade_cards": cards,
     }
