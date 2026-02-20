@@ -1,8 +1,10 @@
+from datetime import UTC, datetime
 import unittest
 from unittest.mock import patch
 
 from open_prep.ai import build_trade_cards
 from open_prep.run_open_prep import _extract_time_str, _filter_events_by_cutoff_utc, _sort_macro_events
+from open_prep.news import build_news_scores
 from open_prep.macro import (
     FMPClient,
     filter_us_events,
@@ -193,6 +195,43 @@ class TestOpenPrep(unittest.TestCase):
         risk_off = rank_candidates(quotes, bias=-0.7, top_n=1)[0]["score"]
         self.assertGreater(risk_on, risk_off)
 
+    def test_rank_candidates_applies_news_catalyst_score(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "price": 100,
+                "changesPercentage": 1.0,
+                "volume": 1_000_000,
+                "avgVolume": 500_000,
+            }
+        ]
+        base = rank_candidates(quotes, bias=0.0, top_n=1)[0]
+        with_news = rank_candidates(quotes, bias=0.0, top_n=1, news_scores={"NVDA": 1.5})[0]
+        self.assertAlmostEqual(with_news["score"] - base["score"], 1.5, places=4)
+        self.assertEqual(with_news["news_catalyst_score"], 1.5)
+
+    def test_build_news_scores_uses_tickers_and_recency_windows(self):
+        symbols = ["NVDA", "PLTR"]
+        now = datetime(2026, 2, 20, 15, 0, 0, tzinfo=UTC)
+        articles = [
+            {
+                "tickers": "NASDAQ:NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20 14:30:00",
+            },
+            {
+                "tickers": "NYSE:PLTR",
+                "title": "Palantir update",
+                "content": "",
+                "date": "2026-02-19 20:00:00",
+            },
+        ]
+        scores, metrics = build_news_scores(symbols=symbols, articles=articles, now_utc=now)
+        self.assertGreater(scores["NVDA"], scores["PLTR"])
+        self.assertEqual(metrics["NVDA"]["mentions_2h"], 1)
+        self.assertEqual(metrics["PLTR"]["mentions_24h"], 1)
+
     def test_trade_cards_follow_bias_setup(self):
         ranked = [
             {
@@ -204,6 +243,62 @@ class TestOpenPrep(unittest.TestCase):
         ]
         cards = build_trade_cards(ranked_candidates=ranked, bias=-0.5, top_n=1)
         self.assertEqual(cards[0]["setup_type"], "VWAP-Reclaim only")
+
+    def test_trade_cards_include_atr_trail_stop_profiles(self):
+        ranked = [
+            {
+                "symbol": "NVDA",
+                "score": 4.2,
+                "gap_pct": 2.5,
+                "rel_volume": 1.8,
+                "atr": 3.2,
+                "entry_price": 200.0,
+            }
+        ]
+        card = build_trade_cards(ranked_candidates=ranked, bias=0.1, top_n=1)[0]
+        trail = card["trail_stop_atr"]
+        self.assertEqual(trail["atr"], 3.2)
+        self.assertEqual(trail["distances"]["tight"], 3.2)
+        self.assertEqual(trail["distances"]["balanced"], 4.8)
+        self.assertEqual(trail["distances"]["wide"], 6.4)
+        self.assertEqual(trail["stop_reference_source"], "entry_price")
+        self.assertEqual(trail["stop_reference_price"], 200.0)
+        self.assertEqual(trail["stop_prices"]["tight"], 196.8)
+        self.assertEqual(trail["stop_prices"]["balanced"], 195.2)
+        self.assertEqual(trail["stop_prices"]["wide"], 193.6)
+
+    def test_trade_cards_atr_trail_stop_fallback_when_missing(self):
+        ranked = [
+            {
+                "symbol": "PLTR",
+                "score": 2.1,
+                "gap_pct": 1.2,
+                "rel_volume": 1.1,
+            }
+        ]
+        card = build_trade_cards(ranked_candidates=ranked, bias=0.0, top_n=1)[0]
+        trail = card["trail_stop_atr"]
+        self.assertEqual(trail["atr"], 0.0)
+        self.assertEqual(trail["distances"]["tight"], 0.0)
+        self.assertIsNone(trail["stop_reference_price"])
+        self.assertIsNone(trail["stop_prices"]["tight"])
+        self.assertIn("unavailable", trail["note"].lower())
+
+    def test_trade_cards_use_vwap_as_stop_reference_when_entry_missing(self):
+        ranked = [
+            {
+                "symbol": "AMD",
+                "score": 1.5,
+                "gap_pct": 1.1,
+                "rel_volume": 1.4,
+                "atr": 2.0,
+                "vwap": 150.0,
+            }
+        ]
+        card = build_trade_cards(ranked_candidates=ranked, bias=0.0, top_n=1)[0]
+        trail = card["trail_stop_atr"]
+        self.assertEqual(trail["stop_reference_source"], "vwap")
+        self.assertEqual(trail["stop_prices"]["tight"], 148.0)
 
     def test_filter_events_by_cutoff_utc_includes_untimed_events(self):
         events = [

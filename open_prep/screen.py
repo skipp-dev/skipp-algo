@@ -14,6 +14,7 @@ def rank_candidates(
     quotes: list[dict[str, Any]],
     bias: float,
     top_n: int = 20,
+    news_scores: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Rank long candidates from quote snapshots.
 
@@ -25,6 +26,7 @@ def rank_candidates(
     - avgVolume
     """
     ranked: list[dict[str, Any]] = []
+    by_symbol_news = {k.upper(): float(v) for k, v in (news_scores or {}).items()}
 
     for quote in quotes:
         symbol = str(quote.get("symbol") or "")
@@ -54,6 +56,8 @@ def rank_candidates(
         score += 0.8 * max(min(gap_pct, 10.0), -10.0)
         score += 1.2 * rel_vol_capped
         score += 0.7 * max(bias, 0.0)
+        news_score = by_symbol_news.get(symbol, 0.0)
+        score += news_score
         score -= 1.5 * liquidity_penalty
         score -= risk_off_penalty
 
@@ -68,6 +72,7 @@ def rank_candidates(
                 "rel_volume": round(rel_vol, 4),
                 "rel_volume_capped": round(rel_vol_capped, 4),
                 "macro_bias": round(bias, 4),
+                "news_catalyst_score": round(news_score, 4),
             }
         )
 
