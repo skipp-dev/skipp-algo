@@ -1446,7 +1446,7 @@ vwapTrendSrc = ta.ema(vwapVal, vwapTrendSmoothLen)
 vwapLr0 = ta.linreg(vwapTrendSrc, vwapTrendLen, 0)
 vwapLr1 = ta.linreg(vwapTrendSrc, vwapTrendLen, 1)
 vwapSlope = vwapLr0 - vwapLr1
-vwapAtrN = ta.atr(14)
+vwapAtrN = ta.atr(atrLen)  // Fix: use user-configured atrLen instead of hardcoded 14
 vwapSlopeN = vwapAtrN > 0 ? vwapSlope / vwapAtrN : 0.0
 
 var int vwapTrendState = 0   // +1 up, -1 down, 0 neutral
@@ -1467,7 +1467,10 @@ if not na(vwapVal)
         vwapTrendPendingCount := 0
     else
         if vwapCandidateState == 0
-            // Neutral is treated as an immediate pending reset (no debounce commit).
+            // Fix #5: commit neutral immediately when slope drops below exit threshold.
+            // Previous behavior was sticky (state held until opposite trend confirmed) — intentional anti-chop.
+            // Now: immediate neutral commit on exit; new trend still requires vwapTrendConfirmBars to enter.
+            vwapTrendState := 0
             vwapTrendPendingState := 0
             vwapTrendPendingCount := 0
         else
@@ -1506,8 +1509,9 @@ else if sideExit
 trendStrength = f_trend_strength(trendCoreFast, trendCoreSlow)
 // v6.2.28: USI bypasses smooth trend lag
 // Fix: when useSmoothTrend=false trendUp already contains `or usiBull`; avoid double-OR
-trendUpSmooth  = useSmoothTrend ? (trendStrength > TREND_SMOOTH_THRESH or usiBull) : trendUp
-trendDnSmooth  = useSmoothTrend ? (trendStrength < -TREND_SMOOTH_THRESH or usiBear) : trendDn
+// v6.3.13+: respect useUsiTrendOverride in smooth path (same semantics as trendUp/trendDn)
+trendUpSmooth  = useSmoothTrend ? (trendStrength > TREND_SMOOTH_THRESH or (useUsiTrendOverride and usiBull)) : trendUp
+trendDnSmooth  = useSmoothTrend ? (trendStrength < -TREND_SMOOTH_THRESH or (useUsiTrendOverride and usiBear)) : trendDn
 
 // D2 – ADX trend strength filter
 [diPlus, diMinus, adxRaw] = ta.dmi(adxLen, adxLen)
@@ -2010,11 +2014,12 @@ if (pos == 0 and (allowEntryRt or allowRescueRt)) or allowRevBypassRt
     
     // USI Contribution
     if useUsi
-        scoreL += f_score_add(usiCrossUp, wUsiEff) + f_score_add(usiSweepUp, wUsiEff / 2)
-        scoreS += f_score_add(usiCrossDown, wUsiEff) + f_score_add(usiSweepDown, wUsiEff / 2)
+        // Fix #8: use ceiling division (w+1)/2 to avoid silent score truncation on odd weights (e.g. wUsiEff=5 → 3 not 2)
+        scoreL += f_score_add(usiCrossUp, wUsiEff) + f_score_add(usiSweepUp, (wUsiEff + 1) / 2)
+        scoreS += f_score_add(usiCrossDown, wUsiEff) + f_score_add(usiSweepDown, (wUsiEff + 1) / 2)
         // Add residual state score if cross happened earlier (supports late entries)
-        scoreL += f_score_add(usiBull and not usiCrossUp, wUsiEff / 2)
-        scoreS += f_score_add(usiBear and not usiCrossDown, wUsiEff / 2)
+        scoreL += f_score_add(usiBull and not usiCrossUp, (wUsiEff + 1) / 2)
+        scoreS += f_score_add(usiBear and not usiCrossDown, (wUsiEff + 1) / 2)
 
     // 2. Liquidity Evidence (Sweep / Reclaim / ChoCH)
     // Long: reclaimUpSafe or isChoCH_Long
@@ -2025,12 +2030,13 @@ if (pos == 0 and (allowEntryRt or allowRescueRt)) or allowRevBypassRt
     scoreS += f_score_add(chochEventShort, wLiquidityEff)
 
     // 3. Momentum Evidence
-    // Long: rocLongOk, adxOk, hugeVolG
+    // Long: rocLongOk, adxOk, hugeVolG (directional: only count huge volume when candle is bullish)
+    // Fix #7: hugeVolG was symmetric (boosted both sides) → gate by candle direction to avoid double-boost on high-vol neutral bars
     scoreL += f_score_add(rocLongOk, wMomentumEff)
-    scoreL += f_score_add(hugeVolG, wMomentumEff / 2)
+    scoreL += f_score_add(hugeVolG and (close > open), (wMomentumEff + 1) / 2)
     // Short
     scoreS += f_score_add(rocShortOk, wMomentumEff)
-    scoreS += f_score_add(hugeVolG, wMomentumEff / 2)
+    scoreS += f_score_add(hugeVolG and (close < open), (wMomentumEff + 1) / 2)
 
     // 4. Trend Context
     scoreL += f_score_add(trendUpSafe, wTrendContextEff)
@@ -2055,9 +2061,10 @@ if (pos == 0 and (allowEntryRt or allowRescueRt)) or allowRevBypassRt
     // Final Decision
     // Base eligibility: Position 0, Allow Entry + Drawdown Check (ddOk)
     // ADDED: USI State Filter (Fail-safe)
-    // If USI is enabled, Block Buys when Bear State, and Shorts when Bull State.
-    bool usiBlockL = useUsi and usiBearState
-    bool usiBlockS = useUsi and usiBullState
+    // If USI is enabled AND override active: Block Buys when Bear State, and Shorts when Bull State.
+    // Fix #4: symmetric with useUsiTrendOverride — when override=false, USI neither opens nor blocks the entry gate
+    bool usiBlockL = useUsi and useUsiTrendOverride and usiBearState
+    bool usiBlockS = useUsi and useUsiTrendOverride and usiBullState
     
     bool baseEligibleL = (pos == 0) and ddOk and (allowEntryRt or allowRescueLongRt)
     bool baseEligibleS = (pos == 0) and ddOk and (allowEntryRt or allowRescueShortRt)
@@ -2157,8 +2164,9 @@ if (pos == 0 and (allowEntryRt or allowRescueRt)) or allowRevBypassRt
     bool scoreLongWin = false
     bool scoreShortWin = false
     if useScoreEntriesEff
-        bool scoreCtxLongOk  = (not scoreRequireDirectionalContextEff) or trendUpSafe or usiBull
-        bool scoreCtxShortOk = (not scoreRequireDirectionalContextEff) or trendDnSafe or usiBear
+        // Fix #3: guard with useUsiTrendOverride — when override=false, USI must not pass the directional context gate
+        bool scoreCtxLongOk  = (not scoreRequireDirectionalContextEff) or trendUpSafe or (useUsiTrendOverride and usiBull)
+        bool scoreCtxShortOk = (not scoreRequireDirectionalContextEff) or trendDnSafe or (useUsiTrendOverride and usiBear)
         bool chopVeto = scoreChopHardVetoEff and isChop and (wChopPenaltyEff < 0)
         scoreLongWin := (scoreBuy and scoreCtxLongOk and hardLongProbOk) and not chopVeto
         // Keep precedence deterministic: LONG wins ties (matches if/else-if below).
@@ -2212,15 +2220,16 @@ if pos == 0 and allowEntryRt
         // Hybrid: distance = how far close is below emaF
         preGapLong  := (not na(emaF)) ? math.max(0.0, emaF - close) : na
         preGapShort := (not na(emaF)) ? math.max(0.0, close - emaF) : na
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe) and not usiBear
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe) and not usiBull
+        // Fix #9: PRE-signals respect useUsiTrendOverride — USI suppression only active when override enabled
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and preSetOkLong and pullbackLongOkSafe and touchEmaF_LongSafe and not (crossClose_EmaF_upSafe or bullReversalSafe) and not (useUsiTrendOverride and usiBear)
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and preSetOkShort and pullbackShortOkSafe and touchEmaF_ShortSafe and not (crossClose_EmaF_downSafe or bearReversalSafe) and not (useUsiTrendOverride and usiBull)
     else if engine == "Breakout"
         nearLong = distOk and (not na(lastSwingHigh)) and (close <= lastSwingHigh) and ((lastSwingHigh - close) <= preDist)
         nearShort = distOk and (not na(lastSwingLow)) and (close >= lastSwingLow) and ((close - lastSwingLow) <= preDist)
         preGapLong  := (not na(lastSwingHigh)) ? math.max(0.0, lastSwingHigh - close) : na
         preGapShort := (not na(lastSwingLow))  ? math.max(0.0, close - lastSwingLow)  : na
-        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe and not usiBear
-        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe and not usiBull
+        preBuyNow := gateLongNow and fcGateLongSafe and volOkSafe and trendUpSafe and nearLong and not breakoutLongSafe and not (useUsiTrendOverride and usiBear)
+        preShortNow := enableShorts and gateShortNow and fcGateShortSafe and volOkSafe and trendDnSafe and nearShort and not breakoutShortSafe and not (useUsiTrendOverride and usiBull)
     else if engine == "Trend+Pullback"
         nearFlipUp = distOk and (not na(emaF)) and (not na(emaS)) and (emaF < emaS) and ((emaS - emaF) <= preDist)
         nearFlipDown = distOk and (not na(emaF)) and (not na(emaS)) and (emaF > emaS) and ((emaF - emaS) <= preDist)
@@ -2228,15 +2237,15 @@ if pos == 0 and allowEntryRt
         nearReclaimDown = distOk and (not na(emaF)) and (bearBias == true) and (close > emaF) and ((close - emaF) <= preDist)
         preGapLong  := nearFlipUp ? (emaS - emaF) : nearReclaimUp ? (emaF - close) : na
         preGapShort := nearFlipDown ? (emaF - emaS) : nearReclaimDown ? (close - emaF) : na
-        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe) and not usiBear
-        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe) and not usiBull
+        preBuyNow := gateLongNow and (nearFlipUp or nearReclaimUp) and not (trendFlipUpSafe or reclaimUpSafe) and not (useUsiTrendOverride and usiBear)
+        preShortNow := enableShorts and gateShortNow and (nearFlipDown or nearReclaimDown) and not (trendFlipDownSafe or reclaimDownSafe) and not (useUsiTrendOverride and usiBull)
     else // Loose
         nearEmaFUp = distOk and (not na(emaF)) and (close < emaF) and ((emaF - close) <= preDist)
         nearEmaFDown = distOk and (not na(emaF)) and (close > emaF) and ((close - emaF) <= preDist)
         preGapLong  := nearEmaFUp  ? (emaF - close) : na
         preGapShort := nearEmaFDown ? (close - emaF) : na
-        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe and not usiBear
-        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe and not usiBull
+        preBuyNow := gateLongNow and nearEmaFUp and not crossClose_EmaF_upSafe and not (useUsiTrendOverride and usiBear)
+        preShortNow := enableShorts and gateShortNow and nearEmaFDown and not crossClose_EmaF_downSafe and not (useUsiTrendOverride and usiBull)
 
 preBuyPrev = (preBuyNow[1] == true)
 preShortPrev = (preShortNow[1] == true)
@@ -2363,7 +2372,8 @@ if pos == 1 and allowExitLong
     // Bearish Engulfing Logic
     bool engExitHit = useEngulfExit and bearEngulf3 and engulfExitMode == "Contextual Exit" and (engBearCtxScore >= 2)
     bool riskExitHit = rHit and not holdTpByConf
-    bool riskExceptionHit = riskExitHit and (rMsg == "SL" or rMsg == "TP")
+    // Fix #6: include Trail in grace-period exceptions — a trailing stop hit during hold must still close
+    bool riskExceptionHit = riskExitHit and (rMsg == "SL" or rMsg == "TP" or rMsg == "Trail")
     bool holdExceptionsOnly = entryOnlyExitHoldActive
 
     exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit)
@@ -2399,7 +2409,8 @@ if pos == -1 and allowExitShort
     // Bullish Engulfing Logic
     bool engExitHit = useEngulfExit and bullEngulf3 and engulfExitMode == "Contextual Exit" and (engBullCtxScore >= 2)
     bool riskExitHit = rHit and not holdTpByConf
-    bool riskExceptionHit = riskExitHit and (rMsg == "SL" or rMsg == "TP")
+    // Fix #6: include Trail in grace-period exceptions — a trailing stop hit during hold must still close
+    bool riskExceptionHit = riskExitHit and (rMsg == "SL" or rMsg == "TP" or rMsg == "Trail")
     bool holdExceptionsOnly = entryOnlyExitHoldActive
 
     coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit)
