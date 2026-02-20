@@ -6,6 +6,7 @@ import json
 import os
 import re
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from .trade_cards import build_trade_cards
 from .macro import (
@@ -223,6 +224,75 @@ def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
     return out
 
 
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _calculate_atr14_from_eod(candles: list[dict]) -> float:
+    """Calculate ATR(14) from EOD OHLC candles.
+
+    Expects each candle to expose high, low, close. Uses classic True Range and
+    returns SMA(TR, 14). If fewer than 14 valid bars are available, uses all
+    available TR values (minimum 2 bars required).
+    """
+    parsed: list[tuple[str, float, float, float]] = []
+    for c in candles:
+        d = str(c.get("date") or "")
+        if not d:
+            continue
+        high = _to_float(c.get("high"), default=float("nan"))
+        low = _to_float(c.get("low"), default=float("nan"))
+        close = _to_float(c.get("close"), default=float("nan"))
+        if any(x != x for x in (high, low, close)):  # NaN check
+            continue
+        parsed.append((d, high, low, close))
+
+    if len(parsed) < 2:
+        return 0.0
+
+    parsed.sort(key=lambda row: row[0])
+    tr_values: list[float] = []
+    prev_close: float | None = None
+    for _, high, low, close in parsed:
+        if prev_close is None:
+            tr = max(high - low, 0.0)
+        else:
+            tr = max(
+                high - low,
+                abs(high - prev_close),
+                abs(low - prev_close),
+            )
+        tr_values.append(max(tr, 0.0))
+        prev_close = close
+
+    if not tr_values:
+        return 0.0
+    window = tr_values[-14:] if len(tr_values) >= 14 else tr_values
+    return round(sum(window) / len(window), 4)
+
+
+def _atr14_by_symbol(
+    client: FMPClient,
+    symbols: list[str],
+    as_of: date,
+    lookback_days: int = 60,
+) -> tuple[dict[str, float], dict[str, str]]:
+    atr_map: dict[str, float] = {}
+    errors: dict[str, str] = {}
+    date_from = as_of - timedelta(days=max(lookback_days, 20))
+    for symbol in symbols:
+        try:
+            candles = client.get_historical_price_eod_full(symbol, date_from, as_of)
+            atr_map[symbol] = _calculate_atr14_from_eod(candles)
+        except RuntimeError as exc:
+            atr_map[symbol] = 0.0
+            errors[symbol] = str(exc)
+    return atr_map, errors
+
+
 def _inputs_hash(payload: dict) -> str:
     raw = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -272,6 +342,14 @@ def main() -> None:
         quotes = client.get_batch_quotes(symbols)
     except RuntimeError as exc:
         raise SystemExit(f"[open_prep] Quote fetch failed: {exc}") from exc
+
+    atr_by_symbol, atr_fetch_errors = _atr14_by_symbol(client=client, symbols=symbols, as_of=today)
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        q["atr"] = atr_by_symbol.get(sym, 0.0)
+
     ranked = rank_candidates(
         quotes=quotes,
         bias=bias,
@@ -311,6 +389,8 @@ def main() -> None:
         ),
         "news_catalyst_by_symbol": news_metrics,
         "news_fetch_error": news_fetch_error,
+        "atr14_by_symbol": atr_by_symbol,
+        "atr_fetch_errors": atr_fetch_errors,
         "ranked_candidates": ranked,
         "trade_cards": cards,
     }

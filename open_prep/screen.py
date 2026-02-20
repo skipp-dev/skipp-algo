@@ -42,6 +42,7 @@ def rank_candidates(
         )
         volume = _to_float(quote.get("volume"), default=0.0)
         avg_volume = _to_float(quote.get("avgVolume"), default=0.0)
+        atr = _to_float(quote.get("atr"), default=0.0)
 
         rel_vol = (volume / avg_volume) if avg_volume > 0 else 0.0
         # Cap at 10x: a 50x-volume spike is untradeable at open and would
@@ -87,6 +88,7 @@ def rank_candidates(
                 "gap_pct": gap_pct,
                 "volume": volume,
                 "avg_volume": avg_volume,
+                "atr": round(atr, 4),
                 "rel_volume": round(rel_vol, 4),
                 "rel_volume_capped": round(rel_vol_capped, 4),
                 "macro_bias": round(bias, 4),
