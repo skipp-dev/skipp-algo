@@ -109,7 +109,10 @@ def build_news_scores(
 
     scores: dict[str, float] = {}
     for sym, row in metrics.items():
-        score = min(2.0, row["mentions_2h"] * 0.5 + row["mentions_24h"] * 0.15)
+        # Subtract 2h mentions from 24h count so articles are not double-counted
+        # across both recency windows (2h articles are already boosted at 0.5).
+        mentions_24h_only = max(row["mentions_24h"] - row["mentions_2h"], 0)
+        score = min(2.0, row["mentions_2h"] * 0.5 + mentions_24h_only * 0.15)
         row["news_catalyst_score"] = round(score, 4)
         scores[sym] = round(score, 4)
 

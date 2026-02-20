@@ -16,6 +16,7 @@ from open_prep.macro import (
     filter_us_events,
     filter_us_high_impact_events,
     filter_us_mid_impact_events,
+    macro_bias_with_components,
     macro_bias_score,
 )
 from open_prep.screen import rank_candidates
@@ -261,6 +262,24 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIn("macro_risk_off_extreme", row["no_trade_reason"])
         self.assertIn("severe_gap_down", row["no_trade_reason"])
 
+    def test_rank_candidates_risk_off_blocks_missing_rvol(self):
+        quotes = [
+            {
+                "symbol": "THIN",
+                "price": 20.0,
+                "changesPercentage": 1.0,
+                "volume": 0,
+                "avgVolume": 0,
+            }
+        ]
+        row = rank_candidates(quotes, bias=-0.9, top_n=1)[0]
+        self.assertFalse(row["long_allowed"])
+        self.assertIn("macro_risk_off_extreme", row["no_trade_reason"])
+        self.assertIn("missing_rvol", row["no_trade_reason"])
+        self.assertTrue(row["data_sufficiency"]["low"])
+        self.assertTrue(row["data_sufficiency"]["avg_volume_missing"])
+        self.assertTrue(row["data_sufficiency"]["rel_volume_missing"])
+
     def test_rank_candidates_carries_atr_from_quote(self):
         quotes = [
             {
@@ -296,6 +315,24 @@ class TestOpenPrep(unittest.TestCase):
         self.assertGreater(scores["NVDA"], scores["PLTR"])
         self.assertEqual(metrics["NVDA"]["mentions_2h"], 1)
         self.assertEqual(metrics["PLTR"]["mentions_24h"], 1)
+
+    def test_news_score_does_not_double_count_2h_articles(self):
+        """A single article from < 2h ago must score exactly 0.5, not 0.65."""
+        symbols = ["AAPL"]
+        now = datetime(2026, 2, 20, 15, 0, 0, tzinfo=UTC)
+        articles = [
+            {
+                "tickers": "NASDAQ:AAPL",
+                "title": "Apple news",
+                "content": "",
+                "date": "2026-02-20 14:00:00",  # 1h ago → in both 2h and 24h
+            },
+        ]
+        scores, metrics = build_news_scores(symbols=symbols, articles=articles, now_utc=now)
+        # 2h article: 0.5 only; should NOT include extra 0.15 from 24h overlap
+        self.assertAlmostEqual(scores["AAPL"], 0.5, places=4)
+        self.assertEqual(metrics["AAPL"]["mentions_2h"], 1)
+        self.assertEqual(metrics["AAPL"]["mentions_24h"], 1)
 
     def test_parse_article_datetime_supports_iso_z_and_offset(self):
         dt_z = _parse_article_datetime("2026-02-20T14:30:00.123Z")
@@ -363,6 +400,9 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIsNone(trail["stop_reference_price"])
         self.assertIsNone(trail["stop_prices"]["tight"])
         self.assertIn("unavailable", trail["note"].lower())
+        # Regression: stop_reference_source must be None (not the string "none")
+        # so that JSON consumers get null and truthiness checks work as expected.
+        self.assertIsNone(trail["stop_reference_source"])
 
     def test_trade_cards_use_vwap_as_stop_reference_when_entry_missing(self):
         ranked = [
@@ -455,6 +495,86 @@ class TestOpenPrep(unittest.TestCase):
     def test_inputs_hash_is_deterministic(self):
         payload = {"symbols": ["NVDA", "PLTR"], "top": 10}
         self.assertEqual(_inputs_hash(payload), _inputs_hash(payload))
+
+    def test_macro_score_components_schema_contract(self):
+        events = [
+            {
+                "country": "US",
+                "date": "2026-02-20",
+                "event": "Gross Domestic Product QoQ (Q4)",
+                "actual": 1.4,
+                "consensus": 2.8,
+                "impact": "High",
+            },
+            {
+                "country": "US",
+                "date": "2026-02-20",
+                "event": "GDP Growth Rate QoQ (Q4)",
+                "actual": 1.4,
+                "consensus": 3.5,
+                "impact": "High",
+            },
+            {
+                "country": "US",
+                "date": "2026-02-20",
+                "event": "Core PCE Price Index MoM (Dec)",
+                "actual": 0.4,
+                "estimate": 0.2,
+                "impact": "High",
+            },
+        ]
+        analysis = macro_bias_with_components(events)
+        components = analysis.get("score_components", [])
+        self.assertGreater(len(components), 0)
+
+        required = {
+            "canonical_event",
+            "consensus_value",
+            "consensus_field",
+            "surprise",
+            "weight",
+            "contribution",
+            "data_quality_flags",
+        }
+        for component in components:
+            self.assertTrue(required.issubset(component.keys()))
+
+        gdp_component = next(c for c in components if c.get("canonical_event") == "gdp_qoq")
+        self.assertIn("dedup", gdp_component)
+        self.assertTrue(gdp_component["dedup"]["was_deduped"])
+
+    def test_ranked_candidates_schema_contract(self):
+        quotes = [
+            {
+                "symbol": "THIN",
+                "price": 20.0,
+                "changesPercentage": 1.0,
+                "volume": 0,
+                "avgVolume": 0,
+            }
+        ]
+        row = rank_candidates(quotes, bias=-0.9, top_n=1)[0]
+
+        required = {
+            "allowed_setups",
+            "max_trades",
+            "data_sufficiency",
+            "no_trade_reason",
+            "score_breakdown",
+        }
+        self.assertTrue(required.issubset(row.keys()))
+
+        self.assertTrue({"low", "avg_volume_missing", "rel_volume_missing"}.issubset(row["data_sufficiency"].keys()))
+        self.assertTrue(
+            {
+                "gap_component",
+                "rvol_component",
+                "macro_component",
+                "news_component",
+                "liquidity_penalty",
+                "risk_off_penalty",
+            }.issubset(row["score_breakdown"].keys())
+        )
 
 
 if __name__ == "__main__":
