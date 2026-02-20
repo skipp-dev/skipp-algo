@@ -347,6 +347,55 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(dt_offset.tzinfo, UTC)
         self.assertEqual((dt_offset.hour, dt_offset.minute), (14, 30))
 
+    def test_latest_article_utc_prefers_later_datetime_regardless_of_microseconds(self):
+        """BUG-FIX regression: ISO string comparison breaks when one datetime has
+        microseconds. '.' (ASCII 46) > '+' (ASCII 43), so '14:30:00.123456+00:00'
+        would compare as *later* than '15:30:00+00:00' under naive string ordering.
+        Post-fix: datetime objects are compared, giving the correct result."""
+        symbols = ["NVDA"]
+        now = datetime(2026, 2, 20, 16, 0, 0, tzinfo=UTC)
+        articles = [
+            # Earlier article — has microseconds in timestamp
+            {
+                "tickers": "NASDAQ:NVDA",
+                "title": "NVIDIA morning note",
+                "content": "",
+                "date": "2026-02-20T14:30:00.654321Z",  # 14:30, with microseconds
+            },
+            # Later article — no microseconds
+            {
+                "tickers": "NASDAQ:NVDA",
+                "title": "NVIDIA afternoon update",
+                "content": "",
+                "date": "2026-02-20T15:30:00Z",          # 15:30, no microseconds
+            },
+        ]
+        _, metrics = build_news_scores(symbols=symbols, articles=articles, now_utc=now)
+        latest = metrics["NVDA"]["latest_article_utc"]
+        self.assertIsNotNone(latest)
+        # The 15:30 article must be recognised as the latest, not 14:30 with µs.
+        assert latest is not None
+        self.assertIn("15:30", latest)
+
+    def test_future_dated_articles_excluded_from_recency_windows(self):
+        """BUG-FIX regression: articles dated in the future (e.g. due to
+        timezone confusion in the FMP API) must not inflate 24h / 2h mention
+        counts. They should still appear in mentions_total."""
+        symbols = ["PLTR"]
+        now = datetime(2026, 2, 20, 15, 0, 0, tzinfo=UTC)
+        articles = [
+            {
+                "tickers": "NYSE:PLTR",
+                "title": "Palantir future event",
+                "content": "",
+                "date": "2026-02-20T16:00:00Z",  # 1h in the future
+            },
+        ]
+        _, metrics = build_news_scores(symbols=symbols, articles=articles, now_utc=now)
+        self.assertEqual(metrics["PLTR"]["mentions_total"], 1)    # counted as mention
+        self.assertEqual(metrics["PLTR"]["mentions_24h"], 0)       # but NOT in 24h window
+        self.assertEqual(metrics["PLTR"]["mentions_2h"], 0)        # and NOT in 2h window
+
     def test_trade_cards_follow_bias_setup(self):
         ranked = [
             {
@@ -483,14 +532,14 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(quotes, [{"symbol": "NVDA"}])
 
     def test_calculate_atr14_from_eod_returns_non_zero_for_valid_candles(self):
+        # We need at least 15 candles (14 for initial SMA + 1 prior close) to calculate RMA ATR
         candles = [
-            {"date": "2026-02-01", "high": 10.0, "low": 9.0, "close": 9.5},
-            {"date": "2026-02-02", "high": 10.5, "low": 9.2, "close": 10.2},
-            {"date": "2026-02-03", "high": 11.0, "low": 9.8, "close": 10.7},
-            {"date": "2026-02-04", "high": 11.3, "low": 10.1, "close": 11.1},
-            {"date": "2026-02-05", "high": 11.6, "low": 10.4, "close": 11.0},
+            {"date": f"2026-02-{i:02d}", "high": 10.0 + i*0.1, "low": 9.0 + i*0.1, "close": 9.5 + i*0.1}
+            for i in range(1, 25)
         ]
-        self.assertGreater(_calculate_atr14_from_eod(candles), 0.0)
+        atr = _calculate_atr14_from_eod(candles)
+        self.assertGreater(atr, 0.0)
+        self.assertIsInstance(atr, float)
 
     def test_inputs_hash_is_deterministic(self):
         payload = {"symbols": ["NVDA", "PLTR"], "top": 10}
