@@ -9,7 +9,7 @@ from typing import Any
 # Add the project root to sys.path so we can import open_prep
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from open_prep.ai import build_trade_cards
+from open_prep.trade_cards import build_trade_cards
 from open_prep.macro import (
     FMPClient,
     filter_us_events,

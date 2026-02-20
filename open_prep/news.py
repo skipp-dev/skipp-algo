@@ -30,6 +30,14 @@ def _parse_article_datetime(value: Any) -> datetime | None:
     text = str(value or "").strip()
     if not text:
         return None
+    iso_text = text[:-1] + "+00:00" if text.endswith("Z") else text
+    try:
+        dt = datetime.fromisoformat(iso_text)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
+    except ValueError:
+        pass
     # FMP stable articles usually: "YYYY-MM-DD HH:MM:SS"
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
         try:
