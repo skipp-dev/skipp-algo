@@ -77,5 +77,5 @@ def rank_candidates(
         )
 
     # Sort by score (desc), then rel_volume_capped (desc), then symbol (asc) for deterministic tie-breaking
-    ranked.sort(key=lambda row: (row["score"], row["rel_volume_capped"], row["symbol"]), reverse=True)
+    ranked.sort(key=lambda row: (-row["score"], -row["rel_volume_capped"], row["symbol"]))
     return ranked[:top_n]
