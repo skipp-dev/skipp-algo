@@ -2,9 +2,14 @@ from datetime import UTC, datetime
 import unittest
 from unittest.mock import patch
 
-from open_prep.ai import build_trade_cards
-from open_prep.run_open_prep import _extract_time_str, _filter_events_by_cutoff_utc, _sort_macro_events
-from open_prep.news import build_news_scores
+from open_prep.trade_cards import build_trade_cards
+from open_prep.run_open_prep import (
+    _extract_time_str,
+    _filter_events_by_cutoff_utc,
+    _inputs_hash,
+    _sort_macro_events,
+)
+from open_prep.news import build_news_scores, _parse_article_datetime
 from open_prep.macro import (
     FMPClient,
     filter_us_events,
@@ -209,6 +214,51 @@ class TestOpenPrep(unittest.TestCase):
         with_news = rank_candidates(quotes, bias=0.0, top_n=1, news_scores={"NVDA": 1.5})[0]
         self.assertAlmostEqual(with_news["score"] - base["score"], 1.5, places=4)
         self.assertEqual(with_news["news_catalyst_score"], 1.5)
+        self.assertIn("score_breakdown", with_news)
+        self.assertIn("news_component", with_news["score_breakdown"])
+
+    def test_rank_candidates_normalizes_symbol_case_for_news_lookup(self):
+        quotes = [
+            {
+                "symbol": "nvda",
+                "price": 100,
+                "changesPercentage": 1.0,
+                "volume": 1_000_000,
+                "avgVolume": 500_000,
+            }
+        ]
+        row = rank_candidates(quotes, bias=0.0, top_n=1, news_scores={"NVDA": 1.25})[0]
+        self.assertEqual(row["symbol"], "NVDA")
+        self.assertEqual(row["news_catalyst_score"], 1.25)
+
+    def test_rank_candidates_handles_non_numeric_news_score(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "price": 100,
+                "changesPercentage": 1.0,
+                "volume": 1_000_000,
+                "avgVolume": 500_000,
+            }
+        ]
+        row = rank_candidates(quotes, bias=0.0, top_n=1, news_scores={"NVDA": "N/A"})[0]
+        self.assertEqual(row["news_catalyst_score"], 0.0)
+
+    def test_rank_candidates_emits_long_guardrails(self):
+        quotes = [
+            {
+                "symbol": "PENNY",
+                "price": 3.0,
+                "changesPercentage": -9.0,
+                "volume": 1_000_000,
+                "avgVolume": 500_000,
+            }
+        ]
+        row = rank_candidates(quotes, bias=-0.9, top_n=1)[0]
+        self.assertFalse(row["long_allowed"])
+        self.assertIn("price_below_5", row["no_trade_reason"])
+        self.assertIn("macro_risk_off_extreme", row["no_trade_reason"])
+        self.assertIn("severe_gap_down", row["no_trade_reason"])
 
     def test_build_news_scores_uses_tickers_and_recency_windows(self):
         symbols = ["NVDA", "PLTR"]
@@ -232,6 +282,19 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(metrics["NVDA"]["mentions_2h"], 1)
         self.assertEqual(metrics["PLTR"]["mentions_24h"], 1)
 
+    def test_parse_article_datetime_supports_iso_z_and_offset(self):
+        dt_z = _parse_article_datetime("2026-02-20T14:30:00.123Z")
+        self.assertIsNotNone(dt_z)
+        assert dt_z is not None
+        self.assertEqual(dt_z.tzinfo, UTC)
+        self.assertEqual((dt_z.hour, dt_z.minute), (14, 30))
+
+        dt_offset = _parse_article_datetime("2026-02-20T15:30:00+01:00")
+        self.assertIsNotNone(dt_offset)
+        assert dt_offset is not None
+        self.assertEqual(dt_offset.tzinfo, UTC)
+        self.assertEqual((dt_offset.hour, dt_offset.minute), (14, 30))
+
     def test_trade_cards_follow_bias_setup(self):
         ranked = [
             {
@@ -243,6 +306,8 @@ class TestOpenPrep(unittest.TestCase):
         ]
         cards = build_trade_cards(ranked_candidates=ranked, bias=-0.5, top_n=1)
         self.assertEqual(cards[0]["setup_type"], "VWAP-Reclaim only")
+        self.assertIn("long_allowed", cards[0]["context"])
+        self.assertIn("no_trade_reason", cards[0]["context"])
 
     def test_trade_cards_include_atr_trail_stop_profiles(self):
         ranked = [
@@ -300,6 +365,18 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(trail["stop_reference_source"], "vwap")
         self.assertEqual(trail["stop_prices"]["tight"], 148.0)
 
+    def test_trade_cards_handles_non_numeric_gap_pct(self):
+        ranked = [
+            {
+                "symbol": "AMD",
+                "score": 1.5,
+                "gap_pct": "N/A",
+                "rel_volume": 1.4,
+            }
+        ]
+        card = build_trade_cards(ranked_candidates=ranked, bias=0.0, top_n=1)[0]
+        self.assertIn("Break and hold above opening range high OR", card["entry_trigger"])
+
     def test_filter_events_by_cutoff_utc_includes_untimed_events(self):
         events = [
             {"date": "2026-02-20 13:30:00", "event": "GDP"},
@@ -321,6 +398,10 @@ class TestOpenPrep(unittest.TestCase):
         ]
         filtered = _filter_events_by_cutoff_utc(events, "16:00:00", include_untimed=False)
         self.assertEqual([e["event"] for e in filtered], ["WithTime"])
+
+    def test_filter_events_by_cutoff_utc_rejects_invalid_cutoff(self):
+        with self.assertRaises(ValueError):
+            _filter_events_by_cutoff_utc([], "invalid")
 
     def test_macro_bias_on_consensus_print_is_neutral(self):
         """An on-consensus release (surprise == 0) must not move the bias."""
@@ -345,6 +426,10 @@ class TestOpenPrep(unittest.TestCase):
 
         mock_get.assert_called_once_with("/stable/batch-quote", {"symbols": "NVDA,PLTR"})
         self.assertEqual(quotes, [{"symbol": "NVDA"}])
+
+    def test_inputs_hash_is_deterministic(self):
+        payload = {"symbols": ["NVDA", "PLTR"], "top": 10}
+        self.assertEqual(_inputs_hash(payload), _inputs_hash(payload))
 
 
 if __name__ == "__main__":

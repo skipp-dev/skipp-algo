@@ -147,9 +147,29 @@ class FMPClient:
                 f"FMP API returned invalid JSON on {path}: {payload[:100]}"
             ) from exc
 
-        # FMP returns {"Error Message": "..."} or {"message": "..."} on auth/plan errors.
-        if isinstance(data, dict) and ("Error Message" in data or "message" in data):
-            raise RuntimeError(f"FMP API error on {path}: {data}")
+        # FMP errors may be returned as dict payloads. Keep detection precise to
+        # avoid false positives for successful payloads that include a generic
+        # informational "message" field.
+        if isinstance(data, dict):
+            if "Error Message" in data:
+                raise RuntimeError(f"FMP API error on {path}: {data}")
+            status = str(data.get("status") or "").strip().lower()
+            if status == "error":
+                raise RuntimeError(f"FMP API error on {path}: {data}")
+            if "message" in data and not any(
+                key in data
+                for key in (
+                    "symbol",
+                    "date",
+                    "event",
+                    "data",
+                    "results",
+                    "historical",
+                    "financials",
+                    "quotes",
+                )
+            ):
+                raise RuntimeError(f"FMP API error on {path}: {data}")
         return data
 
     def get_macro_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:

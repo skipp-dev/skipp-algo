@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import re
 from datetime import UTC, date, datetime, timedelta
 
-from .ai import build_trade_cards
+from .trade_cards import build_trade_cards
 from .macro import (
     FMPClient,
     filter_us_events,
@@ -101,14 +103,7 @@ def _filter_events_by_cutoff_utc(
     Both space-separated and ISO T-separated date strings are handled.
     """
     out: list[dict] = []
-    cutoff = cutoff_utc.strip()
-    # Normalize cutoff to HH:MM:SS to ensure lexicographical comparison works
-    # (e.g. "9:30:00" -> "09:30:00")
-    parts = cutoff.split(":")
-    if len(parts) == 2:
-        cutoff = f"{int(parts[0]):02d}:{int(parts[1]):02d}:00"
-    elif len(parts) >= 3:
-        cutoff = f"{int(parts[0]):02d}:{int(parts[1]):02d}:{int(parts[2]):02d}"
+    cutoff = _normalize_cutoff_utc(cutoff_utc)
 
     for event in events:
         date_str = str(event.get("date") or "")
@@ -121,6 +116,26 @@ def _filter_events_by_cutoff_utc(
         if time_str <= cutoff:
             out.append(event)
     return out
+
+
+def _normalize_cutoff_utc(cutoff_utc: str) -> str:
+    """Validate and normalize cutoff time to HH:MM:SS."""
+    raw = str(cutoff_utc or "").strip()
+    parts = raw.split(":")
+    if len(parts) not in {2, 3}:
+        raise ValueError("Expected HH:MM or HH:MM:SS")
+
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+        second = int(parts[2]) if len(parts) == 3 else 0
+    except ValueError as exc:
+        raise ValueError("Expected numeric HH:MM or HH:MM:SS") from exc
+
+    if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
+        raise ValueError("Time parts out of range (HH 0-23, MM/SS 0-59)")
+
+    return f"{hour:02d}:{minute:02d}:{second:02d}"
 
 
 def _parse_args() -> argparse.Namespace:
@@ -208,6 +223,11 @@ def _format_macro_events(events: list[dict], max_events: int) -> list[dict]:
     return out
 
 
+def _inputs_hash(payload: dict) -> str:
+    raw = json.dumps(payload, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def main() -> None:
     args = _parse_args()
     symbols = [item.strip().upper() for item in args.symbols.split(",") if item.strip()]
@@ -226,7 +246,10 @@ def main() -> None:
     todays_events = [event for event in macro_events if _event_is_today(event, today)]
 
     if args.pre_open_only:
-        todays_events = _filter_events_by_cutoff_utc(todays_events, args.pre_open_cutoff_utc)
+        try:
+            todays_events = _filter_events_by_cutoff_utc(todays_events, args.pre_open_cutoff_utc)
+        except ValueError as exc:
+            raise SystemExit(f"[open_prep] Invalid --pre-open-cutoff-utc: {exc}") from exc
 
     todays_us_events = filter_us_events(todays_events)
     todays_us_high_impact_events = filter_us_high_impact_events(todays_events)
@@ -258,6 +281,20 @@ def main() -> None:
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=max(args.trade_cards, 1))
 
     result = {
+        "schema_version": "open_prep_v1",
+        "code_version": os.environ.get("OPEN_PREP_CODE_VERSION", os.environ.get("GIT_SHA", "unknown")),
+        "inputs_hash": _inputs_hash(
+            {
+                "run_date_utc": today.isoformat(),
+                "symbols": symbols,
+                "days_ahead": args.days_ahead,
+                "top": args.top,
+                "trade_cards": args.trade_cards,
+                "max_macro_events": args.max_macro_events,
+                "pre_open_only": args.pre_open_only,
+                "pre_open_cutoff_utc": args.pre_open_cutoff_utc,
+            }
+        ),
         "run_date_utc": today.isoformat(),
         "pre_open_only": bool(args.pre_open_only),
         "pre_open_cutoff_utc": args.pre_open_cutoff_utc,

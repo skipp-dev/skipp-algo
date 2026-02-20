@@ -26,10 +26,12 @@ def rank_candidates(
     - avgVolume
     """
     ranked: list[dict[str, Any]] = []
-    by_symbol_news = {k.upper(): float(v) for k, v in (news_scores or {}).items()}
+    by_symbol_news: dict[str, float] = {}
+    for key, value in (news_scores or {}).items():
+        by_symbol_news[str(key).upper()] = _to_float(value, default=0.0)
 
     for quote in quotes:
-        symbol = str(quote.get("symbol") or "")
+        symbol = str(quote.get("symbol") or "").strip().upper()
         if not symbol:
             continue
 
@@ -50,16 +52,32 @@ def rank_candidates(
         # Risk-off days reduce long-breakout appetite.
         risk_off_penalty = abs(min(bias, 0.0)) * 2.0
 
+        gap_component = 0.8 * max(min(gap_pct, 10.0), -10.0)
+        rvol_component = 1.2 * rel_vol_capped
+        macro_component = 0.7 * max(bias, 0.0)
+        news_score = by_symbol_news.get(symbol, 0.0)
+        news_component = news_score
+        liquidity_penalty_component = 1.5 * liquidity_penalty
+        risk_off_penalty_component = risk_off_penalty
+
         score = 0.0
         # Cap gap at ±10 % so extreme overnight gaps don't dominate the score;
         # a +20 % gap is usually untradeable at open anyway.
-        score += 0.8 * max(min(gap_pct, 10.0), -10.0)
-        score += 1.2 * rel_vol_capped
-        score += 0.7 * max(bias, 0.0)
-        news_score = by_symbol_news.get(symbol, 0.0)
-        score += news_score
-        score -= 1.5 * liquidity_penalty
-        score -= risk_off_penalty
+        score += gap_component
+        score += rvol_component
+        score += macro_component
+        score += news_component
+        score -= liquidity_penalty_component
+        score -= risk_off_penalty_component
+
+        no_trade_reason: list[str] = []
+        if price < 5.0:
+            no_trade_reason.append("price_below_5")
+        if bias <= -0.75:
+            no_trade_reason.append("macro_risk_off_extreme")
+        if gap_pct <= -8.0:
+            no_trade_reason.append("severe_gap_down")
+        long_allowed = len(no_trade_reason) == 0
 
         ranked.append(
             {
@@ -73,6 +91,16 @@ def rank_candidates(
                 "rel_volume_capped": round(rel_vol_capped, 4),
                 "macro_bias": round(bias, 4),
                 "news_catalyst_score": round(news_score, 4),
+                "score_breakdown": {
+                    "gap_component": round(gap_component, 4),
+                    "rvol_component": round(rvol_component, 4),
+                    "macro_component": round(macro_component, 4),
+                    "news_component": round(news_component, 4),
+                    "liquidity_penalty": round(liquidity_penalty_component, 4),
+                    "risk_off_penalty": round(risk_off_penalty_component, 4),
+                },
+                "long_allowed": long_allowed,
+                "no_trade_reason": no_trade_reason,
             }
         )
 
