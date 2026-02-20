@@ -172,7 +172,7 @@ class TestMacroDedup(unittest.TestCase):
         )
 
     def test_non_canonical_inflation_yoy_gets_reduced_weight(self):
-        """PCE YoY / CPI YoY without canonical key should get weight 0.25, not 1.0."""
+        """Inflation YoY prints should get weight 0.25, not 1.0."""
         events = [
             {
                 "country": "US",
@@ -186,7 +186,8 @@ class TestMacroDedup(unittest.TestCase):
         analysis = macro_bias_with_components(events)
         comps = [c for c in analysis["score_components"] if c["weight"] > 0]
         self.assertEqual(len(comps), 1)
-        self.assertEqual(comps[0]["weight"], 0.25, "Non-canonical inflation YoY should use reduced weight")
+        self.assertEqual(comps[0]["canonical_event"], "pce_yoy")
+        self.assertEqual(comps[0]["weight"], 0.25, "Inflation YoY should use reduced weight")
 
     def test_annotate_does_not_mutate_input_events(self):
         """macro_bias_with_components must not mutate the caller's event dicts."""
@@ -261,6 +262,79 @@ class TestMacroDedup(unittest.TestCase):
         self.assertIn("missing_unit", flags)
         # Sanity: input was not mutated
         self.assertNotIn("data_quality_flags", events[0])
+
+    def test_cpi_ppi_yoy_canonicalize_and_score_at_reduced_weight(self):
+        """Regression: CPI YoY / Core CPI YoY / PPI YoY / Core PPI YoY must
+        canonicalize to their own keys and score at weight 0.25, not fall through
+        to the bare cpi/ppi patterns at weight 1.0 (which causes double-counting
+        with the MoM prints from the same release)."""
+        from open_prep.macro import canonicalize_event_name
+
+        yoy_cases = [
+            ("CPI YoY", "cpi_yoy"),
+            ("CPI Price Index YoY", "cpi_yoy"),
+            ("Core CPI YoY", "core_cpi_yoy"),
+            ("Core CPI Price Index YoY", "core_cpi_yoy"),
+            ("PPI YoY", "ppi_yoy"),
+            ("PPI Price Index YoY", "ppi_yoy"),
+            ("Core PPI YoY", "core_ppi_yoy"),
+            ("Core PPI Price Index YoY", "core_ppi_yoy"),
+        ]
+        for raw_name, expected_key in yoy_cases:
+            with self.subTest(raw_name=raw_name):
+                self.assertEqual(
+                    canonicalize_event_name(raw_name), expected_key,
+                    f"{raw_name!r} should canonicalize to {expected_key!r}",
+                )
+
+        # Verify scoring weight is 0.25 for all YoY variants
+        for event_name, expected_canonical in yoy_cases[:4]:
+            with self.subTest(scoring=event_name):
+                analysis = macro_bias_with_components([
+                    {
+                        "country": "US",
+                        "date": "2026-02-20",
+                        "event": event_name,
+                        "actual": 3.0,
+                        "consensus": 2.5,
+                        "impact": "High",
+                    }
+                ])
+                comp = next(
+                    (c for c in analysis["score_components"] if c.get("canonical_event") == expected_canonical),
+                    None,
+                )
+                self.assertIsNotNone(comp)
+                self.assertEqual(comp["weight"], 0.25, f"{expected_canonical} YoY must use 0.25")
+
+    def test_cpi_mom_and_cpi_yoy_same_day_no_double_counting(self):
+        """On a real CPI day, MoM and YoY arrive together. MoM should get 1.0
+        and YoY only 0.25 — they must NOT both get 1.0."""
+        events = [
+            {
+                "country": "US",
+                "date": "2026-02-20",
+                "event": "CPI MoM",
+                "actual": 0.4,
+                "consensus": 0.2,
+                "impact": "High",
+            },
+            {
+                "country": "US",
+                "date": "2026-02-20",
+                "event": "CPI YoY",
+                "actual": 3.0,
+                "consensus": 2.8,
+                "impact": "High",
+            },
+        ]
+        analysis = macro_bias_with_components(events)
+        mom_comp = next(c for c in analysis["score_components"] if c.get("canonical_event") == "cpi_mom")
+        yoy_comp = next(c for c in analysis["score_components"] if c.get("canonical_event") == "cpi_yoy")
+        self.assertEqual(mom_comp["weight"], 1.0)
+        self.assertEqual(yoy_comp["weight"], 0.25)
+        # Total: -(1.0 + 0.25) = -1.25 raw / 2.0 = -0.625
+        self.assertEqual(analysis["macro_bias"], -0.625)
 
 if __name__ == "__main__":
     unittest.main()

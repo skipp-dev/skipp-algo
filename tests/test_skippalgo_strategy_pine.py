@@ -610,8 +610,8 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("alertBuyDelayed   = buyEventStrict and strictWasEnabled", self.text)
         self.assertIn("alertShortSameBar = shortEventLive and not strictAlertsEnabled", self.text)
         self.assertIn("alertShortDelayed = shortEventStrict and strictWasEnabled", self.text)
-        self.assertIn("alertBuyCond   = alertBuySameBar or alertBuyDelayed", self.text)
-        self.assertIn("alertShortCond = alertShortSameBar or alertShortDelayed", self.text)
+        self.assertIn("alertBuyCond   = (alertBuySameBar or alertBuyDelayed) and not alertRevBuyCond", self.text)
+        self.assertIn("alertShortCond = (alertShortSameBar or alertShortDelayed) and not alertRevShortCond", self.text)
         self.assertIn("alertExitCond  = exitEventLive", self.text)
         self.assertIn("alertCoverCond = coverEventLive", self.text)
 

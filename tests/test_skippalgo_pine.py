@@ -338,8 +338,8 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("alertBuyDelayed   = buyEventStrict and strictWasEnabled", self.text)
         self.assertIn("alertShortSameBar = shortEventLive and not strictAlertsEnabledVis", self.text)
         self.assertIn("alertShortDelayed = shortEventStrict and strictWasEnabled", self.text)
-        self.assertIn("alertBuyCond   = alertBuySameBar or alertBuyDelayed", self.text)
-        self.assertIn("alertShortCond = alertShortSameBar or alertShortDelayed", self.text)
+        self.assertIn("alertBuyCond   = (alertBuySameBar or alertBuyDelayed) and not alertRevBuyCond", self.text)
+        self.assertIn("alertShortCond = (alertShortSameBar or alertShortDelayed) and not alertRevShortCond", self.text)
         self.assertIn("alertExitCond  = exitEventLive", self.text)
         self.assertIn("alertCoverCond = coverEventLive", self.text)
 
@@ -409,10 +409,12 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         """USI-FLIP must not bypass EntriesOnly hold in indicator exits."""
         self.assertIn("bool holdExceptionsOnly = entryOnlyExitHoldActive", self.text)
         self.assertTrue(
+            "exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit)" in self.text or
             "exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or usiExitHit or engExitHit or staleExit)" in self.text or
             "exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit or staleExitHit)" in self.text
         )
         self.assertTrue(
+            "coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit)" in self.text or
             "coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or usiExitHit or engExitHit or staleExit)" in self.text or
             "coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (riskExitHit or structExitHit or chochExitHit or usiExitHit or engExitHit or staleExitHit)" in self.text
         )
