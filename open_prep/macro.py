@@ -200,6 +200,25 @@ class FMPClient:
             return []
         return [item for item in data if isinstance(item, dict)]
 
+    def get_historical_price_eod_full(
+        self,
+        symbol: str,
+        date_from: date,
+        date_to: date,
+    ) -> list[dict[str, Any]]:
+        """Fetch full EOD history (OHLCV) from stable endpoint for one symbol."""
+        data = self._get(
+            "/stable/historical-price-eod/full",
+            {
+                "symbol": symbol,
+                "from": date_from.isoformat(),
+                "to": date_to.isoformat(),
+            },
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
 
 @functools.lru_cache(maxsize=512)
 def _normalize_event_name(name: str) -> str:

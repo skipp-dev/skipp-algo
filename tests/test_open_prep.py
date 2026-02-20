@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from open_prep.trade_cards import build_trade_cards
 from open_prep.run_open_prep import (
+    _calculate_atr14_from_eod,
     _extract_time_str,
     _filter_events_by_cutoff_utc,
     _inputs_hash,
@@ -260,6 +261,20 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIn("macro_risk_off_extreme", row["no_trade_reason"])
         self.assertIn("severe_gap_down", row["no_trade_reason"])
 
+    def test_rank_candidates_carries_atr_from_quote(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "price": 100,
+                "changesPercentage": 1.0,
+                "volume": 1_000_000,
+                "avgVolume": 500_000,
+                "atr": 3.25,
+            }
+        ]
+        row = rank_candidates(quotes, bias=0.0, top_n=1)[0]
+        self.assertEqual(row["atr"], 3.25)
+
     def test_build_news_scores_uses_tickers_and_recency_windows(self):
         symbols = ["NVDA", "PLTR"]
         now = datetime(2026, 2, 20, 15, 0, 0, tzinfo=UTC)
@@ -426,6 +441,16 @@ class TestOpenPrep(unittest.TestCase):
 
         mock_get.assert_called_once_with("/stable/batch-quote", {"symbols": "NVDA,PLTR"})
         self.assertEqual(quotes, [{"symbol": "NVDA"}])
+
+    def test_calculate_atr14_from_eod_returns_non_zero_for_valid_candles(self):
+        candles = [
+            {"date": "2026-02-01", "high": 10.0, "low": 9.0, "close": 9.5},
+            {"date": "2026-02-02", "high": 10.5, "low": 9.2, "close": 10.2},
+            {"date": "2026-02-03", "high": 11.0, "low": 9.8, "close": 10.7},
+            {"date": "2026-02-04", "high": 11.3, "low": 10.1, "close": 11.1},
+            {"date": "2026-02-05", "high": 11.6, "low": 10.4, "close": 11.0},
+        ]
+        self.assertGreater(_calculate_atr14_from_eod(candles), 0.0)
 
     def test_inputs_hash_is_deterministic(self):
         payload = {"symbols": ["NVDA", "PLTR"], "top": 10}
