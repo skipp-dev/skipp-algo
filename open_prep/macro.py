@@ -95,6 +95,10 @@ FORCED_HIGH_IMPACT_CANONICAL_KEYS: set[str] = {
     "core_cpi",
     "ppi",
     "core_ppi",
+    "cpi_yoy",
+    "core_cpi_yoy",
+    "ppi_yoy",
+    "core_ppi_yoy",
     "nfp",
     "unemployment",
     "hourly_earnings",
@@ -269,6 +273,13 @@ CANONICAL_EVENT_PATTERNS = [
     ("core_cpi_mom", [r"\bcore\b", r"\bcpi\b", r"\bmom\b"]),
     ("ppi_mom",      [r"(?<!core )\bppi\b", r"\bmom\b"]),
     ("core_ppi_mom", [r"\bcore\b", r"\bppi\b", r"\bmom\b"]),
+    # YoY CPI/PPI patterns must come AFTER MoM but BEFORE the bare cpi/ppi
+    # patterns, otherwise "CPI YoY" would fall through to the bare "cpi" key
+    # and receive weight 1.0 instead of the intended 0.25 for derived prints.
+    ("cpi_yoy",      [r"(?<!core )\bcpi\b", r"\byoy\b"]),
+    ("core_cpi_yoy", [r"\bcore\b", r"\bcpi\b", r"\byoy\b"]),
+    ("ppi_yoy",      [r"(?<!core )\bppi\b", r"\byoy\b"]),
+    ("core_ppi_yoy", [r"\bcore\b", r"\bppi\b", r"\byoy\b"]),
     ("cpi",          [r"(?<!core )\bcpi\b"]),
     ("core_cpi",     [r"\bcore\b", r"\bcpi\b"]),
     ("ppi",          [r"(?<!core )\bppi\b"]),
@@ -316,7 +327,7 @@ def dedupe_events(events: list[dict]) -> list[dict]:
     passthrough: list[dict] = []
     for e in events:
         country = e.get("country")
-        date = e.get("date", "1970-01-01") # Fallback for tests
+        event_date = e.get("date", "1970-01-01")  # Fallback for tests
         raw_name = e.get("event") or e.get("name") or ""
         key = canonicalize_event_name(raw_name)
         if not country:
@@ -327,7 +338,7 @@ def dedupe_events(events: list[dict]) -> list[dict]:
             # and scoring can still see them.
             passthrough.append(e)
             continue
-        buckets.setdefault((country, date, key), []).append(e)
+        buckets.setdefault((country, event_date, key), []).append(e)
 
     out = []
     for k, items in buckets.items():
@@ -593,9 +604,15 @@ def macro_bias_with_components(
         ):
             weight = 1.0
             sign = -1.0 if surprise > 0 else +1.0
-        elif canonical_key in ("pce_mom", "pce_yoy", "core_pce_yoy"):
-            # Headline PCE MoM and YoY variants carry reduced weight.
-            # MoM is the primary Fed-watch print; YoY is derived from the same data.
+        elif canonical_key in (
+            "pce_mom", "pce_yoy", "core_pce_yoy",
+            "cpi_yoy", "core_cpi_yoy",
+            "ppi_yoy", "core_ppi_yoy",
+        ):
+            # YoY variants carry reduced weight — the MoM prints already carry
+            # full 1.0 weight and YoY is derived from the same underlying data.
+            # Headline PCE MoM (pce_mom) is also 0.25 since Core PCE is the
+            # primary Fed-watch print at weight 1.0.
             weight = 0.25
             sign = -1.0 if surprise > 0 else +1.0
         elif canonical_key == "hourly_earnings" or "average hourly earnings" in name:
