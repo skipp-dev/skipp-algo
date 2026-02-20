@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-_TICKER_RE = re.compile(r"\b[A-Z]{1,5}\b")
+_TICKER_RE = re.compile(r"\b[A-Z][A-Z0-9.-]{0,5}\b")
 
 
 def _extract_symbols_from_tickers(raw: str) -> set[str]:
@@ -67,6 +67,9 @@ def build_news_scores(
         for s in universe
     }
 
+    # Precompile regex patterns for fallback matching to avoid false positives (e.g. "A" in "APPLE")
+    sym_patterns = {sym: re.compile(rf"\b{re.escape(sym)}\b") for sym in universe}
+
     for article in articles:
         ticker_meta = str(article.get("tickers") or "")
         title = str(article.get("title") or "").upper()
@@ -75,10 +78,10 @@ def build_news_scores(
 
         mentioned = _extract_symbols_from_tickers(ticker_meta)
 
-        if not mentioned:
-            # Fallback: symbol mention in title/content
-            for sym in universe:
-                if sym in title or sym in content:
+        # Fallback: symbol mention in title/content if FMP didn't tag it
+        for sym, pattern in sym_patterns.items():
+            if sym not in mentioned:
+                if pattern.search(title) or pattern.search(content):
                     mentioned.add(sym)
 
         for sym in mentioned:
