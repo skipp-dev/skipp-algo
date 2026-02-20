@@ -69,6 +69,7 @@ Additionally, multiple production hardening updates were implemented after live 
   - invalidation
   - risk management guidance
   - context metadata
+- Includes ATR trail-stop profiles (`tight`, `balanced`, `wide`) and concrete stop-price levels when reference fields are available.
 
 ### 7) Testing and regression safety
 
@@ -80,6 +81,17 @@ Additionally, multiple production hardening updates were implemented after live 
   - date/time parsing edge cases
   - macro bias neutrality/direction
   - endpoint usage assumptions
+  - ATR trail-stop distances and stop-price reference behavior
+
+### 8) Export artifacts (HTML/XLS)
+
+**Status:** ✅ Implemented
+
+- Timestamped report export is available via `scripts/export_open_prep_reports.py`.
+- Generates both:
+  - `reports/open_prep_report_YYYYMMDD_HHMMSSZ.html`
+  - `reports/open_prep_report_YYYYMMDD_HHMMSSZ.xls`
+- Exports include summary, ranked candidates, trade cards, and high/mid-impact macro tables.
 
 ## Notable Production Hardening Beyond Baseline Spec
 
@@ -87,6 +99,7 @@ Additionally, multiple production hardening updates were implemented after live 
 - Robust handling of malformed/invalid JSON API responses.
 - Time parsing hardened for multiple valid formats and invalid values.
 - Stable sorting/tiebreakers to improve reproducibility.
+- ATR trail-stop distances and concrete stop-price levels integrated into trade cards.
 
 ## Endpoint Notes (Important)
 
@@ -102,7 +115,7 @@ Current implementation uses validated stable endpoints observed to return usable
 ## Validation Snapshot
 
 - Latest local suite status observed during review cycle:  
-  **`499 passed, 16 subtests passed`**
+  **`502 passed, 16 subtests passed`**
 
 ## Conclusion
 
