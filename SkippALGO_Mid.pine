@@ -2108,7 +2108,8 @@ if (pos == 0 and (allowEntryRt or allowRescueRt)) or allowRevBypassRt
         // Hybrid: Trigger (EMA Touch) + Core Evidence + Enhancements (Soft)
         // Removed hard "Safe" walls.
         
-        bool validTrendEntryL = standardEntryOk and gateLongNow and liqOk_L and momOk_L and engOk_L and enhLongOk and hybridLongTrigger
+        // Fix #13: add engulfing gate — all other engines include f_soft(engulfLongOk), so reqEngulfing now applies to Hybrid too
+        bool validTrendEntryL = standardEntryOk and gateLongNow and liqOk_L and momOk_L and engOk_L and enhLongOk and hybridLongTrigger and f_soft(engulfLongOk)
         
         // Context: Good Regime allows entry. Bad Regime requires Volume OR Engulfing.
         bool contextL = (regimeScoreL > 0) or (f_soft(volOk) and f_soft(engulfLongOk))
@@ -2125,7 +2126,8 @@ if (pos == 0 and (allowEntryRt or allowRescueRt)) or allowRevBypassRt
         buySignal   := gateBuy and chochFilterOk
         
         
-        bool validTrendEntryS = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and engOk_S and enhShortOk and hybridShortTrigger
+        // Fix #13: add engulfing gate — symmetric with long side and other engines
+        bool validTrendEntryS = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and engOk_S and enhShortOk and hybridShortTrigger and f_soft(engulfShortOk)
         bool contextS = (regimeScoreS > 0) or (f_soft(volOk) and f_soft(engulfShortOk))
         
         gateShort = validTrendEntryS and contextS and not isVetoS
@@ -2404,7 +2406,8 @@ if pos == -1 and allowExitShort
     bool usiExitHit = useUsi and _usiXUp
     bool structExitHit = canStructExit and breakShort
     bool chochExitHit = canChochExit and isChoCH_Long and (na(pU) or pU >= exitConfChoCh)
-    int engBullCtxScore = (usiExitHit ? 1 : 0) + (rocLongOk ? 1 : 0) + ((chochEventLong or reclaimUpSafe) ? 1 : 0)
+    // Fix #11: add reclaimLow — mirrors sweepHigh in long exit's engBearCtxScore for symmetry
+    int engBullCtxScore = (usiExitHit ? 1 : 0) + (rocLongOk ? 1 : 0) + ((chochEventLong or reclaimUpSafe or reclaimLow) ? 1 : 0)
     
     // Bullish Engulfing Logic
     bool engExitHit = useEngulfExit and bullEngulf3 and engulfExitMode == "Contextual Exit" and (engBullCtxScore >= 2)
@@ -2667,7 +2670,7 @@ entryPxPrev = entryPrice[1]
 // v6.2.18: Entry labels switched from plotshape() to label.new() for matching
 //          EXIT label size and dynamic text (probability, confidence).
 var label[] _entryLabels = array.new_label(0)
-MAX_ENTRY_LABELS = 150
+MAX_ENTRY_LABELS = 120  // Fix #12: sum of all label arrays must stay ≤ max_labels_count(500)
 
 f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol)
@@ -2717,7 +2720,7 @@ if showShortLabelsEff and labelShort
 // EXIT/COVER use label.new() for dynamic text (reason, conf, bars held).
 // Capped via array to guarantee they never evict each other.
 var label[] _exitLabels = array.new_label(0)
-MAX_EXIT_LABELS = 250  // v6.2.18: reduced to share budget with entry labels
+MAX_EXIT_LABELS = 200  // Fix #12: 120+200+100+80 = 500 ≤ max_labels_count
 
 f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol)
