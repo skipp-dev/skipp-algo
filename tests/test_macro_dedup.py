@@ -364,5 +364,33 @@ class TestMacroDedup(unittest.TestCase):
         # Total: -(1.0 + 0.25) = -1.25 raw / 2.0 = -0.625
         self.assertEqual(analysis["macro_bias"], -0.625)
 
+    def test_dedupe_events_handles_mixed_date_formats(self):
+        """Deduplication key must use only the date portion so that events
+        with the same canonical key are merged even when one provider returns
+        a date-only string ('2026-02-20') and another returns a full datetime
+        ('2026-02-20 08:30:00') for the same release."""
+        events = [
+            {
+                "country": "US",
+                "date": "2026-02-20",
+                "event": "Gross Domestic Product QoQ (Q4)",
+                "actual": 1.4,
+                "consensus": 2.8,
+                "impact": "High",
+            },
+            {
+                "country": "US",
+                "date": "2026-02-20 08:30:00",
+                "event": "GDP Growth Rate QoQ (Q4)",
+                "actual": 1.4,
+                "consensus": 3.5,
+                "impact": "High",
+            },
+        ]
+        deduped = dedupe_events(events)
+        self.assertEqual(len(deduped), 1, "Mixed date formats must still deduplicate to one event")
+        self.assertTrue(deduped[0].get("dedup", {}).get("was_deduped"))
+        self.assertEqual(deduped[0]["dedup"]["duplicates_count"], 2)
+
 if __name__ == "__main__":
     unittest.main()
