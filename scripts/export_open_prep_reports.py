@@ -63,14 +63,12 @@ def main() -> None:
         sym = str(q.get("symbol") or "").strip().upper()
         if sym:
             q["atr"] = atr_by_symbol.get(sym, 0.0)
-
     news_scores: dict[str, float] = {}
     try:
         articles = client.get_fmp_articles(limit=250)
         news_scores, _ = build_news_scores(symbols=DEFAULT_UNIVERSE, articles=articles)
     except RuntimeError as exc:
         print(f"[export_open_prep_reports] news fetch skipped: {exc}", file=sys.stderr)
-
     ranked = rank_candidates(quotes=quotes, bias=bias, top_n=10, news_scores=news_scores)
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=5)
 
