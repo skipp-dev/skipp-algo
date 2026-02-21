@@ -17,8 +17,14 @@ from open_prep.macro import (
     filter_us_mid_impact_events,
     macro_bias_score,
 )
-from open_prep.run_open_prep import _event_is_today, _format_macro_events
-from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, apply_gap_mode_to_quotes
+from open_prep.news import build_news_scores
+from open_prep.run_open_prep import (
+    _atr14_by_symbol,
+    _event_is_today,
+    _format_macro_events,
+    GAP_MODE_PREMARKET_INDICATIVE,
+    apply_gap_mode_to_quotes,
+)
 from open_prep.screen import rank_candidates
 
 DEFAULT_UNIVERSE = ["NVDA", "PLTR", "PWR", "TSLA", "AMD", "META", "MSFT", "AMZN", "GOOGL", "SMCI"]
@@ -52,7 +58,18 @@ def main() -> None:
         run_dt_utc=now_utc,
         gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
     )
-    ranked = rank_candidates(quotes=quotes, bias=bias, top_n=10)
+    atr_by_symbol, _ = _atr14_by_symbol(client=client, symbols=DEFAULT_UNIVERSE, as_of=run_date)
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        if sym:
+            q["atr"] = atr_by_symbol.get(sym, 0.0)
+    news_scores: dict[str, float] = {}
+    try:
+        articles = client.get_fmp_articles(limit=250)
+        news_scores, _ = build_news_scores(symbols=DEFAULT_UNIVERSE, articles=articles)
+    except RuntimeError as exc:
+        print(f"[export_open_prep_reports] news fetch skipped: {exc}", file=sys.stderr)
+    ranked = rank_candidates(quotes=quotes, bias=bias, top_n=10, news_scores=news_scores)
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=5)
 
     result: dict[str, Any] = {
