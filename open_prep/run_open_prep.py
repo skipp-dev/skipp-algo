@@ -55,7 +55,8 @@ def _extract_time_str(event_date: str) -> str:
 
             hour = int(match.group(1))
             minute = int(match.group(2))
-            second = int(match.group(3) or "0")
+            second_str = match.group(3)
+            second = int(second_str) if second_str is not None else 0
             if 0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59:
                 return f"{hour:02d}:{minute:02d}:{second:02d}"
     return "99:99:99"
@@ -250,11 +251,13 @@ def _to_float(value: Any, default: float = 0.0) -> float:
 
 
 def _calculate_atr14_from_eod(candles: list[dict]) -> float:
-    """Calculate ATR(14) from EOD OHLC candles.
+    """Calculate ATR(14) from EOD OHLC using Wilder's Smoothing (RMA).
 
-    Expects each candle to expose high, low, close. Uses classic True Range and
-    returns SMA(TR, 14). If fewer than 14 valid bars are available, uses all
-    available TR values (minimum 2 bars required).
+    Expects each candle to expose high, low, close.
+    Standard ATR calculation:
+    1. TR = Max(H-L, |H-Cp|, |L-Cp|)
+    2. First ATR = SMA(TR, 14)
+    3. Subsequent ATR = ((Prior ATR * 13) + Current TR) / 14
     """
     parsed: list[tuple[str, float, float, float]] = []
     for c in candles:
@@ -268,15 +271,18 @@ def _calculate_atr14_from_eod(candles: list[dict]) -> float:
             continue
         parsed.append((d, high, low, close))
 
-    if len(parsed) < 2:
+    if len(parsed) < 15:  # Need 14 for first value + 1 prior close
         return 0.0
 
     parsed.sort(key=lambda row: row[0])
     tr_values: list[float] = []
     prev_close: float | None = None
+    
     for _, high, low, close in parsed:
         if prev_close is None:
-            tr = max(high - low, 0.0)
+            # First bar TR is H-L (no prior close)
+            # Standard practice often skips first bar or treats as H-L
+            tr = high - low
         else:
             tr = max(
                 high - low,
@@ -286,17 +292,25 @@ def _calculate_atr14_from_eod(candles: list[dict]) -> float:
         tr_values.append(max(tr, 0.0))
         prev_close = close
 
-    if not tr_values:
+    if len(tr_values) < 14:
         return 0.0
-    window = tr_values[-14:] if len(tr_values) >= 14 else tr_values
-    return round(sum(window) / len(window), 4)
+
+    # Wilder's Smoothing Initialization
+    # First 14 TRs -> Simple Average
+    current_atr = sum(tr_values[:14]) / 14.0
+
+    # Smooth the rest
+    for tr in tr_values[14:]:
+        current_atr = (current_atr * 13.0 + tr) / 14.0
+
+    return round(current_atr, 4)
 
 
 def _atr14_by_symbol(
     client: FMPClient,
     symbols: list[str],
     as_of: date,
-    lookback_days: int = 60,
+    lookback_days: int = 250,  # Increased for RMA convergence
 ) -> tuple[dict[str, float], dict[str, str]]:
     atr_map: dict[str, float] = {}
     errors: dict[str, str] = {}

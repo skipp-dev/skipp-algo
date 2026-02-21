@@ -590,6 +590,7 @@ hardenHold      = input.bool(true, "Hardened Hold (L5 > L4)", group="⚡ USI Qua
 usiAggressiveSameBarVerify = input.bool(false, "USI Aggressive: same-bar verify", group="⚡ USI Quantum Pulse", tooltip="Uses the current bar cross for verification instead of waiting for [1] cross memory.")
 usiAggressiveOneOfThree = input.bool(false, "USI Aggressive: verify 1-of-3", group="⚡ USI Quantum Pulse", tooltip="Relaxes standard verify voting from 2-of-3 to 1-of-3 (tight-spread strict mode remains Hold+Continuation).")
 usiAggressiveTightSpreadVotes = input.bool(false, "USI Aggressive: tight-spread votes", group="⚡ USI Quantum Pulse", tooltip="When enabled, tight-spread mode also uses vote logic (2-of-3 or 1-of-3) instead of strict Hold+Continuation only.")
+useUsiTrendOverride = input.bool(true, "USI blocks contrary entries", group="⚡ USI Quantum Pulse", tooltip="When enabled, USI bearish state blocks long entries and bullish state blocks short entries. Disable to let scoring handle USI influence only (symmetric with useUsi).")
 
 //====================
 // Inputs — Score Engine (Option C)
@@ -2600,13 +2601,13 @@ usiMinEnv = math.min(math.min(usiLine1, usiLine2), math.min(usiLine3, usiLine4))
 
 // "Red under all, then crosses above all" -> BUY
 // Implies: Yesterday Red < MinEnv, Today Red crosses above MaxEnv
-usiWasBelowAll = usiLine5[1] < usiMinEnv[1]
+// usiWasBelowAll removed as it was dead code
 usiWasAboveAll = usiLine5[1] > usiMaxEnv[1]
 
 _usiXUp = ta.crossover(usiLine5, usiMaxEnv)
 _usiXDn = ta.crossunder(usiLine5, usiMinEnv)
 
-usiBuySignal  = usiWasBelowAll and _usiXUp
+// usiBuySignal removed as it was dead code
 usiSellSignal = usiWasAboveAll and _usiXDn
 
 // State: Red clearly dominant above/below all others
@@ -2931,6 +2932,16 @@ if scalpEarlyEntryBehavior
     scoreMinConfLongEff := math.max(0.30, scoreMinConfLongEff - 0.05)
     scoreMinConfShortEff := math.max(0.30, scoreMinConfShortEff - 0.05)
 bool useScoreEntriesEff = presetOverridesActive ? true : useScoreEntries
+int wUsiEff = presetOverridesActive ? (presetIsIntraday ? 5 : 3) : wUsi
+int wLiquidityEff = presetOverridesActive ? (presetIsIntraday ? 3 : 2) : wLiquidity
+int wMomentumEff = presetOverridesActive ? (presetIsIntraday ? 3 : 2) : wMomentum
+int wEngulfingEff = presetOverridesActive ? (presetIsIntraday ? 2 : 1) : wEngulfing
+int wTrendContextEff = presetOverridesActive ? (presetIsIntraday ? 1 : 2) : wTrendContext
+int wChopPenaltyEff = presetOverridesActive ? (presetIsIntraday ? -2 : -4) : wChopPenalty
+if legacyEntryBehavior
+    wChopPenaltyEff := math.min(wChopPenaltyEff, -1)
+bool scoreRequireDirectionalContextEff = not legacyEntryBehavior
+bool scoreChopHardVetoEff = not legacyEntryBehavior and not scalpEarlyEntryBehavior
 float chochMinProbEff = legacyEntryBehavior ? math.max(0.34, chochMinProb - 0.05) : scalpEarlyEntryBehavior ? math.max(0.30, chochMinProb - 0.08) : chochMinProb
 
 // C2 – Adaptive cooldown: halve wait when model confidence is high
@@ -3116,7 +3127,7 @@ atrNormHere = atr / math.max(close, PRICE_EPS)
 trendReg = f_trend_regime(emaF, emaS, atrNormHere)
 trendUp  = trendReg == 1.0
 trendDn  = trendReg == -1.0
-trendSide = trendReg == 0.0  // Engine-side sideways state
+// Engine-side sideways state
 
 // Visual consolidation regime (UX only): hysteresis to reduce "sticky" state flips.
 // Does NOT alter engine gating/entries; it only drives consolidation alert state.
@@ -3976,30 +3987,30 @@ allowRevBypass = allowNeuralReversals and signalGateConfirmed and cooldownOkSafe
 if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     // Recency (Global Scope inside loop for safety)
-    bool revRecencyOkL   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= revRecencyBars or volRatioG >= 1.0)
-    bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= revRecencyBars or volRatioG >= 1.0)
+    bool revRecencyOkL   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= revRecencyBars or volRatioG >= rescueVolMult)
+    bool revRecencyOkS   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= revRecencyBars or volRatioG >= rescueVolMult)
 
     // Reversal Logic (Global)
     // NA safety handled by f_fc_bool wrapper on revBuyGlobal/revShortGlobal below.
     // v6.2.10: Restore original lightweight gates. Rev-buys bypass MTF, Macro,
     //   and SMC (these are standard-entry filters that contradict reversal purpose).
     //   Only ddOk (portfolio drawdown) is kept as a hard safety gate.
-    //   probOkGlobal restored to include hugeVol rescue fallback (pU >= 0.20 when Vol >= 1.5x).
     // v6.2.11: Lowered hugeVol threshold from 0.40 to 0.20 (see Indicator comment).
     //   Require directional impulse candle on rescue path.
     // v6.2.37: Allow Engulfing signals to bypass strict ATR Impulse requirement.
     bool impulseLong  = (isImpulse and (close > open)) or bullEngulf3
     bool impulseShort = (isImpulse and (close < open)) or bearEngulf3
-    // v6.2.35: enforce hard REV-BUY floor (pU >= 0.25) to match Indicator logic.
-    // Lowered from 0.37 to 0.25 to allow Oversold Bounce (Rescue) trades.
-    float revBuyMinProbFloor = 0.25
     // v6.2.20: open-window bypass can be scoped by side/engine/mode
     bool bypassRevLong   = inRevOpenWindowLong
     bool bypassRevShort  = inRevOpenWindowShort
+    // v6.2.35: enforce hard REV-BUY floor (pU >= 0.25) to match Indicator logic.
+    // Lowered from 0.37 to 0.25 to allow Oversold Bounce (Rescue) trades.
+    // Fail-open: when bypass (open window) is active, floor drops to 0 so na-prob doesn't block entry.
+    float revBuyMinProbFloor = bypassRevLong ? 0.0 : 0.25
     float revShortMinProbFloor = bypassRevShort ? 0.0 : 0.25
     // Rescue Logic: HugeVol OR BullEngulf3. Min Prob also lowered to 0.25.
-    bool probOkGlobal    = (not na(pU) and pU >= revBuyMinProbFloor) and (bypassRevLong or ((pU >= revMinProb) or ((hugeVolG or bullEngulf3) and pU >= 0.25 and impulseLong)))
-    bool probOkGlobalS   = (not na(pD) and pD >= revShortMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or ((hugeVolG or bearEngulf3) and pD >= 0.25 and impulseShort)))
+    bool probOkGlobal    = (na(pU) or pU >= revBuyMinProbFloor) and (bypassRevLong or ((pU >= revMinProb) or ((hugeVolG or bullEngulf3) and pU >= 0.25 and impulseLong)))
+    bool probOkGlobalS   = (na(pD) or pD >= revShortMinProbFloor) and (bypassRevShort or ((pD >= revMinProb) or ((hugeVolG or bearEngulf3) and pD >= 0.25 and impulseShort)))
     
     // SMC Filter: If enabled, requires recent sweep
     // A Reversal Buy requires a Bullish Sweep (Stop Run on Lows)
@@ -4037,8 +4048,8 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     // 1. USI Evidence (use existing global USI lines/states)
     float _uMax = usiMaxEnv
     float _uMin = usiMinEnv
-    bool usiCrossUp   = ta.crossover(usiLine5, _uMax)
-    bool usiCrossDown = ta.crossunder(usiLine5, _uMin)
+    bool usiCrossUp   = _usiXUp
+    bool usiCrossDown = _usiXDn
     bool usiSweepUp   = usiCrossUp and (usiLine5[1] < _uMin[1])
     bool usiSweepDown = usiCrossDown and (usiLine5[1] > _uMax[1])
 
@@ -4046,33 +4057,37 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     int scoreS = 0
     
     if useUsi
-        scoreL += f_score_add(usiCrossUp, wUsi) + f_score_add(usiSweepUp, wUsi / 2)
-        scoreS += f_score_add(usiCrossDown, wUsi) + f_score_add(usiSweepDown, wUsi / 2)
+        scoreL += f_score_add(usiCrossUp, wUsiEff) + f_score_add(usiSweepUp, (wUsiEff + 1) / 2)
+        scoreS += f_score_add(usiCrossDown, wUsiEff) + f_score_add(usiSweepDown, (wUsiEff + 1) / 2)
         // Add residual state score if cross happened earlier (supports late entries)
-        scoreL += f_score_add(usiBullState and not usiCrossUp, wUsi / 2)
-        scoreS += f_score_add(usiBearState and not usiCrossDown, wUsi / 2)
+        scoreL += f_score_add(usiBullState and not usiCrossUp, (wUsiEff + 1) / 2)
+        scoreS += f_score_add(usiBearState and not usiCrossDown, (wUsiEff + 1) / 2)
 
     // 2. Liquidity Evidence
-    scoreL += f_score_add(reclaimUpSafe, wLiquidity) + f_score_add(chochEventLong, wLiquidity)
-    scoreS += f_score_add(reclaimDownSafe, wLiquidity) + f_score_add(chochEventShort, wLiquidity)
+    scoreL += f_score_add(reclaimUpSafe, wLiquidityEff) + f_score_add(chochEventLong, wLiquidityEff)
+    scoreS += f_score_add(reclaimDownSafe, wLiquidityEff) + f_score_add(chochEventShort, wLiquidityEff)
 
     // 3. Momentum
-    scoreL += f_score_add(rocLongOk, wMomentum) + f_score_add(adxOk, wMomentum / 2) + f_score_add(hugeVolG, wMomentum / 2)
-    scoreS += f_score_add(rocShortOk, wMomentum) + f_score_add(adxOk, wMomentum / 2) + f_score_add(hugeVolG, wMomentum / 2)
+    scoreL += f_score_add(rocLongOk, wMomentumEff) + f_score_add(adxOk, (wMomentumEff + 1) / 2) + f_score_add(hugeVolG and (close > open), (wMomentumEff + 1) / 2)
+    scoreS += f_score_add(rocShortOk, wMomentumEff) + f_score_add(adxOk, (wMomentumEff + 1) / 2) + f_score_add(hugeVolG and (close < open), (wMomentumEff + 1) / 2)
 
     // 4. Trend Context
-    scoreL += f_score_add(trendUpSafe, wTrendContext)
-    scoreS += f_score_add(trendDnSafe, wTrendContext)
+    scoreL += f_score_add(trendUpSafe, wTrendContextEff)
+    scoreS += f_score_add(trendDnSafe, wTrendContextEff)
 
     // 5. Chop Penalty
-    bool isBreakout = isImpulse or hugeVolG or bullEngulf3 or bearEngulf3 or chochEventLong or chochEventShort or reclaimUpSafe or reclaimDownSafe
-    bool chopRisk = (not na(adxRaw) and adxRaw < 20) and (atr / math.max(close, PRICE_EPS) < 0.005) and not isBreakout
-    scoreL += f_penalty(chopRisk, wChopPenalty)
-    scoreS += f_penalty(chopRisk, wChopPenalty)
+    bool isBreakoutL = isImpulse or hugeVolG or bullEngulf3 or chochEventLong or reclaimUpSafe
+    bool isBreakoutS = isImpulse or hugeVolG or bearEngulf3 or chochEventShort or reclaimDownSafe
+    bool isBreakout = isBreakoutL or isBreakoutS
+    bool isChopL = (not na(adxRaw) and adxRaw < 20) and (atr / math.max(close, PRICE_EPS) < 0.005) and not isBreakoutL
+    bool isChopS = (not na(adxRaw) and adxRaw < 20) and (atr / math.max(close, PRICE_EPS) < 0.005) and not isBreakoutS
+    bool chopRisk = isChopL or isChopS
+    scoreL += f_penalty(isChopL, wChopPenaltyEff)
+    scoreS += f_penalty(isChopS, wChopPenaltyEff)
 
     // 6. Engulfing Evidence (Pattern)
-    scoreL += f_score_add(bullEngulf3, wEngulfing)
-    scoreS += f_score_add(bearEngulf3, wEngulfing)
+    scoreL += f_score_add(bullEngulf3, wEngulfingEff)
+    scoreS += f_score_add(bearEngulf3, wEngulfingEff)
 
     // Final Decision
     // Base eligibility: Position 0, Allow Entry + Drawdown Check (ddOk)
@@ -4090,9 +4105,37 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
 
     bool chochVolOk = (not chochReqVol) or volOkSafe
 
+    // Regime Score (Prior) — Forecast + USI soft factor
+    float regimeScoreL = 0.0
+    float regimeScoreS = 0.0
+    if not na(pU)
+        regimeScoreL += math.max(math.min((pU - 0.50) * 2.0, 0.4), -0.4)
+    float rawShort = na(pD) ? 0.0 : (pD - 0.50)
+    regimeScoreS += math.max(math.min(rawShort * 2.0, 0.4), -0.4)
+    if useUsi
+        if qRegimeBuy
+            regimeScoreL += 1.0
+            regimeScoreS -= 1.0
+        else if qRegimeSell
+            regimeScoreL -= 1.0
+            regimeScoreS += 1.0
+
+    // Veto Logic (hard showstoppers only)
+    bool isVetoL = false
+    bool isVetoS = false
+    if ddOk == false
+        isVetoL := true
+        isVetoS := true
+    if (not na(pU) and pU < 0.30 and regimeScoreL < -0.5)
+        isVetoL := true
+    if (not na(pD) and pD < 0.30 and regimeScoreS < -0.5)
+        isVetoS := true
+
     if engine == "Hybrid"
-        // Base triggers - Softened
-        gateBuy   = standardEntryOk and gateLongNow and liqOk_L and momOk_L and engOk_L and enhLongOk and hybridLongTrigger and f_soft(engulfLongOk)
+        // Base triggers - Softened, split for regime context gate
+        bool validTrendEntryL = standardEntryOk and gateLongNow and liqOk_L and momOk_L and engOk_L and enhLongOk and hybridLongTrigger
+        bool contextL = (regimeScoreL > 0) or (f_soft(volOk) and f_soft(engulfLongOk))
+        gateBuy   = validTrendEntryL and contextL and not isVetoL
         
         // ChoCH Filter (Strict)
         isChoCH_Entry = gateBuy and (structState == -1 or isChoCH_Long) 
@@ -4100,7 +4143,9 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
         
         buySignal   := gateBuy and chochFilterOk
         
-        gateShort = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and engOk_S and enhShortOk and hybridShortTrigger and f_soft(engulfShortOk)
+        bool validTrendEntryS = standardEntryOk and enableShorts and gateShortNow and liqOk_S and momOk_S and engOk_S and enhShortOk and hybridShortTrigger
+        bool contextS = (regimeScoreS > 0) or (f_soft(volOk) and f_soft(engulfShortOk))
+        gateShort = validTrendEntryS and contextS and not isVetoS
         isChoCH_ShortEntry = gateShort and (structState == 1 or isChoCH_Short) 
         chochShortFilterOk = (not isChoCH_ShortEntry) or ((na(pD) or pD >= chochMinProbEff) and chochVolOk)
         
@@ -4151,19 +4196,18 @@ if (pos == 0 and (allowEntry or allowRescue)) or allowRevBypass
     bool scoreLongWin = false
     bool scoreShortWin = false
     if useScoreEntriesEff
-        scoreLongWin := scoreBuy
-        // Keep deterministic precedence aligned with if/else-if below.
-        scoreShortWin := (not scoreLongWin) and scoreShort
+        bool scoreCtxLongOk  = (not scoreRequireDirectionalContextEff) or trendUpSafe or (useUsi and usiStackDir == 1)
+        bool scoreCtxShortOk = (not scoreRequireDirectionalContextEff) or trendDnSafe or (useUsi and usiStackDir == -1)
+        bool scoreChopVeto = scoreChopHardVetoEff and chopRisk and (wChopPenaltyEff < 0)
+        scoreLongWin  := (scoreBuy and scoreCtxLongOk) and not scoreChopVeto
+        scoreShortWin := (scoreShort and scoreCtxShortOk) and not scoreChopVeto
         // Score-based precedence: if score fires, it wins over regular engine path.
-        if scoreBuy
+        if scoreLongWin
             buySignal := true
             shortSignal := false
-        else if scoreShort
+        else if scoreShortWin
             shortSignal := true
             buySignal := false
-        else
-            buySignal   := buySignal   or scoreBuy
-            shortSignal := shortSignal or scoreShort
 
     // Unified Neural Reversal injection (all engines, including Loose)
     if allowNeuralReversals
@@ -4195,8 +4239,8 @@ if pos == 0 and allowEntry
     preSetOkShort = (not requireSET) or (preSetPulseOnly ? setShortPulse : setShort)
     
     // v6.3.2: USI Filter for Pre-Signals
-    bool _usiBear = useUsi and usiStackDir == -1
-    bool _usiBull = useUsi and usiStackDir == 1
+    bool _usiBear = useUsi and useUsiTrendOverride and usiStackDir == -1
+    bool _usiBull = useUsi and useUsiTrendOverride and usiStackDir == 1
 
     if engine == "Hybrid"
         // Hybrid: distance = how far close is below emaF
@@ -4240,9 +4284,11 @@ float preGapATR_S = (not na(preGapShort) and not na(atr) and atr > 0) ? (preGapS
 var int barsSinceEntry = 0
 if pos != pos[1] and pos != 0
     barsSinceEntry := 0
+    enBar := bar_index
 else if pos != 0
-    barsSinceEntry += 1
+    barsSinceEntry := bar_index - enBar
 else
+    enBar := na
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
@@ -4460,6 +4506,7 @@ if barstate.isconfirmed
         entryPrice := na
         stopPx := na
         tpPx := na
+        enTime     := time
         trailPx := na
         lastSignalBar := bar_index
         lastSignalTime := time
@@ -4479,7 +4526,7 @@ if barstate.isconfirmed
     // --- Phase 2: Process entries (including same-bar reversal after exit) ---
     // Guard: block same-direction re-entry (EXIT→BUY or COVER→SHORT).
     // Only allow: normal entry (no Phase 1), COVER→BUY, or EXIT→SHORT.
-    if buySignal and pos == 0 and (allowSameBarBuyAfterCover or not didCover)
+    if buySignal and pos == 0 and (allowSameBarBuyAfterCover or not didCover) and not didExit
         didBuy := true
         pos := 1
         entryPrice := close
@@ -4501,7 +4548,7 @@ if barstate.isconfirmed
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "BUY"
-    else if shortSignal and pos == 0 and (allowSameBarShortAfterExit or not didExit)
+    else if shortSignal and pos == 0 and (allowSameBarShortAfterExit or not didExit) and not didCover
         didShort := true
         pos := -1
         entryPrice := close
@@ -4545,8 +4592,10 @@ if barstate.isnew
     rtPreBuyPreviewSent := false
     rtPreShortPreviewSent := false
 
-buyPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and buySignal and pos == 0 and not rtBuyPreviewSent
-shortPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and shortSignal and pos == 0 and not rtShortPreviewSent
+bool buyPreviewPosOk = (pos == 0) or (pos == -1 and coverSignal and allowSameBarBuyAfterCover)
+bool shortPreviewPosOk = (pos == 0) or (pos == 1 and exitSignal and allowSameBarShortAfterExit)
+buyPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and buySignal and buyPreviewPosOk and not rtBuyPreviewSent
+shortPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and shortSignal and shortPreviewPosOk and not rtShortPreviewSent
 exitPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and exitSignal and pos == 1 and not rtExitPreviewSent
 coverPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and coverSignal and pos == -1 and not rtCoverPreviewSent
 preBuyPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and preBuyNow and not rtPreBuyPreviewSent
@@ -4601,10 +4650,10 @@ alertShortDelayed = shortEventStrict and strictWasEnabled and strictAlertsEnable
 alertRevBuyDelayed   = revBuyEventStrict and strictWasEnabled and strictAlertsEnabled
 alertRevShortDelayed = revShortEventStrict and strictWasEnabled and strictAlertsEnabled
 
-alertBuyCond   = alertBuySameBar or alertBuyDelayed
-alertShortCond = alertShortSameBar or alertShortDelayed
 alertRevBuyCond   = alertRevBuySameBar or alertRevBuyDelayed
 alertRevShortCond = alertRevShortSameBar or alertRevShortDelayed
+alertBuyCond   = (alertBuySameBar or alertBuyDelayed) and not alertRevBuyCond
+alertShortCond = (alertShortSameBar or alertShortDelayed) and not alertRevShortCond
 alertExitCond  = exitEventLive
 alertCoverCond = coverEventLive
 alertPreBuyCond   = preBuyEventLive
@@ -4655,9 +4704,15 @@ if useAlertCalls and signalGateConfirmed and barstate.isrealtime
 
     if array.size(_parts) > 0
         string labels = array.join(_parts, "+")
-        modeTxtAlert = strictAlertsEnabled ? "strict" : "normal"
-        delayTxt = strictAlertsEnabled and (alertBuyCond or alertShortCond) ? "1" : "0"
-        string msg = "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxtAlert + " | confirm_delay=" + delayTxt
+        string msg = ""
+        if useJsonAlerts
+            string firstLabel = array.get(_parts, 0)
+            string action = (firstLabel == "BUY" or firstLabel == "REV-BUY") ? "buy" : ((firstLabel == "SHORT" or firstLabel == "REV-SHORT") ? "sell" : ((firstLabel == "EXIT" or firstLabel == "COVER") ? "exit" : "flat"))
+            msg := f_tp_json(action, "ALERT", labels)
+        else
+            modeTxtAlert = strictAlertsEnabled ? "strict" : "normal"
+            delayTxt = strictAlertsEnabled and (alertBuyCond or alertShortCond or alertRevBuyCond or alertRevShortCond) ? "1" : "0"
+            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxtAlert + " | confirm_delay=" + delayTxt
         alert(msg, alertFreqSafe)
 
 f_safe_label_text(txt) =>
@@ -4786,7 +4841,7 @@ f_tp_json(action, orderId, legacyMsg) =>
             str.tostring(math.abs(strategy.position_size)),
             pos == 1 ? "bullish" : pos == -1 ? "bearish" : "flat",
             strictAlertsEnabled ? "strict" : "normal",
-            (strictAlertsEnabled and (alertBuyCond or alertShortCond) ? 1 : 0)
+            (strictAlertsEnabled and (alertBuyCond or alertShortCond or alertRevBuyCond or alertRevShortCond) ? 1 : 0)
         )
     else
         legacyMsg

@@ -45,6 +45,21 @@ Notes:
 - `…` and `n0` indicate insufficient data; do not treat as a signal.
 - Forecast rows include **nCur/Total** and a target footer describing active target definitions.
 
+## Open-Prep: Macro Explainability & Guardrails
+
+For `open_prep` outputs, the macro/risk contract is intentionally explicit and audit-friendly:
+
+- `macro_score_components[]` always includes:
+  - `canonical_event`, `consensus_value`, `consensus_field`, `surprise`, `weight`, `contribution`, `data_quality_flags`
+  - optional `dedup` object when canonical duplicates were collapsed (`duplicates`, `chosen_event`, `policy`)
+- `ranked_candidates[]` always includes:
+  - `allowed_setups`, `max_trades`, `data_sufficiency`, `no_trade_reason`, `score_breakdown`
+- In `macro_risk_off_extreme`, long setups are degraded to `vwap_reclaim` with `max_trades=1`.
+- If RVOL/liquidity is missing in that regime (`rel_volume <= 0`), candidate is fail-safe blocked via
+  `no_trade_reason += ["missing_rvol"]`, `long_allowed=false`, and `data_sufficiency.low=true`.
+- Headline PCE confirmation is controlled by explicit switch
+  `include_headline_pce_confirm` (separate from `include_mid_if_no_high`).
+
 ## Sideways/Chop semantics (quick)
 
 - `sidewaysVisual`: visual consolidation state for dots/alerts (UX layer).

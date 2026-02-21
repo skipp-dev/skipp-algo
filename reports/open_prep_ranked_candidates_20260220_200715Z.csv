@@ -1,0 +1,11 @@
+rank,symbol,score,price,gap_pct,volume,avg_volume,rel_volume,macro_bias,news_catalyst_score,long_allowed,no_trade_reason
+1,GOOGL,1.9578,315.94,4.32227,35795327.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+2,AMZN,0.4604,209.88,2.45045,51646537.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+3,META,-0.0595,656.39,1.80061,11458393.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+4,NVDA,-0.7315,189.705,0.96062,142155639.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+5,PWR,-1.3686,554.91,0.16426,704685.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+6,PLTR,-1.4741,134.9337,0.03239677,45427810.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+7,TSLA,-1.6558,410.9083,-0.19473,46483865.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+8,MSFT,-1.6666,397.63,-0.2083,23369660.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+9,SMCI,-2.1343,31.905,-0.79291,20664001.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme
+10,AMD,-2.8847,199.85,-1.73084,29179630.0,0.0,0.0,-0.75,0.0,False,macro_risk_off_extreme

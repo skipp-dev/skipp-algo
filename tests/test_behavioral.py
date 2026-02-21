@@ -787,6 +787,108 @@ class TestEntriesOnlyUsiFlipBehavior(unittest.TestCase):
         self.assertEqual(r1.exit_reason, "SL")
 
 
+class TestCooldownSameBarMatrix(unittest.TestCase):
+    """Ultra-strict matrix scenarios for cooldown trigger modes and hold behavior."""
+
+    def test_entriesonly_minutes_holds_and_then_releases_usi_exit(self):
+        """EntriesOnly + Minutes: USI exit blocked during minute-hold, then released."""
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            cooldown_triggers="EntriesOnly",
+            cooldown_mode="Minutes",
+            cooldown_minutes=2,
+            exit_grace_bars=0,
+            p_u=0.60,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
+        self.assertTrue(r0.did_buy)
+
+        # t=1m (<=2m): hold active, USI exit blocked
+        r1 = sim.process_bar(Bar(), BarSignals(usi_exit_long=True))
+        self.assertTrue(r1.entry_only_exit_hold_active)
+        self.assertFalse(r1.did_exit)
+
+        # t=2m (<=2m): still active
+        r2 = sim.process_bar(Bar(), BarSignals(usi_exit_long=True))
+        self.assertTrue(r2.entry_only_exit_hold_active)
+        self.assertFalse(r2.did_exit)
+
+        # t=3m (>2m): hold released, USI exit allowed
+        r3 = sim.process_bar(Bar(), BarSignals(usi_exit_long=True))
+        self.assertFalse(r3.entry_only_exit_hold_active)
+        self.assertTrue(r3.did_exit)
+        self.assertEqual(r3.exit_reason, "USI-Flip")
+
+    def test_exitsonly_does_not_hold_usi_exit_after_entry(self):
+        """ExitsOnly: after entry, USI exit should not be held by EntriesOnly window."""
+        cfg = SimConfig(
+            reliability_ok=False,
+            allow_neural_reversals=True,
+            cooldown_triggers="ExitsOnly",
+            cooldown_mode="Bars",
+            cooldown_bars=3,
+            exit_grace_bars=0,
+            p_u=0.60,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
+        self.assertTrue(r0.did_buy)
+
+        r1 = sim.process_bar(Bar(), BarSignals(usi_exit_long=True))
+        self.assertFalse(r1.entry_only_exit_hold_active)
+        self.assertTrue(r1.did_exit)
+
+    def test_allsignals_stamps_entry_and_blocks_immediate_reentry(self):
+        """AllSignals: entry itself should stamp cooldown and block immediate re-entry."""
+        cfg = SimConfig(
+            engine="Hybrid",
+            hybrid_long_trigger=True,
+            allow_neural_reversals=False,
+            cooldown_triggers="AllSignals",
+            cooldown_mode="Bars",
+            cooldown_bars=2,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r0.did_buy)
+
+        # force flat without stamping exits to isolate entry-stamp cooldown effect
+        sim.state.pos = 0
+        r1 = sim.process_bar(Bar(), BarSignals())
+        self.assertFalse(r1.did_buy, "AllSignals should block immediate re-entry from entry stamp")
+
+        r2 = sim.process_bar(Bar(), BarSignals())
+        self.assertFalse(r2.did_buy)
+
+        r3 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r3.did_buy, "Re-entry allowed after cooldown window")
+
+    def test_exitsonly_does_not_stamp_entry_for_cooldown(self):
+        """ExitsOnly: entry should not stamp cooldown; immediate flat re-entry remains possible."""
+        cfg = SimConfig(
+            engine="Hybrid",
+            hybrid_long_trigger=True,
+            allow_neural_reversals=False,
+            cooldown_triggers="ExitsOnly",
+            cooldown_mode="Bars",
+            cooldown_bars=2,
+        )
+        sim = SkippAlgoSim(cfg)
+
+        r0 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r0.did_buy)
+
+        # force flat to check whether entry stamped cooldown
+        sim.state.pos = 0
+        r1 = sim.process_bar(Bar(), BarSignals())
+        self.assertTrue(r1.did_buy, "ExitsOnly should not block re-entry from entry stamp")
+
+
 class TestStrictEventBehavior(unittest.TestCase):
     """Targeted simulation tests for strict alert event ordering."""
 

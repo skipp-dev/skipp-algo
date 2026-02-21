@@ -150,6 +150,34 @@ class TestMacroDedup(unittest.TestCase):
         self.assertIn("Michigan Consumer Sentiment", mid_names)
         self.assertIn("Existing Home Sales", mid_names)
 
+    def test_dedupe_keeps_usd_events_when_country_missing(self):
+        """Regression: provider may omit `country` while still setting USD.
+        These events must not be silently dropped during dedupe."""
+        events = [
+            {
+                "country": None,
+                "currency": "USD",
+                "date": "2026-02-20",
+                "event": "Core CPI MoM",
+                "actual": 0.3,
+                "consensus": 0.2,
+                "impact": "High",
+            },
+            {
+                "country": "",
+                "currency": "USD",
+                "date": "2026-02-20",
+                "event": "Core CPI MoM",
+                "actual": 0.3,
+                "consensus": 0.2,
+                "impact": "High",
+            },
+        ]
+        deduped = dedupe_events(events)
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0].get("country"), "US")
+        self.assertEqual(deduped[0].get("canonical_event"), "core_cpi_mom")
+
     def test_mid_impact_fallback_scores_non_canonical_events(self):
         """On a day with ZERO high-impact events, non-canonical mid-impact
         events (e.g. Consumer Sentiment) must contribute to macro bias."""

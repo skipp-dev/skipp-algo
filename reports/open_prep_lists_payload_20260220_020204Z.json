@@ -1,0 +1,429 @@
+{
+  "ranked_csv": "/Users/steffenpreuss/Downloads/skipp-algo/reports/open_prep_ranked_candidates_20260220_020211Z.csv",
+  "trade_cards_csv": "/Users/steffenpreuss/Downloads/skipp-algo/reports/open_prep_trade_cards_20260220_020211Z.csv",
+  "html": "/Users/steffenpreuss/Downloads/skipp-algo/reports/open_prep_lists_20260220_020211Z.html",
+  "ranked_candidates": [
+    {
+      "symbol": "SMCI",
+      "score": 6.5971,
+      "price": 32.16,
+      "gap_pct": 8.24638,
+      "volume": 42086487.0,
+      "avg_volume": 0.0,
+      "atr": 2.26,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": 6.5971,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "PWR",
+      "score": 5.344,
+      "price": 554.0,
+      "gap_pct": 6.68002,
+      "volume": 1700049.0,
+      "avg_volume": 0.0,
+      "atr": 21.9436,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": 5.344,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "AMD",
+      "score": 1.2992,
+      "price": 203.37,
+      "gap_pct": 1.62403,
+      "volume": 25161037.0,
+      "avg_volume": 0.0,
+      "atr": 14.1,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": 1.2992,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "META",
+      "score": 0.194,
+      "price": 644.78,
+      "gap_pct": 0.24253,
+      "volume": 9972501.0,
+      "avg_volume": 0.0,
+      "atr": 21.22,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": 0.194,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "TSLA",
+      "score": 0.0959,
+      "price": 411.71,
+      "gap_pct": 0.11989,
+      "volume": 49015490.0,
+      "avg_volume": 0.0,
+      "atr": 16.1407,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": 0.0959,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "AMZN",
+      "score": 0.0273,
+      "price": 204.86,
+      "gap_pct": 0.03418136,
+      "volume": 34070278.0,
+      "avg_volume": 0.0,
+      "atr": 8.0379,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": 0.0273,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "NVDA",
+      "score": -0.034,
+      "price": 187.9,
+      "gap_pct": -0.04255772,
+      "volume": 124309275.0,
+      "avg_volume": 0.0,
+      "atr": 7.0421,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": -0.034,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "GOOGL",
+      "score": -0.1266,
+      "price": 302.85,
+      "gap_pct": -0.15824,
+      "volume": 25614991.0,
+      "avg_volume": 0.0,
+      "atr": 10.4321,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": -0.1266,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "MSFT",
+      "score": -0.2282,
+      "price": 398.46,
+      "gap_pct": -0.28529,
+      "volume": 27956029.0,
+      "avg_volume": 0.0,
+      "atr": 11.0479,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": -0.2282,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    },
+    {
+      "symbol": "PLTR",
+      "score": -0.2896,
+      "price": 134.89,
+      "gap_pct": -0.36194,
+      "volume": 40624471.0,
+      "avg_volume": 0.0,
+      "atr": 9.4407,
+      "rel_volume": 0.0,
+      "rel_volume_capped": 0.0,
+      "macro_bias": 0.0,
+      "news_catalyst_score": 0.0,
+      "score_breakdown": {
+        "gap_component": -0.2896,
+        "rvol_component": 0.0,
+        "macro_component": 0.0,
+        "news_component": 0.0,
+        "liquidity_penalty": 0.0,
+        "risk_off_penalty": 0.0
+      },
+      "long_allowed": true,
+      "no_trade_reason": []
+    }
+  ],
+  "trade_cards": [
+    {
+      "symbol": "SMCI",
+      "setup_type": "ORB or VWAP-Hold",
+      "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+      "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
+      "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+      "trail_stop_atr": {
+        "atr": 2.26,
+        "unit": "price_distance",
+        "multipliers": {
+          "tight": 1.0,
+          "balanced": 1.5,
+          "wide": 2.0
+        },
+        "distances": {
+          "tight": 2.26,
+          "balanced": 3.39,
+          "wide": 4.52
+        },
+        "stop_reference_source": "price",
+        "stop_reference_price": 32.16,
+        "stop_prices": {
+          "tight": 29.9,
+          "balanced": 28.77,
+          "wide": 27.64
+        },
+        "note": "Trail distances are absolute price offsets from the selected stop reference."
+      },
+      "context": {
+        "macro_bias": 0.0,
+        "candidate_score": 6.5971,
+        "gap_pct": 8.24638,
+        "rel_volume": 0.0,
+        "long_allowed": true,
+        "no_trade_reason": [],
+        "note": "Neutral macro: trade only A+ confirmations."
+      }
+    },
+    {
+      "symbol": "PWR",
+      "setup_type": "ORB or VWAP-Hold",
+      "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+      "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
+      "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+      "trail_stop_atr": {
+        "atr": 21.9436,
+        "unit": "price_distance",
+        "multipliers": {
+          "tight": 1.0,
+          "balanced": 1.5,
+          "wide": 2.0
+        },
+        "distances": {
+          "tight": 21.9436,
+          "balanced": 32.9154,
+          "wide": 43.8872
+        },
+        "stop_reference_source": "price",
+        "stop_reference_price": 554.0,
+        "stop_prices": {
+          "tight": 532.0564,
+          "balanced": 521.0846,
+          "wide": 510.1128
+        },
+        "note": "Trail distances are absolute price offsets from the selected stop reference."
+      },
+      "context": {
+        "macro_bias": 0.0,
+        "candidate_score": 5.344,
+        "gap_pct": 6.68002,
+        "rel_volume": 0.0,
+        "long_allowed": true,
+        "no_trade_reason": [],
+        "note": "Neutral macro: trade only A+ confirmations."
+      }
+    },
+    {
+      "symbol": "AMD",
+      "setup_type": "ORB or VWAP-Hold",
+      "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+      "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
+      "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+      "trail_stop_atr": {
+        "atr": 14.1,
+        "unit": "price_distance",
+        "multipliers": {
+          "tight": 1.0,
+          "balanced": 1.5,
+          "wide": 2.0
+        },
+        "distances": {
+          "tight": 14.1,
+          "balanced": 21.15,
+          "wide": 28.2
+        },
+        "stop_reference_source": "price",
+        "stop_reference_price": 203.37,
+        "stop_prices": {
+          "tight": 189.27,
+          "balanced": 182.22,
+          "wide": 175.17
+        },
+        "note": "Trail distances are absolute price offsets from the selected stop reference."
+      },
+      "context": {
+        "macro_bias": 0.0,
+        "candidate_score": 1.2992,
+        "gap_pct": 1.62403,
+        "rel_volume": 0.0,
+        "long_allowed": true,
+        "no_trade_reason": [],
+        "note": "Neutral macro: trade only A+ confirmations."
+      }
+    },
+    {
+      "symbol": "META",
+      "setup_type": "ORB or VWAP-Hold",
+      "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
+      "invalidation": "Loss of VWAP after entry or close below opening range low.",
+      "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+      "trail_stop_atr": {
+        "atr": 21.22,
+        "unit": "price_distance",
+        "multipliers": {
+          "tight": 1.0,
+          "balanced": 1.5,
+          "wide": 2.0
+        },
+        "distances": {
+          "tight": 21.22,
+          "balanced": 31.83,
+          "wide": 42.44
+        },
+        "stop_reference_source": "price",
+        "stop_reference_price": 644.78,
+        "stop_prices": {
+          "tight": 623.56,
+          "balanced": 612.95,
+          "wide": 602.34
+        },
+        "note": "Trail distances are absolute price offsets from the selected stop reference."
+      },
+      "context": {
+        "macro_bias": 0.0,
+        "candidate_score": 0.194,
+        "gap_pct": 0.24253,
+        "rel_volume": 0.0,
+        "long_allowed": true,
+        "no_trade_reason": [],
+        "note": "Neutral macro: trade only A+ confirmations."
+      }
+    },
+    {
+      "symbol": "TSLA",
+      "setup_type": "ORB or VWAP-Hold",
+      "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
+      "invalidation": "Loss of VWAP after entry or close below opening range low.",
+      "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+      "trail_stop_atr": {
+        "atr": 16.1407,
+        "unit": "price_distance",
+        "multipliers": {
+          "tight": 1.0,
+          "balanced": 1.5,
+          "wide": 2.0
+        },
+        "distances": {
+          "tight": 16.1407,
+          "balanced": 24.2111,
+          "wide": 32.2814
+        },
+        "stop_reference_source": "price",
+        "stop_reference_price": 411.71,
+        "stop_prices": {
+          "tight": 395.5693,
+          "balanced": 387.4989,
+          "wide": 379.4286
+        },
+        "note": "Trail distances are absolute price offsets from the selected stop reference."
+      },
+      "context": {
+        "macro_bias": 0.0,
+        "candidate_score": 0.0959,
+        "gap_pct": 0.11989,
+        "rel_volume": 0.0,
+        "long_allowed": true,
+        "no_trade_reason": [],
+        "note": "Neutral macro: trade only A+ confirmations."
+      }
+    }
+  ]
+}

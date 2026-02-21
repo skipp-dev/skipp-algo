@@ -322,12 +322,35 @@ def _annotate_event_quality(event: dict[str, Any], actual: Any, consensus: Any, 
 
     return {"consensus_field": consensus_field, "data_quality_flags": flags}
 
+def _dedupe_quality(e: dict) -> tuple:
+    """Sort key for duplicate-event selection: prefer higher impact, then
+    more-complete data fields, then a stable alphabetic name tiebreaker."""
+    actual = e.get("actual")
+    cons, _ = get_consensus(e)
+    return (
+        _impact_rank(e.get("impact")),
+        1 if actual is not None else 0,
+        1 if cons is not None else 0,
+        # Fall back to "name" field so events without an "event" key
+        # are still disambiguated deterministically.
+        e.get("event") or e.get("name") or "",
+    )
+
+
 def dedupe_events(events: list[dict]) -> list[dict]:
     buckets: dict[tuple[str, str, str], list[dict]] = {}
     passthrough: list[dict] = []
     for e in events:
-        country = e.get("country")
-        event_date = e.get("date", "1970-01-01")  # Fallback for tests
+        country_raw = str(e.get("country") or "").strip().upper()
+        currency_raw = str(e.get("currency") or "").strip().upper()
+        # Some providers omit `country` for US releases but still set `currency=USD`.
+        # Preserve these events by assigning a stable US key so they can be deduped
+        # and scored instead of being silently dropped.
+        country = country_raw or ("US" if currency_raw in US_CURRENCIES else "")
+        # Guard against date=None: the .get() default only fires when the key
+        # is absent; if date IS present but None we must still substitute so
+        # unrelated null-dated events are not incorrectly grouped together.
+        event_date = e.get("date") or "1970-01-01"  # Fallback for tests
         raw_name = e.get("event") or e.get("name") or ""
         key = canonicalize_event_name(raw_name)
         if not country:
@@ -344,23 +367,17 @@ def dedupe_events(events: list[dict]) -> list[dict]:
     for k, items in buckets.items():
         if len(items) == 1:
             single = dict(items[0])  # copy to avoid mutating caller's dict
+            if not single.get("country"):
+                single["country"] = k[0]
             single["canonical_event"] = k[2]
             out.append(single)
             continue
 
-        def quality(e: dict) -> tuple:
-            actual = e.get("actual")
-            cons, _ = get_consensus(e)
-            return (
-                _impact_rank(e.get("impact")),
-                1 if actual is not None else 0,
-                1 if cons is not None else 0,
-                e.get("event", "")
-            )
-
-        sorted_items = sorted(items, key=quality, reverse=True)
+        sorted_items = sorted(items, key=_dedupe_quality, reverse=True)
         chosen = sorted_items[0]
         chosen = dict(chosen)  # copy
+        if not chosen.get("country"):
+            chosen["country"] = k[0]
         chosen["canonical_event"] = k[2]
         chosen["dedup"] = {
             "was_deduped": True,
@@ -681,14 +698,15 @@ def macro_bias_score(
     """Return bias in range [-1, 1], where +1 means risk-on and -1 risk-off.
 
     Scoring weights:
-      CPI / PPI / PCE surprise  : ±1.0  (inflation = primary Fed driver)
-      Average Hourly Earnings   : ±0.5  (wage inflation → hawkish = risk-off on beat)
-      Unemployment Rate         : ±0.5  (higher = risk-off)
-      Jobless Claims            : ±0.5
-      JOLTS / Job Openings      : ±0.5  (tight labor = risk-on)
-      NFP / ISM / PhillyFed     : ±0.5
-      GDP / Retail Sales        : ±0.5
-      Mid-impact fallback       : ±0.25 (only used when no high-impact events exist)
+      Core PCE / Core CPI / CPI MoM / PPI MoM : ±1.0  (primary inflation drivers)
+      Headline PCE MoM / YoY variants          : ±0.25 (derived / secondary prints)
+      Average Hourly Earnings                  : ±0.5  (wage inflation; hawkish on beat)
+      Unemployment Rate                        : ±0.5  (higher = risk-off)
+      Jobless Claims                           : ±0.5
+      JOLTS / Job Openings                     : ±0.5  (tight labor = risk-on)
+      NFP / ISM / PhillyFed                    : ±0.5
+      GDP / Retail Sales                       : ±0.5
+      Mid-impact fallback                      : ±0.25 (only when no high-impact events)
 
     Dividing by 2.0 normalises the range so a CPI + PPI double-beat saturates
     the output at +1.0 / -1.0 without overflow for typical trading days.
