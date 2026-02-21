@@ -7,6 +7,7 @@ import os
 import re
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .trade_cards import build_trade_cards
 from .bea import build_bea_audit_payload
@@ -36,6 +37,15 @@ DEFAULT_UNIVERSE = [
 ]
 
 PREFERRED_US_OPEN_UTC_TIMES: tuple[str, ...] = ("13:30:00", "14:30:00", "15:00:00")
+US_EASTERN_TZ = ZoneInfo("America/New_York")
+GAP_MODE_RTH_OPEN = "RTH_OPEN"
+GAP_MODE_PREMARKET_INDICATIVE = "PREMARKET_INDICATIVE"
+GAP_MODE_OFF = "OFF"
+GAP_MODE_CHOICES: tuple[str, ...] = (
+    GAP_MODE_RTH_OPEN,
+    GAP_MODE_PREMARKET_INDICATIVE,
+    GAP_MODE_OFF,
+)
 
 
 def _extract_time_str(event_date: str) -> str:
@@ -187,6 +197,16 @@ def _parse_args() -> argparse.Namespace:
         default="16:00:00",
         help="UTC cutoff (HH:MM:SS) used with --pre-open-only, default 16:00:00.",
     )
+    parser.add_argument(
+        "--gap-mode",
+        type=str,
+        choices=list(GAP_MODE_CHOICES),
+        default=GAP_MODE_PREMARKET_INDICATIVE,
+        help=(
+            "How to compute Monday gap: RTH_OPEN (official Monday RTH open only), "
+            "PREMARKET_INDICATIVE (Monday premarket indication), OFF (no Monday gap)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -248,6 +268,207 @@ def _to_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _prev_trading_day(d: date) -> date:
+    cur = d - timedelta(days=1)
+    while cur.weekday() >= 5:  # Sat/Sun
+        cur -= timedelta(days=1)
+    return cur
+
+
+def _to_iso_utc_from_epoch(value: Any) -> str | None:
+    try:
+        if value is None:
+            return None
+        ts = float(value)
+        if ts <= 0:
+            return None
+        return datetime.fromtimestamp(ts, tz=UTC).isoformat()
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def _quote_timestamp_iso_utc(quote: dict[str, Any]) -> str | None:
+    for key in ("timestamp", "lastUpdated", "lastUpdatedAt", "quoteTimestamp"):
+        if key in quote:
+            iso = _to_iso_utc_from_epoch(quote.get(key))
+            if iso:
+                return iso
+    return None
+
+
+def _pick_indicative_price(quote: dict[str, Any]) -> tuple[float, str | None]:
+    source_map = {
+        "preMarketPrice": "premarket",
+        "preMarket": "premarket",
+        "extendedPrice": "extended",
+        "price": "spot",
+    }
+    for key in ("preMarketPrice", "preMarket", "extendedPrice", "price"):
+        px = _to_float(quote.get(key), default=0.0)
+        if px > 0.0:
+            return px, source_map.get(key, key)
+    return 0.0, None
+
+
+def _compute_gap_for_quote(
+    quote: dict[str, Any],
+    *,
+    run_dt_utc: datetime,
+    gap_mode: str,
+) -> dict[str, Any]:
+    """Compute Monday-gap value and metadata according to selected mode."""
+    ny_now = run_dt_utc.astimezone(US_EASTERN_TZ)
+    ny_date = ny_now.date()
+    is_monday = ny_date.weekday() == 0
+    is_weekend = ny_date.weekday() >= 5
+    prev_day = _prev_trading_day(ny_date)
+    gap_from_ts = datetime.combine(prev_day, datetime.min.time(), tzinfo=US_EASTERN_TZ).replace(
+        hour=16, minute=0, second=0, microsecond=0
+    ).astimezone(UTC).isoformat()
+
+    prev_close = _to_float(quote.get("previousClose"), default=0.0)
+    if prev_close <= 0.0:
+        fallback_gap = _to_float(
+            quote.get("changesPercentage", quote.get("changePercentage")),
+            default=0.0,
+        )
+        return {
+            "gap_pct": fallback_gap,
+            "gap_type": GAP_MODE_OFF,
+            "gap_available": False,
+            "gap_from_ts": gap_from_ts,
+            "gap_to_ts": None,
+            "gap_mode_selected": gap_mode,
+            "gap_price_source": None,
+            "gap_reason": "missing_previous_close",
+        }
+
+    if gap_mode == GAP_MODE_OFF:
+        return {
+            "gap_pct": 0.0,
+            "gap_type": GAP_MODE_OFF,
+            "gap_available": False,
+            "gap_from_ts": gap_from_ts,
+            "gap_to_ts": None,
+            "gap_mode_selected": gap_mode,
+            "gap_price_source": None,
+            "gap_reason": "mode_off",
+        }
+
+    if not is_monday or is_weekend:
+        return {
+            "gap_pct": 0.0,
+            "gap_type": GAP_MODE_OFF,
+            "gap_available": False,
+            "gap_from_ts": gap_from_ts,
+            "gap_to_ts": None,
+            "gap_mode_selected": gap_mode,
+            "gap_price_source": None,
+            "gap_reason": "not_monday_session",
+        }
+
+    if gap_mode == GAP_MODE_RTH_OPEN:
+        has_rth_open_window = ny_now.hour > 9 or (ny_now.hour == 9 and ny_now.minute >= 30)
+        open_px = _to_float(quote.get("open"), default=0.0)
+        if has_rth_open_window and open_px > 0.0:
+            gap_pct = ((open_px - prev_close) / prev_close) * 100.0
+            rth_open_ts = datetime.combine(
+                ny_date,
+                datetime.min.time(),
+                tzinfo=US_EASTERN_TZ,
+            ).replace(hour=9, minute=30, second=0, microsecond=0).astimezone(UTC).isoformat()
+            return {
+                "gap_pct": round(gap_pct, 6),
+                "gap_type": GAP_MODE_RTH_OPEN,
+                "gap_available": True,
+                "gap_from_ts": gap_from_ts,
+                "gap_to_ts": rth_open_ts,
+                "gap_mode_selected": gap_mode,
+                "gap_price_source": "rth_open",
+                "gap_reason": "ok",
+            }
+        return {
+            "gap_pct": 0.0,
+            "gap_type": GAP_MODE_OFF,
+            "gap_available": False,
+            "gap_from_ts": gap_from_ts,
+            "gap_to_ts": None,
+            "gap_mode_selected": gap_mode,
+            "gap_price_source": None,
+            "gap_reason": "rth_open_unavailable",
+        }
+
+    # PREMARKET_INDICATIVE
+    has_premarket_window = ny_now.hour >= 4
+    indicative_px, px_source = _pick_indicative_price(quote)
+    quote_ts = _quote_timestamp_iso_utc(quote)
+    if has_premarket_window and indicative_px > 0.0:
+        if px_source in {"premarket", "extended"} and quote_ts is None:
+            return {
+                "gap_pct": 0.0,
+                "gap_type": GAP_MODE_OFF,
+                "gap_available": False,
+                "gap_from_ts": gap_from_ts,
+                "gap_to_ts": None,
+                "gap_mode_selected": gap_mode,
+                "gap_price_source": px_source,
+                "gap_reason": "missing_quote_timestamp",
+            }
+        # Weekend stale guard: pure "price" fallback on Monday pre-open can still be Friday last.
+        if px_source == "spot" and quote_ts is None:
+            return {
+                "gap_pct": 0.0,
+                "gap_type": GAP_MODE_OFF,
+            "gap_available": False,
+                "gap_from_ts": gap_from_ts,
+                "gap_to_ts": None,
+                "gap_mode_selected": gap_mode,
+                "gap_price_source": px_source,
+                "gap_reason": "weekend_last_quote_unknown_timestamp",
+            }
+        gap_pct = ((indicative_px - prev_close) / prev_close) * 100.0
+        return {
+            "gap_pct": round(gap_pct, 6),
+            "gap_type": GAP_MODE_PREMARKET_INDICATIVE,
+            "gap_available": True,
+            "gap_from_ts": gap_from_ts,
+            "gap_to_ts": quote_ts,
+            "gap_mode_selected": gap_mode,
+            "gap_price_source": px_source,
+            "gap_reason": "ok",
+        }
+
+    return {
+        "gap_pct": 0.0,
+        "gap_type": GAP_MODE_OFF,
+        "gap_available": False,
+        "gap_from_ts": gap_from_ts,
+        "gap_to_ts": None,
+        "gap_mode_selected": gap_mode,
+        "gap_price_source": px_source,
+        "gap_reason": "premarket_unavailable",
+    }
+
+
+def apply_gap_mode_to_quotes(
+    quotes: list[dict[str, Any]],
+    *,
+    run_dt_utc: datetime,
+    gap_mode: str,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    mode = str(gap_mode or GAP_MODE_PREMARKET_INDICATIVE).strip().upper()
+    if mode not in GAP_MODE_CHOICES:
+        raise ValueError(f"Unsupported gap mode: {gap_mode}")
+
+    for quote in quotes:
+        row = dict(quote)
+        gap_meta = _compute_gap_for_quote(row, run_dt_utc=run_dt_utc, gap_mode=mode)
+        row.update(gap_meta)
+        out.append(row)
+    return out
 
 
 def _calculate_atr14_from_eod(candles: list[dict]) -> float:
@@ -332,11 +553,12 @@ def _inputs_hash(payload: dict) -> str:
 
 def main() -> None:
     args = _parse_args()
+    now_utc = datetime.now(UTC)
     symbols = [item.strip().upper() for item in args.symbols.split(",") if item.strip()]
     if not symbols:
         raise ValueError("No symbols provided. Use --symbols with comma-separated tickers.")
 
-    today = datetime.now(UTC).date()
+    today = now_utc.date()
     end_date = today + timedelta(days=max(args.days_ahead, 1))
 
     client = FMPClient.from_env()
@@ -386,6 +608,8 @@ def main() -> None:
     except RuntimeError as exc:
         raise SystemExit(f"[open_prep] Quote fetch failed: {exc}") from exc
 
+    quotes = apply_gap_mode_to_quotes(quotes, run_dt_utc=now_utc, gap_mode=args.gap_mode)
+
     atr_by_symbol, atr_fetch_errors = _atr14_by_symbol(client=client, symbols=symbols, as_of=today)
     for q in quotes:
         sym = str(q.get("symbol") or "").strip().upper()
@@ -414,11 +638,14 @@ def main() -> None:
                 "max_macro_events": args.max_macro_events,
                 "pre_open_only": args.pre_open_only,
                 "pre_open_cutoff_utc": args.pre_open_cutoff_utc,
+                "gap_mode": args.gap_mode,
             }
         ),
         "run_date_utc": today.isoformat(),
+        "run_datetime_utc": now_utc.isoformat(),
         "pre_open_only": bool(args.pre_open_only),
         "pre_open_cutoff_utc": args.pre_open_cutoff_utc,
+        "gap_mode": args.gap_mode,
         "macro_bias": round(bias, 4),
         "macro_raw_score": round(float(macro_analysis.get("raw_score", 0.0)), 4),
         "macro_event_count_today": len(todays_events),

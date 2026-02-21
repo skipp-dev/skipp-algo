@@ -4,11 +4,15 @@ from unittest.mock import patch
 
 from open_prep.trade_cards import build_trade_cards
 from open_prep.run_open_prep import (
+    GAP_MODE_OFF,
+    GAP_MODE_PREMARKET_INDICATIVE,
+    GAP_MODE_RTH_OPEN,
     _calculate_atr14_from_eod,
     _extract_time_str,
     _filter_events_by_cutoff_utc,
     _inputs_hash,
     _sort_macro_events,
+    apply_gap_mode_to_quotes,
 )
 from open_prep.news import build_news_scores, _parse_article_datetime
 from open_prep.macro import (
@@ -640,6 +644,105 @@ class TestOpenPrep(unittest.TestCase):
                 "risk_off_penalty",
             }.issubset(row["score_breakdown"].keys())
         )
+
+    def test_gap_mode_premarket_indicative_enriches_gap_fields(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "price": 104.0,
+                "preMarketPrice": 105.0,
+                "previousClose": 100.0,
+                "timestamp": 1771842600,  # 2026-02-23T10:30:00Z
+            }
+        ]
+        run_dt = datetime(2026, 2, 23, 10, 30, tzinfo=UTC)  # Monday, 05:30 ET
+        enriched = apply_gap_mode_to_quotes(
+            quotes,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        row = enriched[0]
+        self.assertAlmostEqual(row["gap_pct"], 5.0, places=6)
+        self.assertEqual(row["gap_type"], GAP_MODE_PREMARKET_INDICATIVE)
+        self.assertTrue(row["gap_available"])
+        self.assertEqual(row["gap_mode_selected"], GAP_MODE_PREMARKET_INDICATIVE)
+        self.assertEqual(row["gap_price_source"], "premarket")
+        self.assertIsNotNone(row["gap_from_ts"])
+        self.assertEqual(row["gap_to_ts"], "2026-02-23T10:30:00+00:00")
+
+    def test_gap_mode_premarket_spot_without_timestamp_is_stale(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "price": 105.0,
+                "previousClose": 100.0,
+            }
+        ]
+        run_dt = datetime(2026, 2, 23, 10, 30, tzinfo=UTC)  # Monday premarket
+        enriched = apply_gap_mode_to_quotes(
+            quotes,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        row = enriched[0]
+        self.assertEqual(row["gap_type"], GAP_MODE_OFF)
+        self.assertFalse(row["gap_available"])
+        self.assertEqual(row["gap_price_source"], "spot")
+        self.assertEqual(row["gap_reason"], "weekend_last_quote_unknown_timestamp")
+
+    def test_gap_mode_premarket_without_quote_timestamp_is_unavailable(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "preMarketPrice": 105.0,
+                "previousClose": 100.0,
+            }
+        ]
+        run_dt = datetime(2026, 2, 23, 10, 30, tzinfo=UTC)  # Monday premarket
+        enriched = apply_gap_mode_to_quotes(
+            quotes,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        row = enriched[0]
+        self.assertEqual(row["gap_type"], GAP_MODE_OFF)
+        self.assertFalse(row["gap_available"])
+        self.assertEqual(row["gap_price_source"], "premarket")
+        self.assertEqual(row["gap_reason"], "missing_quote_timestamp")
+        self.assertIsNone(row["gap_to_ts"])
+
+    def test_gap_mode_rth_open_requires_monday_open_time(self):
+        quotes = [{"symbol": "NVDA", "open": 103.0, "previousClose": 100.0}]
+        run_dt = datetime(2026, 2, 23, 13, 0, tzinfo=UTC)  # Monday, 08:00 ET (pre-open)
+        enriched = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt, gap_mode=GAP_MODE_RTH_OPEN)
+        row = enriched[0]
+        self.assertEqual(row["gap_type"], GAP_MODE_OFF)
+        self.assertFalse(row["gap_available"])
+        self.assertEqual(row["gap_reason"], "rth_open_unavailable")
+
+    def test_gap_mode_off_forces_zero_gap(self):
+        quotes = [{"symbol": "NVDA", "preMarketPrice": 105.0, "previousClose": 100.0}]
+        run_dt = datetime(2026, 2, 23, 11, 0, tzinfo=UTC)
+        enriched = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt, gap_mode=GAP_MODE_OFF)
+        row = enriched[0]
+        self.assertEqual(row["gap_pct"], 0.0)
+        self.assertEqual(row["gap_type"], GAP_MODE_OFF)
+        self.assertFalse(row["gap_available"])
+
+    def test_rank_candidates_ignores_gap_when_unavailable(self):
+        quotes = [
+            {
+                "symbol": "AAA",
+                "price": 100.0,
+                "gap_pct": 7.5,
+                "gap_available": False,
+                "volume": 1_000_000,
+                "avgVolume": 500_000,
+            }
+        ]
+        row = rank_candidates(quotes, bias=0.0, top_n=1)[0]
+        self.assertEqual(row["score_breakdown"]["gap_component"], 0.0)
+        self.assertFalse(row["gap_available"])
 
 
 if __name__ == "__main__":
