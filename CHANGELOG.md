@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-02-21)
+
+- **Indicator/Strategy parity hardening finalized:**
+  - Synced `EXIT` timing state in Strategy with Indicator (`enTime := time`).
+  - Kept same-bar reversal/entry gate mapping aligned (`COVER→BUY`, `EXIT→SHORT`) with strict anti-same-direction guard.
+  - Added/updated regression coverage to lock parity behavior in:
+    - `tests/test_skippalgo_pine.py`
+    - `tests/test_skippalgo_strategy_pine.py`
+    - `tests/test_behavioral.py`
+    - `tests/pine_sim.py`
+
+- **REV JSON alert-action parity in Strategy:**
+  - Consolidated runtime `alert()` path in `SkippALGO_Strategy.pine` now maps first signal label like Indicator:
+    - `BUY`/`REV-BUY` → `buy`
+    - `SHORT`/`REV-SHORT` → `sell`
+    - `EXIT`/`COVER` → `exit`
+  - Prevents action misclassification when reversal labels are emitted.
+
+- **Open-prep robustness and data-output refresh:**
+  - Strengthened macro/news processing paths and updated report artifacts in `reports/`.
+
+### Verification (2026-02-21)
+
+- Pine-focused parity suites: **193 passed, 8 subtests passed**.
+- Full regression suite: **551 passed, 32 subtests passed**.
+
 ### Added (2026-02-20)
 
 - **VWT integration (Volume Weighted Trend) in Indicator + Strategy:**
