@@ -781,6 +781,49 @@ class TestOpenPrep(unittest.TestCase):
         self.assertNotIn("VWAP reclaim and hold", card["entry_trigger"])
         self.assertIn("OR", card["entry_trigger"])
 
+    def test_ism_medium_tagged_appears_only_in_high_impact_not_mid(self):
+        """Regression: ISM Manufacturing/Services and PhillyFed are forced
+        high-impact events. When tagged 'Medium' by the data provider they
+        must appear in the high-impact list only, NOT also in the mid-impact
+        list (which previously contained the same name patterns)."""
+        events = [
+            {
+                "country": "US",
+                "currency": "USD",
+                "event": "ISM Manufacturing PMI",
+                "impact": "Medium",
+                "actual": 53.0,
+                "consensus": 51.0,
+            },
+            {
+                "country": "US",
+                "currency": "USD",
+                "event": "ISM Services PMI",
+                "impact": "Medium",
+                "actual": 53.0,
+                "consensus": 51.0,
+            },
+            {
+                "country": "US",
+                "currency": "USD",
+                "event": "Philadelphia Fed Manufacturing Index",
+                "impact": "Medium",
+                "actual": 8.0,
+                "consensus": 4.0,
+            },
+        ]
+        high = filter_us_high_impact_events(events)
+        mid = filter_us_mid_impact_events(events)
+        high_names = {e["event"] for e in high}
+        mid_names = {e["event"] for e in mid}
+        self.assertIn("ISM Manufacturing PMI", high_names)
+        self.assertIn("ISM Services PMI", high_names)
+        self.assertIn("Philadelphia Fed Manufacturing Index", high_names)
+        # None of the forced-high events may bleed into the mid list.
+        self.assertNotIn("ISM Manufacturing PMI", mid_names)
+        self.assertNotIn("ISM Services PMI", mid_names)
+        self.assertNotIn("Philadelphia Fed Manufacturing Index", mid_names)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,10 +62,6 @@ HIGH_IMPACT_NAME_PATTERNS: tuple[tuple[str, ...], ...] = (
 )
 
 MID_IMPACT_MACRO_NAME_PATTERNS: tuple[tuple[str, ...], ...] = (
-    ("ism", "manufacturing"),
-    ("ism", "services"),
-    ("philly", "fed"),
-    ("philadelphia", "fed"),
     ("consumer", "sentiment"),
     ("consumer", "confidence"),
     ("inflation", "expectations"),
@@ -256,6 +252,21 @@ class FMPClient:
         return [item for item in data if isinstance(item, dict)]
 
 
+def _normalize_event_name(name: str) -> str:
+    lowered = name.lower()
+    lowered = lowered.replace("&", " and ")
+    lowered = re.sub(r"[^a-z0-9]+", " ", lowered)
+    lowered = re.sub(r"\s+", " ", lowered).strip()
+    return lowered
+
+
+# Pre-computed once at import time to avoid rebuilding the normalized set
+# on every call to _is_high_impact_event_name (DEFAULT_HIGH_IMPACT_EVENTS is constant).
+_DEFAULT_HIGH_IMPACT_EVENTS_NORMALIZED: frozenset[str] = frozenset(
+    _normalize_event_name(e) for e in DEFAULT_HIGH_IMPACT_EVENTS
+)
+
+
 CANONICAL_EVENT_PATTERNS = [
     ("core_pce_mom", [r"\bcore\b", r"\bpce\b", r"\bmom\b"]),
     ("pce_mom",      [r"(?<!core )\bpce\b", r"\bmom\b"]),
@@ -392,20 +403,6 @@ def dedupe_events(events: list[dict]) -> list[dict]:
         out.append(chosen)
 
     return out + passthrough
-
-def _normalize_event_name(name: str) -> str:
-    lowered = name.lower()
-    lowered = lowered.replace("&", " and ")
-    lowered = re.sub(r"[^a-z0-9]+", " ", lowered)
-    lowered = re.sub(r"\s+", " ", lowered).strip()
-    return lowered
-
-
-# Pre-computed once at import time to avoid rebuilding the normalized set
-# on every call to _is_high_impact_event_name (DEFAULT_HIGH_IMPACT_EVENTS is constant).
-_DEFAULT_HIGH_IMPACT_EVENTS_NORMALIZED: frozenset[str] = frozenset(
-    _normalize_event_name(e) for e in DEFAULT_HIGH_IMPACT_EVENTS
-)
 
 
 def _is_high_impact_event_name(name: str, watchlist: set[str]) -> bool:

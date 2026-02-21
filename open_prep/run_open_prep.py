@@ -322,7 +322,6 @@ def _compute_gap_for_quote(
     ny_now = run_dt_utc.astimezone(US_EASTERN_TZ)
     ny_date = ny_now.date()
     is_monday = ny_date.weekday() == 0
-    is_weekend = ny_date.weekday() >= 5
     prev_day = _prev_trading_day(ny_date)
     gap_from_ts = datetime.combine(prev_day, datetime.min.time(), tzinfo=US_EASTERN_TZ).replace(
         hour=16, minute=0, second=0, microsecond=0
@@ -357,7 +356,7 @@ def _compute_gap_for_quote(
             "gap_reason": "mode_off",
         }
 
-    if not is_monday or is_weekend:
+    if not is_monday:
         return {
             "gap_pct": 0.0,
             "gap_type": GAP_MODE_OFF,
@@ -498,7 +497,7 @@ def _calculate_atr14_from_eod(candles: list[dict]) -> float:
     parsed.sort(key=lambda row: row[0])
     tr_values: list[float] = []
     prev_close: float | None = None
-    
+
     for _, high, low, close in parsed:
         if prev_close is None:
             # First bar TR is H-L (no prior close)
