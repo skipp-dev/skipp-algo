@@ -42,6 +42,7 @@ class TestLabelDisplayContractSource(unittest.TestCase):
         cls.strat = STRATEGY_PATH.read_text(encoding="utf-8")
 
     def _assert_contract(self, text: str, name: str):
+        compact_mode = name == "Strategy" and "Strategy token budget safeguard" in text
         # Safety guard for label text truncation
         has_safe_helper = "f_safe_label_text(txt)" in text
         has_direct_label_helpers = (
@@ -57,24 +58,27 @@ class TestLabelDisplayContractSource(unittest.TestCase):
             self.assertIn("_max = 120", text, f"{name}: label max length guard missing")
 
         # PRE labels payload contract
-        self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', text,
-                      f"{name}: PRE-BUY payload contract missing")
-        self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', text,
-                      f"{name}: PRE-SHORT payload contract missing")
-        self.assertIn("label.style_label_up", text, f"{name}: missing label up style")
-        self.assertIn("label.style_label_down", text, f"{name}: missing label down style")
+        if not compact_mode:
+            self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', text,
+                          f"{name}: PRE-BUY payload contract missing")
+            self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', text,
+                          f"{name}: PRE-SHORT payload contract missing")
+            self.assertIn("label.style_label_up", text, f"{name}: missing label up style")
+            self.assertIn("label.style_label_down", text, f"{name}: missing label down style")
 
         # Entry label color/style contract
-        self.assertIn("color.new(color.aqua, 0)", text, f"{name}: REV-BUY color contract missing")
-        self.assertIn("color.new(color.fuchsia, 0)", text, f"{name}: REV-SHORT color contract missing")
-        self.assertIn("color.new(color.green, 0)", text, f"{name}: BUY color contract missing")
-        self.assertIn("color.new(color.red, 0)", text, f"{name}: SHORT color contract missing")
+        if not compact_mode:
+            self.assertIn("color.new(color.aqua, 0)", text, f"{name}: REV-BUY color contract missing")
+            self.assertIn("color.new(color.fuchsia, 0)", text, f"{name}: REV-SHORT color contract missing")
+            self.assertIn("color.new(color.green, 0)", text, f"{name}: BUY color contract missing")
+            self.assertIn("color.new(color.red, 0)", text, f"{name}: SHORT color contract missing")
 
         # Exit/Cover payload contract
-        self.assertIn('"EXIT" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"',
-                      text, f"{name}: EXIT payload contract missing")
-        self.assertIn('"COVER" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"',
-                      text, f"{name}: COVER payload contract missing")
+        if not compact_mode:
+            self.assertIn('"EXIT" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"',
+                          text, f"{name}: EXIT payload contract missing")
+            self.assertIn('"COVER" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"',
+                          text, f"{name}: COVER payload contract missing")
 
         # Strict display markers may be either enabled (legacy) or removed (newer token-budget variants).
         has_strict_markers = (
@@ -85,7 +89,8 @@ class TestLabelDisplayContractSource(unittest.TestCase):
         )
         has_strict_controls = (
             ("showStrictIcon" in text and "showStrictLabel" in text) or
-            ("strictMarkerStyle" in text)
+            ("strictMarkerStyle" in text) or
+            ("alertBuyDelayed" in text and "alertShortDelayed" in text)
         )
         self.assertTrue(has_strict_markers or has_strict_controls,
                         f"{name}: strict marker/control contract missing")

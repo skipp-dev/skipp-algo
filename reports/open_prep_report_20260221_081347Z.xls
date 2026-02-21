@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Open Prep Report 20260221_081347Z</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    h1, h2 { margin: 12px 0; }
+    table { margin: 8px 0 20px 0; border-collapse: collapse; }
+    th { background: #f0f3f8; }
+    td, th { font-size: 12px; vertical-align: top; }
+  </style>
+</head>
+<body>
+  <h1>Macro-aware Long-Breakout Report</h1>
+  <p><b>Version:</b> 20260221_081347Z</p>
+  <h2>Summary</h2>
+  <table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody><tr><td>Run Date (UTC)</td><td>2026-02-21</td></tr><tr><td>Generated At (UTC)</td><td>2026-02-21T08:13:47.304311+00:00</td></tr><tr><td>Macro Bias</td><td>0.0</td></tr><tr><td>US Events Today</td><td>0</td></tr><tr><td>High Impact Events</td><td>0</td></tr><tr><td>Mid Impact Events</td><td>0</td></tr></tbody></table>
+  <h2>Ranked Candidates</h2>
+  <table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Rank</th><th>Symbol</th><th>Score</th><th>Price</th><th>Gap %</th><th>Volume</th><th>Avg Volume</th><th>Rel Volume</th><th>Macro Bias</th></tr></thead><tbody><tr><td>1</td><td>GOOGL</td><td>3.2042</td><td>314.98</td><td>4.00528</td><td>51937895.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>2</td><td>AMZN</td><td>2.0502</td><td>210.11</td><td>2.56273</td><td>63898535.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>3</td><td>META</td><td>1.3499</td><td>655.66</td><td>1.6874</td><td>14057273.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>4</td><td>NVDA</td><td>0.8175</td><td>189.82</td><td>1.02182</td><td>177681620.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>5</td><td>SMCI</td><td>0.6468</td><td>32.42</td><td>0.80846</td><td>26007678.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>6</td><td>PLTR</td><td>0.2076</td><td>135.24</td><td>0.25947</td><td>53454425.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>7</td><td>TSLA</td><td>0.0214</td><td>411.82</td><td>0.02671576</td><td>57794936.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>8</td><td>PWR</td><td>-0.1935</td><td>552.66</td><td>-0.24188</td><td>1058568.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>9</td><td>MSFT</td><td>-0.247</td><td>397.23</td><td>-0.30869</td><td>31825617.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr><tr><td>10</td><td>AMD</td><td>-1.2667</td><td>200.15</td><td>-1.58332</td><td>35308118.0</td><td>0.0</td><td>0.0</td><td>0.0</td></tr></tbody></table>
+  <h2>Trade Cards</h2>
+  <table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>#</th><th>Symbol</th><th>Setup</th><th>Entry Trigger</th><th>Invalidation</th><th>Risk Mgmt</th><th>ATR</th><th>Tight</th><th>Mid</th><th>Wide</th><th>Stop Ref</th><th>Stop Ref Px</th><th>Stop Tight</th><th>Stop Mid</th><th>Stop Wide</th></tr></thead><tbody><tr><td>1</td><td>GOOGL</td><td>ORB or VWAP-Hold</td><td>Break and hold above opening range high (gap-up continuation).</td><td>Fill of pre-market gap below VWAP or close below opening range low.</td><td>Move stop to break-even at +1R; scale partial at +1.5R.</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>price</td><td>314.98</td><td>None</td><td>None</td><td>None</td></tr><tr><td>2</td><td>AMZN</td><td>ORB or VWAP-Hold</td><td>Break and hold above opening range high (gap-up continuation).</td><td>Fill of pre-market gap below VWAP or close below opening range low.</td><td>Move stop to break-even at +1R; scale partial at +1.5R.</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>price</td><td>210.11</td><td>None</td><td>None</td><td>None</td></tr><tr><td>3</td><td>META</td><td>ORB or VWAP-Hold</td><td>Break and hold above opening range high (gap-up continuation).</td><td>Fill of pre-market gap below VWAP or close below opening range low.</td><td>Move stop to break-even at +1R; scale partial at +1.5R.</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>price</td><td>655.66</td><td>None</td><td>None</td><td>None</td></tr><tr><td>4</td><td>NVDA</td><td>ORB or VWAP-Hold</td><td>Break and hold above opening range high (gap-up continuation).</td><td>Fill of pre-market gap below VWAP or close below opening range low.</td><td>Move stop to break-even at +1R; scale partial at +1.5R.</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>price</td><td>189.82</td><td>None</td><td>None</td><td>None</td></tr><tr><td>5</td><td>SMCI</td><td>ORB or VWAP-Hold</td><td>Break and hold above opening range high OR first pullback reclaim above VWAP.</td><td>Loss of VWAP after entry or close below opening range low.</td><td>Move stop to break-even at +1R; scale partial at +1.5R.</td><td>0.0</td><td>0.0</td><td>0.0</td><td>0.0</td><td>price</td><td>32.42</td><td>None</td><td>None</td><td>None</td></tr></tbody></table>
+  <h2>US High Impact Events (Today)</h2>
+  <table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Date</th><th>Event</th><th>Impact</th><th>Actual</th><th>Consensus</th><th>Previous</th><th>Country</th><th>Currency</th></tr></thead><tbody></tbody></table>
+  <h2>US Mid Impact Events (Today)</h2>
+  <table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Date</th><th>Event</th><th>Impact</th><th>Actual</th><th>Consensus</th><th>Previous</th><th>Country</th><th>Currency</th></tr></thead><tbody></tbody></table>
+</body>
+</html>
