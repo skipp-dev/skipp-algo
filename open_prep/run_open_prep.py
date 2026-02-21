@@ -421,7 +421,7 @@ def _compute_gap_for_quote(
             return {
                 "gap_pct": 0.0,
                 "gap_type": GAP_MODE_OFF,
-            "gap_available": False,
+                "gap_available": False,
                 "gap_from_ts": gap_from_ts,
                 "gap_to_ts": None,
                 "gap_mode_selected": gap_mode,
