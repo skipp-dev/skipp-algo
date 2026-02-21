@@ -744,6 +744,43 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(row["score_breakdown"]["gap_component"], 0.0)
         self.assertFalse(row["gap_available"])
 
+    def test_trade_cards_uses_neutral_trigger_when_gap_not_available(self):
+        """When gap_available is False the entry trigger must fall back to the
+        neutral wording regardless of how large the raw gap_pct value is.
+        Previously, a positive gap_pct (e.g. from changesPercentage used as a
+        fallback when previousClose is missing) could incorrectly produce the
+        'gap-up continuation' trigger even though the gap was unvalidated."""
+        ranked = [
+            {
+                "symbol": "NVDA",
+                "score": 3.0,
+                "gap_pct": 3.5,       # positive gap, but flagged as unavailable
+                "gap_available": False,
+                "rel_volume": 1.5,
+            }
+        ]
+        card = build_trade_cards(ranked_candidates=ranked, bias=0.3, top_n=1)[0]
+        # Must NOT show gap-up continuation because gap_available is False
+        self.assertNotIn("gap-up continuation", card["entry_trigger"])
+        # Must fall back to the neutral trigger that contains "OR"
+        self.assertIn("OR", card["entry_trigger"])
+
+    def test_trade_cards_gap_down_trigger_requires_gap_available(self):
+        """Similarly, a negative raw gap_pct must not produce the gap-down
+        (VWAP reclaim) trigger when gap_available is False."""
+        ranked = [
+            {
+                "symbol": "AMD",
+                "score": 1.5,
+                "gap_pct": -2.5,      # negative gap, but unavailable
+                "gap_available": False,
+                "rel_volume": 1.2,
+            }
+        ]
+        card = build_trade_cards(ranked_candidates=ranked, bias=0.0, top_n=1)[0]
+        self.assertNotIn("VWAP reclaim and hold", card["entry_trigger"])
+        self.assertIn("OR", card["entry_trigger"])
+
 
 if __name__ == "__main__":
     unittest.main()

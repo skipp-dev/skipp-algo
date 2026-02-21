@@ -105,10 +105,11 @@ def build_trade_cards(
         bias_note = _risk_note_from_bias(bias, allowed_setups)
 
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)
-        if gap_pct >= 1.0:
+        gap_available = bool(row.get("gap_available", True))
+        if gap_available and gap_pct >= 1.0:
             entry_trigger = "Break and hold above opening range high (gap-up continuation)."
             invalidation = "Fill of pre-market gap below VWAP or close below opening range low."
-        elif gap_pct <= -1.0:
+        elif gap_available and gap_pct <= -1.0:
             entry_trigger = "VWAP reclaim and hold; wait for first 5-min bullish close above VWAP."
             invalidation = "Rejection at VWAP on first test or new intraday low after entry."
         else:
