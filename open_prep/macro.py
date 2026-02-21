@@ -303,10 +303,10 @@ def _impact_rank(v: str | None) -> int:
 
 
 def get_consensus(event: dict[str, Any]) -> tuple[Any, str | None]:
-    for field in CONSENSUS_FIELD_CANDIDATES:
-        value = event.get(field)
+    for fname in CONSENSUS_FIELD_CANDIDATES:
+        value = event.get(fname)
         if value is not None:
-            return value, field
+            return value, fname
     return None, None
 
 
@@ -350,7 +350,10 @@ def dedupe_events(events: list[dict]) -> list[dict]:
         # Guard against date=None: the .get() default only fires when the key
         # is absent; if date IS present but None we must still substitute so
         # unrelated null-dated events are not incorrectly grouped together.
-        event_date = e.get("date") or "1970-01-01"  # Fallback for tests
+        # Truncate to 10 chars so that "2026-02-20" and "2026-02-20 08:30:00"
+        # resolve to the same dedup key (providers may return either format).
+        event_date_raw = str(e.get("date") or "")
+        event_date = event_date_raw[:10] if event_date_raw else "1970-01-01"
         raw_name = e.get("event") or e.get("name") or ""
         key = canonicalize_event_name(raw_name)
         if not country:

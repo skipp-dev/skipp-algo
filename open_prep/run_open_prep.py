@@ -513,11 +513,7 @@ def _calculate_atr14_from_eod(candles: list[dict]) -> float:
         tr_values.append(max(tr, 0.0))
         prev_close = close
 
-    if len(tr_values) < 14:
-        return 0.0
-
-    # Wilder's Smoothing Initialization
-    # First 14 TRs -> Simple Average
+    # Wilder's Smoothing Initialization: first 14 TRs -> Simple Average
     current_atr = sum(tr_values[:14]) / 14.0
 
     # Smooth the rest
