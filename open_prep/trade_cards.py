@@ -18,7 +18,7 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
     )
     multipliers = {
         "tight": 1.0,
-        "balanced": 1.5,
+        "mid": 1.5,
         "wide": 2.0,
     }
     distances = {name: round(atr * mult, 4) for name, mult in multipliers.items()}
@@ -41,6 +41,11 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
         }
     else:
         stop_prices = {name: None for name in multipliers}
+
+    # Backward-compatibility aliases for existing consumers expecting "balanced".
+    distances["balanced"] = distances["mid"]
+    stop_prices["balanced"] = stop_prices["mid"]
+    multipliers["balanced"] = multipliers["mid"]
 
     return {
         "atr": round(atr, 4),
