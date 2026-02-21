@@ -5,6 +5,7 @@ and optional trade-card generation.
 """
 
 __all__: list[str] = [
+	"bea",
 	"trade_cards",
 	"macro",
 	"news",
