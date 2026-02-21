@@ -102,12 +102,12 @@ def main() -> None:
         "risk_management",
         "atr",
         "tight",
-        "balanced",
+        "mid",
         "wide",
         "stop_reference_source",
         "stop_reference_price",
         "stop_tight",
-        "stop_balanced",
+        "stop_mid",
         "stop_wide",
     ]
     cards_rows: list[list[object]] = []
@@ -125,12 +125,12 @@ def main() -> None:
                 card.get("risk_management", ""),
                 trail.get("atr", ""),
                 dist.get("tight", ""),
-                dist.get("balanced", ""),
+                dist.get("mid", dist.get("balanced", "")),
                 dist.get("wide", ""),
                 trail.get("stop_reference_source", ""),
                 trail.get("stop_reference_price", ""),
                 stops.get("tight", ""),
-                stops.get("balanced", ""),
+                stops.get("mid", stops.get("balanced", "")),
                 stops.get("wide", ""),
             ]
         )
