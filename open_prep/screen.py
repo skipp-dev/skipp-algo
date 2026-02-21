@@ -21,6 +21,7 @@ def rank_candidates(
     Expected (if available) in quote payload:
     - symbol
     - price
+    - gap_pct (preferred from open_prep gap-mode enrichment)
     - changesPercentage
     - volume
     - avgVolume
@@ -37,9 +38,12 @@ def rank_candidates(
 
         price = _to_float(quote.get("price"), default=0.0)
         gap_pct = _to_float(
-            quote.get("changesPercentage", quote.get("changePercentage")),
+            quote.get("gap_pct", quote.get("changesPercentage", quote.get("changePercentage"))),
             default=0.0,
         )
+        gap_available_raw = quote.get("gap_available")
+        gap_available = True if gap_available_raw is None else bool(gap_available_raw)
+        gap_pct_for_scoring = gap_pct if gap_available else 0.0
         volume = _to_float(quote.get("volume"), default=0.0)
         avg_volume = _to_float(quote.get("avgVolume"), default=0.0)
         atr = _to_float(quote.get("atr"), default=0.0)
@@ -53,7 +57,7 @@ def rank_candidates(
         # Risk-off days reduce long-breakout appetite.
         risk_off_penalty = abs(min(bias, 0.0)) * 2.0
 
-        gap_component = 0.8 * max(min(gap_pct, 10.0), -10.0)
+        gap_component = 0.8 * max(min(gap_pct_for_scoring, 10.0), -10.0)
         rvol_component = 1.2 * rel_vol_capped
         macro_component = 0.7 * max(bias, 0.0)
         news_score = by_symbol_news.get(symbol, 0.0)
@@ -104,6 +108,11 @@ def rank_candidates(
                 "score": round(score, 4),
                 "price": price,
                 "gap_pct": gap_pct,
+                "gap_type": quote.get("gap_type"),
+                "gap_available": gap_available,
+                "gap_from_ts": quote.get("gap_from_ts"),
+                "gap_to_ts": quote.get("gap_to_ts"),
+                "gap_reason": quote.get("gap_reason"),
                 "volume": volume,
                 "avg_volume": avg_volume,
                 "atr": round(atr, 4),

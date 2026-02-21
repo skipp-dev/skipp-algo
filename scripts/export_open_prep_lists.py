@@ -10,7 +10,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from open_prep.macro import FMPClient, macro_bias_score
-from open_prep.run_open_prep import _atr14_by_symbol, _event_is_today
+from open_prep.run_open_prep import (
+    GAP_MODE_PREMARKET_INDICATIVE,
+    _atr14_by_symbol,
+    _event_is_today,
+    apply_gap_mode_to_quotes,
+)
 from open_prep.screen import rank_candidates
 from open_prep.trade_cards import build_trade_cards
 
@@ -40,6 +45,11 @@ def main() -> None:
     todays_events = [e for e in macro_events if _event_is_today(e, run_date)]
     bias = macro_bias_score(todays_events)
     quotes = client.get_batch_quotes(DEFAULT_UNIVERSE)
+    quotes = apply_gap_mode_to_quotes(
+        quotes,
+        run_dt_utc=now_utc,
+        gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+    )
     atr_by_symbol, _ = _atr14_by_symbol(client=client, symbols=DEFAULT_UNIVERSE, as_of=run_date)
     for q in quotes:
         sym = str(q.get("symbol") or "").strip().upper()
@@ -61,6 +71,11 @@ def main() -> None:
         "score",
         "price",
         "gap_pct",
+        "gap_type",
+        "gap_available",
+        "gap_from_ts",
+        "gap_to_ts",
+        "gap_reason",
         "volume",
         "avg_volume",
         "rel_volume",
@@ -78,6 +93,11 @@ def main() -> None:
                 row.get("score", ""),
                 row.get("price", ""),
                 row.get("gap_pct", ""),
+                row.get("gap_type", ""),
+                row.get("gap_available", ""),
+                row.get("gap_from_ts", ""),
+                row.get("gap_to_ts", ""),
+                row.get("gap_reason", ""),
                 row.get("volume", ""),
                 row.get("avg_volume", ""),
                 row.get("rel_volume", ""),

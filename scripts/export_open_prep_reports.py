@@ -18,6 +18,7 @@ from open_prep.macro import (
     macro_bias_score,
 )
 from open_prep.run_open_prep import _event_is_today, _format_macro_events
+from open_prep.run_open_prep import GAP_MODE_PREMARKET_INDICATIVE, apply_gap_mode_to_quotes
 from open_prep.screen import rank_candidates
 
 DEFAULT_UNIVERSE = ["NVDA", "PLTR", "PWR", "TSLA", "AMD", "META", "MSFT", "AMZN", "GOOGL", "SMCI"]
@@ -46,6 +47,11 @@ def main() -> None:
 
     bias = macro_bias_score(todays_events)
     quotes = client.get_batch_quotes(DEFAULT_UNIVERSE)
+    quotes = apply_gap_mode_to_quotes(
+        quotes,
+        run_dt_utc=now_utc,
+        gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+    )
     ranked = rank_candidates(quotes=quotes, bias=bias, top_n=10)
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=5)
 
@@ -75,7 +81,22 @@ def main() -> None:
         ["Mid Impact Events", len(result["macro_us_mid_impact_events_today"])],
     ]
 
-    cand_headers = ["Rank", "Symbol", "Score", "Price", "Gap %", "Volume", "Avg Volume", "Rel Volume", "Macro Bias"]
+    cand_headers = [
+        "Rank",
+        "Symbol",
+        "Score",
+        "Price",
+        "Gap %",
+        "Gap Type",
+        "Gap Available",
+        "Gap From TS",
+        "Gap To TS",
+        "Gap Reason",
+        "Volume",
+        "Avg Volume",
+        "Rel Volume",
+        "Macro Bias",
+    ]
     cand_rows: list[list[object]] = []
     ranked_candidates: list[dict[str, Any]] = result["ranked_candidates"]
     for i, row in enumerate(ranked_candidates, start=1):
@@ -86,6 +107,11 @@ def main() -> None:
                 row.get("score", ""),
                 row.get("price", ""),
                 row.get("gap_pct", ""),
+                row.get("gap_type", ""),
+                row.get("gap_available", ""),
+                row.get("gap_from_ts", ""),
+                row.get("gap_to_ts", ""),
+                row.get("gap_reason", ""),
                 row.get("volume", ""),
                 row.get("avg_volume", ""),
                 row.get("rel_volume", ""),
