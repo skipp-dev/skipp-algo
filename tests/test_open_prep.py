@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import unittest
 from unittest.mock import patch
 
@@ -780,6 +780,45 @@ class TestOpenPrep(unittest.TestCase):
         card = build_trade_cards(ranked_candidates=ranked, bias=0.0, top_n=1)[0]
         self.assertNotIn("VWAP reclaim and hold", card["entry_trigger"])
         self.assertIn("OR", card["entry_trigger"])
+
+    def test_data_sufficiency_low_set_on_neutral_day_with_missing_volume(self):
+        """Regression: data_sufficiency.low must be True whenever avg_volume or rel_volume
+        is missing, even on a neutral-bias day (not only when bias <= -0.75).
+        Previously the flag was only set inside the risk-off block, leading to an
+        inconsistency where data_sufficiency.rel_volume_missing was True but low was False."""
+        quotes = [
+            {
+                "symbol": "THIN",
+                "price": 20.0,
+                "changesPercentage": 1.0,
+                "volume": 0,
+                "avgVolume": 0,
+            }
+        ]
+        row = rank_candidates(quotes, bias=0.0, top_n=1)[0]
+        self.assertTrue(row["data_sufficiency"]["low"])
+        self.assertTrue(row["data_sufficiency"]["avg_volume_missing"])
+        self.assertTrue(row["data_sufficiency"]["rel_volume_missing"])
+        # On a neutral day, longs are still allowed (rvol gate only activates at risk-off extreme)
+        self.assertTrue(row["long_allowed"])
+        self.assertNotIn("missing_rvol", row["no_trade_reason"])
+
+    def test_gap_mode_not_monday_returns_not_monday_session(self):
+        """Non-Monday sessions must return gap_reason='not_monday_session' and
+        gap_available=False regardless of the selected gap mode.
+        Verifies that the is_weekend dead-code path was correctly collapsed to not is_monday."""
+        for weekday_offset, label in ((1, "Tuesday"), (5, "Saturday"), (6, "Sunday")):
+            with self.subTest(day=label):
+                # 2026-02-23 is Monday; +offset gives the target weekday
+                run_dt = datetime(2026, 2, 23, 11, 0, tzinfo=UTC) + timedelta(days=weekday_offset)
+                quotes = [{"symbol": "NVDA", "preMarketPrice": 105.0, "previousClose": 100.0,
+                           "timestamp": int(run_dt.timestamp())}]
+                enriched = apply_gap_mode_to_quotes(
+                    quotes, run_dt_utc=run_dt, gap_mode=GAP_MODE_PREMARKET_INDICATIVE
+                )
+                row = enriched[0]
+                self.assertFalse(row["gap_available"])
+                self.assertEqual(row["gap_reason"], "not_monday_session")
 
 
 if __name__ == "__main__":

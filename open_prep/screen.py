@@ -78,7 +78,7 @@ def rank_candidates(
         no_trade_reason: list[str] = []
         allowed_setups = ["orb", "gap_go", "vwap_reclaim", "hod_reclaim"]
         max_trades = 2
-        data_sufficiency_low = False
+        data_sufficiency_low = avg_volume <= 0.0 or rel_vol <= 0.0
 
         if price < 5.0:
             no_trade_reason.append("price_below_5")
@@ -88,10 +88,9 @@ def rank_candidates(
             max_trades = 1
             if rel_vol <= 0.0:
                 no_trade_reason.append("missing_rvol")
-                data_sufficiency_low = True
         if gap_pct <= -8.0:
             no_trade_reason.append("severe_gap_down")
-        
+
         long_allowed = not any(
             r in no_trade_reason
             for r in [

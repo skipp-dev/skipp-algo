@@ -175,7 +175,7 @@ class FMPClient:
             raise RuntimeError(
                 f"FMP API network error on {path}: {exc.reason}"
             ) from exc
-        
+
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:
