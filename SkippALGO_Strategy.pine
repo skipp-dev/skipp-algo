@@ -349,8 +349,6 @@ strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, ma
 useAdaptiveStrictMargin = input.bool(false, "Strict: adaptive MTF margin", tooltip="Adapts strictMtfMargin by ATR regime: stricter in high vol, looser in calm markets.")
 strictAdaptiveRange = input.float(0.02, "Strict: adaptive range", minval=0.0, maxval=0.10, step=0.005, tooltip="Max additional/subtracted margin around strictMtfMargin based on ATR regime.")
 strictAdaptiveLen = input.int(100, "Strict: adaptive ATR rank len", minval=20, maxval=500)
-showStrictSignalMarkers = input.bool(true, "Show Strict confirmed markers")
-strictMarkerStyle = input.string("Icon", "Strict marker style", options=["Icon", "Label", "Both"])
 
 // Trading Session Time Window
 useSessionFilter = input.bool(false, "Session Filter (Time Window)")
@@ -2529,8 +2527,10 @@ else if close < vwtLowerBand
 
 vwtTurnedBull = vwtTrendDirection == 1 and vwtTrendDirection[1] != 1
 vwtTurnedBear = vwtTrendDirection == -1 and vwtTrendDirection[1] != -1
-vwtBullRecent = (not na(ta.barssince(vwtTurnedBull))) and (ta.barssince(vwtTurnedBull) <= vwtReversalWindowEff)
-vwtBearRecent = (not na(ta.barssince(vwtTurnedBear))) and (ta.barssince(vwtTurnedBear) <= vwtReversalWindowEff)
+int _bsBull   = ta.barssince(vwtTurnedBull)
+int _bsBear   = ta.barssince(vwtTurnedBear)
+vwtBullRecent = (not na(_bsBull)) and (_bsBull <= vwtReversalWindowEff)
+vwtBearRecent = (not na(_bsBear)) and (_bsBear <= vwtReversalWindowEff)
 vwtLongEntryOk = (not useVwtTrendFilter) or (vwtTrendDirection == 1 and ((not vwtReversalOnly) or vwtBullRecent))
 vwtShortEntryOk = (not useVwtTrendFilter) or (vwtTrendDirection == -1 and ((not vwtReversalOnly) or vwtBearRecent))
 
@@ -4412,9 +4412,9 @@ if pos == 1 and allowExitLong
     
     bool riskExceptionHit = rHit and (rMsg == "SL" or rMsg == "TP")
     bool holdExceptionsOnly = entryOnlyExitHoldActive
-    exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or staleExit or engExitHit)
+    exitSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or engExitHit)
     if exitSignal
-        tempExitReason := rHit ? rMsg : engExitHit ? "Engulfing" : staleExit ? "Stalemate" : structHit ? "Struct-Break" : "ChoCH"
+        tempExitReason := rHit ? rMsg : engExitHit ? "Engulfing" : structHit ? "Struct-Break" : "ChoCH"
 
 if pos == -1 and allowExitShort
     if useAtrRisk
@@ -4451,9 +4451,9 @@ if pos == -1 and allowExitShort
 
     bool riskExceptionHit = rHit and (rMsg == "SL" or rMsg == "TP")
     bool holdExceptionsOnly = entryOnlyExitHoldActive
-    coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or staleExit or engExitHit)
+    coverSignal := holdExceptionsOnly ? (riskExceptionHit or engExitHit) : (rHit or structHit or engExitHit)
     if coverSignal
-        tempExitReason := rHit ? rMsg : engExitHit ? "Engulfing" : staleExit ? "Stalemate" : structHit ? "Struct-Break" : "ChoCH"
+        tempExitReason := rHit ? rMsg : engExitHit ? "Engulfing" : structHit ? "Struct-Break" : "ChoCH"
 
 // State Logic
 // v6.2.10: Same-bar reversal support (see Indicator for full explanation).
@@ -4706,9 +4706,7 @@ if useAlertCalls and signalGateConfirmed and barstate.isrealtime
         string labels = array.join(_parts, "+")
         string msg = ""
         if useJsonAlerts
-            string firstLabel = array.get(_parts, 0)
-            string action = (firstLabel == "BUY" or firstLabel == "REV-BUY") ? "buy" : ((firstLabel == "SHORT" or firstLabel == "REV-SHORT") ? "sell" : ((firstLabel == "EXIT" or firstLabel == "COVER") ? "exit" : "flat"))
-            msg := f_tp_json(action, "ALERT", labels)
+            msg := str.format('{{"ticker":"{0}","labels":"{1}","price":{2}}}', syminfo.ticker, labels, str.tostring(close, "#.##"))
         else
             modeTxtAlert = strictAlertsEnabled ? "strict" : "normal"
             delayTxt = strictAlertsEnabled and (alertBuyCond or alertShortCond or alertRevBuyCond or alertRevShortCond) ? "1" : "0"
@@ -4730,77 +4728,8 @@ labelShort    := labelShort or (shortPreviewPulse and not isRevShort)
 labelExit  = exitEventLive
 labelCover = coverEventLive
 
-string _probTxt = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
-string _probTxtD = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
-string _confTxt = str.tostring(confidence * 100.0, "#.0") + "%"
-string _revBuyBase = "REV-BUY\npU: " + _probTxt + "\nConf: " + _confTxt
-string _revShortBase = "REV-SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt
-string _stdBuyTxt = "BUY\npU: " + _probTxt + "\nConf: " + _confTxt
-string _stdShortTxt = "SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt
-
-var label[] _preLabels = array.new_label(0)
-MAX_PRE_LABELS = 100
-f_pre_label(x, y, txt, sty, txtCol, bgCol) =>
-    lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol, size=size.small)
-    array.push(_preLabels, lbl)
-    if array.size(_preLabels) > MAX_PRE_LABELS
-        label.delete(array.shift(_preLabels))
-
-var label[] _entryLabels = array.new_label(0)
-MAX_ENTRY_LABELS = 150
-f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
-    lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol)
-    array.push(_entryLabels, lbl)
-    if array.size(_entryLabels) > MAX_ENTRY_LABELS
-        label.delete(array.shift(_entryLabels))
-
-var label[] _exitLabels = array.new_label(0)
-MAX_EXIT_LABELS = 300
-f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
-    lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol)
-    array.push(_exitLabels, lbl)
-    if array.size(_exitLabels) > MAX_EXIT_LABELS
-        label.delete(array.shift(_exitLabels))
-
-if preBuyEventLive
-    string _gapTxt = not na(preGapATR_L) ? str.tostring(preGapATR_L, "#.##") + " ATR" : "—"
-    string _pTxt   = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
-    string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
-    if showPreEntryLabels
-        f_pre_label(bar_index, low, "PRE-BUY\nGap: " + _gapTxt + "\npU: " + _pTxt + "\nConf: " + _cTxt, label.style_label_up, color.black, color.new(color.yellow, 0))
-
-if preShortEventLive
-    string _gapTxt = not na(preGapATR_S) ? str.tostring(preGapATR_S, "#.##") + " ATR" : "—"
-    string _pTxt   = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
-    string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
-    if showPreEntryLabels
-        f_pre_label(bar_index, high, "PRE-SHORT\nGap: " + _gapTxt + "\npD: " + _pTxt + "\nConf: " + _cTxt, label.style_label_down, color.black, color.new(color.orange, 0))
-
-if showLongLabels and labelRevBuy
-    f_entry_label(bar_index, low, _revBuyBase, label.style_label_up, color.black, color.new(color.aqua, 0))
-if showShortLabels and labelRevShort
-    f_entry_label(bar_index, high, _revShortBase, label.style_label_down, color.black, color.new(color.fuchsia, 0))
-if showLongLabels and labelBuy
-    f_entry_label(bar_index, low, _stdBuyTxt, label.style_label_up, color.white, color.new(color.green, 0))
-if showShortLabels and labelShort
-    f_entry_label(bar_index, high, _stdShortTxt, label.style_label_down, color.white, color.new(color.red, 0))
-
 plotchar(showChochPing and chochPingLong, title="ChoCH Ping (Long)", char="?", location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny)
 plotchar(showChochPing and chochPingShort, title="ChoCH Ping (Short)", char="?", location=location.abovebar, color=color.new(color.yellow, 0), size=size.tiny)
-
-if showLongLabels and labelExit
-    string entryTag  = _wasRevEntry ? " ← REV-BUY" : " ← BUY"
-    string exitSuffix = didShort ? " → SHORT" : ""
-    int _buyAgo = na(lastBuyBarIdx) ? 0 : (bar_index - lastBuyBarIdx)
-    string buyAgoTxt = " (" + str.tostring(_buyAgo) + " bars ago)"
-    f_exit_label(bar_index, high, "EXIT" + entryTag + "\n" + buyAgoTxt + exitSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", label.style_label_down, color.white, color.new(color.red, 0))
-
-if showShortLabels and labelCover
-    string entryTag  = _wasRevEntry ? " ← REV-SHORT" : " ← SHORT"
-    string coverSuffix = didBuy ? " → BUY" : ""
-    int _shortAgo = na(lastShortBarIdx) ? 0 : (bar_index - lastShortBarIdx)
-    string shortAgoTxt = " (" + str.tostring(_shortAgo) + " bars ago)"
-    f_exit_label(bar_index, low, "COVER" + entryTag + "\n" + shortAgoTxt + coverSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", label.style_label_up, color.white, color.new(color.green, 0))
 
 plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
@@ -4809,16 +4738,6 @@ plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, 
 plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
 plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
 plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
-
-// Lightweight eval HUD (last bar only): exposes runtime success-rate on chart.
-var label evalHudLbl = na
-if barstate.islast
-    if not na(evalHudLbl)
-        label.delete(evalHudLbl)
-    evalHudCol = evalSuccessN >= evalMinEvents ? color.new(color.green, 75) : color.new(color.orange, 75)
-    chochPresetTxt = chochSaferPresetEff ? "Fast+Safer" : chochFastPresetEff ? "Fast" : "Manual"
-    chochHudTxt = " | ChoCH=" + chochPresetTxt + " (" + chochSignalModeEff + "," + breakoutSourceEff + ",R=" + str.tostring(swingREff) + ")"
-    evalHudLbl := label.new(bar_index, high + nz(atr) * 0.6, evalSuccessHudTxt + chochHudTxt, style=label.style_label_left, textcolor=color.white, color=evalHudCol, size=size.tiny)
 
 barcolor(showEngulfingBarColors ? (bullEngulf3 ? color.yellow : bearEngulf3 ? color.white : na) : na)
 vwtBgColor = vwtTrendDirection == 1 ? color.new(color.lime, vwtBgTransparency) : vwtTrendDirection == -1 ? color.new(color.red, vwtBgTransparency) : na

@@ -11,7 +11,7 @@
 // Phase 4: Online Calibration (Platt Scaling via SGD + Brier/LogLoss tracking)
 // v6.3.4: Final Parity Sync (Strategy Scope Fix)
 
-indicator("SkippALGO Mid (No Forecast)", overlay=true, max_labels_count=500, max_lines_count=500)
+indicator("SkippALGO Mid", overlay=true, max_labels_count=500, max_lines_count=500)
 
 //====================
 // Inputs — Core / Engine

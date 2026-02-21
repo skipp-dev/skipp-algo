@@ -314,8 +314,6 @@ strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, ma
 useAdaptiveStrictMargin = input.bool(false, "Strict: adaptive MTF margin", tooltip="Adapts strictMtfMargin by ATR regime: stricter in high vol, looser in calm markets.")
 strictAdaptiveRange = input.float(0.02, "Strict: adaptive range", minval=0.0, maxval=0.10, step=0.005, tooltip="Max additional/subtracted margin around strictMtfMargin based on ATR regime.")
 strictAdaptiveLen = input.int(100, "Strict: adaptive ATR rank len", minval=20, maxval=500)
-showStrictSignalMarkers = input.bool(true, "Show Strict confirmed markers")
-strictMarkerStyle = input.string("Icon", "Strict marker style", options=["Icon", "Label", "Both"])
 
 // Avoid entries right before close
 useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close")
@@ -3634,10 +3632,8 @@ hybridShortTrigger = touchEmaF_ShortSafe and (crossClose_EmaF_downSafe or bearRe
 
 // --- Global Recency Calculation (Safe Scope) ---
 int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
-bool recentChoCH_L   = (not na(barsSinceChoCH_L)) and (barsSinceChoCH_L <= 12)
 
 int barsSinceChoCH_S = ta.barssince(isChoCH_Short)
-bool recentChoCH_S   = (not na(barsSinceChoCH_S)) and (barsSinceChoCH_S <= 12)
 
 // Global Volume Ratio (Kept for Risk Decay)
 float volRatioG = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 0.0
@@ -4254,10 +4250,8 @@ if barstate.isnew
     rtPreBuyPreviewSent := false
     rtPreShortPreviewSent := false
 
-bool buyPreviewPosOk = (pos == 0) or (pos == -1 and coverSignal and allowSameBarBuyAfterCover)
-bool shortPreviewPosOk = (pos == 0) or (pos == 1 and exitSignal and allowSameBarShortAfterExit)
-buyPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and rawBuySignal and buyPreviewPosOk and not rtBuyPreviewSent
-shortPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and rawShortSignal and shortPreviewPosOk and not rtShortPreviewSent
+buyPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and rawBuySignal and ((pos == 0) or (pos == -1 and coverSignal and allowSameBarBuyAfterCover)) and not rtBuyPreviewSent
+shortPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and rawShortSignal and ((pos == 0) or (pos == 1 and exitSignal and allowSameBarShortAfterExit)) and not rtShortPreviewSent
 exitPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and exitSignal and pos == 1 and not rtExitPreviewSent
 coverPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and coverSignal and pos == -1 and not rtCoverPreviewSent
 preBuyPreviewPulse = (not signalOnCloseOnly) and barstate.isrealtime and preBuyNow and not rtPreBuyPreviewSent
@@ -4521,9 +4515,7 @@ if signalGateConfirmed and barstate.isrealtime
         string labels = array.join(_parts, "+")
         string msg = ""
         if useJsonAlerts
-            firstLabel = array.get(_parts, 0)
-            action = (firstLabel == "BUY" or firstLabel == "REV-BUY") ? "buy" : ((firstLabel == "SHORT" or firstLabel == "REV-SHORT") ? "sell" : ((firstLabel == "EXIT" or firstLabel == "COVER") ? "exit" : "flat"))
-            msg := f_tp_json(action)
+            msg := str.format('{{"ticker":"{0}","labels":"{1}","price":{2}}}', syminfo.ticker, labels, str.tostring(close, "#.##"))
         else
             modeTxtAlert = strictAlertsEnabledVis ? "strict" : "normal"
             delayTxt = strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? "1" : "0"

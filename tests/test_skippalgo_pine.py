@@ -289,8 +289,6 @@ class TestSkippAlgoIndicatorStrictAlerts(unittest.TestCase):
         self.assertIn("useAdaptiveStrictMargin", self.text)
         self.assertIn("strictAdaptiveRange", self.text)
         self.assertIn("strictAdaptiveLen", self.text)
-        self.assertIn("showStrictSignalMarkers", self.text)
-        self.assertIn("strictMarkerStyle", self.text)
 
     def test_open_window_fine_controls_exist(self):
         self.assertIn("revOpenWindowLongMins", self.text)
