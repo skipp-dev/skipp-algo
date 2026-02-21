@@ -90,7 +90,12 @@ def rank_candidates(
         
         long_allowed = not any(
             r in no_trade_reason
-            for r in ["price_below_5", "severe_gap_down", "missing_rvol"]
+            for r in [
+                "price_below_5",
+                "severe_gap_down",
+                "missing_rvol",
+                "macro_risk_off_extreme",
+            ]
         )
 
         ranked.append(

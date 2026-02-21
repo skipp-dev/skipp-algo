@@ -4,7 +4,7 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-_TICKER_RE = re.compile(r"[A-Z][A-Z0-9.-]{0,5}")
+_TICKER_RE = re.compile(r"\b[A-Z][A-Z0-9.-]{0,5}\b")
 
 
 def _extract_symbols_from_tickers(raw: str) -> set[str]:
@@ -74,11 +74,6 @@ def build_news_scores(
         }
         for s in universe
     }
-    # Track latest article datetime as objects to avoid ISO string comparison
-    # pitfalls: mixed microsecond precision causes incorrect lexicographic
-    # ordering because "." (ASCII 46) > "+" (ASCII 43), causing a datetime
-    # like "T14:30:00.123456+00:00" to compare as later than "T15:30:00+00:00".
-    latest_dts: dict[str, datetime | None] = {s: None for s in universe}
 
     # Precompile regex patterns for fallback matching to avoid false positives (e.g. "A" in "APPLE")
     sym_patterns = {sym: re.compile(rf"\b{re.escape(sym)}\b") for sym in universe}
@@ -86,10 +81,7 @@ def build_news_scores(
     for article in articles:
         ticker_meta = str(article.get("tickers") or "")
         title = str(article.get("title") or "").upper()
-        # Clip content to bound regex work per article and reduce false-positive
-        # ticker matches buried deep in long article bodies. Title is the
-        # primary matching signal; first 1000 chars covers the lead paragraph.
-        content = str(article.get("content") or "")[:1000].upper()
+        content = str(article.get("content") or "").upper()
         article_dt = _parse_article_datetime(article.get("date"))
 
         mentioned = _extract_symbols_from_tickers(ticker_meta)
@@ -106,18 +98,23 @@ def build_news_scores(
             row = metrics[sym]
             row["mentions_total"] += 1
             if article_dt is not None:
-                # Guard against future-dated articles (timezone confusion / API
-                # errors) that would otherwise inflate recency window counts.
-                if article_dt <= now:
-                    if article_dt >= window_24h:
-                        row["mentions_24h"] += 1
-                    if article_dt >= window_2h:
-                        row["mentions_2h"] += 1
-                # Compare datetime objects — avoids the ISO string comparison
-                # pitfall where mixed microsecond precision yields wrong ordering.
-                _prev = latest_dts[sym]
-                if _prev is None or article_dt > _prev:
-                    latest_dts[sym] = article_dt
+                # Guard against future-dated articles (provider timezone drift):
+                # they count as mentions_total but must not inflate recency windows.
+                if window_24h <= article_dt <= now:
+                    row["mentions_24h"] += 1
+                if window_2h <= article_dt <= now:
+                    row["mentions_2h"] += 1
+
+                latest_dt: datetime | None = row["latest_article_utc"]
+                # Compare datetime objects to avoid the '.' vs '+' ASCII
+                # ordering bug that occurs with ISO strings when microseconds
+                # are present (e.g. '14:30:00.654321+00:00' > '14:30:00+00:00'
+                # under naive string ordering despite representing the same or
+                # an earlier moment than '15:30:00+00:00').
+                if article_dt <= now and (
+                    latest_dt is None or article_dt > latest_dt
+                ):
+                    row["latest_article_utc"] = article_dt
 
     scores: dict[str, float] = {}
     for sym, row in metrics.items():
@@ -127,10 +124,8 @@ def build_news_scores(
         score = min(2.0, row["mentions_2h"] * 0.5 + mentions_24h_only * 0.15)
         row["news_catalyst_score"] = round(score, 4)
         scores[sym] = round(score, 4)
-
-    # Serialize latest datetimes back to ISO strings for the output contract.
-    for sym, dt in latest_dts.items():
-        if dt is not None:
-            metrics[sym]["latest_article_utc"] = dt.isoformat()
+        # Convert stored datetime → ISO string for serialisable output.
+        if row["latest_article_utc"] is not None:
+            row["latest_article_utc"] = row["latest_article_utc"].isoformat()
 
     return scores, metrics

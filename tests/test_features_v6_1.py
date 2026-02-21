@@ -97,7 +97,8 @@ class TestSkippAlgoV6_1(unittest.TestCase):
     def test_stale_reversal_filter(self):
         """Verify Stale Reversal Filter Logic."""
         # Should check for recency (<= revRecencyBars) OR high volume
-        recency = r'bool revRecencyOkL\s*=\s*\(not na\(barsSinceChoCH_L\)\) and \(barsSinceChoCH_L <= revRecencyBars or volRatioG >= 1.0\)'
+        # Accept either hardcoded 1.0 (legacy) or the parameterised rescueVolMult (fixed).
+        recency = r'bool revRecencyOkL\s*=\s*\(not na\(barsSinceChoCH_L\)\) and \(barsSinceChoCH_L <= revRecencyBars or volRatioG >= (?:1\.0|rescueVolMult)\)'
         self.assertRegex(self.strat_text, recency, "Strategy stale reversal filter (Long) missing")
 
     def test_reversal_entry_gate(self):

@@ -605,6 +605,13 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("mode=", self.text)
         self.assertIn("confirm_delay=", self.text)
 
+    def test_consolidated_json_alert_maps_rev_actions(self):
+        """Consolidated alert() path should map REV labels to buy/sell action in JSON mode."""
+        self.assertIn('string firstLabel = array.get(_parts, 0)', self.text)
+        self.assertIn('firstLabel == "BUY" or firstLabel == "REV-BUY"', self.text)
+        self.assertIn('firstLabel == "SHORT" or firstLabel == "REV-SHORT"', self.text)
+        self.assertIn('msg := f_tp_json(action, "ALERT", labels)', self.text)
+
     def test_alert_conditions_switch_strict_entries_only(self):
         self.assertIn("alertBuySameBar   = buyEventLive and not strictAlertsEnabled", self.text)
         self.assertIn("alertBuyDelayed   = buyEventStrict and strictWasEnabled", self.text)
@@ -618,6 +625,7 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
     def test_rev_buy_min_prob_floor_including_open_window(self):
         self.assertTrue(
             "revBuyMinProbFloor = _isOpenWindow ? 0.0 : 0.25" in self.text or
+            "float revBuyMinProbFloor = bypassRevLong ? 0.0 : 0.25" in self.text or
             "float revBuyMinProbFloor = 0.25" in self.text
         )
         self.assertTrue(
@@ -663,10 +671,17 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         """BUY same-bar toggle must follow COVER; SHORT same-bar toggle must follow EXIT."""
         self.assertIn('allowSameBarBuyAfterCover = input.bool(false, "Allow same-bar BUY after COVER"', self.text)
         self.assertIn('allowSameBarShortAfterExit = input.bool(false, "Allow same-bar SHORT after EXIT"', self.text)
-        self.assertIn('if buySignal and pos == 0 and (allowSameBarBuyAfterCover or not didCover)', self.text)
-        self.assertIn('else if shortSignal and pos == 0 and (allowSameBarShortAfterExit or not didExit)', self.text)
+        self.assertIn('if buySignal and pos == 0 and (allowSameBarBuyAfterCover or not didCover) and not didExit', self.text)
+        self.assertIn('else if shortSignal and pos == 0 and (allowSameBarShortAfterExit or not didExit) and not didCover', self.text)
         self.assertNotIn('allowSameBarBuyAfterExit', self.text)
         self.assertNotIn('allowSameBarShortAfterCover', self.text)
+
+    def test_exit_branch_updates_en_time(self):
+        """EXIT branch should stamp enTime to keep timing state parity with indicator."""
+        self.assertRegex(
+            self.text,
+            r"if exitSignal and pos == 1[\s\S]*?tpPx := na[\s\S]*?enTime\s*:=\s*time"
+        )
 
     def test_usi_aggressive_entry_mode_toggles_exist(self):
         """USI aggressive mode supports same-bar verify and 1-of-3 relaxation."""

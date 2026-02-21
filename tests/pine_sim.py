@@ -173,6 +173,7 @@ class SimState:
     """Mutable state of the simulator (persists across bars)."""
     pos: int = 0  # 0=flat, 1=long, -1=short
     last_signal_bar: Optional[int] = None
+    last_signal_time_ms: Optional[int] = None
     entry_price: Optional[float] = None
     entry_atr: Optional[float] = None
     stop_px: Optional[float] = None
@@ -183,11 +184,13 @@ class SimState:
     struct_state: int = 0  # 0=neutral, 1=bullish, -1=bearish
     last_exit_reason: str = ""
     en_bar: Optional[int] = None
+    en_time_ms: Optional[int] = None
     prev_buy_event: bool = False
     prev_short_event: bool = False
     prev_strict_alerts_enabled: bool = False
     regime2_state_eff: int = 0
     regime2_hold_bars: int = 0
+    time_ms: int = 0
 
 
 @dataclass
@@ -281,6 +284,10 @@ class SkippAlgoSim:
 
     def _cooldown_ok(self, effective_cooldown_bars: Optional[int] = None) -> bool:
         use_bars = self.cfg.cooldown_bars if effective_cooldown_bars is None else effective_cooldown_bars
+        if self.cfg.cooldown_mode == "Minutes":
+            if self.state.last_signal_time_ms is None:
+                return True
+            return (self.state.time_ms - self.state.last_signal_time_ms) > (self.cfg.cooldown_minutes * 60 * 1000)
         if self.state.last_signal_bar is None:
             return True
         return (self.state.bar_index - self.state.last_signal_bar) > use_bars
@@ -385,14 +392,23 @@ class SkippAlgoSim:
         result.regime2_state_eff = st.regime2_state_eff
         result.regime2_hold_bars = st.regime2_hold_bars
 
-        # EntriesOnly exit-hold (simulated bars-mode behavior)
-        entry_only_exit_hold_active = (
-            cfg.cooldown_triggers == "EntriesOnly"
-            and st.pos != 0
-            and st.en_bar is not None
-            and cooldown_bars_eff >= 1
-            and ((st.bar_index - st.en_bar) <= cooldown_bars_eff)
-        )
+        # EntriesOnly exit-hold (bars/minutes parity with Pine logic)
+        if cfg.cooldown_mode == "Minutes":
+            entry_only_exit_hold_active = (
+                cfg.cooldown_triggers == "EntriesOnly"
+                and st.pos != 0
+                and st.en_time_ms is not None
+                and cfg.cooldown_minutes >= 1
+                and ((st.time_ms - st.en_time_ms) <= (cfg.cooldown_minutes * 60 * 1000))
+            )
+        else:
+            entry_only_exit_hold_active = (
+                cfg.cooldown_triggers == "EntriesOnly"
+                and st.pos != 0
+                and st.en_bar is not None
+                and cooldown_bars_eff >= 1
+                and ((st.bar_index - st.en_bar) <= cooldown_bars_eff)
+            )
         result.entry_only_exit_hold_active = entry_only_exit_hold_active
 
         # -- Update bar counting --
@@ -681,7 +697,9 @@ class SkippAlgoSim:
             st.stop_px = None
             st.tp_px = None
             st.trail_px = None
-            st.last_signal_bar = st.bar_index
+            if cfg.cooldown_triggers in ("ExitsOnly", "AllSignals"):
+                st.last_signal_bar = st.bar_index
+                st.last_signal_time_ms = st.time_ms
         elif cover_signal and st.pos == -1:
             result.did_cover = True
             st.last_exit_reason = result.exit_reason
@@ -690,21 +708,29 @@ class SkippAlgoSim:
             st.stop_px = None
             st.tp_px = None
             st.trail_px = None
-            st.last_signal_bar = st.bar_index
+            if cfg.cooldown_triggers in ("ExitsOnly", "AllSignals"):
+                st.last_signal_bar = st.bar_index
+                st.last_signal_time_ms = st.time_ms
         elif buy_signal and st.pos == 0:
             result.did_buy = True
             st.pos = 1
             st.entry_price = bar.close
             st.entry_atr = 1.0  # simplified
             st.en_bar = st.bar_index
-            st.last_signal_bar = st.bar_index
+            st.en_time_ms = st.time_ms
+            if cfg.cooldown_triggers in ("AllSignals", "EntriesOnly"):
+                st.last_signal_bar = st.bar_index
+                st.last_signal_time_ms = st.time_ms
         elif short_signal and st.pos == 0:
             result.did_short = True
             st.pos = -1
             st.entry_price = bar.close
             st.entry_atr = 1.0
             st.en_bar = st.bar_index
-            st.last_signal_bar = st.bar_index
+            st.en_time_ms = st.time_ms
+            if cfg.cooldown_triggers in ("AllSignals", "EntriesOnly"):
+                st.last_signal_bar = st.bar_index
+                st.last_signal_time_ms = st.time_ms
 
         result.pos_after = st.pos
 
@@ -743,6 +769,7 @@ class SkippAlgoSim:
 
         # -- Advance bar index --
         st.bar_index += 1
+        st.time_ms += 60 * 1000
 
         return result
 

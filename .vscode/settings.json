@@ -24,5 +24,6 @@
     "chat.agentSessionProjection.enabled": true,
     "notebook.formatOnSave.enabled": true,
     "workbench.editor.highlightModifiedTabs": true,
-    "genieai.enableConversationHistory": true
+    "genieai.enableConversationHistory": true,
+    "python.REPL.enableREPLSmartSend": false
 }

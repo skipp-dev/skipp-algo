@@ -280,6 +280,22 @@ class TestOpenPrep(unittest.TestCase):
         self.assertTrue(row["data_sufficiency"]["avg_volume_missing"])
         self.assertTrue(row["data_sufficiency"]["rel_volume_missing"])
 
+    def test_rank_candidates_risk_off_blocks_even_with_valid_rvol(self):
+        """Regression: extreme risk-off should block longs regardless of data sufficiency."""
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "price": 100.0,
+                "changesPercentage": 3.0,
+                "volume": 1_200_000,
+                "avgVolume": 600_000,
+            }
+        ]
+        row = rank_candidates(quotes, bias=-0.875, top_n=1)[0]
+        self.assertFalse(row["long_allowed"])
+        self.assertIn("macro_risk_off_extreme", row["no_trade_reason"])
+        self.assertFalse(row["data_sufficiency"]["low"])
+
     def test_rank_candidates_carries_atr_from_quote(self):
         quotes = [
             {
