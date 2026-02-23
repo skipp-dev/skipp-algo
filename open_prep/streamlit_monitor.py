@@ -172,6 +172,18 @@ def _remaining_cooldown_seconds(now_utc: datetime) -> int:
         return 0
 
 
+def _prediction_side(row: dict[str, Any], macro_bias: float) -> str:
+    long_allowed = bool(row.get("long_allowed", True))
+    gap_pct = float(row.get("gap_pct") or 0.0)
+    momentum_z = float(row.get("momentum_z_score") or 0.0)
+
+    if long_allowed and macro_bias >= -0.25:
+        return "🟢 LONG"
+    if (not long_allowed) and (macro_bias <= -0.25 or gap_pct <= -1.0 or momentum_z < 0.0):
+        return "🔴 SHORT-BIAS"
+    return "🟡 NEUTRAL"
+
+
 def main() -> None:
     st.set_page_config(page_title="Open Prep Monitor", page_icon="📈", layout="wide")
     st.markdown(
@@ -180,6 +192,17 @@ def main() -> None:
         .block-container {
             padding-top: 1.5rem;
             padding-bottom: 1rem;
+        }
+        /* Reduce Streamlit busy-overlay/spinner flicker during periodic refreshes */
+        [data-testid="stSpinner"] {
+            display: none !important;
+        }
+        [data-testid="stStatusWidget"] {
+            display: none !important;
+        }
+        [data-testid="stAppViewContainer"] {
+            filter: none !important;
+            opacity: 1 !important;
         }
         </style>
         """,
@@ -326,8 +349,12 @@ def main() -> None:
             ).isoformat()
         traffic_label, traffic_color, traffic_text = _traffic_light_status(run_status)
 
+        ranked_candidates = list(result.get("ranked_candidates") or [])
+        for row in ranked_candidates:
+            row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+
         st.subheader("Ranked Candidates")
-        st.dataframe(result.get("ranked_candidates") or [], width="stretch", height=360)
+        st.dataframe(ranked_candidates, width="stretch", height=360)
 
         st.subheader("Trade Cards")
         st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
@@ -341,7 +368,11 @@ def main() -> None:
         cols[0].metric("Letztes Update (Berlin)", updated_berlin_label)
         cols[1].metric("Macro Bias", f"{float(result.get('macro_bias', 0.0)):.4f}")
         cols[2].metric("US High Impact", int(result.get("macro_us_high_impact_event_count_today", 0)))
-        cols[3].metric("Kandidaten", len(result.get("ranked_candidates") or []))
+        cols[3].metric("Kandidaten", len(ranked_candidates))
+        if float(result.get("macro_bias", 0.0)) >= 0.0:
+            st.caption("Signalrichtung: 🟢 LONG-BIAS")
+        else:
+            st.caption("Signalrichtung: 🔴 SHORT-BIAS")
         st.caption(f"Zeitreferenz (UTC): {updated_utc_label}")
 
         st.subheader("System-Ampel")
