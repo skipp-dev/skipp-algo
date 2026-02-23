@@ -27,7 +27,7 @@ from .macro import (
     macro_bias_with_components,
 )
 from .news import build_news_scores
-from .screen import classify_long_gap, rank_candidates
+from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
 from .utils import to_float as _to_float
 
 logger = logging.getLogger("open_prep.run")
@@ -73,6 +73,9 @@ PREMARKET_STALE_SECONDS = 30 * 60
 CORPORATE_ACTION_WINDOW_DAYS = 3
 DEFAULT_ANALYST_CATALYST_LIMIT = 80
 ATR_CACHE_DIR = Path("artifacts/open_prep/cache/atr")
+PM_CACHE_DIR = Path("artifacts/open_prep/cache/premarket")
+PM_CACHE_TTL_SECONDS = 120
+TOP_N_EXT_FOR_PMH = 150
 
 
 @dataclass(frozen=True)
@@ -1537,6 +1540,178 @@ def _atr14_by_symbol(
     return atr_map, momentum_z_map, vwap_map, errors
 
 
+# ---------------------------------------------------------------------------
+# Premarket High/Low (PMH/PML) from intraday bars
+# ---------------------------------------------------------------------------
+
+def _parse_bar_dt_utc(bar: dict[str, Any]) -> datetime | None:
+    """Parse an intraday bar's date/datetime field → UTC datetime."""
+    raw = str(bar.get("date") or bar.get("datetime") or "").strip()
+    if not raw:
+        return None
+    # ISO first
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=US_EASTERN_TZ)
+        return dt.astimezone(UTC)
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(raw, fmt).replace(tzinfo=US_EASTERN_TZ)
+            return dt.astimezone(UTC)
+        except ValueError:
+            continue
+    return None
+
+
+def compute_premarket_high_low(
+    bars: list[dict[str, Any]],
+    session_day_ny: date,
+) -> tuple[float | None, float | None]:
+    """Aggregate premarket high/low from 04:00–09:29:59 NY window.
+
+    Returns (pm_high, pm_low).
+    """
+    from datetime import time as _time
+
+    start_ny = datetime.combine(session_day_ny, _time(4, 0), tzinfo=US_EASTERN_TZ).astimezone(UTC)
+    end_ny = datetime.combine(session_day_ny, _time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC)
+
+    pm_high: float | None = None
+    pm_low: float | None = None
+
+    for bar in bars:
+        dt_utc = _parse_bar_dt_utc(bar)
+        if dt_utc is None:
+            continue
+        if not (start_ny <= dt_utc < end_ny):
+            continue
+        try:
+            hi = float(bar.get("high") or 0.0)
+            lo = float(bar.get("low") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if hi <= 0 or lo <= 0:
+            continue
+        pm_high = hi if pm_high is None else max(pm_high, hi)
+        pm_low = lo if pm_low is None else min(pm_low, lo)
+
+    return pm_high, pm_low
+
+
+def _pm_cache_file(symbol: str, session_day_ny: date, interval: str) -> Path:
+    return PM_CACHE_DIR / f"{session_day_ny.isoformat()}_{interval}_{symbol.upper()}.json"
+
+
+def _pm_cache_load(symbol: str, session_day_ny: date, interval: str) -> tuple[float | None, float | None] | None:
+    path = _pm_cache_file(symbol, session_day_ny, interval)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        ts = str(payload.get("cached_at_utc") or "")
+        cached_at = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        if cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=UTC)
+        age = (datetime.now(UTC) - cached_at).total_seconds()
+        if age > PM_CACHE_TTL_SECONDS:
+            return None
+        return payload.get("pm_high"), payload.get("pm_low")
+    except Exception:
+        return None
+
+
+def _pm_cache_save(
+    symbol: str,
+    session_day_ny: date,
+    interval: str,
+    pm_high: float | None,
+    pm_low: float | None,
+) -> None:
+    try:
+        PM_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "symbol": symbol.upper(),
+            "session_day_ny": session_day_ny.isoformat(),
+            "interval": interval,
+            "pm_high": pm_high,
+            "pm_low": pm_low,
+            "cached_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
+        }
+        _pm_cache_file(symbol, session_day_ny, interval).write_text(
+            json.dumps(payload, sort_keys=True), encoding="utf-8"
+        )
+    except Exception:
+        return
+
+
+def _pick_symbols_for_pmh(
+    symbols: list[str],
+    premarket_context: dict[str, dict[str, Any]],
+    top_n_ext: int = TOP_N_EXT_FOR_PMH,
+) -> list[str]:
+    """Pick attention symbols that should receive PMH/PML (movers + top ext_hours_score)."""
+    rows: list[tuple[str, float]] = []
+    movers: list[str] = []
+    for sym in symbols:
+        pm = premarket_context.get(sym, {})
+        if pm.get("is_premarket_mover"):
+            movers.append(sym)
+        score = float(pm.get("ext_hours_score") or 0.0)
+        rows.append((sym, score))
+    rows.sort(key=lambda x: x[1], reverse=True)
+    top_ext = [sym for sym, _ in rows[: max(int(top_n_ext), 0)]]
+    out: list[str] = []
+    seen: set[str] = set()
+    for sym in movers + top_ext:
+        if sym not in seen:
+            seen.add(sym)
+            out.append(sym)
+    return out
+
+
+def _fetch_premarket_high_low_bulk(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    run_dt_utc: datetime,
+    interval: str = "5min",
+    parallel_workers: int = 6,
+) -> dict[str, dict[str, Any]]:
+    """Fetch PMH/PML for symbols via intraday bars with caching.
+
+    Returns {SYMBOL: {"premarket_high": x, "premarket_low": y}}.
+    """
+    ny_day = run_dt_utc.astimezone(US_EASTERN_TZ).date()
+    out: dict[str, dict[str, Any]] = {}
+
+    def _one(sym: str) -> tuple[str, float | None, float | None]:
+        cached = _pm_cache_load(sym, ny_day, interval)
+        if cached is not None:
+            return sym, cached[0], cached[1]
+        bars = client.get_intraday_chart(sym, interval=interval, day=ny_day, limit=5000)
+        pm_high, pm_low = compute_premarket_high_low(bars, session_day_ny=ny_day)
+        _pm_cache_save(sym, ny_day, interval, pm_high, pm_low)
+        return sym, pm_high, pm_low
+
+    workers = max(1, min(int(parallel_workers), max(1, len(symbols))))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(_one, sym): sym for sym in symbols}
+        for fut in as_completed(futs):
+            sym = futs[fut]
+            try:
+                s, pmh, pml = fut.result()
+                out[s] = {"premarket_high": pmh, "premarket_low": pml}
+            except Exception:
+                out[sym] = {"premarket_high": None, "premarket_low": None}
+
+    for sym in symbols:
+        out.setdefault(sym, {"premarket_high": None, "premarket_low": None})
+    return out
+
+
 def _inputs_hash(payload: dict) -> str:
     raw = json.dumps(payload, sort_keys=True, default=str)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -2070,12 +2245,44 @@ def generate_open_prep_result(
             q["eps_surprise_pct"] = pm.get("eps_surprise_pct")
             q["revenue_surprise_pct"] = pm.get("revenue_surprise_pct")
 
+    # --- Premarket High/Low (PMH/PML) for attention names ---
+    try:
+        attention = _pick_symbols_for_pmh(symbol_list, premarket_context)
+        pm_levels = _fetch_premarket_high_low_bulk(
+            client=data_client,
+            symbols=attention,
+            run_dt_utc=run_dt,
+            interval="5min",
+            parallel_workers=6,
+        )
+    except Exception as exc:
+        logger.warning("PMH/PML fetch failed, continuing without it: %s", exc)
+        pm_levels = {}
+
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        lvl = pm_levels.get(sym)
+        if lvl:
+            q["premarket_high"] = lvl.get("premarket_high")
+            q["premarket_low"] = lvl.get("premarket_low")
+        else:
+            q.setdefault("premarket_high", None)
+            q.setdefault("premarket_low", None)
+        # ATR% normalisation
+        atr_val = _to_float(q.get("atr"), default=0.0)
+        prev_c = _to_float(q.get("previousClose"), default=0.0)
+        q["atr_pct"] = round((atr_val / prev_c) * 100.0, 4) if atr_val > 0 and prev_c > 0 else None
+
     # --- GAP-GO / GAP-WATCH classification (long only) ---
     for q in quotes:
         meta = classify_long_gap(q, bias=bias)
         q["gap_bucket"] = meta["bucket"]
         q["no_trade_reason"] = meta["no_trade_reason"]
-        q["warn_flags"] = meta["warn_flags"]
+        # Compute gap warn-flags and merge with classifier warn_flags
+        gap_wf = compute_gap_warn_flags(q)
+        classifier_wf = [w for w in meta["warn_flags"].split(";") if w]
+        merged_wf = list(dict.fromkeys(classifier_wf + gap_wf))  # dedupe, preserve order
+        q["warn_flags"] = ";".join(merged_wf)
         q["gap_grade"] = meta["gap_grade"]
 
     gap_go_universe = [q for q in quotes if q.get("gap_bucket") == "GO"]

@@ -128,6 +128,135 @@ def classify_long_gap(
     }
 
 
+# ---------------------------------------------------------------------------
+# Gap warn-flags (LONG-only informational flags for chart confirmation)
+# ---------------------------------------------------------------------------
+
+GAP_UP_MIN_PCT = 0.30
+GAP_DOWN_MIN_PCT = -0.30
+FALLING_KNIFE_GAP_PCT = -0.50
+RECLAIM_BUFFER = 0.0015  # 0.15 %
+GAP_LARGE_ATR_RATIO = 0.80
+SPREAD_WARN_BPS = 40.0
+
+
+def compute_gap_warn_flags(row: dict[str, Any]) -> list[str]:
+    """Compute LONG-only gap warn flags from a single enriched quote row.
+
+    Flags are informational and never block trading.  They augment the
+    existing ``warn_flags`` from :func:`classify_long_gap`.
+
+    Possible flags::
+
+        gap_up_hold_ok          — gap-up & price holds above key levels
+        gap_up_fade_risk        — gap-up but price fading below key levels
+        gap_down_reversal_ok    — gap-down but reclaiming key levels
+        gap_down_falling_knife  — severe gap-down with no reclaim signal
+        gap_large_atr           — gap magnitude exceeds 80 % of ATR
+        warn_spread_wide        — premarket spread > 40 bps
+        warn_premarket_stale    — premarket quote is stale
+        warn_no_pmh             — gap-up but no premarket high available
+    """
+    flags: list[str] = []
+
+    gap_pct = _to_float(row.get("gap_pct"), default=0.0)
+    price = _to_float(row.get("price"), default=0.0)
+
+    vwap_raw = row.get("vwap")
+    vwap: float | None = None if vwap_raw is None else _to_float(vwap_raw, default=0.0) or None
+
+    pdl_raw = row.get("pdl")
+    pdl: float | None = None if pdl_raw is None else _to_float(pdl_raw, default=0.0) or None
+
+    pdh_raw = row.get("pdh")
+    pdh: float | None = None if pdh_raw is None else _to_float(pdh_raw, default=0.0) or None
+
+    pmh_raw = row.get("premarket_high")
+    pmh: float | None = None if pmh_raw is None else _to_float(pmh_raw, default=0.0) or None
+
+    atr_raw = row.get("atr")
+    atr: float | None = None if atr_raw is None else _to_float(atr_raw, default=0.0) or None
+
+    prev_close_raw = row.get("previousClose")
+    prev_close: float | None = None if prev_close_raw is None else _to_float(prev_close_raw, default=0.0) or None
+
+    momentum_z = _to_float(row.get("momentum_z_score"), default=0.0)
+    ext_score = _to_float(row.get("ext_hours_score"), default=0.0)
+    spread_bps_raw = row.get("premarket_spread_bps")
+    stale = bool(row.get("premarket_stale", False))
+
+    buf = RECLAIM_BUFFER
+
+    # ATR % normalisation
+    atr_pct: float | None = None
+    if atr is not None and prev_close is not None and atr > 0 and prev_close > 0:
+        atr_pct = (atr / prev_close) * 100.0
+
+    def _above(level: float | None) -> bool:
+        if level is None or level <= 0 or price <= 0:
+            return False
+        return price > level * (1.0 + buf)
+
+    def _below(level: float | None) -> bool:
+        if level is None or level <= 0 or price <= 0:
+            return False
+        return price < level * (1.0 - buf)
+
+    # --- GAP UP ---
+    if gap_pct > GAP_UP_MIN_PCT:
+        hold_ok = False
+        if vwap is not None and vwap > 0 and price > vwap:
+            if pmh is not None and pmh > 0:
+                hold_ok = price > pmh
+            elif pdh is not None and pdh > 0:
+                hold_ok = price > pdh
+            else:
+                hold_ok = True
+        if hold_ok:
+            flags.append("gap_up_hold_ok")
+
+        fade_risk = False
+        if vwap is not None and vwap > 0 and price < vwap:
+            fade_risk = True
+        if pmh is not None and pmh > 0 and price < pmh:
+            fade_risk = True
+        if fade_risk:
+            flags.append("gap_up_fade_risk")
+
+        if pmh is None:
+            flags.append("warn_no_pmh")
+
+    # --- GAP DOWN ---
+    if gap_pct < GAP_DOWN_MIN_PCT:
+        if _above(vwap) or _above(pdl) or _above(pmh):
+            if ext_score > -0.8:
+                flags.append("gap_down_reversal_ok")
+
+        if (
+            gap_pct < FALLING_KNIFE_GAP_PCT
+            and _below(pdl)
+            and momentum_z < 0.0
+            and ext_score < -0.30
+        ):
+            flags.append("gap_down_falling_knife")
+
+    # --- Large relative gap (ATR-normalised) ---
+    if atr_pct is not None and atr_pct > 0:
+        if abs(gap_pct) > GAP_LARGE_ATR_RATIO * atr_pct:
+            flags.append("gap_large_atr")
+
+    # --- Data quality / liquidity warnings ---
+    if spread_bps_raw is not None:
+        spread_bps = _to_float(spread_bps_raw, default=0.0)
+        if spread_bps > SPREAD_WARN_BPS:
+            flags.append("warn_spread_wide")
+
+    if stale:
+        flags.append("warn_premarket_stale")
+
+    return flags
+
+
 MIN_PRICE_THRESHOLD = 5.0
 SEVERE_GAP_DOWN_THRESHOLD = -8.0
 RISK_OFF_EXTREME_THRESHOLD = -0.75

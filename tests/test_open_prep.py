@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, date, timedelta
 import io
 import unittest
 import urllib.error
@@ -22,7 +22,7 @@ from open_prep.run_open_prep import (
     build_gap_scanner,
 )
 from open_prep.news import build_news_scores, _parse_article_datetime
-from open_prep.screen import classify_long_gap, rank_candidates
+from open_prep.screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
 from open_prep.macro import (
     FMPClient,
     filter_us_events,
@@ -1334,6 +1334,229 @@ class TestGapBucketLists(unittest.TestCase):
         ]
         self.assertEqual(len(go_earnings), 1)
         self.assertEqual(go_earnings[0]["symbol"], "TSLA")
+
+
+class TestComputeGapWarnFlags(unittest.TestCase):
+    """Test compute_gap_warn_flags informational flag logic."""
+
+    def _make_row(self, **overrides: object) -> dict:
+        base: dict = {
+            "symbol": "NVDA",
+            "gap_pct": 2.5,
+            "price": 150.0,
+            "previousClose": 140.0,
+            "atr": 5.0,
+            "vwap": 142.0,
+            "pdl": 135.0,
+            "pdh": 148.0,
+            "premarket_high": 152.0,
+            "premarket_low": 146.0,
+            "momentum_z_score": 0.5,
+            "ext_hours_score": 1.0,
+            "premarket_spread_bps": 10.0,
+            "premarket_stale": False,
+        }
+        base.update(overrides)
+        return base
+
+    # --- gap_up_hold_ok ---
+
+    def test_gap_up_hold_ok_above_vwap_and_pmh(self):
+        flags = compute_gap_warn_flags(self._make_row(price=155.0, vwap=142.0, premarket_high=152.0))
+        self.assertIn("gap_up_hold_ok", flags)
+        self.assertNotIn("gap_up_fade_risk", flags)
+
+    def test_gap_up_hold_ok_above_vwap_no_pmh_uses_pdh(self):
+        flags = compute_gap_warn_flags(self._make_row(price=155.0, vwap=142.0, premarket_high=None, pdh=148.0))
+        self.assertIn("gap_up_hold_ok", flags)
+        self.assertIn("warn_no_pmh", flags)
+
+    def test_gap_up_hold_ok_above_vwap_no_pmh_no_pdh(self):
+        flags = compute_gap_warn_flags(self._make_row(price=155.0, vwap=142.0, premarket_high=None, pdh=None))
+        self.assertIn("gap_up_hold_ok", flags)
+
+    # --- gap_up_fade_risk ---
+
+    def test_gap_up_fade_risk_below_vwap(self):
+        flags = compute_gap_warn_flags(self._make_row(price=140.0, vwap=142.0))
+        self.assertIn("gap_up_fade_risk", flags)
+        self.assertNotIn("gap_up_hold_ok", flags)
+
+    def test_gap_up_fade_risk_below_pmh(self):
+        flags = compute_gap_warn_flags(self._make_row(price=145.0, vwap=142.0, premarket_high=152.0))
+        self.assertIn("gap_up_fade_risk", flags)
+
+    # --- gap_down_reversal_ok ---
+
+    def test_gap_down_reversal_ok_reclaim_vwap(self):
+        flags = compute_gap_warn_flags(self._make_row(
+            gap_pct=-1.5, price=143.0, vwap=142.0, pdl=135.0, ext_hours_score=0.5,
+        ))
+        self.assertIn("gap_down_reversal_ok", flags)
+        self.assertNotIn("gap_down_falling_knife", flags)
+
+    def test_gap_down_reversal_ok_reclaim_pdl(self):
+        flags = compute_gap_warn_flags(self._make_row(
+            gap_pct=-1.5, price=136.0, vwap=145.0, pdl=135.0, ext_hours_score=0.5,
+        ))
+        self.assertIn("gap_down_reversal_ok", flags)
+
+    def test_gap_down_no_reversal_extreme_ext_score(self):
+        flags = compute_gap_warn_flags(self._make_row(
+            gap_pct=-1.5, price=143.0, vwap=142.0, ext_hours_score=-1.0,
+        ))
+        self.assertNotIn("gap_down_reversal_ok", flags)
+
+    # --- gap_down_falling_knife ---
+
+    def test_gap_down_falling_knife(self):
+        flags = compute_gap_warn_flags(self._make_row(
+            gap_pct=-3.0, price=130.0, pdl=135.0,
+            momentum_z_score=-0.5, ext_hours_score=-0.5,
+        ))
+        self.assertIn("gap_down_falling_knife", flags)
+
+    def test_gap_down_falling_knife_needs_negative_momentum(self):
+        flags = compute_gap_warn_flags(self._make_row(
+            gap_pct=-3.0, price=130.0, pdl=135.0,
+            momentum_z_score=0.5, ext_hours_score=-0.5,
+        ))
+        self.assertNotIn("gap_down_falling_knife", flags)
+
+    # --- gap_large_atr ---
+
+    def test_gap_large_atr(self):
+        # atr_pct = (5/140)*100 = 3.57%, 0.80*3.57 = 2.86%, gap_pct 3.5 > 2.86
+        flags = compute_gap_warn_flags(self._make_row(gap_pct=3.5, atr=5.0, previousClose=140.0))
+        self.assertIn("gap_large_atr", flags)
+
+    def test_gap_not_large_atr(self):
+        # atr_pct = (5/140)*100 = 3.57%, 0.80*3.57 = 2.86%, gap_pct 1.0 < 2.86
+        flags = compute_gap_warn_flags(self._make_row(gap_pct=1.0, atr=5.0, previousClose=140.0))
+        self.assertNotIn("gap_large_atr", flags)
+
+    def test_gap_large_atr_no_prev_close(self):
+        flags = compute_gap_warn_flags(self._make_row(gap_pct=3.5, atr=5.0, previousClose=None))
+        self.assertNotIn("gap_large_atr", flags)
+
+    # --- warn_spread_wide ---
+
+    def test_warn_spread_wide(self):
+        flags = compute_gap_warn_flags(self._make_row(premarket_spread_bps=55.0))
+        self.assertIn("warn_spread_wide", flags)
+
+    def test_spread_ok(self):
+        flags = compute_gap_warn_flags(self._make_row(premarket_spread_bps=20.0))
+        self.assertNotIn("warn_spread_wide", flags)
+
+    def test_spread_none_no_flag(self):
+        flags = compute_gap_warn_flags(self._make_row(premarket_spread_bps=None))
+        self.assertNotIn("warn_spread_wide", flags)
+
+    # --- warn_premarket_stale ---
+
+    def test_warn_premarket_stale(self):
+        flags = compute_gap_warn_flags(self._make_row(premarket_stale=True))
+        self.assertIn("warn_premarket_stale", flags)
+
+    def test_premarket_not_stale(self):
+        flags = compute_gap_warn_flags(self._make_row(premarket_stale=False))
+        self.assertNotIn("warn_premarket_stale", flags)
+
+    # --- warn_no_pmh ---
+
+    def test_warn_no_pmh_gap_up(self):
+        flags = compute_gap_warn_flags(self._make_row(gap_pct=2.0, premarket_high=None))
+        self.assertIn("warn_no_pmh", flags)
+
+    def test_no_warn_no_pmh_gap_down(self):
+        flags = compute_gap_warn_flags(self._make_row(gap_pct=-2.0, premarket_high=None))
+        self.assertNotIn("warn_no_pmh", flags)
+
+    # --- no flags for micro gap ---
+
+    def test_micro_gap_no_directional_flags(self):
+        flags = compute_gap_warn_flags(self._make_row(gap_pct=0.10))
+        self.assertNotIn("gap_up_hold_ok", flags)
+        self.assertNotIn("gap_up_fade_risk", flags)
+        self.assertNotIn("gap_down_reversal_ok", flags)
+        self.assertNotIn("gap_down_falling_knife", flags)
+
+
+class TestPremarketHighLow(unittest.TestCase):
+    """Test compute_premarket_high_low aggregation."""
+
+    def test_premarket_window_aggregation(self):
+        from open_prep.run_open_prep import compute_premarket_high_low
+
+        bars = [
+            {"date": "2026-02-23 06:00:00", "high": 155.0, "low": 150.0},
+            {"date": "2026-02-23 07:30:00", "high": 158.0, "low": 151.0},
+            {"date": "2026-02-23 09:00:00", "high": 156.0, "low": 149.0},
+            # After RTH open — should be excluded
+            {"date": "2026-02-23 09:35:00", "high": 160.0, "low": 148.0},
+        ]
+        pm_high, pm_low = compute_premarket_high_low(bars, session_day_ny=date(2026, 2, 23))
+        self.assertEqual(pm_high, 158.0)
+        self.assertEqual(pm_low, 149.0)
+
+    def test_premarket_before_window_excluded(self):
+        from open_prep.run_open_prep import compute_premarket_high_low
+
+        bars = [
+            # 03:00 NY — before premarket window
+            {"date": "2026-02-23 03:00:00", "high": 200.0, "low": 100.0},
+            {"date": "2026-02-23 05:00:00", "high": 155.0, "low": 150.0},
+        ]
+        pm_high, pm_low = compute_premarket_high_low(bars, session_day_ny=date(2026, 2, 23))
+        self.assertEqual(pm_high, 155.0)
+        self.assertEqual(pm_low, 150.0)
+
+    def test_empty_bars_returns_none(self):
+        from open_prep.run_open_prep import compute_premarket_high_low
+
+        pm_high, pm_low = compute_premarket_high_low([], session_day_ny=date(2026, 2, 23))
+        self.assertIsNone(pm_high)
+        self.assertIsNone(pm_low)
+
+    def test_no_premarket_bars_returns_none(self):
+        from open_prep.run_open_prep import compute_premarket_high_low
+
+        bars = [
+            {"date": "2026-02-23 10:00:00", "high": 160.0, "low": 155.0},
+        ]
+        pm_high, pm_low = compute_premarket_high_low(bars, session_day_ny=date(2026, 2, 23))
+        self.assertIsNone(pm_high)
+        self.assertIsNone(pm_low)
+
+
+class TestPickSymbolsForPMH(unittest.TestCase):
+    """Test _pick_symbols_for_pmh attention list selection."""
+
+    def test_movers_plus_top_ext(self):
+        from open_prep.run_open_prep import _pick_symbols_for_pmh
+
+        symbols = ["A", "B", "C", "D"]
+        pm_ctx = {
+            "A": {"is_premarket_mover": True, "ext_hours_score": 0.5},
+            "B": {"is_premarket_mover": False, "ext_hours_score": 2.0},
+            "C": {"is_premarket_mover": False, "ext_hours_score": 1.0},
+            "D": {"is_premarket_mover": False, "ext_hours_score": -0.5},
+        }
+        result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=2)
+        # A is mover, B and C top-2 by ext_hours_score; D excluded
+        self.assertIn("A", result)
+        self.assertIn("B", result)
+        self.assertIn("C", result)
+        self.assertNotIn("D", result)
+
+    def test_dedup_mover_and_top(self):
+        from open_prep.run_open_prep import _pick_symbols_for_pmh
+
+        symbols = ["X"]
+        pm_ctx = {"X": {"is_premarket_mover": True, "ext_hours_score": 5.0}}
+        result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=10)
+        self.assertEqual(result.count("X"), 1)
 
 
 if __name__ == "__main__":

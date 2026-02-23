@@ -420,6 +420,32 @@ class FMPClient:
             return []
         return [item for item in data if isinstance(item, dict)]
 
+    def get_intraday_chart(
+        self,
+        symbol: str,
+        interval: str = "5min",
+        day: date | None = None,
+        limit: int = 5000,
+    ) -> list[dict[str, Any]]:
+        """Fetch intraday OHLCV bars from FMP stable endpoint.
+
+        interval: "1min" or "5min" (recommend 5min for rate-safety).
+        day: optional date filter; without it FMP returns the most recent bars.
+        """
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        safe_limit = max(1, min(int(limit), 5000))
+        params: dict[str, Any] = {"symbol": sym, "limit": safe_limit}
+        if day is not None:
+            params["from"] = day.isoformat()
+            params["to"] = day.isoformat()
+        interval_clean = str(interval or "5min").strip().lower()
+        data = self._get(f"/stable/historical-chart/{interval_clean}", params)
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
 
 CANONICAL_EVENT_PATTERNS = [
     ("core_pce_mom", [r"\bcore\b", r"\bpce\b", r"\bmom\b"]),
