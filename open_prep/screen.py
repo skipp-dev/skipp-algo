@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 from typing import Any
+from .utils import to_float as _to_float
 
 
-def _to_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+MIN_PRICE_THRESHOLD = 5.0
+SEVERE_GAP_DOWN_THRESHOLD = -8.0
+RISK_OFF_EXTREME_THRESHOLD = -0.75
+
+GAP_CAP_ABS = 10.0
+RVOL_CAP = 10.0
+
+WEIGHT_GAP = 0.8
+WEIGHT_RVOL = 1.2
+WEIGHT_MACRO = 0.7
+WEIGHT_MOMENTUM_Z = 0.5
+WEIGHT_HVB = 0.3
+WEIGHT_EARNINGS_BMO = 1.5
+WEIGHT_LIQUIDITY_PENALTY = 1.5
+RISK_OFF_PENALTY_MULTIPLIER = 2.0
 
 
 def rank_candidates(
@@ -47,22 +58,37 @@ def rank_candidates(
         volume = _to_float(quote.get("volume"), default=0.0)
         avg_volume = _to_float(quote.get("avgVolume"), default=0.0)
         atr = _to_float(quote.get("atr"), default=0.0)
+        momentum_z_score = _to_float(quote.get("momentum_z_score"), default=0.0)
+        momentum_z_capped = max(min(momentum_z_score, 5.0), -5.0)
 
-        rel_vol = (volume / avg_volume) if avg_volume > 0 else 0.0
+        rel_vol = _to_float(quote.get("volume_ratio"), default=0.0)
+        if rel_vol <= 0.0:
+            rel_vol = (volume / avg_volume) if avg_volume > 0 else 0.0
+        is_hvb = bool(quote.get("is_hvb", False))
+        earnings_today = bool(quote.get("earnings_today", False))
+        earnings_timing = quote.get("earnings_timing") or ""
+        is_premarket_mover = bool(quote.get("is_premarket_mover", False))
+        premarket_change_pct = _to_float(quote.get("premarket_change_pct"), default=0.0)
         # Cap at 10x: a 50x-volume spike is untradeable at open and would
         # otherwise dominate the entire ranking regardless of other factors.
-        rel_vol_capped = min(rel_vol, 10.0)
-        liquidity_penalty = 1.0 if price < 5.0 else 0.0
+        rel_vol_capped = min(rel_vol, RVOL_CAP)
+        liquidity_penalty = 1.0 if price < MIN_PRICE_THRESHOLD else 0.0
 
         # Risk-off days reduce long-breakout appetite.
-        risk_off_penalty = abs(min(bias, 0.0)) * 2.0
+        risk_off_penalty = abs(min(bias, 0.0)) * RISK_OFF_PENALTY_MULTIPLIER
 
-        gap_component = 0.8 * max(min(gap_pct_for_scoring, 10.0), -10.0)
-        rvol_component = 1.2 * rel_vol_capped
-        macro_component = 0.7 * max(bias, 0.0)
+        gap_component = WEIGHT_GAP * max(min(gap_pct_for_scoring, GAP_CAP_ABS), -GAP_CAP_ABS)
+        rvol_component = WEIGHT_RVOL * rel_vol_capped
+        macro_component = WEIGHT_MACRO * max(bias, 0.0)
+        momentum_component = WEIGHT_MOMENTUM_Z * momentum_z_capped
+        hvb_component = WEIGHT_HVB if is_hvb else 0.0
+        # BMO earnings are the strongest pre-market catalyst — symbols reporting
+        # before market open deserve a significant ranking boost.
+        earnings_bmo = earnings_today and str(earnings_timing).lower() in {"bmo", "before market open"}
+        earnings_bmo_component = WEIGHT_EARNINGS_BMO if earnings_bmo else 0.0
         news_score = by_symbol_news.get(symbol, 0.0)
         news_component = news_score
-        liquidity_penalty_component = 1.5 * liquidity_penalty
+        liquidity_penalty_component = WEIGHT_LIQUIDITY_PENALTY * liquidity_penalty
         risk_off_penalty_component = risk_off_penalty
 
         score = 0.0
@@ -71,6 +97,9 @@ def rank_candidates(
         score += gap_component
         score += rvol_component
         score += macro_component
+        score += momentum_component
+        score += hvb_component
+        score += earnings_bmo_component
         score += news_component
         score -= liquidity_penalty_component
         score -= risk_off_penalty_component
@@ -78,20 +107,19 @@ def rank_candidates(
         no_trade_reason: list[str] = []
         allowed_setups = ["orb", "gap_go", "vwap_reclaim", "hod_reclaim"]
         max_trades = 2
-        data_sufficiency_low = False
+        data_sufficiency_low = avg_volume <= 0.0 or rel_vol <= 0.0
 
-        if price < 5.0:
+        if price < MIN_PRICE_THRESHOLD:
             no_trade_reason.append("price_below_5")
-        if bias <= -0.75:
+        if bias <= RISK_OFF_EXTREME_THRESHOLD:
             no_trade_reason.append("macro_risk_off_extreme")
             allowed_setups = ["vwap_reclaim"]
             max_trades = 1
             if rel_vol <= 0.0:
                 no_trade_reason.append("missing_rvol")
-                data_sufficiency_low = True
-        if gap_pct <= -8.0:
+        if gap_pct <= SEVERE_GAP_DOWN_THRESHOLD:
             no_trade_reason.append("severe_gap_down")
-        
+
         long_allowed = not any(
             r in no_trade_reason
             for r in [
@@ -117,7 +145,21 @@ def rank_candidates(
                 "avg_volume": avg_volume,
                 "atr": round(atr, 4),
                 "rel_volume": round(rel_vol, 4),
+                "volume_ratio": round(rel_vol, 4),
                 "rel_volume_capped": round(rel_vol_capped, 4),
+                "is_hvb": is_hvb,
+                "momentum_z_score": round(momentum_z_capped, 4),
+                "pdh": quote.get("pdh"),
+                "pdl": quote.get("pdl"),
+                "pdh_source": quote.get("pdh_source"),
+                "pdl_source": quote.get("pdl_source"),
+                "dist_to_pdh_atr": quote.get("dist_to_pdh_atr"),
+                "dist_to_pdl_atr": quote.get("dist_to_pdl_atr"),
+                "earnings_today": earnings_today,
+                "earnings_timing": earnings_timing or None,
+                "earnings_bmo": earnings_bmo,
+                "is_premarket_mover": is_premarket_mover,
+                "premarket_change_pct": premarket_change_pct or None,
                 "macro_bias": round(bias, 4),
                 "news_catalyst_score": round(news_score, 4),
                 "allowed_setups": allowed_setups,
@@ -131,6 +173,9 @@ def rank_candidates(
                     "gap_component": round(gap_component, 4),
                     "rvol_component": round(rvol_component, 4),
                     "macro_component": round(macro_component, 4),
+                    "momentum_component": round(momentum_component, 4),
+                    "hvb_component": round(hvb_component, 4),
+                    "earnings_bmo_component": round(earnings_bmo_component, 4),
                     "news_component": round(news_component, 4),
                     "liquidity_penalty": round(liquidity_penalty_component, 4),
                     "risk_off_penalty": round(risk_off_penalty_component, 4),

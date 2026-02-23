@@ -2,12 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-
-def _to_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+from .utils import to_float as _to_float
 
 
 def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
@@ -106,7 +101,18 @@ def build_trade_cards(
 
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)
         gap_available = bool(row.get("gap_available", True))
-        if gap_available and gap_pct >= 1.0:
+        earnings_bmo = bool(row.get("earnings_bmo", False))
+        is_premarket_mover = bool(row.get("is_premarket_mover", False))
+
+        if earnings_bmo:
+            entry_trigger = (
+                "Earnings BMO catalyst: wait for initial reaction, then break and hold "
+                "above the post-earnings opening range high. Avoid chasing first 5-min spike."
+            )
+            invalidation = (
+                "Rejection below VWAP after earnings gap, or fill of the entire gap."
+            )
+        elif gap_available and gap_pct >= 1.0:
             entry_trigger = "Break and hold above opening range high (gap-up continuation)."
             invalidation = "Fill of pre-market gap below VWAP or close below opening range low."
         elif gap_available and gap_pct <= -1.0:
@@ -124,11 +130,27 @@ def build_trade_cards(
                 "invalidation": invalidation,
                 "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
                 "trail_stop_atr": _trail_stop_profiles_from_atr(row),
+                "key_levels": {
+                    "pdh": row.get("pdh"),
+                    "pdl": row.get("pdl"),
+                    "pdh_source": row.get("pdh_source"),
+                    "pdl_source": row.get("pdl_source"),
+                    "dist_to_pdh_atr": row.get("dist_to_pdh_atr"),
+                    "dist_to_pdl_atr": row.get("dist_to_pdl_atr"),
+                },
                 "context": {
                     "macro_bias": round(bias, 4),
                     "candidate_score": row.get("score"),
                     "gap_pct": row.get("gap_pct"),
                     "rel_volume": row.get("rel_volume"),
+                    "volume_ratio": row.get("volume_ratio"),
+                    "is_hvb": row.get("is_hvb"),
+                    "momentum_z_score": row.get("momentum_z_score"),
+                    "earnings_today": row.get("earnings_today", False),
+                    "earnings_timing": row.get("earnings_timing"),
+                    "earnings_bmo": earnings_bmo,
+                    "is_premarket_mover": is_premarket_mover,
+                    "premarket_change_pct": row.get("premarket_change_pct"),
                     "long_allowed": bool(row.get("long_allowed", True)),
                     "no_trade_reason": row.get("no_trade_reason", []),
                     "allowed_setups": allowed_setups,

@@ -4,6 +4,7 @@ import json
 import os
 import re
 import ssl
+import time
 import urllib.error
 from dataclasses import dataclass, field
 from datetime import date
@@ -131,11 +132,21 @@ class FMPClient:
     api_key: str = field(repr=False)
     base_url: str = "https://financialmodelingprep.com"
     timeout_seconds: int = 20
+    retry_attempts: int = 3
+    retry_backoff_seconds: float = 1.0
+    retry_backoff_max_seconds: float = 8.0
     # Cached once at construction; avoids re-parsing the CA bundle on every request.
     _ssl_ctx: ssl.SSLContext = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+
+    def _backoff_delay(self, attempt: int) -> float:
+        """Exponential backoff delay for retry attempt index (1-based)."""
+        base = max(float(self.retry_backoff_seconds), 0.0)
+        cap = max(float(self.retry_backoff_max_seconds), 0.0)
+        delay = base * (2 ** max(attempt - 1, 0))
+        return min(delay, cap)
 
     @classmethod
     def from_env(cls, key_name: str = "FMP_API_KEY") -> "FMPClient":
@@ -151,30 +162,46 @@ class FMPClient:
         query["apikey"] = self.api_key
         url = f"{self.base_url}{path}?{urlencode(query)}"
         request = Request(url, headers={"Accept": "application/json"})
-        try:
-            with urlopen(
-                request,
-                timeout=self.timeout_seconds,
-                context=self._ssl_ctx,
-            ) as response:
-                payload = response.read().decode("utf-8")
-        except urllib.error.HTTPError as exc:
+        attempts = max(int(self.retry_attempts), 1)
+        transient_http_codes = {429, 500, 502, 503, 504}
+        payload: str | None = None
+
+        for attempt in range(1, attempts + 1):
             try:
-                error_body = exc.read().decode("utf-8")
-                error_data = json.loads(error_body)
-                error_msg = error_data.get("Error Message", error_data.get("message", exc.reason))
-            except Exception:
-                error_msg = exc.reason
-            raise RuntimeError(
-                f"FMP API HTTP {exc.code} on {path}: {error_msg}"
-            ) from exc
-        except urllib.error.URLError as exc:
-            # Catches timeout, DNS failure, connection reset, etc.
-            # Never let the raw exception propagate — it contains the full URL
-            # including the API key as a query parameter.
-            raise RuntimeError(
-                f"FMP API network error on {path}: {exc.reason}"
-            ) from exc
+                with urlopen(
+                    request,
+                    timeout=self.timeout_seconds,
+                    context=self._ssl_ctx,
+                ) as response:
+                    payload = response.read().decode("utf-8")
+                break
+            except urllib.error.HTTPError as exc:
+                should_retry = exc.code in transient_http_codes and attempt < attempts
+                if should_retry:
+                    time.sleep(self._backoff_delay(attempt))
+                    continue
+                try:
+                    error_body = exc.read().decode("utf-8")
+                    error_data = json.loads(error_body)
+                    error_msg = error_data.get("Error Message", error_data.get("message", exc.reason))
+                except Exception:
+                    error_msg = exc.reason
+                raise RuntimeError(
+                    f"FMP API HTTP {exc.code} on {path}: {error_msg}"
+                ) from exc
+            except urllib.error.URLError as exc:
+                # Catches timeout, DNS failure, connection reset, etc.
+                # Never let the raw exception propagate — it contains the full URL
+                # including the API key as a query parameter.
+                if attempt < attempts:
+                    time.sleep(self._backoff_delay(attempt))
+                    continue
+                raise RuntimeError(
+                    f"FMP API network error on {path}: {exc.reason}"
+                ) from exc
+
+        if payload is None:
+            raise RuntimeError(f"FMP API request failed on {path}: exhausted retries")
         
         try:
             data = json.loads(payload)
@@ -250,6 +277,23 @@ class FMPClient:
                 "from": date_from.isoformat(),
                 "to": date_to.isoformat(),
             },
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_premarket_movers(self) -> list[dict[str, Any]]:
+        """Fetch pre/post-market most-active movers (FMP v4)."""
+        data = self._get("/v4/pre_post_market_most_active", {})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_earnings_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        """Fetch earnings calendar for a date range."""
+        data = self._get(
+            "/v3/earning_calendar",
+            {"from": date_from.isoformat(), "to": date_to.isoformat()},
         )
         if not isinstance(data, list):
             return []
