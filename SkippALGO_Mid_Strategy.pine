@@ -269,7 +269,7 @@ f_calc_reg_slope_osc(src, minR, maxR, stepV) =>
         if not na(res)
             slopeSum += res
             slopeCount += 1
-    slopeCount > 0 ? slopeSum / slopeCount : 0.0
+    slopeCount > 0 ? slopeSum / slopeCount : float(na)
 
 //====================
 // Constants — Avoid Magic Numbers
@@ -919,7 +919,16 @@ f_usi_30m_calc_raw() =>
 
 // Fetch Stable 30m Data (Previous Closed Bar)
 // Variant A: Fetch raw, then shift. This avoids tuple indexing ambiguity.
-[qCl30_raw, qEma30_raw, qL5_30_raw, qClusterA30_raw] = request.security(syminfo.tickerid, usiTfGate, f_usi_30m_calc_raw(), lookahead = barmerge.lookahead_off)
+float qCl30_raw = na
+float qEma30_raw = na
+float qL5_30_raw = na
+float qClusterA30_raw = na
+if useUsi
+    [qCl30_tmp, qEma30_tmp, qL5_30_tmp, qClusterA30_tmp] = request.security(syminfo.tickerid, usiTfGate, f_usi_30m_calc_raw(), lookahead = barmerge.lookahead_off)
+    qCl30_raw := qCl30_tmp
+    qEma30_raw := qEma30_tmp
+    qL5_30_raw := qL5_30_tmp
+    qClusterA30_raw := qClusterA30_tmp
 
 // Apply 1-bar shift to get the last COMPLETED 30m bar
 qCl30       = qCl30_raw[1]
@@ -1044,8 +1053,8 @@ macroLen = timeframe.isintraday ? math.min(macroPctLen, macroPctLenIntraday) : m
 macroPct = f_pct_rank(close, macroLen)
 macroScoreRaw = f_clamp01(1.0 - macroPct)
 macroScoreDir = macroGateMode == "Off" ? 0.5 : emaF > emaS ? (1.0 - macroPct) : emaF < emaS ? macroPct : 0.5
-macroGateLong  = macroGateMode == "Hard Gate" ? (not na(macroPct) and macroPct < macroLongPctThreshold)  : true
-macroGateShort = macroGateMode == "Hard Gate" ? (not na(macroPct) and macroPct > macroShortPctThreshold) : true
+macroGateLong  = macroGateMode == "Hard Gate" ? (na(macroPct) ? na : (macroPct < macroLongPctThreshold))  : true
+macroGateShort = macroGateMode == "Hard Gate" ? (na(macroPct) ? na : (macroPct > macroShortPctThreshold)) : true
 
 // Drawdown
 ddPeak = ta.highest(close, ddLookback)
@@ -1580,8 +1589,8 @@ if useRegSlope
     // Gate Logic:
     // Long: Oscillator > 0 (Trend is Up)
     // Short: Oscillator < 0 (Trend is Down)
-    regSlopeLongOk  := regSlopeOsc > 0
-    regSlopeShortOk := regSlopeOsc < 0
+    regSlopeLongOk  := na(regSlopeOsc) ? true : regSlopeOsc > 0
+    regSlopeShortOk := na(regSlopeOsc) ? true : regSlopeOsc < 0
 
 
 chartRsi = ta.rsi(close, rsiStateLen)
@@ -1896,7 +1905,7 @@ bool isRevShort = false
 // v6.2.7 Refactor: Named bypass variable for clarity
 // Keep close-confirmed bypass semantics aligned with strategy parity.
 allowRevBypass = allowNeuralReversals and barstate.isconfirmed and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
-allowRevBypassRt = allowNeuralReversals and cooldownOkSafe and (chochEventLong or chochEventShort)
+allowRevBypassRt = allowNeuralReversals and cooldownOkSafe and (isChoCH_Long or isChoCH_Short)
 
 // v6.2.11: allowRevBypass enters this block even when pos != 0 so reversal
 // signals are computed BEFORE the state machine. Phase 1 (COVER/EXIT) sets
@@ -2276,7 +2285,7 @@ else
     barsSinceEntry := 0
 
 bool canStructExit = (barsSinceEntry >= exitGraceBars)
-bool canChochExit = (barsSinceEntry >= math.min(chochGraceBars, exitGraceBars))
+bool canChochExit = (barsSinceEntry >= math.max(chochGraceBars, exitGraceBars))
 
 // Capturing exit reasons for debugging/transparency
 string tempExitReason = ""
