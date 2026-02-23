@@ -911,10 +911,10 @@ class TestOpenPrep(unittest.TestCase):
         self.assertTrue(row["long_allowed"])
         self.assertNotIn("missing_rvol", row["no_trade_reason"])
 
-    def test_gap_mode_not_monday_returns_not_monday_session(self):
-        """Non-Monday sessions must return gap_reason='not_monday_session' and
+    def test_gap_mode_not_monday_returns_not_first_session_after_break(self):
+        """Non-gap sessions must return gap_reason='not_first_session_after_break' and
         gap_available=False regardless of the selected gap mode.
-        Verifies that the is_weekend dead-code path was correctly collapsed to not is_monday."""
+        Verifies that the is_weekend dead-code path was correctly collapsed to not first_session_after_break."""
         for weekday_offset, label in ((1, "Tuesday"), (5, "Saturday"), (6, "Sunday")):
             with self.subTest(day=label):
                 # 2026-02-23 is Monday; +offset gives the target weekday
@@ -930,7 +930,11 @@ class TestOpenPrep(unittest.TestCase):
                 )
                 row = enriched[0]
                 self.assertFalse(row["gap_available"])
-                self.assertEqual(row["gap_reason"], "not_monday_session")
+                self.assertEqual(row["gap_reason"], "not_first_session_after_break")
+                # Non-gap sessions should include overnight_gap_pct
+                if label == "Tuesday":
+                    self.assertIn("overnight_gap_pct", row)
+                    self.assertIn("overnight_gap_source", row)
 
     def test_gap_mode_premarket_handles_tuesday_after_monday_holiday(self):
         """Presidents Day 2026 is Monday (2026-02-16), so Tuesday 2026-02-17

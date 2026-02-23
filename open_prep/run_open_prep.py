@@ -964,9 +964,8 @@ def _fetch_premarket_context(
                 mid_px = ask if ask > 0.0 else bid if bid > 0.0 else 0.0
                 spread_bps = None
 
-            after_px = trade_price if trade_price > 0.0 else mid_px
-            if stale:
-                after_px = 0.0
+            after_px_raw = trade_price if trade_price > 0.0 else mid_px
+            after_px = 0.0 if stale else after_px_raw
 
             ext_volume = 0.0
             if quote_volume == quote_volume and quote_volume > 0.0:
@@ -999,6 +998,7 @@ def _fetch_premarket_context(
             )
             premarket[sym]["premarket_change_pct"] = change_pct
             premarket[sym]["premarket_price"] = after_px if after_px > 0.0 else None
+            premarket[sym]["premarket_price_raw"] = after_px_raw if after_px_raw > 0.0 else None
             premarket[sym]["premarket_volume"] = ext_volume if ext_volume > 0.0 else None
             premarket[sym]["premarket_trade_price"] = trade_price if trade_price > 0.0 else None
             premarket[sym]["premarket_last_trade_ts_utc"] = (
@@ -1092,6 +1092,14 @@ def _compute_gap_for_quote(
         }
 
     if not is_gap_session:
+        # Compute overnight gap for reference even on non-gap sessions.
+        overnight_gap_pct: float | None = None
+        overnight_gap_source: str | None = None
+        if prev_close > 0.0:
+            _ind_px, _ind_src = _pick_indicative_price(quote)
+            if _ind_px > 0.0:
+                overnight_gap_pct = round(((_ind_px - prev_close) / prev_close) * 100.0, 6)
+                overnight_gap_source = _ind_src
         return {
             "gap_pct": 0.0,
             "gap_type": GAP_MODE_OFF,
@@ -1100,7 +1108,9 @@ def _compute_gap_for_quote(
             "gap_to_ts": None,
             "gap_mode_selected": gap_mode,
             "gap_price_source": None,
-            "gap_reason": "not_monday_session",
+            "gap_reason": "not_first_session_after_break",
+            "overnight_gap_pct": overnight_gap_pct,
+            "overnight_gap_source": overnight_gap_source,
         }
 
     if gap_mode == GAP_MODE_RTH_OPEN:
@@ -1348,6 +1358,8 @@ def _incremental_atr_from_eod_bulk(
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
         atr = ((prev_atr * float(n - 1)) + max(tr, 0.0)) / float(n)
         atr_map[sym] = round(atr, 4)
+        # NOTE: momentum_z carries over from prior-day cache (not re-calculated
+        # intra-day).  This is acceptable for ranking but may lag by ~1 session.
         momentum_map[sym] = round(_to_float(prev_momentum_map.get(sym), default=0.0), 4)
         close_map[sym] = close
 
@@ -1360,23 +1372,24 @@ def _fetch_symbol_atr(
     date_from: date,
     as_of: date,
     atr_period: int,
-) -> tuple[str, float, float, float, str | None]:
+) -> tuple[str, float, float, float | None, str | None]:
     """Fetch historical candles and compute ATR for one symbol.
 
-    Returns: (symbol, atr_value, error_message)
+    Returns: (symbol, atr_value, momentum_z, vwap_or_none, error_message)
     """
     try:
         candles = client.get_historical_price_eod_full(symbol, date_from, as_of)
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
-        latest_vwap = 0.0
+        latest_vwap: float | None = None
         rows = [c for c in candles if str(c.get("date") or "")]
         if rows:
             rows.sort(key=lambda c: str(c.get("date") or ""))
-            latest_vwap = _to_float(rows[-1].get("vwap"), default=0.0)
+            vwap_raw = _to_float(rows[-1].get("vwap"), default=0.0)
+            latest_vwap = vwap_raw if vwap_raw > 0.0 else None
         return symbol, atr_value, momentum_z, latest_vwap, None
     except RuntimeError as exc:
-        return symbol, 0.0, 0.0, 0.0, str(exc)
+        return symbol, 0.0, 0.0, None, str(exc)
 
 
 def _atr14_by_symbol(
@@ -1386,10 +1399,10 @@ def _atr14_by_symbol(
     lookback_days: int = 250,  # Increased for RMA convergence
     atr_period: int = 14,
     parallel_workers: int = 5,
-) -> tuple[dict[str, float], dict[str, float], dict[str, float], dict[str, str]]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, str]]:
     atr_map: dict[str, float] = {}
     momentum_z_map: dict[str, float] = {}
-    vwap_map: dict[str, float] = {}
+    vwap_map: dict[str, float | None] = {}
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
@@ -1400,7 +1413,7 @@ def _atr14_by_symbol(
             momentum_z_map[symbol] = round(_to_float(cached_momentum.get(symbol), default=0.0), 4)
         if all(sym in cached_atr for sym in symbols):
             for symbol in symbols:
-                vwap_map.setdefault(symbol, 0.0)
+                vwap_map.setdefault(symbol, None)
             return atr_map, momentum_z_map, vwap_map, errors
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
@@ -1439,14 +1452,14 @@ def _atr14_by_symbol(
                 except Exception as exc:  # pragma: no cover - defensive catch
                     atr_map[symbol] = 0.0
                     momentum_z_map[symbol] = 0.0
-                    vwap_map[symbol] = 0.0
+                    vwap_map[symbol] = None
                     errors[symbol] = str(exc)
 
     # Keep deterministic key presence/order compatibility.
     for symbol in symbols:
         atr_map.setdefault(symbol, 0.0)
         momentum_z_map.setdefault(symbol, 0.0)
-        vwap_map.setdefault(symbol, 0.0)
+        vwap_map.setdefault(symbol, None)
 
     # Save same-day cache to accelerate subsequent pre-open runs.
     prev_close_snapshot: dict[str, float] = dict(cached_prev_close)
@@ -1516,6 +1529,12 @@ def _build_runtime_status(
                 "message": str(premarket_fetch_error),
             }
         )
+
+    # Promote rate-limit errors to a dedicated code for UI detection.
+    for w in warnings:
+        msg_lower = str(w.get("message", "")).lower()
+        if "429" in msg_lower or "rate limit" in msg_lower or "rate_limit" in msg_lower:
+            w["code"] = "RATE_LIMIT"
 
     return {
         "degraded_mode": bool(warnings),
@@ -1736,7 +1755,7 @@ def _fetch_quotes_with_atr(
     atr_lookback_days: int,
     atr_period: int,
     atr_parallel_workers: int,
-) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, float], dict[str, str]]:
+) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, float | None], dict[str, str]]:
     try:
         quotes = client.get_batch_quotes(symbols)
     except RuntimeError as exc:
@@ -1758,7 +1777,7 @@ def _fetch_quotes_with_atr(
         if sym:
             q["atr"] = atr_by_symbol.get(sym, 0.0)
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
-            q["vwap"] = vwap_by_symbol.get(sym, 0.0)
+            q["vwap"] = vwap_by_symbol.get(sym)
             _enrich_quote_with_hvb(q)
             _add_pdh_pdl_context(q)
 
@@ -1775,7 +1794,7 @@ def _build_result_payload(
     news_fetch_error: str | None,
     atr_by_symbol: dict[str, float],
     momentum_z_by_symbol: dict[str, float],
-    vwap_by_symbol: dict[str, float],
+    vwap_by_symbol: dict[str, float | None],
     atr_fetch_errors: dict[str, str],
     premarket_context: dict[str, dict[str, Any]],
     premarket_fetch_error: str | None,

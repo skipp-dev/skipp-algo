@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
-from typing import Any
+from typing import Any, cast
 
 import streamlit as st
 
@@ -17,6 +17,7 @@ MAX_STATUS_HISTORY = 20
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
 MIN_AUTO_REFRESH_SECONDS = 20
 RATE_LIMIT_COOLDOWN_SECONDS = 120
+MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
 
 
 def _parse_symbols(raw: str) -> list[str]:
@@ -154,7 +155,7 @@ def _is_rate_limited(run_status: dict[str, Any]) -> bool:
     for warning in warnings:
         message = str(warning.get("message", "")).lower()
         code = str(warning.get("code", "")).lower()
-        if "429" in message or "limit" in message or "rate" in message or "429" in code:
+        if "429" in message or "limit" in message or "rate" in message or "429" in code or code == "rate_limit":
             return True
     return False
 
@@ -184,6 +185,32 @@ def _prediction_side(row: dict[str, Any], macro_bias: float) -> str:
     return "🟡 NEUTRAL"
 
 
+def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    ordered: list[dict[str, Any]] = []
+    priority = [
+        "symbol",
+        "score",
+        "price",
+        "long_allowed",
+        "no_trade_reason",
+        "prediction_side",
+        "gap_pct",
+    ]
+
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        reordered: dict[str, Any] = {}
+        for key in priority:
+            if key in row:
+                reordered[key] = row.get(key)
+        for key, value in row.items():
+            if key not in reordered:
+                reordered[key] = value
+        ordered.append(reordered)
+    return ordered
+
+
 def main() -> None:
     st.set_page_config(page_title="Open Prep Monitor", page_icon="📈", layout="wide")
     st.markdown(
@@ -192,17 +219,6 @@ def main() -> None:
         .block-container {
             padding-top: 1.5rem;
             padding-bottom: 1rem;
-        }
-        /* Reduce Streamlit busy-overlay/spinner flicker during periodic refreshes */
-        [data-testid="stSpinner"] {
-            display: none !important;
-        }
-        [data-testid="stStatusWidget"] {
-            display: none !important;
-        }
-        [data-testid="stAppViewContainer"] {
-            filter: none !important;
-            opacity: 1 !important;
         }
         </style>
         """,
@@ -215,11 +231,18 @@ def main() -> None:
     st.session_state.setdefault("symbols_raw", "")
     st.session_state.setdefault("last_universe_reload_utc", None)
     st.session_state.setdefault("rate_limit_cooldown_until_utc", None)
+    st.session_state.setdefault("latest_result_cache", None)
+    st.session_state.setdefault("last_live_fetch_utc", None)
+    st.session_state.setdefault("force_live_fetch", False)
+
+    def _on_force_refresh() -> None:
+        st.session_state["force_live_fetch"] = True
 
     def _on_reload_universe() -> None:
         st.session_state["auto_universe"] = True
         st.session_state["symbols_raw"] = ""
         st.session_state["last_universe_reload_utc"] = datetime.now(UTC).isoformat()
+        st.session_state["force_live_fetch"] = True
 
     with st.sidebar:
         st.header("Parameter")
@@ -298,10 +321,12 @@ def main() -> None:
         atr_period = st.number_input("ATR period", min_value=1, max_value=200, value=14)
         atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=5)
 
-        if st.button("🔄 Sofort aktualisieren", width="stretch"):
-            st.rerun()
+        if st.button("🔄 Sofort aktualisieren", width="stretch", on_click=_on_force_refresh):
+            if not auto_refresh_enabled:
+                st.rerun()
         if st.button("🔎 Nur Universum neu laden", width="stretch", on_click=_on_reload_universe):
-            st.rerun()
+            if not auto_refresh_enabled:
+                st.rerun()
         last_universe_reload_utc = st.session_state.get("last_universe_reload_utc")
         last_universe_reload = _format_berlin_only(last_universe_reload_utc)
         last_universe_reload_freshness = _universe_reload_freshness(last_universe_reload_utc)
@@ -319,24 +344,51 @@ def main() -> None:
             st.error("Bitte Symbole eingeben oder Auto-Universum aktivieren.")
             return
 
-        try:
-            result = generate_open_prep_result(
-                symbols=(None if use_auto_universe else symbols),
-                days_ahead=int(days_ahead),
-                top=int(top_n),
-                trade_cards=int(trade_cards),
-                max_macro_events=int(max_macro_events),
-                pre_open_only=bool(pre_open_only),
-                pre_open_cutoff_utc=pre_open_cutoff_utc,
-                gap_mode=str(gap_mode),
-                atr_lookback_days=int(atr_lookback_days),
-                atr_period=int(atr_period),
-                atr_parallel_workers=int(atr_parallel_workers),
-                now_utc=datetime.now(UTC),
+        force_live_fetch = bool(st.session_state.get("force_live_fetch", False))
+        cached_result = st.session_state.get("latest_result_cache")
+        last_live_fetch_raw = st.session_state.get("last_live_fetch_utc")
+        now_utc = datetime.now(UTC)
+        live_fetch_interval = max(int(effective_refresh_seconds), MIN_LIVE_FETCH_INTERVAL_SECONDS)
+        use_cached_result = False
+
+        if auto_refresh_enabled and not force_live_fetch and isinstance(cached_result, dict) and last_live_fetch_raw:
+            try:
+                last_live_fetch = datetime.fromisoformat(str(last_live_fetch_raw).replace("Z", "+00:00"))
+                if last_live_fetch.tzinfo is None:
+                    last_live_fetch = last_live_fetch.replace(tzinfo=UTC)
+                elapsed = max(int((now_utc - last_live_fetch).total_seconds()), 0)
+                if elapsed < live_fetch_interval:
+                    use_cached_result = True
+            except ValueError:
+                use_cached_result = False
+
+        if use_cached_result:
+            result = dict(cast(dict[str, Any], cached_result))
+            st.caption(
+                f"Auto-Refresh Anzeige aus Cache · Live-Fetch alle ~{live_fetch_interval}s zur Entlastung"
             )
-        except Exception as exc:
-            st.exception(exc)
-            return
+        else:
+            try:
+                result = generate_open_prep_result(
+                    symbols=(None if use_auto_universe else symbols),
+                    days_ahead=int(days_ahead),
+                    top=int(top_n),
+                    trade_cards=int(trade_cards),
+                    max_macro_events=int(max_macro_events),
+                    pre_open_only=bool(pre_open_only),
+                    pre_open_cutoff_utc=pre_open_cutoff_utc,
+                    gap_mode=str(gap_mode),
+                    atr_lookback_days=int(atr_lookback_days),
+                    atr_period=int(atr_period),
+                    atr_parallel_workers=int(atr_parallel_workers),
+                    now_utc=now_utc,
+                )
+            except Exception as exc:
+                st.exception(exc)
+                return
+            st.session_state["latest_result_cache"] = dict(result)
+            st.session_state["last_live_fetch_utc"] = now_utc.isoformat()
+            st.session_state["force_live_fetch"] = False
 
         if use_auto_universe:
             st.info("Auto-Universum aktiv (FMP US Mid/Large + Movers).")
@@ -354,6 +406,7 @@ def main() -> None:
         ranked_candidates = list(result.get("ranked_candidates") or [])
         for row in ranked_candidates:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+        ranked_candidates = _reorder_ranked_columns(ranked_candidates)
 
         st.subheader("Ranked Candidates")
         st.dataframe(ranked_candidates, width="stretch", height=360)

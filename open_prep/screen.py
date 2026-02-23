@@ -145,6 +145,23 @@ def rank_candidates(
                 no_trade_reason.append("missing_rvol")
         if gap_pct <= SEVERE_GAP_DOWN_THRESHOLD:
             no_trade_reason.append("severe_gap_down")
+        if split_today:
+            no_trade_reason.append("split_today")
+        if ipo_window:
+            no_trade_reason.append("ipo_window")
+        if bias < -0.25 and bias > RISK_OFF_EXTREME_THRESHOLD:
+            no_trade_reason.append("macro_bias_short")
+        if premarket_stale:
+            no_trade_reason.append("premarket_stale")
+        if premarket_spread_bps is not None and premarket_spread_bps > 200.0:
+            no_trade_reason.append("spread_too_wide")
+        if avg_volume > 0.0 and avg_volume < 100_000:
+            no_trade_reason.append("insufficient_liquidity")
+        if atr <= 0.0:
+            no_trade_reason.append("atr_missing")
+        earnings_risk_window = bool(quote.get("earnings_risk_window", False))
+        if earnings_risk_window:
+            no_trade_reason.append("earnings_risk_window")
 
         long_allowed = not any(
             r in no_trade_reason
@@ -153,6 +170,8 @@ def rank_candidates(
                 "severe_gap_down",
                 "missing_rvol",
                 "macro_risk_off_extreme",
+                "split_today",
+                "ipo_window",
             ]
         )
 
