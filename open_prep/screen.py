@@ -56,21 +56,21 @@ def classify_long_gap(
     earnings_risk = bool(row.get("earnings_risk_window", False))
     corp_penalty = float(row.get("corporate_action_penalty") or 0.0)
 
-    # --- Hard data-quality gates (block GO *and* WATCH) -----------------
+    # --- Data-quality checks (warn-only, fail-open) ----------------------
     if not gap_available:
-        _push_reason(reasons, "gap_not_available")
+        _push_reason(warn_flags, "gap_not_available")
     if gap_reason in {
         "premarket_unavailable",
         "missing_quote_timestamp",
         "stale_quote_unknown_timestamp",
     }:
-        _push_reason(reasons, "premarket_unavailable")
+        _push_reason(warn_flags, "premarket_unavailable")
     if stale:
-        _push_reason(reasons, "premarket_stale")
+        _push_reason(warn_flags, "premarket_stale")
     if spread_bps is not None and spread_bps > dq_max_spread_bps:
-        _push_reason(reasons, "spread_too_wide")
+        _push_reason(warn_flags, "spread_too_wide")
     if gap_reason == "missing_previous_close":
-        _push_reason(reasons, "data_missing_prev_close")
+        _push_reason(warn_flags, "data_missing_prev_close")
 
     # --- Warn-only flags (never block GO) --------------------------------
     if earnings_risk:
@@ -98,22 +98,14 @@ def classify_long_gap(
     gap_grade = round(g + e + v, 3)
 
     # --- Bucket decision --------------------------------------------------
-    hard_block_codes = {
-        "gap_not_available",
-        "premarket_stale",
-        "premarket_unavailable",
-        "spread_too_wide",
-        "data_missing_prev_close",
-    }
     strength_codes = {"gap_too_small", "ext_score_too_low", "ext_vol_too_low"}
 
-    hard_block = any(r in hard_block_codes for r in reasons)
     strength_missing = any(r in strength_codes for r in reasons)
 
-    if (not hard_block) and (not strength_missing) and gap_pct > 0:
+    if (not strength_missing) and gap_pct > 0:
         bucket = "GO"
         no_trade_reason = ""
-    elif (not hard_block) and gap_pct >= watch_min_gap_pct:
+    elif gap_pct >= watch_min_gap_pct:
         bucket = "WATCH"
         no_trade_reason = ";".join(reasons)
     else:

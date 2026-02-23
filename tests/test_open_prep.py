@@ -22,7 +22,9 @@ from open_prep.run_open_prep import (
     _filter_events_by_cutoff_utc,
     _inputs_hash,
     _is_gap_day,
+    _parse_bar_dt_utc,
     _sort_macro_events,
+    _to_iso_utc_from_epoch,
     apply_gap_mode_to_quotes,
     build_gap_scanner,
 )
@@ -788,6 +790,20 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIsNotNone(row["gap_from_ts"])
         self.assertEqual(row["gap_to_ts"], "2026-02-23T10:30:00+00:00")
 
+    def test_to_iso_utc_from_epoch_accepts_milliseconds(self):
+        # 2026-02-23T10:30:00Z in milliseconds
+        ms_epoch = 1771842600000
+        iso = _to_iso_utc_from_epoch(ms_epoch)
+        self.assertEqual(iso, "2026-02-23T10:30:00+00:00")
+
+    def test_parse_bar_dt_utc_naive_treated_as_utc_when_env_set(self):
+        bar = {"date": "2026-02-23 09:00:00"}
+        with patch.dict("os.environ", {"OPEN_PREP_INTRADAY_NAIVE_TZ": "UTC"}, clear=False):
+            parsed = _parse_bar_dt_utc(bar)
+        self.assertIsNotNone(parsed)
+        assert parsed is not None
+        self.assertEqual(parsed.isoformat(), "2026-02-23T09:00:00+00:00")
+
     def test_gap_mode_premarket_spot_without_timestamp_is_stale(self):
         quotes = [
             {
@@ -1204,37 +1220,37 @@ class TestClassifyLongGap(unittest.TestCase):
             self._make_row(gap_available=False, gap_pct=0.0), bias=0.2
         )
         self.assertEqual(result["bucket"], "SKIP")
-        self.assertIn("gap_not_available", result["no_trade_reason"])
+        self.assertIn("gap_not_available", result["warn_flags"])
 
     def test_skip_premarket_stale(self):
         result = classify_long_gap(
             self._make_row(premarket_stale=True), bias=0.2
         )
-        self.assertEqual(result["bucket"], "SKIP")
-        self.assertIn("premarket_stale", result["no_trade_reason"])
+        self.assertEqual(result["bucket"], "GO")
+        self.assertIn("premarket_stale", result["warn_flags"])
 
     def test_skip_spread_too_wide(self):
         result = classify_long_gap(
             self._make_row(premarket_spread_bps=120.0), bias=0.2
         )
-        self.assertEqual(result["bucket"], "SKIP")
-        self.assertIn("spread_too_wide", result["no_trade_reason"])
+        self.assertEqual(result["bucket"], "GO")
+        self.assertIn("spread_too_wide", result["warn_flags"])
 
     def test_skip_premarket_unavailable_gap_reason(self):
         result = classify_long_gap(
             self._make_row(gap_reason="premarket_unavailable", gap_available=False),
             bias=0.2,
         )
-        self.assertEqual(result["bucket"], "SKIP")
-        self.assertIn("premarket_unavailable", result["no_trade_reason"])
+        self.assertEqual(result["bucket"], "GO")
+        self.assertIn("premarket_unavailable", result["warn_flags"])
 
     def test_skip_missing_previous_close(self):
         result = classify_long_gap(
             self._make_row(gap_reason="missing_previous_close", gap_available=False),
             bias=0.2,
         )
-        self.assertEqual(result["bucket"], "SKIP")
-        self.assertIn("data_missing_prev_close", result["no_trade_reason"])
+        self.assertEqual(result["bucket"], "GO")
+        self.assertIn("data_missing_prev_close", result["warn_flags"])
 
     def test_skip_tiny_gap_below_watch_threshold(self):
         result = classify_long_gap(

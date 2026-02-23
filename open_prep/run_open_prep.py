@@ -285,8 +285,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--gap-mode",
         type=str,
-        choices=list(GAP_MODE_CHOICES),
-        default=GAP_MODE_PREMARKET_INDICATIVE,
+        choices=[c.lower() for c in GAP_MODE_CHOICES],
+        default=GAP_MODE_PREMARKET_INDICATIVE.lower(),
         help=(
             "How to compute gap price: RTH_OPEN (official RTH open), "
             "PREMARKET_INDICATIVE (premarket indication), OFF (no gap)."
@@ -480,6 +480,9 @@ def _to_iso_utc_from_epoch(value: Any) -> str | None:
         if value is None:
             return None
         ts = float(value)
+        # Handle both epoch seconds and epoch milliseconds.
+        if ts > 10_000_000_000:
+            ts /= 1000.0
         if ts <= 0:
             return None
         return datetime.fromtimestamp(ts, tz=UTC).isoformat()
@@ -1580,13 +1583,22 @@ def _parse_bar_dt_utc(bar: dict[str, Any]) -> datetime | None:
     try:
         dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=US_EASTERN_TZ)
+            naive_mode = str(os.environ.get("OPEN_PREP_INTRADAY_NAIVE_TZ", "NY")).strip().upper()
+            if naive_mode in {"UTC", "Z"}:
+                dt = dt.replace(tzinfo=UTC)
+            else:
+                dt = dt.replace(tzinfo=US_EASTERN_TZ)
         return dt.astimezone(UTC)
     except ValueError:
         pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
-            dt = datetime.strptime(raw, fmt).replace(tzinfo=US_EASTERN_TZ)
+            dt = datetime.strptime(raw, fmt)
+            naive_mode = str(os.environ.get("OPEN_PREP_INTRADAY_NAIVE_TZ", "NY")).strip().upper()
+            if naive_mode in {"UTC", "Z"}:
+                dt = dt.replace(tzinfo=UTC)
+            else:
+                dt = dt.replace(tzinfo=US_EASTERN_TZ)
             return dt.astimezone(UTC)
         except ValueError:
             continue
