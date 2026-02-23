@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, date, timedelta
+from pathlib import Path
 import io
+import tempfile
 import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
@@ -13,6 +15,9 @@ from open_prep.run_open_prep import (
     GAP_SCOPE_STRETCH_ONLY,
     _build_runtime_status,
     _calculate_atr14_from_eod,
+    _fetch_symbol_atr,
+    _load_atr_cache,
+    _save_atr_cache,
     _extract_time_str,
     _filter_events_by_cutoff_utc,
     _inputs_hash,
@@ -1557,6 +1562,67 @@ class TestPickSymbolsForPMH(unittest.TestCase):
         pm_ctx = {"X": {"is_premarket_mover": True, "ext_hours_score": 5.0}}
         result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=10)
         self.assertEqual(result.count("X"), 1)
+
+
+class TestAtrRobustness(unittest.TestCase):
+    def test_calculate_atr_accepts_exact_period_bars(self):
+        period = 14
+        candles = [
+            {"date": f"2026-02-{i:02d}", "high": 10.0 + i * 0.1, "low": 9.0 + i * 0.1, "close": 9.5 + i * 0.1}
+            for i in range(1, period + 1)
+        ]
+        atr = _calculate_atr14_from_eod(candles, period=period)
+        self.assertGreater(atr, 0.0)
+
+    def test_fetch_symbol_atr_unwraps_historical_payload(self):
+        client = MagicMock()
+        client.get_historical_price_eod_full.return_value = {
+            "historical": [
+                {"date": f"2026-02-{i:02d}", "high": 10.0 + i * 0.1, "low": 9.0 + i * 0.1, "close": 9.5 + i * 0.1}
+                for i in range(1, 20)
+            ]
+        }
+        symbol, atr, _mom, _vwap, err = _fetch_symbol_atr(
+            client,
+            "NVDA",
+            date(2026, 1, 1),
+            date(2026, 2, 20),
+            14,
+        )
+        self.assertEqual(symbol, "NVDA")
+        self.assertGreater(atr, 0.0)
+        self.assertIsNone(err)
+
+    def test_fetch_symbol_atr_reports_zero_as_error(self):
+        client = MagicMock()
+        client.get_historical_price_eod_full.return_value = {"historical": []}
+        symbol, atr, _mom, _vwap, err = _fetch_symbol_atr(
+            client,
+            "NVDA",
+            date(2026, 1, 1),
+            date(2026, 2, 20),
+            14,
+        )
+        self.assertEqual(symbol, "NVDA")
+        self.assertEqual(atr, 0.0)
+        self.assertEqual(err, "atr_zero_or_insufficient_bars")
+
+    def test_atr_cache_filters_non_positive_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_dir = Path(tmp)
+            as_of = date(2026, 2, 23)
+            with patch("open_prep.run_open_prep.ATR_CACHE_DIR", cache_dir):
+                _save_atr_cache(
+                    as_of=as_of,
+                    period=14,
+                    atr_map={"A": 0.0, "B": -1.0, "C": 2.5},
+                    momentum_map={"A": 1.0, "B": 1.0, "C": 1.5},
+                    prev_close_map={"A": 100.0, "B": 101.0, "C": 102.0},
+                )
+                atr_map, momentum_map, prev_close_map = _load_atr_cache(as_of, 14)
+                self.assertEqual(atr_map, {"C": 2.5})
+                self.assertEqual(momentum_map, {"C": 1.5})
+                self.assertEqual(prev_close_map, {"C": 102.0})
 
 
 if __name__ == "__main__":

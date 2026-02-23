@@ -1291,7 +1291,7 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
             continue
         parsed.append((d, high, low, close))
 
-    if len(parsed) < period_eff + 1:  # Need period for first value + 1 prior close
+    if len(parsed) < period_eff:  # Need at least `period` bars for first ATR seed
         return 0.0
 
     parsed.sort(key=lambda row: row[0])
@@ -1333,16 +1333,19 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
         atr_map = {
-            str(k).upper(): _to_float(v, default=0.0)
+            str(k).upper(): val
             for k, v in dict(payload.get("atr14_by_symbol", {})).items()
+            if (val := _to_float(v, default=0.0)) > 0.0
         }
         momentum_map = {
             str(k).upper(): _to_float(v, default=0.0)
             for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
+            if str(k).upper() in atr_map
         }
         prev_close_map = {
             str(k).upper(): _to_float(v, default=0.0)
             for k, v in dict(payload.get("prev_close_by_symbol", {})).items()
+            if str(k).upper() in atr_map
         }
         return atr_map, momentum_map, prev_close_map
     except Exception:
@@ -1359,12 +1362,26 @@ def _save_atr_cache(
 ) -> None:
     try:
         ATR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        clean_atr_map = {
+            str(k).upper(): _to_float(v, default=0.0)
+            for k, v in atr_map.items()
+            if _to_float(v, default=0.0) > 0.0
+        }
+        clean_momentum_map = {
+            str(k).upper(): _to_float(momentum_map.get(k), default=0.0)
+            for k in clean_atr_map
+        }
+        clean_prev_close_map = {
+            str(k).upper(): _to_float(prev_close_map.get(k), default=0.0)
+            for k in clean_atr_map
+        }
+
         payload = {
             "as_of": as_of.isoformat(),
             "atr_period": int(period),
-            "atr14_by_symbol": atr_map,
-            "momentum_z_by_symbol": momentum_map,
-            "prev_close_by_symbol": prev_close_map,
+            "atr14_by_symbol": clean_atr_map,
+            "momentum_z_by_symbol": clean_momentum_map,
+            "prev_close_by_symbol": clean_prev_close_map,
         }
         _atr_cache_file(as_of, period).write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     except Exception:
@@ -1432,7 +1449,15 @@ def _fetch_symbol_atr(
     Returns: (symbol, atr_value, momentum_z, vwap_or_none, error_message)
     """
     try:
-        candles = client.get_historical_price_eod_full(symbol, date_from, as_of)
+        candles_raw = client.get_historical_price_eod_full(symbol, date_from, as_of)
+        if isinstance(candles_raw, dict):
+            maybe_hist = candles_raw.get("historical")
+            candles = maybe_hist if isinstance(maybe_hist, list) else []
+        elif isinstance(candles_raw, list):
+            candles = candles_raw
+        else:
+            candles = []
+
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
         latest_vwap: float | None = None
@@ -1441,6 +1466,8 @@ def _fetch_symbol_atr(
             rows.sort(key=lambda c: str(c.get("date") or ""))
             vwap_raw = _to_float(rows[-1].get("vwap"), default=0.0)
             latest_vwap = vwap_raw if vwap_raw > 0.0 else None
+        if atr_value <= 0.0:
+            return symbol, 0.0, momentum_z, latest_vwap, "atr_zero_or_insufficient_bars"
         return symbol, atr_value, momentum_z, latest_vwap, None
     except RuntimeError as exc:
         return symbol, 0.0, 0.0, None, str(exc)
@@ -2172,7 +2199,7 @@ def generate_open_prep_result(
         analyst_catalyst_limit=max(int(analyst_catalyst_limit), 0),
     )
 
-    today = run_dt.date()
+    today = run_dt.astimezone(US_EASTERN_TZ).date()
     end_date = today + timedelta(days=max(config.days_ahead, 1))
 
     bea_audit_enabled = str(os.environ.get("OPEN_PREP_BEA_AUDIT", "1")).strip().lower() not in {
