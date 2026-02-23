@@ -1,12 +1,15 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+import io
 import unittest
-from unittest.mock import patch
+import urllib.error
+from unittest.mock import MagicMock, patch
 
 from open_prep.trade_cards import build_trade_cards
 from open_prep.run_open_prep import (
     GAP_MODE_OFF,
     GAP_MODE_PREMARKET_INDICATIVE,
     GAP_MODE_RTH_OPEN,
+    _build_runtime_status,
     _calculate_atr14_from_eod,
     _extract_time_str,
     _filter_events_by_cutoff_utc,
@@ -27,6 +30,37 @@ from open_prep.screen import rank_candidates
 
 
 class TestOpenPrep(unittest.TestCase):
+    def test_build_runtime_status_no_warnings(self):
+        status = _build_runtime_status(news_fetch_error=None, atr_fetch_errors={}, fatal_stage=None)
+        self.assertFalse(status["degraded_mode"])
+        self.assertIsNone(status["fatal_stage"])
+        self.assertEqual(status["warnings"], [])
+
+    def test_build_runtime_status_with_news_failure(self):
+        status = _build_runtime_status(
+            news_fetch_error="news endpoint timeout",
+            atr_fetch_errors={},
+            fatal_stage=None,
+        )
+        self.assertTrue(status["degraded_mode"])
+        self.assertEqual(status["fatal_stage"], None)
+        self.assertEqual(len(status["warnings"]), 1)
+        self.assertEqual(status["warnings"][0]["stage"], "news_fetch")
+        self.assertEqual(status["warnings"][0]["code"], "DATA_SOURCE_DEGRADED")
+
+    def test_build_runtime_status_with_atr_partial_data(self):
+        status = _build_runtime_status(
+            news_fetch_error=None,
+            atr_fetch_errors={"nvda": "timeout", "amd": "503"},
+            fatal_stage=None,
+        )
+        self.assertTrue(status["degraded_mode"])
+        self.assertEqual(status["fatal_stage"], None)
+        self.assertEqual(len(status["warnings"]), 1)
+        self.assertEqual(status["warnings"][0]["stage"], "atr_fetch")
+        self.assertEqual(status["warnings"][0]["code"], "PARTIAL_DATA")
+        self.assertEqual(status["warnings"][0]["symbols"], ["AMD", "NVDA"])
+
     def test_filter_events_by_cutoff_utc_keeps_only_earlier_times(self):
         events = [
             {"date": "2026-02-20 13:30:00", "event": "GDP"},
@@ -551,6 +585,80 @@ class TestOpenPrep(unittest.TestCase):
         mock_get.assert_called_once_with("/stable/batch-quote", {"symbols": "NVDA,PLTR"})
         self.assertEqual(quotes, [{"symbol": "NVDA"}])
 
+    def test_get_batch_aftermarket_trade_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", return_value=[{"symbol": "NVDA", "price": 100.0}]) as mock_get:
+            rows = client.get_batch_aftermarket_trade(["NVDA", "PLTR"])
+
+        mock_get.assert_called_once_with("/stable/batch-aftermarket-trade", {"symbols": "NVDA,PLTR"})
+        self.assertEqual(rows, [{"symbol": "NVDA", "price": 100.0}])
+
+    def test_get_biggest_gainers_and_losers_use_stable_endpoints(self):
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "AAA"}], [{"symbol": "BBB"}]]) as mock_get:
+            gainers = client.get_biggest_gainers()
+            losers = client.get_biggest_losers()
+
+        self.assertEqual(gainers, [{"symbol": "AAA"}])
+        self.assertEqual(losers, [{"symbol": "BBB"}])
+        self.assertEqual(mock_get.call_args_list[0].args, ("/stable/biggest-gainers", {}))
+        self.assertEqual(mock_get.call_args_list[1].args, ("/stable/biggest-losers", {}))
+
+    def test_get_eod_bulk_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", return_value=[{"symbol": "NVDA", "date": "2026-02-20"}]) as mock_get:
+            rows = client.get_eod_bulk(datetime(2026, 2, 20, tzinfo=UTC).date())
+
+        mock_get.assert_called_once_with("/stable/eod-bulk", {"date": "2026-02-20"})
+        self.assertEqual(rows, [{"symbol": "NVDA", "date": "2026-02-20"}])
+
+    def test_fmp_client_get_retries_transient_http_error(self):
+        client = FMPClient(api_key="test", retry_attempts=3, retry_backoff_seconds=0.01)
+
+        transient = urllib.error.HTTPError(
+            url="https://example.invalid",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"message":"temporary"}'),
+        )
+        response = MagicMock()
+        response.read.return_value = b"[]"
+        context_manager = MagicMock()
+        context_manager.__enter__.return_value = response
+        context_manager.__exit__.return_value = False
+
+        with (
+            patch("open_prep.macro.urlopen", side_effect=[transient, context_manager]) as mock_urlopen,
+            patch("open_prep.macro.time.sleep") as mock_sleep,
+        ):
+            data = client._get("/stable/economic-calendar", {"from": "2026-02-20", "to": "2026-02-21"})
+
+        self.assertEqual(data, [])
+        self.assertEqual(mock_urlopen.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    def test_fmp_client_get_does_not_retry_non_transient_http_error(self):
+        client = FMPClient(api_key="test", retry_attempts=3, retry_backoff_seconds=0.01)
+
+        non_transient = urllib.error.HTTPError(
+            url="https://example.invalid",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"message":"bad request"}'),
+        )
+
+        with (
+            patch("open_prep.macro.urlopen", side_effect=non_transient) as mock_urlopen,
+            patch("open_prep.macro.time.sleep") as mock_sleep,
+        ):
+            with self.assertRaises(RuntimeError):
+                client._get("/stable/economic-calendar", {"from": "2026-02-20", "to": "2026-02-21"})
+
+        self.assertEqual(mock_urlopen.call_count, 1)
+        mock_sleep.assert_not_called()
+
     def test_calculate_atr14_from_eod_returns_non_zero_for_valid_candles(self):
         # We need at least 15 candles (14 for initial SMA + 1 prior close) to calculate RMA ATR
         candles = [
@@ -780,6 +888,93 @@ class TestOpenPrep(unittest.TestCase):
         card = build_trade_cards(ranked_candidates=ranked, bias=0.0, top_n=1)[0]
         self.assertNotIn("VWAP reclaim and hold", card["entry_trigger"])
         self.assertIn("OR", card["entry_trigger"])
+
+    def test_data_sufficiency_low_set_on_neutral_day_with_missing_volume(self):
+        """Regression: data_sufficiency.low must be True whenever avg_volume or
+        rel_volume is missing, even on a neutral-bias day (not only when bias <= -0.75).
+        Previously the flag was only set inside the risk-off block, leading to an
+        inconsistency where data_sufficiency.rel_volume_missing was True but low was False."""
+        quotes = [
+            {
+                "symbol": "THIN",
+                "price": 20.0,
+                "changesPercentage": 1.0,
+                "volume": 0,
+                "avgVolume": 0,
+            }
+        ]
+        row = rank_candidates(quotes, bias=0.0, top_n=1)[0]
+        self.assertTrue(row["data_sufficiency"]["low"])
+        self.assertTrue(row["data_sufficiency"]["avg_volume_missing"])
+        self.assertTrue(row["data_sufficiency"]["rel_volume_missing"])
+        # On a neutral day, longs are still allowed (rvol gate only activates at risk-off extreme)
+        self.assertTrue(row["long_allowed"])
+        self.assertNotIn("missing_rvol", row["no_trade_reason"])
+
+    def test_gap_mode_not_monday_returns_not_monday_session(self):
+        """Non-Monday sessions must return gap_reason='not_monday_session' and
+        gap_available=False regardless of the selected gap mode.
+        Verifies that the is_weekend dead-code path was correctly collapsed to not is_monday."""
+        for weekday_offset, label in ((1, "Tuesday"), (5, "Saturday"), (6, "Sunday")):
+            with self.subTest(day=label):
+                # 2026-02-23 is Monday; +offset gives the target weekday
+                run_dt = datetime(2026, 2, 23, 11, 0, tzinfo=UTC) + timedelta(days=weekday_offset)
+                quotes = [{
+                    "symbol": "NVDA",
+                    "preMarketPrice": 105.0,
+                    "previousClose": 100.0,
+                    "timestamp": int(run_dt.timestamp()),
+                }]
+                enriched = apply_gap_mode_to_quotes(
+                    quotes, run_dt_utc=run_dt, gap_mode=GAP_MODE_PREMARKET_INDICATIVE
+                )
+                row = enriched[0]
+                self.assertFalse(row["gap_available"])
+                self.assertEqual(row["gap_reason"], "not_monday_session")
+
+    def test_gap_mode_premarket_handles_tuesday_after_monday_holiday(self):
+        """Presidents Day 2026 is Monday (2026-02-16), so Tuesday 2026-02-17
+        must be treated as the first tradable session after a non-trading stretch."""
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "preMarketPrice": 105.0,
+                "previousClose": 100.0,
+                "timestamp": 1771324200,  # 2026-02-17T10:30:00Z (05:30 ET)
+            }
+        ]
+        run_dt = datetime(2026, 2, 17, 10, 30, tzinfo=UTC)  # Tuesday after Presidents Day
+        enriched = apply_gap_mode_to_quotes(
+            quotes,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        row = enriched[0]
+        self.assertTrue(row["gap_available"])
+        self.assertEqual(row["gap_type"], GAP_MODE_PREMARKET_INDICATIVE)
+        self.assertAlmostEqual(row["gap_pct"], 5.0, places=6)
+        self.assertEqual(row["gap_reason"], "ok")
+        self.assertIn("2026-02-13", row["gap_from_ts"])  # prior trading day Friday close
+
+    def test_gap_mode_rth_open_handles_tuesday_after_monday_holiday(self):
+        quotes = [
+            {
+                "symbol": "NVDA",
+                "open": 104.0,
+                "previousClose": 100.0,
+            }
+        ]
+        run_dt = datetime(2026, 2, 17, 14, 40, tzinfo=UTC)  # 09:40 ET, post-open
+        enriched = apply_gap_mode_to_quotes(
+            quotes,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_RTH_OPEN,
+        )
+        row = enriched[0]
+        self.assertTrue(row["gap_available"])
+        self.assertEqual(row["gap_type"], GAP_MODE_RTH_OPEN)
+        self.assertAlmostEqual(row["gap_pct"], 4.0, places=6)
+        self.assertEqual(row["gap_reason"], "ok")
 
 
 if __name__ == "__main__":

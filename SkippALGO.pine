@@ -4481,12 +4481,8 @@ alertcondition(alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHOR
 alertcondition(alertConsolidationCond, title="CONSOLIDATION", message="SkippALGO CONSOLIDATION | {{ticker}} @ {{close}} | {{time}}")
 
 f_tp_json(action) =>
-    str.format('{{"ticker":"{0}","action":"{1}","price":{2},"mode":"{3}","confirm_delay":{4}}}',
-         syminfo.ticker,
-         action,
-         str.tostring(close, "#.##"),
-         strictAlertsEnabledVis ? "strict" : "normal",
-         (strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? 1 : 0))
+    // JSON keys emitted: "mode", "confirm_delay"
+    "{\"ticker\":\"" + syminfo.ticker + "\",\"action\":\"" + action + "\",\"price\":" + str.tostring(close, "#.##") + ",\"mode\":\"" + (strictAlertsEnabledVis ? "strict" : "normal") + "\",\"confirm_delay\":" + str.tostring(strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? 1 : 0) + "}"
 
 alertFreqSafe = signalOnCloseOnly ? alert.freq_once_per_bar_close : alert.freq_once_per_bar
 
@@ -4515,7 +4511,7 @@ if signalGateConfirmed and barstate.isrealtime
         string labels = array.join(_parts, "+")
         string msg = ""
         if useJsonAlerts
-            msg := str.format('{{"ticker":"{0}","labels":"{1}","price":{2}}}', syminfo.ticker, labels, str.tostring(close, "#.##"))
+            msg := "{\"ticker\":\"" + syminfo.ticker + "\",\"labels\":\"" + labels + "\",\"price\":" + str.tostring(close, "#.##") + "}"
         else
             modeTxtAlert = strictAlertsEnabledVis ? "strict" : "normal"
             delayTxt = strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? "1" : "0"

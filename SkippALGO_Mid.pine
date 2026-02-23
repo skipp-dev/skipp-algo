@@ -2865,16 +2865,14 @@ alertcondition(alertConsolidationCond, title="CONSOLIDATION", message="SkippALGO
 
 // v6.1.3: TradersPost JSON Payload Generator
 f_tp_json(action) =>
-    str.format('{{"ticker": "{0}", "action": "{1}", "price": {2}, "uniqueId": "{0}-{3}-{4}-{1}", "refId": "{5}", "mode": "{6}", "confirm_delay": {7}}}', 
-         syminfo.ticker, 
-         action, 
-         str.tostring(close, "#.##"), 
-         timeframe.period, 
-         str.tostring(time),
-         tpStrategyId,
-         strictAlertsEnabledVis ? "strict" : "normal",
-         str.tostring(strictAlertsEnabledVis and (alertBuyCond or alertShortCond or alertRevBuyCond or alertRevShortCond) ? 1 : 0)
-     )
+    "{\"ticker\": \"" + syminfo.ticker +
+    "\", \"action\": \"" + action +
+    "\", \"price\": " + str.tostring(close, "#.##") +
+    ", \"uniqueId\": \"" + syminfo.ticker + "-" + timeframe.period + "-" + str.tostring(time) + "-" + action +
+    "\", \"refId\": \"" + tpStrategyId +
+    "\", \"mode\": \"" + (strictAlertsEnabledVis ? "strict" : "normal") +
+    "\", \"confirm_delay\": " + str.tostring(strictAlertsEnabledVis and (alertBuyCond or alertShortCond or alertRevBuyCond or alertRevShortCond) ? 1 : 0) +
+    "}"
 
 // v6.2.12: Watchlist stability — force bar_close frequency to reduce alert rate
 // and prevent TradingView "limited functionality" throttling on multi-symbol watchlists.

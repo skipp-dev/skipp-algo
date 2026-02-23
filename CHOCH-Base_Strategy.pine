@@ -1,0 +1,747 @@
+//@version=6
+// Backtest execution knobs (must stay const):
+// - S1 baseline: RUNB_SLIPPAGE_TICKS = 1
+// - S2 slippage sensitivity: set RUNB_SLIPPAGE_TICKS = 3 (or 5)
+// - POC check: set RUNB_PROCESS_ON_CLOSE = true
+const int  RUNB_SLIPPAGE_TICKS = 1
+const bool RUNB_PROCESS_ON_CLOSE = false
+
+// NOTE: position sizing is explicitly controlled via strategy.entry(..., qty=qtyEff).
+// default_qty_type is kept for clarity/compatibility.
+strategy("CHOCH-Base Strategy v7 RUNB (CHoCH Gate + Sweep/Break)", overlay=true, initial_capital=5000, pyramiding=0, default_qty_type=strategy.fixed, commission_type=strategy.commission.percent, commission_value=0.01, slippage=RUNB_SLIPPAGE_TICKS, process_orders_on_close=RUNB_PROCESS_ON_CLOSE)
+
+// =====================
+// INPUTS & PRESETS
+// =====================
+presetMode   = input.string("Balanced", "Strategy Preset", options=["Custom", "Conservative", "Balanced", "Aggressive"])
+
+fastEMA      = input.int(23,  "Fast EMA")
+slowEMA      = input.int(55,  "Slow EMA")
+rsiLen       = input.int(15,  "RSI Length")
+atrLen       = input.int(14,  "ATR Length")
+
+volMult      = input.float(1.16, "Volatility Filter Multiplier", step=0.01)
+riskPct      = input.float(0.5,  "Risk % per trade", step=0.1)
+rr           = input.float(1.5,  "Reward/Risk Ratio", step=0.1)
+
+lookback     = input.int(10, "Sweep Lookback")
+pullbackBars = input.int(3,  "Pullback Bars")
+
+// HTF modes
+useHtf       = input.bool(false, "Use HTF Filter")
+htfTf        = input.timeframe("60", "HTF Timeframe")
+htfEmaLen    = input.int(50, "HTF EMA Length")
+htfMode      = input.string("EMA", "HTF Mode",
+               options=["OFF","EMA","EMA+Slope","Price+FastSlope","RiskOff"])
+
+// Sizing realism
+cashBufferPct = input.float(0.98, "Max Notional as % of Equity", step=0.01)
+roundQty      = input.bool(true, "Round qty to step")
+qtyStep       = input.float(0.00001, "Qty step (e.g. 0.00001)", step=0.00001)
+
+// Trade management
+tp1_R         = input.float(1.0, "TP1 at R multiple (partial)", step=0.1)
+tp1_pct       = input.float(30,  "TP1 % size (0 = off)", minval=0, maxval=99)
+
+beStartR      = input.float(1.0, "Break-even start (R)", step=0.1)
+trailStartR   = input.float(1.5, "Trail start (R)", step=0.1)
+trailATRmult  = input.float(1.0, "Trail ATR mult", step=0.1)
+stopAtrMult   = input.float(1.5, "Stop ATR mult", step=0.1)
+useChochFlipExit = input.bool(false, "Use CHoCH Verify flip as exit")
+grp_exit = "Exit"
+useBearChochExit = input.bool(true, "Exit on BEAR ChoCH", group=grp_exit)
+bearChochExitMode = input.string("Ping (Fast)", "Bear ChoCH exit mode", options=["Ping (Fast)","Verify Wick","Verify Close","Ping+Verify"], group=grp_exit)
+exitGraceBars = input.int(1, "Bear ChoCH exit grace bars", minval=0, group=grp_exit)
+bearExitConfirmEma = input.bool(true, "Bear ChoCH exit requires Close < EMA Fast", group=grp_exit)
+
+timeStopBars  = input.int(30, "Time-stop bars (Soft)", minval=1)
+progressR     = input.float(1.0, "Min progress by time-stop (R)", step=0.1)
+hardMaxBars   = input.int(120, "Hard max bars (Force close)", minval=1)
+
+catastropheR  = input.float(2.5, "Catastrophe Stop (R)", step=0.1)
+cooldownBars  = input.int(30, "Cooldown bars after win/BE", minval=0)
+lossCooldownBars = input.int(60, "Cooldown bars after loss", minval=0)
+allowShorts   = input.bool(false, "Enable Short Trades")
+
+//====================
+// Market Structure (BOS/ChoCH) — v5 drop-in (ms_*)
+//====================
+grp = "Market Structure (BOS/ChoCH)"
+
+ms_swingL = input.int(3, "Swing L", minval=1, maxval=30, group=grp)
+ms_swingR = input.int(2, "Swing R", minval=1, maxval=30, group=grp)
+ms_maxAge = input.int(0, "Swing max age (bars, 0=off)", minval=0, maxval=5000, group=grp)
+
+ms_breakSrc = input.string("Wick", "Breakout source", options=["Close","Wick"], group=grp)
+ms_logic    = input.string("SMC+Sweep", "Structure logic", options=["Standard","SMC+Sweep"], group=grp)
+
+ms_mode = input.string("Ping", "ChoCH mode", options=["Ping","Verify","Ping+Verify"], group=grp)
+useAdxFilter = input.bool(false, "Use ADX trend filter", group=grp)
+adxLen       = input.int(14, "ADX length", minval=1, group=grp)
+adxThreshold = input.float(20.0, "ADX threshold", step=0.5, group=grp)
+
+ms_showTags = input.bool(true, "Show BOS/ChoCH tags", group=grp)
+ms_showPing = input.bool(false, "Show Ping markers", group=grp)
+showBearChoch = input.bool(true, "Show BEAR ChoCH (Ping/Verify)", group=grp)
+
+//====================
+// Entry Mode (CHoCH integration)
+//====================
+grp_entry = "Entry Mode (CHoCH integration)"
+chochWindowBars = input.int(45, "Max bars after CHoCH (for Gate mode)", minval=1, maxval=500, group=grp_entry)
+useChochWindow  = input.bool(true, "Require trigger within CHoCH window", group=grp_entry)
+
+// =====================
+// Entry Quality (Patch H)
+// =====================
+useEntryV2   = input.bool(true, "Entry V2 (Momentum + Impulse)", inline="ev2")
+impulseMult  = input.float(0.30, "Impulse ATR×", step=0.05, inline="ev2")
+rsiLongMin   = input.int(60, "RSI Long ≥", minval=1, maxval=99)
+rsiShortMax  = input.int(45, "RSI Short ≤", minval=1, maxval=99)
+
+// =====================
+// Entry: Reversal Cluster Long (COVER+ChoCH analog)
+// =====================
+grp_rev = "Entry: Reversal Cluster Long"
+useRevCluster        = input.bool(true, "Use Reversal Cluster Long", group=grp_rev)
+revWindowBars        = input.int(3, "Cluster window (bars)", minval=0, maxval=20, group=grp_rev)
+revMinHits           = input.int(2, "Min evidence hits (2-of-3)", minval=1, maxval=3, group=grp_rev)
+revUseVerifyChoch    = input.bool(false, "ChoCH uses VERIFY (else PING)", group=grp_rev)
+revVerifyWick        = input.bool(false, "ChoCH VERIFY uses wick (high)", group=grp_rev)
+revUseEmaWickReclaim = input.bool(true, "Cover-proxy: EMA wick reclaim", group=grp_rev)
+revUseImpulseUp      = input.bool(true, "Cover-proxy: impulse candle", group=grp_rev)
+revUseRsiGate        = input.bool(false, "Momentum: RSI gate", group=grp_rev)
+revRsiMin            = input.int(58, "RSI min (reversal)", minval=40, maxval=80, group=grp_rev)
+revEventOnly         = input.bool(true, "Event-only cover pulse", group=grp_rev)
+revClusterBypassCooldown = input.bool(true, "RevCluster: bypass cooldown", group=grp_rev)
+revClusterBypassOnlyIfUsiFlip = input.bool(true, "RevCluster bypass: only if USI flip window is true", group=grp_rev)
+
+// =====================
+// USI required — Tier A (Red vs Blue) + block
+// =====================
+grp_usi = "USI (Required)"
+useUsiReq     = input.bool(true, "USI required for RevCluster", group=grp_usi)
+usiBlockBear  = input.bool(true, "Block RevCluster longs when Red < Blue", group=grp_usi)
+usiZeroLag    = input.bool(true, "USI Zero-Lag source", group=grp_usi)
+usiFastLen    = input.int(3, "USI Fast len (Red RSI)", minval=1, maxval=50, group=grp_usi)
+usiSlowLen    = input.int(13, "USI Slow len (Blue RSI)", minval=2, maxval=200, group=grp_usi)
+usiZlLenFast  = input.int(3, "USI ZL EMA len fast", minval=1, maxval=50, group=grp_usi)
+usiZlLenSlow  = input.int(13, "USI ZL EMA len slow", minval=2, maxval=200, group=grp_usi)
+usiWindowBars = input.int(8, "USI flip window (bars)", minval=1, maxval=50, group=grp_usi)
+usiAggressiveSameBar = input.bool(true, "USI aggressive: allow same-bar flip in realtime", group=grp_usi)
+
+// =====================
+// PRESET LOGIC
+// =====================
+float eff_impulseMult = impulseMult
+int   eff_rsiLongMin  = rsiLongMin
+int   eff_cooldown    = cooldownBars
+int   eff_lossCooldown = lossCooldownBars
+int   eff_revWindowBars = revWindowBars
+int   eff_revMinHits    = revMinHits
+bool  eff_revUseVerifyChoch = revUseVerifyChoch
+bool  eff_revUseRsiGate     = revUseRsiGate
+int   eff_usiFastLen   = usiFastLen
+int   eff_usiSlowLen   = usiSlowLen
+int   eff_usiZlLenFast = usiZlLenFast
+int   eff_usiZlLenSlow = usiZlLenSlow
+int   eff_usiWindowBars = usiWindowBars
+
+if presetMode == "Conservative"
+    eff_impulseMult := 0.35
+    eff_rsiLongMin  := 65
+    eff_cooldown    := 45
+    eff_lossCooldown:= 90
+    eff_revWindowBars := 2
+    eff_revMinHits    := 3
+    eff_revUseVerifyChoch := true
+    eff_revUseRsiGate     := true
+    eff_usiFastLen   := 5
+    eff_usiSlowLen   := 21
+    eff_usiZlLenFast := 5
+    eff_usiZlLenSlow := 21
+    eff_usiWindowBars:= 5
+else if presetMode == "Balanced"
+    eff_impulseMult := 0.30
+    eff_rsiLongMin  := 60
+    eff_cooldown    := 30
+    eff_lossCooldown:= 60
+    eff_revWindowBars := 3
+    eff_revMinHits    := 2
+    eff_revUseVerifyChoch := false
+    eff_revUseRsiGate     := false
+    eff_usiFastLen   := 3
+    eff_usiSlowLen   := 13
+    eff_usiZlLenFast := 3
+    eff_usiZlLenSlow := 13
+    eff_usiWindowBars:= 8
+else if presetMode == "Aggressive"
+    eff_impulseMult := 0.20
+    eff_rsiLongMin  := 55
+    eff_cooldown    := 15
+    eff_lossCooldown:= 30
+    eff_revWindowBars := 5
+    eff_revMinHits    := 1
+    eff_revUseVerifyChoch := false
+    eff_revUseRsiGate     := false
+    eff_usiFastLen   := 3
+    eff_usiSlowLen   := 13
+    eff_usiZlLenFast := 2
+    eff_usiZlLenSlow := 8
+    eff_usiWindowBars:= 10
+
+// =====================
+// INDICATORS
+// =====================
+emaFast = ta.ema(close, fastEMA)
+emaSlow = ta.ema(close, slowEMA)
+rsi     = ta.rsi(close, rsiLen)
+atr     = ta.atr(atrLen)
+
+f_zl_ema(_src, _len) =>
+    e1 = ta.ema(_src, _len)
+    e2 = ta.ema(e1, _len)
+    2.0 * e1 - e2
+
+usiSrcFast = usiZeroLag ? f_zl_ema(close, eff_usiZlLenFast) : close
+usiSrcSlow = usiZeroLag ? f_zl_ema(close, eff_usiZlLenSlow) : close
+
+usiRed  = ta.rsi(usiSrcFast, eff_usiFastLen)
+usiBlue = ta.rsi(usiSrcSlow, eff_usiSlowLen)
+
+// Compute crosses in global scope
+usiXUp_raw = ta.crossover(usiRed, usiBlue)
+usiXUp = (usiAggressiveSameBar and barstate.isrealtime and not barstate.isconfirmed) ? usiXUp_raw : (barstate.isconfirmed ? usiXUp_raw : false)
+usiBearState = usiRed < usiBlue
+usiBlockL = usiBlockBear and usiBearState
+
+atrAvg  = ta.sma(atr, 49)
+highVol = atr > atrAvg * volMult
+[_, _, adxVal] = ta.dmi(adxLen, adxLen)
+adxOk   = (not useAdxFilter) or (adxVal > adxThreshold)
+
+trendLong  = emaFast > emaSlow
+trendShort = emaFast < emaSlow
+emaFastSlope = emaFast - emaFast[1]
+
+// =====================
+// HTF FILTER
+// =====================
+htfClose    = request.security(syminfo.tickerid, htfTf, close,                                                                         lookahead=barmerge.lookahead_off)
+htfEma      = request.security(syminfo.tickerid, htfTf, ta.ema(close, htfEmaLen),                                                     lookahead=barmerge.lookahead_off)
+htfEmaSlope = request.security(syminfo.tickerid, htfTf, ta.ema(close, htfEmaLen) - ta.ema(close, htfEmaLen)[1],                      lookahead=barmerge.lookahead_off)
+htfBull  = htfClose > htfEma
+htfBear  = htfClose < htfEma
+
+allowL = true
+allowS = true
+
+if useHtf
+    if htfMode == "OFF"
+        allowL := true
+        allowS := true
+    else if htfMode == "EMA"
+        allowL := htfBull
+        allowS := htfBear
+    else if htfMode == "EMA+Slope"
+        allowL := htfBull and htfEmaSlope > 0
+        allowS := htfBear and htfEmaSlope < 0
+    else if htfMode == "Price+FastSlope"
+        allowL := close > htfEma and emaFastSlope > 0
+        allowS := close < htfEma and emaFastSlope < 0
+    else // RiskOff
+        allowL := htfBull
+        allowS := htfBear
+
+// ---- swings (stable levels)
+var float ms_lastHi = na
+var float ms_lastLo = na
+var int   ms_lastHiBar = na
+var int   ms_lastLoBar = na
+
+ph = ta.pivothigh(high, ms_swingL, ms_swingR)
+pl = ta.pivotlow(low,  ms_swingL, ms_swingR)
+
+if not na(ph)
+    ms_lastHi := ph
+    ms_lastHiBar := bar_index - ms_swingR
+
+if not na(pl)
+    ms_lastLo := pl
+    ms_lastLoBar := bar_index - ms_swingR
+
+// expiry
+if ms_maxAge > 0
+    if not na(ms_lastHiBar) and (bar_index - ms_lastHiBar > ms_maxAge)
+        ms_lastHi := na
+        ms_lastHiBar := na
+    if not na(ms_lastLoBar) and (bar_index - ms_lastLoBar > ms_maxAge)
+        ms_lastLo := na
+        ms_lastLoBar := na
+
+// ---- breakouts (event flags)
+bool ms_breakHi = false
+bool ms_breakLo = false
+
+ms_xHi_all = ta.crossover(high, nz(ms_lastHi, high))
+ms_xLo_all = ta.crossunder(low,  nz(ms_lastLo, low))
+bool ms_xHi = not na(ms_lastHi) and ms_xHi_all
+bool ms_xLo = not na(ms_lastLo) and ms_xLo_all
+
+if ms_breakSrc == "Wick"
+    ms_breakHi := ms_xHi
+    ms_breakLo := ms_xLo
+else
+    ms_breakHi := not na(ms_lastHi) and close > ms_lastHi and close[1] <= ms_lastHi
+    ms_breakLo := not na(ms_lastLo) and close < ms_lastLo and close[1] >= ms_lastLo
+
+bool ms_breakoutLong  = ms_breakHi
+bool ms_breakoutShort = ms_breakLo
+
+// =====================
+// SMC+Sweep (reclaimLow / sweepHigh)
+// =====================
+bool ms_sweepHigh  = false
+bool ms_reclaimLow = false
+
+// Hoist crosses to avoid conditional-execution warnings
+ms_crossunder_low_hi = ta.crossunder(low,  nz(ms_lastHi, low))
+ms_crossover_high_lo = ta.crossover(high, nz(ms_lastLo, high))
+bool ms_cx_sweepHigh  = not na(ms_lastHi) and ms_crossunder_low_hi
+bool ms_cx_reclaimLow = not na(ms_lastLo) and ms_crossover_high_lo
+
+if ms_breakSrc == "Close"
+    // SweepHigh: wick above lastHi but CLOSE back below (failed breakout)
+    if not na(ms_lastHi)
+        ms_sweepHigh := (high > ms_lastHi) and (close < ms_lastHi) and (close[1] > ms_lastHi)
+    // ReclaimLow: wick below lastLo but CLOSE back above (failed breakdown)
+    if not na(ms_lastLo)
+        ms_reclaimLow := (low < ms_lastLo) and (close > ms_lastLo) and (close[1] < ms_lastLo)
+else
+    // Wick mode: simple cross events (more frequent; SkippALGO-like)
+    ms_sweepHigh  := not na(ms_lastHi) and ms_cx_sweepHigh
+    ms_reclaimLow := not na(ms_lastLo) and ms_cx_reclaimLow
+
+// ---- structure state + events
+var int ms_state = 0  // 1 bull, -1 bear, 0 neutral
+
+bool ms_pingL = false
+bool ms_pingS = false
+bool ms_bosL  = false
+bool ms_bosS  = false
+
+if ms_breakoutLong
+    ms_pingL := (ms_state == -1)
+    ms_bosL  := not ms_pingL
+    ms_state := 1
+
+if ms_breakoutShort
+    ms_pingS := (ms_state == 1)
+    ms_bosS  := not ms_pingS
+    ms_state := -1
+
+if ms_logic == "SMC+Sweep"
+    if ms_reclaimLow
+        ms_pingL := true
+    if ms_sweepHigh
+        ms_pingS := true
+
+// ---- ping level freeze + verify
+var float ms_pingHiLevel = na
+var float ms_pingLoLevel = na
+
+if ms_pingL
+    ms_pingHiLevel := ms_lastHi
+if ms_pingS
+    ms_pingLoLevel := ms_lastLo
+
+// ---- verify variants (Close vs Wick)
+bool ms_verifyL_close = ms_pingL[1] and not na(ms_pingHiLevel[1]) and close > ms_pingHiLevel[1]
+bool ms_verifyS_close = ms_pingS[1] and not na(ms_pingLoLevel[1]) and close < ms_pingLoLevel[1]
+
+// Wick-based verify (SkippALGO-like): level was set on ping bar, next bar wicks through it
+bool bearVerifyWickS = ms_pingS[1] and not na(ms_pingLoLevel[1]) and low < ms_pingLoLevel[1]
+
+// Keep old names for compatibility
+bool ms_verifyL = ms_verifyL_close
+bool ms_verifyS = ms_verifyS_close
+
+bool ms_isChoCH_L = false
+bool ms_isChoCH_S = false
+
+if ms_mode == "Ping"
+    ms_isChoCH_L := ms_pingL
+    ms_isChoCH_S := ms_pingS
+else if ms_mode == "Verify"
+    ms_isChoCH_L := ms_verifyL
+    ms_isChoCH_S := ms_verifyS
+else
+    ms_isChoCH_L := (ms_pingL or ms_verifyL)
+    ms_isChoCH_S := (ms_pingS or ms_verifyS)
+
+// ---- visuals
+plotshape(ms_showTags and ms_isChoCH_L, "ChoCH L", style=shape.labelup,   location=location.belowbar, text="ChoCH", size=size.tiny, color=color.new(color.purple, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_isChoCH_S, "ChoCH S", style=shape.labeldown, location=location.abovebar, text="ChoCH", size=size.tiny, color=color.new(color.maroon, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_bosL,      "BOS L",   style=shape.labelup,   location=location.belowbar, text="BOS",   size=size.tiny, color=color.new(color.green, 0),  textcolor=color.white)
+plotshape(ms_showTags and ms_bosS,      "BOS S",   style=shape.labeldown, location=location.abovebar, text="BOS",   size=size.tiny, color=color.new(color.red, 0),    textcolor=color.white)
+
+plotchar(ms_showPing and ms_pingL, "Ping L", "?", location=location.belowbar, size=size.tiny, color=color.new(color.yellow, 0))
+plotchar(ms_showPing and ms_pingS, "Ping S", "?", location=location.abovebar, size=size.tiny, color=color.new(color.yellow, 0))
+
+// =====================
+// VIS: Bearish ChoCH debug (Ping + Verify)
+// =====================
+bearChochPingEvt   = ms_pingS
+bearChochVerifyEvt = ms_verifyS
+
+plotchar(showBearChoch and bearChochPingEvt,   title="ChoCH S Ping",   char="v", location=location.abovebar, size=size.tiny)
+plotchar(showBearChoch and bearChochVerifyEvt, title="ChoCH S Verify", char="V", location=location.abovebar, size=size.tiny)
+
+plotshape(showBearChoch and bearChochPingEvt, title="ChoCH S (Ping)", style=shape.labeldown,
+    location=location.abovebar, size=size.tiny, text="ChoCH↓", textcolor=color.white, color=color.new(color.maroon, 0))
+
+plotshape(showBearChoch and bearChochVerifyEvt, title="ChoCH S (Verify)", style=shape.labeldown,
+    location=location.abovebar, size=size.small, text="ChoCH✓↓", textcolor=color.white, color=color.new(color.red, 0))
+
+// =====================
+// SIGNALS (sweep + controlled breakout, long & short)
+// =====================
+sweepLow  = low  < ta.lowest(low[1],  lookback)
+sweepHigh = high > ta.highest(high[1], lookback)
+
+pullbackLong  = ta.lowest(low,  pullbackBars) < emaFast
+pullbackShort = ta.highest(high, pullbackBars) > emaFast
+
+breakHigh = close > ta.highest(high, 6)[1]
+breakLow  = close < ta.lowest(low,  6)[1]
+
+// Event-only trigger variants (verhindert mehrfache Trigger im selben Zustand)
+sweepLowEvent  = sweepLow  and not sweepLow[1]
+sweepHighEvent = sweepHigh and not sweepHigh[1]
+breakHighEvent = breakHigh and not breakHigh[1]
+breakLowEvent  = breakLow  and not breakLow[1]
+
+body    = math.abs(close - open)
+impulse = body > atr * eff_impulseMult
+
+momLong  = close > emaFast and rsi >= eff_rsiLongMin
+momShort = close < emaFast and rsi <= rsiShortMax
+
+// Base signals (V1)
+longSweep_v1  = trendLong and sweepLowEvent  and rsi > 45 and highVol
+longBreak_v1  = trendLong and pullbackLong   and breakHighEvent and rsi > 50 and highVol
+shortSweep_v1 = trendShort and sweepHighEvent and rsi < 55 and highVol
+shortBreak_v1 = trendShort and pullbackShort and breakLowEvent  and rsi < 50 and highVol
+
+// V2: add momentum + impulse confirmation
+longSweep_v2  = longSweep_v1  and momLong  and impulse
+longBreak_v2  = longBreak_v1  and momLong  and impulse
+shortSweep_v2 = shortSweep_v1 and momShort and impulse
+shortBreak_v2 = shortBreak_v1 and momShort and impulse
+
+longSweep  = useEntryV2 ? longSweep_v2  : longSweep_v1
+longBreak  = useEntryV2 ? longBreak_v2  : longBreak_v1
+shortSweep = useEntryV2 ? shortSweep_v2 : shortSweep_v1
+shortBreak = useEntryV2 ? shortBreak_v2 : shortBreak_v1
+
+triggerLong  = longSweep or longBreak
+triggerShort = shortSweep or shortBreak
+
+// =====================
+// Reversal Cluster Long (COVER+ChoCH analog)
+// =====================
+verifyWickL = ms_pingL[1] and not na(ms_pingHiLevel[1]) and high > ms_pingHiLevel[1]
+chochEvt    = eff_revUseVerifyChoch ? (revVerifyWick ? verifyWickL : ms_verifyL) : ms_pingL
+
+bearContext = (ms_state == -1) or (ms_state[1] == -1)
+
+emaWickReclaimRaw = revUseEmaWickReclaim and (high >= emaFast)
+impulseUpRaw      = revUseImpulseUp and (close > open) and (body > atr * eff_impulseMult)
+
+emaReclaimSig = revEventOnly ? (emaWickReclaimRaw and not emaWickReclaimRaw[1]) : emaWickReclaimRaw
+barsSinceEmaReclaim = ta.barssince(emaReclaimSig)
+inEmaWin = (barsSinceEmaReclaim >= 0 and barsSinceEmaReclaim <= eff_revWindowBars)
+
+momOk = (not eff_revUseRsiGate) or (rsi >= revRsiMin)
+
+barsSinceChoch = ta.barssince(chochEvt)
+inChochWin = (barsSinceChoch >= 0 and barsSinceChoch <= eff_revWindowBars)
+
+barsSinceUsiUp = ta.barssince(usiXUp)
+usiInWin = (barsSinceUsiUp >= 0 and barsSinceUsiUp <= eff_usiWindowBars)
+usiReqOk = (not useUsiReq) or usiInWin
+
+hitA = inChochWin
+hitB = revUseEmaWickReclaim and inEmaWin
+impulseUpSig = revEventOnly ? (impulseUpRaw and not impulseUpRaw[1]) : impulseUpRaw
+barsSinceImpulseUp = ta.barssince(impulseUpSig)
+inImpulseWin = (barsSinceImpulseUp >= 0 and barsSinceImpulseUp <= eff_revWindowBars)
+hitC = revUseImpulseUp and inImpulseWin
+
+enabledEvidence = 1 + (revUseEmaWickReclaim ? 1 : 0) + (revUseImpulseUp ? 1 : 0)
+requiredHits = math.min(eff_revMinHits, enabledEvidence)
+
+hits123 = (hitA ? 1 : 0) + (hitB ? 1 : 0) + (hitC ? 1 : 0)
+
+revClusterSignal = useRevCluster and bearContext and usiReqOk and momOk and (hits123 >= requiredHits) and not usiBlockL
+
+// =====================
+// RUN B ENTRY: CHoCH Gate + Sweep/Break Trigger
+// =====================
+// CHoCH timing for optional entry window gate (mode-aware via ms_isChoCH_*).
+barsSinceChochL = ta.barssince(ms_isChoCH_L)
+barsSinceChochS = ta.barssince(ms_isChoCH_S)
+
+inWindowL = (barsSinceChochL >= 0 and barsSinceChochL <= chochWindowBars)
+inWindowS = (barsSinceChochS >= 0 and barsSinceChochS <= chochWindowBars)
+
+chochGateL = (not useChochWindow) or inWindowL
+chochGateS = (not useChochWindow) or inWindowS
+
+bool longCond  = triggerLong and allowL and adxOk and chochGateL
+bool shortCond = triggerShort and allowS and adxOk and chochGateS
+
+// EMA-Slope + Separation Filter (Chop-Filter)
+slopeOkL = emaFastSlope > 0
+slopeOkS = emaFastSlope < 0
+sepOk    = math.abs(emaFast - emaSlow) > atr * 0.25
+
+longCond  := longCond and slopeOkL and sepOk
+shortCond := shortCond and slopeOkS and sepOk
+
+// Run F: default long-only
+if not allowShorts
+    shortCond := false
+
+// =====================
+// RISK MGMT + REALISTIC SIZING
+// =====================
+stopDist   = atr * stopAtrMult
+targetDist = stopDist * rr
+
+riskAmount = strategy.equity * (riskPct / 100.0)
+qtyRisk    = stopDist > 0 ? (riskAmount / stopDist) : na
+
+maxNotional = strategy.equity * cashBufferPct
+qtyCash     = close > 0 ? (maxNotional / close) : na
+
+qtyEffRaw = math.min(qtyRisk, qtyCash)
+
+// Fine rounding (optional)
+f_round_step(x, step) =>
+    step > 0 ? (math.floor(x / step) * step) : x
+
+qtyEff = na(qtyEffRaw) ? na : (roundQty ? f_round_step(qtyEffRaw, qtyStep) : qtyEffRaw)
+qtyEff := (qtyEff <= 0) ? na : qtyEff
+
+// =====================
+// ENTRY + STORE SIGNAL-CLOSE BASE LEVELS
+// Exit levels are based on SIGNAL CLOSE (close ± dist),
+// but exits are only placed once position is open.
+// =====================
+var float baseClose = na
+var float baseStopDist = na
+var float baseTargetDist = na
+var int   entryBar = na
+
+// RiskOff: if HTF flips against position, flatten
+if useHtf and htfMode == "RiskOff"
+    if strategy.position_size > 0 and htfBear
+        strategy.close("LONG", comment="RiskOff HTF flip")
+    if strategy.position_size < 0 and htfBull
+        strategy.close("SHORT", comment="RiskOff HTF flip")
+
+// CHoCH Verify flip exits (Run E: use CHoCH as exit signal, not entry gate)
+if useChochFlipExit
+    if strategy.position_size > 0 and ms_verifyS
+        strategy.close("LONG", comment="ChoCH Verify flip exit")
+    if strategy.position_size < 0 and ms_verifyL
+        strategy.close("SHORT", comment="ChoCH Verify flip exit")
+
+// Entries
+var int cooldownUntil = na
+
+// whenever we flatten (position goes to 0), start cooldown
+justClosed = strategy.position_size == 0 and strategy.position_size[1] != 0
+if justClosed
+    lastProfit = strategy.closedtrades > 0 ? strategy.closedtrades.profit(strategy.closedtrades - 1) : 0
+    if lastProfit <= 0
+        cooldownUntil := bar_index + eff_lossCooldown
+    else
+        cooldownUntil := bar_index + eff_cooldown
+
+inCooldown = not na(cooldownUntil) and bar_index < cooldownUntil
+
+revCooldownOk = (not inCooldown) or (revClusterBypassCooldown and (not revClusterBypassOnlyIfUsiFlip or (not useUsiReq) or usiInWin))
+revClusterLong = revClusterSignal and allowL and slopeOkL and sepOk and revCooldownOk
+
+bearChochEvt = bearChochExitMode == "Ping (Fast)" ? ms_pingS : bearChochExitMode == "Verify Wick" ? bearVerifyWickS : bearChochExitMode == "Verify Close" ? ms_verifyS_close : (ms_pingS or bearVerifyWickS or ms_verifyS_close)
+
+//====================
+// Priority: RevCluster wins over normal longCond
+//====================
+bool longCondFinal = longCond
+bool takeRev = revClusterLong
+
+if takeRev
+    longCondFinal := false
+
+//====================
+// One-shot guard per bar (prevents duplicate entries on multi-eval)
+//====================
+var int _lastEntryBar = na
+canEnterThisBar = na(_lastEntryBar) or (_lastEntryBar != bar_index)
+
+if strategy.position_size == 0 and canEnterThisBar
+    if takeRev and not na(qtyEff)
+        baseClose      := close
+        baseStopDist   := stopDist
+        baseTargetDist := targetDist
+        entryBar       := bar_index
+        strategy.entry("LONG", strategy.long, qty=qtyEff)
+        _lastEntryBar := bar_index
+
+    else if (not inCooldown) and longCondFinal and not na(qtyEff)
+        baseClose      := close
+        baseStopDist   := stopDist
+        baseTargetDist := targetDist
+        entryBar       := bar_index
+        strategy.entry("LONG", strategy.long, qty=qtyEff)
+        _lastEntryBar := bar_index
+
+    else if (not inCooldown) and shortCond and not na(qtyEff)
+        baseClose      := close
+        baseStopDist   := stopDist
+        baseTargetDist := targetDist
+        entryBar       := bar_index
+        strategy.entry("SHORT", strategy.short, qty=qtyEff)
+        _lastEntryBar := bar_index
+
+// =====================
+// EXIT / TRADE MANAGEMENT (no cheating)
+// =====================
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+
+// Track progress since entry
+var float highSinceEntry = na
+var float lowSinceEntry  = na
+
+if strategy.position_size == 0
+    highSinceEntry := na
+    lowSinceEntry  := na
+else
+    highSinceEntry := na(highSinceEntry) ? high : math.max(highSinceEntry, high)
+    lowSinceEntry  := na(lowSinceEntry)  ? low  : math.min(lowSinceEntry,  low)
+
+// Place exits only when position is open AND base vars exist
+if (inLong or inShort) and not na(baseClose) and not na(baseStopDist)
+    ep = strategy.position_avg_price
+    oneR = baseStopDist
+    barsSinceEntry = na(entryBar) ? 0 : (bar_index - entryBar)
+    barsInTrade = barsSinceEntry
+
+    bool _closeIssued = false
+
+    // 1. Bear ChoCH Exit (SkippALGO-like, ms_pingS default)
+    if not _closeIssued
+        bearExitAllowed = useBearChochExit and inLong and (barsSinceEntry >= exitGraceBars)
+        bearExitOk = bearExitAllowed and bearChochEvt and (not bearExitConfirmEma or close < emaFast)
+        if bearExitOk
+            strategy.close("LONG", comment="Bear ChoCH Exit")
+            _closeIssued := true
+
+    // 2. Catastrophe Stop — highest priority safety net if ChoCH didn't close
+    if not _closeIssued and inLong and low <= ep - oneR * catastropheR
+        strategy.close("LONG", comment="Catastrophe Stop")
+        _closeIssued := true
+    if not _closeIssued and inShort and high >= ep + oneR * catastropheR
+        strategy.close("SHORT", comment="Catastrophe Stop")
+        _closeIssued := true
+
+    // 3. Time stops
+    if not _closeIssued
+        if barsInTrade >= hardMaxBars
+            if inLong
+                strategy.close("LONG", comment="Hard TimeStop")
+                _closeIssued := true
+            if not _closeIssued and inShort
+                strategy.close("SHORT", comment="Hard TimeStop")
+                _closeIssued := true
+        else if barsInTrade >= timeStopBars
+            if inLong
+                madeProgress = highSinceEntry >= ep + oneR * progressR
+                if not madeProgress
+                    strategy.close("LONG", comment="Soft TimeStop no progress")
+                    _closeIssued := true
+            if not _closeIssued and inShort
+                madeProgress = lowSinceEntry <= ep - oneR * progressR
+                if not madeProgress
+                    strategy.close("SHORT", comment="Soft TimeStop no progress")
+                    _closeIssued := true
+
+    // 4. TP/SL/BE/Trail — compute levels always, place orders only if no close issued
+    longSL = baseClose - baseStopDist
+    longTP = baseClose + baseTargetDist
+    shortSL = baseClose + baseStopDist
+    shortTP = baseClose - baseTargetDist
+    longTP1  = baseClose + oneR * tp1_R
+    shortTP1 = baseClose - oneR * tp1_R
+    trailDist = atr * trailATRmult
+    longStopDyn  = longSL
+    shortStopDyn = shortSL
+
+    if inLong and highSinceEntry >= ep + oneR * beStartR
+        longStopDyn := math.max(longStopDyn, ep)
+    if inShort and lowSinceEntry <= ep - oneR * beStartR
+        shortStopDyn := math.min(shortStopDyn, ep)
+    if inLong and highSinceEntry >= ep + oneR * trailStartR
+        longStopDyn := math.max(longStopDyn, highSinceEntry - trailDist)
+    if inShort and lowSinceEntry <= ep - oneR * trailStartR
+        shortStopDyn := math.min(shortStopDyn, lowSinceEntry + trailDist)
+
+    if not _closeIssued
+        if inLong
+            if tp1_pct > 0
+                strategy.exit("TP1 LONG", "LONG", limit=longTP1, qty_percent=tp1_pct)
+            strategy.exit("TP/SL LONG", "LONG", stop=longStopDyn, limit=longTP)
+        if inShort
+            if tp1_pct > 0
+                strategy.exit("TP1 SHORT", "SHORT", limit=shortTP1, qty_percent=tp1_pct)
+            strategy.exit("TP/SL SHORT", "SHORT", stop=shortStopDyn, limit=shortTP)
+
+// =====================
+// VISUALS
+// =====================
+plot(emaFast, color=color.orange)
+plot(emaSlow, color=color.blue)
+bgcolor(useHtf ? (htfBull ? color.new(color.green, 93) : color.new(color.red, 93)) : na)
+
+plotshape(longCondFinal and strategy.position_size == 0,  style=shape.triangleup,   location=location.belowbar, size=size.tiny, color=color.new(color.green, 0))
+plotshape(shortCond and strategy.position_size == 0, style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0))
+
+//====================
+// DEBUG: show when RevCluster wins
+//====================
+showRevDebug = input.bool(false, "Debug: show REV wins", group="Debug")
+showMsDbg = input.bool(false, "DBG: show ms_sweep/reclaim", group="Debug")
+
+plotchar(showRevDebug and takeRev, title="REV_WINS", char="R", location=location.belowbar,
+    color=color.new(color.aqua, 0), size=size.tiny)
+
+plotchar(showRevDebug and (not takeRev) and longCondFinal, title="LONG_NORMAL", char="L", location=location.belowbar,
+    color=color.new(color.green, 0), size=size.tiny)
+
+plotchar(showRevDebug and takeRev and inEmaWin, title="REV_WINS_cover", char="C", location=location.belowbar,
+    color=color.new(color.yellow, 0), size=size.tiny)
+
+plotchar(showRevDebug and takeRev and chochEvt, title="REV_WINS_choch", char="H", location=location.belowbar,
+    color=color.new(color.purple, 0), size=size.tiny)
+
+plotchar(showRevDebug and takeRev and impulseUpRaw, title="REV_WINS_impulse", char="I", location=location.belowbar,
+    color=color.new(color.orange, 0), size=size.tiny)
+
+plotchar(showMsDbg and ms_sweepHigh,  title="DBG sweepHigh",  char="S", location=location.abovebar, size=size.tiny)
+plotchar(showMsDbg and ms_reclaimLow, title="DBG reclaimLow", char="R", location=location.belowbar, size=size.tiny)
+plotchar(showMsDbg and ms_pingS,      title="DBG pingS",      char="v", location=location.abovebar, size=size.tiny)
+

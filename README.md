@@ -45,20 +45,58 @@ Notes:
 - `…` and `n0` indicate insufficient data; do not treat as a signal.
 - Forecast rows include **nCur/Total** and a target footer describing active target definitions.
 
-## Open-Prep: Macro Explainability & Guardrails
+## Open-Prep: Pre-Open Briefing Contract
 
-For `open_prep` outputs, the macro/risk contract is intentionally explicit and audit-friendly:
+`open_prep` generates a reproducible pre-open briefing for a symbol universe:
 
-- `macro_score_components[]` always includes:
+- Quotes are enriched with gap metadata (mode + availability + evidence timestamps).
+- Macro context and optional news catalyst scores are merged into candidate ranking.
+- Top-N candidates are exported with structured trade cards and ATR-based stop/trail profiles.
+
+This output is intentionally score-driven and setup-oriented (for example ORB / VWAP-hold patterns),
+not hard-coded to a single directional narrative in documentation.
+
+### Macro explainability and risk guardrails
+
+- `macro_score_components[]` includes:
   - `canonical_event`, `consensus_value`, `consensus_field`, `surprise`, `weight`, `contribution`, `data_quality_flags`
   - optional `dedup` object when canonical duplicates were collapsed (`duplicates`, `chosen_event`, `policy`)
-- `ranked_candidates[]` always includes:
+- `ranked_candidates[]` includes:
   - `allowed_setups`, `max_trades`, `data_sufficiency`, `no_trade_reason`, `score_breakdown`
 - In `macro_risk_off_extreme`, long setups are degraded to `vwap_reclaim` with `max_trades=1`.
 - If RVOL/liquidity is missing in that regime (`rel_volume <= 0`), candidate is fail-safe blocked via
   `no_trade_reason += ["missing_rvol"]`, `long_allowed=false`, and `data_sufficiency.low=true`.
 - Headline PCE confirmation is controlled by explicit switch
   `include_headline_pce_confirm` (separate from `include_mid_if_no_high`).
+
+### Monday gap semantics (explicit)
+
+- `RTH_OPEN`: available only when an actual Monday RTH open exists;
+  otherwise `gap_available=false` with reason metadata.
+- `PREMARKET_INDICATIVE`: available only with timestamp-backed premarket/extended quote evidence;
+  otherwise unavailable with explicit `gap_reason`.
+- `OFF`: no active Monday gap computation (placeholder/fallback semantics only).
+
+### Candidate data contract (operational fields)
+
+Each candidate row carries gap evidence fields used by downstream exports and reviews:
+
+- `gap_available`, `gap_reason`, `gap_price_source`, `gap_from_ts`, `gap_to_ts`
+
+Run-level metadata includes reproducibility and run context fields:
+
+- `run_datetime_utc`, `inputs_hash`, `gap_mode`
+
+Scoring is a weighted blend of gap, volume/liquidity, macro context, and optional news inputs;
+exact weights/clamps are defined in implementation and may evolve with controlled changes.
+
+### Open-Prep Live Monitor (Streamlit)
+
+Für einen laufenden Monitor mit automatischem Refresh alle 15 Sekunden:
+
+- Start: `streamlit run open_prep/streamlit_monitor.py`
+- Die App ruft bei jedem Refresh die Datenquellen neu über `generate_open_prep_result(...)` ab.
+- Parameter (Symbole, Gap-Mode, ATR-Settings, Pre-Open-Filter) sind in der Sidebar einstellbar.
 
 ## Sideways/Chop semantics (quick)
 

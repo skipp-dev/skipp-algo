@@ -1,0 +1,341 @@
+//@version=6
+strategy("CHOCH-Strategy (Structure Only)", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1, pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.01)
+
+//====================
+// Market Structure Inputs
+//====================
+grp = "Market Structure (BOS/ChoCH)"
+ms_swingL = input.int(2, "Swing L", minval=1, maxval=30, group=grp)
+ms_swingR = input.int(1, "Swing R", minval=1, maxval=30, group=grp)
+ms_maxAge = input.int(0, "Swing max age (bars, 0=off)", minval=0, maxval=5000, group=grp)
+
+ms_breakSrc = input.string("Wick", "Breakout source", options=["Close","Wick"], group=grp)
+ms_logic    = input.string("SMC+Sweep", "Structure logic", options=["Standard","SMC+Sweep"], group=grp)
+
+ms_mode = input.string("Ping", "ChoCH mode", options=["Ping","Verify","Ping+Verify"], group=grp)
+
+ms_showTags = input.bool(true, "Show BOS/ChoCH tags", group=grp)
+ms_showPing = input.bool(false, "Show Ping markers", group=grp)
+showBearChoch = input.bool(true, "Show BEAR ChoCH (Ping/Verify)", group=grp)
+showTradeLabels = input.bool(true, "Show Trade Labels (BUY/EXIT/SHORT/COVER)", group=grp)
+showStructDebug = input.bool(false, "Debug: swing/breakout plots", group=grp)
+treatNeutralAsChoch = input.bool(true, "Treat neutral break as ChoCH", group=grp)
+useWickVerifyS = input.bool(false, "Verify S uses wick (bearVerifyWickS)", group=grp)
+
+exitOnWick       = input.bool(true, "Exit on wick-touch (SkippALGO-like)", group=grp)
+allowSameBarExit = input.bool(false, "Allow EXIT on same bar as BUY", group=grp)
+
+qty = input.float(1.0, "Order size (qty)", step=0.1, minval=0.0, group=grp)
+
+//====================
+// Exit Extensions (SkippALGO-like, optional)
+//====================
+grpExit = "Exit Extensions (SkippALGO-like)"
+
+// EMA Fast Exit
+useEmaFastExit   = input.bool(true, "Exit: EMA Fast", group=grpExit)
+emaFastLen       = input.int(21, "EMA Fast Len", minval=1, group=grpExit)
+emaExitOnWick    = input.bool(false, "EMA Exit uses wick (low < EMA)", group=grpExit)
+
+// USI Zero-Lag Exit (Tier A: Red vs Blue)
+useUsiExit       = input.bool(true, "Exit: USI Zero-Lag (Red crosses Blue)", group=grpExit)
+usiZeroLag       = input.bool(true, "USI: Zero-Lag mode", group=grpExit)
+usiLenBlue       = input.int(13, "USI Blue Len (L1)", minval=2, group=grpExit)
+usiLenRed        = input.int(3,  "USI Red Len (L5)",  minval=1, group=grpExit)
+usiExitOnState   = input.bool(false, "USI Exit on state (Red < Blue), not only cross", group=grpExit)
+
+// Impulse Exit
+useImpulseExit   = input.bool(true, "Exit: Impulse Down", group=grpExit)
+impulseExitMult  = input.float(0.30, "Impulse ATR×", step=0.05, minval=0.05, group=grpExit)
+atrLenExit       = input.int(14, "ATR Len (Exit)", minval=1, group=grpExit)
+
+//--------------------
+// Core series for exits
+//--------------------
+emaFast = ta.ema(close, emaFastLen)
+atrExit = ta.atr(atrLenExit)
+
+// minimal zero-lag helper (same as SkippALGO pattern)
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+// USI Tier-A (Red vs Blue) — simplified for exits only
+usiSrcBlue = usiZeroLag ? f_zl_src(close, usiLenBlue) : close
+usiSrcRed  = usiZeroLag ? f_zl_src(close, usiLenRed)  : close
+
+usiBlue = ta.rsi(usiSrcBlue, usiLenBlue)  // L1
+usiRed  = ta.rsi(usiSrcRed,  usiLenRed)   // L5
+
+usiCrossDown = ta.crossunder(usiRed, usiBlue)
+usiBearState = usiRed < usiBlue
+
+//====================
+// Swings (stable levels)
+//====================
+var float ms_lastHi = na
+var float ms_lastLo = na
+var int   ms_lastHiBar = na
+var int   ms_lastLoBar = na
+
+// Snapshot levels BEFORE pivot update (critical for breakout detection)
+float _snapHi = ms_lastHi
+float _snapLo = ms_lastLo
+
+ph = ta.pivothigh(high, ms_swingL, ms_swingR)
+pl = ta.pivotlow(low,  ms_swingL, ms_swingR)
+
+if not na(ph)
+    ms_lastHi := ph
+    ms_lastHiBar := bar_index - ms_swingR
+
+if not na(pl)
+    ms_lastLo := pl
+    ms_lastLoBar := bar_index - ms_swingR
+
+// expiry
+if ms_maxAge > 0
+    if not na(ms_lastHiBar) and (bar_index - ms_lastHiBar > ms_maxAge)
+        ms_lastHi := na
+        ms_lastHiBar := na
+    if not na(ms_lastLoBar) and (bar_index - ms_lastLoBar > ms_maxAge)
+        ms_lastLo := na
+        ms_lastLoBar := na
+//====================
+// Breakouts — simple comparison using pre-update snapshot (robust, no ta.crossover)
+//====================
+bool ms_breakHi = not na(_snapHi) and ((ms_breakSrc == "Wick") ? (high > _snapHi and close[1] <= _snapHi) : (close > _snapHi and close[1] <= _snapHi))
+bool ms_breakLo = not na(_snapLo) and ((ms_breakSrc == "Wick") ? (low < _snapLo and close[1] >= _snapLo) : (close < _snapLo and close[1] >= _snapLo))
+
+ms_breakoutLong  = ms_breakHi
+ms_breakoutShort = ms_breakLo
+//====================
+// SMC+Sweep (reclaimLow / sweepHigh) — using pre-update snapshot
+//====================
+bool ms_sweepHigh  = not na(_snapHi) and ((ms_breakSrc == "Close") ? ((high > _snapHi) and (close < _snapHi) and (close[1] > _snapHi)) : ((low < _snapHi) and (close[1] >= _snapHi)))
+bool ms_reclaimLow = not na(_snapLo) and ((ms_breakSrc == "Close") ? ((low < _snapLo) and (close > _snapLo) and (close[1] < _snapLo)) : ((high > _snapLo) and (close[1] <= _snapLo)))
+
+//====================
+// Structure state + events
+//====================
+var int ms_state = 0  // 1 bull, -1 bear, 0 neutral
+
+var bool ms_pingL = false
+var bool ms_pingS = false
+var bool ms_bosL  = false
+var bool ms_bosS  = false
+
+// Reset event flags each bar
+ms_pingL := false
+ms_pingS := false
+ms_bosL  := false
+ms_bosS  := false
+
+if ms_breakoutLong
+    ms_pingL := (ms_state == -1) or (treatNeutralAsChoch and ms_state == 0)
+    ms_bosL  := not ms_pingL
+    ms_state := 1
+
+if ms_breakoutShort
+    ms_pingS := (ms_state == 1) or (treatNeutralAsChoch and ms_state == 0)
+    ms_bosS  := not ms_pingS
+    ms_state := -1
+
+if ms_logic == "SMC+Sweep"
+    if ms_reclaimLow
+        ms_pingL := true
+    if ms_sweepHigh
+        ms_pingS := true
+
+//====================
+// Ping level freeze + verify
+//====================
+var float ms_pingHiLevel = na
+var float ms_pingLoLevel = na
+
+if ms_pingL
+    ms_pingHiLevel := ms_lastHi
+if ms_pingS
+    ms_pingLoLevel := ms_lastLo
+
+// Verify variants (Close vs Wick)
+bool ms_verifyL_close = ms_pingL[1] and not na(ms_pingHiLevel[1]) and close > ms_pingHiLevel[1]
+bool ms_verifyS_close = ms_pingS[1] and not na(ms_pingLoLevel[1]) and close < ms_pingLoLevel[1]
+
+// Wick-based verify (SkippALGO-like)
+bool bearVerifyWickS = ms_pingS[1] and not na(ms_pingLoLevel[1]) and low < ms_pingLoLevel[1]
+
+// Keep old names for compatibility
+bool ms_verifyL = ms_verifyL_close
+bool ms_verifyS = useWickVerifyS ? bearVerifyWickS : ms_verifyS_close
+
+bool ms_isChoCH_L = false
+bool ms_isChoCH_S = false
+
+if ms_mode == "Ping"
+    ms_isChoCH_L := ms_pingL
+    ms_isChoCH_S := ms_pingS
+else if ms_mode == "Verify"
+    ms_isChoCH_L := ms_verifyL
+    ms_isChoCH_S := ms_verifyS
+else
+    ms_isChoCH_L := (ms_pingL or ms_verifyL)
+    ms_isChoCH_S := (ms_pingS or ms_verifyS)
+
+//====================
+// Visuals
+//====================
+plotshape(ms_showTags and ms_isChoCH_L, "ChoCH L", style=shape.labelup,   location=location.belowbar, text="ChoCH", size=size.tiny, color=color.new(color.purple, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_isChoCH_S, "ChoCH S", style=shape.labeldown, location=location.abovebar, text="ChoCH", size=size.tiny, color=color.new(color.maroon, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_bosL,      "BOS L",   style=shape.labelup,   location=location.belowbar, text="BOS",   size=size.tiny, color=color.new(color.green, 0),  textcolor=color.white)
+plotshape(ms_showTags and ms_bosS,      "BOS S",   style=shape.labeldown, location=location.abovebar, text="BOS",   size=size.tiny, color=color.new(color.red, 0),    textcolor=color.white)
+
+plotchar(ms_showPing and ms_pingL, "Ping L", "?", location=location.belowbar, size=size.tiny, color=color.new(color.yellow, 0))
+plotchar(ms_showPing and ms_pingS, "Ping S", "?", location=location.abovebar, size=size.tiny, color=color.new(color.yellow, 0))
+
+// Bearish ChoCH debug (Ping + Verify)
+bearChochPingEvt   = ms_pingS
+bearChochVerifyEvt = ms_verifyS
+
+plotchar(showBearChoch and bearChochPingEvt,   title="ChoCH S Ping",   char="v", location=location.abovebar, size=size.tiny)
+plotchar(showBearChoch and bearChochVerifyEvt, title="ChoCH S Verify", char="V", location=location.abovebar, size=size.tiny)
+
+plotshape(showBearChoch and bearChochPingEvt, title="ChoCH S (Ping)", style=shape.labeldown,
+    location=location.abovebar, size=size.tiny, text="ChoCH↓", textcolor=color.white, color=color.new(color.maroon, 0))
+
+plotshape(showBearChoch and bearChochVerifyEvt, title="ChoCH S (Verify)", style=shape.labeldown,
+    location=location.abovebar, size=size.small, text="ChoCH✓↓", textcolor=color.white, color=color.new(color.red, 0))
+
+// Debug: swing levels and breakouts
+plot(showStructDebug ? ms_lastHi : na, "ms_lastHi", color=color.new(color.fuchsia, 0))
+plot(showStructDebug ? ms_lastLo : na, "ms_lastLo", color=color.new(color.aqua, 0))
+plotchar(showStructDebug and ms_breakoutLong,  title="breakoutLong",  char="↑", location=location.top, color=color.new(color.green, 0))
+plotchar(showStructDebug and ms_breakoutShort, title="breakoutShort", char="↓", location=location.bottom, color=color.new(color.red, 0))
+
+// Exit extension visuals
+plot(useEmaFastExit ? emaFast : na, "EMA Fast (Exit)", color=color.new(color.yellow, 0))
+plot(useUsiExit ? usiBlue : na, "USI Blue", color=color.new(color.blue, 0))
+plot(useUsiExit ? usiRed  : na, "USI Red",  color=color.new(color.red, 0))
+
+//====================
+// Trade logic: bullish ChoCH/BOS = BUY, bearish ChoCH/BOS = SHORT
+//               + SkippALGO-like exits (EMA, USI, Impulse)
+//====================
+var int entryBar = na
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+qtyEff  = math.max(qty, 0.0)
+
+// Bullish structure events (ChoCH + BOS)
+bool bullStructure = ms_isChoCH_L or ms_bosL
+// Bearish structure events (ChoCH + BOS)
+bool bearStructure = ms_isChoCH_S or ms_bosS
+
+// BUY when flat or short → go long
+bool doBuy   = (not inLong) and bullStructure and qtyEff > 0
+// SHORT when flat or long → go short
+bool doShort = (not inShort) and bearStructure and qtyEff > 0
+
+//====================
+// EXIT reasons (close LONG — SkippALGO-like)
+//====================
+body = math.abs(close - open)
+
+// 1) Bearish structure exit (ChoCH or BOS)
+bool bearTouchOk   = exitOnWick ? (low <= nz(ms_pingLoLevel, low)) : true
+bool exitBearStruct = inLong and bearStructure and bearTouchOk
+
+// 2) EMA Fast exit (long)
+bool emaExitHit = useEmaFastExit and inLong and (emaExitOnWick ? (low < emaFast) : (close < emaFast))
+
+// 3) USI exit (long)
+bool usiExitHit = useUsiExit and inLong and (usiExitOnState ? usiBearState : usiCrossDown)
+
+// 4) Impulse down exit (long)
+bool impulseDown = useImpulseExit and inLong and (close < open) and (body > atrExit * impulseExitMult)
+
+bool doExitCore = exitBearStruct or emaExitHit or usiExitHit or impulseDown
+bool doExit = allowSameBarExit ? doExitCore : (doExitCore and (bar_index != entryBar))
+
+//====================
+// COVER reasons (close SHORT — SkippALGO-like, mirrored)
+//====================
+
+// 1) Bullish structure cover (ChoCH or BOS)
+bool coverBullStruct = inShort and bullStructure
+
+// 2) EMA Fast cover (short)
+bool emaCoverHit = useEmaFastExit and inShort and (emaExitOnWick ? (high > emaFast) : (close > emaFast))
+
+// 3) USI cover (short) — Red crosses above Blue
+usiCrossUp = ta.crossover(usiRed, usiBlue)
+usiBullState = usiRed > usiBlue
+bool usiCoverHit = useUsiExit and inShort and (usiExitOnState ? usiBullState : usiCrossUp)
+
+// 4) Impulse up cover (short)
+bool impulseUp = useImpulseExit and inShort and (close > open) and (body > atrExit * impulseExitMult)
+
+bool doCoverCore = coverBullStruct or emaCoverHit or usiCoverHit or impulseUp
+bool doCover = allowSameBarExit ? doCoverCore : (doCoverCore and (bar_index != entryBar))
+
+//====================
+// Labels
+//====================
+plotshape(showTradeLabels and doBuy, title="BUY", style=shape.triangleup, location=location.belowbar,
+    color=color.new(color.green, 0), size=size.tiny, text="BUY")
+
+plotshape(showTradeLabels and doShort, title="SHORT", style=shape.triangledown, location=location.abovebar,
+    color=color.new(color.red, 0), size=size.tiny, text="SHORT")
+
+// EXIT labels (priority: Structure > EMA > USI > Impulse)
+plotshape(showTradeLabels and doExit and exitBearStruct, title="EXIT Struct", style=shape.triangledown, location=location.abovebar,
+    color=color.new(color.orange, 0), size=size.tiny, text="EXIT\nStruct")
+plotshape(showTradeLabels and doExit and (not exitBearStruct) and emaExitHit, title="EXIT EMA", style=shape.triangledown, location=location.abovebar,
+    color=color.new(color.orange, 0), size=size.tiny, text="EXIT\nEMA")
+plotshape(showTradeLabels and doExit and (not exitBearStruct) and (not emaExitHit) and usiExitHit, title="EXIT USI", style=shape.triangledown, location=location.abovebar,
+    color=color.new(color.orange, 0), size=size.tiny, text="EXIT\nUSI")
+plotshape(showTradeLabels and doExit and (not exitBearStruct) and (not emaExitHit) and (not usiExitHit) and impulseDown, title="EXIT IMP", style=shape.triangledown, location=location.abovebar,
+    color=color.new(color.orange, 0), size=size.tiny, text="EXIT\nIMP")
+
+// COVER labels (priority: Structure > EMA > USI > Impulse)
+plotshape(showTradeLabels and doCover and coverBullStruct, title="COVER Struct", style=shape.triangleup, location=location.belowbar,
+    color=color.new(color.teal, 0), size=size.tiny, text="COVER\nStruct")
+plotshape(showTradeLabels and doCover and (not coverBullStruct) and emaCoverHit, title="COVER EMA", style=shape.triangleup, location=location.belowbar,
+    color=color.new(color.teal, 0), size=size.tiny, text="COVER\nEMA")
+plotshape(showTradeLabels and doCover and (not coverBullStruct) and (not emaCoverHit) and usiCoverHit, title="COVER USI", style=shape.triangleup, location=location.belowbar,
+    color=color.new(color.teal, 0), size=size.tiny, text="COVER\nUSI")
+plotshape(showTradeLabels and doCover and (not coverBullStruct) and (not emaCoverHit) and (not usiCoverHit) and impulseUp, title="COVER IMP", style=shape.triangleup, location=location.belowbar,
+    color=color.new(color.teal, 0), size=size.tiny, text="COVER\nIMP")
+
+// Debug chars
+plotchar(showStructDebug and ms_isChoCH_L, title="isChoCH_L", char="L", location=location.bottom, color=color.new(color.lime, 0))
+plotchar(showStructDebug and ms_isChoCH_S, title="isChoCH_S", char="S", location=location.top, color=color.new(color.red, 0))
+plotchar(showStructDebug and ms_bosL,      title="bosL",      char="b", location=location.bottom, color=color.new(color.green, 0))
+plotchar(showStructDebug and ms_bosS,      title="bosS",      char="s", location=location.top, color=color.new(color.red, 0))
+
+//====================
+// Strategy orders (exits first, then entries — allows same-bar flip)
+//====================
+
+// reset entryBar when flat
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    entryBar := na
+
+// Phase 1: Exits
+if doExit
+    string why = exitBearStruct ? "Bear Structure" : emaExitHit ? "EMA Fast" : usiExitHit ? "USI Flip" : impulseDown ? "Impulse Down" : "Exit"
+    strategy.close("LONG", comment=why)
+
+if doCover
+    string why = coverBullStruct ? "Bull Structure" : emaCoverHit ? "EMA Fast" : usiCoverHit ? "USI Flip" : impulseUp ? "Impulse Up" : "Cover"
+    strategy.close("SHORT", comment=why)
+
+// Phase 2: Entries
+if doBuy
+    strategy.entry("LONG", strategy.long, qty=qtyEff)
+    entryBar := bar_index
+
+if doShort
+    strategy.entry("SHORT", strategy.short, qty=qtyEff)
+    entryBar := bar_index

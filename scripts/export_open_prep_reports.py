@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from html import escape
 import sys
 from pathlib import Path
@@ -10,22 +10,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from open_prep.trade_cards import build_trade_cards
-from open_prep.macro import (
-    FMPClient,
-    filter_us_events,
-    filter_us_high_impact_events,
-    filter_us_mid_impact_events,
-    macro_bias_score,
-)
-from open_prep.news import build_news_scores
 from open_prep.run_open_prep import (
-    _atr14_by_symbol,
-    _event_is_today,
-    _format_macro_events,
     GAP_MODE_PREMARKET_INDICATIVE,
-    apply_gap_mode_to_quotes,
+    generate_open_prep_result,
 )
-from open_prep.screen import rank_candidates
 
 DEFAULT_UNIVERSE = ["NVDA", "PLTR", "PWR", "TSLA", "AMD", "META", "MSFT", "AMZN", "GOOGL", "SMCI"]
 
@@ -45,40 +33,29 @@ def table(headers: list[str], rows: list[list[object]]) -> str:
 def main() -> None:
     now_utc = datetime.now(UTC)
     version = now_utc.strftime("%Y%m%d_%H%M%SZ")
-    run_date = now_utc.date()
-
-    client = FMPClient.from_env()
-    macro_events = client.get_macro_calendar(run_date, run_date + timedelta(days=3))
-    todays_events = [e for e in macro_events if _event_is_today(e, run_date)]
-
-    bias = macro_bias_score(todays_events)
-    quotes = client.get_batch_quotes(DEFAULT_UNIVERSE)
-    quotes = apply_gap_mode_to_quotes(
-        quotes,
-        run_dt_utc=now_utc,
+    pipeline_result = generate_open_prep_result(
+        symbols=DEFAULT_UNIVERSE,
+        days_ahead=3,
+        top=10,
+        trade_cards=5,
+        max_macro_events=15,
+        pre_open_only=False,
+        pre_open_cutoff_utc="16:00:00",
         gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        now_utc=now_utc,
     )
-    atr_by_symbol, _ = _atr14_by_symbol(client=client, symbols=DEFAULT_UNIVERSE, as_of=run_date)
-    for q in quotes:
-        sym = str(q.get("symbol") or "").strip().upper()
-        if sym:
-            q["atr"] = atr_by_symbol.get(sym, 0.0)
-    news_scores: dict[str, float] = {}
-    try:
-        articles = client.get_fmp_articles(limit=250)
-        news_scores, _ = build_news_scores(symbols=DEFAULT_UNIVERSE, articles=articles)
-    except RuntimeError as exc:
-        print(f"[export_open_prep_reports] news fetch skipped: {exc}", file=sys.stderr)
-    ranked = rank_candidates(quotes=quotes, bias=bias, top_n=10, news_scores=news_scores)
-    cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=5)
+    run_date_utc = str(pipeline_result.get("run_date_utc", now_utc.date().isoformat()))
+    generated_at_utc = str(pipeline_result.get("run_datetime_utc", now_utc.isoformat()))
+    ranked = list(pipeline_result.get("ranked_candidates", []))
+    cards = list(pipeline_result.get("trade_cards", []))
 
     result: dict[str, Any] = {
-        "run_date_utc": run_date.isoformat(),
-        "generated_at_utc": now_utc.isoformat(),
-        "macro_bias": round(bias, 4),
-        "macro_us_event_count_today": len(filter_us_events(todays_events)),
-        "macro_us_high_impact_events_today": _format_macro_events(filter_us_high_impact_events(todays_events), 15),
-        "macro_us_mid_impact_events_today": _format_macro_events(filter_us_mid_impact_events(todays_events), 15),
+        "run_date_utc": run_date_utc,
+        "generated_at_utc": generated_at_utc,
+        "macro_bias": pipeline_result.get("macro_bias", 0.0),
+        "macro_us_event_count_today": pipeline_result.get("macro_us_event_count_today", 0),
+        "macro_us_high_impact_events_today": list(pipeline_result.get("macro_us_high_impact_events_today", [])),
+        "macro_us_mid_impact_events_today": list(pipeline_result.get("macro_us_mid_impact_events_today", [])),
         "ranked_candidates": ranked,
         "trade_cards": cards,
     }

@@ -19,6 +19,9 @@ WEIGHT_HVB = 0.3
 WEIGHT_EARNINGS_BMO = 1.5
 WEIGHT_LIQUIDITY_PENALTY = 1.5
 RISK_OFF_PENALTY_MULTIPLIER = 2.0
+WEIGHT_EXT_HOURS = 1.0
+WEIGHT_CORPORATE_ACTION_PENALTY = 1.0
+WEIGHT_ANALYST_CATALYST = 0.5
 
 
 def rank_candidates(
@@ -68,6 +71,19 @@ def rank_candidates(
         earnings_today = bool(quote.get("earnings_today", False))
         earnings_timing = quote.get("earnings_timing") or ""
         is_premarket_mover = bool(quote.get("is_premarket_mover", False))
+        ext_hours_score = _to_float(quote.get("ext_hours_score"), default=0.0)
+        ext_volume_ratio = _to_float(quote.get("ext_volume_ratio"), default=0.0)
+        premarket_stale = bool(quote.get("premarket_stale", False))
+        premarket_spread_bps: float | None = _to_float(
+            quote.get("premarket_spread_bps"), default=float("nan")
+        )
+        if premarket_spread_bps != premarket_spread_bps:
+            premarket_spread_bps = None
+        corporate_action_penalty = _to_float(quote.get("corporate_action_penalty"), default=0.0)
+        analyst_catalyst_score = _to_float(quote.get("analyst_catalyst_score"), default=0.0)
+        split_today = bool(quote.get("split_today", False))
+        dividend_today = bool(quote.get("dividend_today", False))
+        ipo_window = bool(quote.get("ipo_window", False))
         premarket_change_raw = quote.get("premarket_change_pct")
         premarket_change_pct_val = _to_float(premarket_change_raw, default=float("nan"))
         premarket_change_pct: float | None = (
@@ -92,6 +108,9 @@ def rank_candidates(
         earnings_bmo_component = WEIGHT_EARNINGS_BMO if earnings_bmo else 0.0
         news_score = by_symbol_news.get(symbol, 0.0)
         news_component = news_score
+        ext_hours_component = WEIGHT_EXT_HOURS * ext_hours_score
+        corporate_action_penalty_component = WEIGHT_CORPORATE_ACTION_PENALTY * max(corporate_action_penalty, 0.0)
+        analyst_catalyst_component = WEIGHT_ANALYST_CATALYST * analyst_catalyst_score
         liquidity_penalty_component = WEIGHT_LIQUIDITY_PENALTY * liquidity_penalty
         risk_off_penalty_component = risk_off_penalty
 
@@ -105,7 +124,10 @@ def rank_candidates(
         score += hvb_component
         score += earnings_bmo_component
         score += news_component
+        score += ext_hours_component
+        score += analyst_catalyst_component
         score -= liquidity_penalty_component
+        score -= corporate_action_penalty_component
         score -= risk_off_penalty_component
 
         no_trade_reason: list[str] = []
@@ -164,6 +186,15 @@ def rank_candidates(
                 "earnings_bmo": earnings_bmo,
                 "is_premarket_mover": is_premarket_mover,
                 "premarket_change_pct": premarket_change_pct,
+                "ext_hours_score": round(ext_hours_score, 4),
+                "ext_volume_ratio": round(ext_volume_ratio, 6),
+                "premarket_stale": premarket_stale,
+                "premarket_spread_bps": premarket_spread_bps,
+                "split_today": split_today,
+                "dividend_today": dividend_today,
+                "ipo_window": ipo_window,
+                "corporate_action_penalty": round(max(corporate_action_penalty, 0.0), 4),
+                "analyst_catalyst_score": round(analyst_catalyst_score, 4),
                 "macro_bias": round(bias, 4),
                 "news_catalyst_score": round(news_score, 4),
                 "allowed_setups": allowed_setups,
@@ -181,6 +212,9 @@ def rank_candidates(
                     "hvb_component": round(hvb_component, 4),
                     "earnings_bmo_component": round(earnings_bmo_component, 4),
                     "news_component": round(news_component, 4),
+                    "ext_hours_component": round(ext_hours_component, 4),
+                    "analyst_catalyst_component": round(analyst_catalyst_component, 4),
+                    "corporate_action_penalty": round(corporate_action_penalty_component, 4),
                     "liquidity_penalty": round(liquidity_penalty_component, 4),
                     "risk_off_penalty": round(risk_off_penalty_component, 4),
                 },

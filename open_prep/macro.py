@@ -283,8 +283,40 @@ class FMPClient:
         return [item for item in data if isinstance(item, dict)]
 
     def get_premarket_movers(self) -> list[dict[str, Any]]:
-        """Fetch pre/post-market most-active movers (FMP v4)."""
-        data = self._get("/v4/pre_post_market_most_active", {})
+        """Fetch top actively traded symbols from stable market performance API."""
+        data = self._get("/stable/most-actives", {})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_biggest_gainers(self) -> list[dict[str, Any]]:
+        """Fetch top gainers from stable market performance API."""
+        data = self._get("/stable/biggest-gainers", {})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_biggest_losers(self) -> list[dict[str, Any]]:
+        """Fetch top losers from stable market performance API."""
+        data = self._get("/stable/biggest-losers", {})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_batch_aftermarket_quote(self, symbols: list[str]) -> list[dict[str, Any]]:
+        """Fetch pre/post-market quotes for symbols from stable batch endpoint."""
+        if not symbols:
+            return []
+        data = self._get("/stable/batch-aftermarket-quote", {"symbols": ",".join(symbols)})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_batch_aftermarket_trade(self, symbols: list[str]) -> list[dict[str, Any]]:
+        """Fetch pre/post-market trades for symbols from stable batch endpoint."""
+        if not symbols:
+            return []
+        data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -292,9 +324,98 @@ class FMPClient:
     def get_earnings_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         """Fetch earnings calendar for a date range."""
         data = self._get(
-            "/v3/earning_calendar",
+            "/stable/earnings-calendar",
             {"from": date_from.isoformat(), "to": date_to.isoformat()},
         )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_dividends_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        """Fetch dividends calendar for a date range."""
+        data = self._get(
+            "/stable/dividends-calendar",
+            {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_splits_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        """Fetch stock splits calendar for a date range."""
+        data = self._get(
+            "/stable/splits-calendar",
+            {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_ipos_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        """Fetch IPO calendar for a date range."""
+        data = self._get(
+            "/stable/ipos-calendar",
+            {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_earnings_report(self, symbol: str, limit: int = 12) -> list[dict[str, Any]]:
+        """Fetch company earnings report history from stable endpoint."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        safe_limit = max(1, min(int(limit), 1000))
+        data = self._get("/stable/earnings", {"symbol": sym, "limit": safe_limit})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_price_target_summary(self, symbol: str) -> dict[str, Any]:
+        """Fetch analyst price-target summary for a symbol."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return {}
+        data = self._get("/stable/price-target-summary", {"symbol": sym})
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    def get_eod_bulk(self, as_of: date) -> list[dict[str, Any]]:
+        """Fetch EOD bulk rows for a specific date."""
+        data = self._get("/stable/eod-bulk", {"date": as_of.isoformat()})
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_company_screener(
+        self,
+        *,
+        country: str = "US",
+        market_cap_more_than: float | int | None = None,
+        exchange: str | None = "NASDAQ,NYSE,AMEX",
+        is_etf: bool = False,
+        is_fund: bool = False,
+        limit: int = 1000,
+        page: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Fetch equity screener rows from FMP stable company screener."""
+        params: dict[str, Any] = {
+            "country": str(country).strip().upper(),
+            "isEtf": "true" if is_etf else "false",
+            "isFund": "true" if is_fund else "false",
+            "limit": max(1, min(int(limit), 1000)),
+            "page": max(int(page), 0),
+        }
+        if exchange:
+            params["exchange"] = str(exchange).strip().upper()
+        if market_cap_more_than is not None:
+            params["marketCapMoreThan"] = int(float(market_cap_more_than))
+
+        data = self._get("/stable/company-screener", params)
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]

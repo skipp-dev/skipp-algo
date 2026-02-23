@@ -1,0 +1,6 @@
+//@version=6
+indicator("Test Div")
+var int a = 1
+var int b = 2
+float c = a / b
+plot(c)

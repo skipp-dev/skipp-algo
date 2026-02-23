@@ -1056,8 +1056,8 @@ macroScoreDir = macroGateMode == "Off" ? 0.5 : emaF > emaS ? (1.0 - macroPct) : 
 bool macroGateLong = true
 bool macroGateShort = true
 if macroGateMode == "Hard Gate"
-    macroGateLong := na(macroPct) ? na : (macroPct < macroLongPctThreshold)
-    macroGateShort := na(macroPct) ? na : (macroPct > macroShortPctThreshold)
+    macroGateLong := macroPct < macroLongPctThreshold
+    macroGateShort := macroPct > macroShortPctThreshold
 
 // Drawdown
 ddPeak = ta.highest(close, ddLookback)

@@ -3,21 +3,16 @@ from __future__ import annotations
 import csv
 import json
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from open_prep.macro import FMPClient, macro_bias_score
 from open_prep.run_open_prep import (
     GAP_MODE_PREMARKET_INDICATIVE,
-    _atr14_by_symbol,
-    _event_is_today,
-    apply_gap_mode_to_quotes,
+    generate_open_prep_result,
 )
-from open_prep.screen import rank_candidates
-from open_prep.trade_cards import build_trade_cards
 
 
 DEFAULT_UNIVERSE = ["NVDA", "PLTR", "PWR", "TSLA", "AMD", "META", "MSFT", "AMZN", "GOOGL", "SMCI"]
@@ -38,25 +33,20 @@ def _table(headers: list[str], rows: list[list[object]]) -> str:
 def main() -> None:
     now_utc = datetime.now(UTC)
     version = now_utc.strftime("%Y%m%d_%H%M%SZ")
-    run_date = now_utc.date()
-
-    client = FMPClient.from_env()
-    macro_events = client.get_macro_calendar(run_date, run_date + timedelta(days=3))
-    todays_events = [e for e in macro_events if _event_is_today(e, run_date)]
-    bias = macro_bias_score(todays_events)
-    quotes = client.get_batch_quotes(DEFAULT_UNIVERSE)
-    quotes = apply_gap_mode_to_quotes(
-        quotes,
-        run_dt_utc=now_utc,
+    result = generate_open_prep_result(
+        symbols=DEFAULT_UNIVERSE,
+        days_ahead=3,
+        top=10,
+        trade_cards=5,
+        max_macro_events=15,
+        pre_open_only=False,
+        pre_open_cutoff_utc="16:00:00",
         gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        now_utc=now_utc,
     )
-    atr_by_symbol, _ = _atr14_by_symbol(client=client, symbols=DEFAULT_UNIVERSE, as_of=run_date)
-    for q in quotes:
-        sym = str(q.get("symbol") or "").strip().upper()
-        if sym:
-            q["atr"] = atr_by_symbol.get(sym, 0.0)
-    ranked = rank_candidates(quotes=quotes, bias=bias, top_n=10)
-    cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=5)
+    run_date = str(result.get("run_date_utc", now_utc.date().isoformat()))
+    ranked = result.get("ranked_candidates", [])
+    cards = result.get("trade_cards", [])
 
     out_dir = Path(__file__).resolve().parents[1] / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -176,7 +166,7 @@ def main() -> None:
 <body>
   <h1>Open Prep Lists</h1>
   <p><b>Version:</b> {escape(version)}</p>
-  <p><b>Run Date (UTC):</b> {escape(run_date.isoformat())}</p>
+    <p><b>Run Date (UTC):</b> {escape(run_date)}</p>
   <h2>Ranked Candidates</h2>
   {_table(ranked_headers, ranked_rows)}
   <h2>Trade Cards</h2>

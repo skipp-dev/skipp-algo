@@ -1,0 +1,335 @@
+//@version=6
+indicator("CHOCH-Base Indikator v7 (RUNA logic)", overlay=true)
+
+// =====================
+// INPUTS & PRESETS
+// =====================
+presetMode   = input.string("Balanced", "Strategy Preset", options=["Custom", "Conservative", "Balanced", "Aggressive"])
+
+fastEMA      = input.int(23,  "Fast EMA")
+slowEMA      = input.int(55,  "Slow EMA")
+rsiLen       = input.int(15,  "RSI Length")
+atrLen       = input.int(14,  "ATR Length")
+
+volMult      = input.float(1.16, "Volatility Filter Multiplier", step=0.01)
+riskPct      = input.float(0.5,  "Risk % per trade", step=0.1)
+rr           = input.float(1.5,  "Reward/Risk Ratio", step=0.1)
+
+lookback     = input.int(10, "Sweep Lookback")
+pullbackBars = input.int(3,  "Pullback Bars")
+
+// HTF modes
+useHtf       = input.bool(false, "Use HTF Filter")
+htfTf        = input.timeframe("60", "HTF Timeframe")
+htfEmaLen    = input.int(50, "HTF EMA Length")
+htfMode      = input.string("EMA", "HTF Mode",
+               options=["OFF","EMA","EMA+Slope","Price+FastSlope","RiskOff"])
+
+// Sizing realism (kept for parity with strategy file)
+cashBufferPct = input.float(0.98, "Max Notional as % of Equity", step=0.01)
+roundQty      = input.bool(true, "Round qty to step")
+qtyStep       = input.float(0.00001, "Qty step (e.g. 0.00001)", step=0.00001)
+
+// Trade management (kept for parity; indicator uses signals only)
+tp1_R         = input.float(1.0, "TP1 at R multiple (partial)", step=0.1)
+tp1_pct       = input.float(30,  "TP1 % size (0 = off)", minval=0, maxval=99)
+
+beStartR      = input.float(1.0, "Break-even start (R)", step=0.1)
+trailStartR   = input.float(1.5, "Trail start (R)", step=0.1)
+trailATRmult  = input.float(1.0, "Trail ATR mult", step=0.1)
+stopAtrMult   = input.float(1.5, "Stop ATR mult", step=0.1)
+useChochFlipExit = input.bool(false, "Use CHoCH Verify flip as exit")
+
+timeStopBars  = input.int(30, "Time-stop bars (Soft)", minval=1)
+progressR     = input.float(1.0, "Min progress by time-stop (R)", step=0.1)
+hardMaxBars   = input.int(120, "Hard max bars (Force close)", minval=1)
+
+catastropheR  = input.float(2.5, "Catastrophe Stop (R)", step=0.1)
+cooldownBars  = input.int(30, "Cooldown bars after win/BE", minval=0)
+lossCooldownBars = input.int(60, "Cooldown bars after loss", minval=0)
+allowShorts   = input.bool(false, "Enable Short Trades")
+
+//====================
+// Market Structure (BOS/ChoCH)
+//====================
+grp = "Market Structure (BOS/ChoCH)"
+
+ms_swingL = input.int(3, "Swing L", minval=1, maxval=30, group=grp)
+ms_swingR = input.int(2, "Swing R", minval=1, maxval=30, group=grp)
+ms_maxAge = input.int(0, "Swing max age (bars, 0=off)", minval=0, maxval=5000, group=grp)
+
+ms_breakSrc = input.string("Wick", "Breakout source", options=["Close","Wick"], group=grp)
+ms_logic    = input.string("Standard", "Structure logic", options=["Standard","SMC+Sweep"], group=grp)
+
+ms_mode = input.string("Verify", "ChoCH mode", options=["Ping","Verify","Ping+Verify"], group=grp)
+useAdxFilter = input.bool(false, "Use ADX trend filter", group=grp)
+adxLen       = input.int(14, "ADX length", minval=1, group=grp)
+adxThreshold = input.float(20.0, "ADX threshold", step=0.5, group=grp)
+
+ms_showTags = input.bool(true, "Show BOS/ChoCH tags", group=grp)
+ms_showPing = input.bool(false, "Show Ping markers", group=grp)
+
+//====================
+// Entry Mode (CHoCH integration)
+//====================
+grp_entry = "Entry Mode (CHoCH integration)"
+chochWindowBars = input.int(45, "Max bars after CHoCH (for Gate mode)", minval=1, maxval=500, group=grp_entry)
+useChochWindow  = input.bool(true, "Require trigger within CHoCH window", group=grp_entry)
+
+// =====================
+// Entry Quality
+// =====================
+useEntryV2   = input.bool(true, "Entry V2 (Momentum + Impulse)", inline="ev2")
+impulseMult  = input.float(0.30, "Impulse ATR×", step=0.05, inline="ev2")
+rsiLongMin   = input.int(60, "RSI Long ≥", minval=1, maxval=99)
+rsiShortMax  = input.int(45, "RSI Short ≤", minval=1, maxval=99)
+
+// =====================
+// PRESET LOGIC
+// =====================
+float eff_impulseMult = impulseMult
+int   eff_rsiLongMin  = rsiLongMin
+int   eff_cooldown    = cooldownBars
+int   eff_lossCooldown = lossCooldownBars
+
+if presetMode == "Conservative"
+    eff_impulseMult := 0.35
+    eff_rsiLongMin  := 65
+    eff_cooldown    := 45
+    eff_lossCooldown:= 90
+else if presetMode == "Balanced"
+    eff_impulseMult := 0.30
+    eff_rsiLongMin  := 60
+    eff_cooldown    := 30
+    eff_lossCooldown:= 60
+else if presetMode == "Aggressive"
+    eff_impulseMult := 0.20
+    eff_rsiLongMin  := 55
+    eff_cooldown    := 15
+    eff_lossCooldown:= 30
+
+// =====================
+// INDICATORS
+// =====================
+emaFast = ta.ema(close, fastEMA)
+emaSlow = ta.ema(close, slowEMA)
+rsi     = ta.rsi(close, rsiLen)
+atr     = ta.atr(atrLen)
+
+atrAvg  = ta.sma(atr, 49)
+highVol = atr > atrAvg * volMult
+[_, _, adxVal] = ta.dmi(adxLen, adxLen)
+adxOk   = (not useAdxFilter) or (adxVal > adxThreshold)
+
+trendLong  = emaFast > emaSlow
+trendShort = emaFast < emaSlow
+emaFastSlope = emaFast - emaFast[1]
+
+// =====================
+// HTF FILTER
+// =====================
+htfClose = request.security(syminfo.tickerid, htfTf, close,                    lookahead=barmerge.lookahead_off)
+htfEma   = request.security(syminfo.tickerid, htfTf, ta.ema(close, htfEmaLen), lookahead=barmerge.lookahead_off)
+htfEmaSlope = htfEma - htfEma[1]
+htfBull  = htfClose > htfEma
+htfBear  = htfClose < htfEma
+
+allowL = true
+allowS = true
+
+if useHtf
+    if htfMode == "OFF"
+        allowL := true
+        allowS := true
+    else if htfMode == "EMA"
+        allowL := htfBull
+        allowS := htfBear
+    else if htfMode == "EMA+Slope"
+        allowL := htfBull and htfEmaSlope > 0
+        allowS := htfBear and htfEmaSlope < 0
+    else if htfMode == "Price+FastSlope"
+        allowL := close > htfEma and emaFastSlope > 0
+        allowS := close < htfEma and emaFastSlope < 0
+    else // RiskOff
+        allowL := htfBull
+        allowS := htfBear
+
+// ---- swings (stable levels)
+var float ms_lastHi = na
+var float ms_lastLo = na
+var int   ms_lastHiBar = na
+var int   ms_lastLoBar = na
+
+ph = ta.pivothigh(high, ms_swingL, ms_swingR)
+pl = ta.pivotlow(low,  ms_swingL, ms_swingR)
+
+if not na(ph)
+    ms_lastHi := ph
+    ms_lastHiBar := bar_index - ms_swingR
+
+if not na(pl)
+    ms_lastLo := pl
+    ms_lastLoBar := bar_index - ms_swingR
+
+if ms_maxAge > 0
+    if not na(ms_lastHiBar) and (bar_index - ms_lastHiBar > ms_maxAge)
+        ms_lastHi := na
+        ms_lastHiBar := na
+    if not na(ms_lastLoBar) and (bar_index - ms_lastLoBar > ms_maxAge)
+        ms_lastLo := na
+        ms_lastLoBar := na
+
+// ---- breakouts
+bool ms_breakHi = false
+bool ms_breakLo = false
+
+ms_xHi_all = ta.crossover(high, nz(ms_lastHi, high))
+ms_xLo_all = ta.crossunder(low,  nz(ms_lastLo, low))
+bool ms_xHi = not na(ms_lastHi) and ms_xHi_all
+bool ms_xLo = not na(ms_lastLo) and ms_xLo_all
+
+if ms_breakSrc == "Wick"
+    ms_breakHi := ms_xHi
+    ms_breakLo := ms_xLo
+else
+    ms_breakHi := not na(ms_lastHi) and close > ms_lastHi and close[1] <= ms_lastHi
+    ms_breakLo := not na(ms_lastLo) and close < ms_lastLo and close[1] >= ms_lastLo
+
+bool ms_breakoutLong  = ms_breakHi
+bool ms_breakoutShort = ms_breakLo
+
+bool ms_sweepHigh  = false
+bool ms_reclaimLow = false
+
+if ms_logic == "SMC+Sweep" and not na(ms_lastHi) and not na(ms_lastLo)
+    ms_sweepHigh  := high > ms_lastHi and close < ms_lastHi
+    ms_reclaimLow := low < ms_lastLo and close > ms_lastLo
+
+// ---- structure state + events
+var int ms_state = 0
+
+bool ms_pingL = false
+bool ms_pingS = false
+bool ms_bosL  = false
+bool ms_bosS  = false
+
+ms_pingL := false
+ms_pingS := false
+ms_bosL  := false
+ms_bosS  := false
+
+if ms_breakoutLong
+    ms_pingL := (ms_state == -1)
+    ms_bosL  := not ms_pingL
+    ms_state := 1
+
+if ms_breakoutShort
+    ms_pingS := (ms_state == 1)
+    ms_bosS  := not ms_pingS
+    ms_state := -1
+
+if ms_logic == "SMC+Sweep"
+    if ms_reclaimLow
+        ms_pingL := true
+    if ms_sweepHigh
+        ms_pingS := true
+
+var float ms_pingHiLevel = na
+var float ms_pingLoLevel = na
+
+if ms_pingL
+    ms_pingHiLevel := ms_lastHi
+if ms_pingS
+    ms_pingLoLevel := ms_lastLo
+
+bool ms_verifyL = ms_pingL[1] and not na(ms_pingHiLevel[1]) and close > ms_pingHiLevel[1]
+bool ms_verifyS = ms_pingS[1] and not na(ms_pingLoLevel[1]) and close < ms_pingLoLevel[1]
+
+bool ms_isChoCH_L = false
+bool ms_isChoCH_S = false
+
+if ms_mode == "Ping"
+    ms_isChoCH_L := ms_pingL
+    ms_isChoCH_S := ms_pingS
+else if ms_mode == "Verify"
+    ms_isChoCH_L := ms_verifyL
+    ms_isChoCH_S := ms_verifyS
+else
+    ms_isChoCH_L := (ms_pingL or ms_verifyL)
+    ms_isChoCH_S := (ms_pingS or ms_verifyS)
+
+// ---- visuals (structure)
+plotshape(ms_showTags and ms_isChoCH_L, "ChoCH L", style=shape.labelup,   location=location.belowbar, text="ChoCH", size=size.tiny, color=color.new(color.purple, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_isChoCH_S, "ChoCH S", style=shape.labeldown, location=location.abovebar, text="ChoCH", size=size.tiny, color=color.new(color.maroon, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_bosL,      "BOS L",   style=shape.labelup,   location=location.belowbar, text="BOS",   size=size.tiny, color=color.new(color.green, 0),  textcolor=color.white)
+plotshape(ms_showTags and ms_bosS,      "BOS S",   style=shape.labeldown, location=location.abovebar, text="BOS",   size=size.tiny, color=color.new(color.red, 0),    textcolor=color.white)
+
+plotchar(ms_showPing and ms_pingL, "Ping L", "?", location=location.belowbar, size=size.tiny, color=color.new(color.yellow, 0))
+plotchar(ms_showPing and ms_pingS, "Ping S", "?", location=location.abovebar, size=size.tiny, color=color.new(color.yellow, 0))
+
+// =====================
+// SIGNALS (sweep + controlled breakout)
+// =====================
+sweepLow  = low  < ta.lowest(low[1],  lookback)
+sweepHigh = high > ta.highest(high[1], lookback)
+
+pullbackLong  = ta.lowest(low,  pullbackBars) < emaFast
+pullbackShort = ta.highest(high, pullbackBars) > emaFast
+
+breakHigh = close > ta.highest(high, 6)[1]
+breakLow  = close < ta.lowest(low,  6)[1]
+
+sweepLowEvent  = sweepLow  and not sweepLow[1]
+sweepHighEvent = sweepHigh and not sweepHigh[1]
+breakHighEvent = breakHigh and not breakHigh[1]
+breakLowEvent  = breakLow  and not breakLow[1]
+
+body    = math.abs(close - open)
+impulse = body > atr * eff_impulseMult
+
+momLong  = close > emaFast and rsi >= eff_rsiLongMin
+momShort = close < emaFast and rsi <= rsiShortMax
+
+longSweep_v1  = trendLong and sweepLowEvent  and rsi > 45 and highVol
+longBreak_v1  = trendLong and pullbackLong   and breakHighEvent and rsi > 50 and highVol
+shortSweep_v1 = trendShort and sweepHighEvent and rsi < 55 and highVol
+shortBreak_v1 = trendShort and pullbackShort and breakLowEvent  and rsi < 50 and highVol
+
+longSweep_v2  = longSweep_v1  and momLong  and impulse
+longBreak_v2  = longBreak_v1  and momLong  and impulse
+shortSweep_v2 = shortSweep_v1 and momShort and impulse
+shortBreak_v2 = shortBreak_v1 and momShort and impulse
+
+longSweep  = useEntryV2 ? longSweep_v2  : longSweep_v1
+longBreak  = useEntryV2 ? longBreak_v2  : longBreak_v1
+shortSweep = useEntryV2 ? shortSweep_v2 : shortSweep_v1
+shortBreak = useEntryV2 ? shortBreak_v2 : shortBreak_v1
+
+triggerLong  = longSweep or longBreak
+triggerShort = shortSweep or shortBreak
+
+bool longCond  = triggerLong and allowL and adxOk
+bool shortCond = triggerShort and allowS and adxOk
+
+slopeOkL = emaFastSlope > 0
+slopeOkS = emaFastSlope < 0
+sepOk    = math.abs(emaFast - emaSlow) > atr * 0.25
+
+longCond  := longCond and slopeOkL and sepOk
+shortCond := shortCond and slopeOkS and sepOk
+
+if not allowShorts
+    shortCond := false
+
+// =====================
+// VISUALS (indicator)
+// =====================
+plot(emaFast, color=color.orange)
+plot(emaSlow, color=color.blue)
+bgcolor(useHtf ? (htfBull ? color.new(color.green, 93) : color.new(color.red, 93)) : na)
+
+plotshape(longCond,  title="Long Signal",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, color=color.new(color.green, 0), text="L")
+plotshape(shortCond, title="Short Signal", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0), text="S")
+
+alertcondition(longCond,  title="Long Signal",  message="LONG {{ticker}} [{{interval}}]")
+alertcondition(shortCond, title="Short Signal", message="SHORT {{ticker}} [{{interval}}]")

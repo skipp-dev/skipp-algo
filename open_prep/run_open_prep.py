@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import sys
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -55,11 +56,29 @@ GAP_MODE_CHOICES: tuple[str, ...] = (
     GAP_MODE_PREMARKET_INDICATIVE,
     GAP_MODE_OFF,
 )
+UNIVERSE_SOURCE_STATIC = "STATIC"
+UNIVERSE_SOURCE_FMP_US_MID_LARGE = "FMP_US_MID_LARGE"
+UNIVERSE_SOURCE_CHOICES: tuple[str, ...] = (
+    UNIVERSE_SOURCE_STATIC,
+    UNIVERSE_SOURCE_FMP_US_MID_LARGE,
+)
+DEFAULT_FMP_MIN_MARKET_CAP = 2_000_000_000
+DEFAULT_FMP_MAX_SYMBOLS = 800
+DEFAULT_MOVER_SEED_MAX_SYMBOLS = 400
+MAX_PREMARKET_UNION_SYMBOLS = 1200
+PREMARKET_STALE_SECONDS = 30 * 60
+CORPORATE_ACTION_WINDOW_DAYS = 3
+DEFAULT_ANALYST_CATALYST_LIMIT = 80
+ATR_CACHE_DIR = Path("artifacts/open_prep/cache/atr")
 
 
 @dataclass(frozen=True)
 class OpenPrepConfig:
     symbols: list[str]
+    universe_source: str = UNIVERSE_SOURCE_FMP_US_MID_LARGE
+    fmp_min_market_cap: int = DEFAULT_FMP_MIN_MARKET_CAP
+    fmp_max_symbols: int = DEFAULT_FMP_MAX_SYMBOLS
+    mover_seed_max_symbols: int = DEFAULT_MOVER_SEED_MAX_SYMBOLS
     days_ahead: int = 3
     top: int = 10
     trade_cards: int = 5
@@ -70,6 +89,7 @@ class OpenPrepConfig:
     atr_lookback_days: int = 250
     atr_period: int = 14
     atr_parallel_workers: int = 5
+    analyst_catalyst_limit: int = DEFAULT_ANALYST_CATALYST_LIMIT
 
 
 def _extract_time_str(event_date: str) -> str:
@@ -183,8 +203,42 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--symbols",
-        default=",".join(DEFAULT_UNIVERSE),
-        help="Comma-separated ticker universe.",
+        default="",
+        help=(
+            "Optional comma-separated ticker universe override. "
+            "If omitted, the universe is resolved via --universe-source."
+        ),
+    )
+    parser.add_argument(
+        "--universe-source",
+        type=str,
+        choices=[c.lower() for c in UNIVERSE_SOURCE_CHOICES],
+        default=UNIVERSE_SOURCE_FMP_US_MID_LARGE.lower(),
+        help=(
+            "Universe source when --symbols is not provided: "
+            "fmp_us_mid_large (default) or static fallback list."
+        ),
+    )
+    parser.add_argument(
+        "--fmp-min-market-cap",
+        type=int,
+        default=DEFAULT_FMP_MIN_MARKET_CAP,
+        help="Minimum market cap (USD) for FMP auto-universe, default 2,000,000,000.",
+    )
+    parser.add_argument(
+        "--fmp-max-symbols",
+        type=int,
+        default=DEFAULT_FMP_MAX_SYMBOLS,
+        help="Maximum symbol count for FMP auto-universe.",
+    )
+    parser.add_argument(
+        "--mover-seed-max-symbols",
+        type=int,
+        default=DEFAULT_MOVER_SEED_MAX_SYMBOLS,
+        help=(
+            "Maximum number of symbols imported from most-actives/gainers/losers "
+            "when building attention-seed universe and premarket context."
+        ),
     )
     parser.add_argument(
         "--days-ahead",
@@ -248,6 +302,12 @@ def _parse_args() -> argparse.Namespace:
         type=int,
         default=5,
         help="Maximum parallel workers for ATR historical fetch requests.",
+    )
+    parser.add_argument(
+        "--analyst-catalyst-limit",
+        type=int,
+        default=DEFAULT_ANALYST_CATALYST_LIMIT,
+        help="Maximum symbols to enrich with analyst price-target summaries.",
     )
     return parser.parse_args()
 
@@ -487,17 +547,254 @@ def _add_pdh_pdl_context(quote: dict[str, Any]) -> None:
         quote["dist_to_pdl_atr"] = None
 
 
-def _fetch_earnings_today(client: FMPClient, today: date) -> dict[str, str]:
-    """Return {SYMBOL: timing} for today's earnings.  timing is 'bmo', 'amc', or ''."""
+def _normalize_symbols(values: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        sym = str(raw or "").strip().upper()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append(sym)
+    return out
+
+
+def _extract_symbol_from_row(row: dict[str, Any]) -> str:
+    return str(row.get("symbol") or row.get("ticker") or "").strip().upper()
+
+
+def _parse_calendar_date(value: Any) -> date | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    date_part = raw.split("T")[0].split(" ")[0]
+    try:
+        return date.fromisoformat(date_part)
+    except ValueError:
+        return None
+
+
+def _epoch_to_datetime_utc(value: Any) -> datetime | None:
+    try:
+        if value is None:
+            return None
+        ts = float(value)
+        if ts > 10_000_000_000:  # likely ms epoch
+            ts /= 1000.0
+        if ts <= 0:
+            return None
+        return datetime.fromtimestamp(ts, tz=UTC)
+    except (TypeError, ValueError, OSError, OverflowError):
+        return None
+
+
+def _build_mover_seed(client: FMPClient, max_symbols: int) -> list[str]:
+    safe_limit = max(0, int(max_symbols))
+    if safe_limit == 0:
+        return []
+    rows: list[dict[str, Any]] = []
+    rows.extend(client.get_premarket_movers())
+    rows.extend(client.get_biggest_gainers())
+    rows.extend(client.get_biggest_losers())
+    symbols = _normalize_symbols([_extract_symbol_from_row(row) for row in rows])
+    return symbols[:safe_limit]
+
+
+def _compute_ext_hours_score(
+    *,
+    ext_change_pct: float | None,
+    ext_vol_ratio: float,
+    freshness_sec: float | None,
+    spread_bps: float | None,
+) -> float:
+    change = 0.0 if ext_change_pct is None else max(min(ext_change_pct / 5.0, 3.0), -3.0)
+    vol = max(min(ext_vol_ratio, 5.0), 0.0)
+    if freshness_sec is None:
+        freshness = -0.25
+    else:
+        freshness = max(min((PREMARKET_STALE_SECONDS - freshness_sec) / PREMARKET_STALE_SECONDS, 1.0), -1.0)
+    spread_penalty = 0.0 if spread_bps is None else min(max(spread_bps / 25.0, 0.0), 2.0)
+    score = (0.65 * change) + (0.45 * vol) + (0.35 * freshness) - (0.30 * spread_penalty)
+    return round(max(min(score, 5.0), -5.0), 4)
+
+
+def _fetch_earnings_today(client: FMPClient, today: date) -> dict[str, dict[str, Any]]:
+    """Return today's earnings enrichment keyed by symbol.
+
+    Stable earnings-calendar no longer guarantees a timing field (bmo/amc),
+    so timing may be None. This helper also captures EPS/revenue estimate
+    and actual values for surprise-based event-risk features.
+    """
     data = client.get_earnings_calendar(today, today)
-    result: dict[str, str] = {}
+    result: dict[str, dict[str, Any]] = {}
     for item in data:
         sym = str(item.get("symbol") or "").strip().upper()
         if not sym:
             continue
-        raw_time = str(item.get("time") or "").strip().lower()
-        result[sym] = raw_time  # "bmo", "amc", "" etc.
+        raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
+        eps_actual = _to_float(item.get("epsActual"), default=float("nan"))
+        eps_estimate = _to_float(item.get("epsEstimated"), default=float("nan"))
+        rev_actual = _to_float(item.get("revenueActual"), default=float("nan"))
+        rev_estimate = _to_float(item.get("revenueEstimated"), default=float("nan"))
+
+        eps_surprise_pct: float | None = None
+        if eps_actual == eps_actual and eps_estimate == eps_estimate and abs(eps_estimate) > 0.0:
+            eps_surprise_pct = ((eps_actual - eps_estimate) / abs(eps_estimate)) * 100.0
+
+        rev_surprise_pct: float | None = None
+        if rev_actual == rev_actual and rev_estimate == rev_estimate and abs(rev_estimate) > 0.0:
+            rev_surprise_pct = ((rev_actual - rev_estimate) / abs(rev_estimate)) * 100.0
+
+        result[sym] = {
+            "earnings_timing": raw_time or None,
+            "eps_actual": None if eps_actual != eps_actual else eps_actual,
+            "eps_estimate": None if eps_estimate != eps_estimate else eps_estimate,
+            "eps_surprise_pct": eps_surprise_pct,
+            "revenue_actual": None if rev_actual != rev_actual else rev_actual,
+            "revenue_estimate": None if rev_estimate != rev_estimate else rev_estimate,
+            "revenue_surprise_pct": rev_surprise_pct,
+        }
     return result
+
+
+def _fetch_corporate_action_flags(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    today: date,
+    window_days: int = CORPORATE_ACTION_WINDOW_DAYS,
+) -> dict[str, dict[str, Any]]:
+    start = today - timedelta(days=max(int(window_days), 0))
+    end = today + timedelta(days=max(int(window_days), 0))
+    out: dict[str, dict[str, Any]] = {
+        sym: {
+            "split_today": False,
+            "dividend_today": False,
+            "ipo_window": False,
+            "corporate_action_penalty": 0.0,
+        }
+        for sym in symbols
+    }
+
+    splits = client.get_splits_calendar(start, end)
+    split_symbols_today: set[str] = set()
+    for row in splits:
+        sym = _extract_symbol_from_row(row)
+        d = _parse_calendar_date(row.get("date"))
+        if sym and d == today:
+            split_symbols_today.add(sym)
+
+    dividends = client.get_dividends_calendar(start, end)
+    dividend_symbols_today: set[str] = set()
+    for row in dividends:
+        sym = _extract_symbol_from_row(row)
+        d = _parse_calendar_date(row.get("date"))
+        if sym and d == today:
+            dividend_symbols_today.add(sym)
+
+    ipos = client.get_ipos_calendar(start, end)
+    ipo_window_symbols: set[str] = set()
+    for row in ipos:
+        sym = _extract_symbol_from_row(row)
+        if sym:
+            ipo_window_symbols.add(sym)
+
+    for sym in symbols:
+        split_today = sym in split_symbols_today
+        dividend_today = sym in dividend_symbols_today
+        ipo_window = sym in ipo_window_symbols
+        penalty = 0.0
+        if split_today:
+            penalty += 1.25
+        if dividend_today:
+            penalty += 0.35
+        if ipo_window:
+            penalty += 0.85
+        out[sym] = {
+            "split_today": split_today,
+            "dividend_today": dividend_today,
+            "ipo_window": ipo_window,
+            "corporate_action_penalty": round(penalty, 4),
+        }
+
+    return out
+
+
+def _fetch_analyst_catalyst(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    limit: int,
+) -> dict[str, dict[str, Any]]:
+    safe_limit = max(0, min(int(limit), len(symbols)))
+    if safe_limit == 0:
+        return {}
+
+    result: dict[str, dict[str, Any]] = {}
+    for sym in symbols[:safe_limit]:
+        row = client.get_price_target_summary(sym)
+        if not row:
+            continue
+
+        avg_target = _to_float(
+            row.get("lastQuarterAvgPriceTarget", row.get("lastYearAvgPriceTarget")),
+            default=float("nan"),
+        )
+        coverage = _to_float(
+            row.get("lastQuarterCount", row.get("lastYearCount", row.get("allTimeCount"))),
+            default=0.0,
+        )
+        catalyst = 0.0
+        if avg_target == avg_target and coverage > 0.0:
+            catalyst = min(max((coverage / 10.0), 0.0), 2.0)
+
+        result[sym] = {
+            "analyst_price_target": None if avg_target != avg_target else avg_target,
+            "analyst_coverage_count": int(max(coverage, 0.0)),
+            "analyst_catalyst_score": round(catalyst, 4),
+        }
+
+    return result
+
+
+def _fetch_earnings_distance_features(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    today: date,
+    max_symbols: int = 120,
+) -> dict[str, dict[str, Any]]:
+    safe_max = max(0, min(int(max_symbols), len(symbols)))
+    if safe_max == 0:
+        return {}
+
+    out: dict[str, dict[str, Any]] = {}
+    for sym in symbols[:safe_max]:
+        rows = client.get_earnings_report(sym, limit=12)
+        dates: list[date] = []
+        for row in rows:
+            d = _parse_calendar_date(row.get("date"))
+            if d is not None:
+                dates.append(d)
+        if not dates:
+            continue
+        past = sorted([d for d in dates if d <= today])
+        future = sorted([d for d in dates if d > today])
+
+        days_since_last = (today - past[-1]).days if past else None
+        days_to_next = (future[0] - today).days if future else None
+        earnings_risk = False
+        if days_since_last is not None and days_since_last <= 1:
+            earnings_risk = True
+        if days_to_next is not None and days_to_next <= 1:
+            earnings_risk = True
+
+        out[sym] = {
+            "days_since_last_earnings": days_since_last,
+            "days_to_next_earnings": days_to_next,
+            "earnings_risk_window": earnings_risk,
+        }
+    return out
 
 
 def _fetch_premarket_context(
@@ -505,6 +802,9 @@ def _fetch_premarket_context(
     client: FMPClient,
     symbols: list[str],
     today: date,
+    run_dt_utc: datetime,
+    mover_seed_max_symbols: int,
+    analyst_catalyst_limit: int,
 ) -> tuple[dict[str, dict[str, Any]], str | None]:
     """Fetch pre-market enrichment data: earnings timing + premarket movers.
 
@@ -513,13 +813,20 @@ def _fetch_premarket_context(
     premarket: dict[str, dict[str, Any]] = {sym: {} for sym in symbols}
     errors: list[str] = []
 
-    # --- Earnings calendar (BMO is the strongest pre-market catalyst) ---
+    # --- Earnings calendar ---
     try:
         earnings_today = _fetch_earnings_today(client, today)
         for sym in symbols:
-            timing = earnings_today.get(sym)
-            premarket[sym]["earnings_today"] = timing is not None
-            premarket[sym]["earnings_timing"] = timing  # "bmo", "amc", "" or None
+            event = earnings_today.get(sym, {})
+            timing = event.get("earnings_timing")
+            premarket[sym]["earnings_today"] = bool(event)
+            premarket[sym]["earnings_timing"] = timing
+            premarket[sym]["eps_actual"] = event.get("eps_actual")
+            premarket[sym]["eps_estimate"] = event.get("eps_estimate")
+            premarket[sym]["eps_surprise_pct"] = event.get("eps_surprise_pct")
+            premarket[sym]["revenue_actual"] = event.get("revenue_actual")
+            premarket[sym]["revenue_estimate"] = event.get("revenue_estimate")
+            premarket[sym]["revenue_surprise_pct"] = event.get("revenue_surprise_pct")
     except Exception as exc:
         logger.warning("Earnings calendar fetch failed: %s", exc)
         errors.append(f"earnings_calendar: {exc}")
@@ -527,35 +834,191 @@ def _fetch_premarket_context(
             premarket[sym]["earnings_today"] = False
             premarket[sym]["earnings_timing"] = None
 
-    # --- Pre-Market Movers via FMP v4 ---
     try:
-        movers = client.get_premarket_movers()
-        mover_map: dict[str, dict] = {}
-        for m in movers:
-            ticker = str(m.get("ticker") or m.get("symbol") or "").strip().upper()
-            if ticker:
-                mover_map[ticker] = m
+        earnings_distance = _fetch_earnings_distance_features(
+            client=client,
+            symbols=symbols,
+            today=today,
+            max_symbols=max(analyst_catalyst_limit, 0),
+        )
         for sym in symbols:
-            if sym in mover_map:
-                premarket[sym]["is_premarket_mover"] = True
-                raw_change = mover_map[sym].get("changesPercentage")
-                raw_price = mover_map[sym].get("price")
-                raw_volume = mover_map[sym].get("volume")
+            premarket[sym].update(
+                earnings_distance.get(
+                    sym,
+                    {
+                        "days_since_last_earnings": None,
+                        "days_to_next_earnings": None,
+                        "earnings_risk_window": False,
+                    },
+                )
+            )
+    except Exception as exc:
+        logger.warning("Earnings-distance fetch failed: %s", exc)
+        errors.append(f"earnings_distance: {exc}")
+        for sym in symbols:
+            premarket[sym].setdefault("days_since_last_earnings", None)
+            premarket[sym].setdefault("days_to_next_earnings", None)
+            premarket[sym].setdefault("earnings_risk_window", False)
 
-                change_pct = _to_float(raw_change, default=float("nan"))
-                price = _to_float(raw_price, default=float("nan"))
-                volume = _to_float(raw_volume, default=float("nan"))
+    # --- Corporate action event-risk (splits/dividends/IPO window) ---
+    try:
+        corp = _fetch_corporate_action_flags(
+            client=client,
+            symbols=symbols,
+            today=today,
+            window_days=CORPORATE_ACTION_WINDOW_DAYS,
+        )
+        for sym in symbols:
+            premarket[sym].update(corp.get(sym, {}))
+    except Exception as exc:
+        logger.warning("Corporate-action fetch failed: %s", exc)
+        errors.append(f"corporate_actions: {exc}")
+        for sym in symbols:
+            premarket[sym].setdefault("split_today", False)
+            premarket[sym].setdefault("dividend_today", False)
+            premarket[sym].setdefault("ipo_window", False)
+            premarket[sym].setdefault("corporate_action_penalty", 0.0)
 
-                premarket[sym]["premarket_change_pct"] = None if change_pct != change_pct else change_pct
-                premarket[sym]["premarket_price"] = None if price != price else price
-                premarket[sym]["premarket_volume"] = None if volume != volume else volume
+    # --- Analyst catalyst ---
+    try:
+        analyst = _fetch_analyst_catalyst(
+            client=client,
+            symbols=symbols,
+            limit=analyst_catalyst_limit,
+        )
+        for sym in symbols:
+            premarket[sym].update(
+                analyst.get(
+                    sym,
+                    {
+                        "analyst_price_target": None,
+                        "analyst_coverage_count": 0,
+                        "analyst_catalyst_score": 0.0,
+                    },
+                )
+            )
+    except Exception as exc:
+        logger.warning("Analyst catalyst fetch failed: %s", exc)
+        errors.append(f"analyst_catalyst: {exc}")
+        for sym in symbols:
+            premarket[sym].setdefault("analyst_price_target", None)
+            premarket[sym].setdefault("analyst_coverage_count", 0)
+            premarket[sym].setdefault("analyst_catalyst_score", 0.0)
+
+    # --- Extended-hours activity via stable endpoints ---
+    try:
+        mover_seed = _build_mover_seed(client, mover_seed_max_symbols)
+        mover_seed_set = set(mover_seed)
+        union_symbols = _normalize_symbols(symbols + mover_seed)
+        if len(union_symbols) > MAX_PREMARKET_UNION_SYMBOLS:
+            union_symbols = union_symbols[:MAX_PREMARKET_UNION_SYMBOLS]
+
+        after_quotes = client.get_batch_aftermarket_quote(union_symbols)
+        after_map: dict[str, dict[str, Any]] = {}
+        for row in after_quotes:
+            sym = str(row.get("symbol") or "").strip().upper()
+            if sym:
+                after_map[sym] = row
+
+        after_trades = client.get_batch_aftermarket_trade(union_symbols)
+        trade_map: dict[str, dict[str, Any]] = {}
+        for row in after_trades:
+            sym = str(row.get("symbol") or "").strip().upper()
+            if sym:
+                trade_map[sym] = row
+
+        # Fetch spot quotes to derive change % against previousClose.
+        spot_quotes = client.get_batch_quotes(union_symbols)
+        prev_close_map: dict[str, float] = {}
+        avg_volume_map: dict[str, float] = {}
+        for row in spot_quotes:
+            sym = str(row.get("symbol") or "").strip().upper()
+            if not sym:
+                continue
+            prev_close_map[sym] = _to_float(row.get("previousClose"), default=0.0)
+            avg_volume_map[sym] = _to_float(row.get("avgVolume"), default=0.0)
+
+        for sym in symbols:
+            aq = after_map.get(sym, {})
+            at = trade_map.get(sym, {})
+
+            bid = _to_float(aq.get("bidPrice"), default=0.0)
+            ask = _to_float(aq.get("askPrice"), default=0.0)
+            quote_volume = _to_float(aq.get("volume"), default=float("nan"))
+            trade_size = _to_float(at.get("tradeSize"), default=float("nan"))
+
+            quote_ts = _epoch_to_datetime_utc(aq.get("timestamp"))
+            trade_ts = _epoch_to_datetime_utc(at.get("timestamp"))
+            last_trade_ts = trade_ts or quote_ts
+            freshness_sec: float | None = None
+            if last_trade_ts is not None:
+                freshness_sec = max((run_dt_utc - last_trade_ts).total_seconds(), 0.0)
+
+            stale = freshness_sec is not None and freshness_sec > PREMARKET_STALE_SECONDS
+
+            trade_price = _to_float(at.get("price"), default=0.0)
+            if bid > 0.0 and ask > 0.0:
+                mid_px = (bid + ask) / 2.0
+                spread_bps: float | None = ((ask - bid) / mid_px) * 10_000.0 if mid_px > 0.0 else None
             else:
-                premarket[sym].setdefault("is_premarket_mover", False)
+                mid_px = ask if ask > 0.0 else bid if bid > 0.0 else 0.0
+                spread_bps = None
+
+            after_px = trade_price if trade_price > 0.0 else mid_px
+            if stale:
+                after_px = 0.0
+
+            ext_volume = 0.0
+            if quote_volume == quote_volume and quote_volume > 0.0:
+                ext_volume = max(ext_volume, quote_volume)
+            if trade_size == trade_size and trade_size > 0.0:
+                ext_volume = max(ext_volume, trade_size)
+
+            prev_close = prev_close_map.get(sym, 0.0)
+            avg_volume = avg_volume_map.get(sym, 0.0)
+            change_pct: float | None = None
+            if after_px > 0.0 and prev_close > 0.0:
+                change_pct = ((after_px - prev_close) / prev_close) * 100.0
+
+            ext_vol_ratio = (ext_volume / avg_volume) if avg_volume > 0.0 else 0.0
+            ext_hours_score = _compute_ext_hours_score(
+                ext_change_pct=change_pct,
+                ext_vol_ratio=ext_vol_ratio,
+                freshness_sec=freshness_sec,
+                spread_bps=spread_bps,
+            )
+
+            is_active = sym in mover_seed_set
+            has_ext_activity = after_px > 0.0 or ext_volume > 0.0
+            premarket[sym]["mover_seed_hit"] = is_active
+            premarket[sym]["premarket_stale"] = bool(stale)
+            premarket[sym]["is_premarket_mover"] = bool(
+                is_active
+                or (has_ext_activity and not stale)
+                or ext_vol_ratio >= 0.10
+            )
+            premarket[sym]["premarket_change_pct"] = change_pct
+            premarket[sym]["premarket_price"] = after_px if after_px > 0.0 else None
+            premarket[sym]["premarket_volume"] = ext_volume if ext_volume > 0.0 else None
+            premarket[sym]["premarket_trade_price"] = trade_price if trade_price > 0.0 else None
+            premarket[sym]["premarket_last_trade_ts_utc"] = (
+                None if last_trade_ts is None else last_trade_ts.isoformat()
+            )
+            premarket[sym]["premarket_freshness_sec"] = None if freshness_sec is None else round(freshness_sec, 2)
+            premarket[sym]["premarket_spread_bps"] = None if spread_bps is None else round(spread_bps, 4)
+            premarket[sym]["ext_volume_ratio"] = round(ext_vol_ratio, 6)
+            premarket[sym]["ext_hours_score"] = ext_hours_score
     except Exception as exc:
         logger.warning("Premarket movers fetch failed: %s", exc)
         errors.append(f"premarket_movers: {exc}")
         for sym in symbols:
             premarket[sym].setdefault("is_premarket_mover", False)
+            premarket[sym].setdefault("mover_seed_hit", False)
+            premarket[sym].setdefault("premarket_stale", False)
+            premarket[sym].setdefault("premarket_freshness_sec", None)
+            premarket[sym].setdefault("premarket_spread_bps", None)
+            premarket[sym].setdefault("ext_volume_ratio", 0.0)
+            premarket[sym].setdefault("ext_hours_score", 0.0)
 
     error_msg = "; ".join(errors) if errors else None
     return premarket, error_msg
@@ -795,13 +1258,109 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
     return round(current_atr, 4)
 
 
+def _atr_cache_file(as_of: date, period: int) -> Path:
+    return ATR_CACHE_DIR / f"{as_of.isoformat()}_p{max(int(period),1)}.json"
+
+
+def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    path = _atr_cache_file(as_of, period)
+    if not path.exists():
+        return {}, {}, {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        atr_map = {
+            str(k).upper(): _to_float(v, default=0.0)
+            for k, v in dict(payload.get("atr14_by_symbol", {})).items()
+        }
+        momentum_map = {
+            str(k).upper(): _to_float(v, default=0.0)
+            for k, v in dict(payload.get("momentum_z_by_symbol", {})).items()
+        }
+        prev_close_map = {
+            str(k).upper(): _to_float(v, default=0.0)
+            for k, v in dict(payload.get("prev_close_by_symbol", {})).items()
+        }
+        return atr_map, momentum_map, prev_close_map
+    except Exception:
+        return {}, {}, {}
+
+
+def _save_atr_cache(
+    *,
+    as_of: date,
+    period: int,
+    atr_map: dict[str, float],
+    momentum_map: dict[str, float],
+    prev_close_map: dict[str, float],
+) -> None:
+    try:
+        ATR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "as_of": as_of.isoformat(),
+            "atr_period": int(period),
+            "atr14_by_symbol": atr_map,
+            "momentum_z_by_symbol": momentum_map,
+            "prev_close_by_symbol": prev_close_map,
+        }
+        _atr_cache_file(as_of, period).write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    except Exception:
+        # Cache is an optimization. Never break pipeline on cache I/O errors.
+        return
+
+
+def _incremental_atr_from_eod_bulk(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    as_of: date,
+    atr_period: int,
+) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
+    prev_day = _prev_trading_day(as_of)
+    prev_atr_map, prev_momentum_map, prev_close_map = _load_atr_cache(prev_day, atr_period)
+    if not prev_atr_map or not prev_close_map:
+        return {}, {}, {}
+
+    eod_rows = client.get_eod_bulk(as_of)
+    by_symbol: dict[str, dict[str, Any]] = {}
+    for row_eod in eod_rows:
+        sym = str(row_eod.get("symbol") or "").strip().upper()
+        if sym:
+            by_symbol[sym] = row_eod
+
+    atr_map: dict[str, float] = {}
+    momentum_map: dict[str, float] = {}
+    close_map: dict[str, float] = {}
+    n = max(int(atr_period), 1)
+
+    for sym in symbols:
+        prev_atr = _to_float(prev_atr_map.get(sym), default=0.0)
+        prev_close = _to_float(prev_close_map.get(sym), default=0.0)
+        eod_row = by_symbol.get(sym)
+        if not eod_row or prev_atr <= 0.0 or prev_close <= 0.0:
+            continue
+
+        high = _to_float(eod_row.get("high"), default=float("nan"))
+        low = _to_float(eod_row.get("low"), default=float("nan"))
+        close = _to_float(eod_row.get("close"), default=float("nan"))
+        if high != high or low != low or close != close:
+            continue
+
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        atr = ((prev_atr * float(n - 1)) + max(tr, 0.0)) / float(n)
+        atr_map[sym] = round(atr, 4)
+        momentum_map[sym] = round(_to_float(prev_momentum_map.get(sym), default=0.0), 4)
+        close_map[sym] = close
+
+    return atr_map, momentum_map, close_map
+
+
 def _fetch_symbol_atr(
     client: FMPClient,
     symbol: str,
     date_from: date,
     as_of: date,
     atr_period: int,
-) -> tuple[str, float, float, str | None]:
+) -> tuple[str, float, float, float, str | None]:
     """Fetch historical candles and compute ATR for one symbol.
 
     Returns: (symbol, atr_value, error_message)
@@ -810,9 +1369,14 @@ def _fetch_symbol_atr(
         candles = client.get_historical_price_eod_full(symbol, date_from, as_of)
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
-        return symbol, atr_value, momentum_z, None
+        latest_vwap = 0.0
+        rows = [c for c in candles if str(c.get("date") or "")]
+        if rows:
+            rows.sort(key=lambda c: str(c.get("date") or ""))
+            latest_vwap = _to_float(rows[-1].get("vwap"), default=0.0)
+        return symbol, atr_value, momentum_z, latest_vwap, None
     except RuntimeError as exc:
-        return symbol, 0.0, 0.0, str(exc)
+        return symbol, 0.0, 0.0, 0.0, str(exc)
 
 
 def _atr14_by_symbol(
@@ -822,44 +1386,91 @@ def _atr14_by_symbol(
     lookback_days: int = 250,  # Increased for RMA convergence
     atr_period: int = 14,
     parallel_workers: int = 5,
-) -> tuple[dict[str, float], dict[str, float], dict[str, str]]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, float], dict[str, str]]:
     atr_map: dict[str, float] = {}
     momentum_z_map: dict[str, float] = {}
+    vwap_map: dict[str, float] = {}
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
-    workers = max(1, min(int(parallel_workers), max(1, len(symbols))))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_map = {
-            executor.submit(
-                _fetch_symbol_atr,
-                client,
-                symbol,
-                date_from,
-                as_of,
-                int(atr_period),
-            ): symbol
-            for symbol in symbols
-        }
-        for future in as_completed(future_map):
-            symbol = future_map[future]
-            try:
-                sym, atr_value, momentum_z, err = future.result()
-                atr_map[sym] = atr_value
-                momentum_z_map[sym] = momentum_z
-                if err:
-                    errors[sym] = err
-            except Exception as exc:  # pragma: no cover - defensive catch
-                atr_map[symbol] = 0.0
-                momentum_z_map[symbol] = 0.0
-                errors[symbol] = str(exc)
+    cached_atr, cached_momentum, cached_prev_close = _load_atr_cache(as_of, atr_period)
+    if cached_atr:
+        for symbol in symbols:
+            atr_map[symbol] = round(_to_float(cached_atr.get(symbol), default=0.0), 4)
+            momentum_z_map[symbol] = round(_to_float(cached_momentum.get(symbol), default=0.0), 4)
+        if all(sym in cached_atr for sym in symbols):
+            for symbol in symbols:
+                vwap_map.setdefault(symbol, 0.0)
+            return atr_map, momentum_z_map, vwap_map, errors
+
+    incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
+        client=client,
+        symbols=symbols,
+        as_of=as_of,
+        atr_period=atr_period,
+    )
+    atr_map.update(incremental_atr)
+    momentum_z_map.update(incremental_momentum)
+
+    missing_symbols = [sym for sym in symbols if sym not in atr_map]
+    if missing_symbols:
+        workers = max(1, min(int(parallel_workers), max(1, len(missing_symbols))))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            future_map = {
+                executor.submit(
+                    _fetch_symbol_atr,
+                    client,
+                    symbol,
+                    date_from,
+                    as_of,
+                    int(atr_period),
+                ): symbol
+                for symbol in missing_symbols
+            }
+            for future in as_completed(future_map):
+                symbol = future_map[future]
+                try:
+                    sym, atr_value, momentum_z, vwap_value, err = future.result()
+                    atr_map[sym] = atr_value
+                    momentum_z_map[sym] = momentum_z
+                    vwap_map[sym] = vwap_value
+                    if err:
+                        errors[sym] = err
+                except Exception as exc:  # pragma: no cover - defensive catch
+                    atr_map[symbol] = 0.0
+                    momentum_z_map[symbol] = 0.0
+                    vwap_map[symbol] = 0.0
+                    errors[symbol] = str(exc)
 
     # Keep deterministic key presence/order compatibility.
     for symbol in symbols:
         atr_map.setdefault(symbol, 0.0)
         momentum_z_map.setdefault(symbol, 0.0)
+        vwap_map.setdefault(symbol, 0.0)
 
-    return atr_map, momentum_z_map, errors
+    # Save same-day cache to accelerate subsequent pre-open runs.
+    prev_close_snapshot: dict[str, float] = dict(cached_prev_close)
+    prev_close_snapshot.update(incremental_close)
+    if len(prev_close_snapshot) < len(symbols):
+        try:
+            batch_quotes = client.get_batch_quotes(symbols)
+            for row in batch_quotes:
+                sym = str(row.get("symbol") or "").strip().upper()
+                if not sym:
+                    continue
+                prev_close_snapshot[sym] = _to_float(row.get("previousClose"), default=0.0)
+        except Exception:
+            pass
+
+    _save_atr_cache(
+        as_of=as_of,
+        period=atr_period,
+        atr_map=atr_map,
+        momentum_map=momentum_z_map,
+        prev_close_map=prev_close_snapshot,
+    )
+
+    return atr_map, momentum_z_map, vwap_map, errors
 
 
 def _inputs_hash(payload: dict) -> str:
@@ -914,10 +1525,120 @@ def _build_runtime_status(
 
 
 def _parse_symbols(raw_symbols: str) -> list[str]:
-    symbols = [item.strip().upper() for item in raw_symbols.split(",") if item.strip()]
+    symbols = [item.strip().upper() for item in str(raw_symbols or "").split(",") if item.strip()]
     if not symbols:
-        raise ValueError("No symbols provided. Use --symbols with comma-separated tickers.")
+        return []
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for symbol in symbols:
+        if symbol not in seen:
+            deduped.append(symbol)
+            seen.add(symbol)
+    return deduped
+
+
+def _fetch_fmp_us_mid_large_universe(
+    *,
+    client: FMPClient,
+    min_market_cap: int,
+    max_symbols: int,
+) -> list[str]:
+    safe_max_symbols = max(int(max_symbols), 1)
+    safe_min_market_cap = max(int(min_market_cap), 1)
+    symbols: list[str] = []
+    seen: set[str] = set()
+    page = 0
+
+    while len(symbols) < safe_max_symbols:
+        remaining = safe_max_symbols - len(symbols)
+        batch = client.get_company_screener(
+            country="US",
+            exchange="NASDAQ,NYSE,AMEX",
+            market_cap_more_than=safe_min_market_cap,
+            is_etf=False,
+            is_fund=False,
+            limit=min(remaining, 1000),
+            page=page,
+        )
+        if not batch:
+            break
+
+        batch_sorted = sorted(
+            batch,
+            key=lambda row: _to_float(row.get("marketCap"), default=0.0),
+            reverse=True,
+        )
+
+        for row in batch_sorted:
+            market_cap = _to_float(row.get("marketCap"), default=0.0)
+            if market_cap < safe_min_market_cap:
+                continue
+            symbol = str(row.get("symbol") or "").strip().upper()
+            if not symbol or symbol in seen:
+                continue
+            seen.add(symbol)
+            symbols.append(symbol)
+            if len(symbols) >= safe_max_symbols:
+                break
+
+        if len(batch) < min(remaining, 1000):
+            break
+        page += 1
+        if page > 50:
+            # Safety guard against accidental endless paging.
+            break
+
     return symbols
+
+
+def _resolve_symbol_universe(
+    *,
+    provided_symbols: list[str],
+    universe_source: str,
+    fmp_min_market_cap: int,
+    fmp_max_symbols: int,
+    mover_seed_max_symbols: int,
+    client: FMPClient,
+) -> list[str]:
+    if provided_symbols:
+        return provided_symbols
+
+    mode = str(universe_source or UNIVERSE_SOURCE_FMP_US_MID_LARGE).strip().upper()
+    if mode == UNIVERSE_SOURCE_STATIC:
+        return list(DEFAULT_UNIVERSE)
+
+    if mode == UNIVERSE_SOURCE_FMP_US_MID_LARGE:
+        try:
+            auto_symbols = _fetch_fmp_us_mid_large_universe(
+                client=client,
+                min_market_cap=fmp_min_market_cap,
+                max_symbols=fmp_max_symbols,
+            )
+            mover_seed = _build_mover_seed(client, mover_seed_max_symbols)
+        except RuntimeError as exc:
+            logger.warning("FMP auto-universe fetch failed; using static fallback: %s", exc)
+            auto_symbols = []
+            mover_seed = []
+
+        blended = _normalize_symbols(auto_symbols + mover_seed)
+        if len(blended) > MAX_PREMARKET_UNION_SYMBOLS:
+            blended = blended[:MAX_PREMARKET_UNION_SYMBOLS]
+
+        if blended:
+            logger.info(
+                "Using blended FMP universe with %d symbols (screener=%d, movers=%d, min_market_cap=%d).",
+                len(blended),
+                len(auto_symbols),
+                len(mover_seed),
+                max(int(fmp_min_market_cap), 1),
+            )
+            return blended
+
+        logger.warning("FMP auto-universe returned no symbols; using static fallback list.")
+        return list(DEFAULT_UNIVERSE)
+
+    logger.warning("Unknown universe source '%s'; using static fallback list.", mode)
+    return list(DEFAULT_UNIVERSE)
 
 
 def _fetch_todays_events(
@@ -1015,7 +1736,7 @@ def _fetch_quotes_with_atr(
     atr_lookback_days: int,
     atr_period: int,
     atr_parallel_workers: int,
-) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, str]]:
+) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, float], dict[str, str]]:
     try:
         quotes = client.get_batch_quotes(symbols)
     except RuntimeError as exc:
@@ -1024,7 +1745,7 @@ def _fetch_quotes_with_atr(
 
     quotes = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt_utc, gap_mode=gap_mode)
 
-    atr_by_symbol, momentum_z_by_symbol, atr_fetch_errors = _atr14_by_symbol(
+    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
         symbols=symbols,
         as_of=as_of,
@@ -1037,10 +1758,11 @@ def _fetch_quotes_with_atr(
         if sym:
             q["atr"] = atr_by_symbol.get(sym, 0.0)
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
+            q["vwap"] = vwap_by_symbol.get(sym, 0.0)
             _enrich_quote_with_hvb(q)
             _add_pdh_pdl_context(q)
 
-    return quotes, atr_by_symbol, momentum_z_by_symbol, atr_fetch_errors
+    return quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors
 
 
 def _build_result_payload(
@@ -1053,6 +1775,7 @@ def _build_result_payload(
     news_fetch_error: str | None,
     atr_by_symbol: dict[str, float],
     momentum_z_by_symbol: dict[str, float],
+    vwap_by_symbol: dict[str, float],
     atr_fetch_errors: dict[str, str],
     premarket_context: dict[str, dict[str, Any]],
     premarket_fetch_error: str | None,
@@ -1069,6 +1792,10 @@ def _build_result_payload(
             {
                 "run_date_utc": today.isoformat(),
                 "symbols": config.symbols,
+                "universe_source": config.universe_source,
+                "fmp_min_market_cap": config.fmp_min_market_cap,
+                "fmp_max_symbols": config.fmp_max_symbols,
+                "mover_seed_max_symbols": config.mover_seed_max_symbols,
                 "days_ahead": config.days_ahead,
                 "top": config.top,
                 "trade_cards": config.trade_cards,
@@ -1079,10 +1806,16 @@ def _build_result_payload(
                 "atr_lookback_days": config.atr_lookback_days,
                 "atr_period": config.atr_period,
                 "atr_parallel_workers": config.atr_parallel_workers,
+                "analyst_catalyst_limit": config.analyst_catalyst_limit,
             }
         ),
         "run_date_utc": today.isoformat(),
         "run_datetime_utc": now_utc.isoformat(),
+        "symbols": config.symbols,
+        "universe_source": config.universe_source,
+        "fmp_min_market_cap": config.fmp_min_market_cap,
+        "fmp_max_symbols": config.fmp_max_symbols,
+        "mover_seed_max_symbols": config.mover_seed_max_symbols,
         "active_session": _classify_session(now_utc),
         "pre_open_only": bool(config.pre_open_only),
         "pre_open_cutoff_utc": config.pre_open_cutoff_utc,
@@ -1090,6 +1823,7 @@ def _build_result_payload(
         "atr_lookback_days": config.atr_lookback_days,
         "atr_period": config.atr_period,
         "atr_parallel_workers": config.atr_parallel_workers,
+        "analyst_catalyst_limit": config.analyst_catalyst_limit,
         "macro_bias": round(bias, 4),
         "macro_raw_score": round(float(macro_analysis.get("raw_score", 0.0)), 4),
         "macro_event_count_today": macro_context["macro_event_count_today"],
@@ -1105,6 +1839,7 @@ def _build_result_payload(
         "news_fetch_error": news_fetch_error,
         "atr14_by_symbol": atr_by_symbol,
         "momentum_z_by_symbol": momentum_z_by_symbol,
+        "vwap_by_symbol": vwap_by_symbol,
         "atr_fetch_errors": atr_fetch_errors,
         "premarket_context": premarket_context,
         "premarket_fetch_error": premarket_fetch_error,
@@ -1122,6 +1857,10 @@ def _build_result_payload(
 def generate_open_prep_result(
     *,
     symbols: list[str] | None = None,
+    universe_source: str = UNIVERSE_SOURCE_FMP_US_MID_LARGE,
+    fmp_min_market_cap: int = DEFAULT_FMP_MIN_MARKET_CAP,
+    fmp_max_symbols: int = DEFAULT_FMP_MAX_SYMBOLS,
+    mover_seed_max_symbols: int = DEFAULT_MOVER_SEED_MAX_SYMBOLS,
     days_ahead: int = 3,
     top: int = 10,
     trade_cards: int = 5,
@@ -1132,12 +1871,22 @@ def generate_open_prep_result(
     atr_lookback_days: int = 250,
     atr_period: int = 14,
     atr_parallel_workers: int = 5,
+    analyst_catalyst_limit: int = DEFAULT_ANALYST_CATALYST_LIMIT,
     now_utc: datetime | None = None,
     client: FMPClient | None = None,
 ) -> dict[str, Any]:
     """Run the open-prep pipeline and return the structured result payload."""
     run_dt = now_utc or datetime.now(UTC)
-    symbol_list = [str(s).strip().upper() for s in (symbols or DEFAULT_UNIVERSE) if str(s).strip()]
+    data_client = client or FMPClient.from_env()
+    provided_symbols = [str(s).strip().upper() for s in (symbols or []) if str(s).strip()]
+    symbol_list = _resolve_symbol_universe(
+        provided_symbols=provided_symbols,
+        universe_source=universe_source,
+        fmp_min_market_cap=max(int(fmp_min_market_cap), 1),
+        fmp_max_symbols=max(int(fmp_max_symbols), 1),
+        mover_seed_max_symbols=max(int(mover_seed_max_symbols), 0),
+        client=data_client,
+    )
     if not symbol_list:
         raise ValueError("No symbols provided. Use at least one ticker symbol.")
 
@@ -1147,6 +1896,10 @@ def generate_open_prep_result(
 
     config = OpenPrepConfig(
         symbols=symbol_list,
+        universe_source=str(universe_source or UNIVERSE_SOURCE_FMP_US_MID_LARGE).strip().upper(),
+        fmp_min_market_cap=max(int(fmp_min_market_cap), 1),
+        fmp_max_symbols=max(int(fmp_max_symbols), 1),
+        mover_seed_max_symbols=max(int(mover_seed_max_symbols), 0),
         days_ahead=int(days_ahead),
         top=int(top),
         trade_cards=int(trade_cards),
@@ -1157,11 +1910,11 @@ def generate_open_prep_result(
         atr_lookback_days=max(int(atr_lookback_days), 20),
         atr_period=max(int(atr_period), 1),
         atr_parallel_workers=max(int(atr_parallel_workers), 1),
+        analyst_catalyst_limit=max(int(analyst_catalyst_limit), 0),
     )
 
     today = run_dt.date()
     end_date = today + timedelta(days=max(config.days_ahead, 1))
-    data_client = client or FMPClient.from_env()
 
     bea_audit_enabled = str(os.environ.get("OPEN_PREP_BEA_AUDIT", "1")).strip().lower() not in {
         "0",
@@ -1185,7 +1938,7 @@ def generate_open_prep_result(
     bias = float(macro_context["macro_bias"])
 
     news_scores, news_metrics, news_fetch_error = _fetch_news_context(client=data_client, symbols=symbol_list)
-    quotes, atr_by_symbol, momentum_z_by_symbol, atr_fetch_errors = _fetch_quotes_with_atr(
+    quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _fetch_quotes_with_atr(
         client=data_client,
         symbols=symbol_list,
         run_dt_utc=run_dt,
@@ -1199,6 +1952,9 @@ def generate_open_prep_result(
         client=data_client,
         symbols=symbol_list,
         today=today,
+        run_dt_utc=run_dt,
+        mover_seed_max_symbols=config.mover_seed_max_symbols,
+        analyst_catalyst_limit=config.analyst_catalyst_limit,
     )
 
     # Merge premarket context into quotes so ranker & trade-card builder see it.
@@ -1213,6 +1969,21 @@ def generate_open_prep_result(
                 q["premarket_change_pct"] = pm["premarket_change_pct"]
             if pm.get("premarket_price") is not None:
                 q["premarket_price"] = pm["premarket_price"]
+            q["ext_hours_score"] = pm.get("ext_hours_score", 0.0)
+            q["ext_volume_ratio"] = pm.get("ext_volume_ratio", 0.0)
+            q["premarket_stale"] = pm.get("premarket_stale", False)
+            q["premarket_spread_bps"] = pm.get("premarket_spread_bps")
+            q["mover_seed_hit"] = pm.get("mover_seed_hit", False)
+            q["split_today"] = pm.get("split_today", False)
+            q["dividend_today"] = pm.get("dividend_today", False)
+            q["ipo_window"] = pm.get("ipo_window", False)
+            q["corporate_action_penalty"] = pm.get("corporate_action_penalty", 0.0)
+            q["analyst_catalyst_score"] = pm.get("analyst_catalyst_score", 0.0)
+            q["days_since_last_earnings"] = pm.get("days_since_last_earnings")
+            q["days_to_next_earnings"] = pm.get("days_to_next_earnings")
+            q["earnings_risk_window"] = pm.get("earnings_risk_window", False)
+            q["eps_surprise_pct"] = pm.get("eps_surprise_pct")
+            q["revenue_surprise_pct"] = pm.get("revenue_surprise_pct")
 
     ranked = rank_candidates(
         quotes=quotes,
@@ -1231,6 +2002,7 @@ def generate_open_prep_result(
         news_fetch_error=news_fetch_error,
         atr_by_symbol=atr_by_symbol,
         momentum_z_by_symbol=momentum_z_by_symbol,
+        vwap_by_symbol=vwap_by_symbol,
         atr_fetch_errors=atr_fetch_errors,
         premarket_context=premarket_context,
         premarket_fetch_error=premarket_fetch_error,
@@ -1244,6 +2016,10 @@ def main() -> None:
     symbols = _parse_symbols(args.symbols)
     result = generate_open_prep_result(
         symbols=symbols,
+        universe_source=str(args.universe_source).strip().upper(),
+        fmp_min_market_cap=max(int(args.fmp_min_market_cap), 1),
+        fmp_max_symbols=max(int(args.fmp_max_symbols), 1),
+        mover_seed_max_symbols=max(int(args.mover_seed_max_symbols), 0),
         days_ahead=args.days_ahead,
         top=args.top,
         trade_cards=args.trade_cards,
@@ -1254,6 +2030,7 @@ def main() -> None:
         atr_lookback_days=args.atr_lookback_days,
         atr_period=args.atr_period,
         atr_parallel_workers=args.atr_parallel_workers,
+        analyst_catalyst_limit=max(int(args.analyst_catalyst_limit), 0),
     )
     sys.stdout.write(json.dumps(result, indent=2) + "\n")
 
