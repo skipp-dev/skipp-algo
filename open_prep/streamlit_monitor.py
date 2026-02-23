@@ -216,6 +216,11 @@ def main() -> None:
     st.session_state.setdefault("last_universe_reload_utc", None)
     st.session_state.setdefault("rate_limit_cooldown_until_utc", None)
 
+    def _on_reload_universe() -> None:
+        st.session_state["auto_universe"] = True
+        st.session_state["symbols_raw"] = ""
+        st.session_state["last_universe_reload_utc"] = datetime.now(UTC).isoformat()
+
     with st.sidebar:
         st.header("Parameter")
         auto_refresh_enabled = st.toggle(
@@ -295,10 +300,7 @@ def main() -> None:
 
         if st.button("🔄 Sofort aktualisieren", width="stretch"):
             st.rerun()
-        if st.button("🔎 Nur Universum neu laden", width="stretch"):
-            st.session_state["auto_universe"] = True
-            st.session_state["symbols_raw"] = ""
-            st.session_state["last_universe_reload_utc"] = datetime.now(UTC).isoformat()
+        if st.button("🔎 Nur Universum neu laden", width="stretch", on_click=_on_reload_universe):
             st.rerun()
         last_universe_reload_utc = st.session_state.get("last_universe_reload_utc")
         last_universe_reload = _format_berlin_only(last_universe_reload_utc)
