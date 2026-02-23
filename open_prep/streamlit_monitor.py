@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 from typing import Any
 
 import streamlit as st
-from streamlit_autorefresh import st_autorefresh
 
 from open_prep.run_open_prep import (
     GAP_MODE_CHOICES,
@@ -16,18 +15,12 @@ from open_prep.run_open_prep import (
 DEFAULT_REFRESH_SECONDS = 10
 MAX_STATUS_HISTORY = 20
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
+MIN_AUTO_REFRESH_SECONDS = 20
+RATE_LIMIT_COOLDOWN_SECONDS = 120
 
 
 def _parse_symbols(raw: str) -> list[str]:
     return [s.strip().upper() for s in raw.split(",") if s.strip()]
-
-
-def _inject_auto_refresh(seconds: int) -> None:
-    # Browser-level refresh keeps dependency footprint small (no extra plugin).
-    st.markdown(
-        f"<meta http-equiv='refresh' content='{max(int(seconds), 1)}'>",
-        unsafe_allow_html=True,
-    )
 
 
 def _show_runtime_warnings(run_status: dict[str, Any]) -> None:
@@ -156,6 +149,29 @@ def _universe_reload_freshness(timestamp_utc: str | None) -> str:
         return "⚪ Status: Zeitformat unbekannt"
 
 
+def _is_rate_limited(run_status: dict[str, Any]) -> bool:
+    warnings = run_status.get("warnings") or []
+    for warning in warnings:
+        message = str(warning.get("message", "")).lower()
+        code = str(warning.get("code", "")).lower()
+        if "429" in message or "limit" in message or "rate" in message or "429" in code:
+            return True
+    return False
+
+
+def _remaining_cooldown_seconds(now_utc: datetime) -> int:
+    cooldown_until_raw = st.session_state.get("rate_limit_cooldown_until_utc")
+    if not cooldown_until_raw:
+        return 0
+    try:
+        cooldown_until = datetime.fromisoformat(str(cooldown_until_raw).replace("Z", "+00:00"))
+        if cooldown_until.tzinfo is None:
+            cooldown_until = cooldown_until.replace(tzinfo=UTC)
+        return max(int((cooldown_until - now_utc).total_seconds()), 0)
+    except ValueError:
+        return 0
+
+
 def main() -> None:
     st.set_page_config(page_title="Open Prep Monitor", page_icon="📈", layout="wide")
     st.markdown(
@@ -175,8 +191,7 @@ def main() -> None:
     st.session_state.setdefault("auto_universe", True)
     st.session_state.setdefault("symbols_raw", "")
     st.session_state.setdefault("last_universe_reload_utc", None)
-
-    refresh_count = 0
+    st.session_state.setdefault("rate_limit_cooldown_until_utc", None)
 
     with st.sidebar:
         st.header("Parameter")
@@ -194,10 +209,30 @@ def main() -> None:
             key="refresh_seconds",
             disabled=not auto_refresh_enabled,
         )
+        requested_refresh_seconds = int(refresh_seconds)
+        now_utc = datetime.now(UTC)
+        cooldown_remaining = _remaining_cooldown_seconds(now_utc)
+        effective_refresh_seconds = max(requested_refresh_seconds, MIN_AUTO_REFRESH_SECONDS)
+        if cooldown_remaining > 0:
+            effective_refresh_seconds = max(effective_refresh_seconds, cooldown_remaining)
+
         st.caption(
             f"Auto-Refresh: {'an' if auto_refresh_enabled else 'aus'}"
-            + (f" · alle {int(refresh_seconds)}s" if auto_refresh_enabled else "")
+            + (
+                f" · Intervall: {requested_refresh_seconds}s"
+                + (
+                    f" · effektiv: {effective_refresh_seconds}s"
+                    if auto_refresh_enabled
+                    else ""
+                )
+                if auto_refresh_enabled
+                else ""
+            )
         )
+        if auto_refresh_enabled and requested_refresh_seconds < MIN_AUTO_REFRESH_SECONDS:
+            st.info(f"API-Schutz aktiv: Mindestintervall {MIN_AUTO_REFRESH_SECONDS}s.")
+        if auto_refresh_enabled and cooldown_remaining > 0:
+            st.warning(f"Rate-Limit Cooldown aktiv: nächster Auto-Refresh in ca. {cooldown_remaining}s.")
         auto_universe = st.toggle(
             "🌐 Auto-Universum verwenden",
             value=bool(st.session_state.get("auto_universe", True)),
@@ -245,84 +280,96 @@ def main() -> None:
             st.session_state["status_history"] = []
             st.rerun()
 
-    if auto_refresh_enabled:
-        refresh_count = st_autorefresh(
-            interval=int(refresh_seconds) * 1000,
-            key="open_prep_autorefresh",
+    def _render_open_prep_snapshot() -> None:
+        symbols = _parse_symbols(symbols_raw)
+        use_auto_universe = bool(auto_universe)
+
+        if not use_auto_universe and not symbols:
+            st.error("Bitte Symbole eingeben oder Auto-Universum aktivieren.")
+            return
+
+        try:
+            result = generate_open_prep_result(
+                symbols=(None if use_auto_universe else symbols),
+                days_ahead=int(days_ahead),
+                top=int(top_n),
+                trade_cards=int(trade_cards),
+                max_macro_events=int(max_macro_events),
+                pre_open_only=bool(pre_open_only),
+                pre_open_cutoff_utc=pre_open_cutoff_utc,
+                gap_mode=str(gap_mode),
+                atr_lookback_days=int(atr_lookback_days),
+                atr_period=int(atr_period),
+                atr_parallel_workers=int(atr_parallel_workers),
+                now_utc=datetime.now(UTC),
+            )
+        except Exception as exc:
+            st.exception(exc)
+            return
+
+        if use_auto_universe:
+            st.info("Auto-Universum aktiv (FMP US Mid/Large + Movers).")
+
+        updated_at = result.get("run_datetime_utc")
+        updated_utc_label, updated_berlin_label = _format_utc_berlin(str(updated_at) if updated_at is not None else None)
+        run_status = result.get("run_status") or {}
+        if _is_rate_limited(run_status):
+            st.session_state["rate_limit_cooldown_until_utc"] = (
+                datetime.now(UTC).replace(microsecond=0)
+                + timedelta(seconds=RATE_LIMIT_COOLDOWN_SECONDS)
+            ).isoformat()
+        traffic_label, traffic_color, traffic_text = _traffic_light_status(run_status)
+
+        st.subheader("Ranked Candidates")
+        st.dataframe(result.get("ranked_candidates") or [], width="stretch", height=360)
+
+        st.subheader("Trade Cards")
+        st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
+
+        st.subheader("US High Impact Events (today)")
+        st.dataframe(result.get("macro_us_high_impact_events_today") or [], width="stretch", height=280)
+
+        _render_soft_refresh_status(str(updated_at) if updated_at is not None else None)
+        st.subheader("Status")
+        cols = st.columns(4)
+        cols[0].metric("Letztes Update (Berlin)", updated_berlin_label)
+        cols[1].metric("Macro Bias", f"{float(result.get('macro_bias', 0.0)):.4f}")
+        cols[2].metric("US High Impact", int(result.get("macro_us_high_impact_event_count_today", 0)))
+        cols[3].metric("Kandidaten", len(result.get("ranked_candidates") or []))
+        st.caption(f"Zeitreferenz (UTC): {updated_utc_label}")
+
+        st.subheader("System-Ampel")
+        st.markdown(
+            f"<div style='padding:0.7rem 1rem;border-radius:0.6rem;background:{traffic_color};color:white;font-weight:700'>{traffic_label}</div>",
+            unsafe_allow_html=True,
         )
+        st.caption(traffic_text)
 
-    symbols = _parse_symbols(symbols_raw)
-    use_auto_universe = bool(auto_universe)
+        history = _update_status_history(traffic_label, str(updated_at or "n/a"))
+        st.caption("Verlauf (neueste rechts, letzte 20 Refreshes)")
+        st.markdown(" ".join(item.split(" ")[0] for item in history))
 
-    if not use_auto_universe and not symbols:
-        st.error("Bitte Symbole eingeben oder Auto-Universum aktivieren.")
-        st.stop()
+        st.subheader("Runtime-Warnungen")
+        _show_runtime_warnings(run_status)
 
-    try:
-        result = generate_open_prep_result(
-            symbols=(None if use_auto_universe else symbols),
-            days_ahead=int(days_ahead),
-            top=int(top_n),
-            trade_cards=int(trade_cards),
-            max_macro_events=int(max_macro_events),
-            pre_open_only=bool(pre_open_only),
-            pre_open_cutoff_utc=pre_open_cutoff_utc,
-            gap_mode=str(gap_mode),
-            atr_lookback_days=int(atr_lookback_days),
-            atr_period=int(atr_period),
-            atr_parallel_workers=int(atr_parallel_workers),
-            now_utc=datetime.now(UTC),
+        with st.expander("Raw JSON (Debug)"):
+            st.json(result)
+
+    if auto_refresh_enabled and hasattr(st, "fragment"):
+        @st.fragment(run_every=f"{int(effective_refresh_seconds)}s")
+        def _live_snapshot_fragment() -> None:
+            _render_open_prep_snapshot()
+
+        _live_snapshot_fragment()
+        st.caption(
+            f"Soft-Refresh aktiv · effektiv alle {int(effective_refresh_seconds)}s · weniger Seiten-Flackern"
         )
-    except Exception as exc:
-        st.exception(exc)
-        st.stop()
-
-    if use_auto_universe:
-        st.info("Auto-Universum aktiv (FMP US Mid/Large + Movers).")
-
-    updated_at = result.get("run_datetime_utc")
-    updated_utc_label, updated_berlin_label = _format_utc_berlin(str(updated_at) if updated_at is not None else None)
-    run_status = result.get("run_status") or {}
-    traffic_label, traffic_color, traffic_text = _traffic_light_status(run_status)
-
-    st.subheader("Ranked Candidates")
-    st.dataframe(result.get("ranked_candidates") or [], width="stretch", height=360)
-
-    st.subheader("Trade Cards")
-    st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
-
-    st.subheader("US High Impact Events (today)")
-    st.dataframe(result.get("macro_us_high_impact_events_today") or [], width="stretch", height=280)
-
-    _render_soft_refresh_status(str(updated_at) if updated_at is not None else None)
-    st.subheader("Status")
-    cols = st.columns(4)
-    cols[0].metric("Letztes Update (Berlin)", updated_berlin_label)
-    cols[1].metric("Macro Bias", f"{float(result.get('macro_bias', 0.0)):.4f}")
-    cols[2].metric("US High Impact", int(result.get("macro_us_high_impact_event_count_today", 0)))
-    cols[3].metric("Kandidaten", len(result.get("ranked_candidates") or []))
-    st.caption(f"Zeitreferenz (UTC): {updated_utc_label}")
-    if auto_refresh_enabled:
-        st.caption(f"Auto-Refresh Zyklen: {refresh_count}")
     else:
-        st.caption("Auto-Refresh deaktiviert · Aktualisierung nur über „🔄 Sofort aktualisieren“")
-
-    st.subheader("System-Ampel")
-    st.markdown(
-        f"<div style='padding:0.7rem 1rem;border-radius:0.6rem;background:{traffic_color};color:white;font-weight:700'>{traffic_label}</div>",
-        unsafe_allow_html=True,
-    )
-    st.caption(traffic_text)
-
-    history = _update_status_history(traffic_label, str(updated_at or "n/a"))
-    st.caption("Verlauf (neueste rechts, letzte 20 Refreshes)")
-    st.markdown(" ".join(item.split(" ")[0] for item in history))
-
-    st.subheader("Runtime-Warnungen")
-    _show_runtime_warnings(run_status)
-
-    with st.expander("Raw JSON (Debug)"):
-        st.json(result)
+        _render_open_prep_snapshot()
+        if auto_refresh_enabled:
+            st.info("Auto-Refresh im Kompatibilitätsmodus: bitte Streamlit aktualisieren für Soft-Refresh.")
+        else:
+            st.caption("Auto-Refresh deaktiviert · Aktualisierung nur über „🔄 Sofort aktualisieren“")
 
 
 if __name__ == "__main__":
