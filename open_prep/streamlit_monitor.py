@@ -194,10 +194,17 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "symbol",
         "score",
         "price",
-        "long_allowed",
-        "no_trade_reason",
-        "prediction_side",
+        "gap_bucket",
+        "gap_grade",
         "gap_pct",
+        "ext_hours_score",
+        "ext_volume_ratio",
+        "premarket_spread_bps",
+        "premarket_stale",
+        "warn_flags",
+        "no_trade_reason",
+        "long_allowed",
+        "prediction_side",
     ]
 
     for row in rows:
@@ -419,23 +426,65 @@ def main() -> None:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
         ranked_candidates = _reorder_ranked_columns(ranked_candidates)
 
-        st.subheader("Ranked Candidates")
-        st.dataframe(ranked_candidates, width="stretch", height=360)
+        # --- LONG GAP-GO ---
+        ranked_gap_go = list(result.get("ranked_gap_go") or [])
+        for row in ranked_gap_go:
+            row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+        ranked_gap_go = _reorder_ranked_columns(ranked_gap_go)
+
+        earn_warn = sum(
+            1 for r in ranked_gap_go
+            if "earnings_risk_window" in str(r.get("warn_flags", ""))
+        )
+        st.subheader(f"LONG GAP-GO  ({len(ranked_gap_go)} Trend-Kandidaten)")
+        if earn_warn:
+            st.caption(f"⚠️ Earnings-Warnungen in GAP-GO: {earn_warn}")
+        if ranked_gap_go:
+            st.dataframe(ranked_gap_go, use_container_width=True, height=320)
+        else:
+            st.info("Keine GAP-GO Kandidaten (strengere Kriterien nicht erfüllt).")
+
+        # --- LONG GAP-WATCHLIST ---
+        ranked_gap_watch = list(result.get("ranked_gap_watch") or [])
+        for row in ranked_gap_watch:
+            row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+        ranked_gap_watch = _reorder_ranked_columns(ranked_gap_watch)
+
+        st.subheader(f"LONG GAP-WATCHLIST  ({len(ranked_gap_watch)} — prüfen im Chart)")
+        if ranked_gap_watch:
+            st.dataframe(ranked_gap_watch, use_container_width=True, height=320)
+        else:
+            st.info("Keine Watch-Kandidaten (Gap zu klein oder Datenqualität).")
+
+        # --- GAP-GO but Earnings ---
+        ranked_gap_go_earn = list(result.get("ranked_gap_go_earnings") or [])
+        for row in ranked_gap_go_earn:
+            row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+        ranked_gap_go_earn = _reorder_ranked_columns(ranked_gap_go_earn)
+
+        st.subheader(f"GAP-GO + Earnings  ({len(ranked_gap_go_earn)} — separat behandeln)")
+        if ranked_gap_go_earn:
+            st.dataframe(ranked_gap_go_earn, use_container_width=True, height=280)
+        else:
+            st.info("Keine GO-Kandidaten mit Earnings-Warnung.")
+
+        st.subheader("Ranked Candidates (Global)")
+        st.dataframe(ranked_candidates, use_container_width=True, height=360)
 
         st.subheader("Trade Cards")
-        st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
+        st.dataframe(result.get("trade_cards") or [], use_container_width=True, height=320)
 
         # --- Gap Scanner ---
         all_quotes = list(result.get("ranked_candidates") or [])
         gap_scanner_results = build_gap_scanner(all_quotes)
         st.subheader(f"Gap Scanner ({len(gap_scanner_results)} Treffer)")
         if gap_scanner_results:
-            st.dataframe(gap_scanner_results, width="stretch", height=320)
+            st.dataframe(gap_scanner_results, use_container_width=True, height=320)
         else:
             st.info("Keine Gap-Kandidaten gefunden (Threshold / Stale / Spread).")
 
         st.subheader("US High Impact Events (today)")
-        st.dataframe(result.get("macro_us_high_impact_events_today") or [], width="stretch", height=280)
+        st.dataframe(result.get("macro_us_high_impact_events_today") or [], use_container_width=True, height=280)
 
         _render_soft_refresh_status(str(updated_at) if updated_at is not None else None)
         st.subheader("Status")

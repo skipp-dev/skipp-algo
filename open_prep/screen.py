@@ -3,6 +3,130 @@ from __future__ import annotations
 from typing import Any
 from .utils import to_float as _to_float
 
+# ---------------------------------------------------------------------------
+# Gap-GO / Gap-WATCH classifier defaults
+# ---------------------------------------------------------------------------
+GO_MIN_GAP_PCT = 1.0
+GO_MIN_EXT_SCORE = 0.9
+GO_MIN_EXT_VOL_RATIO = 0.06
+WATCH_MIN_GAP_PCT = 0.5
+DQ_MAX_SPREAD_BPS = 60.0
+MACRO_SHORT_BIAS_THRESHOLD = -0.35
+
+
+def _push_reason(reasons: list[str], code: str) -> None:
+    if code and code not in reasons:
+        reasons.append(code)
+
+
+def classify_long_gap(
+    row: dict[str, Any],
+    *,
+    bias: float,
+    go_min_gap_pct: float = GO_MIN_GAP_PCT,
+    go_min_ext_score: float = GO_MIN_EXT_SCORE,
+    go_min_ext_vol_ratio: float = GO_MIN_EXT_VOL_RATIO,
+    watch_min_gap_pct: float = WATCH_MIN_GAP_PCT,
+    dq_max_spread_bps: float = DQ_MAX_SPREAD_BPS,
+    macro_short_bias_threshold: float = MACRO_SHORT_BIAS_THRESHOLD,
+) -> dict[str, Any]:
+    """Classify a quote into GAP-GO / GAP-WATCH / SKIP buckets (long only).
+
+    Returns::
+
+        {
+            "bucket": "GO" | "WATCH" | "SKIP",
+            "no_trade_reason": "a;b;c"  (empty string when GO),
+            "warn_flags": "x;y"          (informational, never blocks GO),
+            "gap_grade": float           (0..5 composite quality score),
+        }
+    """
+    reasons: list[str] = []
+    warn_flags: list[str] = []
+
+    gap_available = bool(row.get("gap_available", False))
+    gap_pct = float(row.get("gap_pct") or 0.0)
+    gap_reason = str(row.get("gap_reason") or "")
+    ext_score = float(row.get("ext_hours_score") or 0.0)
+    ext_vol_ratio = float(row.get("ext_volume_ratio") or 0.0)
+    stale = bool(row.get("premarket_stale", False))
+    spread_bps_raw = row.get("premarket_spread_bps")
+    spread_bps: float | None = None if spread_bps_raw is None else float(spread_bps_raw)
+
+    earnings_risk = bool(row.get("earnings_risk_window", False))
+    corp_penalty = float(row.get("corporate_action_penalty") or 0.0)
+
+    # --- Hard data-quality gates (block GO *and* WATCH) -----------------
+    if not gap_available:
+        _push_reason(reasons, "gap_not_available")
+    if gap_reason in {
+        "premarket_unavailable",
+        "missing_quote_timestamp",
+        "stale_quote_unknown_timestamp",
+    }:
+        _push_reason(reasons, "premarket_unavailable")
+    if stale:
+        _push_reason(reasons, "premarket_stale")
+    if spread_bps is not None and spread_bps > dq_max_spread_bps:
+        _push_reason(reasons, "spread_too_wide")
+    if gap_reason == "missing_previous_close":
+        _push_reason(reasons, "data_missing_prev_close")
+
+    # --- Warn-only flags (never block GO) --------------------------------
+    if earnings_risk:
+        _push_reason(warn_flags, "earnings_risk_window")
+    if corp_penalty >= 1.0:
+        _push_reason(warn_flags, "corporate_action_risk")
+    if bias < macro_short_bias_threshold:
+        _push_reason(warn_flags, "macro_short_bias")
+
+    # --- Strength gates (distinguish GO from WATCH) ----------------------
+    if gap_pct < go_min_gap_pct:
+        _push_reason(reasons, "gap_too_small")
+    if ext_score < go_min_ext_score:
+        _push_reason(reasons, "ext_score_too_low")
+    if ext_vol_ratio < go_min_ext_vol_ratio:
+        _push_reason(reasons, "ext_vol_too_low")
+
+    # --- Gap grade (0..5 composite) --------------------------------------
+    def _clamp(x: float, lo: float, hi: float) -> float:
+        return max(lo, min(hi, x))
+
+    g = _clamp(gap_pct / 3.0, 0.0, 2.0)
+    e = _clamp(ext_score / 2.0, 0.0, 2.0)
+    v = _clamp(ext_vol_ratio / 0.10, 0.0, 1.0)
+    gap_grade = round(g + e + v, 3)
+
+    # --- Bucket decision --------------------------------------------------
+    hard_block_codes = {
+        "gap_not_available",
+        "premarket_stale",
+        "premarket_unavailable",
+        "spread_too_wide",
+        "data_missing_prev_close",
+    }
+    strength_codes = {"gap_too_small", "ext_score_too_low", "ext_vol_too_low"}
+
+    hard_block = any(r in hard_block_codes for r in reasons)
+    strength_missing = any(r in strength_codes for r in reasons)
+
+    if (not hard_block) and (not strength_missing) and gap_pct > 0:
+        bucket = "GO"
+        no_trade_reason = ""
+    elif (not hard_block) and gap_pct >= watch_min_gap_pct:
+        bucket = "WATCH"
+        no_trade_reason = ";".join(reasons)
+    else:
+        bucket = "SKIP"
+        no_trade_reason = ";".join(reasons)
+
+    return {
+        "bucket": bucket,
+        "no_trade_reason": no_trade_reason,
+        "warn_flags": ";".join(warn_flags),
+        "gap_grade": gap_grade,
+    }
+
 
 MIN_PRICE_THRESHOLD = 5.0
 SEVERE_GAP_DOWN_THRESHOLD = -8.0

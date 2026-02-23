@@ -22,6 +22,7 @@ from open_prep.run_open_prep import (
     build_gap_scanner,
 )
 from open_prep.news import build_news_scores, _parse_article_datetime
+from open_prep.screen import classify_long_gap, rank_candidates
 from open_prep.macro import (
     FMPClient,
     filter_us_events,
@@ -1119,6 +1120,220 @@ class TestBuildGapScanner(unittest.TestCase):
         result = build_gap_scanner(quotes, min_gap_pct=1.5)
         self.assertEqual(len(result), 1)
         self.assertAlmostEqual(result[0]["gap_pct"], 3.5, places=4)
+
+
+class TestClassifyLongGap(unittest.TestCase):
+    """Test classify_long_gap bucket/reason/warn_flags/grade logic."""
+
+    def _make_row(self, **overrides: object) -> dict:
+        base: dict = {
+            "symbol": "NVDA",
+            "gap_available": True,
+            "gap_pct": 2.5,
+            "gap_reason": "ok",
+            "ext_hours_score": 1.5,
+            "ext_volume_ratio": 0.10,
+            "premarket_stale": False,
+            "premarket_spread_bps": 15.0,
+            "earnings_risk_window": False,
+            "corporate_action_penalty": 0.0,
+        }
+        base.update(overrides)
+        return base
+
+    # --- GO bucket ---
+
+    def test_go_with_strong_metrics(self):
+        result = classify_long_gap(self._make_row(), bias=0.2)
+        self.assertEqual(result["bucket"], "GO")
+        self.assertEqual(result["no_trade_reason"], "")
+        self.assertEqual(result["warn_flags"], "")
+        self.assertGreater(result["gap_grade"], 0.0)
+
+    def test_go_even_with_earnings_warning(self):
+        result = classify_long_gap(
+            self._make_row(earnings_risk_window=True), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "GO")
+        self.assertEqual(result["no_trade_reason"], "")
+        self.assertIn("earnings_risk_window", result["warn_flags"])
+
+    def test_go_even_with_corporate_action_warning(self):
+        result = classify_long_gap(
+            self._make_row(corporate_action_penalty=1.5), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "GO")
+        self.assertIn("corporate_action_risk", result["warn_flags"])
+
+    def test_go_even_with_macro_short_bias_warning(self):
+        result = classify_long_gap(self._make_row(), bias=-0.5)
+        self.assertEqual(result["bucket"], "GO")
+        self.assertIn("macro_short_bias", result["warn_flags"])
+        self.assertEqual(result["no_trade_reason"], "")
+
+    # --- WATCH bucket ---
+
+    def test_watch_gap_too_small_for_go(self):
+        result = classify_long_gap(self._make_row(gap_pct=0.7), bias=0.2)
+        self.assertEqual(result["bucket"], "WATCH")
+        self.assertIn("gap_too_small", result["no_trade_reason"])
+
+    def test_watch_ext_score_too_low(self):
+        result = classify_long_gap(
+            self._make_row(ext_hours_score=0.3), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "WATCH")
+        self.assertIn("ext_score_too_low", result["no_trade_reason"])
+
+    def test_watch_ext_vol_too_low(self):
+        result = classify_long_gap(
+            self._make_row(ext_volume_ratio=0.02), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "WATCH")
+        self.assertIn("ext_vol_too_low", result["no_trade_reason"])
+
+    # --- SKIP bucket ---
+
+    def test_skip_gap_not_available(self):
+        result = classify_long_gap(
+            self._make_row(gap_available=False, gap_pct=0.0), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "SKIP")
+        self.assertIn("gap_not_available", result["no_trade_reason"])
+
+    def test_skip_premarket_stale(self):
+        result = classify_long_gap(
+            self._make_row(premarket_stale=True), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "SKIP")
+        self.assertIn("premarket_stale", result["no_trade_reason"])
+
+    def test_skip_spread_too_wide(self):
+        result = classify_long_gap(
+            self._make_row(premarket_spread_bps=120.0), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "SKIP")
+        self.assertIn("spread_too_wide", result["no_trade_reason"])
+
+    def test_skip_premarket_unavailable_gap_reason(self):
+        result = classify_long_gap(
+            self._make_row(gap_reason="premarket_unavailable", gap_available=False),
+            bias=0.2,
+        )
+        self.assertEqual(result["bucket"], "SKIP")
+        self.assertIn("premarket_unavailable", result["no_trade_reason"])
+
+    def test_skip_missing_previous_close(self):
+        result = classify_long_gap(
+            self._make_row(gap_reason="missing_previous_close", gap_available=False),
+            bias=0.2,
+        )
+        self.assertEqual(result["bucket"], "SKIP")
+        self.assertIn("data_missing_prev_close", result["no_trade_reason"])
+
+    def test_skip_tiny_gap_below_watch_threshold(self):
+        result = classify_long_gap(
+            self._make_row(gap_pct=0.2), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "SKIP")
+
+    # --- gap_grade ---
+
+    def test_gap_grade_range(self):
+        result = classify_long_gap(self._make_row(), bias=0.2)
+        self.assertGreaterEqual(result["gap_grade"], 0.0)
+        self.assertLessEqual(result["gap_grade"], 5.0)
+
+    def test_gap_grade_zero_for_no_gap(self):
+        result = classify_long_gap(
+            self._make_row(gap_pct=0.0, ext_hours_score=0.0, ext_volume_ratio=0.0),
+            bias=0.0,
+        )
+        self.assertEqual(result["gap_grade"], 0.0)
+
+    # --- spread_bps None is not a block ---
+
+    def test_spread_bps_none_does_not_block(self):
+        result = classify_long_gap(
+            self._make_row(premarket_spread_bps=None), bias=0.2
+        )
+        self.assertEqual(result["bucket"], "GO")
+
+
+class TestGapBucketLists(unittest.TestCase):
+    """Integration: classify quotes → build GO/WATCH/SKIP universes."""
+
+    def test_three_bucket_split(self):
+        from open_prep.screen import classify_long_gap
+
+        go_row = {
+            "symbol": "NVDA", "gap_available": True, "gap_pct": 3.0,
+            "gap_reason": "ok", "ext_hours_score": 1.5, "ext_volume_ratio": 0.12,
+            "premarket_stale": False, "premarket_spread_bps": 10.0,
+            "earnings_risk_window": False, "corporate_action_penalty": 0.0,
+        }
+        watch_row = {
+            "symbol": "AAPL", "gap_available": True, "gap_pct": 0.6,
+            "gap_reason": "ok", "ext_hours_score": 0.5, "ext_volume_ratio": 0.03,
+            "premarket_stale": False, "premarket_spread_bps": 15.0,
+            "earnings_risk_window": False, "corporate_action_penalty": 0.0,
+        }
+        skip_row = {
+            "symbol": "BAD", "gap_available": False, "gap_pct": 0.0,
+            "gap_reason": "premarket_unavailable", "ext_hours_score": 0.0,
+            "ext_volume_ratio": 0.0, "premarket_stale": True,
+            "premarket_spread_bps": 200.0, "earnings_risk_window": False,
+            "corporate_action_penalty": 0.0,
+        }
+        quotes = [go_row, watch_row, skip_row]
+        for q in quotes:
+            meta = classify_long_gap(q, bias=0.1)
+            q["gap_bucket"] = meta["bucket"]
+            q["no_trade_reason"] = meta["no_trade_reason"]
+            q["warn_flags"] = meta["warn_flags"]
+            q["gap_grade"] = meta["gap_grade"]
+
+        go_list = [q for q in quotes if q["gap_bucket"] == "GO"]
+        watch_list = [q for q in quotes if q["gap_bucket"] == "WATCH"]
+        skip_list = [q for q in quotes if q["gap_bucket"] == "SKIP"]
+
+        self.assertEqual(len(go_list), 1)
+        self.assertEqual(go_list[0]["symbol"], "NVDA")
+        self.assertEqual(len(watch_list), 1)
+        self.assertEqual(watch_list[0]["symbol"], "AAPL")
+        self.assertEqual(len(skip_list), 1)
+        self.assertEqual(skip_list[0]["symbol"], "BAD")
+
+    def test_go_earnings_subset(self):
+        from open_prep.screen import classify_long_gap
+
+        go_clean = {
+            "symbol": "NVDA", "gap_available": True, "gap_pct": 2.0,
+            "gap_reason": "ok", "ext_hours_score": 1.2, "ext_volume_ratio": 0.08,
+            "premarket_stale": False, "premarket_spread_bps": 10.0,
+            "earnings_risk_window": False, "corporate_action_penalty": 0.0,
+        }
+        go_earn = {
+            "symbol": "TSLA", "gap_available": True, "gap_pct": 4.0,
+            "gap_reason": "ok", "ext_hours_score": 2.0, "ext_volume_ratio": 0.15,
+            "premarket_stale": False, "premarket_spread_bps": 8.0,
+            "earnings_risk_window": True, "corporate_action_penalty": 0.0,
+        }
+        for q in [go_clean, go_earn]:
+            meta = classify_long_gap(q, bias=0.1)
+            q["gap_bucket"] = meta["bucket"]
+            q["warn_flags"] = meta["warn_flags"]
+
+        self.assertEqual(go_clean["gap_bucket"], "GO")
+        self.assertEqual(go_earn["gap_bucket"], "GO")
+
+        go_list = [go_clean, go_earn]
+        go_earnings = [
+            r for r in go_list
+            if "earnings_risk_window" in str(r.get("warn_flags", ""))
+        ]
+        self.assertEqual(len(go_earnings), 1)
+        self.assertEqual(go_earnings[0]["symbol"], "TSLA")
 
 
 if __name__ == "__main__":

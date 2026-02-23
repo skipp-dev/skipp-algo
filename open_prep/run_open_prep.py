@@ -27,7 +27,7 @@ from .macro import (
     macro_bias_with_components,
 )
 from .news import build_news_scores
-from .screen import rank_candidates
+from .screen import classify_long_gap, rank_candidates
 from .utils import to_float as _to_float
 
 logger = logging.getLogger("open_prep.run")
@@ -1851,6 +1851,9 @@ def _build_result_payload(
     premarket_context: dict[str, dict[str, Any]],
     premarket_fetch_error: str | None,
     ranked: list[dict[str, Any]],
+    ranked_gap_go: list[dict[str, Any]],
+    ranked_gap_watch: list[dict[str, Any]],
+    ranked_gap_go_earnings: list[dict[str, Any]],
     cards: list[dict[str, Any]],
 ) -> dict[str, Any]:
     macro_analysis = macro_context["macro_analysis"]
@@ -1923,6 +1926,9 @@ def _build_result_payload(
             fatal_stage=None,
         ),
         "ranked_candidates": ranked,
+        "ranked_gap_go": ranked_gap_go,
+        "ranked_gap_watch": ranked_gap_watch,
+        "ranked_gap_go_earnings": ranked_gap_go_earnings,
         "trade_cards": cards,
     }
 
@@ -2064,12 +2070,40 @@ def generate_open_prep_result(
             q["eps_surprise_pct"] = pm.get("eps_surprise_pct")
             q["revenue_surprise_pct"] = pm.get("revenue_surprise_pct")
 
+    # --- GAP-GO / GAP-WATCH classification (long only) ---
+    for q in quotes:
+        meta = classify_long_gap(q, bias=bias)
+        q["gap_bucket"] = meta["bucket"]
+        q["no_trade_reason"] = meta["no_trade_reason"]
+        q["warn_flags"] = meta["warn_flags"]
+        q["gap_grade"] = meta["gap_grade"]
+
+    gap_go_universe = [q for q in quotes if q.get("gap_bucket") == "GO"]
+    gap_watch_universe = [q for q in quotes if q.get("gap_bucket") == "WATCH"]
+
     ranked = rank_candidates(
         quotes=quotes,
         bias=bias,
         top_n=max(config.top, 1),
         news_scores=news_scores,
     )
+    ranked_gap_go = rank_candidates(
+        quotes=gap_go_universe,
+        bias=bias,
+        top_n=max(config.top, 1),
+        news_scores=news_scores,
+    )
+    ranked_gap_watch = rank_candidates(
+        quotes=gap_watch_universe,
+        bias=bias,
+        top_n=max(config.top, 1),
+        news_scores=news_scores,
+    )
+    # Subset: GO candidates that carry earnings warnings
+    ranked_gap_go_earnings = [
+        r for r in ranked_gap_go
+        if "earnings_risk_window" in str(r.get("warn_flags", ""))
+    ]
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=max(config.trade_cards, 1))
 
     return _build_result_payload(
@@ -2086,6 +2120,9 @@ def generate_open_prep_result(
         premarket_context=premarket_context,
         premarket_fetch_error=premarket_fetch_error,
         ranked=ranked,
+        ranked_gap_go=ranked_gap_go,
+        ranked_gap_watch=ranked_gap_watch,
+        ranked_gap_go_earnings=ranked_gap_go_earnings,
         cards=cards,
     )
 
