@@ -56,6 +56,9 @@ GAP_MODE_CHOICES: tuple[str, ...] = (
     GAP_MODE_PREMARKET_INDICATIVE,
     GAP_MODE_OFF,
 )
+GAP_SCOPE_DAILY = "DAILY"
+GAP_SCOPE_STRETCH_ONLY = "STRETCH_ONLY"
+GAP_SCOPE_CHOICES: tuple[str, ...] = (GAP_SCOPE_DAILY, GAP_SCOPE_STRETCH_ONLY)
 UNIVERSE_SOURCE_STATIC = "STATIC"
 UNIVERSE_SOURCE_FMP_US_MID_LARGE = "FMP_US_MID_LARGE"
 UNIVERSE_SOURCE_CHOICES: tuple[str, ...] = (
@@ -89,6 +92,7 @@ class OpenPrepConfig:
     atr_lookback_days: int = 250
     atr_period: int = 14
     atr_parallel_workers: int = 5
+    gap_scope: str = GAP_SCOPE_DAILY
     analyst_catalyst_limit: int = DEFAULT_ANALYST_CATALYST_LIMIT
 
 
@@ -281,8 +285,18 @@ def _parse_args() -> argparse.Namespace:
         choices=list(GAP_MODE_CHOICES),
         default=GAP_MODE_PREMARKET_INDICATIVE,
         help=(
-            "How to compute Monday gap: RTH_OPEN (official Monday RTH open only), "
-            "PREMARKET_INDICATIVE (Monday premarket indication), OFF (no Monday gap)."
+            "How to compute gap price: RTH_OPEN (official RTH open), "
+            "PREMARKET_INDICATIVE (premarket indication), OFF (no gap)."
+        ),
+    )
+    parser.add_argument(
+        "--gap-scope",
+        type=str,
+        choices=[c.lower() for c in GAP_SCOPE_CHOICES],
+        default=GAP_SCOPE_DAILY.lower(),
+        help=(
+            "When to compute gaps: DAILY (every trading day, default) or "
+            "STRETCH_ONLY (only first session after weekend/holiday)."
         ),
     )
     parser.add_argument(
@@ -444,6 +458,18 @@ def _is_first_session_after_non_trading_stretch(d: date) -> bool:
         return False
     prev_day = _prev_trading_day(d)
     return (d - prev_day).days > 1
+
+
+def _is_gap_day(d: date, gap_scope: str) -> bool:
+    """Determine whether *d* should produce a gap calculation.
+
+    * DAILY — every US-equity trading day is a gap day.
+    * STRETCH_ONLY — only the first session after a non-trading stretch
+      (weekends, holidays).
+    """
+    if gap_scope == GAP_SCOPE_DAILY:
+        return _is_us_equity_trading_day(d)
+    return _is_first_session_after_non_trading_stretch(d)
 
 
 def _to_iso_utc_from_epoch(value: Any) -> str | None:
@@ -1052,11 +1078,13 @@ def _compute_gap_for_quote(
     *,
     run_dt_utc: datetime,
     gap_mode: str,
+    gap_scope: str = GAP_SCOPE_DAILY,
 ) -> dict[str, Any]:
     """Compute session-gap value and metadata according to selected mode."""
     ny_now = run_dt_utc.astimezone(US_EASTERN_TZ)
     ny_date = ny_now.date()
-    is_gap_session = _is_first_session_after_non_trading_stretch(ny_date)
+    is_gap_session = _is_gap_day(ny_date, gap_scope)
+    is_stretch_session = _is_first_session_after_non_trading_stretch(ny_date)
     prev_day = _prev_trading_day(ny_date)
     gap_from_ts = datetime.combine(prev_day, datetime.min.time(), tzinfo=US_EASTERN_TZ).replace(
         hour=16, minute=0, second=0, microsecond=0
@@ -1077,6 +1105,8 @@ def _compute_gap_for_quote(
             "gap_mode_selected": gap_mode,
             "gap_price_source": None,
             "gap_reason": "missing_previous_close",
+            "gap_scope": gap_scope,
+            "is_stretch_session": is_stretch_session,
         }
 
     if gap_mode == GAP_MODE_OFF:
@@ -1089,6 +1119,8 @@ def _compute_gap_for_quote(
             "gap_mode_selected": gap_mode,
             "gap_price_source": None,
             "gap_reason": "mode_off",
+            "gap_scope": gap_scope,
+            "is_stretch_session": is_stretch_session,
         }
 
     if not is_gap_session:
@@ -1100,6 +1132,7 @@ def _compute_gap_for_quote(
             if _ind_px > 0.0:
                 overnight_gap_pct = round(((_ind_px - prev_close) / prev_close) * 100.0, 6)
                 overnight_gap_source = _ind_src
+        reason = "not_trading_day" if not _is_us_equity_trading_day(ny_date) else "scope_stretch_only"
         return {
             "gap_pct": 0.0,
             "gap_type": GAP_MODE_OFF,
@@ -1108,7 +1141,9 @@ def _compute_gap_for_quote(
             "gap_to_ts": None,
             "gap_mode_selected": gap_mode,
             "gap_price_source": None,
-            "gap_reason": "not_first_session_after_break",
+            "gap_reason": reason,
+            "gap_scope": gap_scope,
+            "is_stretch_session": is_stretch_session,
             "overnight_gap_pct": overnight_gap_pct,
             "overnight_gap_source": overnight_gap_source,
         }
@@ -1132,6 +1167,8 @@ def _compute_gap_for_quote(
                 "gap_mode_selected": gap_mode,
                 "gap_price_source": "rth_open",
                 "gap_reason": "ok",
+                "gap_scope": gap_scope,
+                "is_stretch_session": is_stretch_session,
             }
         return {
             "gap_pct": 0.0,
@@ -1142,6 +1179,8 @@ def _compute_gap_for_quote(
             "gap_mode_selected": gap_mode,
             "gap_price_source": None,
             "gap_reason": "rth_open_unavailable",
+            "gap_scope": gap_scope,
+            "is_stretch_session": is_stretch_session,
         }
 
     # PREMARKET_INDICATIVE
@@ -1159,8 +1198,10 @@ def _compute_gap_for_quote(
                 "gap_mode_selected": gap_mode,
                 "gap_price_source": px_source,
                 "gap_reason": "missing_quote_timestamp",
+                "gap_scope": gap_scope,
+                "is_stretch_session": is_stretch_session,
             }
-        # Weekend stale guard: pure "price" fallback on Monday pre-open can still be Friday last.
+        # Stale guard: pure "price" fallback without timestamp may be stale.
         if px_source == "spot" and quote_ts is None:
             return {
                 "gap_pct": 0.0,
@@ -1170,7 +1211,9 @@ def _compute_gap_for_quote(
                 "gap_to_ts": None,
                 "gap_mode_selected": gap_mode,
                 "gap_price_source": px_source,
-                "gap_reason": "weekend_last_quote_unknown_timestamp",
+                "gap_reason": "stale_quote_unknown_timestamp",
+                "gap_scope": gap_scope,
+                "is_stretch_session": is_stretch_session,
             }
         gap_pct = ((indicative_px - prev_close) / prev_close) * 100.0
         return {
@@ -1182,6 +1225,8 @@ def _compute_gap_for_quote(
             "gap_mode_selected": gap_mode,
             "gap_price_source": px_source,
             "gap_reason": "ok",
+            "gap_scope": gap_scope,
+            "is_stretch_session": is_stretch_session,
         }
 
     return {
@@ -1193,6 +1238,8 @@ def _compute_gap_for_quote(
         "gap_mode_selected": gap_mode,
         "gap_price_source": px_source,
         "gap_reason": "premarket_unavailable",
+        "gap_scope": gap_scope,
+        "is_stretch_session": is_stretch_session,
     }
 
 
@@ -1201,15 +1248,19 @@ def apply_gap_mode_to_quotes(
     *,
     run_dt_utc: datetime,
     gap_mode: str,
+    gap_scope: str = GAP_SCOPE_DAILY,
 ) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     mode = str(gap_mode or GAP_MODE_PREMARKET_INDICATIVE).strip().upper()
     if mode not in GAP_MODE_CHOICES:
         raise ValueError(f"Unsupported gap mode: {gap_mode}")
+    scope = str(gap_scope or GAP_SCOPE_DAILY).strip().upper()
+    if scope not in GAP_SCOPE_CHOICES:
+        raise ValueError(f"Unsupported gap scope: {gap_scope}")
 
     for quote in quotes:
         row = dict(quote)
-        gap_meta = _compute_gap_for_quote(row, run_dt_utc=run_dt_utc, gap_mode=mode)
+        gap_meta = _compute_gap_for_quote(row, run_dt_utc=run_dt_utc, gap_mode=mode, gap_scope=scope)
         row.update(gap_meta)
         out.append(row)
     return out
@@ -1752,6 +1803,7 @@ def _fetch_quotes_with_atr(
     run_dt_utc: datetime,
     as_of: date,
     gap_mode: str,
+    gap_scope: str = GAP_SCOPE_DAILY,
     atr_lookback_days: int,
     atr_period: int,
     atr_parallel_workers: int,
@@ -1762,7 +1814,7 @@ def _fetch_quotes_with_atr(
         logger.error("Quote fetch failed: %s", exc)
         raise SystemExit(1) from exc
 
-    quotes = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt_utc, gap_mode=gap_mode)
+    quotes = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt_utc, gap_mode=gap_mode, gap_scope=gap_scope)
 
     atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
@@ -1822,6 +1874,7 @@ def _build_result_payload(
                 "pre_open_only": config.pre_open_only,
                 "pre_open_cutoff_utc": config.pre_open_cutoff_utc,
                 "gap_mode": config.gap_mode,
+                "gap_scope": config.gap_scope,
                 "atr_lookback_days": config.atr_lookback_days,
                 "atr_period": config.atr_period,
                 "atr_parallel_workers": config.atr_parallel_workers,
@@ -1839,6 +1892,7 @@ def _build_result_payload(
         "pre_open_only": bool(config.pre_open_only),
         "pre_open_cutoff_utc": config.pre_open_cutoff_utc,
         "gap_mode": config.gap_mode,
+        "gap_scope": config.gap_scope,
         "atr_lookback_days": config.atr_lookback_days,
         "atr_period": config.atr_period,
         "atr_parallel_workers": config.atr_parallel_workers,
@@ -1887,6 +1941,7 @@ def generate_open_prep_result(
     pre_open_only: bool = False,
     pre_open_cutoff_utc: str = "16:00:00",
     gap_mode: str = GAP_MODE_PREMARKET_INDICATIVE,
+    gap_scope: str = GAP_SCOPE_DAILY,
     atr_lookback_days: int = 250,
     atr_period: int = 14,
     atr_parallel_workers: int = 5,
@@ -1912,6 +1967,9 @@ def generate_open_prep_result(
     mode = str(gap_mode or GAP_MODE_PREMARKET_INDICATIVE).strip().upper()
     if mode not in GAP_MODE_CHOICES:
         raise ValueError(f"Unsupported gap mode: {gap_mode}")
+    scope = str(gap_scope or GAP_SCOPE_DAILY).strip().upper()
+    if scope not in GAP_SCOPE_CHOICES:
+        raise ValueError(f"Unsupported gap scope: {gap_scope}")
 
     config = OpenPrepConfig(
         symbols=symbol_list,
@@ -1929,6 +1987,7 @@ def generate_open_prep_result(
         atr_lookback_days=max(int(atr_lookback_days), 20),
         atr_period=max(int(atr_period), 1),
         atr_parallel_workers=max(int(atr_parallel_workers), 1),
+        gap_scope=scope,
         analyst_catalyst_limit=max(int(analyst_catalyst_limit), 0),
     )
 
@@ -1963,6 +2022,7 @@ def generate_open_prep_result(
         run_dt_utc=run_dt,
         as_of=today,
         gap_mode=config.gap_mode,
+        gap_scope=config.gap_scope,
         atr_lookback_days=config.atr_lookback_days,
         atr_period=config.atr_period,
         atr_parallel_workers=config.atr_parallel_workers,
@@ -2030,6 +2090,82 @@ def generate_open_prep_result(
     )
 
 
+def build_gap_scanner(
+    quotes: list[dict[str, Any]],
+    *,
+    min_gap_pct: float = 1.5,
+    max_spread_bps: float = 40.0,
+    min_ext_volume_ratio: float = 0.05,
+    require_fresh: bool = True,
+    top_n: int = 50,
+) -> list[dict[str, Any]]:
+    """Build a filtered + ranked gap-scanner list from enriched quotes.
+
+    Suitable for both premarket (PREMARKET_INDICATIVE) and RTH (RTH_OPEN)
+    runs.  Caller determines which quotes go in; this function applies
+    quality filters, attaches human-readable *reason_tags*, and returns up
+    to *top_n* rows sorted by ``abs(gap_pct)`` descending.
+    """
+    candidates: list[dict[str, Any]] = []
+    for q in quotes:
+        gap_pct = _to_float(q.get("gap_pct"), default=0.0)
+        gap_available = bool(q.get("gap_available", False))
+
+        # Use overnight_gap_pct when the formal gap is unavailable (non-gap-scope days).
+        effective_gap = gap_pct if gap_available else _to_float(q.get("overnight_gap_pct"), default=0.0)
+        if abs(effective_gap) < min_gap_pct:
+            continue
+
+        tags: list[str] = []
+        tags.append(f"gap>={min_gap_pct}%")
+
+        # Freshness gate
+        stale = bool(q.get("premarket_stale", False))
+        if require_fresh and stale:
+            continue
+        if not stale:
+            tags.append("fresh")
+
+        # Spread quality
+        spread_bps = _to_float(q.get("premarket_spread_bps"), default=float("nan"))
+        if spread_bps == spread_bps and spread_bps <= max_spread_bps:
+            tags.append("spread_ok")
+        elif spread_bps == spread_bps:
+            continue  # spread too wide
+
+        # Extended-hours volume ratio
+        ext_vol_ratio = _to_float(q.get("ext_volume_ratio"), default=0.0)
+        if ext_vol_ratio >= min_ext_volume_ratio:
+            tags.append("extvol_ok")
+
+        # Event-risk flags
+        if q.get("earnings_today") or q.get("earnings_risk_window"):
+            tags.append("earnings_risk")
+        if q.get("split_today"):
+            tags.append("split_risk")
+        if q.get("ipo_window"):
+            tags.append("ipo_risk")
+
+        candidates.append({
+            "symbol": q.get("symbol"),
+            "gap_pct": round(effective_gap, 4),
+            "gap_available": gap_available,
+            "gap_type": q.get("gap_type"),
+            "gap_scope": q.get("gap_scope"),
+            "is_stretch_session": q.get("is_stretch_session"),
+            "ext_hours_score": q.get("ext_hours_score"),
+            "ext_volume_ratio": round(ext_vol_ratio, 6),
+            "premarket_spread_bps": q.get("premarket_spread_bps"),
+            "premarket_stale": stale,
+            "price": q.get("price"),
+            "atr": q.get("atr"),
+            "reason_tags": tags,
+        })
+
+    candidates.sort(key=lambda r: abs(r.get("gap_pct", 0.0)), reverse=True)
+    return candidates[:max(top_n, 0)]
+
+
 def main() -> None:
     args = _parse_args()
     symbols = _parse_symbols(args.symbols)
@@ -2046,6 +2182,7 @@ def main() -> None:
         pre_open_only=bool(args.pre_open_only),
         pre_open_cutoff_utc=args.pre_open_cutoff_utc,
         gap_mode=args.gap_mode,
+        gap_scope=str(args.gap_scope).strip().upper(),
         atr_lookback_days=args.atr_lookback_days,
         atr_period=args.atr_period,
         atr_parallel_workers=args.atr_parallel_workers,

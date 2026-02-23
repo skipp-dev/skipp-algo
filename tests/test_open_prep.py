@@ -9,13 +9,17 @@ from open_prep.run_open_prep import (
     GAP_MODE_OFF,
     GAP_MODE_PREMARKET_INDICATIVE,
     GAP_MODE_RTH_OPEN,
+    GAP_SCOPE_DAILY,
+    GAP_SCOPE_STRETCH_ONLY,
     _build_runtime_status,
     _calculate_atr14_from_eod,
     _extract_time_str,
     _filter_events_by_cutoff_utc,
     _inputs_hash,
+    _is_gap_day,
     _sort_macro_events,
     apply_gap_mode_to_quotes,
+    build_gap_scanner,
 )
 from open_prep.news import build_news_scores, _parse_article_datetime
 from open_prep.macro import (
@@ -796,7 +800,7 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(row["gap_type"], GAP_MODE_OFF)
         self.assertFalse(row["gap_available"])
         self.assertEqual(row["gap_price_source"], "spot")
-        self.assertEqual(row["gap_reason"], "weekend_last_quote_unknown_timestamp")
+        self.assertEqual(row["gap_reason"], "stale_quote_unknown_timestamp")
 
     def test_gap_mode_premarket_without_quote_timestamp_is_unavailable(self):
         quotes = [
@@ -912,12 +916,10 @@ class TestOpenPrep(unittest.TestCase):
         self.assertNotIn("missing_rvol", row["no_trade_reason"])
 
     def test_gap_mode_not_monday_returns_not_first_session_after_break(self):
-        """Non-gap sessions must return gap_reason='not_first_session_after_break' and
-        gap_available=False regardless of the selected gap mode.
-        Verifies that the is_weekend dead-code path was correctly collapsed to not first_session_after_break."""
-        for weekday_offset, label in ((1, "Tuesday"), (5, "Saturday"), (6, "Sunday")):
+        """Non-gap sessions (STRETCH_ONLY scope) must return gap_reason='scope_stretch_only'
+        and gap_available=False on normal weekdays."""
+        for weekday_offset, label in ((1, "Tuesday"), (2, "Wednesday")):
             with self.subTest(day=label):
-                # 2026-02-23 is Monday; +offset gives the target weekday
                 run_dt = datetime(2026, 2, 23, 11, 0, tzinfo=UTC) + timedelta(days=weekday_offset)
                 quotes = [{
                     "symbol": "NVDA",
@@ -926,15 +928,15 @@ class TestOpenPrep(unittest.TestCase):
                     "timestamp": int(run_dt.timestamp()),
                 }]
                 enriched = apply_gap_mode_to_quotes(
-                    quotes, run_dt_utc=run_dt, gap_mode=GAP_MODE_PREMARKET_INDICATIVE
+                    quotes, run_dt_utc=run_dt, gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+                    gap_scope=GAP_SCOPE_STRETCH_ONLY,
                 )
                 row = enriched[0]
                 self.assertFalse(row["gap_available"])
-                self.assertEqual(row["gap_reason"], "not_first_session_after_break")
-                # Non-gap sessions should include overnight_gap_pct
-                if label == "Tuesday":
-                    self.assertIn("overnight_gap_pct", row)
-                    self.assertIn("overnight_gap_source", row)
+                self.assertEqual(row["gap_reason"], "scope_stretch_only")
+                self.assertEqual(row["gap_scope"], GAP_SCOPE_STRETCH_ONLY)
+                self.assertIn("overnight_gap_pct", row)
+                self.assertIn("overnight_gap_source", row)
 
     def test_gap_mode_premarket_handles_tuesday_after_monday_holiday(self):
         """Presidents Day 2026 is Monday (2026-02-16), so Tuesday 2026-02-17
@@ -979,6 +981,144 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(row["gap_type"], GAP_MODE_RTH_OPEN)
         self.assertAlmostEqual(row["gap_pct"], 4.0, places=6)
         self.assertEqual(row["gap_reason"], "ok")
+
+
+class TestIsGapDay(unittest.TestCase):
+    """Tests for the _is_gap_day helper."""
+
+    def test_daily_scope_every_weekday(self):
+        from datetime import date
+        # Mon 2026-02-23 through Fri 2026-02-27
+        for day_offset in range(5):
+            d = date(2026, 2, 23) + timedelta(days=day_offset)
+            self.assertTrue(_is_gap_day(d, GAP_SCOPE_DAILY), f"{d} should be gap day in DAILY scope")
+
+    def test_daily_scope_weekend_excluded(self):
+        from datetime import date
+        sat = date(2026, 2, 28)
+        sun = date(2026, 3, 1)
+        self.assertFalse(_is_gap_day(sat, GAP_SCOPE_DAILY))
+        self.assertFalse(_is_gap_day(sun, GAP_SCOPE_DAILY))
+
+    def test_stretch_only_monday_is_gap(self):
+        from datetime import date
+        mon = date(2026, 2, 23)
+        self.assertTrue(_is_gap_day(mon, GAP_SCOPE_STRETCH_ONLY))
+
+    def test_stretch_only_tuesday_is_not_gap(self):
+        from datetime import date
+        tue = date(2026, 2, 24)
+        self.assertFalse(_is_gap_day(tue, GAP_SCOPE_STRETCH_ONLY))
+
+    def test_stretch_only_after_holiday(self):
+        from datetime import date
+        # Presidents Day 2026 = Mon Feb 16; Tuesday Feb 17 is first session after stretch
+        tue_after_holiday = date(2026, 2, 17)
+        self.assertTrue(_is_gap_day(tue_after_holiday, GAP_SCOPE_STRETCH_ONLY))
+
+
+class TestDailyGapOnTuesday(unittest.TestCase):
+    """With GAP_SCOPE_DAILY, Tuesday should produce real gap values."""
+
+    def test_tuesday_daily_scope_produces_gap(self):
+        quotes = [{
+            "symbol": "NVDA",
+            "preMarketPrice": 105.0,
+            "previousClose": 100.0,
+            "timestamp": int(datetime(2026, 2, 24, 10, 0, tzinfo=UTC).timestamp()),
+        }]
+        run_dt = datetime(2026, 2, 24, 10, 0, tzinfo=UTC)  # Tuesday
+        enriched = apply_gap_mode_to_quotes(
+            quotes, run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+            gap_scope=GAP_SCOPE_DAILY,
+        )
+        row = enriched[0]
+        self.assertTrue(row["gap_available"])
+        self.assertAlmostEqual(row["gap_pct"], 5.0, places=4)
+        self.assertEqual(row["gap_reason"], "ok")
+        self.assertEqual(row["gap_scope"], GAP_SCOPE_DAILY)
+        self.assertFalse(row["is_stretch_session"])
+
+    def test_tuesday_stretch_only_no_gap(self):
+        quotes = [{
+            "symbol": "NVDA",
+            "preMarketPrice": 105.0,
+            "previousClose": 100.0,
+            "timestamp": int(datetime(2026, 2, 24, 10, 0, tzinfo=UTC).timestamp()),
+        }]
+        run_dt = datetime(2026, 2, 24, 10, 0, tzinfo=UTC)
+        enriched = apply_gap_mode_to_quotes(
+            quotes, run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+            gap_scope=GAP_SCOPE_STRETCH_ONLY,
+        )
+        row = enriched[0]
+        self.assertFalse(row["gap_available"])
+        self.assertEqual(row["gap_pct"], 0.0)
+        self.assertEqual(row["gap_reason"], "scope_stretch_only")
+        # overnight_gap_pct is still computed for reference
+        self.assertAlmostEqual(row["overnight_gap_pct"], 5.0, places=4)
+
+
+class TestBuildGapScanner(unittest.TestCase):
+    """Tests for the build_gap_scanner function."""
+
+    def _make_quote(self, symbol: str, gap_pct: float, **kw) -> dict:
+        base = {
+            "symbol": symbol,
+            "gap_pct": gap_pct,
+            "gap_available": True,
+            "gap_type": GAP_MODE_PREMARKET_INDICATIVE,
+            "gap_scope": GAP_SCOPE_DAILY,
+            "is_stretch_session": False,
+            "ext_hours_score": 1.0,
+            "ext_volume_ratio": 0.15,
+            "premarket_spread_bps": 10.0,
+            "premarket_stale": False,
+            "price": 100.0,
+            "atr": 3.0,
+        }
+        base.update(kw)
+        return base
+
+    def test_filters_below_threshold(self):
+        quotes = [self._make_quote("NVDA", 0.5)]
+        result = build_gap_scanner(quotes, min_gap_pct=1.5)
+        self.assertEqual(len(result), 0)
+
+    def test_passes_above_threshold(self):
+        quotes = [self._make_quote("NVDA", 3.0)]
+        result = build_gap_scanner(quotes, min_gap_pct=1.5)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["symbol"], "NVDA")
+        self.assertIn("gap>=1.5%", result[0]["reason_tags"])
+
+    def test_filters_stale_when_required(self):
+        quotes = [self._make_quote("NVDA", 3.0, premarket_stale=True)]
+        result = build_gap_scanner(quotes, min_gap_pct=1.5, require_fresh=True)
+        self.assertEqual(len(result), 0)
+
+    def test_sorted_by_abs_gap_desc(self):
+        quotes = [
+            self._make_quote("A", 2.0),
+            self._make_quote("B", -4.0),
+            self._make_quote("C", 3.0),
+        ]
+        result = build_gap_scanner(quotes, min_gap_pct=1.5)
+        symbols = [r["symbol"] for r in result]
+        self.assertEqual(symbols, ["B", "C", "A"])
+
+    def test_earnings_risk_tag(self):
+        quotes = [self._make_quote("NVDA", 3.0, earnings_today=True)]
+        result = build_gap_scanner(quotes, min_gap_pct=1.5)
+        self.assertIn("earnings_risk", result[0]["reason_tags"])
+
+    def test_uses_overnight_gap_when_gap_unavailable(self):
+        quotes = [self._make_quote("NVDA", 0.0, gap_available=False, overnight_gap_pct=3.5)]
+        result = build_gap_scanner(quotes, min_gap_pct=1.5)
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result[0]["gap_pct"], 3.5, places=4)
 
 
 if __name__ == "__main__":

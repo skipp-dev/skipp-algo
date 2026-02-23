@@ -9,6 +9,9 @@ import streamlit as st
 from open_prep.run_open_prep import (
     GAP_MODE_CHOICES,
     GAP_MODE_PREMARKET_INDICATIVE,
+    GAP_SCOPE_CHOICES,
+    GAP_SCOPE_DAILY,
+    build_gap_scanner,
     generate_open_prep_result,
 )
 
@@ -317,6 +320,13 @@ def main() -> None:
             index=list(GAP_MODE_CHOICES).index(GAP_MODE_PREMARKET_INDICATIVE),
             key="gap_mode",
         )
+        gap_scope = st.selectbox(
+            "Gap scope",
+            options=list(GAP_SCOPE_CHOICES),
+            index=list(GAP_SCOPE_CHOICES).index(GAP_SCOPE_DAILY),
+            key="gap_scope",
+            help="DAILY = Overnight-Gaps jeden Handelstag. STRETCH_ONLY = nur nach Wochenende/Feiertag.",
+        )
         atr_lookback_days = st.number_input("ATR lookback days", min_value=20, max_value=1000, value=250)
         atr_period = st.number_input("ATR period", min_value=1, max_value=200, value=14)
         atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=5)
@@ -378,6 +388,7 @@ def main() -> None:
                     pre_open_only=bool(pre_open_only),
                     pre_open_cutoff_utc=pre_open_cutoff_utc,
                     gap_mode=str(gap_mode),
+                    gap_scope=str(gap_scope),
                     atr_lookback_days=int(atr_lookback_days),
                     atr_period=int(atr_period),
                     atr_parallel_workers=int(atr_parallel_workers),
@@ -413,6 +424,15 @@ def main() -> None:
 
         st.subheader("Trade Cards")
         st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
+
+        # --- Gap Scanner ---
+        all_quotes = list(result.get("ranked_candidates") or [])
+        gap_scanner_results = build_gap_scanner(all_quotes)
+        st.subheader(f"Gap Scanner ({len(gap_scanner_results)} Treffer)")
+        if gap_scanner_results:
+            st.dataframe(gap_scanner_results, width="stretch", height=320)
+        else:
+            st.info("Keine Gap-Kandidaten gefunden (Threshold / Stale / Spread).")
 
         st.subheader("US High Impact Events (today)")
         st.dataframe(result.get("macro_us_high_impact_events_today") or [], width="stretch", height=280)
