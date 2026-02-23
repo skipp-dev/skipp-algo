@@ -257,9 +257,15 @@ def main() -> None:
             value=time(16, 0, 0),
             step=60,
             help="UTC cutoff time used when 'Pre-open only' is enabled.",
+            key="pre_open_cutoff_time_utc",
         )
         pre_open_cutoff_utc = pre_open_cutoff_time.strftime("%H:%M:%S")
-        gap_mode = st.selectbox("Gap mode", options=list(GAP_MODE_CHOICES), index=list(GAP_MODE_CHOICES).index(GAP_MODE_PREMARKET_INDICATIVE))
+        gap_mode = st.selectbox(
+            "Gap mode",
+            options=list(GAP_MODE_CHOICES),
+            index=list(GAP_MODE_CHOICES).index(GAP_MODE_PREMARKET_INDICATIVE),
+            key="gap_mode",
+        )
         atr_lookback_days = st.number_input("ATR lookback days", min_value=20, max_value=1000, value=250)
         atr_period = st.number_input("ATR period", min_value=1, max_value=200, value=14)
         atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=5)
