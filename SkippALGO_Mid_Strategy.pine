@@ -1053,8 +1053,11 @@ macroLen = timeframe.isintraday ? math.min(macroPctLen, macroPctLenIntraday) : m
 macroPct = f_pct_rank(close, macroLen)
 macroScoreRaw = f_clamp01(1.0 - macroPct)
 macroScoreDir = macroGateMode == "Off" ? 0.5 : emaF > emaS ? (1.0 - macroPct) : emaF < emaS ? macroPct : 0.5
-macroGateLong  = macroGateMode == "Hard Gate" ? (na(macroPct) ? na : (macroPct < macroLongPctThreshold))  : true
-macroGateShort = macroGateMode == "Hard Gate" ? (na(macroPct) ? na : (macroPct > macroShortPctThreshold)) : true
+bool macroGateLong = true
+bool macroGateShort = true
+if macroGateMode == "Hard Gate"
+    macroGateLong := na(macroPct) ? na : (macroPct < macroLongPctThreshold)
+    macroGateShort := na(macroPct) ? na : (macroPct > macroShortPctThreshold)
 
 // Drawdown
 ddPeak = ta.highest(close, ddLookback)
