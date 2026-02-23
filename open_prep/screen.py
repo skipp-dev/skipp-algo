@@ -68,7 +68,11 @@ def rank_candidates(
         earnings_today = bool(quote.get("earnings_today", False))
         earnings_timing = quote.get("earnings_timing") or ""
         is_premarket_mover = bool(quote.get("is_premarket_mover", False))
-        premarket_change_pct = _to_float(quote.get("premarket_change_pct"), default=0.0)
+        premarket_change_raw = quote.get("premarket_change_pct")
+        premarket_change_pct_val = _to_float(premarket_change_raw, default=float("nan"))
+        premarket_change_pct: float | None = (
+            None if premarket_change_pct_val != premarket_change_pct_val else premarket_change_pct_val
+        )
         # Cap at 10x: a 50x-volume spike is untradeable at open and would
         # otherwise dominate the entire ranking regardless of other factors.
         rel_vol_capped = min(rel_vol, RVOL_CAP)
@@ -159,7 +163,7 @@ def rank_candidates(
                 "earnings_timing": earnings_timing or None,
                 "earnings_bmo": earnings_bmo,
                 "is_premarket_mover": is_premarket_mover,
-                "premarket_change_pct": premarket_change_pct or None,
+                "premarket_change_pct": premarket_change_pct,
                 "macro_bias": round(bias, 4),
                 "news_catalyst_score": round(news_score, 4),
                 "allowed_setups": allowed_setups,

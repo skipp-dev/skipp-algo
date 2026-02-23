@@ -538,15 +538,17 @@ def _fetch_premarket_context(
         for sym in symbols:
             if sym in mover_map:
                 premarket[sym]["is_premarket_mover"] = True
-                premarket[sym]["premarket_change_pct"] = _to_float(
-                    mover_map[sym].get("changesPercentage"), default=0.0,
-                ) or None
-                premarket[sym]["premarket_price"] = _to_float(
-                    mover_map[sym].get("price"), default=0.0,
-                ) or None
-                premarket[sym]["premarket_volume"] = _to_float(
-                    mover_map[sym].get("volume"), default=0.0,
-                ) or None
+                raw_change = mover_map[sym].get("changesPercentage")
+                raw_price = mover_map[sym].get("price")
+                raw_volume = mover_map[sym].get("volume")
+
+                change_pct = _to_float(raw_change, default=float("nan"))
+                price = _to_float(raw_price, default=float("nan"))
+                volume = _to_float(raw_volume, default=float("nan"))
+
+                premarket[sym]["premarket_change_pct"] = None if change_pct != change_pct else change_pct
+                premarket[sym]["premarket_price"] = None if price != price else price
+                premarket[sym]["premarket_volume"] = None if volume != volume else volume
             else:
                 premarket[sym].setdefault("is_premarket_mover", False)
     except Exception as exc:
