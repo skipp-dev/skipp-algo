@@ -14,6 +14,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Source .env so API keys survive watch sub-shells
+if [[ -f "$PROJECT_DIR/.env" ]]; then
+  set -a
+  source "$PROJECT_DIR/.env"
+  set +a
+fi
 JSON_FILE="$PROJECT_DIR/open_prep/latest_open_prep_run.json"
 VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
 
