@@ -3452,6 +3452,21 @@ def generate_open_prep_result(
         data_capabilities_summary=data_capabilities_summary,
     )
 
+    # Persist latest result to JSON so CLI dashboards (vd_watch.sh) always
+    # see fresh data — regardless of whether the caller is Streamlit or CLI.
+    try:
+        import json as _json
+        _self_dir = Path(__file__).resolve().parent
+        _latest_path = _self_dir / "latest_open_prep_run.json"
+        _latest_path.write_text(
+            _json.dumps(result, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+    return result
+
 
 def build_gap_scanner(
     quotes: list[dict[str, Any]],
