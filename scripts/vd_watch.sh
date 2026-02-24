@@ -3,26 +3,40 @@
 # vd_watch.sh — Live-Terminal-Dashboard mit watch + jq
 # ──────────────────────────────────────────────────────────────────
 # Usage:
-#   ./scripts/vd_watch.sh              # Top-10 + Regime, refresht alle 60s
+#   ./scripts/vd_watch.sh              # Zeigt cached JSON, refresht alle 60s
 #   ./scripts/vd_watch.sh -n 30        # alle 30s refreshen
+#   ./scripts/vd_watch.sh --live       # Pipeline vor jedem Refresh ausführen
+#   ./scripts/vd_watch.sh --live -n 90 # Live-Pipeline alle 90s
 #   ./scripts/vd_watch.sh --once       # einmal anzeigen, kein watch
+#   ./scripts/vd_watch.sh --refresh    # einmal Pipeline laufen lassen + anzeigen
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 JSON_FILE="$PROJECT_DIR/open_prep/latest_open_prep_run.json"
+VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
 
 INTERVAL=60
 ONCE=false
+LIVE=false
+REFRESH=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -n)    INTERVAL="${2:-60}"; shift 2 ;;
-    --once) ONCE=true; shift ;;
-    *)     shift ;;
+    -n)      INTERVAL="${2:-60}"; shift 2 ;;
+    --once)  ONCE=true; shift ;;
+    --live)  LIVE=true; shift ;;
+    --refresh) REFRESH=true; shift ;;
+    *)       shift ;;
   esac
 done
+
+_run_pipeline() {
+  echo "⏳ Pipeline wird ausgeführt …"
+  cd "$PROJECT_DIR"
+  "$VENV_PYTHON" -m open_prep.run_open_prep > /dev/null 2>&1 || echo "⚠️  Pipeline-Fehler"
+}
 
 _render() {
   if [[ ! -f "$JSON_FILE" ]]; then
@@ -74,10 +88,24 @@ _render() {
 }
 
 export JSON_FILE
+export LIVE
+export PROJECT_DIR
+export VENV_PYTHON
 
-if [[ "$ONCE" == true ]]; then
+if [[ "$REFRESH" == true ]]; then
+  # Einmal Pipeline laufen lassen, dann anzeigen
+  _run_pipeline
+  _render
+elif [[ "$ONCE" == true ]]; then
+  if [[ "$LIVE" == true ]]; then
+    _run_pipeline
+  fi
   _render
 else
-  # watch calls this script with --once each cycle
-  watch -n "$INTERVAL" -t --color "$0 --once"
+  if [[ "$LIVE" == true ]]; then
+    # Im Live-Modus: Pipeline + Render in einem Aufruf
+    watch -n "$INTERVAL" -t --color "$0 --once --live"
+  else
+    watch -n "$INTERVAL" -t --color "$0 --once"
+  fi
 fi
