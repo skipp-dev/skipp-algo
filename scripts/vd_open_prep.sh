@@ -24,7 +24,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-JSON_FILE="$PROJECT_DIR/open_prep/latest_open_prep_run.json"
+# Canonical path (new); falls back to legacy package-dir location (symlink).
+JSON_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_open_prep_run.json"
+[[ -f "$JSON_FILE" ]] || JSON_FILE="$PROJECT_DIR/open_prep/latest_open_prep_run.json"
 EXTRACT_DIR="$PROJECT_DIR/artifacts/open_prep/vd_extracts"
 
 # ── Defaults ──
@@ -86,7 +88,7 @@ _extract "trade_cards"          '[.trade_cards[]?]'
 _extract "macro_events"         '[.macro_us_high_impact_events_today[]?]'
 
 # v2 pipeline tables (with playbook)
-_extract "ranked_v2"            '[.ranked_v2[]? | {symbol, score, confidence_tier, gap_pct, gap_grade, playbook: .playbook.playbook, playbook_reason: .playbook.playbook_reason, event_class: .playbook.event_class, event_label: .playbook.event_label, materiality: .playbook.materiality, recency_bucket: .playbook.recency_bucket, source_tier: .playbook.source_tier, execution_quality: .playbook.execution_quality, size_adjustment: .playbook.size_adjustment, max_loss_pct: .playbook.max_loss_pct, regime_aligned: .playbook.regime_aligned, time_horizon: .playbook.time_horizon, gap_go_score: .playbook.gap_go_score, fade_score: .playbook.fade_score, drift_score: .playbook.drift_score, historical_hit_rate, regime, symbol_sector, atr_pct, news_catalyst_score, warn_flags}]'
+_extract "ranked_v2"            '[.ranked_v2[]? | {symbol, score, confidence_tier, gap_pct, gap_grade, breakout_direction, breakout_pattern, is_consolidating, consolidation_score, symbol_regime, playbook: .playbook.playbook, playbook_reason: .playbook.playbook_reason, event_class: .playbook.event_class, event_label: .playbook.event_label, materiality: .playbook.materiality, recency_bucket: .playbook.recency_bucket, source_tier: .playbook.source_tier, execution_quality: .playbook.execution_quality, size_adjustment: .playbook.size_adjustment, max_loss_pct: .playbook.max_loss_pct, regime_aligned: .playbook.regime_aligned, time_horizon: .playbook.time_horizon, gap_go_score: .playbook.gap_go_score, fade_score: .playbook.fade_score, drift_score: .playbook.drift_score, historical_hit_rate, regime, symbol_sector, atr_pct, news_catalyst_score, freshness_half_life_s, warn_flags}]'
 _extract "filtered_out_v2"      '[.filtered_out_v2[]? | {symbol, gap_pct, filter_reasons}]'
 
 # Playbook-only view (compact)
@@ -118,6 +120,14 @@ _extract "diff"                 '.diff // {}'
 
 # Endpoint capabilities
 _extract "capabilities"         '[.data_capabilities // {} | to_entries[]? | {feature: .key, status: .value.status, http_status: .value.http_status, detail: .value.detail}]'
+
+# Realtime signals (from separate signals file, if available)
+SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
+if [[ -f "$SIGNALS_FILE" ]]; then
+  jq '[.signals[]? | {symbol, level, direction, pattern, price, change_pct, volume_ratio, freshness: (.freshness * 100 | floor | tostring + "%"), confidence_tier, atr_pct, symbol_regime, fired_at}]' "$SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals.json"
+else
+  echo "[]" > "$EXTRACT_DIR/realtime_signals.json"
+fi
 
 # Summary one-liner
 MACRO_BIAS=$(jq -r '.macro_bias // 0' "$JSON_FILE")
@@ -174,13 +184,18 @@ case "$VIEW" in
     echo "📋 News Catalysts → VisiData"
     vd "$EXTRACT_DIR/news.json"
     ;;
+  signals)
+    echo "🔴 Realtime Signals → VisiData"
+    vd "$EXTRACT_DIR/realtime_signals.json"
+    ;;
   all)
     echo "📋 Alle Sheets → VisiData (q = zurück, gS = Sheet-Liste)"
-    echo "   Sheets: ranked_candidates, gap_go, gap_watch, earnings, trade_cards,"
+    echo "   Sheets: realtime_signals, ranked_candidates, gap_go, gap_watch, earnings, trade_cards,"
     echo "           macro_events, ranked_v2, playbooks, sectors, news,"
     echo "           earnings_calendar, upgrades, watchlist, capabilities"
     echo ""
     vd \
+      "$EXTRACT_DIR/realtime_signals.json" \
       "$EXTRACT_DIR/ranked_candidates.json" \
       "$EXTRACT_DIR/gap_go.json" \
       "$EXTRACT_DIR/gap_watch.json" \
@@ -199,7 +214,7 @@ case "$VIEW" in
   *)
     echo "❌ Unbekannte View: $VIEW"
     echo "   Verfügbar: ranked | gap-go | gap-watch | earnings | trade-cards"
-    echo "              macro | regime | sectors | v2 | playbooks | news | all"
+    echo "              macro | regime | sectors | v2 | playbooks | news | signals | all"
     exit 1
     ;;
 esac

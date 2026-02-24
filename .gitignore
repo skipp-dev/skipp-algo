@@ -7,7 +7,9 @@ test_output*.txt
 # Generated open_prep artifacts
 artifacts/open_prep/cache/
 artifacts/open_prep/*.json
+artifacts/open_prep/latest/
 
 # Generated runtime logs/state
 open_prep/streamlit_monitor.log
 open_prep/latest_open_prep_run.json
+open_prep/latest_realtime_signals.json

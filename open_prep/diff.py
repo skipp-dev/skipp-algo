@@ -12,7 +12,14 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .utils import to_float
+
 logger = logging.getLogger("open_prep.diff")
+
+SCORE_CHANGE_THRESHOLD = max(
+    float(os.environ.get("OPEN_PREP_DIFF_SCORE_THRESHOLD", "0.5") or "0.5"),
+    0.01,
+)
 
 LAST_RESULT_PATH = Path("artifacts/open_prep/last_result.json")
 
@@ -123,10 +130,10 @@ def compute_diff(
     # Score changes for symbols present in both
     score_changes: list[dict[str, Any]] = []
     for sym in sorted(prev_set & curr_set):
-        prev_score = float(prev_syms[sym].get("score") or 0)
-        curr_score = float(curr_syms[sym].get("score") or 0)
+        prev_score = to_float(prev_syms[sym].get("score"))
+        curr_score = to_float(curr_syms[sym].get("score"))
         delta = curr_score - prev_score
-        if abs(delta) >= 0.5:  # Only show meaningful changes
+        if abs(delta) >= SCORE_CHANGE_THRESHOLD:  # Only show meaningful changes
             score_changes.append({
                 "symbol": sym,
                 "prev_score": round(prev_score, 2),

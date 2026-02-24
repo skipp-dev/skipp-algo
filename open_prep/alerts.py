@@ -80,6 +80,10 @@ def save_alert_config(config: dict[str, Any]) -> Path:
 
 _last_sent: dict[str, float] = {}
 
+# Maximum entries kept in the throttle dict to prevent unbounded growth
+# in long-running processes (e.g. Streamlit).
+_LAST_SENT_MAX = 500
+
 
 def _is_throttled(symbol: str, throttle_seconds: int) -> bool:
     """Check if we recently sent an alert for this symbol."""
@@ -89,6 +93,16 @@ def _is_throttled(symbol: str, throttle_seconds: int) -> bool:
 
 def _mark_sent(symbol: str) -> None:
     _last_sent[symbol] = time.time()
+
+
+def _prune_stale_entries(throttle_seconds: int) -> None:
+    """Remove entries older than throttle window to cap memory usage."""
+    if len(_last_sent) <= _LAST_SENT_MAX:
+        return
+    now = time.time()
+    stale = [k for k, v in _last_sent.items() if (now - v) >= throttle_seconds]
+    for k in stale:
+        del _last_sent[k]
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +219,8 @@ def dispatch_alerts(
 
     results: list[dict[str, Any]] = []
 
+    _prune_stale_entries(throttle)
+
     for candidate in ranked:
         tier = candidate.get("confidence_tier", "STANDARD")
         try:
@@ -220,6 +236,7 @@ def dispatch_alerts(
             logger.debug("Throttled alert for %s", symbol)
             continue
 
+        any_success = False
         for target in targets:
             target_type = target.get("type", "generic")
             url = target.get("url", "")
@@ -240,13 +257,18 @@ def dispatch_alerts(
                 continue
 
             result = _send_webhook(url, payload, target.get("headers"))
+            status = result.get("status", 0)
+            if 200 <= status < 300:
+                any_success = True
             results.append({
                 "symbol": symbol,
                 "target": target.get("name", target_type),
-                "status": result.get("status"),
+                "status": status,
             })
 
-        _mark_sent(symbol)
+        # Only suppress retries if at least one target succeeded
+        if any_success:
+            _mark_sent(symbol)
 
     if results:
         logger.info("Dispatched %d alert(s)", len(results))
@@ -257,8 +279,14 @@ def _send_webhook(
     url: str,
     payload: dict[str, Any],
     headers: dict[str, str] | None = None,
+    *,
+    _max_retries: int = 2,
 ) -> dict[str, Any]:
-    """Send a webhook POST request.  Uses urllib to avoid hard dependency."""
+    """Send a webhook POST request.  Uses urllib to avoid hard dependency.
+
+    Retries up to *_max_retries* times on HTTP 429 (Too Many Requests)
+    with exponential back-off (1s, 2s).
+    """
     import urllib.request
     import urllib.error
 
@@ -267,7 +295,6 @@ def _send_webhook(
         hdrs.update(headers)
 
     data = json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
 
     # Build an SSL context — prefer certifi if installed, else default.
     try:
@@ -279,15 +306,29 @@ def _send_webhook(
     # Mask URL for logging to avoid leaking auth tokens in query params.
     masked_url = url.split("?")[0] + ("?***" if "?" in url else "")
 
-    try:
-        with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
-            return {"status": resp.status, "body": resp.read().decode("utf-8", errors="replace")[:500]}
-    except urllib.error.HTTPError as exc:
-        logger.warning("Webhook HTTP error %d for %s", exc.code, masked_url)
-        return {"status": exc.code, "error": str(exc)}
-    except Exception as exc:
-        logger.warning("Webhook error for %s: %s", masked_url, exc)
-        return {"status": 0, "error": str(exc)}
+    last_exc: Exception | None = None
+    for attempt in range(_max_retries + 1):
+        req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+                return {"status": resp.status, "body": resp.read().decode("utf-8", errors="replace")[:500]}
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt < _max_retries:
+                wait = (attempt + 1) * 1.0  # 1s, 2s
+                logger.info("Webhook 429 for %s — retrying in %.0fs (attempt %d/%d)",
+                            masked_url, wait, attempt + 1, _max_retries)
+                time.sleep(wait)
+                last_exc = exc
+                continue
+            logger.warning("Webhook HTTP error %d for %s", exc.code, masked_url)
+            return {"status": exc.code, "error": str(exc)}
+        except Exception as exc:
+            logger.warning("Webhook error for %s: %s", masked_url, exc)
+            return {"status": 0, "error": str(exc)}
+
+    # All retries exhausted (should only reach here after 429 retries)
+    logger.warning("Webhook retries exhausted for %s", masked_url)
+    return {"status": 429, "error": str(last_exc) if last_exc else "retries exhausted"}
 
 
 # ---------------------------------------------------------------------------

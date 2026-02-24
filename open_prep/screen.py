@@ -19,6 +19,10 @@ def _push_reason(reasons: list[str], code: str) -> None:
         reasons.append(code)
 
 
+def _clamp(x: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, x))
+
+
 def classify_long_gap(
     row: dict[str, Any],
     *,
@@ -45,16 +49,16 @@ def classify_long_gap(
     warn_flags: list[str] = []
 
     gap_available = bool(row.get("gap_available", False))
-    gap_pct = float(row.get("gap_pct") or 0.0)
+    gap_pct = _to_float(row.get("gap_pct"), default=0.0)
     gap_reason = str(row.get("gap_reason") or "")
-    ext_score = float(row.get("ext_hours_score") or 0.0)
-    ext_vol_ratio = float(row.get("ext_volume_ratio") or 0.0)
+    ext_score = _to_float(row.get("ext_hours_score"), default=0.0)
+    ext_vol_ratio = _to_float(row.get("ext_volume_ratio"), default=0.0)
     stale = bool(row.get("premarket_stale", False))
     spread_bps_raw = row.get("premarket_spread_bps")
-    spread_bps: float | None = None if spread_bps_raw is None else float(spread_bps_raw)
+    spread_bps: float | None = None if spread_bps_raw is None else _to_float(spread_bps_raw, default=0.0)
 
     earnings_risk = bool(row.get("earnings_risk_window", False))
-    corp_penalty = float(row.get("corporate_action_penalty") or 0.0)
+    corp_penalty = _to_float(row.get("corporate_action_penalty"), default=0.0)
 
     # --- Data-quality checks (warn-only, fail-open) ----------------------
     if not gap_available:
@@ -89,9 +93,6 @@ def classify_long_gap(
         _push_reason(reasons, "ext_vol_too_low")
 
     # --- Gap grade (0..5 composite) --------------------------------------
-    def _clamp(x: float, lo: float, hi: float) -> float:
-        return max(lo, min(hi, x))
-
     g = _clamp(gap_pct / 3.0, 0.0, 2.0)
     e = _clamp(ext_score / 2.0, 0.0, 2.0)
     v = _clamp(ext_vol_ratio / 0.10, 0.0, 1.0)
@@ -277,6 +278,12 @@ def rank_candidates(
     news_metrics: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Rank long candidates from quote snapshots.
+
+    .. deprecated::
+        Use ``scorer.rank_candidates_v2`` instead.  This v1 ranker is kept
+        for backward compatibility with external scripts that import it
+        directly.  It lacks sector-relative scoring, freshness decay,
+        diminishing-returns compression and adaptive gating that v2 provides.
 
     Expected (if available) in quote payload:
     - symbol

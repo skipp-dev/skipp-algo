@@ -1,0 +1,15 @@
+[
+  {
+    "date": "2026-02-23",
+    "symbol": "NVDA",
+    "gap_pct": 0.0,
+    "rvol": 0.0,
+    "score": -0.04,
+    "confidence_tier": "STANDARD",
+    "gap_bucket_label": "tiny",
+    "rvol_bucket_label": "low",
+    "regime": "RISK_ON",
+    "profitable_30m": null,
+    "pnl_30m_pct": null
+  }
+]

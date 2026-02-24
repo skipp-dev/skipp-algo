@@ -34,6 +34,7 @@ from .utils import to_float as _to_float
 # --- v2 pipeline modules ---
 from .scorer import rank_candidates_v2, load_weight_set, save_weight_set
 from .regime import classify_regime, apply_regime_adjustments
+from .technical_analysis import detect_breakout, detect_consolidation, detect_symbol_regime
 from .outcomes import (
     compute_hit_rates,
     get_symbol_hit_rate,
@@ -478,9 +479,15 @@ def _is_us_equity_trading_day(d: date) -> bool:
 
 def _prev_trading_day(d: date) -> date:
     cur = d - timedelta(days=1)
-    while not _is_us_equity_trading_day(cur):
+    # Safety bound: max 14 iterations covers any realistic holiday stretch
+    # (NYSE never has more than ~4-day closures including weekends).
+    for _ in range(14):
+        if _is_us_equity_trading_day(cur):
+            return cur
         cur -= timedelta(days=1)
-    return cur
+    # Defensive fallback: return d-1 to prevent infinite loop
+    logger.warning("_prev_trading_day: exhausted 14-day lookback from %s, returning %s", d, d - timedelta(days=1))
+    return d - timedelta(days=1)
 
 
 def _is_first_session_after_non_trading_stretch(d: date) -> bool:
@@ -1046,6 +1053,129 @@ def _fetch_sector_performance(client: FMPClient) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Insider trading enrichment (Ultimate-tier)
+# ---------------------------------------------------------------------------
+
+def _fetch_insider_trading(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    limit_per_symbol: int = 5,
+) -> dict[str, dict[str, Any]]:
+    """Fetch recent insider trades, aggregate buy/sell by symbol.
+
+    Returns a dict keyed by symbol with insider-trade summary fields.
+    Only symbols in the provided universe are returned.
+    """
+    universe_set = {s.upper() for s in symbols}
+    result: dict[str, dict[str, Any]] = {}
+
+    # Fetch broad market activity first (faster than per-symbol)
+    try:
+        raw = client.get_insider_trading_latest(limit=500)
+    except Exception as exc:
+        logger.warning("Insider trading fetch failed: %s", exc)
+        return {}
+
+    by_symbol: dict[str, list[dict[str, Any]]] = {}
+    for row in raw:
+        sym = str(row.get("symbol") or "").strip().upper()
+        if sym and sym in universe_set:
+            by_symbol.setdefault(sym, []).append(row)
+
+    for sym, rows in by_symbol.items():
+        buys = sum(
+            1 for r in rows
+            if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
+        )
+        sells = sum(
+            1 for r in rows
+            if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
+        )
+        total_value_bought = sum(
+            _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
+            for r in rows
+            if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
+        )
+        total_value_sold = sum(
+            _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
+            for r in rows
+            if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
+        )
+
+        if buys > sells:
+            emoji = "🟢"
+            sentiment = "net_buy"
+        elif sells > buys:
+            emoji = "🔴"
+            sentiment = "net_sell"
+        else:
+            emoji = "🟡"
+            sentiment = "neutral"
+
+        result[sym] = {
+            "insider_buys": buys,
+            "insider_sells": sells,
+            "insider_net": buys - sells,
+            "insider_sentiment": sentiment,
+            "insider_emoji": emoji,
+            "insider_total_bought_value": round(total_value_bought, 2),
+            "insider_total_sold_value": round(total_value_sold, 2),
+            "insider_trade_count": len(rows),
+        }
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Institutional ownership enrichment (Ultimate-tier, 13F)
+# ---------------------------------------------------------------------------
+_MAX_INST_OWNERSHIP_LOOKUPS = 30  # Cap API calls for institutional data
+
+
+def _fetch_institutional_ownership(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    limit_per_symbol: int = 5,
+) -> dict[str, dict[str, Any]]:
+    """Fetch institutional ownership (13F) data for top symbols.
+
+    Returns dict keyed by symbol with ownership fields.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    cap = min(len(symbols), _MAX_INST_OWNERSHIP_LOOKUPS)
+
+    for sym in symbols[:cap]:
+        sym = str(sym).strip().upper()
+        if not sym:
+            continue
+        try:
+            rows = client.get_institutional_ownership(sym, limit=limit_per_symbol)
+        except Exception as exc:
+            logger.debug("Institutional ownership fetch failed for %s: %s", sym, exc)
+            continue
+        if not rows:
+            continue
+
+        # Calculate aggregate metrics from most recent filings
+        total_shares = sum(int(r.get("shares", 0) or 0) for r in rows)
+        top_holders = [
+            str(r.get("investorName") or r.get("holderName") or "").strip()
+            for r in rows[:3]
+            if r.get("investorName") or r.get("holderName")
+        ]
+
+        result[sym] = {
+            "inst_ownership_holders": len(rows),
+            "inst_ownership_total_shares": total_shares,
+            "inst_ownership_top_holders": top_holders,
+        }
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Symbol → Sector enrichment (profile fallback for mover-seeded symbols)
 # ---------------------------------------------------------------------------
 _MIN_GAP_FOR_SECTOR_LOOKUP = 0.3  # Only fetch profiles for symbols gapping ≥ 0.3 %
@@ -1188,11 +1318,11 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
         ("eod_bulk", "/stable/eod-bulk", {"date": today.isoformat()}),
         (
             "upgrades_downgrades",
-            "/stable/upgrades-downgrades",
-            {"from": (today - timedelta(days=3)).isoformat(), "to": today.isoformat()},
+            "/stable/grades",
+            {"symbol": "AAPL"},
         ),
-        ("sector_performance", "/stable/sector-performance", {}),
-        ("vix_quote", "/stable/batch-quote", {"symbols": "^VIX"}),
+        ("sector_performance", "/stable/sector-performance-snapshot", {}),
+        ("vix_quote", "/stable/quote", {"symbol": "^VIX"}),
         ("income_statement", "/stable/income-statement", {"symbol": "AAPL", "limit": 1}),
     ]
 
@@ -2160,8 +2290,8 @@ def compute_premarket_high_low(
         if not (start_ny <= dt_utc < end_ny):
             continue
         try:
-            hi = float(bar.get("high") or 0.0)
-            lo = float(bar.get("low") or 0.0)
+            hi = _to_float(bar.get("high"), default=0.0)
+            lo = _to_float(bar.get("low"), default=0.0)
         except (TypeError, ValueError):
             continue
         if hi <= 0 or lo <= 0:
@@ -2420,6 +2550,7 @@ def _build_runtime_status(
     *,
     news_fetch_error: str | None,
     atr_fetch_errors: dict[str, str],
+    atr_candidate_symbols: list[str] | None = None,
     premarket_fetch_error: str | None = None,
     fatal_stage: str | None = None,
 ) -> dict[str, Any]:
@@ -2435,14 +2566,26 @@ def _build_runtime_status(
             }
         )
 
-    if atr_fetch_errors:
-        symbols = sorted(str(k).upper() for k in atr_fetch_errors.keys() if str(k).strip())
+    atr_candidate_set = {
+        str(s).strip().upper()
+        for s in (atr_candidate_symbols or [])
+        if str(s).strip()
+    }
+    atr_missing_symbols = sorted(
+        {
+            str(k).strip().upper()
+            for k in atr_fetch_errors.keys()
+            if str(k).strip() and not str(k).strip().startswith("__")
+        }
+    )
+
+    if atr_missing_symbols:
         warnings.append(
             {
                 "stage": "atr_fetch",
                 "code": "PARTIAL_DATA",
-                "message": f"ATR unavailable for {len(symbols)} symbols.",
-                "symbols": symbols,
+                "message": f"ATR unavailable for {len(atr_missing_symbols)} symbols.",
+                "symbols": atr_missing_symbols,
             }
         )
 
@@ -2461,10 +2604,23 @@ def _build_runtime_status(
         if "429" in msg_lower or "rate limit" in msg_lower or "rate_limit" in msg_lower:
             w["code"] = "RATE_LIMIT"
 
+    atr_attempted_count = len(atr_candidate_set)
+    atr_missing_count = len(atr_missing_symbols)
+    atr_available_count = max(atr_attempted_count - atr_missing_count, 0)
+    atr_missing_rate_pct = round((atr_missing_count / atr_attempted_count) * 100.0, 2) if atr_attempted_count > 0 else 0.0
+
     return {
         "degraded_mode": bool(warnings),
         "fatal_stage": fatal_stage,
         "warnings": warnings,
+        "atr_telemetry": {
+            "atr_candidate_symbols": sorted(atr_candidate_set),
+            "atr_candidate_count": atr_attempted_count,
+            "atr_missing_symbols": atr_missing_symbols,
+            "atr_missing_count": atr_missing_count,
+            "atr_available_count": atr_available_count,
+            "atr_missing_rate_pct": atr_missing_rate_pct,
+        },
     }
 
 
@@ -2622,8 +2778,10 @@ def _fetch_todays_events(
     try:
         macro_events = client.get_macro_calendar(today, end_date)
     except RuntimeError as exc:
-        logger.error("Macro calendar fetch failed: %s", exc)
-        raise SystemExit(1) from exc
+        # Fail-open: macro calendar is enrichment, not a prerequisite.
+        # Pipeline continues with empty events; macro_bias defaults to 0.0.
+        logger.error("Macro calendar fetch failed (fail-open, continuing with empty events): %s", exc)
+        return [], []
 
     todays_events = [event for event in macro_events if _event_is_today(event, today)]
     if not pre_open_only:
@@ -2633,8 +2791,10 @@ def _fetch_todays_events(
         filtered = _filter_events_by_cutoff_utc(todays_events, pre_open_cutoff_utc)
         return filtered, macro_events
     except ValueError as exc:
-        logger.error("Invalid --pre-open-cutoff-utc: %s", exc)
-        raise SystemExit(1) from exc
+        # Fail-open: invalid cutoff format should not crash the pipeline.
+        # Fall back to unfiltered events.
+        logger.error("Invalid --pre-open-cutoff-utc (fail-open, using unfiltered events): %s", exc)
+        return todays_events, macro_events
 
 
 def _build_macro_context(
@@ -2712,8 +2872,11 @@ def _fetch_quotes_with_atr(
     try:
         quotes = client.get_batch_quotes(symbols)
     except RuntimeError as exc:
-        logger.error("Quote fetch failed: %s", exc)
-        raise SystemExit(1) from exc
+        # Fail-open: quote fetch failure is critical but must not crash.
+        # Return empty quotes so pipeline produces a degraded result with
+        # runtime_status explaining the failure, rather than SystemExit.
+        logger.error("Quote fetch failed (fail-open, returning empty quotes): %s", exc)
+        return [], {}, {}, {}, {"__batch__": str(exc)}
 
     # Filter to US exchanges only — the batch-quote response may contain
     # entries for symbols that are listed on non-US exchanges (e.g. OTC,
@@ -2731,9 +2894,21 @@ def _fetch_quotes_with_atr(
 
     quotes = apply_gap_mode_to_quotes(quotes, run_dt_utc=run_dt_utc, gap_mode=gap_mode, gap_scope=gap_scope)
 
+    # ATR should only be computed for symbols that actually produced a quote.
+    # The blended universe can contain stale/delisted movers which do not
+    # return quote rows; requesting ATR for those inflates PARTIAL_DATA warnings
+    # without improving ranking quality.
+    atr_symbols = _normalize_symbols(
+        [
+            str(q.get("symbol") or "").strip().upper()
+            for q in quotes
+            if q.get("symbol") and _to_float(q.get("previousClose"), default=0.0) > 0.0
+        ]
+    )
+
     atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
-        symbols=symbols,
+        symbols=atr_symbols,
         as_of=as_of,
         lookback_days=atr_lookback_days,
         atr_period=atr_period,
@@ -2763,6 +2938,7 @@ def _build_result_payload(
     momentum_z_by_symbol: dict[str, float],
     vwap_by_symbol: dict[str, float | None],
     atr_fetch_errors: dict[str, str],
+    atr_candidate_symbols: list[str],
     premarket_context: dict[str, dict[str, Any]],
     premarket_fetch_error: str | None,
     ranked: list[dict[str, Any]],
@@ -2775,6 +2951,8 @@ def _build_result_payload(
     tomorrow_outlook: dict[str, Any] | None = None,
     sector_performance: list[dict[str, Any]] | None = None,
     upgrades_downgrades: dict[str, dict[str, Any]] | None = None,
+    insider_trading: dict[str, dict[str, Any]] | None = None,
+    institutional_ownership: dict[str, dict[str, Any]] | None = None,
     enriched_quotes: list[dict[str, Any]] | None = None,
     # v2 pipeline outputs
     ranked_v2: list[dict[str, Any]] | None = None,
@@ -2855,6 +3033,7 @@ def _build_result_payload(
         "run_status": _build_runtime_status(
             news_fetch_error=news_fetch_error,
             atr_fetch_errors=atr_fetch_errors,
+            atr_candidate_symbols=atr_candidate_symbols,
             premarket_fetch_error=premarket_fetch_error,
             fatal_stage=None,
         ),
@@ -2868,6 +3047,8 @@ def _build_result_payload(
         "tomorrow_outlook": tomorrow_outlook,
         "sector_performance": sector_performance or [],
         "upgrades_downgrades": upgrades_downgrades or {},
+        "insider_trading": insider_trading or {},
+        "institutional_ownership": institutional_ownership or {},
         "enriched_quotes": enriched_quotes or [],
         # --- v2 pipeline outputs ---
         "ranked_v2": ranked_v2 or [],
@@ -3012,6 +3193,13 @@ def generate_open_prep_result(
         atr_period=config.atr_period,
         atr_parallel_workers=config.atr_parallel_workers,
     )
+    atr_candidate_symbols = _normalize_symbols(
+        [
+            str(q.get("symbol") or "").strip().upper()
+            for q in quotes
+            if q.get("symbol") and _to_float(q.get("previousClose"), default=0.0) > 0.0
+        ]
+    )
     _progress(6, TOTAL_STAGES, "Premarket-Kontext laden …")
     premarket_context, premarket_fetch_error = _fetch_premarket_context(
         client=data_client,
@@ -3081,6 +3269,47 @@ def generate_open_prep_result(
         sector_performance = _fetch_sector_performance(data_client)
     except Exception as exc:
         logger.warning("Sector performance fetch failed: %s", exc)
+
+    # --- Insider Trading (Ultimate-tier) ---
+    insider_trading: dict[str, dict[str, Any]] = {}
+    try:
+        insider_trading = _fetch_insider_trading(
+            client=data_client,
+            symbols=symbol_list,
+        )
+        if insider_trading:
+            logger.info("Insider trading: %d symbols with activity", len(insider_trading))
+    except Exception as exc:
+        logger.warning("Insider trading fetch failed: %s", exc)
+
+    # Merge insider trading data into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        it = insider_trading.get(sym, {})
+        q["insider_sentiment"] = it.get("insider_sentiment", "")
+        q["insider_emoji"] = it.get("insider_emoji", "")
+        q["insider_buys"] = it.get("insider_buys", 0)
+        q["insider_sells"] = it.get("insider_sells", 0)
+        q["insider_net"] = it.get("insider_net", 0)
+
+    # --- Institutional Ownership (Ultimate-tier, 13F) ---
+    institutional_ownership: dict[str, dict[str, Any]] = {}
+    try:
+        institutional_ownership = _fetch_institutional_ownership(
+            client=data_client,
+            symbols=symbol_list,
+        )
+        if institutional_ownership:
+            logger.info("Institutional ownership: %d symbols enriched", len(institutional_ownership))
+    except Exception as exc:
+        logger.warning("Institutional ownership fetch failed: %s", exc)
+
+    # Merge institutional ownership data into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        io_data = institutional_ownership.get(sym, {})
+        q["inst_ownership_holders"] = io_data.get("inst_ownership_holders", 0)
+        q["inst_ownership_top_holders"] = io_data.get("inst_ownership_top_holders", [])
 
     # --- Premarket High/Low (PMH/PML) for attention names ---
     _progress(9, TOTAL_STAGES, "PMH/PML-Daten laden …")
@@ -3336,6 +3565,56 @@ def generate_open_prep_result(
         row["historical_sample_size"] = hr.get("historical_sample_size", 0)
         row["regime"] = regime_snapshot.regime
 
+    # --- Breakout & Consolidation enrichment (#6, #7) ---
+    # Fetch daily bars for top-N v2 candidates and run detection
+    _daily_bars_cache: dict[str, list[dict[str, Any]]] = {}
+    if ranked_v2 and data_client is not None:
+        lookback_from = today - timedelta(days=120)
+        v2_symbols = [str(r.get("symbol", "")).strip().upper() for r in ranked_v2 if r.get("symbol")]
+
+        def _fetch_daily_bars(sym: str) -> tuple[str, list[dict[str, Any]]]:
+            try:
+                bars_raw = data_client.get_historical_price_eod_full(sym, lookback_from, today)
+                if isinstance(bars_raw, dict):
+                    maybe_hist = bars_raw.get("historical")
+                    bars_raw = maybe_hist if isinstance(maybe_hist, list) else []
+                if isinstance(bars_raw, list) and len(bars_raw) >= 10:
+                    bars_sorted = sorted(bars_raw, key=lambda b: str(b.get("date", "")))
+                    return sym, bars_sorted
+            except Exception as exc:
+                logger.debug("Breakout enrichment: failed to fetch bars for %s: %s", sym, exc)
+            return sym, []
+
+        with ThreadPoolExecutor(max_workers=min(5, len(v2_symbols))) as pool:
+            for sym, bars_list in pool.map(_fetch_daily_bars, v2_symbols):
+                if bars_list:
+                    _daily_bars_cache[sym] = bars_list
+
+    for row in ranked_v2:
+        sym = str(row.get("symbol", "")).strip().upper()
+        bars = _daily_bars_cache.get(sym, [])
+
+        # Breakout detection
+        bo = detect_breakout(bars) if bars else {"direction": None, "pattern": "no_data", "details": {}}
+        row["breakout_direction"] = bo.get("direction")
+        row["breakout_pattern"] = bo.get("pattern", "no_data")
+        row["breakout_details"] = bo.get("details", {})
+
+        # Consolidation detection (use ATR% and a rough BB-width / ADX proxy)
+        atr_pct = _to_float(row.get("atr_pct_computed") or row.get("atr_pct"), default=0.0)
+        # Without live ADX/BB data, use ATR%-based approximation:
+        # Low ATR% ≈ tight bands ≈ possible consolidation
+        approx_bb_width = max(atr_pct * 2.5, 0.1)  # rough proxy
+        approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)  # rough proxy
+        consol = detect_consolidation(bb_width_pct=approx_bb_width, adx=approx_adx)
+        row["consolidation"] = consol
+        row["is_consolidating"] = consol.get("is_consolidating", False)
+        row["consolidation_score"] = consol.get("score", 0.0)
+
+        # Symbol-level regime (#12) — ATR%-based approximation
+        sym_regime = detect_symbol_regime(adx=approx_adx, bb_width_pct=approx_bb_width)
+        row["symbol_regime"] = sym_regime
+
     # --- Playbook assignment (6-step professional news-trading engine) ---
     playbook_results = assign_playbooks(
         candidates=ranked_v2,
@@ -3402,8 +3681,12 @@ def generate_open_prep_result(
     watchlist_symbols = get_watchlist_symbols()
 
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=max(config.trade_cards, 1))
-    # v2 trade cards use playbook-enriched candidates
-    cards_v2 = build_trade_cards(ranked_candidates=ranked_v2, bias=bias, top_n=max(config.trade_cards, 1))
+    # v2 trade cards use playbook-enriched candidates + daily bars for S/R targets
+    cards_v2 = build_trade_cards(
+        ranked_candidates=ranked_v2, bias=bias,
+        top_n=max(config.trade_cards, 1),
+        daily_bars=_daily_bars_cache if _daily_bars_cache else None,
+    )
 
     # --- Tomorrow outlook (next trading-day assessment) ---
     tomorrow_outlook = _compute_tomorrow_outlook(
@@ -3414,7 +3697,7 @@ def generate_open_prep_result(
         all_range_events=all_range_events,
     )
 
-    return _build_result_payload(
+    result = _build_result_payload(
         config=config,
         now_utc=run_dt,
         today=today,
@@ -3425,6 +3708,7 @@ def generate_open_prep_result(
         momentum_z_by_symbol=momentum_z_by_symbol,
         vwap_by_symbol=vwap_by_symbol,
         atr_fetch_errors=atr_fetch_errors,
+        atr_candidate_symbols=atr_candidate_symbols,
         premarket_context=premarket_context,
         premarket_fetch_error=premarket_fetch_error,
         ranked=ranked,
@@ -3437,6 +3721,8 @@ def generate_open_prep_result(
         cards_v2=cards_v2,
         sector_performance=sector_performance,
         upgrades_downgrades=upgrades_downgrades,
+        insider_trading=insider_trading,
+        institutional_ownership=institutional_ownership,
         enriched_quotes=quotes,
         # v2 pipeline outputs
         ranked_v2=ranked_v2,
@@ -3456,12 +3742,21 @@ def generate_open_prep_result(
     # see fresh data — regardless of whether the caller is Streamlit or CLI.
     try:
         import json as _json
-        _self_dir = Path(__file__).resolve().parent
-        _latest_path = _self_dir / "latest_open_prep_run.json"
+        _latest_dir = Path("artifacts/open_prep/latest")
+        _latest_dir.mkdir(parents=True, exist_ok=True)
+        _latest_path = _latest_dir / "latest_open_prep_run.json"
         _latest_path.write_text(
             _json.dumps(result, indent=2, default=str) + "\n",
             encoding="utf-8",
         )
+        # Backward-compat symlink so existing callers (vd_watch.sh, start_open_prep_suite.py)
+        # that look in the package dir still find the file.
+        _compat_link = Path(__file__).resolve().parent / "latest_open_prep_run.json"
+        try:
+            _compat_link.unlink(missing_ok=True)
+            _compat_link.symlink_to(_latest_path.resolve())
+        except OSError:
+            pass
     except OSError:
         pass
 
@@ -3566,16 +3861,10 @@ def main() -> None:
         atr_parallel_workers=args.atr_parallel_workers,
         analyst_catalyst_limit=max(int(args.analyst_catalyst_limit), 0),
     )
-    rendered = json.dumps(result, indent=2)
+    rendered = json.dumps(result, indent=2, default=str)
     sys.stdout.write(rendered + "\n")
-
-    # Keep a canonical local artifact in sync for downstream review scripts.
-    try:
-        _self_dir = Path(__file__).resolve().parent
-        latest_path = _self_dir / "latest_open_prep_run.json"
-        latest_path.write_text(rendered + "\n", encoding="utf-8")
-    except OSError as exc:
-        logger.warning("Failed to write latest open_prep artifact: %s", exc)
+    # Note: latest_open_prep_run.json is already written inside
+    # generate_open_prep_result() with default=str.  No second write needed.
 
 
 if __name__ == "__main__":

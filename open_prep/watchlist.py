@@ -4,17 +4,33 @@ Watchlist entries are stored in ``artifacts/open_prep/watchlist.json``.
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
 import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 logger = logging.getLogger("open_prep.watchlist")
 
 WATCHLIST_PATH = Path("artifacts/open_prep/watchlist.json")
+_LOCK_PATH = WATCHLIST_PATH.with_suffix(".lock")
+
+
+@contextmanager
+def _file_lock() -> Iterator[None]:
+    """Cooperatively lock the watchlist for read-modify-write operations."""
+    _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(_LOCK_PATH), os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def _load_raw() -> list[dict[str, Any]]:
@@ -59,7 +75,8 @@ def load_watchlist() -> list[dict[str, Any]]:
             "source": "manual" | "auto",
         }
     """
-    return _load_raw()
+    with _file_lock():
+        return _load_raw()
 
 
 def add_to_watchlist(
@@ -68,44 +85,47 @@ def add_to_watchlist(
     source: str = "manual",
 ) -> list[dict[str, Any]]:
     """Add a symbol to the watchlist (no duplicates)."""
-    entries = _load_raw()
-    symbols = {e["symbol"] for e in entries}
-    if symbol.upper() in symbols:
-        logger.info("%s already on watchlist", symbol)
-        return entries
+    with _file_lock():
+        entries = _load_raw()
+        symbols = {e["symbol"] for e in entries}
+        if symbol.upper() in symbols:
+            logger.info("%s already on watchlist", symbol)
+            return entries
 
-    entries.append({
-        "symbol": symbol.upper(),
-        "added_at": datetime.now(timezone.utc).isoformat(),
-        "note": note,
-        "source": source,
-    })
-    _save_raw(entries)
-    logger.info("Added %s to watchlist (%d total)", symbol, len(entries))
-    return entries
+        entries.append({
+            "symbol": symbol.upper(),
+            "added_at": datetime.now(timezone.utc).isoformat(),
+            "note": note,
+            "source": source,
+        })
+        _save_raw(entries)
+        logger.info("Added %s to watchlist (%d total)", symbol, len(entries))
+        return entries
 
 
 def remove_from_watchlist(symbol: str) -> list[dict[str, Any]]:
     """Remove a symbol from the watchlist."""
-    entries = _load_raw()
-    before = len(entries)
-    entries = [e for e in entries if e["symbol"] != symbol.upper()]
-    _save_raw(entries)
-    removed = before - len(entries)
-    if removed:
-        logger.info("Removed %s from watchlist", symbol)
-    return entries
+    with _file_lock():
+        entries = _load_raw()
+        before = len(entries)
+        entries = [e for e in entries if e["symbol"] != symbol.upper()]
+        _save_raw(entries)
+        removed = before - len(entries)
+        if removed:
+            logger.info("Removed %s from watchlist", symbol)
+        return entries
 
 
 def update_note(symbol: str, note: str) -> list[dict[str, Any]]:
     """Update the note for a watchlist entry."""
-    entries = _load_raw()
-    for e in entries:
-        if e["symbol"] == symbol.upper():
-            e["note"] = note
-            break
-    _save_raw(entries)
-    return entries
+    with _file_lock():
+        entries = _load_raw()
+        for e in entries:
+            if e["symbol"] == symbol.upper():
+                e["note"] = note
+                break
+        _save_raw(entries)
+        return entries
 
 
 def auto_add_high_conviction(
@@ -116,30 +136,36 @@ def auto_add_high_conviction(
 
     Returns the number of newly added symbols.
     """
-    entries = _load_raw()
-    existing = {e["symbol"] for e in entries}
-    added = 0
+    with _file_lock():
+        entries = _load_raw()
+        existing = {e["symbol"] for e in entries}
+        added = 0
 
-    for row in ranked:
-        tier = row.get("confidence_tier", "")
-        if tier == min_tier:
-            sym = str(row.get("symbol", "")).upper()
-            if sym and sym not in existing:
-                entries.append({
-                    "symbol": sym,
-                    "added_at": datetime.now(timezone.utc).isoformat(),
-                    "note": f"Auto-added: score={row.get('score', 0):.2f}, gap={row.get('gap_pct', 0):.1f}%",
-                    "source": "auto",
-                })
-                existing.add(sym)
-                added += 1
+        for row in ranked:
+            tier = row.get("confidence_tier", "")
+            if tier == min_tier:
+                sym = str(row.get("symbol", "")).upper()
+                if sym and sym not in existing:
+                    _score = row.get("score")
+                    _gap = row.get("gap_pct")
+                    _score_str = f"{_score:.2f}" if isinstance(_score, (int, float)) else "N/A"
+                    _gap_str = f"{_gap:.1f}" if isinstance(_gap, (int, float)) else "N/A"
+                    entries.append({
+                        "symbol": sym,
+                        "added_at": datetime.now(timezone.utc).isoformat(),
+                        "note": f"Auto-added: score={_score_str}, gap={_gap_str}%",
+                        "source": "auto",
+                    })
+                    existing.add(sym)
+                    added += 1
 
-    if added:
-        _save_raw(entries)
-        logger.info("Auto-added %d HIGH_CONVICTION symbol(s) to watchlist", added)
-    return added
+        if added:
+            _save_raw(entries)
+            logger.info("Auto-added %d HIGH_CONVICTION symbol(s) to watchlist", added)
+        return added
 
 
 def get_watchlist_symbols() -> set[str]:
     """Return just the set of watchlist symbols for quick lookup."""
-    return {e["symbol"] for e in _load_raw()}
+    with _file_lock():
+        return {e["symbol"] for e in _load_raw()}

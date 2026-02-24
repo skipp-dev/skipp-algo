@@ -1,0 +1,694 @@
+"""Technical analysis utilities ported from IB_monitoring.py.
+
+Provides:
+  #1  calculate_support_resistance_targets  — S/R levels, Fibonacci, ATR targets
+  #2  apply_diminishing_returns             — sqrt() compression for score components
+  #3  compute_risk_penalty                  — gradual risk penalty [0.05, 0.20]
+  #4  compute_adaptive_gates                — VIX + instrument-class dynamic thresholds
+  #5  classify_instrument                   — penny / small_cap / mid_cap / large_cap
+  #6  detect_consolidation                  — BB squeeze + low ADX + ATR contraction
+  #7  detect_breakout                       — range breakout / capitulation patterns
+  #8  validate_data_quality                 — plausibility checks on candidate data
+  #10 GateTracker                           — structured gate-rejection logger
+  #12 detect_symbol_regime                  — per-symbol TRENDING / RANGING
+
+All functions operate on simple dicts / scalars — no pandas required.
+Daily OHLCV bars are passed as ``list[dict]`` with keys
+``open, high, low, close, volume``.
+"""
+from __future__ import annotations
+
+import logging
+import math
+from dataclasses import dataclass, field, asdict
+from typing import Any
+
+logger = logging.getLogger("open_prep.ta")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Helper: unit_scale
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _unit_scale(value: float | None, lower: float, upper: float, default: float = 0.5) -> float:
+    """Scale *value* into [0, 1] with clamping."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return default
+    if upper == lower:
+        return max(0.0, min(1.0, default))
+    scaled = (value - lower) / (upper - lower)
+    return max(0.0, min(1.0, scaled))
+
+
+def _safe_float(v: Any, default: float = 0.0) -> float:
+    """Safely convert to float; NaN → default."""
+    try:
+        f = float(v)
+        return default if math.isnan(f) else f
+    except (TypeError, ValueError):
+        return default
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #2  Diminishing Returns
+# ═══════════════════════════════════════════════════════════════════════════
+
+def apply_diminishing_returns(raw_value: float, *, use_sqrt: bool = True) -> float:
+    """Apply sqrt() compression to prevent extreme score components.
+
+    Maps [0, 1] → [0, 1] with diminishing marginal gain.  Low values are
+    amplified, high values are compressed.
+
+    Examples::
+
+        0.25 → 0.50   (doubled)
+        0.49 → 0.70
+        0.64 → 0.80
+        0.81 → 0.90   (compressed)
+    """
+    if not use_sqrt:
+        return raw_value
+    clamped = max(0.0, min(1.0, raw_value))
+    return math.sqrt(clamped)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #3  Risk Penalty
+# ═══════════════════════════════════════════════════════════════════════════
+
+def compute_risk_penalty(
+    price: float,
+    atr: float | None,
+    volume_ratio: float,
+    spread_pct: float = 0.0,
+) -> float:
+    """Compute a gradual risk penalty in [0.05, 0.20].
+
+    Combines:
+      • ATR penalty  — high ATR relative to price (0–12 %)
+      • Volume penalty — low liquidity (0–6 %)
+      • Spread penalty — wide bid-ask (0–2 %)
+
+    A minimum floor of 5 % acknowledges baseline risk for every stock.
+    The 20 % cap prevents over-penalisation of volatile but tradeable names.
+    """
+    total = 0.0
+
+    # ATR penalty: high ATR% → high risk
+    if atr and price > 0:
+        atr_pct = (atr / price) * 100.0
+        atr_unit = _unit_scale(atr_pct, 0.5, 3.0)
+        total += atr_unit * 0.12
+
+    # Volume penalty: rvol < 0.8 → thin liquidity
+    if volume_ratio < 0.8:
+        vol_unit = _unit_scale(0.8 - volume_ratio, 0.0, 0.5)
+        total += vol_unit * 0.06
+
+    # Spread penalty
+    if spread_pct > 0:
+        total += min(spread_pct * 10.0, 0.02)
+
+    return max(0.0, min(total, 0.20))
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #5  Instrument Classification
+# ═══════════════════════════════════════════════════════════════════════════
+
+def classify_instrument(price: float, atr_pct: float) -> str:
+    """Classify a stock into penny / small_cap / mid_cap / large_cap.
+
+    Uses price and ATR-% (ATR / price * 100) as dual criteria.
+    """
+    if price < 5.0 or atr_pct > 8.0:
+        return "penny"
+    if price < 20.0 or (atr_pct > 3.0 and price < 50.0):
+        return "small_cap"
+    if price < 100.0 or (atr_pct > 1.5 and price < 200.0):
+        return "mid_cap"
+    return "large_cap"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #4  Adaptive Gating
+# ═══════════════════════════════════════════════════════════════════════════
+
+def compute_adaptive_gates(
+    *,
+    base_score_min: float = 0.35,
+    base_trend_z_min: float = 0.3,
+    base_atr_ratio_min: float = 1.5,
+    vix_level: float = 20.0,
+    instrument_class: str = "mid_cap",
+) -> dict[str, float]:
+    """Compute adaptive gate thresholds from VIX and instrument class.
+
+    • High VIX (>30)  → relax gates by 15 % (more opportunities)
+    • Low VIX  (<15)  → tighten gates by 15 % (demand stronger signals)
+    • Instrument class → ATR-ratio threshold varies
+    """
+    # VIX multiplier
+    if vix_level > 30:
+        vix_mult = 0.85
+    elif vix_level < 15:
+        vix_mult = 1.15
+    else:
+        vix_mult = 1.0
+
+    adapted_score = max(0.20, min(0.50, base_score_min * vix_mult))
+    adapted_trend = max(0.15, min(0.50, base_trend_z_min * vix_mult))
+
+    atr_table = {
+        "penny": 0.5,
+        "small_cap": 1.0,
+        "mid_cap": 1.5,
+        "large_cap": 2.5,
+    }
+    adapted_atr = max(0.5, min(3.0, atr_table.get(instrument_class, base_atr_ratio_min)))
+
+    return {
+        "score_min": round(adapted_score, 3),
+        "trend_z_min": round(adapted_trend, 3),
+        "atr_ratio_min": round(adapted_atr, 3),
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #12  Per-Symbol Regime Detection
+# ═══════════════════════════════════════════════════════════════════════════
+
+def detect_symbol_regime(
+    adx: float,
+    bb_width_pct: float,
+) -> str:
+    """Classify per-symbol regime as TRENDING or RANGING.
+
+    Uses ADX and Bollinger Band width (% of middle band).
+
+    • TRENDING:  ADX > 25 **and** BB width > 4 %
+    • RANGING :  ADX < 20 **and** BB width < 2 %
+    • Otherwise defaults to RANGING (safer, mean-reversion bias).
+    """
+    if adx > 25.0 and bb_width_pct > 4.0:
+        return "TRENDING"
+    if adx < 20.0 and bb_width_pct < 2.0:
+        return "RANGING"
+    return "NEUTRAL"  # uncertain → no weight adjustments
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #6  Consolidation Detection
+# ═══════════════════════════════════════════════════════════════════════════
+
+def detect_consolidation(
+    bb_width_pct: float,
+    adx: float,
+    atr_ratio: float | None = None,
+    *,
+    bb_squeeze_threshold: float = 10.0,
+) -> dict[str, Any]:
+    """Detect consolidation (tight range before potential breakout).
+
+    Uses three signals:
+      1. Bollinger-Band squeeze  — ``bb_width_pct < threshold``
+      2. Weak ADX               — ``adx < 20``
+      3. ATR contraction         — ``atr_ratio < 1.5``
+
+    Returns::
+
+        {
+            "is_consolidating": bool,
+            "score": float (0..1),
+            "bb_squeeze": bool,
+            "adx_weak": bool,
+            "atr_contracted": bool,
+        }
+    """
+    bb_squeeze = bb_width_pct < bb_squeeze_threshold
+    adx_weak = adx < 20.0
+    is_consolidating = bb_squeeze and adx_weak
+
+    # Composite score
+    score = 0.0
+    if is_consolidating:
+        bb_score = max(0.0, min(1.0, 1.0 - (bb_width_pct / bb_squeeze_threshold)))
+        adx_score = max(0.0, min(1.0, 1.0 - (adx / 20.0)))
+        atr_score = 0.5  # neutral default
+        if atr_ratio is not None:
+            if atr_ratio < 1.5:
+                atr_score = 1.0
+            elif atr_ratio < 2.0:
+                atr_score = 0.7
+            else:
+                atr_score = 0.3
+        score = round(0.4 * bb_score + 0.35 * adx_score + 0.25 * atr_score, 4)
+
+    atr_contracted = (atr_ratio is not None and atr_ratio < 1.5)
+    return {
+        "is_consolidating": is_consolidating,
+        "score": score,
+        "bb_squeeze": bb_squeeze,
+        "adx_weak": adx_weak,
+        "atr_contracted": atr_contracted,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #7  Breakout Detection  (daily OHLCV bars)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _ema(values: list[float], span: int) -> float:
+    """Compute the final EMA value from a list of floats."""
+    if not values:
+        return 0.0
+    k = 2.0 / (span + 1)
+    ema_val = values[0]
+    for v in values[1:]:
+        ema_val = v * k + ema_val * (1 - k)
+    return ema_val
+
+
+def detect_breakout(
+    bars: list[dict[str, Any]],
+    *,
+    short_n: int = 30,
+    long_n: int = 60,
+) -> dict[str, Any]:
+    """Detect breakout patterns on daily OHLCV bars.
+
+    Patterns detected:
+      • **B_UP**   — bullish capitulation (massive volume spike + reversal at lows)
+      • **B_DOWN** — bearish distribution (volume spike during decline)
+      • **LONG**   — price breaks above prior-range high
+      • **SHORT**  — price breaks below prior-range low
+
+    Parameters
+    ----------
+    bars : list[dict]
+        Daily OHLCV bars ordered oldest → newest.  Required keys:
+        ``open, high, low, close, volume``.
+    short_n : int
+        Lookback for short-range high/low (default 30 bars).
+    long_n : int
+        Lookback for long-range high/low (default 60 bars).
+
+    Returns
+    -------
+    dict
+        ``{"direction": str | None, "pattern": str, "details": dict}``
+    """
+    min_bars = max(short_n, long_n) + 5
+    if not bars or len(bars) < min_bars:
+        return {"direction": None, "pattern": "insufficient_data", "details": {}}
+
+    closes = [_safe_float(b.get("close")) for b in bars]
+    volumes = [_safe_float(b.get("volume")) for b in bars]
+    last_close = closes[-1]
+    prev_close = closes[-2] if len(closes) >= 2 else last_close
+    last_volume = volumes[-1]
+
+    avg_volume = sum(volumes[-50:]) / max(len(volumes[-50:]), 1) if len(volumes) >= 50 else (sum(volumes) / max(len(volumes), 1))
+    volume_ratio = last_volume / avg_volume if avg_volume > 0 else 1.0
+
+    ema_20 = _ema(closes, 20)
+    ema_50 = _ema(closes, 50) if len(closes) >= 50 else ema_20
+
+    recent_5 = closes[-5:]
+    is_declining = all(recent_5[i] <= recent_5[i - 1] for i in range(1, len(recent_5)))
+    is_rising = all(recent_5[i] >= recent_5[i - 1] for i in range(1, len(recent_5)))
+    price_change_pct = ((last_close / prev_close) - 1) * 100 if prev_close > 0 else 0.0
+
+    prior_high_s = max(closes[-(short_n + 1):-1])
+    prior_low_s = min(closes[-(short_n + 1):-1])
+    prior_high_l = max(closes[-(long_n + 1):-1])
+    prior_low_l = min(closes[-(long_n + 1):-1])
+
+    # --- Pattern 1: Bullish Capitulation ---
+    if volume_ratio >= 5.0:
+        recent_low = min(closes[-10:])
+        at_recent_low = last_close <= recent_low * 1.02
+        has_reversal = price_change_pct > 0.5 and not is_rising
+        breaking_above_ema = last_close > ema_20 and prev_close < ema_20
+        if (has_reversal or breaking_above_ema) and at_recent_low:
+            return {
+                "direction": "B_UP",
+                "pattern": "bullish_capitulation",
+                "details": {
+                    "volume_ratio": round(volume_ratio, 2),
+                    "price_change_pct": round(price_change_pct, 2),
+                },
+            }
+
+    # --- Pattern 2: Bearish Distribution ---
+    if volume_ratio >= 1.5 and is_declining and price_change_pct < -0.3:
+        below_ema20 = last_close < ema_20
+        if below_ema20:
+            return {
+                "direction": "B_DOWN",
+                "pattern": "bearish_distribution",
+                "details": {
+                    "volume_ratio": round(volume_ratio, 2),
+                    "price_change_pct": round(price_change_pct, 2),
+                },
+            }
+
+    # --- Pattern 3: Range Breakout ---
+    tol = 0.0015
+    if last_close > prior_high_s * (1 + tol):
+        return {
+            "direction": "LONG",
+            "pattern": "range_breakout_short",
+            "details": {
+                "prior_high": round(prior_high_s, 2),
+                "pct_above": round((last_close / prior_high_s - 1) * 100, 2),
+            },
+        }
+    if last_close > prior_high_l * (1 + tol):
+        return {
+            "direction": "LONG",
+            "pattern": "range_breakout_long",
+            "details": {
+                "prior_high": round(prior_high_l, 2),
+                "pct_above": round((last_close / prior_high_l - 1) * 100, 2),
+            },
+        }
+    if last_close < prior_low_s * (1 - tol):
+        return {
+            "direction": "SHORT",
+            "pattern": "range_breakdown_short",
+            "details": {
+                "prior_low": round(prior_low_s, 2),
+                "pct_below": round((1 - last_close / prior_low_s) * 100, 2),
+            },
+        }
+    if last_close < prior_low_l * (1 - tol):
+        return {
+            "direction": "SHORT",
+            "pattern": "range_breakdown_long",
+            "details": {
+                "prior_low": round(prior_low_l, 2),
+                "pct_below": round((1 - last_close / prior_low_l) * 100, 2),
+            },
+        }
+
+    return {"direction": None, "pattern": "no_breakout", "details": {}}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #8  Data Quality Validation
+# ═══════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class DataQualityResult:
+    """Result of data-quality validation for a candidate."""
+    passed: bool
+    issues: list[str] = field(default_factory=list)
+
+
+def validate_data_quality(candidate: dict[str, Any]) -> DataQualityResult:
+    """Run plausibility checks on a candidate dict.
+
+    Checks ported from ``is_actionable()`` data-quality gates:
+
+    1. **zero_volume**  — volume == 0 ⇒ no trading activity
+    2. **rsi_extreme**  — RSI ≤ 0.1 or ≥ 99.9 ⇒ bad data / illiquid
+    3. **oversold_1.0_low_volume** — perfect oversold + thin volume = suspicious
+    4. **avg_volume_zero** — missing average-volume baseline
+    5. **atr_missing** — ATR ≤ 0 ⇒ insufficient history
+    6. **price_zero** — no valid price
+    """
+    issues: list[str] = []
+
+    price = _safe_float(candidate.get("price"))
+    volume = _safe_float(candidate.get("volume"))
+    avg_volume = _safe_float(candidate.get("avg_volume") or candidate.get("avgVolume"))
+    rsi = _safe_float(candidate.get("rsi"), default=50.0)
+    momentum_z = _safe_float(candidate.get("momentum_z_score") or candidate.get("momentum_z"))
+    rel_vol = _safe_float(candidate.get("volume_ratio") or candidate.get("rel_vol"))
+
+    if price <= 0.0:
+        issues.append("price_zero")
+    if volume <= 0.0:
+        issues.append("zero_volume")
+    if rsi <= 0.1 or rsi >= 99.9:
+        issues.append("rsi_extreme")
+    if avg_volume <= 0.0:
+        issues.append("avg_volume_zero")
+    # Only flag atr_missing when the raw field exists but is invalid;
+    # a completely absent key is not a quality issue here.
+    atr_raw = candidate.get("atr")
+    if atr_raw is not None and _safe_float(atr_raw) <= 0.0:
+        issues.append("atr_missing")
+
+    # Suspicious: perfect oversold + very low volume
+    if momentum_z is not None and momentum_z <= -4.5 and rel_vol < 0.3:
+        issues.append("extreme_momentum_low_volume")
+
+    return DataQualityResult(passed=len(issues) == 0, issues=issues)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #10  Gate Tracking (structured logging)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class GateTracker:
+    """Collects gate-rejection events per pipeline run.
+
+    Usage::
+
+        tracker = GateTracker()
+        tracker.reject("AAPL", "price_below_5", {"price": 3.2})
+        tracker.reject("XYZ", "zero_volume", {"volume": 0})
+        summary = tracker.summary()
+    """
+
+    def __init__(self) -> None:
+        self._rejections: list[dict[str, Any]] = []
+
+    # ── public API ──────────────────────────────────────────────────────
+
+    def reject(self, symbol: str, gate: str, details: dict[str, Any] | None = None) -> None:
+        """Record a gate rejection."""
+        entry: dict[str, Any] = {"symbol": symbol, "gate": gate}
+        if details:
+            entry["details"] = details
+        self._rejections.append(entry)
+        logger.debug("Gate rejected: %s — %s %s", symbol, gate, details or "")
+
+    def summary(self) -> dict[str, Any]:
+        """Return an aggregated summary of all rejections.
+
+        Returns::
+
+            {
+                "total_rejections": int,
+                "by_gate": {"gate_name": count, …},
+                "by_symbol": {"SYM": [{"gate": …, "details": …}, …], …},
+                "rejections": [full list],
+            }
+        """
+        by_gate: dict[str, int] = {}
+        by_symbol: dict[str, list[dict]] = {}
+        for r in self._rejections:
+            g = r["gate"]
+            s = r["symbol"]
+            by_gate[g] = by_gate.get(g, 0) + 1
+            by_symbol.setdefault(s, []).append(
+                {"gate": g, "details": r.get("details")},
+            )
+        return {
+            "total_rejections": len(self._rejections),
+            "by_gate": by_gate,
+            "by_symbol": by_symbol,
+            "rejections": list(self._rejections),
+        }
+
+    def clear(self) -> None:
+        self._rejections.clear()
+
+    @property
+    def rejection_count(self) -> int:
+        return len(self._rejections)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #1  Support / Resistance / Targets  (daily OHLCV bars)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def calculate_support_resistance_targets(
+    bars: list[dict[str, Any]],
+    current_price: float,
+    direction: str = "long",
+) -> dict[str, Any]:
+    """Calculate support, resistance, and target price levels.
+
+    Adapted for the open_prep daily-OHLCV context (no pandas required).
+
+    Methods combined:
+      1. Standard Pivot Points (last 20 bars)
+      2. Swing highs / lows (last 50 bars, 2-bar confirmation)
+      3. EMA levels (20, 50, optionally 200)
+      4. Fibonacci retracement (recent high-to-low range)
+      5. ATR-based targets & stop
+
+    Parameters
+    ----------
+    bars : list[dict]
+        Daily OHLCV bars ordered oldest → newest.
+    current_price : float
+        Current (or last-close) price.
+    direction : str
+        ``"long"`` or ``"short"``.
+
+    Returns
+    -------
+    dict  with keys:
+        support_1/2/3, resistance_1/2/3, target_1/2/3,
+        stop_loss, risk_reward_ratio, atr, and *_pct variants.
+    """
+    empty: dict[str, Any] = {
+        "support_1": None, "support_2": None, "support_3": None,
+        "resistance_1": None, "resistance_2": None, "resistance_3": None,
+        "target_1": None, "target_2": None, "target_3": None,
+        "stop_loss": None, "risk_reward_ratio": None, "atr": None,
+    }
+    if not bars or len(bars) < 50 or current_price <= 0:
+        return empty
+
+    try:
+        recent = bars[-50:]
+        pivot_bars = bars[-20:]
+
+        highs_raw = [_safe_float(b.get("high")) for b in recent]
+        lows_raw = [_safe_float(b.get("low")) for b in recent]
+        closes = [_safe_float(b.get("close")) for b in recent]
+        # Filter out zero values that would corrupt S/R calculations
+        highs = [h if h > 0 else current_price for h in highs_raw]
+        lows = [lo if lo > 0 else current_price for lo in lows_raw]
+
+        # --- ATR (14-bar) ---
+        ranges = [highs[i] - lows[i] for i in range(len(recent))]
+        atr = sum(ranges[-14:]) / 14.0
+
+        # --- Pivot Points (off last 20 bars) ---
+        p_highs = [_safe_float(b.get("high")) for b in pivot_bars]
+        p_lows = [_safe_float(b.get("low")) for b in pivot_bars]
+        # Replace zeros with current_price to avoid nonsensical pivots
+        p_highs = [h if h > 0 else current_price for h in p_highs]
+        p_lows = [lo if lo > 0 else current_price for lo in p_lows]
+        pivot_high = max(p_highs)
+        pivot_low = min(p_lows)
+        pivot_close = _safe_float(pivot_bars[-1].get("close"))
+        pivot = (pivot_high + pivot_low + pivot_close) / 3.0
+
+        r1 = 2 * pivot - pivot_low
+        r2 = pivot + (pivot_high - pivot_low)
+        r3 = pivot_high + 2 * (pivot - pivot_low)
+        s1 = 2 * pivot - pivot_high
+        s2 = pivot - (pivot_high - pivot_low)
+        s3 = pivot_low - 2 * (pivot_high - pivot)
+
+        # --- Swing highs / lows ---
+        swing_highs: list[float] = []
+        swing_lows: list[float] = []
+        for i in range(2, len(recent) - 2):
+            h = highs[i]
+            if h > highs[i - 1] and h > highs[i - 2] and h > highs[i + 1] and h > highs[i + 2]:
+                swing_highs.append(h)
+            lo = lows[i]
+            if lo < lows[i - 1] and lo < lows[i - 2] and lo < lows[i + 1] and lo < lows[i + 2]:
+                swing_lows.append(lo)
+
+        # --- EMAs ---
+        all_closes = [_safe_float(b.get("close"), current_price) for b in bars]
+        ema_20 = _ema(all_closes, 20)
+        ema_50 = _ema(all_closes, 50) if len(all_closes) >= 50 else None
+        ema_200 = _ema(all_closes, 200) if len(all_closes) >= 200 else None
+
+        # --- Fibonacci ---
+        recent_high = max(highs)
+        recent_low = min(lows)
+        fib_range = recent_high - recent_low
+        fib_382 = recent_high - fib_range * 0.382
+        fib_500 = recent_high - fib_range * 0.500
+        fib_618 = recent_high - fib_range * 0.618
+
+        # --- Combine & sort ---
+        res_candidates = [r1, r2, r3] + swing_highs + [
+            v for v in (ema_20, ema_50, ema_200) if v is not None
+        ]
+        res_candidates = sorted(v for v in res_candidates if v > current_price * 1.001)
+
+        sup_candidates = [s1, s2, s3] + swing_lows + [
+            v for v in (ema_20, ema_50, ema_200, fib_382, fib_500, fib_618) if v is not None
+        ]
+        sup_candidates = sorted(
+            (v for v in sup_candidates if v < current_price * 0.999),
+            reverse=True,
+        )
+
+        def _pick(lst: list[float], idx: int) -> float | None:
+            return lst[idx] if idx < len(lst) else None
+
+        resistance_1 = _pick(res_candidates, 0)
+        resistance_2 = _pick(res_candidates, 1)
+        resistance_3 = _pick(res_candidates, 2)
+        support_1 = _pick(sup_candidates, 0)
+        support_2 = _pick(sup_candidates, 1)
+        support_3 = _pick(sup_candidates, 2)
+
+        # --- Targets & Stop ---
+        if direction == "long":
+            stop_loss = min(
+                support_1 if support_1 else current_price - 2 * atr,
+                current_price - 2 * atr,
+            )
+            target_1 = resistance_1 if resistance_1 else current_price + 1.5 * atr
+            target_2 = resistance_2 if resistance_2 else current_price + 3.0 * atr
+            target_3 = resistance_3 if resistance_3 else current_price + 4.5 * atr
+        else:
+            stop_loss = max(
+                resistance_1 if resistance_1 else current_price + 2 * atr,
+                current_price + 2 * atr,
+            )
+            target_1 = support_1 if support_1 else current_price - 1.5 * atr
+            target_2 = support_2 if support_2 else current_price - 3.0 * atr
+            target_3 = support_3 if support_3 else current_price - 4.5 * atr
+
+        risk = abs(current_price - stop_loss)
+        reward = abs(target_1 - current_price) if target_1 else 0.0
+        rr_ratio = round(reward / risk, 2) if risk > 0 else None
+
+        def _r(v: float | None) -> float | None:
+            return round(v, 2) if v is not None else None
+
+        def _pct(v: float | None) -> float | None:
+            if v is None or current_price <= 0:
+                return None
+            return round((v - current_price) / current_price * 100, 2)
+
+        return {
+            "support_1": _r(support_1),
+            "support_2": _r(support_2),
+            "support_3": _r(support_3),
+            "resistance_1": _r(resistance_1),
+            "resistance_2": _r(resistance_2),
+            "resistance_3": _r(resistance_3),
+            "target_1": _r(target_1),
+            "target_2": _r(target_2),
+            "target_3": _r(target_3),
+            "stop_loss": _r(stop_loss),
+            "risk_reward_ratio": rr_ratio,
+            "atr": round(atr, 2),
+            "target_1_pct": _pct(target_1),
+            "target_2_pct": _pct(target_2),
+            "target_3_pct": _pct(target_3),
+            "stop_loss_pct": _pct(stop_loss),
+            "support_1_pct": _pct(support_1),
+            "resistance_1_pct": _pct(resistance_1),
+        }
+
+    except Exception:
+        logger.exception("Error in S/R calculation")
+        return empty

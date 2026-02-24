@@ -16,6 +16,7 @@ __all__: list[str] = [
 	"run_open_prep",
 	"scorer",
 	"screen",
+	"technical_analysis",
 	"trade_cards",
 	"utils",
 	"watchlist",

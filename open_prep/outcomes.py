@@ -15,6 +15,8 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from .utils import to_float as _safe_float
+
 logger = logging.getLogger("open_prep.outcomes")
 
 OUTCOMES_DIR = Path("artifacts/open_prep/outcomes")
@@ -153,10 +155,10 @@ def compute_hit_rates(
 
     buckets: dict[str, dict[str, Any]] = {}
     for rec in records:
-        gap_pct = float(rec["gap_pct"]) if rec.get("gap_pct") is not None else 0.0
-        rvol = float(rec["rvol"]) if rec.get("rvol") is not None else 0.0
+        gap_pct = _safe_float(rec.get("gap_pct"))
+        rvol = _safe_float(rec.get("rvol"))
         profitable = rec.get("profitable_30m")
-        pnl = float(rec["pnl_30m_pct"]) if rec.get("pnl_30m_pct") is not None else 0.0
+        pnl = _safe_float(rec.get("pnl_30m_pct"))
 
         gb = _gap_bucket_label(gap_pct)
         rb = _rvol_bucket_label(rvol)
@@ -225,9 +227,9 @@ def prepare_outcome_snapshot(
     """
     records: list[dict[str, Any]] = []
     for row in ranked:
-        gap_pct = float(row["gap_pct"]) if row.get("gap_pct") is not None else 0.0
-        rvol = float(row.get("volume") or 0)
-        avg_vol = float(row.get("avg_volume") or 1)
+        gap_pct = _safe_float(row.get("gap_pct"))
+        rvol = _safe_float(row.get("volume"))
+        avg_vol = _safe_float(row.get("avg_volume"), default=1.0)
         rvol_ratio = (rvol / avg_vol) if avg_vol > 0 else 0.0
 
         records.append({

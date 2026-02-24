@@ -625,7 +625,7 @@ class TestOpenPrep(unittest.TestCase):
         with patch.object(FMPClient, "_get", return_value=[{"symbol": "NVDA", "date": "2026-02-20"}]) as mock_get:
             rows = client.get_eod_bulk(datetime(2026, 2, 20, tzinfo=UTC).date())
 
-        mock_get.assert_called_once_with("/stable/eod-bulk", {"date": "2026-02-20"})
+        mock_get.assert_called_once_with("/stable/eod-bulk", {"date": "2026-02-20", "datatype": "json"})
         self.assertEqual(rows, [{"symbol": "NVDA", "date": "2026-02-20"}])
 
     def test_fmp_client_get_retries_transient_http_error(self):
@@ -1171,7 +1171,7 @@ class TestClassifyLongGap(unittest.TestCase):
     def test_go_with_strong_metrics(self):
         result = classify_long_gap(self._make_row(), bias=0.2)
         self.assertEqual(result["bucket"], "GO")
-        self.assertEqual(result["no_trade_reason"], "")
+        self.assertEqual(result["no_trade_reason"], [])
         self.assertEqual(result["warn_flags"], "")
         self.assertGreater(result["gap_grade"], 0.0)
 
@@ -1180,7 +1180,7 @@ class TestClassifyLongGap(unittest.TestCase):
             self._make_row(earnings_risk_window=True), bias=0.2
         )
         self.assertEqual(result["bucket"], "GO")
-        self.assertEqual(result["no_trade_reason"], "")
+        self.assertEqual(result["no_trade_reason"], [])
         self.assertIn("earnings_risk_window", result["warn_flags"])
 
     def test_go_even_with_corporate_action_warning(self):
@@ -1194,7 +1194,7 @@ class TestClassifyLongGap(unittest.TestCase):
         result = classify_long_gap(self._make_row(), bias=-0.5)
         self.assertEqual(result["bucket"], "GO")
         self.assertIn("macro_short_bias", result["warn_flags"])
-        self.assertEqual(result["no_trade_reason"], "")
+        self.assertEqual(result["no_trade_reason"], [])
 
     # --- WATCH bucket ---
 
@@ -1569,11 +1569,13 @@ class TestPickSymbolsForPMH(unittest.TestCase):
             "D": {"is_premarket_mover": False, "ext_hours_score": -0.5},
         }
         result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=2)
-        # A is mover, B and C top-2 by ext_hours_score; D excluded
+        # A is mover (gets +100 boost), B and C have positive ext_hours_score
+        # All symbols within MAX_ATTENTION (80), so all returned, sorted by score
         self.assertIn("A", result)
         self.assertIn("B", result)
         self.assertIn("C", result)
-        self.assertNotIn("D", result)
+        # A (mover-boosted) should be first
+        self.assertEqual(result[0], "A")
 
     def test_dedup_mover_and_top(self):
         from open_prep.run_open_prep import _pick_symbols_for_pmh
@@ -1648,7 +1650,7 @@ class TestAtrRobustness(unittest.TestCase):
 class TestOpenPrepRegressions(unittest.TestCase):
     def test_generate_result_mirrors_pmh_into_premarket_context(self):
         with (
-            patch("open_prep.run_open_prep._fetch_todays_events", return_value=[]),
+            patch("open_prep.run_open_prep._fetch_todays_events", return_value=([], [])),
             patch(
                 "open_prep.run_open_prep._build_macro_context",
                 return_value={
@@ -1704,7 +1706,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
 
     def test_generate_result_forwards_pmh_timeout_env(self):
         with (
-            patch("open_prep.run_open_prep._fetch_todays_events", return_value=[]),
+            patch("open_prep.run_open_prep._fetch_todays_events", return_value=([], [])),
             patch(
                 "open_prep.run_open_prep._build_macro_context",
                 return_value={
@@ -1759,6 +1761,11 @@ class TestOpenPrepRegressions(unittest.TestCase):
         self.assertIn("pmh_pml", str(result.get("premarket_fetch_error") or ""))
 
     def test_main_writes_latest_open_prep_artifact(self):
+        """Verify that main() calls generate_open_prep_result() which is
+        responsible for writing latest_open_prep_run.json (the artifact
+        write was consolidated into generate_open_prep_result to avoid a
+        duplicate write with different serialisation settings).
+        """
         fake_args = argparse.Namespace(
             symbols="NVDA",
             universe_source="fmp_us_mid_large",
@@ -1780,22 +1787,352 @@ class TestOpenPrepRegressions(unittest.TestCase):
         )
         payload = {"schema_version": "open_prep_v1", "ranked_candidates": [], "trade_cards": []}
 
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            with (
-                patch("open_prep.run_open_prep._parse_args", return_value=fake_args),
-                patch("open_prep.run_open_prep.generate_open_prep_result", return_value=payload),
-                patch("sys.stdout", new_callable=io.StringIO),
-            ):
-                cwd = Path.cwd()
-                try:
-                    os.chdir(tmp_dir)
-                    run_open_prep.main()
-                    latest = Path("open_prep/latest_open_prep_run.json")
-                    self.assertTrue(latest.exists())
-                    self.assertEqual(json.loads(latest.read_text(encoding="utf-8")), payload)
-                finally:
-                    os.chdir(cwd)
+        with (
+            patch("open_prep.run_open_prep._parse_args", return_value=fake_args),
+            patch("open_prep.run_open_prep.generate_open_prep_result", return_value=payload) as mock_gen,
+            patch("sys.stdout", new_callable=io.StringIO) as mock_out,
+        ):
+            run_open_prep.main()
+            mock_gen.assert_called_once()
+            # main() still writes to stdout with default=str
+            output = mock_out.getvalue()
+            self.assertEqual(json.loads(output), payload)
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Senior Review: NEW TESTS (M-6, M-7, M-8, H-1, H-2, M-1, M-2, M-3, M-4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ------------------------------------------------------------------
+# M-8 — signal_decay: adaptive_half_life, adaptive_freshness_decay
+# ------------------------------------------------------------------
+class TestSignalDecay(unittest.TestCase):
+    """Tests for open_prep.signal_decay (M-8)."""
+
+    def test_adaptive_half_life_low_atr_gives_max(self):
+        from open_prep.signal_decay import adaptive_half_life, MAX_HALF_LIFE_SECONDS
+        hl = adaptive_half_life(atr_pct=0.5)
+        self.assertEqual(hl, MAX_HALF_LIFE_SECONDS)
+
+    def test_adaptive_half_life_high_atr_gives_min(self):
+        from open_prep.signal_decay import adaptive_half_life, MIN_HALF_LIFE_SECONDS
+        hl = adaptive_half_life(atr_pct=10.0)
+        self.assertEqual(hl, MIN_HALF_LIFE_SECONDS)
+
+    def test_adaptive_half_life_mid_atr_interpolated(self):
+        from open_prep.signal_decay import adaptive_half_life, MIN_HALF_LIFE_SECONDS, MAX_HALF_LIFE_SECONDS
+        hl = adaptive_half_life(atr_pct=3.0)
+        self.assertGreater(hl, MIN_HALF_LIFE_SECONDS)
+        self.assertLess(hl, MAX_HALF_LIFE_SECONDS)
+
+    def test_adaptive_half_life_none_uses_base(self):
+        from open_prep.signal_decay import adaptive_half_life, BASE_HALF_LIFE_SECONDS
+        self.assertEqual(adaptive_half_life(), BASE_HALF_LIFE_SECONDS)
+
+    def test_adaptive_half_life_instrument_class_fallback(self):
+        from open_prep.signal_decay import adaptive_half_life
+        hl_penny = adaptive_half_life(instrument_class="penny")
+        hl_large = adaptive_half_life(instrument_class="large_cap")
+        self.assertLess(hl_penny, hl_large)
+
+    def test_freshness_decay_zero_elapsed_is_one(self):
+        from open_prep.signal_decay import adaptive_freshness_decay
+        self.assertEqual(adaptive_freshness_decay(0.0), 1.0)
+
+    def test_freshness_decay_none_elapsed_is_zero(self):
+        from open_prep.signal_decay import adaptive_freshness_decay
+        self.assertEqual(adaptive_freshness_decay(None), 0.0)
+
+    def test_freshness_decay_positive_elapsed_between_zero_and_one(self):
+        from open_prep.signal_decay import adaptive_freshness_decay
+        score = adaptive_freshness_decay(300.0, atr_pct=2.5)
+        self.assertGreater(score, 0.0)
+        self.assertLess(score, 1.0)
+
+    def test_signal_strength_decay_reduces_strength(self):
+        from open_prep.signal_decay import signal_strength_decay
+        decayed = signal_strength_decay(0.9, 600.0, atr_pct=3.0)
+        self.assertGreater(decayed, 0.0)
+        self.assertLess(decayed, 0.9)
+
+
+# ------------------------------------------------------------------
+# M-7 — regime: classify_regime, apply_regime_adjustments
+# ------------------------------------------------------------------
+class TestRegime(unittest.TestCase):
+    """Tests for open_prep.regime (M-7)."""
+
+    def test_classify_regime_extreme_vix_is_risk_off(self):
+        from open_prep.regime import classify_regime, REGIME_RISK_OFF
+        snap = classify_regime(macro_bias=0.2, vix_level=40.0)
+        self.assertEqual(snap.regime, REGIME_RISK_OFF)
+
+    def test_classify_regime_low_vix_positive_bias_is_risk_on(self):
+        from open_prep.regime import classify_regime, REGIME_RISK_ON
+        snap = classify_regime(macro_bias=0.3, vix_level=12.0)
+        self.assertEqual(snap.regime, REGIME_RISK_ON)
+
+    def test_classify_regime_negative_bias_is_risk_off(self):
+        from open_prep.regime import classify_regime, REGIME_RISK_OFF
+        snap = classify_regime(macro_bias=-0.6)
+        self.assertEqual(snap.regime, REGIME_RISK_OFF)
+
+    def test_classify_regime_mixed_breadth_is_rotation(self):
+        from open_prep.regime import classify_regime, REGIME_ROTATION
+        sectors = [
+            {"sector": f"Leading{i}", "changesPercentage": 1.0} for i in range(5)
+        ] + [
+            {"sector": f"Lagging{i}", "changesPercentage": -1.0} for i in range(5)
+        ]
+        snap = classify_regime(macro_bias=0.1, sector_performance=sectors)
+        self.assertEqual(snap.regime, REGIME_ROTATION)
+
+    def test_classify_regime_neutral_no_vix(self):
+        from open_prep.regime import classify_regime, REGIME_NEUTRAL
+        snap = classify_regime(macro_bias=0.0)
+        self.assertEqual(snap.regime, REGIME_NEUTRAL)
+
+    def test_classify_regime_broad_breadth_is_risk_on(self):
+        from open_prep.regime import classify_regime, REGIME_RISK_ON
+        sectors = [{"sector": f"S{i}", "changesPercentage": 1.0} for i in range(8)]
+        snap = classify_regime(macro_bias=0.1, sector_performance=sectors)
+        self.assertEqual(snap.regime, REGIME_RISK_ON)
+
+    def test_apply_regime_adjustments_risk_off(self):
+        from open_prep.regime import classify_regime, apply_regime_adjustments
+        snap = classify_regime(macro_bias=-0.7)
+        base = {"gap": 1.0, "macro": 1.0, "rvol": 1.0}
+        adj = apply_regime_adjustments(base, snap)
+        self.assertLess(adj["gap"], base["gap"])
+        self.assertGreater(adj["macro"], base["macro"])
+
+    def test_regime_snapshot_to_dict_roundtrip(self):
+        from open_prep.regime import classify_regime
+        snap = classify_regime(macro_bias=0.5, vix_level=18.0)
+        d = snap.to_dict()
+        self.assertIn("regime", d)
+        self.assertIn("reasons", d)
+        self.assertIsInstance(d["reasons"], list)
+
+    def test_classify_symbol_regime_trending(self):
+        from open_prep.regime import classify_symbol_regime
+        info = classify_symbol_regime("AAPL", adx=35.0, bb_width_pct=5.0)
+        self.assertEqual(info.regime, "TRENDING")
+
+    def test_classify_symbol_regime_ranging(self):
+        from open_prep.regime import classify_symbol_regime
+        info = classify_symbol_regime("AAPL", adx=15.0, bb_width_pct=1.5)
+        self.assertEqual(info.regime, "RANGING")
+
+    def test_apply_symbol_regime_neutral_unchanged(self):
+        from open_prep.regime import apply_symbol_regime_adjustments
+        base = {"gap": 1.0, "momentum_z": 1.0}
+        adj = apply_symbol_regime_adjustments(base, "NEUTRAL")
+        self.assertEqual(adj, base)
+
+    def test_apply_symbol_regime_trending_boosts_momentum(self):
+        from open_prep.regime import apply_symbol_regime_adjustments
+        base = {"gap": 1.0, "momentum_z": 1.0}
+        adj = apply_symbol_regime_adjustments(base, "TRENDING")
+        self.assertGreater(adj["momentum_z"], base["momentum_z"])
+
+
+# ------------------------------------------------------------------
+# M-6 — playbook: classify_news_event, classify_recency, etc.
+# ------------------------------------------------------------------
+class TestPlaybook(unittest.TestCase):
+    """Tests for open_prep.playbook (M-6)."""
+
+    def test_classify_earnings(self):
+        from open_prep.playbook import classify_news_event, EVENT_SCHEDULED
+        result = classify_news_event("AAPL Q3 Earnings Beat")
+        self.assertEqual(result["event_class"], EVENT_SCHEDULED)
+        self.assertEqual(result["event_label"], "earnings")
+
+    def test_classify_ma_deal(self):
+        from open_prep.playbook import classify_news_event, EVENT_UNSCHEDULED
+        result = classify_news_event("Company X merger with Company Y announced")
+        self.assertEqual(result["event_class"], EVENT_UNSCHEDULED)
+        self.assertIn("ma_deal", result["event_labels_all"])
+
+    def test_classify_unknown_event(self):
+        from open_prep.playbook import classify_news_event, EVENT_UNKNOWN
+        result = classify_news_event("Random text with no triggers")
+        self.assertEqual(result["event_class"], EVENT_UNKNOWN)
+        self.assertEqual(result["materiality"], "LOW")
+
+    def test_classify_analyst_upgrade(self):
+        from open_prep.playbook import classify_news_event, EVENT_STRUCTURAL
+        result = classify_news_event("Goldman Sachs initiates coverage on TSLA with Buy rating")
+        self.assertEqual(result["event_class"], EVENT_STRUCTURAL)
+
+    def test_materiality_ma_is_high(self):
+        from open_prep.playbook import classify_news_event
+        result = classify_news_event("Hostile takeover bid for XYZ Corp")
+        self.assertEqual(result["materiality"], "HIGH")
+
+    def test_materiality_earnings_is_medium(self):
+        from open_prep.playbook import classify_news_event
+        result = classify_news_event("MSFT Q2 earnings results")
+        self.assertEqual(result["materiality"], "MEDIUM")
+
+    def test_classify_recency_ultra_fresh(self):
+        from open_prep.playbook import classify_recency, RECENCY_ULTRA_FRESH
+        now = datetime.now(UTC)
+        art_dt = now - timedelta(minutes=2)
+        result = classify_recency(art_dt, now)
+        self.assertEqual(result["recency_bucket"], RECENCY_ULTRA_FRESH)
+        self.assertTrue(result["is_actionable"])
+
+    def test_classify_recency_stale(self):
+        from open_prep.playbook import classify_recency, RECENCY_STALE
+        now = datetime.now(UTC)
+        art_dt = now - timedelta(hours=36)
+        result = classify_recency(art_dt, now)
+        self.assertEqual(result["recency_bucket"], RECENCY_STALE)
+        self.assertFalse(result["is_actionable"])
+
+    def test_classify_recency_none_returns_unknown(self):
+        from open_prep.playbook import classify_recency, RECENCY_UNKNOWN
+        result = classify_recency(None, datetime.now(UTC))
+        self.assertEqual(result["recency_bucket"], RECENCY_UNKNOWN)
+
+    def test_assign_playbook_gap_and_go(self):
+        from open_prep.playbook import assign_playbook
+        candidate = {
+            "symbol": "AAPL",
+            "gap_pct": 4.0,
+            "gap_available": True,
+            "ext_hours_score": 2.0,
+            "volume_ratio": 3.0,
+            "price": 180.0,
+            "atr": 3.0,
+            "atr_pct_computed": 1.67,
+            "gap_type": "GAP-GO",
+            "premarket_stale": False,
+            "premarket_spread_bps": 5.0,
+            "news_catalyst_score": 0.6,
+            "playbook": {},
+        }
+        result = assign_playbook(
+            candidate=candidate,
+            regime="RISK_ON",
+            sector_breadth=0.7,
+            news_metrics_entry={},
+            now_utc=datetime.now(UTC),
+        )
+        self.assertIn(result.playbook, ["GAP_AND_GO", "GAP_FADE", "POST_NEWS_DRIFT", "NO_TRADE"])
+
+    def test_classify_fda_event(self):
+        from open_prep.playbook import classify_news_event, EVENT_SCHEDULED
+        result = classify_news_event("FDA approves new drug for cancer treatment")
+        self.assertEqual(result["event_class"], EVENT_SCHEDULED)
+        self.assertIn("fda", result["event_labels_all"])
+
+
+# ------------------------------------------------------------------
+# H-1 / M-4 — technical_analysis: S/R with safe floats
+# ------------------------------------------------------------------
+class TestSupportResistanceSafeFloatsExpanded(unittest.TestCase):
+    """Tests for H-1/M-4: safe float handling in calculate_support_resistance_targets."""
+
+    def test_missing_close_key_in_bars_does_not_crash(self):
+        from open_prep.technical_analysis import calculate_support_resistance_targets
+        # Bars with missing "close" key — should use _safe_float fallback
+        bars = [{"high": 105.0, "low": 95.0} for _ in range(60)]
+        result = calculate_support_resistance_targets(bars, 100.0, "long")
+        # Should return valid dict, not crash
+        self.assertIn("atr", result)
+
+    def test_non_numeric_close_in_ema_does_not_crash(self):
+        from open_prep.technical_analysis import calculate_support_resistance_targets
+        bars = [{"high": 105.0, "low": 95.0, "close": "N/A"} for _ in range(60)]
+        result = calculate_support_resistance_targets(bars, 100.0, "long")
+        self.assertIn("atr", result)
+
+    def test_zero_highs_lows_replaced_with_current_price(self):
+        from open_prep.technical_analysis import calculate_support_resistance_targets
+        bars = [{"high": None, "low": None, "close": 100.0} for _ in range(60)]
+        result = calculate_support_resistance_targets(bars, 100.0, "long")
+        # Should not produce 0-based pivots; ATR should be 0 (highs == lows after replacement)
+        self.assertIn("atr", result)
+        # ATR should be 0 since high==low after replacement
+        self.assertEqual(result.get("atr"), 0.0)
+
+
+# ------------------------------------------------------------------
+# H-2 — compute_premarket_high_low: _to_float usage
+# ------------------------------------------------------------------
+class TestPremarketHighLowSafeFloat(unittest.TestCase):
+    """Tests for H-2: safe float handling in compute_premarket_high_low."""
+
+    def test_non_numeric_high_low_skipped(self):
+        from open_prep.run_open_prep import compute_premarket_high_low
+        bar_dt = datetime(2025, 1, 6, 14, 0, 0, tzinfo=UTC).isoformat()
+        bars = [
+            {"date": bar_dt, "high": "bad", "low": "value"},
+            {"date": bar_dt, "high": 105.0, "low": 95.0},
+        ]
+        pmh, pml = compute_premarket_high_low(bars, date(2025, 1, 6))
+        self.assertEqual(pmh, 105.0)
+        self.assertEqual(pml, 95.0)
+
+    def test_none_values_produce_none_result(self):
+        from open_prep.run_open_prep import compute_premarket_high_low
+        bar_dt = datetime(2025, 1, 6, 14, 0, 0, tzinfo=UTC).isoformat()
+        bars = [{"date": bar_dt, "high": None, "low": None}]
+        pmh, pml = compute_premarket_high_low(bars, date(2025, 1, 6))
+        # None/0.0 values should be skipped → result should be None
+        self.assertIsNone(pmh)
+        self.assertIsNone(pml)
+
+
+# ------------------------------------------------------------------
+# M-1 — outcomes._safe_float is now imported from utils
+# ------------------------------------------------------------------
+class TestOutcomesUsesSharedSafeFloat(unittest.TestCase):
+    """Test that outcomes module uses the shared to_float utility."""
+
+    def test_safe_float_in_outcomes_matches_utils(self):
+        from open_prep.outcomes import _safe_float
+        from open_prep.utils import to_float
+        # They should be the exact same function
+        self.assertIs(_safe_float, to_float)
+
+    def test_safe_float_handles_none(self):
+        from open_prep.outcomes import _safe_float
+        self.assertEqual(_safe_float(None), 0.0)
+
+    def test_safe_float_handles_string(self):
+        from open_prep.outcomes import _safe_float
+        self.assertEqual(_safe_float("not_a_number", 42.0), 42.0)
+
+
+# ------------------------------------------------------------------
+# M-2, M-3, L-1 — realtime_signals: module-level _safe_float
+# ------------------------------------------------------------------
+class TestRealtimeSignalsSafeFloat(unittest.TestCase):
+    """Tests for M-2/M-3/L-1: _safe_float imported at module level."""
+
+    def test_safe_float_is_module_level_import(self):
+        """L-1: _safe_float should be a module-level import, not nested."""
+        import open_prep.realtime_signals as rs
+        self.assertTrue(hasattr(rs, "_safe_float"))
+
+    def test_detect_signal_with_non_numeric_quote_returns_none(self):
+        """M-3: bare float() replaced with _safe_float."""
+        from open_prep.realtime_signals import RealtimeEngine
+        from unittest.mock import MagicMock
+        engine = RealtimeEngine.__new__(RealtimeEngine)
+        engine._last_prices = {}
+        signal = engine._detect_signal(
+            "AAPL",
+            {"price": "not_a_number", "previousClose": "also_bad"},
+            {},
+        )
+        self.assertIsNone(signal)

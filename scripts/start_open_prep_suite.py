@@ -23,7 +23,7 @@ def _find_free_port(start_port: int, max_tries: int = 30) -> int:
 
 
 def _run_open_prep(repo_root: Path, python_exe: str) -> None:
-    out_file = repo_root / "open_prep" / "latest_open_prep_run.json"
+    out_file = repo_root / "artifacts" / "open_prep" / "latest" / "latest_open_prep_run.json"
     out_file.parent.mkdir(parents=True, exist_ok=True)
 
     with out_file.open("w", encoding="utf-8") as fh:

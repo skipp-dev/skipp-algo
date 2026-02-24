@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .utils import to_float as _to_float
+from .technical_analysis import calculate_support_resistance_targets
 
 
 def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
@@ -104,12 +105,53 @@ def _risk_note_from_bias(bias: float, allowed_setups: list[str] | None = None, p
     return "Neutral macro: trade only A+ confirmations."
 
 
+def _build_key_levels(
+    row: dict[str, Any],
+    symbol: str,
+    daily_bars: dict[str, list[dict[str, Any]]] | None,
+) -> dict[str, Any]:
+    """Build key_levels dict including S/R targets when daily bars are available."""
+    levels: dict[str, Any] = {
+        "pdh": row.get("pdh"),
+        "pdl": row.get("pdl"),
+        "pdh_source": row.get("pdh_source"),
+        "pdl_source": row.get("pdl_source"),
+        "dist_to_pdh_atr": row.get("dist_to_pdh_atr"),
+        "dist_to_pdl_atr": row.get("dist_to_pdl_atr"),
+    }
+
+    # S/R + targets from daily OHLCV bars (#1)
+    if daily_bars and symbol in daily_bars:
+        bars = daily_bars[symbol]
+        price = _to_float(row.get("price"), default=0.0)
+        if price > 0 and bars:
+            direction = "long"  # open_prep is long-biased
+            sr = calculate_support_resistance_targets(bars, price, direction)
+            levels["sr_targets"] = sr
+        else:
+            levels["sr_targets"] = None
+    else:
+        levels["sr_targets"] = None
+
+    return levels
+
+
 def build_trade_cards(
     ranked_candidates: list[dict[str, Any]],
     bias: float,
     top_n: int = 5,
+    *,
+    daily_bars: dict[str, list[dict[str, Any]]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Create deterministic trade cards suitable for human or LLM refinement."""
+    """Create deterministic trade cards suitable for human or LLM refinement.
+
+    Parameters
+    ----------
+    daily_bars : dict
+        Optional mapping ``{symbol: [bar, …]}`` with daily OHLCV bars
+        (oldest → newest).  When provided, S/R levels, targets, and R:R
+        are calculated for each card.
+    """
     cards: list[dict[str, Any]] = []
 
     for row in ranked_candidates[:top_n]:
@@ -158,14 +200,7 @@ def build_trade_cards(
                 "invalidation": invalidation,
                 "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
                 "trail_stop_atr": _trail_stop_profiles_from_atr(row),
-                "key_levels": {
-                    "pdh": row.get("pdh"),
-                    "pdl": row.get("pdl"),
-                    "pdh_source": row.get("pdh_source"),
-                    "pdl_source": row.get("pdl_source"),
-                    "dist_to_pdh_atr": row.get("dist_to_pdh_atr"),
-                    "dist_to_pdl_atr": row.get("dist_to_pdl_atr"),
-                },
+                "key_levels": _build_key_levels(row, symbol, daily_bars),
                 "context": {
                     "macro_bias": round(bias, 4),
                     "candidate_score": row.get("score"),

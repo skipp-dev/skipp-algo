@@ -3,6 +3,9 @@
 Detects risk-on / risk-off / rotation regimes from macro bias, VIX level,
 and sector breadth.  Each regime produces a recommended weight adjustment
 factor that the scorer can apply.
+
+Also provides per-symbol regime detection (TRENDING / RANGING) via ADX
+and Bollinger Band width (#12).
 """
 from __future__ import annotations
 
@@ -10,7 +13,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from open_prep.utils import to_float
+from .utils import to_float
+from .technical_analysis import detect_symbol_regime as _detect_symbol_regime
 
 logger = logging.getLogger("open_prep.regime")
 
@@ -124,7 +128,6 @@ def classify_regime(
 
     # --- Sector breadth ---
     positive_sectors = [s for s in sectors if to_float(s.get("changesPercentage")) > 0.0]
-    negative_sectors = [s for s in sectors if to_float(s.get("changesPercentage")) < 0.0]
     total = len(sectors) or 1
     breadth = len(positive_sectors) / total
 
@@ -195,4 +198,90 @@ def apply_regime_adjustments(
     for key, multiplier in regime.weight_adjustments.items():
         if key in adjusted:
             adjusted[key] = adjusted[key] * multiplier
+    return adjusted
+
+
+# ---------------------------------------------------------------------------
+# Per-Symbol Regime Detection (#12)
+# ---------------------------------------------------------------------------
+
+# Weight adjustments for per-symbol TRENDING regime
+_WEIGHT_ADJ_SYMBOL_TRENDING: dict[str, float] = {
+    "momentum_z": 1.5,       # Trend signal more reliable
+    "rvol": 1.2,             # Volume confirms trend
+    "gap": 1.2,              # Gap with trend = higher conviction
+    "freshness_decay": 0.7,  # Trend persists → less freshness sensitivity
+}
+
+# Weight adjustments for per-symbol RANGING regime
+_WEIGHT_ADJ_SYMBOL_RANGING: dict[str, float] = {
+    "momentum_z": 0.7,       # Momentum whipsaws in range
+    "rvol": 0.9,             # Volume less meaningful
+    "gap": 0.8,              # Gaps often filled in range
+    "vwap_distance": 1.3,    # Mean-reversion more reliable
+    "freshness_decay": 1.2,  # Recency matters more
+}
+
+
+@dataclass
+class SymbolRegimeInfo:
+    """Per-symbol regime classification result."""
+
+    symbol: str
+    regime: str  # "TRENDING" | "RANGING"
+    adx: float
+    bb_width_pct: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "regime": self.regime,
+            "adx": round(self.adx, 2),
+            "bb_width_pct": round(self.bb_width_pct, 2),
+        }
+
+
+def classify_symbol_regime(
+    symbol: str,
+    adx: float,
+    bb_width_pct: float,
+) -> SymbolRegimeInfo:
+    """Classify a single symbol as TRENDING or RANGING.
+
+    Delegates to ``technical_analysis.detect_symbol_regime`` for the logic.
+    """
+    regime = _detect_symbol_regime(adx, bb_width_pct)
+    return SymbolRegimeInfo(
+        symbol=symbol,
+        regime=regime,
+        adx=adx,
+        bb_width_pct=bb_width_pct,
+    )
+
+
+def apply_symbol_regime_adjustments(
+    base_weights: dict[str, float],
+    symbol_regime: str,
+) -> dict[str, float]:
+    """Adjust scorer weights based on per-symbol regime.
+
+    Parameters
+    ----------
+    base_weights : dict
+        Current weight set (might already be adjusted for market regime).
+    symbol_regime : str
+        ``"TRENDING"``, ``"RANGING"``, or ``"NEUTRAL"`` from ``classify_symbol_regime``.
+
+    Returns
+    -------
+    dict
+        Adjusted weight set.  ``NEUTRAL`` returns weights unchanged.
+    """
+    if symbol_regime == "NEUTRAL":
+        return dict(base_weights)
+    adj = _WEIGHT_ADJ_SYMBOL_TRENDING if symbol_regime == "TRENDING" else _WEIGHT_ADJ_SYMBOL_RANGING
+    adjusted = dict(base_weights)
+    for key, mult in adj.items():
+        if key in adjusted:
+            adjusted[key] = adjusted[key] * mult
     return adjusted

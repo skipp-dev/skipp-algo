@@ -17,6 +17,15 @@ from pathlib import Path
 from typing import Any
 
 from .utils import to_float as _to_float, MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
+from .technical_analysis import (
+    apply_diminishing_returns,
+    compute_risk_penalty,
+    classify_instrument,
+    compute_adaptive_gates,
+    validate_data_quality,
+    GateTracker,
+)
+from .signal_decay import adaptive_freshness_decay, adaptive_half_life
 
 logger = logging.getLogger("open_prep.scorer")
 
@@ -88,13 +97,22 @@ def save_weight_set(label: str, weights: dict[str, float]) -> None:
 # Time-aware freshness decay
 # ---------------------------------------------------------------------------
 
-def freshness_decay_score(elapsed_seconds: float | None) -> float:
-    """Exponential freshness decay.  Returns 0..1 (1 = perfectly fresh)."""
+def freshness_decay_score(
+    elapsed_seconds: float | None,
+    atr_pct: float | None = None,
+) -> float:
+    """Exponential freshness decay.  Returns 0..1 (1 = perfectly fresh).
+
+    Uses :func:`signal_decay.adaptive_half_life` to scale the half-life by
+    instrument volatility (ATR%), falling back to the constant 600 s when
+    *atr_pct* is not available.
+    """
     if elapsed_seconds is None:
         return 0.0
     if elapsed_seconds <= 0:
         return 1.0
-    return math.exp(-elapsed_seconds / FRESHNESS_HALF_LIFE_SECONDS)
+    hl = adaptive_half_life(atr_pct) if atr_pct is not None else FRESHNESS_HALF_LIFE_SECONDS
+    return math.exp(-elapsed_seconds / hl)
 
 
 # ---------------------------------------------------------------------------
@@ -157,6 +175,7 @@ def filter_candidate(
     symbol_sector: str | None = None,
     institutional_quality: float = 0.0,
     estimate_revision_score: float = 0.0,
+    gate_tracker: GateTracker | None = None,
 ) -> FilterResult:
     """Stage 1: apply hard filters and extract features.
 
@@ -254,6 +273,28 @@ def filter_candidate(
     long_allowed = not any(r in hard_blocks for r in filter_reasons)
     passed = long_allowed  # Must pass hard-blocks to enter scoring
 
+    # --- Data quality validation (#8) — warn-only, fail-open ---
+    dq = validate_data_quality(quote)
+    if not dq.passed:
+        for issue in dq.issues:
+            if issue not in filter_reasons:
+                filter_reasons.append(issue)
+        if gate_tracker:
+            for issue in dq.issues:
+                gate_tracker.reject(symbol, issue, {"source": "data_quality"})
+        # NOTE: do NOT set passed=False here — fail-open design.
+        # DQ issues are informational warn-flags, not hard-blocks.
+
+    # --- Gate tracking for existing hard-blocks (#10) ---
+    if gate_tracker and not long_allowed:
+        for reason in filter_reasons:
+            if reason in hard_blocks:
+                gate_tracker.reject(symbol, reason, {"price": price, "gap_pct": gap_pct})
+
+    # --- Instrument classification (#5) ---
+    atr_pct_val = (atr / price * 100.0) if price > 0 and atr > 0 else 0.0
+    instrument_class = classify_instrument(price, atr_pct_val)
+
     # --- Sector-relative gap ---
     sector_rel_gap = compute_sector_relative_gap(
         gap_pct, symbol_sector, sector_changes or {},
@@ -263,8 +304,16 @@ def filter_candidate(
     # --- VWAP distance ---
     vwap_dist_pct = compute_vwap_distance_pct(vwap, prev_close)
 
-    # --- Freshness decay ---
-    freshness = freshness_decay_score(freshness_sec)
+    # --- Freshness decay (adaptive half-life based on ATR%) ---
+    freshness = adaptive_freshness_decay(
+        freshness_sec,
+        atr_pct=atr_pct_val if atr_pct_val > 0 else None,
+        instrument_class=instrument_class,
+    )
+    freshness_half_life = adaptive_half_life(
+        atr_pct=atr_pct_val if atr_pct_val > 0 else None,
+        instrument_class=instrument_class,
+    )
 
     # --- Earnings BMO flag ---
     earnings_bmo = earnings_today and str(earnings_timing).lower() in {"bmo", "before market open"}
@@ -304,6 +353,7 @@ def filter_candidate(
         "news_metrics": news_metrics_entry or {},
         "vwap_distance_pct": round(vwap_dist_pct, 4),
         "freshness_decay": round(freshness, 4),
+        "freshness_half_life_s": round(freshness_half_life, 0),
         "institutional_quality": institutional_quality,
         "estimate_revision_score": estimate_revision_score,
         "data_sufficiency_low": avg_volume <= 0.0 or rel_vol <= 0.0,
@@ -340,6 +390,11 @@ def filter_candidate(
         "news_is_actionable": (news_metrics_entry or {}).get("is_actionable", False),
         "news_source_tier": (news_metrics_entry or {}).get("source_tier", "TIER_3"),
         "news_source_rank": (news_metrics_entry or {}).get("source_rank", 3),
+        # Technical analysis enrichment (#5 instrument classification, #3 risk penalty)
+        "instrument_class": instrument_class,
+        "atr_pct_computed": round(atr_pct_val, 4),
+        "spread_pct": (premarket_spread_bps / 10_000.0) if premarket_spread_bps is not None else 0.0,
+        "data_quality_issues": dq.issues,
     }
 
     return FilterResult(
@@ -378,18 +433,26 @@ def score_candidate(
     corporate_action_penalty = f["corporate_action_penalty"]
     news_score = f["news_score"]
 
-    # --- Components ---
-    gap_component = w["gap"] * max(min(gap_pct_for_scoring, GAP_CAP_ABS), -GAP_CAP_ABS)
+    # --- Components (with diminishing returns #2) ---
+    # For positive-only components, normalize to [0,1], apply sqrt(), then scale.
+    # Gap and momentum can be negative, so DR is only on absolute magnitude.
+    gap_raw = max(min(gap_pct_for_scoring, GAP_CAP_ABS), -GAP_CAP_ABS)
+    gap_component = w["gap"] * gap_raw  # gap can be negative, no DR
     gap_sector_rel_component = w["gap_sector_relative"] * max(
         min(f["sector_relative_gap"], GAP_CAP_ABS), -GAP_CAP_ABS
     )
-    rvol_component = w["rvol"] * rel_vol_capped
+    # rvol: apply DR to compress extreme relative-volume spikes
+    rvol_normed = min(rel_vol_capped / RVOL_CAP, 1.0) if RVOL_CAP > 0 else 0.0
+    rvol_component = w["rvol"] * apply_diminishing_returns(rvol_normed) * rel_vol_capped
     macro_component = w["macro"] * max(bias, 0.0)
-    momentum_component = w["momentum_z"] * momentum_z
+    momentum_component = w["momentum_z"] * momentum_z  # can be negative
     hvb_component = w["hvb"] if f["is_hvb"] else 0.0
     earnings_bmo_component = w["earnings_bmo"] if f["earnings_bmo"] else 0.0
-    news_component = w["news"] * news_score
-    ext_hours_component = w["ext_hours"] * ext_hours_score
+    # news / ext_hours: apply DR (positive-only scores)
+    news_normed = min(max(news_score, 0.0), 1.0)
+    news_component = w["news"] * apply_diminishing_returns(news_normed)
+    ext_normed = min(max(ext_hours_score, 0.0), 1.0)
+    ext_hours_component = w["ext_hours"] * apply_diminishing_returns(ext_normed)
     analyst_catalyst_component = w["analyst_catalyst"] * analyst_catalyst_score
     vwap_dist_component = w["vwap_distance"] * max(min(f["vwap_distance_pct"], 5.0), -5.0)
     freshness_component = w["freshness_decay"] * f["freshness_decay"]
@@ -400,6 +463,14 @@ def score_candidate(
     liquidity_penalty = w["liquidity_penalty"] if f["price"] < MIN_PRICE_THRESHOLD else 0.0
     corp_penalty = w["corporate_action_penalty"] * max(corporate_action_penalty, 0.0)
     risk_off_penalty = abs(min(bias, 0.0)) * w["risk_off_penalty_multiplier"]
+
+    # --- Risk penalty (#3) ---
+    risk_penalty_val = compute_risk_penalty(
+        price=f["price"],
+        atr=f["atr"],
+        volume_ratio=f.get("rel_vol", 0.0),
+        spread_pct=f.get("spread_pct", 0.0),
+    )
 
     score = (
         gap_component
@@ -419,6 +490,7 @@ def score_candidate(
         - liquidity_penalty
         - corp_penalty
         - risk_off_penalty
+        - risk_penalty_val
     )
 
     nm = f.get("news_metrics") or {}
@@ -488,6 +560,7 @@ def score_candidate(
         "news_source_rank": f.get("news_source_rank", 3),
         "vwap_distance_pct": f["vwap_distance_pct"],
         "freshness_decay": f["freshness_decay"],
+        "freshness_half_life_s": f.get("freshness_half_life_s", 600),
         "institutional_quality": round(f["institutional_quality"], 4),
         "estimate_revision_score": round(f["estimate_revision_score"], 4),
         "allowed_setups": fr.allowed_setups,
@@ -515,7 +588,11 @@ def score_candidate(
             "corporate_action_penalty": round(corp_penalty, 4),
             "liquidity_penalty": round(liquidity_penalty, 4),
             "risk_off_penalty": round(risk_off_penalty, 4),
+            "risk_penalty": round(risk_penalty_val, 4),
         },
+        # Technical analysis enrichment
+        "instrument_class": f.get("instrument_class", "mid_cap"),
+        "data_quality_issues": f.get("data_quality_issues", []),
         "long_allowed": fr.long_allowed,
         "no_trade_reason": fr.filter_reasons,
     }
@@ -567,6 +644,8 @@ def rank_candidates_v2(
     institutional_scores: dict[str, float] | None = None,
     estimate_revisions: dict[str, float] | None = None,
     weight_label: str = "default",
+    vix_level: float | None = None,
+    gate_tracker: GateTracker | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Two-stage filter→rank pipeline.
 
@@ -574,6 +653,9 @@ def rank_candidates_v2(
     - ``ranked`` is the top-N scored candidates
     - ``filtered_out`` contains symbols that failed hard filters, with reasons
     """
+    if gate_tracker is None:
+        gate_tracker = GateTracker()
+
     weights = load_weight_set(weight_label)
     by_news: dict[str, float] = {str(k).upper(): _to_float(v, default=0.0) for k, v in (news_scores or {}).items()}
     by_news_metrics: dict[str, dict] = {
@@ -606,6 +688,7 @@ def rank_candidates_v2(
             symbol_sector=by_sectors.get(symbol),
             institutional_quality=by_institutional.get(symbol, 0.0),
             estimate_revision_score=by_revisions.get(symbol, 0.0),
+            gate_tracker=gate_tracker,
         )
         if fr.passed:
             passed.append(fr)
@@ -623,6 +706,27 @@ def rank_candidates_v2(
         row = score_candidate(fr, bias, weights)
         scored.append(row)
 
+    # --- Adaptive gating (#4): soft annotation, fail-open ---
+    if vix_level is not None:
+        for row in scored:
+            inst_class = row.get("instrument_class", "mid_cap")
+            gates = compute_adaptive_gates(
+                vix_level=vix_level,
+                instrument_class=inst_class,
+            )
+            row["adaptive_gates"] = gates
+            # Soft warn-flag when score is below adaptive threshold
+            if row["score"] < gates["score_min"]:
+                gate_tracker.reject(row["symbol"], "adaptive_score_min", {
+                    "score": row["score"],
+                    "threshold": gates["score_min"],
+                    "vix": vix_level,
+                    "instrument_class": inst_class,
+                })
+                row["adaptive_gate_warning"] = True
+            else:
+                row["adaptive_gate_warning"] = False
+
     # Sort by score descending, symbol ascending for tie-breaking
     scored.sort(key=lambda r: (-r["score"], r["symbol"]))
 
@@ -634,4 +738,17 @@ def rank_candidates_v2(
         )
 
     ranked = scored[:top_n]
+
+    # --- Log gate tracking summary (#10) ---
+    if gate_tracker.rejection_count > 0:
+        summary = gate_tracker.summary()
+        logger.info(
+            "Gate tracking: %d rejections across %d symbols — top gates: %s",
+            summary["total_rejections"],
+            len(summary["by_symbol"]),
+            ", ".join(f"{g}({c})" for g, c in sorted(
+                summary["by_gate"].items(), key=lambda x: -x[1]
+            )[:5]),
+        )
+
     return ranked, filtered_out

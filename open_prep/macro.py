@@ -387,7 +387,7 @@ class FMPClient:
     def get_eod_bulk(self, as_of: date) -> list[dict[str, Any]]:
         """Fetch EOD bulk rows for a specific date."""
         try:
-            data = self._get("/stable/eod-bulk", {"date": as_of.isoformat()})
+            data = self._get("/stable/eod-bulk", {"date": as_of.isoformat(), "datatype": "json"})
         except RuntimeError as exc:
             msg = str(exc)
             # Free-tier accounts can receive HTTP 402 (Payment Required) for this
@@ -476,11 +476,11 @@ class FMPClient:
         if date_to is not None:
             params["to"] = date_to.isoformat()
         try:
-            data = self._get("/stable/upgrades-downgrades", params)
+            data = self._get("/stable/grades", params)
         except RuntimeError as exc:
             msg = str(exc)
             if (
-                "/stable/upgrades-downgrades" in msg
+                "/stable/grades" in msg
                 and ("HTTP 402" in msg or "HTTP 404" in msg)
             ):
                 return []
@@ -492,11 +492,11 @@ class FMPClient:
     def get_sector_performance(self) -> list[dict[str, Any]]:
         """Fetch current sector performance snapshot from FMP stable endpoint."""
         try:
-            data = self._get("/stable/sector-performance", {})
+            data = self._get("/stable/sector-performance-snapshot", {})
         except RuntimeError as exc:
             msg = str(exc)
             if (
-                "/stable/sector-performance" in msg
+                "/stable/sector-performance-snapshot" in msg
                 and ("HTTP 402" in msg or "HTTP 404" in msg)
             ):
                 return []
@@ -516,14 +516,16 @@ class FMPClient:
         """
         sym = str(symbol or "^VIX").strip()
         try:
-            data = self._get("/stable/batch-quote", {"symbols": sym})
+            data = self._get("/stable/quote", {"symbol": sym})
         except RuntimeError as exc:
             msg = str(exc)
-            if "/stable/batch-quote" in msg and ("HTTP 402" in msg or "HTTP 404" in msg):
+            if "/stable/quote" in msg and ("HTTP 402" in msg or "HTTP 404" in msg):
                 return {}
             raise
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
+        if isinstance(data, dict) and data:
+            return data
         return {}
 
     def get_institutional_holders(
@@ -579,6 +581,223 @@ class FMPClient:
         if isinstance(data, dict):
             return data
         return {}
+
+    # ------------------------------------------------------------------
+    # Ultimate-tier endpoints (Phase 2 – bulk)
+    # ------------------------------------------------------------------
+
+    def get_profile_bulk(self) -> list[dict[str, Any]]:
+        """Fetch all company profiles in a single bulk call (Ultimate)."""
+        try:
+            data = self._get("/stable/profile-bulk", {"datatype": "json"})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_scores_bulk(self) -> list[dict[str, Any]]:
+        """Fetch financial scores for all tickers in bulk (Ultimate)."""
+        try:
+            data = self._get("/stable/scores-bulk", {"datatype": "json"})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_price_target_summary_bulk(self) -> list[dict[str, Any]]:
+        """Fetch price-target summaries for all tickers in bulk (Ultimate)."""
+        try:
+            data = self._get("/stable/price-target-summary-bulk", {"datatype": "json"})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_earnings_surprises_bulk(self) -> list[dict[str, Any]]:
+        """Fetch earnings surprises for all tickers in bulk (Ultimate)."""
+        try:
+            data = self._get("/stable/earnings-surprises-bulk", {"datatype": "json"})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_key_metrics_ttm_bulk(self) -> list[dict[str, Any]]:
+        """Fetch key metrics TTM for all tickers in bulk (Ultimate)."""
+        try:
+            data = self._get("/stable/key-metrics-ttm-bulk", {"datatype": "json"})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_ratios_ttm_bulk(self) -> list[dict[str, Any]]:
+        """Fetch financial ratios TTM for all tickers in bulk (Ultimate)."""
+        try:
+            data = self._get("/stable/ratios-ttm-bulk", {"datatype": "json"})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    # ------------------------------------------------------------------
+    # Ultimate-tier endpoints (Phase 3 – new signals)
+    # ------------------------------------------------------------------
+
+    def get_insider_trading_latest(
+        self,
+        symbol: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Fetch latest insider trades from SEC Form 4 filings.
+
+        Without symbol returns broad market insider activity.
+        """
+        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500))}
+        if symbol:
+            sym = str(symbol).strip().upper()
+            if sym:
+                params["symbol"] = sym
+        try:
+            data = self._get("/stable/insider-trading", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_insider_trade_statistics(
+        self,
+        symbol: str,
+    ) -> dict[str, Any]:
+        """Fetch aggregated insider trade statistics for a symbol."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return {}
+        try:
+            data = self._get("/stable/insider-trading-statistics", {"symbol": sym})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return {}
+            raise
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    def get_institutional_ownership(
+        self,
+        symbol: str,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Fetch institutional ownership (13F) data for a symbol."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        try:
+            data = self._get(
+                "/stable/institutional-ownership",
+                {"symbol": sym, "limit": max(1, min(int(limit), 100))},
+            )
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_earnings_transcript(
+        self,
+        symbol: str,
+        year: int | None = None,
+        quarter: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch earnings call transcript(s) for a symbol.
+
+        With year+quarter returns a specific transcript; without returns the latest.
+        """
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        params: dict[str, Any] = {"symbol": sym}
+        if year is not None:
+            params["year"] = int(year)
+        if quarter is not None:
+            params["quarter"] = int(quarter)
+        try:
+            data = self._get("/stable/earning-call-transcript", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_etf_holdings(
+        self,
+        symbol: str,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Fetch ETF holdings breakdown for an ETF symbol (e.g. SPY, QQQ)."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        try:
+            data = self._get(
+                "/stable/etf-holdings",
+                {"symbol": sym, "limit": max(1, min(int(limit), 500))},
+            )
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_senate_trading(
+        self,
+        symbol: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Fetch US Senate stock trading disclosures."""
+        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500))}
+        if symbol:
+            sym = str(symbol).strip().upper()
+            if sym:
+                params["symbol"] = sym
+        try:
+            data = self._get("/stable/senate-trading", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
 
 
 CANONICAL_EVENT_PATTERNS = [
