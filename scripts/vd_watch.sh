@@ -57,8 +57,18 @@ _render() {
     return
   fi
 
-  local ts regime bias n_ranked n_go n_v2
+  local ts ts_local regime bias n_ranked n_go n_v2
   ts=$(jq -r '.run_datetime_utc // "?"' "$JSON_FILE")
+  # Convert UTC ISO timestamp to local time for display
+  if command -v gdate &>/dev/null; then
+    ts_local=$(gdate -d "$ts" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || echo "$ts")
+  elif [[ "$ts" != "?" ]]; then
+    # macOS date: strip fractional seconds + offset, parse as UTC, display local
+    local ts_clean="${ts%%.*}"
+    ts_local=$(date -j -f '%Y-%m-%dT%H:%M:%S' -v+0S "$ts_clean" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null || echo "$ts (UTC)")
+  else
+    ts_local="$ts"
+  fi
   regime=$(jq -r '.regime.regime // "N/A"' "$JSON_FILE" 2>/dev/null || echo "N/A")
   bias=$(jq -r '.macro_bias // 0' "$JSON_FILE")
   n_ranked=$(jq '.ranked_candidates | length' "$JSON_FILE" 2>/dev/null || echo 0)
@@ -66,7 +76,7 @@ _render() {
   n_v2=$(jq '.ranked_v2 | length' "$JSON_FILE" 2>/dev/null || echo 0)
 
   echo "═══════════════════════════════════════════════════════════════════"
-  echo "  OPEN PREP MONITOR  ·  $ts"
+  echo "  OPEN PREP MONITOR  ·  $ts_local"
   echo "  Regime: $regime  ·  Macro Bias: $bias  ·  Ranked: $n_ranked  ·  GAP-GO: $n_go  ·  v2: $n_v2"
   echo "═══════════════════════════════════════════════════════════════════"
   echo ""
