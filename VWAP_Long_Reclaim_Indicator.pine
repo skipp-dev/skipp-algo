@@ -23,10 +23,11 @@ stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard
 
 // Strategy Settings
 matchedTrends = input.bool(true, "Only Show Matched Trends", 
-    tooltip="This setting will highlight long signals when VWAP is trending up and short signals when trending down.",
+    tooltip="Only show long signals when VWAP is trending up.",
     group="Strategy")
 
 displaybars = input.bool(true, "Barcolors", group="Display")
+showTradeLabels = input.bool(true, "Show Trade Labels", group="Display")
 
 // Reclaim Settings
 preset3m = input.string("Neutral", "3m Preset", options=["Aggressive", "Neutral", "Conservative", "Custom"], group="Reclaim Settings")
@@ -99,6 +100,7 @@ var float pullbackHigh = na
 var float retestLow = na
 var bool inReclaimSeq = false
 var bool retestSeen = false
+var bool inVirtualPos = false
 
 if reclaimUp
     reclaimBar := bar_index
@@ -121,22 +123,34 @@ if inReclaimSeq
             retestSeen := true
             retestLow := low
 
-goLong = inReclaimSeq and retestSeen and close > pullbackHigh[1]
+goLong = inReclaimSeq and retestSeen and close > pullbackHigh[1] and bar_index > reclaimBar
 
 upV = utils.trendUp(vwapValue)
 // utils.trendUp() returns numeric trend state; convert once to bool for ternaries/filters.
 isUpTrend = upV > 0
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
-longSignal = goLong and matchedTrendsFilter_long
-tpStretch = high >= upperBandValue2
-exitOnVwapLoss = close < vwapValue - tol
+longSignal = goLong and matchedTrendsFilter_long and not inVirtualPos
+
+// Evaluate crossover on every bar (Pine stateful-function requirement)
+tpCross = ta.crossover(high, upperBandValue2)
+
+if longSignal
+    inVirtualPos := true
+    inReclaimSeq := false   // prevent consecutive re-fires (parity with strategy)
+    retestSeen := false
+
+tpStretch = inVirtualPos and tpCross
+exitOnVwapLoss = inVirtualPos and close < vwapValue - tol
+
+if tpStretch or exitOnVwapLoss
+    inVirtualPos := false
 
 // ==================== PLOTS ====================
 
 plot(vwapValue, title="VWAP", color=color.white, linewidth=2, offset=offset)
 
-upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
-lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
+upperBand_1 = plot(showBand_1 ? upperBandValue1 : na, title="Upper Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
+lowerBand_1 = plot(showBand_1 ? lowerBandValue1 : na, title="Lower Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
 
 plot(upperBandValue2, title="Upper Band #2", color=color.lime, linewidth=1)
 plot(lowerBandValue2, title="Lower Band #2", color=color.red, linewidth=1)
@@ -157,10 +171,10 @@ barcolor(displaybars ? (isUpTrend ? color.new(color.lime, 30) : color.new(color.
 
 plotshape(debug and reclaimUp, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
 plotshape(debug and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
-plotshape(longSignal, title="GoLong", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), size=size.tiny, text="GO")
-plotshape(tpStretch, title="Stretch TP", style=shape.xcross, location=location.abovebar, color=color.new(color.aqua, 0), size=size.tiny)
-plotshape(exitOnVwapLoss, title="VWAP Loss Exit", style=shape.cross, location=location.abovebar, color=color.new(color.orange, 0), size=size.tiny)
-plot(pullbackHigh, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
+plotshape(showTradeLabels and longSignal, title="Long Entry", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), textcolor=color.white, size=size.tiny, text="Buy")
+plotshape(showTradeLabels and tpStretch, title="Stretch Take Profit", style=shape.labeldown, location=location.abovebar, color=color.new(color.aqua, 0), textcolor=color.black, size=size.tiny, text="TP")
+plotshape(showTradeLabels and exitOnVwapLoss, title="VWAP Loss Exit", style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
+plot(inReclaimSeq or inVirtualPos ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
 
 // ==================== STATUS TABLE ====================
 

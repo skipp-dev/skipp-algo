@@ -183,7 +183,7 @@ class FMPClient:
                 try:
                     error_body = exc.read().decode("utf-8")
                     error_data = json.loads(error_body)
-                    error_msg = error_data.get("Error Message", error_data.get("message", exc.reason))
+                    error_msg = error_data.get("Error Message") or error_data.get("message") or exc.reason
                 except Exception:
                     error_msg = exc.reason
                 raise RuntimeError(
@@ -386,7 +386,16 @@ class FMPClient:
 
     def get_eod_bulk(self, as_of: date) -> list[dict[str, Any]]:
         """Fetch EOD bulk rows for a specific date."""
-        data = self._get("/stable/eod-bulk", {"date": as_of.isoformat()})
+        try:
+            data = self._get("/stable/eod-bulk", {"date": as_of.isoformat()})
+        except RuntimeError as exc:
+            msg = str(exc)
+            # Free-tier accounts can receive HTTP 402 (Payment Required) for this
+            # endpoint. Treat it as a soft failure so callers can fall back to
+            # per-symbol historical endpoint logic.
+            if "HTTP 402" in msg and "/stable/eod-bulk" in msg:
+                return []
+            raise
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -445,6 +454,131 @@ class FMPClient:
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
+
+    def get_upgrades_downgrades(
+        self,
+        symbol: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch analyst upgrades/downgrades from FMP stable endpoint.
+
+        Without a symbol, returns the latest analyst actions across all tickers.
+        With date range, filters to that window.
+        """
+        params: dict[str, Any] = {}
+        if symbol:
+            sym = str(symbol).strip().upper()
+            if sym:
+                params["symbol"] = sym
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/upgrades-downgrades", params)
+        except RuntimeError as exc:
+            msg = str(exc)
+            if (
+                "/stable/upgrades-downgrades" in msg
+                and ("HTTP 402" in msg or "HTTP 404" in msg)
+            ):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_sector_performance(self) -> list[dict[str, Any]]:
+        """Fetch current sector performance snapshot from FMP stable endpoint."""
+        try:
+            data = self._get("/stable/sector-performance", {})
+        except RuntimeError as exc:
+            msg = str(exc)
+            if (
+                "/stable/sector-performance" in msg
+                and ("HTTP 402" in msg or "HTTP 404" in msg)
+            ):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    # ------------------------------------------------------------------
+    # New endpoints for v2 pipeline
+    # ------------------------------------------------------------------
+
+    def get_index_quote(self, symbol: str = "^VIX") -> dict[str, Any]:
+        """Fetch a single index quote (e.g. ^VIX, ^GSPC).
+
+        Returns the quote dict, or empty dict on failure.
+        """
+        sym = str(symbol or "^VIX").strip()
+        try:
+            data = self._get("/stable/batch-quote", {"symbols": sym})
+        except RuntimeError as exc:
+            msg = str(exc)
+            if "/stable/batch-quote" in msg and ("HTTP 402" in msg or "HTTP 404" in msg):
+                return {}
+            raise
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        return {}
+
+    def get_institutional_holders(
+        self,
+        symbol: str,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Fetch top institutional holders for a symbol."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        data = self._get(
+            "/stable/institutional-holder",
+            {"symbol": sym, "limit": max(1, min(int(limit), 100))},
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_analyst_estimates(
+        self,
+        symbol: str,
+        period: str = "quarter",
+        limit: int = 8,
+    ) -> list[dict[str, Any]]:
+        """Fetch analyst earnings/revenue estimates for a symbol.
+
+        Returns a list of estimate records sorted by date (most recent first).
+        """
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return []
+        data = self._get(
+            "/stable/analyst-estimates",
+            {
+                "symbol": sym,
+                "period": period,
+                "limit": max(1, min(int(limit), 100)),
+            },
+        )
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_company_profile(self, symbol: str) -> dict[str, Any]:
+        """Fetch company profile (sector, industry, etc.) for a single symbol."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return {}
+        data = self._get("/stable/profile", {"symbol": sym})
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
 
 
 CANONICAL_EVENT_PATTERNS = [
@@ -660,7 +794,7 @@ def filter_us_high_impact_events(events: list[dict[str, Any]]) -> list[dict[str,
 
 
 def _event_impact_level(event: dict[str, Any]) -> str:
-    impact = event.get("impact", event.get("importance", event.get("priority")))
+    impact = event.get("impact") or event.get("importance") or event.get("priority")
     return str(impact or "").strip().lower()
 
 
@@ -768,7 +902,7 @@ def macro_bias_with_components(
             "country": event.get("country"),
             "event": raw_name,
             "canonical_event": canonical_key,
-            "impact": event.get("impact", event.get("importance", event.get("priority"))),
+            "impact": event.get("impact") or event.get("importance") or event.get("priority"),
             "actual": actual,
             "consensus_value": consensus,
             "consensus_field": consensus_field,

@@ -8,7 +8,7 @@ from .utils import to_float as _to_float
 def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
     """Return ATR-based trailing-stop distances for multiple aggressiveness profiles."""
     atr = _to_float(
-        row.get("atr", row.get("atr_14", row.get("atr14", row.get("average_true_range")))),
+        row.get("atr") or row.get("atr_14") or row.get("atr14") or row.get("average_true_range"),
         default=0.0,
     )
     multipliers = {
@@ -62,7 +62,18 @@ def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _setup_type_from_bias(bias: float, allowed_setups: list[str] | None = None) -> str:
+def _setup_type_from_bias(bias: float, allowed_setups: list[str] | None = None, playbook: dict | None = None) -> str:
+    # Prefer playbook-driven setup type when available
+    if playbook:
+        pb = playbook.get("playbook", "")
+        if pb == "GAP_AND_GO":
+            return "Gap & Go (Trend Continuation)"
+        if pb == "GAP_FADE":
+            return "Gap Fade (Mean Reversion)"
+        if pb == "POST_NEWS_DRIFT":
+            return "Post-News Drift (Swing 1–3d)"
+        if pb == "NO_TRADE":
+            return "No Trade — Playbook"
     if allowed_setups and "orb" not in allowed_setups and "gap_go" not in allowed_setups:
         return "VWAP-Reclaim only"
     if bias >= 0.25:
@@ -72,7 +83,18 @@ def _setup_type_from_bias(bias: float, allowed_setups: list[str] | None = None) 
     return "ORB or VWAP-Hold"
 
 
-def _risk_note_from_bias(bias: float, allowed_setups: list[str] | None = None) -> str:
+def _risk_note_from_bias(bias: float, allowed_setups: list[str] | None = None, playbook: dict | None = None) -> str:
+    if playbook:
+        pb = playbook.get("playbook", "")
+        reason = playbook.get("playbook_reason", "")
+        if pb == "GAP_AND_GO":
+            return f"Gap & Go selected: {reason}. Momentum continuation — trail with ATR."
+        if pb == "GAP_FADE":
+            return f"Gap Fade selected: {reason}. Mean reversion — tight stop, no averaging down."
+        if pb == "POST_NEWS_DRIFT":
+            return f"Post-News Drift: {reason}. Swing hold — wider stop, reduced size."
+        if pb == "NO_TRADE":
+            return f"No trade: {reason}."
     if allowed_setups and "orb" not in allowed_setups and "gap_go" not in allowed_setups:
         return "macro_risk_off_extreme: only reclaim setups allowed."
     if bias >= 0.25:
@@ -96,11 +118,12 @@ def build_trade_cards(
             continue
 
         allowed_setups = row.get("allowed_setups")
-        setup_type = _setup_type_from_bias(bias, allowed_setups)
-        bias_note = _risk_note_from_bias(bias, allowed_setups)
+        playbook = row.get("playbook")  # from playbook engine
+        setup_type = _setup_type_from_bias(bias, allowed_setups, playbook)
+        bias_note = _risk_note_from_bias(bias, allowed_setups, playbook)
 
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)
-        gap_available = bool(row.get("gap_available", True))
+        gap_available = bool(row.get("gap_available", False))
         earnings_bmo = bool(row.get("earnings_bmo", False))
         is_premarket_mover = bool(row.get("is_premarket_mover", False))
 
@@ -122,6 +145,11 @@ def build_trade_cards(
             entry_trigger = "Break and hold above opening range high OR first pullback reclaim above VWAP."
             invalidation = "Loss of VWAP after entry or close below opening range low."
 
+        # Override with playbook-specific instructions when available
+        if playbook and playbook.get("playbook") != "NO_TRADE":
+            entry_trigger = playbook.get("entry_trigger", entry_trigger)
+            invalidation = playbook.get("invalidation", invalidation)
+
         cards.append(
             {
                 "symbol": symbol,
@@ -142,9 +170,8 @@ def build_trade_cards(
                     "macro_bias": round(bias, 4),
                     "candidate_score": row.get("score"),
                     "gap_pct": row.get("gap_pct"),
-                    "rel_volume": row.get("rel_volume"),
-                    "volume_ratio": row.get("volume_ratio"),
-                    "is_hvb": row.get("is_hvb"),
+                    "volume_ratio": round(_to_float(row.get("volume"), default=0.0) / max(_to_float(row.get("avg_volume"), default=1.0), 1.0), 2),
+                    "is_hvb": _to_float(row.get("volume"), default=0.0) > 2 * max(_to_float(row.get("avg_volume"), default=1.0), 1.0),
                     "momentum_z_score": row.get("momentum_z_score"),
                     "earnings_today": row.get("earnings_today", False),
                     "earnings_timing": row.get("earnings_timing"),
@@ -157,6 +184,27 @@ def build_trade_cards(
                     "max_trades": row.get("max_trades", 2),
                     "note": bias_note,
                 },
+                # Playbook engine output (when available)
+                "playbook_data": {
+                    "playbook": playbook.get("playbook") if playbook else None,
+                    "playbook_reason": playbook.get("playbook_reason") if playbook else None,
+                    "event_class": playbook.get("event_class") if playbook else None,
+                    "event_label": playbook.get("event_label") if playbook else None,
+                    "materiality": playbook.get("materiality") if playbook else None,
+                    "recency_bucket": playbook.get("recency_bucket") if playbook else None,
+                    "source_tier": playbook.get("source_tier") if playbook else None,
+                    "execution_quality": playbook.get("execution_quality") if playbook else None,
+                    "size_adjustment": playbook.get("size_adjustment") if playbook else None,
+                    "max_loss_pct": playbook.get("max_loss_pct") if playbook else None,
+                    "time_horizon": playbook.get("time_horizon") if playbook else None,
+                    "exit_plan": playbook.get("exit_plan") if playbook else None,
+                    "regime_aligned": playbook.get("regime_aligned") if playbook else None,
+                    "no_trade_zone": playbook.get("no_trade_zone") if playbook else None,
+                    "no_trade_zone_reason": playbook.get("no_trade_zone_reason") if playbook else None,
+                    "gap_go_score": playbook.get("gap_go_score") if playbook else None,
+                    "fade_score": playbook.get("fade_score") if playbook else None,
+                    "drift_score": playbook.get("drift_score") if playbook else None,
+                } if playbook else None,
             }
         )
 

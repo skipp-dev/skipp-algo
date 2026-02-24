@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from .utils import to_float as _to_float
+from .utils import to_float as _to_float, MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
 
 # ---------------------------------------------------------------------------
 # Gap-GO / Gap-WATCH classifier defaults
@@ -36,7 +36,7 @@ def classify_long_gap(
 
         {
             "bucket": "GO" | "WATCH" | "SKIP",
-            "no_trade_reason": "a;b;c"  (empty string when GO),
+            "no_trade_reason": ["a", "b", "c"]  (empty list when GO),
             "warn_flags": "x;y"          (informational, never blocks GO),
             "gap_grade": float           (0..5 composite quality score),
         }
@@ -104,13 +104,13 @@ def classify_long_gap(
 
     if (not strength_missing) and gap_pct > 0:
         bucket = "GO"
-        no_trade_reason = ""
+        no_trade_reason: list[str] = []
     elif gap_pct >= watch_min_gap_pct:
         bucket = "WATCH"
-        no_trade_reason = ";".join(reasons)
+        no_trade_reason = list(reasons)
     else:
         bucket = "SKIP"
-        no_trade_reason = ";".join(reasons)
+        no_trade_reason = list(reasons)
 
     return {
         "bucket": bucket,
@@ -249,8 +249,7 @@ def compute_gap_warn_flags(row: dict[str, Any]) -> list[str]:
     return flags
 
 
-MIN_PRICE_THRESHOLD = 5.0
-SEVERE_GAP_DOWN_THRESHOLD = -8.0
+# Filter thresholds (MIN_PRICE_THRESHOLD and SEVERE_GAP_DOWN_THRESHOLD imported from utils)
 RISK_OFF_EXTREME_THRESHOLD = -0.75
 
 GAP_CAP_ABS = 10.0
@@ -264,6 +263,7 @@ WEIGHT_HVB = 0.3
 WEIGHT_EARNINGS_BMO = 1.5
 WEIGHT_LIQUIDITY_PENALTY = 1.5
 RISK_OFF_PENALTY_MULTIPLIER = 2.0
+WEIGHT_NEWS = 0.8
 WEIGHT_EXT_HOURS = 1.0
 WEIGHT_CORPORATE_ACTION_PENALTY = 1.0
 WEIGHT_ANALYST_CATALYST = 0.5
@@ -274,6 +274,7 @@ def rank_candidates(
     bias: float,
     top_n: int = 20,
     news_scores: dict[str, float] | None = None,
+    news_metrics: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Rank long candidates from quote snapshots.
 
@@ -289,6 +290,10 @@ def rank_candidates(
     by_symbol_news: dict[str, float] = {}
     for key, value in (news_scores or {}).items():
         by_symbol_news[str(key).upper()] = _to_float(value, default=0.0)
+    by_symbol_news_metrics: dict[str, dict[str, Any]] = {}
+    for nm_key, nm_val in (news_metrics or {}).items():
+        if isinstance(nm_val, dict):
+            by_symbol_news_metrics[str(nm_key).upper()] = nm_val
 
     for quote in quotes:
         symbol = str(quote.get("symbol") or "").strip().upper()
@@ -301,7 +306,7 @@ def rank_candidates(
             default=0.0,
         )
         gap_available_raw = quote.get("gap_available")
-        gap_available = True if gap_available_raw is None else bool(gap_available_raw)
+        gap_available = False if gap_available_raw is None else bool(gap_available_raw)
         gap_pct_for_scoring = gap_pct if gap_available else 0.0
         volume = _to_float(quote.get("volume"), default=0.0)
         avg_volume = _to_float(quote.get("avgVolume"), default=0.0)
@@ -352,7 +357,7 @@ def rank_candidates(
         earnings_bmo = earnings_today and str(earnings_timing).lower() in {"bmo", "before market open"}
         earnings_bmo_component = WEIGHT_EARNINGS_BMO if earnings_bmo else 0.0
         news_score = by_symbol_news.get(symbol, 0.0)
-        news_component = news_score
+        news_component = WEIGHT_NEWS * news_score
         ext_hours_component = WEIGHT_EXT_HOURS * ext_hours_score
         corporate_action_penalty_component = WEIGHT_CORPORATE_ACTION_PENALTY * max(corporate_action_penalty, 0.0)
         analyst_catalyst_component = WEIGHT_ANALYST_CATALYST * analyst_catalyst_score
@@ -427,17 +432,18 @@ def rank_candidates(
                 "price": price,
                 "gap_pct": gap_pct,
                 "gap_type": quote.get("gap_type"),
+                "gap_scope": quote.get("gap_scope"),
                 "gap_available": gap_available,
                 "gap_from_ts": quote.get("gap_from_ts"),
                 "gap_to_ts": quote.get("gap_to_ts"),
                 "gap_reason": quote.get("gap_reason"),
+                "gap_bucket": quote.get("gap_bucket"),
+                "gap_grade": quote.get("gap_grade"),
+                "warn_flags": quote.get("warn_flags", ""),
                 "volume": volume,
                 "avg_volume": avg_volume,
                 "atr": round(atr, 4),
-                "rel_volume": round(rel_vol, 4),
-                "volume_ratio": round(rel_vol, 4),
-                "rel_volume_capped": round(rel_vol_capped, 4),
-                "is_hvb": is_hvb,
+                "atr_pct": quote.get("atr_pct"),
                 "momentum_z_score": round(momentum_z_capped, 4),
                 "pdh": quote.get("pdh"),
                 "pdl": quote.get("pdl"),
@@ -450,8 +456,9 @@ def rank_candidates(
                 "earnings_bmo": earnings_bmo,
                 "is_premarket_mover": is_premarket_mover,
                 "premarket_change_pct": premarket_change_pct,
+                "premarket_high": quote.get("premarket_high"),
+                "premarket_low": quote.get("premarket_low"),
                 "ext_hours_score": round(ext_hours_score, 4),
-                "ext_volume_ratio": round(ext_volume_ratio, 6),
                 "premarket_stale": premarket_stale,
                 "premarket_spread_bps": premarket_spread_bps,
                 "split_today": split_today,
@@ -461,6 +468,14 @@ def rank_candidates(
                 "analyst_catalyst_score": round(analyst_catalyst_score, 4),
                 "macro_bias": round(bias, 4),
                 "news_catalyst_score": round(news_score, 4),
+                "news_sentiment_emoji": by_symbol_news_metrics.get(symbol, {}).get("sentiment_emoji", "🟡"),
+                "news_sentiment_label": by_symbol_news_metrics.get(symbol, {}).get("sentiment_label", "neutral"),
+                "news_sentiment_score": by_symbol_news_metrics.get(symbol, {}).get("sentiment_score", 0.0),
+                "upgrade_downgrade_emoji": quote.get("upgrade_downgrade_emoji", ""),
+                "upgrade_downgrade_label": quote.get("upgrade_downgrade_label", ""),
+                "upgrade_downgrade_action": quote.get("upgrade_downgrade_action", ""),
+                "upgrade_downgrade_firm": quote.get("upgrade_downgrade_firm", ""),
+                "upgrade_downgrade_date": quote.get("upgrade_downgrade_date"),
                 "allowed_setups": allowed_setups,
                 "max_trades": max_trades,
                 "data_sufficiency": {
@@ -487,6 +502,6 @@ def rank_candidates(
             }
         )
 
-    # Sort by score (desc), then rel_volume_capped (desc), then symbol (asc) for deterministic tie-breaking
-    ranked.sort(key=lambda row: (-row["score"], -row["rel_volume_capped"], row["symbol"]))
+    # Sort by score (desc), then symbol (asc) for deterministic tie-breaking
+    ranked.sort(key=lambda row: (-row["score"], row["symbol"]))
     return ranked[:top_n]

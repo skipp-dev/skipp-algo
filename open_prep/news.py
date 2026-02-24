@@ -4,7 +4,85 @@ import re
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from .playbook import classify_news_event, classify_recency, classify_source_quality
+
 _TICKER_RE = re.compile(r"\b[A-Z][A-Z0-9.-]{0,5}\b")
+
+# Common English words that look like tickers but aren't actual US-listed
+# symbols.  Excludes legitimate tickers like "A" (Agilent), "AI" (C3.ai),
+# "ON" (ON Semi), "IT" (Gartner) etc.
+_TICKER_BLACKLIST: frozenset[str] = frozenset({
+    "AN", "AS", "AT", "BE", "BY", "DO", "IF",
+    "IN", "IS", "MY", "NO", "OF", "OK", "OR", "SO",
+    "TO", "UP", "US", "WE",
+})
+
+# ---------------------------------------------------------------------------
+# Keyword-based financial-news sentiment classifier
+# ---------------------------------------------------------------------------
+# FMP's fmp-articles endpoint does NOT provide pre-rated sentiment.
+# We classify sentiment from article title/content using domain-specific
+# keyword matching.  This is intentionally conservative — only clear
+# directional language moves the score away from neutral.
+
+_BULLISH_KEYWORDS: frozenset[str] = frozenset({
+    "upgrade", "upgrades", "upgraded", "beat", "beats", "beating",
+    "raise", "raises", "raised", "record", "bullish", "buy",
+    "outperform", "rally", "rallies", "surge", "surges", "surging",
+    "growth", "profit", "profits", "strong", "strength", "positive",
+    "exceeds", "exceeded", "above", "higher", "upbeat", "boost",
+    "boosted", "breakout", "acquisition", "acquire", "approval",
+    "approved", "partnership", "expand", "expansion", "dividend",
+    "buyback", "repurchase", "guidance", "upside",
+})
+
+_BEARISH_KEYWORDS: frozenset[str] = frozenset({
+    "downgrade", "downgrades", "downgraded", "miss", "misses",
+    "missed", "cut", "cuts", "cutting", "decline", "declined",
+    "declining", "loss", "losses", "selloff", "bearish", "sell",
+    "underperform", "warning", "warns", "weak", "weakness", "layoff",
+    "layoffs", "lawsuit", "recall", "recalled", "fraud", "investigate",
+    "investigation", "negative", "below", "lower", "disappointing",
+    "disappointed", "fails", "failed", "failure", "bankruptcy", "debt",
+    "restructuring", "delay", "delayed", "downside", "suspend",
+    "suspended", "penalty", "fine", "fined", "subpoena",
+})
+
+_WORD_RE = re.compile(r"\b[a-z]+\b")
+
+
+def classify_article_sentiment(title: str, content: str = "") -> tuple[str, float]:
+    """Classify financial news sentiment from title and content.
+
+    Returns ``(label, score)`` where:
+    - label: ``"bullish"`` | ``"neutral"`` | ``"bearish"``
+    - score: float in ``[-1.0, 1.0]``
+
+    Title words receive 2x weight (headlines are the strongest signal).
+    """
+    title_words = set(_WORD_RE.findall(title.lower()))
+    content_words = set(_WORD_RE.findall(content[:800].lower())) if content else set()
+
+    # Title matches count double
+    bull = len(title_words & _BULLISH_KEYWORDS) * 2 + len(content_words & _BULLISH_KEYWORDS)
+    bear = len(title_words & _BEARISH_KEYWORDS) * 2 + len(content_words & _BEARISH_KEYWORDS)
+
+    total = bull + bear
+    if total == 0:
+        return "neutral", 0.0
+
+    net = bull - bear
+    score = max(-1.0, min(1.0, net / max(total, 1)))
+
+    if score > 0.15:
+        return "bullish", round(score, 2)
+    if score < -0.15:
+        return "bearish", round(score, 2)
+    return "neutral", round(score, 2)
+
+
+def _sentiment_emoji(label: str) -> str:
+    return {"bullish": "🟢", "bearish": "🔴"}.get(label, "🟡")
 
 
 def _extract_symbols_from_tickers(raw: str) -> set[str]:
@@ -21,7 +99,7 @@ def _extract_symbols_from_tickers(raw: str) -> set[str]:
             continue
         if ":" in token:
             token = token.split(":")[-1].strip()
-        if token and _TICKER_RE.fullmatch(token):
+        if token and _TICKER_RE.fullmatch(token) and token not in _TICKER_BLACKLIST:
             out.add(token)
     return out
 
@@ -71,6 +149,7 @@ def build_news_scores(
             "mentions_2h": 0,
             "latest_article_utc": None,
             "news_catalyst_score": 0.0,
+            "articles": [],
         }
         for s in universe
     }
@@ -97,6 +176,38 @@ def build_news_scores(
                 continue
             row = metrics[sym]
             row["mentions_total"] += 1
+
+            # Capture article detail for explainability (newest first, max 5)
+            raw_title = str(article.get("title") or "").strip()
+            raw_content = str(article.get("content") or "").strip()
+            sent_label, sent_score = classify_article_sentiment(raw_title, raw_content)
+            source_str = str(article.get("source") or article.get("site") or "").strip()
+
+            # --- Playbook enrichment: event class, recency, source quality ---
+            event_info = classify_news_event(raw_title, raw_content)
+            recency_info = classify_recency(article_dt, now)
+            source_info = classify_source_quality(source_str, raw_title)
+
+            article_info: dict[str, Any] = {
+                "title": raw_title,
+                "link": str(article.get("link") or article.get("url") or "").strip(),
+                "source": source_str,
+                "date": article_dt.isoformat() if article_dt else None,
+                "sentiment": sent_label,
+                "sentiment_score": sent_score,
+                # Playbook fields
+                "event_class": event_info["event_class"],
+                "event_label": event_info["event_label"],
+                "materiality": event_info["materiality"],
+                "recency_bucket": recency_info["recency_bucket"],
+                "age_minutes": recency_info["age_minutes"],
+                "is_actionable": recency_info["is_actionable"],
+                "source_tier": source_info["source_tier"],
+                "source_rank": source_info["source_rank"],
+            }
+            # Collect all matching articles; we'll sort + trim after the loop.
+            row["articles"].append(article_info)
+
             if article_dt is not None:
                 # Guard against future-dated articles (provider timezone drift):
                 # they count as mentions_total but must not inflate recency windows.
@@ -118,6 +229,13 @@ def build_news_scores(
 
     scores: dict[str, float] = {}
     for sym, row in metrics.items():
+        # Keep only the 5 newest articles (sort by date descending, None dates last).
+        row["articles"].sort(
+            key=lambda a: a.get("date") or "",
+            reverse=True,
+        )
+        row["articles"] = row["articles"][:5]
+
         # Subtract 2h mentions from 24h count so articles are not double-counted
         # across both recency windows (2h articles are already boosted at 0.5).
         mentions_24h_only = max(row["mentions_24h"] - row["mentions_2h"], 0)
@@ -127,5 +245,51 @@ def build_news_scores(
         # Convert stored datetime → ISO string for serialisable output.
         if row["latest_article_utc"] is not None:
             row["latest_article_utc"] = row["latest_article_utc"].isoformat()
+
+        # --- Per-symbol sentiment aggregation ---
+        arts = row.get("articles") or []
+        if arts:
+            sent_scores = [a.get("sentiment_score", 0.0) for a in arts]
+            avg_sent = sum(sent_scores) / len(sent_scores)
+            if avg_sent > 0.15:
+                row["sentiment_label"] = "bullish"
+            elif avg_sent < -0.15:
+                row["sentiment_label"] = "bearish"
+            else:
+                row["sentiment_label"] = "neutral"
+            row["sentiment_emoji"] = _sentiment_emoji(row["sentiment_label"])
+            row["sentiment_score"] = round(avg_sent, 2)
+
+            # --- Per-symbol playbook aggregation (from best article) ---
+            best = arts[0]  # newest-first after sort
+            row["event_class"] = best.get("event_class", "UNKNOWN")
+            row["event_label"] = best.get("event_label", "generic")
+            row["materiality"] = best.get("materiality", "LOW")
+            row["recency_bucket"] = best.get("recency_bucket", "UNKNOWN")
+            row["age_minutes"] = best.get("age_minutes")
+            row["is_actionable"] = best.get("is_actionable", False)
+            row["source_tier"] = best.get("source_tier", "TIER_3")
+            row["source_rank"] = best.get("source_rank", 3)
+
+            # Collect all event labels across articles for full picture
+            all_labels: list[str] = []
+            for a in arts:
+                lbl = a.get("event_label")
+                if lbl and lbl not in all_labels:
+                    all_labels.append(lbl)
+            row["event_labels_all"] = all_labels
+        else:
+            row["sentiment_label"] = "neutral"
+            row["sentiment_emoji"] = "🟡"
+            row["sentiment_score"] = 0.0
+            row["event_class"] = "UNKNOWN"
+            row["event_label"] = "generic"
+            row["materiality"] = "LOW"
+            row["recency_bucket"] = "UNKNOWN"
+            row["age_minutes"] = None
+            row["is_actionable"] = False
+            row["source_tier"] = "TIER_3"
+            row["source_rank"] = 3
+            row["event_labels_all"] = []
 
     return scores, metrics

@@ -1,0 +1,32 @@
+[
+  {
+    "feature": "eod_bulk",
+    "status": "plan_limited",
+    "http_status": 402,
+    "detail": "FMP API HTTP 402 on /stable/eod-bulk: Payment Required"
+  },
+  {
+    "feature": "income_statement",
+    "status": "available",
+    "http_status": 200,
+    "detail": "Endpoint reachable"
+  },
+  {
+    "feature": "sector_performance",
+    "status": "not_available",
+    "http_status": 404,
+    "detail": "FMP API HTTP 404 on /stable/sector-performance: Not Found"
+  },
+  {
+    "feature": "upgrades_downgrades",
+    "status": "not_available",
+    "http_status": 404,
+    "detail": "FMP API HTTP 404 on /stable/upgrades-downgrades: Not Found"
+  },
+  {
+    "feature": "vix_quote",
+    "status": "plan_limited",
+    "http_status": 402,
+    "detail": "FMP API HTTP 402 on /stable/batch-quote: Payment Required"
+  }
+]

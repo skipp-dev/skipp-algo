@@ -1,0 +1,57 @@
+[
+  {
+    "sector": "Healthcare",
+    "changesPercentage": 2.9401,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Financial Services",
+    "changesPercentage": 2.0862,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Technology",
+    "changesPercentage": 1.9721,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Basic Materials",
+    "changesPercentage": 1.6849,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Industrials",
+    "changesPercentage": 1.4215,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Consumer Cyclical",
+    "changesPercentage": 1.2412,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Consumer Defensive",
+    "changesPercentage": 0.9033,
+    "sector_emoji": "🟢"
+  },
+  {
+    "sector": "Utilities",
+    "changesPercentage": -0.1089,
+    "sector_emoji": "🟡"
+  },
+  {
+    "sector": "Communication Services",
+    "changesPercentage": -0.1488,
+    "sector_emoji": "🟡"
+  },
+  {
+    "sector": "Real Estate",
+    "changesPercentage": -0.4579,
+    "sector_emoji": "🟡"
+  },
+  {
+    "sector": "Energy",
+    "changesPercentage": -1.2023,
+    "sector_emoji": "🔴"
+  }
+]

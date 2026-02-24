@@ -1,0 +1,681 @@
+[
+  {
+    "symbol": "VIAC",
+    "gap_pct": -17.810503,
+    "filter_reasons": [
+      "severe_gap_down",
+      "atr_missing"
+    ]
+  },
+  {
+    "symbol": "SOXS",
+    "gap_pct": -6.505747,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "BHAT",
+    "gap_pct": 8.054711,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "EZRA",
+    "gap_pct": 31.443891,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "BRTX",
+    "gap_pct": 43.619725,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "TLIH",
+    "gap_pct": 34.968553,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "ZSL",
+    "gap_pct": 3.314917,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "LRMR",
+    "gap_pct": 32.562278,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "EDSA",
+    "gap_pct": 76.863181,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "PLUG",
+    "gap_pct": 3.26087,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "IOVA",
+    "gap_pct": 28.768166,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "GOSS",
+    "gap_pct": 0.874085,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "DUST",
+    "gap_pct": 0.653061,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "MSTX",
+    "gap_pct": -0.961538,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "TIRX",
+    "gap_pct": -10.921053,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "SGN",
+    "gap_pct": -28.940201,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "HIMZ",
+    "gap_pct": -1.504425,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "RIME",
+    "gap_pct": 21.190217,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "XTKG",
+    "gap_pct": -4.294479,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "SILO",
+    "gap_pct": 15.256046,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "ATXI",
+    "gap_pct": 92.405063,
+    "filter_reasons": [
+      "price_below_5",
+      "premarket_stale",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "CLVT",
+    "gap_pct": 30.35119,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "CHPGR",
+    "gap_pct": 26.582278,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "LAFAR",
+    "gap_pct": 25.65445,
+    "filter_reasons": [
+      "price_below_5",
+      "premarket_stale"
+    ]
+  },
+  {
+    "symbol": "ANY",
+    "gap_pct": 21.794872,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "LKSPR",
+    "gap_pct": 22.222222,
+    "filter_reasons": [
+      "price_below_5",
+      "premarket_stale",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "GANX",
+    "gap_pct": 20.813397,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "BRLS",
+    "gap_pct": 19.745223,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "MBOT",
+    "gap_pct": 19.512195,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "EJH",
+    "gap_pct": 18.674798,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "FIGG",
+    "gap_pct": 18.539326,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "FRGT",
+    "gap_pct": 18.429825,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "ITRM",
+    "gap_pct": 18.267327,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "JWEL",
+    "gap_pct": 16.753927,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "SGMO",
+    "gap_pct": 15.80291,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "COOT",
+    "gap_pct": 15.864528,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "LWLG",
+    "gap_pct": 15.01983,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "CTEV",
+    "gap_pct": -41.713302,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "BOOM",
+    "gap_pct": -33.437428,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ALUR",
+    "gap_pct": -27.714286,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "TNC",
+    "gap_pct": -24.690158,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "TARA",
+    "gap_pct": -23.687752,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "NBY",
+    "gap_pct": -22.533333,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "SHLS",
+    "gap_pct": -22.424242,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "XMTR",
+    "gap_pct": -21.872266,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "FSHPR",
+    "gap_pct": -21.05263,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "premarket_stale",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "AERT",
+    "gap_pct": -20.107239,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "VERO",
+    "gap_pct": -19.503106,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "premarket_stale"
+    ]
+  },
+  {
+    "symbol": "CECO",
+    "gap_pct": -18.859423,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "CETY",
+    "gap_pct": -18.773585,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "UOKA",
+    "gap_pct": -18.686869,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ILLR",
+    "gap_pct": -16.666667,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "NXXT",
+    "gap_pct": -15.55974,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ZEO",
+    "gap_pct": -14.569536,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "YMT",
+    "gap_pct": -14.551724,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "IPST",
+    "gap_pct": -14.537577,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "FULC",
+    "gap_pct": -14.380165,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "FJET",
+    "gap_pct": -14.001235,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "AIDX",
+    "gap_pct": -13.843175,
+    "filter_reasons": [
+      "severe_gap_down",
+      "atr_missing"
+    ]
+  },
+  {
+    "symbol": "AHCO",
+    "gap_pct": -13.605442,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ATOM",
+    "gap_pct": -13.283208,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "BLZE",
+    "gap_pct": -13.2746,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "QNC",
+    "gap_pct": -13.268754,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "ipo_window",
+      "atr_missing"
+    ]
+  },
+  {
+    "symbol": "NCI",
+    "gap_pct": -13.218391,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "HUIZ",
+    "gap_pct": -12.565217,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "ACVA",
+    "gap_pct": -12.676056,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ZD",
+    "gap_pct": -12.419628,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "FWRG",
+    "gap_pct": -12.225806,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "BIYA",
+    "gap_pct": -12.105263,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "BLIV",
+    "gap_pct": -11.875,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "DOYU",
+    "gap_pct": -11.530815,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "IPWR",
+    "gap_pct": -11.349693,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "GIPR",
+    "gap_pct": -11.111111,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "WHR",
+    "gap_pct": -10.96623,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ADUS",
+    "gap_pct": -10.881578,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "ESGL",
+    "gap_pct": -10.793651,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "premarket_stale",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "TMDE",
+    "gap_pct": -10.703965,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "BRAI",
+    "gap_pct": -10.480349,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide",
+      "atr_missing"
+    ]
+  },
+  {
+    "symbol": "CYD",
+    "gap_pct": -10.267127,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "TOMZ",
+    "gap_pct": -10.151899,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "LNAI",
+    "gap_pct": -10.104167,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "ISPR",
+    "gap_pct": -10.0,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "AVNS",
+    "gap_pct": -9.848982,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "JAGU",
+    "gap_pct": -9.722222,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide",
+      "atr_missing"
+    ]
+  },
+  {
+    "symbol": "IMG",
+    "gap_pct": -9.547642,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  }
+]

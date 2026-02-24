@@ -15,7 +15,7 @@ from open_prep.run_open_prep import (
     generate_open_prep_result,
 )
 
-DEFAULT_REFRESH_SECONDS = 10
+DEFAULT_REFRESH_SECONDS = 60
 MAX_STATUS_HISTORY = 20
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
 MIN_AUTO_REFRESH_SECONDS = 20
@@ -192,14 +192,18 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered: list[dict[str, Any]] = []
     priority = [
         "symbol",
+        "news_sentiment_emoji",
+        "upgrade_downgrade_emoji",
         "score",
         "price",
         "gap_bucket",
         "gap_grade",
         "gap_pct",
+        "symbol_sector",
+        "sector_change_pct",
+        "sector_relative_gap",
         "atr_pct",
         "ext_hours_score",
-        "ext_volume_ratio",
         "premarket_high",
         "premarket_low",
         "premarket_spread_bps",
@@ -232,6 +236,25 @@ def main() -> None:
         .block-container {
             padding-top: 1.5rem;
             padding-bottom: 1rem;
+        }
+        /* Stabilise fragment re-renders: prevent layout shifts and flicker */
+        [data-testid="stVerticalBlock"],
+        [data-testid="stHorizontalBlock"],
+        .element-container,
+        .stDataFrame {
+            transition: none !important;
+            animation: none !important;
+        }
+        /* Lock minimum height on dataframe containers so they don't collapse
+           to zero briefly between re-renders, which causes the visible "jump". */
+        .stDataFrame iframe,
+        .stDataFrame > div {
+            min-height: 200px;
+        }
+        /* Prevent the entire fragment area from flashing white during re-render */
+        [data-testid="stExpander"],
+        section[data-testid="stSidebar"] {
+            opacity: 1 !important;
         }
         </style>
         """,
@@ -339,7 +362,7 @@ def main() -> None:
         )
         atr_lookback_days = st.number_input("ATR lookback days", min_value=20, max_value=1000, value=250)
         atr_period = st.number_input("ATR period", min_value=1, max_value=200, value=14)
-        atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=5)
+        atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=8)
 
         if st.button("🔄 Sofort aktualisieren", width="stretch", on_click=_on_force_refresh):
             if not auto_refresh_enabled:
@@ -388,6 +411,15 @@ def main() -> None:
                 f"Auto-Refresh Anzeige aus Cache · Live-Fetch alle ~{live_fetch_interval}s zur Entlastung"
             )
         else:
+            # Show a live status panel while fetching data so users can
+            # track pipeline progress (instead of an opaque spinner).
+            status_container = st.status("Pipeline wird ausgeführt …", expanded=True)
+            _pipeline_start = __import__("time").monotonic()
+
+            def _on_progress(stage: int, total: int, label: str) -> None:
+                elapsed = __import__("time").monotonic() - _pipeline_start
+                status_container.update(label=f"Stage {stage}/{total}: {label} ({elapsed:.0f}s)")
+
             try:
                 result = generate_open_prep_result(
                     symbols=(None if use_auto_universe else symbols),
@@ -403,10 +435,18 @@ def main() -> None:
                     atr_period=int(atr_period),
                     atr_parallel_workers=int(atr_parallel_workers),
                     now_utc=now_utc,
+                    progress_callback=_on_progress,
                 )
             except Exception as exc:
+                status_container.update(label="Pipeline fehlgeschlagen", state="error", expanded=False)
                 st.exception(exc)
                 return
+            total_elapsed = __import__("time").monotonic() - _pipeline_start
+            status_container.update(
+                label=f"Pipeline abgeschlossen ({total_elapsed:.0f}s)",
+                state="complete",
+                expanded=False,
+            )
             st.session_state["latest_result_cache"] = dict(result)
             st.session_state["last_live_fetch_utc"] = now_utc.isoformat()
             st.session_state["force_live_fetch"] = False
@@ -443,7 +483,7 @@ def main() -> None:
         if earn_warn:
             st.caption(f"⚠️ Earnings-Warnungen in GAP-GO: {earn_warn}")
         if ranked_gap_go:
-            st.dataframe(ranked_gap_go, use_container_width=True, height=320)
+            st.dataframe(ranked_gap_go, width="stretch", height=320)
         else:
             st.info("Keine GAP-GO Kandidaten (strengere Kriterien nicht erfüllt).")
 
@@ -455,39 +495,298 @@ def main() -> None:
 
         st.subheader(f"LONG GAP-WATCHLIST  ({len(ranked_gap_watch)} — prüfen im Chart)")
         if ranked_gap_watch:
-            st.dataframe(ranked_gap_watch, use_container_width=True, height=320)
+            st.dataframe(ranked_gap_watch, width="stretch", height=320)
         else:
             st.info("Keine Watch-Kandidaten (Gap zu klein oder Datenqualität).")
 
-        # --- GAP-GO but Earnings ---
+        # --- GAP-GO but Earnings → renamed to Earnings ---
         ranked_gap_go_earn = list(result.get("ranked_gap_go_earnings") or [])
         for row in ranked_gap_go_earn:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
         ranked_gap_go_earn = _reorder_ranked_columns(ranked_gap_go_earn)
 
-        st.subheader(f"GAP-GO + Earnings  ({len(ranked_gap_go_earn)} — separat behandeln)")
+        # Also include any ranked candidates with earnings_today regardless of GAP-GO
+        earnings_symbols_set = {r.get("symbol") for r in ranked_gap_go_earn}
+        for row in ranked_candidates:
+            if row.get("earnings_today") and row.get("symbol") not in earnings_symbols_set:
+                ranked_gap_go_earn.append(row)
+                earnings_symbols_set.add(row.get("symbol"))
+
+        # Merge full earnings calendar entries (independent screening)
+        earnings_calendar = result.get("earnings_calendar") or []
+        for entry in earnings_calendar:
+            sym = entry.get("symbol")
+            if sym and sym not in earnings_symbols_set:
+                ranked_gap_go_earn.append(entry)
+                earnings_symbols_set.add(sym)
+
+        st.subheader(f"Earnings  ({len(ranked_gap_go_earn)} Kandidaten)")
         if ranked_gap_go_earn:
-            st.dataframe(ranked_gap_go_earn, use_container_width=True, height=280)
+            st.dataframe(ranked_gap_go_earn, width="stretch", height=280)
         else:
-            st.info("Keine GO-Kandidaten mit Earnings-Warnung.")
+            st.info("Keine Earnings-Kandidaten gefunden.")
+
+        # --- Sector Performance ---
+        sector_performance = result.get("sector_performance") or []
+        if sector_performance:
+            leading = [s for s in sector_performance if s.get("changesPercentage", 0.0) > 0.5]
+            lagging = [s for s in sector_performance if s.get("changesPercentage", 0.0) < -0.5]
+            neutral = [s for s in sector_performance if -0.5 <= s.get("changesPercentage", 0.0) <= 0.5]
+            st.subheader(f"Sector Performance  ({len(sector_performance)} Sektoren)")
+            scols = st.columns(3)
+            with scols[0]:
+                st.markdown("**🟢 Leading**")
+                for s in leading:
+                    st.markdown(f"{s['sector_emoji']} **{s['sector']}** — {s['changesPercentage']:+.2f}%")
+                if not leading:
+                    st.caption("Keine führenden Sektoren")
+            with scols[1]:
+                st.markdown("**🟡 Neutral**")
+                for s in neutral:
+                    st.markdown(f"{s['sector_emoji']} {s['sector']} — {s['changesPercentage']:+.2f}%")
+                if not neutral:
+                    st.caption("—")
+            with scols[2]:
+                st.markdown("**🔴 Lagging**")
+                for s in lagging:
+                    st.markdown(f"{s['sector_emoji']} **{s['sector']}** — {s['changesPercentage']:+.2f}%")
+                if not lagging:
+                    st.caption("Keine zurückfallenden Sektoren")
+
+        # --- Upgrades / Downgrades ---
+        upgrades_downgrades_data = result.get("upgrades_downgrades") or {}
+        if upgrades_downgrades_data:
+            ud_rows = []
+            for sym, ud in upgrades_downgrades_data.items():
+                ud_rows.append({
+                    "symbol": sym,
+                    "emoji": ud.get("upgrade_downgrade_emoji", "🟡"),
+                    "action": ud.get("upgrade_downgrade_action", ""),
+                    "firm": ud.get("upgrade_downgrade_firm", ""),
+                    "prev_grade": ud.get("upgrade_downgrade_prev_grade") or "—",
+                    "new_grade": ud.get("upgrade_downgrade_new_grade") or "—",
+                    "date": ud.get("upgrade_downgrade_date") or "—",
+                })
+            ud_rows.sort(key=lambda r: r.get("date") or "", reverse=True)
+            st.subheader(f"Upgrades / Downgrades  ({len(ud_rows)} Analyst Actions, letzte 3 Tage)")
+            for r in ud_rows:
+                st.markdown(
+                    f"{r['emoji']} **{r['symbol']}** — {r['action']}  ·  {r['firm']}  "
+                    f"·  {r['prev_grade']} → {r['new_grade']}  ·  {r['date']}"
+                )
+
+        # ===================================================================
+        # v2 Pipeline: Regime · Tiered Candidates · Diff · Watchlist
+        # ===================================================================
+
+        # --- Market Regime Badge ---
+        regime_data = result.get("regime") or {}
+        regime_label = regime_data.get("regime", "NEUTRAL") if regime_data else "NEUTRAL"
+        regime_colors = {
+            "RISK_ON": "#2ecc40",
+            "RISK_OFF": "#ff4136",
+            "ROTATION": "#ff851b",
+            "NEUTRAL": "#aaaaaa",
+        }
+        regime_color = regime_colors.get(regime_label, "#aaaaaa")
+        regime_vix = regime_data.get("vix_level")
+        regime_reasons = regime_data.get("reasons", [])
+        st.subheader("Market Regime")
+        st.markdown(
+            f"<div style='padding:0.7rem 1rem;border-radius:0.6rem;background:{regime_color};"
+            f"color:white;font-weight:700;font-size:1.2rem;display:inline-block'>"
+            f"🏛️ {regime_label}</div>",
+            unsafe_allow_html=True,
+        )
+        rcols = st.columns(3)
+        rcols[0].metric("VIX", f"{regime_vix:.1f}" if regime_vix else "N/A")
+        rcols[1].metric("Macro Bias", f"{regime_data.get('macro_bias', 0):.4f}")
+        rcols[2].metric("Sector Breadth", f"{regime_data.get('sector_breadth', 0):.1f}%")
+        if regime_reasons:
+            st.caption("Regime factors: " + " · ".join(regime_reasons))
+
+        # --- v2 Ranked Candidates (Tiered) ---
+        ranked_v2 = list(result.get("ranked_v2") or [])
+        tier_emojis = {"HIGH_CONVICTION": "🟢", "STANDARD": "🟡", "WATCHLIST": "🔵"}
+        if ranked_v2:
+            high_conviction = [r for r in ranked_v2 if r.get("confidence_tier") == "HIGH_CONVICTION"]
+            standard = [r for r in ranked_v2 if r.get("confidence_tier") == "STANDARD"]
+            watchlist_tier = [r for r in ranked_v2 if r.get("confidence_tier") == "WATCHLIST"]
+
+            st.subheader(f"v2 Tiered Candidates  ({len(ranked_v2)} scored)")
+            if high_conviction:
+                st.markdown(f"**🟢 HIGH CONVICTION ({len(high_conviction)})**")
+                for r in high_conviction:
+                    sym = r.get("symbol", "?")
+                    score = r.get("score", 0)
+                    gap = r.get("gap_pct", 0)
+                    hr = r.get("historical_hit_rate")
+                    hr_txt = f" · hist HR: {hr:.0%}" if hr is not None else ""
+                    sec = r.get("symbol_sector", "")
+                    sec_chg = r.get("sector_change_pct")
+                    sec_rel = r.get("sector_relative_gap")
+                    sec_txt = f" · {sec} {sec_chg:+.1f}%" if sec and sec_chg is not None else ""
+                    rel_txt = f" (rel {sec_rel:+.1f}%)" if sec_rel is not None else ""
+                    st.markdown(f"  🟢 **{sym}** — score {score:.2f} · gap {gap:+.1f}%{hr_txt}{sec_txt}{rel_txt}")
+            if standard:
+                st.markdown(f"**🟡 STANDARD ({len(standard)})**")
+                for r in standard:
+                    sym = r.get("symbol", "?")
+                    score = r.get("score", 0)
+                    gap = r.get("gap_pct", 0)
+                    sec = r.get("symbol_sector", "")
+                    sec_chg = r.get("sector_change_pct")
+                    sec_rel = r.get("sector_relative_gap")
+                    sec_txt = f" · {sec} {sec_chg:+.1f}%" if sec and sec_chg is not None else ""
+                    rel_txt = f" (rel {sec_rel:+.1f}%)" if sec_rel is not None else ""
+                    st.markdown(f"  🟡 {sym} — score {score:.2f} · gap {gap:+.1f}%{sec_txt}{rel_txt}")
+            if watchlist_tier:
+                st.markdown(f"**🔵 WATCHLIST ({len(watchlist_tier)})**")
+                for r in watchlist_tier:
+                    sym = r.get("symbol", "?")
+                    score = r.get("score", 0)
+                    gap = r.get("gap_pct", 0)
+                    sec = r.get("symbol_sector", "")
+                    sec_chg = r.get("sector_change_pct")
+                    sec_rel = r.get("sector_relative_gap")
+                    sec_txt = f" · {sec} {sec_chg:+.1f}%" if sec and sec_chg is not None else ""
+                    rel_txt = f" (rel {sec_rel:+.1f}%)" if sec_rel is not None else ""
+                    st.markdown(f"  🔵 {sym} — score {score:.2f} · gap {gap:+.1f}%{sec_txt}{rel_txt}")
+
+        # --- Filtered Out (v2 stage-1 rejects) ---
+        filtered_out_v2 = list(result.get("filtered_out_v2") or [])
+        if filtered_out_v2:
+            with st.expander(f"Filtered Out ({len(filtered_out_v2)} symbols rejected by v2 filter)"):
+                for fo in filtered_out_v2[:30]:
+                    sym = fo.get("symbol", "?")
+                    reasons = fo.get("filter_reasons", [])
+                    gap = fo.get("gap_pct", 0)
+                    st.markdown(f"❌ **{sym}** (gap {gap:+.1f}%) — {', '.join(reasons)}")
+
+        # --- Diff View ---
+        run_diff = result.get("diff") or {}
+        diff_summary_txt = result.get("diff_summary") or ""
+        if run_diff and run_diff.get("has_changes"):
+            st.subheader("Changes Since Last Run")
+            if diff_summary_txt:
+                st.text(diff_summary_txt)
+            diff_new = run_diff.get("new_entrants", [])
+            diff_dropped = run_diff.get("dropped", [])
+            diff_score_ch = run_diff.get("score_changes", [])
+            diff_regime_ch = run_diff.get("regime_change")
+            dcols = st.columns(3)
+            dcols[0].metric("New Entrants", len(diff_new))
+            dcols[1].metric("Dropped", len(diff_dropped))
+            dcols[2].metric("Score Changes", len(diff_score_ch))
+            if diff_regime_ch:
+                st.warning(f"⚠️ Regime changed: {diff_regime_ch['from']} → {diff_regime_ch['to']}")
+
+        # --- Watchlist ---
+        watchlist_data = result.get("watchlist") or []
+        if watchlist_data:
+            st.subheader(f"Watchlist  ({len(watchlist_data)} pinned)")
+            for wl in watchlist_data:
+                sym = wl.get("symbol", "?")
+                note = wl.get("note", "")
+                added_at = wl.get("added_at", "")
+                source = wl.get("source", "manual")
+                source_emoji = "🤖" if source == "auto" else "📌"
+                st.markdown(f"{source_emoji} **{sym}** — {note}  ·  added {added_at}")
+
+        # --- Historical Hit Rates ---
+        hit_rates_data = result.get("historical_hit_rates") or {}
+        if hit_rates_data:
+            with st.expander(f"Historical Hit Rates ({len(hit_rates_data)} buckets)"):
+                for bucket_key, stats in sorted(hit_rates_data.items()):
+                    total = stats.get("total", 0)
+                    hr = stats.get("hit_rate", 0)
+                    avg_pnl = stats.get("avg_pnl_pct", 0)
+                    st.markdown(
+                        f"**{bucket_key}** — {hr:.0%} hit rate · {total} samples · avg PnL {avg_pnl:+.2f}%"
+                    )
 
         st.subheader("Ranked Candidates (Global)")
-        st.dataframe(ranked_candidates, use_container_width=True, height=360)
+        st.dataframe(ranked_candidates, width="stretch", height=360)
 
         st.subheader("Trade Cards")
-        st.dataframe(result.get("trade_cards") or [], use_container_width=True, height=320)
+        st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
+
+        # --- News Catalyst Details ---
+        news_by_symbol = result.get("news_catalyst_by_symbol") or {}
+        news_hits = [
+            {"symbol": sym, "score": info.get("news_catalyst_score", 0.0), **info}
+            for sym, info in news_by_symbol.items()
+            if isinstance(info, dict) and float(info.get("news_catalyst_score", 0) or 0) > 0
+        ]
+        news_hits.sort(key=lambda x: -float(x.get("score", 0)))
+        st.subheader(f"News Catalyst  ({len(news_hits)} Treffer)")
+        if news_hits:
+            for hit in news_hits:
+                sym = hit.get("symbol", "?")
+                score = hit.get("score", 0)
+                articles = hit.get("articles") or []
+                sent_emoji = hit.get("sentiment_emoji", "🟡")
+                sent_label = hit.get("sentiment_label", "neutral")
+                sent_score = hit.get("sentiment_score", 0.0)
+                st.markdown(
+                    f"{sent_emoji} **{sym}** — catalyst: {score:.2f}  ·  sentiment: {sent_label} ({sent_score:+.2f})  ·  {hit.get('mentions_24h', 0)} articles (24h)"
+                )
+                for art in articles[:5]:
+                    title = art.get("title") or "—"
+                    link = art.get("link") or ""
+                    source = art.get("source") or ""
+                    art_date = art.get("date") or ""
+                    art_sent = art.get("sentiment", "neutral")
+                    art_sent_emoji = {"bullish": "🟢", "bearish": "🔴"}.get(art_sent, "🟡")
+                    link_md = f"[{title}]({link})" if link else title
+                    st.markdown(f"  - {art_sent_emoji} {link_md}  ·  {source}  ·  {art_date}")
+        else:
+            st.info("Keine News-Katalysatoren erkannt.")
+
+        # --- Earnings Calendar (today + 5 days, all symbols) ---
+        earnings_calendar = result.get("earnings_calendar") or []
+        st.subheader(f"Earnings Calendar  ({len(earnings_calendar)} Termine, nächste 6 Tage)")
+        if earnings_calendar:
+            st.dataframe(earnings_calendar, width="stretch", height=320)
+        else:
+            st.info("Keine Earnings im Kalender (heute + 5 Tage).")
 
         # --- Gap Scanner ---
-        all_quotes = list(result.get("ranked_candidates") or [])
+        # Use fully enriched quotes (all symbols) instead of top-N ranked_candidates
+        # so the scanner catches gaps in lower-ranked symbols too.
+        all_quotes = list(result.get("enriched_quotes") or result.get("ranked_candidates") or [])
         gap_scanner_results = build_gap_scanner(all_quotes)
         st.subheader(f"Gap Scanner ({len(gap_scanner_results)} Treffer)")
         if gap_scanner_results:
-            st.dataframe(gap_scanner_results, use_container_width=True, height=320)
+            st.dataframe(gap_scanner_results, width="stretch", height=320)
         else:
             st.info("Keine Gap-Kandidaten gefunden (Threshold / Stale / Spread).")
 
         st.subheader("US High Impact Events (today)")
-        st.dataframe(result.get("macro_us_high_impact_events_today") or [], use_container_width=True, height=280)
+        st.dataframe(result.get("macro_us_high_impact_events_today") or [], width="stretch", height=280)
+
+        # --- Tomorrow Outlook ---
+        tomorrow_outlook = result.get("tomorrow_outlook") or {}
+        if tomorrow_outlook:
+            outlook_label = tomorrow_outlook.get("outlook_label", "🟡 NEUTRAL")
+            outlook_color = tomorrow_outlook.get("outlook_color", "orange")
+            next_td = tomorrow_outlook.get("next_trading_day", "—")
+            earn_count = tomorrow_outlook.get("earnings_tomorrow_count", 0)
+            earn_bmo = tomorrow_outlook.get("earnings_bmo_tomorrow_count", 0)
+            hi_events = tomorrow_outlook.get("high_impact_events_tomorrow", 0)
+            reasons = tomorrow_outlook.get("reasons") or []
+            st.subheader(f"Tomorrow Outlook ({next_td})")
+            st.markdown(
+                f"<div style='padding:0.7rem 1rem;border-radius:0.6rem;background:{outlook_color};color:white;font-weight:700;font-size:1.1rem'>"
+                f"{outlook_label}</div>",
+                unsafe_allow_html=True,
+            )
+            ocols = st.columns(3)
+            ocols[0].metric("Earnings Tomorrow", earn_count)
+            ocols[1].metric("Earnings BMO", earn_bmo)
+            ocols[2].metric("High-Impact Events", hi_events)
+            if reasons:
+                st.caption("Factors: " + ", ".join(reasons))
 
         _render_soft_refresh_status(str(updated_at) if updated_at is not None else None)
         st.subheader("Status")
@@ -496,6 +795,18 @@ def main() -> None:
         cols[1].metric("Macro Bias", f"{float(result.get('macro_bias', 0.0)):.4f}")
         cols[2].metric("US High Impact", int(result.get("macro_us_high_impact_event_count_today", 0)))
         cols[3].metric("Kandidaten", len(ranked_candidates))
+        cap_summary = result.get("data_capabilities_summary") or {}
+        cap_total = int(cap_summary.get("total", 0) or 0)
+        cap_unavailable = int(cap_summary.get("unavailable", 0) or 0)
+        if cap_total > 0:
+            if cap_unavailable == 0:
+                st.caption(f"Endpoint-Coverage: ✅ {cap_total}/{cap_total} verfügbar")
+            else:
+                st.caption(
+                    f"Endpoint-Coverage: ⚠️ {cap_unavailable}/{cap_total} optionale Endpoints nicht verfügbar "
+                    f"(plan_limited={int(cap_summary.get('plan_limited', 0) or 0)}, "
+                    f"not_available={int(cap_summary.get('not_available', 0) or 0)})"
+                )
         if float(result.get("macro_bias", 0.0)) >= 0.0:
             st.caption("Signalrichtung: 🟢 LONG-BIAS")
         else:
@@ -508,6 +819,33 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.caption(traffic_text)
+
+        # --- Endpoint Capability Probing ---
+        data_capabilities = result.get("data_capabilities") or {}
+        if data_capabilities:
+            st.subheader("FMP Endpoint Capabilities")
+            rows: list[dict[str, Any]] = []
+            status_emoji = {
+                "available": "🟢",
+                "plan_limited": "🟠",
+                "not_available": "🟡",
+                "error": "🔴",
+            }
+            for feature, payload in data_capabilities.items():
+                status = str(payload.get("status") or "error")
+                code = payload.get("http_status")
+                detail = str(payload.get("detail") or "")
+                rows.append(
+                    {
+                        "feature": feature,
+                        "status": f"{status_emoji.get(status, '⚪')} {status}",
+                        "http_status": code,
+                        "detail": detail[:180],
+                    }
+                )
+            rows.sort(key=lambda r: str(r.get("feature") or ""))
+            st.dataframe(rows, width="stretch", height=220)
+            st.caption("🟢 available · 🟠 plan-limited (z. B. 402/403) · 🟡 endpoint missing (404) · 🔴 error")
 
         history = _update_status_history(traffic_label, str(updated_at or "n/a"))
         st.caption("Verlauf (neueste rechts, letzte 20 Refreshes)")

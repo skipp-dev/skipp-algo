@@ -1,12 +1,16 @@
 from datetime import UTC, datetime, date, timedelta
 from pathlib import Path
 import io
+import json
+import os
 import tempfile
 import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
+import argparse
 
 from open_prep.trade_cards import build_trade_cards
+import open_prep.run_open_prep as run_open_prep
 from open_prep.run_open_prep import (
     GAP_MODE_OFF,
     GAP_MODE_PREMARKET_INDICATIVE,
@@ -264,7 +268,7 @@ class TestOpenPrep(unittest.TestCase):
         ]
         base = rank_candidates(quotes, bias=0.0, top_n=1)[0]
         with_news = rank_candidates(quotes, bias=0.0, top_n=1, news_scores={"NVDA": 1.5})[0]
-        self.assertAlmostEqual(with_news["score"] - base["score"], 1.5, places=4)
+        self.assertAlmostEqual(with_news["score"] - base["score"], 1.2, places=4)
         self.assertEqual(with_news["news_catalyst_score"], 1.5)
         self.assertIn("score_breakdown", with_news)
         self.assertIn("news_component", with_news["score_breakdown"])
@@ -1639,6 +1643,158 @@ class TestAtrRobustness(unittest.TestCase):
                 self.assertEqual(atr_map, {"C": 2.5})
                 self.assertEqual(momentum_map, {"C": 1.5})
                 self.assertEqual(prev_close_map, {"C": 102.0})
+
+
+class TestOpenPrepRegressions(unittest.TestCase):
+    def test_generate_result_mirrors_pmh_into_premarket_context(self):
+        with (
+            patch("open_prep.run_open_prep._fetch_todays_events", return_value=[]),
+            patch(
+                "open_prep.run_open_prep._build_macro_context",
+                return_value={
+                    "macro_analysis": {"macro_bias": 0.1, "raw_score": 0.0, "score_components": []},
+                    "macro_bias": 0.1,
+                    "macro_event_count_today": 0,
+                    "macro_us_event_count_today": 0,
+                    "macro_us_high_impact_event_count_today": 0,
+                    "macro_us_mid_impact_event_count_today": 0,
+                    "macro_events_for_bias": [],
+                    "macro_us_high_impact_events_today": [],
+                    "macro_us_mid_impact_events_today": [],
+                    "bea_audit": {},
+                },
+            ),
+            patch("open_prep.run_open_prep._fetch_news_context", return_value=({}, {}, None)),
+            patch(
+                "open_prep.run_open_prep._fetch_quotes_with_atr",
+                return_value=(
+                    [{"symbol": "NVDA", "previousClose": 100.0, "price": 101.0, "atr": 2.0}],
+                    {},
+                    {},
+                    {},
+                    {},
+                ),
+            ),
+            patch(
+                "open_prep.run_open_prep._fetch_premarket_context",
+                return_value=({"NVDA": {"is_premarket_mover": True}}, None),
+            ),
+            patch("open_prep.run_open_prep._pick_symbols_for_pmh", return_value=["NVDA"]),
+            patch(
+                "open_prep.run_open_prep._fetch_premarket_high_low_bulk",
+                return_value=({"NVDA": {"premarket_high": 150.0, "premarket_low": 145.0}}, None),
+            ),
+            patch(
+                "open_prep.run_open_prep.rank_candidates",
+                return_value=[{"symbol": "NVDA", "warn_flags": "", "gap_bucket": "GO", "gap_grade": 1.0}],
+            ),
+            patch("open_prep.run_open_prep.build_trade_cards", return_value=[]),
+        ):
+            result = run_open_prep.generate_open_prep_result(
+                symbols=["NVDA"],
+                client=MagicMock(),
+                top=1,
+                trade_cards=1,
+                now_utc=datetime(2026, 2, 23, 12, 0, tzinfo=UTC),
+            )
+
+        self.assertIn("NVDA", result["premarket_context"])
+        self.assertEqual(result["premarket_context"]["NVDA"]["premarket_high"], 150.0)
+        self.assertEqual(result["premarket_context"]["NVDA"]["premarket_low"], 145.0)
+
+    def test_generate_result_forwards_pmh_timeout_env(self):
+        with (
+            patch("open_prep.run_open_prep._fetch_todays_events", return_value=[]),
+            patch(
+                "open_prep.run_open_prep._build_macro_context",
+                return_value={
+                    "macro_analysis": {"macro_bias": 0.1, "raw_score": 0.0, "score_components": []},
+                    "macro_bias": 0.1,
+                    "macro_event_count_today": 0,
+                    "macro_us_event_count_today": 0,
+                    "macro_us_high_impact_event_count_today": 0,
+                    "macro_us_mid_impact_event_count_today": 0,
+                    "macro_events_for_bias": [],
+                    "macro_us_high_impact_events_today": [],
+                    "macro_us_mid_impact_events_today": [],
+                    "bea_audit": {},
+                },
+            ),
+            patch("open_prep.run_open_prep._fetch_news_context", return_value=({}, {}, None)),
+            patch(
+                "open_prep.run_open_prep._fetch_quotes_with_atr",
+                return_value=(
+                    [{"symbol": "NVDA", "previousClose": 100.0, "price": 101.0, "atr": 2.0}],
+                    {},
+                    {},
+                    {},
+                    {},
+                ),
+            ),
+            patch(
+                "open_prep.run_open_prep._fetch_premarket_context",
+                return_value=({"NVDA": {"is_premarket_mover": True}}, None),
+            ),
+            patch("open_prep.run_open_prep._pick_symbols_for_pmh", return_value=["NVDA"]),
+            patch(
+                "open_prep.run_open_prep._fetch_premarket_high_low_bulk",
+                return_value=({"NVDA": {"premarket_high": None, "premarket_low": None}}, "pmh_pml_fetch_timeout_3.5s"),
+            ) as pm_fetch_mock,
+            patch(
+                "open_prep.run_open_prep.rank_candidates",
+                return_value=[{"symbol": "NVDA", "warn_flags": "", "gap_bucket": "GO", "gap_grade": 1.0}],
+            ),
+            patch("open_prep.run_open_prep.build_trade_cards", return_value=[]),
+            patch.dict("os.environ", {"OPEN_PREP_PMH_FETCH_TIMEOUT_SECONDS": "3.5"}, clear=False),
+        ):
+            result = run_open_prep.generate_open_prep_result(
+                symbols=["NVDA"],
+                client=MagicMock(),
+                top=1,
+                trade_cards=1,
+                now_utc=datetime(2026, 2, 23, 12, 0, tzinfo=UTC),
+            )
+
+        self.assertEqual(pm_fetch_mock.call_args.kwargs["fetch_timeout_seconds"], 3.5)
+        self.assertIn("pmh_pml", str(result.get("premarket_fetch_error") or ""))
+
+    def test_main_writes_latest_open_prep_artifact(self):
+        fake_args = argparse.Namespace(
+            symbols="NVDA",
+            universe_source="fmp_us_mid_large",
+            fmp_min_market_cap=2_000_000_000,
+            fmp_max_symbols=10,
+            mover_seed_max_symbols=10,
+            days_ahead=1,
+            top=1,
+            trade_cards=1,
+            max_macro_events=5,
+            pre_open_only=False,
+            pre_open_cutoff_utc="16:00:00",
+            gap_mode="premarket_indicative",
+            gap_scope="daily",
+            atr_lookback_days=30,
+            atr_period=14,
+            atr_parallel_workers=2,
+            analyst_catalyst_limit=5,
+        )
+        payload = {"schema_version": "open_prep_v1", "ranked_candidates": [], "trade_cards": []}
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with (
+                patch("open_prep.run_open_prep._parse_args", return_value=fake_args),
+                patch("open_prep.run_open_prep.generate_open_prep_result", return_value=payload),
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                cwd = Path.cwd()
+                try:
+                    os.chdir(tmp_dir)
+                    run_open_prep.main()
+                    latest = Path("open_prep/latest_open_prep_run.json")
+                    self.assertTrue(latest.exists())
+                    self.assertEqual(json.loads(latest.read_text(encoding="utf-8")), payload)
+                finally:
+                    os.chdir(cwd)
 
 
 if __name__ == "__main__":

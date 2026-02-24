@@ -1,0 +1,14 @@
+{
+  "next_trading_day": "2026-02-25",
+  "outlook_label": "🟡 NEUTRAL",
+  "outlook_color": "orange",
+  "outlook_score": -0.75,
+  "reasons": [
+    "macro_bias_neutral",
+    "high_impact_events_2",
+    "earnings_dense_686"
+  ],
+  "earnings_tomorrow_count": 686,
+  "earnings_bmo_tomorrow_count": 0,
+  "high_impact_events_tomorrow": 2
+}

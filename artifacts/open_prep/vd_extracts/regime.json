@@ -1,0 +1,10 @@
+{
+  "regime": "NEUTRAL",
+  "vix_level": null,
+  "macro_bias": 0.125,
+  "sector_breadth": 0.6363636363636364,
+  "weight_adjustments": {},
+  "reasons": [
+    "No clear regime signal (bias=0.12, breadth=64%)"
+  ]
+}

@@ -33,10 +33,11 @@ stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard
 
 // Strategy Settings
 matchedTrends = input.bool(true, "Only Enter on Matched Trends",
-    tooltip="This setting will only enter a long trade when the VWAP is trending up and will only enter a short trade when the VWAP is trending down.",
+    tooltip="Only enter a long trade when the VWAP is trending up.",
     group="Strategy")
 
 displaybars = input.bool(true, "Barcolors", group="Display")
+showTradeLabels = input.bool(true, "Show Trade Labels", group="Display")
 
 // Reclaim Settings
 preset3m = input.string("Neutral", "3m Preset", options=["Aggressive", "Neutral", "Conservative", "Custom"], group="Reclaim Settings")
@@ -49,7 +50,8 @@ showStatusTable = input.bool(true, "Show Status Table", group="Reclaim Settings"
 reclaimWindowBarsEff = preset3m == "Aggressive" ? 20 : preset3m == "Conservative" ? 8 : preset3m == "Neutral" ? 12 : reclaimWindowBars
 retestTolATREff = preset3m == "Aggressive" ? 0.16 : preset3m == "Conservative" ? 0.06 : preset3m == "Neutral" ? 0.10 : retestTolATR
 
-if barstate.islast and ta.cum(volume) == 0
+cumVolume = ta.cum(volume)
+if barstate.islast and cumVolume == 0
     runtime.error("No volume is provided by the data vendor.")
 
 // ==================== DATA REQUESTS ====================
@@ -129,16 +131,18 @@ if inReclaimSeq
             retestSeen := true
             retestLow := low
 
-goLong = inReclaimSeq and retestSeen and close > pullbackHigh[1]
+goLong = inReclaimSeq and retestSeen and close > pullbackHigh[1] and bar_index > reclaimBar
 
 upV = utils.trendUp(vwapValue)
-matchedTrendsFilter_long = not matchedTrends ? true : upV
+isUpTrend = upV > 0
+matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
+longSignal = goLong and matchedTrendsFilter_long and strategy.position_size == 0
 
 // ==================== STRATEGY LOGIC ====================
 
 var float longStop = na
 
-if goLong and matchedTrendsFilter_long
+if longSignal
     strategy.entry("Long", strategy.long)
     longStop := retestLow - tol
     inReclaimSeq := false
@@ -147,7 +151,8 @@ if goLong and matchedTrendsFilter_long
 if strategy.position_size > 0 and not na(longStop)
     strategy.exit("L-Stop", "Long", stop=longStop)
 
-tpStretch = strategy.position_size > 0 and ta.crossover(high, upperBandValue2)
+crossedUpperBand2 = ta.crossover(high, upperBandValue2)
+tpStretch = strategy.position_size > 0 and crossedUpperBand2
 if tpStretch
     strategy.close("Long", qty_percent=50)
 
@@ -159,11 +164,11 @@ if exitOnVwapLoss
 
 plot(vwapValue, title="VWAP", color=color.white, linewidth=2, offset=offset)
 
-upperBand_1 = plot(upperBandValue1, title="Upper Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
-lowerBand_1 = plot(lowerBandValue1, title="Lower Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
+upperBand_1 = plot(showBand_1 ? upperBandValue1 : na, title="Upper Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
+lowerBand_1 = plot(showBand_1 ? lowerBandValue1 : na, title="Lower Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
 
-plot(upperBandValue2, title="Upper Band #2", color=color.lime, linewidth=1, style=plot.style_dashed)
-plot(lowerBandValue2, title="Lower Band #2", color=color.red, linewidth=1, style=plot.style_dashed)
+plot(upperBandValue2, title="Upper Band #2", color=color.lime, linewidth=1)
+plot(lowerBandValue2, title="Lower Band #2", color=color.red, linewidth=1)
 
 hl2_plot = plot(hl2, color=na, title="HL2")
 
@@ -171,18 +176,20 @@ hl2_plot = plot(hl2, color=na, title="HL2")
 
 fill(hl2_plot, upperBand_1, color=hl2 > upperBandValue1 ? color.new(color.green, 50) : na, title="Above Upper Band")
 fill(hl2_plot, lowerBand_1, color=hl2 < lowerBandValue1 ? color.new(color.red, 50) : na, title="Below Lower Band")
-fill(upperBand_1, lowerBand_1, title="Bands Fill", color=upV ? color.new(color.lime, 88) : color.new(color.red, 88))
+fill(upperBand_1, lowerBand_1, title="Bands Fill", color=isUpTrend ? color.new(color.lime, 88) : color.new(color.red, 88))
 
 // ==================== BAR COLORING ====================
 
-barcolor(displaybars ? (upV ? color.new(color.lime, 30) : color.new(color.red, 30)) : na, title="Trade Direction")
+barcolor(displaybars ? (isUpTrend ? color.new(color.lime, 30) : color.new(color.red, 30)) : na, title="Trade Direction")
 
 // ==================== ENTRY/EXIT MARKERS ====================
 
 plotshape(debug and reclaimUp, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
 plotshape(debug and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
-plotshape(debug and goLong, title="GoLong", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), size=size.tiny, text="GO")
-plot(pullbackHigh, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
+plotshape(showTradeLabels and longSignal, title="Long Entry", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), textcolor=color.white, size=size.tiny, text="Buy")
+plotshape(showTradeLabels and tpStretch, title="Stretch Take Profit", style=shape.labeldown, location=location.abovebar, color=color.new(color.aqua, 0), textcolor=color.black, size=size.tiny, text="TP")
+plotshape(showTradeLabels and exitOnVwapLoss, title="VWAP Loss Exit", style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
+plot(inReclaimSeq or strategy.position_size > 0 ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
 
 // ==================== STATUS TABLE ====================
 

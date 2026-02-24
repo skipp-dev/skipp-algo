@@ -5,10 +5,18 @@ and optional trade-card generation.
 """
 
 __all__: list[str] = [
+	"ai",
+	"alerts",
 	"bea",
-	"trade_cards",
+	"diff",
 	"macro",
 	"news",
-	"screen",
+	"outcomes",
+	"regime",
 	"run_open_prep",
+	"scorer",
+	"screen",
+	"trade_cards",
+	"utils",
+	"watchlist",
 ]
