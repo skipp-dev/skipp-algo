@@ -75,8 +75,10 @@ A0_PRICE_CHANGE_PCT_MIN = 1.5    # 1.5% move for A0
 A1_PRICE_CHANGE_PCT_MIN = 0.35   # 0.35% for A1 (was 0.5 — missed slow grinders)
 A2_PRICE_CHANGE_PCT_MIN = 0.15   # 0.15% for A2 early warning
 
-# Signal expiry
-MAX_SIGNAL_AGE_SECONDS = 1800    # 30 min
+# Signal expiry & time-based level decay
+MAX_SIGNAL_AGE_SECONDS = 900     # 15 min (was 30 — stale A0s sat too long)
+A0_MAX_AGE_SECONDS = 300         # A0 → A1 after 5 min regardless of thresholds
+A1_MAX_AGE_SECONDS = 600         # A1 → A2 after 10 min regardless of thresholds
 
 # Multi-rail safety: minimum time between A0 signals per symbol (#7)
 A0_COOLDOWN_SECONDS = 600  # 10 minutes between A0 signals per symbol
@@ -1375,6 +1377,29 @@ class RealtimeEngine:
                     sig.symbol, sig.level, cur_vol_ratio, cur_change,
                 )
                 continue  # drop the signal
+
+            # ── Time-based level capping ────────────────────────
+            # A stale A0 that still meets thresholds is NOT actionable.
+            # Cap the maximum level based on signal age.
+            sig_age = time.time() - sig.fired_epoch
+            if sig.level == "A0" and sig_age > A0_MAX_AGE_SECONDS:
+                sig.level = "A1"
+                now_iso = datetime.now(timezone.utc).isoformat()
+                sig.level_since_at = now_iso
+                sig.level_since_epoch = time.time()
+                logger.debug(
+                    "Time-decay: %s A0→A1 (age %.0fs > %ds)",
+                    sig.symbol, sig_age, A0_MAX_AGE_SECONDS,
+                )
+            if sig.level == "A1" and sig_age > A1_MAX_AGE_SECONDS:
+                sig.level = "A2"
+                now_iso = datetime.now(timezone.utc).isoformat()
+                sig.level_since_at = now_iso
+                sig.level_since_epoch = time.time()
+                logger.debug(
+                    "Time-decay: %s A1→A2 (age %.0fs > %ds)",
+                    sig.symbol, sig_age, A1_MAX_AGE_SECONDS,
+                )
 
             # Downgrade A0→A1 if no longer meets A0 thresholds
             eff_a0_vol = A0_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
