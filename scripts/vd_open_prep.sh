@@ -6,10 +6,16 @@
 #   ./scripts/vd_open_prep.sh              # frische Daten holen + VisiData
 #   ./scripts/vd_open_prep.sh --cached     # letzten Lauf wiederverwenden
 #   ./scripts/vd_open_prep.sh --view VIEW  # direkt eine View öffnen
+#   ./scripts/vd_open_prep.sh --watch 300  # auto-refresh alle 300s (5 min)
 #
 # Views:  ranked | gap-go | gap-watch | earnings | trade-cards
 #         macro | regime | sectors | v2 | playbooks | news
 #         signals | signals-trader | signals-live | all
+#
+# Auto-Refresh (--watch):
+#   Pipeline + jq-Extraction laufen im Hintergrund alle N Sekunden.
+#   In VisiData: Ctrl+R = Reload vom Disk → zeigt sofort frische Daten.
+#   Beim Beenden von VisiData wird der Hintergrund-Refresher gestoppt.
 #
 # Hotkeys in VisiData:
 #   q       = zurück / beenden
@@ -20,6 +26,7 @@
 #   . (dot) = Spaltentyp setzen ($ = Währung, % = Prozent, # = Integer)
 #   Shift+F = Frequency-Table (Histogramm)
 #   s       = Sheet speichern (CSV/JSON/TSV)
+#   Ctrl+R  = Reload aktuelles Sheet von Disk (nach --watch Refresh)
 # ──────────────────────────────────────────────────────────────────
 set -euo pipefail
 
@@ -33,14 +40,16 @@ EXTRACT_DIR="$PROJECT_DIR/artifacts/open_prep/vd_extracts"
 # ── Defaults ──
 USE_CACHED=false
 VIEW="all"
+WATCH_INTERVAL=0    # 0 = no auto-refresh; >0 = seconds between refreshes
 
 # ── Parse args ──
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --cached|-c) USE_CACHED=true; shift ;;
     --view|-v)   VIEW="${2:-all}"; shift 2 ;;
+    --watch|-w)  WATCH_INTERVAL="${2:-300}"; shift 2 ;;
     --help|-h)
-      head -22 "$0" | tail -20
+      head -30 "$0" | tail -28
       exit 0
       ;;
     *) echo "Unknown option: $1"; exit 1 ;;
@@ -55,9 +64,8 @@ for cmd in jq vd; do
   fi
 done
 
-# ── Run pipeline if not cached ──
-if [[ "$USE_CACHED" == false ]] || [[ ! -f "$JSON_FILE" ]]; then
-  echo "🔄 Pipeline wird ausgeführt (Auto-Universum) …"
+# ── Helper: run pipeline ──
+_run_pipeline() {
   cd "$PROJECT_DIR"
 
   # Source .env for FMP_API_KEY (if not already exported)
@@ -75,10 +83,142 @@ if [[ "$USE_CACHED" == false ]] || [[ ! -f "$JSON_FILE" ]]; then
   mkdir -p "$(dirname "$PIPELINE_LOG")"
 
   if PYTHONPATH="$PROJECT_DIR" "$PYTHON" -m open_prep.run_open_prep > /dev/null 2>"$PIPELINE_LOG"; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+# ── Helper: extract sub-datasets from JSON ──
+_extract() {
+  local name="$1" filter="$2"
+  jq "$filter" "$JSON_FILE" > "$EXTRACT_DIR/${name}.json" 2>/dev/null || true
+}
+
+_run_extraction() {
+  [[ -f "$JSON_FILE" ]] || return 1
+  mkdir -p "$EXTRACT_DIR"
+
+  # Core tables
+  _extract "ranked_candidates"    '[.ranked_candidates[]? | {symbol, score, gap_pct, gap_bucket, gap_grade, price, atr_pct, ext_hours_score, news_catalyst_score, momentum_z_score, long_allowed, warn_flags, no_trade_reason, premarket_high, premarket_low, premarket_spread_bps, premarket_stale, volume, avg_volume}]'
+  _extract "gap_go"               '[.ranked_gap_go[]? | {symbol, score, gap_pct, gap_grade, price, atr_pct, ext_hours_score, news_catalyst_score, long_allowed, warn_flags, no_trade_reason, premarket_high, premarket_low}]'
+  _extract "gap_watch"            '[.ranked_gap_watch[]? | {symbol, score, gap_pct, gap_grade, price, atr_pct, ext_hours_score, warn_flags, no_trade_reason}]'
+  _extract "earnings"             '[.ranked_gap_go_earnings[]? | {symbol, score, gap_pct, earnings_timing, warn_flags}]'
+  _extract "trade_cards"          '[.trade_cards[]?]'
+  _extract "macro_events"         '[.macro_us_high_impact_events_today[]?]'
+
+  # v2 pipeline tables (with playbook)
+  _extract "ranked_v2"            '[.ranked_v2[]? | {symbol, score, confidence_tier, gap_pct, gap_grade, breakout_direction, breakout_pattern, is_consolidating, consolidation_score, symbol_regime, playbook: .playbook.playbook, playbook_reason: .playbook.playbook_reason, event_class: .playbook.event_class, event_label: .playbook.event_label, materiality: .playbook.materiality, recency_bucket: .playbook.recency_bucket, source_tier: .playbook.source_tier, execution_quality: .playbook.execution_quality, size_adjustment: .playbook.size_adjustment, max_loss_pct: .playbook.max_loss_pct, regime_aligned: .playbook.regime_aligned, time_horizon: .playbook.time_horizon, gap_go_score: .playbook.gap_go_score, fade_score: .playbook.fade_score, drift_score: .playbook.drift_score, historical_hit_rate, regime, symbol_sector, atr_pct, news_catalyst_score, freshness_half_life_s, warn_flags}]'
+  _extract "filtered_out_v2"      '[.filtered_out_v2[]? | {symbol, gap_pct, filter_reasons}]'
+
+  # Playbook-only view (compact)
+  _extract "playbooks"            '[.ranked_v2[]? | .playbook | {symbol, playbook, playbook_reason, event_class, event_label, materiality, recency_bucket, source_tier, execution_quality, size_adjustment, max_loss_pct, time_horizon, entry_trigger, invalidation, exit_plan, regime_aligned, no_trade_zone, no_trade_zone_reason, gap_go_score, fade_score, drift_score}]'
+
+  # Regime overview
+  _extract "regime"               '.regime // {}'
+
+  # Sector performance
+  _extract "sectors"              '[.sector_performance[]? | {sector, changesPercentage, sector_emoji}]'
+
+  # News (with playbook enrichment)
+  _extract "news"                 '[.news_catalyst_by_symbol // {} | to_entries[]? | {symbol: .key, score: .value.news_catalyst_score, sentiment: .value.sentiment_label, event_class: .value.event_class, event_label: .value.event_label, materiality: .value.materiality, recency: .value.recency_bucket, source_tier: .value.source_tier, mentions: .value.mentions_24h, actionable: .value.is_actionable}] | sort_by(-.score)'
+
+  # Earnings calendar
+  _extract "earnings_calendar"    '[.earnings_calendar[]? | {symbol, date, earnings_timing, eps_estimate, revenue_estimate, eps_actual, revenue_actual}]'
+
+  # Upgrades/Downgrades
+  _extract "upgrades"             '[.upgrades_downgrades // {} | to_entries[]? | {symbol: .key, action: .value.upgrade_downgrade_action, firm: .value.upgrade_downgrade_firm, date: .value.upgrade_downgrade_date, emoji: .value.upgrade_downgrade_emoji}]'
+
+  # Watchlist
+  _extract "watchlist"            '[.watchlist[]? | {symbol, note, added_at, source}]'
+
+  # Tomorrow outlook
+  _extract "tomorrow"             '.tomorrow_outlook // {}'
+
+  # Diff
+  _extract "diff"                 '.diff // {}'
+
+  # Endpoint capabilities
+  _extract "capabilities"         '[.data_capabilities // {} | to_entries[]? | {feature: .key, status: .value.status, http_status: .value.http_status, detail: .value.detail}]'
+
+  # Realtime signals (prefer compact VD snapshot if available)
+  VD_SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_vd_signals.jsonl"
+  SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_realtime_signals.json"
+  [[ -f "$SIGNALS_FILE" ]] || SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
+
+  if [[ -f "$VD_SIGNALS_FILE" ]]; then
+    jq -s '.' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
+
+    jq -s '[.[] | {
+      symbol,
+      signal,
+      direction,
+      breakout,
+      news,
+      news_url,
+      news_score,
+      news_sentiment,
+      news_sentiment_emoji,
+      news_polarity,
+      signal_since_at,
+      signal_age_hms,
+      price,
+      chg_pct,
+      vol_ratio,
+      tick,
+      streak,
+      d_price_pct,
+      d_volume,
+      poll_changed,
+      last_change_age_s,
+      score,
+      tier
+    }]' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_trader.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
+  elif [[ -f "$SIGNALS_FILE" ]]; then
+    jq '[.signals[]? | {
+      symbol,
+      signal: .level,
+      direction,
+      breakout: "",
+      news: (.news_headline // ""),
+      news_url: (.details.news_url // ""),
+      news_score,
+      news_sentiment: (if (.details.polarity // 0) > 0.05 then "+" elif (.details.polarity // 0) < -0.05 then "-" else "n" end),
+      news_sentiment_emoji: (if (.details.polarity // 0) > 0.05 then "🟢" elif (.details.polarity // 0) < -0.05 then "🔴" else "🟡" end),
+      news_polarity: (.details.polarity // 0),
+      signal_since_at: .level_since_at,
+      signal_age_s: ((now - (.level_since_epoch // .fired_epoch // now)) | floor),
+      signal_age_hms: (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) / 3600) | floor | tostring) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 3600 / 60) | floor | tostring) | if length==1 then "0" + . else . end) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 60) | floor | tostring) | if length==1 then "0" + . else . end)),
+      price,
+      chg_pct: .change_pct,
+      vol_ratio: .volume_ratio,
+      tick: "",
+      streak: 0,
+      d_price_pct: 0,
+      d_volume: 0,
+      poll_changed: false,
+      last_change_age_s: 0,
+      score,
+      tier: .confidence_tier
+    }]' "$SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
+    cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals_trader.json"
+  else
+    echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
+    echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
+  fi
+
+  # Backward-compatible alias used by old view name
+  cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals.json"
+}
+
+# ── Run pipeline if not cached ──
+if [[ "$USE_CACHED" == false ]] || [[ ! -f "$JSON_FILE" ]]; then
+  echo "🔄 Pipeline wird ausgeführt (Auto-Universum) …"
+  if _run_pipeline; then
     echo "✅ Pipeline abgeschlossen."
   else
-    echo "❌ Pipeline fehlgeschlagen (exit $?). Log: $PIPELINE_LOG"
-    tail -5 "$PIPELINE_LOG" 2>/dev/null || true
+    echo "❌ Pipeline fehlgeschlagen. Log: $PROJECT_DIR/artifacts/open_prep/latest/pipeline_run.log"
+    tail -5 "$PROJECT_DIR/artifacts/open_prep/latest/pipeline_run.log" 2>/dev/null || true
     exit 1
   fi
 fi
@@ -88,131 +228,12 @@ if [[ ! -f "$JSON_FILE" ]]; then
   exit 1
 fi
 
+# ── Initial extraction ──
+_run_extraction
+
 # ── Extract timestamp ──
 RUN_TS=$(jq -r '.run_datetime_utc // "unknown"' "$JSON_FILE")
 echo "📊 Datenstand: $RUN_TS"
-
-# ── Extract sub-datasets ──
-mkdir -p "$EXTRACT_DIR"
-
-_extract() {
-  local name="$1" filter="$2"
-  jq "$filter" "$JSON_FILE" > "$EXTRACT_DIR/${name}.json" 2>/dev/null || true
-}
-
-# Core tables
-_extract "ranked_candidates"    '[.ranked_candidates[]? | {symbol, score, gap_pct, gap_bucket, gap_grade, price, atr_pct, ext_hours_score, news_catalyst_score, momentum_z_score, long_allowed, warn_flags, no_trade_reason, premarket_high, premarket_low, premarket_spread_bps, premarket_stale, volume, avg_volume}]'
-_extract "gap_go"               '[.ranked_gap_go[]? | {symbol, score, gap_pct, gap_grade, price, atr_pct, ext_hours_score, news_catalyst_score, long_allowed, warn_flags, no_trade_reason, premarket_high, premarket_low}]'
-_extract "gap_watch"            '[.ranked_gap_watch[]? | {symbol, score, gap_pct, gap_grade, price, atr_pct, ext_hours_score, warn_flags, no_trade_reason}]'
-_extract "earnings"             '[.ranked_gap_go_earnings[]? | {symbol, score, gap_pct, earnings_timing, warn_flags}]'
-_extract "trade_cards"          '[.trade_cards[]?]'
-_extract "macro_events"         '[.macro_us_high_impact_events_today[]?]'
-
-# v2 pipeline tables (with playbook)
-_extract "ranked_v2"            '[.ranked_v2[]? | {symbol, score, confidence_tier, gap_pct, gap_grade, breakout_direction, breakout_pattern, is_consolidating, consolidation_score, symbol_regime, playbook: .playbook.playbook, playbook_reason: .playbook.playbook_reason, event_class: .playbook.event_class, event_label: .playbook.event_label, materiality: .playbook.materiality, recency_bucket: .playbook.recency_bucket, source_tier: .playbook.source_tier, execution_quality: .playbook.execution_quality, size_adjustment: .playbook.size_adjustment, max_loss_pct: .playbook.max_loss_pct, regime_aligned: .playbook.regime_aligned, time_horizon: .playbook.time_horizon, gap_go_score: .playbook.gap_go_score, fade_score: .playbook.fade_score, drift_score: .playbook.drift_score, historical_hit_rate, regime, symbol_sector, atr_pct, news_catalyst_score, freshness_half_life_s, warn_flags}]'
-_extract "filtered_out_v2"      '[.filtered_out_v2[]? | {symbol, gap_pct, filter_reasons}]'
-
-# Playbook-only view (compact)
-_extract "playbooks"            '[.ranked_v2[]? | .playbook | {symbol, playbook, playbook_reason, event_class, event_label, materiality, recency_bucket, source_tier, execution_quality, size_adjustment, max_loss_pct, time_horizon, entry_trigger, invalidation, exit_plan, regime_aligned, no_trade_zone, no_trade_zone_reason, gap_go_score, fade_score, drift_score}]'
-
-# Regime overview
-_extract "regime"               '.regime // {}'
-
-# Sector performance
-_extract "sectors"              '[.sector_performance[]? | {sector, changesPercentage, sector_emoji}]'
-
-# News (with playbook enrichment)
-_extract "news"                 '[.news_catalyst_by_symbol // {} | to_entries[]? | {symbol: .key, score: .value.news_catalyst_score, sentiment: .value.sentiment_label, event_class: .value.event_class, event_label: .value.event_label, materiality: .value.materiality, recency: .value.recency_bucket, source_tier: .value.source_tier, mentions: .value.mentions_24h, actionable: .value.is_actionable}] | sort_by(-.score)'
-
-# Earnings calendar
-_extract "earnings_calendar"    '[.earnings_calendar[]? | {symbol, date, earnings_timing, eps_estimate, revenue_estimate, eps_actual, revenue_actual}]'
-
-# Upgrades/Downgrades
-_extract "upgrades"             '[.upgrades_downgrades // {} | to_entries[]? | {symbol: .key, action: .value.upgrade_downgrade_action, firm: .value.upgrade_downgrade_firm, date: .value.upgrade_downgrade_date, emoji: .value.upgrade_downgrade_emoji}]'
-
-# Watchlist
-_extract "watchlist"            '[.watchlist[]? | {symbol, note, added_at, source}]'
-
-# Tomorrow outlook
-_extract "tomorrow"             '.tomorrow_outlook // {}'
-
-# Diff
-_extract "diff"                 '.diff // {}'
-
-# Endpoint capabilities
-_extract "capabilities"         '[.data_capabilities // {} | to_entries[]? | {feature: .key, status: .value.status, http_status: .value.http_status, detail: .value.detail}]'
-
-# Realtime signals (prefer compact VD snapshot if available)
-VD_SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_vd_signals.jsonl"
-SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_realtime_signals.json"
-[[ -f "$SIGNALS_FILE" ]] || SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
-
-if [[ -f "$VD_SIGNALS_FILE" ]]; then
-  # Full live rows (already includes signal_age_hms, breakout, poll_changed, news_score, deltas)
-  jq -s '.' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
-
-  # Trader-compact view: focused columns, ordered for desk monitoring
-  jq -s '[.[] | {
-    symbol,
-    signal,
-    direction,
-    breakout,
-    news,
-    news_url,
-    news_score,
-    news_sentiment,
-    news_sentiment_emoji,
-    news_polarity,
-    signal_since_at,
-    signal_age_hms,
-    price,
-    chg_pct,
-    vol_ratio,
-    tick,
-    streak,
-    d_price_pct,
-    d_volume,
-    poll_changed,
-    last_change_age_s,
-    score,
-    tier
-  }]' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_trader.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
-elif [[ -f "$SIGNALS_FILE" ]]; then
-  # Fallback from persisted signal list when live VD JSONL is not available
-  jq '[.signals[]? | {
-    symbol,
-    signal: .level,
-    direction,
-    breakout: "",
-    news: (.news_headline // ""),
-    news_url: (.details.news_url // ""),
-    news_score,
-    news_sentiment: (if (.details.polarity // 0) > 0.05 then "+" elif (.details.polarity // 0) < -0.05 then "-" else "n" end),
-    news_sentiment_emoji: (if (.details.polarity // 0) > 0.05 then "🟢" elif (.details.polarity // 0) < -0.05 then "🔴" else "🟡" end),
-    news_polarity: (.details.polarity // 0),
-    signal_since_at: .level_since_at,
-    signal_age_s: ((now - (.level_since_epoch // .fired_epoch // now)) | floor),
-    signal_age_hms: (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) / 3600) | floor | tostring) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 3600 / 60) | floor | tostring) | if length==1 then "0" + . else . end) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 60) | floor | tostring) | if length==1 then "0" + . else . end)),
-    price,
-    chg_pct: .change_pct,
-    vol_ratio: .volume_ratio,
-    tick: "",
-    streak: 0,
-    d_price_pct: 0,
-    d_volume: 0,
-    poll_changed: false,
-    last_change_age_s: 0,
-    score,
-    tier: .confidence_tier
-  }]' "$SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
-  cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals_trader.json"
-else
-  echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
-  echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
-fi
-
-# Backward-compatible alias used by old view name
-cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals.json"
 
 # Summary one-liner
 MACRO_BIAS=$(jq -r '.macro_bias // 0' "$JSON_FILE")
@@ -222,6 +243,36 @@ N_V2=$(jq '.ranked_v2 | length' "$JSON_FILE" 2>/dev/null || echo 0)
 REGIME=$(jq -r '.regime.regime // "N/A"' "$JSON_FILE" 2>/dev/null || echo "N/A")
 echo "🏛️  Regime: $REGIME · Macro Bias: $MACRO_BIAS · Ranked: $N_RANKED · GAP-GO: $N_GAP_GO · v2: $N_V2"
 echo ""
+
+# ── Watch mode: background refresher ──
+WATCH_PID=""
+_cleanup_watch() {
+  if [[ -n "$WATCH_PID" ]]; then
+    kill "$WATCH_PID" 2>/dev/null || true
+    wait "$WATCH_PID" 2>/dev/null || true
+    echo ""
+    echo "🛑 Auto-Refresh gestoppt."
+  fi
+}
+trap _cleanup_watch EXIT
+
+if [[ "$WATCH_INTERVAL" -gt 0 ]]; then
+  echo "🔄 Auto-Refresh alle ${WATCH_INTERVAL}s aktiv. In VisiData: Ctrl+R = Reload."
+  echo ""
+  (
+    while true; do
+      sleep "$WATCH_INTERVAL"
+      if _run_pipeline 2>/dev/null; then
+        _run_extraction 2>/dev/null
+        _ts=$(jq -r '.run_datetime_utc // "?"' "$JSON_FILE" 2>/dev/null)
+        echo "  ↻ Refresh $(date +%H:%M:%S) (Daten: $_ts)" >&2
+      else
+        echo "  ⚠ Refresh fehlgeschlagen $(date +%H:%M:%S)" >&2
+      fi
+    done
+  ) &
+  WATCH_PID=$!
+fi
 
 # ── Launch VisiData ──
 case "$VIEW" in
