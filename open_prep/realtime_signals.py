@@ -1699,14 +1699,24 @@ def main() -> None:
     import argparse
 
     # Auto-load .env so FMP_API_KEY is available without manual shell sourcing
+    env_path = Path(__file__).resolve().parents[1] / ".env"
     try:
         from dotenv import load_dotenv
 
-        env_path = Path(__file__).resolve().parents[1] / ".env"
         if env_path.is_file():
             load_dotenv(env_path, override=False)
     except ImportError:
-        pass  # python-dotenv not installed — rely on shell environment
+        # python-dotenv not installed — minimal stdlib fallback
+        if env_path.is_file():
+            with open(env_path) as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, val = line.partition("=")
+                    key, val = key.strip(), val.strip().strip("'\"")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
 
     parser = argparse.ArgumentParser(description="Realtime signal engine")
     parser.add_argument("--interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Poll interval in seconds")
