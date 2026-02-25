@@ -19,11 +19,11 @@ class Config:
     creating a ``Config``.
     """
 
-    # ── FMP credentials ─────────────────────────────────────────
-    fmp_api_key: str = field(default_factory=lambda: os.getenv("FMP_API_KEY", ""))
+    # ── FMP credentials (repr=False to prevent accidental logging) ──
+    fmp_api_key: str = field(default_factory=lambda: os.getenv("FMP_API_KEY", ""), repr=False)
 
-    # ── Benzinga credentials ────────────────────────────────────
-    benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""))
+    # ── Benzinga credentials (repr=False to prevent accidental logging)
+    benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""), repr=False)
 
     # ── Feature flags ───────────────────────────────────────────
     enable_fmp: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP", "1") == "1")
@@ -60,6 +60,8 @@ class Config:
     top_n_export: int = field(default_factory=lambda: int(os.getenv("TOP_N_EXPORT", "300")))
 
     # ── Thresholds ──────────────────────────────────────────────
+    # Default 2.0 effectively disables enrichment (max score is 1.0).
+    # Set SCORE_ENRICH_THRESHOLD <= 1.0 (e.g. 0.7) to enable URL enrichment.
     score_enrich_threshold: float = field(default_factory=lambda: float(os.getenv("SCORE_ENRICH_THRESHOLD", "2.0")))
 
     # ── Retention ───────────────────────────────────────────────

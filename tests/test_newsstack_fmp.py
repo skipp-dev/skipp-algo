@@ -3082,3 +3082,54 @@ class TestCleanupSingletonsClearsBestByTicker(unittest.TestCase):
         finally:
             pipeline._best_by_ticker.clear()
             pipeline._best_by_ticker.update(old)
+
+
+# ====================================================================
+# SR18: Config repr must not leak API keys, enrich threshold docs
+# ====================================================================
+
+
+class TestConfigReprHidesApiKeys(unittest.TestCase):
+    """Config.__repr__ must NOT include API keys to prevent credential
+    leaks in logs, tracebacks, Sentry, or pytest output."""
+
+    def test_fmp_api_key_not_in_repr(self):
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {"FMP_API_KEY": "sk-SECRET-fmp-key-12345"}):
+            cfg = Config()
+            r = repr(cfg)
+            self.assertNotIn("sk-SECRET-fmp-key-12345", r,
+                             "fmp_api_key leaked in Config repr")
+
+    def test_benzinga_api_key_not_in_repr(self):
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {"BENZINGA_API_KEY": "bz-SECRET-key-67890"}):
+            cfg = Config()
+            r = repr(cfg)
+            self.assertNotIn("bz-SECRET-key-67890", r,
+                             "benzinga_api_key leaked in Config repr")
+
+    def test_repr_still_contains_non_secret_fields(self):
+        """repr must still include non-sensitive fields for debugging."""
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {"ENABLE_FMP": "1", "FMP_API_KEY": ""}):
+            cfg = Config()
+            r = repr(cfg)
+            self.assertIn("enable_fmp", r)
+            self.assertIn("poll_interval_s", r)
+
+    def test_api_keys_not_in_str(self):
+        """str(cfg) also must not leak credentials."""
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {
+            "FMP_API_KEY": "sk-SECRET-fmp",
+            "BENZINGA_API_KEY": "bz-SECRET-bz",
+        }):
+            cfg = Config()
+            s = str(cfg)
+            self.assertNotIn("sk-SECRET-fmp", s)
+            self.assertNotIn("bz-SECRET-bz", s)
