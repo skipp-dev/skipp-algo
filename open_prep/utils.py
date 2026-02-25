@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
 def to_float(value: Any, default: float = 0.0) -> float:
-    """Safely parse numeric-like values to float with default fallback."""
+    """Safely parse numeric-like values to float with default fallback.
+
+    Returns *default* for ``None``, non-numeric strings, **and** ``NaN``
+    values so that downstream arithmetic never silently propagates NaN.
+    """
     try:
-        return float(value)
+        f = float(value)
+        return default if math.isnan(f) else f
     except (TypeError, ValueError):
         return default
 

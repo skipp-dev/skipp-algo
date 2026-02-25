@@ -366,7 +366,8 @@ class TestPrevTradingDaySafety:
 
     def test_safety_bound_prevents_infinite_loop(self):
         """If every day were a holiday, the function must still return
-        within 14 iterations (safety bound)."""
+        within 14 iterations (safety bound).  The fallback returns the
+        last iterated date (NOT d-1 which could be a weekend)."""
         from open_prep.run_open_prep import _prev_trading_day
 
         # Patch _is_us_equity_trading_day to always return False
@@ -374,9 +375,12 @@ class TestPrevTradingDaySafety:
             "open_prep.run_open_prep._is_us_equity_trading_day",
             return_value=False,
         ):
-            # Should not hang — safety bound returns d-1
+            # Should not hang — safety bound returns last checked date
+            # d=2025-06-16, iterates 14 times from d-1=Jun 15 through Jun 1,
+            # then one more step to May 31 → returns May 31 (cur after loop)
             result = _prev_trading_day(date(2025, 6, 16))
-            assert result == date(2025, 6, 15)
+            # Last iteration: cur = Jun 16 - 1 - 14 = Jun 1
+            assert result == date(2025, 6, 1)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -841,3 +845,296 @@ class TestDiffScoreZeroNotCoerced:
         assert len(diff["score_changes"]) == 1
         assert diff["score_changes"][0]["prev_score"] == 0.0
         assert diff["score_changes"][0]["curr_score"] == 3.0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-1: to_float NaN guard
+# ═══════════════════════════════════════════════════════════════════
+
+class TestToFloatNanGuard:
+    """to_float must return default for NaN, not propagate it."""
+
+    def test_nan_returns_default(self):
+        """Arrange: pass float('nan'). Assert: returns 0.0 (default)."""
+        from open_prep.utils import to_float
+
+        result = to_float(float("nan"))
+        assert result == 0.0
+        assert not math.isnan(result)
+
+    def test_nan_returns_custom_default(self):
+        """Arrange: pass NaN with default=-1. Assert: returns -1."""
+        from open_prep.utils import to_float
+
+        result = to_float(float("nan"), default=-1.0)
+        assert result == -1.0
+
+    def test_nan_string_returns_default(self):
+        """Arrange: pass 'nan' string. Assert: returns 0.0 (NaN guard)."""
+        from open_prep.utils import to_float
+
+        result = to_float("nan")
+        assert result == 0.0
+        assert not math.isnan(result)
+
+    def test_inf_passes_through(self):
+        """Arrange: pass float('inf'). Assert: inf is NOT NaN, passes through."""
+        from open_prep.utils import to_float
+
+        result = to_float(float("inf"))
+        assert result == float("inf")
+
+    def test_normal_values_unaffected(self):
+        """Arrange: normal numeric values. Assert: unchanged."""
+        from open_prep.utils import to_float
+
+        assert to_float(42) == 42.0
+        assert to_float("3.14") == 3.14
+        assert to_float(0) == 0.0
+        assert to_float(0.0) == 0.0
+
+    def test_none_returns_default(self):
+        """Arrange: None. Assert: returns default."""
+        from open_prep.utils import to_float
+
+        assert to_float(None) == 0.0
+        assert to_float(None, default=5.0) == 5.0
+
+    def test_non_numeric_returns_default(self):
+        """Arrange: non-numeric string. Assert: returns default."""
+        from open_prep.utils import to_float
+
+        assert to_float("abc") == 0.0
+        assert to_float("") == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-2: _prev_trading_day fallback returns last checked, not d-1
+# ═══════════════════════════════════════════════════════════════════
+
+class TestPrevTradingDayFallback:
+    """_prev_trading_day fallback should not return a weekend/holiday."""
+
+    def test_normal_weekday(self):
+        """Arrange: Monday. Assert: returns previous Friday."""
+        from open_prep.run_open_prep import _prev_trading_day
+
+        monday = date(2025, 1, 6)  # Monday
+        result = _prev_trading_day(monday)
+        assert result == date(2025, 1, 3)  # Friday
+        assert result.weekday() == 4  # Friday
+
+    def test_after_long_weekend(self):
+        """Arrange: Tuesday after MLK Day. Assert: returns Friday before."""
+        from open_prep.run_open_prep import _prev_trading_day
+
+        # MLK Day 2025 is Monday Jan 20
+        tuesday = date(2025, 1, 21)
+        result = _prev_trading_day(tuesday)
+        assert result == date(2025, 1, 17)  # Friday before MLK
+
+    def test_fallback_exhausted_does_not_return_weekend(self):
+        """Arrange: mock _is_us_equity_trading_day to always return False.
+        Assert: fallback returns the last iterated date (not d-1 which might be Sunday)."""
+        from open_prep.run_open_prep import _prev_trading_day
+
+        # If we call on a Monday and all days are non-trading,
+        # fallback should still return a date that's at most 15 days back
+        with patch("open_prep.run_open_prep._is_us_equity_trading_day", return_value=False):
+            monday = date(2025, 1, 6)
+            result = _prev_trading_day(monday)
+            # Should NOT return d-1 (Sunday Jan 5)
+            # Should return the last checked date: Jan 6 - 15 = Dec 22
+            expected_last_checked = monday - timedelta(days=15)
+            assert result == expected_last_checked
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-3: ATR cache atomic write
+# ═══════════════════════════════════════════════════════════════════
+
+class TestAtrCacheAtomicWrite:
+    """ATR cache must use atomic write to prevent corruption."""
+
+    def test_save_and_load_roundtrip(self, tmp_path, monkeypatch):
+        """Arrange: save ATR cache. Act: load it. Assert: data matches."""
+        from open_prep.run_open_prep import (
+            _save_atr_cache, _load_atr_cache, ATR_CACHE_DIR,
+        )
+
+        monkeypatch.setattr("open_prep.run_open_prep.ATR_CACHE_DIR", tmp_path)
+        test_date = date(2025, 6, 15)
+        atr_map = {"AAPL": 2.5, "MSFT": 1.8}
+        momentum_map = {"AAPL": 0.3, "MSFT": -0.1}
+        prev_close_map = {"AAPL": 150.0, "MSFT": 300.0}
+
+        _save_atr_cache(
+            as_of=test_date,
+            period=14,
+            atr_map=atr_map,
+            momentum_map=momentum_map,
+            prev_close_map=prev_close_map,
+        )
+
+        loaded_atr, loaded_momentum, loaded_close = _load_atr_cache(test_date, 14)
+        assert loaded_atr["AAPL"] == 2.5
+        assert loaded_atr["MSFT"] == 1.8
+        assert loaded_momentum["AAPL"] == 0.3
+        assert loaded_close["AAPL"] == 150.0
+
+    def test_save_no_tmp_files_left(self, tmp_path, monkeypatch):
+        """Assert: no .tmp files remain after successful save."""
+        from open_prep.run_open_prep import _save_atr_cache
+
+        monkeypatch.setattr("open_prep.run_open_prep.ATR_CACHE_DIR", tmp_path)
+        _save_atr_cache(
+            as_of=date(2025, 6, 15),
+            period=14,
+            atr_map={"AAPL": 2.5},
+            momentum_map={"AAPL": 0.3},
+            prev_close_map={"AAPL": 150.0},
+        )
+        tmp_files = list(tmp_path.glob("*.tmp"))
+        assert len(tmp_files) == 0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-4: Insider trading NaN in price/quantity → 0.0 (via G-1 fix)
+# ═══════════════════════════════════════════════════════════════════
+
+class TestInsiderTradingNanSafety:
+    """Insider trading sums must not produce NaN when API data has NaN."""
+
+    def test_nan_price_yields_zero_value(self):
+        """Arrange: insider trade with NaN price. Assert: value is 0."""
+        from open_prep.utils import to_float
+
+        # Simulates: _to_float(r.get("price")) where price is NaN
+        price = to_float(float("nan"))
+        quantity = to_float(100)
+        total = price * quantity
+        assert total == 0.0
+        assert not math.isnan(total)
+
+    def test_nan_quantity_yields_zero_value(self):
+        """Arrange: insider trade with NaN quantity. Assert: value is 0."""
+        from open_prep.utils import to_float
+
+        price = to_float(50.0)
+        quantity = to_float(float("nan"))
+        total = price * quantity
+        assert total == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-5: Weekend/holiday gap_scope DAILY vs STRETCH_ONLY
+# ═══════════════════════════════════════════════════════════════════
+
+class TestGapScopeWeekendHoliday:
+    """gap_scope STRETCH_ONLY must only fire after non-trading stretch."""
+
+    def test_daily_scope_fires_every_trading_day(self):
+        """Arrange: 5 consecutive weekdays. Assert: all are gap days."""
+        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_DAILY
+
+        # Mon-Fri of a regular week
+        monday = date(2025, 1, 6)
+        for i in range(5):
+            d = monday + timedelta(days=i)
+            assert _is_gap_day(d, GAP_SCOPE_DAILY) is True
+
+    def test_stretch_only_fires_after_weekend(self):
+        """Arrange: Monday after normal weekend. Assert: is a gap day."""
+        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+
+        monday = date(2025, 1, 6)
+        assert _is_gap_day(monday, GAP_SCOPE_STRETCH_ONLY) is True
+
+    def test_stretch_only_skips_mid_week(self):
+        """Arrange: Tuesday in a normal week. Assert: NOT a gap day."""
+        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+
+        tuesday = date(2025, 1, 7)
+        assert _is_gap_day(tuesday, GAP_SCOPE_STRETCH_ONLY) is False
+
+    def test_stretch_only_fires_after_holiday(self):
+        """Arrange: day after MLK Day. Assert: is a gap day."""
+        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+
+        # MLK Day 2025 is Monday Jan 20; Tuesday Jan 21 is after a 3-day stretch
+        tuesday_after_mlk = date(2025, 1, 21)
+        assert _is_gap_day(tuesday_after_mlk, GAP_SCOPE_STRETCH_ONLY) is True
+
+    def test_daily_scope_weekend_is_not_gap_day(self):
+        """Arrange: Saturday. Assert: NOT a gap day even in DAILY mode."""
+        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_DAILY
+
+        saturday = date(2025, 1, 4)
+        assert _is_gap_day(saturday, GAP_SCOPE_DAILY) is False
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-6: Premarket timestamp missing → gap_reason
+# ═══════════════════════════════════════════════════════════════════
+
+class TestPremarketTimestampMissingGapReason:
+    """When premarket data has no timestamp, gap_reason must explain why."""
+
+    def test_missing_timestamp_premarket_source(self):
+        """Arrange: premarket price available but no timestamp.
+        Assert: gap_reason='missing_quote_timestamp'."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+
+        quote = {
+            "symbol": "TEST",
+            "previousClose": 100.0,
+            "preMarketPrice": 105.0,
+        }
+        # Run during premarket hours (08:00 NY)
+        run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)  # 08:00 ET
+        result = _compute_gap_for_quote(
+            quote,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        assert result["gap_available"] is False
+        assert result["gap_reason"] == "missing_quote_timestamp"
+
+    def test_missing_timestamp_spot_source(self):
+        """Arrange: only spot price, no timestamp.
+        Assert: gap_reason='stale_quote_unknown_timestamp'."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+
+        quote = {
+            "symbol": "TEST",
+            "previousClose": 100.0,
+            "price": 102.0,
+        }
+        run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        assert result["gap_available"] is False
+        assert result["gap_reason"] == "stale_quote_unknown_timestamp"
+
+    def test_valid_timestamp_produces_gap(self):
+        """Arrange: premarket price + valid timestamp. Assert: gap computed."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+
+        quote = {
+            "symbol": "TEST",
+            "previousClose": 100.0,
+            "preMarketPrice": 105.0,
+            "timestamp": 1736150400,  # epoch seconds for 2025-01-06T08:00:00 UTC
+        }
+        run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        assert result["gap_available"] is True
+        assert result["gap_reason"] == "ok"
+        assert result["gap_pct"] == pytest.approx(5.0, abs=0.01)

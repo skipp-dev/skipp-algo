@@ -485,9 +485,15 @@ def _prev_trading_day(d: date) -> date:
         if _is_us_equity_trading_day(cur):
             return cur
         cur -= timedelta(days=1)
-    # Defensive fallback: return d-1 to prevent infinite loop
-    logger.warning("_prev_trading_day: exhausted 14-day lookback from %s, returning %s", d, d - timedelta(days=1))
-    return d - timedelta(days=1)
+    # Defensive fallback: return last checked day (cur) rather than d-1
+    # because d-1 may be a weekend/holiday.  This can only happen if the
+    # holiday calendar is severely wrong (>14 consecutive non-trading days).
+    logger.warning(
+        "_prev_trading_day: exhausted 14-day lookback from %s, returning %s (may not be a trading day)",
+        d,
+        cur,
+    )
+    return cur
 
 
 def _is_first_session_after_non_trading_stretch(d: date) -> bool:
@@ -1345,17 +1351,29 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
 
     try:
         CAPABILITY_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        CAPABILITY_CACHE_FILE.write_text(
-            json.dumps(
-                {
-                    "cached_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
-                    "ttl_seconds": ttl_seconds,
-                    "data": out,
-                },
-                sort_keys=True,
-            ),
-            encoding="utf-8",
+        import tempfile as _tempfile
+        content = json.dumps(
+            {
+                "cached_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
+                "ttl_seconds": ttl_seconds,
+                "data": out,
+            },
+            sort_keys=True,
         )
+        fd, tmp = _tempfile.mkstemp(dir=str(CAPABILITY_CACHE_DIR), suffix=".tmp")
+        try:
+            os.write(fd, content.encode("utf-8"))
+            os.close(fd)
+            fd = -1
+            os.replace(tmp, str(CAPABILITY_CACHE_FILE))
+        except BaseException:
+            if fd >= 0:
+                os.close(fd)
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         pass
 
@@ -2041,7 +2059,22 @@ def _save_atr_cache(
             "momentum_z_by_symbol": clean_momentum_map,
             "prev_close_by_symbol": clean_prev_close_map,
         }
-        _atr_cache_file(as_of, period).write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+        target = _atr_cache_file(as_of, period)
+        import tempfile as _tempfile
+        fd, tmp = _tempfile.mkstemp(dir=str(ATR_CACHE_DIR), suffix=".tmp")
+        try:
+            os.write(fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
+            os.close(fd)
+            fd = -1  # mark as closed
+            os.replace(tmp, str(target))
+        except BaseException:
+            if fd >= 0:
+                os.close(fd)
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         # Cache is an optimization. Never break pipeline on cache I/O errors.
         return
@@ -2341,9 +2374,22 @@ def _pm_cache_save(
             "pm_low": pm_low,
             "cached_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
         }
-        _pm_cache_file(symbol, session_day_ny, interval).write_text(
-            json.dumps(payload, sort_keys=True), encoding="utf-8"
-        )
+        target = _pm_cache_file(symbol, session_day_ny, interval)
+        import tempfile as _tempfile
+        fd, tmp = _tempfile.mkstemp(dir=str(PM_CACHE_DIR), suffix=".tmp")
+        try:
+            os.write(fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
+            os.close(fd)
+            fd = -1
+            os.replace(tmp, str(target))
+        except BaseException:
+            if fd >= 0:
+                os.close(fd)
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
     except Exception:
         return
 
