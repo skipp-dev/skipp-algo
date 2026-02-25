@@ -100,6 +100,18 @@ class BenzingaRestAdapter:
             items = data
         elif isinstance(data, dict):
             items = data.get("articles") or data.get("results") or data.get("data") or []
+            if not items:
+                has_known = any(k in data for k in ("articles", "results", "data"))
+                if data and not has_known:
+                    logger.warning(
+                        "Benzinga response dict has no recognized data key (keys=%s).",
+                        ", ".join(list(data.keys())[:5]),
+                    )
+        else:
+            logger.warning(
+                "Benzinga returned %s instead of list/dict — 0 items ingested.",
+                type(data).__name__,
+            )
 
         return [normalize_benzinga_rest(it) for it in items if isinstance(it, dict)]
 

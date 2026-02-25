@@ -38,6 +38,11 @@ def _sanitize_url(url: str) -> str:
 def _as_list(x: Any) -> list:
     """Safely coerce *x* to a list of dicts."""
     if not isinstance(x, list):
+        if x is not None:
+            logger.warning(
+                "FMP returned %s instead of list — 0 items ingested.",
+                type(x).__name__,
+            )
         return []
     return [item for item in x if isinstance(item, dict)]
 

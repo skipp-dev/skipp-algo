@@ -163,6 +163,14 @@ def process_news_items(
         if score.category == "lawsuit":
             warn_flags.append("likely_noise")
 
+        # Enrich high-score items once per item (max 3 per cycle).
+        # Hoisted above the per-ticker loop to avoid redundant HTTP calls
+        # when one item maps to multiple tickers.
+        enrich_result = None
+        if score.score >= enrich_threshold and enrich_count < 3:
+            enrich_result = enricher.fetch_url_snippet(it.url)
+            enrich_count += 1
+
         # Build candidate per ticker
         for tk in tickers:
             vwap = vwap_gate_stub(tk)
@@ -184,12 +192,11 @@ def process_news_items(
                 "signals": {"vwap": vwap},
                 "published_ts": it.published_ts,
                 "updated_ts": it.updated_ts,
+                "_seen_ts": ts,
             }
 
-            # Enrich high-score items (max 3 per cycle)
-            if score.score >= enrich_threshold and enrich_count < 3:
-                cand["enrich"] = enricher.fetch_url_snippet(it.url)
-                enrich_count += 1
+            if enrich_result is not None:
+                cand["enrich"] = enrich_result
 
             # Keep best per ticker
             prev = best_by_ticker.get(tk)
@@ -390,7 +397,10 @@ def _effective_ts(cand: Dict[str, Any]) -> float:
     ts = cand.get("published_ts")
     if ts is not None and ts > 0:
         return ts
-    return 0.0
+    # Fallback: _seen_ts records when the pipeline first observed this
+    # item.  Prevents zero-timestamp candidates from being pruned
+    # immediately (0.0 is always < cutoff).
+    return cand.get("_seen_ts", 0.0)
 
 
 def _prune_best_by_ticker(keep_seconds: float) -> None:

@@ -2085,3 +2085,211 @@ class TestClusterTouchTransactional(unittest.TestCase):
         count3, _ = store.cluster_touch("other_hash", 3.0)
         self.assertEqual(count3, 1)
         store.close()
+
+
+# ====================================================================
+# SR13: Production Gatekeeper review — sixth pass hardening tests
+# ====================================================================
+
+
+# ── H1: Zero-timestamp candidates must NOT be pruned immediately ──
+
+
+class TestZeroTsCandidateNotPrunedImmediately(unittest.TestCase):
+    """Items with both published_ts=0.0 and updated_ts=0.0 must survive
+    _prune_best_by_ticker — they should use _seen_ts as fallback."""
+
+    def test_effective_ts_uses_seen_ts_fallback(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"updated_ts": 0.0, "published_ts": 0.0, "_seen_ts": 1700000000.0}
+        self.assertEqual(_effective_ts(cand), 1700000000.0)
+
+    def test_effective_ts_prefers_real_ts_over_seen_ts(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"updated_ts": 1700000000.0, "published_ts": 0.0, "_seen_ts": 1600000000.0}
+        self.assertEqual(_effective_ts(cand), 1700000000.0)
+
+    def test_zero_ts_item_survives_pruning(self):
+        """An item with ts=0 should be retained if _seen_ts is fresh."""
+        from newsstack_fmp.pipeline import _prune_best_by_ticker, _best_by_ticker
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            _best_by_ticker["ZERO"] = {
+                "ticker": "ZERO",
+                "news_score": 0.5,
+                "updated_ts": 0.0,
+                "published_ts": 0.0,
+                "_seen_ts": time.time(),  # just seen
+            }
+            _prune_best_by_ticker(keep_seconds=172800.0)  # 2 days
+            self.assertIn("ZERO", _best_by_ticker, "Zero-ts item was pruned!")
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+    def test_candidate_dict_has_seen_ts(self):
+        """process_news_items must add _seen_ts to candidate dicts."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="seen_ts_test",
+            published_ts=0.0, updated_ts=0.0,
+            headline="AAPL breaking news no timestamp", snippet="",
+            tickers=["AAPL"], url="https://example.com/nots", source="Test",
+        )
+
+        t0 = time.time()
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        self.assertIn("AAPL", best)
+        self.assertIn("_seen_ts", best["AAPL"])
+        self.assertGreaterEqual(best["AAPL"]["_seen_ts"], t0)
+
+
+# ── M1: Response format drift logging ─────────────────────────
+
+
+class TestResponseFormatDriftLogging(unittest.TestCase):
+    """Unexpected API response shapes must log a warning."""
+
+    def test_fmp_dict_response_warns(self):
+        """FMP returning a dict (e.g. error) instead of list → warning."""
+        from newsstack_fmp.ingest_fmp import _as_list
+
+        with self.assertLogs("newsstack_fmp.ingest_fmp", level="WARNING") as cm:
+            result = _as_list({"error": "rate limited"})
+        self.assertEqual(result, [])
+        self.assertTrue(any("dict" in msg.lower() for msg in cm.output))
+
+    def test_fmp_none_response_silent(self):
+        """FMP returning None → empty list, no warning (expected for null)."""
+        from newsstack_fmp.ingest_fmp import _as_list
+
+        result = _as_list(None)
+        self.assertEqual(result, [])
+
+    def test_fmp_string_response_warns(self):
+        from newsstack_fmp.ingest_fmp import _as_list
+
+        with self.assertLogs("newsstack_fmp.ingest_fmp", level="WARNING") as cm:
+            result = _as_list("Unauthorized")
+        self.assertEqual(result, [])
+        self.assertTrue(any("str" in msg.lower() for msg in cm.output))
+
+    def test_benzinga_null_response_warns(self):
+        """Benzinga returning null JSON → warning."""
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+
+        adapter = BenzingaRestAdapter("test_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_resp.json.return_value = None  # null JSON
+
+        adapter.client.get = MagicMock(return_value=mock_resp)
+        with self.assertLogs("newsstack_fmp.ingest_benzinga", level="WARNING") as cm:
+            items = adapter.fetch_news()
+        self.assertEqual(items, [])
+        self.assertTrue(any("NoneType" in msg for msg in cm.output))
+        adapter.close()
+
+    def test_benzinga_error_dict_warns(self):
+        """Benzinga returning {"error": "..."} without recognized keys → warning."""
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+
+        adapter = BenzingaRestAdapter("test_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_resp.json.return_value = {"error": "Unauthorized", "status": 401}
+
+        adapter.client.get = MagicMock(return_value=mock_resp)
+        with self.assertLogs("newsstack_fmp.ingest_benzinga", level="WARNING") as cm:
+            items = adapter.fetch_news()
+        self.assertEqual(items, [])
+        self.assertTrue(any("no recognized data key" in msg for msg in cm.output))
+        adapter.close()
+
+    def test_benzinga_empty_articles_no_warning(self):
+        """Benzinga returning {"articles": []} should NOT warn — it's valid."""
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+
+        adapter = BenzingaRestAdapter("test_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_resp.json.return_value = {"articles": []}
+
+        adapter.client.get = MagicMock(return_value=mock_resp)
+        # Should NOT raise assertLogs — no warning expected
+        items = adapter.fetch_news()
+        self.assertEqual(items, [])
+        adapter.close()
+
+
+# ── M2: Enrichment hoisted — single fetch per item ────────────
+
+
+class TestEnrichmentHoisted(unittest.TestCase):
+    """Enrichment must be called once per item, not once per ticker."""
+
+    def test_multi_ticker_item_enriches_once(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        # Mock the enricher to count calls
+        call_count = 0
+        original_fetch = enricher.fetch_url_snippet
+
+        def counting_fetch(url):
+            nonlocal call_count
+            call_count += 1
+            return {"enriched": True, "snippet": "test"}
+
+        enricher.fetch_url_snippet = counting_fetch
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="multi_enrich",
+            published_ts=1700000000.0, updated_ts=1700000000.0,
+            headline="FDA approves breakthrough drug",
+            snippet="", tickers=["AAPL", "MSFT", "GOOG"],
+            url="https://example.com/enrich_test", source="Test",
+        )
+
+        # Use threshold=0.0 to trigger enrichment
+        process_news_items(
+            store, [item], best, None, enricher, 0.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # 3 tickers but only 1 HTTP call
+        self.assertEqual(call_count, 1,
+                         f"Expected 1 enrichment call for 3 tickers, got {call_count}")
+        # All 3 tickers should share the same enrich result
+        for tk in ("AAPL", "MSFT", "GOOG"):
+            self.assertIn("enrich", best[tk])
+            self.assertTrue(best[tk]["enrich"]["enriched"])
