@@ -1197,7 +1197,8 @@ class TestBuildGapScanner(unittest.TestCase):
         ]
         result = build_gap_scanner(quotes, min_gap_pct=1.5)
         symbols = [r["symbol"] for r in result]
-        self.assertEqual(symbols, ["B", "C", "A"])
+        # Sort is gap-ups first (desc by magnitude), then gap-downs (desc by magnitude)
+        self.assertEqual(symbols, ["C", "A", "B"])
 
     def test_earnings_risk_tag(self):
         quotes = [self._make_quote("NVDA", 3.0, earnings_today=True)]
@@ -1684,7 +1685,7 @@ class TestAtrRobustness(unittest.TestCase):
                 for i in range(1, 20)
             ]
         }
-        symbol, atr, _mom, _vwap, err = _fetch_symbol_atr(
+        symbol, atr, _mom, _vwap, _avg_vol, err = _fetch_symbol_atr(
             client,
             "NVDA",
             date(2026, 1, 1),
@@ -1698,7 +1699,7 @@ class TestAtrRobustness(unittest.TestCase):
     def test_fetch_symbol_atr_reports_zero_as_error(self):
         client = MagicMock()
         client.get_historical_price_eod_full.return_value = {"historical": []}
-        symbol, atr, _mom, _vwap, err = _fetch_symbol_atr(
+        symbol, atr, _mom, _vwap, _avg_vol, err = _fetch_symbol_atr(
             client,
             "NVDA",
             date(2026, 1, 1),
@@ -1926,7 +1927,8 @@ class TestSignalDecay(unittest.TestCase):
 
     def test_freshness_decay_none_elapsed_is_zero(self):
         from open_prep.signal_decay import adaptive_freshness_decay
-        self.assertEqual(adaptive_freshness_decay(None), 0.0)
+        # None elapsed → unknown age → neutral 0.5 (not dead)
+        self.assertEqual(adaptive_freshness_decay(None), 0.5)
 
     def test_freshness_decay_positive_elapsed_between_zero_and_one(self):
         from open_prep.signal_decay import adaptive_freshness_decay
@@ -2294,7 +2296,8 @@ class TestFMPClientCsvFallback(unittest.TestCase):
         with patch("open_prep.macro.urlopen", return_value=cm):
             with self.assertRaises(RuntimeError) as ctx:
                 client._get("/stable/some-path", {})
-        self.assertIn("invalid JSON", str(ctx.exception))
+        # HTML payloads are now detected and reported specifically
+        self.assertIn("FMP API returned HTML", str(ctx.exception))
 
     def test_json_response_still_works(self):
         """Normal JSON responses are unaffected by CSV fallback logic."""
@@ -2543,6 +2546,8 @@ class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
         engine._active_signals = []
         engine._watchlist = []
         engine.poll_interval = 45
+        engine.last_poll_duration = 0.0
+        engine._vd_rows = {}
 
         # Create a signal with a non-serializable object to trigger json.dump failure
         from open_prep.realtime_signals import RealtimeSignal
