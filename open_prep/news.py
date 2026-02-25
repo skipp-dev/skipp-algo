@@ -36,7 +36,7 @@ _BULLISH_KEYWORDS: frozenset[str] = frozenset({
     "exceeds", "exceeded", "above", "higher", "upbeat", "boost",
     "boosted", "breakout", "acquisition", "acquire", "approval",
     "approved", "partnership", "expand", "expansion", "dividend",
-    "buyback", "repurchase", "guidance", "upside",
+    "buyback", "repurchase", "upside",
 })
 
 _BEARISH_KEYWORDS: frozenset[str] = frozenset({
@@ -49,9 +49,125 @@ _BEARISH_KEYWORDS: frozenset[str] = frozenset({
     "disappointed", "fails", "failed", "failure", "bankruptcy", "debt",
     "restructuring", "delay", "delayed", "downside", "suspend",
     "suspended", "penalty", "fine", "fined", "subpoena",
+    "plunge", "plunges", "plunged", "plummets", "plummeted",
+    "tumble", "tumbles", "tumbled", "slump", "slumps", "slumped",
+    "crash", "crashed", "fell", "shrink", "shrinks",
+    "shrinking", "widening", "widened", "unprofitable",
 })
 
+# Negation words that flip the sentiment of the *next* keyword.
+# E.g. "no growth" → negated bullish = bearish, "not weak" → negated bearish.
+_NEGATION_WORDS: frozenset[str] = frozenset({
+    "no", "not", "never", "neither", "without",
+    "cannot", "hardly", "barely",
+    "despite", "although",
+})
+
+# Bearish multi-word phrases — checked against lowered raw text.
+# Each match contributes 2 bearish points (same weight as a title keyword).
+_BEARISH_PHRASES: tuple[str, ...] = (
+    "net loss",
+    "operating loss",
+    "wider loss",
+    "widening loss",
+    "missed estimates",
+    "missed expectations",
+    "below estimates",
+    "below expectations",
+    "fell short",
+    "falling short",
+    "falls short",
+    "revenue miss",
+    "eps miss",
+    "earnings miss",
+    "weaker than expected",
+    "lower than expected",
+    "worse than expected",
+    "disappointing results",
+    "revenue decline",
+    "profit decline",
+    "share price fell",
+    "shares fell",
+    "stock fell",
+    "shares dropped",
+    "stock dropped",
+    "negative earnings",
+    "negative eps",
+    "not profitable",
+    "guidance cut",
+    "lowered guidance",
+    "reduced guidance",
+    "slashed guidance",
+    "weak guidance",
+    "warns of",
+    "warning of",
+)
+
+_BULLISH_PHRASES: tuple[str, ...] = (
+    "beat estimates",
+    "beat expectations",
+    "beats estimates",
+    "beats expectations",
+    "above estimates",
+    "above expectations",
+    "stronger than expected",
+    "better than expected",
+    "record revenue",
+    "record earnings",
+    "record profit",
+    "raised guidance",
+    "raises guidance",
+    "positive guidance",
+    "strong guidance",
+    "upward revision",
+)
+
 _WORD_RE = re.compile(r"\b[a-z]+\b")
+
+
+def _count_negation_aware(
+    words: list[str],
+    bull_kw: frozenset[str],
+    bear_kw: frozenset[str],
+    neg_words: frozenset[str],
+) -> tuple[int, int]:
+    """Count bullish/bearish keyword hits with negation awareness.
+
+    When a negation word immediately precedes a keyword, the keyword's
+    sentiment is flipped (bullish → bearish and vice versa).
+    Returns (bull_count, bear_count).
+    """
+    bull = 0
+    bear = 0
+    prev_neg = False
+    for w in words:
+        if w in neg_words:
+            prev_neg = True
+            continue
+        if w in bull_kw:
+            if prev_neg:
+                bear += 1   # "no growth" → bearish
+            else:
+                bull += 1
+        elif w in bear_kw:
+            if prev_neg:
+                bull += 1   # "not weak" → bullish
+            else:
+                bear += 1
+        else:
+            prev_neg = False
+            continue
+        prev_neg = False
+    return bull, bear
+
+
+def _count_phrases(text: str, phrases: tuple[str, ...]) -> int:
+    """Count how many distinct phrases from the list appear in lowered text."""
+    count = 0
+    for phrase in phrases:
+        if phrase in text:
+            count += 1
+    return count
 
 
 def classify_article_sentiment(title: str, content: str = "") -> tuple[str, float]:
@@ -61,14 +177,28 @@ def classify_article_sentiment(title: str, content: str = "") -> tuple[str, floa
     - label: ``"bullish"`` | ``"neutral"`` | ``"bearish"``
     - score: float in ``[-1.0, 1.0]``
 
+    Uses negation-aware keyword matching and multi-word phrase detection.
     Title words receive 2x weight (headlines are the strongest signal).
     """
-    title_words = set(_WORD_RE.findall(title.lower()))
-    content_words = set(_WORD_RE.findall(content[:800].lower())) if content else set()
+    title_lower = title.lower()
+    content_lower = content[:1200].lower() if content else ""
+
+    title_word_list = _WORD_RE.findall(title_lower)
+    content_word_list = _WORD_RE.findall(content_lower) if content_lower else []
+
+    # Negation-aware keyword counting
+    t_bull, t_bear = _count_negation_aware(title_word_list, _BULLISH_KEYWORDS, _BEARISH_KEYWORDS, _NEGATION_WORDS)
+    c_bull, c_bear = _count_negation_aware(content_word_list, _BULLISH_KEYWORDS, _BEARISH_KEYWORDS, _NEGATION_WORDS)
 
     # Title matches count double
-    bull = len(title_words & _BULLISH_KEYWORDS) * 2 + len(content_words & _BULLISH_KEYWORDS)
-    bear = len(title_words & _BEARISH_KEYWORDS) * 2 + len(content_words & _BEARISH_KEYWORDS)
+    bull = t_bull * 2 + c_bull
+    bear = t_bear * 2 + c_bear
+
+    # Multi-word phrase matching (2 pts each for title, 1 pt for content)
+    bull += _count_phrases(title_lower, _BULLISH_PHRASES) * 2
+    bear += _count_phrases(title_lower, _BEARISH_PHRASES) * 2
+    bull += _count_phrases(content_lower, _BULLISH_PHRASES)
+    bear += _count_phrases(content_lower, _BEARISH_PHRASES)
 
     total = bull + bear
     if total == 0:

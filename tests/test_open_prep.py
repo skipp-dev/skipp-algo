@@ -33,7 +33,7 @@ from open_prep.run_open_prep import (
     apply_gap_mode_to_quotes,
     build_gap_scanner,
 )
-from open_prep.news import build_news_scores, _parse_article_datetime
+from open_prep.news import build_news_scores, _parse_article_datetime, classify_article_sentiment
 from open_prep.screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
 from open_prep.macro import (
     FMPClient,
@@ -465,6 +465,70 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(metrics["PLTR"]["mentions_total"], 1)    # counted as mention
         self.assertEqual(metrics["PLTR"]["mentions_24h"], 0)       # but NOT in 24h window
         self.assertEqual(metrics["PLTR"]["mentions_2h"], 0)        # and NOT in 2h window
+
+    # ── classify_article_sentiment tests ──
+
+    def test_sentiment_simple_bullish(self):
+        label, score = classify_article_sentiment("NVIDIA beats earnings estimates and raises guidance")
+        self.assertEqual(label, "bullish")
+        self.assertGreater(score, 0.0)
+
+    def test_sentiment_simple_bearish(self):
+        label, score = classify_article_sentiment("Company misses earnings, shares fell sharply")
+        self.assertEqual(label, "bearish")
+        self.assertLess(score, 0.0)
+
+    def test_sentiment_neutral_generic(self):
+        label, score = classify_article_sentiment("Tempus AI Earnings Report: Financial Analysis")
+        self.assertEqual(label, "neutral")
+
+    def test_sentiment_negation_flips_bullish_to_bearish(self):
+        label, score = classify_article_sentiment("Company shows no growth and not profitable")
+        self.assertEqual(label, "bearish")
+        self.assertLess(score, 0.0)
+
+    def test_sentiment_negation_flips_bearish_to_bullish(self):
+        label, score = classify_article_sentiment("Despite weakness, results not disappointing")
+        # "despite" negates "weakness" → bullish; "not" negates "disappointing" → bullish
+        self.assertIn(label, ("bullish", "neutral"))
+        self.assertGreaterEqual(score, 0.0)
+
+    def test_sentiment_bearish_phrases_detected(self):
+        label, score = classify_article_sentiment(
+            "Earnings report",
+            content="Revenue showed wider loss and fell short of expectations"
+        )
+        self.assertEqual(label, "bearish")
+        self.assertLess(score, 0.0)
+
+    def test_sentiment_net_loss_in_content_overrides_boilerplate(self):
+        """FMP auto-generated articles mention 'growth' and 'expansion' even
+        for companies reporting net losses.  Bearish phrases must prevail."""
+        label, score = classify_article_sentiment(
+            "TEM Earnings Report",
+            content="Revenue growth of 30% but net loss widened. Expansion "
+                    "into new markets. Operating loss increased despite "
+                    "strong revenue growth."
+        )
+        self.assertEqual(label, "bearish")
+        self.assertLess(score, 0.0)
+
+    def test_sentiment_bullish_phrases_detected(self):
+        label, score = classify_article_sentiment(
+            "Strong quarter",
+            content="Company beat expectations with record revenue and raised guidance"
+        )
+        self.assertEqual(label, "bullish")
+        self.assertGreater(score, 0.0)
+
+    def test_sentiment_mixed_leans_correct_direction(self):
+        """When both bull and bear signals are present, net direction should
+        reflect the dominant sentiment."""
+        label, score = classify_article_sentiment(
+            "Mixed results: revenue growth but wider loss"
+        )
+        # "wider loss" phrase = 2 bear pts, "growth" = 2 bull pts, "loss" keyword = 2 bear pts → net bearish
+        self.assertEqual(label, "bearish")
 
     def test_trade_cards_follow_bias_setup(self):
         ranked = [
