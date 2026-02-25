@@ -17,6 +17,10 @@ Dieses Dokument ist die **kurze Betriebsanleitung** für den täglichen Einsatz 
 Für volle Architektur/Implementation:  
 `docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md`
 
+Incident-Matrix (Symptom → Ursache → Maßnahme → ETA):
+
+- `docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md`
+
 ---
 
 ## 2) Kernprozesse
