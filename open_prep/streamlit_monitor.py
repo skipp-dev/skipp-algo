@@ -587,9 +587,9 @@ def main() -> None:
             if bo_dir:
                 bo_pat = r.get("breakout_pattern", "")
                 if bo_dir in ("LONG", "B_UP"):
-                    parts.append(f"🚀 BO:{bo_dir}")
+                    parts.append(f"🚀 BO:{bo_dir}" + (f" ({bo_pat})" if bo_pat else ""))
                 elif bo_dir in ("SHORT", "B_DOWN"):
-                    parts.append(f"🔻 BO:{bo_dir}")
+                    parts.append(f"🔻 BO:{bo_dir}" + (f" ({bo_pat})" if bo_pat else ""))
             if r.get("is_consolidating"):
                 cs = r.get("consolidation_score", 0)
                 parts.append(f"📦 Cons({cs:.0%})")

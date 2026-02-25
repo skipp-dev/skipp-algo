@@ -1569,13 +1569,29 @@ class TestPickSymbolsForPMH(unittest.TestCase):
             "D": {"is_premarket_mover": False, "ext_hours_score": -0.5},
         }
         result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=2)
-        # A is mover (gets +100 boost), B and C have positive ext_hours_score
-        # All symbols within MAX_ATTENTION (80), so all returned, sorted by score
+        # top_n_ext=2 caps output at 2 symbols (min(2, MAX_ATTENTION=80))
+        # A is mover (gets +100 boost = score 100.5), B has score 2.0
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], "A")
+        self.assertEqual(result[1], "B")
+
+    def test_top_n_ext_returns_all_when_large_enough(self):
+        from open_prep.run_open_prep import _pick_symbols_for_pmh
+
+        symbols = ["A", "B", "C", "D"]
+        pm_ctx = {
+            "A": {"is_premarket_mover": True, "ext_hours_score": 0.5},
+            "B": {"is_premarket_mover": False, "ext_hours_score": 2.0},
+            "C": {"is_premarket_mover": False, "ext_hours_score": 1.0},
+            "D": {"is_premarket_mover": False, "ext_hours_score": -0.5},
+        }
+        result = _pick_symbols_for_pmh(symbols, pm_ctx, top_n_ext=100)
+        # top_n_ext=100 capped by MAX_ATTENTION=80, but only 4 symbols → all returned
+        self.assertEqual(len(result), 4)
         self.assertIn("A", result)
         self.assertIn("B", result)
         self.assertIn("C", result)
-        # A (mover-boosted) should be first
-        self.assertEqual(result[0], "A")
+        self.assertIn("D", result)
 
     def test_dedup_mover_and_top(self):
         from open_prep.run_open_prep import _pick_symbols_for_pmh
@@ -2682,3 +2698,27 @@ class TestSR2AtomicLatestWrite(unittest.TestCase):
         source = inspect.getsource(run_open_prep.generate_open_prep_result)
         # Must contain mkstemp (atomic write) not write_text (non-atomic)
         self.assertIn("mkstemp", source, "Latest write should use tmpfile pattern")
+
+
+class TestHitRateEnrichmentUsesVolumeRatio(unittest.TestCase):
+    """SR5-1: Hit rate enrichment must use pre-computed volume_ratio, not the
+    wrong 'avg_volume' key (FMP uses 'avgVolume')."""
+
+    def test_enrichment_reads_volume_ratio_not_avg_volume(self):
+        """Structural: the hit-rate loop must reference 'volume_ratio',
+        not 'avg_volume', to avoid key mismatch with FMP quote dicts."""
+        import inspect
+        from open_prep import run_open_prep
+        source = inspect.getsource(run_open_prep.generate_open_prep_result)
+        # The old code used row.get("avg_volume", 1) which is wrong (FMP key is avgVolume).
+        self.assertNotIn(
+            'row.get("avg_volume"',
+            source,
+            "Hit rate loop must not use 'avg_volume' (FMP key is 'avgVolume')",
+        )
+        # The fix reads the pre-computed volume_ratio set by _enrich_quote_with_hvb
+        self.assertIn(
+            "volume_ratio",
+            source,
+            "Hit rate loop should use pre-computed 'volume_ratio'",
+        )

@@ -2426,6 +2426,7 @@ def _pick_symbols_for_pmh(
     ext_hours_score so the most active movers always get PMH/PML data.
     """
     MAX_ATTENTION = 80  # Hard cap to keep PMH/PML stage < 20s
+    cap = min(top_n_ext, MAX_ATTENTION)
     rows: list[tuple[str, float]] = []
     for sym in symbols:
         pm = premarket_context.get(sym, {})
@@ -2434,7 +2435,7 @@ def _pick_symbols_for_pmh(
         # Give movers a sorting boost so they appear first
         rows.append((sym, score + (100.0 if is_mover else 0.0)))
     rows.sort(key=lambda x: x[1], reverse=True)
-    return [sym for sym, _ in rows[:MAX_ATTENTION]]
+    return [sym for sym, _ in rows[:cap]]
 
 
 def _fetch_premarket_high_low_bulk(
@@ -3623,9 +3624,7 @@ def generate_open_prep_result(
     # Enrich v2 candidates with historical hit rates + regime
     for row in ranked_v2:
         gap_pct = _to_float(row.get("gap_pct"), default=0.0)
-        rvol = _to_float(row.get("volume", 0), default=0.0)
-        avg_vol = _to_float(row.get("avg_volume", 1), default=1.0)
-        rvol_ratio = (rvol / avg_vol) if avg_vol > 0 else 0.0
+        rvol_ratio = _to_float(row.get("volume_ratio"), default=0.0)
         hr = get_symbol_hit_rate(row.get("symbol", ""), gap_pct, rvol_ratio, hit_rates)
         row["historical_hit_rate"] = hr.get("historical_hit_rate")
         row["historical_sample_size"] = hr.get("historical_sample_size", 0)
