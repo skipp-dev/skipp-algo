@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
@@ -206,9 +208,35 @@ class FMPClient:
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"FMP API returned invalid JSON on {path}: {payload[:100]}"
-            ) from exc
+            # FMP may return CSV even when JSON is requested (e.g. eod-bulk).
+            # Detect CSV header and parse into list[dict] with numeric coercion.
+            stripped = (payload or "").lstrip()
+            if stripped and (
+                stripped.startswith('"') or stripped.startswith("symbol,")
+            ):
+                try:
+                    reader = csv.DictReader(io.StringIO(payload))
+                    rows: list[dict[str, Any]] = []
+                    for csv_row in reader:
+                        coerced: dict[str, Any] = {}
+                        for k, v in csv_row.items():
+                            if v is None:
+                                coerced[k] = v
+                                continue
+                            try:
+                                coerced[k] = int(v) if v.isdigit() else float(v)
+                            except (ValueError, TypeError):
+                                coerced[k] = v
+                        rows.append(coerced)
+                    data = rows
+                except Exception:
+                    raise RuntimeError(
+                        f"FMP API returned invalid JSON on {path}: {payload[:100]}"
+                    ) from exc
+            else:
+                raise RuntimeError(
+                    f"FMP API returned invalid JSON on {path}: {payload[:100]}"
+                ) from exc
 
         # FMP errors may be returned as dict payloads. Keep detection precise to
         # avoid false positives for successful payloads that include a generic
@@ -391,9 +419,13 @@ class FMPClient:
         except RuntimeError as exc:
             msg = str(exc)
             # Free-tier accounts can receive HTTP 402 (Payment Required) for this
-            # endpoint. Treat it as a soft failure so callers can fall back to
-            # per-symbol historical endpoint logic.
-            if "HTTP 402" in msg and "/stable/eod-bulk" in msg:
+            # endpoint.  FMP may also return CSV despite requesting JSON, which
+            # triggers an "invalid JSON" error when CSV fallback parsing also
+            # fails.  In both cases, degrade gracefully so callers can fall back
+            # to per-symbol historical endpoint logic.
+            if "/stable/eod-bulk" in msg and (
+                "HTTP 402" in msg or "invalid JSON" in msg
+            ):
                 return []
             raise
         if not isinstance(data, list):

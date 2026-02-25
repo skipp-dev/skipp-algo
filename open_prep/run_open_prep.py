@@ -1321,7 +1321,7 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
             pass
 
     probes: list[tuple[str, str, dict[str, Any]]] = [
-        ("eod_bulk", "/stable/eod-bulk", {"date": today.isoformat()}),
+        ("eod_bulk", "/stable/eod-bulk", {"date": today.isoformat(), "datatype": "json"}),
         (
             "upgrades_downgrades",
             "/stable/grades",

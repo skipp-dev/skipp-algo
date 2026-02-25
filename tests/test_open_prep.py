@@ -2136,3 +2136,149 @@ class TestRealtimeSignalsSafeFloat(unittest.TestCase):
             {},
         )
         self.assertIsNone(signal)
+
+
+# ──────────────────────────────────────────────────────────────────
+# CSV fallback in FMPClient._get()
+# ──────────────────────────────────────────────────────────────────
+
+
+class TestFMPClientCsvFallback(unittest.TestCase):
+    """FMP may return CSV instead of JSON for some endpoints (e.g. eod-bulk).
+
+    The _get() method should detect a CSV response and parse it into a
+    list of dicts with numeric coercion, rather than raising RuntimeError.
+    """
+
+    def _make_client(self) -> "FMPClient":
+        from open_prep.macro import FMPClient
+        return FMPClient(api_key="test")
+
+    def _mock_urlopen_with_payload(self, payload: str):
+        """Return a context-manager mock whose read() yields *payload*."""
+        from unittest.mock import MagicMock
+        response = MagicMock()
+        response.read.return_value = payload.encode("utf-8")
+        cm = MagicMock()
+        cm.__enter__.return_value = response
+        cm.__exit__.return_value = False
+        return cm
+
+    def test_csv_response_parsed_into_list_of_dicts(self):
+        """CSV payload is transparently converted to list[dict]."""
+        csv_payload = (
+            '"symbol","date","open","high","low","close","adjClose","volume"\n'
+            '"AAPL","2026-02-25",185.0,190.0,184.0,189.0,189.0,50000000\n'
+            '"NVDA","2026-02-25",130.0,135.0,129.0,134.5,134.5,80000000\n'
+        )
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload(csv_payload)
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            data = client._get("/stable/eod-bulk", {"date": "2026-02-25"})
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0]["symbol"], "AAPL")
+        # Numeric coercion: floats are parsed from CSV strings
+        self.assertAlmostEqual(data[0]["close"], 189.0)
+        self.assertEqual(data[1]["symbol"], "NVDA")
+        self.assertAlmostEqual(data[1]["volume"], 80000000)
+
+    def test_csv_numeric_coercion(self):
+        """Integer-like CSV values stay int, float-like become float."""
+        csv_payload = (
+            '"symbol","volume","price"\n'
+            '"AAPL","50000000","189.5"\n'
+        )
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload(csv_payload)
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            data = client._get("/stable/eod-bulk", {})
+        row = data[0]
+        self.assertIsInstance(row["volume"], int)
+        self.assertIsInstance(row["price"], float)
+
+    def test_csv_with_unquoted_header_parsed(self):
+        """CSV that starts with 'symbol,' (no quotes) is also detected."""
+        csv_payload = "symbol,date,close\nAAPL,2026-02-25,189.0\n"
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload(csv_payload)
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            data = client._get("/stable/eod-bulk", {})
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["symbol"], "AAPL")
+
+    def test_truly_invalid_payload_still_raises(self):
+        """Non-JSON, non-CSV garbage still raises RuntimeError."""
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload("<!DOCTYPE html><html>Error</html>")
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            with self.assertRaises(RuntimeError) as ctx:
+                client._get("/stable/some-path", {})
+        self.assertIn("invalid JSON", str(ctx.exception))
+
+    def test_json_response_still_works(self):
+        """Normal JSON responses are unaffected by CSV fallback logic."""
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload('[{"symbol": "AAPL", "close": 189.0}]')
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            data = client._get("/stable/eod-bulk", {})
+        self.assertEqual(data, [{"symbol": "AAPL", "close": 189.0}])
+
+
+class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
+    """get_eod_bulk() should return [] when _get() raises 'invalid JSON'."""
+
+    def test_invalid_json_returns_empty_list(self):
+        from open_prep.macro import FMPClient
+        client = FMPClient(api_key="test")
+        with patch.object(
+            FMPClient, "_get",
+            side_effect=RuntimeError("FMP API returned invalid JSON on /stable/eod-bulk: garbage"),
+        ):
+            result = client.get_eod_bulk(date(2026, 2, 25))
+        self.assertEqual(result, [])
+
+    def test_http_402_still_returns_empty_list(self):
+        from open_prep.macro import FMPClient
+        client = FMPClient(api_key="test")
+        with patch.object(
+            FMPClient, "_get",
+            side_effect=RuntimeError("FMP API HTTP 402 on /stable/eod-bulk: Payment Required"),
+        ):
+            result = client.get_eod_bulk(date(2026, 2, 25))
+        self.assertEqual(result, [])
+
+    def test_unrelated_error_still_propagates(self):
+        from open_prep.macro import FMPClient
+        client = FMPClient(api_key="test")
+        with patch.object(
+            FMPClient, "_get",
+            side_effect=RuntimeError("FMP API network error on /stable/eod-bulk: timeout"),
+        ):
+            with self.assertRaises(RuntimeError):
+                client.get_eod_bulk(date(2026, 2, 25))
+
+
+class TestCapabilityProbeEodBulkDatatype(unittest.TestCase):
+    """Capability probe for eod_bulk should include datatype=json."""
+
+    def test_eod_bulk_probe_includes_datatype_json(self):
+        from open_prep.run_open_prep import _probe_data_capabilities
+        from open_prep.macro import FMPClient
+
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get") as mock_get:
+            mock_get.return_value = []
+            # Avoid file I/O for capability cache
+            with patch("open_prep.run_open_prep.CAPABILITY_CACHE_FILE") as mock_file:
+                mock_file.exists.return_value = False
+                _probe_data_capabilities(client=client, today=date(2026, 2, 25))
+
+        # Find the eod-bulk call among all _get calls
+        eod_bulk_calls = [
+            call for call in mock_get.call_args_list
+            if "/stable/eod-bulk" in str(call)
+        ]
+        self.assertTrue(len(eod_bulk_calls) >= 1, "eod-bulk probe call not found")
+        params = eod_bulk_calls[0].args[1]
+        self.assertEqual(params.get("datatype"), "json")
