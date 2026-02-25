@@ -58,10 +58,20 @@ def cluster_hash(provider: str, headline: str, tickers: List[str]) -> str:
     return hashlib.sha1(key.encode("utf-8")).hexdigest()
 
 
-def classify_and_score(item: Union[NewsItem, Dict[str, Any]], cluster_count: int) -> ScoreResult:
+def classify_and_score(
+    item: Union[NewsItem, Dict[str, Any]],
+    cluster_count: int,
+    chash: str | None = None,
+) -> ScoreResult:
     """Classify headline and compute composite score.
 
     Accepts both ``NewsItem`` and legacy plain-dict items.
+
+    Parameters
+    ----------
+    chash : str, optional
+        Pre-computed cluster hash.  When supplied the (relatively
+        expensive) SHA-1 computation is skipped.
     """
     # Guard against invalid cluster_count from external callers
     cluster_count = max(1, cluster_count)
@@ -74,7 +84,8 @@ def classify_and_score(item: Union[NewsItem, Dict[str, Any]], cluster_count: int
         headline = item.get("headline") or ""
         tickers = item.get("tickers") or []
         provider = item.get("provider", "")
-    chash = cluster_hash(provider, headline, tickers)
+    if chash is None:
+        chash = cluster_hash(provider, headline, tickers)
 
     category = "other"
     impact = 0.10

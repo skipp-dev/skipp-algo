@@ -152,10 +152,10 @@ def process_news_items(
         if not it.headline.strip():
             continue
 
-        # Novelty cluster -- compute hash once, score once
+        # Novelty cluster -- compute hash once, reuse in scorer
         chash = cluster_hash(it.provider or "", it.headline or "", it.tickers or [])
         cluster_count, _ = store.cluster_touch(chash, ts)
-        score = classify_and_score(it, cluster_count=cluster_count)
+        score = classify_and_score(it, cluster_count=cluster_count, chash=chash)
 
         warn_flags: List[str] = []
         if score.category == "offering":
@@ -188,7 +188,7 @@ def process_news_items(
                 "novelty_cluster_count": int(cluster_count),
                 "polarity": score.polarity,
                 "news_score": round(score.score, 4),
-                "warn_flags": warn_flags,
+                "warn_flags": list(warn_flags),
                 "signals": {"vwap": vwap},
                 "published_ts": it.published_ts,
                 "updated_ts": it.updated_ts,
@@ -353,6 +353,14 @@ def poll_once(
     )
     candidates = candidates[: cfg.top_n_export]
 
+    # Strip internal fields (prefixed with _) before exporting to JSON.
+    # _seen_ts is used internally for pruning but must not leak into the
+    # public data contract.
+    export_candidates = [
+        {k: v for k, v in c.items() if not k.startswith("_")}
+        for c in candidates
+    ]
+
     fmp_count = sum(1 for it in fmp_items if it.is_valid)
     bz_count = sum(1 for it in bz_items if it.is_valid)
     meta: Dict[str, Any] = {
@@ -369,7 +377,7 @@ def poll_once(
         "warnings": cycle_warnings,
     }
     try:
-        export_open_prep(cfg.export_path, candidates, meta)
+        export_open_prep(cfg.export_path, export_candidates, meta)
     except Exception as exc:
         logger.warning("export_open_prep failed: %s", exc)
 

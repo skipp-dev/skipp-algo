@@ -2293,3 +2293,216 @@ class TestEnrichmentHoisted(unittest.TestCase):
         for tk in ("AAPL", "MSFT", "GOOG"):
             self.assertIn("enrich", best[tk])
             self.assertTrue(best[tk]["enrich"]["enriched"])
+
+
+# ====================================================================
+# SR14: Production Gatekeeper review — seventh pass hardening tests
+# ====================================================================
+
+
+# ── H1: warn_flags must NOT be shared across multi-ticker candidates ──
+
+
+class TestWarnFlagsNotShared(unittest.TestCase):
+    """Multi-ticker candidates must have independent warn_flags lists."""
+
+    def test_offering_multi_ticker_independent_warn_flags(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="offering_multi",
+            published_ts=1700000000.0, updated_ts=1700000000.0,
+            headline="AAPL announces public offering of shares",
+            snippet="", tickers=["AAPL", "MSFT"],
+            url="https://example.com/offering", source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        self.assertIn("AAPL", best)
+        self.assertIn("MSFT", best)
+        # Both should have offering_risk
+        self.assertIn("offering_risk", best["AAPL"]["warn_flags"])
+        self.assertIn("offering_risk", best["MSFT"]["warn_flags"])
+        # But they must be DIFFERENT list objects
+        self.assertIsNot(
+            best["AAPL"]["warn_flags"], best["MSFT"]["warn_flags"],
+            "warn_flags lists are the same object — shared mutable reference!",
+        )
+
+    def test_mutation_does_not_propagate(self):
+        """Appending to one candidate's warn_flags must NOT affect another."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="offering_mut",
+            published_ts=1700000000.0, updated_ts=1700000000.0,
+            headline="GOOG announces offering dilution",
+            snippet="", tickers=["GOOG", "TSLA"],
+            url="https://example.com/off2", source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # Mutate one
+        best["GOOG"]["warn_flags"].append("custom_flag")
+        # Other must NOT have it
+        self.assertNotIn("custom_flag", best["TSLA"]["warn_flags"])
+
+
+# ── M1: _seen_ts must NOT appear in exported JSON ─────────────
+
+
+class TestSeenTsNotInExport(unittest.TestCase):
+    """Internal _seen_ts field must be stripped before export."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_exported_candidates_have_no_underscore_fields(
+        self, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.normalize import normalize_fmp
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        store.mark_seen.return_value = True
+        store.cluster_touch.return_value = (1, 1700000000.0)
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id="export_test",
+                published_ts=1700000000.0, updated_ts=1700000000.0,
+                headline="AAPL beats Q1 earnings", snippet="Good results",
+                tickers=["AAPL"], url="https://example.com/e", source="Test",
+            ),
+        ]
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                poll_once(cfg, universe=set())
+
+            mock_export.assert_called_once()
+            exported_candidates = mock_export.call_args[0][1]
+            for cand in exported_candidates:
+                underscore_keys = [k for k in cand if k.startswith("_")]
+                self.assertEqual(
+                    underscore_keys, [],
+                    f"Internal keys leaked into export: {underscore_keys}",
+                )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+    def test_seen_ts_still_in_best_by_ticker(self):
+        """_seen_ts must still be present in internal _best_by_ticker."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="internal_ts",
+            published_ts=1700000000.0, updated_ts=1700000000.0,
+            headline="MSFT earnings report", snippet="",
+            tickers=["MSFT"], url="https://example.com/i", source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # _seen_ts must still be in the internal dict (needed for pruning)
+        self.assertIn("_seen_ts", best["MSFT"])
+
+
+# ── M2: classify_and_score accepts pre-computed chash ──────────
+
+
+class TestClusterHashPassthrough(unittest.TestCase):
+    """classify_and_score must accept and return a pre-computed chash."""
+
+    def test_precomputed_hash_returned(self):
+        from newsstack_fmp.scoring import classify_and_score
+        from newsstack_fmp.common_types import NewsItem
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="hash_test",
+            published_ts=0.0, updated_ts=0.0,
+            headline="AAPL beats earnings", snippet="",
+            tickers=["AAPL"], url=None, source="Test",
+        )
+
+        result = classify_and_score(item, cluster_count=1, chash="precomputed_hash_abc")
+        self.assertEqual(result.cluster_hash, "precomputed_hash_abc")
+
+    def test_without_chash_still_computes(self):
+        """Backward compat: omitting chash still auto-computes it."""
+        from newsstack_fmp.scoring import classify_and_score, cluster_hash
+        from newsstack_fmp.common_types import NewsItem
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="hash_auto",
+            published_ts=0.0, updated_ts=0.0,
+            headline="FDA approves drug", snippet="",
+            tickers=["PFE"], url=None, source="Test",
+        )
+
+        result = classify_and_score(item, cluster_count=1)
+        expected = cluster_hash("fmp_stock_latest", "FDA approves drug", ["PFE"])
+        self.assertEqual(result.cluster_hash, expected)
+
+    def test_none_chash_auto_computes(self):
+        from newsstack_fmp.scoring import classify_and_score, cluster_hash
+        from newsstack_fmp.common_types import NewsItem
+
+        item = NewsItem(
+            provider="benzinga_rest", item_id="hash_none",
+            published_ts=0.0, updated_ts=0.0,
+            headline="MSFT merger announced", snippet="",
+            tickers=["MSFT"], url=None, source="Test",
+        )
+
+        result = classify_and_score(item, cluster_count=1, chash=None)
+        expected = cluster_hash("benzinga_rest", "MSFT merger announced", ["MSFT"])
+        self.assertEqual(result.cluster_hash, expected)
