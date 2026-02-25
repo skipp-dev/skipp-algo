@@ -12,7 +12,8 @@ strategy(
     pyramiding=1,
     commission_type=strategy.commission.percent,
     commission_value=0.025,
-    process_orders_on_close=true
+    process_orders_on_close=true,
+    calc_on_every_tick=true
 )
 
 // Import library
