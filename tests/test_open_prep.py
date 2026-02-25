@@ -2548,6 +2548,8 @@ class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
         engine.poll_interval = 45
         engine.last_poll_duration = 0.0
         engine._vd_rows = {}
+        engine._avg_vol_cache = {}
+        engine._earnings_today_cache = {}
 
         # Create a signal with a non-serializable object to trigger json.dump failure
         from open_prep.realtime_signals import RealtimeSignal

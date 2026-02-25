@@ -798,6 +798,10 @@ class RealtimeEngine:
         self._vd_last_change_epoch: dict[str, float] = {}
         self._poll_seq: int = 0
 
+        # Cached avg_volume & earnings (fetched once per watchlist load)
+        self._avg_vol_cache: dict[str, float] = {}
+        self._earnings_today_cache: dict[str, dict[str, Any]] = {}
+
         # #11 Dirty flag — {symbol: quote_hash}
         self._quote_hashes: dict[str, str] = {}
 
@@ -883,8 +887,73 @@ class RealtimeEngine:
                 len(self._watchlist),
                 [r.get("symbol") for r in self._watchlist],
             )
+            self._enrich_watchlist_live()
         except Exception as exc:
             logger.warning("Failed to load watchlist: %s", exc)
+
+    def _enrich_watchlist_live(self) -> None:
+        """Fetch avg_volume + earnings from FMP for watchlist symbols.
+
+        The batch-quote endpoint omits avgVolume.  Without it the volume
+        ratio is meaningless (everything looks like A0).  We fetch company
+        profiles once per watchlist load and cache the value.
+        """
+        try:
+            client = self.client
+        except Exception:
+            return  # no API key — cannot enrich
+
+        symbols = [
+            str(r.get("symbol", "")).strip().upper()
+            for r in self._watchlist if r.get("symbol")
+        ]
+        if not symbols:
+            return
+
+        # ── avg_volume from /stable/profile (one call per symbol) ──
+        for sym in symbols:
+            # Skip if watchlist already has a good value
+            wl_avg = 0.0
+            for w in self._watchlist:
+                if w.get("symbol") == sym:
+                    wl_avg = _safe_float(w.get("avg_volume"), 0.0)
+                    break
+            if wl_avg >= 1000 and sym in self._avg_vol_cache:
+                continue  # already enriched
+            try:
+                profile = client.get_company_profile(sym)
+                avg_vol = _safe_float(
+                    profile.get("averageVolume") or profile.get("volAvg"), 0.0
+                )
+                if avg_vol >= 1000:
+                    self._avg_vol_cache[sym] = avg_vol
+                    # Also update watchlist entry so _detect_signal finds it
+                    for w in self._watchlist:
+                        if w.get("symbol") == sym and _safe_float(w.get("avg_volume"), 0.0) < 1000:
+                            w["avg_volume"] = avg_vol
+                            logger.debug("Enriched %s avg_volume=%.0f from profile", sym, avg_vol)
+                time.sleep(0.15)  # throttle
+            except Exception as exc:
+                logger.debug("Profile fetch failed for %s: %s", sym, exc)
+
+        # ── Earnings calendar for today ──
+        try:
+            from datetime import date as _date
+            today = _date.today()
+            earnings = client.get_earnings_calendar(today, today)
+            for item in earnings:
+                sym = str(item.get("symbol") or "").strip().upper()
+                if sym in {s for s in symbols}:
+                    self._earnings_today_cache[sym] = item
+                    # Update watchlist entry
+                    for w in self._watchlist:
+                        if w.get("symbol") == sym:
+                            w["earnings_today"] = True
+                            raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
+                            w["earnings_timing"] = raw_time or None
+                            logger.info("Earnings today: %s (timing=%s)", sym, raw_time or "unknown")
+        except Exception as exc:
+            logger.debug("Earnings calendar fetch failed: %s", exc)
 
     def reload_watchlist(self) -> None:
         """Reload watchlist from latest pipeline run."""
@@ -900,6 +969,7 @@ class RealtimeEngine:
             self._dynamic_cooldown._transitions,
             self._dynamic_cooldown._last_a0,
             self._vd_last_change_epoch,
+            self._avg_vol_cache,
         ):
             stale = set(d) - wl_syms
             for k in stale:
@@ -966,12 +1036,19 @@ class RealtimeEngine:
         price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
         prev_close = _safe_float(quote.get("previousClose"), 0.0)
         volume = _safe_float(quote.get("volume"), 0.0)
-        avg_volume = max(
-            _safe_float(
-                quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 1.0
-            ),
-            1.0,
+        avg_volume = _safe_float(
+            quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 0.0
         )
+        # FMP batch-quote endpoint doesn't return avgVolume.
+        # When truly unknown, we cannot compute a meaningful ratio —
+        # skip signal detection rather than dividing by 1 and getting
+        # an astronomical ratio (e.g. 147M) that forces everything to A0.
+        if avg_volume < 1000:
+            logger.debug(
+                "Skipping %s: avg_volume=%.0f too low/missing for ratio",
+                symbol, avg_volume,
+            )
+            return None
 
         if price <= 0 or prev_close <= 0:
             return None
@@ -1327,7 +1404,10 @@ class RealtimeEngine:
             # ── VisiData row: compact per-symbol snapshot with deltas ──
             prev_close = _safe_float(quote.get("previousClose"), 0.0)
             chg_pct = ((price / prev_close) - 1) * 100 if prev_close > 0 else 0.0
-            vol_ratio = q_volume / max(_safe_float(quote.get("avgVolume"), 1.0), 1.0)
+            _avg_vol = _safe_float(
+                quote.get("avgVolume") or wl_entry.get("avg_volume"), 0.0
+            )
+            vol_ratio = round(q_volume / _avg_vol, 2) if _avg_vol >= 1000 else 0.0
             # Determine signal status for this symbol
             sym_signals = [
                 s for s in (*self._active_signals, *new_signals)
@@ -1412,6 +1492,7 @@ class RealtimeEngine:
                 "tick": delta["tick"],
                 "score": round(_safe_float(wl_entry.get("score"), 0.0), 2),
                 "streak": delta["streak"],
+                "earnings": "📊" if wl_entry.get("earnings_today") else "",
                 "news": news_with_link,
                 "news_url": news_url,
                 "news_score": current_news_score,
@@ -1446,7 +1527,15 @@ class RealtimeEngine:
             cur_price = _safe_float(q.get("price") or q.get("lastPrice"), 0.0)
             cur_prev_close = _safe_float(q.get("previousClose"), 0.0)
             cur_volume = _safe_float(q.get("volume"), 0.0)
-            cur_avg_vol = max(_safe_float(q.get("avgVolume"), 1.0), 1.0)
+            # Use watchlist fallback for avgVolume (FMP batch quote omits it)
+            wl_avg = 0.0
+            wl_match = [w for w in self._watchlist if w.get("symbol") == sig.symbol]
+            if wl_match:
+                wl_avg = _safe_float(wl_match[0].get("avg_volume"), 0.0)
+            cur_avg_vol = _safe_float(q.get("avgVolume") or wl_avg, 0.0)
+            if cur_avg_vol < 1000:
+                requalified.append(sig)  # can't verify — keep
+                continue
             if cur_price <= 0 or cur_prev_close <= 0:
                 requalified.append(sig)
                 continue
