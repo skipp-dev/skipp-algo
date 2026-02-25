@@ -140,6 +140,8 @@ Timing note:
 - **Open Prep Suite — technische Vollreferenz:** `docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md`
 - **Open Prep Suite — Ops Quick Reference (24/7):** `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md`
 - **Open Prep Suite — Incident Runbook Matrix:** `docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md`
+- **Open Prep Suite — Incident One-Page (Markdown):** `docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md`
+- **Open Prep Suite — Incident One-Page (Print HTML):** `docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE_PRINT.html`
 - **Deep technical documentation:** `docs/SkippALGO_Deep_Technical_Documentation.md`
 - **Deep technical documentation (current):** `docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md`
 - **Kurzfassung für neue Nutzer:** `docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md`

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Open Prep Incident One-Page</title>
+  <style>
+    @page { size: A4; margin: 12mm; }
+    :root { --fg:#111; --muted:#555; --line:#ddd; --bg:#fff; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--fg);
+      background: var(--bg);
+      font: 12px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .page {
+      max-width: 190mm;
+      margin: 0 auto;
+      padding: 0;
+    }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    h2 { font-size: 13px; margin: 10px 0 4px; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+    h3 { font-size: 12px; margin: 8px 0 2px; }
+    p, li { margin: 1px 0; }
+    .muted { color: var(--muted); }
+    ul, ol { margin: 3px 0 4px 16px; padding: 0; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .box {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 6px 8px;
+      break-inside: avoid;
+    }
+    .sev { font-weight: 700; }
+    .footer {
+      margin-top: 8px;
+      padding-top: 4px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>Open Prep — Incident One-Page (On-Call)</h1>
+    <p class="muted">Stand: 25.02.2026 · Scope: <code>open_prep</code> + <code>newsstack_fmp</code></p>
+
+    <h2>Priorität</h2>
+    <ul>
+      <li><span class="sev">SEV-1:</span> Kein nutzbarer Kernoutput / <code>fatal_stage</code> gesetzt</li>
+      <li><span class="sev">SEV-2:</span> Degraded Output (Teilausfälle), Kern läuft</li>
+      <li><span class="sev">SEV-3:</span> Nebenfunktion betroffen</li>
+    </ul>
+
+    <h2>60-Sekunden-Triage</h2>
+    <ol>
+      <li><code>latest_open_prep_run.json</code> aktuell?</li>
+      <li><code>run_status.fatal_stage</code> oder viele <code>warnings</code>?</li>
+      <li><code>ranked_v2</code>/<code>ranked_candidates</code> gefüllt?</li>
+      <li><code>premarket_fetch_error</code> / <code>atr_fetch_errors</code> auffällig?</li>
+      <li>Realtime-Dateien aktualisiert?</li>
+    </ol>
+
+    <h2>Symptom → Aktion</h2>
+    <section class="grid">
+      <article class="box">
+        <h3>A) <code>fatal_stage</code> gesetzt (SEV-1)</h3>
+        <p><b>Aktion:</b> neuen Lauf triggern, Stage-Logs prüfen, optionale Layer isolieren</p>
+        <p><b>Done wenn:</b> <code>fatal_stage</code> leer + frischer <code>run_datetime_utc</code></p>
+        <p><b>ETA:</b> 5–15 min</p>
+      </article>
+      <article class="box">
+        <h3>B) <code>ranked_v2</code> bleibt leer (SEV-1/2)</h3>
+        <p><b>Aktion:</b> ATR/Premarket-Fehler prüfen, v1/v2 vergleichen</p>
+        <p><b>Done wenn:</b> v1 + v2 wieder gefüllt</p>
+        <p><b>ETA:</b> 10–30 min</p>
+      </article>
+      <article class="box">
+        <h3>C) Dauerhafte 429/Rate-Limits (SEV-2)</h3>
+        <p><b>Aktion:</b> Refresh-Intervall erhöhen, optionale Quellen reduzieren</p>
+        <p><b>Done wenn:</b> Warnungsrate sinkt, Laufzeit stabil</p>
+        <p><b>ETA:</b> 10–30 min</p>
+      </article>
+      <article class="box">
+        <h3>D) Realtime liefert nichts (SEV-2)</h3>
+        <p><b>Aktion:</b> Realtime-Prozess, Marktzeit-Gate, Watchlist/Top-N prüfen</p>
+        <p><b>Done wenn:</b> Realtime JSON/JSONL wieder live</p>
+        <p><b>ETA:</b> 5–20 min</p>
+      </article>
+      <article class="box">
+        <h3>E) Newsstack leer (SEV-2/3)</h3>
+        <p><b>Aktion:</b> <code>ENABLE_*</code> prüfen, Poll isoliert testen, Cursor/Store prüfen</p>
+        <p><b>Done wenn:</b> News-Export wieder aktuelle Kandidaten enthält</p>
+        <p><b>ETA:</b> 10–25 min</p>
+      </article>
+    </section>
+
+    <h2>Recovery-Reihenfolge</h2>
+    <ol>
+      <li>Kernpipeline stabilisieren</li>
+      <li>Realtime wiederherstellen</li>
+      <li>Newsstack zuschalten</li>
+      <li>UI/Alerts verifizieren</li>
+    </ol>
+
+    <h2>Verifikation nach Recovery</h2>
+    <ul>
+      <li>Zwei erfolgreiche Folgezyklen</li>
+      <li>Frische Timestamps in Kernartefakten</li>
+      <li>Plausible Kandidatenzahl + Regime + Warnungsniveau</li>
+    </ul>
+
+    <h2>Safe-Change Rule</h2>
+    <p>Bei Änderungen an kritischen Modulen immer:</p>
+    <ol>
+      <li><code>py_compile</code> der betroffenen Dateien</li>
+      <li>mindestens ein E2E-Lauf</li>
+      <li>Output-Contract prüfen</li>
+      <li>erst dann 24/7 übernehmen</li>
+    </ol>
+
+    <p class="footer">
+      Vollmatrix: <code>docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md</code> ·
+      Ops Quick Ref: <code>docs/OPEN_PREP_OPS_QUICK_REFERENCE.md</code> ·
+      Volltechnik: <code>docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md</code>
+    </p>
+  </main>
+</body>
+</html>
