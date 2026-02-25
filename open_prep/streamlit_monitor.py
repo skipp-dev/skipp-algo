@@ -98,6 +98,75 @@ def _status_symbol(traffic_label: str) -> str:
     return "🟢"
 
 
+def promote_a0a1_signals(
+    ranked_v2: list[dict],
+    filtered_out_v2: list[dict],
+    rt_signals: list[dict],
+) -> tuple[list[dict], list[dict], set[str], dict[str, dict]]:
+    """Auto-promote A0/A1 realtime signals that fell below the top-n cutoff.
+
+    This bridges the gap between the pipeline scorer (point-in-time snapshot)
+    and the realtime engine (continuous breakout detection).  Symbols with
+    active A0/A1 signals that were scored but landed just below the cutoff
+    are promoted into ``ranked_v2`` with an ``rt_promoted=True`` marker.
+
+    Args:
+        ranked_v2: Mutable list of ranked candidate dicts from the pipeline.
+        filtered_out_v2: Mutable list of filtered-out candidate dicts.
+        rt_signals: List of realtime signal dicts (from disk/engine).
+
+    Returns:
+        A 4-tuple of ``(ranked_v2, filtered_out_v2, promoted_syms, a0a1_map)``.
+        ``promoted_syms`` is the set of symbol strings that were promoted.
+        ``a0a1_map`` maps uppercase symbol → signal dict for all A0/A1 signals
+        (used by the cross-reference section later).
+    """
+    a0a1_map: dict[str, dict] = {
+        str(s.get("symbol", "")).upper(): s
+        for s in rt_signals
+        if s.get("level") in ("A0", "A1")
+    }
+    promoted_syms: set[str] = set()
+
+    if not a0a1_map:
+        return ranked_v2, filtered_out_v2, promoted_syms, a0a1_map
+
+    v2_symbols = {str(r.get("symbol", "")).upper() for r in ranked_v2}
+    below_cutoff_map: dict[str, dict] = {}
+    for fo in filtered_out_v2:
+        if fo.get("filter_reasons") == ["below_top_n_cutoff"]:
+            sym = str(fo.get("symbol", "")).upper()
+            below_cutoff_map[sym] = fo
+
+    for sym, sig in a0a1_map.items():
+        if sym in v2_symbols:
+            continue  # already ranked
+        cutoff_entry = below_cutoff_map.get(sym)
+        if cutoff_entry is None:
+            continue  # hard-filtered or not in universe
+        promoted_row = {
+            "symbol": sym,
+            "score": cutoff_entry.get("score", 0.0),
+            "gap_pct": cutoff_entry.get("gap_pct", 0.0),
+            "price": cutoff_entry.get("price", sig.get("price", 0.0)),
+            "confidence_tier": cutoff_entry.get("confidence_tier", ""),
+            "rt_promoted": True,
+            "rt_level": sig.get("level", ""),
+            "rt_direction": sig.get("direction", ""),
+            "rt_pattern": sig.get("pattern", ""),
+            "rt_change_pct": sig.get("change_pct", 0.0),
+            "rt_volume_ratio": sig.get("volume_ratio", 0.0),
+        }
+        ranked_v2.append(promoted_row)
+        promoted_syms.add(sym)
+        filtered_out_v2 = [
+            fo for fo in filtered_out_v2
+            if str(fo.get("symbol", "")).upper() != sym
+        ]
+
+    return ranked_v2, filtered_out_v2, promoted_syms, a0a1_map
+
+
 def _update_status_history(traffic_label: str, updated_at: str) -> list[str]:
     history: list[str] = st.session_state.get("status_history", [])
     entry = f"{_status_symbol(traffic_label)} {updated_at}"
@@ -621,7 +690,18 @@ def main() -> None:
         # 1. v2 TIERED CANDIDATES (primary — most important)
         # ===================================================================
         ranked_v2 = list(result.get("ranked_v2") or [])
+        filtered_out_v2 = list(result.get("filtered_out_v2") or [])
         tier_emojis = {"HIGH_CONVICTION": "🟢", "STANDARD": "🟡", "WATCHLIST": "🔵"}
+
+        # --- Auto-promote A0/A1 signals that fell below top_n cutoff ---
+        try:
+            from .realtime_signals import RealtimeEngine as _RT
+            _rt_sigs = (_RT.load_signals_from_disk().get("signals") or [])
+        except Exception:
+            _rt_sigs = []
+        ranked_v2, filtered_out_v2, _rt_promoted_syms, _rt_a0a1 = (
+            promote_a0a1_signals(ranked_v2, filtered_out_v2, _rt_sigs)
+        )
 
         def _bo_badge(r: dict) -> str:
             """Format breakout/consolidation badge for a candidate row."""
@@ -639,16 +719,36 @@ def main() -> None:
             return " · ".join(parts)
 
         if ranked_v2:
-            high_conviction = [r for r in ranked_v2 if r.get("confidence_tier") == "HIGH_CONVICTION"]
-            standard = [r for r in ranked_v2 if r.get("confidence_tier") == "STANDARD"]
-            watchlist_tier = [r for r in ranked_v2 if r.get("confidence_tier") == "WATCHLIST"]
+            promoted = [r for r in ranked_v2 if r.get("rt_promoted")]
+            high_conviction = [r for r in ranked_v2 if not r.get("rt_promoted") and r.get("confidence_tier") == "HIGH_CONVICTION"]
+            standard = [r for r in ranked_v2 if not r.get("rt_promoted") and r.get("confidence_tier") == "STANDARD"]
+            watchlist_tier = [r for r in ranked_v2 if not r.get("rt_promoted") and r.get("confidence_tier") == "WATCHLIST"]
 
-            st.subheader(f"v2 Tiered Candidates  ({len(ranked_v2)} scored)")
+            _n_pipeline = len(ranked_v2) - len(promoted)
+            _promo_label = f" + {len(promoted)} RT-promoted" if promoted else ""
+            st.subheader(f"v2 Tiered Candidates  ({_n_pipeline} scored{_promo_label})")
             # Show data freshness so the user can tell if v2 is stale
             _v2_source = "Cache" if use_cached_result else "Live"
             st.caption(
                 f"Datenquelle: {_v2_source} · Pipeline-Lauf: {updated_berlin_label}"
             )
+            if promoted:
+                st.markdown(f"**🔥 RT-PROMOTED ({len(promoted)})** — active A0/A1 signals below pipeline cutoff")
+                for r in promoted:
+                    sym = r.get("symbol", "?")
+                    score = r.get("score", 0)
+                    gap = r.get("gap_pct", 0)
+                    rt_lvl = r.get("rt_level", "?")
+                    rt_dir = r.get("rt_direction", "?")
+                    rt_pat = r.get("rt_pattern", "")
+                    rt_chg = r.get("rt_change_pct", 0)
+                    rt_vr = r.get("rt_volume_ratio", 0)
+                    pat_txt = f" ({rt_pat})" if rt_pat else ""
+                    st.markdown(
+                        f"  🔥 **{sym}** ({rt_lvl}) {rt_dir}{pat_txt} · "
+                        f"pipeline score {score:.2f} · gap {gap:+.1f}% · "
+                        f"RT chg {rt_chg:+.1f}% · vol {rt_vr:.1f}x"
+                    )
             if high_conviction:
                 st.markdown(f"**🟢 HIGH CONVICTION ({len(high_conviction)})**")
                 for r in high_conviction:
@@ -702,7 +802,8 @@ def main() -> None:
             st.info("Keine v2-Kandidaten (Pipeline hat keine scored).")
 
         # Filtered Out (v2 stage-1 rejects + below-cutoff)
-        filtered_out_v2 = list(result.get("filtered_out_v2") or [])
+        # NOTE: filtered_out_v2 was already loaded above (before promotion).
+        # Promoted entries have been removed from it.
         _hard_rejected = [fo for fo in filtered_out_v2 if fo.get("filter_reasons") != ["below_top_n_cutoff"]]
         _below_cutoff = [fo for fo in filtered_out_v2 if fo.get("filter_reasons") == ["below_top_n_cutoff"]]
         if _hard_rejected:
@@ -731,61 +832,49 @@ def main() -> None:
                     st.markdown(f"⬇️ {sym} — score {sc:.2f} · gap {gap:+.1f}% · {tier}")
 
         # --- Cross-reference: A0/A1 signals missing from v2 ---
+        # Promoted signals are already in ranked_v2, so _v2_symbols
+        # includes them and they won't appear here.  This section only
+        # shows hard-rejected or not-in-universe signals.
         _v2_symbols = {str(r.get("symbol", "")).upper() for r in ranked_v2}
         _fo_v2_map: dict[str, list[str]] = {
             str(fo.get("symbol", "")).upper(): fo.get("filter_reasons", [])
             for fo in filtered_out_v2
         }
-        try:
-            from .realtime_signals import RealtimeEngine as _RT
-            _rt_data = _RT.load_signals_from_disk()
-            _rt_sigs = _rt_data.get("signals") or []
-            _rt_important = [
-                s for s in _rt_sigs if s.get("level") in ("A0", "A1")
-            ]
-            _missing_from_v2 = [
-                s for s in _rt_important
-                if str(s.get("symbol", "")).upper() not in _v2_symbols
-            ]
-            if _missing_from_v2:
-                with st.expander(
-                    f"⚠️ {len(_missing_from_v2)} Realtime-Signal(e) fehlen in v2",
-                    expanded=True,
-                ):
-                    st.caption(
-                        "Diese Symbole haben aktive A0/A1-Signale im Realtime-Engine, "
-                        "erscheinen aber nicht in den v2-Kandidaten."
+        # Reuse pre-loaded RT signals (from promotion block above)
+        _rt_important = [
+            s for s in (_rt_a0a1.values() if _rt_a0a1 else [])
+        ]
+        _missing_from_v2 = [
+            s for s in _rt_important
+            if str(s.get("symbol", "")).upper() not in _v2_symbols
+        ]
+        if _missing_from_v2:
+            with st.expander(
+                f"⚠️ {len(_missing_from_v2)} Realtime-Signal(e) fehlen in v2",
+                expanded=True,
+            ):
+                st.caption(
+                    "Diese Symbole haben aktive A0/A1-Signale im Realtime-Engine, "
+                    "erscheinen aber nicht in den v2-Kandidaten."
+                )
+                for ms in _missing_from_v2:
+                    ms_sym = str(ms.get("symbol", "?")).upper()
+                    ms_level = ms.get("level", "?")
+                    ms_dir = ms.get("direction", "?")
+                    ms_pat = ms.get("pattern", "")
+                    ms_price = ms.get("price", 0)
+                    ms_chg = ms.get("change_pct", 0)
+                    # Determine reason for absence
+                    _fo_reasons = _fo_v2_map.get(ms_sym)
+                    if _fo_reasons is not None:
+                        reason_txt = f"Hard-filtered: {', '.join(_fo_reasons)}"
+                    else:
+                        reason_txt = "Nicht im Pipeline-Universum (Auto-Universum enthält Symbol nicht)"
+                    emoji = "🔴" if ms_level == "A0" else "🟠"
+                    st.markdown(
+                        f"  {emoji} **{ms_sym}** ({ms_level}) {ms_dir} — {ms_pat} · "
+                        f"${ms_price:.2f} ({ms_chg:+.1f}%) · **{reason_txt}**"
                     )
-                    for ms in _missing_from_v2:
-                        ms_sym = str(ms.get("symbol", "?")).upper()
-                        ms_level = ms.get("level", "?")
-                        ms_dir = ms.get("direction", "?")
-                        ms_pat = ms.get("pattern", "")
-                        ms_price = ms.get("price", 0)
-                        ms_chg = ms.get("change_pct", 0)
-                        # Determine reason for absence
-                        _fo_reasons = _fo_v2_map.get(ms_sym)
-                        if _fo_reasons is not None:
-                            if _fo_reasons == ["below_top_n_cutoff"]:
-                                # Find the score from filtered_out_v2
-                                _fo_entry = next(
-                                    (fo for fo in filtered_out_v2
-                                     if str(fo.get("symbol", "")).upper() == ms_sym),
-                                    None,
-                                )
-                                _fo_score = _fo_entry.get("score", 0) if _fo_entry else 0
-                                reason_txt = f"Scored ({_fo_score:.2f}) but below Top-{len(ranked_v2)} cutoff"
-                            else:
-                                reason_txt = f"Hard-filtered: {', '.join(_fo_reasons)}"
-                        else:
-                            reason_txt = "Nicht im Pipeline-Universum (Auto-Universum enthält Symbol nicht)"
-                        emoji = "🔴" if ms_level == "A0" else "🟠"
-                        st.markdown(
-                            f"  {emoji} **{ms_sym}** ({ms_level}) {ms_dir} — {ms_pat} · "
-                            f"${ms_price:.2f} ({ms_chg:+.1f}%) · **{reason_txt}**"
-                        )
-        except Exception:
-            pass  # realtime engine not available
 
         # ===================================================================
         # 2. GAP-GO + GAP-WATCHLIST
