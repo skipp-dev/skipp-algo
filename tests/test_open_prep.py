@@ -2722,3 +2722,124 @@ class TestHitRateEnrichmentUsesVolumeRatio(unittest.TestCase):
             source,
             "Hit rate loop should use pre-computed 'volume_ratio'",
         )
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Senior Review 6 – regression tests
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestSR6_ScoreCandidateOutputsVolumeRatio(unittest.TestCase):
+    """SR6-1: score_candidate() must include ``volume_ratio`` in its
+    return dict so that downstream consumers (hit-rate enrichment,
+    Streamlit) can read it without re-deriving from volume/avg_volume."""
+
+    def test_volume_ratio_in_output(self):
+        from open_prep.scorer import score_candidate, filter_candidate
+        quote = {
+            "symbol": "TEST",
+            "price": 50.0,
+            "volume": 500_000,
+            "avgVolume": 200_000,
+            "volume_ratio": 2.5,
+            "is_hvb": True,
+            "atr": 1.5,
+            "gap_pct": 3.0,
+            "gap_available": True,
+            "gap_scope": "daily",
+            "gap_from_ts": None,
+            "gap_to_ts": None,
+            "gap_reason": "ok",
+            "premarket_change_pct": 2.0,
+            "premarket_price": 51.0,
+            "premarket_stale": False,
+            "premarket_spread_bps": 15.0,
+            "premarket_freshness_sec": 300.0,
+            "premarket_high": 52.0,
+            "premarket_low": 49.0,
+            "ext_hours_score": 1.0,
+            "ext_volume_ratio": 0.12,
+            "is_premarket_mover": True,
+            "mover_seed_hit": False,
+            "momentum_z_score": 0.5,
+            "earnings_today": False,
+            "earnings_timing": None,
+            "earnings_risk_window": False,
+            "split_today": False,
+            "dividend_today": False,
+            "ipo_window": False,
+            "corporate_action_penalty": 0.0,
+            "analyst_catalyst_score": 0.0,
+            "vwap": 50.5,
+            "previousClose": 48.5,
+            "pdh": 51.0,
+            "pdl": 47.0,
+            "pdh_source": "hist",
+            "pdl_source": "hist",
+        }
+        fr = filter_candidate(quote, bias=0.2)
+        self.assertTrue(fr.passed, "Quote should pass filter")
+        scored = score_candidate(fr, bias=0.2)
+        self.assertIn("volume_ratio", scored,
+                       "score_candidate output must contain 'volume_ratio'")
+        self.assertAlmostEqual(scored["volume_ratio"], 2.5, places=2,
+                               msg="volume_ratio should reflect the pre-computed value")
+
+
+class TestSR6_PremarketFreshnessSecMerged(unittest.TestCase):
+    """SR6-2: premarket_freshness_sec must be merged into quotes so the
+    scorer's freshness decay component is not always zero."""
+
+    def test_merge_block_contains_premarket_freshness_sec(self):
+        """Structural: the merge block in generate_open_prep_result must
+        copy premarket_freshness_sec into quote dicts."""
+        import inspect
+        source = inspect.getsource(run_open_prep.generate_open_prep_result)
+        self.assertIn(
+            "premarket_freshness_sec",
+            source,
+            "Merge block must copy premarket_freshness_sec into quotes",
+        )
+        # Verify it's an actual assignment, not just a comment
+        import re
+        pattern = r'q\[.premarket_freshness_sec.\]\s*='
+        self.assertTrue(
+            re.search(pattern, source),
+            "premarket_freshness_sec must be assigned to quote dict (q[...])",
+        )
+
+
+class TestSR6_BreakoutZeroGuards(unittest.TestCase):
+    """SR6-3: detect_breakout() must not crash on OHLCV bars where
+    all close prices in the lookback window are zero (data corruption)."""
+
+    def test_all_zero_closes_no_crash(self):
+        from open_prep.technical_analysis import detect_breakout
+        # Build bars with all closes=0 except the last one which is valid.
+        # This simulates data corruption where historical close prices are missing.
+        n_bars = 70
+        bars = [{"open": 0.0, "high": 0.0, "low": 0.0, "close": 0.0, "volume": 100}
+                for _ in range(n_bars - 1)]
+        # Last bar has a valid close
+        bars.append({"open": 50.0, "high": 51.0, "low": 49.0, "close": 50.0, "volume": 1000})
+
+        # Should NOT raise ZeroDivisionError
+        result = detect_breakout(bars)
+        self.assertIsInstance(result, dict)
+        self.assertIn("direction", result)
+        self.assertIn("pattern", result)
+
+    def test_normal_breakout_still_detected(self):
+        """Verify the zero-guards don't break normal breakout detection."""
+        from open_prep.technical_analysis import detect_breakout
+        n_bars = 70
+        # Consolidation phase: all closes at 100
+        bars = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1000}
+                for _ in range(n_bars - 1)]
+        # Last bar breaks above with a close well above prior high
+        bars.append({"open": 100.0, "high": 106.0, "low": 100.0, "close": 105.0, "volume": 5000})
+
+        result = detect_breakout(bars)
+        self.assertEqual(result["direction"], "LONG",
+                         "Should detect bullish range breakout")
+        self.assertIn("breakout", result["pattern"])

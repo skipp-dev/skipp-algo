@@ -1138,3 +1138,319 @@ class TestPremarketTimestampMissingGapReason:
         assert result["gap_available"] is True
         assert result["gap_reason"] == "ok"
         assert result["gap_pct"] == pytest.approx(5.0, abs=0.01)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-7: _compute_gap_for_quote — all gap_reason paths
+# ═══════════════════════════════════════════════════════════════════
+
+class TestComputeGapAllReasonPaths:
+    """Every gap_reason code from _compute_gap_for_quote must be reachable
+    and return correct metadata."""
+
+    def test_mode_off_returns_mode_off_reason(self):
+        """gap_mode=OFF → gap_reason='mode_off', gap_available=False."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_OFF
+
+        quote = {"symbol": "X", "previousClose": 100.0, "price": 105.0}
+        run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(quote, run_dt_utc=run_dt, gap_mode=GAP_MODE_OFF)
+        assert result["gap_reason"] == "mode_off"
+        assert result["gap_available"] is False
+        assert result["gap_pct"] == 0.0
+
+    def test_not_trading_day_saturday(self):
+        """Saturday → gap_reason='not_trading_day'."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+
+        quote = {"symbol": "X", "previousClose": 100.0, "preMarketPrice": 105.0, "timestamp": 1}
+        # Saturday 2025-01-04
+        run_dt = datetime(2025, 1, 4, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote, run_dt_utc=run_dt, gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        assert result["gap_reason"] == "not_trading_day"
+        assert result["gap_available"] is False
+
+    def test_scope_stretch_only_mid_week(self):
+        """STRETCH_ONLY scope on a mid-week day → gap_reason='scope_stretch_only'."""
+        from open_prep.run_open_prep import (
+            _compute_gap_for_quote,
+            GAP_MODE_PREMARKET_INDICATIVE,
+            GAP_SCOPE_STRETCH_ONLY,
+        )
+
+        quote = {"symbol": "X", "previousClose": 100.0, "preMarketPrice": 105.0, "timestamp": 1}
+        # Tuesday 2025-01-07 (normal mid-week, not after a stretch)
+        run_dt = datetime(2025, 1, 7, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+            gap_scope=GAP_SCOPE_STRETCH_ONLY,
+        )
+        assert result["gap_reason"] == "scope_stretch_only"
+        assert result["gap_available"] is False
+
+    def test_rth_open_unavailable_before_930(self):
+        """RTH_OPEN mode before 9:30 ET → gap_reason='rth_open_unavailable'."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_RTH_OPEN
+
+        quote = {"symbol": "X", "previousClose": 100.0, "open": 105.0}
+        # 8:00 ET = 13:00 UTC on a Monday
+        run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote, run_dt_utc=run_dt, gap_mode=GAP_MODE_RTH_OPEN,
+        )
+        assert result["gap_reason"] == "rth_open_unavailable"
+        assert result["gap_available"] is False
+
+    def test_rth_open_available_after_930(self):
+        """RTH_OPEN mode after 9:30 ET → gap computed."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_RTH_OPEN
+
+        quote = {"symbol": "X", "previousClose": 100.0, "open": 103.0}
+        # 10:00 ET = 15:00 UTC
+        run_dt = datetime(2025, 1, 6, 15, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote, run_dt_utc=run_dt, gap_mode=GAP_MODE_RTH_OPEN,
+        )
+        assert result["gap_reason"] == "ok"
+        assert result["gap_available"] is True
+        assert result["gap_pct"] == pytest.approx(3.0, abs=0.01)
+
+    def test_premarket_before_4am_et(self):
+        """Before 4am ET, no premarket window → gap_reason='premarket_unavailable'."""
+        from open_prep.run_open_prep import _compute_gap_for_quote, GAP_MODE_PREMARKET_INDICATIVE
+
+        quote = {
+            "symbol": "X",
+            "previousClose": 100.0,
+            "preMarketPrice": 105.0,
+            "timestamp": 1736132400,
+        }
+        # 3:00 ET = 08:00 UTC on Monday
+        run_dt = datetime(2025, 1, 6, 8, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote, run_dt_utc=run_dt, gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+        )
+        assert result["gap_reason"] == "premarket_unavailable"
+        assert result["gap_available"] is False
+
+    def test_stretch_scope_monday_computes_gap(self):
+        """STRETCH_ONLY scope on Monday after weekend → gap is computed."""
+        from open_prep.run_open_prep import (
+            _compute_gap_for_quote,
+            GAP_MODE_PREMARKET_INDICATIVE,
+            GAP_SCOPE_STRETCH_ONLY,
+        )
+
+        quote = {
+            "symbol": "X",
+            "previousClose": 100.0,
+            "preMarketPrice": 107.0,
+            "timestamp": 1736150400,
+        }
+        # Monday 2025-01-06 at 8am ET = 13:00 UTC
+        run_dt = datetime(2025, 1, 6, 13, 0, tzinfo=UTC)
+        result = _compute_gap_for_quote(
+            quote,
+            run_dt_utc=run_dt,
+            gap_mode=GAP_MODE_PREMARKET_INDICATIVE,
+            gap_scope=GAP_SCOPE_STRETCH_ONLY,
+        )
+        assert result["gap_available"] is True
+        assert result["gap_reason"] == "ok"
+        assert result["gap_pct"] == pytest.approx(7.0, abs=0.01)
+        assert result["is_stretch_session"] is True
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-8: detect_consolidation — bb_squeeze_threshold=0 guard
+# ═══════════════════════════════════════════════════════════════════
+
+class TestDetectConsolidationZeroThreshold:
+    """detect_consolidation must not crash on bb_squeeze_threshold=0."""
+
+    def test_zero_threshold_no_crash(self):
+        """bb_squeeze_threshold=0 → clamped to 0.001, no ZeroDivisionError."""
+        from open_prep.technical_analysis import detect_consolidation
+
+        result = detect_consolidation(
+            bb_width_pct=0.5, adx=15.0, bb_squeeze_threshold=0.0,
+        )
+        assert isinstance(result, dict)
+        assert "is_consolidating" in result
+
+    def test_negative_threshold_no_crash(self):
+        """Negative threshold is also clamped, no crash."""
+        from open_prep.technical_analysis import detect_consolidation
+
+        result = detect_consolidation(
+            bb_width_pct=5.0, adx=10.0, bb_squeeze_threshold=-1.0,
+        )
+        assert isinstance(result, dict)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-9: v2 pipeline does not silently drop SKIP-bucket candidates
+# ═══════════════════════════════════════════════════════════════════
+
+class TestV2PipelineNoSilentDrops:
+    """rank_candidates_v2 must operate on ALL quotes including those
+    that v1 classify_long_gap would bucket as SKIP."""
+
+    def test_skip_bucket_candidate_still_scored(self):
+        """A quote with tiny gap + low ext_hours (v1 SKIP) is still scored
+        by rank_candidates_v2."""
+        from open_prep.scorer import rank_candidates_v2
+
+        quote = _make_quote(
+            symbol="SKIP_ME",
+            gap_pct=0.1,
+            ext_hours_score=0.0,
+            ext_volume_ratio=0.0,
+            atr=1.2,
+        )
+        ranked, filtered_out = rank_candidates_v2(
+            [quote], bias=0.2, top_n=10,
+        )
+        # Must appear in ranked (passed hard filters) — NOT silently dropped
+        all_symbols = [r["symbol"] for r in ranked] + [f["symbol"] for f in filtered_out]
+        assert "SKIP_ME" in all_symbols
+
+    def test_multiple_quotes_all_processed(self):
+        """All symbols in quote list appear in output (ranked or filtered_out)."""
+        from open_prep.scorer import rank_candidates_v2
+
+        quotes = [
+            _make_quote(symbol="AAA", gap_pct=5.0, atr=1.2),
+            _make_quote(symbol="BBB", gap_pct=0.1, atr=1.2),
+            _make_quote(symbol="CCC", gap_pct=-1.0, atr=1.2),
+        ]
+        ranked, filtered_out = rank_candidates_v2(quotes, bias=0.2, top_n=10)
+        output_symbols = {r["symbol"] for r in ranked} | {f["symbol"] for f in filtered_out}
+        assert output_symbols == {"AAA", "BBB", "CCC"}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-10: Holiday edge cases — Good Friday, Juneteenth
+# ═══════════════════════════════════════════════════════════════════
+
+class TestHolidayEdgeCases:
+    """Verify less common holidays are correctly included."""
+
+    def test_good_friday_2025(self):
+        """Good Friday 2025-04-18 is a market holiday."""
+        from open_prep.run_open_prep import _us_equity_market_holidays
+
+        holidays = _us_equity_market_holidays(2025)
+        assert date(2025, 4, 18) in holidays
+
+    def test_juneteenth_2025(self):
+        """Juneteenth 2025-06-19 is a market holiday."""
+        from open_prep.run_open_prep import _us_equity_market_holidays
+
+        holidays = _us_equity_market_holidays(2025)
+        assert date(2025, 6, 19) in holidays
+
+    def test_mlk_day_2026(self):
+        """MLK Day 2026 is Jan 19 (third Monday)."""
+        from open_prep.run_open_prep import _us_equity_market_holidays
+
+        holidays = _us_equity_market_holidays(2026)
+        assert date(2026, 1, 19) in holidays
+
+    def test_christmas_on_sunday_observed_monday_2022(self):
+        """Christmas 2022 fell on Sunday → observed Monday Dec 26."""
+        from open_prep.run_open_prep import _us_equity_market_holidays
+
+        holidays = _us_equity_market_holidays(2022)
+        assert date(2022, 12, 26) in holidays  # Observed Monday
+
+    def test_new_year_on_saturday_observed_friday_2022(self):
+        """New Year 2022 fell on Saturday → observed Friday Dec 31 2021.
+        The cross-year observed holiday MUST be recognized as a non-trading day."""
+        from open_prep.run_open_prep import _us_equity_market_holidays, _is_us_equity_trading_day
+
+        # The observed Dec 31 holiday lives in the 2022 holiday set
+        holidays_2022 = _us_equity_market_holidays(2022)
+        assert date(2021, 12, 31) in holidays_2022
+
+        # Crucially: _is_us_equity_trading_day must return False for Dec 31, 2021
+        assert _is_us_equity_trading_day(date(2021, 12, 31)) is False
+
+    def test_prev_trading_day_skips_good_friday(self):
+        """Monday after Good Friday 2025 → prev = Thursday Apr 17."""
+        from open_prep.run_open_prep import _prev_trading_day
+
+        # Good Friday 2025 = April 18. Monday after = April 21.
+        result = _prev_trading_day(date(2025, 4, 21))
+        assert result == date(2025, 4, 17)
+
+    def test_prev_trading_day_skips_cross_year_dec31(self):
+        """Jan 2, 2028 → prev = Dec 30, 2027 (Dec 31 is observed New Year)."""
+        from open_prep.run_open_prep import _prev_trading_day, _is_us_equity_trading_day
+
+        # Jan 1 2028 = Saturday → observed Dec 31 2027 (Friday, closed)
+        assert _is_us_equity_trading_day(date(2027, 12, 31)) is False
+        # Jan 2 2028 is Sunday, Jan 3 2028 is Monday
+        result = _prev_trading_day(date(2028, 1, 3))
+        assert result == date(2027, 12, 30)  # Thursday
+
+    def test_stretch_scope_after_good_friday(self):
+        """Monday after Good Friday (3-day stretch) is a gap day."""
+        from open_prep.run_open_prep import _is_gap_day, GAP_SCOPE_STRETCH_ONLY
+
+        assert _is_gap_day(date(2025, 4, 21), GAP_SCOPE_STRETCH_ONLY) is True
+
+
+# ═══════════════════════════════════════════════════════════════════
+# G-11: _pick_indicative_price cascading fallback
+# ═══════════════════════════════════════════════════════════════════
+
+class TestPickIndicativePriceCascade:
+    """_pick_indicative_price must cascade through price sources correctly."""
+
+    def test_premarket_price_preferred(self):
+        """preMarketPrice is preferred over extendedPrice and price."""
+        from open_prep.run_open_prep import _pick_indicative_price
+
+        quote = {"preMarketPrice": 105.0, "extendedPrice": 102.0, "price": 100.0}
+        px, source = _pick_indicative_price(quote)
+        assert px == 105.0
+        assert source == "premarket"
+
+    def test_extended_fallback(self):
+        """When premarket is absent, fall back to extendedPrice."""
+        from open_prep.run_open_prep import _pick_indicative_price
+
+        quote = {"extendedPrice": 102.0, "price": 100.0}
+        px, source = _pick_indicative_price(quote)
+        assert px == 102.0
+        assert source == "extended"
+
+    def test_spot_fallback(self):
+        """When premarket and extended are absent, fall back to price."""
+        from open_prep.run_open_prep import _pick_indicative_price
+
+        quote = {"price": 100.0}
+        px, source = _pick_indicative_price(quote)
+        assert px == 100.0
+        assert source == "spot"
+
+    def test_all_missing_returns_zero(self):
+        """When all price fields are absent, returns (0.0, 'spot')."""
+        from open_prep.run_open_prep import _pick_indicative_price
+
+        px, source = _pick_indicative_price({})
+        assert px == 0.0
+
+    def test_zero_premarket_falls_through(self):
+        """preMarketPrice=0 should fall through to next source."""
+        from open_prep.run_open_prep import _pick_indicative_price
+
+        quote = {"preMarketPrice": 0.0, "extendedPrice": 0.0, "price": 99.0}
+        px, source = _pick_indicative_price(quote)
+        assert px == 99.0
+        assert source == "spot"

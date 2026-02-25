@@ -514,6 +514,7 @@ def score_candidate(
         "warn_flags": f["warn_flags"],
         "volume": f["volume"],
         "avg_volume": f["avg_volume"],
+        "volume_ratio": round(f["rel_vol"], 4),
         "atr": round(f["atr"], 4),
         "atr_pct": f["atr_pct"],
         "momentum_z_score": round(f["momentum_z"], 4),

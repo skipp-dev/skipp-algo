@@ -225,6 +225,8 @@ def detect_consolidation(
             "atr_contracted": bool,
         }
     """
+    # Defensive clamp: prevent ZeroDivisionError if caller passes threshold=0.
+    bb_squeeze_threshold = max(bb_squeeze_threshold, 0.001)
     bb_squeeze = bb_width_pct < bb_squeeze_threshold
     adx_weak = adx < 20.0
     is_consolidating = bb_squeeze and adx_weak
@@ -359,7 +361,7 @@ def detect_breakout(
 
     # --- Pattern 3: Range Breakout ---
     tol = 0.0015
-    if last_close > prior_high_s * (1 + tol):
+    if prior_high_s > 0 and last_close > prior_high_s * (1 + tol):
         return {
             "direction": "LONG",
             "pattern": "range_breakout_short",
@@ -368,7 +370,7 @@ def detect_breakout(
                 "pct_above": round((last_close / prior_high_s - 1) * 100, 2),
             },
         }
-    if last_close > prior_high_l * (1 + tol):
+    if prior_high_l > 0 and last_close > prior_high_l * (1 + tol):
         return {
             "direction": "LONG",
             "pattern": "range_breakout_long",
@@ -377,7 +379,7 @@ def detect_breakout(
                 "pct_above": round((last_close / prior_high_l - 1) * 100, 2),
             },
         }
-    if last_close < prior_low_s * (1 - tol):
+    if prior_low_s > 0 and last_close < prior_low_s * (1 - tol):
         return {
             "direction": "SHORT",
             "pattern": "range_breakdown_short",
@@ -386,7 +388,7 @@ def detect_breakout(
                 "pct_below": round((1 - last_close / prior_low_s) * 100, 2),
             },
         }
-    if last_close < prior_low_l * (1 - tol):
+    if prior_low_l > 0 and last_close < prior_low_l * (1 - tol):
         return {
             "direction": "SHORT",
             "pattern": "range_breakdown_long",
