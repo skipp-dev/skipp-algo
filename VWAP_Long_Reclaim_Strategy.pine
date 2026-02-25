@@ -19,6 +19,15 @@ strategy(
 // Import library
 // import wbburgin/wbburgin_utils/2 as utils  // replaced by native slope+bias trend
 
+// ==================== HELPER FUNCTIONS ====================
+
+// Zero-Lag error-corrected EMA source (from SkippALGO USI Quantum Pulse).
+// Leads classic EMA by ~2-5 bars, enabling earlier RSI flips.
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
 // ==================== INPUTS ====================
 
 // VWAP Settings
@@ -65,6 +74,23 @@ showStatusTable = input.bool(true, "Show Status Table", group="Reclaim Settings"
 pullbackLookback = input.int(5, "Pullback High Lookback", minval=2, maxval=30,
     tooltip="Rolling-Fenster für den Pullback High (Donchian). Kleiner = schneller. Default 5.",
     group="Reclaim Settings")
+
+// USI Trend Filter Settings (aggressive, early-tuned)
+useUsiFilter = input.bool(true, "USI Trend Filter",
+    tooltip="BUY nur wenn der USI (Universal Strength Index) einen Aufwärtstrend zeigt. Aggressive Einstellung mit Zero-Lag und kurzen RSI-Längen für früheste Erkennung.",
+    group="⚡ USI Trend Filter")
+usiLen1 = input.int(7, "USI Slow RSI Length", minval=2, maxval=30,
+    tooltip="Längster RSI im Stack. Default 7 (aggressiv). SkippALGO nutzt 13.",
+    group="⚡ USI Trend Filter")
+usiLen2 = input.int(5, "USI Mid RSI Length", minval=2, maxval=30,
+    tooltip="Mittlerer RSI im Stack. Default 5.",
+    group="⚡ USI Trend Filter")
+usiLen3 = input.int(3, "USI Fast RSI Length", minval=2, maxval=30,
+    tooltip="Kürzester/schnellster RSI (Red Line). Default 3 (aggressiv).",
+    group="⚡ USI Trend Filter")
+usiMinBullStack = input.int(2, "Min Bull Stack", minval=1, maxval=2,
+    tooltip="Mindest-Stacking: Wie viele kürzere RSIs müssen über dem nächst-langsameren liegen? 1 = aggressiv, 2 = alle gestapelt.",
+    group="⚡ USI Trend Filter")
 
 reclaimWindowBarsEff = preset3m == "Aggressive" ? 20 : preset3m == "Conservative" ? 8 : preset3m == "Neutral" ? 12 : reclaimWindowBars
 retestTolATREff = preset3m == "Aggressive" ? 0.16 : preset3m == "Conservative" ? 0.06 : preset3m == "Neutral" ? 0.10 : retestTolATR
@@ -158,11 +184,29 @@ priceBias = ta.ema(close, trendEmaLen) > vwapValue
 isUpTrend = vwapSlope > 0 or priceBias
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
 
+// ==================== USI QUANTUM PULSE (EARLY-TUNED) ====================
+// Aggressive 3-length RSI stacking with Zero-Lag source for earliest
+// possible trend detection. Based on SkippALGO's USI Quantum Pulse but
+// trimmed to the 3 shortest lengths and always in Zero-Lag mode.
+
+usiSrc1 = f_zl_src(close, usiLen1)
+usiSrc2 = f_zl_src(close, usiLen2)
+usiSrc3 = f_zl_src(close, usiLen3)
+
+usiLine1 = ta.rsi(usiSrc1, usiLen1)
+usiLine2 = ta.rsi(usiSrc2, usiLen2)
+usiLine3 = ta.rsi(usiSrc3, usiLen3)
+
+usiBullStack = (usiLine3 > usiLine2 ? 1 : 0) + (usiLine2 > usiLine1 ? 1 : 0)
+usiBullState = usiLine3 > usiLine1
+usiUpTrend = usiBullStack >= usiMinBullStack and usiBullState
+usiGate = useUsiFilter ? usiUpTrend : true
+
 // Entry signal: simpleVwapCross has priority — when on, only VWAP
 // cross entries fire (no breakout). When off, breakoutEntry toggle
 // controls the Reclaim→Retest→Go breakout.
 entryTrigger = simpleVwapCross ? reclaimUp : (breakoutEntry and goLong)
-longSignal = entryTrigger and matchedTrendsFilter_long and not inPosition
+longSignal = entryTrigger and matchedTrendsFilter_long and usiGate and not inPosition
 
 // ==================== STRATEGY LOGIC ====================
 
@@ -220,7 +264,7 @@ plot(inReclaimSeq or inPosition ? pullbackHigh : na, title="Pullback High", colo
 
 // ==================== STATUS TABLE ====================
 
-var table statusTable = table.new(position.top_right, 2, 7, border_width=1)
+var table statusTable = table.new(position.top_right, 2, 8, border_width=1)
 if barstate.islast
     if showStatusTable
         table.cell(statusTable, 0, 0, "Preset", text_color=color.white, bgcolor=color.new(color.blue, 65))
@@ -245,5 +289,10 @@ if barstate.islast
         anchorBg = anchor == "Session" ? color.new(color.green, 75) : color.new(color.orange, 65)
         table.cell(statusTable, 0, 6, "Hint", text_color=color.white, bgcolor=color.new(color.gray, 70))
         table.cell(statusTable, 1, 6, anchorHint, text_color=color.white, bgcolor=anchorBg)
+
+        usiLabel = useUsiFilter ? (usiUpTrend ? "BULL" : "BEAR") : "OFF"
+        usiBg = not useUsiFilter ? color.new(color.gray, 70) : (usiUpTrend ? color.new(color.green, 65) : color.new(color.red, 65))
+        table.cell(statusTable, 0, 7, "USI", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 7, usiLabel, text_color=color.white, bgcolor=usiBg)
     else
-        table.clear(statusTable, 0, 0, 1, 6)
+        table.clear(statusTable, 0, 0, 1, 7)
