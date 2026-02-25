@@ -906,6 +906,18 @@ def rank_candidates_v2(
 
     ranked = scored[:top_n]
 
+    # Include below-cutoff symbols in filtered_out so diagnostics can
+    # explain why a scored symbol didn't make the final list.
+    for overflow_row in scored[top_n:]:
+        filtered_out.append({
+            "symbol": overflow_row.get("symbol", ""),
+            "filter_reasons": ["below_top_n_cutoff"],
+            "price": overflow_row.get("price", 0.0),
+            "gap_pct": overflow_row.get("gap_pct", 0.0),
+            "score": overflow_row.get("score", 0.0),
+            "confidence_tier": overflow_row.get("confidence_tier", ""),
+        })
+
     # --- Log gate tracking summary (#10) ---
     if gate_tracker.rejection_count > 0:
         summary = gate_tracker.summary()
