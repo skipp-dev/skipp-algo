@@ -151,8 +151,10 @@ priceBias = ta.ema(close, trendEmaLen) > vwapValue
 isUpTrend = vwapSlope > 0 or priceBias
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
 
-// Entry signal: each toggle controls its entry type independently
-entryTrigger = (simpleVwapCross and reclaimUp) or (breakoutEntry and goLong)
+// Entry signal: simpleVwapCross has priority — when on, only VWAP
+// cross entries fire (no breakout). When off, breakoutEntry toggle
+// controls the Reclaim→Retest→Go breakout.
+entryTrigger = simpleVwapCross ? reclaimUp : (breakoutEntry and goLong)
 longSignal = entryTrigger and matchedTrendsFilter_long and not inVirtualPos
 
 if longSignal
