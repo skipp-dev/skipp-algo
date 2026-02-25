@@ -1,24 +1,40 @@
 {
   "has_changes": true,
   "new_entrants": [
-    "ORCL"
+    "GLGG",
+    "NVTS",
+    "TRT"
   ],
   "dropped": [
-    "WLK"
+    "CCC",
+    "NVCR",
+    "SGML"
   ],
   "score_changes": [],
   "regime_change": null,
   "sector_rotations": [
     {
       "sector": "Basic Materials",
+      "prev_count": 2,
+      "curr_count": 1,
+      "delta": -1
+    },
+    {
+      "sector": "Financial Services",
       "prev_count": 1,
-      "curr_count": 0,
+      "curr_count": 2,
+      "delta": 1
+    },
+    {
+      "sector": "Healthcare",
+      "prev_count": 3,
+      "curr_count": 2,
       "delta": -1
     },
     {
       "sector": "Technology",
-      "prev_count": 6,
-      "curr_count": 7,
+      "prev_count": 3,
+      "curr_count": 4,
       "delta": 1
     }
   ],

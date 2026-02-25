@@ -1,114 +1,177 @@
 [
   {
-    "symbol": "AUR",
-    "gap_pct": 2.32067,
+    "symbol": "FSLR",
+    "gap_pct": -13.264257,
     "filter_reasons": [
-      "price_below_5"
+      "severe_gap_down",
+      "spread_too_wide"
     ]
   },
   {
-    "symbol": "SNAP",
-    "gap_pct": 0.81136,
+    "symbol": "CSGP",
+    "gap_pct": -11.393693,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "GDDY",
+    "gap_pct": -15.850488,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "IBRX",
+    "gap_pct": -12.178355,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "AUR",
+    "gap_pct": 0.68866,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "KIDZ",
+    "gap_pct": 15.360502,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "XWEL",
+    "gap_pct": 304.656085,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
     "symbol": "SOXS",
-    "gap_pct": -4.5977,
+    "gap_pct": -2.779456,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
-    "symbol": "BHAT",
-    "gap_pct": 6.83891,
+    "symbol": "QNCX",
+    "gap_pct": 2.873563,
     "filter_reasons": [
-      "price_below_5",
-      "spread_too_wide"
+      "price_below_5"
     ]
   },
   {
-    "symbol": "EZRA",
-    "gap_pct": 11.37495,
-    "filter_reasons": [
-      "price_below_5",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "BRTX",
-    "gap_pct": 37.01068,
+    "symbol": "UOKA",
+    "gap_pct": 48.114434,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
     "symbol": "ZSL",
-    "gap_pct": 3.8674,
+    "gap_pct": -7.903817,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
-    "symbol": "TLIH",
-    "gap_pct": 37.73585,
+    "symbol": "BHAT",
+    "gap_pct": -11.664296,
     "filter_reasons": [
-      "price_below_5"
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
     ]
   },
   {
-    "symbol": "EDSA",
-    "gap_pct": 67.9644,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "PLUG",
-    "gap_pct": 3.80435,
+    "symbol": "SGN",
+    "gap_pct": 11.631579,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
     "symbol": "GOSS",
-    "gap_pct": -1.86629,
+    "gap_pct": -16.345691,
     "filter_reasons": [
-      "price_below_5"
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide",
+      "extreme_momentum_low_volume"
     ]
   },
   {
-    "symbol": "LRMR",
-    "gap_pct": 31.31673,
+    "symbol": "IXHL",
+    "gap_pct": -37.372263,
     "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "IOVA",
-    "gap_pct": 30.79585,
-    "filter_reasons": [
-      "price_below_5"
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide",
+      "extreme_momentum_low_volume"
     ]
   },
   {
     "symbol": "MSTX",
-    "gap_pct": 0.96154,
+    "gap_pct": 15.952381,
     "filter_reasons": [
       "price_below_5"
+    ]
+  },
+  {
+    "symbol": "PLUG",
+    "gap_pct": 0.26178,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "MIMI",
+    "gap_pct": 4.575758,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "HCWC",
+    "gap_pct": 14.66618,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
     ]
   },
   {
     "symbol": "DUST",
-    "gap_pct": -0.7653,
+    "gap_pct": -4.241645,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
-    "symbol": "ALIT",
-    "gap_pct": 6.79922,
+    "symbol": "CRCG",
+    "gap_pct": 57.57554,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "RXRX",
+    "gap_pct": 10.770538,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "IOVA",
+    "gap_pct": 5.42328,
     "filter_reasons": [
       "price_below_5",
       "spread_too_wide"
@@ -116,52 +179,30 @@
   },
   {
     "symbol": "HIMZ",
-    "gap_pct": -1.76991,
+    "gap_pct": 4.522523,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
-    "symbol": "SGN",
-    "gap_pct": -32.50444,
+    "symbol": "UWMC",
+    "gap_pct": -14.802632,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down"
     ]
   },
   {
-    "symbol": "CLVT",
-    "gap_pct": 39.88095,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "IPEXR",
-    "gap_pct": 33.33333,
-    "filter_reasons": [
-      "price_below_5",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "GANX",
-    "gap_pct": 31.10048,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "GITS",
-    "gap_pct": 30.90129,
+    "symbol": "AREB",
+    "gap_pct": 13.733333,
     "filter_reasons": [
       "price_below_5",
       "spread_too_wide"
     ]
   },
   {
-    "symbol": "LKSPR",
-    "gap_pct": 26.96629,
+    "symbol": "LAFAR",
+    "gap_pct": 39.925373,
     "filter_reasons": [
       "price_below_5",
       "premarket_stale",
@@ -170,291 +211,244 @@
     ]
   },
   {
-    "symbol": "CHPGR",
-    "gap_pct": 26.58228,
-    "filter_reasons": [
-      "price_below_5",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "SILO",
-    "gap_pct": 24.00427,
+    "symbol": "CDIO",
+    "gap_pct": 31.120846,
     "filter_reasons": [
       "price_below_5",
       "spread_too_wide"
     ]
   },
   {
-    "symbol": "MBOT",
-    "gap_pct": 23.90244,
+    "symbol": "BMNG",
+    "gap_pct": 24.977273,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "ALTS",
+    "gap_pct": 25.401639,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "BTQ",
+    "gap_pct": 25.793651,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "IPEXR",
+    "gap_pct": 25.0,
+    "filter_reasons": [
+      "price_below_5",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "ZKIN",
+    "gap_pct": 23.524784,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "NITO",
+    "gap_pct": 23.863636,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "SOLT",
+    "gap_pct": 22.624434,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "VNRX",
+    "gap_pct": 22.210744,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "UPXI",
+    "gap_pct": 23.292181,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "CLIK",
+    "gap_pct": 21.310777,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "POAI",
+    "gap_pct": 19.909502,
+    "filter_reasons": [
+      "price_below_5",
+      "premarket_stale",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "MRAL",
+    "gap_pct": 18.688525,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "CCCC",
+    "gap_pct": 19.037657,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "AIIO",
+    "gap_pct": 18.844444,
+    "filter_reasons": [
+      "price_below_5"
+    ]
+  },
+  {
+    "symbol": "LSH",
+    "gap_pct": 18.80829,
+    "filter_reasons": [
+      "price_below_5",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "AVX",
+    "gap_pct": 19.427108,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
     "symbol": "FIGG",
-    "gap_pct": 22.47191,
+    "gap_pct": 18.348624,
     "filter_reasons": [
       "price_below_5"
     ]
   },
   {
-    "symbol": "SGMO",
-    "gap_pct": 20.62803,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "ITRM",
-    "gap_pct": 20.44554,
+    "symbol": "SMJF",
+    "gap_pct": 18.248175,
     "filter_reasons": [
       "price_below_5",
       "spread_too_wide"
     ]
   },
   {
-    "symbol": "LIQT",
-    "gap_pct": 20.0,
+    "symbol": "ZENV",
+    "gap_pct": -63.096386,
     "filter_reasons": [
       "price_below_5",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "JWEL",
-    "gap_pct": 19.89529,
-    "filter_reasons": [
-      "price_below_5",
-      "premarket_stale",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "BIAF",
-    "gap_pct": 19.2907,
-    "filter_reasons": [
-      "price_below_5",
+      "severe_gap_down",
       "spread_too_wide"
     ]
   },
   {
-    "symbol": "FLUX",
-    "gap_pct": 19.28571,
+    "symbol": "CASI",
+    "gap_pct": -57.65,
     "filter_reasons": [
       "price_below_5",
+      "severe_gap_down",
       "spread_too_wide"
     ]
   },
   {
-    "symbol": "BRLS",
-    "gap_pct": 19.10828,
-    "filter_reasons": [
-      "price_below_5",
-      "premarket_stale",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "BGMSP",
-    "gap_pct": 19.03226,
-    "filter_reasons": [
-      "price_below_5",
-      "premarket_stale",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "RIME",
-    "gap_pct": 18.47826,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "CRWG",
-    "gap_pct": 18.4,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "COOT",
-    "gap_pct": 17.71836,
-    "filter_reasons": [
-      "price_below_5",
-      "premarket_stale",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "SCNI",
-    "gap_pct": 17.67139,
-    "filter_reasons": [
-      "price_below_5",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "AISP",
-    "gap_pct": 17.33871,
-    "filter_reasons": [
-      "price_below_5"
-    ]
-  },
-  {
-    "symbol": "CTEV",
-    "gap_pct": -41.58416,
+    "symbol": "ODD",
+    "gap_pct": -47.691247,
     "filter_reasons": [
       "severe_gap_down",
+      "spread_too_wide",
       "extreme_momentum_low_volume"
     ]
   },
   {
-    "symbol": "BOOM",
-    "gap_pct": -32.95063,
+    "symbol": "DRVN",
+    "gap_pct": -38.651415,
     "filter_reasons": [
       "severe_gap_down",
+      "spread_too_wide",
       "extreme_momentum_low_volume"
     ]
   },
   {
-    "symbol": "SHLS",
-    "gap_pct": -30.9596,
-    "filter_reasons": [
-      "severe_gap_down",
-      "extreme_momentum_low_volume"
-    ]
-  },
-  {
-    "symbol": "YMT",
-    "gap_pct": -27.57471,
+    "symbol": "MNKD",
+    "gap_pct": -37.00361,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down"
-    ]
-  },
-  {
-    "symbol": "TARA",
-    "gap_pct": -26.37954,
-    "filter_reasons": [
-      "severe_gap_down",
-      "extreme_momentum_low_volume"
-    ]
-  },
-  {
-    "symbol": "ILLR",
-    "gap_pct": -25.92593,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "premarket_stale",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "BRAI",
-    "gap_pct": -24.67249,
-    "filter_reasons": [
-      "severe_gap_down",
-      "spread_too_wide",
-      "insufficient_liquidity",
-      "atr_missing"
-    ]
-  },
-  {
-    "symbol": "TNC",
-    "gap_pct": -23.42649,
-    "filter_reasons": [
-      "severe_gap_down",
-      "extreme_momentum_low_volume"
-    ]
-  },
-  {
-    "symbol": "AERT",
-    "gap_pct": -23.3244,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "CECO",
-    "gap_pct": -22.76004,
-    "filter_reasons": [
-      "severe_gap_down",
-      "extreme_momentum_low_volume"
     ]
   },
   {
     "symbol": "AIDX",
-    "gap_pct": -22.74927,
+    "gap_pct": -32.45614,
     "filter_reasons": [
       "severe_gap_down",
-      "spread_too_wide",
       "atr_missing"
     ]
   },
   {
-    "symbol": "UOKA",
-    "gap_pct": -22.32323,
+    "symbol": "ALLT",
+    "gap_pct": -24.617737,
     "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down"
-    ]
-  },
-  {
-    "symbol": "ALUR",
-    "gap_pct": -22.28571,
-    "filter_reasons": [
-      "price_below_5",
       "severe_gap_down",
       "spread_too_wide"
     ]
   },
   {
-    "symbol": "XMTR",
-    "gap_pct": -22.23972,
+    "symbol": "CONI",
+    "gap_pct": -24.608574,
     "filter_reasons": [
       "severe_gap_down"
     ]
   },
   {
-    "symbol": "NBY",
-    "gap_pct": -21.42857,
+    "symbol": "TLF",
+    "gap_pct": -23.778502,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
-      "spread_too_wide"
+      "spread_too_wide",
+      "extreme_momentum_low_volume"
     ]
   },
   {
-    "symbol": "FULC",
-    "gap_pct": -21.21212,
-    "filter_reasons": [
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "QVCGA",
-    "gap_pct": -20.93596,
+    "symbol": "ASPN",
+    "gap_pct": -22.61236,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
-      "premarket_stale",
-      "spread_too_wide"
+      "extreme_momentum_low_volume"
     ]
   },
   {
-    "symbol": "FWRG",
-    "gap_pct": -20.51613,
+    "symbol": "MGPI",
+    "gap_pct": -20.7284,
     "filter_reasons": [
       "severe_gap_down",
       "spread_too_wide",
@@ -462,121 +456,66 @@
     ]
   },
   {
-    "symbol": "ZEO",
-    "gap_pct": -19.86755,
+    "symbol": "ETHD",
+    "gap_pct": -20.231572,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "STAI",
+    "gap_pct": -19.6,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "premarket_stale",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "KMLI",
+    "gap_pct": -19.125,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "GERN",
+    "gap_pct": -18.666667,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "IRWD",
+    "gap_pct": -18.337731,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down"
     ]
   },
   {
-    "symbol": "BIYA",
-    "gap_pct": -18.42105,
+    "symbol": "CWH",
+    "gap_pct": -16.728111,
     "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "JAGU",
-    "gap_pct": -18.40278,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide",
-      "atr_missing"
-    ]
-  },
-  {
-    "symbol": "CETY",
-    "gap_pct": -18.14151,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "TTGT",
-    "gap_pct": -18.00459,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "premarket_stale"
-    ]
-  },
-  {
-    "symbol": "LSH",
-    "gap_pct": -17.30934,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "ACVA",
-    "gap_pct": -16.37324,
-    "filter_reasons": [
-      "price_below_5",
       "severe_gap_down"
     ]
   },
   {
-    "symbol": "HUBC",
-    "gap_pct": -15.87302,
+    "symbol": "MSDD",
+    "gap_pct": -16.347045,
     "filter_reasons": [
-      "price_below_5",
       "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "FSHPR",
-    "gap_pct": -15.68421,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "premarket_stale",
-      "spread_too_wide",
       "insufficient_liquidity"
     ]
   },
   {
-    "symbol": "LAFAR",
-    "gap_pct": -15.59055,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "premarket_stale",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "ATHR",
-    "gap_pct": -15.02732,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "premarket_stale",
-      "spread_too_wide",
-      "insufficient_liquidity"
-    ]
-  },
-  {
-    "symbol": "NCI",
-    "gap_pct": -14.94253,
-    "filter_reasons": [
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "IPST",
-    "gap_pct": -14.8364,
+    "symbol": "EDSA",
+    "gap_pct": -15.92053,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
@@ -584,45 +523,32 @@
     ]
   },
   {
-    "symbol": "QNC",
-    "gap_pct": -14.62041,
+    "symbol": "SMST",
+    "gap_pct": -15.791511,
     "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "ipo_window",
-      "spread_too_wide",
-      "atr_missing"
+      "severe_gap_down"
     ]
   },
   {
-    "symbol": "BLZE",
-    "gap_pct": -13.95881,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "AHCO",
-    "gap_pct": -13.94558,
+    "symbol": "VRRM",
+    "gap_pct": -15.392304,
     "filter_reasons": [
       "severe_gap_down",
-      "premarket_stale",
       "spread_too_wide",
       "extreme_momentum_low_volume"
     ]
   },
   {
-    "symbol": "WHR",
-    "gap_pct": -13.86853,
+    "symbol": "JFB",
+    "gap_pct": -15.284423,
     "filter_reasons": [
-      "severe_gap_down"
+      "severe_gap_down",
+      "spread_too_wide"
     ]
   },
   {
-    "symbol": "GCDT",
-    "gap_pct": -13.69863,
+    "symbol": "GURE",
+    "gap_pct": -15.272727,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
@@ -631,17 +557,43 @@
     ]
   },
   {
-    "symbol": "GIPR",
-    "gap_pct": -13.55556,
+    "symbol": "TWO",
+    "gap_pct": -14.559925,
     "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
+      "severe_gap_down"
     ]
   },
   {
-    "symbol": "ISPR",
-    "gap_pct": -13.46939,
+    "symbol": "IONZ",
+    "gap_pct": -14.206514,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "LXFR",
+    "gap_pct": -13.849614,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "DEO",
+    "gap_pct": -13.491286,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "TALO",
+    "gap_pct": -13.752381,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "CARV",
+    "gap_pct": -13.333333,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
@@ -651,8 +603,8 @@
     ]
   },
   {
-    "symbol": "SAGT",
-    "gap_pct": -13.41463,
+    "symbol": "FTRK",
+    "gap_pct": -13.058599,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
@@ -662,60 +614,15 @@
     ]
   },
   {
-    "symbol": "TMDE",
-    "gap_pct": -13.00428,
+    "symbol": "RGTZ",
+    "gap_pct": -12.830033,
     "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "CYD",
-    "gap_pct": -12.79302,
-    "filter_reasons": [
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "KLTO",
-    "gap_pct": -12.5122,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "TOMZ",
-    "gap_pct": -12.50633,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "MSS",
-    "gap_pct": -12.32656,
-    "filter_reasons": [
-      "price_below_5",
-      "severe_gap_down",
-      "spread_too_wide"
-    ]
-  },
-  {
-    "symbol": "PERF",
-    "gap_pct": -12.16216,
-    "filter_reasons": [
-      "price_below_5",
       "severe_gap_down"
     ]
   },
   {
-    "symbol": "PELIR",
-    "gap_pct": -12.14058,
+    "symbol": "JWEL",
+    "gap_pct": -12.663755,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
@@ -725,8 +632,8 @@
     ]
   },
   {
-    "symbol": "TROO",
-    "gap_pct": -11.96581,
+    "symbol": "TLIH",
+    "gap_pct": -12.374429,
     "filter_reasons": [
       "price_below_5",
       "severe_gap_down",
@@ -734,16 +641,76 @@
     ]
   },
   {
-    "symbol": "FJET",
-    "gap_pct": -11.7284,
+    "symbol": "CMTL",
+    "gap_pct": -12.089286,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "LVWR",
+    "gap_pct": -11.890244,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "SBIT",
+    "gap_pct": -11.879458,
     "filter_reasons": [
       "severe_gap_down"
     ]
   },
   {
-    "symbol": "ATOM",
-    "gap_pct": -11.36174,
+    "symbol": "AMRN",
+    "gap_pct": -11.984536,
     "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "RPGL",
+    "gap_pct": -14.32866,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "XPEL",
+    "gap_pct": -11.610858,
+    "filter_reasons": [
+      "severe_gap_down"
+    ]
+  },
+  {
+    "symbol": "LUNR",
+    "gap_pct": -11.269841,
+    "filter_reasons": [
+      "severe_gap_down",
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "PTIX",
+    "gap_pct": -11.111111,
+    "filter_reasons": [
+      "price_below_5",
+      "severe_gap_down",
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "XTKG",
+    "gap_pct": -11.094891,
+    "filter_reasons": [
+      "price_below_5",
       "severe_gap_down"
     ]
   }

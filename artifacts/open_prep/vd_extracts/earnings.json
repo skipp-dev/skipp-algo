@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "symbol": "YOU",
+    "score": 11.4832,
+    "gap_pct": 25.097102,
+    "earnings_timing": null,
+    "warn_flags": "warn_no_pmh;gap_large_atr;warn_spread_wide"
+  },
+  {
+    "symbol": "ACHC",
+    "score": 10.7266,
+    "gap_pct": 24.519511,
+    "earnings_timing": null,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide"
+  }
+]

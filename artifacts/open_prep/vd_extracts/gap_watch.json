@@ -1,1 +1,129 @@
-[]
+[
+  {
+    "symbol": "BRAI",
+    "score": 17.0846,
+    "gap_pct": 68.297101,
+    "gap_grade": 2.5,
+    "price": 23.225,
+    "atr_pct": null,
+    "ext_hours_score": 1.0,
+    "warn_flags": "spread_too_wide;warn_no_pmh;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide",
+      "insufficient_liquidity",
+      "atr_missing"
+    ]
+  },
+  {
+    "symbol": "NVTS",
+    "score": 11.6456,
+    "gap_pct": 17.493947,
+    "gap_grade": 2.5,
+    "price": 9.705,
+    "atr_pct": 9.4637,
+    "ext_hours_score": 1.0,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "YOU",
+    "score": 11.4832,
+    "gap_pct": 25.097102,
+    "gap_grade": 2.511,
+    "price": 41.87,
+    "atr_pct": 4.9531,
+    "ext_hours_score": 1.0215,
+    "warn_flags": "warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": []
+  },
+  {
+    "symbol": "LRMR",
+    "score": 11.4705,
+    "gap_pct": 57.859079,
+    "gap_grade": 2.5,
+    "price": 5.825,
+    "atr_pct": 12.9593,
+    "ext_hours_score": 1.0,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "TRT",
+    "score": 11.2178,
+    "gap_pct": 18.856833,
+    "gap_grade": 2.49,
+    "price": 5.4793,
+    "atr_pct": 10.2495,
+    "ext_hours_score": 0.9794,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide",
+      "insufficient_liquidity"
+    ]
+  },
+  {
+    "symbol": "CAVA",
+    "score": 10.9825,
+    "gap_pct": 24.550147,
+    "gap_grade": 2.5,
+    "price": 84.445,
+    "atr_pct": 6.0049,
+    "ext_hours_score": 1.0,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": []
+  },
+  {
+    "symbol": "ACHC",
+    "score": 10.7266,
+    "gap_pct": 24.519511,
+    "gap_grade": 2.5,
+    "price": 21.38,
+    "atr_pct": 6.5381,
+    "ext_hours_score": 1.0,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "RYAM",
+    "score": 10.6675,
+    "gap_pct": 38.118467,
+    "gap_grade": 2.5,
+    "price": 9.91,
+    "atr_pct": 6.3986,
+    "ext_hours_score": 1.0,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "CRCO",
+    "score": 10.391,
+    "gap_pct": 20.635559,
+    "gap_grade": 2.39,
+    "price": 21.0006,
+    "atr_pct": 6.8301,
+    "ext_hours_score": 0.7799,
+    "warn_flags": "spread_too_wide;warn_no_pmh;gap_large_atr;warn_spread_wide",
+    "no_trade_reason": [
+      "spread_too_wide"
+    ]
+  },
+  {
+    "symbol": "CCC",
+    "score": 10.3277,
+    "gap_pct": 25.6917,
+    "gap_grade": 2.593,
+    "price": 6.36,
+    "atr_pct": 6.2708,
+    "ext_hours_score": 1.1855,
+    "warn_flags": "warn_no_pmh;gap_large_atr",
+    "no_trade_reason": []
+  }
+]

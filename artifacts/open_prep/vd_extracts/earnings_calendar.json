@@ -77,8 +77,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.03,
     "revenue_estimate": 800129650,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": -13.0196,
+    "revenue_actual": 821459000
   },
   {
     "symbol": "ACLTF",
@@ -144,15 +144,6 @@
     "revenue_actual": 5513935030
   },
   {
-    "symbol": "ADN.SI",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
     "symbol": "ADNH",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -201,10 +192,10 @@
     "symbol": "AENA.MC",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.3043,
-    "revenue_estimate": 1541244300,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_estimate": 0.3033,
+    "revenue_estimate": 1532413162,
+    "eps_actual": 0.3033,
+    "revenue_actual": 1588951909
   },
   {
     "symbol": "AFA.AX",
@@ -264,7 +255,7 @@
     "symbol": "AGESY",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 5.81,
+    "eps_estimate": 5.43,
     "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
@@ -288,10 +279,19 @@
     "revenue_actual": null
   },
   {
+    "symbol": "AGRDF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "AGS.BR",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 4.91,
+    "eps_estimate": 4.59,
     "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
@@ -319,7 +319,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.41,
-    "revenue_estimate": 35689396898,
+    "revenue_estimate": 35691328038,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -328,7 +328,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.41,
-    "revenue_estimate": 35691328038,
+    "revenue_estimate": 35684569048,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -464,8 +464,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.07,
     "revenue_estimate": 27900830,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.08,
+    "revenue_actual": 28400000
   },
   {
     "symbol": "ALLT.TA",
@@ -473,8 +473,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.2542,
     "revenue_estimate": 27900830,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.2549,
+    "revenue_actual": 90494853
   },
   {
     "symbol": "ALPM.PA",
@@ -502,6 +502,15 @@
     "revenue_estimate": null,
     "eps_actual": -0.63546,
     "revenue_actual": 66903000
+  },
+  {
+    "symbol": "AME.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
   },
   {
     "symbol": "AMG.AS",
@@ -590,15 +599,6 @@
     "earnings_timing": null,
     "eps_estimate": -0.105,
     "revenue_estimate": 10000000,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "ANNSF",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": 0.3574,
-    "revenue_estimate": 1541244300,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -693,6 +693,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "APMCF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "APR.WA",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -770,8 +779,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.06,
     "revenue_estimate": 70200000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.1,
+    "revenue_actual": 79800000
   },
   {
     "symbol": "ARROW.BK",
@@ -855,6 +864,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "ATHS",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": 2.57,
+    "revenue_actual": 8125000000
+  },
+  {
     "symbol": "ATP.AX",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -913,7 +931,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.45,
-    "revenue_estimate": 443883600,
+    "revenue_estimate": 446629600,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -931,7 +949,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.01,
-    "revenue_estimate": 541100000,
+    "revenue_estimate": 657609730,
     "eps_actual": null,
     "revenue_actual": -87000000
   },
@@ -957,17 +975,17 @@
     "symbol": "AVG.L",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_estimate": 0.146,
+    "revenue_estimate": 78100000,
+    "eps_actual": 0.1463,
+    "revenue_actual": 78256438
   },
   {
     "symbol": "AWTRF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 1919529079,
+    "revenue_estimate": 1920520988,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -986,8 +1004,8 @@
     "earnings_timing": null,
     "eps_estimate": null,
     "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": -0.08536,
+    "revenue_actual": 13992.66
   },
   {
     "symbol": "AZRN.AS",
@@ -1013,15 +1031,6 @@
     "earnings_timing": null,
     "eps_estimate": null,
     "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "BAP.AX",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": 0.02118,
-    "revenue_estimate": 938749918,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -1130,8 +1139,8 @@
     "earnings_timing": null,
     "eps_estimate": 4.57,
     "revenue_estimate": 440508280,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 5.33,
+    "revenue_actual": 447393020
   },
   {
     "symbol": "BDMS.BK",
@@ -1139,6 +1148,15 @@
     "earnings_timing": null,
     "eps_estimate": 0.262,
     "revenue_estimate": 28787000000,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "BEE.CN",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -1170,6 +1188,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "BEVVF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "BFIN.JK",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -1193,8 +1220,8 @@
     "earnings_timing": null,
     "eps_estimate": 3.39,
     "revenue_estimate": 318508927,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 3.95,
+    "revenue_actual": 332091018
   },
   {
     "symbol": "BHD.AX",
@@ -1256,8 +1283,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.3219,
     "revenue_estimate": 39773000000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.3212,
+    "revenue_actual": 40081244942
   },
   {
     "symbol": "BJRI",
@@ -1269,11 +1296,20 @@
     "revenue_actual": null
   },
   {
+    "symbol": "BKBLF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "BKRKF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.00559,
-    "revenue_estimate": 3102446977,
+    "revenue_estimate": 3104197003,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -1282,7 +1318,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.2774,
-    "revenue_estimate": 3107955290,
+    "revenue_estimate": 3104197003,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -1292,8 +1328,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.37,
     "revenue_estimate": 260220440,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.759,
+    "revenue_actual": -484354000
   },
   {
     "symbol": "BLKB.SW",
@@ -1620,6 +1656,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "BTVRF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "BUHPF",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -1777,7 +1822,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.79,
-    "revenue_estimate": 1372100981,
+    "revenue_estimate": 1372470752,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -1816,15 +1861,6 @@
     "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
-  },
-  {
-    "symbol": "CCU.SN",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": 176.73,
-    "revenue_estimate": 803761612000,
-    "eps_actual": 176.61,
-    "revenue_actual": 871457599309
   },
   {
     "symbol": "CDEVY",
@@ -2077,15 +2113,6 @@
     "revenue_estimate": 177500000,
     "eps_actual": 0.1618,
     "revenue_actual": 178351288
-  },
-  {
-    "symbol": "CMBM",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": 0.1,
-    "revenue_estimate": 57000000,
-    "eps_actual": null,
-    "revenue_actual": null
   },
   {
     "symbol": "CMPRF",
@@ -2355,7 +2382,7 @@
     "eps_estimate": 0.04,
     "revenue_estimate": 8935000,
     "eps_actual": null,
-    "revenue_actual": null
+    "revenue_actual": 5012317.26
   },
   {
     "symbol": "CVPBF",
@@ -2533,9 +2560,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 3.67,
-    "revenue_estimate": 5659000000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "revenue_estimate": 4122000000,
+    "eps_actual": 3.8,
+    "revenue_actual": 10460000000
   },
   {
     "symbol": "DGE.L",
@@ -2551,9 +2578,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.916,
-    "revenue_estimate": 5659000000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "revenue_estimate": 4122000000,
+    "eps_actual": 0.949,
+    "revenue_actual": 10460000000
   },
   {
     "symbol": "DGR.DE",
@@ -2588,8 +2615,8 @@
     "earnings_timing": null,
     "eps_estimate": 1.08,
     "revenue_estimate": 226269530,
-    "eps_actual": -0.92481,
-    "revenue_actual": null
+    "eps_actual": -1.00278,
+    "revenue_actual": 217570000
   },
   {
     "symbol": "DIST.ST",
@@ -2599,6 +2626,15 @@
     "revenue_estimate": 243000000,
     "eps_actual": 0.01347,
     "revenue_actual": 252000000
+  },
+  {
+    "symbol": "DMI.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
   },
   {
     "symbol": "DNOPY",
@@ -2614,7 +2650,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.12,
-    "revenue_estimate": 2317330780,
+    "revenue_estimate": 2182566070,
     "eps_actual": 0.4483,
     "revenue_actual": 2366161000
   },
@@ -2767,7 +2803,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 926774626,
+    "revenue_estimate": 926963426,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -2812,9 +2848,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.2499,
-    "revenue_estimate": 739119435,
-    "eps_actual": null,
-    "revenue_actual": null
+    "revenue_estimate": 739270006,
+    "eps_actual": 0.1544,
+    "revenue_actual": 836371815
   },
   {
     "symbol": "EDRVY",
@@ -2822,8 +2858,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.4975,
     "revenue_estimate": 689029366,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.3065,
+    "revenue_actual": 841085600
   },
   {
     "symbol": "EDXC",
@@ -2858,6 +2894,15 @@
     "earnings_timing": null,
     "eps_estimate": 8.73,
     "revenue_estimate": 7830263805,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "EFVIF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -2903,6 +2948,15 @@
     "earnings_timing": null,
     "eps_estimate": 2.38,
     "revenue_estimate": 318248610,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "ELBM.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -2970,6 +3024,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "EMOTF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "EMP.AX",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -2985,16 +3048,7 @@
     "eps_estimate": 0.3289,
     "revenue_estimate": null,
     "eps_actual": 0.3289,
-    "revenue_actual": 24891459532
-  },
-  {
-    "symbol": "ENH.OL",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": 0.2116,
-    "revenue_estimate": 591449692,
-    "eps_actual": 0.2018,
-    "revenue_actual": 585090285
+    "revenue_actual": 24887866899
   },
   {
     "symbol": "ENLV",
@@ -3036,10 +3090,10 @@
     "symbol": "EOAN.DE",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.28,
+    "eps_estimate": 0.2791,
     "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.2791,
+    "revenue_actual": 21119843851
   },
   {
     "symbol": "EOFBF",
@@ -3091,7 +3145,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.6,
-    "revenue_estimate": 223835819,
+    "revenue_estimate": 223886949,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -3128,8 +3182,8 @@
     "earnings_timing": null,
     "eps_estimate": 4.47,
     "revenue_estimate": 57829000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 5.79,
+    "revenue_actual": 57387325
   },
   {
     "symbol": "ESGRO",
@@ -3225,8 +3279,8 @@
     "symbol": "EVN.VI",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": null,
+    "eps_estimate": 0.71,
+    "revenue_estimate": 830700000,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -3376,6 +3430,15 @@
   },
   {
     "symbol": "FGX.AX",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "FHELF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -3613,7 +3676,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.1,
-    "revenue_estimate": 7064067035,
+    "revenue_estimate": 7062728152,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -3641,8 +3704,8 @@
     "earnings_timing": null,
     "eps_estimate": 1.08,
     "revenue_estimate": 547300000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 1.16,
+    "revenue_actual": 597100000
   },
   {
     "symbol": "FTAI",
@@ -3875,8 +3938,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.38,
     "revenue_estimate": 127191480,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.396,
+    "revenue_actual": 132150000
   },
   {
     "symbol": "GMALY",
@@ -4098,7 +4161,7 @@
     "symbol": "GSF.OL",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.03936,
+    "eps_estimate": 0.0547,
     "revenue_estimate": 805517100,
     "eps_actual": null,
     "revenue_actual": null
@@ -4162,9 +4225,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.78,
-    "revenue_estimate": 5659000000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "revenue_estimate": 4122000000,
+    "eps_actual": 0.808,
+    "revenue_actual": 8905841585
   },
   {
     "symbol": "GUOSF",
@@ -4207,7 +4270,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.28,
-    "revenue_estimate": 332841620,
+    "revenue_estimate": 242798250,
     "eps_actual": 0.3078,
     "revenue_actual": 356533000
   },
@@ -4260,10 +4323,10 @@
     "symbol": "HCXLF",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.938,
+    "eps_estimate": 0.933,
     "revenue_estimate": 2379136500,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.996,
+    "revenue_actual": 2059400000
   },
   {
     "symbol": "HCXLY",
@@ -4341,10 +4404,10 @@
     "symbol": "HLN.L",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.09513,
-    "revenue_estimate": 5592750489,
-    "eps_actual": 0.09531,
-    "revenue_actual": 5603737726
+    "eps_estimate": 0.09309,
+    "revenue_estimate": 5611291262,
+    "eps_actual": 0.09578,
+    "revenue_actual": 5590259600
   },
   {
     "symbol": "HLNCF",
@@ -4379,8 +4442,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.1115,
     "revenue_estimate": 120040000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.1115,
+    "revenue_actual": 120040000
   },
   {
     "symbol": "HNI",
@@ -4467,8 +4530,8 @@
     "symbol": "HPCRF",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.0038,
-    "revenue_estimate": 531474275,
+    "eps_estimate": 0.00384,
+    "revenue_estimate": 531727875,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -4528,15 +4591,6 @@
   },
   {
     "symbol": "HTA.AX",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "HTCTF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -4639,9 +4693,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.1423,
-    "revenue_estimate": 13718397044,
+    "revenue_estimate": 13715163860,
     "eps_actual": 0.1423,
-    "revenue_actual": 11646599060
+    "revenue_actual": 11642173272
   },
   {
     "symbol": "IBG.MC",
@@ -4753,6 +4807,15 @@
   },
   {
     "symbol": "IMG",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "IMI.V",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -4892,14 +4955,14 @@
     "earnings_timing": null,
     "eps_estimate": -0.07667,
     "revenue_estimate": 15000000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": -0.1,
+    "revenue_actual": 12674000
   },
   {
     "symbol": "IONQ",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": -0.48,
+    "eps_estimate": -0.54,
     "revenue_estimate": 40381450,
     "eps_actual": null,
     "revenue_actual": null
@@ -5121,6 +5184,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "KCN.AX",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": 0.339,
+    "revenue_actual": 283264000
+  },
+  {
     "symbol": "KDDIY",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -5260,9 +5332,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.658,
-    "revenue_estimate": 16737812671,
+    "revenue_estimate": 16722957922,
     "eps_actual": 0.668,
-    "revenue_actual": 16554120096
+    "revenue_actual": 16566687901
   },
   {
     "symbol": "LABB.MX",
@@ -5350,7 +5422,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.56,
-    "revenue_estimate": 502141496,
+    "revenue_estimate": 502164433,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -5404,9 +5476,9 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.73,
-    "revenue_estimate": 1379919280,
-    "eps_actual": null,
-    "revenue_actual": null
+    "revenue_estimate": 1326179600,
+    "eps_actual": 0.02632,
+    "revenue_actual": 1336000000
   },
   {
     "symbol": "LIPUM.ST",
@@ -5484,10 +5556,10 @@
     "symbol": "LOW",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 1.95,
-    "revenue_estimate": 20336473910,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_estimate": 1.94,
+    "revenue_estimate": 20343170963,
+    "eps_actual": 1.98,
+    "revenue_actual": 20584000000
   },
   {
     "symbol": "LPC.V",
@@ -5652,6 +5724,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "MCI.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "MCO.AX",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -5738,15 +5819,6 @@
     "earnings_timing": null,
     "eps_estimate": null,
     "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "MER.TO",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": 0.04656,
-    "revenue_estimate": 266076058,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -5877,6 +5949,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "MIRA",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": -0.04,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "MIRG.BA",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -5896,6 +5977,15 @@
   },
   {
     "symbol": "MITI",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "MITJF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -5940,6 +6030,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "MOB",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": -0.57,
+    "revenue_estimate": 3549439,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "MOBBW",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -5949,13 +6048,22 @@
     "revenue_actual": null
   },
   {
-    "symbol": "MPCC.OL",
+    "symbol": "MOX.V",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.08,
-    "revenue_estimate": 108000000,
-    "eps_actual": 1.06,
-    "revenue_actual": 1180268334
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "MPC.TO",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
   },
   {
     "symbol": "MPCK.DE",
@@ -6125,11 +6233,20 @@
     "earnings_timing": null,
     "eps_estimate": 2.2,
     "revenue_estimate": 2744609044,
+    "eps_actual": 2.38,
+    "revenue_actual": 2854939994
+  },
+  {
+    "symbol": "NCEL",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
   {
-    "symbol": "NCEL",
+    "symbol": "NCF.TO",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -6152,8 +6269,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.01001,
     "revenue_estimate": 4987713284,
-    "eps_actual": 0.05284,
-    "revenue_actual": 4683032007
+    "eps_actual": 0.05285,
+    "revenue_actual": 4683180570
   },
   {
     "symbol": "NDGPY",
@@ -6174,7 +6291,25 @@
     "revenue_actual": null
   },
   {
+    "symbol": "NEWU.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "NEWUF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "NEXM.V",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -6246,6 +6381,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "NIIN.DE",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "NIPOF",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -6253,6 +6397,15 @@
     "revenue_estimate": 156374776,
     "eps_actual": 18,
     "revenue_actual": 153673623
+  },
+  {
+    "symbol": "NIXX",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
   },
   {
     "symbol": "NIXXW",
@@ -6269,6 +6422,15 @@
     "earnings_timing": null,
     "eps_estimate": 0.057,
     "revenue_estimate": 4275683630,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "NKOSF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -6296,8 +6458,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.65,
     "revenue_estimate": 1003595500,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": -0.11385,
+    "revenue_actual": 1005959000
   },
   {
     "symbol": "NNDM",
@@ -6420,7 +6582,7 @@
     "symbol": "NSA",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.56,
+    "eps_estimate": 0.55,
     "revenue_estimate": 187507670,
     "eps_actual": null,
     "revenue_actual": null
@@ -6431,6 +6593,15 @@
     "earnings_timing": null,
     "eps_estimate": 0.46,
     "revenue_estimate": 1758333333,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "NTHI",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": -0.37,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -6502,7 +6673,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.791,
-    "revenue_estimate": 1217403837,
+    "revenue_estimate": 1217197676,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -6523,6 +6694,15 @@
     "revenue_estimate": 631000000,
     "eps_actual": null,
     "revenue_actual": null
+  },
+  {
+    "symbol": "NWHUF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": -0.27267,
+    "revenue_actual": 78287098
   },
   {
     "symbol": "NWPX",
@@ -6615,11 +6795,29 @@
     "revenue_actual": null
   },
   {
+    "symbol": "ODD.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "ODDAF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "ODL.OL",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 1.34,
-    "revenue_estimate": 2230731683,
+    "revenue_estimate": 2230568525,
     "eps_actual": 1.63,
     "revenue_actual": 2330273378
   },
@@ -6701,6 +6899,15 @@
     "earnings_timing": null,
     "eps_estimate": null,
     "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "ORGN",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": -0.07,
+    "revenue_estimate": 29100000,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -6822,6 +7029,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "PCLOF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "PCTTU",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -6895,6 +7111,24 @@
   },
   {
     "symbol": "PEUG.PA",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "PFI.NZ",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": 0.063,
+    "revenue_estimate": 55900000,
+    "eps_actual": 0.09342,
+    "revenue_actual": 73630000
+  },
+  {
+    "symbol": "PFRRF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -6993,7 +7227,7 @@
     "revenue_actual": 225066000
   },
   {
-    "symbol": "PLSDF",
+    "symbol": "PLTXF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -7002,7 +7236,16 @@
     "revenue_actual": null
   },
   {
-    "symbol": "PLTXF",
+    "symbol": "PNP.TO",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "PNPFF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -7047,6 +7290,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "PRCT",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": -0.32,
+    "revenue_estimate": 93702120,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "PRM.BK",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -7084,15 +7336,6 @@
   },
   {
     "symbol": "PRYMY",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "PSD.TO",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -7209,11 +7452,11 @@
     "revenue_actual": null
   },
   {
-    "symbol": "PYOIF",
+    "symbol": "QCKSF",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.2642,
-    "revenue_estimate": 276536091,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -7313,6 +7556,15 @@
     "earnings_timing": null,
     "eps_estimate": -0.16,
     "revenue_estimate": 98780130,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "RECAF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -7533,6 +7785,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "SARMF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "SARO",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -7587,20 +7848,20 @@
     "revenue_actual": null
   },
   {
-    "symbol": "SBR",
+    "symbol": "SBNY",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": null,
+    "eps_estimate": 5.06,
     "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
   {
-    "symbol": "SC.BK",
+    "symbol": "SBR",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.1433,
-    "revenue_estimate": 7160800000,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -7762,7 +8023,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 1039725992,
+    "revenue_estimate": 1039528928,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -7777,6 +8038,15 @@
   },
   {
     "symbol": "SHC.L",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "SHCMF",
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -7808,8 +8078,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.46,
     "revenue_estimate": 759372180,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.3257,
+    "revenue_actual": 753700000
   },
   {
     "symbol": "SHPH",
@@ -7959,10 +8229,10 @@
     "symbol": "SLVYY",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.04883,
-    "revenue_estimate": 1178079525,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_estimate": 0.03313,
+    "revenue_estimate": 1173238108,
+    "eps_actual": 0.01531,
+    "revenue_actual": 1171463100
   },
   {
     "symbol": "SM",
@@ -7977,7 +8247,7 @@
     "symbol": "SMA",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 0.53,
+    "eps_estimate": 0.54,
     "revenue_estimate": 75500000,
     "eps_actual": null,
     "revenue_actual": null
@@ -8249,7 +8519,7 @@
     "earnings_timing": null,
     "eps_estimate": 0.354,
     "revenue_estimate": null,
-    "eps_actual": null,
+    "eps_actual": 0.354,
     "revenue_actual": null
   },
   {
@@ -8258,7 +8528,7 @@
     "earnings_timing": null,
     "eps_estimate": 0.4769,
     "revenue_estimate": null,
-    "eps_actual": null,
+    "eps_actual": 0.4769,
     "revenue_actual": null
   },
   {
@@ -8537,8 +8807,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.115,
     "revenue_estimate": 537022200,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 168.3,
+    "revenue_actual": -368513000
   },
   {
     "symbol": "TBPH",
@@ -8658,6 +8928,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "THURF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "TIAIY",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -8665,15 +8944,6 @@
     "revenue_estimate": 4424480924,
     "eps_actual": null,
     "revenue_actual": 4424481000
-  },
-  {
-    "symbol": "TIAOF",
-    "date": "2026-02-25",
-    "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": 3725969830,
-    "eps_actual": null,
-    "revenue_actual": null
   },
   {
     "symbol": "TIPT",
@@ -8697,10 +8967,10 @@
     "symbol": "TJX",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 1.38,
-    "revenue_estimate": 17375088550,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_estimate": 1.39,
+    "revenue_estimate": 17358828364,
+    "eps_actual": 1.43,
+    "revenue_actual": 17743000000
   },
   {
     "symbol": "TKO",
@@ -8790,7 +9060,7 @@
     "eps_estimate": null,
     "revenue_estimate": 3725969830,
     "eps_actual": null,
-    "revenue_actual": null
+    "revenue_actual": 3758542448
   },
   {
     "symbol": "TRAGF",
@@ -8807,8 +9077,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.51,
     "revenue_estimate": 80011220,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.528,
+    "revenue_actual": 77554000
   },
   {
     "symbol": "TRINI",
@@ -8816,8 +9086,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.515,
     "revenue_estimate": 81385333,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.528,
+    "revenue_actual": 77554000
   },
   {
     "symbol": "TRINZ",
@@ -9000,6 +9270,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "UCPLF",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": 0.574,
+    "revenue_actual": 31089042
+  },
+  {
     "symbol": "UD.MI",
     "date": "2026-02-25",
     "earnings_timing": null,
@@ -9013,7 +9292,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.06,
-    "revenue_estimate": 6828225075,
+    "revenue_estimate": 6843524442,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -9049,7 +9328,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": 0.1354,
-    "revenue_estimate": 213406902,
+    "revenue_estimate": 213320800,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -9193,7 +9472,7 @@
     "date": "2026-02-25",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 422978362,
+    "revenue_estimate": 423064530,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -9282,7 +9561,7 @@
     "symbol": "VIST",
     "date": "2026-02-25",
     "earnings_timing": null,
-    "eps_estimate": 1.34,
+    "eps_estimate": 1.18,
     "revenue_estimate": 669147200,
     "eps_actual": null,
     "revenue_actual": null
@@ -9320,8 +9599,8 @@
     "earnings_timing": null,
     "eps_estimate": -0.03,
     "revenue_estimate": 18775000,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": -0.04,
+    "revenue_actual": 19403000
   },
   {
     "symbol": "VO.V",
@@ -9545,6 +9824,15 @@
     "earnings_timing": null,
     "eps_estimate": 1.98,
     "revenue_estimate": 1162000000,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "WLR.V",
+    "date": "2026-02-25",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -9957,7 +10245,7 @@
     "symbol": "ACGYF",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 0.599,
+    "eps_estimate": 0.603,
     "revenue_estimate": 1949694700,
     "eps_actual": null,
     "revenue_actual": null
@@ -10065,8 +10353,8 @@
     "symbol": "ADRO.JK",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 168.06,
-    "revenue_estimate": 8588565905168,
+    "eps_estimate": 168.15,
+    "revenue_estimate": 8593335611903,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -10282,7 +10570,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.3835,
-    "revenue_estimate": 197379791,
+    "revenue_estimate": 197342381,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -10539,15 +10827,6 @@
     "revenue_actual": null
   },
   {
-    "symbol": "AMWD",
-    "date": "2026-02-26",
-    "earnings_timing": null,
-    "eps_estimate": 0.11,
-    "revenue_estimate": 358136670,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
     "symbol": "AMX.AX",
     "date": "2026-02-26",
     "earnings_timing": null,
@@ -10678,7 +10957,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 1301979819,
+    "revenue_estimate": 1301733049,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -10686,8 +10965,8 @@
     "symbol": "ARGX",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 6.2,
-    "revenue_estimate": 1301979819,
+    "eps_estimate": 6.24,
+    "revenue_estimate": 1301733049,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -10732,7 +11011,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.773,
-    "revenue_estimate": 2404800043,
+    "revenue_estimate": 2404344251,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -11038,7 +11317,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 1.91,
-    "revenue_estimate": 42061193071,
+    "revenue_estimate": 42052502941,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -11047,7 +11326,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.1732,
-    "revenue_estimate": 4740133752,
+    "revenue_estimate": 4739154408,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -11812,7 +12091,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.02,
-    "revenue_estimate": 512093250,
+    "revenue_estimate": 508794600,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -12199,7 +12478,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.4541,
-    "revenue_estimate": 1360552523,
+    "revenue_estimate": 1360155645,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -12361,7 +12640,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.692,
-    "revenue_estimate": 13070481992,
+    "revenue_estimate": 13075290403,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -12443,8 +12722,8 @@
     "earnings_timing": null,
     "eps_estimate": null,
     "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 1.09,
+    "revenue_actual": 602823747
   },
   {
     "symbol": "CPV.AX",
@@ -12505,7 +12784,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.01,
-    "revenue_estimate": 38743551,
+    "revenue_estimate": 38752401,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -12677,15 +12956,6 @@
     "earnings_timing": null,
     "eps_estimate": 0.2926,
     "revenue_estimate": 37266667,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "CVEO",
-    "date": "2026-02-26",
-    "earnings_timing": null,
-    "eps_estimate": -0.41,
-    "revenue_estimate": 170173330,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -13098,7 +13368,7 @@
     "symbol": "DSX",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 0.00267,
+    "eps_estimate": 0.005,
     "revenue_estimate": 52000000,
     "eps_actual": null,
     "revenue_actual": null
@@ -13216,7 +13486,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 2.15,
-    "revenue_estimate": 3541173379,
+    "revenue_estimate": 3540502205,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -13377,8 +13647,8 @@
     "symbol": "EFXT",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": -0.03019,
-    "revenue_estimate": 585336720,
+    "eps_estimate": -0.03018,
+    "revenue_estimate": 585205747,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -13576,7 +13846,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 18883882013,
+    "revenue_estimate": 18880302869,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -13602,7 +13872,7 @@
     "symbol": "ENI.MI",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 0.3206,
+    "eps_estimate": 0.3204,
     "revenue_estimate": 19451240790,
     "eps_actual": null,
     "revenue_actual": null
@@ -13612,7 +13882,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.153,
-    "revenue_estimate": 1209725,
+    "revenue_estimate": 1213393,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14053,7 +14323,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 2918715153,
+    "revenue_estimate": 2918161956,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14071,7 +14341,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.94,
-    "revenue_estimate": 158428895,
+    "revenue_estimate": 158487178,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14439,8 +14709,8 @@
     "symbol": "GIL.TO",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 1.29,
-    "revenue_estimate": 1392641789,
+    "eps_estimate": 1.3,
+    "revenue_estimate": 1445773551,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14737,7 +15007,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 1759663012,
+    "revenue_estimate": 1759571248,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14746,7 +15016,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 1759663012,
+    "revenue_estimate": 1759571248,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14790,8 +15060,8 @@
     "symbol": "HAFNI.OL",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 19.52,
-    "revenue_estimate": 2526281668,
+    "eps_estimate": 19.53,
+    "revenue_estimate": 2527360063,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -14899,7 +15169,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.3862,
-    "revenue_estimate": 854370042,
+    "revenue_estimate": 854325488,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -15116,8 +15386,8 @@
     "earnings_timing": null,
     "eps_estimate": 0.673,
     "revenue_estimate": 13763966980,
-    "eps_actual": null,
-    "revenue_actual": null
+    "eps_actual": 0.673,
+    "revenue_actual": 13755685292
   },
   {
     "symbol": "IBOC",
@@ -15214,7 +15484,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.683,
-    "revenue_estimate": 1777145000,
+    "revenue_estimate": 1767116000,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -15250,7 +15520,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.01476,
-    "revenue_estimate": 1717455588,
+    "revenue_estimate": 1716719755,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -15304,7 +15574,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 123334833,
+    "revenue_estimate": 123380206,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -15439,15 +15709,6 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "IRON",
-    "date": "2026-02-26",
-    "earnings_timing": null,
-    "eps_estimate": -1.69,
     "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
@@ -15772,7 +16033,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.01896,
-    "revenue_estimate": 2070469307,
+    "revenue_estimate": 2031962725,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -15861,8 +16122,8 @@
     "symbol": "KSL.HE",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 0.3468,
-    "revenue_estimate": 104468000,
+    "eps_estimate": 0.4552,
+    "revenue_estimate": 105083000,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -15916,7 +16177,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 2.82,
-    "revenue_estimate": 3181672980,
+    "revenue_estimate": 3183197820,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -16222,7 +16483,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -21.33593,
-    "revenue_estimate": 4313022469,
+    "revenue_estimate": 4311246366,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -16420,7 +16681,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 2005862844,
+    "revenue_estimate": 2006123515,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -16591,7 +16852,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.3495,
-    "revenue_estimate": 853144645,
+    "revenue_estimate": 852953750,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -16663,7 +16924,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 1.32,
-    "revenue_estimate": 1147140000,
+    "revenue_estimate": 1147060000,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17212,7 +17473,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -0.2185,
-    "revenue_estimate": 434054930,
+    "revenue_estimate": 433973405,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17229,7 +17490,7 @@
     "symbol": "OPRT",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 0.24,
+    "eps_estimate": 0.25,
     "revenue_estimate": 243475600,
     "eps_actual": null,
     "revenue_actual": null
@@ -17274,7 +17535,7 @@
     "symbol": "OSPN",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 0.31,
+    "eps_estimate": 0.3,
     "revenue_estimate": 59779400,
     "eps_actual": null,
     "revenue_actual": null
@@ -17352,20 +17613,11 @@
     "revenue_actual": null
   },
   {
-    "symbol": "PAZRF",
-    "date": "2026-02-26",
-    "earnings_timing": null,
-    "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
     "symbol": "PBA",
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.5,
-    "revenue_estimate": 1446792326,
+    "revenue_estimate": 1446468599,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17472,7 +17724,7 @@
     "symbol": "PENN",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": -0.21,
+    "eps_estimate": -0.23,
     "revenue_estimate": 1759856950,
     "eps_actual": null,
     "revenue_actual": null
@@ -17500,7 +17752,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.02349,
-    "revenue_estimate": 601458643,
+    "revenue_estimate": 597584345,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17563,7 +17815,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -2.3637,
-    "revenue_estimate": 1667488113,
+    "revenue_estimate": 1668101554,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17797,7 +18049,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.1044,
-    "revenue_estimate": 72120377,
+    "revenue_estimate": 72104240,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17806,7 +18058,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.01021,
-    "revenue_estimate": 4542850124,
+    "revenue_estimate": 4535054506,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17856,15 +18108,6 @@
     "revenue_actual": null
   },
   {
-    "symbol": "PZU.WA",
-    "date": "2026-02-26",
-    "earnings_timing": null,
-    "eps_estimate": 1.82,
-    "revenue_estimate": 7908500000,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
     "symbol": "PZZA",
     "date": "2026-02-26",
     "earnings_timing": null,
@@ -17905,7 +18148,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.701,
-    "revenue_estimate": 1106746652,
+    "revenue_estimate": 1106499012,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -17941,7 +18184,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.756,
-    "revenue_estimate": 88284354,
+    "revenue_estimate": 88316832,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -18049,7 +18292,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -0.11,
-    "revenue_estimate": 130625000,
+    "revenue_estimate": 84425145,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -18301,7 +18544,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.994,
-    "revenue_estimate": 606288865,
+    "revenue_estimate": 606519954,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -18499,7 +18742,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 5.31,
-    "revenue_estimate": 11450463110,
+    "revenue_estimate": 11454675543,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -18795,7 +19038,7 @@
     "symbol": "SJM",
     "date": "2026-02-26",
     "earnings_timing": null,
-    "eps_estimate": 2.26,
+    "eps_estimate": 2.27,
     "revenue_estimate": 2327602580,
     "eps_actual": null,
     "revenue_actual": null
@@ -19183,7 +19426,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.737,
-    "revenue_estimate": 553863489,
+    "revenue_estimate": 553739559,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -19246,7 +19489,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 5.41,
-    "revenue_estimate": 18659618116,
+    "revenue_estimate": 18658253329,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -19399,7 +19642,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -0.029,
-    "revenue_estimate": 297406620,
+    "revenue_estimate": 296781620,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -19795,7 +20038,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -0.029,
-    "revenue_estimate": 297406620,
+    "revenue_estimate": 296781620,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -19831,7 +20074,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": -0.01313,
-    "revenue_estimate": 846793760,
+    "revenue_estimate": 846518836,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -20470,7 +20713,7 @@
     "date": "2026-02-26",
     "earnings_timing": null,
     "eps_estimate": 0.545,
-    "revenue_estimate": 3613604244,
+    "revenue_estimate": 3614112912,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -20839,7 +21082,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 177691661,
+    "revenue_estimate": 177657982,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -21046,7 +21289,16 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 9564185410,
+    "revenue_estimate": 9567703914,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "BAP.AX",
+    "date": "2026-02-27",
+    "earnings_timing": null,
+    "eps_estimate": 0.02118,
+    "revenue_estimate": 938749918,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -21253,7 +21505,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 951355533,
+    "revenue_estimate": 951411766,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -21280,7 +21532,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.04681,
-    "revenue_estimate": 1485384900,
+    "revenue_estimate": 1485577932,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -21684,8 +21936,8 @@
     "symbol": "FRO.OL",
     "date": "2026-02-27",
     "earnings_timing": null,
-    "eps_estimate": 10.55,
-    "revenue_estimate": 4361686456,
+    "eps_estimate": 10.57,
+    "revenue_estimate": 4372415891,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -21856,7 +22108,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.476,
-    "revenue_estimate": 4936176907,
+    "revenue_estimate": 4934737005,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -21955,7 +22207,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.33,
-    "revenue_estimate": 9564185410,
+    "revenue_estimate": 9567703914,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -22162,7 +22414,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.521,
-    "revenue_estimate": 181519679,
+    "revenue_estimate": 181568597,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -22315,7 +22567,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.1409,
-    "revenue_estimate": 165515201,
+    "revenue_estimate": 165576091,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -22324,7 +22576,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.3647,
-    "revenue_estimate": 797726128,
+    "revenue_estimate": 797574931,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -22396,15 +22648,6 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": null,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
-    "symbol": "NTHI",
-    "date": "2026-02-27",
-    "earnings_timing": null,
-    "eps_estimate": -0.37,
     "revenue_estimate": null,
     "eps_actual": null,
     "revenue_actual": null
@@ -22509,15 +22752,6 @@
     "revenue_actual": null
   },
   {
-    "symbol": "OXSQ",
-    "date": "2026-02-27",
-    "earnings_timing": null,
-    "eps_estimate": 0.07,
-    "revenue_estimate": 10145000,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
     "symbol": "PES.DE",
     "date": "2026-02-27",
     "earnings_timing": null,
@@ -22611,7 +22845,7 @@
     "symbol": "PTGX",
     "date": "2026-02-27",
     "earnings_timing": null,
-    "eps_estimate": -0.54149,
+    "eps_estimate": -0.53,
     "revenue_estimate": 14915780,
     "eps_actual": null,
     "revenue_actual": null
@@ -22855,7 +23089,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.71,
-    "revenue_estimate": 2074729588,
+    "revenue_estimate": 2075203508,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -23035,7 +23269,7 @@
     "date": "2026-02-27",
     "earnings_timing": null,
     "eps_estimate": 0.699,
-    "revenue_estimate": 1974034560,
+    "revenue_estimate": 1973135911,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -23043,8 +23277,8 @@
     "symbol": "TOA.BK",
     "date": "2026-02-27",
     "earnings_timing": null,
-    "eps_estimate": 0.29,
-    "revenue_estimate": 5384000000,
+    "eps_estimate": 0.2967,
+    "revenue_estimate": 5410000000,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -23764,7 +23998,7 @@
     "date": "2026-03-02",
     "earnings_timing": null,
     "eps_estimate": 0.07255,
-    "revenue_estimate": 1275930181,
+    "revenue_estimate": 1275900474,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -24492,8 +24726,8 @@
     "symbol": "GEO.TO",
     "date": "2026-03-02",
     "earnings_timing": null,
-    "eps_estimate": 0.01369,
-    "revenue_estimate": 54348903,
+    "eps_estimate": 0.0137,
+    "revenue_estimate": 54369282,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -24655,7 +24889,7 @@
     "date": "2026-03-02",
     "earnings_timing": null,
     "eps_estimate": null,
-    "revenue_estimate": 46331716,
+    "revenue_estimate": 46352671,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -25272,6 +25506,15 @@
     "revenue_actual": null
   },
   {
+    "symbol": "PAZRF",
+    "date": "2026-03-02",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
     "symbol": "PFT.AX",
     "date": "2026-03-02",
     "earnings_timing": null,
@@ -25375,7 +25618,7 @@
     "date": "2026-03-02",
     "earnings_timing": null,
     "eps_estimate": -0.01743,
-    "revenue_estimate": 578734588,
+    "revenue_estimate": 579028379,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -25435,6 +25678,15 @@
   },
   {
     "symbol": "RCE.AX",
+    "date": "2026-03-02",
+    "earnings_timing": null,
+    "eps_estimate": null,
+    "revenue_estimate": null,
+    "eps_actual": null,
+    "revenue_actual": null
+  },
+  {
+    "symbol": "RCL.JO",
     "date": "2026-03-02",
     "earnings_timing": null,
     "eps_estimate": null,
@@ -25704,15 +25956,6 @@
     "revenue_actual": null
   },
   {
-    "symbol": "SND",
-    "date": "2026-03-02",
-    "earnings_timing": null,
-    "eps_estimate": -0.03,
-    "revenue_estimate": 60000000,
-    "eps_actual": null,
-    "revenue_actual": null
-  },
-  {
     "symbol": "SNDX",
     "date": "2026-03-02",
     "earnings_timing": null,
@@ -25843,7 +26086,7 @@
     "date": "2026-03-02",
     "earnings_timing": null,
     "eps_estimate": 0.48,
-    "revenue_estimate": 728332853,
+    "revenue_estimate": 727343372,
     "eps_actual": null,
     "revenue_actual": null
   },
@@ -25870,7 +26113,7 @@
     "date": "2026-03-02",
     "earnings_timing": null,
     "eps_estimate": 0.3438,
-    "revenue_estimate": 3008676684,
+    "revenue_estimate": 3008606636,
     "eps_actual": null,
     "revenue_actual": null
   },

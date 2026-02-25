@@ -1,12 +1,12 @@
 [
   {
-    "symbol": "VICR",
+    "symbol": "BRAI",
     "setup_type": "ORB or VWAP-Hold",
-    "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
-    "invalidation": "Loss of VWAP after entry or close below opening range low.",
+    "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+    "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
     "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
     "trail_stop_atr": {
-      "atr": 14.7876,
+      "atr": 0.0,
       "unit": "price_distance",
       "multipliers": {
         "tight": 1.0,
@@ -15,237 +15,111 @@
         "balanced": 1.5
       },
       "distances": {
-        "tight": 14.7876,
-        "mid": 22.1814,
-        "wide": 29.5752,
-        "balanced": 22.1814
+        "tight": 0.0,
+        "mid": 0.0,
+        "wide": 0.0,
+        "balanced": 0.0
       },
       "stop_reference_source": "price",
-      "stop_reference_price": 190.3,
+      "stop_reference_price": 23.225,
       "stop_prices": {
-        "tight": 175.5124,
-        "mid": 168.1186,
-        "wide": 160.7248,
-        "balanced": 168.1186
+        "tight": null,
+        "mid": null,
+        "wide": null,
+        "balanced": null
       },
-      "note": "Trail distances are absolute price offsets from the selected stop reference."
+      "note": "ATR unavailable in candidate payload; trail-stop distances default to 0.0."
     },
     "key_levels": {
-      "pdh": 190.73,
-      "pdl": 168.36,
+      "pdh": 32.32,
+      "pdl": 13.29,
       "pdh_source": "dayHigh",
       "pdl_source": "dayLow",
-      "dist_to_pdh_atr": 0.0291,
-      "dist_to_pdl_atr": 1.4837,
+      "dist_to_pdh_atr": null,
+      "dist_to_pdl_atr": null,
       "sr_targets": null
     },
     "context": {
       "macro_bias": 0.0,
-      "candidate_score": 4.2131,
-      "gap_pct": 0.0,
-      "volume_ratio": 1.78,
+      "candidate_score": 17.0846,
+      "gap_pct": 68.297101,
+      "volume_ratio": 5.62,
+      "is_hvb": true,
+      "momentum_z_score": 2.0905,
+      "earnings_today": false,
+      "earnings_timing": null,
+      "earnings_bmo": false,
+      "is_premarket_mover": true,
+      "premarket_change_pct": 67.64492753623189,
+      "long_allowed": true,
+      "no_trade_reason": [
+        "spread_too_wide",
+        "insufficient_liquidity",
+        "atr_missing"
+      ],
+      "allowed_setups": [
+        "orb",
+        "gap_go",
+        "vwap_reclaim",
+        "hod_reclaim"
+      ],
+      "max_trades": 2,
+      "note": "Neutral macro: trade only A+ confirmations."
+    },
+    "playbook_data": null
+  },
+  {
+    "symbol": "NVTS",
+    "setup_type": "ORB or VWAP-Hold",
+    "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+    "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
+    "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+    "trail_stop_atr": {
+      "atr": 0.7817,
+      "unit": "price_distance",
+      "multipliers": {
+        "tight": 1.0,
+        "mid": 1.5,
+        "wide": 2.0,
+        "balanced": 1.5
+      },
+      "distances": {
+        "tight": 0.7817,
+        "mid": 1.1725,
+        "wide": 1.5634,
+        "balanced": 1.1725
+      },
+      "stop_reference_source": "price",
+      "stop_reference_price": 9.705,
+      "stop_prices": {
+        "tight": 8.9233,
+        "mid": 8.5325,
+        "wide": 8.1416,
+        "balanced": 8.5325
+      },
+      "note": "Trail distances are absolute price offsets from the selected stop reference."
+    },
+    "key_levels": {
+      "pdh": 9.88,
+      "pdl": 8.66,
+      "pdh_source": "dayHigh",
+      "pdl_source": "dayLow",
+      "dist_to_pdh_atr": 0.2239,
+      "dist_to_pdl_atr": 1.3368,
+      "sr_targets": null
+    },
+    "context": {
+      "macro_bias": 0.0,
+      "candidate_score": 11.6456,
+      "gap_pct": 17.493947,
+      "volume_ratio": 1.22,
       "is_hvb": false,
-      "momentum_z_score": 2.0381,
+      "momentum_z_score": 2.3667,
       "earnings_today": false,
       "earnings_timing": null,
       "earnings_bmo": false,
       "is_premarket_mover": true,
-      "premarket_change_pct": 12.048894062863788,
-      "long_allowed": true,
-      "no_trade_reason": [],
-      "allowed_setups": [
-        "orb",
-        "gap_go",
-        "vwap_reclaim",
-        "hod_reclaim"
-      ],
-      "max_trades": 2,
-      "note": "Neutral macro: trade only A+ confirmations."
-    },
-    "playbook_data": null
-  },
-  {
-    "symbol": "KEYS",
-    "setup_type": "ORB or VWAP-Hold",
-    "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
-    "invalidation": "Loss of VWAP after entry or close below opening range low.",
-    "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
-    "trail_stop_atr": {
-      "atr": 10.9057,
-      "unit": "price_distance",
-      "multipliers": {
-        "tight": 1.0,
-        "mid": 1.5,
-        "wide": 2.0,
-        "balanced": 1.5
-      },
-      "distances": {
-        "tight": 10.9057,
-        "mid": 16.3586,
-        "wide": 21.8114,
-        "balanced": 16.3586
-      },
-      "stop_reference_source": "price",
-      "stop_reference_price": 301.48,
-      "stop_prices": {
-        "tight": 290.5743,
-        "mid": 285.1214,
-        "wide": 279.6686,
-        "balanced": 285.1214
-      },
-      "note": "Trail distances are absolute price offsets from the selected stop reference."
-    },
-    "key_levels": {
-      "pdh": 305.37,
-      "pdl": 277.72,
-      "pdh_source": "dayHigh",
-      "pdl_source": "dayLow",
-      "dist_to_pdh_atr": 0.3567,
-      "dist_to_pdl_atr": 2.1787,
-      "sr_targets": null
-    },
-    "context": {
-      "macro_bias": 0.0,
-      "candidate_score": 3.5364,
-      "gap_pct": 0.0,
-      "volume_ratio": 6116843.0,
-      "is_hvb": true,
-      "momentum_z_score": 5.0,
-      "earnings_today": false,
-      "earnings_timing": null,
-      "earnings_bmo": false,
-      "is_premarket_mover": true,
-      "premarket_change_pct": 23.55102040816326,
-      "long_allowed": true,
-      "no_trade_reason": [],
-      "allowed_setups": [
-        "orb",
-        "gap_go",
-        "vwap_reclaim",
-        "hod_reclaim"
-      ],
-      "max_trades": 2,
-      "note": "Neutral macro: trade only A+ confirmations."
-    },
-    "playbook_data": null
-  },
-  {
-    "symbol": "VIR",
-    "setup_type": "ORB or VWAP-Hold",
-    "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
-    "invalidation": "Loss of VWAP after entry or close below opening range low.",
-    "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
-    "trail_stop_atr": {
-      "atr": 0.6319,
-      "unit": "price_distance",
-      "multipliers": {
-        "tight": 1.0,
-        "mid": 1.5,
-        "wide": 2.0,
-        "balanced": 1.5
-      },
-      "distances": {
-        "tight": 0.6319,
-        "mid": 0.9479,
-        "wide": 1.2638,
-        "balanced": 0.9479
-      },
-      "stop_reference_source": "price",
-      "stop_reference_price": 9.49,
-      "stop_prices": {
-        "tight": 8.8581,
-        "mid": 8.5421,
-        "wide": 8.2262,
-        "balanced": 8.5421
-      },
-      "note": "Trail distances are absolute price offsets from the selected stop reference."
-    },
-    "key_levels": {
-      "pdh": 10.29,
-      "pdl": 8.95,
-      "pdh_source": "dayHigh",
-      "pdl_source": "dayLow",
-      "dist_to_pdh_atr": 1.266,
-      "dist_to_pdl_atr": 0.8546,
-      "sr_targets": null
-    },
-    "context": {
-      "macro_bias": 0.0,
-      "candidate_score": 3.3651,
-      "gap_pct": 0.0,
-      "volume_ratio": 37489111.0,
-      "is_hvb": true,
-      "momentum_z_score": 4.7302,
-      "earnings_today": false,
-      "earnings_timing": null,
-      "earnings_bmo": false,
-      "is_premarket_mover": true,
-      "premarket_change_pct": 29.74427994616421,
-      "long_allowed": true,
-      "no_trade_reason": [],
-      "allowed_setups": [
-        "orb",
-        "gap_go",
-        "vwap_reclaim",
-        "hod_reclaim"
-      ],
-      "max_trades": 2,
-      "note": "Neutral macro: trade only A+ confirmations."
-    },
-    "playbook_data": null
-  },
-  {
-    "symbol": "PVLA",
-    "setup_type": "ORB or VWAP-Hold",
-    "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
-    "invalidation": "Loss of VWAP after entry or close below opening range low.",
-    "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
-    "trail_stop_atr": {
-      "atr": 8.9102,
-      "unit": "price_distance",
-      "multipliers": {
-        "tight": 1.0,
-        "mid": 1.5,
-        "wide": 2.0,
-        "balanced": 1.5
-      },
-      "distances": {
-        "tight": 8.9102,
-        "mid": 13.3653,
-        "wide": 17.8204,
-        "balanced": 13.3653
-      },
-      "stop_reference_source": "price",
-      "stop_reference_price": 120.41,
-      "stop_prices": {
-        "tight": 111.4998,
-        "mid": 107.0447,
-        "wide": 102.5896,
-        "balanced": 107.0447
-      },
-      "note": "Trail distances are absolute price offsets from the selected stop reference."
-    },
-    "key_levels": {
-      "pdh": 127.69,
-      "pdl": 109.0,
-      "pdh_source": "dayHigh",
-      "pdl_source": "dayLow",
-      "dist_to_pdh_atr": 0.817,
-      "dist_to_pdl_atr": 1.2806,
-      "sr_targets": null
-    },
-    "context": {
-      "macro_bias": 0.0,
-      "candidate_score": 3.3594,
-      "gap_pct": 0.0,
-      "volume_ratio": 1180898.0,
-      "is_hvb": true,
-      "momentum_z_score": 4.9326,
-      "earnings_today": false,
-      "earnings_timing": null,
-      "earnings_bmo": false,
-      "is_premarket_mover": true,
-      "premarket_change_pct": 37.34061930783242,
+      "premarket_change_pct": 17.48789346246973,
       "long_allowed": true,
       "no_trade_reason": [
         "spread_too_wide"
@@ -262,13 +136,13 @@
     "playbook_data": null
   },
   {
-    "symbol": "HRTG",
+    "symbol": "YOU",
     "setup_type": "ORB or VWAP-Hold",
-    "entry_trigger": "Break and hold above opening range high OR first pullback reclaim above VWAP.",
-    "invalidation": "Loss of VWAP after entry or close below opening range low.",
+    "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+    "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
     "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
     "trail_stop_atr": {
-      "atr": 1.3506,
+      "atr": 1.6578,
       "unit": "price_distance",
       "multipliers": {
         "tight": 1.0,
@@ -277,45 +151,178 @@
         "balanced": 1.5
       },
       "distances": {
-        "tight": 1.3506,
-        "mid": 2.0259,
-        "wide": 2.7012,
-        "balanced": 2.0259
+        "tight": 1.6578,
+        "mid": 2.4867,
+        "wide": 3.3156,
+        "balanced": 2.4867
       },
       "stop_reference_source": "price",
-      "stop_reference_price": 27.66,
+      "stop_reference_price": 41.87,
       "stop_prices": {
-        "tight": 26.3094,
-        "mid": 25.6341,
-        "wide": 24.9588,
-        "balanced": 25.6341
+        "tight": 40.2122,
+        "mid": 39.3833,
+        "wide": 38.5544,
+        "balanced": 39.3833
       },
       "note": "Trail distances are absolute price offsets from the selected stop reference."
     },
     "key_levels": {
-      "pdh": 27.875,
-      "pdl": 24.89,
+      "pdh": 42.27,
+      "pdl": 38.0626,
       "pdh_source": "dayHigh",
       "pdl_source": "dayLow",
-      "dist_to_pdh_atr": 0.1592,
-      "dist_to_pdl_atr": 2.0509,
+      "dist_to_pdh_atr": 0.2413,
+      "dist_to_pdl_atr": 2.2967,
       "sr_targets": null
     },
     "context": {
       "macro_bias": 0.0,
-      "candidate_score": 3.2734,
-      "gap_pct": 0.0,
-      "volume_ratio": 702774.0,
+      "candidate_score": 11.4832,
+      "gap_pct": 25.097102,
+      "volume_ratio": 3757737.0,
       "is_hvb": true,
-      "momentum_z_score": 5.0,
+      "momentum_z_score": 4.9235,
+      "earnings_today": true,
+      "earnings_timing": null,
+      "earnings_bmo": false,
+      "is_premarket_mover": true,
+      "premarket_change_pct": 24.648939348670453,
+      "long_allowed": true,
+      "no_trade_reason": [],
+      "allowed_setups": [
+        "orb",
+        "gap_go",
+        "vwap_reclaim",
+        "hod_reclaim"
+      ],
+      "max_trades": 2,
+      "note": "Neutral macro: trade only A+ confirmations."
+    },
+    "playbook_data": null
+  },
+  {
+    "symbol": "LRMR",
+    "setup_type": "ORB or VWAP-Hold",
+    "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+    "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
+    "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+    "trail_stop_atr": {
+      "atr": 0.4782,
+      "unit": "price_distance",
+      "multipliers": {
+        "tight": 1.0,
+        "mid": 1.5,
+        "wide": 2.0,
+        "balanced": 1.5
+      },
+      "distances": {
+        "tight": 0.4782,
+        "mid": 0.7173,
+        "wide": 0.9564,
+        "balanced": 0.7173
+      },
+      "stop_reference_source": "price",
+      "stop_reference_price": 5.825,
+      "stop_prices": {
+        "tight": 5.3468,
+        "mid": 5.1077,
+        "wide": 4.8686,
+        "balanced": 5.1077
+      },
+      "note": "Trail distances are absolute price offsets from the selected stop reference."
+    },
+    "key_levels": {
+      "pdh": 6.0894,
+      "pdl": 3.6498,
+      "pdh_source": "dayHigh",
+      "pdl_source": "dayLow",
+      "dist_to_pdh_atr": 0.5529,
+      "dist_to_pdl_atr": 4.5487,
+      "sr_targets": null
+    },
+    "context": {
+      "macro_bias": 0.0,
+      "candidate_score": 11.4705,
+      "gap_pct": 57.859079,
+      "volume_ratio": 48720180.0,
+      "is_hvb": true,
+      "momentum_z_score": 4.941,
       "earnings_today": false,
       "earnings_timing": null,
       "earnings_bmo": false,
       "is_premarket_mover": true,
-      "premarket_change_pct": 17.902813299232733,
+      "premarket_change_pct": 57.720867208672075,
       "long_allowed": true,
       "no_trade_reason": [
         "spread_too_wide"
+      ],
+      "allowed_setups": [
+        "orb",
+        "gap_go",
+        "vwap_reclaim",
+        "hod_reclaim"
+      ],
+      "max_trades": 2,
+      "note": "Neutral macro: trade only A+ confirmations."
+    },
+    "playbook_data": null
+  },
+  {
+    "symbol": "TRT",
+    "setup_type": "ORB or VWAP-Hold",
+    "entry_trigger": "Break and hold above opening range high (gap-up continuation).",
+    "invalidation": "Fill of pre-market gap below VWAP or close below opening range low.",
+    "risk_management": "Move stop to break-even at +1R; scale partial at +1.5R.",
+    "trail_stop_atr": {
+      "atr": 0.4725,
+      "unit": "price_distance",
+      "multipliers": {
+        "tight": 1.0,
+        "mid": 1.5,
+        "wide": 2.0,
+        "balanced": 1.5
+      },
+      "distances": {
+        "tight": 0.4725,
+        "mid": 0.7087,
+        "wide": 0.945,
+        "balanced": 0.7087
+      },
+      "stop_reference_source": "price",
+      "stop_reference_price": 5.4793,
+      "stop_prices": {
+        "tight": 5.0068,
+        "mid": 4.7706,
+        "wide": 4.5343,
+        "balanced": 4.7706
+      },
+      "note": "Trail distances are absolute price offsets from the selected stop reference."
+    },
+    "key_levels": {
+      "pdh": 5.5882,
+      "pdl": 4.69,
+      "pdh_source": "dayHigh",
+      "pdl_source": "dayLow",
+      "dist_to_pdh_atr": 0.2305,
+      "dist_to_pdl_atr": 1.6705,
+      "sr_targets": null
+    },
+    "context": {
+      "macro_bias": 0.0,
+      "candidate_score": 11.2178,
+      "gap_pct": 18.856833,
+      "volume_ratio": 0.58,
+      "is_hvb": false,
+      "momentum_z_score": 3.0872,
+      "earnings_today": false,
+      "earnings_timing": null,
+      "earnings_bmo": false,
+      "is_premarket_mover": true,
+      "premarket_change_pct": 18.856832971800433,
+      "long_allowed": true,
+      "no_trade_reason": [
+        "spread_too_wide",
+        "insufficient_liquidity"
       ],
       "allowed_setups": [
         "orb",

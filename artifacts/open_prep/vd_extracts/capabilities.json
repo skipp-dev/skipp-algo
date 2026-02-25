@@ -6,7 +6,7 @@
     "detail": "Endpoint reachable"
   },
   {
-    "feature": "income_statement",
+    "feature": "upgrades_downgrades",
     "status": "available",
     "http_status": 200,
     "detail": "Endpoint reachable"
@@ -18,13 +18,13 @@
     "detail": "FMP API HTTP 400 on /stable/sector-performance-snapshot: Bad Request"
   },
   {
-    "feature": "upgrades_downgrades",
+    "feature": "vix_quote",
     "status": "available",
     "http_status": 200,
     "detail": "Endpoint reachable"
   },
   {
-    "feature": "vix_quote",
+    "feature": "income_statement",
     "status": "available",
     "http_status": 200,
     "detail": "Endpoint reachable"

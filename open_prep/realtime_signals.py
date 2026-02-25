@@ -76,9 +76,13 @@ A1_PRICE_CHANGE_PCT_MIN = 0.35   # 0.35% for A1 (was 0.5 — missed slow grinder
 A2_PRICE_CHANGE_PCT_MIN = 0.15   # 0.15% for A2 early warning
 
 # Signal expiry & time-based level decay
-MAX_SIGNAL_AGE_SECONDS = 900     # 15 min (was 30 — stale A0s sat too long)
-A0_MAX_AGE_SECONDS = 300         # A0 → A1 after 5 min regardless of thresholds
-A1_MAX_AGE_SECONDS = 600         # A1 → A2 after 10 min regardless of thresholds
+MAX_SIGNAL_AGE_SECONDS = 480     # 8 min total signal life (was 15 — still too long)
+A0_MAX_AGE_SECONDS = 180         # A0 → A1 after 3 min (was 5 — stale A0s)
+A1_MAX_AGE_SECONDS = 300         # A1 → A2 after 5 min (was 10)
+
+# Price velocity — detect stale moves where cumulative change is misleading
+VELOCITY_LOOKBACK = 5            # polls to look back for price velocity
+STALE_VELOCITY_PCT = 0.05        # <0.05% change over lookback = flat/stale
 
 # Multi-rail safety: minimum time between A0 signals per symbol (#7)
 A0_COOLDOWN_SECONDS = 600  # 10 minutes between A0 signals per symbol
@@ -216,6 +220,56 @@ class AsyncNewsstackPoller:
 # ---------------------------------------------------------------------------
 # Market-hours gate
 # ---------------------------------------------------------------------------
+
+def _expected_cumulative_volume_fraction() -> float:
+    """Expected fraction of daily volume at current time of day.
+
+    Uses a front-loaded intraday model (volume "U-shape"):
+      - First 30 min (9:30-10:00): ~25% of daily volume
+      - 10:00-11:00: ~15% more (40% cumulative)
+      - 11:00-15:30: ~45% spread roughly evenly
+      - 15:30-16:00: ~15% closing surge
+
+    Returns a value in [0.02, 1.0].  Used to normalize raw volume_ratio
+    so that early-morning breakouts are detectable BEFORE cumulative
+    volume reaches the daily average.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+    except Exception:
+        try:
+            from dateutil.tz import gettz
+            now_et = datetime.now(gettz("America/New_York"))
+        except Exception:
+            return 1.0  # no tz info → no adjustment
+
+    if now_et.weekday() >= 5:
+        return 1.0  # weekend — no adjustment
+
+    open_min = 9 * 60 + 30   # 9:30 ET
+    close_min = 16 * 60      # 16:00 ET
+    now_min = now_et.hour * 60 + now_et.minute
+
+    if now_min < open_min:
+        return 0.02  # pre-market: expect very little volume
+
+    elapsed = now_min - open_min
+    total = close_min - open_min  # 390 minutes
+
+    if elapsed >= total:
+        return 1.0  # after close — raw ratio is fine
+
+    # Front-loaded model:
+    if elapsed <= 30:
+        frac = 0.25 * (elapsed / 30)           # 0→25% in first 30 min
+    elif elapsed <= 90:
+        frac = 0.25 + 0.15 * ((elapsed - 30) / 60)  # 25→40% in next 60 min
+    else:
+        frac = 0.40 + 0.60 * ((elapsed - 90) / 300)  # 40→100% over last 300 min
+
+    return max(frac, 0.02)
+
 
 def _is_within_market_hours() -> bool:
     """Return ``True`` when the current US-Eastern time is within extended
@@ -714,6 +768,7 @@ class RealtimeEngine:
         self._active_signals: list[RealtimeSignal] = []
         self._watchlist: list[dict[str, Any]] = []  # top-N from latest run
         self._last_prices: dict[str, float] = {}
+        self._price_history: dict[str, deque[float]] = {}  # rolling window for velocity
         self._was_outside_market: bool = False  # session-boundary detection
 
         # #1 Gate hysteresis — anti-flapping for A0↔A1 transitions
@@ -838,7 +893,8 @@ class RealtimeEngine:
         # don't grow unboundedly across daily watchlist rotations.
         wl_syms = {str(r.get("symbol", "")).strip().upper() for r in self._watchlist}
         for d in (
-            self._last_prices, self._quote_hashes,
+            self._last_prices, self._price_history,
+            self._quote_hashes,
             self._delta_tracker._prev, self._delta_tracker._streaks,
             self._hysteresis._state,
             self._dynamic_cooldown._transitions,
@@ -921,7 +977,16 @@ class RealtimeEngine:
             return None
 
         change_pct = ((price / prev_close) - 1) * 100
-        volume_ratio = volume / avg_volume
+        raw_volume_ratio = volume / avg_volume
+
+        # ── Time-of-day volume normalization ─────────────────────
+        # Raw volume_ratio uses cumulative daily volume vs daily average.
+        # At 10:00 AM, even an unusually active stock only shows 0.5x
+        # because most of the day hasn't happened yet.  Normalize by
+        # expected cumulative fraction so we measure *pace above average*
+        # rather than *cumulative total*.
+        vol_frac = _expected_cumulative_volume_fraction()
+        volume_ratio = raw_volume_ratio / max(vol_frac, 0.02)
 
         atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))
@@ -1009,6 +1074,28 @@ class RealtimeEngine:
             if level == "A1":
                 level = "A0"
 
+        # ── Stale-move velocity gate ───────────────────────────
+        # If price hasn't moved in the last N polls, cumulative change
+        # from prev_close is misleading — the breakout already happened.
+        hist = self._price_history.get(symbol)
+        if hist and len(hist) >= VELOCITY_LOOKBACK:
+            lookback_price = hist[-VELOCITY_LOOKBACK]
+            if lookback_price > 0:
+                velocity_pct = abs((price - lookback_price) / lookback_price) * 100
+                if velocity_pct < STALE_VELOCITY_PCT:
+                    if level == "A0":
+                        level = "A1"
+                        logger.debug(
+                            "Stale velocity: %s A0→A1 (vel=%.3f%% < %.3f%%)",
+                            symbol, velocity_pct, STALE_VELOCITY_PCT,
+                        )
+                    elif level == "A1":
+                        level = "A2"
+                        logger.debug(
+                            "Stale velocity: %s A1→A2 (vel=%.3f%%)",
+                            symbol, velocity_pct,
+                        )
+
         # ── #1  Gate hysteresis — prevent A0↔A1 flapping ───────────
         level = self._hysteresis.evaluate(
             symbol, level, volume_ratio, abs_change,
@@ -1053,7 +1140,7 @@ class RealtimeEngine:
             price=round(price, 2),
             prev_close=round(prev_close, 2),
             change_pct=round(change_pct, 2),
-            volume_ratio=round(volume_ratio, 2),
+            volume_ratio=round(raw_volume_ratio, 2),  # display raw, not normalized
             score=round(v2_score, 3),
             confidence_tier=confidence_tier,
             atr_pct=round(atr_pct, 2),
@@ -1102,6 +1189,7 @@ class RealtimeEngine:
         elif self._was_outside_market:
             n_cleared = len(self._last_prices)
             self._last_prices.clear()
+            self._price_history.clear()
             self._was_outside_market = False
             logger.info("Session boundary — cleared stale _last_prices (%d symbols)", n_cleared)
 
@@ -1231,6 +1319,10 @@ class RealtimeEngine:
             price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
             if price > 0:
                 self._last_prices[sym] = price
+                # Rolling price history for velocity gate
+                if sym not in self._price_history:
+                    self._price_history[sym] = deque(maxlen=20)
+                self._price_history[sym].append(price)
 
             # ── VisiData row: compact per-symbol snapshot with deltas ──
             prev_close = _safe_float(quote.get("previousClose"), 0.0)
@@ -1361,7 +1453,8 @@ class RealtimeEngine:
                 requalified.append(sig)
                 continue
             cur_change = abs(((cur_price / cur_prev_close) - 1) * 100)
-            cur_vol_ratio = cur_volume / cur_avg_vol
+            raw_cur_vol = cur_volume / cur_avg_vol
+            cur_vol_ratio = raw_cur_vol / max(_expected_cumulative_volume_fraction(), 0.02)
 
             # Apply regime-adjusted thresholds for re-qualification too
             eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
@@ -1382,27 +1475,42 @@ class RealtimeEngine:
                 )
                 continue  # drop the signal
 
-            # ── Time-based level capping ────────────────────────
+            # ── Momentum-aware time-based level capping ──────────
             # A stale A0 that still meets thresholds is NOT actionable.
-            # Cap the maximum level based on signal age.
+            # Cap the maximum level based on signal age, and accelerate
+            # decay when price velocity is flat.
             sig_age = time.time() - sig.fired_epoch
-            if sig.level == "A0" and sig_age > A0_MAX_AGE_SECONDS:
+
+            # Check if momentum is stale (flat price over recent polls)
+            phist = self._price_history.get(sig.symbol)
+            momentum_stale = False
+            if phist and len(phist) >= 3 and cur_price > 0:
+                lookback_p = phist[-min(3, len(phist))]
+                if lookback_p > 0:
+                    vel = abs((cur_price - lookback_p) / lookback_p) * 100
+                    momentum_stale = vel < STALE_VELOCITY_PCT
+
+            # Stale momentum → halve the allowed time at each level
+            eff_a0_max = A0_MAX_AGE_SECONDS // 2 if momentum_stale else A0_MAX_AGE_SECONDS
+            eff_a1_max = A1_MAX_AGE_SECONDS // 2 if momentum_stale else A1_MAX_AGE_SECONDS
+
+            if sig.level == "A0" and sig_age > eff_a0_max:
                 sig.level = "A1"
                 now_iso = datetime.now(timezone.utc).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
                 logger.debug(
-                    "Time-decay: %s A0→A1 (age %.0fs > %ds)",
-                    sig.symbol, sig_age, A0_MAX_AGE_SECONDS,
+                    "Time-decay: %s A0→A1 (age %.0fs > %ds, stale=%s)",
+                    sig.symbol, sig_age, eff_a0_max, momentum_stale,
                 )
-            if sig.level == "A1" and sig_age > A1_MAX_AGE_SECONDS:
+            if sig.level == "A1" and sig_age > eff_a1_max:
                 sig.level = "A2"
                 now_iso = datetime.now(timezone.utc).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
                 logger.debug(
-                    "Time-decay: %s A1→A2 (age %.0fs > %ds)",
-                    sig.symbol, sig_age, A1_MAX_AGE_SECONDS,
+                    "Time-decay: %s A1→A2 (age %.0fs > %ds, stale=%s)",
+                    sig.symbol, sig_age, eff_a1_max, momentum_stale,
                 )
 
             # Downgrade A0→A1 if no longer meets A0 thresholds

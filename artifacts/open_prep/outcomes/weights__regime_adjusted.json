@@ -1,20 +1,20 @@
 {
-  "gap": 0.8,
-  "gap_sector_relative": 0.6,
-  "rvol": 1.2,
-  "macro": 0.7,
-  "momentum_z": 0.5,
+  "gap": 0.96,
+  "gap_sector_relative": 0.48,
+  "rvol": 1.32,
+  "macro": 0.9099999999999999,
+  "momentum_z": 0.55,
   "hvb": 0.3,
-  "earnings_bmo": 1.5,
+  "earnings_bmo": 1.7999999999999998,
   "news": 0.8,
   "ext_hours": 1.0,
   "analyst_catalyst": 0.5,
   "vwap_distance": 0.4,
-  "freshness_decay": 0.3,
+  "freshness_decay": 0.24,
   "institutional_quality": 0.3,
   "estimate_revision": 0.4,
   "ewma": 0.4,
   "liquidity_penalty": 1.5,
   "corporate_action_penalty": 1.0,
-  "risk_off_penalty_multiplier": 2.0
+  "risk_off_penalty_multiplier": 1.0
 }
