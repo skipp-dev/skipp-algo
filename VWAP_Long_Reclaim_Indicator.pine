@@ -22,6 +22,9 @@ showBand_1 = input(true, title="Show Band 1", group="Standard Deviation Bands Se
 stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard Deviation Bands Settings")
 
 // Strategy Settings
+simpleVwapCross = input.bool(false, "Simple VWAP Cross Entry",
+    tooltip="BUY sobald der Preis den VWAP von unten kreuzt. Überspringt die Reclaim→Retest→Go Sequenz.",
+    group="Strategy")
 matchedTrends = input.bool(true, "Only Show Matched Trends", 
     tooltip="Only show long signals when VWAP is trending up.",
     group="Strategy")
@@ -140,7 +143,10 @@ vwapSlope = ta.change(vwapValue, trendSlopeBars)
 priceBias = ta.ema(close, trendEmaLen) > vwapValue
 isUpTrend = vwapSlope > 0 or priceBias
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
-longSignal = goLong and matchedTrendsFilter_long and not inVirtualPos
+
+// Entry signal: simple VWAP cross OR full Reclaim→Retest→Go
+entryTrigger = simpleVwapCross ? reclaimUp : goLong
+longSignal = entryTrigger and matchedTrendsFilter_long and not inVirtualPos
 
 // Evaluate crossover on every bar (Pine stateful-function requirement)
 tpCross = ta.crossover(high, upperBandValue2)
