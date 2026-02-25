@@ -407,7 +407,7 @@ class TestCursorStrictLessThan(unittest.TestCase):
         )
 
         # last_seen_epoch == item.updated_ts — item must NOT be dropped
-        max_ts = process_news_items(
+        max_ts, _ = process_news_items(
             store, [item], best, None, enricher, 99.0,
             last_seen_epoch=100.0,
         )
@@ -633,7 +633,7 @@ class TestSyntheticTimestampDoesNotAdvanceCursor(unittest.TestCase):
             source="Test",
         )
 
-        max_ts = process_news_items(
+        max_ts, _ = process_news_items(
             store, [item], best, None, enricher, 99.0,
             last_seen_epoch=0.0,
         )
@@ -1216,7 +1216,7 @@ class TestBenzingaCursorOnProcessingFailure(unittest.TestCase):
                 cfg = Config()
                 with patch(
                     "newsstack_fmp.pipeline.process_news_items",
-                    side_effect=[0.0, RuntimeError("SQLite locked")],
+                    side_effect=[(0.0, 0), RuntimeError("SQLite locked")],
                 ):
                     poll_once(cfg, universe=set())
 
@@ -1280,10 +1280,10 @@ class TestBenzingaCursorOnProcessingFailure(unittest.TestCase):
                 "FILTER_TO_UNIVERSE": "0",
             }):
                 cfg = Config()
-                # process_news_items returns max timestamp (success)
+                # process_news_items returns (max_ts, enrich_used) tuples
                 with patch(
                     "newsstack_fmp.pipeline.process_news_items",
-                    side_effect=[0.0, 1700000100.0],
+                    side_effect=[(0.0, 0), (1700000100.0, 0)],
                 ):
                     poll_once(cfg, universe=set())
 
@@ -2506,3 +2506,259 @@ class TestClusterHashPassthrough(unittest.TestCase):
         result = classify_and_score(item, cluster_count=1, chash=None)
         expected = cluster_hash("benzinga_rest", "MSFT merger announced", ["MSFT"])
         self.assertEqual(result.cluster_hash, expected)
+
+
+# ====================================================================
+# SR15: enrich_result shared ref, enrich budget per cycle, ticker dedup
+# ====================================================================
+
+
+class TestEnrichResultNotShared(unittest.TestCase):
+    """enrich dicts must be independent objects across multi-ticker candidates."""
+
+    def test_enrich_independent_across_tickers(self):
+        """When enrich fires for a multi-ticker item, each ticker's 'enrich'
+        dict must be a separate object (no shared reference)."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+        from unittest.mock import patch
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="enrich_multi",
+            published_ts=100.0, updated_ts=100.0,
+            headline="FDA approves drug for multiple tickers",
+            snippet="", tickers=["PFE", "MRNA"],
+            url="https://example.com/fda", source="Test",
+        )
+
+        # Patch enricher to actually return something (threshold low enough)
+        fake_enrich = {"enriched": True, "snippet": "test content"}
+        with patch.object(enricher, "fetch_url_snippet", return_value=fake_enrich):
+            process_news_items(
+                store, [item], best, None, enricher, 0.0,
+                last_seen_epoch=0.0,
+            )
+        enricher.close()
+
+        self.assertIn("PFE", best)
+        self.assertIn("MRNA", best)
+        # Both have enrich dicts
+        self.assertIn("enrich", best["PFE"])
+        self.assertIn("enrich", best["MRNA"])
+        # But they must NOT be the same object
+        self.assertIsNot(best["PFE"]["enrich"], best["MRNA"]["enrich"])
+
+    def test_enrich_mutation_does_not_propagate(self):
+        """Mutating one ticker's enrich dict must not affect the other."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+        from unittest.mock import patch
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="enrich_mutate",
+            published_ts=100.0, updated_ts=100.0,
+            headline="FDA approves drug for two tickers",
+            snippet="", tickers=["AAA", "BBB"],
+            url="https://example.com/fda2", source="Test",
+        )
+
+        fake_enrich = {"enriched": True, "snippet": "content"}
+        with patch.object(enricher, "fetch_url_snippet", return_value=fake_enrich):
+            process_news_items(
+                store, [item], best, None, enricher, 0.0,
+                last_seen_epoch=0.0,
+            )
+        enricher.close()
+
+        # Mutate AAA's enrich
+        best["AAA"]["enrich"]["extra_key"] = "injected"
+        # BBB must NOT see the mutation
+        self.assertNotIn("extra_key", best["BBB"]["enrich"])
+
+
+class TestEnrichBudgetPerCycle(unittest.TestCase):
+    """enrich_budget must be respected across FMP + BZ calls in poll_once."""
+
+    def test_enrich_budget_parameter(self):
+        """process_news_items must honour enrich_budget parameter."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+        from unittest.mock import patch, MagicMock
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        # Create 5 items that all score above threshold
+        items = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id=f"budget_{i}",
+                published_ts=100.0 + i, updated_ts=100.0 + i,
+                headline=f"FDA approves drug {i}",
+                snippet="", tickers=[f"T{i}"],
+                url=f"https://example.com/{i}", source="Test",
+            )
+            for i in range(5)
+        ]
+
+        call_count = 0
+        original_fetch = enricher.fetch_url_snippet
+
+        def counting_fetch(url):
+            nonlocal call_count
+            call_count += 1
+            return {"enriched": True, "snippet": "x"}
+
+        with patch.object(enricher, "fetch_url_snippet", side_effect=counting_fetch):
+            # Budget=2: only 2 enrichment calls allowed
+            process_news_items(
+                store, items, best, None, enricher, 0.0,
+                last_seen_epoch=0.0, enrich_budget=2,
+            )
+        enricher.close()
+
+        self.assertEqual(call_count, 2, "enrich_budget=2 should limit to 2 calls")
+
+    def test_enrich_used_returned(self):
+        """process_news_items must return (max_ts, enrich_used) tuple."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+        from unittest.mock import patch
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        items = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id=f"ret_{i}",
+                published_ts=100.0 + i, updated_ts=100.0 + i,
+                headline=f"FDA approves trial {i}",
+                snippet="", tickers=[f"R{i}"],
+                url=f"https://example.com/r{i}", source="Test",
+            )
+            for i in range(4)
+        ]
+
+        with patch.object(enricher, "fetch_url_snippet",
+                          return_value={"enriched": True, "snippet": "y"}):
+            result = process_news_items(
+                store, items, best, None, enricher, 0.0,
+                last_seen_epoch=0.0, enrich_budget=3,
+            )
+        enricher.close()
+
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        max_ts, enrich_used = result
+        self.assertIsInstance(max_ts, float)
+        self.assertEqual(enrich_used, 3, "Should have used exactly budget=3")
+
+    def test_zero_budget_no_enrichment(self):
+        """enrich_budget=0 must prevent any enrichment calls."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+        from unittest.mock import patch
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="zero_budget",
+            published_ts=100.0, updated_ts=100.0,
+            headline="FDA approves drug",
+            snippet="", tickers=["PFE"],
+            url="https://example.com/zb", source="Test",
+        )
+
+        with patch.object(enricher, "fetch_url_snippet") as mock_fetch:
+            process_news_items(
+                store, [item], best, None, enricher, 0.0,
+                last_seen_epoch=0.0, enrich_budget=0,
+            )
+        enricher.close()
+
+        mock_fetch.assert_not_called()
+
+
+class TestDuplicateTickerDedup(unittest.TestCase):
+    """Duplicate tickers in an item must be deduped before per-ticker fanout."""
+
+    def test_duplicate_tickers_deduped(self):
+        """Item with ['AAPL', 'AAPL'] should produce only one candidate."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="dup_ticker",
+            published_ts=100.0, updated_ts=100.0,
+            headline="AAPL beats Q1 earnings",
+            snippet="", tickers=["AAPL", "aapl", "AAPL"],
+            url="https://example.com/dup", source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # Should have exactly one entry (deduped)
+        self.assertEqual(len(best), 1)
+        self.assertIn("AAPL", best)
+
+    def test_order_preserved_after_dedup(self):
+        """Dedup must preserve first-seen order."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest", item_id="order_test",
+            published_ts=100.0, updated_ts=100.0,
+            headline="Multi-ticker FDA news",
+            snippet="", tickers=["MRNA", "PFE", "mrna", "BNTX", "pfe"],
+            url="https://example.com/order", source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # 3 unique tickers: MRNA, PFE, BNTX
+        self.assertEqual(len(best), 3)
+        self.assertIn("MRNA", best)
+        self.assertIn("PFE", best)
+        self.assertIn("BNTX", best)

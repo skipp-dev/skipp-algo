@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .common_types import NewsItem
 from .config import Config
@@ -108,10 +108,12 @@ def process_news_items(
     enricher: Enricher,
     enrich_threshold: float,
     last_seen_epoch: float = 0.0,
-) -> float:
+    enrich_budget: int = 3,
+) -> Tuple[float, int]:
     """Dedupe → novelty → score → enrich a batch of :class:`NewsItem`.
 
-    Returns the maximum ``updated_ts`` seen (for cursor advancement).
+    Returns ``(max_ts, enrich_used)`` — the maximum ``updated_ts`` seen
+    (for cursor advancement) and the number of enrichment HTTP calls made.
     """
     max_ts = last_seen_epoch
     enrich_count = 0
@@ -141,9 +143,9 @@ def process_news_items(
         if not store.mark_seen(it.provider, it.item_id, ts):
             continue
 
-        # Tickers + universe filter
+        # Tickers + universe filter (deduplicate to avoid redundant per-ticker work)
         tickers = [t for t in (it.tickers or []) if isinstance(t, str) and t.strip()]
-        tickers = [t.strip().upper() for t in tickers]
+        tickers = list(dict.fromkeys(t.strip().upper() for t in tickers))
         if universe:
             tickers = [t for t in tickers if t in universe]
             if not tickers:
@@ -163,11 +165,11 @@ def process_news_items(
         if score.category == "lawsuit":
             warn_flags.append("likely_noise")
 
-        # Enrich high-score items once per item (max 3 per cycle).
+        # Enrich high-score items once per item (budget shared across calls).
         # Hoisted above the per-ticker loop to avoid redundant HTTP calls
         # when one item maps to multiple tickers.
         enrich_result = None
-        if score.score >= enrich_threshold and enrich_count < 3:
+        if score.score >= enrich_threshold and enrich_count < enrich_budget:
             enrich_result = enricher.fetch_url_snippet(it.url)
             enrich_count += 1
 
@@ -196,7 +198,7 @@ def process_news_items(
             }
 
             if enrich_result is not None:
-                cand["enrich"] = enrich_result
+                cand["enrich"] = dict(enrich_result)
 
             # Keep best per ticker
             prev = best_by_ticker.get(tk)
@@ -206,7 +208,7 @@ def process_news_items(
             ):
                 best_by_ticker[tk] = cand
 
-    return max_ts
+    return max_ts, enrich_count
 
 
 # ── Core single-cycle poll ──────────────────────────────────────
@@ -294,8 +296,9 @@ def poll_once(
     fmp_items = [it for it in all_items if it.provider.startswith("fmp_")]
     bz_items = [it for it in all_items if not it.provider.startswith("fmp_")]
 
+    fmp_enrich_used = 0
     try:
-        new_fmp_max = process_news_items(
+        new_fmp_max, fmp_enrich_used = process_news_items(
             store, fmp_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=fmp_last,
         )
@@ -314,6 +317,7 @@ def poll_once(
         process_news_items(
             store, bz_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=0.0,
+            enrich_budget=max(0, 3 - fmp_enrich_used),
         )
         bz_processing_ok = True
     except Exception as exc:
