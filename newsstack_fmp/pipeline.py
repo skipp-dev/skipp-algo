@@ -306,13 +306,22 @@ def poll_once(
     if new_bz_max > bz_last:
         store.set_kv("benzinga.last_seen_epoch", str(new_bz_max))
     if bz_rest_items:
-        # Advance Benzinga updatedSince to now (epoch seconds as string)
-        store.set_kv("benzinga.updatedSince", str(int(time.time())))
+        # Advance Benzinga updatedSince to max observed updated_ts so we
+        # don't skip items that Benzinga indexes out-of-order.
+        bz_max_ts = max(
+            (it.updated_ts or it.published_ts or 0.0 for it in bz_rest_items),
+            default=0.0,
+        )
+        if bz_max_ts > 0:
+            store.set_kv("benzinga.updatedSince", str(int(bz_max_ts)))
+        else:
+            # Fallback: use current time if all items lack timestamps
+            store.set_kv("benzinga.updatedSince", str(int(time.time())))
 
     # ── 6) Export ───────────────────────────────────────────────
     candidates: List[Dict[str, Any]] = list(_best_by_ticker.values())
     candidates.sort(
-        key=lambda x: (x.get("news_score", 0), x.get("updated_ts", 0)),
+        key=lambda x: (x.get("news_score", 0), x.get("updated_ts", 0), x.get("ticker", "")),
         reverse=True,
     )
     candidates = candidates[: cfg.top_n_export]
@@ -350,12 +359,26 @@ def poll_once(
     return candidates
 
 
+def _effective_ts(cand: Dict[str, Any]) -> float:
+    """Return the best available timestamp for a candidate.
+
+    Handles 0.0 timestamps correctly (Python ``or`` treats 0.0 as falsy).
+    """
+    ts = cand.get("updated_ts")
+    if ts is not None and ts > 0:
+        return ts
+    ts = cand.get("published_ts")
+    if ts is not None and ts > 0:
+        return ts
+    return 0.0
+
+
 def _prune_best_by_ticker(keep_seconds: float) -> None:
     """Remove entries from ``_best_by_ticker`` older than *keep_seconds*."""
     cutoff = time.time() - keep_seconds
     stale = [
         tk for tk, cand in _best_by_ticker.items()
-        if (cand.get("updated_ts") or cand.get("published_ts") or 0) < cutoff
+        if _effective_ts(cand) < cutoff
     ]
     for tk in stale:
         del _best_by_ticker[tk]

@@ -643,3 +643,211 @@ class TestSyntheticTimestampDoesNotAdvanceCursor(unittest.TestCase):
         self.assertIn("AAPL", best)
         # But cursor should NOT have advanced past 0.0
         self.assertEqual(max_ts, 0.0)
+
+
+# ====================================================================
+# SR8: Production Gatekeeper review — newsstack_fmp hardening tests
+# ====================================================================
+
+
+# ── H1: API key must NOT leak in exception messages ────────────
+
+
+class TestApiKeyNotLeaked(unittest.TestCase):
+    """httpx exceptions must have API keys sanitized before logging."""
+
+    def test_fmp_sanitize_url(self):
+        from newsstack_fmp.ingest_fmp import _sanitize_url
+
+        url = "https://api.example.com/v1/news?page=0&apikey=SECRET123&limit=50"
+        safe = _sanitize_url(url)
+        self.assertNotIn("SECRET123", safe)
+        self.assertIn("apikey=***", safe)
+        self.assertIn("page=0", safe)  # other params preserved
+
+    def test_benzinga_sanitize_url(self):
+        from newsstack_fmp.ingest_benzinga import _sanitize_url
+
+        url = "https://api.benzinga.com/api/v2/news?token=BZ_SECRET&pageSize=100"
+        safe = _sanitize_url(url)
+        self.assertNotIn("BZ_SECRET", safe)
+        self.assertIn("token=***", safe)
+
+    def test_fmp_http_error_sanitized(self):
+        """raise_for_status on 403 must NOT contain apikey."""
+        import httpx as _httpx
+        from newsstack_fmp.ingest_fmp import FmpAdapter
+
+        adapter = FmpAdapter("my_secret_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.url = "https://api.example.com/v1/news?apikey=my_secret_key"
+        mock_resp.raise_for_status.side_effect = _httpx.HTTPStatusError(
+            message="403 Forbidden",
+            request=MagicMock(),
+            response=mock_resp,
+        )
+        adapter.client = MagicMock()
+        adapter.client.get.return_value = mock_resp
+
+        with self.assertRaises(Exception) as ctx:
+            adapter.fetch_stock_latest(0, 50)
+        self.assertNotIn("my_secret_key", str(ctx.exception))
+        adapter.close()
+
+
+# ── H2: Cross-provider cluster_hash — novelty dedup ───────────
+
+
+class TestCrossProviderClusterHash(unittest.TestCase):
+    """Same headline from different providers must produce the SAME cluster hash."""
+
+    def test_same_headline_different_provider(self):
+        from newsstack_fmp.scoring import cluster_hash
+
+        h_fmp = cluster_hash("fmp_stock_latest", "AAPL beats Q1 earnings", ["AAPL"])
+        h_bz = cluster_hash("benzinga_rest", "AAPL beats Q1 earnings", ["AAPL"])
+        self.assertEqual(h_fmp, h_bz)
+
+    def test_provider_param_ignored(self):
+        from newsstack_fmp.scoring import cluster_hash
+
+        h1 = cluster_hash("provider_a", "FDA approves drug", ["PFE"])
+        h2 = cluster_hash("provider_b", "FDA approves drug", ["PFE"])
+        h3 = cluster_hash("", "FDA approves drug", ["PFE"])
+        self.assertEqual(h1, h2)
+        self.assertEqual(h2, h3)
+
+
+# ── H3: FMP normalize on non-dict elements ────────────────────
+
+
+class TestFmpNonDictFiltered(unittest.TestCase):
+    """Non-dict elements in JSON array must be silently filtered, not crash."""
+
+    def test_as_list_filters_non_dicts(self):
+        from newsstack_fmp.ingest_fmp import _as_list
+
+        result = _as_list([{"a": 1}, None, "string", 42, {"b": 2}])
+        self.assertEqual(len(result), 2)
+        self.assertTrue(all(isinstance(x, dict) for x in result))
+
+    def test_as_list_non_list_input(self):
+        from newsstack_fmp.ingest_fmp import _as_list
+
+        self.assertEqual(_as_list(None), [])
+        self.assertEqual(_as_list("string"), [])
+        self.assertEqual(_as_list(42), [])
+
+
+# ── H4: JSON parse error produces clear message ───────────────
+
+
+class TestJsonParseError(unittest.TestCase):
+    """Non-JSON responses (HTML etc.) must produce a ValueError with
+    content-type and sanitized URL — not a raw JSONDecodeError."""
+
+    def test_safe_json_on_html(self):
+        from newsstack_fmp.ingest_fmp import _safe_json
+
+        mock_resp = MagicMock()
+        mock_resp.headers = {"content-type": "text/html; charset=utf-8"}
+        mock_resp.status_code = 200
+        mock_resp.url = "https://api.example.com/news?apikey=SECRET"
+        mock_resp.json.side_effect = json.JSONDecodeError("", "", 0)
+
+        with self.assertRaises(ValueError) as ctx:
+            _safe_json(mock_resp)
+        msg = str(ctx.exception)
+        self.assertIn("non-JSON", msg)
+        self.assertIn("text/html", msg)
+        self.assertNotIn("SECRET", msg)
+
+
+# ── M1: Enricher response size limit ──────────────────────────
+
+
+class TestEnricherSizeLimit(unittest.TestCase):
+    """Enricher must cap downloaded content to prevent OOM."""
+
+    def test_snippet_html_stripped(self):
+        from newsstack_fmp.enrich import _HTML_TAG_RE
+
+        html = "<p>Hello <b>World</b></p>"
+        text = _HTML_TAG_RE.sub(" ", html)
+        self.assertNotIn("<p>", text)
+        self.assertIn("Hello", text)
+        self.assertIn("World", text)
+
+
+# ── M3: Export sort determinism ────────────────────────────────
+
+
+class TestExportSortDeterminism(unittest.TestCase):
+    """Candidates with same score+ts must be sorted deterministically by ticker."""
+
+    def test_tiebreak_by_ticker(self):
+        candidates = [
+            {"ticker": "ZZXX", "news_score": 0.8, "updated_ts": 100.0},
+            {"ticker": "AAPL", "news_score": 0.8, "updated_ts": 100.0},
+            {"ticker": "MSFT", "news_score": 0.8, "updated_ts": 100.0},
+        ]
+        candidates.sort(
+            key=lambda x: (x.get("news_score", 0), x.get("updated_ts", 0), x.get("ticker", "")),
+            reverse=True,
+        )
+        tickers = [c["ticker"] for c in candidates]
+        # Reverse alpha: ZZXX > MSFT > AAPL
+        self.assertEqual(tickers, ["ZZXX", "MSFT", "AAPL"])
+
+
+# ── M4: SQLite busy_timeout ───────────────────────────────────
+
+
+class TestSqliteBusyTimeout(unittest.TestCase):
+    """SqliteStore must set busy_timeout for multi-process safety."""
+
+    def test_busy_timeout_set(self):
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        row = store.conn.execute("PRAGMA busy_timeout;").fetchone()
+        self.assertEqual(row[0], 5000)
+        store.close()
+
+
+# ── M5: _effective_ts handles 0.0 correctly ───────────────────
+
+
+class TestEffectiveTs(unittest.TestCase):
+    """_effective_ts must not treat 0.0 as 'no timestamp'."""
+
+    def test_zero_updated_ts(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"updated_ts": 0.0, "published_ts": 0.0}
+        self.assertEqual(_effective_ts(cand), 0.0)
+
+    def test_valid_updated_ts(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"updated_ts": 1700000000.0, "published_ts": 1699999000.0}
+        self.assertEqual(_effective_ts(cand), 1700000000.0)
+
+    def test_zero_updated_falls_to_published(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"updated_ts": 0.0, "published_ts": 1700000000.0}
+        self.assertEqual(_effective_ts(cand), 1700000000.0)
+
+    def test_missing_both(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"ticker": "X"}
+        self.assertEqual(_effective_ts(cand), 0.0)
+
+    def test_none_updated_ts(self):
+        from newsstack_fmp.pipeline import _effective_ts
+
+        cand = {"updated_ts": None, "published_ts": 500.0}
+        self.assertEqual(_effective_ts(cand), 500.0)

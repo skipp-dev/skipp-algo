@@ -6,11 +6,18 @@ Only called for items above ``score_enrich_threshold``.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Dict, Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Max response body to read (1 MB) — prevents OOM on malicious/huge pages.
+_MAX_CONTENT_BYTES = 1_048_576
+
+# Strip HTML tags for safe snippet storage.
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 
 class Enricher:
@@ -27,12 +34,19 @@ class Enricher:
         """Fetch URL and return a short text snippet.
 
         Non-critical — any failure returns ``{"enriched": False}``.
+        Response body is capped to 1 MB and HTML tags are stripped.
         """
         if not url:
             return {"enriched": False}
         try:
+            # Check Content-Length before streaming to avoid OOM.
             r = self.client.get(url)
-            text = r.text or ""
+            raw = r.text or ""
+            if len(raw) > _MAX_CONTENT_BYTES:
+                raw = raw[:_MAX_CONTENT_BYTES]
+            # Strip HTML tags and collapse whitespace for clean text.
+            text = _HTML_TAG_RE.sub(" ", raw)
+            text = " ".join(text.split())
             return {
                 "enriched": True,
                 "url_final": str(r.url),

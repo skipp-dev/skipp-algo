@@ -25,12 +25,23 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
+import re
+
 import httpx
 
 from .common_types import NewsItem
 from .normalize import normalize_benzinga_rest, normalize_benzinga_ws
 
 logger = logging.getLogger(__name__)
+
+# Regex to strip API keys/tokens from URLs before logging.
+_TOKEN_RE = re.compile(r"(apikey|token)=[^&]+", re.IGNORECASE)
+
+
+def _sanitize_url(url: str) -> str:
+    """Remove apikey/token query params from a URL for safe logging."""
+    return _TOKEN_RE.sub(r"\1=***", url)
+
 
 # =====================================================================
 # 1) REST delta adapter (synchronous)
@@ -65,8 +76,23 @@ class BenzingaRestAdapter:
             params["updatedSince"] = updated_since
 
         r = self.client.get(BENZINGA_REST_BASE, params=params)
-        r.raise_for_status()
-        data = r.json()
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            raise httpx.HTTPStatusError(
+                message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
+                request=exc.request,
+                response=exc.response,
+            ) from None
+
+        ct = r.headers.get("content-type", "")
+        try:
+            data = r.json()
+        except Exception:
+            raise ValueError(
+                f"Benzinga returned non-JSON (content-type={ct!r}, "
+                f"status={r.status_code}, url={_sanitize_url(str(r.url))})"
+            )
 
         # Response may be ``[…]`` or ``{"articles": […], …}``
         items: list = []

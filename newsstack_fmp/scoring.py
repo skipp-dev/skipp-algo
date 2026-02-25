@@ -48,8 +48,13 @@ def _norm(s: str) -> str:
 
 
 def cluster_hash(provider: str, headline: str, tickers: List[str]) -> str:
-    """Deterministic cluster key for novelty tracking."""
-    key = f"{provider}|{_norm(headline)}|{','.join(sorted(set(tickers)))}"
+    """Deterministic cluster key for novelty tracking.
+
+    Provider is intentionally EXCLUDED from the key so that the same
+    story from FMP + Benzinga maps to the same cluster and receives
+    proper novelty decay.
+    """
+    key = f"{_norm(headline)}|{','.join(sorted(set(tickers)))}"
     return hashlib.sha1(key.encode("utf-8")).hexdigest()
 
 

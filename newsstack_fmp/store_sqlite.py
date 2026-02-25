@@ -40,6 +40,7 @@ class SqliteStore:
         self.conn = sqlite3.connect(path, isolation_level=None)
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.execute("PRAGMA synchronous=NORMAL;")
+        self.conn.execute("PRAGMA busy_timeout=5000;")
         self.conn.executescript(SCHEMA)
 
     # ── Key-value ───────────────────────────────────────────────
