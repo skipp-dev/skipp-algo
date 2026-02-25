@@ -15,7 +15,7 @@ strategy(
 )
 
 // Import library
-import wbburgin/wbburgin_utils/2 as utils
+// import wbburgin/wbburgin_utils/2 as utils  // replaced by native slope+bias trend
 
 // ==================== INPUTS ====================
 
@@ -38,6 +38,14 @@ matchedTrends = input.bool(true, "Only Enter on Matched Trends",
 
 displaybars = input.bool(true, "Barcolors", group="Display")
 showTradeLabels = input.bool(true, "Show Trade Labels", group="Display")
+
+// Trend Detection Settings
+trendSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, maxval=20,
+    tooltip="Bars for VWAP slope calculation. Lower = faster but noisier.",
+    group="Trend Detection")
+trendEmaLen = input.int(8, "Price Bias EMA Length", minval=3, maxval=50,
+    tooltip="EMA length for price-above-VWAP bias. Lower = earlier signal.",
+    group="Trend Detection")
 
 // Reclaim Settings
 preset3m = input.string("Neutral", "3m Preset", options=["Aggressive", "Neutral", "Conservative", "Custom"], group="Reclaim Settings")
@@ -133,8 +141,9 @@ if inReclaimSeq
 
 goLong = inReclaimSeq and retestSeen and close > pullbackHigh[1] and bar_index > reclaimBar
 
-upV = utils.trendUp(vwapValue)
-isUpTrend = upV > 0
+vwapSlope = ta.change(vwapValue, trendSlopeBars)
+priceBias = ta.ema(close, trendEmaLen) > vwapValue
+isUpTrend = vwapSlope > 0 or priceBias
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
 longSignal = goLong and matchedTrendsFilter_long and strategy.position_size == 0
 
