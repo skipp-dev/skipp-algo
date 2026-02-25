@@ -11,6 +11,7 @@ Also provides ``run_pipeline(cfg)`` for standalone infinite-loop usage.
 
 from __future__ import annotations
 
+import copy
 import logging
 import os
 import time
@@ -359,9 +360,10 @@ def poll_once(
 
     # Strip internal fields (prefixed with _) before exporting to JSON.
     # _seen_ts is used internally for pruning but must not leak into the
-    # public data contract.
+    # public data contract.  Deep-copy so nested mutable values (signals,
+    # warn_flags, enrich) are fully detached from _best_by_ticker.
     export_candidates = [
-        {k: v for k, v in c.items() if not k.startswith("_")}
+        copy.deepcopy({k: v for k, v in c.items() if not k.startswith("_")})
         for c in candidates
     ]
 
@@ -449,6 +451,7 @@ def _cleanup_singletons() -> None:
             _store.close()
         except Exception:
             pass
+    _best_by_ticker.clear()
     _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None
 
 

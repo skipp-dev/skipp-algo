@@ -2916,3 +2916,169 @@ class TestClusterHashCaseNormalization(unittest.TestCase):
         # Verify determinism
         h3 = cluster_hash("provider", "headline", ["A", "B"])
         self.assertEqual(h1, h3)
+
+
+# ====================================================================
+# SR17: deep-copy export candidates, _cleanup_singletons clears _best_by_ticker
+# ====================================================================
+
+
+class TestExportCandidatesDeepCopy(unittest.TestCase):
+    """poll_once deep-copies nested mutable values (signals, warn_flags)
+    so caller mutation of nested structures cannot corrupt _best_by_ticker."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_nested_mutation_does_not_corrupt_internal_state(
+        self, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        store.mark_seen.return_value = True
+        store.cluster_touch.return_value = (1, 1700000000.0)
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        now = time.time()
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id="deep_copy_1",
+                published_ts=now, updated_ts=now,
+                headline="FDA approves drug for AAPL",
+                snippet="", tickers=["AAPL"],
+                url="https://example.com/deep1", source="Test",
+            ),
+        ]
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                result = poll_once(cfg, universe=set())
+
+            self.assertTrue(len(result) >= 1)
+            cand = result[0]
+
+            # Capture internal state snapshots before mutation
+            internal = _best_by_ticker["AAPL"]
+            orig_signals = (
+                dict(internal["signals"]) if "signals" in internal else None
+            )
+            orig_warn_flags = (
+                list(internal["warn_flags"]) if "warn_flags" in internal else None
+            )
+
+            # Mutate nested structures in the returned candidate
+            if "signals" in cand:
+                cand["signals"]["INJECTED"] = "should_not_persist"
+            if "warn_flags" in cand:
+                cand["warn_flags"].append("INJECTED_FLAG")
+
+            # Internal state must NOT be affected
+            if orig_signals is not None:
+                self.assertNotIn(
+                    "INJECTED",
+                    internal["signals"],
+                    "Nested signals mutation propagated to _best_by_ticker",
+                )
+            if orig_warn_flags is not None:
+                self.assertNotIn(
+                    "INJECTED_FLAG",
+                    internal["warn_flags"],
+                    "warn_flags mutation propagated to _best_by_ticker",
+                )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_returned_nested_dicts_are_independent_objects(
+        self, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        """Verify that nested dict/list objects in the returned candidates
+        are NOT the same Python objects as those in _best_by_ticker."""
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        store.mark_seen.return_value = True
+        store.cluster_touch.return_value = (1, 1700000000.0)
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        now = time.time()
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id="deep_copy_2",
+                published_ts=now, updated_ts=now,
+                headline="MSFT cloud revenue up",
+                snippet="", tickers=["MSFT"],
+                url="https://example.com/deep2", source="Test",
+            ),
+        ]
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                result = poll_once(cfg, universe=set())
+
+            self.assertTrue(len(result) >= 1)
+            cand = result[0]
+            internal = _best_by_ticker["MSFT"]
+
+            # Nested mutable objects must be distinct Python objects
+            if "signals" in cand and "signals" in internal:
+                self.assertIsNot(
+                    cand["signals"],
+                    internal["signals"],
+                    "signals dict is the same object — deep copy missing",
+                )
+            if "warn_flags" in cand and "warn_flags" in internal:
+                self.assertIsNot(
+                    cand["warn_flags"],
+                    internal["warn_flags"],
+                    "warn_flags list is the same object — deep copy missing",
+                )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+
+class TestCleanupSingletonsClearsBestByTicker(unittest.TestCase):
+    """_cleanup_singletons must clear _best_by_ticker to prevent stale
+    state when singletons are re-initialised."""
+
+    def test_cleanup_clears_best_by_ticker(self):
+        from newsstack_fmp import pipeline
+
+        old = pipeline._best_by_ticker.copy()
+        try:
+            pipeline._best_by_ticker["STALE_TICKER"] = {"headline": "stale"}
+            pipeline._cleanup_singletons()
+            self.assertEqual(
+                len(pipeline._best_by_ticker), 0,
+                "_cleanup_singletons did not clear _best_by_ticker",
+            )
+        finally:
+            pipeline._best_by_ticker.clear()
+            pipeline._best_by_ticker.update(old)
