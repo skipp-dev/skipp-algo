@@ -11,7 +11,8 @@ strategy(
     initial_capital=1000,
     pyramiding=1,
     commission_type=strategy.commission.percent,
-    commission_value=0.025
+    commission_value=0.025,
+    process_orders_on_close=true
 )
 
 // Import library
