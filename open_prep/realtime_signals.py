@@ -1285,7 +1285,7 @@ class RealtimeEngine:
                 or str(prev_row.get("direction", "")) != sig_dir
                 or str(prev_row.get("breakout", "")) != breakout
                 or float(prev_row.get("news_score", 0.0) or 0.0) != current_news_score
-                or str(prev_row.get("news_sentiment", "")) != news_sentiment
+                or str(prev_row.get("news_s", "")) != news_sentiment_emoji
                 or str(prev_row.get("news_url", "")) != news_url
             )
             if poll_changed:
@@ -1296,34 +1296,27 @@ class RealtimeEngine:
 
             self._vd_rows[sym] = {
                 "symbol": sym,
-                "poll_seq": self._poll_seq,
-                "poll_changed": poll_changed,
-                "price": round(price, 2),
-                "chg_pct": round(chg_pct, 2),
-                "vol_ratio": round(vol_ratio, 2),
-                "volume": int(q_volume),
                 "signal": sig_level,
                 "direction": sig_dir,
                 "breakout": breakout,
                 "news": news_with_link,
                 "news_url": news_url,
                 "news_score": current_news_score,
-                "news_sentiment": news_sentiment,
-                "news_sentiment_emoji": news_sentiment_emoji,
+                "news_s": news_sentiment_emoji,
+                "signal_age_hms": signal_age_hms,
                 "news_polarity": round(news_polarity, 3),
                 "signal_since_at": signal_since_at,
-                "signal_age_s": signal_age_s,
-                "signal_age_hms": signal_age_hms,
-                "last_change_at": last_change_at,
-                "last_change_age_s": last_change_age_s,
+                "price": round(price, 2),
+                "chg_pct": round(chg_pct, 2),
+                "vol_ratio": round(vol_ratio, 2),
                 "score": round(_safe_float(wl_entry.get("score"), 0.0), 2),
-                "tier": str(wl_entry.get("confidence_tier", "")),
                 "tick": delta["tick"],
                 "streak": delta["streak"],
-                "d_price": delta["d_price"],
                 "d_price_pct": delta["d_price_pct"],
-                "d_volume": delta["d_volume"],
-                "poll_age_s": delta["poll_age_s"],
+                "tier": str(wl_entry.get("confidence_tier", "")),
+                "last_change_age_s": last_change_age_s,
+                "poll_seq": self._poll_seq,
+                "poll_changed": poll_changed,
             }
 
         # Add new signals to active list
