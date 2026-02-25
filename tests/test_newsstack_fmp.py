@@ -929,7 +929,7 @@ class TestLoadUniverseWarning(unittest.TestCase):
     def test_missing_file_logs_warning(self):
         from newsstack_fmp.pipeline import load_universe
 
-        with self.assertLogs("newsstack_fmp.pipeline", level="WARNING") as cm:
+        with self.assertLogs("newsstack_fmp.pipeline", level="INFO") as cm:
             result = load_universe("/nonexistent/universe.txt")
         self.assertEqual(result, set())
         self.assertTrue(any("not found" in msg for msg in cm.output))

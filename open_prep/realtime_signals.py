@@ -801,6 +801,7 @@ class RealtimeEngine:
         # Cached avg_volume & earnings (fetched once per watchlist load)
         self._avg_vol_cache: dict[str, float] = {}
         self._earnings_today_cache: dict[str, dict[str, Any]] = {}
+        self._new_entrant_set: set[str] = set()
 
         # #11 Dirty flag — {symbol: quote_hash}
         self._quote_hashes: dict[str, str] = {}
@@ -882,6 +883,11 @@ class RealtimeEngine:
             ranked_v2 = data.get("ranked_v2") or []
             # Take top_n by score (already sorted)
             self._watchlist = ranked_v2[:self.top_n]
+            # Load new-entrant symbols from diff (for 🆕 column)
+            diff = data.get("diff") or {}
+            self._new_entrant_set = {
+                s.upper() for s in (diff.get("new_entrants") or [])
+            }
             logger.info(
                 "Loaded %d symbols for realtime monitoring: %s",
                 len(self._watchlist),
@@ -1487,6 +1493,7 @@ class RealtimeEngine:
 
             self._vd_rows[sym] = {
                 "symbol": sym,
+                "N": "🆕" if sym.upper() in self._new_entrant_set else "",
                 "signal": sig_level,
                 "direction": sig_dir,
                 "tick": delta["tick"],

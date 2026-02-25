@@ -2702,6 +2702,14 @@ def _compute_tomorrow_outlook(
         label = "🟡 NEUTRAL"
         color = "orange"
 
+    # Build compact event descriptions for UI display
+    hi_event_details: list[dict[str, str]] = []
+    for ev in high_impact_tomorrow:
+        ev_name = str(ev.get("event") or ev.get("title") or ev.get("name") or "—")
+        ev_date = str(ev.get("date") or "")
+        ev_country = str(ev.get("country") or "US")
+        hi_event_details.append({"event": ev_name, "date": ev_date, "country": ev_country})
+
     return {
         "next_trading_day": next_td_iso,
         "outlook_label": label,
@@ -2711,6 +2719,7 @@ def _compute_tomorrow_outlook(
         "earnings_tomorrow_count": len(earnings_tomorrow),
         "earnings_bmo_tomorrow_count": len(earnings_bmo_tomorrow),
         "high_impact_events_tomorrow": len(high_impact_tomorrow),
+        "high_impact_events_tomorrow_details": hi_event_details,
     }
 
 

@@ -229,6 +229,7 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered: list[dict[str, Any]] = []
     priority = [
         "symbol",
+        "N",
         "news_sentiment_emoji",
         "upgrade_downgrade_emoji",
         "score",
@@ -503,24 +504,31 @@ def main() -> None:
         traffic_label, traffic_color, traffic_text = _traffic_light_status(run_status)
 
         ranked_candidates = list(result.get("ranked_candidates") or [])
+        # Mark new entrants with 🆕 column
+        _diff = result.get("diff") or {}
+        _new_entrant_set: set[str] = set(_diff.get("new_entrants") or [])
         for row in ranked_candidates:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+            row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
         ranked_candidates = _reorder_ranked_columns(ranked_candidates)
 
         # Prepare common data first
         ranked_gap_go = list(result.get("ranked_gap_go") or [])
         for row in ranked_gap_go:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+            row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
         ranked_gap_go = _reorder_ranked_columns(ranked_gap_go)
 
         ranked_gap_watch = list(result.get("ranked_gap_watch") or [])
         for row in ranked_gap_watch:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+            row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
         ranked_gap_watch = _reorder_ranked_columns(ranked_gap_watch)
 
         ranked_gap_go_earn = list(result.get("ranked_gap_go_earnings") or [])
         for row in ranked_gap_go_earn:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
+            row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
         ranked_gap_go_earn = _reorder_ranked_columns(ranked_gap_go_earn)
 
         earnings_symbols_set = {r.get("symbol") for r in ranked_gap_go_earn}
@@ -942,6 +950,10 @@ def main() -> None:
             ocols[0].metric("Earnings Tomorrow", earn_count)
             ocols[1].metric("Earnings BMO", earn_bmo)
             ocols[2].metric("High-Impact Events", hi_events)
+            hi_details = tomorrow_outlook.get("high_impact_events_tomorrow_details") or []
+            if hi_details:
+                detail_lines = [f"- **{d['event']}** ({d['country']}) — {d['date']}" for d in hi_details]
+                st.markdown("**Scheduled High-Impact Events:**\n" + "\n".join(detail_lines))
             if reasons:
                 st.caption("Factors: " + ", ".join(reasons))
 
@@ -962,6 +974,10 @@ def main() -> None:
             dcols[0].metric("New Entrants", len(diff_new))
             dcols[1].metric("Dropped", len(diff_dropped))
             dcols[2].metric("Score Changes", len(diff_score_ch))
+            if diff_new:
+                st.markdown("🆕 **New Entrants:** " + ", ".join(diff_new[:20]))
+            if diff_dropped:
+                st.markdown("❌ **Dropped:** " + ", ".join(diff_dropped[:20]))
             if diff_regime_ch:
                 st.warning(f"⚠️ Regime changed: {diff_regime_ch['from']} → {diff_regime_ch['to']}")
 

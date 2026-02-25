@@ -390,12 +390,24 @@ class TestPrevTradingDaySafety:
 class TestRealtimeSignalFloatSafety:
     """_detect_signal must not crash on non-numeric quote fields."""
 
-    def test_non_numeric_price_returns_none(self):
-        """Arrange: quote with price='N/A'. Assert: returns None, no crash."""
-        from open_prep.realtime_signals import RealtimeEngine
-
+    @staticmethod
+    def _make_bare_engine():
+        """Create a bare RealtimeEngine bypassing __init__ with all needed attrs."""
+        from open_prep.realtime_signals import (
+            RealtimeEngine, GateHysteresis, DynamicCooldown, VolumeRegimeDetector,
+        )
         engine = RealtimeEngine.__new__(RealtimeEngine)
         engine._last_prices = {}
+        engine._price_history = {}
+        engine._hysteresis = GateHysteresis()
+        engine._dynamic_cooldown = DynamicCooldown()
+        engine._volume_regime = VolumeRegimeDetector()
+        engine._avg_vol_cache = {}
+        return engine
+
+    def test_non_numeric_price_returns_none(self):
+        """Arrange: quote with price='N/A'. Assert: returns None, no crash."""
+        engine = self._make_bare_engine()
 
         signal = engine._detect_signal(
             "TEST",
@@ -406,10 +418,7 @@ class TestRealtimeSignalFloatSafety:
 
     def test_none_values_return_none(self):
         """Arrange: quote with all None values. Assert: returns None."""
-        from open_prep.realtime_signals import RealtimeEngine
-
-        engine = RealtimeEngine.__new__(RealtimeEngine)
-        engine._last_prices = {}
+        engine = self._make_bare_engine()
 
         signal = engine._detect_signal(
             "TEST",
@@ -420,10 +429,7 @@ class TestRealtimeSignalFloatSafety:
 
     def test_valid_quote_produces_signal(self):
         """Arrange: quote with strong breakout. Assert: signal produced."""
-        from open_prep.realtime_signals import RealtimeEngine
-
-        engine = RealtimeEngine.__new__(RealtimeEngine)
-        engine._last_prices = {}
+        engine = self._make_bare_engine()
 
         signal = engine._detect_signal(
             "TEST",
@@ -517,6 +523,7 @@ class TestRealtimeFailOpen:
         engine._client_disabled_reason = "API key missing"
         engine._active_signals = []
         engine._watchlist = []
+        engine._was_outside_market = False
         engine.poll_interval = 45
 
         # Mock _save_signals to avoid file I/O
