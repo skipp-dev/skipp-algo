@@ -2028,6 +2028,22 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
         return {}, {}, {}
 
 
+def _evict_stale_cache_files(cache_dir: Path, *, max_age_days: int = 7) -> None:
+    """Remove cache files older than *max_age_days* to prevent unbounded disk growth."""
+    import time as _time_mod
+    cutoff = _time_mod.time() - max_age_days * 86400
+    try:
+        for entry in cache_dir.iterdir():
+            if entry.suffix in {".json", ".tmp"} and entry.is_file():
+                try:
+                    if entry.stat().st_mtime < cutoff:
+                        entry.unlink(missing_ok=True)
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+
 def _save_atr_cache(
     *,
     as_of: date,
@@ -2075,6 +2091,8 @@ def _save_atr_cache(
             except OSError:
                 pass
             raise
+        # Evict stale cache files (> 7 days old) to prevent unbounded growth.
+        _evict_stale_cache_files(ATR_CACHE_DIR, max_age_days=7)
     except Exception:
         # Cache is an optimization. Never break pipeline on cache I/O errors.
         return
@@ -2390,6 +2408,8 @@ def _pm_cache_save(
             except OSError:
                 pass
             raise
+        # Evict stale PM cache files (> 2 days old).
+        _evict_stale_cache_files(PM_CACHE_DIR, max_age_days=2)
     except Exception:
         return
 
@@ -3788,13 +3808,25 @@ def generate_open_prep_result(
     # see fresh data — regardless of whether the caller is Streamlit or CLI.
     try:
         import json as _json
+        import tempfile as _tmp_latest
         _latest_dir = Path("artifacts/open_prep/latest")
         _latest_dir.mkdir(parents=True, exist_ok=True)
         _latest_path = _latest_dir / "latest_open_prep_run.json"
-        _latest_path.write_text(
-            _json.dumps(result, indent=2, default=str) + "\n",
-            encoding="utf-8",
-        )
+        _content = (_json.dumps(result, indent=2, default=str) + "\n").encode("utf-8")
+        _fd, _tmp_name = _tmp_latest.mkstemp(dir=str(_latest_dir), suffix=".tmp")
+        try:
+            os.write(_fd, _content)
+            os.close(_fd)
+            _fd = -1
+            os.replace(_tmp_name, str(_latest_path))
+        except BaseException:
+            if _fd >= 0:
+                os.close(_fd)
+            try:
+                os.unlink(_tmp_name)
+            except OSError:
+                pass
+            raise
         # Backward-compat symlink so existing callers (vd_watch.sh, start_open_prep_suite.py)
         # that look in the package dir still find the file.
         _compat_link = Path(__file__).resolve().parent / "latest_open_prep_run.json"

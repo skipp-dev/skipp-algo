@@ -16,10 +16,13 @@ from .utils import to_float
 
 logger = logging.getLogger("open_prep.diff")
 
-SCORE_CHANGE_THRESHOLD = max(
-    float(os.environ.get("OPEN_PREP_DIFF_SCORE_THRESHOLD", "0.5") or "0.5"),
-    0.01,
-)
+try:
+    SCORE_CHANGE_THRESHOLD = max(
+        float(os.environ.get("OPEN_PREP_DIFF_SCORE_THRESHOLD", "0.5") or "0.5"),
+        0.01,
+    )
+except (ValueError, TypeError):
+    SCORE_CHANGE_THRESHOLD = 0.5
 
 LAST_RESULT_PATH = Path("artifacts/open_prep/last_result.json")
 

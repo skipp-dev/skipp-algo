@@ -142,18 +142,15 @@ class TestToEpochLogging(unittest.TestCase):
 
         with self.assertLogs("newsstack_fmp.normalize", level="WARNING") as cm:
             result = _to_epoch("not-a-date-at-all!!!")
-            self.assertIsInstance(result, float)
+            self.assertEqual(result, 0.0)
 
         self.assertTrue(any("Unparseable date" in msg for msg in cm.output))
 
-    def test_empty_string_returns_now(self):
+    def test_empty_string_returns_zero(self):
         from newsstack_fmp.normalize import _to_epoch
 
-        before = time.time()
         result = _to_epoch("")
-        after = time.time()
-        self.assertGreaterEqual(result, before)
-        self.assertLessEqual(result, after)
+        self.assertEqual(result, 0.0)
 
     def test_valid_date_parsed_correctly(self):
         from newsstack_fmp.normalize import _to_epoch
@@ -588,3 +585,61 @@ class TestAlwaysExport(unittest.TestCase):
         finally:
             _best_by_ticker.clear()
             _best_by_ticker.update(old)
+
+
+# ── SR-1: _to_epoch returns 0.0 for empty/unparseable (no cursor inflation) ──
+
+
+class TestToEpochReturnsZeroNotNow(unittest.TestCase):
+    """_to_epoch must return 0.0 (not time.time()) on empty/unparseable dates
+    to prevent cursor inflation that skips real items."""
+
+    def test_empty_returns_zero(self):
+        from newsstack_fmp.normalize import _to_epoch
+        self.assertEqual(_to_epoch(""), 0.0)
+
+    def test_unparseable_returns_zero(self):
+        from newsstack_fmp.normalize import _to_epoch
+        with self.assertLogs("newsstack_fmp.normalize", level="WARNING"):
+            self.assertEqual(_to_epoch("GARBAGE!@#$%"), 0.0)
+
+
+# ── SR-2: Synthetic timestamps must NOT advance cursor ──────────
+
+
+class TestSyntheticTimestampDoesNotAdvanceCursor(unittest.TestCase):
+    """Items with missing timestamps (ts=0.0) must be processed,
+    but must NOT advance the max_ts cursor."""
+
+    def test_zero_ts_does_not_advance_cursor(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="zero_ts_test",
+            published_ts=0.0,
+            updated_ts=0.0,
+            headline="AAPL beats Q1 earnings",
+            snippet="",
+            tickers=["AAPL"],
+            url="https://example.com/z",
+            source="Test",
+        )
+
+        max_ts = process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # Item should still be processed (appears in best)
+        self.assertIn("AAPL", best)
+        # But cursor should NOT have advanced past 0.0
+        self.assertEqual(max_ts, 0.0)

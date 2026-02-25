@@ -33,21 +33,25 @@ logger = logging.getLogger(__name__)
 # ── Shared helpers ──────────────────────────────────────────────
 
 def _to_epoch(s: str) -> float:
-    """Parse a date/time string to epoch seconds.  Fallback: now.
+    """Parse a date/time string to epoch seconds.
+
+    Returns ``0.0`` for empty or unparseable strings so that the caller
+    can detect 'no timestamp available' and avoid advancing cursors past
+    real item timestamps.
 
     Naive datetimes (no timezone info) are assumed UTC to guarantee
     deterministic results regardless of server timezone.
     """
     if not s:
-        return time.time()
+        return 0.0
     try:
         dt = dtparser.parse(s)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.timestamp()
     except Exception:
-        logger.warning("Unparseable date %r — falling back to time.time().", s[:80])
-        return time.time()
+        logger.warning("Unparseable date %r — returning epoch 0.", s[:80])
+        return 0.0
 
 
 def _extract_tickers(it: Dict[str, Any]) -> List[str]:

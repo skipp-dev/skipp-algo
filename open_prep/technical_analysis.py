@@ -259,9 +259,13 @@ def detect_consolidation(
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _ema(values: list[float], span: int) -> float:
-    """Compute the final EMA value from a list of floats."""
+    """Compute the final EMA value from a list of floats.
+
+    Returns ``float('nan')`` when *values* is empty so callers can
+    distinguish 'no data' from a genuine zero price.
+    """
     if not values:
-        return 0.0
+        return float("nan")
     k = 2.0 / (span + 1)
     ema_val = values[0]
     for v in values[1:]:
@@ -605,6 +609,15 @@ def calculate_support_resistance_targets(
         ema_20 = _ema(all_closes, 20)
         ema_50 = _ema(all_closes, 50) if len(all_closes) >= 50 else None
         ema_200 = _ema(all_closes, 200) if len(all_closes) >= 200 else None
+
+        # Convert NaN to None for downstream guards
+        import math as _math
+        if ema_20 != ema_20:  # NaN check
+            ema_20 = None  # type: ignore[assignment]
+        if ema_50 is not None and ema_50 != ema_50:
+            ema_50 = None
+        if ema_200 is not None and ema_200 != ema_200:
+            ema_200 = None
 
         # --- Fibonacci ---
         recent_high = max(highs)

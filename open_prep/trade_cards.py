@@ -161,6 +161,8 @@ def build_trade_cards(
 
         allowed_setups = row.get("allowed_setups")
         playbook = row.get("playbook")  # from playbook engine
+        if not isinstance(playbook, dict):
+            playbook = None
         setup_type = _setup_type_from_bias(bias, allowed_setups, playbook)
         bias_note = _risk_note_from_bias(bias, allowed_setups, playbook)
 

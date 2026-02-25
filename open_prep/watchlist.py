@@ -4,7 +4,6 @@ Watchlist entries are stored in ``artifacts/open_prep/watchlist.json``.
 """
 from __future__ import annotations
 
-import fcntl
 import json
 import logging
 import os
@@ -14,6 +13,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+try:
+    import fcntl  # POSIX only
+    _HAS_FCNTL = True
+except ImportError:
+    _HAS_FCNTL = False
+
 logger = logging.getLogger("open_prep.watchlist")
 
 WATCHLIST_PATH = Path("artifacts/open_prep/watchlist.json")
@@ -22,7 +27,13 @@ _LOCK_PATH = WATCHLIST_PATH.with_suffix(".lock")
 
 @contextmanager
 def _file_lock() -> Iterator[None]:
-    """Cooperatively lock the watchlist for read-modify-write operations."""
+    """Cooperatively lock the watchlist for read-modify-write operations.
+
+    Falls back to a no-op on platforms without fcntl (Windows).
+    """
+    if not _HAS_FCNTL:
+        yield
+        return
     _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(str(_LOCK_PATH), os.O_CREAT | os.O_RDWR)
     try:

@@ -240,15 +240,18 @@ class RealtimeEngine:
         price = _safe_float(quote.get("price") or quote.get("lastPrice"), 0.0)
         prev_close = _safe_float(quote.get("previousClose"), 0.0)
         volume = _safe_float(quote.get("volume"), 0.0)
-        avg_volume = _safe_float(
-            quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 1.0
+        avg_volume = max(
+            _safe_float(
+                quote.get("avgVolume") or watchlist_entry.get("avg_volume"), 1.0
+            ),
+            1.0,
         )
 
         if price <= 0 or prev_close <= 0:
             return None
 
         change_pct = ((price / prev_close) - 1) * 100
-        volume_ratio = volume / avg_volume if avg_volume > 0 else 1.0
+        volume_ratio = volume / avg_volume
 
         atr_pct = _safe_float(watchlist_entry.get("atr_pct_computed") or watchlist_entry.get("atr_pct"), 0.0)
         confidence_tier = str(watchlist_entry.get("confidence_tier", "STANDARD"))

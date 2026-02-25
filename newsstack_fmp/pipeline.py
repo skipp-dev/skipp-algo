@@ -116,7 +116,12 @@ def process_news_items(
         if not it.is_valid:
             continue
 
-        ts = it.updated_ts or it.published_ts or time.time()
+        # Determine effective timestamp.  _to_epoch returns 0.0 for
+        # missing/unparseable dates — fall back to time.time() for
+        # processing but do NOT let synthetic timestamps advance the cursor.
+        raw_ts = it.updated_ts or it.published_ts
+        has_real_ts = raw_ts is not None and raw_ts > 0
+        ts = raw_ts if has_real_ts else time.time()
 
         # Cursor check: skip items older than last seen for this provider.
         # Use strict < so items sharing the cursor timestamp are not dropped;
@@ -124,7 +129,9 @@ def process_news_items(
         if ts < last_seen_epoch:
             continue
 
-        max_ts = max(max_ts, ts)
+        # Only advance cursor with real (non-synthetic) timestamps
+        if has_real_ts:
+            max_ts = max(max_ts, ts)
 
         # Dedup (provider, item_id)
         if not store.mark_seen(it.provider, it.item_id, ts):

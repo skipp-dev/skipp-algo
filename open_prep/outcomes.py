@@ -94,10 +94,13 @@ def store_daily_outcomes(
 
     # Rotate old outcome files beyond the retention window to prevent
     # unbounded disk growth.  Default: keep 90 days.
-    max_days = max(
-        int(float(os.environ.get("OPEN_PREP_OUTCOME_RETENTION_DAYS", "90") or "90")),
-        7,
-    )
+    try:
+        max_days = max(
+            int(float(os.environ.get("OPEN_PREP_OUTCOME_RETENTION_DAYS", "90") or "90")),
+            7,
+        )
+    except (ValueError, TypeError):
+        max_days = 90
     try:
         all_files = sorted(OUTCOMES_DIR.glob("outcomes_*.json"))
         if len(all_files) > max_days:
