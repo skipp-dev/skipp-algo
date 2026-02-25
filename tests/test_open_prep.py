@@ -2269,9 +2269,14 @@ class TestCapabilityProbeEodBulkDatatype(unittest.TestCase):
         client = FMPClient(api_key="test")
         with patch.object(FMPClient, "_get") as mock_get:
             mock_get.return_value = []
-            # Avoid file I/O for capability cache
-            with patch("open_prep.run_open_prep.CAPABILITY_CACHE_FILE") as mock_file:
+            # Avoid file I/O for capability cache — mock both the file check
+            # AND the cache directory to prevent any disk writes.
+            with (
+                patch("open_prep.run_open_prep.CAPABILITY_CACHE_FILE") as mock_file,
+                patch("open_prep.run_open_prep.CAPABILITY_CACHE_DIR") as mock_dir,
+            ):
                 mock_file.exists.return_value = False
+                mock_dir.mkdir.return_value = None
                 _probe_data_capabilities(client=client, today=date(2026, 2, 25))
 
         # Find the eod-bulk call among all _get calls
