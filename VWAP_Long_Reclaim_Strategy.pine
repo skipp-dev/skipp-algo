@@ -127,6 +127,7 @@ var int reclaimBar = na
 var float retestLow = na
 var bool inReclaimSeq = false
 var bool retestSeen = false
+var bool inPosition = false   // mirrors indicator's inVirtualPos for same-bar timing
 
 // Rolling highest high (Donchian) — replaces monotonic pullbackHigh.
 pullbackHigh = ta.highest(high, pullbackLookback)
@@ -161,7 +162,7 @@ matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
 // cross entries fire (no breakout). When off, breakoutEntry toggle
 // controls the Reclaim→Retest→Go breakout.
 entryTrigger = simpleVwapCross ? reclaimUp : (breakoutEntry and goLong)
-longSignal = entryTrigger and matchedTrendsFilter_long and strategy.position_size == 0
+longSignal = entryTrigger and matchedTrendsFilter_long and not inPosition
 
 // ==================== STRATEGY LOGIC ====================
 
@@ -173,13 +174,19 @@ if longSignal
     longStop := simpleVwapCross ? vwapValue - tol : retestLow - tol
     inReclaimSeq := false
     retestSeen := false
+    inPosition := true
 
 if strategy.position_size > 0 and not na(longStop)
     strategy.exit("L-Stop", "Long", stop=longStop)
 
-exitOnVwapLoss = strategy.position_size > 0 and close < vwapValue - tol
+exitOnVwapLoss = inPosition and close < vwapValue - tol
 if exitOnVwapLoss
     strategy.close("Long")
+    inPosition := false
+
+// Sync flag if stopped out by strategy.exit (stop hit)
+if strategy.position_size == 0 and inPosition
+    inPosition := false
 
 // ==================== PLOTS ====================
 
@@ -209,7 +216,7 @@ plotshape(debug and reclaimUp, title="ReclaimUp", style=shape.triangleup, locati
 plotshape(debug and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
 plotshape(showTradeLabels and longSignal, title="Long Entry", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), textcolor=color.white, size=size.tiny, text="Buy")
 plotshape(showTradeLabels and exitOnVwapLoss, title="VWAP Loss Exit", style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
-plot(inReclaimSeq or strategy.position_size > 0 ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
+plot(inReclaimSeq or inPosition ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
 
 // ==================== STATUS TABLE ====================
 
