@@ -57,6 +57,9 @@ retestTolATR = input.float(0.10, "Retest Toleranz (ATR-Anteil)", minval=0.0, ste
 useAtrTol = input.bool(true, "Toleranz via ATR", group="Reclaim Settings")
 debug = input.bool(true, "Debug Markers", group="Reclaim Settings")
 showStatusTable = input.bool(true, "Show Status Table", group="Reclaim Settings")
+pullbackLookback = input.int(5, "Pullback High Lookback", minval=2, maxval=30,
+    tooltip="Rolling-Fenster für den Pullback High (Donchian). Kleiner = schneller. Default 5.",
+    group="Reclaim Settings")
 
 reclaimWindowBarsEff = preset3m == "Aggressive" ? 20 : preset3m == "Conservative" ? 8 : preset3m == "Neutral" ? 12 : reclaimWindowBars
 retestTolATREff = preset3m == "Aggressive" ? 0.16 : preset3m == "Conservative" ? 0.06 : preset3m == "Neutral" ? 0.10 : retestTolATR
@@ -116,20 +119,20 @@ wasBelowVwap = close[1] < vwapValue[1]
 reclaimUp = wasBelowVwap and close > vwapValue
 
 var int reclaimBar = na
-var float pullbackHigh = na
 var float retestLow = na
 var bool inReclaimSeq = false
 var bool retestSeen = false
+
+// Rolling highest high (Donchian) — replaces monotonic pullbackHigh.
+pullbackHigh = ta.highest(high, pullbackLookback)
 
 if reclaimUp
     reclaimBar := bar_index
     inReclaimSeq := true
     retestSeen := false
-    pullbackHigh := high
     retestLow := na
 
 if inReclaimSeq
-    pullbackHigh := math.max(pullbackHigh, high)
     expired = (bar_index - reclaimBar) > reclaimWindowBarsEff
     hardFail = close < vwapValue - tol
     if expired or hardFail
