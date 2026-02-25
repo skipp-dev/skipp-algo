@@ -279,9 +279,9 @@ def filter_candidate(
     freshness_sec_raw = _to_float(quote.get("premarket_freshness_sec"), default=float("nan"))
     freshness_sec: float | None = None if math.isnan(freshness_sec_raw) else freshness_sec_raw
     vwap_raw2 = _to_float(quote.get("vwap"), default=float("nan"))
-    vwap: float | None = None if vwap_raw2 != vwap_raw2 else vwap_raw2
+    vwap: float | None = None if math.isnan(vwap_raw2) else vwap_raw2
     prev_close_raw2 = _to_float(quote.get("previousClose"), default=float("nan"))
-    prev_close: float | None = None if prev_close_raw2 != prev_close_raw2 else prev_close_raw2
+    prev_close: float | None = None if math.isnan(prev_close_raw2) else prev_close_raw2
 
     # --- Hard filter checks ---
     filter_reasons: list[str] = []

@@ -1201,8 +1201,8 @@ def _fetch_institutional_ownership(
                     _, data = fut.result()
                     if data is not None:
                         result[sym_key] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Institutional ownership worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
             logger.warning("Institutional ownership fetch timed out after 30 s; continuing with partial.")
 
@@ -1356,7 +1356,7 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
             if age_seconds <= ttl_seconds and isinstance(cached_data, dict):
                 return cached_data
         except Exception as exc:
-            logger.debug("ATR cache read failed: %s", exc)
+            logger.debug("Capability cache read failed: %s", exc)
 
     probes: list[tuple[str, str, dict[str, Any]]] = [
         ("eod_bulk", "/stable/eod-bulk", {"date": today.isoformat(), "datatype": "json"}),
@@ -1415,7 +1415,7 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
                 pass
             raise
     except Exception as exc:
-        logger.debug("ATR cache write failed: %s", exc)
+        logger.debug("Capability cache write failed: %s", exc)
 
     return out
 
@@ -1478,7 +1478,7 @@ def _fetch_analyst_catalyst(
 
     result: dict[str, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futs = {executor.submit(lambda s: _single(s), s): s for s in batch}
+        futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
                 sym_key = futs[fut]
@@ -1486,8 +1486,8 @@ def _fetch_analyst_catalyst(
                     _, data = fut.result()
                     if data is not None:
                         result[sym_key] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Analyst catalyst worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
             logger.warning("Analyst catalyst fetch timed out after 30 s; continuing with partial.")
 
@@ -1539,7 +1539,7 @@ def _fetch_earnings_distance_features(
 
     out: dict[str, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futs = {executor.submit(lambda s: _single(s), s): s for s in batch}
+        futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
                 sym_key = futs[fut]
@@ -1547,8 +1547,8 @@ def _fetch_earnings_distance_features(
                     _, data = fut.result()
                     if data is not None:
                         out[sym_key] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Earnings distance worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
             logger.warning("Earnings distance fetch timed out after 30 s; continuing with partial.")
     return out
