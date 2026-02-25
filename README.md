@@ -97,6 +97,10 @@ Für einen laufenden Monitor mit automatischem Refresh alle 15 Sekunden:
 - Start: `streamlit run open_prep/streamlit_monitor.py`
 - Die App ruft bei jedem Refresh die Datenquellen neu über `generate_open_prep_result(...)` ab.
 - Parameter (Symbole, Gap-Mode, ATR-Settings, Pre-Open-Filter) sind in der Sidebar einstellbar.
+- v2 candidate view supports realtime-assisted surfacing:
+  - symbols with active `A0`/`A1` signals that were only `below_top_n_cutoff` in pipeline scoring
+    are auto-promoted into a dedicated **🔥 RT-PROMOTED** section.
+  - this prevents high-momentum symbols from being hidden purely due to snapshot cutoff timing.
 
 ## Sideways/Chop semantics (quick)
 
@@ -152,6 +156,13 @@ Timing note:
 - **Changelog:** `CHANGELOG.md`
 
 ## Recent changes (Feb 2026)
+
+- **Latest (25 Feb 2026) — Open-Prep Streamlit v2 realtime auto-promotion:**
+  - Added auto-promotion of realtime `A0`/`A1` symbols from `below_top_n_cutoff` into displayed v2 candidates.
+  - Added dedicated **🔥 RT-PROMOTED** section in the monitor.
+  - Cross-reference “missing from v2” now excludes already-promoted symbols (shows only hard-filtered / not-in-universe cases).
+  - Added focused regression coverage in `tests/test_rt_promotion.py`.
+  - Verification: full test suite green (**985 passed, 34 subtests passed**).
 
 - **Latest (v6.3.13b — 16 Feb 2026) — Alert Surface + Consolidation UX:**
   - Added dedicated alert conditions in **indicator + strategy**:

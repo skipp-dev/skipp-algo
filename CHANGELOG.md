@@ -6,6 +6,35 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-02-25)
+
+- **Open-Prep Streamlit v2: auto-promotion for realtime A0/A1 signals:**
+  - Added deterministic promotion logic in `open_prep/streamlit_monitor.py` to lift symbols from
+    `filtered_out_v2` into `ranked_v2` when all of the following are true:
+    - active realtime level is `A0` or `A1`,
+    - symbol is **not** already ranked,
+    - pipeline reason is exactly `below_top_n_cutoff`.
+  - Promoted rows are flagged with `rt_promoted=true` and include realtime context
+    (`rt_level`, `rt_direction`, `rt_pattern`, `rt_change_pct`, `rt_volume_ratio`).
+  - Streamlit UI now renders a dedicated **🔥 RT-PROMOTED** block above the normal v2 tiers.
+  - Promoted symbols are removed from `filtered_out_v2` display to avoid duplicate listing.
+  - Cross-reference panel now reuses preloaded realtime A0/A1 data and excludes already-promoted symbols,
+    so “missing from v2” only reflects hard-filtered or non-universe cases.
+
+- **New unit test coverage for promotion behavior:**
+  - Added `tests/test_rt_promotion.py` with coverage for:
+    - below-cutoff promotion (A0/A1),
+    - hard-filter exclusion,
+    - no-duplication for already-ranked symbols,
+    - case-insensitive symbol matching,
+    - fallback semantics for promoted price fields,
+    - multi-symbol and no-op edge cases.
+
+### Verification (2026-02-25)
+
+- Targeted suite: **13 passed** (`tests/test_rt_promotion.py`).
+- Full regression suite: **985 passed, 34 subtests passed**.
+
 ### Added (2026-02-21)
 
 - **Indicator/Strategy parity hardening finalized:**
