@@ -2762,3 +2762,157 @@ class TestDuplicateTickerDedup(unittest.TestCase):
         self.assertIn("MRNA", best)
         self.assertIn("PFE", best)
         self.assertIn("BNTX", best)
+
+
+# ====================================================================
+# SR16: poll_once defensive copies, cluster_hash case normalisation
+# ====================================================================
+
+
+class TestPollOnceReturnsCopies(unittest.TestCase):
+    """poll_once must return independent copies — mutation must not corrupt
+    _best_by_ticker internal state across poll cycles."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_mutation_does_not_corrupt_internal_state(
+        self, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        store.mark_seen.return_value = True
+        store.cluster_touch.return_value = (1, 1700000000.0)
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        now = time.time()
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id="copy_test_1",
+                published_ts=now, updated_ts=now,
+                headline="FDA approves drug for AAPL",
+                snippet="", tickers=["AAPL"],
+                url="https://example.com/copy1", source="Test",
+            ),
+        ]
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                result = poll_once(cfg, universe=set())
+
+            self.assertTrue(len(result) >= 1)
+            original_headline = _best_by_ticker["AAPL"]["headline"]
+
+            # Mutate the returned candidate
+            result[0]["headline"] = "CORRUPTED BY CALLER"
+            result[0]["injected_key"] = "should_not_persist"
+
+            # Internal state must NOT be affected
+            self.assertEqual(
+                _best_by_ticker["AAPL"]["headline"],
+                original_headline,
+                "Caller mutation corrupted _best_by_ticker",
+            )
+            self.assertNotIn(
+                "injected_key",
+                _best_by_ticker["AAPL"],
+                "Injected key leaked into _best_by_ticker",
+            )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_return_has_no_internal_fields(
+        self, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        store.mark_seen.return_value = True
+        store.cluster_touch.return_value = (1, 1700000000.0)
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        now = time.time()
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = [
+            NewsItem(
+                provider="fmp_stock_latest", item_id="copy_test_2",
+                published_ts=now, updated_ts=now,
+                headline="AAPL beats Q1 earnings",
+                snippet="", tickers=["AAPL"],
+                url="https://example.com/copy2", source="Test",
+            ),
+        ]
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                result = poll_once(cfg, universe=set())
+
+            # Return must NOT contain _-prefixed internal fields
+            for cand in result:
+                underscore_keys = [k for k in cand if k.startswith("_")]
+                self.assertEqual(
+                    underscore_keys, [],
+                    f"Internal keys in poll_once return: {underscore_keys}",
+                )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+
+class TestClusterHashCaseNormalization(unittest.TestCase):
+    """cluster_hash must produce identical hashes for different-case tickers."""
+
+    def test_mixed_case_tickers_same_hash(self):
+        from newsstack_fmp.scoring import cluster_hash
+
+        h1 = cluster_hash("p", "FDA approves drug", ["AAPL"])
+        h2 = cluster_hash("p", "FDA approves drug", ["aapl"])
+        h3 = cluster_hash("p", "FDA approves drug", ["Aapl"])
+        self.assertEqual(h1, h2)
+        self.assertEqual(h2, h3)
+
+    def test_mixed_case_multi_ticker(self):
+        from newsstack_fmp.scoring import cluster_hash
+
+        h1 = cluster_hash("p", "M&A deal", ["AAPL", "MSFT"])
+        h2 = cluster_hash("p", "M&A deal", ["msft", "aapl"])
+        self.assertEqual(h1, h2)
+
+    def test_existing_uppercase_unchanged(self):
+        """Already-uppercase tickers must still produce the same hash
+        as before (backward-compat)."""
+        from newsstack_fmp.scoring import cluster_hash
+
+        # Compute once with uppercase (as all existing items do)
+        h1 = cluster_hash("provider", "headline", ["A", "B"])
+        h2 = cluster_hash("provider", "headline", ["B", "A"])
+        self.assertEqual(h1, h2)
+        # Verify determinism
+        h3 = cluster_hash("provider", "headline", ["A", "B"])
+        self.assertEqual(h1, h3)

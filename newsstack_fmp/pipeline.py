@@ -395,7 +395,9 @@ def poll_once(
         fmp_count, bz_count, len(candidates),
     )
 
-    return candidates
+    # Return copies (export_candidates) so callers cannot mutate
+    # the internal _best_by_ticker state across poll cycles.
+    return export_candidates
 
 
 def _effective_ts(cand: Dict[str, Any]) -> float:

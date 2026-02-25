@@ -54,7 +54,8 @@ def cluster_hash(provider: str, headline: str, tickers: List[str]) -> str:
     story from FMP + Benzinga maps to the same cluster and receives
     proper novelty decay.
     """
-    key = f"{_norm(headline)}|{','.join(sorted(set(tickers)))}"
+    # Normalise tickers to uppercase so mixed-case inputs hash identically.
+    key = f"{_norm(headline)}|{','.join(sorted(set(t.upper() for t in tickers)))}"
     return hashlib.sha1(key.encode("utf-8")).hexdigest()
 
 
