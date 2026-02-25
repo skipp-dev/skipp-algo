@@ -42,7 +42,6 @@ from open_prep.macro import (
     macro_bias_with_components,
     macro_bias_score,
 )
-from open_prep.screen import rank_candidates
 
 
 class TestOpenPrep(unittest.TestCase):
@@ -2287,3 +2286,228 @@ class TestCapabilityProbeEodBulkDatatype(unittest.TestCase):
         self.assertTrue(len(eod_bulk_calls) >= 1, "eod-bulk probe call not found")
         params = eod_bulk_calls[0].args[1]
         self.assertEqual(params.get("datatype"), "json")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Senior Review Fixes — Regression Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestSeniorReviewFixesPlaybook(unittest.TestCase):
+    """Tests for H-1, H-2, M-6 fixes in playbook.py."""
+
+    def test_classify_news_event_content_none(self):
+        """H-1: classify_news_event must not crash when content=None."""
+        from open_prep.playbook import classify_news_event
+        result = classify_news_event("AAPL earnings beat", content=None)
+        self.assertIn("event_class", result)
+        self.assertIn("materiality", result)
+
+    def test_classify_news_event_content_default(self):
+        """H-1: default empty string still works."""
+        from open_prep.playbook import classify_news_event
+        result = classify_news_event("FDA approves drug")
+        self.assertIn("event_class", result)
+
+    def test_source_quality_sector_not_tier_1(self):
+        """H-2: 'sector' must NOT match Tier 1 (was caused by 'sec' substring)."""
+        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        result = classify_source_quality("Financial Sector Report", "BofA Sector Analysis")
+        self.assertNotEqual(result["source_tier"], SOURCE_TIER_1,
+                            "'sector' must not match Tier 1 via 'sec' substring")
+
+    def test_source_quality_sec_filing_is_tier_1(self):
+        """H-2: Actual SEC references must still be Tier 1."""
+        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        # "sec" as standalone word
+        result = classify_source_quality("SEC Filing 8-K", "SEC")
+        self.assertEqual(result["source_tier"], SOURCE_TIER_1)
+        # sec.gov should also match
+        result2 = classify_source_quality("sec.gov filing", "Edgar/SEC")
+        self.assertEqual(result2["source_tier"], SOURCE_TIER_1)
+
+    def test_source_quality_sec_gov_is_tier_1(self):
+        """H-2: sec.gov must remain Tier 1."""
+        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        result = classify_source_quality("Filing posted", "sec.gov")
+        self.assertEqual(result["source_tier"], SOURCE_TIER_1)
+
+    def test_source_quality_insecure_not_tier_1(self):
+        """H-2: Words containing 'sec' as substring (insecure, section) must NOT match."""
+        from open_prep.playbook import classify_source_quality, SOURCE_TIER_1
+        for word in ("insecure data", "section 13", "secondary market"):
+            result = classify_source_quality(word, "generic-source")
+            self.assertNotEqual(result["source_tier"], SOURCE_TIER_1,
+                                f"'{word}' must not match Tier 1")
+
+    def test_execution_quality_no_dollar_volume_param(self):
+        """M-6: _execution_quality no longer accepts dollar_volume."""
+        import inspect
+        from open_prep.playbook import _execution_quality
+        params = list(inspect.signature(_execution_quality).parameters)
+        self.assertNotIn("dollar_volume", params,
+                         "dollar_volume parameter should have been removed")
+        # Function still works with 3 args
+        quality, adj = _execution_quality(25.0, 500_000, 100.0)
+        self.assertIn(quality, ("GOOD", "CAUTION", "POOR"))
+        self.assertGreater(adj, 0.0)
+
+
+class TestSeniorReviewFixesTechnicalAnalysis(unittest.TestCase):
+    """Tests for H-3, M-1, M-2 fixes in technical_analysis.py."""
+
+    def test_risk_penalty_floor_is_005(self):
+        """M-1: Minimum risk penalty should be 0.05 (5%) as documented."""
+        from open_prep.technical_analysis import compute_risk_penalty
+        # Best-case: low ATR, high volume, no spread
+        penalty = compute_risk_penalty(price=200.0, atr=0.5, volume_ratio=2.0, spread_pct=0.0)
+        self.assertGreaterEqual(penalty, 0.05,
+                                "Floor must be 0.05 per docstring")
+
+    def test_risk_penalty_cap_is_020(self):
+        """M-1: Maximum risk penalty should be 0.20 (20%)."""
+        from open_prep.technical_analysis import compute_risk_penalty
+        penalty = compute_risk_penalty(price=5.0, atr=2.0, volume_ratio=0.1, spread_pct=1.0)
+        self.assertLessEqual(penalty, 0.20)
+
+    def test_detect_symbol_regime_default_is_neutral(self):
+        """M-2: Default return should be NEUTRAL (docstring was wrong)."""
+        from open_prep.technical_analysis import detect_symbol_regime
+        # Ambiguous values: not clearly trending or ranging
+        result = detect_symbol_regime(adx=22.0, bb_width_pct=3.0)
+        self.assertEqual(result, "NEUTRAL")
+
+    def test_pivot_close_fallback_to_current_price(self):
+        """H-3: When last bar close is missing, pivot_close should fall back to current_price."""
+        from open_prep.technical_analysis import calculate_support_resistance_targets
+        # Build 50+ bars where the last bar has no close
+        bars = []
+        for i in range(55):
+            bars.append({"high": 110.0, "low": 90.0, "close": 100.0, "open": 99.0})
+        # Remove close from last bar → should use current_price fallback
+        bars[-1] = {"high": 110.0, "low": 90.0, "open": 99.0}
+        result = calculate_support_resistance_targets(bars, current_price=105.0)
+        # If the pivot used 0.0 for close, S/R levels would be badly skewed
+        # With fallback to current_price=105, levels should be reasonable
+        r1 = result.get("resistance_1")
+        s1 = result.get("support_1")
+        self.assertIsNotNone(r1, "resistance_1 should be computed")
+        self.assertIsNotNone(s1, "support_1 should be computed")
+        # With correct pivot (~101.67), R1 should be near current_price range
+        # With broken pivot (~66.67), R1 would be wildly off
+        self.assertGreater(r1, 90.0,
+                           "R1 must be reasonable — pivot_close should use current_price fallback")
+
+
+class TestSeniorReviewFixesRealtimeSignals(unittest.TestCase):
+    """Tests for H-4, M-3 fixes in realtime_signals.py."""
+
+    def test_restore_preserves_news_fields(self):
+        """H-4: News enrichment fields must survive disk restore."""
+        from open_prep.realtime_signals import RealtimeSignal, RealtimeEngine, SIGNALS_PATH
+        import time as _time
+        now_epoch = _time.time()
+        signal_data = {
+            "symbol": "NVDA", "level": "A0", "direction": "LONG",
+            "pattern": "pdh_breakout", "price": 135.0, "prev_close": 130.0,
+            "change_pct": 3.8, "volume_ratio": 4.2, "score": 0.85,
+            "confidence_tier": "HIGH_CONVICTION", "atr_pct": 2.1,
+            "freshness": 0.95, "fired_at": "2025-01-01T10:00:00Z",
+            "fired_epoch": now_epoch - 60,  # 1 min ago (not expired)
+            "details": {"reason": "test"}, "symbol_regime": "TRENDING",
+            # News fields that were previously lost on restore
+            "news_score": 1.5, "news_category": "earnings_beat",
+            "news_headline": "NVDA beats estimates", "news_warn_flags": ["stale_24h"],
+        }
+        # Write to a temp file and patch SIGNALS_PATH
+        import json
+        tmp_dir = tempfile.mkdtemp()
+        tmp_signals = Path(tmp_dir) / "test_signals.json"
+        payload = {"signals": [signal_data], "signal_count": 1}
+        with open(tmp_signals, "w") as fh:
+            json.dump(payload, fh)
+
+        # Create engine and patch the path
+        engine = RealtimeEngine.__new__(RealtimeEngine)
+        engine._active_signals = []
+        engine._watchlist = []
+        engine._last_prices = {}
+        engine.poll_interval = 45
+        engine.top_n = 10
+
+        import open_prep.realtime_signals as _rt_mod
+        original_path = _rt_mod.SIGNALS_PATH
+        try:
+            _rt_mod.SIGNALS_PATH = tmp_signals
+            engine._restore_signals_from_disk()
+        finally:
+            _rt_mod.SIGNALS_PATH = original_path
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        self.assertEqual(len(engine._active_signals), 1)
+        sig = engine._active_signals[0]
+        self.assertAlmostEqual(sig.news_score, 1.5)
+        self.assertEqual(sig.news_category, "earnings_beat")
+        self.assertEqual(sig.news_headline, "NVDA beats estimates")
+        self.assertEqual(sig.news_warn_flags, ["stale_24h"])
+
+    def test_save_signals_cleans_temp_on_failure(self):
+        """M-3: Temp file must be cleaned up on json.dump failure."""
+        from open_prep.realtime_signals import RealtimeEngine
+        import open_prep.realtime_signals as _rt_mod
+        import time as _time
+        import shutil
+
+        engine = RealtimeEngine.__new__(RealtimeEngine)
+        engine._active_signals = []
+        engine._watchlist = []
+        engine.poll_interval = 45
+
+        # Create a signal with a non-serializable object to trigger json.dump failure
+        from open_prep.realtime_signals import RealtimeSignal
+        bad_signal = RealtimeSignal(
+            symbol="TEST", level="A1", direction="LONG", pattern="test",
+            price=100.0, prev_close=99.0, change_pct=1.0, volume_ratio=1.5,
+            score=0.5, confidence_tier="STANDARD", atr_pct=1.0, freshness=1.0,
+            fired_at="now", fired_epoch=_time.time(),
+        )
+        engine._active_signals = [bad_signal]
+
+        # Monkey-patch to_dict to return non-serializable data
+        original_to_dict = bad_signal.to_dict
+        def bad_to_dict():
+            d = original_to_dict()
+            d["bad_field"] = object()  # not JSON-serializable
+            return d
+        bad_signal.to_dict = bad_to_dict
+
+        # Use a temp directory to avoid side effects
+        tmp_dir = tempfile.mkdtemp()
+        tmp_signals = Path(tmp_dir) / "test_signals.json"
+        original_path = _rt_mod.SIGNALS_PATH
+        try:
+            _rt_mod.SIGNALS_PATH = tmp_signals
+            before_files = set(Path(tmp_dir).glob("signals_*.tmp"))
+            engine._save_signals()
+            after_files = set(Path(tmp_dir).glob("signals_*.tmp"))
+            new_temps = after_files - before_files
+            self.assertEqual(len(new_temps), 0,
+                             f"Temp files leaked: {new_temps}")
+        finally:
+            _rt_mod.SIGNALS_PATH = original_path
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+class TestSeniorReviewFixesMacro(unittest.TestCase):
+    """Test for L-1 fix in macro.py."""
+
+    def test_dedupe_null_dated_events_not_grouped(self):
+        """L-1: Events with date=None must not be incorrectly grouped together."""
+        from open_prep.macro import dedupe_events
+        event_a = {"country": "US", "date": None, "event": "GDP", "actual": "3.1%"}
+        event_b = {"country": "US", "date": None, "event": "GDP", "actual": "2.8%"}
+        # These are two separate events both missing dates — they should NOT
+        # be deduplicated into one (was previously possible via shared 1970-01-01 fallback).
+        out = dedupe_events([event_a, event_b])
+        self.assertEqual(len(out), 2,
+                         "Two null-dated events with same name must be preserved separately")

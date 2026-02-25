@@ -142,6 +142,10 @@ class RealtimeEngine:
                     fired_epoch=fired_epoch,
                     details=raw.get("details") or {},
                     symbol_regime=str(raw.get("symbol_regime", "NEUTRAL")),
+                    news_score=float(raw.get("news_score", 0.0)),
+                    news_category=str(raw.get("news_category", "")),
+                    news_headline=str(raw.get("news_headline", "")),
+                    news_warn_flags=list(raw.get("news_warn_flags") or []),
                 )
                 self._active_signals.append(sig)
             if self._active_signals:
@@ -477,10 +481,18 @@ class RealtimeEngine:
             tmp_fd, tmp_path = tempfile.mkstemp(
                 dir=SIGNALS_PATH.parent, suffix=".tmp", prefix="signals_",
             )
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
-                json.dump(payload, fh, indent=2, default=str)
-                fh.write("\n")
-            os.replace(tmp_path, SIGNALS_PATH)
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
+                    json.dump(payload, fh, indent=2, default=str)
+                    fh.write("\n")
+                os.replace(tmp_path, SIGNALS_PATH)
+            except BaseException:
+                # Clean up temp file on any failure (including KeyboardInterrupt)
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                raise
         except Exception as exc:
             logger.warning("Failed to save signals: %s", exc)
 

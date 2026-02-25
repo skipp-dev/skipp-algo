@@ -83,7 +83,7 @@ def classify_news_event(title: str, content: str = "") -> dict[str, Any]:
             "materiality": "HIGH" | "MEDIUM" | "LOW",
         }
     """
-    text = f"{title} {content[:600]}"
+    text = f"{title} {(content or '')[:600]}"
     labels_found: list[tuple[str, str]] = []  # (class, label)
 
     for label, pat in _SCHEDULED_PATTERNS:
@@ -217,10 +217,13 @@ SOURCE_TIER_3 = "TIER_3"   # General financial media
 SOURCE_TIER_4 = "TIER_4"   # Social/blogs/unverified
 
 _TIER_1_SOURCES: frozenset[str] = frozenset({
-    "sec", "sec.gov", "edgar", "8-k", "press release", "pr newswire",
+    "sec.gov", "edgar", "8-k", "press release", "pr newswire",
     "business wire", "globenewswire", "globe newswire", "company ir",
     "investor relations", "accesswire",
 })
+# Word-boundary tokens checked separately to avoid false positives
+# (e.g. "sec" matching "sector").
+_TIER_1_WORD_TOKENS: frozenset[str] = frozenset({"sec"})
 
 _TIER_2_SOURCES: frozenset[str] = frozenset({
     "reuters", "bloomberg", "wsj", "wall street journal", "cnbc",
@@ -253,6 +256,9 @@ def classify_source_quality(source: str, title: str = "") -> dict[str, Any]:
 
     # Check for SEC filings / press releases in title or source
     if any(s in combined for s in _TIER_1_SOURCES):
+        return {"source_tier": SOURCE_TIER_1, "source_rank": 1, "source_name": source}
+    # Word-boundary check for short tokens like "sec" to avoid "sector" etc.
+    if any(re.search(rf"\b{re.escape(tok)}\b", combined) for tok in _TIER_1_WORD_TOKENS):
         return {"source_tier": SOURCE_TIER_1, "source_rank": 1, "source_name": source}
 
     if any(s in source_lower for s in _TIER_2_SOURCES):
@@ -471,7 +477,6 @@ def _compute_drift_score(
 
 def _execution_quality(
     spread_bps: float | None,
-    dollar_volume: float,
     avg_volume: float,
     price: float,
 ) -> tuple[str, float]:
@@ -750,7 +755,7 @@ def assign_playbook(
 
     # — Step 4: Microstructure —
     exec_quality, size_adj = _execution_quality(
-        spread_bps, price * volume if price > 0 else 0.0, avg_volume, price,
+        spread_bps, avg_volume, price,
     )
     halt_risk = abs(gap_pct) > 10.0
 

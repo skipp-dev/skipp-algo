@@ -109,7 +109,7 @@ def compute_risk_penalty(
     if spread_pct > 0:
         total += min(spread_pct * 10.0, 0.02)
 
-    return max(0.0, min(total, 0.20))
+    return max(0.05, min(total, 0.20))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -188,7 +188,7 @@ def detect_symbol_regime(
 
     • TRENDING:  ADX > 25 **and** BB width > 4 %
     • RANGING :  ADX < 20 **and** BB width < 2 %
-    • Otherwise defaults to RANGING (safer, mean-reversion bias).
+    • Otherwise defaults to NEUTRAL (uncertain — no weight adjustments).
     """
     if adx > 25.0 and bb_width_pct > 4.0:
         return "TRENDING"
@@ -579,7 +579,7 @@ def calculate_support_resistance_targets(
         p_lows = [lo if lo > 0 else current_price for lo in p_lows]
         pivot_high = max(p_highs)
         pivot_low = min(p_lows)
-        pivot_close = _safe_float(pivot_bars[-1].get("close"))
+        pivot_close = _safe_float(pivot_bars[-1].get("close")) or current_price
         pivot = (pivot_high + pivot_low + pivot_close) / 3.0
 
         r1 = 2 * pivot - pivot_low

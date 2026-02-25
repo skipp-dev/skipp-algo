@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -451,7 +452,7 @@ def main() -> None:
                 state="complete",
                 expanded=False,
             )
-            st.session_state["latest_result_cache"] = dict(result)
+            st.session_state["latest_result_cache"] = copy.deepcopy(result)
             st.session_state["last_live_fetch_utc"] = now_utc.isoformat()
             st.session_state["force_live_fetch"] = False
 
@@ -570,8 +571,8 @@ def main() -> None:
             elif rt_watched:
                 st.info(f"🟢 Realtime: {len(rt_watched)} Symbole überwacht — keine Signale aktiv")
         except Exception as exc:
-            # Realtime engine not running or import error — silent
-            pass
+            # Realtime engine not running or import error — log for diagnostics
+            logger.debug("Realtime signals unavailable: %s", exc)
 
         # ===================================================================
         # 1. v2 TIERED CANDIDATES (primary — most important)

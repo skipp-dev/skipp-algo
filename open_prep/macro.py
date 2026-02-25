@@ -929,7 +929,7 @@ def dedupe_events(events: list[dict]) -> list[dict]:
         # Truncate to 10 chars so that "2026-02-20" and "2026-02-20 08:30:00"
         # resolve to the same dedup key (providers may return either format).
         event_date_raw = str(e.get("date") or "")
-        event_date = event_date_raw[:10] if event_date_raw else "1970-01-01"
+        event_date = event_date_raw[:10] if event_date_raw else f"_no_date_{id(e)}"
         raw_name = e.get("event") or e.get("name") or ""
         key = canonicalize_event_name(raw_name)
         if not country:
