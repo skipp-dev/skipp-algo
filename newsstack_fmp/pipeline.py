@@ -118,8 +118,10 @@ def process_news_items(
 
         ts = it.updated_ts or it.published_ts or time.time()
 
-        # Cursor check: skip items older than last seen for this provider
-        if ts <= last_seen_epoch:
+        # Cursor check: skip items older than last seen for this provider.
+        # Use strict < so items sharing the cursor timestamp are not dropped;
+        # mark_seen() is the authoritative dedup.
+        if ts < last_seen_epoch:
             continue
 
         max_ts = max(max_ts, ts)
@@ -270,18 +272,26 @@ def poll_once(
     fmp_items = [it for it in all_items if it.provider.startswith("fmp_")]
     bz_items = [it for it in all_items if not it.provider.startswith("fmp_")]
 
-    new_fmp_max = process_news_items(
-        store, fmp_items, _best_by_ticker, universe, enricher,
-        cfg.score_enrich_threshold, last_seen_epoch=fmp_last,
-    )
+    try:
+        new_fmp_max = process_news_items(
+            store, fmp_items, _best_by_ticker, universe, enricher,
+            cfg.score_enrich_threshold, last_seen_epoch=fmp_last,
+        )
+    except Exception as exc:
+        logger.warning("process_news_items(fmp) failed: %s", exc)
+        new_fmp_max = fmp_last
 
     # Benzinga items: cursor is updatedSince string, not epoch-based
     # Use epoch 0 as last_seen to accept all (dedup handles duplicates)
     bz_last = float(store.get_kv("benzinga.last_seen_epoch") or "0")
-    new_bz_max = process_news_items(
-        store, bz_items, _best_by_ticker, universe, enricher,
-        cfg.score_enrich_threshold, last_seen_epoch=bz_last,
-    )
+    try:
+        new_bz_max = process_news_items(
+            store, bz_items, _best_by_ticker, universe, enricher,
+            cfg.score_enrich_threshold, last_seen_epoch=bz_last,
+        )
+    except Exception as exc:
+        logger.warning("process_news_items(benzinga) failed: %s", exc)
+        new_bz_max = bz_last
 
     # ── 5) Update cursors ───────────────────────────────────────
     if new_fmp_max > fmp_last:
@@ -315,8 +325,10 @@ def poll_once(
         "ingest_counts": {"fmp": fmp_count, "benzinga": bz_count},
         "total_candidates": len(candidates),
     }
-    if candidates:
+    try:
         export_open_prep(cfg.export_path, candidates, meta)
+    except Exception as exc:
+        logger.warning("export_open_prep failed: %s", exc)
 
     # ── 7) Prune old records + stale best_by_ticker entries ────
     store.prune_seen(cfg.keep_seen_seconds)

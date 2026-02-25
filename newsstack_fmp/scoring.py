@@ -58,6 +58,9 @@ def classify_and_score(item: Union[NewsItem, Dict[str, Any]], cluster_count: int
 
     Accepts both ``NewsItem`` and legacy plain-dict items.
     """
+    # Guard against invalid cluster_count from external callers
+    cluster_count = max(1, cluster_count)
+
     if isinstance(item, NewsItem):
         headline = item.headline or ""
         tickers = item.tickers or []

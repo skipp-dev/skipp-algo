@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import timezone
 from typing import Any, Dict, List
 
 from dateutil import parser as dtparser
@@ -32,11 +33,18 @@ logger = logging.getLogger(__name__)
 # ── Shared helpers ──────────────────────────────────────────────
 
 def _to_epoch(s: str) -> float:
-    """Parse a date/time string to epoch seconds.  Fallback: now."""
+    """Parse a date/time string to epoch seconds.  Fallback: now.
+
+    Naive datetimes (no timezone info) are assumed UTC to guarantee
+    deterministic results regardless of server timezone.
+    """
     if not s:
         return time.time()
     try:
-        return dtparser.parse(s).timestamp()
+        dt = dtparser.parse(s)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.timestamp()
     except Exception:
         logger.warning("Unparseable date %r — falling back to time.time().", s[:80])
         return time.time()

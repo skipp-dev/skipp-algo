@@ -1,11 +1,14 @@
-"""Tests for newsstack_fmp module — covers review findings R-1 through R-6."""
+"""Tests for newsstack_fmp module — covers review findings R-1 through R-6
+plus Production Gatekeeper findings M-1 through M-6."""
 
 from __future__ import annotations
 
+import json
 import os
+import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 # ── R-3: Config reads env vars at instantiation, not import time ──
 
@@ -341,3 +344,247 @@ class TestSqliteStorePrune(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── M-1: _to_epoch timezone handling ───────────────────────────
+
+
+class TestToEpochTimezoneHandling(unittest.TestCase):
+    """Naive datetimes must be treated as UTC regardless of server TZ."""
+
+    def test_naive_datetime_is_utc(self):
+        """A date string without timezone info must be parsed as UTC."""
+        from newsstack_fmp.normalize import _to_epoch
+
+        # 2026-01-15T12:00:00 without TZ → must be treated as UTC
+        result = _to_epoch("2026-01-15T12:00:00")
+        import datetime
+        expected = datetime.datetime(2026, 1, 15, 12, 0, 0,
+                                     tzinfo=datetime.timezone.utc).timestamp()
+        self.assertAlmostEqual(result, expected, places=0)
+
+    def test_explicit_utc_matches_naive(self):
+        """An explicit UTC date must produce the same epoch as a naive one."""
+        from newsstack_fmp.normalize import _to_epoch
+
+        naive = _to_epoch("2026-02-20T10:00:00")
+        explicit_utc = _to_epoch("2026-02-20T10:00:00Z")
+        self.assertAlmostEqual(naive, explicit_utc, places=0)
+
+    def test_explicit_offset_preserved(self):
+        """A date with an explicit offset must NOT be overridden to UTC."""
+        from newsstack_fmp.normalize import _to_epoch
+
+        # +05:00 → 5 hours earlier in epoch than UTC
+        with_offset = _to_epoch("2026-01-15T12:00:00+05:00")
+        as_utc = _to_epoch("2026-01-15T07:00:00Z")
+        self.assertAlmostEqual(with_offset, as_utc, places=0)
+
+
+# ── M-2: Cursor strict-less-than (no silent drop) ─────────────
+
+
+class TestCursorStrictLessThan(unittest.TestCase):
+    """Items with ts == last_seen_epoch must NOT be dropped by cursor."""
+
+    def test_same_timestamp_not_dropped(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="same_ts_test",
+            published_ts=100.0,
+            updated_ts=100.0,
+            headline="AAPL beats Q1 earnings",
+            snippet="",
+            tickers=["AAPL"],
+            url="https://example.com/1",
+            source="Test",
+        )
+
+        # last_seen_epoch == item.updated_ts — item must NOT be dropped
+        max_ts = process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=100.0,
+        )
+        enricher.close()
+
+        # Item should appear in best_by_ticker because cursor uses <, not <=
+        self.assertIn("AAPL", best)
+        self.assertEqual(best["AAPL"]["headline"], "AAPL beats Q1 earnings")
+
+
+# ── M-3: Atomic export with tempfile.mkstemp ──────────────────
+
+
+class TestAtomicExport(unittest.TestCase):
+    """export_open_prep must use a unique temp file, not a fixed name."""
+
+    def test_export_creates_valid_json(self):
+        from newsstack_fmp.open_prep_export import export_open_prep
+
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "out.json")
+            export_open_prep(path, [{"ticker": "X"}], {"ts": 1.0})
+            with open(path, "r") as f:
+                data = json.load(f)
+            self.assertEqual(len(data["candidates"]), 1)
+            self.assertEqual(data["meta"]["ts"], 1.0)
+
+    def test_no_leftover_tmp_on_success(self):
+        from newsstack_fmp.open_prep_export import export_open_prep
+
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "out.json")
+            export_open_prep(path, [], {"ts": 2.0})
+            # Only the final file should exist, no .tmp leftovers
+            files = os.listdir(td)
+            self.assertEqual(files, ["out.json"])
+
+    def test_export_empty_candidates_creates_file(self):
+        from newsstack_fmp.open_prep_export import export_open_prep
+
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "out.json")
+            export_open_prep(path, [], {"generated_ts": 123.0})
+            with open(path, "r") as f:
+                data = json.load(f)
+            self.assertEqual(data["candidates"], [])
+            self.assertEqual(data["meta"]["generated_ts"], 123.0)
+
+
+# ── M-4: poll_once fail-open around process + export ──────────
+
+
+class TestPollOnceFailOpen(unittest.TestCase):
+    """poll_once must not crash when process_news_items or export fails."""
+
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_process_db_error_does_not_crash(self, mock_fmp, mock_enr, mock_store):
+        from newsstack_fmp.pipeline import poll_once
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.side_effect = RuntimeError("DB error")
+        mock_fmp.return_value = fmp
+
+        with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+            cfg = Config()
+            # Should not raise — fail-open
+            result = poll_once(cfg, universe=set())
+        self.assertIsInstance(result, list)
+
+    @patch("newsstack_fmp.pipeline.export_open_prep", side_effect=OSError("disk full"))
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    def test_export_failure_does_not_crash(self, mock_enr, mock_store, mock_export):
+        from newsstack_fmp.pipeline import poll_once
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        with patch.dict(os.environ, {"FMP_API_KEY": "", "ENABLE_FMP": "0",
+                                      "FILTER_TO_UNIVERSE": "0"}):
+            cfg = Config()
+            # Should not raise even though export throws OSError
+            result = poll_once(cfg, universe=set())
+        self.assertIsInstance(result, list)
+
+
+# ── M-5: cluster_count guard ──────────────────────────────────
+
+
+class TestClusterCountGuard(unittest.TestCase):
+    """classify_and_score must handle cluster_count <= 0 gracefully."""
+
+    def test_cluster_count_zero(self):
+        from newsstack_fmp.scoring import classify_and_score
+
+        r = classify_and_score(
+            {"headline": "Test headline", "tickers": ["X"], "provider": "t"},
+            cluster_count=0,
+        )
+        # With guard: cluster_count clamped to 1, novelty should be in [0.15, 1.25]
+        self.assertGreaterEqual(r.score, 0.0)
+        self.assertLessEqual(r.score, 1.0)
+
+    def test_cluster_count_negative(self):
+        from newsstack_fmp.scoring import classify_and_score
+
+        r = classify_and_score(
+            {"headline": "Test headline", "tickers": ["X"], "provider": "t"},
+            cluster_count=-5,
+        )
+        self.assertGreaterEqual(r.score, 0.0)
+        self.assertLessEqual(r.score, 1.0)
+
+    def test_cluster_count_zero_same_as_one(self):
+        """cluster_count=0 should produce the same result as cluster_count=1."""
+        from newsstack_fmp.scoring import classify_and_score
+
+        r0 = classify_and_score(
+            {"headline": "Deterministic test", "tickers": ["X"], "provider": "t"},
+            cluster_count=0,
+        )
+        r1 = classify_and_score(
+            {"headline": "Deterministic test", "tickers": ["X"], "provider": "t"},
+            cluster_count=1,
+        )
+        self.assertAlmostEqual(r0.score, r1.score, places=6)
+
+
+# ── M-6: Always-export (empty candidates get fresh generated_ts) ──
+
+
+class TestAlwaysExport(unittest.TestCase):
+    """poll_once must export even when candidates list is empty."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    def test_empty_candidates_still_exports(self, mock_enr, mock_store, mock_export):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        # Clear best_by_ticker to guarantee no candidates
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "", "ENABLE_FMP": "0",
+                                          "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                poll_once(cfg, universe=set())
+
+            # export_open_prep must have been called even with 0 candidates
+            mock_export.assert_called_once()
+            args = mock_export.call_args
+            candidates_arg = args[0][1]  # 2nd positional arg
+            meta_arg = args[0][2]  # 3rd positional arg
+            self.assertEqual(candidates_arg, [])
+            self.assertIn("generated_ts", meta_arg)
+            self.assertEqual(meta_arg["total_candidates"], 0)
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
