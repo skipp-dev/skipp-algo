@@ -25,6 +25,9 @@ stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard
 simpleVwapCross = input.bool(false, "Simple VWAP Cross Entry",
     tooltip="BUY sobald der Preis den VWAP von unten kreuzt. Überspringt die Reclaim→Retest→Go Sequenz.",
     group="Strategy")
+breakoutEntry = input.bool(true, "Breakout Entry (Pullback High)",
+    tooltip="BUY wenn Close den rollenden Pullback High bricht (Reclaim→Retest→Go). Kann unabhängig vom Simple VWAP Cross ein-/ausgeschaltet werden.",
+    group="Strategy")
 matchedTrends = input.bool(true, "Only Show Matched Trends", 
     tooltip="Only show long signals when VWAP is trending up.",
     group="Strategy")
@@ -148,35 +151,19 @@ priceBias = ta.ema(close, trendEmaLen) > vwapValue
 isUpTrend = vwapSlope > 0 or priceBias
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
 
-// Entry signal: simple VWAP cross OR full Reclaim→Retest→Go
-entryTrigger = simpleVwapCross ? reclaimUp : goLong
+// Entry signal: each toggle controls its entry type independently
+entryTrigger = (simpleVwapCross and reclaimUp) or (breakoutEntry and goLong)
 longSignal = entryTrigger and matchedTrendsFilter_long and not inVirtualPos
 
-// Evaluate crossover on every bar (Pine stateful-function requirement)
-tpCross = ta.crossover(high, upperBandValue2)
-
-// Detect same-bar BUY+TP conflict: if the entry candle also crosses the
-// TP band the trade is nonsensical — suppress both signals entirely.
-sameBarConflict = longSignal and tpCross
-
-if longSignal and not sameBarConflict
+if longSignal
     inVirtualPos := true
     inReclaimSeq := false   // prevent consecutive re-fires (parity with strategy)
     retestSeen := false
 
-if sameBarConflict
-    // Do NOT enter — reset reclaim state so the sequence must re-qualify.
-    inReclaimSeq := false
-    retestSeen := false
-
-tpStretch = inVirtualPos and tpCross and not sameBarConflict
 exitOnVwapLoss = inVirtualPos and close < vwapValue - tol
 
-if tpStretch or exitOnVwapLoss
+if exitOnVwapLoss
     inVirtualPos := false
-
-// Suppress the Buy label/alert on conflict bars
-longSignal := longSignal and not sameBarConflict
 
 // ==================== PLOTS ====================
 
@@ -205,7 +192,6 @@ barcolor(displaybars ? (isUpTrend ? color.new(color.lime, 30) : color.new(color.
 plotshape(debug and reclaimUp, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
 plotshape(debug and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
 plotshape(showTradeLabels and longSignal, title="Long Entry", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), textcolor=color.white, size=size.tiny, text="Buy")
-plotshape(showTradeLabels and tpStretch, title="Stretch Take Profit", style=shape.labeldown, location=location.abovebar, color=color.new(color.aqua, 0), textcolor=color.black, size=size.tiny, text="TP")
 plotshape(showTradeLabels and exitOnVwapLoss, title="VWAP Loss Exit", style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
 plot(inReclaimSeq or inVirtualPos ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
 
@@ -242,5 +228,4 @@ if barstate.islast
 // ==================== ALERTING ====================
 
 alertcondition(longSignal, title="Long Entry", message="VWAP Reclaim LONG - GO Entry")
-alertcondition(tpStretch, title="Stretch Take Profit", message="VWAP Reclaim LONG - Stretch TP reached")
 alertcondition(exitOnVwapLoss, title="VWAP Loss Exit", message="VWAP Reclaim LONG - VWAP lost, exit")

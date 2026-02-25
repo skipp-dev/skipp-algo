@@ -35,6 +35,9 @@ stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard
 simpleVwapCross = input.bool(false, "Simple VWAP Cross Entry",
     tooltip="BUY sobald der Preis den VWAP von unten kreuzt. Überspringt die Reclaim→Retest→Go Sequenz.",
     group="Strategy")
+breakoutEntry = input.bool(true, "Breakout Entry (Pullback High)",
+    tooltip="BUY wenn Close den rollenden Pullback High bricht (Reclaim→Retest→Go). Kann unabhängig vom Simple VWAP Cross ein-/ausgeschaltet werden.",
+    group="Strategy")
 matchedTrends = input.bool(true, "Only Enter on Matched Trends",
     tooltip="Only enter a long trade when the VWAP is trending up.",
     group="Strategy")
@@ -152,20 +155,11 @@ priceBias = ta.ema(close, trendEmaLen) > vwapValue
 isUpTrend = vwapSlope > 0 or priceBias
 matchedTrendsFilter_long = not matchedTrends ? true : isUpTrend
 
-// Entry signal: simple VWAP cross OR full Reclaim→Retest→Go
-entryTrigger = simpleVwapCross ? reclaimUp : goLong
+// Entry signal: each toggle controls its entry type independently
+entryTrigger = (simpleVwapCross and reclaimUp) or (breakoutEntry and goLong)
 longSignal = entryTrigger and matchedTrendsFilter_long and strategy.position_size == 0
 
 // ==================== STRATEGY LOGIC ====================
-
-// Evaluate crossover on every bar (Pine stateful-function requirement)
-crossedUpperBand2 = ta.crossover(high, upperBandValue2)
-
-// NOTE: Unlike the indicator, the strategy does NOT need same-bar
-// BUY+TP conflict suppression.  strategy.entry() fills at the NEXT
-// bar's open (process_orders_on_close=false by default), so
-// strategy.position_size is still 0 on the entry bar — tpStretch
-// can never fire on the same bar as the entry.
 
 var float longStop = na
 
@@ -178,10 +172,6 @@ if longSignal
 
 if strategy.position_size > 0 and not na(longStop)
     strategy.exit("L-Stop", "Long", stop=longStop)
-
-tpStretch = strategy.position_size > 0 and crossedUpperBand2
-if tpStretch
-    strategy.close("Long", qty_percent=50)
 
 exitOnVwapLoss = strategy.position_size > 0 and close < vwapValue - tol
 if exitOnVwapLoss
@@ -214,7 +204,6 @@ barcolor(displaybars ? (isUpTrend ? color.new(color.lime, 30) : color.new(color.
 plotshape(debug and reclaimUp, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
 plotshape(debug and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
 plotshape(showTradeLabels and longSignal, title="Long Entry", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), textcolor=color.white, size=size.tiny, text="Buy")
-plotshape(showTradeLabels and tpStretch, title="Stretch Take Profit", style=shape.labeldown, location=location.abovebar, color=color.new(color.aqua, 0), textcolor=color.black, size=size.tiny, text="TP")
 plotshape(showTradeLabels and exitOnVwapLoss, title="VWAP Loss Exit", style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
 plot(inReclaimSeq or strategy.position_size > 0 ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
 
