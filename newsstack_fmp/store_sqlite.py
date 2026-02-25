@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS clusters (
   last_ts REAL NOT NULL,
   count INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_clusters_last_ts ON clusters(last_ts);
 """
 
 
@@ -73,17 +74,24 @@ class SqliteStore:
     def cluster_touch(self, h: str, ts: float) -> Tuple[int, float]:
         """Atomically touch a cluster and return ``(count, first_ts)``.
 
-        Uses UPSERT to avoid race conditions when multiple processes
-        access the same cluster hash concurrently.
+        Uses UPSERT inside a single IMMEDIATE transaction so the
+        returned count is never stale when another process touches
+        the same hash concurrently.
         """
-        self.conn.execute(
-            "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
-            "ON CONFLICT(hash) DO UPDATE SET last_ts=excluded.last_ts, count=count+1",
-            (h, ts, ts),
-        )
-        row = self.conn.execute(
-            "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
-        ).fetchone()
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            self.conn.execute(
+                "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
+                "ON CONFLICT(hash) DO UPDATE SET last_ts=excluded.last_ts, count=count+1",
+                (h, ts, ts),
+            )
+            row = self.conn.execute(
+                "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
+            ).fetchone()
+            self.conn.execute("COMMIT")
+        except BaseException:
+            self.conn.execute("ROLLBACK")
+            raise
         return (row[0], row[1])
 
     # ── Maintenance ─────────────────────────────────────────────

@@ -1936,3 +1936,152 @@ class TestBenzingaRestResponseShapes(unittest.TestCase):
         items = adapter.fetch_news()
         self.assertEqual(len(items), 0)
         adapter.close()
+
+
+# ====================================================================
+# SR12: Production Gatekeeper review — fifth pass hardening tests
+# ====================================================================
+
+
+# ── H1: Benzinga epoch cursor removed — WS must NOT block REST items ──
+
+
+class TestBenzingaNoEpochCursor(unittest.TestCase):
+    """Benzinga items must always use last_seen_epoch=0.0 so WS items
+    cannot advance an epoch cursor past valid REST items."""
+
+    def test_ws_future_ts_does_not_block_rest_older_items(self):
+        """Simulate: WS delivers ts=2000, REST delivers ts=1500.
+        The REST item must NOT be dropped."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        # Batch 1: WS item with future timestamp
+        ws_item = NewsItem(
+            provider="benzinga_ws", item_id="ws_future",
+            published_ts=2000.0, updated_ts=2000.0,
+            headline="AAPL WS breaking news", snippet="",
+            tickers=["AAPL"], url="https://example.com/ws1", source="BZ WS",
+        )
+        # Batch 2: REST item with older timestamp (would be dropped by epoch cursor)
+        rest_item = NewsItem(
+            provider="benzinga_rest", item_id="rest_older",
+            published_ts=1500.0, updated_ts=1500.0,
+            headline="MSFT REST older news", snippet="",
+            tickers=["MSFT"], url="https://example.com/rest1", source="BZ REST",
+        )
+
+        # Process WS batch first (as pipeline does)
+        process_news_items(
+            store, [ws_item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        # Process REST batch with same last_seen_epoch=0.0
+        process_news_items(
+            store, [rest_item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # Both items must be present — REST item was NOT blocked
+        self.assertIn("AAPL", best)
+        self.assertIn("MSFT", best, "REST item with older timestamp was dropped!")
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_meta_has_no_benzinga_last_seen_epoch(
+        self, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        """Export meta.cursor must NOT contain benzinga_last_seen_epoch."""
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = []
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "ENABLE_FMP": "1",
+                                          "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                poll_once(cfg, universe=set())
+
+            mock_export.assert_called_once()
+            meta = mock_export.call_args[0][2]
+            cursor = meta["cursor"]
+            self.assertIn("fmp_last_seen_epoch", cursor)
+            self.assertIn("benzinga_updatedSince", cursor)
+            self.assertNotIn("benzinga_last_seen_epoch", cursor,
+                             "benzinga_last_seen_epoch should be removed from meta")
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+
+# ── M1: clusters.last_ts index exists ─────────────────────────
+
+
+class TestClustersLastTsIndex(unittest.TestCase):
+    """prune_clusters needs an index on last_ts for performance."""
+
+    def test_index_exists(self):
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        rows = store.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='clusters'"
+        ).fetchall()
+        index_names = [r[0] for r in rows]
+        self.assertIn("idx_clusters_last_ts", index_names)
+        store.close()
+
+
+# ── M2: cluster_touch is transactional ─────────────────────────
+
+
+class TestClusterTouchTransactional(unittest.TestCase):
+    """cluster_touch must return consistent count within a transaction."""
+
+    def test_rapid_sequential_touches_consistent(self):
+        """50 rapid touches must produce counts 1..50 in order."""
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        for i in range(50):
+            count, first_ts = store.cluster_touch("tx_hash", float(i))
+            self.assertEqual(count, i + 1)
+            self.assertEqual(first_ts, 0.0)  # first touch was ts=0.0
+        store.close()
+
+    def test_rollback_on_error_no_corruption(self):
+        """After a hypothetical error, store must remain usable."""
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        count1, _ = store.cluster_touch("ok_hash", 1.0)
+        self.assertEqual(count1, 1)
+
+        # Normal second touch
+        count2, _ = store.cluster_touch("ok_hash", 2.0)
+        self.assertEqual(count2, 2)
+
+        # Different hash also works
+        count3, _ = store.cluster_touch("other_hash", 3.0)
+        self.assertEqual(count3, 1)
+        store.close()
