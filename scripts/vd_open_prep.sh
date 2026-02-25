@@ -157,22 +157,21 @@ _run_extraction() {
       news,
       news_url,
       news_score,
-      news_sentiment,
-      news_sentiment_emoji,
+      news_s: .news_sentiment_emoji,
+      signal_age_hms,
       news_polarity,
       signal_since_at,
-      signal_age_hms,
       price,
       chg_pct,
       vol_ratio,
+      score,
       tick,
       streak,
       d_price_pct,
-      d_volume,
-      poll_changed,
+      tier,
       last_change_age_s,
-      score,
-      tier
+      poll_seq,
+      poll_changed
     }]' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_trader.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
   elif [[ -f "$SIGNALS_FILE" ]]; then
     jq '[.signals[]? | {
@@ -183,23 +182,22 @@ _run_extraction() {
       news: (.news_headline // ""),
       news_url: (.details.news_url // ""),
       news_score,
-      news_sentiment: (if (.details.polarity // 0) > 0.05 then "+" elif (.details.polarity // 0) < -0.05 then "-" else "n" end),
-      news_sentiment_emoji: (if (.details.polarity // 0) > 0.05 then "🟢" elif (.details.polarity // 0) < -0.05 then "🔴" else "🟡" end),
+      news_s: (if (.details.polarity // 0) > 0.05 then "🟢" elif (.details.polarity // 0) < -0.05 then "🔴" else "🟡" end),
+      signal_age_hms: (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) / 3600) | floor | tostring) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 3600 / 60) | floor | tostring) | if length==1 then "0" + . else . end) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 60) | floor | tostring) | if length==1 then "0" + . else . end)),
       news_polarity: (.details.polarity // 0),
       signal_since_at: .level_since_at,
       signal_age_s: ((now - (.level_since_epoch // .fired_epoch // now)) | floor),
-      signal_age_hms: (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) / 3600) | floor | tostring) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 3600 / 60) | floor | tostring) | if length==1 then "0" + . else . end) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 60) | floor | tostring) | if length==1 then "0" + . else . end)),
       price,
       chg_pct: .change_pct,
       vol_ratio: .volume_ratio,
+      score,
       tick: "",
       streak: 0,
       d_price_pct: 0,
-      d_volume: 0,
-      poll_changed: false,
+      tier: .confidence_tier,
       last_change_age_s: 0,
-      score,
-      tier: .confidence_tier
+      poll_seq: 0,
+      poll_changed: false
     }]' "$SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
     cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals_trader.json"
   else
