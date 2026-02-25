@@ -1395,7 +1395,6 @@ class RealtimeEngine:
                 or delta["d_volume"] != 0
                 or str(prev_row.get("signal", "")) != sig_level
                 or str(prev_row.get("direction", "")) != sig_dir
-                or str(prev_row.get("breakout", "")) != breakout
                 or float(prev_row.get("news_score", 0.0) or 0.0) != current_news_score
                 or str(prev_row.get("news_s", "")) != news_sentiment_emoji
                 or str(prev_row.get("news_url", "")) != news_url
@@ -1410,7 +1409,7 @@ class RealtimeEngine:
                 "symbol": sym,
                 "signal": sig_level,
                 "direction": sig_dir,
-                "breakout": breakout,
+                "tick": delta["tick"],
                 "score": round(_safe_float(wl_entry.get("score"), 0.0), 2),
                 "streak": delta["streak"],
                 "news": news_with_link,
@@ -1423,7 +1422,6 @@ class RealtimeEngine:
                 "price": round(price, 2),
                 "chg_pct": round(chg_pct, 2),
                 "vol_ratio": round(vol_ratio, 2),
-                "tick": delta["tick"],
                 "d_price_pct": delta["d_price_pct"],
                 "tier": str(wl_entry.get("confidence_tier", "")),
                 "last_change_age_s": last_change_age_s,
