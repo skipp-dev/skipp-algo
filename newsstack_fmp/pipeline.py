@@ -329,8 +329,15 @@ def poll_once(
         if bz_max_ts > 0:
             store.set_kv("benzinga.updatedSince", str(int(bz_max_ts)))
         else:
-            # Fallback: use current time if all items lack timestamps
-            store.set_kv("benzinga.updatedSince", str(int(time.time())))
+            # All items lacked real timestamps — do NOT advance cursor.
+            # Advancing to time.time() would permanently skip any items
+            # published before 'now' that haven't been fetched yet.
+            # The next poll will re-fetch the same window; dedup handles
+            # the duplicates.
+            logger.warning(
+                "Benzinga REST: all %d items lack timestamps — cursor NOT advanced.",
+                len(bz_rest_items),
+            )
 
     # ── 6) Export ───────────────────────────────────────────────
     candidates: List[Dict[str, Any]] = list(_best_by_ticker.values())

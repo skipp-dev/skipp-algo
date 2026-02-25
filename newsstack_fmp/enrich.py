@@ -42,6 +42,13 @@ class Enricher:
             return {"enriched": False}
         try:
             with self.client.stream("GET", url) as r:
+                # Non-2xx responses are error pages, not article content.
+                if r.status_code >= 400:
+                    return {
+                        "enriched": False,
+                        "http_status": r.status_code,
+                        "error": f"HTTP {r.status_code}",
+                    }
                 # Read only up to _MAX_CONTENT_BYTES to avoid OOM.
                 chunks: list[bytes] = []
                 total = 0

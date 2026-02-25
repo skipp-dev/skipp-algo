@@ -1489,3 +1489,450 @@ class TestToEpochShortStringRejection(unittest.TestCase):
 
         result = _to_epoch("")
         self.assertEqual(result, 0.0)
+
+
+# ====================================================================
+# SR11: Production Gatekeeper review — fourth pass hardening tests
+# ====================================================================
+
+
+# ── H1: Enricher must NOT flag HTTP errors as enriched ─────────
+
+
+class TestEnricherHttpErrorNotEnriched(unittest.TestCase):
+    """4xx/5xx responses must return enriched=False, not error page content."""
+
+    def test_404_returns_not_enriched(self):
+        from newsstack_fmp.enrich import Enricher
+
+        enricher = Enricher()
+
+        class Fake404Response:
+            url = "https://example.com/gone"
+            status_code = 404
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def iter_bytes(self, chunk_size=8192):
+                yield b"<html>Not Found</html>"
+
+        enricher.client.stream = MagicMock(return_value=Fake404Response())
+        result = enricher.fetch_url_snippet("https://example.com/gone")
+
+        self.assertFalse(result.get("enriched"))
+        self.assertEqual(result["http_status"], 404)
+        self.assertNotIn("snippet", result)
+        enricher.close()
+
+    def test_500_returns_not_enriched(self):
+        from newsstack_fmp.enrich import Enricher
+
+        enricher = Enricher()
+
+        class Fake500Response:
+            url = "https://example.com/error"
+            status_code = 500
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def iter_bytes(self, chunk_size=8192):
+                yield b"Internal Server Error"
+
+        enricher.client.stream = MagicMock(return_value=Fake500Response())
+        result = enricher.fetch_url_snippet("https://example.com/error")
+
+        self.assertFalse(result.get("enriched"))
+        self.assertEqual(result["http_status"], 500)
+        enricher.close()
+
+    def test_200_still_enriched(self):
+        from newsstack_fmp.enrich import Enricher
+
+        enricher = Enricher()
+
+        class Fake200Response:
+            url = "https://example.com/article"
+            status_code = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def iter_bytes(self, chunk_size=8192):
+                yield b"<p>Real article content here.</p>"
+
+        enricher.client.stream = MagicMock(return_value=Fake200Response())
+        result = enricher.fetch_url_snippet("https://example.com/article")
+
+        self.assertTrue(result.get("enriched"))
+        self.assertEqual(result["http_status"], 200)
+        self.assertIn("Real article content", result["snippet"])
+        enricher.close()
+
+    def test_301_redirect_accepted(self):
+        """3xx is not an error — content should be enriched."""
+        from newsstack_fmp.enrich import Enricher
+
+        enricher = Enricher()
+
+        class Fake301Response:
+            url = "https://example.com/redirected"
+            status_code = 301
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def iter_bytes(self, chunk_size=8192):
+                yield b"Redirect content"
+
+        enricher.client.stream = MagicMock(return_value=Fake301Response())
+        result = enricher.fetch_url_snippet("https://example.com/old")
+
+        self.assertTrue(result.get("enriched"))
+        enricher.close()
+
+
+# ── M1: Benzinga cursor must NOT advance to time.time() on zero timestamps ─
+
+
+class TestBenzingaCursorNoTimeNowFallback(unittest.TestCase):
+    """When all BZ items lack timestamps, cursor must stay put — not leap to now."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    @patch("newsstack_fmp.pipeline._get_bz_rest_adapter")
+    def test_zero_ts_items_no_cursor_advance(
+        self, mock_bz_rest, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = []
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        # All BZ items have 0.0 timestamps
+        bz = MagicMock()
+        bz.fetch_news.return_value = [
+            NewsItem(
+                provider="benzinga_rest", item_id="no_ts",
+                published_ts=0.0, updated_ts=0.0,
+                headline="Some headline without dates", snippet="",
+                tickers=["XYZ"], url=None, source="BZ",
+            ),
+        ]
+        mock_bz_rest.return_value = bz
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        try:
+            with patch.dict(os.environ, {
+                "FMP_API_KEY": "test",
+                "ENABLE_BENZINGA_REST": "1",
+                "BENZINGA_API_KEY": "test_bz",
+                "FILTER_TO_UNIVERSE": "0",
+            }):
+                cfg = Config()
+                poll_once(cfg, universe=set())
+
+            # updatedSince must NOT have been advanced
+            set_kv_calls = [
+                (c.args[0], c.args[1])
+                for c in store.set_kv.call_args_list
+            ]
+            bz_cursor_updates = [
+                v for k, v in set_kv_calls if k == "benzinga.updatedSince"
+            ]
+            # Should be empty — no cursor advance for zero-ts items
+            self.assertEqual(
+                bz_cursor_updates, [],
+                f"updatedSince should not advance when items lack timestamps, got: {bz_cursor_updates}",
+            )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+
+# ── Testability: normalize_benzinga_ws ─────────────────────────
+
+
+class TestNormalizeBenzingaWs(unittest.TestCase):
+    """Normalize WebSocket messages with the same field names as REST."""
+
+    def test_basic_ws_item(self):
+        from newsstack_fmp.normalize import normalize_benzinga_ws
+
+        item = normalize_benzinga_ws({
+            "id": "ws_123",
+            "title": "AAPL FDA approval",
+            "teaser": "FDA approved a new device.",
+            "url": "https://benzinga.com/ws/1",
+            "stocks": [{"name": "AAPL"}],
+            "source": "BZ Wire",
+            "created": "2026-02-25T10:00:00Z",
+            "updated": "2026-02-25T10:05:00Z",
+        })
+        self.assertEqual(item.provider, "benzinga_ws")
+        self.assertEqual(item.item_id, "ws_123")
+        self.assertEqual(item.headline, "AAPL FDA approval")
+        self.assertEqual(item.tickers, ["AAPL"])
+        self.assertTrue(item.is_valid)
+        self.assertGreater(item.published_ts, 0)
+        self.assertGreater(item.updated_ts, 0)
+        self.assertGreaterEqual(item.updated_ts, item.published_ts)
+
+    def test_ws_missing_fields_still_valid(self):
+        from newsstack_fmp.normalize import normalize_benzinga_ws
+
+        item = normalize_benzinga_ws({
+            "id": "ws_minimal",
+            "title": "Some news",
+        })
+        self.assertTrue(item.is_valid)
+        self.assertEqual(item.tickers, [])
+        self.assertEqual(item.published_ts, 0.0)
+
+    def test_ws_no_id_invalid(self):
+        from newsstack_fmp.normalize import normalize_benzinga_ws
+
+        item = normalize_benzinga_ws({"title": "No ID"})
+        self.assertFalse(item.is_valid)
+
+
+# ── Testability: _extract_tickers with list of dicts ───────────
+
+
+class TestExtractTickersFormats(unittest.TestCase):
+    """_extract_tickers must handle CSV, list-of-str, list-of-dicts."""
+
+    def test_list_of_dicts_with_name(self):
+        from newsstack_fmp.normalize import _extract_tickers
+
+        tickers = _extract_tickers({"stocks": [{"name": "AAPL"}, {"name": "MSFT"}]})
+        self.assertEqual(tickers, ["AAPL", "MSFT"])
+
+    def test_list_of_dicts_with_ticker(self):
+        from newsstack_fmp.normalize import _extract_tickers
+
+        tickers = _extract_tickers({"stocks": [{"ticker": "goog"}]})
+        self.assertEqual(tickers, ["GOOG"])
+
+    def test_list_of_strings(self):
+        from newsstack_fmp.normalize import _extract_tickers
+
+        tickers = _extract_tickers({"stocks": ["aapl", "msft"]})
+        self.assertEqual(tickers, ["AAPL", "MSFT"])
+
+    def test_symbol_field_takes_priority(self):
+        from newsstack_fmp.normalize import _extract_tickers
+
+        tickers = _extract_tickers({"symbol": "TSLA", "stocks": [{"name": "AAPL"}]})
+        self.assertEqual(tickers, ["TSLA"])
+
+    def test_empty_stocks(self):
+        from newsstack_fmp.normalize import _extract_tickers
+
+        tickers = _extract_tickers({"stocks": []})
+        self.assertEqual(tickers, [])
+
+    def test_no_ticker_fields(self):
+        from newsstack_fmp.normalize import _extract_tickers
+
+        tickers = _extract_tickers({"headline": "No tickers"})
+        self.assertEqual(tickers, [])
+
+
+# ── Testability: Multi-ticker fan-out ──────────────────────────
+
+
+class TestMultiTickerFanout(unittest.TestCase):
+    """One item with 3 tickers must produce 3 entries in best_by_ticker."""
+
+    def test_three_tickers(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        item = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="multi_tk",
+            published_ts=1700000000.0,
+            updated_ts=1700000000.0,
+            headline="FDA approves new drug affecting sector",
+            snippet="",
+            tickers=["AAPL", "MSFT", "GOOG"],
+            url="https://example.com/multi",
+            source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        self.assertEqual(len(best), 3)
+        self.assertIn("AAPL", best)
+        self.assertIn("MSFT", best)
+        self.assertIn("GOOG", best)
+        # All three should reference the same headline
+        for tk in ("AAPL", "MSFT", "GOOG"):
+            self.assertEqual(best[tk]["headline"], "FDA approves new drug affecting sector")
+
+    def test_fanout_with_universe_filter(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+        universe = {"AAPL", "GOOG"}  # MSFT excluded
+
+        item = NewsItem(
+            provider="fmp_stock_latest",
+            item_id="multi_tk_univ",
+            published_ts=1700000000.0,
+            updated_ts=1700000000.0,
+            headline="Market news for tech sector",
+            snippet="",
+            tickers=["AAPL", "MSFT", "GOOG"],
+            url="https://example.com/multi2",
+            source="Test",
+        )
+
+        process_news_items(
+            store, [item], best, universe, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        self.assertEqual(len(best), 2)
+        self.assertIn("AAPL", best)
+        self.assertNotIn("MSFT", best)
+        self.assertIn("GOOG", best)
+
+
+# ── Testability: Config.active_sources ─────────────────────────
+
+
+class TestConfigActiveSources(unittest.TestCase):
+    """Config.active_sources must reflect enabled feature flags."""
+
+    def test_fmp_only(self):
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {
+            "ENABLE_FMP": "1",
+            "ENABLE_BENZINGA_REST": "0",
+            "ENABLE_BENZINGA_WS": "0",
+        }):
+            cfg = Config()
+        self.assertEqual(cfg.active_sources, ["fmp_stock_latest", "fmp_press_latest"])
+
+    def test_all_enabled(self):
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {
+            "ENABLE_FMP": "1",
+            "ENABLE_BENZINGA_REST": "1",
+            "ENABLE_BENZINGA_WS": "1",
+        }):
+            cfg = Config()
+        self.assertIn("fmp_stock_latest", cfg.active_sources)
+        self.assertIn("benzinga_rest", cfg.active_sources)
+        self.assertIn("benzinga_ws", cfg.active_sources)
+
+    def test_none_enabled(self):
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {
+            "ENABLE_FMP": "0",
+            "ENABLE_BENZINGA_REST": "0",
+            "ENABLE_BENZINGA_WS": "0",
+        }):
+            cfg = Config()
+        self.assertEqual(cfg.active_sources, [])
+
+
+# ── Testability: Benzinga REST response shapes ────────────────
+
+
+class TestBenzingaRestResponseShapes(unittest.TestCase):
+    """BenzingaRestAdapter must handle array vs dict response shapes."""
+
+    def test_direct_array_response(self):
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+
+        adapter = BenzingaRestAdapter("test_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_resp.json.return_value = [
+            {"id": "1", "title": "Test A", "created": "2026-02-25T10:00:00Z"},
+        ]
+        adapter.client.get = MagicMock(return_value=mock_resp)
+        items = adapter.fetch_news()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].headline, "Test A")
+        adapter.close()
+
+    def test_articles_wrapper_response(self):
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+
+        adapter = BenzingaRestAdapter("test_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_resp.json.return_value = {
+            "articles": [{"id": "2", "title": "Test B"}],
+        }
+        adapter.client.get = MagicMock(return_value=mock_resp)
+        items = adapter.fetch_news()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].headline, "Test B")
+        adapter.close()
+
+    def test_empty_response(self):
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+
+        adapter = BenzingaRestAdapter("test_key")
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.headers = {"content-type": "application/json"}
+        mock_resp.json.return_value = []
+        adapter.client.get = MagicMock(return_value=mock_resp)
+        items = adapter.fetch_news()
+        self.assertEqual(len(items), 0)
+        adapter.close()
