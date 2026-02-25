@@ -32,25 +32,36 @@ logger = logging.getLogger(__name__)
 
 # ── Shared helpers ──────────────────────────────────────────────
 
+# Minimum length for a date string to be considered valid.
+# Shortest valid format: "YYYYMMDD" = 8 chars.  Shorter strings like
+# "5" or "12" are ambiguously parsed by dateutil (e.g. "5" → Feb 5)
+# and can silently drift cursors.
+_MIN_DATE_LEN = 8
+
+
 def _to_epoch(s: str) -> float:
     """Parse a date/time string to epoch seconds.
 
-    Returns ``0.0`` for empty or unparseable strings so that the caller
-    can detect 'no timestamp available' and avoid advancing cursors past
-    real item timestamps.
+    Returns ``0.0`` for empty, too-short, or unparseable strings so that
+    the caller can detect 'no timestamp available' and avoid advancing
+    cursors past real item timestamps.
 
     Naive datetimes (no timezone info) are assumed UTC to guarantee
     deterministic results regardless of server timezone.
     """
     if not s:
         return 0.0
+    s_stripped = s.strip()
+    if len(s_stripped) < _MIN_DATE_LEN:
+        logger.warning("Date string too short (%d chars): %r — returning epoch 0.", len(s_stripped), s_stripped)
+        return 0.0
     try:
-        dt = dtparser.parse(s)
+        dt = dtparser.parse(s_stripped)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.timestamp()
     except Exception:
-        logger.warning("Unparseable date %r — returning epoch 0.", s[:80])
+        logger.warning("Unparseable date %r — returning epoch 0.", s_stripped[:80])
         return 0.0
 
 

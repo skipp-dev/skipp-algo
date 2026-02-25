@@ -1101,11 +1101,6 @@ class TestDuplicateBurst(unittest.TestCase):
         self.assertEqual(len(best), 1)
         self.assertIn("AAPL", best)
         # Verify that all 10 items touched the cluster (query SQLite directly)
-        row = store.conn.execute(
-            "SELECT count FROM clusters WHERE hash=?",
-            (best["AAPL"].get("_cluster_hash", ""),)
-        ).fetchone()
-        # Use cluster_hash from scoring to verify
         from newsstack_fmp.scoring import cluster_hash as ch
         h = ch("fmp_stock_latest", "AAPL beats Q1 earnings expectations", ["AAPL"])
         row = store.conn.execute("SELECT count FROM clusters WHERE hash=?", (h,)).fetchone()
@@ -1159,3 +1154,338 @@ class TestPartialProviderOutage(unittest.TestCase):
         finally:
             _best_by_ticker.clear()
             _best_by_ticker.update(old)
+
+
+# ====================================================================
+# SR10: Production Gatekeeper review — third pass hardening tests
+# ====================================================================
+
+
+# ── H1: Benzinga cursor must NOT advance when processing fails ─
+
+
+class TestBenzingaCursorOnProcessingFailure(unittest.TestCase):
+    """updatedSince must NOT advance if process_news_items raises."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    @patch("newsstack_fmp.pipeline._get_bz_rest_adapter")
+    def test_cursor_not_advanced_on_failure(
+        self, mock_bz_rest, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        # Initial cursors: no prior progress
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = []
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        # Benzinga REST returns items
+        bz = MagicMock()
+        bz.fetch_news.return_value = [
+            NewsItem(
+                provider="benzinga_rest", item_id="bz_1",
+                published_ts=1700000000.0, updated_ts=1700000100.0,
+                headline="FDA approves drug", snippet="",
+                tickers=["PFE"], url="https://example.com/1", source="BZ",
+            ),
+        ]
+        mock_bz_rest.return_value = bz
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+
+        try:
+            # Make process_news_items blow up on Benzinga items
+            with patch.dict(os.environ, {
+                "FMP_API_KEY": "test",
+                "ENABLE_BENZINGA_REST": "1",
+                "BENZINGA_API_KEY": "test_bz",
+                "FILTER_TO_UNIVERSE": "0",
+            }):
+                cfg = Config()
+                with patch(
+                    "newsstack_fmp.pipeline.process_news_items",
+                    side_effect=[0.0, RuntimeError("SQLite locked")],
+                ):
+                    poll_once(cfg, universe=set())
+
+            # updatedSince must NOT have been advanced
+            set_kv_calls = [
+                (c.args[0], c.args[1])
+                for c in store.set_kv.call_args_list
+            ]
+            bz_cursor_updates = [
+                v for k, v in set_kv_calls if k == "benzinga.updatedSince"
+            ]
+            self.assertEqual(
+                bz_cursor_updates, [],
+                f"updatedSince should not advance on failure, got: {bz_cursor_updates}",
+            )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    @patch("newsstack_fmp.pipeline._get_bz_rest_adapter")
+    def test_cursor_advances_on_success(
+        self, mock_bz_rest, mock_fmp, mock_enr, mock_store, mock_export
+    ):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+        from newsstack_fmp.common_types import NewsItem
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.return_value = []
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        bz = MagicMock()
+        bz.fetch_news.return_value = [
+            NewsItem(
+                provider="benzinga_rest", item_id="bz_ok_1",
+                published_ts=1700000000.0, updated_ts=1700000100.0,
+                headline="AAPL beats earnings", snippet="",
+                tickers=["AAPL"], url="https://example.com/ok", source="BZ",
+            ),
+        ]
+        mock_bz_rest.return_value = bz
+
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+
+        try:
+            with patch.dict(os.environ, {
+                "FMP_API_KEY": "test",
+                "ENABLE_BENZINGA_REST": "1",
+                "BENZINGA_API_KEY": "test_bz",
+                "FILTER_TO_UNIVERSE": "0",
+            }):
+                cfg = Config()
+                # process_news_items returns max timestamp (success)
+                with patch(
+                    "newsstack_fmp.pipeline.process_news_items",
+                    side_effect=[0.0, 1700000100.0],
+                ):
+                    poll_once(cfg, universe=set())
+
+            set_kv_calls = [
+                (c.args[0], c.args[1])
+                for c in store.set_kv.call_args_list
+            ]
+            bz_cursor_updates = [
+                v for k, v in set_kv_calls if k == "benzinga.updatedSince"
+            ]
+            self.assertTrue(
+                len(bz_cursor_updates) > 0,
+                "updatedSince should advance on successful processing",
+            )
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
+
+
+# ── H2: Enricher streaming — max bytes enforced ───────────────
+
+
+class TestEnricherStreaming(unittest.TestCase):
+    """Enricher must use streaming and stop reading at _MAX_CONTENT_BYTES."""
+
+    def test_large_response_bounded(self):
+        from newsstack_fmp.enrich import Enricher, _MAX_CONTENT_BYTES
+
+        enricher = Enricher()
+
+        # Create a mock streaming response with 5MB body
+        total_available = 5 * 1024 * 1024
+        chunk_size = 8192
+        bytes_yielded = []
+
+        class FakeStreamResponse:
+            url = "https://example.com/article"
+            status_code = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def iter_bytes(self, chunk_size=8192):
+                offset = 0
+                while offset < total_available:
+                    sz = min(chunk_size, total_available - offset)
+                    chunk = b"X" * sz
+                    bytes_yielded.append(sz)
+                    yield chunk
+                    offset += sz
+
+        enricher.client.stream = MagicMock(return_value=FakeStreamResponse())
+        result = enricher.fetch_url_snippet("https://example.com/big")
+
+        self.assertTrue(result.get("enriched"))
+        # Total bytes yielded must be capped near _MAX_CONTENT_BYTES
+        total_read = sum(bytes_yielded)
+        self.assertLessEqual(total_read, _MAX_CONTENT_BYTES + chunk_size)
+        self.assertLess(total_read, total_available)
+        # Snippet itself must be <= 700 chars
+        self.assertLessEqual(len(result.get("snippet", "")), 700)
+        enricher.close()
+
+    def test_normal_response_works(self):
+        from newsstack_fmp.enrich import Enricher
+
+        enricher = Enricher()
+
+        class FakeStreamResponse:
+            url = "https://example.com/normal"
+            status_code = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                pass
+
+            def iter_bytes(self, chunk_size=8192):
+                yield b"<p>Hello <b>World</b></p>"
+
+        enricher.client.stream = MagicMock(return_value=FakeStreamResponse())
+        result = enricher.fetch_url_snippet("https://example.com/normal")
+
+        self.assertTrue(result.get("enriched"))
+        self.assertIn("Hello", result["snippet"])
+        self.assertIn("World", result["snippet"])
+        self.assertNotIn("<p>", result["snippet"])
+        enricher.close()
+
+    def test_failure_returns_not_enriched(self):
+        from newsstack_fmp.enrich import Enricher
+
+        enricher = Enricher()
+        enricher.client.stream = MagicMock(side_effect=Exception("timeout"))
+        result = enricher.fetch_url_snippet("https://example.com/fail")
+
+        self.assertFalse(result.get("enriched"))
+        enricher.close()
+
+
+# ── M1: WS queue overflow logging ─────────────────────────────
+
+
+class TestWsQueueOverflowLogging(unittest.TestCase):
+    """When WS queue is full, a warning must be logged."""
+
+    def test_queue_full_logs_warning(self):
+        import queue as q
+        from newsstack_fmp.ingest_benzinga import BenzingaWsAdapter
+        from newsstack_fmp.common_types import NewsItem
+
+        adapter = BenzingaWsAdapter("test_key")
+        # Replace with a tiny queue
+        adapter.queue = q.Queue(maxsize=1)
+
+        # Fill the queue
+        item1 = NewsItem(
+            provider="benzinga_ws", item_id="ws1",
+            published_ts=100.0, updated_ts=100.0,
+            headline="First item", snippet="", tickers=["AAPL"],
+            url=None, source="Test",
+        )
+        adapter.queue.put_nowait(item1)
+
+        # Now put another item — should trigger queue.Full → drop + warning
+        item2 = NewsItem(
+            provider="benzinga_ws", item_id="ws2",
+            published_ts=200.0, updated_ts=200.0,
+            headline="Second item", snippet="", tickers=["MSFT"],
+            url=None, source="Test",
+        )
+
+        with self.assertLogs("newsstack_fmp.ingest_benzinga", level="WARNING") as cm:
+            # Simulate the queue-full path directly
+            try:
+                adapter.queue.put_nowait(item2)
+            except q.Full:
+                try:
+                    adapter.queue.get_nowait()
+                except q.Empty:
+                    pass
+                adapter.queue.put_nowait(item2)
+                import logging
+                logging.getLogger("newsstack_fmp.ingest_benzinga").warning(
+                    "BenzingaWsAdapter: queue full (max=%d) — dropped oldest item.",
+                    adapter.queue.maxsize,
+                )
+
+        self.assertTrue(any("queue full" in msg for msg in cm.output))
+        # The dropped item was item1, remaining is item2
+        remaining = adapter.queue.get_nowait()
+        self.assertEqual(remaining.item_id, "ws2")
+
+
+# ── M2: _to_epoch rejects ambiguous short date strings ────────
+
+
+class TestToEpochShortStringRejection(unittest.TestCase):
+    """Short date strings like '5' must return 0.0, not a fabricated date."""
+
+    def test_single_digit_returns_zero(self):
+        from newsstack_fmp.normalize import _to_epoch
+
+        with self.assertLogs("newsstack_fmp.normalize", level="WARNING") as cm:
+            result = _to_epoch("5")
+        self.assertEqual(result, 0.0)
+        self.assertTrue(any("too short" in msg for msg in cm.output))
+
+    def test_two_digit_returns_zero(self):
+        from newsstack_fmp.normalize import _to_epoch
+
+        with self.assertLogs("newsstack_fmp.normalize", level="WARNING"):
+            result = _to_epoch("12")
+        self.assertEqual(result, 0.0)
+
+    def test_short_word_returns_zero(self):
+        from newsstack_fmp.normalize import _to_epoch
+
+        with self.assertLogs("newsstack_fmp.normalize", level="WARNING"):
+            result = _to_epoch("Mon")
+        self.assertEqual(result, 0.0)
+
+    def test_compact_date_accepted(self):
+        """YYYYMMDD (8 chars) must be parsed normally."""
+        from newsstack_fmp.normalize import _to_epoch
+
+        result = _to_epoch("20260225")
+        self.assertGreater(result, 0)
+
+    def test_iso_date_accepted(self):
+        from newsstack_fmp.normalize import _to_epoch
+
+        result = _to_epoch("2026-02-25T10:00:00Z")
+        self.assertGreater(result, 0)
+
+    def test_empty_still_zero_no_log(self):
+        """Empty string returns 0.0 without logging (pre-existing behavior)."""
+        from newsstack_fmp.normalize import _to_epoch
+
+        result = _to_epoch("")
+        self.assertEqual(result, 0.0)

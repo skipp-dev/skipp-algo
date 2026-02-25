@@ -224,6 +224,10 @@ class BenzingaWsAdapter:
                                     except queue.Empty:
                                         pass
                                     self.queue.put_nowait(item)
+                                    logger.warning(
+                                        "BenzingaWsAdapter: queue full (max=%d) — dropped oldest item.",
+                                        self.queue.maxsize,
+                                    )
 
             except Exception as exc:
                 if self._stop_event.is_set():

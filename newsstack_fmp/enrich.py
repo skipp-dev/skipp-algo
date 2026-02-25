@@ -34,25 +34,35 @@ class Enricher:
         """Fetch URL and return a short text snippet.
 
         Non-critical — any failure returns ``{"enriched": False}``.
-        Response body is capped to 1 MB and HTML tags are stripped.
+        Response body is capped to 1 MB **during download** via streaming
+        so that oversized responses never allocate more memory.
+        HTML tags are stripped from the downloaded portion.
         """
         if not url:
             return {"enriched": False}
         try:
-            # Check Content-Length before streaming to avoid OOM.
-            r = self.client.get(url)
-            raw = r.text or ""
-            if len(raw) > _MAX_CONTENT_BYTES:
-                raw = raw[:_MAX_CONTENT_BYTES]
-            # Strip HTML tags and collapse whitespace for clean text.
-            text = _HTML_TAG_RE.sub(" ", raw)
-            text = " ".join(text.split())
-            return {
-                "enriched": True,
-                "url_final": str(r.url),
-                "http_status": r.status_code,
-                "snippet": text[:700],
-            }
+            with self.client.stream("GET", url) as r:
+                # Read only up to _MAX_CONTENT_BYTES to avoid OOM.
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in r.iter_bytes(chunk_size=8192):
+                    remaining = _MAX_CONTENT_BYTES - total
+                    if remaining <= 0:
+                        break
+                    if len(chunk) > remaining:
+                        chunk = chunk[:remaining]
+                    chunks.append(chunk)
+                    total += len(chunk)
+                raw = b"".join(chunks).decode("utf-8", errors="replace")
+                # Strip HTML tags and collapse whitespace for clean text.
+                text = _HTML_TAG_RE.sub(" ", raw)
+                text = " ".join(text.split())
+                return {
+                    "enriched": True,
+                    "url_final": str(r.url),
+                    "http_status": r.status_code,
+                    "snippet": text[:700],
+                }
         except Exception as exc:
             logger.debug("Enrich failed for %s: %s", url, exc)
             return {"enriched": False, "error": str(exc)}

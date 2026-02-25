@@ -300,11 +300,13 @@ def poll_once(
     # Benzinga items: cursor is updatedSince string, not epoch-based
     # Use epoch 0 as last_seen to accept all (dedup handles duplicates)
     bz_last = float(store.get_kv("benzinga.last_seen_epoch") or "0")
+    bz_processing_ok = False
     try:
         new_bz_max = process_news_items(
             store, bz_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=bz_last,
         )
+        bz_processing_ok = True
     except Exception as exc:
         logger.warning("process_news_items(benzinga) failed: %s", exc)
         cycle_warnings.append(f"process_benzinga: {exc}")
@@ -315,9 +317,11 @@ def poll_once(
         store.set_kv("fmp.last_seen_epoch", str(new_fmp_max))
     if new_bz_max > bz_last:
         store.set_kv("benzinga.last_seen_epoch", str(new_bz_max))
-    if bz_rest_items:
+    if bz_rest_items and bz_processing_ok:
         # Advance Benzinga updatedSince to max observed updated_ts so we
         # don't skip items that Benzinga indexes out-of-order.
+        # Only advance when processing succeeded — otherwise those items
+        # would be permanently skipped on the next poll cycle.
         bz_max_ts = max(
             (it.updated_ts or it.published_ts or 0.0 for it in bz_rest_items),
             default=0.0,
