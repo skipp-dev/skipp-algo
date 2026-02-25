@@ -1273,10 +1273,14 @@ class RealtimeEngine:
                 news_sentiment = "-"
             else:
                 news_sentiment = "n"
+            # High news_score with neutral sentiment → upgrade to directional
+            # A score ≥0.5 means the news is material; neutral emoji is misleading.
+            if news_sentiment == "n" and current_news_score >= 0.5:
+                news_sentiment = "+" if news_polarity >= 0 else "-"
             news_sentiment_emoji = {"+": "🟢", "n": "🟡", "-": "🔴"}.get(news_sentiment, "🟡")
             news_url = str(ns_data.get("news_url") or ns_data.get("url") or "") if ns_data else ""
-            news_headline = str(ns_data.get("headline", ""))[:80] if ns_data else ""
-            news_with_link = f"{news_headline} | {news_url}" if news_url else news_headline
+            news_headline = str(ns_data.get("headline", "")) if ns_data else ""
+            news_with_link = news_headline
 
             # Breakout status for VisiData view
             breakout = ""
