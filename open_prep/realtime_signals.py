@@ -64,14 +64,16 @@ LATEST_RUN_PATH = _ARTIFACTS_LATEST / "latest_open_prep_run.json"
 
 # Backward-compat: also check old location in package dir
 _LEGACY_RUN_PATH = Path(__file__).resolve().parent / "latest_open_prep_run.json"
-DEFAULT_POLL_INTERVAL = 45  # seconds
-DEFAULT_TOP_N = 10
+DEFAULT_POLL_INTERVAL = 20  # seconds (was 45 — faster detection)
+DEFAULT_TOP_N = 15
 
 # Signal level thresholds
 A0_VOLUME_RATIO_MIN = 3.0        # 3x avg volume for A0
-A1_VOLUME_RATIO_MIN = 1.5        # 1.5x for A1
+A1_VOLUME_RATIO_MIN = 1.0        # 1x for A1 (was 1.5 — too late for mid-caps)
+A2_VOLUME_RATIO_MIN = 0.6        # 0.6x for A2 early warning
 A0_PRICE_CHANGE_PCT_MIN = 1.5    # 1.5% move for A0
-A1_PRICE_CHANGE_PCT_MIN = 0.5    # 0.5% for A1
+A1_PRICE_CHANGE_PCT_MIN = 0.35   # 0.35% for A1 (was 0.5 — missed slow grinders)
+A2_PRICE_CHANGE_PCT_MIN = 0.15   # 0.15% for A2 early warning
 
 # Signal expiry
 MAX_SIGNAL_AGE_SECONDS = 1800    # 30 min
@@ -502,7 +504,7 @@ class GateHysteresis:
     def __init__(
         self,
         margin_pct: float = 0.02,
-        min_hold_seconds: float = 90.0,
+        min_hold_seconds: float = 30.0,  # was 90 — faster upgrades
     ):
         self._margin_pct = margin_pct
         self._min_hold = min_hold_seconds
@@ -717,9 +719,9 @@ class RealtimeEngine:
 
         # #7 Dynamic cooldown (oscillation-based) — replaces fixed 600s
         self._dynamic_cooldown = DynamicCooldown(
-            base_seconds=10.0 if ultra_mode else (30.0 if fast_mode else 120.0),
+            base_seconds=10.0 if ultra_mode else (20.0 if fast_mode else 60.0),
             min_seconds=2.0 if ultra_mode else 5.0,
-            max_seconds=300.0 if ultra_mode else 600.0,
+            max_seconds=180.0 if ultra_mode else 300.0,
         )
 
         # #9 Volume-regime auto-detection
@@ -931,18 +933,26 @@ class RealtimeEngine:
         rt = regime_thresholds or {"vol_mult": 1.0, "chg_mult": 1.0}
         eff_a0_vol = A0_VOLUME_RATIO_MIN * rt["vol_mult"]
         eff_a1_vol = A1_VOLUME_RATIO_MIN * rt["vol_mult"]
+        eff_a2_vol = A2_VOLUME_RATIO_MIN * rt["vol_mult"]
         eff_a0_chg = A0_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
         eff_a1_chg = A1_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
+        eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * rt["chg_mult"]
 
-        # Determine signal level
+        # Determine signal level (A0 > A1 > A2)
         level: str | None = None
         if volume_ratio >= eff_a0_vol and abs_change >= eff_a0_chg:
             level = "A0"
         elif volume_ratio >= eff_a1_vol and abs_change >= eff_a1_chg:
             level = "A1"
-        elif abs_change >= eff_a0_chg * 1.5:
-            # Very large move even without volume confirmation
+        elif abs_change >= eff_a0_chg * 1.2:
+            # Large move even without full volume confirmation
             level = "A1"
+        elif volume_ratio >= eff_a2_vol and abs_change >= eff_a2_chg:
+            # Early warning — building momentum, not confirmed yet
+            level = "A2"
+        elif abs_change >= eff_a1_chg * 1.5:
+            # Moderate move, minimal volume — still worth watching
+            level = "A2"
 
         if level is None:
             return None
@@ -1190,26 +1200,28 @@ class RealtimeEngine:
                     signal.news_warn_flags = list(ns_data.get("warn_flags") or [])
                     # Upgrade A1 → A0 if news catalyst is strong AND
                     # the dynamic cooldown is not active for this symbol.
-                    if signal.level == "A1" and signal.news_score >= 0.80:
+                    if signal.level in ("A1", "A2") and signal.news_score >= 0.80:
                         cd_active, _ = self._dynamic_cooldown.check_cooldown(sym)
                         if not cd_active:
                             signal.level = "A0"
                             signal.details["a0_upgrade_reason"] = "news_catalyst"
 
                 # Check if we already have an active signal for this symbol
+                _level_rank = {"A0": 0, "A1": 1, "A2": 2}
                 existing = [s for s in self._active_signals if s.symbol == sym and not s.is_expired()]
                 if existing:
-                    # Only add if new signal is higher level or different direction
                     latest = existing[-1]
-                    if signal.level == "A0" and latest.level == "A1":
-                        # Upgrade: remove old A1, add A0
+                    new_rank = _level_rank.get(signal.level, 3)
+                    old_rank = _level_rank.get(latest.level, 3)
+                    if new_rank < old_rank:
+                        # Upgrade: A2→A1, A1→A0, etc.
                         self._active_signals = [s for s in self._active_signals if s.symbol != sym]
                         new_signals.append(signal)
                     elif signal.direction != latest.direction:
                         # Direction change: replace
                         self._active_signals = [s for s in self._active_signals if s.symbol != sym]
                         new_signals.append(signal)
-                    # else: same level/direction — skip (already signaled)
+                    # else: same or lower level, same direction — skip
                 else:
                     new_signals.append(signal)
 
@@ -1270,11 +1282,13 @@ class RealtimeEngine:
                 breakout = "CURRENT_A0"
             elif sig_level == "A1":
                 breakout = "CURRENT_A1"
+            elif sig_level == "A2":
+                breakout = "EARLY_A2"
             else:
                 # Near-threshold early warning (coming breakout)
-                eff_a1_vol = A1_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
-                eff_a1_chg = A1_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
-                near = (vol_ratio >= 0.8 * eff_a1_vol and abs(chg_pct) >= 0.8 * eff_a1_chg)
+                eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
+                eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
+                near = (vol_ratio >= 0.8 * eff_a2_vol and abs(chg_pct) >= 0.8 * eff_a2_chg)
                 breakout = "UPCOMING" if near else ""
 
             prev_row = self._vd_rows.get(sym, {})
@@ -1344,15 +1358,18 @@ class RealtimeEngine:
             cur_vol_ratio = cur_volume / cur_avg_vol
 
             # Apply regime-adjusted thresholds for re-qualification too
+            eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
+            eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
             eff_a1_vol = A1_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
             eff_a1_chg = A1_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
 
-            still_qualifies_a1 = (
-                (cur_vol_ratio >= eff_a1_vol and cur_change >= eff_a1_chg)
-                or cur_change >= A0_PRICE_CHANGE_PCT_MIN * 1.5 * regime_thresholds["chg_mult"]
+            # Drop signal entirely if it no longer meets even A2 criteria
+            still_qualifies_a2 = (
+                (cur_vol_ratio >= eff_a2_vol and cur_change >= eff_a2_chg)
+                or cur_change >= A1_PRICE_CHANGE_PCT_MIN * 1.5 * regime_thresholds["chg_mult"]
             )
 
-            if not still_qualifies_a1:
+            if not still_qualifies_a2:
                 logger.debug(
                     "Re-qualification: expiring %s %s (vol_ratio=%.2f, chg=%.2f%%)",
                     sig.symbol, sig.level, cur_vol_ratio, cur_change,
@@ -1369,6 +1386,17 @@ class RealtimeEngine:
                 sig.level_since_epoch = time.time()
                 logger.debug("Re-qualification: downgrade %s A0→A1", sig.symbol)
 
+            # Downgrade A1→A2 if no longer meets A1 thresholds
+            if sig.level == "A1" and not (
+                (cur_vol_ratio >= eff_a1_vol and cur_change >= eff_a1_chg)
+                or cur_change >= A0_PRICE_CHANGE_PCT_MIN * 1.2 * regime_thresholds["chg_mult"]
+            ):
+                sig.level = "A2"
+                now_iso = datetime.now(timezone.utc).isoformat()
+                sig.level_since_at = now_iso
+                sig.level_since_epoch = time.time()
+                logger.debug("Re-qualification: downgrade %s A1→A2", sig.symbol)
+
             requalified.append(sig)
 
         self._active_signals = requalified
@@ -1384,9 +1412,10 @@ class RealtimeEngine:
         # Prune expired signals
         self._active_signals = [s for s in self._active_signals if not s.is_expired()]
 
-        # Sort: A0 before A1, then by freshness
+        # Sort: A0 before A1 before A2, then by freshness
+        _level_order = {"A0": 0, "A1": 1, "A2": 2}
         self._active_signals.sort(
-            key=lambda s: (0 if s.level == "A0" else 1, -s.freshness),
+            key=lambda s: (_level_order.get(s.level, 3), -s.freshness),
         )
 
         # ── Telemetry recording ─────────────────────────────────
