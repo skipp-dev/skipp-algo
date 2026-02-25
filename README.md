@@ -137,6 +137,7 @@ Timing note:
 
 ## Documentation
 
+- **Open Prep Suite — technische Vollreferenz:** `docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md`
 - **Deep technical documentation:** `docs/SkippALGO_Deep_Technical_Documentation.md`
 - **Deep technical documentation (current):** `docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md`
 - **Kurzfassung für neue Nutzer:** `docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md`
