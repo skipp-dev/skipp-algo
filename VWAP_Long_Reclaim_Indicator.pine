@@ -134,16 +134,28 @@ longSignal = goLong and matchedTrendsFilter_long and not inVirtualPos
 // Evaluate crossover on every bar (Pine stateful-function requirement)
 tpCross = ta.crossover(high, upperBandValue2)
 
-if longSignal
+// Detect same-bar BUY+TP conflict: if the entry candle also crosses the
+// TP band the trade is nonsensical — suppress both signals entirely.
+sameBarConflict = longSignal and tpCross
+
+if longSignal and not sameBarConflict
     inVirtualPos := true
     inReclaimSeq := false   // prevent consecutive re-fires (parity with strategy)
     retestSeen := false
 
-tpStretch = inVirtualPos and tpCross
+if sameBarConflict
+    // Do NOT enter — reset reclaim state so the sequence must re-qualify.
+    inReclaimSeq := false
+    retestSeen := false
+
+tpStretch = inVirtualPos and tpCross and not sameBarConflict
 exitOnVwapLoss = inVirtualPos and close < vwapValue - tol
 
 if tpStretch or exitOnVwapLoss
     inVirtualPos := false
+
+// Suppress the Buy label/alert on conflict bars
+longSignal := longSignal and not sameBarConflict
 
 // ==================== PLOTS ====================
 

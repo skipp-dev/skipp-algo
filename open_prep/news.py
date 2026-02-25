@@ -8,6 +8,9 @@ from .playbook import classify_news_event, classify_recency, classify_source_qua
 
 _TICKER_RE = re.compile(r"\b[A-Z][A-Z0-9.-]{0,5}\b")
 
+# Sentinel for sorting articles with no parseable date (sorts last).
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+
 # Common English words that look like tickers but aren't actual US-listed
 # symbols.  Excludes legitimate tickers like "A" (Agilent), "AI" (C3.ai),
 # "ON" (ON Semi), "IT" (Gartner) etc.
@@ -155,6 +158,8 @@ def build_news_scores(
     }
 
     # Precompile regex patterns for fallback matching to avoid false positives (e.g. "A" in "APPLE")
+    # Only match in titles (not full content) — content matching is too noisy
+    # and causes O(N_symbols × N_articles × content_len) work.
     sym_patterns = {sym: re.compile(rf"\b{re.escape(sym)}\b") for sym in universe}
 
     for article in articles:
@@ -165,11 +170,13 @@ def build_news_scores(
 
         mentioned = _extract_symbols_from_tickers(ticker_meta)
 
-        # Fallback: symbol mention in title/content if FMP didn't tag it
-        for sym, pattern in sym_patterns.items():
-            if sym not in mentioned:
-                if pattern.search(title) or pattern.search(content):
-                    mentioned.add(sym)
+        # Fallback: symbol mention in title only (content matching is too
+        # noisy — e.g. "MSFT" mentioned in a story primarily about "AAPL").
+        # Pre-extract word-boundary tokens from the title for O(1) lookup.
+        title_tokens = set(_TICKER_RE.findall(title))
+        for sym in title_tokens:
+            if sym in universe and sym not in mentioned and sym not in _TICKER_BLACKLIST:
+                mentioned.add(sym)
 
         for sym in mentioned:
             if sym not in universe:
@@ -230,8 +237,11 @@ def build_news_scores(
     scores: dict[str, float] = {}
     for sym, row in metrics.items():
         # Keep only the 5 newest articles (sort by date descending, None dates last).
+        # Use the module-level _EPOCH sentinel for articles with no parseable date.
+        # Sort key uses the already-stored ISO date string directly via
+        # _parse_article_datetime (returns datetime | None).
         row["articles"].sort(
-            key=lambda a: a.get("date") or "",
+            key=lambda a: _parse_article_datetime(a.get("date")) or _EPOCH,
             reverse=True,
         )
         row["articles"] = row["articles"][:5]

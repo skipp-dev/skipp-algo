@@ -58,7 +58,9 @@ def save_result_snapshot(result: dict[str, Any]) -> Path:
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(snapshot, fh, indent=2, default=str)
+            json.dump(snapshot, fh, indent=2, default=str, allow_nan=False)
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_path, LAST_RESULT_PATH)
     except BaseException:
         try:

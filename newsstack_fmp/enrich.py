@@ -19,6 +19,13 @@ _MAX_CONTENT_BYTES = 1_048_576
 # Strip HTML tags for safe snippet storage.
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
+# Block non-HTTPS and internal-network URLs (SSRF protection).
+_ALLOWED_SCHEMES = {"https"}
+_BLOCKED_HOST_RE = re.compile(
+    r"^(localhost|127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|0\.|\[::1\]|\[fd|fe80)",
+    re.IGNORECASE,
+)
+
 
 class Enricher:
     """Synchronous URL snippet fetcher."""
@@ -41,6 +48,25 @@ class Enricher:
         if not url:
             return {"enriched": False}
         try:
+            # SSRF guard: only allow HTTPS URLs to public hosts.
+            import ipaddress
+            import socket
+            from urllib.parse import urlparse
+            parsed = urlparse(url)
+            if parsed.scheme not in _ALLOWED_SCHEMES:
+                return {"enriched": False, "error": f"blocked scheme: {parsed.scheme}"}
+            host = (parsed.hostname or "").lower()
+            if _BLOCKED_HOST_RE.search(host):
+                return {"enriched": False, "error": f"blocked host: {host}"}
+            # Resolve hostname to detect DNS rebinding / decimal IP bypass
+            try:
+                infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+                for _fam, _typ, _proto, _canon, addr in infos:
+                    ip = ipaddress.ip_address(addr[0])
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                        return {"enriched": False, "error": f"blocked resolved IP: {ip}"}
+            except (socket.gaierror, ValueError):
+                pass  # DNS failure → httpx will also fail → handled below
             with self.client.stream("GET", url) as r:
                 # Non-2xx responses are error pages, not article content.
                 if r.status_code >= 400:

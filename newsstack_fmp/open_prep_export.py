@@ -24,7 +24,9 @@ def export_open_prep(
     fd, tmp = tempfile.mkstemp(dir=dest_dir, suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
+            json.dump(payload, f, ensure_ascii=False, indent=2, default=str, allow_nan=False)
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, path)
     except BaseException:
         # Clean up temp file on any failure

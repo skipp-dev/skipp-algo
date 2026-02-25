@@ -63,6 +63,8 @@ def save_alert_config(config: dict[str, Any]) -> Path:
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
             fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_path, ALERT_CONFIG_PATH)
     except BaseException:
         try:
@@ -118,11 +120,12 @@ TIER_LABELS = {
 
 def _format_traderspost_payload(candidate: dict[str, Any]) -> dict[str, Any]:
     """Format a payload for TradersPost webhook."""
+    gap = (candidate.get("gap_pct", 0) or 0)
     return {
         "ticker": candidate.get("symbol", ""),
-        "action": "buy",
-        "sentiment": "bullish" if (candidate.get("gap_pct", 0) or 0) > 0 else "bearish",
-        "price": candidate.get("prev_close"),
+        "action": "buy" if gap > 0 else "sell",
+        "sentiment": "bullish" if gap > 0 else "bearish",
+        "price": candidate.get("price") or candidate.get("prev_close"),
     }
 
 
@@ -294,7 +297,7 @@ def _send_webhook(
     if headers:
         hdrs.update(headers)
 
-    data = json.dumps(payload).encode("utf-8")
+    data = json.dumps(payload, allow_nan=False, default=str).encode("utf-8")
 
     # Build an SSL context — prefer certifi if installed, else default.
     try:

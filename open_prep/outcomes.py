@@ -1,16 +1,25 @@
-"""Backward-looking validation: outcome tracking and historical hit-rate
-computation for gap+RVOL setups.
+"""Backward-looking validation: outcome tracking, historical hit-rate
+computation for gap+RVOL setups, and feature importance analysis.
 
 Stores daily outcomes in JSON files under ``artifacts/open_prep/outcomes/``.
 Computes bucketed statistics: given a (gap_bucket, rvol_bucket) combination,
 what fraction of historical entries were profitable after 30 minutes?
+
+Feature Importance (#3):
+  - ``FeatureImportanceCollector`` accumulates per-run scoring component
+    values alongside binary outcomes (profitable_30m).
+  - ``compute_feature_importance()`` runs Pearson correlation and mean-
+    separation importance to identify which score weights are predictive
+    and which are dead weight, closing the calibration feedback loop.
 """
 from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import tempfile
+from collections import deque
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -82,7 +91,9 @@ def store_daily_outcomes(
     fd, tmp_path = tempfile.mkstemp(dir=OUTCOMES_DIR, suffix=".tmp")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(outcomes, fh, indent=2, default=str)
+            json.dump(outcomes, fh, indent=2, default=str, allow_nan=False)
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_path, path)
     except BaseException:
         try:
@@ -249,3 +260,218 @@ def prepare_outcome_snapshot(
             "pnl_30m_pct": None,     # Back-filled post-open
         })
     return records
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #3  Feature Importance Collector — closes the calibration feedback loop
+# ═══════════════════════════════════════════════════════════════════════════
+
+# The score breakdown keys from scorer.py that form the feature vector.
+FEATURE_KEYS: list[str] = [
+    "gap_component",
+    "gap_sector_rel_component",
+    "rvol_component",
+    "macro_component",
+    "momentum_component",
+    "hvb_component",
+    "earnings_bmo_component",
+    "news_component",
+    "ext_hours_component",
+    "analyst_catalyst_component",
+    "vwap_distance_component",
+    "freshness_component",
+    "institutional_component",
+    "estimate_revision_component",
+]
+
+FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
+_MAX_RING_BUFFER = 100_000
+
+
+class FeatureImportanceCollector:
+    """Accumulates scoring-component samples for offline analysis.
+
+    Call ``record()`` once per scored candidate with the ``score_breakdown``
+    dict from ``score_candidate()`` plus the eventual outcome (which may
+    be ``None`` initially and back-filled later).
+
+    Data is persisted to JSONL files per day.  Use
+    ``compute_feature_importance()`` for the offline report.
+    """
+
+    def __init__(self, max_samples: int = _MAX_RING_BUFFER) -> None:
+        self._buffer: deque[dict[str, Any]] = deque(maxlen=max_samples)
+
+    def record(
+        self,
+        symbol: str,
+        score_breakdown: dict[str, float],
+        *,
+        total_score: float = 0.0,
+        confidence_tier: str = "STANDARD",
+        profitable_30m: bool | None = None,
+        pnl_30m_pct: float | None = None,
+        run_date: str | None = None,
+    ) -> None:
+        """Add a single sample to the ring buffer."""
+        sample: dict[str, Any] = {
+            "symbol": symbol,
+            "date": run_date or date.today().isoformat(),
+            "total_score": total_score,
+            "confidence_tier": confidence_tier,
+            "profitable_30m": profitable_30m,
+            "pnl_30m_pct": pnl_30m_pct,
+        }
+        for key in FEATURE_KEYS:
+            sample[key] = _safe_float(score_breakdown.get(key))
+        self._buffer.append(sample)
+
+    def flush_to_disk(self, run_date: date | None = None) -> Path | None:
+        """Persist collected samples as JSONL and clear the buffer."""
+        if not self._buffer:
+            return None
+        FEATURE_IMPORTANCE_DIR.mkdir(parents=True, exist_ok=True)
+        rd = run_date or date.today()
+        path = FEATURE_IMPORTANCE_DIR / f"fi_samples_{rd.isoformat()}.jsonl"
+        fd, tmp_path = tempfile.mkstemp(
+            dir=FEATURE_IMPORTANCE_DIR, suffix=".tmp",
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                for sample in self._buffer:
+                    fh.write(json.dumps(sample, default=str, allow_nan=False) + "\n")
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp_path, path)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+        count = len(self._buffer)
+        self._buffer.clear()
+        logger.info("Feature importance: flushed %d samples → %s", count, path)
+        return path
+
+    @property
+    def sample_count(self) -> int:
+        return len(self._buffer)
+
+
+def _pearson_r(xs: list[float], ys: list[float]) -> float:
+    """Pearson correlation coefficient for two equal-length lists."""
+    n = len(xs)
+    if n < 3:
+        return 0.0
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    sx = math.sqrt(sum((x - mx) ** 2 for x in xs))
+    sy = math.sqrt(sum((y - my) ** 2 for y in ys))
+    if sx == 0 or sy == 0:
+        return 0.0
+    return cov / (sx * sy)
+
+
+def compute_feature_importance(
+    lookback_days: int = 30,
+) -> dict[str, Any]:
+    """Offline report: which score components predict profitable_30m?
+
+    Loads JSONL samples from the last ``lookback_days`` days and computes:
+      - Pearson correlation between each feature component and the binary
+        ``profitable_30m`` outcome.
+      - Mean-separation importance: ``|mean_win − mean_loss| / std_win``
+        per feature, normalized to [0, 1].
+
+    Returns a dict with per-feature stats + calibration recommendations.
+    """
+    if not FEATURE_IMPORTANCE_DIR.exists():
+        return {"error": "no feature importance data found"}
+
+    files = sorted(FEATURE_IMPORTANCE_DIR.glob("fi_samples_*.jsonl"), reverse=True)
+    samples: list[dict[str, Any]] = []
+    loaded = 0
+    for path in files:
+        if loaded >= lookback_days:
+            break
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        samples.append(json.loads(line))
+            loaded += 1
+        except Exception:
+            logger.warning("Failed to load FI file: %s", path)
+
+    # Filter to samples with known outcome
+    labeled = [s for s in samples if s.get("profitable_30m") is not None]
+    if len(labeled) < 10:
+        return {
+            "error": "insufficient labeled samples",
+            "total_samples": len(samples),
+            "labeled_samples": len(labeled),
+        }
+
+    outcomes = [1.0 if s["profitable_30m"] else 0.0 for s in labeled]
+
+    report: dict[str, Any] = {
+        "total_samples": len(samples),
+        "labeled_samples": len(labeled),
+        "features": {},
+        "recommendations": [],
+    }
+
+    importance_scores: dict[str, float] = {}
+
+    for key in FEATURE_KEYS:
+        vals = [_safe_float(s.get(key)) for s in labeled]
+
+        # Pearson correlation with binary outcome
+        r = _pearson_r(vals, outcomes)
+
+        # Mean-separation importance
+        wins = [v for v, o in zip(vals, outcomes) if o > 0.5]
+        losses = [v for v, o in zip(vals, outcomes) if o <= 0.5]
+        mean_win = (sum(wins) / len(wins)) if wins else 0.0
+        mean_loss = (sum(losses) / len(losses)) if losses else 0.0
+        std_win = (
+            math.sqrt(sum((x - mean_win) ** 2 for x in wins) / max(len(wins) - 1, 1))
+            if len(wins) > 1
+            else 0.001
+        )
+        separation = abs(mean_win - mean_loss) / max(std_win, 0.001)
+
+        report["features"][key] = {
+            "pearson_r": round(r, 4),
+            "mean_separation": round(separation, 4),
+            "mean_win": round(mean_win, 4),
+            "mean_loss": round(mean_loss, 4),
+        }
+        importance_scores[key] = separation
+
+    # Normalize importance to [0, 1]
+    max_imp = max(importance_scores.values()) if importance_scores else 1.0
+    if max_imp > 0:
+        for key in FEATURE_KEYS:
+            report["features"][key]["importance_normalized"] = round(
+                importance_scores[key] / max_imp, 4,
+            )
+
+    # Generate recommendations
+    for key in FEATURE_KEYS:
+        feat = report["features"][key]
+        r = feat["pearson_r"]
+        imp = feat.get("importance_normalized", 0)
+        if abs(r) > 0.5:
+            report["recommendations"].append(
+                f"🟢 {key}: strong predictor (r={r:.2f}). Consider increasing weight."
+            )
+        elif imp < 0.2:
+            report["recommendations"].append(
+                f"🔴 {key}: weak predictor (importance={imp:.2f}). Consider reducing weight."
+            )
+
+    return report

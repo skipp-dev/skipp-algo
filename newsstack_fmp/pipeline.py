@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -34,6 +35,7 @@ _bz_rest_adapter: Optional[Any] = None  # BenzingaRestAdapter (lazy)
 _bz_ws_adapter: Optional[Any] = None  # BenzingaWsAdapter (lazy)
 _enricher: Optional[Enricher] = None
 _best_by_ticker: Dict[str, Dict[str, Any]] = {}
+_bbt_lock = threading.Lock()
 
 
 def _get_store(cfg: Config) -> SqliteStore:
@@ -90,7 +92,7 @@ def load_universe(path: str) -> Set[str]:
             logger.warning("Universe file %s is empty — universe filter disabled.", path)
         return universe
     except FileNotFoundError:
-        logger.warning("Universe file %s not found — universe filter disabled.", path)
+        logger.info("Universe file %s not found — optional universe filter disabled.", path)
         return set()
 
 
@@ -110,14 +112,21 @@ def process_news_items(
     enrich_threshold: float,
     last_seen_epoch: float = 0.0,
     enrich_budget: int = 3,
+    _shared_enrich_counter: Optional[List[int]] = None,
 ) -> Tuple[float, int]:
     """Dedupe → novelty → score → enrich a batch of :class:`NewsItem`.
 
     Returns ``(max_ts, enrich_used)`` — the maximum ``updated_ts`` seen
     (for cursor advancement) and the number of enrichment HTTP calls made.
+
+    *_shared_enrich_counter*: if provided, a single-element ``[int]`` list
+    that is incremented on each enrichment call.  Survives exceptions so
+    the budget is correctly shared across batches even on partial failure.
     """
     max_ts = last_seen_epoch
     enrich_count = 0
+    if _shared_enrich_counter is None:
+        _shared_enrich_counter = [0]
 
     for it in items:
         if not it.is_valid:
@@ -170,9 +179,10 @@ def process_news_items(
         # Hoisted above the per-ticker loop to avoid redundant HTTP calls
         # when one item maps to multiple tickers.
         enrich_result = None
-        if score.score >= enrich_threshold and enrich_count < enrich_budget:
+        if score.score >= enrich_threshold and _shared_enrich_counter[0] < enrich_budget:
             enrich_result = enricher.fetch_url_snippet(it.url)
             enrich_count += 1
+            _shared_enrich_counter[0] += 1
 
         # Build candidate per ticker
         for tk in tickers:
@@ -202,12 +212,13 @@ def process_news_items(
                 cand["enrich"] = dict(enrich_result)
 
             # Keep best per ticker
-            prev = best_by_ticker.get(tk)
-            if (prev is None) or (cand["news_score"] > prev["news_score"]) or (
-                cand["news_score"] == prev["news_score"]
-                and cand.get("updated_ts", 0) > prev.get("updated_ts", 0)
-            ):
-                best_by_ticker[tk] = cand
+            with _bbt_lock:
+                prev = best_by_ticker.get(tk)
+                if (prev is None) or (cand["news_score"] > prev["news_score"]) or (
+                    cand["news_score"] == prev["news_score"]
+                    and cand.get("updated_ts", 0) > prev.get("updated_ts", 0)
+                ):
+                    best_by_ticker[tk] = cand
 
     return max_ts, enrich_count
 
@@ -298,10 +309,12 @@ def poll_once(
     bz_items = [it for it in all_items if not it.provider.startswith("fmp_")]
 
     fmp_enrich_used = 0
+    _enrich_ctr: List[int] = [0]  # mutable counter survives exceptions
     try:
         new_fmp_max, fmp_enrich_used = process_news_items(
             store, fmp_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=fmp_last,
+            _shared_enrich_counter=_enrich_ctr,
         )
     except Exception as exc:
         logger.warning("process_news_items(fmp) failed: %s", exc)
@@ -318,7 +331,8 @@ def poll_once(
         process_news_items(
             store, bz_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=0.0,
-            enrich_budget=max(0, 3 - fmp_enrich_used),
+            enrich_budget=max(0, 3 - _enrich_ctr[0]),
+            _shared_enrich_counter=_enrich_ctr,
         )
         bz_processing_ok = True
     except Exception as exc:
@@ -351,7 +365,8 @@ def poll_once(
             )
 
     # ── 6) Export ───────────────────────────────────────────────
-    candidates: List[Dict[str, Any]] = list(_best_by_ticker.values())
+    with _bbt_lock:
+        candidates: List[Dict[str, Any]] = list(_best_by_ticker.values())
     candidates.sort(
         key=lambda x: (x.get("news_score", 0), x.get("updated_ts", 0), x.get("ticker", "")),
         reverse=True,
@@ -422,12 +437,13 @@ def _effective_ts(cand: Dict[str, Any]) -> float:
 def _prune_best_by_ticker(keep_seconds: float) -> None:
     """Remove entries from ``_best_by_ticker`` older than *keep_seconds*."""
     cutoff = time.time() - keep_seconds
-    stale = [
-        tk for tk, cand in _best_by_ticker.items()
-        if _effective_ts(cand) < cutoff
-    ]
-    for tk in stale:
-        del _best_by_ticker[tk]
+    with _bbt_lock:
+        stale = [
+            tk for tk, cand in _best_by_ticker.items()
+            if _effective_ts(cand) < cutoff
+        ]
+        for tk in stale:
+            del _best_by_ticker[tk]
     if stale:
         logger.debug("Pruned %d stale entries from best_by_ticker.", len(stale))
 
@@ -451,7 +467,8 @@ def _cleanup_singletons() -> None:
             _store.close()
         except Exception:
             pass
-    _best_by_ticker.clear()
+    with _bbt_lock:
+        _best_by_ticker.clear()
     _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None
 
 

@@ -58,13 +58,15 @@ def _load_raw() -> list[dict[str, Any]]:
 
 def _save_raw(entries: list[dict[str, Any]]) -> None:
     WATCHLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(entries, indent=2, default=str)
+    content = json.dumps(entries, indent=2, default=str, allow_nan=False)
     tmp_fd, tmp_path = tempfile.mkstemp(
         dir=WATCHLIST_PATH.parent, suffix=".tmp", prefix="watchlist_"
     )
     try:
         with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
             fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_path, WATCHLIST_PATH)
     except BaseException:
         try:

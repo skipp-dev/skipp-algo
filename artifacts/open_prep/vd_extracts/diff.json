@@ -1,32 +1,24 @@
 {
   "has_changes": true,
   "new_entrants": [
-    "CVKD",
-    "RVSN"
+    "ORCL"
   ],
   "dropped": [
-    "AMDL",
-    "AMUU"
+    "WLK"
   ],
   "score_changes": [],
   "regime_change": null,
   "sector_rotations": [
     {
-      "sector": "Financial Services",
-      "prev_count": 3,
-      "curr_count": 1,
-      "delta": -2
+      "sector": "Basic Materials",
+      "prev_count": 1,
+      "curr_count": 0,
+      "delta": -1
     },
     {
-      "sector": "Healthcare",
-      "prev_count": 4,
-      "curr_count": 5,
-      "delta": 1
-    },
-    {
-      "sector": "Industrials",
-      "prev_count": 0,
-      "curr_count": 1,
+      "sector": "Technology",
+      "prev_count": 6,
+      "curr_count": 7,
       "delta": 1
     }
   ],

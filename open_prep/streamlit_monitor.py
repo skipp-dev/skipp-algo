@@ -2,13 +2,46 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
+import sys
 from datetime import UTC, datetime, time, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 from typing import Any, cast
 
 import streamlit as st
 
 logger = logging.getLogger("open_prep.streamlit_monitor")
+
+# Ensure package imports work even when Streamlit is started outside project root.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def _load_env_file(env_path: Path) -> None:
+    """Load KEY=VALUE pairs from .env into process env (without overriding existing vars)."""
+    if not env_path.exists():
+        return
+    try:
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export "):].strip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key:
+                os.environ.setdefault(key, value)
+    except Exception as exc:
+        logger.debug("Could not load .env file %s: %s", env_path, exc)
+
+
+_load_env_file(PROJECT_ROOT / ".env")
 
 from open_prep.run_open_prep import (
     GAP_MODE_CHOICES,
@@ -368,10 +401,10 @@ def main() -> None:
         atr_period = st.number_input("ATR period", min_value=1, max_value=200, value=14)
         atr_parallel_workers = st.number_input("ATR parallel workers", min_value=1, max_value=20, value=8)
 
-        if st.button("🔄 Sofort aktualisieren", width="stretch", on_click=_on_force_refresh):
+        if st.button("🔄 Sofort aktualisieren", use_container_width=True, on_click=_on_force_refresh):
             if not auto_refresh_enabled:
                 st.rerun()
-        if st.button("🔎 Nur Universum neu laden", width="stretch", on_click=_on_reload_universe):
+        if st.button("🔎 Nur Universum neu laden", use_container_width=True, on_click=_on_reload_universe):
             if not auto_refresh_enabled:
                 st.rerun()
         last_universe_reload_utc = st.session_state.get("last_universe_reload_utc")
@@ -379,7 +412,7 @@ def main() -> None:
         last_universe_reload_freshness = _universe_reload_freshness(last_universe_reload_utc)
         st.caption(f"Letzter Universum-Reload (Berlin): {last_universe_reload}")
         st.caption(last_universe_reload_freshness)
-        if st.button("🧹 Verlauf zurücksetzen", width="stretch"):
+        if st.button("🧹 Verlauf zurücksetzen", use_container_width=True):
             st.session_state["status_history"] = []
             st.rerun()
 
@@ -495,10 +528,12 @@ def main() -> None:
             if row.get("earnings_today") and row.get("symbol") not in earnings_symbols_set:
                 ranked_gap_go_earn.append(row)
                 earnings_symbols_set.add(row.get("symbol"))
+        # Only include earnings_calendar entries for symbols in our ranked universe
+        ranked_symbols_set = {r.get("symbol") for r in ranked_candidates if r.get("symbol")}
         earnings_calendar = result.get("earnings_calendar") or []
         for entry in earnings_calendar:
             sym = entry.get("symbol")
-            if sym and sym not in earnings_symbols_set:
+            if sym and sym not in earnings_symbols_set and sym in ranked_symbols_set:
                 ranked_gap_go_earn.append(entry)
                 earnings_symbols_set.add(sym)
 
@@ -670,13 +705,13 @@ def main() -> None:
         if earn_warn:
             st.caption(f"⚠️ Earnings-Warnungen in GAP-GO: {earn_warn}")
         if ranked_gap_go:
-            st.dataframe(ranked_gap_go, width="stretch", height=320)
+            st.dataframe(ranked_gap_go, use_container_width=True, height=320)
         else:
             st.info("Keine GAP-GO Kandidaten (strengere Kriterien nicht erfüllt).")
 
         with st.expander(f"GAP-WATCHLIST  ({len(ranked_gap_watch)} — prüfen im Chart)"):
             if ranked_gap_watch:
-                st.dataframe(ranked_gap_watch, width="stretch", height=320)
+                st.dataframe(ranked_gap_watch, use_container_width=True, height=320)
             else:
                 st.info("Keine Watch-Kandidaten (Gap zu klein oder Datenqualität).")
 
@@ -685,7 +720,7 @@ def main() -> None:
         # ===================================================================
         st.subheader(f"Earnings  ({len(ranked_gap_go_earn)} Kandidaten)")
         if ranked_gap_go_earn:
-            st.dataframe(ranked_gap_go_earn, width="stretch", height=280)
+            st.dataframe(ranked_gap_go_earn, use_container_width=True, height=280)
         else:
             st.info("Keine Earnings-Kandidaten gefunden.")
 
@@ -774,7 +809,7 @@ def main() -> None:
         # 7. Trade Cards
         # ===================================================================
         st.subheader("Trade Cards")
-        st.dataframe(result.get("trade_cards") or [], width="stretch", height=320)
+        st.dataframe(result.get("trade_cards_v2") or result.get("trade_cards") or [], use_container_width=True, height=320)
 
         # ===================================================================
         # 8. News Catalyst
@@ -866,7 +901,7 @@ def main() -> None:
         gap_scanner_results = build_gap_scanner(all_quotes)
         st.subheader(f"Gap Scanner ({len(gap_scanner_results)} Treffer)")
         if gap_scanner_results:
-            st.dataframe(gap_scanner_results, width="stretch", height=320)
+            st.dataframe(gap_scanner_results, use_container_width=True, height=320)
         else:
             st.info("Keine Gap-Kandidaten gefunden (Threshold / Stale / Spread).")
 
@@ -874,14 +909,14 @@ def main() -> None:
         # 10. US High Impact Events + Macro
         # ===================================================================
         st.subheader("US High Impact Events (today)")
-        st.dataframe(result.get("macro_us_high_impact_events_today") or [], width="stretch", height=280)
+        st.dataframe(result.get("macro_us_high_impact_events_today") or [], use_container_width=True, height=280)
 
         # ===================================================================
         # 11. Earnings Calendar
         # ===================================================================
         st.subheader(f"Earnings Calendar  ({len(earnings_calendar)} Termine, nächste 6 Tage)")
         if earnings_calendar:
-            st.dataframe(earnings_calendar, width="stretch", height=320)
+            st.dataframe(earnings_calendar, use_container_width=True, height=320)
         else:
             st.info("Keine Earnings im Kalender (heute + 5 Tage).")
 
@@ -962,7 +997,7 @@ def main() -> None:
         # 16. Legacy Ranked Candidates (Debug)
         # ===================================================================
         with st.expander(f"Legacy Ranked (v1 — {len(ranked_candidates)} candidates, debug)"):
-            st.dataframe(ranked_candidates, width="stretch", height=360)
+            st.dataframe(ranked_candidates, use_container_width=True, height=360)
 
         _render_soft_refresh_status(str(updated_at) if updated_at is not None else None)
         st.subheader("Status")
@@ -1020,7 +1055,7 @@ def main() -> None:
                     }
                 )
             rows.sort(key=lambda r: str(r.get("feature") or ""))
-            st.dataframe(rows, width="stretch", height=220)
+            st.dataframe(rows, use_container_width=True, height=220)
             st.caption("🟢 available · 🟠 plan-limited (z. B. 402/403) · 🟡 endpoint missing (404) · 🔴 error")
 
         history = _update_status_history(traffic_label, str(updated_at or "n/a"))

@@ -715,7 +715,7 @@ def assign_playbook(
     spread_bps: float | None = None
     if spread_bps_raw is not None:
         val = _to_float(spread_bps_raw, default=float("nan"))
-        spread_bps = None if val != val else val
+        spread_bps = None if math.isnan(val) else val
     premarket_stale = bool(candidate.get("premarket_stale", False))
     earnings_bmo = bool(candidate.get("earnings_bmo", False))
 

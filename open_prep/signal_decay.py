@@ -6,6 +6,9 @@ In high-volatility instruments (high ATR%), signals age faster because
 price moves quickly away from entry levels.  In low-vol / large-cap
 names, signals remain actionable longer.
 
+The decay uses a true half-life formula:  ``exp(-t * ln(2) / hl)``
+so that at ``t = hl`` the value is exactly 0.5 (50%).
+
 Usage::
 
     from open_prep.signal_decay import adaptive_half_life, adaptive_freshness_decay
@@ -17,6 +20,8 @@ from __future__ import annotations
 
 import math
 import logging
+
+_LN2 = math.log(2)  # ≈ 0.6931
 
 logger = logging.getLogger("open_prep.signal_decay")
 
@@ -93,12 +98,12 @@ def adaptive_freshness_decay(
     ATR% or instrument_class is available.
     """
     if elapsed_seconds is None:
-        return 0.0
+        return 0.5  # Unknown age → neutral, not dead
     if elapsed_seconds <= 0:
         return 1.0
 
     hl = adaptive_half_life(atr_pct=atr_pct, instrument_class=instrument_class)
-    return math.exp(-elapsed_seconds / hl)
+    return math.exp(-elapsed_seconds * _LN2 / hl)
 
 
 def signal_strength_decay(

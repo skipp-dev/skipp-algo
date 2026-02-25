@@ -75,15 +75,41 @@ class BenzingaRestAdapter:
         if updated_since:
             params["updatedSince"] = updated_since
 
-        r = self.client.get(BENZINGA_REST_BASE, params=params)
-        try:
-            r.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise httpx.HTTPStatusError(
-                message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
-                request=exc.request,
-                response=exc.response,
-            ) from None
+        _RETRYABLE = {429, 500, 502, 503, 504}
+        _MAX_ATTEMPTS = 3
+        last_exc: Exception | None = None
+        r: httpx.Response | None = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                r = self.client.get(BENZINGA_REST_BASE, params=params)
+                if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
+                    logger.warning(
+                        "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
+                        r.status_code, attempt + 1, _MAX_ATTEMPTS,
+                        2 ** attempt,
+                    )
+                    time.sleep(2 ** attempt)
+                    continue
+                r.raise_for_status()
+                break  # success
+            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                last_exc = exc
+                if attempt < _MAX_ATTEMPTS - 1:
+                    logger.warning(
+                        "Benzinga network error (attempt %d/%d): %s – retrying in %ds",
+                        attempt + 1, _MAX_ATTEMPTS, exc, 2 ** attempt,
+                    )
+                    time.sleep(2 ** attempt)
+                    continue
+                raise
+            except httpx.HTTPStatusError as exc:
+                raise httpx.HTTPStatusError(
+                    message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
+                    request=exc.request,
+                    response=exc.response,
+                ) from None
+
+        assert r is not None  # guaranteed by loop logic
 
         ct = r.headers.get("content-type", "")
         try:
@@ -245,7 +271,13 @@ class BenzingaWsAdapter:
                 if self._stop_event.is_set():
                     break
                 logger.warning("BenzingaWsAdapter: connection error: %s — reconnecting in %.1fs", exc, backoff)
-                await asyncio.sleep(backoff)
+                # Split sleep into short intervals to allow faster shutdown
+                _slept = 0.0
+                while _slept < backoff and not self._stop_event.is_set():
+                    await asyncio.sleep(min(0.5, backoff - _slept))
+                    _slept += 0.5
+                if self._stop_event.is_set():
+                    break
                 backoff = min(30.0, backoff * 1.7)
 
     @staticmethod

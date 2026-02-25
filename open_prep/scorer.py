@@ -11,6 +11,7 @@ from __future__ import annotations
 import math
 import json
 import logging
+import os
 from dataclasses import dataclass, field, asdict
 from datetime import date
 from pathlib import Path
@@ -24,8 +25,15 @@ from .technical_analysis import (
     compute_adaptive_gates,
     validate_data_quality,
     GateTracker,
+    compute_entry_probability,
+    calculate_ewma,
+    calculate_ewma_metrics,
+    calculate_ewma_score,
+    resolve_regime_weights,
+    detect_symbol_regime,
 )
 from .signal_decay import adaptive_freshness_decay, adaptive_half_life
+from .dirty_flag_manager import PipelineDirtyManager
 
 logger = logging.getLogger("open_prep.scorer")
 
@@ -49,6 +57,7 @@ DEFAULT_WEIGHTS: dict[str, float] = {
     "freshness_decay": 0.3,
     "institutional_quality": 0.3,
     "estimate_revision": 0.4,
+    "ewma": 0.4,
     # Penalties (applied as subtractions)
     "liquidity_penalty": 1.5,
     "corporate_action_penalty": 1.0,
@@ -86,11 +95,26 @@ def load_weight_set(label: str = "default") -> dict[str, float]:
 
 
 def save_weight_set(label: str, weights: dict[str, float]) -> None:
-    """Persist a weight set to disk."""
+    """Persist a weight set to disk (atomic write with fsync)."""
+    import tempfile as _tempfile
     OUTCOMES_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTCOMES_DIR / f"weights_{label}.json"
-    with open(path, "w", encoding="utf-8") as fh:
-        json.dump(weights, fh, indent=2)
+    content = json.dumps(weights, indent=2, allow_nan=False)
+    fd, tmp = _tempfile.mkstemp(dir=str(OUTCOMES_DIR), suffix=".tmp")
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1
+        os.replace(tmp, str(path))
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +136,7 @@ def freshness_decay_score(
     if elapsed_seconds <= 0:
         return 1.0
     hl = adaptive_half_life(atr_pct) if atr_pct is not None else FRESHNESS_HALF_LIFE_SECONDS
-    return math.exp(-elapsed_seconds / hl)
+    return math.exp(-elapsed_seconds * math.log(2) / hl)
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +189,24 @@ class FilterResult:
     features: dict[str, Any] = field(default_factory=dict)
 
 
+def _compute_ewma_feature(quote: dict[str, Any], price: float) -> float:
+    """Extract daily bars from a quote dict and return a 0.0–1.0 EWMA score.
+
+    If the quote contains a ``daily_bars`` key (list of OHLCV dicts), compute
+    the full EWMA pipeline.  Otherwise return 0.5 (neutral).
+    """
+    bars = quote.get("daily_bars")
+    if not bars or not isinstance(bars, list) or len(bars) < 10:
+        return 0.5  # neutral — no daily-bar history available
+
+    ewma_data = calculate_ewma(bars, length=min(50, len(bars)))
+    if ewma_data is None:
+        return 0.5
+
+    metrics = calculate_ewma_metrics(price, ewma_data)
+    return calculate_ewma_score(metrics)
+
+
 def filter_candidate(
     quote: dict[str, Any],
     bias: float,
@@ -194,7 +236,19 @@ def filter_candidate(
     gap_available_raw = quote.get("gap_available")
     gap_available = False if gap_available_raw is None else bool(gap_available_raw)
     volume = _to_float(quote.get("volume"), default=0.0)
-    avg_volume = _to_float(quote.get("avgVolume"), default=0.0)
+    avg_volume = _to_float(
+        quote.get("avgVolume")
+        or quote.get("avg_volume")
+        or quote.get("averageVolume")
+        or quote.get("avgVolume3Month")
+        or quote.get("avgVolume50"),
+        default=0.0,
+    )
+    if avg_volume <= 0.0 and volume > 0.0:
+        # Fail-open fallback: when provider omits avg-volume baseline,
+        # use current volume so quality gates remain informative but not
+        # universally tripped by missing metadata.
+        avg_volume = volume
     atr = _to_float(quote.get("atr"), default=0.0)
     momentum_z = _to_float(quote.get("momentum_z_score"), default=0.0)
     rel_vol = _to_float(quote.get("volume_ratio"), default=0.0)
@@ -210,7 +264,7 @@ def filter_candidate(
     premarket_spread_bps: float | None = None
     if spread_bps_raw is not None:
         val = _to_float(spread_bps_raw, default=float("nan"))
-        premarket_spread_bps = None if val != val else val
+        premarket_spread_bps = None if math.isnan(val) else val
     corporate_action_penalty = _to_float(quote.get("corporate_action_penalty"), default=0.0)
     analyst_catalyst_score = _to_float(quote.get("analyst_catalyst_score"), default=0.0)
     split_today = bool(quote.get("split_today", False))
@@ -219,11 +273,11 @@ def filter_candidate(
     premarket_change_raw = quote.get("premarket_change_pct")
     premarket_change_pct_val = _to_float(premarket_change_raw, default=float("nan"))
     premarket_change_pct: float | None = (
-        None if premarket_change_pct_val != premarket_change_pct_val else premarket_change_pct_val
+        None if math.isnan(premarket_change_pct_val) else premarket_change_pct_val
     )
     earnings_risk_window = bool(quote.get("earnings_risk_window", False))
     freshness_sec_raw = _to_float(quote.get("premarket_freshness_sec"), default=float("nan"))
-    freshness_sec: float | None = None if freshness_sec_raw != freshness_sec_raw else freshness_sec_raw
+    freshness_sec: float | None = None if math.isnan(freshness_sec_raw) else freshness_sec_raw
     vwap_raw2 = _to_float(quote.get("vwap"), default=float("nan"))
     vwap: float | None = None if vwap_raw2 != vwap_raw2 else vwap_raw2
     prev_close_raw2 = _to_float(quote.get("previousClose"), default=float("nan"))
@@ -261,6 +315,15 @@ def filter_candidate(
     if earnings_risk_window:
         filter_reasons.append("earnings_risk_window")
 
+    # --- Data-quality hard filters ---
+    # Zero-volume: no meaningful trading → cannot score reliably
+    if volume <= 0.0 and avg_volume > 0.0:
+        filter_reasons.append("zero_volume")
+    # RSI extremes: implausible data (RSI should be 0..100)
+    rsi_raw = _to_float(quote.get("rsi") or quote.get("rsi14"), default=float("nan"))
+    if not math.isnan(rsi_raw) and (rsi_raw <= 0.1 or rsi_raw >= 99.9):
+        filter_reasons.append("rsi_extreme")
+
     # Hard-block codes that prevent any trading
     hard_blocks = {
         "price_below_5",
@@ -269,12 +332,16 @@ def filter_candidate(
         "macro_risk_off_extreme",
         "split_today",
         "ipo_window",
+        "zero_volume",
     }
     long_allowed = not any(r in hard_blocks for r in filter_reasons)
     passed = long_allowed  # Must pass hard-blocks to enter scoring
 
     # --- Data quality validation (#8) — warn-only, fail-open ---
-    dq = validate_data_quality(quote)
+    dq_payload = dict(quote)
+    dq_payload["avg_volume"] = avg_volume
+    dq_payload["avgVolume"] = avg_volume
+    dq = validate_data_quality(dq_payload)
     if not dq.passed:
         for issue in dq.issues:
             if issue not in filter_reasons:
@@ -395,6 +462,13 @@ def filter_candidate(
         "atr_pct_computed": round(atr_pct_val, 4),
         "spread_pct": (premarket_spread_bps / 10_000.0) if premarket_spread_bps is not None else 0.0,
         "data_quality_issues": dq.issues,
+        # EWMA: compute from daily bars if available
+        "ewma_score": _compute_ewma_feature(quote, price),
+        # Regime detection (#15): from ADX + BB width if available
+        "symbol_regime": detect_symbol_regime(
+            adx=_to_float(quote.get("adx"), default=15.0),
+            bb_width_pct=_to_float(quote.get("bb_width_pct"), default=3.0),
+        ),
     }
 
     return FilterResult(
@@ -425,6 +499,10 @@ def score_candidate(
     w = weights or DEFAULT_WEIGHTS
     f = fr.features
 
+    # --- #15  Regime-adaptive weight adjustment ---
+    symbol_regime = f.get("symbol_regime", "NEUTRAL")
+    w = resolve_regime_weights(w, symbol_regime)
+
     gap_pct_for_scoring = f["gap_pct_for_scoring"]
     rel_vol_capped = f["rel_vol_capped"]
     momentum_z = f["momentum_z"]
@@ -443,7 +521,7 @@ def score_candidate(
     )
     # rvol: apply DR to compress extreme relative-volume spikes
     rvol_normed = min(rel_vol_capped / RVOL_CAP, 1.0) if RVOL_CAP > 0 else 0.0
-    rvol_component = w["rvol"] * apply_diminishing_returns(rvol_normed) * rel_vol_capped
+    rvol_component = w["rvol"] * apply_diminishing_returns(rvol_normed)
     macro_component = w["macro"] * max(bias, 0.0)
     momentum_component = w["momentum_z"] * momentum_z  # can be negative
     hvb_component = w["hvb"] if f["is_hvb"] else 0.0
@@ -458,6 +536,61 @@ def score_candidate(
     freshness_component = w["freshness_decay"] * f["freshness_decay"]
     institutional_component = w["institutional_quality"] * f["institutional_quality"]
     estimate_rev_component = w["estimate_revision"] * f["estimate_revision_score"]
+
+    # EWMA component (#14): energy-weighted mean reversion signal
+    ewma_raw = f.get("ewma_score", 0.5)
+    ewma_component = w.get("ewma", 0.4) * apply_diminishing_returns(max(min(ewma_raw, 1.0), 0.0))
+
+    # --- #8  Score Component Cap (40%) ---
+    # Prevent any single positive component from dominating > 40% of the
+    # total positive contribution.  Iterative: re-compute total after each
+    # capping pass until convergence (prevents single-pass overshoot where
+    # a capped component still exceeds 40% of the post-cap total).
+    _components = {
+        "gap": gap_component,
+        "gap_sector_rel": gap_sector_rel_component,
+        "rvol": rvol_component,
+        "macro": macro_component,
+        "momentum": momentum_component,
+        "hvb": hvb_component,
+        "earnings_bmo": earnings_bmo_component,
+        "news": news_component,
+        "ext_hours": ext_hours_component,
+        "analyst_catalyst": analyst_catalyst_component,
+        "vwap_dist": vwap_dist_component,
+        "freshness": freshness_component,
+        "institutional": institutional_component,
+        "estimate_rev": estimate_rev_component,
+        "ewma": ewma_component,
+    }
+    for _ in range(5):  # max 5 iterations; typically converges in 2
+        _total_positive = sum(max(v, 0.0) for v in _components.values())
+        if _total_positive <= 0:
+            break
+        _cap = 0.40 * _total_positive
+        changed = False
+        for k, v in _components.items():
+            if v > _cap:
+                _components[k] = _cap
+                changed = True
+        if not changed:
+            break
+
+    gap_component = _components["gap"]
+    gap_sector_rel_component = _components["gap_sector_rel"]
+    rvol_component = _components["rvol"]
+    macro_component = _components["macro"]
+    momentum_component = _components["momentum"]
+    hvb_component = _components["hvb"]
+    earnings_bmo_component = _components["earnings_bmo"]
+    news_component = _components["news"]
+    ext_hours_component = _components["ext_hours"]
+    analyst_catalyst_component = _components["analyst_catalyst"]
+    vwap_dist_component = _components["vwap_dist"]
+    freshness_component = _components["freshness"]
+    institutional_component = _components["institutional"]
+    estimate_rev_component = _components["estimate_rev"]
+    ewma_component = _components["ewma"]
 
     # --- Penalties ---
     liquidity_penalty = w["liquidity_penalty"] if f["price"] < MIN_PRICE_THRESHOLD else 0.0
@@ -487,10 +620,28 @@ def score_candidate(
         + freshness_component
         + institutional_component
         + estimate_rev_component
+        + ewma_component
         - liquidity_penalty
         - corp_penalty
         - risk_off_penalty
         - risk_penalty_val
+    )
+
+    # --- Counter-Trend Penalty ---
+    # When momentum strongly opposes the gap direction, apply a multiplicative
+    # penalty.  Inspired by IB_MON's trend-alignment safeguard.
+    counter_trend_penalty = 0.0
+    if momentum_z < -2.5:
+        counter_trend_penalty = min(0.40, abs(momentum_z + 2.5) * 0.20)
+        score = score * (1.0 - counter_trend_penalty)
+
+    # --- Entry Probability (#13) ---
+    entry_probability = compute_entry_probability(
+        score=score,
+        momentum_z=momentum_z,
+        volume_ratio=f.get("rel_vol", 1.0),
+        atr_pct=_to_float(f.get("atr_pct"), default=0.0),
+        spread_pct=f.get("spread_pct", 0.0),
     )
 
     nm = f.get("news_metrics") or {}
@@ -586,13 +737,17 @@ def score_candidate(
             "freshness_component": round(freshness_component, 4),
             "institutional_component": round(institutional_component, 4),
             "estimate_revision_component": round(estimate_rev_component, 4),
+            "ewma_component": round(ewma_component, 4),
             "corporate_action_penalty": round(corp_penalty, 4),
             "liquidity_penalty": round(liquidity_penalty, 4),
             "risk_off_penalty": round(risk_off_penalty, 4),
             "risk_penalty": round(risk_penalty_val, 4),
+            "counter_trend_penalty": round(counter_trend_penalty, 4),
         },
         # Technical analysis enrichment
         "instrument_class": f.get("instrument_class", "mid_cap"),
+        "symbol_regime": symbol_regime,
+        "entry_probability": entry_probability,
         "data_quality_issues": f.get("data_quality_issues", []),
         "long_allowed": fr.long_allowed,
         "no_trade_reason": fr.filter_reasons,
@@ -614,7 +769,9 @@ def classify_confidence_tier(
     - STANDARD: score > mean + 1σ
     - WATCHLIST: everything else
     """
-    if len(all_scores) < 2:
+    if len(all_scores) < 5:
+        # With fewer than 5 samples, Bessel's correction makes stdev
+        # unreliable — default to STANDARD to avoid spurious tiers.
         return "STANDARD"
 
     n = len(all_scores)
@@ -647,6 +804,7 @@ def rank_candidates_v2(
     weight_label: str = "default",
     vix_level: float | None = None,
     gate_tracker: GateTracker | None = None,
+    dirty_manager: PipelineDirtyManager | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Two-stage filter→rank pipeline.
 
@@ -701,10 +859,18 @@ def rank_candidates_v2(
                 "gap_pct": fr.features.get("gap_pct", 0.0),
             })
 
-    # --- Stage 2: Score ---
+    # --- Stage 2: Score (with dirty-flag skip) ---
     scored: list[dict[str, Any]] = []
     for fr in passed:
-        row = score_candidate(fr, bias, weights)
+        if dirty_manager is not None:
+            fp = dirty_manager.fingerprint(fr.symbol, fr.features)
+            if dirty_manager.is_clean(fr.symbol, fp):
+                scored.append(dirty_manager.get_cached(fr.symbol))
+                continue
+            row = score_candidate(fr, bias, weights)
+            dirty_manager.update(fr.symbol, fp, row)
+        else:
+            row = score_candidate(fr, bias, weights)
         scored.append(row)
 
     # --- Adaptive gating (#4): soft annotation, fail-open ---
@@ -751,5 +917,13 @@ def rank_candidates_v2(
                 summary["by_gate"].items(), key=lambda x: -x[1]
             )[:5]),
         )
+
+        # --- #2  Bottleneck detection ---
+        total_input = len(quotes)
+        bottlenecks = gate_tracker.bottleneck_report(total_input)
+        for bn in bottlenecks:
+            logger.warning(
+                "⚠ BOTTLENECK: %s", bn["recommendation"],
+            )
 
     return ranked, filtered_out

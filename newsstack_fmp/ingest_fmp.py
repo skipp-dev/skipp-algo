@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any, List
 
 import httpx
@@ -70,18 +71,44 @@ class FmpAdapter:
 
     # ── Endpoint helpers ────────────────────────────────────────
 
+    _RETRYABLE_CODES = frozenset({429, 500, 502, 503, 504})
+    _MAX_RETRIES = 3
+
     def _safe_get(self, url: str, params: dict) -> httpx.Response:
-        """GET with sanitized error messages (no API key in logs)."""
-        r = self.client.get(url, params=params)
-        try:
-            r.raise_for_status()
-        except httpx.HTTPStatusError as exc:
-            raise httpx.HTTPStatusError(
-                message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
-                request=exc.request,
-                response=exc.response,
-            ) from None
-        return r
+        """GET with retry+backoff for transient failures, sanitized errors."""
+        last_exc: Exception | None = None
+        for attempt in range(1, self._MAX_RETRIES + 1):
+            try:
+                r = self.client.get(url, params=params)
+                if r.status_code in self._RETRYABLE_CODES and attempt < self._MAX_RETRIES:
+                    wait = 2 ** attempt  # 2s, 4s
+                    logger.warning(
+                        "FMP %d from %s — retry %d/%d in %ds",
+                        r.status_code, _sanitize_url(str(r.url)),
+                        attempt, self._MAX_RETRIES, wait,
+                    )
+                    time.sleep(wait)
+                    continue
+                r.raise_for_status()
+                return r
+            except httpx.HTTPStatusError as exc:
+                raise httpx.HTTPStatusError(
+                    message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
+                    request=exc.request,
+                    response=exc.response,
+                ) from None
+            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                last_exc = exc
+                if attempt < self._MAX_RETRIES:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "FMP network error (%s) — retry %d/%d in %ds",
+                        type(exc).__name__, attempt, self._MAX_RETRIES, wait,
+                    )
+                    time.sleep(wait)
+                    continue
+        # All retries exhausted
+        raise last_exc  # type: ignore[misc]
 
     def fetch_stock_latest(self, page: int, limit: int) -> List[NewsItem]:
         """GET /stable/news/stock-latest?page=…&limit=…"""

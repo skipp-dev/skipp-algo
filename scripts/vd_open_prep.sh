@@ -8,7 +8,8 @@
 #   ./scripts/vd_open_prep.sh --view VIEW  # direkt eine View öffnen
 #
 # Views:  ranked | gap-go | gap-watch | earnings | trade-cards
-#         macro | regime | sectors | v2 | news | all
+#         macro | regime | sectors | v2 | playbooks | news
+#         signals | signals-trader | signals-live | all
 #
 # Hotkeys in VisiData:
 #   q       = zurück / beenden
@@ -58,8 +59,28 @@ done
 if [[ "$USE_CACHED" == false ]] || [[ ! -f "$JSON_FILE" ]]; then
   echo "🔄 Pipeline wird ausgeführt (Auto-Universum) …"
   cd "$PROJECT_DIR"
-  PYTHONPATH="$PROJECT_DIR" .venv/bin/python -m open_prep.run_open_prep 2>/dev/null
-  echo "✅ Pipeline abgeschlossen."
+
+  # Source .env for FMP_API_KEY (if not already exported)
+  if [[ -z "${FMP_API_KEY:-}" ]] && [[ -f "$PROJECT_DIR/.env" ]]; then
+    set -a
+    source "$PROJECT_DIR/.env"
+    set +a
+  fi
+
+  # Detect Python: prefer .venv, fall back to system python3
+  PYTHON="$PROJECT_DIR/.venv/bin/python"
+  [[ -x "$PYTHON" ]] || PYTHON="$(command -v python3)"
+
+  PIPELINE_LOG="$PROJECT_DIR/artifacts/open_prep/latest/pipeline_run.log"
+  mkdir -p "$(dirname "$PIPELINE_LOG")"
+
+  if PYTHONPATH="$PROJECT_DIR" "$PYTHON" -m open_prep.run_open_prep > /dev/null 2>"$PIPELINE_LOG"; then
+    echo "✅ Pipeline abgeschlossen."
+  else
+    echo "❌ Pipeline fehlgeschlagen (exit $?). Log: $PIPELINE_LOG"
+    tail -5 "$PIPELINE_LOG" 2>/dev/null || true
+    exit 1
+  fi
 fi
 
 if [[ ! -f "$JSON_FILE" ]]; then
@@ -121,13 +142,77 @@ _extract "diff"                 '.diff // {}'
 # Endpoint capabilities
 _extract "capabilities"         '[.data_capabilities // {} | to_entries[]? | {feature: .key, status: .value.status, http_status: .value.http_status, detail: .value.detail}]'
 
-# Realtime signals (from separate signals file, if available)
-SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
-if [[ -f "$SIGNALS_FILE" ]]; then
-  jq '[.signals[]? | {symbol, level, direction, pattern, price, change_pct, volume_ratio, freshness: (.freshness * 100 | floor | tostring + "%"), confidence_tier, atr_pct, symbol_regime, fired_at}]' "$SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals.json"
+# Realtime signals (prefer compact VD snapshot if available)
+VD_SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_vd_signals.jsonl"
+SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_realtime_signals.json"
+[[ -f "$SIGNALS_FILE" ]] || SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
+
+if [[ -f "$VD_SIGNALS_FILE" ]]; then
+  # Full live rows (already includes signal_age_hms, breakout, poll_changed, news_score, deltas)
+  jq -s '.' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
+
+  # Trader-compact view: focused columns, ordered for desk monitoring
+  jq -s '[.[] | {
+    symbol,
+    signal,
+    direction,
+    breakout,
+    news,
+    news_url,
+    news_score,
+    news_sentiment,
+    news_sentiment_emoji,
+    news_polarity,
+    signal_since_at,
+    signal_age_hms,
+    price,
+    chg_pct,
+    vol_ratio,
+    tick,
+    streak,
+    d_price_pct,
+    d_volume,
+    poll_changed,
+    last_change_age_s,
+    score,
+    tier
+  }]' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_trader.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
+elif [[ -f "$SIGNALS_FILE" ]]; then
+  # Fallback from persisted signal list when live VD JSONL is not available
+  jq '[.signals[]? | {
+    symbol,
+    signal: .level,
+    direction,
+    breakout: "",
+    news: (.news_headline // ""),
+    news_url: (.details.news_url // ""),
+    news_score,
+    news_sentiment: (if (.details.polarity // 0) > 0.05 then "+" elif (.details.polarity // 0) < -0.05 then "-" else "n" end),
+    news_sentiment_emoji: (if (.details.polarity // 0) > 0.05 then "🟢" elif (.details.polarity // 0) < -0.05 then "🔴" else "🟡" end),
+    news_polarity: (.details.polarity // 0),
+    signal_since_at: .level_since_at,
+    signal_age_s: ((now - (.level_since_epoch // .fired_epoch // now)) | floor),
+    signal_age_hms: (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) / 3600) | floor | tostring) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 3600 / 60) | floor | tostring) | if length==1 then "0" + . else . end) + ":" + (((((now - (.level_since_epoch // .fired_epoch // now)) | floor) % 60) | floor | tostring) | if length==1 then "0" + . else . end)),
+    price,
+    chg_pct: .change_pct,
+    vol_ratio: .volume_ratio,
+    tick: "",
+    streak: 0,
+    d_price_pct: 0,
+    d_volume: 0,
+    poll_changed: false,
+    last_change_age_s: 0,
+    score,
+    tier: .confidence_tier
+  }]' "$SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
+  cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals_trader.json"
 else
-  echo "[]" > "$EXTRACT_DIR/realtime_signals.json"
+  echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
+  echo "[]" > "$EXTRACT_DIR/realtime_signals_trader.json"
 fi
+
+# Backward-compatible alias used by old view name
+cp "$EXTRACT_DIR/realtime_signals_live.json" "$EXTRACT_DIR/realtime_signals.json"
 
 # Summary one-liner
 MACRO_BIAS=$(jq -r '.macro_bias // 0' "$JSON_FILE")
@@ -188,14 +273,23 @@ case "$VIEW" in
     echo "🔴 Realtime Signals → VisiData"
     vd "$EXTRACT_DIR/realtime_signals.json"
     ;;
+  signals-trader)
+    echo "🎯 Realtime Signals (Trader Compact) → VisiData"
+    vd "$EXTRACT_DIR/realtime_signals_trader.json"
+    ;;
+  signals-live)
+    echo "⚡ Realtime Signals (Live Snapshot) → VisiData"
+    vd "$EXTRACT_DIR/realtime_signals_live.json"
+    ;;
   all)
     echo "📋 Alle Sheets → VisiData (q = zurück, gS = Sheet-Liste)"
-    echo "   Sheets: realtime_signals, ranked_candidates, gap_go, gap_watch, earnings, trade_cards,"
+    echo "   Sheets: realtime_signals_live, realtime_signals_trader, ranked_candidates, gap_go, gap_watch, earnings, trade_cards,"
     echo "           macro_events, ranked_v2, playbooks, sectors, news,"
     echo "           earnings_calendar, upgrades, watchlist, capabilities"
     echo ""
     vd \
-      "$EXTRACT_DIR/realtime_signals.json" \
+      "$EXTRACT_DIR/realtime_signals_live.json" \
+      "$EXTRACT_DIR/realtime_signals_trader.json" \
       "$EXTRACT_DIR/ranked_candidates.json" \
       "$EXTRACT_DIR/gap_go.json" \
       "$EXTRACT_DIR/gap_watch.json" \
@@ -214,7 +308,8 @@ case "$VIEW" in
   *)
     echo "❌ Unbekannte View: $VIEW"
     echo "   Verfügbar: ranked | gap-go | gap-watch | earnings | trade-cards"
-    echo "              macro | regime | sectors | v2 | playbooks | news | signals | all"
+    echo "              macro | regime | sectors | v2 | playbooks | news"
+    echo "              signals | signals-trader | signals-live | all"
     exit 1
     ;;
 esac

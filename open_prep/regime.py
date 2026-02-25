@@ -10,6 +10,7 @@ and Bollinger Band width (#12).
 from __future__ import annotations
 
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,11 +29,13 @@ REGIME_ROTATION = "ROTATION"
 REGIME_NEUTRAL = "NEUTRAL"
 
 # ---------------------------------------------------------------------------
-# VIX thresholds
+# VIX thresholds — dead-zone of ±1 pt applied via _prev_regime to prevent
+# flicker when VIX hovers close to a boundary.
 # ---------------------------------------------------------------------------
 VIX_LOW = 15.0
 VIX_HIGH = 25.0
 VIX_EXTREME = 35.0
+_VIX_HYSTERESIS = 1.0  # require VIX to cross threshold by this margin to flip
 
 
 @dataclass
@@ -104,6 +107,21 @@ _WEIGHT_ADJ_ROTATION: dict[str, float] = {
 
 _WEIGHT_ADJ_NEUTRAL: dict[str, float] = {}  # No adjustments
 
+# Module-level previous regime for hysteresis (sticky guard)
+_prev_regime: str | None = None
+_prev_regime_lock = threading.Lock()
+
+
+def reset_regime_state() -> None:
+    """Reset module-level hysteresis state.
+
+    Call at session boundaries or test setUp to prevent stale regime
+    bleeding across pipeline runs in long-lived processes.
+    """
+    global _prev_regime
+    with _prev_regime_lock:
+        _prev_regime = None
+
 
 def classify_regime(
     *,
@@ -112,6 +130,9 @@ def classify_regime(
     sector_performance: list[dict[str, Any]] | None = None,
 ) -> RegimeSnapshot:
     """Classify the current market regime.
+
+    Includes hysteresis: when VIX is within ``_VIX_HYSTERESIS`` of a
+    threshold boundary, the previous regime is retained to prevent flicker.
 
     Parameters
     ----------
@@ -123,6 +144,7 @@ def classify_regime(
     sector_performance : list[dict]
         Sector performance rows with ``sector`` and ``changesPercentage``.
     """
+    global _prev_regime
     sectors = sector_performance or []
     reasons: list[str] = []
 
@@ -176,6 +198,20 @@ def classify_regime(
         REGIME_ROTATION: _WEIGHT_ADJ_ROTATION,
         REGIME_NEUTRAL: _WEIGHT_ADJ_NEUTRAL,
     }
+
+    # --- Hysteresis: if VIX is within dead-zone of a threshold, keep previous ---
+    with _prev_regime_lock:
+        if _prev_regime is not None and regime != _prev_regime and vix is not None:
+            in_dead_zone = (
+                abs(vix - VIX_LOW) < _VIX_HYSTERESIS
+                or abs(vix - VIX_HIGH) < _VIX_HYSTERESIS
+                or abs(vix - VIX_EXTREME) < _VIX_HYSTERESIS
+            )
+            if in_dead_zone:
+                regime = _prev_regime
+                reasons.append(f"VIX hysteresis: keeping {regime} (VIX {vix:.1f} in dead-zone)")
+
+        _prev_regime = regime
 
     return RegimeSnapshot(
         regime=regime,

@@ -44,6 +44,7 @@ class ScoreResult:
 
 def _norm(s: str) -> str:
     s = (s or "").strip().lower()
+    s = re.sub(r"[^\w\s]", "", s)
     return re.sub(r"\s+", " ", s)
 
 
@@ -113,7 +114,7 @@ def classify_and_score(
         polarity = -0.5
 
     # Novelty: 1st occurrence = 1.0, decays per cluster hit
-    novelty = max(0.15, 1.0 / (0.8 + 0.35 * (cluster_count - 1)))
+    novelty = max(0.15, min(1.0, 1.0 / (0.8 + 0.35 * (cluster_count - 1))))
 
     # Weighted composite
     score = max(0.0, min(1.0, impact * 0.55 + clarity * 0.25 + novelty * 0.20))

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import logging
+import math
 import os
 import re
 import sys
@@ -29,12 +30,14 @@ from .macro import (
 )
 from .news import build_news_scores
 from .screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
-from .utils import to_float as _to_float
+from .utils import to_float as _to_float, StageProfiler
 
 # --- v2 pipeline modules ---
 from .scorer import rank_candidates_v2, load_weight_set, save_weight_set
-from .regime import classify_regime, apply_regime_adjustments
+from .regime import classify_regime, apply_regime_adjustments, reset_regime_state
+from .config_validation import validate_weights, compute_config_diff
 from .technical_analysis import detect_breakout, detect_consolidation, detect_symbol_regime
+from .log_redaction import apply_global_log_redaction
 from .outcomes import (
     compute_hit_rates,
     get_symbol_hit_rate,
@@ -642,7 +645,7 @@ def _time_based_warn_flags(
     stale = bool(q.get("premarket_stale", False))
     spread_bps = _to_float(q.get("premarket_spread_bps"), default=float("nan"))
 
-    spread_ok = spread_bps == spread_bps and spread_bps <= 60.0  # NaN-safe; lenient threshold
+    spread_ok = not math.isnan(spread_bps) and spread_bps <= 60.0  # NaN-safe; lenient threshold
     if (
         _in_window(ny_mins, (6, 0), (8, 0))
         and not stale
@@ -668,7 +671,7 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
     for candle in candles:
         d = str(candle.get("date") or "")
         close = _to_float(candle.get("close"), default=float("nan"))
-        if d and close == close and close > 0.0:  # NaN-safe check
+        if d and not math.isnan(close) and close > 0.0:  # NaN-safe check
             rows.append((d, close))
     if len(rows) < 3:
         return 0.0
@@ -870,20 +873,20 @@ def _fetch_earnings_today(client: FMPClient, today: date) -> dict[str, dict[str,
         rev_estimate = _to_float(item.get("revenueEstimated"), default=float("nan"))
 
         eps_surprise_pct: float | None = None
-        if eps_actual == eps_actual and eps_estimate == eps_estimate and abs(eps_estimate) > 0.0:
+        if not math.isnan(eps_actual) and not math.isnan(eps_estimate) and abs(eps_estimate) > 0.0:
             eps_surprise_pct = ((eps_actual - eps_estimate) / abs(eps_estimate)) * 100.0
 
         rev_surprise_pct: float | None = None
-        if rev_actual == rev_actual and rev_estimate == rev_estimate and abs(rev_estimate) > 0.0:
+        if not math.isnan(rev_actual) and not math.isnan(rev_estimate) and abs(rev_estimate) > 0.0:
             rev_surprise_pct = ((rev_actual - rev_estimate) / abs(rev_estimate)) * 100.0
 
         result[sym] = {
             "earnings_timing": raw_time or None,
-            "eps_actual": None if eps_actual != eps_actual else eps_actual,
-            "eps_estimate": None if eps_estimate != eps_estimate else eps_estimate,
+            "eps_actual": None if math.isnan(eps_actual) else eps_actual,
+            "eps_estimate": None if math.isnan(eps_estimate) else eps_estimate,
             "eps_surprise_pct": eps_surprise_pct,
-            "revenue_actual": None if rev_actual != rev_actual else rev_actual,
-            "revenue_estimate": None if rev_estimate != rev_estimate else rev_estimate,
+            "revenue_actual": None if math.isnan(rev_actual) else rev_actual,
+            "revenue_estimate": None if math.isnan(rev_estimate) else rev_estimate,
             "revenue_surprise_pct": rev_surprise_pct,
         }
     return result
@@ -1109,11 +1112,13 @@ def _fetch_insider_trading(
             _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
             for r in rows
             if str(r.get("transactionType") or "").lower() in ("p-purchase", "purchase", "p")
+            and r.get("securitiesTransacted") is not None and r.get("price") is not None
         )
         total_value_sold = sum(
             _to_float(r.get("securitiesTransacted")) * _to_float(r.get("price"))
             for r in rows
             if str(r.get("transactionType") or "").lower() in ("s-sale", "sale", "s")
+            and r.get("securitiesTransacted") is not None and r.get("price") is not None
         )
 
         if buys > sells:
@@ -1155,21 +1160,22 @@ def _fetch_institutional_ownership(
     """Fetch institutional ownership (13F) data for top symbols.
 
     Returns dict keyed by symbol with ownership fields.
+    Uses parallel fetching to avoid 30s+ sequential latency.
     """
     result: dict[str, dict[str, Any]] = {}
     cap = min(len(symbols), _MAX_INST_OWNERSHIP_LOOKUPS)
+    batch = [str(s).strip().upper() for s in symbols[:cap] if str(s).strip()]
+    if not batch:
+        return result
 
-    for sym in symbols[:cap]:
-        sym = str(sym).strip().upper()
-        if not sym:
-            continue
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
         try:
             rows = client.get_institutional_ownership(sym, limit=limit_per_symbol)
         except Exception as exc:
             logger.debug("Institutional ownership fetch failed for %s: %s", sym, exc)
-            continue
+            return sym, None
         if not rows:
-            continue
+            return sym, None
 
         # Calculate aggregate metrics from most recent filings
         total_shares = sum(int(r.get("shares", 0) or 0) for r in rows)
@@ -1179,11 +1185,26 @@ def _fetch_institutional_ownership(
             if r.get("investorName") or r.get("holderName")
         ]
 
-        result[sym] = {
+        return sym, {
             "inst_ownership_holders": len(rows),
             "inst_ownership_total_shares": total_shares,
             "inst_ownership_top_holders": top_holders,
         }
+
+    workers = max(1, min(5, len(batch)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Institutional ownership fetch timed out after 30 s; continuing with partial.")
 
     return result
 
@@ -1237,16 +1258,26 @@ def _enrich_symbol_sectors_from_profiles(
             profile = client.get_company_profile(sym)
             sector = str(profile.get("sector") or "").strip()
             return sym, sector if sector else None
-        except Exception:
+        except Exception as exc:
+            logger.debug("sector lookup failed for %s: %s", sym, exc)
             return sym, None
 
     fetched = 0
     workers = max(1, min(_SECTOR_PROFILE_WORKERS, len(lookup)))
     with ThreadPoolExecutor(max_workers=workers) as executor:
-        for sym, sector in executor.map(_fetch_one, lookup):
-            if sector:
-                symbol_sectors[sym] = sector
-                fetched += 1
+        futs = {executor.submit(_fetch_one, s): s for s in lookup}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, sector = fut.result()
+                    if sector:
+                        symbol_sectors[sym_key] = sector
+                        fetched += 1
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Sector profile fetch timed out after 30 s; continuing with partial.")
 
     if fetched:
         logger.info(
@@ -1324,8 +1355,8 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
             cached_data = payload.get("data")
             if age_seconds <= ttl_seconds and isinstance(cached_data, dict):
                 return cached_data
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("ATR cache read failed: %s", exc)
 
     probes: list[tuple[str, str, dict[str, Any]]] = [
         ("eod_bulk", "/stable/eod-bulk", {"date": today.isoformat(), "datatype": "json"}),
@@ -1366,10 +1397,12 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
                 "data": out,
             },
             sort_keys=True,
+            allow_nan=False,
         )
         fd, tmp = _tempfile.mkstemp(dir=str(CAPABILITY_CACHE_DIR), suffix=".tmp")
         try:
             os.write(fd, content.encode("utf-8"))
+            os.fsync(fd)
             os.close(fd)
             fd = -1
             os.replace(tmp, str(CAPABILITY_CACHE_FILE))
@@ -1381,8 +1414,8 @@ def _probe_data_capabilities(*, client: FMPClient, today: date) -> dict[str, dic
             except OSError:
                 pass
             raise
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("ATR cache write failed: %s", exc)
 
     return out
 
@@ -1439,14 +1472,24 @@ def _fetch_analyst_catalyst(
                 "analyst_coverage_count": int(max(coverage, 0.0)),
                 "analyst_catalyst_score": round(catalyst, 4),
             }
-        except Exception:
+        except Exception as exc:
+            logger.debug("analyst enrichment failed for %s: %s", sym, exc)
             return sym, None
 
     result: dict[str, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=5) as executor:
-        for sym, data in executor.map(lambda s: _single(s), batch):
-            if data is not None:
-                result[sym] = data
+        futs = {executor.submit(lambda s: _single(s), s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Analyst catalyst fetch timed out after 30 s; continuing with partial.")
 
     return result
 
@@ -1490,14 +1533,24 @@ def _fetch_earnings_distance_features(
                 "days_to_next_earnings": days_to_next,
                 "earnings_risk_window": earnings_risk,
             }
-        except Exception:
+        except Exception as exc:
+            logger.debug("earnings enrichment failed for %s: %s", sym, exc)
             return sym, None
 
     out: dict[str, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=5) as executor:
-        for sym, data in executor.map(lambda s: _single(s), batch):
-            if data is not None:
-                out[sym] = data
+        futs = {executor.submit(lambda s: _single(s), s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, data = fut.result()
+                    if data is not None:
+                        out[sym_key] = data
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Earnings distance fetch timed out after 30 s; continuing with partial.")
     return out
 
 
@@ -1680,9 +1733,9 @@ def _fetch_premarket_context(
             after_px = 0.0 if stale else after_px_raw
 
             ext_volume = 0.0
-            if quote_volume == quote_volume and quote_volume > 0.0:
+            if not math.isnan(quote_volume) and quote_volume > 0.0:
                 ext_volume = max(ext_volume, quote_volume)
-            if trade_size == trade_size and trade_size > 0.0:
+            if not math.isnan(trade_size) and trade_size > 0.0:
                 ext_volume = max(ext_volume, trade_size)
 
             prev_close = prev_close_map.get(sym, 0.0)
@@ -1901,6 +1954,26 @@ def _compute_gap_for_quote(
                 "gap_scope": gap_scope,
                 "is_stretch_session": is_stretch_session,
             }
+        # Stale guard: reject quote timestamps from a prior trading session.
+        if quote_ts is not None:
+            try:
+                _qt_dt = datetime.fromisoformat(quote_ts.replace("Z", "+00:00"))
+                _qt_ny = _qt_dt.astimezone(US_EASTERN_TZ).date()
+                if _qt_ny < ny_date:
+                    return {
+                        "gap_pct": 0.0,
+                        "gap_type": GAP_MODE_OFF,
+                        "gap_available": False,
+                        "gap_from_ts": gap_from_ts,
+                        "gap_to_ts": None,
+                        "gap_mode_selected": gap_mode,
+                        "gap_price_source": px_source,
+                        "gap_reason": "stale_prior_session_quote",
+                        "gap_scope": gap_scope,
+                        "is_stretch_session": is_stretch_session,
+                    }
+            except (ValueError, TypeError):
+                pass
         gap_pct = ((indicative_px - prev_close) / prev_close) * 100.0
         return {
             "gap_pct": round(gap_pct, 6),
@@ -1970,7 +2043,7 @@ def _calculate_atr14_from_eod(candles: list[dict], period: int = 14) -> float:
         high = _to_float(c.get("high"), default=float("nan"))
         low = _to_float(c.get("low"), default=float("nan"))
         close = _to_float(c.get("close"), default=float("nan"))
-        if any(x != x for x in (high, low, close)):  # NaN check
+        if any(math.isnan(x) for x in (high, low, close)):  # NaN check
             continue
         parsed.append((d, high, low, close))
 
@@ -2031,7 +2104,8 @@ def _load_atr_cache(as_of: date, period: int) -> tuple[dict[str, float], dict[st
             if str(k).upper() in atr_map
         }
         return atr_map, momentum_map, prev_close_map
-    except Exception:
+    except Exception as exc:
+        logger.debug("ATR cache payload parse failed: %s", exc)
         return {}, {}, {}
 
 
@@ -2086,7 +2160,8 @@ def _save_atr_cache(
         import tempfile as _tempfile
         fd, tmp = _tempfile.mkstemp(dir=str(ATR_CACHE_DIR), suffix=".tmp")
         try:
-            os.write(fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
+            os.write(fd, json.dumps(payload, sort_keys=True, allow_nan=False).encode("utf-8"))
+            os.fsync(fd)
             os.close(fd)
             fd = -1  # mark as closed
             os.replace(tmp, str(target))
@@ -2100,8 +2175,9 @@ def _save_atr_cache(
             raise
         # Evict stale cache files (> 7 days old) to prevent unbounded growth.
         _evict_stale_cache_files(ATR_CACHE_DIR, max_age_days=7)
-    except Exception:
+    except Exception as exc:
         # Cache is an optimization. Never break pipeline on cache I/O errors.
+        logger.debug("ATR cache save failed: %s", exc)
         return
 
 
@@ -2139,7 +2215,7 @@ def _incremental_atr_from_eod_bulk(
         high = _to_float(eod_row.get("high"), default=float("nan"))
         low = _to_float(eod_row.get("low"), default=float("nan"))
         close = _to_float(eod_row.get("close"), default=float("nan"))
-        if high != high or low != low or close != close:
+        if math.isnan(high) or math.isnan(low) or math.isnan(close):
             continue
 
         tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
@@ -2159,10 +2235,10 @@ def _fetch_symbol_atr(
     date_from: date,
     as_of: date,
     atr_period: int,
-) -> tuple[str, float, float, float | None, str | None]:
+) -> tuple[str, float, float, float | None, float, str | None]:
     """Fetch historical candles and compute ATR for one symbol.
 
-    Returns: (symbol, atr_value, momentum_z, vwap_or_none, error_message)
+    Returns: (symbol, atr_value, momentum_z, vwap_or_none, avg_volume_fallback, error_message)
     """
     try:
         candles_raw = client.get_historical_price_eod_full(symbol, date_from, as_of)
@@ -2177,16 +2253,25 @@ def _fetch_symbol_atr(
         atr_value = _calculate_atr14_from_eod(candles, period=atr_period)
         momentum_z = _momentum_z_score_from_eod(candles, period=50)
         latest_vwap: float | None = None
+        avg_volume_fallback: float = 0.0
         rows = [c for c in candles if str(c.get("date") or "")]
         if rows:
             rows.sort(key=lambda c: str(c.get("date") or ""))
             vwap_raw = _to_float(rows[-1].get("vwap"), default=0.0)
             latest_vwap = vwap_raw if vwap_raw > 0.0 else None
+            last_n = rows[-20:]
+            vol_values = [
+                _to_float(c.get("volume"), default=0.0)
+                for c in last_n
+                if _to_float(c.get("volume"), default=0.0) > 0.0
+            ]
+            if vol_values:
+                avg_volume_fallback = round(sum(vol_values) / len(vol_values), 4)
         if atr_value <= 0.0:
-            return symbol, 0.0, momentum_z, latest_vwap, "atr_zero_or_insufficient_bars"
-        return symbol, atr_value, momentum_z, latest_vwap, None
+            return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, "atr_zero_or_insufficient_bars"
+        return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, None
     except RuntimeError as exc:
-        return symbol, 0.0, 0.0, None, str(exc)
+        return symbol, 0.0, 0.0, None, 0.0, str(exc)
 
 
 def _atr14_by_symbol(
@@ -2196,10 +2281,11 @@ def _atr14_by_symbol(
     lookback_days: int = 250,  # Increased for RMA convergence
     atr_period: int = 14,
     parallel_workers: int = 5,
-) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, str]]:
+) -> tuple[dict[str, float], dict[str, float], dict[str, float | None], dict[str, float], dict[str, str]]:
     atr_map: dict[str, float] = {}
     momentum_z_map: dict[str, float] = {}
     vwap_map: dict[str, float | None] = {}
+    avg_volume_fallback_map: dict[str, float] = {}
     errors: dict[str, str] = {}
     date_from = as_of - timedelta(days=max(lookback_days, 20))
 
@@ -2218,7 +2304,8 @@ def _atr14_by_symbol(
         if all(sym in atr_map for sym in symbols):
             for symbol in symbols:
                 vwap_map.setdefault(symbol, None)
-            return atr_map, momentum_z_map, vwap_map, errors
+                avg_volume_fallback_map.setdefault(symbol, 0.0)
+            return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, errors
 
     incremental_atr, incremental_momentum, incremental_close = _incremental_atr_from_eod_bulk(
         client=client,
@@ -2247,16 +2334,18 @@ def _atr14_by_symbol(
             for future in as_completed(future_map):
                 symbol = future_map[future]
                 try:
-                    sym, atr_value, momentum_z, vwap_value, err = future.result()
+                    sym, atr_value, momentum_z, vwap_value, avg_vol_fb, err = future.result()
                     atr_map[sym] = atr_value
                     momentum_z_map[sym] = momentum_z
                     vwap_map[sym] = vwap_value
+                    avg_volume_fallback_map[sym] = max(_to_float(avg_vol_fb, default=0.0), 0.0)
                     if err:
                         errors[sym] = err
                 except Exception as exc:  # pragma: no cover - defensive catch
                     atr_map[symbol] = 0.0
                     momentum_z_map[symbol] = 0.0
                     vwap_map[symbol] = None
+                    avg_volume_fallback_map[symbol] = 0.0
                     errors[symbol] = str(exc)
 
     # Keep deterministic key presence/order compatibility.
@@ -2264,6 +2353,7 @@ def _atr14_by_symbol(
         atr_map.setdefault(symbol, 0.0)
         momentum_z_map.setdefault(symbol, 0.0)
         vwap_map.setdefault(symbol, None)
+        avg_volume_fallback_map.setdefault(symbol, 0.0)
 
     # Save same-day cache to accelerate subsequent pre-open runs.
     prev_close_snapshot: dict[str, float] = dict(cached_prev_close)
@@ -2276,8 +2366,8 @@ def _atr14_by_symbol(
                 if not sym:
                     continue
                 prev_close_snapshot[sym] = _to_float(row.get("previousClose"), default=0.0)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("batch-quote prev-close fetch failed: %s", exc)
 
     _save_atr_cache(
         as_of=as_of,
@@ -2287,7 +2377,7 @@ def _atr14_by_symbol(
         prev_close_map=prev_close_snapshot,
     )
 
-    return atr_map, momentum_z_map, vwap_map, errors
+    return atr_map, momentum_z_map, vwap_map, avg_volume_fallback_map, errors
 
 
 # ---------------------------------------------------------------------------
@@ -2378,7 +2468,8 @@ def _pm_cache_load(symbol: str, session_day_ny: date, interval: str) -> tuple[fl
         if age > PM_CACHE_TTL_SECONDS:
             return None
         return payload.get("pm_high"), payload.get("pm_low")
-    except Exception:
+    except Exception as exc:
+        logger.debug("PM cache read failed for %s: %s", symbol, exc)
         return None
 
 
@@ -2403,7 +2494,8 @@ def _pm_cache_save(
         import tempfile as _tempfile
         fd, tmp = _tempfile.mkstemp(dir=str(PM_CACHE_DIR), suffix=".tmp")
         try:
-            os.write(fd, json.dumps(payload, sort_keys=True).encode("utf-8"))
+            os.write(fd, json.dumps(payload, sort_keys=True, allow_nan=False).encode("utf-8"))
+            os.fsync(fd)
             os.close(fd)
             fd = -1
             os.replace(tmp, str(target))
@@ -2417,7 +2509,8 @@ def _pm_cache_save(
             raise
         # Evict stale PM cache files (> 2 days old).
         _evict_stale_cache_files(PM_CACHE_DIR, max_age_days=2)
-    except Exception:
+    except Exception as exc:
+        logger.debug("PM cache save failed for %s: %s", symbol, exc)
         return
 
 
@@ -2495,9 +2588,10 @@ def _fetch_premarket_high_low_bulk(
                 "PMH/PML fetch timed out after %.1fs; continuing with partial results.",
                 timeout_eff,
             )
-            for fut in futs:
-                if not fut.done():
-                    fut.cancel()
+            ex.shutdown(wait=False, cancel_futures=True)
+            for sym in symbols:
+                out.setdefault(sym, {"premarket_high": None, "premarket_low": None})
+            return out, timeout_msg
 
     for sym in symbols:
         out.setdefault(sym, {"premarket_high": None, "premarket_low": None})
@@ -2924,7 +3018,7 @@ def _fetch_news_context(
     try:
         articles = client.get_fmp_articles(limit=250)
         news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
-    except RuntimeError as exc:
+    except Exception as exc:
         news_fetch_error = str(exc)
         logger.warning("News fetch failed, continuing without news scores: %s", exc)
 
@@ -2980,7 +3074,7 @@ def _fetch_quotes_with_atr(
         ]
     )
 
-    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _atr14_by_symbol(
+    atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, avg_volume_fallback_by_symbol, atr_fetch_errors = _atr14_by_symbol(
         client=client,
         symbols=atr_symbols,
         as_of=as_of,
@@ -2991,6 +3085,19 @@ def _fetch_quotes_with_atr(
     for q in quotes:
         sym = str(q.get("symbol") or "").strip().upper()
         if sym:
+            avg_vol = _to_float(
+                q.get("avgVolume")
+                or q.get("averageVolume")
+                or q.get("avgVolume3Month")
+                or q.get("avgVolume50")
+                or q.get("avg_volume"),
+                default=0.0,
+            )
+            if avg_vol <= 0.0:
+                avg_vol = _to_float(avg_volume_fallback_by_symbol.get(sym), default=0.0)
+            if avg_vol > 0.0:
+                q["avgVolume"] = avg_vol
+                q["avg_volume"] = avg_vol
             q["atr"] = atr_by_symbol.get(sym, 0.0)
             q["momentum_z_score"] = momentum_z_by_symbol.get(sym, 0.0)
             q["vwap"] = vwap_by_symbol.get(sym)
@@ -3118,7 +3225,7 @@ def _build_result_payload(
         "earnings_calendar": earnings_calendar,
         "trade_cards": cards,
         "trade_cards_v2": cards_v2 or [],
-        "tomorrow_outlook": tomorrow_outlook,
+        "tomorrow_outlook": tomorrow_outlook or {},
         "sector_performance": sector_performance or [],
         "upgrades_downgrades": upgrades_downgrades or {},
         "insider_trading": insider_trading or {},
@@ -3128,15 +3235,15 @@ def _build_result_payload(
         "ranked_v2": ranked_v2 or [],
         "filtered_out_v2": filtered_out_v2 or [],
         "regime": {
-            "regime": regime_snapshot.regime if regime_snapshot else "NEUTRAL",
+            "regime": getattr(regime_snapshot, "regime", "NEUTRAL") if regime_snapshot else "NEUTRAL",
             "vix_level": vix_level,
-            "macro_bias": regime_snapshot.macro_bias if regime_snapshot else bias,
-            "sector_breadth": regime_snapshot.sector_breadth if regime_snapshot else 0.0,
-            "weight_adjustments": regime_snapshot.weight_adjustments if regime_snapshot else {},
-            "reasons": regime_snapshot.reasons if regime_snapshot else [],
-        } if regime_snapshot else None,
-        "diff": run_diff,
-        "diff_summary": diff_summary,
+            "macro_bias": getattr(regime_snapshot, "macro_bias", bias) if regime_snapshot else bias,
+            "sector_breadth": getattr(regime_snapshot, "sector_breadth", 0.0) if regime_snapshot else 0.0,
+            "weight_adjustments": getattr(regime_snapshot, "weight_adjustments", {}) if regime_snapshot else {},
+            "reasons": getattr(regime_snapshot, "reasons", []) if regime_snapshot else [],
+        },
+        "diff": run_diff or {},
+        "diff_summary": diff_summary or "",
         "watchlist": watchlist or [],
         "alert_results": alert_results or [],
         "historical_hit_rates": hit_rates or {},
@@ -3182,18 +3289,21 @@ def generate_open_prep_result(
                 pass
 
     TOTAL_STAGES = 12
+    _profiler = StageProfiler()
+    reset_regime_state()  # prevent stale hysteresis from prior run
     run_dt = now_utc or datetime.now(UTC)
     data_client = client or FMPClient.from_env()
     provided_symbols = [str(s).strip().upper() for s in (symbols or []) if str(s).strip()]
     _progress(1, TOTAL_STAGES, "Universum auflösen …")
-    symbol_list, cached_mover_seed, symbol_sectors = _resolve_symbol_universe(
-        provided_symbols=provided_symbols,
-        universe_source=universe_source,
-        fmp_min_market_cap=max(int(fmp_min_market_cap), 1),
-        fmp_max_symbols=max(int(fmp_max_symbols), 1),
-        mover_seed_max_symbols=max(int(mover_seed_max_symbols), 0),
-        client=data_client,
-    )
+    with _profiler.stage("Universum auflösen"):
+        symbol_list, cached_mover_seed, symbol_sectors = _resolve_symbol_universe(
+            provided_symbols=provided_symbols,
+            universe_source=universe_source,
+            fmp_min_market_cap=max(int(fmp_min_market_cap), 1),
+            fmp_max_symbols=max(int(fmp_max_symbols), 1),
+            mover_seed_max_symbols=max(int(mover_seed_max_symbols), 0),
+            client=data_client,
+        )
     if not symbol_list:
         raise ValueError("No symbols provided. Use at least one ticker symbol.")
 
@@ -3239,34 +3349,37 @@ def generate_open_prep_result(
     }
 
     _progress(3, TOTAL_STAGES, "Makro-Events laden …")
-    todays_events, all_range_events = _fetch_todays_events(
-        client=data_client,
-        today=today,
-        end_date=end_date,
-        pre_open_only=bool(config.pre_open_only),
-        pre_open_cutoff_utc=config.pre_open_cutoff_utc,
-    )
-    macro_context = _build_macro_context(
-        todays_events=todays_events,
-        max_macro_events=config.max_macro_events,
-        bea_audit_enabled=bea_audit_enabled,
-    )
+    with _profiler.stage("Makro-Events laden"):
+        todays_events, all_range_events = _fetch_todays_events(
+            client=data_client,
+            today=today,
+            end_date=end_date,
+            pre_open_only=bool(config.pre_open_only),
+            pre_open_cutoff_utc=config.pre_open_cutoff_utc,
+        )
+        macro_context = _build_macro_context(
+            todays_events=todays_events,
+            max_macro_events=config.max_macro_events,
+            bea_audit_enabled=bea_audit_enabled,
+        )
     bias = float(macro_context["macro_bias"])
 
     _progress(4, TOTAL_STAGES, f"News für {len(symbol_list)} Symbole laden …")
-    news_scores, news_metrics, news_fetch_error = _fetch_news_context(client=data_client, symbols=symbol_list)
+    with _profiler.stage("News laden"):
+        news_scores, news_metrics, news_fetch_error = _fetch_news_context(client=data_client, symbols=symbol_list)
     _progress(5, TOTAL_STAGES, f"Quotes + ATR für {len(symbol_list)} Symbole laden …")
-    quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _fetch_quotes_with_atr(
-        client=data_client,
-        symbols=symbol_list,
-        run_dt_utc=run_dt,
-        as_of=today,
-        gap_mode=config.gap_mode,
-        gap_scope=config.gap_scope,
-        atr_lookback_days=config.atr_lookback_days,
-        atr_period=config.atr_period,
-        atr_parallel_workers=config.atr_parallel_workers,
-    )
+    with _profiler.stage("Quotes + ATR laden"):
+        quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _fetch_quotes_with_atr(
+            client=data_client,
+            symbols=symbol_list,
+            run_dt_utc=run_dt,
+            as_of=today,
+            gap_mode=config.gap_mode,
+            gap_scope=config.gap_scope,
+            atr_lookback_days=config.atr_lookback_days,
+            atr_period=config.atr_period,
+            atr_parallel_workers=config.atr_parallel_workers,
+        )
     atr_candidate_symbols = _normalize_symbols(
         [
             str(q.get("symbol") or "").strip().upper()
@@ -3611,6 +3724,14 @@ def generate_open_prep_result(
     base_weights = load_weight_set()
     adjusted_weights = apply_regime_adjustments(base_weights, regime_snapshot)
 
+    # Validate regime-adjusted weights
+    weight_issues = validate_weights(adjusted_weights)
+    if weight_issues:
+        logger.warning("Weight validation found %d issue(s)", len(weight_issues))
+    weight_diff = compute_config_diff(base_weights, adjusted_weights)
+    if weight_diff:
+        logger.info("Regime weight adjustments: %s", weight_diff)
+
     # Save regime-adjusted weights for this run (so scorer picks them up)
     save_weight_set("_regime_adjusted", adjusted_weights)
 
@@ -3618,16 +3739,17 @@ def generate_open_prep_result(
     hit_rates = compute_hit_rates(lookback_days=20)
 
     # Run v2 two-stage pipeline (filter → score → tier)
-    ranked_v2, filtered_out_v2 = rank_candidates_v2(
-        quotes=quotes,
-        bias=bias,
-        top_n=max(config.top, 1),
-        news_scores=news_scores,
-        news_metrics=news_metrics,
-        sector_changes=sector_changes_map,
-        symbol_sectors=symbol_sectors,
-        weight_label="_regime_adjusted",
-    )
+    with _profiler.stage("Score + Rank (v2)"):
+        ranked_v2, filtered_out_v2 = rank_candidates_v2(
+            quotes=quotes,
+            bias=bias,
+            top_n=max(config.top, 1),
+            news_scores=news_scores,
+            news_metrics=news_metrics,
+            sector_changes=sector_changes_map,
+            symbol_sectors=symbol_sectors,
+            weight_label="_regime_adjusted",
+        )
 
     # Enrich v2 candidates with historical hit rates + regime
     for row in ranked_v2:
@@ -3659,9 +3781,17 @@ def generate_open_prep_result(
             return sym, []
 
         with ThreadPoolExecutor(max_workers=min(5, len(v2_symbols))) as pool:
-            for sym, bars_list in pool.map(_fetch_daily_bars, v2_symbols):
-                if bars_list:
-                    _daily_bars_cache[sym] = bars_list
+            futs = {pool.submit(_fetch_daily_bars, s): s for s in v2_symbols}
+            try:
+                for fut in as_completed(futs, timeout=30.0):
+                    try:
+                        sym_res, bars_list = fut.result()
+                        if bars_list:
+                            _daily_bars_cache[sym_res] = bars_list
+                    except Exception:
+                        pass
+            except FuturesTimeoutError:
+                logger.warning("Daily bars fetch timed out after 30s; continuing with partial.")
 
     for row in ranked_v2:
         sym = str(row.get("symbol", "")).strip().upper()
@@ -3677,15 +3807,19 @@ def generate_open_prep_result(
         atr_pct = _to_float(row.get("atr_pct_computed") or row.get("atr_pct"), default=0.0)
         # Without live ADX/BB data, use ATR%-based approximation:
         # Low ATR% ≈ tight bands ≈ possible consolidation
-        approx_bb_width = max(atr_pct * 2.5, 0.1)  # rough proxy
-        approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)  # rough proxy
-        consol = detect_consolidation(bb_width_pct=approx_bb_width, adx=approx_adx)
+        # Guard: if ATR is missing (0.0), skip detection to avoid false positives
+        if atr_pct > 0:
+            approx_bb_width = max(atr_pct * 2.5, 0.1)  # rough proxy
+            approx_adx = min(max(atr_pct * 8.0, 5.0), 60.0)  # rough proxy
+            consol = detect_consolidation(bb_width_pct=approx_bb_width, adx=approx_adx)
+            sym_regime = detect_symbol_regime(adx=approx_adx, bb_width_pct=approx_bb_width)
+        else:
+            consol = {"is_consolidating": False, "score": 0.0, "bb_squeeze": False,
+                      "adx_weak": False, "atr_contracted": False}
+            sym_regime = "NEUTRAL"  # no ATR data → uncertain → no weight adjustments
         row["consolidation"] = consol
         row["is_consolidating"] = consol.get("is_consolidating", False)
         row["consolidation_score"] = consol.get("score", 0.0)
-
-        # Symbol-level regime (#12) — ATR%-based approximation
-        sym_regime = detect_symbol_regime(adx=approx_adx, bb_width_pct=approx_bb_width)
         row["symbol_regime"] = sym_regime
 
     # --- Playbook assignment (6-step professional news-trading engine) ---
@@ -3766,9 +3900,12 @@ def generate_open_prep_result(
         today=today,
         macro_bias=bias,
         earnings_calendar=earnings_calendar,
-        ranked=ranked,
+        ranked=ranked_v2,
         all_range_events=all_range_events,
     )
+
+    # --- Pipeline profiler report ---
+    _stage_timings = _profiler.log_report()
 
     result = _build_result_payload(
         config=config,
@@ -3810,6 +3947,7 @@ def generate_open_prep_result(
         data_capabilities=data_capabilities,
         data_capabilities_summary=data_capabilities_summary,
     )
+    result["stage_timings"] = _stage_timings
 
     # Persist latest result to JSON so CLI dashboards (vd_watch.sh) always
     # see fresh data — regardless of whether the caller is Streamlit or CLI.
@@ -3819,10 +3957,11 @@ def generate_open_prep_result(
         _latest_dir = Path("artifacts/open_prep/latest")
         _latest_dir.mkdir(parents=True, exist_ok=True)
         _latest_path = _latest_dir / "latest_open_prep_run.json"
-        _content = (_json.dumps(result, indent=2, default=str) + "\n").encode("utf-8")
+        _content = (_json.dumps(result, indent=2, default=str, allow_nan=False) + "\n").encode("utf-8")
         _fd, _tmp_name = _tmp_latest.mkstemp(dir=str(_latest_dir), suffix=".tmp")
         try:
             os.write(_fd, _content)
+            os.fsync(_fd)
             os.close(_fd)
             _fd = -1
             os.replace(_tmp_name, str(_latest_path))
@@ -3886,9 +4025,9 @@ def build_gap_scanner(
 
         # Spread quality
         spread_bps = _to_float(q.get("premarket_spread_bps"), default=float("nan"))
-        if spread_bps == spread_bps and spread_bps <= max_spread_bps:
+        if not math.isnan(spread_bps) and spread_bps <= max_spread_bps:
             tags.append("spread_ok")
-        elif spread_bps == spread_bps:
+        elif not math.isnan(spread_bps):
             continue  # spread too wide
 
         # Extended-hours volume ratio
@@ -3920,7 +4059,10 @@ def build_gap_scanner(
             "reason_tags": tags,
         })
 
-    candidates.sort(key=lambda r: abs(r.get("gap_pct", 0.0)), reverse=True)
+    candidates.sort(key=lambda r: (
+        r.get("gap_pct", 0.0) > 0,   # gap-ups first (True > False)
+        abs(r.get("gap_pct", 0.0)),   # then by magnitude
+    ), reverse=True)
     return candidates[:max(top_n, 0)]
 
 
@@ -3946,16 +4088,27 @@ def main() -> None:
         atr_parallel_workers=args.atr_parallel_workers,
         analyst_catalyst_limit=max(int(args.analyst_catalyst_limit), 0),
     )
-    rendered = json.dumps(result, indent=2, default=str)
+    rendered = json.dumps(result, indent=2, default=str, allow_nan=False)
     sys.stdout.write(rendered + "\n")
     # Note: latest_open_prep_run.json is already written inside
     # generate_open_prep_result() with default=str.  No second write needed.
 
 
 if __name__ == "__main__":
+    # Auto-load .env so FMP_API_KEY is available without manual shell sourcing
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+
+        _env_path = Path(__file__).resolve().parents[1] / ".env"
+        if _env_path.is_file():
+            _load_dotenv(_env_path, override=False)
+    except ImportError:
+        pass  # python-dotenv not installed — rely on shell environment
+
     logging.basicConfig(
         level=os.environ.get("OPEN_PREP_LOG_LEVEL", "INFO").upper(),
         stream=sys.stderr,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
+    apply_global_log_redaction()
     main()

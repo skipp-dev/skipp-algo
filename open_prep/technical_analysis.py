@@ -11,6 +11,9 @@ Provides:
   #8  validate_data_quality                 — plausibility checks on candidate data
   #10 GateTracker                           — structured gate-rejection logger
   #12 detect_symbol_regime                  — per-symbol TRENDING / RANGING
+  #13 compute_entry_probability             — sigmoid-based entry probability [0,1]
+  #14 EWMA                                 — Energy-Weighted Moving Average score
+  #15 resolve_regime_weights                — regime-adaptive weight adjustments
 
 All functions operate on simple dicts / scalars — no pandas required.
 Daily OHLCV bars are passed as ``list[dict]`` with keys
@@ -459,27 +462,55 @@ def validate_data_quality(candidate: dict[str, Any]) -> DataQualityResult:
 # ═══════════════════════════════════════════════════════════════════════════
 
 class GateTracker:
-    """Collects gate-rejection events per pipeline run.
+    """Collects gate-rejection events per pipeline run with analytics.
+
+    Enhanced with deficit tracking, bottleneck detection, and per-gate
+    statistics for data-driven threshold tuning (#2 Gate Rejection Analytics).
 
     Usage::
 
         tracker = GateTracker()
-        tracker.reject("AAPL", "price_below_5", {"price": 3.2})
+        tracker.reject("AAPL", "price_below_5", {"price": 3.2, "threshold": 5.0})
         tracker.reject("XYZ", "zero_volume", {"volume": 0})
         summary = tracker.summary()
+        bottlenecks = tracker.bottleneck_report(total_candidates=100)
     """
 
     def __init__(self) -> None:
         self._rejections: list[dict[str, Any]] = []
+        # Per-gate aggregate stats for deficit tracking
+        self._gate_deficits: dict[str, list[float]] = {}
+        self._gate_symbols: dict[str, set[str]] = {}
 
     # ── public API ──────────────────────────────────────────────────────
 
-    def reject(self, symbol: str, gate: str, details: dict[str, Any] | None = None) -> None:
-        """Record a gate rejection."""
+    def reject(
+        self,
+        symbol: str,
+        gate: str,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a gate rejection with optional deficit information.
+
+        If ``details`` contains both ``"value"`` and ``"threshold"`` keys,
+        the deficit (how far the value was from passing) is tracked for
+        analytics.
+        """
         entry: dict[str, Any] = {"symbol": symbol, "gate": gate}
         if details:
             entry["details"] = details
+            # Track deficit if value/threshold provided
+            val = details.get("value") or details.get("score") or details.get("price")
+            thr = details.get("threshold")
+            if val is not None and thr is not None:
+                try:
+                    deficit = abs(float(thr) - float(val))
+                    entry["deficit"] = round(deficit, 4)
+                    self._gate_deficits.setdefault(gate, []).append(deficit)
+                except (TypeError, ValueError):
+                    pass
         self._rejections.append(entry)
+        self._gate_symbols.setdefault(gate, set()).add(symbol)
         logger.debug("Gate rejected: %s — %s %s", symbol, gate, details or "")
 
     def summary(self) -> dict[str, Any]:
@@ -490,6 +521,7 @@ class GateTracker:
             {
                 "total_rejections": int,
                 "by_gate": {"gate_name": count, …},
+                "by_gate_detail": {"gate_name": {count, unique_symbols, avg_deficit}, …},
                 "by_symbol": {"SYM": [{"gate": …, "details": …}, …], …},
                 "rejections": [full list],
             }
@@ -503,15 +535,68 @@ class GateTracker:
             by_symbol.setdefault(s, []).append(
                 {"gate": g, "details": r.get("details")},
             )
+
+        by_gate_detail: dict[str, dict[str, Any]] = {}
+        for gate, count in by_gate.items():
+            deficits = self._gate_deficits.get(gate, [])
+            by_gate_detail[gate] = {
+                "count": count,
+                "unique_symbols": len(self._gate_symbols.get(gate, set())),
+                "avg_deficit": round(sum(deficits) / len(deficits), 4) if deficits else None,
+                "min_deficit": round(min(deficits), 4) if deficits else None,
+                "max_deficit": round(max(deficits), 4) if deficits else None,
+            }
+
         return {
             "total_rejections": len(self._rejections),
             "by_gate": by_gate,
+            "by_gate_detail": by_gate_detail,
             "by_symbol": by_symbol,
             "rejections": list(self._rejections),
         }
 
+    def bottleneck_report(
+        self,
+        total_candidates: int,
+        threshold_pct: float = 0.25,
+    ) -> list[dict[str, Any]]:
+        """Identify gates that reject an outsized fraction of candidates.
+
+        A gate is flagged as a bottleneck if it rejects more than
+        ``threshold_pct`` (default 25 %) of all candidates.
+
+        Returns a list of bottleneck dicts with recommendation text.
+        """
+        if total_candidates <= 0:
+            return []
+        by_gate: dict[str, int] = {}
+        for r in self._rejections:
+            g = r["gate"]
+            by_gate[g] = by_gate.get(g, 0) + 1
+
+        bottlenecks: list[dict[str, Any]] = []
+        for gate, count in sorted(by_gate.items(), key=lambda x: -x[1]):
+            rate = count / total_candidates
+            if rate >= threshold_pct:
+                deficits = self._gate_deficits.get(gate, [])
+                avg_def = (sum(deficits) / len(deficits)) if deficits else None
+                rec = f"Gate '{gate}' rejected {rate:.0%} of candidates."
+                if avg_def is not None:
+                    rec += f" Avg deficit: {avg_def:.4f}. Consider relaxing threshold."
+                bottlenecks.append({
+                    "gate": gate,
+                    "rejection_rate": round(rate, 4),
+                    "rejection_count": count,
+                    "unique_symbols": len(self._gate_symbols.get(gate, set())),
+                    "avg_deficit": round(avg_def, 4) if avg_def is not None else None,
+                    "recommendation": rec,
+                })
+        return bottlenecks
+
     def clear(self) -> None:
         self._rejections.clear()
+        self._gate_deficits.clear()
+        self._gate_symbols.clear()
 
     @property
     def rejection_count(self) -> int:
@@ -562,6 +647,9 @@ def calculate_support_resistance_targets(
     if not bars or len(bars) < 50 or current_price <= 0:
         return empty
 
+    result: dict[str, Any] = dict(empty)
+
+    # --- Bar prep (required by all subsequent sections) ---
     try:
         recent = bars[-50:]
         pivot_bars = bars[-20:]
@@ -572,12 +660,31 @@ def calculate_support_resistance_targets(
         # Filter out zero values that would corrupt S/R calculations
         highs = [h if h > 0 else current_price for h in highs_raw]
         lows = [lo if lo > 0 else current_price for lo in lows_raw]
+    except Exception:
+        logger.warning("S/R bar prep failed — returning empty result")
+        return empty
 
-        # --- ATR (14-bar) ---
-        ranges = [highs[i] - lows[i] for i in range(len(recent))]
-        atr = sum(ranges[-14:]) / 14.0
+    # --- ATR (14-bar, Wilder's Smoothing, true range) ---
+    atr = 0.0
+    try:
+        tr_values = [highs[0] - lows[0]]  # first bar: H-L only (no prior close)
+        for i in range(1, len(recent)):
+            prev_c = closes[i - 1] if closes[i - 1] > 0 else current_price
+            tr_values.append(max(
+                highs[i] - lows[i],
+                abs(highs[i] - prev_c),
+                abs(lows[i] - prev_c),
+            ))
+        atr = sum(tr_values[:14]) / min(14.0, len(tr_values))
+        for tr in tr_values[14:]:
+            atr = (atr * 13.0 + tr) / 14.0
+        result["atr"] = round(atr, 2)
+    except Exception:
+        logger.warning("S/R ATR computation failed")
 
-        # --- Pivot Points (off last 20 bars) ---
+    # --- Pivot Points (off last 20 bars) ---
+    r1 = r2 = r3 = s1 = s2 = s3 = None
+    try:
         p_highs = [_safe_float(b.get("high")) for b in pivot_bars]
         p_lows = [_safe_float(b.get("low")) for b in pivot_bars]
         # Replace zeros with current_price to avoid nonsensical pivots
@@ -594,10 +701,13 @@ def calculate_support_resistance_targets(
         s1 = 2 * pivot - pivot_high
         s2 = pivot - (pivot_high - pivot_low)
         s3 = pivot_low - 2 * (pivot_high - pivot)
+    except Exception:
+        logger.warning("S/R pivot computation failed")
 
-        # --- Swing highs / lows ---
-        swing_highs: list[float] = []
-        swing_lows: list[float] = []
+    # --- Swing highs / lows ---
+    swing_highs: list[float] = []
+    swing_lows: list[float] = []
+    try:
         for i in range(2, len(recent) - 2):
             h = highs[i]
             if h > highs[i - 1] and h > highs[i - 2] and h > highs[i + 1] and h > highs[i + 2]:
@@ -605,37 +715,49 @@ def calculate_support_resistance_targets(
             lo = lows[i]
             if lo < lows[i - 1] and lo < lows[i - 2] and lo < lows[i + 1] and lo < lows[i + 2]:
                 swing_lows.append(lo)
+    except Exception:
+        logger.warning("S/R swing detection failed")
 
-        # --- EMAs ---
+    # --- EMAs ---
+    ema_20: float | None = None
+    ema_50: float | None = None
+    ema_200: float | None = None
+    try:
         all_closes = [_safe_float(b.get("close"), current_price) for b in bars]
         ema_20 = _ema(all_closes, 20)
         ema_50 = _ema(all_closes, 50) if len(all_closes) >= 50 else None
         ema_200 = _ema(all_closes, 200) if len(all_closes) >= 200 else None
 
         # Convert NaN to None for downstream guards
-        import math as _math
-        if ema_20 != ema_20:  # NaN check
-            ema_20 = None  # type: ignore[assignment]
-        if ema_50 is not None and ema_50 != ema_50:
+        if ema_20 is not None and math.isnan(ema_20):
+            ema_20 = None
+        if ema_50 is not None and math.isnan(ema_50):
             ema_50 = None
-        if ema_200 is not None and ema_200 != ema_200:
+        if ema_200 is not None and math.isnan(ema_200):
             ema_200 = None
+    except Exception:
+        logger.warning("S/R EMA computation failed")
 
-        # --- Fibonacci ---
+    # --- Fibonacci ---
+    fib_382 = fib_500 = fib_618 = None
+    try:
         recent_high = max(highs)
         recent_low = min(lows)
         fib_range = recent_high - recent_low
         fib_382 = recent_high - fib_range * 0.382
         fib_500 = recent_high - fib_range * 0.500
         fib_618 = recent_high - fib_range * 0.618
+    except Exception:
+        logger.warning("S/R Fibonacci computation failed")
 
-        # --- Combine & sort ---
-        res_candidates = [r1, r2, r3] + swing_highs + [
+    # --- Combine & sort ---
+    try:
+        res_candidates = [v for v in [r1, r2, r3] if v is not None] + swing_highs + [
             v for v in (ema_20, ema_50, ema_200) if v is not None
         ]
         res_candidates = sorted(v for v in res_candidates if v > current_price * 1.001)
 
-        sup_candidates = [s1, s2, s3] + swing_lows + [
+        sup_candidates = [v for v in [s1, s2, s3] if v is not None] + swing_lows + [
             v for v in (ema_20, ema_50, ema_200, fib_382, fib_500, fib_618) if v is not None
         ]
         sup_candidates = sorted(
@@ -683,7 +805,7 @@ def calculate_support_resistance_targets(
                 return None
             return round((v - current_price) / current_price * 100, 2)
 
-        return {
+        result.update({
             "support_1": _r(support_1),
             "support_2": _r(support_2),
             "support_3": _r(support_3),
@@ -702,8 +824,337 @@ def calculate_support_resistance_targets(
             "stop_loss_pct": _pct(stop_loss),
             "support_1_pct": _pct(support_1),
             "resistance_1_pct": _pct(resistance_1),
-        }
-
+        })
     except Exception:
-        logger.exception("Error in S/R calculation")
-        return empty
+        logger.warning("S/R combine/targets computation failed — returning partial result")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# #13  Entry Probability (sigmoid-based)
+# ---------------------------------------------------------------------------
+
+def compute_entry_probability(
+    score: float,
+    momentum_z: float = 0.0,
+    volume_ratio: float = 1.0,
+    atr_pct: float = 0.0,
+    spread_pct: float = 0.0,
+    *,
+    k: float = 3.0,
+    threshold: float = 0.0,
+) -> float:
+    """Return a [0, 1] probability estimate for a profitable entry.
+
+    Combines multiple signals into a single composite via a logistic sigmoid:
+
+        composite = 0.50 * score_norm + 0.25 * momentum_signal
+                  + 0.15 * volume_signal + 0.10 * risk_signal
+        prob      = 1 / (1 + exp(-k * (composite - threshold)))
+
+    Parameters
+    ----------
+    score : float
+        Raw composite score from the scoring pipeline.
+    momentum_z : float
+        Z-score of recent momentum (positive = trend-aligned).
+    volume_ratio : float
+        Relative volume (rvol); >1.0 indicates above-average volume.
+    atr_pct : float
+        ATR as percentage of price (volatility proxy).
+    spread_pct : float
+        Bid–ask spread as percentage of price (liquidity proxy).
+    k : float
+        Steepness of the sigmoid curve (higher = sharper transition).
+    threshold : float
+        Midpoint of the sigmoid (composite value yielding 50% probability).
+
+    Returns
+    -------
+    float
+        Probability in [0.0, 1.0].
+    """
+    # Normalise score to roughly [0, 1] via a soft clamp
+    score_norm = max(min(score / 5.0, 1.0), -1.0)
+
+    # Momentum signal: tanh compression keeps it in [-1, 1]
+    momentum_signal = math.tanh(momentum_z / 3.0)
+
+    # Volume signal: log-scale compression, above-average is positive
+    volume_signal = max(min(math.log(max(volume_ratio, 0.1)) / math.log(5.0), 1.0), -1.0)
+
+    # Risk signal: penalise high spread, reward moderate volatility
+    atr_term = min(atr_pct / 5.0, 1.0) if atr_pct > 0 else 0.0
+    spread_term = min(spread_pct / 1.0, 1.0) if spread_pct > 0 else 0.0
+    risk_signal = atr_term * 0.5 - spread_term * 0.5  # moderate vol good, wide spread bad
+
+    # Weighted composite
+    composite = (
+        0.50 * score_norm
+        + 0.25 * momentum_signal
+        + 0.15 * volume_signal
+        + 0.10 * risk_signal
+    )
+
+    # Logistic sigmoid
+    try:
+        prob = 1.0 / (1.0 + math.exp(-k * (composite - threshold)))
+    except OverflowError:
+        prob = 0.0 if (composite - threshold) < 0 else 1.0
+
+    return round(prob, 4)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #14  EWMA (Energy-Weighted Moving Average)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _calculate_energy_weights(
+    bars: list[dict[str, Any]],
+    length: int = 50,
+) -> list[float] | None:
+    """Compute volume × volatility energy weights for the last *length* bars.
+
+    Each bar's *true range* serves as a volatility proxy.  Weights are
+    normalised to sum to 1.0.
+
+    Parameters
+    ----------
+    bars : list[dict]
+        OHLCV bars with keys ``open, high, low, close, volume``.
+    length : int
+        Number of trailing bars to use.
+
+    Returns
+    -------
+    list[float] | None
+        Normalised weights, or ``None`` if insufficient data.
+    """
+    if not bars or len(bars) < length:
+        return None
+
+    recent = bars[-length:]
+    weights: list[float] = []
+
+    prev_close: float | None = None
+    for bar in recent:
+        h = _safe_float(bar.get("high", 0.0))
+        l = _safe_float(bar.get("low", 0.0))
+        c = _safe_float(bar.get("close", 0.0))
+        v = max(_safe_float(bar.get("volume", 0.0)), 0.0)
+
+        # True range
+        if prev_close is not None:
+            tr = max(h - l, abs(h - prev_close), abs(l - prev_close))
+        else:
+            tr = h - l
+        prev_close = c
+
+        energy = v * max(tr, 1e-10)
+        weights.append(energy)
+
+    total = sum(weights)
+    if total <= 0:
+        # Fallback: equal weights
+        return [1.0 / length] * length
+    return [w / total for w in weights]
+
+
+def calculate_ewma(
+    bars: list[dict[str, Any]],
+    length: int = 50,
+) -> dict[str, Any] | None:
+    """Calculate Energy-Weighted Moving Average and price channels.
+
+    EWMA weighs each bar by (Volume × TrueRange), giving more importance to
+    bars with high institutional activity.
+
+    Parameters
+    ----------
+    bars : list[dict]
+        OHLCV bars (keys: ``open, high, low, close, volume``).
+    length : int
+        Number of trailing bars (default 50 — suitable for daily bars in
+        open_prep's batch context).
+
+    Returns
+    -------
+    dict | None
+        ``{ewma, highest, lowest, bars_used}`` or ``None``.
+    """
+    if not bars or len(bars) < length:
+        return None
+
+    weights = _calculate_energy_weights(bars, length)
+    if weights is None:
+        return None
+
+    recent = bars[-length:]
+    closes = [_safe_float(b.get("close", 0.0)) for b in recent]
+    highs = [_safe_float(b.get("high", 0.0)) for b in recent]
+    lows = [_safe_float(b.get("low", 0.0)) for b in recent]
+
+    ewma_val = sum(p * w for p, w in zip(closes, weights))
+    highest = max(highs) if highs else ewma_val
+    lowest = min(lows) if lows else ewma_val
+
+    return {
+        "ewma": round(ewma_val, 6),
+        "highest": round(highest, 6),
+        "lowest": round(lowest, 6),
+        "bars_used": length,
+    }
+
+
+def calculate_ewma_metrics(
+    current_price: float,
+    ewma_data: dict[str, Any] | None,
+    *,
+    bounce_threshold_pct: float = 2.0,
+    breakdown_threshold_pct: float = -5.0,
+    overextended_threshold_pct: float = 5.0,
+) -> dict[str, Any] | None:
+    """Derive metrics from an EWMA calculation.
+
+    Returns
+    -------
+    dict | None
+        ``{distance_pct, channel_pct, bounce_zone, breakdown, overextended}``
+    """
+    if ewma_data is None:
+        return None
+
+    ewma = ewma_data["ewma"]
+    highest = ewma_data["highest"]
+    lowest = ewma_data["lowest"]
+
+    distance_pct = ((current_price - ewma) / ewma * 100.0) if ewma > 0 else 0.0
+
+    channel_range = highest - lowest
+    if channel_range > 0:
+        channel_pct = max(0.0, min(100.0, (current_price - lowest) / channel_range * 100.0))
+    else:
+        channel_pct = 50.0
+
+    bounce_zone = -bounce_threshold_pct <= distance_pct <= bounce_threshold_pct
+    breakdown = distance_pct < breakdown_threshold_pct
+    overextended = distance_pct > overextended_threshold_pct
+
+    return {
+        "distance_pct": round(distance_pct, 2),
+        "channel_pct": round(channel_pct, 1),
+        "bounce_zone": bounce_zone,
+        "breakdown": breakdown,
+        "overextended": overextended,
+    }
+
+
+def calculate_ewma_score(
+    ewma_metrics: dict[str, Any] | None,
+    *,
+    bounce_threshold_pct: float = 2.0,
+    breakdown_threshold_pct: float = -5.0,
+) -> float:
+    """Score a candidate based on its EWMA position.
+
+    Scoring logic:
+      - Bounce zone (|distance| ≤ 2%): 0.9–1.0 (ideal entry)
+      - Between bounce and breakdown: 0.5–0.9 (moderate)
+      - Breakdown (< −5%): 0.0 (avoid)
+      - Overextended (> +5%): 0.3 (caution, chase risk)
+
+    Returns 0.5 (neutral) when metrics are unavailable.
+    """
+    if ewma_metrics is None:
+        return 0.5
+
+    dist = ewma_metrics["distance_pct"]
+
+    if ewma_metrics["breakdown"]:
+        return 0.0
+
+    if ewma_metrics["bounce_zone"]:
+        return 1.0 if dist < 0 else 0.9
+
+    if breakdown_threshold_pct < dist < -bounce_threshold_pct:
+        # Linear interpolation between 0.5 and 0.9
+        span = -bounce_threshold_pct - breakdown_threshold_pct
+        score = 0.5 + 0.4 * (dist - breakdown_threshold_pct) / span if span > 0 else 0.5
+        return max(0.0, min(1.0, round(score, 4)))
+
+    if ewma_metrics["overextended"]:
+        return 0.3
+
+    # Moderate distance above EWMA
+    return 0.6
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #15  Regime-Adaptive Score Weights
+# ═══════════════════════════════════════════════════════════════════════════
+
+def resolve_regime_weights(
+    base_weights: dict[str, float],
+    regime: str,
+    *,
+    component_cap: float = 0.45,
+) -> dict[str, float]:
+    """Adjust scoring weights based on the current market regime.
+
+    Regimes:
+      - ``TRENDING`` → boost momentum & ext-hours, dampen gap
+      - ``RANGING``  → boost gap & rvol, dampen momentum
+      - ``NEUTRAL``  → return base weights unchanged
+
+    After adjustment an iterative cap prevents any single weight from
+    exceeding *component_cap* × sum-of-positive-weights.
+
+    Parameters
+    ----------
+    base_weights : dict[str, float]
+        The DEFAULT_WEIGHTS dict from scorer.py.
+    regime : str
+        One of ``"TRENDING"``, ``"RANGING"``, ``"NEUTRAL"``.
+    component_cap : float
+        Maximum fraction any single weight may occupy (default 0.45).
+
+    Returns
+    -------
+    dict[str, float]
+        A *copy* of the weights with regime-specific adjustments applied.
+    """
+    w = dict(base_weights)  # shallow copy — never mutate the original
+    regime_upper = (regime or "NEUTRAL").upper()
+
+    if regime_upper == "TRENDING":
+        w["gap"] = w.get("gap", 0.8) * 0.7            # gap less reliable
+        w["gap_sector_relative"] = w.get("gap_sector_relative", 0.6) * 0.8
+        w["momentum_z"] = w.get("momentum_z", 0.5) * 1.4  # momentum is king
+        w["ext_hours"] = w.get("ext_hours", 1.0) * 1.2
+        w["rvol"] = w.get("rvol", 1.2) * 0.9
+    elif regime_upper == "RANGING":
+        w["gap"] = w.get("gap", 0.8) * 1.3            # gap mean-reversion
+        w["gap_sector_relative"] = w.get("gap_sector_relative", 0.6) * 1.2
+        w["momentum_z"] = w.get("momentum_z", 0.5) * 0.6  # momentum is noise
+        w["ext_hours"] = w.get("ext_hours", 1.0) * 0.8
+        w["rvol"] = w.get("rvol", 1.2) * 1.2              # volume spikes matter
+    # else NEUTRAL — no adjustments
+
+    # Iterative cap on positive weights
+    positive_keys = [k for k, v in w.items() if v > 0]
+    for _ in range(5):
+        total_pos = sum(w[k] for k in positive_keys if w[k] > 0)
+        if total_pos <= 0:
+            break
+        cap_val = component_cap * total_pos
+        changed = False
+        for k in positive_keys:
+            if w[k] > cap_val:
+                w[k] = cap_val
+                changed = True
+        if not changed:
+            break
+
+    return w
+

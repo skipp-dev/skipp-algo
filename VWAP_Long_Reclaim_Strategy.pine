@@ -140,19 +140,33 @@ longSignal = goLong and matchedTrendsFilter_long and strategy.position_size == 0
 
 // ==================== STRATEGY LOGIC ====================
 
+// Evaluate crossover on every bar (Pine stateful-function requirement)
+crossedUpperBand2 = ta.crossover(high, upperBandValue2)
+
+// Detect same-bar BUY+TP conflict: if the entry candle also crosses the
+// TP band the trade is nonsensical — suppress both signals entirely.
+sameBarConflict = longSignal and crossedUpperBand2
+
 var float longStop = na
 
-if longSignal
+if longSignal and not sameBarConflict
     strategy.entry("Long", strategy.long)
     longStop := retestLow - tol
     inReclaimSeq := false
     retestSeen := false
 
+if sameBarConflict
+    // Do NOT enter — reset reclaim state so the sequence must re-qualify.
+    inReclaimSeq := false
+    retestSeen := false
+
+// Suppress the Buy label/alert on conflict bars
+longSignal := longSignal and not sameBarConflict
+
 if strategy.position_size > 0 and not na(longStop)
     strategy.exit("L-Stop", "Long", stop=longStop)
 
-crossedUpperBand2 = ta.crossover(high, upperBandValue2)
-tpStretch = strategy.position_size > 0 and crossedUpperBand2
+tpStretch = strategy.position_size > 0 and crossedUpperBand2 and not sameBarConflict
 if tpStretch
     strategy.close("Long", qty_percent=50)
 

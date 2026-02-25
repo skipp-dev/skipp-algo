@@ -3,9 +3,11 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
 import os
 import re
 import ssl
+import threading
 import time
 import urllib.error
 from dataclasses import dataclass, field
@@ -15,6 +17,88 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 import certifi
+
+logger = logging.getLogger("open_prep.macro")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #5  Circuit Breaker — prevents hammering FMP during outages
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CircuitBreaker:
+    """State-machine circuit breaker for FMP API calls.
+
+    States:
+      CLOSED  — normal operation; failures increment counter.
+      OPEN    — requests are immediately rejected; waits for recovery_timeout.
+      HALF_OPEN — permits a single test request to decide next state.
+
+    After *failure_threshold* consecutive failures the circuit opens.
+    After *recovery_timeout* seconds it transitions to half-open; a single
+    successful request re-closes it, a failure re-opens it.
+    """
+
+    def __init__(
+        self,
+        failure_threshold: int = 5,
+        recovery_timeout: float = 60.0,
+    ):
+        self._failure_threshold = failure_threshold
+        self._recovery_timeout = recovery_timeout
+        self._state: str = "CLOSED"         # "CLOSED" | "OPEN" | "HALF_OPEN"
+        self._consecutive_failures: int = 0
+        self._opened_at: float = 0.0
+        self._lock = threading.Lock()
+
+    @property
+    def state(self) -> str:
+        with self._lock:
+            if self._state == "OPEN":
+                if time.time() - self._opened_at >= self._recovery_timeout:
+                    self._state = "HALF_OPEN"
+            return self._state
+
+    def allow_request(self) -> bool:
+        """Return True if the request should be attempted.
+
+        In HALF_OPEN state, only the first caller is permitted through;
+        subsequent callers are rejected until a success/failure is recorded.
+        """
+        with self._lock:
+            # Inline the OPEN→HALF_OPEN transition to avoid releasing the lock
+            if self._state == "OPEN":
+                if time.time() - self._opened_at >= self._recovery_timeout:
+                    self._state = "HALF_OPEN"
+            if self._state == "CLOSED":
+                return True
+            if self._state == "HALF_OPEN":
+                # Atomically claim the single test slot
+                self._state = "HALF_OPEN_TESTING"
+                return True
+            return False  # OPEN or HALF_OPEN_TESTING
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._consecutive_failures = 0
+            if self._state in ("HALF_OPEN", "HALF_OPEN_TESTING", "OPEN"):
+                logger.info("Circuit breaker: CLOSED (recovered)")
+            self._state = "CLOSED"
+
+    def record_failure(self) -> None:
+        with self._lock:
+            self._consecutive_failures += 1
+            if self._state in ("HALF_OPEN", "HALF_OPEN_TESTING"):
+                # Test request failed — re-open
+                self._state = "OPEN"
+                self._opened_at = time.time()
+                logger.warning("Circuit breaker: OPEN (half-open test failed)")
+            elif self._consecutive_failures >= self._failure_threshold:
+                self._state = "OPEN"
+                self._opened_at = time.time()
+                logger.warning(
+                    "Circuit breaker: OPEN after %d consecutive failures",
+                    self._consecutive_failures,
+                )
 
 DEFAULT_HIGH_IMPACT_EVENTS: set[str] = {
     "CPI",
@@ -139,16 +223,23 @@ class FMPClient:
     retry_backoff_max_seconds: float = 8.0
     # Cached once at construction; avoids re-parsing the CA bundle on every request.
     _ssl_ctx: ssl.SSLContext = field(init=False, repr=False)
+    # #5 Circuit breaker — prevents hammering FMP during outages
+    _circuit_breaker: CircuitBreaker = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+        self._circuit_breaker = CircuitBreaker()
 
     def _backoff_delay(self, attempt: int) -> float:
-        """Exponential backoff delay for retry attempt index (1-based)."""
+        """Exponential backoff delay with ±25 % jitter (anti-thundering-herd)."""
+        import random
         base = max(float(self.retry_backoff_seconds), 0.0)
         cap = max(float(self.retry_backoff_max_seconds), 0.0)
         delay = base * (2 ** max(attempt - 1, 0))
-        return min(delay, cap)
+        delay = min(delay, cap)
+        # Add ±25 % jitter so concurrent callers don't retry in lockstep
+        jitter = delay * 0.25 * (2 * random.random() - 1)
+        return max(0.0, delay + jitter)
 
     @classmethod
     def from_env(cls, key_name: str = "FMP_API_KEY") -> "FMPClient":
@@ -160,6 +251,13 @@ class FMPClient:
         return cls(api_key=value)
 
     def _get(self, path: str, params: dict[str, Any]) -> Any:
+        # ── #5 Circuit breaker check ──────────────────────────────
+        if not self._circuit_breaker.allow_request():
+            raise RuntimeError(
+                f"FMP circuit breaker OPEN — request to {path} rejected. "
+                f"Retry after {self._circuit_breaker._recovery_timeout}s."
+            )
+
         query = dict(params)
         query["apikey"] = self.api_key
         url = f"{self.base_url}{path}?{urlencode(query)}"
@@ -176,6 +274,7 @@ class FMPClient:
                     context=self._ssl_ctx,
                 ) as response:
                     payload = response.read().decode("utf-8")
+                self._circuit_breaker.record_success()
                 break
             except urllib.error.HTTPError as exc:
                 should_retry = exc.code in transient_http_codes and attempt < attempts
@@ -188,6 +287,11 @@ class FMPClient:
                     error_msg = error_data.get("Error Message") or error_data.get("message") or exc.reason
                 except Exception:
                     error_msg = exc.reason
+                # Client/plan/path errors (4xx) are not infrastructure outages.
+                # Do not trip the global circuit breaker for these responses,
+                # otherwise optional endpoint failures can block critical calls.
+                if exc.code not in {400, 401, 402, 403, 404}:
+                    self._circuit_breaker.record_failure()
                 raise RuntimeError(
                     f"FMP API HTTP {exc.code} on {path}: {error_msg}"
                 ) from exc
@@ -198,19 +302,30 @@ class FMPClient:
                 if attempt < attempts:
                     time.sleep(self._backoff_delay(attempt))
                     continue
+                self._circuit_breaker.record_failure()
                 raise RuntimeError(
                     f"FMP API network error on {path}: {exc.reason}"
                 ) from exc
 
         if payload is None:
+            self._circuit_breaker.record_failure()
             raise RuntimeError(f"FMP API request failed on {path}: exhausted retries")
         
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:
+            stripped = (payload or "").lstrip()
+
+            # Detect HTML error pages (auth failure, maintenance, Cloudflare)
+            _lower = stripped[:200].lower()
+            if _lower.startswith("<!doctype") or _lower.startswith("<html") or _lower.startswith("<head"):
+                raise RuntimeError(
+                    f"FMP API returned HTML on {path} (likely auth/maintenance): "
+                    f"{stripped[:120]!r}"
+                ) from exc
+
             # FMP may return CSV even when JSON is requested (e.g. eod-bulk).
             # Detect CSV header and parse into list[dict] with numeric coercion.
-            stripped = (payload or "").lstrip()
             if stripped and (
                 stripped.startswith('"') or stripped.startswith("symbol,")
             ):
@@ -351,10 +466,25 @@ class FMPClient:
 
     def get_earnings_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         """Fetch earnings calendar for a date range."""
-        data = self._get(
-            "/stable/earnings-calendar",
-            {"from": date_from.isoformat(), "to": date_to.isoformat()},
-        )
+        try:
+            data = self._get(
+                "/stable/earnings-calendar",
+                {"from": date_from.isoformat(), "to": date_to.isoformat()},
+            )
+        except RuntimeError as exc:
+            msg = str(exc)
+            if (
+                "/stable/earnings-calendar" in msg
+                and (
+                    "HTTP 400" in msg
+                    or "HTTP 402" in msg
+                    or "HTTP 403" in msg
+                    or "HTTP 404" in msg
+                    or "circuit breaker OPEN" in msg
+                )
+            ):
+                return []
+            raise
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -448,6 +578,7 @@ class FMPClient:
             "country": str(country).strip().upper(),
             "isEtf": "true" if is_etf else "false",
             "isFund": "true" if is_fund else "false",
+            "isActivelyTrading": "true",
             "limit": max(1, min(int(limit), 1000)),
             "page": max(int(page), 0),
         }
@@ -513,7 +644,13 @@ class FMPClient:
             msg = str(exc)
             if (
                 "/stable/grades" in msg
-                and ("HTTP 402" in msg or "HTTP 404" in msg)
+                and (
+                    "HTTP 400" in msg
+                    or "HTTP 402" in msg
+                    or "HTTP 403" in msg
+                    or "HTTP 404" in msg
+                    or "circuit breaker OPEN" in msg
+                )
             ):
                 return []
             raise
@@ -523,13 +660,20 @@ class FMPClient:
 
     def get_sector_performance(self) -> list[dict[str, Any]]:
         """Fetch current sector performance snapshot from FMP stable endpoint."""
+        from datetime import date as _date
         try:
-            data = self._get("/stable/sector-performance-snapshot", {})
+            data = self._get("/stable/sector-performance-snapshot", {"date": _date.today().isoformat()})
         except RuntimeError as exc:
             msg = str(exc)
             if (
                 "/stable/sector-performance-snapshot" in msg
-                and ("HTTP 402" in msg or "HTTP 404" in msg)
+                and (
+                    "HTTP 400" in msg
+                    or "HTTP 402" in msg
+                    or "HTTP 403" in msg
+                    or "HTTP 404" in msg
+                    or "circuit breaker OPEN" in msg
+                )
             ):
                 return []
             raise
@@ -551,7 +695,13 @@ class FMPClient:
             data = self._get("/stable/quote", {"symbol": sym})
         except RuntimeError as exc:
             msg = str(exc)
-            if "/stable/quote" in msg and ("HTTP 402" in msg or "HTTP 404" in msg):
+            if "/stable/quote" in msg and (
+                "HTTP 400" in msg
+                or "HTTP 402" in msg
+                or "HTTP 403" in msg
+                or "HTTP 404" in msg
+                or "circuit breaker OPEN" in msg
+            ):
                 return {}
             raise
         if isinstance(data, list) and data and isinstance(data[0], dict):
