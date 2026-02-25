@@ -71,22 +71,20 @@ class SqliteStore:
     # ── Novelty clustering ──────────────────────────────────────
 
     def cluster_touch(self, h: str, ts: float) -> Tuple[int, float]:
-        """Touch a cluster and return ``(count, first_ts)``."""
-        row = self.conn.execute(
-            "SELECT first_ts, last_ts, count FROM clusters WHERE hash=?", (h,)
-        ).fetchone()
-        if not row:
-            self.conn.execute(
-                "INSERT INTO clusters(hash,first_ts,last_ts,count) VALUES(?,?,?,1)",
-                (h, ts, ts),
-            )
-            return (1, ts)
-        first_ts, _, count = row
-        count += 1
+        """Atomically touch a cluster and return ``(count, first_ts)``.
+
+        Uses UPSERT to avoid race conditions when multiple processes
+        access the same cluster hash concurrently.
+        """
         self.conn.execute(
-            "UPDATE clusters SET last_ts=?, count=? WHERE hash=?", (ts, count, h)
+            "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
+            "ON CONFLICT(hash) DO UPDATE SET last_ts=excluded.last_ts, count=count+1",
+            (h, ts, ts),
         )
-        return (count, first_ts)
+        row = self.conn.execute(
+            "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
+        ).fetchone()
+        return (row[0], row[1])
 
     # ── Maintenance ─────────────────────────────────────────────
 

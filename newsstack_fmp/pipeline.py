@@ -80,12 +80,16 @@ def load_universe(path: str) -> Set[str]:
     """Load universe from a text file (one ticker per line)."""
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return {
+            universe = {
                 line.strip().upper()
                 for line in f
                 if line.strip() and not line.startswith("#")
             }
+        if not universe:
+            logger.warning("Universe file %s is empty — universe filter disabled.", path)
+        return universe
     except FileNotFoundError:
+        logger.warning("Universe file %s not found — universe filter disabled.", path)
         return set()
 
 
@@ -240,6 +244,7 @@ def poll_once(
 
     all_items: List[NewsItem] = []
     new_fmp_max = fmp_last
+    cycle_warnings: List[str] = []
 
     # ── 1) FMP poll ─────────────────────────────────────────────
     if cfg.enable_fmp and cfg.fmp_api_key:
@@ -248,10 +253,12 @@ def poll_once(
             all_items.extend(fmp.fetch_stock_latest(cfg.stock_latest_page, cfg.stock_latest_limit))
         except Exception as exc:
             logger.warning("FMP stock-latest fetch failed: %s", exc)
+            cycle_warnings.append(f"fmp_stock_latest: {exc}")
         try:
             all_items.extend(fmp.fetch_press_latest(cfg.press_latest_page, cfg.press_latest_limit))
         except Exception as exc:
             logger.warning("FMP press-latest fetch failed: %s", exc)
+            cycle_warnings.append(f"fmp_press_latest: {exc}")
 
     # ── 2) Benzinga REST delta ──────────────────────────────────
     bz_rest_items: List[NewsItem] = []
@@ -265,6 +272,7 @@ def poll_once(
             all_items.extend(bz_rest_items)
         except Exception as exc:
             logger.warning("Benzinga REST fetch failed: %s", exc)
+            cycle_warnings.append(f"benzinga_rest: {exc}")
 
     # ── 3) Benzinga WS drain ────────────────────────────────────
     if cfg.enable_benzinga_ws and cfg.benzinga_api_key:
@@ -286,6 +294,7 @@ def poll_once(
         )
     except Exception as exc:
         logger.warning("process_news_items(fmp) failed: %s", exc)
+        cycle_warnings.append(f"process_fmp: {exc}")
         new_fmp_max = fmp_last
 
     # Benzinga items: cursor is updatedSince string, not epoch-based
@@ -298,6 +307,7 @@ def poll_once(
         )
     except Exception as exc:
         logger.warning("process_news_items(benzinga) failed: %s", exc)
+        cycle_warnings.append(f"process_benzinga: {exc}")
         new_bz_max = bz_last
 
     # ── 5) Update cursors ───────────────────────────────────────
@@ -340,6 +350,7 @@ def poll_once(
         "sources": cfg.active_sources,
         "ingest_counts": {"fmp": fmp_count, "benzinga": bz_count},
         "total_candidates": len(candidates),
+        "warnings": cycle_warnings,
     }
     try:
         export_open_prep(cfg.export_path, candidates, meta)

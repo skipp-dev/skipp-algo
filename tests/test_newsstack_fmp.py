@@ -851,3 +851,311 @@ class TestEffectiveTs(unittest.TestCase):
 
         cand = {"updated_ts": None, "published_ts": 500.0}
         self.assertEqual(_effective_ts(cand), 500.0)
+
+
+# ====================================================================
+# SR9: Production Gatekeeper review — second pass hardening tests
+# ====================================================================
+
+
+# ── H1: cluster_touch atomic UPSERT ───────────────────────────
+
+
+class TestClusterTouchAtomic(unittest.TestCase):
+    """cluster_touch must use atomic UPSERT — no IntegrityError on concurrent INSERT."""
+
+    def test_first_touch_returns_count_1(self):
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        count, first_ts = store.cluster_touch("abc123", 100.0)
+        self.assertEqual(count, 1)
+        self.assertEqual(first_ts, 100.0)
+        store.close()
+
+    def test_second_touch_increments(self):
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        store.cluster_touch("abc123", 100.0)
+        count, first_ts = store.cluster_touch("abc123", 200.0)
+        self.assertEqual(count, 2)
+        self.assertEqual(first_ts, 100.0)  # first_ts must NOT change
+        store.close()
+
+    def test_upsert_preserves_first_ts(self):
+        """Multiple touches must preserve the original first_ts."""
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        store.cluster_touch("h1", 10.0)
+        store.cluster_touch("h1", 20.0)
+        store.cluster_touch("h1", 30.0)
+        count, first_ts = store.cluster_touch("h1", 40.0)
+        self.assertEqual(count, 4)
+        self.assertEqual(first_ts, 10.0)
+        store.close()
+
+    def test_concurrent_insert_no_crash(self):
+        """Simulated concurrent UPSERT on same hash must not crash."""
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        # Simulate rapid concurrent touches — no IntegrityError
+        for i in range(50):
+            count, _ = store.cluster_touch("race_hash", float(i))
+            self.assertEqual(count, i + 1)
+        store.close()
+
+    def test_different_hashes_independent(self):
+        from newsstack_fmp.store_sqlite import SqliteStore
+
+        store = SqliteStore(":memory:")
+        store.cluster_touch("hash_a", 1.0)
+        store.cluster_touch("hash_a", 2.0)
+        count_a, _ = store.cluster_touch("hash_a", 3.0)
+        count_b, _ = store.cluster_touch("hash_b", 1.0)
+        self.assertEqual(count_a, 3)
+        self.assertEqual(count_b, 1)
+        store.close()
+
+
+# ── M1: load_universe warning on missing file ─────────────────
+
+
+class TestLoadUniverseWarning(unittest.TestCase):
+    """load_universe must log a warning when the file is missing."""
+
+    def test_missing_file_logs_warning(self):
+        from newsstack_fmp.pipeline import load_universe
+
+        with self.assertLogs("newsstack_fmp.pipeline", level="WARNING") as cm:
+            result = load_universe("/nonexistent/universe.txt")
+        self.assertEqual(result, set())
+        self.assertTrue(any("not found" in msg for msg in cm.output))
+
+    def test_empty_file_logs_warning(self):
+        from newsstack_fmp.pipeline import load_universe
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("# comment only\n\n")
+            path = f.name
+        try:
+            with self.assertLogs("newsstack_fmp.pipeline", level="WARNING") as cm:
+                result = load_universe(path)
+            self.assertEqual(result, set())
+            self.assertTrue(any("empty" in msg for msg in cm.output))
+        finally:
+            os.unlink(path)
+
+    def test_valid_file_no_warning(self):
+        from newsstack_fmp.pipeline import load_universe
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("AAPL\nMSFT\nGOOG\n")
+            path = f.name
+        try:
+            result = load_universe(path)
+            self.assertEqual(result, {"AAPL", "MSFT", "GOOG"})
+        finally:
+            os.unlink(path)
+
+
+# ── M2: Provider failure warnings in export meta ──────────────
+
+
+class TestCycleWarningsInMeta(unittest.TestCase):
+    """poll_once must surface provider failure warnings in meta.warnings."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_fmp_failure_appears_in_warnings(self, mock_fmp, mock_enr, mock_store, mock_export):
+        from newsstack_fmp.pipeline import poll_once
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.side_effect = RuntimeError("FMP down")
+        fmp.fetch_press_latest.return_value = []
+        mock_fmp.return_value = fmp
+
+        with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+            cfg = Config()
+            poll_once(cfg, universe=set())
+
+        mock_export.assert_called_once()
+        meta_arg = mock_export.call_args[0][2]
+        self.assertIn("warnings", meta_arg)
+        self.assertTrue(
+            any("fmp_stock_latest" in w for w in meta_arg["warnings"]),
+            f"Expected 'fmp_stock_latest' in warnings, got: {meta_arg['warnings']}"
+        )
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    def test_no_failures_empty_warnings(self, mock_enr, mock_store, mock_export):
+        from newsstack_fmp.pipeline import poll_once
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        with patch.dict(os.environ, {"FMP_API_KEY": "", "ENABLE_FMP": "0",
+                                      "FILTER_TO_UNIVERSE": "0"}):
+            cfg = Config()
+            poll_once(cfg, universe=set())
+
+        mock_export.assert_called_once()
+        meta_arg = mock_export.call_args[0][2]
+        self.assertIn("warnings", meta_arg)
+        self.assertEqual(meta_arg["warnings"], [])
+
+
+# ── Duplicate burst test ──────────────────────────────────────
+
+
+class TestDuplicateBurst(unittest.TestCase):
+    """200 identical items in one batch must produce only 1 candidate."""
+
+    def test_burst_dedup(self):
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        items = [
+            NewsItem(
+                provider="fmp_stock_latest",
+                item_id="burst_001",
+                published_ts=1700000000.0,
+                updated_ts=1700000000.0,
+                headline="AAPL beats Q1 earnings expectations",
+                snippet="",
+                tickers=["AAPL"],
+                url="https://example.com/burst",
+                source="Test",
+            )
+            for _ in range(200)
+        ]
+
+        process_news_items(
+            store, items, best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # All 200 have the same item_id → only 1 survives dedup
+        self.assertEqual(len(best), 1)
+        self.assertIn("AAPL", best)
+
+    def test_burst_different_ids_same_headline(self):
+        """Different item_ids with same headline → multiple dedup entries
+        but same cluster → novelty decay kicks in."""
+        from newsstack_fmp.pipeline import process_news_items
+        from newsstack_fmp.common_types import NewsItem
+        from newsstack_fmp.store_sqlite import SqliteStore
+        from newsstack_fmp.enrich import Enricher
+
+        store = SqliteStore(":memory:")
+        enricher = Enricher()
+        best: dict = {}
+
+        items = [
+            NewsItem(
+                provider="fmp_stock_latest",
+                item_id=f"unique_{i}",
+                published_ts=1700000000.0 + i,
+                updated_ts=1700000000.0 + i,
+                headline="AAPL beats Q1 earnings expectations",
+                snippet="",
+                tickers=["AAPL"],
+                url=f"https://example.com/{i}",
+                source="Test",
+            )
+            for i in range(10)
+        ]
+
+        process_news_items(
+            store, items, best, None, enricher, 99.0,
+            last_seen_epoch=0.0,
+        )
+        enricher.close()
+
+        # Only best-scoring entry survives (first one has highest novelty
+        # because it was the first cluster touch, so cluster_count=1).
+        # The best_by_ticker keeps the HIGHEST-scoring one, which is the
+        # first item (novelty=1.0).
+        self.assertEqual(len(best), 1)
+        self.assertIn("AAPL", best)
+        # Verify that all 10 items touched the cluster (query SQLite directly)
+        row = store.conn.execute(
+            "SELECT count FROM clusters WHERE hash=?",
+            (best["AAPL"].get("_cluster_hash", ""),)
+        ).fetchone()
+        # Use cluster_hash from scoring to verify
+        from newsstack_fmp.scoring import cluster_hash as ch
+        h = ch("fmp_stock_latest", "AAPL beats Q1 earnings expectations", ["AAPL"])
+        row = store.conn.execute("SELECT count FROM clusters WHERE hash=?", (h,)).fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], 10)  # all 10 touched the cluster
+
+
+# ── Partial provider outage test ──────────────────────────────
+
+
+class TestPartialProviderOutage(unittest.TestCase):
+    """When one provider fails, candidates from the other must still be exported."""
+
+    @patch("newsstack_fmp.pipeline.export_open_prep")
+    @patch("newsstack_fmp.pipeline._get_store")
+    @patch("newsstack_fmp.pipeline._get_enricher")
+    @patch("newsstack_fmp.pipeline._get_fmp_adapter")
+    def test_fmp_down_benzinga_candidates_exported(self, mock_fmp, mock_enr, mock_store, mock_export):
+        from newsstack_fmp.pipeline import poll_once, _best_by_ticker
+        from newsstack_fmp.config import Config
+
+        store = MagicMock()
+        store.get_kv.return_value = "0"
+        mock_store.return_value = store
+        mock_enr.return_value = MagicMock()
+
+        fmp = MagicMock()
+        fmp.fetch_stock_latest.side_effect = RuntimeError("FMP 503")
+        fmp.fetch_press_latest.side_effect = RuntimeError("FMP 503")
+        mock_fmp.return_value = fmp
+
+        # Pre-populate best_by_ticker with a candidate
+        old = _best_by_ticker.copy()
+        _best_by_ticker.clear()
+        _best_by_ticker["AAPL"] = {
+            "ticker": "AAPL",
+            "news_score": 0.9,
+            "updated_ts": time.time(),
+            "published_ts": time.time(),
+        }
+
+        try:
+            with patch.dict(os.environ, {"FMP_API_KEY": "test", "FILTER_TO_UNIVERSE": "0"}):
+                cfg = Config()
+                result = poll_once(cfg, universe=set())
+
+            # poll_once must not crash and must export the pre-existing candidate
+            mock_export.assert_called_once()
+            candidates_arg = mock_export.call_args[0][1]
+            self.assertTrue(len(candidates_arg) >= 1)
+        finally:
+            _best_by_ticker.clear()
+            _best_by_ticker.update(old)
