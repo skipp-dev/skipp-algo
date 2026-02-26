@@ -190,6 +190,17 @@ if "feed" not in st.session_state:
         from terminal_export import rewrite_jsonl
         rewrite_jsonl(TerminalConfig().jsonl_path, _restored)
         logger.info("Pruned %d stale items from JSONL on startup", _before_len - len(_restored))
+    # Also prune SQLite dedup table to match feed_max_age_s so items
+    # can be re-ingested on the next poll instead of being blocked by
+    # stale "seen" entries from a prior session.
+    if _before_len > 0 and len(_restored) < _before_len:
+        from newsstack_fmp.store_sqlite import SqliteStore as _InitStore
+        _init_cfg = TerminalConfig()
+        _init_store = _InitStore(_init_cfg.sqlite_path)
+        _init_store.prune_seen(keep_seconds=_init_cfg.feed_max_age_s)
+        _init_store.prune_clusters(keep_seconds=_init_cfg.feed_max_age_s)
+        _init_store.close()
+        logger.info("Pruned SQLite dedup tables (keep_seconds=%.0f) on startup", _init_cfg.feed_max_age_s)
     st.session_state.feed = _restored  # type: list[dict[str, Any]]
     if _restored:
         # Derive cursor from restored feed so polling resumes from latest.
@@ -207,6 +218,8 @@ if "last_poll_ts" not in st.session_state:
     st.session_state.last_poll_ts = 0.0
 if "last_resync_ts" not in st.session_state:
     st.session_state.last_resync_ts = 0.0
+if "consecutive_empty_polls" not in st.session_state:
+    st.session_state.consecutive_empty_polls = 0
 if "adapter" not in st.session_state:
     st.session_state.adapter = None
 if "fmp_adapter" not in st.session_state:
@@ -604,6 +617,30 @@ def _do_poll() -> None:
         src_label = "BZ+FMP"
     st.session_state.last_poll_status = f"{len(items)} items [{src_label}] (cursor={new_cursor})"
 
+    # Track consecutive empty polls — if the API returns items but
+    # _classify_item deduplicates them all away, the cursor advances
+    # but the feed doesn't grow.  After several empty polls, prune
+    # the SQLite dedup tables and reset the cursor to force a fresh
+    # ingestion cycle.
+    if not items:
+        st.session_state.consecutive_empty_polls = st.session_state.get(
+            "consecutive_empty_polls", 0
+        ) + 1
+        if st.session_state.consecutive_empty_polls >= 3:
+            try:
+                store.prune_seen(keep_seconds=cfg.feed_max_age_s)
+                store.prune_clusters(keep_seconds=cfg.feed_max_age_s)
+                st.session_state.cursor = None
+                logger.info(
+                    "Reset cursor + pruned SQLite after %d consecutive empty polls",
+                    st.session_state.consecutive_empty_polls,
+                )
+            except Exception as exc:
+                logger.warning("SQLite prune after empty polls failed: %s", exc)
+            st.session_state.consecutive_empty_polls = 0
+    else:
+        st.session_state.consecutive_empty_polls = 0
+
     # Evaluate alert rules on new items
     _evaluate_alerts(items)
 
@@ -913,6 +950,14 @@ else:
             top_n = min(20, len(rank_rows))
             df_rank = pd.DataFrame(rank_rows[:top_n])
             df_rank.index = df_rank.index + 1  # 1-based ranking
+
+            # Hide RT-only columns when RT engine has no data for displayed symbols
+            _rt_cols = ["tick", "streak", "price", "chg_pct", "vol_ratio"]
+            for _rc in _rt_cols:
+                if _rc in df_rank.columns and df_rank[_rc].apply(
+                    lambda v: v is None or v == "" or v == 0 or v == 0.0
+                ).all():
+                    df_rank = df_rank.drop(columns=[_rc])
 
             rt_label = f" | RT: {len(rt_quotes)} symbols" if rt_quotes else ""
             st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")

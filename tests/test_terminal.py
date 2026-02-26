@@ -730,9 +730,9 @@ class TestRtIntegration:
         r = rows[0]
         assert r["tick"] == ""
         assert r["streak"] == 0
-        assert r["price"] == 0.0
-        assert r["chg_pct"] == 0.0
-        assert r["vol_ratio"] == 0.0
+        assert r["price"] is None
+        assert r["chg_pct"] is None
+        assert r["vol_ratio"] is None
 
     def test_merge_mixed_coverage(self) -> None:
         from terminal_export import build_vd_snapshot
@@ -752,7 +752,7 @@ class TestRtIntegration:
         # AAPL has RT data
         assert by_sym["AAPL"]["price"] == 195.0
         # NVDA has no RT data → defaults
-        assert by_sym["NVDA"]["price"] == 0.0
+        assert by_sym["NVDA"]["price"] is None
         # TSLA has RT data
         assert by_sym["TSLA"]["price"] == 250.0
         assert by_sym["TSLA"]["tick"] == "↓"

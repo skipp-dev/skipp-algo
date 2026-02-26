@@ -272,9 +272,9 @@ def build_vd_snapshot(
             "age_min":          round(live_age_min, 1),
             "actionable":       "✅" if is_actionable else "",
             "provider":         d.get("provider", ""),
-            "price":            rt.get("price", 0.0),
-            "chg_pct":          rt.get("chg_pct", 0.0),
-            "vol_ratio":        rt.get("vol_ratio", 0.0),
+            "price":            rt.get("price") or None,
+            "chg_pct":          rt.get("chg_pct") or None,
+            "vol_ratio":        rt.get("vol_ratio") or None,
         })
 
     # Sort by score desc, then freshest first, then symbol asc (deterministic)
