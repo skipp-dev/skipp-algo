@@ -79,6 +79,11 @@ from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
     TerminalConfig,
+    fetch_benzinga_delayed_quotes,
+    fetch_benzinga_earnings,
+    fetch_benzinga_economics,
+    fetch_benzinga_market_movers,
+    fetch_benzinga_ratings,
     fetch_economic_calendar,
     fetch_sector_performance,
     poll_and_classify_multi,
@@ -582,6 +587,39 @@ def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
     }
 
 
+# ── Cached Benzinga Calendar Wrappers ───────────────────────────
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_ratings(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga analyst ratings for 5 minutes."""
+    return fetch_benzinga_ratings(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_earnings(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga earnings calendar for 5 minutes."""
+    return fetch_benzinga_earnings(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_economics(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga economics calendar for 5 minutes."""
+    return fetch_benzinga_economics(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_bz_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
+    """Cache Benzinga market movers for 60 seconds."""
+    return fetch_benzinga_market_movers(api_key)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
+    """Cache Benzinga delayed quotes for 60 seconds."""
+    syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
+    return fetch_benzinga_delayed_quotes(api_key, syms)
+
+
 # ── Alert evaluation ────────────────────────────────────────────
 
 _ALERT_WEBHOOK_BUDGET: int = 10  # max webhook POSTs per poll cycle
@@ -1009,9 +1047,10 @@ else:
     st.divider()
 
     # ── Tabs ────────────────────────────────────────────────
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_spikes, tab_heatmap, tab_calendar, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
-         "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "⚡ Alerts", "📊 Data Table"],
+         "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
+         "💹 Bz Movers", "⚡ Alerts", "📊 Data Table"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -1088,6 +1127,7 @@ else:
             score_badge = format_score_badge(score)
             prov_icon = provider_icon(_provider)
             _safe_url = safe_url(url)
+            _wiim_badge = " 🔍" if d.get("is_wiim") else ""
 
             with st.container():
                 cols = st.columns([1, 5, 1, 1, 1, 1])
@@ -1100,7 +1140,7 @@ else:
                 with cols[2]:
                     st.markdown(f"`{category}`")
                 with cols[3]:
-                    st.markdown(score_badge)
+                    st.markdown(score_badge + _wiim_badge)
                 with cols[4]:
                     st.markdown(f"{rec_icon} {age_str}")
                 with cols[5]:
@@ -1556,6 +1596,359 @@ else:
             else:
                 st.info("No calendar events found for the selected range.")
 
+    # ── TAB: Benzinga Intel (Ratings + Earnings + Economics) ─
+    with tab_bz_cal:
+        bz_key = st.session_state.cfg.benzinga_api_key
+        if not bz_key:
+            st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga calendar data.")
+        else:
+            st.subheader("📊 Benzinga Intelligence")
+            st.caption("Analyst Ratings, Earnings Calendar, and Economic Data from Benzinga")
+
+            bz_cal_col1, bz_cal_col2 = st.columns(2)
+            with bz_cal_col1:
+                bz_cal_from = st.date_input(
+                    "From", value=datetime.now(UTC).date(),
+                    key="bz_cal_from",
+                )
+            with bz_cal_col2:
+                bz_cal_to = st.date_input(
+                    "To", value=datetime.now(UTC).date() + timedelta(days=7),
+                    key="bz_cal_to",
+                )
+
+            bz_from_str = bz_cal_from.strftime("%Y-%m-%d")
+            bz_to_str = bz_cal_to.strftime("%Y-%m-%d")
+
+            # ── Sub-tabs for Ratings / Earnings / Economics ─
+            bz_sub_ratings, bz_sub_earnings, bz_sub_econ = st.tabs(
+                ["🎯 Analyst Ratings", "💰 Earnings", "🌐 Economics"],
+            )
+
+            # ── Analyst Ratings ─────────────────────────────
+            with bz_sub_ratings:
+                ratings_data = _cached_bz_ratings(bz_key, bz_from_str, bz_to_str)
+                if ratings_data:
+                    df_rat = pd.DataFrame(ratings_data)
+
+                    # Action filter
+                    actions = sorted(set(str(r.get("action_company", "")).strip() for r in ratings_data if r.get("action_company")))
+                    rat_action = st.selectbox("Action Filter", ["all"] + actions, key="bz_rat_action")
+
+                    display_cols = [c for c in [
+                        "ticker", "date", "action_company", "action_pt",
+                        "analyst_name", "rating_current", "rating_prior",
+                        "pt_current", "pt_prior", "importance",
+                    ] if c in df_rat.columns]
+
+                    if rat_action != "all" and "action_company" in df_rat.columns:
+                        df_rat = df_rat[df_rat["action_company"] == rat_action]
+
+                    st.caption(f"{len(df_rat)} analyst rating(s) from {bz_from_str} to {bz_to_str}")
+
+                    # Highlight upgrades/downgrades
+                    def _color_action(val: str) -> str:
+                        val_lower = str(val).lower()
+                        if "upgrade" in val_lower or "initiate" in val_lower:
+                            return "color: #00C853"
+                        if "downgrade" in val_lower:
+                            return "color: #FF1744"
+                        return ""
+
+                    df_display = df_rat[display_cols] if display_cols else df_rat
+                    if "action_company" in df_display.columns:
+                        styled_rat = df_display.style.map(_color_action, subset=["action_company"])
+                        st.dataframe(styled_rat, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+                    else:
+                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+
+                    # ── Key upgrades/downgrades summary ─────
+                    upgrades = [r for r in ratings_data if "upgrade" in str(r.get("action_company", "")).lower()]
+                    downgrades = [r for r in ratings_data if "downgrade" in str(r.get("action_company", "")).lower()]
+
+                    if upgrades or downgrades:
+                        st.divider()
+                        st.subheader("⚡ Key Rating Changes")
+                        rc1, rc2 = st.columns(2)
+                        with rc1:
+                            st.markdown("**🟢 Upgrades**")
+                            for r in upgrades[:10]:
+                                pt_cur = r.get("pt_current", "?")
+                                pt_pri = r.get("pt_prior", "?")
+                                _tk = safe_markdown_text(str(r.get("ticker", "?")))
+                                _analyst = safe_markdown_text(str(r.get("analyst_name", "?")))
+                                st.markdown(
+                                    f"**{_tk}** — {_analyst} | "
+                                    f"{r.get('rating_prior', '?')} → {r.get('rating_current', '?')} | "
+                                    f"PT: ${pt_pri} → ${pt_cur}"
+                                )
+                        with rc2:
+                            st.markdown("**🔴 Downgrades**")
+                            for r in downgrades[:10]:
+                                pt_cur = r.get("pt_current", "?")
+                                pt_pri = r.get("pt_prior", "?")
+                                _tk = safe_markdown_text(str(r.get("ticker", "?")))
+                                _analyst = safe_markdown_text(str(r.get("analyst_name", "?")))
+                                st.markdown(
+                                    f"**{_tk}** — {_analyst} | "
+                                    f"{r.get('rating_prior', '?')} → {r.get('rating_current', '?')} | "
+                                    f"PT: ${pt_pri} → ${pt_cur}"
+                                )
+                else:
+                    st.info("No analyst ratings found for the selected range.")
+
+            # ── Earnings Calendar ───────────────────────────
+            with bz_sub_earnings:
+                earnings_data = _cached_bz_earnings(bz_key, bz_from_str, bz_to_str)
+                if earnings_data:
+                    df_earn = pd.DataFrame(earnings_data)
+
+                    # Period filter
+                    periods = sorted(set(str(r.get("period", "")).strip() for r in earnings_data if r.get("period")))
+                    earn_period = st.selectbox("Period Filter", ["all"] + periods, key="bz_earn_period")
+
+                    display_cols = [c for c in [
+                        "ticker", "date", "period", "period_year",
+                        "eps", "eps_est", "eps_prior", "eps_surprise", "eps_surprise_percent",
+                        "revenue", "revenue_est", "revenue_prior", "revenue_surprise",
+                        "importance",
+                    ] if c in df_earn.columns]
+
+                    if earn_period != "all" and "period" in df_earn.columns:
+                        df_earn = df_earn[df_earn["period"] == earn_period]
+
+                    st.caption(f"{len(df_earn)} earnings report(s) from {bz_from_str} to {bz_to_str}")
+
+                    # Highlight beats/misses
+                    def _color_surprise(val: Any) -> str:
+                        try:
+                            v = float(val)
+                            if v > 0:
+                                return "color: #00C853"
+                            if v < 0:
+                                return "color: #FF1744"
+                        except (ValueError, TypeError):
+                            pass
+                        return ""
+
+                    df_display = df_earn[display_cols] if display_cols else df_earn
+                    surprise_cols = [c for c in ["eps_surprise", "eps_surprise_percent", "revenue_surprise"] if c in df_display.columns]
+                    if surprise_cols:
+                        styled_earn = df_display.style.map(_color_surprise, subset=surprise_cols)
+                        st.dataframe(styled_earn, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+                    else:
+                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+
+                    # ── Upcoming earnings highlight ─────────
+                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
+                    upcoming = df_earn[df_earn["date"] >= now_str] if "date" in df_earn.columns else pd.DataFrame()
+                    if not upcoming.empty:
+                        st.divider()
+                        st.subheader("⏰ Upcoming Earnings")
+                        for _, row in upcoming.head(15).iterrows():
+                            imp = row.get("importance", 0)
+                            imp_icon = "🔴" if imp and int(imp) >= 4 else ("🟠" if imp and int(imp) >= 2 else "🟡")
+                            _tk = safe_markdown_text(str(row.get("ticker", "?")))
+                            st.markdown(
+                                f"{imp_icon} **{_tk}** — {row.get('date', '?')} | "
+                                f"{row.get('period', '?')} {row.get('period_year', '')} | "
+                                f"EPS est: {row.get('eps_est', '?')} | Rev est: {row.get('revenue_est', '?')}"
+                            )
+                else:
+                    st.info("No earnings data found for the selected range.")
+
+            # ── Benzinga Economics ──────────────────────────
+            with bz_sub_econ:
+                econ_data = _cached_bz_economics(bz_key, bz_from_str, bz_to_str)
+                if econ_data:
+                    df_econ = pd.DataFrame(econ_data)
+
+                    # Country filter
+                    countries = sorted(set(str(r.get("country", "")).strip() for r in econ_data if r.get("country")))
+                    econ_country = st.selectbox("Country Filter", ["all"] + countries, key="bz_econ_country")
+
+                    # Importance filter
+                    econ_imp = st.selectbox("Min Importance", ["all", "1", "2", "3", "4", "5"], key="bz_econ_imp")
+
+                    display_cols = [c for c in [
+                        "date", "time", "country", "event_name",
+                        "actual", "consensus", "prior", "importance",
+                    ] if c in df_econ.columns]
+
+                    if econ_country != "all" and "country" in df_econ.columns:
+                        df_econ = df_econ[df_econ["country"] == econ_country]
+                    if econ_imp != "all" and "importance" in df_econ.columns:
+                        df_econ = df_econ[pd.to_numeric(df_econ["importance"], errors="coerce") >= int(econ_imp)]
+
+                    st.caption(f"{len(df_econ)} economic event(s) from {bz_from_str} to {bz_to_str}")
+
+                    # Highlight beats/misses vs consensus
+                    def _color_vs_consensus(row: pd.Series) -> list[str]:
+                        styles = [""] * len(row)
+                        try:
+                            actual = float(row.get("actual", ""))
+                            cons = float(row.get("consensus", ""))
+                            idx = list(row.index).index("actual") if "actual" in row.index else -1
+                            if idx >= 0:
+                                if actual > cons:
+                                    styles[idx] = "color: #00C853"
+                                elif actual < cons:
+                                    styles[idx] = "color: #FF1744"
+                        except (ValueError, TypeError):
+                            pass
+                        return styles
+
+                    df_display = df_econ[display_cols] if display_cols else df_econ
+                    if "actual" in df_display.columns and "consensus" in df_display.columns:
+                        styled_econ = df_display.style.apply(_color_vs_consensus, axis=1)
+                        st.dataframe(styled_econ, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+                    else:
+                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+
+                    # Upcoming events
+                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
+                    upcoming = df_econ[df_econ["date"] >= now_str] if "date" in df_econ.columns else pd.DataFrame()
+                    if not upcoming.empty:
+                        st.divider()
+                        st.subheader("⏰ Upcoming Economic Events")
+                        for _, row in upcoming.head(10).iterrows():
+                            imp = row.get("importance", 0)
+                            try:
+                                imp_val = int(imp)
+                            except (ValueError, TypeError):
+                                imp_val = 0
+                            imp_icon = "🔴" if imp_val >= 4 else ("🟠" if imp_val >= 2 else "🟡")
+                            _ev = safe_markdown_text(str(row.get("event_name", "?")))
+                            st.markdown(
+                                f"{imp_icon} **{_ev}** — "
+                                f"{row.get('country', '?')} | {row.get('date', '?')} {row.get('time', '')} | "
+                                f"Prior: {row.get('prior', '?')} | Consensus: {row.get('consensus', '?')}"
+                            )
+                else:
+                    st.info("No Benzinga economic events found for the selected range.")
+
+    # ── TAB: Benzinga Market Movers + Quotes ────────────────
+    with tab_bz_movers:
+        bz_key = st.session_state.cfg.benzinga_api_key
+        if not bz_key:
+            st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga market movers & quotes.")
+        else:
+            st.subheader("💹 Benzinga Market Movers")
+            st.caption("Real-time market movers from Benzinga. Gainers & Losers with delayed quotes.")
+
+            movers_data = _cached_bz_movers(bz_key)
+            gainers = movers_data.get("gainers", [])
+            losers = movers_data.get("losers", [])
+
+            # Summary metrics
+            m1, m2, m3 = st.columns(3)
+            m1.metric("🟢 Gainers", len(gainers))
+            m2.metric("🔴 Losers", len(losers))
+            m3.metric("Total Movers", len(gainers) + len(losers))
+
+            # Gainers table
+            bz_mov_gain, bz_mov_lose = st.tabs(["🟢 Gainers", "🔴 Losers"])
+
+            with bz_mov_gain:
+                if gainers:
+                    gainer_rows = []
+                    for g in gainers:
+                        gainer_rows.append({
+                            "Symbol": g.get("symbol", g.get("ticker", "?")),
+                            "Company": g.get("companyName", g.get("company_name", "")),
+                            "Price": g.get("price", g.get("last", "")),
+                            "Change": g.get("change", ""),
+                            "Change %": g.get("changePercent", g.get("change_percent", "")),
+                            "Volume": g.get("volume", ""),
+                            "Avg Volume": g.get("averageVolume", g.get("average_volume", "")),
+                            "Mkt Cap": g.get("marketCap", g.get("market_cap", "")),
+                            "Sector": g.get("gicsSectorName", g.get("sector", "")),
+                        })
+                    df_gain = pd.DataFrame(gainer_rows)
+                    df_gain.index = df_gain.index + 1
+                    st.dataframe(df_gain, width='stretch', height=min(600, 40 + 35 * len(df_gain)))
+                else:
+                    st.info("No gainers data available.")
+
+            with bz_mov_lose:
+                if losers:
+                    loser_rows = []
+                    for l in losers:
+                        loser_rows.append({
+                            "Symbol": l.get("symbol", l.get("ticker", "?")),
+                            "Company": l.get("companyName", l.get("company_name", "")),
+                            "Price": l.get("price", l.get("last", "")),
+                            "Change": l.get("change", ""),
+                            "Change %": l.get("changePercent", l.get("change_percent", "")),
+                            "Volume": l.get("volume", ""),
+                            "Avg Volume": l.get("averageVolume", l.get("average_volume", "")),
+                            "Mkt Cap": l.get("marketCap", l.get("market_cap", "")),
+                            "Sector": l.get("gicsSectorName", l.get("sector", "")),
+                        })
+                    df_lose = pd.DataFrame(loser_rows)
+                    df_lose.index = df_lose.index + 1
+                    st.dataframe(df_lose, width='stretch', height=min(600, 40 + 35 * len(df_lose)))
+                else:
+                    st.info("No losers data available.")
+
+            # ── Delayed Quotes Lookup ───────────────────────
+            st.divider()
+            st.subheader("🔎 Delayed Quotes Lookup")
+            st.caption("Enter up to 50 comma-separated tickers for Benzinga delayed quotes.")
+
+            # Auto-populate from feed tickers
+            _feed_tickers = sorted(set(d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"))[:20]
+            _default_symbols = ",".join(_feed_tickers) if _feed_tickers else "AAPL,NVDA,TSLA,MSFT,AMZN,SPY,QQQ"
+
+            quote_symbols = st.text_input(
+                "Symbols", value=_default_symbols,
+                key="bz_quote_symbols",
+                placeholder="AAPL, NVDA, TSLA, ...",
+            )
+
+            if quote_symbols.strip():
+                quotes_data = _cached_bz_quotes(bz_key, quote_symbols)
+                if quotes_data:
+                    quote_rows = []
+                    for q in quotes_data:
+                        change = q.get("change")
+                        change_pct = q.get("changePercent")
+                        change_str = f"{change:+.2f}" if isinstance(change, (int, float)) else str(change or "")
+                        change_pct_str = f"{change_pct:+.2f}%" if isinstance(change_pct, (int, float)) else str(change_pct or "")
+                        quote_rows.append({
+                            "Symbol": q.get("symbol", "?"),
+                            "Name": q.get("name", ""),
+                            "Last": q.get("last", ""),
+                            "Change": change_str,
+                            "Change %": change_pct_str,
+                            "Open": q.get("open", ""),
+                            "High": q.get("high", ""),
+                            "Low": q.get("low", ""),
+                            "Volume": q.get("volume", ""),
+                            "Prev Close": q.get("previousClose", ""),
+                            "52W High": q.get("fiftyTwoWeekHigh", ""),
+                            "52W Low": q.get("fiftyTwoWeekLow", ""),
+                        })
+                    df_quotes = pd.DataFrame(quote_rows)
+                    df_quotes.index = df_quotes.index + 1
+
+                    # Color change column
+                    def _color_change(val: str) -> str:
+                        if val.startswith("+"):
+                            return "color: #00C853"
+                        if val.startswith("-"):
+                            return "color: #FF1744"
+                        return ""
+
+                    change_cols = [c for c in ["Change", "Change %"] if c in df_quotes.columns]
+                    if change_cols:
+                        styled_q = df_quotes.style.map(_color_change, subset=change_cols)
+                        st.dataframe(styled_q, width='stretch', height=min(600, 40 + 35 * len(df_quotes)))
+                    else:
+                        st.dataframe(df_quotes, width='stretch', height=min(600, 40 + 35 * len(df_quotes)))
+                else:
+                    st.info("No quote data returned. Check that symbols are valid.")
+
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts:
         st.subheader("⚡ Alert Log")
@@ -1617,7 +2010,7 @@ else:
                 "ticker", "headline", "news_score", "relevance",
                 "sentiment_label", "category", "event_label", "materiality",
                 "recency_bucket", "age_minutes", "source_tier", "provider",
-                "entity_count", "novelty_count", "impact", "polarity",
+                "entity_count", "novelty_count", "impact", "polarity", "is_wiim",
             ]
             df = pd.DataFrame(feed)
             # Only show columns that exist

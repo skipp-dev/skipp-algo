@@ -23,6 +23,11 @@ from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+from newsstack_fmp.ingest_benzinga_calendar import (
+    BenzingaCalendarAdapter,
+    fetch_benzinga_movers,
+    fetch_benzinga_quotes,
+)
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
 from newsstack_fmp.store_sqlite import SqliteStore
 
@@ -155,6 +160,7 @@ class ClassifiedItem:
     # Benzinga metadata
     channels: list[str]
     tags: list[str]
+    is_wiim: bool  # "Why Is It Moving" — Benzinga's high-signal channel
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to plain dict (for JSON export / Streamlit display)."""
@@ -190,6 +196,7 @@ class ClassifiedItem:
             "source_rank": self.source_rank,
             "channels": self.channels,
             "tags": self.tags,
+            "is_wiim": self.is_wiim,
         }
 
 
@@ -249,6 +256,11 @@ def _classify_item(
     channels = [c.get("name", "") for c in raw.get("channels", []) if isinstance(c, dict)]
     tags = [t.get("name", "") for t in raw.get("tags", []) if isinstance(t, dict)]
 
+    # ── WIIM boost ──────────────────────────────────────────
+    # "Why Is It Moving" is Benzinga's curated high-signal channel.
+    # Articles tagged WIIM receive a 15% score boost (capped at 1.0).
+    is_wiim = any(ch.upper() == "WIIM" for ch in channels)
+
     # ── Build one ClassifiedItem per ticker ──────────────────
     results: list[ClassifiedItem] = []
     for tk in tickers:
@@ -290,7 +302,12 @@ def _classify_item(
             # benzinga metadata
             channels=channels,
             tags=tags,
+            is_wiim=is_wiim,
         )
+        # Apply WIIM boost after construction
+        if is_wiim:
+            ci.news_score = min(1.0, ci.news_score * 1.15)
+            ci.relevance = min(1.0, ci.relevance * 1.10)
         results.append(ci)
     return results
 
@@ -530,3 +547,90 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
         _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
         logger.warning("FMP sector performance fetch failed: %s", _msg)
         return []
+
+
+# ── Benzinga Calendar Wrappers ──────────────────────────────────
+# Thin wrappers that mirror the fetch_economic_calendar / fetch_sector_performance
+# pattern: accept an API key, return list[dict].  The BenzingaCalendarAdapter is
+# instantiated-per-call so callers don't need to manage its lifecycle.
+
+def fetch_benzinga_ratings(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch analyst ratings from Benzinga (upgrades, downgrades, PT changes)."""
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_ratings(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga ratings fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_earnings(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch earnings calendar from Benzinga (EPS, revenue estimates/actuals)."""
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_earnings(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga earnings fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_economics(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch economic calendar from Benzinga (GDP, NFP, CPI, FOMC, etc.)."""
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_economics(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga economics fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_market_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
+    """Fetch market movers (gainers + losers) from Benzinga."""
+    return fetch_benzinga_movers(api_key)
+
+
+def fetch_benzinga_delayed_quotes(
+    api_key: str,
+    symbols: list[str],
+) -> list[dict[str, Any]]:
+    """Fetch delayed quotes from Benzinga for given symbols."""
+    return fetch_benzinga_quotes(api_key, symbols)

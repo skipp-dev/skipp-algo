@@ -287,6 +287,7 @@ class TestJsonlExport:
             source_tier="TIER_2", source_rank=2,
             channels=["Earnings"], tags=["AI"],
             relevance=0.5, entity_count=1,
+            is_wiim=False,
         )
         defaults.update(overrides)
         return ClassifiedItem(**defaults)
@@ -367,6 +368,7 @@ class TestWebhookStub:
             source_tier="TIER_2", source_rank=2,
             channels=[], tags=[],
             relevance=0.5, entity_count=1,
+            is_wiim=False,
         )
         defaults.update(kw)
         return ClassifiedItem(**defaults)

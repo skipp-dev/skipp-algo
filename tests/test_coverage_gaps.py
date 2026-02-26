@@ -79,6 +79,7 @@ def _make_classified_item(**overrides: Any) -> Any:
         source_rank=2,
         channels=["Earnings"],
         tags=["AI"],
+        is_wiim=False,
     )
     defaults.update(overrides)
     return ClassifiedItem(**defaults)
@@ -275,6 +276,7 @@ class TestClassifiedItemDataclass(unittest.TestCase):
             "sentiment_label", "sentiment_score", "event_class",
             "event_label", "materiality", "recency_bucket", "age_minutes",
             "is_actionable", "source_tier", "source_rank", "channels", "tags",
+            "is_wiim",
         }
         self.assertEqual(set(d.keys()), expected_keys)
 
