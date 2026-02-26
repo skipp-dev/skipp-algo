@@ -203,7 +203,7 @@ def _classify_item(
         return []
 
     # ── newsstack_fmp scoring ───────────────────────────────
-    chash = cluster_hash(item.provider or "", item.headline or "", item.tickers or [])
+    chash = cluster_hash(item.headline or "", item.tickers or [])
     c_count, _ = store.cluster_touch(chash, ts)
     score_result = classify_and_score(item, cluster_count=c_count, chash=chash)
 

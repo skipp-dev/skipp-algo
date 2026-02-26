@@ -35,7 +35,7 @@ PATTERNS: list[tuple[str, float, re.Pattern[str]]] = [
     ("dividend",    0.82, re.compile(r"\b(dividend|special\s+dividend|ex[\-\s]?dividend|payout)\b", re.I)),
     ("earnings",    0.80, re.compile(r"\b(reports?\s+q\d|earnings|eps|revenue|beat\s+estimates?|miss\s+estimates?)\b", re.I)),
     # ── Medium urgency ──
-    ("macro",       0.78, re.compile(r"\b(fed\b|fomc|rate\s+(cut|hike|decision)|cpi|inflation|nonfarm|payrolls?|gdp|pce|jobless\s+claims)\b", re.I)),
+    ("macro",       0.78, re.compile(r"\b(fed|fomc|rate\s+(cut|hike|decision)|cpi|inflation|nonfarm|payrolls?|gdp|pce|jobless\s+claims)\b", re.I)),
     ("crypto",      0.75, re.compile(r"\b(bitcoin|btc|ethereum|eth|crypto|blockchain|defi|nft|stablecoin)\b", re.I)),
     ("ipo",         0.80, re.compile(r"\b(ipo|initial\s+public\s+offering|direct\s+listing|spac)\b", re.I)),
     ("analyst",     0.65, re.compile(r"\b(upgrade|downgrade|initiates?|price\s+target|reiterate|overweight|underweight|outperform|underperform)\b", re.I)),
@@ -96,12 +96,12 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s)
 
 
-def cluster_hash(provider: str, headline: str, tickers: List[str]) -> str:
+def cluster_hash(headline: str, tickers: List[str]) -> str:
     """Deterministic cluster key for novelty tracking.
 
-    Provider is intentionally EXCLUDED from the key so that the same
-    story from FMP + Benzinga maps to the same cluster and receives
-    proper novelty decay.
+    Provider is intentionally excluded so that the same story from
+    FMP + Benzinga maps to the same cluster and receives proper
+    novelty decay.
     """
     # Normalise tickers to uppercase so mixed-case inputs hash identically.
     key = f"{_norm(headline)}|{','.join(sorted(set(t.upper() for t in tickers)))}"
@@ -129,13 +129,11 @@ def classify_and_score(
     if isinstance(item, NewsItem):
         headline = item.headline or ""
         tickers = item.tickers or []
-        provider = item.provider or ""
     else:
         headline = item.get("headline") or ""
         tickers = item.get("tickers") or []
-        provider = item.get("provider", "")
     if chash is None:
-        chash = cluster_hash(provider, headline, tickers)
+        chash = cluster_hash(headline, tickers)
 
     entity_count = len(tickers)
 

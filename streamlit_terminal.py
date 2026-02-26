@@ -239,6 +239,12 @@ with st.sidebar:
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
     if st.button("🗑️ Reset dedup DB", use_container_width=True):
         import pathlib
+        # Close existing SQLite connection before deleting files
+        if st.session_state.store is not None:
+            try:
+                st.session_state.store.close()
+            except Exception:
+                pass
         db_path = pathlib.Path(cfg.sqlite_path)
         # Remove main DB + SQLite WAL/SHM journal files
         for suffix in ("", "-wal", "-shm"):
@@ -297,7 +303,7 @@ with st.sidebar:
         with cols[0]:
             st.caption(f"{rule['ticker']}: {rule['condition']} ({rule.get('threshold', '')})")
         with cols[1]:
-            if st.button("✕", key=f"del_rule_{i}"):
+            if st.button("✕", key=f"del_rule_{rule.get('created', i)}"):
                 st.session_state.alert_rules.pop(i)
                 Path("artifacts/alert_rules.json").write_text(
                     json.dumps(st.session_state.alert_rules, indent=2),
