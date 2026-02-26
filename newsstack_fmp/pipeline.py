@@ -166,7 +166,7 @@ def process_news_items(
             continue
 
         # Novelty cluster -- compute hash once, reuse in scorer
-        chash = cluster_hash(it.provider or "", it.headline or "", it.tickers or [])
+        chash = cluster_hash(it.headline or "", it.tickers or [])
         cluster_count, _ = store.cluster_touch(chash, ts)
         score = classify_and_score(it, cluster_count=cluster_count, chash=chash)
 
