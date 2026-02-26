@@ -108,7 +108,9 @@ class FmpAdapter:
                     time.sleep(wait)
                     continue
         # All retries exhausted
-        raise last_exc  # type: ignore[misc]
+        if last_exc is not None:
+            raise last_exc
+        raise RuntimeError(f"FMP: all {self._MAX_RETRIES} retries exhausted for {_sanitize_url(url)}")
 
     def fetch_stock_latest(self, page: int, limit: int) -> List[NewsItem]:
         """GET /stable/news/stock-latest?page=…&limit=…"""

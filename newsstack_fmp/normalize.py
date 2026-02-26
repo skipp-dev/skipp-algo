@@ -104,6 +104,11 @@ def normalize_fmp(provider: str, it: Dict[str, Any]) -> NewsItem:
     published = str(it.get("publishedDate") or it.get("published") or it.get("date") or "").strip()
     ts = _to_epoch(published)
 
+    # Guard: FMP has no stable ``id``; if URL is also missing, generate a
+    # deterministic fallback so dedup doesn't collapse unrelated items.
+    if not item_id:
+        item_id = f"fmp_{int(ts)}_{hash(headline) & 0xFFFFFFFF:08x}"
+
     return NewsItem(
         provider=provider,
         item_id=item_id,

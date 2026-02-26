@@ -327,8 +327,11 @@ def poll_and_classify(
         max_ts = 0.0
 
     for item in raw_items:
-        classified = _classify_item(item, store, now_utc)
-        all_classified.extend(classified)
+        try:
+            classified = _classify_item(item, store, now_utc)
+            all_classified.extend(classified)
+        except Exception as exc:
+            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], exc)
 
         # Track cursor: use the max updated_ts from valid items
         ts = item.updated_ts or item.published_ts
@@ -410,8 +413,11 @@ def poll_and_classify_multi(
         max_ts = 0.0
 
     for item in raw_items:
-        classified = _classify_item(item, store, now_utc)
-        all_classified.extend(classified)
+        try:
+            classified = _classify_item(item, store, now_utc)
+            all_classified.extend(classified)
+        except Exception as exc:
+            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], exc)
 
         ts = item.updated_ts or item.published_ts
         if ts and ts > 0:
