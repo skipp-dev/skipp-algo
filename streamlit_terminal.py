@@ -886,24 +886,27 @@ else:
             neutral_segs = [r for r in seg_rows if r["net_sent"] == 0]
 
             scols = st.columns(3)
+            def _safe_seg(name: str) -> str:
+                return name.replace("[", "\\[").replace("]", "\\]")
+
             with scols[0]:
                 st.markdown("**🟢 Bullish Segments**")
                 if not leading:
                     st.caption("None")
                 for r in leading[:8]:
-                    st.markdown(f"**{r['segment']}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    st.markdown(f"**{_safe_seg(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
             with scols[1]:
                 st.markdown("**🟡 Neutral Segments**")
                 if not neutral_segs:
                     st.caption("None")
                 for r in neutral_segs[:8]:
-                    st.markdown(f"{r['segment']} — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    st.markdown(f"{_safe_seg(r['segment'])} — {r['articles']} articles, avg {r['avg_score']:.3f}")
             with scols[2]:
                 st.markdown("**🔴 Bearish Segments**")
                 if not lagging:
                     st.caption("None")
                 for r in lagging[:8]:
-                    st.markdown(f"**{r['segment']}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    st.markdown(f"**{_safe_seg(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
 
             st.divider()
 
@@ -1113,8 +1116,9 @@ else:
                     for _, row in upcoming.head(10).iterrows():
                         impact = row.get("impact", "")
                         impact_icon = "🔴" if impact == "High" else ("🟠" if impact == "Medium" else "🟡")
+                        _ev = str(row.get('event', '?')).replace("[", "\\[").replace("]", "\\]")
                         st.markdown(
-                            f"{impact_icon} **{row.get('event', '?')}** — "
+                            f"{impact_icon} **{_ev}** — "
                             f"{row.get('country', '?')} | {row.get('date', '?')} | "
                             f"Prev: {row.get('previous', '?')} | Cons: {row.get('consensus', '?')}"
                         )

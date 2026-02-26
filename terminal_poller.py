@@ -377,6 +377,10 @@ def poll_and_classify_multi(
     raw_items: List[NewsItem] = []
     errors: List[str] = []
 
+    def _sanitize_exc(exc: Exception) -> str:
+        """Strip API keys/tokens from exception text for safe logging."""
+        return re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+
     # ── Benzinga ────────────────────────────────────────────
     if benzinga_adapter is not None:
         try:
@@ -385,21 +389,24 @@ def poll_and_classify_multi(
             )
             raw_items.extend(bz_items)
         except Exception as exc:
-            logger.warning("Benzinga poll failed: %s", exc)
-            errors.append(f"Benzinga: {exc}")
+            _msg = _sanitize_exc(exc)
+            logger.warning("Benzinga poll failed: %s", _msg)
+            errors.append(f"Benzinga: {_msg}")
 
     # ── FMP (stock news + press releases) ───────────────────
     if fmp_adapter is not None:
         try:
             raw_items.extend(fmp_adapter.fetch_stock_latest(page=0, limit=page_size))
         except Exception as exc:
-            logger.warning("FMP stock-news poll failed: %s", exc)
-            errors.append(f"FMP-stock: {exc}")
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP stock-news poll failed: %s", _msg)
+            errors.append(f"FMP-stock: {_msg}")
         try:
             raw_items.extend(fmp_adapter.fetch_press_latest(page=0, limit=page_size))
         except Exception as exc:
-            logger.warning("FMP press-release poll failed: %s", exc)
-            errors.append(f"FMP-press: {exc}")
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP press-release poll failed: %s", _msg)
+            errors.append(f"FMP-press: {_msg}")
 
     # If ALL configured sources failed, raise so the caller can surface
     # the error in the UI instead of showing misleading "0 items" success.

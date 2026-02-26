@@ -108,7 +108,7 @@ def normalize_fmp(provider: str, it: Dict[str, Any]) -> NewsItem:
     # Guard: FMP has no stable ``id``; if URL is also missing, generate a
     # deterministic fallback so dedup doesn't collapse unrelated items.
     if not item_id:
-        _digest = hashlib.md5(headline.encode("utf-8", errors="replace")).hexdigest()[:8]
+        _digest = hashlib.md5(headline.encode("utf-8", errors="replace"), usedforsecurity=False).hexdigest()[:8]
         item_id = f"fmp_{int(ts)}_{_digest}"
 
     return NewsItem(
