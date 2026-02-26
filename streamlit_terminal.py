@@ -947,7 +947,7 @@ else:
                 r["recency"] = _REC_MAP.get(r.get("recency", ""), "") + " " + r.get("recency", "")
 
             # Show top 20 ranked symbols
-            top_n = min(20, len(rank_rows))
+            top_n = min(30, len(rank_rows))
             df_rank = pd.DataFrame(rank_rows[:top_n])
             df_rank.index = df_rank.index + 1  # 1-based ranking
 
