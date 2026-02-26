@@ -957,7 +957,10 @@ else:
                         st.markdown(f"{event_label} | {source_tier} | 🏷️{entity_count}")
                     with c2:
                         safe_hl = headline[:200].replace("[", "\\[").replace("]", "\\]")
-                        st.markdown(f"**{safe_hl}**")
+                        url = d.get("url", "")
+                        safe_url = (url or "").replace(")", "%29").replace("(", "%28") if url else ""
+                        hl_display = f"[{safe_hl}]({safe_url})" if safe_url else f"**{safe_hl}**"
+                        st.markdown(hl_display)
                         channels = ", ".join(d.get("channels", [])[:5])
                         tags = ", ".join(d.get("tags", [])[:5])
                         if channels:
@@ -1011,11 +1014,26 @@ else:
                     return ["color: #FF8C00"] * len(row)
                 return [""] * len(row)
 
+            # Build column config — headline links to article URL
+            _col_cfg: dict[str, Any] = {}
+            if "url" in df_rank.columns and "headline" in df_rank.columns:
+                # Merge URL into headline for LinkColumn display
+                df_rank["headline"] = df_rank.apply(
+                    lambda r: r["url"] if r.get("url") else r.get("headline", ""),
+                    axis=1,
+                )
+                _col_cfg["headline"] = st.column_config.LinkColumn(
+                    "Headline",
+                    display_text=r"https?://[^/]+/(.{0,80}).*",
+                )
+                df_rank = df_rank.drop(columns=["url"])
+
             styled = df_rank.style.apply(_highlight_fresh, axis=1)
             st.dataframe(
                 styled,
                 width='stretch',
                 height=min(600, 40 + 35 * len(df_rank)),
+                column_config=_col_cfg if _col_cfg else None,
             )
 
     # ── TAB: Segments ───────────────────────────────────────

@@ -290,6 +290,8 @@ def build_vd_snapshot(
             "recency":          recency_bucket,
             "age_min":          round(live_age_min, 1),
             "actionable":       "✅" if is_actionable else "",
+            "headline":         (d.get("headline", "") or "")[:120],
+            "url":              d.get("url", ""),
             "provider":         d.get("provider", ""),
             "price":            rt.get("price") or None,
             "chg_pct":          rt.get("chg_pct") or None,
