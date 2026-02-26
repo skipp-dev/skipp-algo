@@ -139,10 +139,15 @@ def _resync_feed_from_jsonl() -> None:
     """
     cfg: TerminalConfig = st.session_state.cfg
     if not cfg.jsonl_path:
+        # Still update the timestamp so we don't re-check every rerun.
+        st.session_state.last_resync_ts = time.time()
         return
 
     restored = load_jsonl_feed(cfg.jsonl_path)
     if not restored:
+        # JSONL empty/missing — update timestamp so we don't retry
+        # on every 1-second rerun (unnecessary I/O).
+        st.session_state.last_resync_ts = time.time()
         return
 
     # Build lookup of existing (item_id, ticker) pairs for fast dedup
@@ -201,7 +206,7 @@ if "feed" not in st.session_state:
         _init_store.prune_clusters(keep_seconds=_init_cfg.feed_max_age_s)
         _init_store.close()
         logger.info("Pruned SQLite dedup tables (keep_seconds=%.0f) on startup", _init_cfg.feed_max_age_s)
-    st.session_state.feed = _restored  # type: list[dict[str, Any]]
+    st.session_state.feed = _restored
     if _restored:
         # Derive cursor from restored feed so polling resumes from latest.
         # Items use "published_ts" (float epoch) or "updated_ts".
@@ -703,7 +708,19 @@ def _do_poll() -> None:
 
 # ── Execute poll if needed ──────────────────────────────────────
 
-if force_poll or (st.session_state.auto_refresh and _should_poll(interval)):
+# When the feed is completely empty (e.g. all JSONL items were stale
+# and pruned on startup), force an immediate poll so the user sees
+# data on the very first render instead of "No items yet".
+_feed_empty_needs_poll = (
+    not st.session_state.feed
+    and st.session_state.poll_count == 0
+    and (st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key)
+)
+
+if _feed_empty_needs_poll:
+    with st.spinner("Loading latest news…"):
+        _do_poll()
+elif force_poll or (st.session_state.auto_refresh and _should_poll(interval)):
     _do_poll()
 
 # Resync from JSONL even outside poll cycles so that sessions which
@@ -724,20 +741,36 @@ if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_ap
 feed = st.session_state.feed
 
 if not feed:
-    st.info("No items yet. Waiting for first poll…")
+    # Show poll status / errors so the user knows what's happening
+    _poll_err = st.session_state.get("last_poll_error", "")
+    if _poll_err:
+        st.error(f"Poll error: {_poll_err}")
+    elif st.session_state.poll_count > 0:
+        st.warning("Poll returned no new items. Will retry automatically.")
+    else:
+        st.info("No items yet. Waiting for first poll…")
 else:
     # ── Stats bar ───────────────────────────────────────────
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     unique_tickers = len(set(d["ticker"] for d in feed if d.get("ticker") != "MARKET"))
     actionable = sum(1 for d in feed if d.get("is_actionable"))
     high_mat = sum(1 for d in feed if d.get("materiality") == "HIGH")
     avg_relevance = sum(d.get("relevance", 0) for d in feed) / max(1, len(feed))
+
+    # Compute age of the newest item so users can tell if the feed is
+    # stale because the market is quiet vs polling is broken.
+    _newest_ts = max(
+        (d.get("published_ts") or 0 for d in feed),
+        default=0,
+    )
+    _newest_age_min = (time.time() - _newest_ts) / 60 if _newest_ts > 0 else 0
 
     col1.metric("Feed items", len(feed))
     col2.metric("Unique tickers", unique_tickers)
     col3.metric("Actionable", actionable)
     col4.metric("HIGH materiality", high_mat)
     col5.metric("Avg relevance", f"{avg_relevance:.3f}")
+    col6.metric("Newest item", f"{_newest_age_min:.0f}m ago")
 
     st.divider()
 
