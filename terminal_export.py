@@ -43,33 +43,76 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
         f.write(line + "\n")
 
 
-def rotate_jsonl(path: str, max_lines: int = 5000) -> None:
-    """Trim JSONL file to the last *max_lines* lines if it grows too big.
+def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
+    """Atomically rewrite *path* with only the given *items*.
+
+    Used after in-memory prune so that stale entries are removed from
+    disk and won't reappear when the next Streamlit session starts.
+    """
+    dest_dir = os.path.dirname(os.path.abspath(path)) or "."
+    os.makedirs(dest_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rw_")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            for d in items:
+                fh.write(json.dumps(d, default=str) + "\n")
+        os.replace(tmp_path, path)
+        logger.info("Rewrote JSONL %s with %d items", path, len(items))
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def rotate_jsonl(path: str, max_lines: int = 5000, max_age_s: float = 14400.0) -> None:
+    """Trim JSONL file to the last *max_lines* lines and drop stale entries.
 
     Uses atomic tempfile + os.replace so a crash during rotation
     cannot truncate/corrupt the existing file.
     Called periodically (e.g. every 100 polls).
+
+    When *max_age_s* > 0, lines whose ``published_ts`` is older than
+    ``time.time() - max_age_s`` are dropped regardless of count.
     """
     try:
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-        if len(lines) <= max_lines:
-            return
-        dest_dir = os.path.dirname(os.path.abspath(path)) or "."
-        fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rot_")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
-                fh.writelines(lines[-max_lines:])
-            os.replace(tmp_path, path)
-        except BaseException:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
-        logger.info("Rotated JSONL %s: %d → %d lines", path, len(lines), max_lines)
     except FileNotFoundError:
-        pass
+        return
+
+    # Age-based filtering
+    cutoff = time.time() - max_age_s if max_age_s > 0 else 0.0
+    if cutoff:
+        fresh_lines: list[str] = []
+        for raw in lines:
+            try:
+                d = json.loads(raw)
+                if (d.get("published_ts") or 0) >= cutoff:
+                    fresh_lines.append(raw)
+            except (json.JSONDecodeError, TypeError):
+                fresh_lines.append(raw)  # keep unparseable lines
+        lines = fresh_lines
+
+    # Line-count cap
+    if len(lines) <= max_lines and not cutoff:
+        return
+    keep = lines[-max_lines:] if len(lines) > max_lines else lines
+
+    dest_dir = os.path.dirname(os.path.abspath(path)) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rot_")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.writelines(keep)
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+    logger.info("Rotated JSONL %s: %d → %d lines", path, len(lines), len(keep))
 
 
 def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:

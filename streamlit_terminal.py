@@ -129,7 +129,14 @@ if "feed" not in st.session_state:
     _restored = load_jsonl_feed(TerminalConfig().jsonl_path)
     # Drop items older than feed_max_age_s so a stale JSONL doesn't
     # populate the session with outdated symbols.
+    _before_len = len(_restored)
     _restored = _prune_stale_items(_restored)
+    if len(_restored) < _before_len:
+        # Rewrite the JSONL file on disk so stale entries don't
+        # reappear when the next Streamlit session starts.
+        from terminal_export import rewrite_jsonl
+        rewrite_jsonl(TerminalConfig().jsonl_path, _restored)
+        logger.info("Pruned %d stale items from JSONL on startup", _before_len - len(_restored))
     st.session_state.feed = _restored  # type: list[dict[str, Any]]
     if _restored:
         # Derive cursor from restored feed so polling resumes from latest.
@@ -373,7 +380,7 @@ with st.sidebar:
         if os.path.isfile(_rt_path):
             st.warning("RT Engine: file exists but stale (>120s)")
         else:
-            st.info("RT Engine: not running")
+            st.info("RT Engine: not running (terminal poller is independent)")
 
 
 # ── Sentiment helpers ───────────────────────────────────────────
@@ -577,9 +584,9 @@ def _do_poll() -> None:
     # Prune stale items (age-based) so rankings stay fresh
     st.session_state.feed = _prune_stale_items(st.session_state.feed)
 
-    # Rotate JSONL periodically
+    # Rotate JSONL periodically (also drops stale entries)
     if cfg.jsonl_path and st.session_state.poll_count % 100 == 0:
-        rotate_jsonl(cfg.jsonl_path)
+        rotate_jsonl(cfg.jsonl_path, max_age_s=cfg.feed_max_age_s)
 
     # Prune SQLite dedup tables periodically (alongside JSONL rotation)
     if st.session_state.poll_count % 100 == 0:

@@ -1402,9 +1402,10 @@ class TestRotateJsonlEdgeCases(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "feed.jsonl")
+            now = time.time()
             with open(path, "w") as f:
                 for i in range(100):
-                    f.write(json.dumps({"i": i}) + "\n")
+                    f.write(json.dumps({"i": i, "published_ts": now}) + "\n")
 
             rotate_jsonl(path, max_lines=20)
 
