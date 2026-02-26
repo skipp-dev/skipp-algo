@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 
@@ -37,7 +37,7 @@ class Enricher:
             headers={"User-Agent": "newsstack-fmp/1.0 (enricher)"},
         )
 
-    def fetch_url_snippet(self, url: Optional[str]) -> Dict[str, Any]:
+    def fetch_url_snippet(self, url: str | None) -> dict[str, Any]:
         """Fetch URL and return a short text snippet.
 
         Non-critical — any failure returns ``{"enriched": False}``.

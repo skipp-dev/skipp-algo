@@ -16,7 +16,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, List
+from typing import Any
 
 import httpx
 
@@ -57,7 +57,7 @@ def _safe_json(r: httpx.Response) -> Any:
         raise ValueError(
             f"FMP returned non-JSON (content-type={ct!r}, "
             f"status={r.status_code}, url={_sanitize_url(str(r.url))})"
-        )
+        ) from None
 
 
 class FmpAdapter:
@@ -112,13 +112,13 @@ class FmpAdapter:
             raise last_exc
         raise RuntimeError(f"FMP: all {self._MAX_RETRIES} retries exhausted for {_sanitize_url(url)}")
 
-    def fetch_stock_latest(self, page: int, limit: int) -> List[NewsItem]:
+    def fetch_stock_latest(self, page: int, limit: int) -> list[NewsItem]:
         """GET /stable/news/stock-latest?page=…&limit=…"""
         url = f"{FMP_BASE}/news/stock-latest"
         r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_stock_latest", it) for it in _as_list(_safe_json(r))]
 
-    def fetch_press_latest(self, page: int, limit: int) -> List[NewsItem]:
+    def fetch_press_latest(self, page: int, limit: int) -> list[NewsItem]:
         """GET /stable/news/press-releases-latest?page=…&limit=…"""
         url = f"{FMP_BASE}/news/press-releases-latest"
         r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})

@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set, Union
+from typing import Any
 
 from .common_types import NewsItem
 
@@ -64,7 +64,7 @@ _STOP_WORDS: frozenset[str] = frozenset({
 })
 
 
-def _headline_tokens(headline: str) -> Set[str]:
+def _headline_tokens(headline: str) -> set[str]:
     """Extract meaningful tokens from a headline for similarity comparison."""
     tokens = set(_TOKEN_RX.findall(headline.lower()))
     return tokens - _STOP_WORDS
@@ -96,7 +96,7 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s)
 
 
-def cluster_hash(headline: str, tickers: List[str]) -> str:
+def cluster_hash(headline: str, tickers: list[str]) -> str:
     """Deterministic cluster key for novelty tracking.
 
     Provider is intentionally excluded so that the same story from
@@ -109,7 +109,7 @@ def cluster_hash(headline: str, tickers: List[str]) -> str:
 
 
 def classify_and_score(
-    item: Union[NewsItem, Dict[str, Any]],
+    item: NewsItem | dict[str, Any],
     cluster_count: int,
     chash: str | None = None,
 ) -> ScoreResult:

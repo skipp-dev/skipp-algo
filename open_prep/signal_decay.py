@@ -18,8 +18,8 @@ Usage::
 """
 from __future__ import annotations
 
-import math
 import logging
+import math
 
 _LN2 = math.log(2)  # ≈ 0.6931
 

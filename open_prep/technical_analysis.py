@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 import math
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Any
 
 logger = logging.getLogger("open_prep.ta")
@@ -321,7 +321,7 @@ def detect_breakout(
     volume_ratio = last_volume / avg_volume if avg_volume > 0 else 1.0
 
     ema_20 = _ema(closes, 20)
-    ema_50 = _ema(closes, 50) if len(closes) >= 50 else ema_20
+    _ema_50 = _ema(closes, 50) if len(closes) >= 50 else ema_20
 
     recent_5 = closes[-5:]
     is_declining = all(recent_5[i] <= recent_5[i - 1] for i in range(1, len(recent_5)))
@@ -940,15 +940,15 @@ def _calculate_energy_weights(
     prev_close: float | None = None
     for bar in recent:
         h = _safe_float(bar.get("high", 0.0))
-        l = _safe_float(bar.get("low", 0.0))
+        lo = _safe_float(bar.get("low", 0.0))
         c = _safe_float(bar.get("close", 0.0))
         v = max(_safe_float(bar.get("volume", 0.0)), 0.0)
 
         # True range
         if prev_close is not None:
-            tr = max(h - l, abs(h - prev_close), abs(l - prev_close))
+            tr = max(h - lo, abs(h - prev_close), abs(lo - prev_close))
         else:
-            tr = h - l
+            tr = h - lo
         prev_close = c
 
         energy = v * max(tr, 1e-10)

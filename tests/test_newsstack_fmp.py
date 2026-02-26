@@ -106,15 +106,15 @@ class TestSingleScoringCall(unittest.TestCase):
     def test_cluster_hash_is_public(self):
         from newsstack_fmp.scoring import cluster_hash
 
-        h = cluster_hash("fmp_stock_latest", "AAPL beats Q1 earnings", ["AAPL"])
+        h = cluster_hash("AAPL beats Q1 earnings", ["AAPL"])
         self.assertIsInstance(h, str)
         self.assertEqual(len(h), 40)  # SHA1 hex
 
     def test_cluster_hash_deterministic(self):
         from newsstack_fmp.scoring import cluster_hash
 
-        h1 = cluster_hash("p", "headline", ["A", "B"])
-        h2 = cluster_hash("p", "headline", ["B", "A"])  # tickers sorted
+        h1 = cluster_hash("headline", ["A", "B"])
+        h2 = cluster_hash("headline", ["B", "A"])  # tickers sorted
         self.assertEqual(h1, h2)
 
 
@@ -705,16 +705,16 @@ class TestCrossProviderClusterHash(unittest.TestCase):
     def test_same_headline_different_provider(self):
         from newsstack_fmp.scoring import cluster_hash
 
-        h_fmp = cluster_hash("fmp_stock_latest", "AAPL beats Q1 earnings", ["AAPL"])
-        h_bz = cluster_hash("benzinga_rest", "AAPL beats Q1 earnings", ["AAPL"])
+        h_fmp = cluster_hash("AAPL beats Q1 earnings", ["AAPL"])
+        h_bz = cluster_hash("AAPL beats Q1 earnings", ["AAPL"])
         self.assertEqual(h_fmp, h_bz)
 
     def test_provider_param_ignored(self):
         from newsstack_fmp.scoring import cluster_hash
 
-        h1 = cluster_hash("provider_a", "FDA approves drug", ["PFE"])
-        h2 = cluster_hash("provider_b", "FDA approves drug", ["PFE"])
-        h3 = cluster_hash("", "FDA approves drug", ["PFE"])
+        h1 = cluster_hash("FDA approves drug", ["PFE"])
+        h2 = cluster_hash("FDA approves drug", ["PFE"])
+        h3 = cluster_hash("FDA approves drug", ["PFE"])
         self.assertEqual(h1, h2)
         self.assertEqual(h2, h3)
 
@@ -1010,6 +1010,8 @@ class TestCycleWarningsInMeta(unittest.TestCase):
         mock_enr.return_value = MagicMock()
 
         with patch.dict(os.environ, {"FMP_API_KEY": "", "ENABLE_FMP": "0",
+                                      "ENABLE_BENZINGA_REST": "0",
+                                      "ENABLE_BENZINGA_WS": "0",
                                       "FILTER_TO_UNIVERSE": "0"}):
             cfg = Config()
             poll_once(cfg, universe=set())
@@ -1102,7 +1104,7 @@ class TestDuplicateBurst(unittest.TestCase):
         self.assertIn("AAPL", best)
         # Verify that all 10 items touched the cluster (query SQLite directly)
         from newsstack_fmp.scoring import cluster_hash as ch
-        h = ch("fmp_stock_latest", "AAPL beats Q1 earnings expectations", ["AAPL"])
+        h = ch("AAPL beats Q1 earnings expectations", ["AAPL"])
         row = store.conn.execute("SELECT count FROM clusters WHERE hash=?", (h,)).fetchone()
         self.assertIsNotNone(row)
         self.assertEqual(row[0], 10)  # all 10 touched the cluster
@@ -2489,7 +2491,7 @@ class TestClusterHashPassthrough(unittest.TestCase):
         )
 
         result = classify_and_score(item, cluster_count=1)
-        expected = cluster_hash("fmp_stock_latest", "FDA approves drug", ["PFE"])
+        expected = cluster_hash("FDA approves drug", ["PFE"])
         self.assertEqual(result.cluster_hash, expected)
 
     def test_none_chash_auto_computes(self):
@@ -2504,7 +2506,7 @@ class TestClusterHashPassthrough(unittest.TestCase):
         )
 
         result = classify_and_score(item, cluster_count=1, chash=None)
-        expected = cluster_hash("benzinga_rest", "MSFT merger announced", ["MSFT"])
+        expected = cluster_hash("MSFT merger announced", ["MSFT"])
         self.assertEqual(result.cluster_hash, expected)
 
 
@@ -2891,17 +2893,17 @@ class TestClusterHashCaseNormalization(unittest.TestCase):
     def test_mixed_case_tickers_same_hash(self):
         from newsstack_fmp.scoring import cluster_hash
 
-        h1 = cluster_hash("p", "FDA approves drug", ["AAPL"])
-        h2 = cluster_hash("p", "FDA approves drug", ["aapl"])
-        h3 = cluster_hash("p", "FDA approves drug", ["Aapl"])
+        h1 = cluster_hash("FDA approves drug", ["AAPL"])
+        h2 = cluster_hash("FDA approves drug", ["aapl"])
+        h3 = cluster_hash("FDA approves drug", ["Aapl"])
         self.assertEqual(h1, h2)
         self.assertEqual(h2, h3)
 
     def test_mixed_case_multi_ticker(self):
         from newsstack_fmp.scoring import cluster_hash
 
-        h1 = cluster_hash("p", "M&A deal", ["AAPL", "MSFT"])
-        h2 = cluster_hash("p", "M&A deal", ["msft", "aapl"])
+        h1 = cluster_hash("M&A deal", ["AAPL", "MSFT"])
+        h2 = cluster_hash("M&A deal", ["msft", "aapl"])
         self.assertEqual(h1, h2)
 
     def test_existing_uppercase_unchanged(self):
@@ -2910,11 +2912,11 @@ class TestClusterHashCaseNormalization(unittest.TestCase):
         from newsstack_fmp.scoring import cluster_hash
 
         # Compute once with uppercase (as all existing items do)
-        h1 = cluster_hash("provider", "headline", ["A", "B"])
-        h2 = cluster_hash("provider", "headline", ["B", "A"])
+        h1 = cluster_hash("headline", ["A", "B"])
+        h2 = cluster_hash("headline", ["B", "A"])
         self.assertEqual(h1, h2)
         # Verify determinism
-        h3 = cluster_hash("provider", "headline", ["A", "B"])
+        h3 = cluster_hash("headline", ["A", "B"])
         self.assertEqual(h1, h3)
 
 

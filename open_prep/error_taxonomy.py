@@ -16,7 +16,8 @@ import functools
 import logging
 import random
 import time
-from typing import Any, Callable, Type
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger("open_prep.error_taxonomy")
 
@@ -70,7 +71,7 @@ def retry(
     backoff: float = 1.5,
     max_delay: float = 30.0,
     jitter_pct: float = 0.10,
-    retryable_exceptions: tuple[Type[Exception], ...] = (Exception,),
+    retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
     on_retry: Callable[..., Any] | None = None,
 ):
     """Decorator: retry a function with exponential backoff + jitter.

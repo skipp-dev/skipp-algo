@@ -290,8 +290,8 @@ def _send_webhook(
     Retries up to *_max_retries* times on HTTP 429 (Too Many Requests)
     with exponential back-off (1s, 2s).
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     hdrs = {"Content-Type": "application/json"}
     if headers:

@@ -21,11 +21,10 @@ import asyncio
 import json
 import logging
 import queue
+import re
 import threading
 import time
-from typing import Any, Dict, List, Optional
-
-import re
+from typing import Any
 
 import httpx
 
@@ -64,14 +63,14 @@ class BenzingaRestAdapter:
 
     def fetch_news(
         self,
-        updated_since: Optional[str] = None,
+        updated_since: str | None = None,
         page_size: int = 100,
-    ) -> List[NewsItem]:
+    ) -> list[NewsItem]:
         """Fetch latest news, optionally only items updated since *updated_since*.
 
         ``updated_since`` format depends on Benzinga API (epoch or ISO).
         """
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "token": self.api_key,
             "pageSize": page_size,
         }
@@ -106,6 +105,7 @@ class BenzingaRestAdapter:
                     continue
                 raise
             except httpx.HTTPStatusError as exc:
+                assert r is not None
                 raise httpx.HTTPStatusError(
                     message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
                     request=exc.request,
@@ -125,7 +125,7 @@ class BenzingaRestAdapter:
             raise ValueError(
                 f"Benzinga returned non-JSON (content-type={ct!r}, "
                 f"status={r.status_code}, url={_sanitize_url(str(r.url))})"
-            )
+            ) from None
 
         # Response may be ``[…]`` or ``{"articles": […], …}``
         items: list = []
@@ -180,7 +180,7 @@ class BenzingaWsAdapter:
         self.ws_url = ws_url
         self.queue: queue.Queue[NewsItem] = queue.Queue(maxsize=5000)
 
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
     # ── Public API ──────────────────────────────────────────────
@@ -201,9 +201,9 @@ class BenzingaWsAdapter:
             self._thread.join(timeout=5.0)
             logger.info("BenzingaWsAdapter: background thread stopped.")
 
-    def drain(self) -> List[NewsItem]:
+    def drain(self) -> list[NewsItem]:
         """Non-blocking: drain all queued items."""
-        items: List[NewsItem] = []
+        items: list[NewsItem] = []
         while True:
             try:
                 items.append(self.queue.get_nowait())
@@ -288,7 +288,7 @@ class BenzingaWsAdapter:
                 backoff = min(30.0, backoff * 1.7)
 
     @staticmethod
-    def _extract_payloads(msg: Any) -> List[Dict[str, Any]]:
+    def _extract_payloads(msg: Any) -> list[dict[str, Any]]:
         """Unpack WS message into a list of raw dicts."""
         if isinstance(msg, dict) and "data" in msg:
             data = msg["data"]

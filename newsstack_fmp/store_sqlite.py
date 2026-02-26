@@ -9,7 +9,6 @@ from __future__ import annotations
 import sqlite3
 import threading
 import time
-from typing import Optional, Tuple
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (
@@ -50,7 +49,7 @@ class SqliteStore:
 
     # ── Key-value ───────────────────────────────────────────────
 
-    def get_kv(self, k: str) -> Optional[str]:
+    def get_kv(self, k: str) -> str | None:
         with self._lock:
             row = self.conn.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
         return row[0] if row else None
@@ -78,7 +77,7 @@ class SqliteStore:
 
     # ── Novelty clustering ──────────────────────────────────────
 
-    def cluster_touch(self, h: str, ts: float) -> Tuple[int, float]:
+    def cluster_touch(self, h: str, ts: float) -> tuple[int, float]:
         """Atomically touch a cluster and return ``(count, first_ts)``.
 
         Uses UPSERT inside a single IMMEDIATE transaction so the

@@ -14,11 +14,11 @@ regime, and microstructure analysis.
 """
 from __future__ import annotations
 
+import logging
 import math
 import re
-import logging
-from dataclasses import dataclass, field, asdict
-from datetime import UTC, datetime, timedelta
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from .utils import to_float as _to_float

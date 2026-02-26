@@ -6,8 +6,8 @@ import os
 import sys
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
-from zoneinfo import ZoneInfo
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -43,7 +43,7 @@ def _load_env_file(env_path: Path) -> None:
 
 _load_env_file(PROJECT_ROOT / ".env")
 
-from open_prep.run_open_prep import (
+from open_prep.run_open_prep import (  # noqa: E402
     GAP_MODE_CHOICES,
     GAP_MODE_PREMARKET_INDICATIVE,
     GAP_SCOPE_CHOICES,
@@ -691,12 +691,10 @@ def main() -> None:
         # ===================================================================
         ranked_v2 = list(result.get("ranked_v2") or [])
         filtered_out_v2 = list(result.get("filtered_out_v2") or [])
-        tier_emojis = {"HIGH_CONVICTION": "🟢", "STANDARD": "🟡", "WATCHLIST": "🔵"}
-
         # --- Auto-promote A0/A1 signals that fell below top_n cutoff ---
         try:
-            from .realtime_signals import RealtimeEngine as _RT
-            _rt_sigs = (_RT.load_signals_from_disk().get("signals") or [])
+            from .realtime_signals import RealtimeEngine as _RealtimeEngine
+            _rt_sigs = (_RealtimeEngine.load_signals_from_disk().get("signals") or [])
         except Exception:
             _rt_sigs = []
         ranked_v2, filtered_out_v2, _rt_promoted_syms, _rt_a0a1 = (
@@ -1031,8 +1029,8 @@ def main() -> None:
         # 8b. News Stack (FMP + Benzinga — realtime polling)
         # ===================================================================
         try:
-            from newsstack_fmp.pipeline import poll_once as _newsstack_poll
             from newsstack_fmp.config import Config as _NSConfig
+            from newsstack_fmp.pipeline import poll_once as _newsstack_poll
 
             _ns_cfg = _NSConfig()
             ns_candidates = _newsstack_poll(_ns_cfg)

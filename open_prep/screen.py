@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
-from .utils import to_float as _to_float, MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
+
+from .utils import MIN_PRICE_THRESHOLD, SEVERE_GAP_DOWN_THRESHOLD
+from .utils import to_float as _to_float
 
 # ---------------------------------------------------------------------------
 # Gap-GO / Gap-WATCH classifier defaults
@@ -329,7 +331,6 @@ def rank_candidates(
         earnings_timing = quote.get("earnings_timing") or ""
         is_premarket_mover = bool(quote.get("is_premarket_mover", False))
         ext_hours_score = _to_float(quote.get("ext_hours_score"), default=0.0)
-        ext_volume_ratio = _to_float(quote.get("ext_volume_ratio"), default=0.0)
         premarket_stale = bool(quote.get("premarket_stale", False))
         premarket_spread_bps: float | None = _to_float(
             quote.get("premarket_spread_bps"), default=float("nan")

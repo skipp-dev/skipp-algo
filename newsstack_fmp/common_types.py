@@ -7,7 +7,7 @@ payload into a ``NewsItem`` before entering the pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -20,10 +20,10 @@ class NewsItem:
     updated_ts: float  # epoch seconds (>= published_ts when known)
     headline: str
     snippet: str
-    tickers: List[str]
-    url: Optional[str]
+    tickers: list[str]
+    url: str | None
     source: str  # publisher / site / author
-    raw: Dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
 
     # ── Convenience ─────────────────────────────────────────────
 

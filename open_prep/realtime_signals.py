@@ -37,19 +37,17 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import math
 import os
 import tempfile
 import time
 from collections import deque
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .macro import FMPClient
-from .signal_decay import adaptive_freshness_decay, adaptive_half_life
-from .technical_analysis import detect_breakout
+from .signal_decay import adaptive_freshness_decay
 from .utils import to_float as _safe_float
 
 logger = logging.getLogger("open_prep.realtime_signals")
@@ -199,8 +197,8 @@ class AsyncNewsstackPoller:
         while not self._stop.is_set():
             try:
                 if _newsstack_poll is None:
-                    from newsstack_fmp.pipeline import poll_once as _newsstack_poll  # noqa: E402
-                    from newsstack_fmp.config import Config as _NSConfig  # noqa: E402
+                    from newsstack_fmp.config import Config as _NSConfig
+                    from newsstack_fmp.pipeline import poll_once as _newsstack_poll
 
                 ns_candidates = _newsstack_poll(_NSConfig())
                 new_data: dict[str, dict[str, Any]] = {}
@@ -290,20 +288,18 @@ def _is_within_market_hours() -> bool:
             # ET window during both EST and EDT.  During EST (Nov–Mar) the
             # gate opens/closes ~1 h early, which is acceptable.
             from datetime import timedelta
-            now_et = datetime.now(timezone.utc) - timedelta(hours=4)
+            now_et = datetime.now(UTC) - timedelta(hours=4)
 
     # Monday=0, Sunday=6
     if now_et.weekday() >= 5:
         return False
 
     hour = now_et.hour
-    minute = now_et.minute
+    _minute = now_et.minute
     # 04:00–20:00 ET (pre-market 04:00, regular 09:30-16:00, after-hours until 20:00)
     if hour < 4:
         return False
-    if hour >= 20:
-        return False
-    return True
+    return hour < 20
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -379,10 +375,10 @@ def _start_telemetry_server(
     Returns the HTTPServer instance (or None on failure) for graceful shutdown.
     """
     import threading
-    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from http.server import BaseHTTPRequestHandler, HTTPServer
 
     class _Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
+        def do_GET(self) -> None:
             if self.path == "/healthz":
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain")
@@ -399,7 +395,7 @@ def _start_telemetry_server(
                 self.send_response(404)
                 self.end_headers()
 
-        def log_message(self, fmt: str, *args: Any) -> None:  # noqa: ARG002
+        def log_message(self, fmt: str, *args: Any) -> None:
             # Silence standard request logging to avoid log noise
             pass
 
@@ -648,7 +644,7 @@ class VolumeRegimeDetector:
 
         thin_count = 0
         total = 0
-        for sym, q in quotes.items():
+        for _sym, q in quotes.items():
             vol = _safe_float(q.get("volume"), 0.0)
             avg_vol = _safe_float(q.get("avgVolume"), 0.0)
             if avg_vol <= 0:
@@ -1185,7 +1181,6 @@ class RealtimeEngine:
         )
 
         # ── #7  Dynamic cooldown (oscillation-based) ────────────────
-        now_epoch = time.time()  # wall-clock for signal timestamps (serialized)
         if level == "A0":
             # Derive regime label for cooldown: map VolumeRegimeDetector states
             _vol_regime = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
@@ -1212,7 +1207,7 @@ class RealtimeEngine:
                 else:
                     self._dynamic_cooldown.record_transition(symbol, direction)
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         now_iso = now.isoformat()
         now_ts = now.timestamp()
         return RealtimeSignal(
@@ -1293,8 +1288,8 @@ class RealtimeEngine:
             try:
                 # Lazy-cached imports (same pattern as AsyncNewsstackPoller)
                 if not hasattr(self, "_ns_poll_fn"):
-                    from newsstack_fmp.pipeline import poll_once as _nsp
                     from newsstack_fmp.config import Config as _NSCfg
+                    from newsstack_fmp.pipeline import poll_once as _nsp
                     self._ns_poll_fn = _nsp
                     self._ns_cfg_cls = _NSCfg
 
@@ -1461,19 +1456,19 @@ class RealtimeEngine:
             news_with_link = news_headline
 
             # Breakout status for VisiData view
-            breakout = ""
+            _breakout = ""
             if sig_level == "A0":
-                breakout = "CURRENT_A0"
+                _breakout = "CURRENT_A0"
             elif sig_level == "A1":
-                breakout = "CURRENT_A1"
+                _breakout = "CURRENT_A1"
             elif sig_level == "A2":
-                breakout = "EARLY_A2"
+                _breakout = "EARLY_A2"
             else:
                 # Near-threshold early warning (coming breakout)
                 eff_a2_vol = A2_VOLUME_RATIO_MIN * regime_thresholds["vol_mult"]
                 eff_a2_chg = A2_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
                 near = (vol_ratio >= 0.8 * eff_a2_vol and abs(chg_pct) >= 0.8 * eff_a2_chg)
-                breakout = "UPCOMING" if near else ""
+                _breakout = "UPCOMING" if near else ""
 
             prev_row = self._vd_rows.get(sym, {})
             poll_changed = bool(
@@ -1488,7 +1483,6 @@ class RealtimeEngine:
             if poll_changed:
                 self._vd_last_change_epoch[sym] = vd_now_epoch
             last_change_epoch = self._vd_last_change_epoch.get(sym, vd_now_epoch)
-            last_change_at = datetime.fromtimestamp(last_change_epoch, tz=timezone.utc).isoformat()
             last_change_age_s = max(int(vd_now_epoch - last_change_epoch), 0)
 
             self._vd_rows[sym] = {
@@ -1590,7 +1584,7 @@ class RealtimeEngine:
 
             if sig.level == "A0" and sig_age > eff_a0_max:
                 sig.level = "A1"
-                now_iso = datetime.now(timezone.utc).isoformat()
+                now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
                 logger.debug(
@@ -1599,7 +1593,7 @@ class RealtimeEngine:
                 )
             if sig.level == "A1" and sig_age > eff_a1_max:
                 sig.level = "A2"
-                now_iso = datetime.now(timezone.utc).isoformat()
+                now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
                 logger.debug(
@@ -1612,7 +1606,7 @@ class RealtimeEngine:
             eff_a0_chg = A0_PRICE_CHANGE_PCT_MIN * regime_thresholds["chg_mult"]
             if sig.level == "A0" and not (cur_vol_ratio >= eff_a0_vol and cur_change >= eff_a0_chg):
                 sig.level = "A1"
-                now_iso = datetime.now(timezone.utc).isoformat()
+                now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
                 logger.debug("Re-qualification: downgrade %s A0→A1", sig.symbol)
@@ -1623,7 +1617,7 @@ class RealtimeEngine:
                 or cur_change >= A0_PRICE_CHANGE_PCT_MIN * 1.2 * regime_thresholds["chg_mult"]
             ):
                 sig.level = "A2"
-                now_iso = datetime.now(timezone.utc).isoformat()
+                now_iso = datetime.now(UTC).isoformat()
                 sig.level_since_at = now_iso
                 sig.level_since_epoch = time.time()
                 logger.debug("Re-qualification: downgrade %s A1→A2", sig.symbol)
@@ -1741,7 +1735,7 @@ class RealtimeEngine:
         self._save_vd_snapshot()
 
         payload = {
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
             "updated_epoch": time.time(),
             "poll_interval": self.poll_interval,
             "poll_duration": round(self.last_poll_duration, 3),
@@ -1870,7 +1864,7 @@ def main() -> None:
                 engine.reload_watchlist()
                 last_reload = time.monotonic()
 
-            new_signals = engine.poll_once()
+            engine.poll_once()
 
             active = engine.get_active_signals()
             a0 = [s for s in active if s.level == "A0"]

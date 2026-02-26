@@ -19,7 +19,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
@@ -111,10 +111,10 @@ class ClassifiedItem:
     # Identity
     item_id: str
     ticker: str  # primary ticker (may repeat item for multi-ticker articles)
-    tickers_all: List[str]
+    tickers_all: list[str]
     headline: str
     snippet: str
-    url: Optional[str]
+    url: str | None
     source: str
     published_ts: float
     updated_ts: float
@@ -142,7 +142,7 @@ class ClassifiedItem:
 
     # open_prep: recency
     recency_bucket: str  # ULTRA_FRESH / FRESH / WARM / AGING / STALE
-    age_minutes: Optional[float]
+    age_minutes: float | None
     is_actionable: bool
 
     # open_prep: source quality
@@ -150,10 +150,10 @@ class ClassifiedItem:
     source_rank: int  # 1-4
 
     # Benzinga metadata
-    channels: List[str]
-    tags: List[str]
+    channels: list[str]
+    tags: list[str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialise to plain dict (for JSON export / Streamlit display)."""
         return {
             "item_id": self.item_id,
@@ -196,7 +196,7 @@ def _classify_item(
     item: NewsItem,
     store: SqliteStore,
     now_utc: datetime,
-) -> List[ClassifiedItem]:
+) -> list[ClassifiedItem]:
     """Classify one NewsItem and return one ClassifiedItem per ticker.
 
     Returns empty list if the item is invalid, already seen, or has no tickers.
@@ -234,7 +234,7 @@ def _classify_item(
     event_info = classify_news_event(item.headline, item.snippet or "")
 
     # Recency needs a datetime — convert published_ts epoch
-    article_dt: Optional[datetime] = None
+    article_dt: datetime | None = None
     if item.published_ts and item.published_ts > 0:
         article_dt = datetime.fromtimestamp(item.published_ts, tz=UTC)
     recency_info = classify_recency(article_dt, now_utc)
@@ -247,7 +247,7 @@ def _classify_item(
     tags = [t.get("name", "") for t in raw.get("tags", []) if isinstance(t, dict)]
 
     # ── Build one ClassifiedItem per ticker ──────────────────
-    results: List[ClassifiedItem] = []
+    results: list[ClassifiedItem] = []
     for tk in tickers:
         ci = ClassifiedItem(
             item_id=item.item_id,
@@ -295,9 +295,9 @@ def _classify_item(
 def poll_and_classify(
     adapter: BenzingaRestAdapter,
     store: SqliteStore,
-    cursor: Optional[str] = None,
+    cursor: str | None = None,
     page_size: int = 100,
-) -> tuple[List[ClassifiedItem], str]:
+) -> tuple[list[ClassifiedItem], str]:
     """Run one poll cycle: fetch → dedup → classify → return.
 
     Parameters
@@ -321,7 +321,7 @@ def poll_and_classify(
     now_utc = datetime.now(UTC)
     raw_items = adapter.fetch_news(updated_since=cursor, page_size=page_size)
 
-    all_classified: List[ClassifiedItem] = []
+    all_classified: list[ClassifiedItem] = []
     try:
         max_ts = float(cursor) if cursor else 0.0
     except (ValueError, TypeError):
@@ -353,12 +353,12 @@ def poll_and_classify(
 # ── Multi-source polling (Benzinga + FMP) ───────────────────────
 
 def poll_and_classify_multi(
-    benzinga_adapter: Optional[BenzingaRestAdapter],
-    fmp_adapter: "Any | None",
+    benzinga_adapter: BenzingaRestAdapter | None,
+    fmp_adapter: Any | None,
     store: SqliteStore,
-    cursor: Optional[str] = None,
+    cursor: str | None = None,
     page_size: int = 100,
-) -> tuple[List[ClassifiedItem], str]:
+) -> tuple[list[ClassifiedItem], str]:
     """Poll Benzinga + FMP in one cycle, dedup across sources.
 
     Parameters
@@ -374,8 +374,8 @@ def poll_and_classify_multi(
     (items, new_cursor)
     """
     now_utc = datetime.now(UTC)
-    raw_items: List[NewsItem] = []
-    errors: List[str] = []
+    raw_items: list[NewsItem] = []
+    errors: list[str] = []
 
     def _sanitize_exc(exc: Exception) -> str:
         """Strip API keys/tokens from exception text for safe logging."""
@@ -414,7 +414,7 @@ def poll_and_classify_multi(
     if errors and not raw_items and len(errors) >= n_sources:
         raise RuntimeError("All sources failed: " + "; ".join(errors))
 
-    all_classified: List[ClassifiedItem] = []
+    all_classified: list[ClassifiedItem] = []
     try:
         max_ts = float(cursor) if cursor else 0.0
     except (ValueError, TypeError):
@@ -447,7 +447,7 @@ def fetch_economic_calendar(
     api_key: str,
     from_date: str,
     to_date: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Fetch economic calendar events from FMP.
 
     Parameters
@@ -486,7 +486,7 @@ def fetch_economic_calendar(
 
 # ── FMP Sector Performance ──────────────────────────────────────
 
-def fetch_sector_performance(api_key: str) -> List[Dict[str, Any]]:
+def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
     """Fetch current sector performance from FMP.
 
     Returns list of dicts with keys: sector, changesPercentage.

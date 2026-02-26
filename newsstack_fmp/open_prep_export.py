@@ -9,13 +9,13 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from typing import Any, Dict, List
+from typing import Any
 
 
 def export_open_prep(
     path: str,
-    candidates: List[Dict[str, Any]],
-    meta: Dict[str, Any],
+    candidates: list[dict[str, Any]],
+    meta: dict[str, Any],
 ) -> None:
     """Atomically write *candidates* + *meta* to *path*."""
     dest_dir = os.path.dirname(path) or "."

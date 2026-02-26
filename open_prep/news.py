@@ -290,12 +290,9 @@ def build_news_scores(
     # Precompile regex patterns for fallback matching to avoid false positives (e.g. "A" in "APPLE")
     # Only match in titles (not full content) — content matching is too noisy
     # and causes O(N_symbols × N_articles × content_len) work.
-    sym_patterns = {sym: re.compile(rf"\b{re.escape(sym)}\b") for sym in universe}
-
     for article in articles:
         ticker_meta = str(article.get("tickers") or "")
         title = str(article.get("title") or "").upper()
-        content = str(article.get("content") or "").upper()
         article_dt = _parse_article_datetime(article.get("date"))
 
         mentioned = _extract_symbols_from_tickers(ticker_meta)

@@ -1,0 +1,89 @@
+[project]
+name = "skipp-algo"
+version = "6.3.9"
+description = "Multi-source financial news aggregation, scoring & trading signal pipeline"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "S",      # flake8-bandit (security)
+    "T20",    # flake8-print
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+]
+ignore = [
+    "S101",   # assert used (fine in tests)
+    "S105",   # hardcoded password (false positives on test fixtures)
+    "S106",   # hardcoded password (false positives on test fixtures)
+    "S110",   # try-except-pass (acceptable in resilient polling)
+    "S112",   # try-except-continue
+    "S310",   # suspicious-url-open (httpx.get is safe, not urllib)
+    "S311",   # random not for crypto (fine for scoring jitter)
+    "S324",   # hashlib insecure (MD5 used for cluster hashing, not crypto)
+    "T201",   # print statement (acceptable in CLI scripts)
+    "E501",   # line too long (handled by formatter)
+    "B905",   # zip strict (Python 3.10+ only, many cases don't need it)
+    "A001",   # shadowing builtins (some legacy names)
+    "A002",   # shadowing builtins (argument names)
+    "N802",   # function name lowercase (test names, Pine helpers)
+    "N803",   # argument name lowercase (Pine-style names)
+    "N806",   # variable name lowercase (Pine-style names)
+    "UP015",  # redundant open mode
+    "RUF001", # ambiguous unicode string (German: ü, ö, ä, ß)
+    "RUF002", # ambiguous unicode docstring (en-dash in German docs)
+    "RUF003", # ambiguous unicode comment (en-dash, German chars)
+    "SIM102", # collapsible-if (readability preference)
+    "SIM105", # suppressible-exception (contextlib.suppress not always clearer)
+    "SIM108", # if-else to ternary (readability preference)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "T20", "B011"]
+"scripts/*" = ["T20"]
+"open_prep/streamlit_monitor.py" = ["T20"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["newsstack_fmp", "open_prep", "terminal_poller", "terminal_export"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+exclude = [
+    "tests/pine_sim\\.py",
+    "__pycache__",
+    "\\.venv",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[tool.coverage.run]
+source = ["newsstack_fmp", "open_prep", "terminal_poller.py", "terminal_export.py"]
+omit = ["tests/*", "scripts/*", "*.pine"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+fail_under = 60

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from .utils import to_float as _to_float
 from .technical_analysis import calculate_support_resistance_targets
+from .utils import to_float as _to_float
 
 
 def _trail_stop_profiles_from_atr(row: dict[str, Any]) -> dict[str, Any]:

@@ -17,7 +17,7 @@ import logging
 import os
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -110,7 +110,7 @@ _RT_QUOTE_FIELDS = ("direction", "tick", "streak", "price", "chg_pct", "vol_rati
 def load_rt_quotes(
     path: str = _RT_VD_SIGNALS_DEFAULT,
     max_age_s: float = 120.0,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Read RT engine's per-symbol VisiData JSONL and return {SYMBOL: row}.
 
     Returns an empty dict if the file doesn't exist, is unreadable,
@@ -126,7 +126,7 @@ def load_rt_quotes(
             logger.debug("RT JSONL stale (age=%.0fs > %.0fs): %s",
                          time.time() - mtime, max_age_s, path)
             return {}
-        result: Dict[str, Dict[str, Any]] = {}
+        result: dict[str, dict[str, Any]] = {}
         with open(path, "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
@@ -146,9 +146,9 @@ def load_rt_quotes(
 
 
 def build_vd_snapshot(
-    feed: List[Dict[str, Any]],
-    rt_quotes: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> List[Dict[str, Any]]:
+    feed: list[dict[str, Any]],
+    rt_quotes: dict[str, dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """Build one row per ticker from the full feed, ranked by best news_score.
 
     When *rt_quotes* is provided (from ``load_rt_quotes()``), the live
@@ -163,8 +163,8 @@ def build_vd_snapshot(
     if rt_quotes is None:
         rt_quotes = {}
 
-    best: Dict[str, Dict[str, Any]] = {}   # ticker → best-scored item
-    counts: Dict[str, int] = {}             # ticker → article count
+    best: dict[str, dict[str, Any]] = {}   # ticker → best-scored item
+    counts: dict[str, int] = {}             # ticker → article count
 
     for d in feed:
         tk = d.get("ticker", "?")
@@ -175,7 +175,7 @@ def build_vd_snapshot(
         if prev is None or d.get("news_score", 0) > prev.get("news_score", 0):
             best[tk] = d
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for tk, d in best.items():
         sent_label = d.get("sentiment_label", "neutral")
         rt = rt_quotes.get(tk, {})
@@ -210,7 +210,7 @@ def build_vd_snapshot(
 
 
 def save_vd_snapshot(
-    feed: List[Dict[str, Any]],
+    feed: list[dict[str, Any]],
     path: str = _VD_SNAPSHOT_DEFAULT,
     rt_jsonl_path: str = _RT_VD_SIGNALS_DEFAULT,
 ) -> None:
@@ -264,8 +264,8 @@ def fire_webhook(
     secret: str = "",
     timeout: float = 5.0,
     min_score: float = 0.70,
-    _client: "httpx.Client | None" = None,
-) -> Optional[Dict[str, Any]]:
+    _client: httpx.Client | None = None,
+) -> dict[str, Any] | None:
     """POST a classified item to TradersPost (or any webhook receiver).
 
     Guarded:
@@ -306,7 +306,7 @@ def fire_webhook(
     elif item.sentiment_label == "bearish" and item.news_score >= 0.80:
         action = "sell"
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "ticker": item.ticker,
         "action": action,
         "headline": item.headline[:200],
@@ -326,7 +326,7 @@ def fire_webhook(
     }
 
     body = json.dumps(payload, ensure_ascii=False).encode()
-    headers: Dict[str, str] = {"Content-Type": "application/json"}
+    headers: dict[str, str] = {"Content-Type": "application/json"}
     if secret:
         headers["X-Signature-256"] = f"sha256={_sign_payload(body, secret)}"
 
@@ -341,7 +341,7 @@ def fire_webhook(
             item.ticker, item.news_score, r.status_code,
         )
         try:
-            return r.json()
+            return dict(r.json())  # type: ignore[arg-type]
         except Exception:
             return {"status": r.status_code, "text": r.text[:200]}
     except Exception as exc:

@@ -17,7 +17,7 @@ import os
 import re
 import threading
 import time
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from .common_types import NewsItem
 from .config import Config
@@ -30,12 +30,12 @@ from .store_sqlite import SqliteStore
 logger = logging.getLogger(__name__)
 
 # ── Module-level singletons (reused across Streamlit refreshes) ──
-_store: Optional[SqliteStore] = None
-_fmp_adapter: Optional[FmpAdapter] = None
-_bz_rest_adapter: Optional[Any] = None  # BenzingaRestAdapter (lazy)
-_bz_ws_adapter: Optional[Any] = None  # BenzingaWsAdapter (lazy)
-_enricher: Optional[Enricher] = None
-_best_by_ticker: Dict[str, Dict[str, Any]] = {}
+_store: SqliteStore | None = None
+_fmp_adapter: FmpAdapter | None = None
+_bz_rest_adapter: Any | None = None  # BenzingaRestAdapter (lazy)
+_bz_ws_adapter: Any | None = None  # BenzingaWsAdapter (lazy)
+_enricher: Enricher | None = None
+_best_by_ticker: dict[str, dict[str, Any]] = {}
 _bbt_lock = threading.Lock()
 
 
@@ -80,7 +80,7 @@ def _get_enricher() -> Enricher:
 
 # ── Helpers ─────────────────────────────────────────────────────
 
-def load_universe(path: str) -> Set[str]:
+def load_universe(path: str) -> set[str]:
     """Load universe from a text file (one ticker per line)."""
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -97,7 +97,7 @@ def load_universe(path: str) -> Set[str]:
         return set()
 
 
-def vwap_gate_stub(ticker: str) -> Dict[str, Any]:
+def vwap_gate_stub(ticker: str) -> dict[str, Any]:
     """Hook: later plug your VWAP reclaim detector here."""
     return {"vwap_signal": "NA", "vwap_reclaim_go": False, "vwap_bias_up": None}
 
@@ -106,15 +106,15 @@ def vwap_gate_stub(ticker: str) -> Dict[str, Any]:
 
 def process_news_items(
     store: SqliteStore,
-    items: List[NewsItem],
-    best_by_ticker: Dict[str, Dict[str, Any]],
-    universe: Optional[Set[str]],
+    items: list[NewsItem],
+    best_by_ticker: dict[str, dict[str, Any]],
+    universe: set[str] | None,
     enricher: Enricher,
     enrich_threshold: float,
     last_seen_epoch: float = 0.0,
     enrich_budget: int = 3,
-    _shared_enrich_counter: Optional[List[int]] = None,
-) -> Tuple[float, int]:
+    _shared_enrich_counter: list[int] | None = None,
+) -> tuple[float, int]:
     """Dedupe → novelty → score → enrich a batch of :class:`NewsItem`.
 
     Returns ``(max_ts, enrich_used)`` — the maximum ``updated_ts`` seen
@@ -170,7 +170,7 @@ def process_news_items(
         cluster_count, _ = store.cluster_touch(chash, ts)
         score = classify_and_score(it, cluster_count=cluster_count, chash=chash)
 
-        warn_flags: List[str] = []
+        warn_flags: list[str] = []
         if score.category == "offering":
             warn_flags.append("offering_risk")
         if score.category == "lawsuit":
@@ -189,7 +189,7 @@ def process_news_items(
         for tk in tickers:
             vwap = vwap_gate_stub(tk)
 
-            cand: Dict[str, Any] = {
+            cand: dict[str, Any] = {
                 "ticker": tk,
                 "headline": it.headline[:260],
                 "snippet": (it.snippet or "")[:260],
@@ -227,9 +227,9 @@ def process_news_items(
 # ── Core single-cycle poll ──────────────────────────────────────
 
 def poll_once(
-    cfg: Optional[Config] = None,
-    universe: Optional[Set[str]] = None,
-) -> List[Dict[str, Any]]:
+    cfg: Config | None = None,
+    universe: set[str] | None = None,
+) -> list[dict[str, Any]]:
     """Run one poll cycle (synchronous).  Returns scored candidates.
 
     Called from Streamlit on each refresh.  State is persisted in SQLite
@@ -264,9 +264,9 @@ def poll_once(
     fmp_last = float(store.get_kv("fmp.last_seen_epoch") or "0")
     bz_rest_cursor = store.get_kv("benzinga.updatedSince")  # str cursor
 
-    all_items: List[NewsItem] = []
+    all_items: list[NewsItem] = []
     new_fmp_max = fmp_last
-    cycle_warnings: List[str] = []
+    cycle_warnings: list[str] = []
 
     def _sanitize_exc(exc: Exception) -> str:
         return re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
@@ -288,7 +288,7 @@ def poll_once(
             cycle_warnings.append(f"fmp_press_latest: {_msg}")
 
     # ── 2) Benzinga REST delta ──────────────────────────────────
-    bz_rest_items: List[NewsItem] = []
+    bz_rest_items: list[NewsItem] = []
     if cfg.enable_benzinga_rest and cfg.benzinga_api_key:
         bz_rest = _get_bz_rest_adapter(cfg)
         try:
@@ -315,10 +315,9 @@ def poll_once(
     fmp_items = [it for it in all_items if it.provider.startswith("fmp_")]
     bz_items = [it for it in all_items if not it.provider.startswith("fmp_")]
 
-    fmp_enrich_used = 0
-    _enrich_ctr: List[int] = [0]  # mutable counter survives exceptions
+    _enrich_ctr: list[int] = [0]  # mutable counter survives exceptions
     try:
-        new_fmp_max, fmp_enrich_used = process_news_items(
+        new_fmp_max, _fmp_enrich_used = process_news_items(
             store, fmp_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=fmp_last,
             _shared_enrich_counter=_enrich_ctr,
@@ -375,7 +374,7 @@ def poll_once(
 
     # ── 6) Export ───────────────────────────────────────────────
     with _bbt_lock:
-        candidates: List[Dict[str, Any]] = list(_best_by_ticker.values())
+        candidates: list[dict[str, Any]] = list(_best_by_ticker.values())
     candidates.sort(
         key=lambda x: (x.get("news_score", 0), x.get("updated_ts", 0), x.get("ticker", "")),
         reverse=True,
@@ -393,7 +392,7 @@ def poll_once(
 
     fmp_count = sum(1 for it in fmp_items if it.is_valid)
     bz_count = sum(1 for it in bz_items if it.is_valid)
-    meta: Dict[str, Any] = {
+    meta: dict[str, Any] = {
         "generated_ts": time.time(),
         "cursor": {
             "fmp_last_seen_epoch": new_fmp_max,
@@ -426,21 +425,21 @@ def poll_once(
     return export_candidates
 
 
-def _effective_ts(cand: Dict[str, Any]) -> float:
+def _effective_ts(cand: dict[str, Any]) -> float:
     """Return the best available timestamp for a candidate.
 
     Handles 0.0 timestamps correctly (Python ``or`` treats 0.0 as falsy).
     """
     ts = cand.get("updated_ts")
     if ts is not None and ts > 0:
-        return ts
+        return float(ts)
     ts = cand.get("published_ts")
     if ts is not None and ts > 0:
-        return ts
+        return float(ts)
     # Fallback: _seen_ts records when the pipeline first observed this
     # item.  Prevents zero-timestamp candidates from being pruned
     # immediately (0.0 is always < cutoff).
-    return cand.get("_seen_ts", 0.0)
+    return float(cand.get("_seen_ts", 0.0))
 
 
 def _prune_best_by_ticker(keep_seconds: float) -> None:
@@ -481,13 +480,14 @@ def _cleanup_singletons() -> None:
     _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None
 
 
-import atexit as _atexit
+import atexit as _atexit  # noqa: E402
+
 _atexit.register(_cleanup_singletons)
 
 
 # ── Standalone infinite loop (optional) ─────────────────────────
 
-def run_pipeline(cfg: Optional[Config] = None) -> None:
+def run_pipeline(cfg: Config | None = None) -> None:
     """Infinite polling loop — only for standalone background usage."""
     if cfg is None:
         cfg = Config()

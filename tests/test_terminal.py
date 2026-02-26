@@ -286,6 +286,7 @@ class TestJsonlExport:
             recency_bucket="FRESH", age_minutes=5.0, is_actionable=True,
             source_tier="TIER_2", source_rank=2,
             channels=["Earnings"], tags=["AI"],
+            relevance=0.5, entity_count=1,
         )
         defaults.update(overrides)
         return ClassifiedItem(**defaults)
@@ -365,6 +366,7 @@ class TestWebhookStub:
             recency_bucket="FRESH", age_minutes=5.0, is_actionable=True,
             source_tier="TIER_2", source_rank=2,
             channels=[], tags=[],
+            relevance=0.5, entity_count=1,
         )
         defaults.update(kw)
         return ClassifiedItem(**defaults)
@@ -567,10 +569,10 @@ class TestVdSnapshot:
     def test_all_columns_present(self) -> None:
         from terminal_export import build_vd_snapshot
         expected_cols = [
-            "symbol", "N", "sentiment", "signal", "tick", "score",
+            "symbol", "N", "sentiment", "tick", "score", "relevance",
             "streak", "category", "event", "materiality", "impact",
             "clarity", "sentiment_score", "polarity", "recency",
-            "age_min", "actionable", "price", "chg_pct", "vol_ratio",
+            "age_min", "actionable", "provider", "price", "chg_pct", "vol_ratio",
         ]
         feed = [self._make_feed_item("META", 0.75)]
         rows = build_vd_snapshot(feed)
@@ -664,8 +666,8 @@ class TestRtIntegration:
         from terminal_export import load_rt_quotes
         p = tmp_path / "fresh.jsonl"
         self._write_rt_jsonl(p, [
-            {"symbol": "AAPL", "price": 195.5, "chg_pct": 1.2, "signal": "A0"},
-            {"symbol": "TSLA", "price": 250.0, "chg_pct": -0.5, "signal": ""},
+            {"symbol": "AAPL", "price": 195.5, "chg_pct": 1.2},
+            {"symbol": "TSLA", "price": 250.0, "chg_pct": -0.5},
         ])
         result = load_rt_quotes(str(p))
         assert len(result) == 2
@@ -707,12 +709,11 @@ class TestRtIntegration:
     def test_merge_populates_quote_fields(self) -> None:
         from terminal_export import build_vd_snapshot
         feed = [self._make_feed_item("AAPL", 0.85)]
-        rt = {"AAPL": {"signal": "A1", "tick": "↑", "streak": 3,
+        rt = {"AAPL": {"tick": "↑", "streak": 3,
                         "price": 195.5, "chg_pct": 1.2, "vol_ratio": 2.1}}
         rows = build_vd_snapshot(feed, rt_quotes=rt)
         assert len(rows) == 1
         r = rows[0]
-        assert r["signal"] == "A1"
         assert r["tick"] == "↑"
         assert r["streak"] == 3
         assert r["price"] == 195.5
@@ -722,10 +723,9 @@ class TestRtIntegration:
     def test_merge_no_rt_match_gets_defaults(self) -> None:
         from terminal_export import build_vd_snapshot
         feed = [self._make_feed_item("NVDA", 0.90)]
-        rt = {"AAPL": {"signal": "A0", "price": 195.0}}  # no NVDA
+        rt = {"AAPL": {"price": 195.0}}  # no NVDA
         rows = build_vd_snapshot(feed, rt_quotes=rt)
         r = rows[0]
-        assert r["signal"] == ""
         assert r["tick"] == ""
         assert r["streak"] == 0
         assert r["price"] == 0.0
@@ -740,19 +740,17 @@ class TestRtIntegration:
             self._make_feed_item("TSLA", 0.75),
         ]
         rt = {
-            "AAPL": {"signal": "A2", "price": 195.0, "chg_pct": 1.0,
+            "AAPL": {"price": 195.0, "chg_pct": 1.0,
                       "tick": "↑", "streak": 2, "vol_ratio": 1.5},
-            "TSLA": {"signal": "", "price": 250.0, "chg_pct": -0.3,
+            "TSLA": {"price": 250.0, "chg_pct": -0.3,
                       "tick": "↓", "streak": -1, "vol_ratio": 0.8},
         }
         rows = build_vd_snapshot(feed, rt_quotes=rt)
         by_sym = {r["symbol"]: r for r in rows}
         # AAPL has RT data
         assert by_sym["AAPL"]["price"] == 195.0
-        assert by_sym["AAPL"]["signal"] == "A2"
         # NVDA has no RT data → defaults
         assert by_sym["NVDA"]["price"] == 0.0
-        assert by_sym["NVDA"]["signal"] == ""
         # TSLA has RT data
         assert by_sym["TSLA"]["price"] == 250.0
         assert by_sym["TSLA"]["tick"] == "↓"
@@ -762,7 +760,7 @@ class TestRtIntegration:
         # Create a fake RT engine JSONL
         rt_path = tmp_path / "rt_signals.jsonl"
         self._write_rt_jsonl(rt_path, [
-            {"symbol": "GOOG", "signal": "A0", "price": 175.0,
+            {"symbol": "GOOG", "price": 175.0,
              "chg_pct": 0.5, "tick": "↗", "streak": 1, "vol_ratio": 1.2},
         ])
         feed = [self._make_feed_item("GOOG", 0.92)]
@@ -774,4 +772,3 @@ class TestRtIntegration:
         row = json.loads(lines[0])
         assert row["symbol"] == "GOOG"
         assert row["price"] == 175.0
-        assert row["signal"] == "A0"

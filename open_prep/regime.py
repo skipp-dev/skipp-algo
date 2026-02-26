@@ -14,8 +14,8 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from .utils import to_float
 from .technical_analysis import detect_symbol_regime as _detect_symbol_regime
+from .utils import to_float
 
 logger = logging.getLogger("open_prep.regime")
 

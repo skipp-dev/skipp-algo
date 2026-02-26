@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 # ---------------------------------------------------------------------------
 # Sensitive patterns (name, compiled regex)
@@ -81,7 +80,7 @@ class LogRedactionFilter(logging.Filter):
         handler.addFilter(LogRedactionFilter())
     """
 
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+    def filter(self, record: logging.LogRecord) -> bool:
         if record.msg and isinstance(record.msg, str):
             record.msg = redact_secrets(record.msg)
         if record.args:

@@ -8,10 +8,11 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 try:
     import fcntl  # POSIX only
@@ -107,7 +108,7 @@ def add_to_watchlist(
 
         entries.append({
             "symbol": symbol.upper(),
-            "added_at": datetime.now(timezone.utc).isoformat(),
+            "added_at": datetime.now(UTC).isoformat(),
             "note": note,
             "source": source,
         })
@@ -165,7 +166,7 @@ def auto_add_high_conviction(
                     _gap_str = f"{_gap:.1f}" if isinstance(_gap, (int, float)) else "N/A"
                     entries.append({
                         "symbol": sym,
-                        "added_at": datetime.now(timezone.utc).isoformat(),
+                        "added_at": datetime.now(UTC).isoformat(),
                         "note": f"Auto-added: score={_score_str}, gap={_gap_str}%",
                         "source": "auto",
                     })

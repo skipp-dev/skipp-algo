@@ -20,11 +20,10 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import time
-from datetime import timezone
-from typing import Any, Dict, List
+from datetime import UTC
+from typing import Any
 
-from dateutil import parser as dtparser
+from dateutil import parser as dtparser  # type: ignore[import-untyped]
 
 from .common_types import NewsItem
 
@@ -59,14 +58,14 @@ def _to_epoch(s: str) -> float:
     try:
         dt = dtparser.parse(s_stripped)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.timestamp()
+            dt = dt.replace(tzinfo=UTC)
+        return float(dt.timestamp())
     except Exception:
         logger.warning("Unparseable date %r — returning epoch 0.", s_stripped[:80])
         return 0.0
 
 
-def _extract_tickers(it: Dict[str, Any]) -> List[str]:
+def _extract_tickers(it: dict[str, Any]) -> list[str]:
     """Generously extract ticker list from various field shapes."""
     # FMP: single "symbol" string
     sym = it.get("symbol")
@@ -78,7 +77,7 @@ def _extract_tickers(it: Dict[str, Any]) -> List[str]:
     if isinstance(stocks, str):
         return [s.strip().upper() for s in stocks.split(",") if s.strip()]
     if isinstance(stocks, list):
-        out: List[str] = []
+        out: list[str] = []
         for s in stocks:
             if isinstance(s, dict):
                 name = s.get("name") or s.get("ticker") or s.get("symbol") or ""
@@ -92,7 +91,7 @@ def _extract_tickers(it: Dict[str, Any]) -> List[str]:
 
 # ── FMP ─────────────────────────────────────────────────────────
 
-def normalize_fmp(provider: str, it: Dict[str, Any]) -> NewsItem:
+def normalize_fmp(provider: str, it: dict[str, Any]) -> NewsItem:
     """Normalise one raw FMP item (stock-latest *or* press-releases-latest)."""
     # Stable item_id: FMP has no ``id`` — use ``url``
     item_id = str(it.get("url") or it.get("id") or it.get("uuid") or it.get("news_id") or "").strip()
@@ -127,7 +126,7 @@ def normalize_fmp(provider: str, it: Dict[str, Any]) -> NewsItem:
 
 # ── Benzinga REST ───────────────────────────────────────────────
 
-def normalize_benzinga_rest(it: Dict[str, Any]) -> NewsItem:
+def normalize_benzinga_rest(it: dict[str, Any]) -> NewsItem:
     """Normalise one Benzinga REST /api/v2/news item."""
     item_id = str(it.get("id") or it.get("uuid") or "").strip()
     headline = str(it.get("title") or it.get("headline") or "").strip()
@@ -157,7 +156,7 @@ def normalize_benzinga_rest(it: Dict[str, Any]) -> NewsItem:
 
 # ── Benzinga WebSocket ──────────────────────────────────────────
 
-def normalize_benzinga_ws(msg: Dict[str, Any]) -> NewsItem:
+def normalize_benzinga_ws(msg: dict[str, Any]) -> NewsItem:
     """Normalise one Benzinga WebSocket message.
 
     WS payload field names follow the REST schema; the message may

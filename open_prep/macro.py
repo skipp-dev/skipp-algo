@@ -242,7 +242,7 @@ class FMPClient:
         return max(0.0, delay + jitter)
 
     @classmethod
-    def from_env(cls, key_name: str = "FMP_API_KEY") -> "FMPClient":
+    def from_env(cls, key_name: str = "FMP_API_KEY") -> FMPClient:
         value = os.environ.get(key_name)
         if not value:
             raise ValueError(
@@ -310,7 +310,7 @@ class FMPClient:
         if payload is None:
             self._circuit_breaker.record_failure()
             raise RuntimeError(f"FMP API request failed on {path}: exhausted retries")
-        
+
         try:
             data = json.loads(payload)
         except json.JSONDecodeError as exc:
@@ -1149,11 +1149,7 @@ def _is_high_impact_event_name(name: str, watchlist: set[str]) -> bool:
         if normalized in {_normalize_event_name(item) for item in watchlist}:
             return True
 
-    for keywords in HIGH_IMPACT_NAME_PATTERNS:
-        if all(keyword in normalized for keyword in keywords):
-            return True
-
-    return False
+    return any(all(keyword in normalized for keyword in keywords) for keywords in HIGH_IMPACT_NAME_PATTERNS)
 
 
 def _contains_keywords(normalized_name: str, pattern: tuple[str, ...]) -> bool:
@@ -1361,13 +1357,7 @@ def macro_bias_with_components(
             # primary Fed-watch print at weight 1.0.
             weight = 0.25
             sign = -1.0 if surprise > 0 else +1.0
-        elif canonical_key == "hourly_earnings" or "average hourly earnings" in name:
-            weight = 0.5
-            sign = -1.0 if surprise > 0 else +1.0
-        elif canonical_key == "unemployment" or "unemployment rate" in name:
-            weight = 0.5
-            sign = -1.0 if surprise > 0 else +1.0
-        elif canonical_key == "jobless_claims" or "jobless claims" in name or "initial claims" in name:
+        elif canonical_key == "hourly_earnings" or "average hourly earnings" in name or canonical_key == "unemployment" or "unemployment rate" in name or canonical_key == "jobless_claims" or "jobless claims" in name or "initial claims" in name:
             weight = 0.5
             sign = -1.0 if surprise > 0 else +1.0
         elif canonical_key == "jolts" or "jolts" in name or "job openings" in name:
@@ -1378,13 +1368,7 @@ def macro_bias_with_components(
         ):
             weight = 0.25
             sign = +1.0 if surprise > 0 else -1.0
-        elif canonical_key in ("ism", "philly_fed") or "philadelphia fed" in name or "philly fed" in name or "ism" in name:
-            weight = 0.5
-            sign = +1.0 if surprise > 0 else -1.0
-        elif canonical_key == "nfp" or "nonfarm payroll" in name:
-            weight = 0.5
-            sign = +1.0 if surprise > 0 else -1.0
-        elif canonical_key in ("retail_sales", "gdp_qoq") or "retail sales" in name or (
+        elif canonical_key in ("ism", "philly_fed") or "philadelphia fed" in name or "philly fed" in name or "ism" in name or canonical_key == "nfp" or "nonfarm payroll" in name or canonical_key in ("retail_sales", "gdp_qoq") or "retail sales" in name or (
             "gdp" in name and "gdpnow" not in name
         ):
             weight = 0.5
