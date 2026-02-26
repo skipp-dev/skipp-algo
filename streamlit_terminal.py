@@ -1003,8 +1003,17 @@ else:
 
             rt_label = f" | RT: {len(rt_quotes)} symbols" if rt_quotes else ""
             st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")
+
+            # Highlight fresh entries (< 20 min old) with orange text
+            def _highlight_fresh(row: "pd.Series") -> list[str]:  # type: ignore[name-defined]
+                age = row.get("age_min", 999)
+                if isinstance(age, (int, float)) and age < 20:
+                    return ["color: #FF8C00"] * len(row)
+                return [""] * len(row)
+
+            styled = df_rank.style.apply(_highlight_fresh, axis=1)
             st.dataframe(
-                df_rank,
+                styled,
                 width='stretch',
                 height=min(600, 40 + 35 * len(df_rank)),
             )
