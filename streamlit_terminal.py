@@ -502,6 +502,9 @@ def _do_poll() -> None:
         logger.exception("Poll failed: %s", exc)
         st.session_state.last_poll_error = str(exc)
         st.session_state.last_poll_status = "ERROR"
+        # Advance last_poll_ts even on failure to prevent a tight retry
+        # loop that hammers a broken API on every Streamlit rerun.
+        st.session_state.last_poll_ts = time.time()
         return
 
     st.session_state.cursor = new_cursor
@@ -527,10 +530,12 @@ def _do_poll() -> None:
     new_dicts = [ci.to_dict() for ci in items]
     st.session_state.feed = new_dicts + st.session_state.feed
 
-    # Fire global webhook for qualifying items
-    if cfg.webhook_url:
-        for ci in items:
-            fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret)
+    # Fire global webhook for qualifying items (single shared client)
+    if cfg.webhook_url and items:
+        import httpx as _httpx_wh
+        with _httpx_wh.Client(timeout=5.0) as wh_client:
+            for ci in items:
+                fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret, _client=wh_client)
 
     # Trim feed
     max_items = cfg.max_items

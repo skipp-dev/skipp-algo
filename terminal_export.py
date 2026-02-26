@@ -264,6 +264,7 @@ def fire_webhook(
     secret: str = "",
     timeout: float = 5.0,
     min_score: float = 0.70,
+    _client: "httpx.Client | None" = None,
 ) -> Optional[Dict[str, Any]]:
     """POST a classified item to TradersPost (or any webhook receiver).
 
@@ -283,6 +284,10 @@ def fire_webhook(
         HTTP timeout in seconds.
     min_score : float
         Minimum news_score to fire the webhook.
+    _client : httpx.Client, optional
+        Pre-created httpx client to reuse across multiple calls.
+        When provided the caller is responsible for closing it.
+        When ``None`` (default) a one-shot client is created per call.
 
     Returns
     -------
@@ -325,18 +330,23 @@ def fire_webhook(
     if secret:
         headers["X-Signature-256"] = f"sha256={_sign_payload(body, secret)}"
 
+    # Reuse caller-provided client or create a one-shot client
+    managed = _client is None
+    client = _client if _client is not None else httpx.Client(timeout=timeout)
     try:
-        with httpx.Client(timeout=timeout) as client:
-            r = client.post(url, content=body, headers=headers)
-            r.raise_for_status()
-            logger.info(
-                "Webhook fired for %s (score=%.3f): HTTP %d",
-                item.ticker, item.news_score, r.status_code,
-            )
-            try:
-                return r.json()
-            except Exception:
-                return {"status": r.status_code, "text": r.text[:200]}
+        r = client.post(url, content=body, headers=headers)
+        r.raise_for_status()
+        logger.info(
+            "Webhook fired for %s (score=%.3f): HTTP %d",
+            item.ticker, item.news_score, r.status_code,
+        )
+        try:
+            return r.json()
+        except Exception:
+            return {"status": r.status_code, "text": r.text[:200]}
     except Exception as exc:
         logger.warning("Webhook failed for %s: %s", item.ticker, exc)
         return None
+    finally:
+        if managed:
+            client.close()

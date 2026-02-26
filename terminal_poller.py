@@ -36,6 +36,24 @@ from open_prep.playbook import (
 logger = logging.getLogger(__name__)
 
 
+# ── Safe env-var parsers ────────────────────────────────────────
+
+def _env_float(key: str, default: float) -> float:
+    """Read an env var as float, returning *default* on parse failure."""
+    try:
+        return float(os.getenv(key, str(default)))
+    except (ValueError, TypeError):
+        return default
+
+
+def _env_int(key: str, default: int) -> int:
+    """Read an env var as int, returning *default* on parse failure."""
+    try:
+        return int(os.getenv(key, str(default)))
+    except (ValueError, TypeError):
+        return default
+
+
 # ── Configuration ───────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -51,7 +69,7 @@ class TerminalConfig:
         repr=False,
     )
     poll_interval_s: float = field(
-        default_factory=lambda: float(os.getenv("TERMINAL_POLL_INTERVAL_S", "5.0")),
+        default_factory=lambda: _env_float("TERMINAL_POLL_INTERVAL_S", 5.0),
     )
     sqlite_path: str = field(
         default_factory=lambda: os.getenv("TERMINAL_SQLITE_PATH", "newsstack_fmp/terminal_state.db"),
@@ -67,13 +85,13 @@ class TerminalConfig:
         repr=False,
     )
     max_items: int = field(
-        default_factory=lambda: int(os.getenv("TERMINAL_MAX_ITEMS", "500")),
+        default_factory=lambda: _env_int("TERMINAL_MAX_ITEMS", 500),
     )
     channels: str = field(
         default_factory=lambda: os.getenv("TERMINAL_CHANNELS", ""),
     )
     page_size: int = field(
-        default_factory=lambda: int(os.getenv("TERMINAL_PAGE_SIZE", "100")),
+        default_factory=lambda: _env_int("TERMINAL_PAGE_SIZE", 100),
     )
     display_output: str = field(
         default_factory=lambda: os.getenv("TERMINAL_DISPLAY_OUTPUT", "abstract"),
