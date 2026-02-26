@@ -126,12 +126,15 @@ def classify_and_score(
     # Guard against invalid cluster_count from external callers
     cluster_count = max(1, cluster_count)
 
-    if isinstance(item, NewsItem):
-        headline = item.headline or ""
-        tickers = item.tickers or []
+    # Use duck-typing instead of isinstance so that Streamlit module
+    # reloading (which can create a second NewsItem class identity)
+    # doesn't break the check and fall through to dict `.get()`.
+    if hasattr(item, "headline"):
+        headline = item.headline or ""  # type: ignore[union-attr]
+        tickers = item.tickers or []  # type: ignore[union-attr]
     else:
-        headline = item.get("headline") or ""
-        tickers = item.get("tickers") or []
+        headline = item.get("headline") or ""  # type: ignore[union-attr]
+        tickers = item.get("tickers") or []  # type: ignore[union-attr]
     if chash is None:
         chash = cluster_hash(headline, tickers)
 
