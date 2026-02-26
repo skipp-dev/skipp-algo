@@ -195,17 +195,21 @@ if "feed" not in st.session_state:
         from terminal_export import rewrite_jsonl
         rewrite_jsonl(TerminalConfig().jsonl_path, _restored)
         logger.info("Pruned %d stale items from JSONL on startup", _before_len - len(_restored))
-    # Also prune SQLite dedup table to match feed_max_age_s so items
-    # can be re-ingested on the next poll instead of being blocked by
-    # stale "seen" entries from a prior session.
+    # Also prune SQLite dedup table so items can be re-ingested on the
+    # next poll instead of being blocked by stale "seen" entries from a
+    # prior session.  When the feed is completely empty (all items were
+    # stale), clear the dedup store entirely — a partial prune (keep=4h)
+    # still blocks recent items that were already seen, leaving the user
+    # with an empty or stale dashboard.
     if _before_len > 0 and len(_restored) < _before_len:
         from newsstack_fmp.store_sqlite import SqliteStore as _InitStore
         _init_cfg = TerminalConfig()
         _init_store = _InitStore(_init_cfg.sqlite_path)
-        _init_store.prune_seen(keep_seconds=_init_cfg.feed_max_age_s)
-        _init_store.prune_clusters(keep_seconds=_init_cfg.feed_max_age_s)
+        _keep = 0.0 if not _restored else _init_cfg.feed_max_age_s
+        _init_store.prune_seen(keep_seconds=_keep)
+        _init_store.prune_clusters(keep_seconds=_keep)
         _init_store.close()
-        logger.info("Pruned SQLite dedup tables (keep_seconds=%.0f) on startup", _init_cfg.feed_max_age_s)
+        logger.info("Pruned SQLite dedup tables (keep_seconds=%.0f) on startup", _keep)
     st.session_state.feed = _restored
     if _restored:
         # Derive cursor from restored feed so polling resumes from latest.
@@ -633,11 +637,16 @@ def _do_poll() -> None:
         ) + 1
         if st.session_state.consecutive_empty_polls >= 3:
             try:
-                store.prune_seen(keep_seconds=cfg.feed_max_age_s)
-                store.prune_clusters(keep_seconds=cfg.feed_max_age_s)
+                # Full clear (keep=0) when the feed is empty — a partial
+                # prune with keep=4h still blocks recently-seen items and
+                # the poll keeps returning 0 classified results.
+                _prune_keep = 0.0 if not st.session_state.feed else cfg.feed_max_age_s
+                store.prune_seen(keep_seconds=_prune_keep)
+                store.prune_clusters(keep_seconds=_prune_keep)
                 st.session_state.cursor = None
                 logger.info(
-                    "Reset cursor + pruned SQLite after %d consecutive empty polls",
+                    "Reset cursor + pruned SQLite (keep=%.0f) after %d consecutive empty polls",
+                    _prune_keep,
                     st.session_state.consecutive_empty_polls,
                 )
             except Exception as exc:
