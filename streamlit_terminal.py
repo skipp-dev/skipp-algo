@@ -103,12 +103,33 @@ st.set_page_config(
 
 # ── Persistent state (survives reruns) ──────────────────────────
 
+
+def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = None) -> list[dict[str, Any]]:
+    """Drop items whose published_ts is older than *max_age_s* seconds.
+
+    This prevents the feed from accumulating stale entries that diverge
+    between local and remote Streamlit instances.  Default max age is
+    taken from ``TerminalConfig.feed_max_age_s`` (env: TERMINAL_FEED_MAX_AGE_S,
+    default 4 h).
+    """
+    if max_age_s is None:
+        cfg_obj = st.session_state.get("cfg")
+        max_age_s = cfg_obj.feed_max_age_s if cfg_obj else 14400.0
+    if max_age_s <= 0:
+        return feed  # pruning disabled
+    cutoff = time.time() - max_age_s
+    return [d for d in feed if (d.get("published_ts") or 0) >= cutoff]
+
+
 if "cfg" not in st.session_state:
     st.session_state.cfg = TerminalConfig()
 if "cursor" not in st.session_state:
     st.session_state.cursor = None
 if "feed" not in st.session_state:
     _restored = load_jsonl_feed(TerminalConfig().jsonl_path)
+    # Drop items older than feed_max_age_s so a stale JSONL doesn't
+    # populate the session with outdated symbols.
+    _restored = _prune_stale_items(_restored)
     st.session_state.feed = _restored  # type: list[dict[str, Any]]
     if _restored:
         # Derive cursor from restored feed so polling resumes from latest.
@@ -552,6 +573,9 @@ def _do_poll() -> None:
     max_items = cfg.max_items
     if len(st.session_state.feed) > max_items:
         st.session_state.feed = st.session_state.feed[:max_items]
+
+    # Prune stale items (age-based) so rankings stay fresh
+    st.session_state.feed = _prune_stale_items(st.session_state.feed)
 
     # Rotate JSONL periodically
     if cfg.jsonl_path and st.session_state.poll_count % 100 == 0:

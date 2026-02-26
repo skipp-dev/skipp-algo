@@ -150,6 +150,7 @@ def load_rt_quotes(
 def build_vd_snapshot(
     feed: list[dict[str, Any]],
     rt_quotes: dict[str, dict[str, Any]] | None = None,
+    max_age_s: float = 14400.0,
 ) -> list[dict[str, Any]]:
     """Build one row per ticker from the full feed, ranked by best news_score.
 
@@ -162,6 +163,9 @@ def build_vd_snapshot(
     VisiData snapshot always reflects current staleness — not the
     frozen value from classification time.
 
+    Items older than *max_age_s* (default 4 h) are excluded so the
+    snapshot does not show stale symbols.
+
     Columns mirror the open_prep realtime VisiData format:
     symbol, N, sentiment, tick, score, streak, category, event,
     materiality, impact, clarity, sentiment_score, polarity, recency,
@@ -173,9 +177,14 @@ def build_vd_snapshot(
     best: dict[str, dict[str, Any]] = {}   # ticker → best-scored item
     counts: dict[str, int] = {}             # ticker → article count
 
+    cutoff = time.time() - max_age_s if max_age_s > 0 else 0.0
+
     for d in feed:
         tk = d.get("ticker", "?")
         if tk == "MARKET":
+            continue
+        # Skip stale items
+        if cutoff and (d.get("published_ts") or 0) < cutoff:
             continue
         counts[tk] = counts.get(tk, 0) + 1
         prev = best.get(tk)
@@ -234,6 +243,7 @@ def save_vd_snapshot(
     feed: list[dict[str, Any]],
     path: str = _VD_SNAPSHOT_DEFAULT,
     rt_jsonl_path: str = _RT_VD_SIGNALS_DEFAULT,
+    max_age_s: float = 14400.0,
 ) -> None:
     """Write per-symbol VisiData JSONL — atomic overwrite, one line per ticker.
 
@@ -241,12 +251,14 @@ def save_vd_snapshot(
     engine is running and the file is fresh) and merges live quote fields
     (tick, streak, price, chg_pct, vol_ratio) into each row.
 
+    Items older than *max_age_s* are excluded (pass 0 to disable).
+
     Uses the same atomic-replace pattern as the RT engine
     (tempfile + os.replace) so VisiData can ``--reload`` every few
     seconds without reading a half-written file.
     """
     rt_quotes = load_rt_quotes(rt_jsonl_path)
-    rows = build_vd_snapshot(feed, rt_quotes=rt_quotes)
+    rows = build_vd_snapshot(feed, rt_quotes=rt_quotes, max_age_s=max_age_s)
     if not rows:
         return
 

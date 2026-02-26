@@ -623,14 +623,14 @@ class TestBuildVdSnapshotEdgeCases(unittest.TestCase):
         from terminal_export import build_vd_snapshot
 
         feed = [{"ticker": "A", "news_score": 0.5, "provider": "fmp_stock_latest"}]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         self.assertEqual(rows[0]["provider"], "fmp_stock_latest")
 
     def test_missing_fields_use_defaults(self) -> None:
         from terminal_export import build_vd_snapshot
 
         feed = [{"ticker": "X", "news_score": 0.3}]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         self.assertEqual(rows[0]["category"], "")
         self.assertEqual(rows[0]["event"], "")
         self.assertEqual(rows[0]["polarity"], 0)

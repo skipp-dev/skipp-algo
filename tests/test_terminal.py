@@ -528,6 +528,7 @@ class TestVdSnapshot:
             "is_actionable": True,
             "source_tier": "TIER_1",
             "source": "Benzinga",
+            "published_ts": time.time(),
         }
         base.update(overrides)
         return base
@@ -538,7 +539,7 @@ class TestVdSnapshot:
             self._make_feed_item("AAPL", 0.85),
             self._make_feed_item("TSLA", 0.60),
         ]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         assert len(rows) == 2
         # Should be sorted by score desc
         assert rows[0]["symbol"] == "AAPL"
@@ -551,7 +552,7 @@ class TestVdSnapshot:
             self._make_feed_item("AAPL", 0.85),
             self._make_feed_item("AAPL", 0.40),
         ]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         assert len(rows) == 1
         assert rows[0]["N"] == 3
         assert rows[0]["score"] == 0.85  # best score wins
@@ -562,7 +563,7 @@ class TestVdSnapshot:
             self._make_feed_item("MARKET", 0.90),
             self._make_feed_item("NVDA", 0.70),
         ]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         assert len(rows) == 1
         assert rows[0]["symbol"] == "NVDA"
 
@@ -575,7 +576,7 @@ class TestVdSnapshot:
             "age_min", "actionable", "provider", "price", "chg_pct", "vol_ratio",
         ]
         feed = [self._make_feed_item("META", 0.75)]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         assert len(rows) == 1
         for col in expected_cols:
             assert col in rows[0], f"Missing column: {col}"
@@ -587,7 +588,7 @@ class TestVdSnapshot:
             self._make_feed_item("BEAR", 0.5, sentiment_label="bearish"),
             self._make_feed_item("NEU", 0.5, sentiment_label="neutral"),
         ]
-        rows = build_vd_snapshot(feed)
+        rows = build_vd_snapshot(feed, max_age_s=0)
         by_sym = {r["symbol"]: r for r in rows}
         assert by_sym["BULL"]["sentiment"] == "🟢"
         assert by_sym["BEAR"]["sentiment"] == "🔴"
@@ -636,6 +637,7 @@ class TestRtIntegration:
             "recency_bucket": "FRESH",
             "age_minutes": 5.0,
             "is_actionable": True,
+            "published_ts": time.time(),
         }
         base.update(kw)
         return base
@@ -711,7 +713,7 @@ class TestRtIntegration:
         feed = [self._make_feed_item("AAPL", 0.85)]
         rt = {"AAPL": {"tick": "↑", "streak": 3,
                         "price": 195.5, "chg_pct": 1.2, "vol_ratio": 2.1}}
-        rows = build_vd_snapshot(feed, rt_quotes=rt)
+        rows = build_vd_snapshot(feed, rt_quotes=rt, max_age_s=0)
         assert len(rows) == 1
         r = rows[0]
         assert r["tick"] == "↑"
@@ -724,7 +726,7 @@ class TestRtIntegration:
         from terminal_export import build_vd_snapshot
         feed = [self._make_feed_item("NVDA", 0.90)]
         rt = {"AAPL": {"price": 195.0}}  # no NVDA
-        rows = build_vd_snapshot(feed, rt_quotes=rt)
+        rows = build_vd_snapshot(feed, rt_quotes=rt, max_age_s=0)
         r = rows[0]
         assert r["tick"] == ""
         assert r["streak"] == 0
@@ -745,7 +747,7 @@ class TestRtIntegration:
             "TSLA": {"price": 250.0, "chg_pct": -0.3,
                       "tick": "↓", "streak": -1, "vol_ratio": 0.8},
         }
-        rows = build_vd_snapshot(feed, rt_quotes=rt)
+        rows = build_vd_snapshot(feed, rt_quotes=rt, max_age_s=0)
         by_sym = {r["symbol"]: r for r in rows}
         # AAPL has RT data
         assert by_sym["AAPL"]["price"] == 195.0

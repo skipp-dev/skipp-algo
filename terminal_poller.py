@@ -100,6 +100,9 @@ class TerminalConfig:
     fmp_enabled: bool = field(
         default_factory=lambda: os.getenv("TERMINAL_FMP_ENABLED", "1") == "1",
     )
+    feed_max_age_s: float = field(
+        default_factory=lambda: _env_float("TERMINAL_FEED_MAX_AGE_S", 14400.0),  # 4 hours
+    )
 
 
 # ── Classified item schema ──────────────────────────────────────
