@@ -1,0 +1,403 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © 2026 VWAP Reclaim Indicator (Long + Short)
+
+//@version=6
+indicator(title="VWAP Reclaim Indicator", shorttitle="VWAP Reclaim IND", overlay=true)
+
+// ==================== HELPER FUNCTIONS ====================
+
+// Zero-Lag error-corrected EMA source (from SkippALGO USI Quantum Pulse).
+// Leads classic EMA by ~2-5 bars, enabling earlier RSI flips.
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+// ==================== INPUTS ====================
+
+// Direction Toggle
+tradeDirection = input.string("Both", "Trade Direction",
+    options=["Long", "Short", "Both"],
+    tooltip="Long = nur Long-Signale. Short = nur Short-Signale. Both = beides gleichzeitig.",
+    group="Strategy")
+allowLong  = tradeDirection == "Long" or tradeDirection == "Both"
+allowShort = tradeDirection == "Short" or tradeDirection == "Both"
+
+// VWAP Settings
+hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings")
+var anchor = input.string(defval="Session", title="Anchor Period",
+    options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"],
+    group="VWAP Settings")
+src = input(title="Source", defval=hlc3, group="VWAP Settings")
+offset = input(0, title="Offset", group="VWAP Settings")
+
+// Standard Deviation Bands Settings
+showBand_1 = input(true, title="Show Band 1", group="Standard Deviation Bands Settings")
+stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard Deviation Bands Settings")
+
+// Strategy Settings
+simpleVwapCross = input.bool(false, "Simple VWAP Cross Entry",
+    tooltip="Einstieg sobald der Preis den VWAP kreuzt (Long: von unten, Short: von oben). Überspringt die Reclaim→Retest→Go Sequenz.",
+    group="Strategy")
+breakoutEntry = input.bool(true, "Breakout Entry (Pullback High/Low)",
+    tooltip="Long: BUY wenn Close den rollenden Pullback High bricht. Short: SELL wenn Close den rollenden Pullback Low bricht (Reclaim→Retest→Go).",
+    group="Strategy")
+matchedTrends = input.bool(true, "Only Show Matched Trends",
+    tooltip="Long-Signale nur bei VWAP-Aufwärtstrend, Short-Signale nur bei VWAP-Abwärtstrend.",
+    group="Strategy")
+
+displaybars = input.bool(true, "Barcolors", group="Display")
+showTradeLabels = input.bool(true, "Show Trade Labels", group="Display")
+
+// Trend Detection Settings
+trendSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, maxval=20,
+    tooltip="Bars for VWAP slope calculation. Lower = faster but noisier.",
+    group="Trend Detection")
+trendEmaLen = input.int(8, "Price Bias EMA Length", minval=3, maxval=50,
+    tooltip="EMA length for price-above/below-VWAP bias. Lower = earlier signal.",
+    group="Trend Detection")
+
+// Reclaim Settings
+preset3m = input.string("Neutral", "3m Preset", options=["Aggressive", "Neutral", "Conservative", "Custom"], group="Reclaim Settings")
+reclaimWindowBars = input.int(12, "Reclaim: Max Bars bis Retest", minval=1, group="Reclaim Settings")
+retestTolATR = input.float(0.10, "Retest Toleranz (ATR-Anteil)", minval=0.0, step=0.01, group="Reclaim Settings")
+useAtrTol = input.bool(true, "Toleranz via ATR", group="Reclaim Settings")
+debug = input.bool(true, "Debug Markers", group="Reclaim Settings")
+showStatusTable = input.bool(true, "Show Status Table", group="Reclaim Settings")
+pullbackLookback = input.int(5, "Pullback Lookback", minval=2, maxval=30,
+    tooltip="Rolling-Fenster für Pullback High (Long) / Pullback Low (Short) — Donchian. Kleiner = schneller. Default 5.",
+    group="Reclaim Settings")
+
+// USI Trend Filter Settings (aggressive, early-tuned)
+useUsiFilter = input.bool(true, "USI Trend Filter",
+    tooltip="Signale nur wenn der USI (Universal Strength Index) den passenden Trend zeigt. Long = Bull-Stack, Short = Bear-Stack.",
+    group="⚡ USI Trend Filter")
+usiLen1 = input.int(7, "USI Slow RSI Length", minval=2, maxval=30,
+    tooltip="Längster RSI im Stack. Default 7 (aggressiv). SkippALGO nutzt 13.",
+    group="⚡ USI Trend Filter")
+usiLen2 = input.int(5, "USI Mid RSI Length", minval=2, maxval=30,
+    tooltip="Mittlerer RSI im Stack. Default 5.",
+    group="⚡ USI Trend Filter")
+usiLen3 = input.int(3, "USI Fast RSI Length", minval=2, maxval=30,
+    tooltip="Kürzester/schnellster RSI (Red Line). Default 3 (aggressiv).",
+    group="⚡ USI Trend Filter")
+usiMinStack = input.int(2, "Min Stack Count", minval=1, maxval=2,
+    tooltip="Mindest-Stacking: Wie viele kürzere RSIs müssen gestapelt sein? 1 = aggressiv, 2 = alle gestapelt.",
+    group="⚡ USI Trend Filter")
+
+// Signal Filter Settings — bar-close confirmation + volume gate
+barCloseOnly = input.bool(true, "Bar Close Only",
+    tooltip="Labels und Alerts nur auf geschlossenen Bars. Verhindert Intra-Bar-Flicker bei Live-Daten.",
+    group="🔒 Signal Filters")
+useVolFilter = input.bool(false, "Volume Filter",
+    tooltip="Signale nur wenn das aktuelle Barvolumen über dem Durchschnitt liegt. Filtert Signale in ruhigen/illiquiden Phasen.",
+    group="🔒 Signal Filters")
+minVolRatio = input.float(1.0, "Min Volume Ratio", minval=0.1, step=0.1,
+    tooltip="Mindest-Verhältnis: Aktuelles Barvolumen / SMA(Volumen). 1.0 = Durchschnitt, 1.5 = 50% über Durchschnitt.",
+    group="🔒 Signal Filters")
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, maxval=100,
+    tooltip="Lookback für den Volumen-Durchschnitt.",
+    group="🔒 Signal Filters")
+
+reclaimWindowBarsEff = preset3m == "Aggressive" ? 20 : preset3m == "Conservative" ? 8 : preset3m == "Neutral" ? 12 : reclaimWindowBars
+retestTolATREff = preset3m == "Aggressive" ? 0.16 : preset3m == "Conservative" ? 0.06 : preset3m == "Neutral" ? 0.10 : retestTolATR
+
+// Pine hint: evaluate stateful TA functions on every bar, then use the result in conditions.
+cumVolume = ta.cum(volume)
+if barstate.islast and cumVolume == 0
+    runtime.error("No volume is provided by the data vendor.")
+
+// Signal filter gates (evaluated on every bar)
+volSma = ta.sma(volume, volSmaLen)
+volRatio = volSma > 0 ? volume / volSma : 0.0
+volGate = useVolFilter ? volRatio >= minVolRatio : true
+barCloseGate = barCloseOnly ? barstate.isconfirmed : true
+
+// ==================== DATA REQUESTS ====================
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+// ==================== VWAP ANCHOR PERIOD ====================
+
+isNewPeriod = switch anchor
+    "Earnings"  => not na(new_earnings)
+    "Dividends" => not na(new_dividends)
+    "Splits"    => not na(new_split)
+    "Session"   => timeframe.change("D")
+    "Week"      => timeframe.change("W")
+    "Month"     => timeframe.change("M")
+    "Quarter"   => timeframe.change("3M")
+    "Year"      => timeframe.change("12M")
+    "Decade"    => timeframe.change("12M") and year % 10 == 0
+    "Century"   => timeframe.change("12M") and year % 100 == 0
+    => false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(src[1]) and not isEsdAnchor
+    isNewPeriod := true
+
+// ==================== VWAP CALCULATION ====================
+
+var float vwapValue = na
+var float upperBandValue1 = na
+var float lowerBandValue1 = na
+var float upperBandValue2 = na
+var float lowerBandValue2 = na
+
+if not (hideonDWM and timeframe.isdwm)
+    [_vwap, _stdevUpper, _] = ta.vwap(src, isNewPeriod, 1)
+    vwapValue := _vwap
+    stdevAbs = _stdevUpper - _vwap
+    upperBandValue1 := _vwap + stdevAbs * stdevMult_1
+    lowerBandValue1 := _vwap - stdevAbs * stdevMult_1
+    upperBandValue2 := _vwap + 2 * stdevAbs * stdevMult_1
+    lowerBandValue2 := _vwap - 2 * stdevAbs * stdevMult_1
+
+// ==================== COMMON TA ====================
+
+atr = nz(ta.atr(14), syminfo.mintick * 10)
+tol = useAtrTol ? atr * retestTolATREff : syminfo.mintick * 2
+
+// Trend detection: slope + price bias
+vwapSlope = ta.change(vwapValue, trendSlopeBars)
+emaClose = ta.ema(close, trendEmaLen)
+priceBiasLong  = emaClose > vwapValue
+priceBiasShort = emaClose < vwapValue
+isUpTrend   = vwapSlope > 0 or priceBiasLong
+isDownTrend = vwapSlope < 0 or priceBiasShort
+
+matchedTrendsFilter_long  = not matchedTrends ? true : isUpTrend
+matchedTrendsFilter_short = not matchedTrends ? true : isDownTrend
+
+// Donchian channels
+pullbackHigh = ta.highest(high, pullbackLookback)
+pullbackLow  = ta.lowest(low, pullbackLookback)
+
+// ==================== USI QUANTUM PULSE (EARLY-TUNED) ====================
+
+usiSrc1 = f_zl_src(close, usiLen1)   // slowest (default 7)
+usiSrc2 = f_zl_src(close, usiLen2)   // mid     (default 5)
+usiSrc3 = f_zl_src(close, usiLen3)   // fastest (default 3) — "Red Line"
+
+usiLine1 = ta.rsi(usiSrc1, usiLen1)
+usiLine2 = ta.rsi(usiSrc2, usiLen2)
+usiLine3 = ta.rsi(usiSrc3, usiLen3)
+
+// Bull stacking: faster RSIs above slower ones
+usiBullStack = (usiLine3 > usiLine2 ? 1 : 0) + (usiLine2 > usiLine1 ? 1 : 0)
+usiBullState = usiLine3 > usiLine1
+usiUpTrend = usiBullStack >= usiMinStack and usiBullState
+
+// Bear stacking: faster RSIs below slower ones (mirror)
+usiBearStack = (usiLine3 < usiLine2 ? 1 : 0) + (usiLine2 < usiLine1 ? 1 : 0)
+usiBearState = usiLine3 < usiLine1
+usiDownTrend = usiBearStack >= usiMinStack and usiBearState
+
+usiGateLong  = useUsiFilter ? usiUpTrend   : true
+usiGateShort = useUsiFilter ? usiDownTrend : true
+
+// ==================== RECLAIM → RETEST → GO  (LONG) ====================
+
+wasBelowVwap = close[1] < vwapValue[1]
+reclaimUp = wasBelowVwap and close > vwapValue
+
+var int   reclaimBarL   = na
+var float retestLowL    = na
+var bool  inReclaimSeqL = false
+var bool  retestSeenL   = false
+var bool  inVirtualLong = false
+
+// Reset on new anchor period — old VWAP reclaim/position is no longer valid
+if isNewPeriod
+    inVirtualLong  := false
+    inReclaimSeqL  := false
+    retestSeenL    := false
+    retestLowL     := na
+    reclaimBarL    := na
+
+if reclaimUp
+    reclaimBarL   := bar_index
+    inReclaimSeqL := true
+    retestSeenL   := false
+    retestLowL    := na
+
+if inReclaimSeqL
+    expired = (bar_index - reclaimBarL) > reclaimWindowBarsEff
+    hardFail = close < vwapValue - tol
+    if expired or hardFail
+        inReclaimSeqL := false
+        retestSeenL   := false
+
+    if not retestSeenL
+        retestCond = low <= vwapValue + tol and close >= vwapValue - tol
+        if retestCond
+            retestSeenL := true
+            retestLowL  := low
+
+goLong = inReclaimSeqL and retestSeenL and close > pullbackHigh[1] and bar_index > reclaimBarL
+
+entryTriggerL = simpleVwapCross ? reclaimUp : (breakoutEntry and goLong)
+longSignal = allowLong and entryTriggerL and matchedTrendsFilter_long and usiGateLong and barCloseGate and volGate and not inVirtualLong
+
+if longSignal
+    inVirtualLong  := true
+    inReclaimSeqL  := false
+    retestSeenL    := false
+
+exitLong = inVirtualLong and close < vwapValue - tol and barCloseGate
+
+if exitLong
+    inVirtualLong := false
+
+// ==================== RECLAIM → RETEST → GO  (SHORT — mirror) ====================
+
+wasAboveVwap = close[1] > vwapValue[1]
+reclaimDown = wasAboveVwap and close < vwapValue
+
+var int   reclaimBarS    = na
+var float retestHighS    = na
+var bool  inReclaimSeqS  = false
+var bool  retestSeenS    = false
+var bool  inVirtualShort = false
+
+// Reset on new anchor period
+if isNewPeriod
+    inVirtualShort := false
+    inReclaimSeqS  := false
+    retestSeenS    := false
+    retestHighS    := na
+    reclaimBarS    := na
+
+if reclaimDown
+    reclaimBarS    := bar_index
+    inReclaimSeqS  := true
+    retestSeenS    := false
+    retestHighS    := na
+
+if inReclaimSeqS
+    expired = (bar_index - reclaimBarS) > reclaimWindowBarsEff
+    hardFail = close > vwapValue + tol
+    if expired or hardFail
+        inReclaimSeqS := false
+        retestSeenS   := false
+
+    if not retestSeenS
+        // Retest: price pulls back UP toward VWAP
+        retestCond = high >= vwapValue - tol and close <= vwapValue + tol
+        if retestCond
+            retestSeenS := true
+            retestHighS := high
+
+goShort = inReclaimSeqS and retestSeenS and close < pullbackLow[1] and bar_index > reclaimBarS
+
+entryTriggerS = simpleVwapCross ? reclaimDown : (breakoutEntry and goShort)
+shortSignal = allowShort and entryTriggerS and matchedTrendsFilter_short and usiGateShort and barCloseGate and volGate and not inVirtualShort
+
+if shortSignal
+    inVirtualShort := true
+    inReclaimSeqS  := false
+    retestSeenS    := false
+
+exitShort = inVirtualShort and close > vwapValue + tol and barCloseGate
+
+if exitShort
+    inVirtualShort := false
+
+// ==================== PLOTS ====================
+
+plot(vwapValue, title="VWAP", color=color.white, linewidth=2, offset=offset)
+
+upperBand_1 = plot(showBand_1 ? upperBandValue1 : na, title="Upper Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
+lowerBand_1 = plot(showBand_1 ? lowerBandValue1 : na, title="Lower Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
+
+plot(upperBandValue2, title="Upper Band #2", color=color.lime, linewidth=1)
+plot(lowerBandValue2, title="Lower Band #2", color=color.red, linewidth=1)
+
+hl2_plot = plot(hl2, color=na, title="HL2")
+
+// ==================== FILLS ====================
+
+fill(hl2_plot, upperBand_1, color=hl2 > upperBandValue1 ? color.new(color.green, 50) : na, title="Above Upper Band")
+fill(hl2_plot, lowerBand_1, color=hl2 < lowerBandValue1 ? color.new(color.red, 50) : na, title="Below Lower Band")
+fill(upperBand_1, lowerBand_1, title="Bands Fill", color=isUpTrend ? color.new(color.lime, 88) : color.new(color.red, 88))
+
+// ==================== BAR COLORING ====================
+
+barcolor(displaybars ? (isUpTrend ? color.new(color.lime, 30) : color.new(color.red, 30)) : na, title="Trade Direction")
+
+// ==================== SIGNALS ====================
+
+// Long debug markers
+plotshape(debug and barCloseGate and reclaimUp and allowLong, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
+plotshape(debug and barCloseGate and retestSeenL and inReclaimSeqL and allowLong, title="RetestSeenL", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
+
+// Short debug markers
+plotshape(debug and barCloseGate and reclaimDown and allowShort, title="ReclaimDown", style=shape.triangledown, location=location.abovebar, color=color.new(color.white, 0), size=size.tiny, text="R↓")
+plotshape(debug and barCloseGate and retestSeenS and inReclaimSeqS and allowShort, title="RetestSeenS", style=shape.circle, location=location.abovebar, color=color.new(color.yellow, 0), size=size.tiny, text="T↓")
+
+// Entry/Exit labels
+plotshape(showTradeLabels and longSignal,  title="Long Entry",  style=shape.labelup,   location=location.belowbar, color=color.new(color.lime, 0),   textcolor=color.white, size=size.tiny, text="Buy")
+plotshape(showTradeLabels and exitLong,    title="Long Exit",   style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
+plotshape(showTradeLabels and shortSignal, title="Short Entry", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0),    textcolor=color.white, size=size.tiny, text="Sell")
+plotshape(showTradeLabels and exitShort,   title="Short Exit",  style=shape.labelup,   location=location.belowbar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Cover")
+
+// Pullback channels
+plot(allowLong  and (inReclaimSeqL or inVirtualLong)  ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
+plot(allowShort and (inReclaimSeqS or inVirtualShort) ? pullbackLow  : na, title="Pullback Low",  color=color.new(color.fuchsia, 0), linewidth=1)
+
+// ==================== STATUS TABLE ====================
+
+var table statusTable = table.new(position.top_right, 2, 11, border_width=1)
+if barstate.islast
+    if showStatusTable
+        table.cell(statusTable, 0, 0, "Direction", text_color=color.white, bgcolor=color.new(color.blue, 65))
+        table.cell(statusTable, 1, 0, tradeDirection, text_color=color.white, bgcolor=color.new(color.blue, 80))
+
+        table.cell(statusTable, 0, 1, "Preset", text_color=color.white, bgcolor=color.new(color.blue, 65))
+        table.cell(statusTable, 1, 1, preset3m, text_color=color.white, bgcolor=color.new(color.blue, 80))
+
+        table.cell(statusTable, 0, 2, "Window", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 2, str.tostring(reclaimWindowBarsEff), text_color=color.white, bgcolor=color.new(color.gray, 85))
+
+        table.cell(statusTable, 0, 3, "Tol ATR", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 3, str.tostring(retestTolATREff, "#.##"), text_color=color.white, bgcolor=color.new(color.gray, 85))
+
+        table.cell(statusTable, 0, 4, "Tol Mode", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 4, useAtrTol ? "ATR" : "Ticks", text_color=color.white, bgcolor=color.new(color.gray, 85))
+
+        table.cell(statusTable, 0, 5, "Tol Px", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 5, str.tostring(tol, format.mintick), text_color=color.white, bgcolor=color.new(color.gray, 85))
+
+        table.cell(statusTable, 0, 6, "Anchor", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 6, anchor, text_color=color.white, bgcolor=color.new(color.gray, 85))
+
+        anchorHint = anchor == "Session" ? "OK" : "3m daytrade: Session"
+        anchorBg = anchor == "Session" ? color.new(color.green, 75) : color.new(color.orange, 65)
+        table.cell(statusTable, 0, 7, "Hint", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 7, anchorHint, text_color=color.white, bgcolor=anchorBg)
+
+        usiLabel = not useUsiFilter ? "OFF" : (usiUpTrend ? "BULL" : (usiDownTrend ? "BEAR" : "FLAT"))
+        usiBg = not useUsiFilter ? color.new(color.gray, 70) : (usiUpTrend ? color.new(color.green, 65) : (usiDownTrend ? color.new(color.red, 65) : color.new(color.gray, 70)))
+        table.cell(statusTable, 0, 8, "USI", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 8, usiLabel, text_color=color.white, bgcolor=usiBg)
+
+        bcLabel = barCloseOnly ? "ON" : "OFF"
+        bcBg = barCloseOnly ? color.new(color.green, 65) : color.new(color.gray, 70)
+        table.cell(statusTable, 0, 9, "BarClose", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 9, bcLabel, text_color=color.white, bgcolor=bcBg)
+
+        volLabel = useVolFilter ? str.tostring(volRatio, "#.##") + "x" : "OFF"
+        volBg = not useVolFilter ? color.new(color.gray, 70) : (volGate ? color.new(color.green, 65) : color.new(color.red, 65))
+        table.cell(statusTable, 0, 10, "VolFilt", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 10, volLabel, text_color=color.white, bgcolor=volBg)
+    else
+        table.clear(statusTable, 0, 0, 1, 10)
+
+// ==================== ALERTING ====================
+
+alertcondition(longSignal,  title="Long Entry",  message="VWAP Reclaim — Long Entry")
+alertcondition(exitLong,    title="Long Exit",    message="VWAP Reclaim — Long Exit (VWAP lost)")
+alertcondition(shortSignal, title="Short Entry",  message="VWAP Reclaim — Short Entry")
+alertcondition(exitShort,   title="Short Exit",   message="VWAP Reclaim — Short Exit (VWAP reclaimed)")

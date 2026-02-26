@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-02-26)
+
+- **VWAP Reclaim expansion (Long/Short/Both):**
+  - Added new bidirectional scripts:
+    - `VWAP_Reclaim_Indicator.pine`
+    - `VWAP_Reclaim_Strategy.pine`
+  - Added `Trade Direction` toggle (`Long` / `Short` / `Both`) with mirrored short state machine (`Reclaim → Retest → Go`) and dedicated short entry/exit labeling.
+  - Added short-side trend gating parity (`matchedTrendsFilter_short`) and USI bear-stack gate parity in bidirectional variants.
+
+- **Signal filter controls (all VWAP reclaim variants):**
+  - Added grouped `🔒 Signal Filters` controls:
+    - `Bar Close Only`
+    - `Volume Filter`
+    - `Min Volume Ratio`
+    - `Volume SMA Length`
+  - Integrated `barCloseGate` + `volGate` into signal generation and visualization flow.
+
+- **Bloomberg-style terminal integration (workspace):**
+  - Added terminal pipeline/runtime modules:
+    - `terminal_poller.py`
+    - `terminal_export.py`
+    - `streamlit_terminal.py`
+  - Added coverage in `tests/test_terminal.py` and planning doc `docs/BLOOMBERG_TERMINAL_PLAN.md`.
+
+### Fixed (2026-02-26)
+
+- **VWAP reclaim reliability hardening (indicator/strategy parity):**
+  - ATR bootstrap safety: `atr = nz(ta.atr(14), syminfo.mintick * 10)` to avoid early-bar `na` tolerance propagation.
+  - Anchor reset hardening: reclaim/position state now resets fully on `isNewPeriod` (including reclaim bar markers), preventing stale sequence carry-over.
+  - Strategy reset parity: bidirectional strategy closes all active exposure with unified `strategy.position_size != 0` guard on period reset.
+  - Bidirectional strategy concurrency: `pyramiding=2` to allow intended simultaneous long+short behavior in `Both` mode.
+  - Long-stop safety: `nz(retestLow, vwapValue)` guard prevents `na` stop propagation in long-only strategy.
+  - Debug marker stability: reclaim/retest debug markers now respect `barCloseGate`.
+  - UX semantics: long-only USI status now uses `FLAT` (gray) instead of `BEAR` when no bull stack is present.
+
+### Verification (2026-02-26)
+
+- Full regression suite (local): **1028 passed, 34 subtests passed**.
+
 ### Added (2026-02-25)
 
 - **Open-Prep Streamlit v2: auto-promotion for realtime A0/A1 signals:**

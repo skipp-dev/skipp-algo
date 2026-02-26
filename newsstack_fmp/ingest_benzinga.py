@@ -57,7 +57,10 @@ class BenzingaRestAdapter:
         if not api_key:
             raise RuntimeError("BENZINGA_API_KEY missing")
         self.api_key = api_key
-        self.client = httpx.Client(timeout=10.0)
+        self.client = httpx.Client(
+            timeout=10.0,
+            headers={"Accept": "application/json"},
+        )
 
     def fetch_news(
         self,

@@ -80,6 +80,20 @@ usiMinBullStack = input.int(2, "Min Bull Stack", minval=1, maxval=2,
     tooltip="Mindest-Stacking: Wie viele kürzere RSIs müssen über dem nächst-langsameren liegen? 1 = aggressiv, 2 = alle gestapelt.",
     group="⚡ USI Trend Filter")
 
+// Signal Filter Settings — bar-close confirmation + volume gate
+barCloseOnly = input.bool(true, "Bar Close Only",
+    tooltip="Labels und Alerts nur auf geschlossenen Bars. Verhindert Intra-Bar-Flicker bei Live-Daten.",
+    group="🔒 Signal Filters")
+useVolFilter = input.bool(false, "Volume Filter",
+    tooltip="Signale nur wenn das aktuelle Barvolumen über dem Durchschnitt liegt. Filtert Signale in ruhigen/illiquiden Phasen.",
+    group="🔒 Signal Filters")
+minVolRatio = input.float(1.0, "Min Volume Ratio", minval=0.1, step=0.1,
+    tooltip="Mindest-Verhältnis: Aktuelles Barvolumen / SMA(Volumen). 1.0 = Durchschnitt, 1.5 = 50% über Durchschnitt.",
+    group="🔒 Signal Filters")
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, maxval=100,
+    tooltip="Lookback für den Volumen-Durchschnitt.",
+    group="🔒 Signal Filters")
+
 reclaimWindowBarsEff = preset3m == "Aggressive" ? 20 : preset3m == "Conservative" ? 8 : preset3m == "Neutral" ? 12 : reclaimWindowBars
 retestTolATREff = preset3m == "Aggressive" ? 0.16 : preset3m == "Conservative" ? 0.06 : preset3m == "Neutral" ? 0.10 : retestTolATR
 
@@ -87,6 +101,12 @@ retestTolATREff = preset3m == "Aggressive" ? 0.16 : preset3m == "Conservative" ?
 cumVolume = ta.cum(volume)
 if barstate.islast and cumVolume == 0
     runtime.error("No volume is provided by the data vendor.")
+
+// Signal filter gates (evaluated on every bar)
+volSma = ta.sma(volume, volSmaLen)
+volRatio = volSma > 0 ? volume / volSma : 0.0
+volGate = useVolFilter ? volRatio >= minVolRatio : true
+barCloseGate = barCloseOnly ? barstate.isconfirmed : true
 
 // ==================== DATA REQUESTS ====================
 
@@ -132,7 +152,7 @@ if not (hideonDWM and timeframe.isdwm)
 
 // ==================== RECLAIM -> RETEST -> GO (LONG-ONLY) ====================
 
-atr = ta.atr(14)
+atr = nz(ta.atr(14), syminfo.mintick * 10)
 tol = useAtrTol ? atr * retestTolATREff : syminfo.mintick * 2
 
 wasBelowVwap = close[1] < vwapValue[1]
@@ -143,6 +163,14 @@ var float retestLow = na
 var bool inReclaimSeq = false
 var bool retestSeen = false
 var bool inVirtualPos = false
+
+// Reset on new anchor period — old VWAP reclaim/position is no longer valid
+if isNewPeriod
+    inVirtualPos := false
+    inReclaimSeq := false
+    retestSeen := false
+    retestLow := na
+    reclaimBar := na
 
 // Rolling highest high (Donchian) — replaces monotonic pullbackHigh.
 // Reacts to pullbacks because old highs drop out of the window.
@@ -209,14 +237,14 @@ usiGate = useUsiFilter ? usiUpTrend : true
 // cross entries fire (no breakout). When off, breakoutEntry toggle
 // controls the Reclaim→Retest→Go breakout.
 entryTrigger = simpleVwapCross ? reclaimUp : (breakoutEntry and goLong)
-longSignal = entryTrigger and matchedTrendsFilter_long and usiGate and not inVirtualPos
+longSignal = entryTrigger and matchedTrendsFilter_long and usiGate and barCloseGate and volGate and not inVirtualPos
 
 if longSignal
     inVirtualPos := true
     inReclaimSeq := false   // prevent consecutive re-fires (parity with strategy)
     retestSeen := false
 
-exitOnVwapLoss = inVirtualPos and close < vwapValue - tol
+exitOnVwapLoss = inVirtualPos and close < vwapValue - tol and barCloseGate
 
 if exitOnVwapLoss
     inVirtualPos := false
@@ -245,15 +273,15 @@ barcolor(displaybars ? (isUpTrend ? color.new(color.lime, 30) : color.new(color.
 
 // ==================== SIGNALS ====================
 
-plotshape(debug and reclaimUp, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
-plotshape(debug and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
+plotshape(debug and barCloseGate and reclaimUp, title="ReclaimUp", style=shape.triangleup, location=location.belowbar, color=color.new(color.white, 0), size=size.tiny, text="R")
+plotshape(debug and barCloseGate and retestSeen and inReclaimSeq, title="RetestSeen", style=shape.circle, location=location.belowbar, color=color.new(color.yellow, 0), size=size.tiny, text="T")
 plotshape(showTradeLabels and longSignal, title="Long Entry", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), textcolor=color.white, size=size.tiny, text="Buy")
 plotshape(showTradeLabels and exitOnVwapLoss, title="VWAP Loss Exit", style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
 plot(inReclaimSeq or inVirtualPos ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
 
 // ==================== STATUS TABLE ====================
 
-var table statusTable = table.new(position.top_right, 2, 8, border_width=1)
+var table statusTable = table.new(position.top_right, 2, 10, border_width=1)
 if barstate.islast
     if showStatusTable
         table.cell(statusTable, 0, 0, "Preset", text_color=color.white, bgcolor=color.new(color.blue, 65))
@@ -279,12 +307,22 @@ if barstate.islast
         table.cell(statusTable, 0, 6, "Hint", text_color=color.white, bgcolor=color.new(color.gray, 70))
         table.cell(statusTable, 1, 6, anchorHint, text_color=color.white, bgcolor=anchorBg)
 
-        usiLabel = useUsiFilter ? (usiUpTrend ? "BULL" : "BEAR") : "OFF"
-        usiBg = not useUsiFilter ? color.new(color.gray, 70) : (usiUpTrend ? color.new(color.green, 65) : color.new(color.red, 65))
+        usiLabel = not useUsiFilter ? "OFF" : (usiUpTrend ? "BULL" : "FLAT")
+        usiBg = not useUsiFilter ? color.new(color.gray, 70) : (usiUpTrend ? color.new(color.green, 65) : color.new(color.gray, 70))
         table.cell(statusTable, 0, 7, "USI", text_color=color.white, bgcolor=color.new(color.gray, 70))
         table.cell(statusTable, 1, 7, usiLabel, text_color=color.white, bgcolor=usiBg)
+
+        bcLabel = barCloseOnly ? "ON" : "OFF"
+        bcBg = barCloseOnly ? color.new(color.green, 65) : color.new(color.gray, 70)
+        table.cell(statusTable, 0, 8, "BarClose", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 8, bcLabel, text_color=color.white, bgcolor=bcBg)
+
+        volLabel = useVolFilter ? str.tostring(volRatio, "#.##") + "x" : "OFF"
+        volBg = not useVolFilter ? color.new(color.gray, 70) : (volGate ? color.new(color.green, 65) : color.new(color.red, 65))
+        table.cell(statusTable, 0, 9, "VolFilt", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 9, volLabel, text_color=color.white, bgcolor=volBg)
     else
-        table.clear(statusTable, 0, 0, 1, 7)
+        table.clear(statusTable, 0, 0, 1, 9)
 
 // ==================== ALERTING ====================
 
