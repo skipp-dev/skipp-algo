@@ -66,6 +66,7 @@ _load_env_file(PROJECT_ROOT / ".env")
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
 from open_prep.playbook import classify_recency as _classify_recency
+from terminal_background_poller import BackgroundPoller
 from terminal_export import (
     append_jsonl,
     fire_webhook,
@@ -74,6 +75,8 @@ from terminal_export import (
     rotate_jsonl,
     save_vd_snapshot,
 )
+from terminal_feed_lifecycle import FeedLifecycleManager
+from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
     TerminalConfig,
@@ -256,6 +259,23 @@ if "alert_rules" not in st.session_state:
         st.session_state.alert_rules = []
 if "alert_log" not in st.session_state:
     st.session_state.alert_log = []
+if "bg_poller" not in st.session_state:
+    st.session_state.bg_poller = None
+if "notify_config" not in st.session_state:
+    st.session_state.notify_config = NotifyConfig()
+if "notify_log" not in st.session_state:
+    st.session_state.notify_log = []
+if "lifecycle_mgr" not in st.session_state:
+    _cfg_lc = TerminalConfig()
+    st.session_state.lifecycle_mgr = FeedLifecycleManager(
+        jsonl_path=_cfg_lc.jsonl_path,
+        sqlite_path=_cfg_lc.sqlite_path,
+        feed_max_age_s=_cfg_lc.feed_max_age_s,
+    )
+if "use_bg_poller" not in st.session_state:
+    st.session_state.use_bg_poller = os.getenv("TERMINAL_BG_POLL", "1") == "1"
+if "news_chart_auto_webhook" not in st.session_state:
+    st.session_state.news_chart_auto_webhook = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK", "0") == "1"
 
 
 def _get_adapter() -> BenzingaRestAdapter | None:
@@ -445,6 +465,55 @@ with st.sidebar:
         st.caption(f"Webhook: `{cfg.webhook_url[:40]}…`")
     else:
         st.caption("Webhook: disabled")
+
+    st.divider()
+
+    # ── Background Poller + Lifecycle ───────────────────────
+    st.subheader("🔧 Engine")
+
+    st.session_state.use_bg_poller = st.toggle(
+        "Background Polling",
+        value=st.session_state.use_bg_poller,
+        help="Run API polling in a background thread to prevent UI stalls.",
+    )
+
+    st.session_state.news_chart_auto_webhook = st.toggle(
+        "News→Chart Auto-Webhook",
+        value=st.session_state.news_chart_auto_webhook,
+        help="Auto-fire webhook for score ≥ 0.85 actionable items (routes to TradersPost).",
+    )
+
+    # Lifecycle status
+    _lc_status = st.session_state.lifecycle_mgr.get_status_display()
+    st.caption(f"Market: {_lc_status['phase']} ({_lc_status['time_et']})")
+    if _lc_status["weekend_cleared"] == "✅":
+        st.caption("Weekend clear: ✅")
+    if _lc_status["preseed_done"] == "✅":
+        st.caption("Pre-seed: ✅")
+
+    # Notification status
+    _nc = st.session_state.notify_config
+    if _nc.enabled and _nc.has_any_channel:
+        _channels = []
+        if _nc.telegram_bot_token and _nc.telegram_chat_id:
+            _channels.append("Telegram")
+        if _nc.discord_webhook_url:
+            _channels.append("Discord")
+        if _nc.pushover_app_token and _nc.pushover_user_key:
+            _channels.append("Pushover")
+        st.success(f"Push: {', '.join(_channels)} (≥{_nc.min_score})")
+    elif _nc.enabled:
+        st.warning("Push: enabled but no channels configured")
+    else:
+        st.caption("Push notifications: disabled")
+
+    # Background poller status
+    if st.session_state.use_bg_poller and st.session_state.bg_poller is not None:
+        _bp_alive = st.session_state.bg_poller.is_alive
+        if _bp_alive:
+            st.success("BG Poller: running")
+        else:
+            st.error("BG Poller: stopped (will restart)")
 
     st.divider()
 
@@ -682,6 +751,32 @@ def _do_poll() -> None:
                 if fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret, _client=wh_client) is not None:
                     _wh_budget -= 1
 
+    # ── Push notifications for high-score items ─────────────
+    if new_dicts:
+        try:
+            _notify_results = notify_high_score_items(
+                new_dicts, config=st.session_state.notify_config,
+            )
+            if _notify_results:
+                st.session_state.notify_log = (
+                    _notify_results + st.session_state.notify_log
+                )[:100]
+        except Exception as exc:
+            logger.warning("Push notification dispatch failed: %s", exc)
+
+    # ── News→Chart auto-webhook: route high-score items to TradersPost
+    if st.session_state.news_chart_auto_webhook and cfg.webhook_url and items:
+        import httpx as _httpx_nc
+        _nc_budget = 5
+        with _httpx_nc.Client(timeout=5.0) as nc_client:
+            for ci in items:
+                if _nc_budget <= 0:
+                    break
+                if ci.news_score >= 0.85 and ci.is_actionable:
+                    fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret,
+                                 min_score=0.85, _client=nc_client)
+                    _nc_budget -= 1
+
     # Trim feed
     max_items = cfg.max_items
     if len(st.session_state.feed) > max_items:
@@ -717,6 +812,18 @@ def _do_poll() -> None:
 
 # ── Execute poll if needed ──────────────────────────────────────
 
+# Feed lifecycle management (weekend clear, pre-seed, off-hours throttle)
+_lifecycle: FeedLifecycleManager = st.session_state.lifecycle_mgr
+_lc_result = _lifecycle.manage(st.session_state.feed, _get_store())
+if _lc_result.get("feed_action") == "cleared":
+    st.session_state.feed = []
+    st.session_state.cursor = None
+    st.session_state.poll_count = 0
+    logger.info("Feed lifecycle: weekend data cleared")
+
+# Adjust poll interval for off-hours
+_effective_interval = _lifecycle.get_off_hours_poll_interval(float(interval))
+
 # When the feed is completely empty (e.g. all JSONL items were stale
 # and pruned on startup), force an immediate poll so the user sees
 # data on the very first render instead of "No items yet".
@@ -726,11 +833,90 @@ _feed_empty_needs_poll = (
     and (st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key)
 )
 
-if _feed_empty_needs_poll:
-    with st.spinner("Loading latest news…"):
+# ── Background poller mode ──────────────────────────────────────
+if st.session_state.use_bg_poller:
+    # Start background poller if not running
+    if st.session_state.bg_poller is None or not st.session_state.bg_poller.is_alive:
+        _bp = BackgroundPoller(
+            cfg=st.session_state.cfg,
+            benzinga_adapter=_get_adapter(),
+            fmp_adapter=_get_fmp_adapter(),
+            store=_get_store(),
+        )
+        _bp.start(cursor=st.session_state.cursor)
+        st.session_state.bg_poller = _bp
+        logger.info("Background poller initialized")
+
+    # Update interval (may have changed via slider or off-hours adjustment)
+    st.session_state.bg_poller.update_interval(_effective_interval)
+
+    # Drain new items from background thread
+    _bg_items = st.session_state.bg_poller.drain()
+    if _bg_items:
+        # Alert evaluation (needs ClassifiedItem objects)
+        _evaluate_alerts(_bg_items)
+
+        # JSONL export
+        _bg_cfg = st.session_state.cfg
+        if _bg_cfg.jsonl_path:
+            for ci in _bg_items:
+                try:
+                    append_jsonl(ci, _bg_cfg.jsonl_path)
+                except Exception as exc:
+                    logger.warning("JSONL append failed: %s", exc)
+
+        new_dicts = [ci.to_dict() for ci in _bg_items]
+        st.session_state.feed = new_dicts + st.session_state.feed
+
+        # Push notifications for high-score items
+        try:
+            _nr = notify_high_score_items(new_dicts, config=st.session_state.notify_config)
+            if _nr:
+                st.session_state.notify_log = (_nr + st.session_state.notify_log)[:100]
+        except Exception as exc:
+            logger.warning("Push notification dispatch failed: %s", exc)
+
+        # News→Chart auto-webhook
+        if st.session_state.news_chart_auto_webhook and _bg_cfg.webhook_url:
+            import httpx as _httpx_bg
+            _nc_b = 5
+            with _httpx_bg.Client(timeout=5.0) as _nc_c:
+                for ci in _bg_items:
+                    if _nc_b <= 0:
+                        break
+                    if ci.news_score >= 0.85 and ci.is_actionable:
+                        fire_webhook(ci, _bg_cfg.webhook_url, _bg_cfg.webhook_secret,
+                                     min_score=0.85, _client=_nc_c)
+                        _nc_b -= 1
+
+        # Trim + prune
+        max_items = _bg_cfg.max_items
+        if len(st.session_state.feed) > max_items:
+            st.session_state.feed = st.session_state.feed[:max_items]
+        st.session_state.feed = _prune_stale_items(st.session_state.feed)
+        save_vd_snapshot(st.session_state.feed)
+        st.toast(f"📡 {len(_bg_items)} new item(s) [BG]", icon="✅")
+
+    # Sync status from background poller for sidebar display
+    _bp = st.session_state.bg_poller
+    st.session_state.poll_count = _bp.poll_count
+    st.session_state.last_poll_ts = _bp.last_poll_ts
+    st.session_state.last_poll_status = _bp.last_poll_status
+    st.session_state.last_poll_error = _bp.last_poll_error
+    st.session_state.total_items_ingested = _bp.total_items_ingested
+    st.session_state.cursor = _bp.cursor
+
+    # Force poll still works in BG mode (for initial load)
+    if _feed_empty_needs_poll:
+        with st.spinner("Loading latest news…"):
+            _do_poll()
+else:
+    # ── Foreground (legacy) polling ─────────────────────────
+    if _feed_empty_needs_poll:
+        with st.spinner("Loading latest news…"):
+            _do_poll()
+    elif force_poll or (st.session_state.auto_refresh and _should_poll(_effective_interval)):
         _do_poll()
-elif force_poll or (st.session_state.auto_refresh and _should_poll(interval)):
-    _do_poll()
 
 # Resync from JSONL even outside poll cycles so that sessions which
 # never poll (e.g. missing API keys on Streamlit Cloud) still reflect
@@ -1416,6 +1602,26 @@ else:
                 )
         else:
             st.caption("No alerts fired yet.")
+
+        # ── Push Notification Log ───────────────────────────
+        st.divider()
+        st.subheader("📱 Push Notification Log")
+        _nlog = st.session_state.notify_log
+        if _nlog:
+            st.caption(f"{len(_nlog)} notification(s) sent")
+            for _n in _nlog[:20]:
+                _ch_names = ", ".join(c["name"] for c in _n.get("channels", []) if c.get("ok"))
+                st.markdown(
+                    f"📱 **{_n['ticker']}** — score {_n['score']:.3f} → {_ch_names}"
+                )
+        else:
+            _nc = st.session_state.notify_config
+            if not _nc.enabled:
+                st.info("Push notifications disabled. Set `TERMINAL_NOTIFY_ENABLED=1` in `.env`.")
+            elif not _nc.has_any_channel:
+                st.info("Push enabled but no channels configured. Set Telegram/Discord/Pushover env vars.")
+            else:
+                st.caption("No push notifications sent yet.")
 
     # ── TAB: Data Table ─────────────────────────────────────
     with tab_table:
