@@ -134,7 +134,8 @@ if "alert_rules" not in st.session_state:
     _alert_path = Path("artifacts/alert_rules.json")
     if _alert_path.exists():
         try:
-            st.session_state.alert_rules = json.loads(_alert_path.read_text())
+            _loaded = json.loads(_alert_path.read_text())
+            st.session_state.alert_rules = _loaded if isinstance(_loaded, list) else []
         except Exception:
             st.session_state.alert_rules = []
     else:
@@ -540,6 +541,14 @@ def _do_poll() -> None:
     if cfg.jsonl_path and st.session_state.poll_count % 100 == 0:
         rotate_jsonl(cfg.jsonl_path)
 
+    # Prune SQLite dedup tables periodically (alongside JSONL rotation)
+    if st.session_state.poll_count % 100 == 0:
+        try:
+            store.prune_seen(keep_seconds=86400)
+            store.prune_clusters(keep_seconds=86400)
+        except Exception as exc:
+            logger.warning("SQLite prune failed: %s", exc)
+
     # Write per-symbol VisiData snapshot (atomic overwrite)
     save_vd_snapshot(st.session_state.feed)
 
@@ -673,12 +682,15 @@ else:
             # Provider badge
             prov_icon = "🅱️" if "benzinga" in provider else ("📊" if "fmp" in provider else "")
 
+            # Sanitise URL for safe markdown rendering (strip parens/brackets)
+            safe_url = (url or "").replace(")", "%29").replace("(", "%28") if url else ""
+
             with st.container():
                 cols = st.columns([1, 5, 1, 1, 1, 1])
                 with cols[0]:
                     st.markdown(f"**{ticker}**")
                 with cols[1]:
-                    link = f"[{headline[:100]}]({url})" if url else headline[:100]
+                    link = f"[{headline[:100]}]({safe_url})" if safe_url else headline[:100]
                     st.markdown(f"{sent_icon} {link}")
                 with cols[2]:
                     st.markdown(f"`{category}`")

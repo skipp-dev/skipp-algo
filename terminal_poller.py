@@ -303,7 +303,10 @@ def poll_and_classify(
     raw_items = adapter.fetch_news(updated_since=cursor, page_size=page_size)
 
     all_classified: List[ClassifiedItem] = []
-    max_ts = float(cursor) if cursor else 0.0
+    try:
+        max_ts = float(cursor) if cursor else 0.0
+    except (ValueError, TypeError):
+        max_ts = 0.0
 
     for item in raw_items:
         classified = _classify_item(item, store, now_utc)
@@ -383,7 +386,10 @@ def poll_and_classify_multi(
         raise RuntimeError("All sources failed: " + "; ".join(errors))
 
     all_classified: List[ClassifiedItem] = []
-    max_ts = float(cursor) if cursor else 0.0
+    try:
+        max_ts = float(cursor) if cursor else 0.0
+    except (ValueError, TypeError):
+        max_ts = 0.0
 
     for item in raw_items:
         classified = _classify_item(item, store, now_utc)
