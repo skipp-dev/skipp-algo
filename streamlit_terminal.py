@@ -185,14 +185,19 @@ def _resync_feed_from_jsonl() -> None:
     # Prune stale items after merge
     st.session_state.feed = _prune_stale_items(st.session_state.feed)
 
-    # Advance cursor to latest timestamp from merged feed
-    _ts_vals = [
-        d.get("updated_ts") or d.get("published_ts") or 0
-        for d in st.session_state.feed
-    ]
-    _ts_vals = [t for t in _ts_vals if isinstance(t, (int, float)) and t > 0]
-    if _ts_vals:
-        st.session_state["cursor"] = str(int(max(_ts_vals)))
+    # Only advance the session cursor when the background poller is
+    # NOT running.  The BG poller maintains its own cursor; overwriting
+    # session_state.cursor here would rewind it on the next rerun
+    # (the main loop syncs session cursor back into the poller),
+    # causing duplicate ingestion.
+    if not st.session_state.get("use_bg_poller") or st.session_state.get("bg_poller") is None:
+        _ts_vals = [
+            d.get("updated_ts") or d.get("published_ts") or 0
+            for d in st.session_state.feed
+        ]
+        _ts_vals = [t for t in _ts_vals if isinstance(t, (int, float)) and t > 0]
+        if _ts_vals:
+            st.session_state["cursor"] = str(int(max(_ts_vals)))
 
     st.session_state.last_resync_ts = time.time()
 
@@ -781,16 +786,24 @@ def _do_poll() -> None:
         except Exception as exc:
             logger.warning("Push notification dispatch failed: %s", exc)
 
-    # ── News→Chart auto-webhook: route high-score items to TradersPost
-    if st.session_state.news_chart_auto_webhook and cfg.webhook_url and items:
+    # ── News→Chart auto-webhook: route high-score items to TradersPost.
+    # Only fire when the auto-webhook URL differs from the global webhook,
+    # OR when the global webhook didn't fire (score between 0.70–0.85).
+    # When both URLs are the same, the global webhook already sent items
+    # with score ≥ 0.70, so re-sending at ≥ 0.85 is a duplicate POST.
+    _nc_webhook_url = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", cfg.webhook_url)
+    if st.session_state.news_chart_auto_webhook and _nc_webhook_url and items:
         import httpx as _httpx_nc
         _nc_budget = 5
+        _skip_dup = _nc_webhook_url == cfg.webhook_url
         with _httpx_nc.Client(timeout=5.0) as nc_client:
             for ci in items:
                 if _nc_budget <= 0:
                     break
                 if ci.news_score >= 0.85 and ci.is_actionable:
-                    fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret,
+                    if _skip_dup:
+                        continue  # already sent by global webhook above
+                    fire_webhook(ci, _nc_webhook_url, cfg.webhook_secret,
                                  min_score=0.85, _client=nc_client)
                     _nc_budget -= 1
 
@@ -1150,15 +1163,20 @@ else:
             # Build column config — headline links to article URL
             _col_cfg: dict[str, Any] = {}
             if "url" in df_rank.columns and "headline" in df_rank.columns:
-                # Merge URL into headline for LinkColumn display
+                # Merge URL into headline for LinkColumn display.
+                # Keep original headline when URL is missing so the
+                # column never becomes blank.
                 df_rank["headline"] = df_rank.apply(
                     lambda r: r["url"] if r.get("url") else r.get("headline", ""),
                     axis=1,
                 )
-                _col_cfg["headline"] = st.column_config.LinkColumn(
-                    "Headline",
-                    display_text=r"https?://[^/]+/(.{0,80}).*",
-                )
+                # Only use LinkColumn when at least one row has a URL;
+                # otherwise fall back to plain text so headlines display.
+                if df_rank["headline"].str.startswith("http").any():
+                    _col_cfg["headline"] = st.column_config.LinkColumn(
+                        "Headline",
+                        display_text=r"https?://[^/]+/(.{0,80}).*",
+                    )
                 df_rank = df_rank.drop(columns=["url"])
 
             styled = df_rank.style.apply(_highlight_fresh, axis=1)

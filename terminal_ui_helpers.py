@@ -101,7 +101,8 @@ def filter_feed(
 
     filtered = [
         d for d in filtered
-        if from_epoch <= d.get("published_ts", 0) <= to_epoch
+        if from_epoch <= (d.get("published_ts") or 0) <= to_epoch
+        or (d.get("published_ts") or 0) == 0  # keep items with missing ts
     ]
 
     # Score descending, then published_ts ascending as tiebreaker
