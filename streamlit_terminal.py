@@ -83,6 +83,13 @@ from terminal_poller import (
     fetch_sector_performance,
     poll_and_classify_multi,
 )
+from terminal_spike_scanner import (
+    build_spike_rows,
+    fetch_gainers,
+    fetch_losers,
+    fetch_most_active,
+    filter_spike_rows,
+)
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
@@ -560,6 +567,16 @@ def _cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[di
     return fetch_economic_calendar(api_key, from_date, to_date)
 
 
+@st.cache_data(ttl=30, show_spinner=False)
+def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
+    """Cache gainers/losers/actives for 30 seconds."""
+    return {
+        "gainers": fetch_gainers(api_key),
+        "losers": fetch_losers(api_key),
+        "actives": fetch_most_active(api_key),
+    }
+
+
 # ── Alert evaluation ────────────────────────────────────────────
 
 _ALERT_WEBHOOK_BUDGET: int = 10  # max webhook POSTs per poll cycle
@@ -959,9 +976,9 @@ else:
     st.divider()
 
     # ── Tabs ────────────────────────────────────────────────
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_heatmap, tab_calendar, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_spikes, tab_heatmap, tab_calendar, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
-         "🗺️ Heatmap", "📅 Calendar", "⚡ Alerts", "📊 Data Table"],
+         "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "⚡ Alerts", "📊 Data Table"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -1239,6 +1256,126 @@ else:
                         )
                     else:
                         st.caption("No ticker data")
+
+    # ── TAB: Sector Heatmap (treemap) ───────────────────────
+    with tab_spikes:
+        fmp_key = st.session_state.cfg.fmp_api_key
+        if not fmp_key:
+            st.info("Set `FMP_API_KEY` in `.env` for price & volume spike screening.")
+        else:
+            st.subheader("🚨 Price & Volume Spike Scanner")
+            st.caption(
+                "Real-time screening for rapid price moves and unusual volume. "
+                "Data from FMP (gainers, losers, most-active). Refreshes every 30 s."
+            )
+
+            # Fetch cached spike data
+            spike_data = _cached_spike_data(fmp_key)
+            spike_rows = build_spike_rows(
+                spike_data["gainers"],
+                spike_data["losers"],
+                spike_data["actives"],
+            )
+
+            # Filter controls
+            sp_col1, sp_col2, sp_col3, sp_col4 = st.columns(4)
+            with sp_col1:
+                sp_direction = st.selectbox(
+                    "Direction", ["all", "UP", "DOWN"],
+                    key="spike_dir",
+                )
+            with sp_col2:
+                sp_min_chg = st.slider(
+                    "Min |Change| %", 0.0, 20.0, 1.0, 0.5,
+                    key="spike_min_chg",
+                )
+            with sp_col3:
+                sp_asset = st.selectbox(
+                    "Asset Type", ["all", "STOCK", "ETF"],
+                    key="spike_asset",
+                )
+            with sp_col4:
+                sp_vol_only = st.checkbox(
+                    "Volume Spikes Only", value=False,
+                    key="spike_vol_only",
+                )
+
+            filtered_spikes = filter_spike_rows(
+                spike_rows,
+                direction=sp_direction,
+                min_change_pct=sp_min_chg,
+                asset_type=sp_asset,
+                vol_spike_only=sp_vol_only,
+            )
+
+            # Summary metrics
+            _up_count = sum(1 for r in filtered_spikes if r["spike_dir"] == "UP")
+            _dn_count = sum(1 for r in filtered_spikes if r["spike_dir"] == "DOWN")
+            _vol_count = sum(1 for r in filtered_spikes if r["vol_spike"])
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total Signals", len(filtered_spikes))
+            m2.metric("🟢 Price Spike UP", _up_count)
+            m3.metric("🔴 Price Spike DOWN", _dn_count)
+            m4.metric("📊 Volume Spikes", _vol_count)
+
+            if not filtered_spikes:
+                st.info("No spikes matching current filters.")
+            else:
+                # Build display DataFrame
+                display_rows = []
+                for r in filtered_spikes:
+                    display_rows.append({
+                        "Signal": f"{r['spike_icon']} Price Spike {r['spike_dir']}" if r["spike_dir"] else (
+                            f"{r['vol_icon']} Volume Spike" if r["vol_spike"] else "Active"
+                        ),
+                        "Symbol": r["symbol"],
+                        "Name": r["name"],
+                        "Price": f"${r['price']:.2f}",
+                        "Change %": r["change_display"],
+                        "Change": f"{r['change']:+.2f}",
+                        "Volume": f"{r['volume']:,}",
+                        "Vol Ratio": f"{r['volume_ratio']:.1f}x" if r["volume_ratio"] > 0 else "—",
+                        "Mkt Cap": r["mktcap_display"],
+                        "Type": r["asset_type"],
+                    })
+
+                df_spikes = pd.DataFrame(display_rows)
+                df_spikes.index = df_spikes.index + 1
+
+                st.dataframe(
+                    df_spikes,
+                    width='stretch',
+                    height=min(800, 40 + 35 * len(df_spikes)),
+                )
+
+                # ── Detail cards for top 10 ──────────────────────
+                st.divider()
+                st.subheader("Top Spike Details")
+                for r in filtered_spikes[:10]:
+                    _sig = r["spike_dir"] or "VOL"
+                    _icon = r["spike_icon"]
+                    with st.container():
+                        c1, c2 = st.columns([2, 8])
+                        with c1:
+                            st.markdown(f"### {r['symbol']}")
+                            st.markdown(f"{_icon} **{_sig}** {r['change_display']}")
+                            if r["vol_spike"]:
+                                st.markdown(f"📊 Vol: **{r['volume_ratio']:.1f}x** avg")
+                        with c2:
+                            st.markdown(f"**{safe_markdown_text(r['name'])}**")
+                            st.markdown(
+                                f"Price: **${r['price']:.2f}** | "
+                                f"Change: {r['change']:+.2f} | "
+                                f"Mkt Cap: {r['mktcap_display']} | "
+                                f"Type: {r['asset_type']}"
+                            )
+                            st.markdown(
+                                f"Volume: {r['volume']:,} | "
+                                f"Avg Volume: {r['avg_volume']:,} | "
+                                f"Ratio: {r['volume_ratio']:.1f}x"
+                            )
+                        st.divider()
 
     # ── TAB: Sector Heatmap (treemap) ───────────────────────
     with tab_heatmap:
