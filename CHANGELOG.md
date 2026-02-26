@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file.
 
 ### Added (2026-02-26)
 
+- **Python quality/documentation baseline (repo-level):**
+  - Added centralized `pyproject.toml` configuration for `pytest`, `ruff`, `mypy`, and coverage reporting.
+  - Added focused coverage expansion in `tests/test_coverage_gaps.py` for Python runtime modules (`terminal_poller`, `terminal_export`, `newsstack_fmp` adapters/pipeline/store).
+  - Improved top-level README developer guidance for reproducible quality checks.
+
 - **VWAP Reclaim expansion (Long/Short/Both):**
   - Added new bidirectional scripts:
     - `VWAP_Reclaim_Indicator.pine`
@@ -44,6 +49,13 @@ All notable changes to this project are documented in this file.
 ### Verification (2026-02-26)
 
 - Full regression suite (local): **1028 passed, 34 subtests passed**.
+
+### Verification (2026-02-26, later run)
+
+- Full regression suite (local): **1116 passed, 34 subtests passed**.
+- Linting (`ruff`): **All checks passed**.
+- Type-checking (`mypy`): **Success, no issues found**.
+- Core Python coverage (`newsstack_fmp`, `terminal_poller`, `terminal_export`): **83%**.
 
 ### Added (2026-02-25)
 

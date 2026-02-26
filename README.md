@@ -155,7 +155,33 @@ Timing note:
 - **Wiki (local mirror):** `docs/wiki/Home.md`
 - **Changelog:** `CHANGELOG.md`
 
+## Developer quality checks (Python workspace)
+
+For the Python modules (`newsstack_fmp`, `open_prep`, `terminal_*`), the repository now uses a documented quality gate with `pytest`, `ruff`, and `mypy`.
+
+- Test suite: `python -m pytest tests/ -q`
+- Linting: `ruff check newsstack_fmp/ open_prep/ terminal_poller.py terminal_export.py`
+- Type-checking: `mypy newsstack_fmp/ terminal_poller.py terminal_export.py`
+- Coverage (core modules):
+  - `python -m pytest tests/ -q --cov=newsstack_fmp --cov=terminal_poller --cov=terminal_export --cov-report=term-missing`
+
+Configuration is centralized in `pyproject.toml`.
+
 ## Recent changes (Feb 2026)
+
+- **Latest (26 Feb 2026) — Python docs + quality hardening update:**
+  - Added `pyproject.toml` as the central configuration for:
+    - `pytest` discovery/options,
+    - `ruff` lint rules,
+    - `mypy` type-checking profile,
+    - coverage thresholds/reporting.
+  - Added focused Python coverage expansion in `tests/test_coverage_gaps.py`.
+  - Updated terminal/newsstack test expectations for current runtime contracts (for example `cluster_hash` signature and VisiData snapshot columns).
+  - Verification:
+    - full suite green (**1116 passed, 34 subtests passed**),
+    - lint clean (**ruff: all checks passed**),
+    - type-check clean (**mypy: no issues found**),
+    - core Python coverage improved to **83%**.
 
 - **Latest (25 Feb 2026) — Open-Prep Streamlit v2 realtime auto-promotion:**
   - Added auto-promotion of realtime `A0`/`A1` symbols from `below_top_n_cutoff` into displayed v2 candidates.
