@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import re
 import threading
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -267,19 +268,24 @@ def poll_once(
     new_fmp_max = fmp_last
     cycle_warnings: List[str] = []
 
+    def _sanitize_exc(exc: Exception) -> str:
+        return re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+
     # ── 1) FMP poll ─────────────────────────────────────────────
     if cfg.enable_fmp and cfg.fmp_api_key:
         fmp = _get_fmp_adapter(cfg)
         try:
             all_items.extend(fmp.fetch_stock_latest(cfg.stock_latest_page, cfg.stock_latest_limit))
         except Exception as exc:
-            logger.warning("FMP stock-latest fetch failed: %s", exc)
-            cycle_warnings.append(f"fmp_stock_latest: {exc}")
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP stock-latest fetch failed: %s", _msg)
+            cycle_warnings.append(f"fmp_stock_latest: {_msg}")
         try:
             all_items.extend(fmp.fetch_press_latest(cfg.press_latest_page, cfg.press_latest_limit))
         except Exception as exc:
-            logger.warning("FMP press-latest fetch failed: %s", exc)
-            cycle_warnings.append(f"fmp_press_latest: {exc}")
+            _msg = _sanitize_exc(exc)
+            logger.warning("FMP press-latest fetch failed: %s", _msg)
+            cycle_warnings.append(f"fmp_press_latest: {_msg}")
 
     # ── 2) Benzinga REST delta ──────────────────────────────────
     bz_rest_items: List[NewsItem] = []
@@ -292,8 +298,9 @@ def poll_once(
             )
             all_items.extend(bz_rest_items)
         except Exception as exc:
-            logger.warning("Benzinga REST fetch failed: %s", exc)
-            cycle_warnings.append(f"benzinga_rest: {exc}")
+            _msg = _sanitize_exc(exc)
+            logger.warning("Benzinga REST fetch failed: %s", _msg)
+            cycle_warnings.append(f"benzinga_rest: {_msg}")
 
     # ── 3) Benzinga WS drain ────────────────────────────────────
     if cfg.enable_benzinga_ws and cfg.benzinga_api_key:
@@ -317,8 +324,9 @@ def poll_once(
             _shared_enrich_counter=_enrich_ctr,
         )
     except Exception as exc:
-        logger.warning("process_news_items(fmp) failed: %s", exc)
-        cycle_warnings.append(f"process_fmp: {exc}")
+        _msg = _sanitize_exc(exc)
+        logger.warning("process_news_items(fmp) failed: %s", _msg)
+        cycle_warnings.append(f"process_fmp: {_msg}")
         new_fmp_max = fmp_last
 
     # Benzinga items: rely on mark_seen() dedup + REST updatedSince cursor.
@@ -336,8 +344,9 @@ def poll_once(
         )
         bz_processing_ok = True
     except Exception as exc:
-        logger.warning("process_news_items(benzinga) failed: %s", exc)
-        cycle_warnings.append(f"process_benzinga: {exc}")
+        _msg = _sanitize_exc(exc)
+        logger.warning("process_news_items(benzinga) failed: %s", _msg)
+        cycle_warnings.append(f"process_benzinga: {_msg}")
 
     # ── 5) Update cursors ───────────────────────────────────────
     if new_fmp_max > fmp_last:
