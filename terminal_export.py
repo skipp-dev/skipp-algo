@@ -59,6 +59,32 @@ def rotate_jsonl(path: str, max_lines: int = 5000) -> None:
         pass
 
 
+def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
+    """Read persisted JSONL feed file and return newest-first list of dicts.
+
+    Used on Streamlit startup to restore the feed so that users don't
+    see "No items yet" after a page reload.
+    """
+    result: list[dict[str, Any]] = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    result.append(json.loads(raw))
+                except json.JSONDecodeError:
+                    continue
+    except FileNotFoundError:
+        return []
+    # Newest first (JSONL is append-order, so reverse)
+    result.reverse()
+    if len(result) > max_items:
+        result = result[:max_items]
+    return result
+
+
 # ── VisiData Per-Symbol Snapshot ────────────────────────────────
 
 _VD_SNAPSHOT_DEFAULT = "artifacts/terminal_vd.jsonl"

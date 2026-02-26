@@ -53,7 +53,7 @@ _load_env_file(PROJECT_ROOT / ".env")
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
 from terminal_export import (
-    append_jsonl, fire_webhook, load_rt_quotes, rotate_jsonl, save_vd_snapshot,
+    append_jsonl, fire_webhook, load_jsonl_feed, load_rt_quotes, rotate_jsonl, save_vd_snapshot,
 )
 from terminal_poller import ClassifiedItem, TerminalConfig, poll_and_classify
 
@@ -75,7 +75,14 @@ if "cfg" not in st.session_state:
 if "cursor" not in st.session_state:
     st.session_state.cursor = None
 if "feed" not in st.session_state:
-    st.session_state.feed: list[dict[str, Any]] = []
+    _restored = load_jsonl_feed(TerminalConfig().jsonl_path)
+    st.session_state.feed = _restored  # type: list[dict[str, Any]]
+    if _restored:
+        # Derive cursor from restored feed so polling resumes from latest
+        _ts_vals = [r.get("published", "") or r.get("created", "") for r in _restored]
+        _ts_vals = [t for t in _ts_vals if t]
+        if _ts_vals:
+            st.session_state["cursor"] = max(_ts_vals)
 if "poll_count" not in st.session_state:
     st.session_state.poll_count = 0
 if "last_poll_ts" not in st.session_state:
@@ -85,7 +92,7 @@ if "adapter" not in st.session_state:
 if "store" not in st.session_state:
     st.session_state.store = None
 if "total_items_ingested" not in st.session_state:
-    st.session_state.total_items_ingested = 0
+    st.session_state.total_items_ingested = len(st.session_state.feed)
 if "auto_refresh" not in st.session_state:
     st.session_state.auto_refresh = True
 if "last_poll_status" not in st.session_state:
