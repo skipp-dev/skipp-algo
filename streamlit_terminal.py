@@ -121,6 +121,59 @@ def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = Non
     return [d for d in feed if (d.get("published_ts") or 0) >= cutoff]
 
 
+# Resync interval: re-read JSONL every 120 s so long-running sessions
+# pick up items written by prior poll cycles or other sessions.
+_RESYNC_INTERVAL_S: float = 120.0
+
+
+def _resync_feed_from_jsonl() -> None:
+    """Merge JSONL contents into the session feed.
+
+    Long-running Streamlit sessions only receive NEW API items via
+    ``_do_poll()``.  Items that were already marked as "seen" in the
+    SQLite dedup store (e.g. ingested by a prior session) are skipped
+    by the poller but still exist in the JSONL on disk.  This function
+    periodically re-reads the JSONL file and merges any missing items
+    into the session feed, keeping long-lived tabs in sync with the
+    persisted data.
+    """
+    cfg: TerminalConfig = st.session_state.cfg
+    if not cfg.jsonl_path:
+        return
+
+    restored = load_jsonl_feed(cfg.jsonl_path)
+    if not restored:
+        return
+
+    # Build lookup of existing (item_id, ticker) pairs for fast dedup
+    existing_keys: set[str] = set()
+    for d in st.session_state.feed:
+        existing_keys.add(f"{d.get('item_id', '')}:{d.get('ticker', '')}")
+
+    new_from_jsonl = [
+        d for d in restored
+        if f"{d.get('item_id', '')}:{d.get('ticker', '')}" not in existing_keys
+    ]
+
+    if new_from_jsonl:
+        st.session_state.feed = new_from_jsonl + st.session_state.feed
+        logger.info("JSONL resync: merged %d items into session feed", len(new_from_jsonl))
+
+    # Prune stale items after merge
+    st.session_state.feed = _prune_stale_items(st.session_state.feed)
+
+    # Advance cursor to latest timestamp from merged feed
+    _ts_vals = [
+        d.get("updated_ts") or d.get("published_ts") or 0
+        for d in st.session_state.feed
+    ]
+    _ts_vals = [t for t in _ts_vals if isinstance(t, (int, float)) and t > 0]
+    if _ts_vals:
+        st.session_state["cursor"] = str(int(max(_ts_vals)))
+
+    st.session_state.last_resync_ts = time.time()
+
+
 if "cfg" not in st.session_state:
     st.session_state.cfg = TerminalConfig()
 if "cursor" not in st.session_state:
@@ -152,6 +205,8 @@ if "poll_count" not in st.session_state:
     st.session_state.poll_count = 0
 if "last_poll_ts" not in st.session_state:
     st.session_state.last_poll_ts = 0.0
+if "last_resync_ts" not in st.session_state:
+    st.session_state.last_resync_ts = 0.0
 if "adapter" not in st.session_state:
     st.session_state.adapter = None
 if "fmp_adapter" not in st.session_state:
@@ -584,6 +639,12 @@ def _do_poll() -> None:
     # Prune stale items (age-based) so rankings stay fresh
     st.session_state.feed = _prune_stale_items(st.session_state.feed)
 
+    # Periodically resync from JSONL so long-running sessions pick up
+    # items that were deduped by the SQLite store (ingested by a prior
+    # session) but still persisted on disk.
+    if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
+        _resync_feed_from_jsonl()
+
     # Rotate JSONL periodically (also drops stale entries)
     if cfg.jsonl_path and st.session_state.poll_count % 100 == 0:
         rotate_jsonl(cfg.jsonl_path, max_age_s=cfg.feed_max_age_s)
@@ -607,6 +668,12 @@ def _do_poll() -> None:
 
 if force_poll or (st.session_state.auto_refresh and _should_poll(interval)):
     _do_poll()
+
+# Resync from JSONL even outside poll cycles so that sessions which
+# never poll (e.g. missing API keys on Streamlit Cloud) still reflect
+# data written to disk by other sessions or external scripts.
+if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
+    _resync_feed_from_jsonl()
 
 
 # ── Main display ────────────────────────────────────────────────
