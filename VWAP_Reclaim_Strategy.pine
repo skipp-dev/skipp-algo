@@ -171,13 +171,15 @@ if not (hideonDWM and timeframe.isdwm)
 atr = nz(ta.atr(14), syminfo.mintick * 10)
 tol = useAtrTol ? atr * retestTolATREff : syminfo.mintick * 2
 
-// Trend detection: slope + price bias
+// Trend detection: slope + price bias (mutually exclusive)
 vwapSlope = ta.change(vwapValue, trendSlopeBars)
 emaClose = ta.ema(close, trendEmaLen)
 priceBiasLong  = emaClose > vwapValue
 priceBiasShort = emaClose < vwapValue
-isUpTrend   = vwapSlope > 0 or priceBiasLong
-isDownTrend = vwapSlope < 0 or priceBiasShort
+// Slope takes priority; when slope ≈ 0, fall back to price bias.
+// Prevents both isUpTrend and isDownTrend being true simultaneously.
+isUpTrend   = vwapSlope > 0 or (vwapSlope == 0 and priceBiasLong)
+isDownTrend = vwapSlope < 0 or (vwapSlope == 0 and priceBiasShort)
 
 matchedTrendsFilter_long  = not matchedTrends ? true : isUpTrend
 matchedTrendsFilter_short = not matchedTrends ? true : isDownTrend
@@ -212,7 +214,7 @@ usiGateShort = useUsiFilter ? usiDownTrend : true
 // ==================== RECLAIM → RETEST → GO  (LONG) ====================
 
 wasBelowVwap = close[1] < vwapValue[1]
-reclaimUp = wasBelowVwap and close > vwapValue
+reclaimUp = wasBelowVwap and close > vwapValue and not isNewPeriod
 
 var int   reclaimBarL   = na
 var float retestLowL    = na
@@ -243,7 +245,7 @@ if inReclaimSeqL
         inReclaimSeqL := false
         retestSeenL   := false
 
-    if not retestSeenL
+    else if not retestSeenL
         retestCond = low <= vwapValue + tol and close >= vwapValue - tol
         if retestCond
             retestSeenL := true
@@ -257,7 +259,7 @@ longSignal = allowLong and entryTriggerL and matchedTrendsFilter_long and usiGat
 // ==================== RECLAIM → RETEST → GO  (SHORT — mirror) ====================
 
 wasAboveVwap = close[1] > vwapValue[1]
-reclaimDown = wasAboveVwap and close < vwapValue
+reclaimDown = wasAboveVwap and close < vwapValue and not isNewPeriod
 
 var int   reclaimBarS    = na
 var float retestHighS    = na
@@ -286,7 +288,7 @@ if inReclaimSeqS
         inReclaimSeqS := false
         retestSeenS   := false
 
-    if not retestSeenS
+    else if not retestSeenS
         retestCond = high >= vwapValue - tol and close <= vwapValue + tol
         if retestCond
             retestSeenS := true
@@ -318,8 +320,9 @@ if exitLong
     strategy.close("Long")
     inPositionL := false
 
-// Sync flag if stopped out
-if strategy.position_size <= 0 and inPositionL
+// Sync flag if stopped out (guard against same-bar entry to avoid
+// false reset when an opposite-side position offsets position_size)
+if strategy.position_size <= 0 and inPositionL and not longSignal
     inPositionL := false
 
 // --- SHORT ---
@@ -338,8 +341,8 @@ if exitShort
     strategy.close("Short")
     inPositionS := false
 
-// Sync flag if stopped out
-if strategy.position_size >= 0 and inPositionS
+// Sync flag if stopped out (guard against same-bar entry)
+if strategy.position_size >= 0 and inPositionS and not shortSignal
     inPositionS := false
 
 // ==================== PLOTS ====================
