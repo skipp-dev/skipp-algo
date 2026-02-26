@@ -1,0 +1,200 @@
+//@version=6
+strategy("CHOCH-Strategy (Structure Only)", overlay=true, initial_capital=10000, default_qty_type=strategy.fixed, default_qty_value=1, pyramiding=0, commission_type=strategy.commission.percent, commission_value=0.01)
+
+//====================
+// Market Structure Inputs
+//====================
+grp = "Market Structure (BOS/ChoCH)"
+ms_swingL = input.int(3, "Swing L", minval=1, maxval=30, group=grp)
+ms_swingR = input.int(2, "Swing R", minval=1, maxval=30, group=grp)
+ms_maxAge = input.int(0, "Swing max age (bars, 0=off)", minval=0, maxval=5000, group=grp)
+
+ms_breakSrc = input.string("Wick", "Breakout source", options=["Close","Wick"], group=grp)
+ms_logic    = input.string("SMC+Sweep", "Structure logic", options=["Standard","SMC+Sweep"], group=grp)
+
+ms_mode = input.string("Ping", "ChoCH mode", options=["Ping","Verify","Ping+Verify"], group=grp)
+
+ms_showTags = input.bool(true, "Show BOS/ChoCH tags", group=grp)
+ms_showPing = input.bool(false, "Show Ping markers", group=grp)
+showBearChoch = input.bool(true, "Show BEAR ChoCH (Ping/Verify)", group=grp)
+
+//====================
+// Swings (stable levels)
+//====================
+var float ms_lastHi = na
+var float ms_lastLo = na
+var int   ms_lastHiBar = na
+var int   ms_lastLoBar = na
+
+ph = ta.pivothigh(high, ms_swingL, ms_swingR)
+pl = ta.pivotlow(low,  ms_swingL, ms_swingR)
+
+if not na(ph)
+    ms_lastHi := ph
+    ms_lastHiBar := bar_index - ms_swingR
+
+if not na(pl)
+    ms_lastLo := pl
+    ms_lastLoBar := bar_index - ms_swingR
+
+// expiry
+if ms_maxAge > 0
+    if not na(ms_lastHiBar) and (bar_index - ms_lastHiBar > ms_maxAge)
+        ms_lastHi := na
+        ms_lastHiBar := na
+    if not na(ms_lastLoBar) and (bar_index - ms_lastLoBar > ms_maxAge)
+        ms_lastLo := na
+        ms_lastLoBar := na
+
+//====================
+// Breakouts (event flags)
+//====================
+bool ms_breakHi = false
+bool ms_breakLo = false
+
+ms_xHi_all = ta.crossover(high, nz(ms_lastHi, high))
+ms_xLo_all = ta.crossunder(low,  nz(ms_lastLo, low))
+bool ms_xHi = not na(ms_lastHi) and ms_xHi_all
+bool ms_xLo = not na(ms_lastLo) and ms_xLo_all
+
+if ms_breakSrc == "Wick"
+    ms_breakHi := ms_xHi
+    ms_breakLo := ms_xLo
+else
+    ms_breakHi := not na(ms_lastHi) and close > ms_lastHi and close[1] <= ms_lastHi
+    ms_breakLo := not na(ms_lastLo) and close < ms_lastLo and close[1] >= ms_lastLo
+
+bool ms_breakoutLong  = ms_breakHi
+bool ms_breakoutShort = ms_breakLo
+
+//====================
+// SMC+Sweep (reclaimLow / sweepHigh)
+//====================
+bool ms_sweepHigh  = false
+bool ms_reclaimLow = false
+
+// Hoist crosses to avoid conditional-execution warnings
+ms_crossunder_low_hi = ta.crossunder(low,  nz(ms_lastHi, low))
+ms_crossover_high_lo = ta.crossover(high, nz(ms_lastLo, high))
+bool ms_cx_sweepHigh  = not na(ms_lastHi) and ms_crossunder_low_hi
+bool ms_cx_reclaimLow = not na(ms_lastLo) and ms_crossover_high_lo
+
+if ms_breakSrc == "Close"
+    // SweepHigh: wick above lastHi but CLOSE back below (failed breakout)
+    if not na(ms_lastHi)
+        ms_sweepHigh := (high > ms_lastHi) and (close < ms_lastHi) and (close[1] > ms_lastHi)
+    // ReclaimLow: wick below lastLo but CLOSE back above (failed breakdown)
+    if not na(ms_lastLo)
+        ms_reclaimLow := (low < ms_lastLo) and (close > ms_lastLo) and (close[1] < ms_lastLo)
+else
+    // Wick mode: simple cross events (more frequent; SkippALGO-like)
+    ms_sweepHigh  := not na(ms_lastHi) and ms_cx_sweepHigh
+    ms_reclaimLow := not na(ms_lastLo) and ms_cx_reclaimLow
+
+//====================
+// Structure state + events
+//====================
+var int ms_state = 0  // 1 bull, -1 bear, 0 neutral
+
+bool ms_pingL = false
+bool ms_pingS = false
+bool ms_bosL  = false
+bool ms_bosS  = false
+
+if ms_breakoutLong
+    ms_pingL := (ms_state == -1)
+    ms_bosL  := not ms_pingL
+    ms_state := 1
+
+if ms_breakoutShort
+    ms_pingS := (ms_state == 1)
+    ms_bosS  := not ms_pingS
+    ms_state := -1
+
+if ms_logic == "SMC+Sweep"
+    if ms_reclaimLow
+        ms_pingL := true
+    if ms_sweepHigh
+        ms_pingS := true
+
+//====================
+// Ping level freeze + verify
+//====================
+var float ms_pingHiLevel = na
+var float ms_pingLoLevel = na
+
+if ms_pingL
+    ms_pingHiLevel := ms_lastHi
+if ms_pingS
+    ms_pingLoLevel := ms_lastLo
+
+// Verify variants (Close vs Wick)
+bool ms_verifyL_close = ms_pingL[1] and not na(ms_pingHiLevel[1]) and close > ms_pingHiLevel[1]
+bool ms_verifyS_close = ms_pingS[1] and not na(ms_pingLoLevel[1]) and close < ms_pingLoLevel[1]
+
+// Wick-based verify (SkippALGO-like)
+bool bearVerifyWickS = ms_pingS[1] and not na(ms_pingLoLevel[1]) and low < ms_pingLoLevel[1]
+
+// Keep old names for compatibility
+bool ms_verifyL = ms_verifyL_close
+bool ms_verifyS = ms_verifyS_close
+
+bool ms_isChoCH_L = false
+bool ms_isChoCH_S = false
+
+if ms_mode == "Ping"
+    ms_isChoCH_L := ms_pingL
+    ms_isChoCH_S := ms_pingS
+else if ms_mode == "Verify"
+    ms_isChoCH_L := ms_verifyL
+    ms_isChoCH_S := ms_verifyS
+else
+    ms_isChoCH_L := (ms_pingL or ms_verifyL)
+    ms_isChoCH_S := (ms_pingS or ms_verifyS)
+
+//====================
+// Visuals
+//====================
+plotshape(ms_showTags and ms_isChoCH_L, "ChoCH L", style=shape.labelup,   location=location.belowbar, text="Bullish\nCHoCH", size=size.tiny, color=color.new(color.purple, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_isChoCH_S, "ChoCH S", style=shape.labeldown, location=location.abovebar, text="Bearish\nCHoCH", size=size.tiny, color=color.new(color.maroon, 0), textcolor=color.white)
+plotshape(ms_showTags and ms_bosL,      "BOS L",   style=shape.labelup,   location=location.belowbar, text="BOS",   size=size.tiny, color=color.new(color.green, 0),  textcolor=color.white)
+plotshape(ms_showTags and ms_bosS,      "BOS S",   style=shape.labeldown, location=location.abovebar, text="BOS",   size=size.tiny, color=color.new(color.red, 0),    textcolor=color.white)
+
+plotchar(ms_showPing and ms_pingL, "Ping L", "?", location=location.belowbar, size=size.tiny, color=color.new(color.yellow, 0))
+plotchar(ms_showPing and ms_pingS, "Ping S", "?", location=location.abovebar, size=size.tiny, color=color.new(color.yellow, 0))
+
+// Bearish ChoCH debug (Ping + Verify)
+bearChochPingEvt   = ms_pingS
+bearChochVerifyEvt = ms_verifyS
+
+plotchar(showBearChoch and bearChochPingEvt,   title="ChoCH S Ping",   char="v", location=location.abovebar, size=size.tiny)
+plotchar(showBearChoch and bearChochVerifyEvt, title="ChoCH S Verify", char="V", location=location.abovebar, size=size.tiny)
+
+plotshape(showBearChoch and bearChochPingEvt, title="ChoCH S (Ping)", style=shape.labeldown,
+    location=location.abovebar, size=size.tiny, text="ChoCH↓", textcolor=color.white, color=color.new(color.maroon, 0))
+
+plotshape(showBearChoch and bearChochVerifyEvt, title="Bearish CHoCH (Verify)", style=shape.labeldown,
+    location=location.abovebar, size=size.small, text="ChoCH✓↓", textcolor=color.white, color=color.new(color.red, 0))
+
+//====================
+// Strategy: trade on CHoCH + BOS events
+//====================
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+
+// Bullish structure = go long, Bearish structure = go short
+bool bullSignal = ms_isChoCH_L or ms_bosL
+bool bearSignal = ms_isChoCH_S or ms_bosS
+
+// Close opposite + enter
+if bullSignal
+    if inShort
+        strategy.close("SHORT", comment="Bullish CHoCH")
+    if not inLong
+        strategy.entry("LONG", strategy.long, comment="Bullish CHoCH")
+
+if bearSignal
+    if inLong
+        strategy.close("LONG", comment="Bearish CHoCH")
+    if not inShort
+        strategy.entry("SHORT", strategy.short, comment="Bearish CHoCH")
