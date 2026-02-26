@@ -86,23 +86,35 @@ class SqliteStore:
         the same hash concurrently.  A threading.Lock serialises
         callers so the explicit transaction cannot deadlock across
         threads sharing this connection.
+
+        Retries up to 3 times on ``OperationalError`` (database locked)
+        which can occur when multiple Streamlit tabs hit the DB at the
+        same moment, even with ``busy_timeout`` set.
         """
-        with self._lock:
-            self.conn.execute("BEGIN IMMEDIATE")
+        for _attempt in range(3):
             try:
-                self.conn.execute(
-                    "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
-                    "ON CONFLICT(hash) DO UPDATE SET last_ts=MAX(clusters.last_ts, excluded.last_ts), count=count+1",
-                    (h, ts, ts),
-                )
-                row = self.conn.execute(
-                    "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
-                ).fetchone()
-                self.conn.execute("COMMIT")
-            except BaseException:
-                self.conn.execute("ROLLBACK")
+                with self._lock:
+                    self.conn.execute("BEGIN IMMEDIATE")
+                    try:
+                        self.conn.execute(
+                            "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
+                            "ON CONFLICT(hash) DO UPDATE SET last_ts=MAX(clusters.last_ts, excluded.last_ts), count=count+1",
+                            (h, ts, ts),
+                        )
+                        row = self.conn.execute(
+                            "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
+                        ).fetchone()
+                        self.conn.execute("COMMIT")
+                    except BaseException:
+                        self.conn.execute("ROLLBACK")
+                        raise
+                return (row[0], row[1])
+            except sqlite3.OperationalError:
+                if _attempt < 2:
+                    time.sleep(0.05 * (2 ** _attempt))  # 50ms, 100ms
+                    continue
                 raise
-        return (row[0], row[1])
+        return (1, ts)  # unreachable but keeps mypy happy
 
     # ── Maintenance ─────────────────────────────────────────────
 

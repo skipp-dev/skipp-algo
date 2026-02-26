@@ -695,7 +695,8 @@ else:
                 with cols[0]:
                     st.markdown(f"**{ticker}**")
                 with cols[1]:
-                    link = f"[{headline[:100]}]({safe_url})" if safe_url else headline[:100]
+                    safe_hl = headline[:100].replace("[", "\\[").replace("]", "\\]")
+                    link = f"[{safe_hl}]({safe_url})" if safe_url else headline[:100]
                     st.markdown(f"{sent_icon} {link}")
                 with cols[2]:
                     st.markdown(f"`{category}`")
@@ -1175,5 +1176,7 @@ else:
 if st.session_state.auto_refresh and (
     st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key
 ):
-    time.sleep(interval)
+    # Sleep briefly (not the full poll interval) to keep the UI responsive.
+    # _should_poll() already gates the actual API call on elapsed time.
+    time.sleep(1)
     st.rerun()

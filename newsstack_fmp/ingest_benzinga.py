@@ -112,7 +112,11 @@ class BenzingaRestAdapter:
                     response=exc.response,
                 ) from None
 
-        assert r is not None  # guaranteed by loop logic
+        if r is None:
+            raise RuntimeError(
+                "Benzinga: no response after retries"
+                + (f" (last error: {last_exc})" if last_exc else "")
+            )
 
         ct = r.headers.get("content-type", "")
         try:
