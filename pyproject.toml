@@ -57,6 +57,7 @@ ignore = [
 "tests/*" = ["S", "T20", "B011"]
 "scripts/*" = ["T20"]
 "open_prep/streamlit_monitor.py" = ["T20"]
+"streamlit_terminal.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["newsstack_fmp", "open_prep", "terminal_poller", "terminal_export"]

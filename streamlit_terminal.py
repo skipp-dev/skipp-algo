@@ -65,12 +65,21 @@ _load_env_file(PROJECT_ROOT / ".env")
 
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
+from open_prep.playbook import classify_recency as _classify_recency
 from terminal_export import (
-    append_jsonl, fire_webhook, load_jsonl_feed, load_rt_quotes, rotate_jsonl, save_vd_snapshot,
+    append_jsonl,
+    fire_webhook,
+    load_jsonl_feed,
+    load_rt_quotes,
+    rotate_jsonl,
+    save_vd_snapshot,
 )
 from terminal_poller import (
-    ClassifiedItem, TerminalConfig, poll_and_classify, poll_and_classify_multi,
-    fetch_economic_calendar, fetch_sector_performance,
+    ClassifiedItem,
+    TerminalConfig,
+    fetch_economic_calendar,
+    fetch_sector_performance,
+    poll_and_classify_multi,
 )
 
 logger = logging.getLogger(__name__)
@@ -325,7 +334,7 @@ with st.sidebar:
 
     # Export paths
     st.caption(f"JSONL: `{cfg.jsonl_path}`")
-    st.caption(f"VD snapshot: `artifacts/terminal_vd.jsonl`")
+    st.caption("VD snapshot: `artifacts/terminal_vd.jsonl`")
     st.caption(f"SQLite: `{cfg.sqlite_path}`")
     if cfg.webhook_url:
         st.caption(f"Webhook: `{cfg.webhook_url[:40]}…`")
@@ -422,15 +431,7 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
             cond = rule["condition"]
             fired = False
 
-            if cond == "score >= threshold" and ci.news_score >= rule.get("threshold", 0.80):
-                fired = True
-            elif cond == "sentiment == bearish" and ci.sentiment_label == "bearish":
-                fired = True
-            elif cond == "sentiment == bullish" and ci.sentiment_label == "bullish":
-                fired = True
-            elif cond == "materiality == HIGH" and ci.materiality == "HIGH":
-                fired = True
-            elif cond == "category matches" and ci.category == rule.get("category", ""):
+            if (cond == "score >= threshold" and ci.news_score >= rule.get("threshold", 0.80)) or (cond == "sentiment == bearish" and ci.sentiment_label == "bearish") or (cond == "sentiment == bullish" and ci.sentiment_label == "bullish") or (cond == "materiality == HIGH" and ci.materiality == "HIGH") or (cond == "category matches" and ci.category == rule.get("category", "")):
                 fired = True
 
             if fired:
@@ -627,7 +628,7 @@ else:
             )
         with fcol3:
             filter_category = st.selectbox(
-                "Category", ["all"] + sorted(set(d.get("category", "other") for d in feed)),
+                "Category", ["all", *sorted(set(d.get("category", "other") for d in feed))],
                 key="feed_cat",
             )
 
@@ -671,7 +672,16 @@ else:
         for d in filtered[:50]:
             sent_icon = _SENTIMENT_COLORS.get(d.get("sentiment_label", ""), "")
             mat_icon = _MATERIALITY_COLORS.get(d.get("materiality", ""), "")
-            rec_icon = _RECENCY_COLORS.get(d.get("recency_bucket", ""), "")
+
+            # Recompute recency live from published_ts
+            _pub = d.get("published_ts")
+            if _pub and _pub > 0:
+                _live_rec = _classify_recency(
+                    datetime.fromtimestamp(_pub, tz=UTC),
+                )
+                rec_icon = _RECENCY_COLORS.get(_live_rec["recency_bucket"], "")
+            else:
+                rec_icon = _RECENCY_COLORS.get(d.get("recency_bucket", ""), "")
 
             ticker = d.get("ticker", "?")
             score = d.get("news_score", 0)
@@ -681,8 +691,14 @@ else:
             event_label = d.get("event_label", "")
             source_tier = d.get("source_tier", "")
             provider = d.get("provider", "")
-            age_min = d.get("age_minutes")
             url = d.get("url", "")
+
+            # Recompute age live from published_ts
+            pub_ts = d.get("published_ts")
+            if pub_ts and pub_ts > 0:
+                age_min = max((time.time() - pub_ts) / 60.0, 0.0)
+            else:
+                age_min = d.get("age_minutes")
 
             age_str = f"{age_min:.0f}m" if age_min is not None else "?"
 

@@ -17,10 +17,12 @@ import logging
 import os
 import tempfile
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
+from open_prep.playbook import classify_recency
 from terminal_poller import ClassifiedItem
 
 logger = logging.getLogger(__name__)
@@ -155,6 +157,11 @@ def build_vd_snapshot(
     quote fields (tick, streak, price, chg_pct, vol_ratio) are
     merged in from the RT engine's latest snapshot.
 
+    Time-dependent fields (age_min, recency, actionable) are
+    **recomputed live** from the item's ``published_ts`` so the
+    VisiData snapshot always reflects current staleness — not the
+    frozen value from classification time.
+
     Columns mirror the open_prep realtime VisiData format:
     symbol, N, sentiment, tick, score, streak, category, event,
     materiality, impact, clarity, sentiment_score, polarity, recency,
@@ -175,10 +182,24 @@ def build_vd_snapshot(
         if prev is None or d.get("news_score", 0) > prev.get("news_score", 0):
             best[tk] = d
 
+    now = time.time()
     rows: list[dict[str, Any]] = []
     for tk, d in best.items():
         sent_label = d.get("sentiment_label", "neutral")
         rt = rt_quotes.get(tk, {})
+
+        # Recompute recency live from published_ts
+        pub_ts = d.get("published_ts")
+        if pub_ts and pub_ts > 0:
+            live_age_min = max((now - pub_ts) / 60.0, 0.0)
+            article_dt = datetime.fromtimestamp(pub_ts, tz=UTC)
+            recency = classify_recency(article_dt)
+            recency_bucket = recency["recency_bucket"]
+            is_actionable = recency["is_actionable"]
+        else:
+            live_age_min = d.get("age_minutes") or 0
+            recency_bucket = d.get("recency_bucket", "")
+            is_actionable = d.get("is_actionable", False)
 
         rows.append({
             "symbol":           tk,
@@ -195,9 +216,9 @@ def build_vd_snapshot(
             "clarity":          d.get("clarity", 0),
             "sentiment_score":  d.get("sentiment_score", 0),
             "polarity":         d.get("polarity", 0),
-            "recency":          d.get("recency_bucket", ""),
-            "age_min":          round(d.get("age_minutes", 0) or 0, 1),
-            "actionable":       "✅" if d.get("is_actionable") else "",
+            "recency":          recency_bucket,
+            "age_min":          round(live_age_min, 1),
+            "actionable":       "✅" if is_actionable else "",
             "provider":         d.get("provider", ""),
             "price":            rt.get("price", 0.0),
             "chg_pct":          rt.get("chg_pct", 0.0),
