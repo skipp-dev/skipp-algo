@@ -216,7 +216,7 @@ with st.sidebar:
     st.session_state.auto_refresh = st.toggle("Auto-refresh", value=st.session_state.auto_refresh)
 
     # Manual poll button
-    force_poll = st.button("🔄 Poll Now", use_container_width=True)
+    force_poll = st.button("🔄 Poll Now", width='stretch')
 
     st.divider()
 
@@ -247,7 +247,7 @@ with st.sidebar:
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
-    if st.button("🗑️ Reset dedup DB", use_container_width=True):
+    if st.button("🗑️ Reset dedup DB", width='stretch'):
         import pathlib
         # Close existing SQLite connection before deleting files
         if st.session_state.store is not None:
@@ -818,7 +818,7 @@ else:
             st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")
             st.dataframe(
                 df_rank,
-                use_container_width=True,
+                width='stretch',
                 height=min(600, 40 + 35 * len(df_rank)),
             )
 
@@ -899,7 +899,7 @@ else:
             st.caption(f"{len(seg_rows)} segments across {len(feed)} articles")
             df_seg = pd.DataFrame(summary_data)
             df_seg.index = df_seg.index + 1
-            st.dataframe(df_seg, use_container_width=True, height=min(400, 40 + 35 * len(df_seg)))
+            st.dataframe(df_seg, width='stretch', height=min(400, 40 + 35 * len(df_seg)))
 
             st.divider()
 
@@ -958,7 +958,7 @@ else:
                     if tk_rows:
                         df_tk = pd.DataFrame(tk_rows)
                         df_tk.index = df_tk.index + 1
-                        st.dataframe(df_tk, use_container_width=True, height=min(400, 40 + 35 * len(df_tk)))
+                        st.dataframe(df_tk, width='stretch', height=min(400, 40 + 35 * len(df_tk)))
                     else:
                         st.caption("No ticker data")
 
@@ -1039,7 +1039,7 @@ else:
                     paper_bgcolor="#0E1117",
                     font_color="white",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             else:
                 st.info("No segment data available for heatmap.")
 
@@ -1070,9 +1070,9 @@ else:
                             font_color="white",
                             xaxis_tickangle=-45,
                         )
-                        st.plotly_chart(fig_sp, use_container_width=True)
+                        st.plotly_chart(fig_sp, width='stretch')
                     else:
-                        st.dataframe(df_sp, use_container_width=True)
+                        st.dataframe(df_sp, width='stretch')
                 else:
                     st.caption("No sector data returned from FMP.")
             else:
@@ -1131,7 +1131,7 @@ else:
                 st.caption(f"{len(df_cal)} economic events from {cal_from} to {cal_to}")
                 st.dataframe(
                     df_cal[display_cols] if display_cols else df_cal,
-                    use_container_width=True,
+                    width='stretch',
                     height=min(600, 40 + 35 * len(df_cal)),
                 )
 
@@ -1168,7 +1168,7 @@ else:
                 "Category": r.get("category", ""),
                 "Webhook": "✅" if r.get("webhook_url") else "❌",
             } for r in rules])
-            st.dataframe(rule_df, use_container_width=True)
+            st.dataframe(rule_df, width='stretch')
         else:
             st.info("No alert rules configured. Add rules in the sidebar ➡️")
 
@@ -1200,7 +1200,7 @@ else:
             show_cols = [c for c in display_cols if c in df.columns]
             st.dataframe(
                 df[show_cols],
-                use_container_width=True,
+                width='stretch',
                 height=600,
             )
         else:
