@@ -1120,32 +1120,49 @@ else:
 
             st.divider()
 
-            # ── Detailed drill-down per segment (top 10 symbols each)
-            st.subheader("Top 10 Symbols per Segment")
+            # ── Detailed drill-down per segment (top 40 symbols each)
+            st.subheader("Top Symbols per Segment")
             for r in seg_rows:
                 ticker_map = r["_ticker_map"]
                 sorted_tks = sorted(
                     ticker_map.values(),
                     key=lambda x: x.get("news_score", 0),
                     reverse=True,
-                )[:10]
+                )[:40]
 
                 with st.expander(f"{r['sentiment']} **{r['segment']}** — {r['tickers']} tickers, {r['articles']} articles"):
                     tk_rows = []
                     for d in sorted_tks:
                         sent_label = d.get("sentiment_label", "neutral")
+                        raw_headline = (d.get("headline", "") or "")[:120]
+                        article_url = d.get("url", "")
+                        headline_display = (
+                            f"[{raw_headline}]({article_url})"
+                            if article_url
+                            else raw_headline
+                        )
                         tk_rows.append({
                             "Symbol": d.get("ticker", "?"),
                             "Score": round(d.get("news_score", 0), 4),
                             "Sentiment": _SENTIMENT_COLORS.get(sent_label, "🟡") + " " + sent_label,
                             "Event": d.get("event_label", ""),
                             "Materiality": d.get("materiality", ""),
-                            "Headline": (d.get("headline", "") or "")[:100],
+                            "Headline": headline_display,
                         })
                     if tk_rows:
                         df_tk = pd.DataFrame(tk_rows)
                         df_tk.index = df_tk.index + 1
-                        st.dataframe(df_tk, width='stretch', height=min(400, 40 + 35 * len(df_tk)))
+                        st.dataframe(
+                            df_tk,
+                            width='stretch',
+                            height=min(1000, 40 + 35 * len(df_tk)),
+                            column_config={
+                                "Headline": st.column_config.LinkColumn(
+                                    "Headline",
+                                    display_text=r"(.*)",
+                                ),
+                            },
+                        )
                     else:
                         st.caption("No ticker data")
 
