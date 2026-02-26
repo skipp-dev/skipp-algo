@@ -499,8 +499,10 @@ def _do_poll() -> None:
             page_size=cfg.page_size,
         )
     except Exception as exc:
-        logger.exception("Poll failed: %s", exc)
-        st.session_state.last_poll_error = str(exc)
+        import re as _re
+        _safe_msg = _re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=_re.IGNORECASE)
+        logger.exception("Poll failed: %s", _safe_msg)
+        st.session_state.last_poll_error = _safe_msg
         st.session_state.last_poll_status = "ERROR"
         # Advance last_poll_ts even on failure to prevent a tight retry
         # loop that hammers a broken API on every Streamlit rerun.
@@ -533,12 +535,17 @@ def _do_poll() -> None:
     new_dicts = [ci.to_dict() for ci in items]
     st.session_state.feed = new_dicts + st.session_state.feed
 
-    # Fire global webhook for qualifying items (single shared client)
+    # Fire global webhook for qualifying items (single shared client, capped)
     if cfg.webhook_url and items:
         import httpx as _httpx_wh
+        _wh_budget = 20  # max webhook POSTs per poll cycle
         with _httpx_wh.Client(timeout=5.0) as wh_client:
             for ci in items:
-                fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret, _client=wh_client)
+                if _wh_budget <= 0:
+                    logger.warning("Global webhook budget exhausted, skipping remaining items")
+                    break
+                if fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret, _client=wh_client) is not None:
+                    _wh_budget -= 1
 
     # Trim feed
     max_items = cfg.max_items
