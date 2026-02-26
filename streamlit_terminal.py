@@ -245,6 +245,14 @@ with st.sidebar:
                 st.session_state.store.close()
             except Exception:
                 pass
+        # Close HTTP adapters to release connection pools
+        for _adapter_key in ("adapter", "fmp_adapter"):
+            _adp = st.session_state.get(_adapter_key)
+            if _adp is not None:
+                try:
+                    _adp.close()
+                except Exception:
+                    pass
         db_path = pathlib.Path(cfg.sqlite_path)
         # Remove main DB + SQLite WAL/SHM journal files
         for suffix in ("", "-wal", "-shm"):
@@ -252,6 +260,8 @@ with st.sidebar:
             if p.exists():
                 p.unlink()
         st.session_state.store = None
+        st.session_state.adapter = None
+        st.session_state.fmp_adapter = None
         st.session_state.cursor = None
         st.session_state.feed = []
         st.session_state.poll_count = 0
@@ -394,6 +404,8 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
 
     seen_pairs: set[tuple[str, int]] = set()
     webhook_budget = _ALERT_WEBHOOK_BUDGET
+    # Collect webhook POSTs so we can fire them in a single client session
+    pending_webhooks: list[tuple[str, dict]] = []
 
     for ci in items:
         for rule_idx, rule in enumerate(rules):
@@ -436,27 +448,35 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
                 if len(st.session_state.alert_log) > 100:
                     st.session_state.alert_log = st.session_state.alert_log[:100]
 
-                # Fire webhook if configured (with budget guard)
+                # Queue webhook if configured (with budget guard)
                 wh = rule.get("webhook_url", "")
                 if wh and webhook_budget > 0:
                     webhook_budget -= 1
+                    pending_webhooks.append((wh, log_entry))
+
+    # Fire all queued webhooks through a single shared httpx client
+    if pending_webhooks:
+        try:
+            with _httpx.Client(timeout=5.0) as client:
+                for wh_url, wh_payload in pending_webhooks:
                     try:
-                        payload = json.dumps(log_entry, default=str).encode()
-                        with _httpx.Client(timeout=5.0) as client:
-                            client.post(wh, content=payload, headers={"Content-Type": "application/json"})
+                        body = json.dumps(wh_payload, default=str).encode()
+                        client.post(wh_url, content=body, headers={"Content-Type": "application/json"})
                     except Exception as exc:
-                        logger.warning("Alert webhook POST failed (%s): %s", wh[:40], exc)
+                        logger.warning("Alert webhook POST failed (%s): %s", wh_url[:40], exc)
+        except Exception as exc:
+            logger.warning("Alert webhook client init failed: %s", exc)
 
 
 # ── Poll logic ──────────────────────────────────────────────────
 
-def _should_poll() -> bool:
+def _should_poll(poll_interval: float) -> bool:
     """Determine if we should poll this cycle."""
     cfg: TerminalConfig = st.session_state.cfg
     if not cfg.benzinga_api_key and not cfg.fmp_api_key:
         return False
     elapsed = time.time() - st.session_state.last_poll_ts
-    return elapsed >= interval
+    return elapsed >= poll_interval
 
 
 def _do_poll() -> None:
@@ -497,17 +517,18 @@ def _do_poll() -> None:
     # Evaluate alert rules on new items
     _evaluate_alerts(items)
 
-    # Append to feed (newest first) + cap at max_items
-    for ci in items:
-        d = ci.to_dict()
-        st.session_state.feed.insert(0, d)
-
-        # JSONL export
-        if cfg.jsonl_path:
+    # JSONL export (before dict conversion — append_jsonl expects ClassifiedItem)
+    if cfg.jsonl_path:
+        for ci in items:
             append_jsonl(ci, cfg.jsonl_path)
 
-        # Webhook
-        if cfg.webhook_url:
+    # Prepend batch in one operation (avoids O(n²) repeated insert(0, …))
+    new_dicts = [ci.to_dict() for ci in items]
+    st.session_state.feed = new_dicts + st.session_state.feed
+
+    # Fire global webhook for qualifying items
+    if cfg.webhook_url:
+        for ci in items:
             fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret)
 
     # Trim feed
@@ -528,7 +549,7 @@ def _do_poll() -> None:
 
 # ── Execute poll if needed ──────────────────────────────────────
 
-if force_poll or (st.session_state.auto_refresh and _should_poll()):
+if force_poll or (st.session_state.auto_refresh and _should_poll(interval)):
     _do_poll()
 
 

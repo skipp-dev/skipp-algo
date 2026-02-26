@@ -44,16 +44,27 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
 def rotate_jsonl(path: str, max_lines: int = 5000) -> None:
     """Trim JSONL file to the last *max_lines* lines if it grows too big.
 
-    This avoids unbounded growth while keeping enough history for
-    VisiData sessions.  Called periodically (e.g. every 100 polls).
+    Uses atomic tempfile + os.replace so a crash during rotation
+    cannot truncate/corrupt the existing file.
+    Called periodically (e.g. every 100 polls).
     """
     try:
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         if len(lines) <= max_lines:
             return
-        with open(path, "w", encoding="utf-8") as f:
-            f.writelines(lines[-max_lines:])
+        dest_dir = os.path.dirname(os.path.abspath(path)) or "."
+        fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rot_")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.writelines(lines[-max_lines:])
+            os.replace(tmp_path, path)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
         logger.info("Rotated JSONL %s: %d → %d lines", path, len(lines), max_lines)
     except FileNotFoundError:
         pass
