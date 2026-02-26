@@ -434,11 +434,11 @@ class TestLoadJsonlFeed(unittest.TestCase):
             path = os.path.join(tmpdir, "feed.jsonl")
             with open(path, "w") as f:
                 for i in range(5):
-                    f.write(json.dumps({"idx": i}) + "\n")
+                    f.write(json.dumps({"idx": i, "published_ts": 1000 + i}) + "\n")
 
             result = load_jsonl_feed(path)
             self.assertEqual(len(result), 5)
-            # Newest first (reversed)
+            # Newest first (sorted by published_ts descending)
             self.assertEqual(result[0]["idx"], 4)
             self.assertEqual(result[-1]["idx"], 0)
 
@@ -463,11 +463,11 @@ class TestLoadJsonlFeed(unittest.TestCase):
             path = os.path.join(tmpdir, "big.jsonl")
             with open(path, "w") as f:
                 for i in range(100):
-                    f.write(json.dumps({"i": i}) + "\n")
+                    f.write(json.dumps({"i": i, "published_ts": 1000 + i}) + "\n")
 
             result = load_jsonl_feed(path, max_items=10)
             self.assertEqual(len(result), 10)
-            # Newest first
+            # Newest first (sorted by published_ts descending)
             self.assertEqual(result[0]["i"], 99)
 
 

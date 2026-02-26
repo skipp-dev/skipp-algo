@@ -48,16 +48,26 @@ def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
 
     Used after in-memory prune so that stale entries are removed from
     disk and won't reappear when the next Streamlit session starts.
+
+    Items are written in **chronological order** (oldest ``published_ts``
+    first) so the on-disk convention matches ``append_jsonl`` (newest at
+    the end).  ``load_jsonl_feed`` reverses the file on read, so the
+    newest items always appear first in memory.
     """
+    # Sort oldest-first before writing so subsequent load+reverse works
+    sorted_items = sorted(
+        items,
+        key=lambda d: d.get("published_ts") or d.get("updated_ts") or 0,
+    )
     dest_dir = os.path.dirname(os.path.abspath(path)) or "."
     os.makedirs(dest_dir, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rw_")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            for d in items:
+            for d in sorted_items:
                 fh.write(json.dumps(d, default=str) + "\n")
         os.replace(tmp_path, path)
-        logger.info("Rewrote JSONL %s with %d items", path, len(items))
+        logger.info("Rewrote JSONL %s with %d items", path, len(sorted_items))
     except BaseException:
         try:
             os.unlink(tmp_path)
@@ -120,6 +130,11 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
 
     Used on Streamlit startup to restore the feed so that users don't
     see "No items yet" after a page reload.
+
+    Items are sorted by ``published_ts`` descending (newest first) so
+    the result is independent of the on-disk line order.  This is more
+    robust than relying on ``reverse()`` of append order, which can
+    break if ``rewrite_jsonl`` or ``rotate_jsonl`` reorder lines.
     """
     result: list[dict[str, Any]] = []
     try:
@@ -134,8 +149,12 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
                     continue
     except FileNotFoundError:
         return []
-    # Newest first (JSONL is append-order, so reverse)
-    result.reverse()
+    # Sort by timestamp descending — always correct regardless of
+    # on-disk line order (append, rewrite, rotate all may differ).
+    result.sort(
+        key=lambda d: d.get("published_ts") or d.get("updated_ts") or 0,
+        reverse=True,
+    )
     if len(result) > max_items:
         result = result[:max_items]
     return result
