@@ -350,6 +350,7 @@ def poll_and_classify_multi(
     """
     now_utc = datetime.now(UTC)
     raw_items: List[NewsItem] = []
+    errors: List[str] = []
 
     # ── Benzinga ────────────────────────────────────────────
     if benzinga_adapter is not None:
@@ -360,6 +361,7 @@ def poll_and_classify_multi(
             raw_items.extend(bz_items)
         except Exception as exc:
             logger.warning("Benzinga poll failed: %s", exc)
+            errors.append(f"Benzinga: {exc}")
 
     # ── FMP (stock news + press releases) ───────────────────
     if fmp_adapter is not None:
@@ -367,10 +369,18 @@ def poll_and_classify_multi(
             raw_items.extend(fmp_adapter.fetch_stock_latest(page=0, limit=page_size))
         except Exception as exc:
             logger.warning("FMP stock-news poll failed: %s", exc)
+            errors.append(f"FMP-stock: {exc}")
         try:
             raw_items.extend(fmp_adapter.fetch_press_latest(page=0, limit=page_size))
         except Exception as exc:
             logger.warning("FMP press-release poll failed: %s", exc)
+            errors.append(f"FMP-press: {exc}")
+
+    # If ALL configured sources failed, raise so the caller can surface
+    # the error in the UI instead of showing misleading "0 items" success.
+    n_sources = (1 if benzinga_adapter else 0) + (1 if fmp_adapter else 0)
+    if errors and not raw_items and len(errors) >= n_sources:
+        raise RuntimeError("All sources failed: " + "; ".join(errors))
 
     all_classified: List[ClassifiedItem] = []
     max_ts = float(cursor) if cursor else 0.0

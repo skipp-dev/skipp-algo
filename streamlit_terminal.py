@@ -102,11 +102,15 @@ if "feed" not in st.session_state:
     _restored = load_jsonl_feed(TerminalConfig().jsonl_path)
     st.session_state.feed = _restored  # type: list[dict[str, Any]]
     if _restored:
-        # Derive cursor from restored feed so polling resumes from latest
-        _ts_vals = [r.get("published", "") or r.get("created", "") for r in _restored]
-        _ts_vals = [t for t in _ts_vals if t]
+        # Derive cursor from restored feed so polling resumes from latest.
+        # Items use "published_ts" (float epoch) or "updated_ts".
+        _ts_vals = [
+            r.get("updated_ts") or r.get("published_ts") or 0
+            for r in _restored
+        ]
+        _ts_vals = [t for t in _ts_vals if isinstance(t, (int, float)) and t > 0]
         if _ts_vals:
-            st.session_state["cursor"] = max(_ts_vals)
+            st.session_state["cursor"] = str(int(max(_ts_vals)))
 if "poll_count" not in st.session_state:
     st.session_state.poll_count = 0
 if "last_poll_ts" not in st.session_state:
@@ -319,8 +323,7 @@ with st.sidebar:
     if _rt_quotes:
         st.success(f"RT Engine: {len(_rt_quotes)} symbols live")
     else:
-        import os as _os
-        if _os.path.isfile(_rt_path):
+        if os.path.isfile(_rt_path):
             st.warning("RT Engine: file exists but stale (>120s)")
         else:
             st.info("RT Engine: not running")
@@ -350,20 +353,51 @@ _RECENCY_COLORS = {
 }
 
 
+# ── Cached FMP wrappers (avoid re-fetching every Streamlit rerun) ──
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
+    """Cache sector performance for 5 minutes."""
+    return fetch_sector_performance(api_key)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache economic calendar for 5 minutes."""
+    return fetch_economic_calendar(api_key, from_date, to_date)
+
+
 # ── Alert evaluation ────────────────────────────────────────────
 
+_ALERT_WEBHOOK_BUDGET: int = 10  # max webhook POSTs per poll cycle
+
+
 def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
-    """Check each new item against alert rules, fire webhooks + log."""
+    """Check each new item against alert rules, fire webhooks + log.
+
+    Guards:
+    - Dedup by item_id: multi-ticker articles only fire once per rule.
+    - Webhook budget: max *_ALERT_WEBHOOK_BUDGET* POSTs per call to
+      avoid hammering external endpoints on noisy rules.
+    """
     import httpx as _httpx
 
     rules = st.session_state.alert_rules
     if not rules:
         return
 
+    seen_pairs: set[tuple[str, int]] = set()
+    webhook_budget = _ALERT_WEBHOOK_BUDGET
+
     for ci in items:
-        for rule in rules:
+        for rule_idx, rule in enumerate(rules):
             tk_match = rule["ticker"] in ("*", ci.ticker)
             if not tk_match:
+                continue
+
+            # Dedup: skip if this item already fired for this rule
+            pair_key = (ci.item_id, rule_idx)
+            if pair_key in seen_pairs:
                 continue
 
             cond = rule["condition"]
@@ -381,27 +415,31 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
                 fired = True
 
             if fired:
+                seen_pairs.add(pair_key)
+
                 log_entry = {
                     "ts": time.time(),
                     "ticker": ci.ticker,
                     "headline": ci.headline[:120],
                     "rule": cond,
                     "score": ci.news_score,
+                    "item_id": ci.item_id,
                 }
                 st.session_state.alert_log.insert(0, log_entry)
                 # Cap alert log
                 if len(st.session_state.alert_log) > 100:
                     st.session_state.alert_log = st.session_state.alert_log[:100]
 
-                # Fire webhook if configured
+                # Fire webhook if configured (with budget guard)
                 wh = rule.get("webhook_url", "")
-                if wh:
+                if wh and webhook_budget > 0:
+                    webhook_budget -= 1
                     try:
                         payload = json.dumps(log_entry, default=str).encode()
                         with _httpx.Client(timeout=5.0) as client:
                             client.post(wh, content=payload, headers={"Content-Type": "application/json"})
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("Alert webhook POST failed (%s): %s", wh[:40], exc)
 
 
 # ── Poll logic ──────────────────────────────────────────────────
@@ -568,9 +606,9 @@ else:
         if filter_category != "all":
             filtered = [d for d in filtered if d.get("category") == filter_category]
 
-        # Date filter
-        from_epoch = datetime.combine(date_from, datetime.min.time()).timestamp()
-        to_epoch = datetime.combine(date_to, datetime.max.time()).timestamp()
+        # Date filter (UTC-aware to match published_ts epoch)
+        from_epoch = datetime.combine(date_from, datetime.min.time(), tzinfo=UTC).timestamp()
+        to_epoch = datetime.combine(date_to, datetime.max.time(), tzinfo=UTC).timestamp()
         filtered = [
             d for d in filtered
             if from_epoch <= d.get("published_ts", 0) <= to_epoch
@@ -888,6 +926,11 @@ else:
                     if prev is None or s > prev.get("news_score", 0):
                         tickers_seen[tk] = d
 
+                # Pre-compute article counts per ticker (avoids O(n²))
+                _tk_counts: dict[str, int] = defaultdict(int)
+                for _d in items_list:
+                    _tk_counts[_d.get("ticker", "?")] += 1
+
                 # For treemap: each ticker is a leaf under its segment
                 for tk, d in tickers_seen.items():
                     net = bull_count - bear_count
@@ -897,7 +940,7 @@ else:
                         "score": d.get("news_score", 0),
                         "sentiment": d.get("sentiment_label", "neutral"),
                         "net_sent": net,
-                        "articles": len([x for x in items_list if x.get("ticker") == tk]),
+                        "articles": _tk_counts.get(tk, 0),
                     })
 
             if hm_data:
@@ -929,7 +972,7 @@ else:
             fmp_key = st.session_state.cfg.fmp_api_key
             if fmp_key:
                 st.subheader("📊 Market Sector Performance (FMP)")
-                sector_data = fetch_sector_performance(fmp_key)
+                sector_data = _cached_sector_perf(fmp_key)
                 if sector_data:
                     df_sp = pd.DataFrame(sector_data)
                     if "changesPercentage" in df_sp.columns and "sector" in df_sp.columns:
@@ -983,7 +1026,7 @@ else:
                     key="cal_to",
                 )
 
-            cal_data = fetch_economic_calendar(
+            cal_data = _cached_econ_calendar(
                 fmp_key,
                 from_date=cal_from.strftime("%Y-%m-%d"),
                 to_date=cal_to.strftime("%Y-%m-%d"),
@@ -1015,7 +1058,7 @@ else:
 
                 # ── Upcoming highlights ─────────────────────────────
                 now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M")
-                upcoming = df_cal[df_cal.get("date", pd.Series(dtype=str)) >= now_str] if "date" in df_cal.columns else pd.DataFrame()
+                upcoming = df_cal[df_cal["date"] >= now_str] if "date" in df_cal.columns else pd.DataFrame()
                 if not upcoming.empty:
                     st.subheader("⏰ Upcoming")
                     for _, row in upcoming.head(10).iterrows():
@@ -1085,6 +1128,8 @@ else:
 
 # ── Auto-refresh trigger ───────────────────────────────────────
 
-if st.session_state.auto_refresh and st.session_state.cfg.benzinga_api_key:
+if st.session_state.auto_refresh and (
+    st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key
+):
     time.sleep(interval)
     st.rerun()
