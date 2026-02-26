@@ -57,7 +57,7 @@ def _load_env_file(env_path: Path) -> None:
             if key:
                 os.environ.setdefault(key, value)
     except Exception:
-        pass
+        logging.getLogger(__name__).warning("Failed to parse .env file: %s", env_path)
 
 
 _load_env_file(PROJECT_ROOT / ".env")
@@ -595,8 +595,6 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
     - Webhook budget: max *_ALERT_WEBHOOK_BUDGET* POSTs per call to
       avoid hammering external endpoints on noisy rules.
     """
-    import httpx as _httpx
-
     rules = st.session_state.alert_rules
     if not rules:
         return
@@ -654,6 +652,7 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
 
     # Fire all queued webhooks through a single shared httpx client
     if pending_webhooks:
+        import httpx as _httpx
         try:
             with _httpx.Client(timeout=5.0) as client:
                 for wh_url, wh_payload in pending_webhooks:
@@ -906,8 +905,23 @@ if st.session_state.use_bg_poller:
         except Exception as exc:
             logger.warning("Push notification dispatch failed: %s", exc)
 
-        # News→Chart auto-webhook
-        if st.session_state.news_chart_auto_webhook and _bg_cfg.webhook_url:
+        # ── Global webhook for qualifying items ─────────────
+        if _bg_cfg.webhook_url:
+            import httpx as _httpx_bgwh
+            _wh_budget_bg = 20
+            with _httpx_bgwh.Client(timeout=5.0) as _wh_c:
+                for ci in _bg_items:
+                    if _wh_budget_bg <= 0:
+                        logger.warning("BG global webhook budget exhausted, skipping remaining")
+                        break
+                    if fire_webhook(ci, _bg_cfg.webhook_url, _bg_cfg.webhook_secret,
+                                    _client=_wh_c) is not None:
+                        _wh_budget_bg -= 1
+
+        # ── News→Chart auto-webhook ─────────────────────────
+        _nc_webhook_url_bg = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", _bg_cfg.webhook_url)
+        _skip_dup_bg = _nc_webhook_url_bg == _bg_cfg.webhook_url
+        if st.session_state.news_chart_auto_webhook and _nc_webhook_url_bg:
             import httpx as _httpx_bg
             _nc_b = 5
             with _httpx_bg.Client(timeout=5.0) as _nc_c:
@@ -915,7 +929,9 @@ if st.session_state.use_bg_poller:
                     if _nc_b <= 0:
                         break
                     if ci.news_score >= 0.85 and ci.is_actionable:
-                        fire_webhook(ci, _bg_cfg.webhook_url, _bg_cfg.webhook_secret,
+                        if _skip_dup_bg:
+                            continue  # already sent by global webhook above
+                        fire_webhook(ci, _nc_webhook_url_bg, _bg_cfg.webhook_secret,
                                      min_score=0.85, _client=_nc_c)
                         _nc_b -= 1
 
@@ -940,6 +956,10 @@ if st.session_state.use_bg_poller:
     if _feed_empty_needs_poll:
         with st.spinner("Loading latest news…"):
             _do_poll()
+        # Sync the newly-advanced cursor into the BG poller so its
+        # first real poll doesn't re-fetch what the foreground just got.
+        if st.session_state.bg_poller is not None:
+            st.session_state.bg_poller.cursor = st.session_state.cursor
 else:
     # ── Foreground (legacy) polling ─────────────────────────
     if _feed_empty_needs_poll:

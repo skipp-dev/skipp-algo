@@ -206,8 +206,12 @@ class BackgroundPoller:
                 self.consecutive_empty_polls += 1
                 if self.consecutive_empty_polls >= 3:
                     try:
-                        self._store.prune_seen(keep_seconds=0.0)
-                        self._store.prune_clusters(keep_seconds=0.0)
+                        # Partial prune when items have been ingested before;
+                        # full clear only when nothing was ever ingested (the
+                        # dedup DB is blocking everything from the start).
+                        _keep = 0.0 if self.total_items_ingested == 0 else self._cfg.feed_max_age_s
+                        self._store.prune_seen(keep_seconds=_keep)
+                        self._store.prune_clusters(keep_seconds=_keep)
                         with self._lock:
                             self._cursor = None
                         logger.info(

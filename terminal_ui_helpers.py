@@ -63,7 +63,11 @@ def prune_stale_items(
     if max_age_s <= 0:
         return feed
     cutoff = time.time() - max_age_s
-    return [d for d in feed if (d.get("published_ts") or 0) >= cutoff]
+    return [
+        d for d in feed
+        if (d.get("published_ts") or 0) >= cutoff
+        or (d.get("published_ts") or 0) == 0  # keep items with missing ts
+    ]
 
 
 # ── Feed filtering (Live Feed tab) ─────────────────────────────

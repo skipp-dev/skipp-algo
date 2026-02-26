@@ -143,10 +143,11 @@ class TestPruneStaleItems:
     def test_empty_feed(self):
         assert prune_stale_items([], max_age_s=3600) == []
 
-    def test_missing_published_ts_treated_as_epoch_zero(self):
+    def test_missing_published_ts_kept(self):
+        """Items with no published_ts are not provably stale so should be kept."""
         feed = [{"ticker": "X"}]  # no published_ts
         result = prune_stale_items(feed, max_age_s=3600)
-        assert len(result) == 0
+        assert len(result) == 1
 
     def test_mixed_ages(self):
         now = time.time()
