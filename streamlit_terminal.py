@@ -24,7 +24,6 @@ import logging
 import os
 import sys
 import time
-from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -84,6 +83,28 @@ from terminal_poller import (
     fetch_sector_performance,
     poll_and_classify_multi,
 )
+from terminal_ui_helpers import (
+    MATERIALITY_COLORS,
+    RECENCY_COLORS,
+    SENTIMENT_COLORS,
+    aggregate_segments,
+    build_heatmap_data,
+    build_segment_summary_rows,
+    compute_feed_stats,
+    compute_top_movers,
+    dedup_merge,
+    enrich_rank_rows,
+    filter_feed,
+    format_age_string,
+    format_score_badge,
+    highlight_fresh_row,
+    match_alert_rule,
+    provider_icon,
+    prune_stale_items,
+    safe_markdown_text,
+    safe_url,
+    split_segments_by_sentiment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,18 +131,13 @@ st.set_page_config(
 def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = None) -> list[dict[str, Any]]:
     """Drop items whose published_ts is older than *max_age_s* seconds.
 
-    This prevents the feed from accumulating stale entries that diverge
-    between local and remote Streamlit instances.  Default max age is
-    taken from ``TerminalConfig.feed_max_age_s`` (env: TERMINAL_FEED_MAX_AGE_S,
-    default 4 h).
+    Thin wrapper around ``terminal_ui_helpers.prune_stale_items`` that
+    reads the default max-age from Streamlit session state.
     """
     if max_age_s is None:
         cfg_obj = st.session_state.get("cfg")
         max_age_s = cfg_obj.feed_max_age_s if cfg_obj else 14400.0
-    if max_age_s <= 0:
-        return feed  # pruning disabled
-    cutoff = time.time() - max_age_s
-    return [d for d in feed if (d.get("published_ts") or 0) >= cutoff]
+    return prune_stale_items(feed, max_age_s)
 
 
 # Resync interval: re-read JSONL every 120 s so long-running sessions
@@ -153,19 +169,11 @@ def _resync_feed_from_jsonl() -> None:
         st.session_state.last_resync_ts = time.time()
         return
 
-    # Build lookup of existing (item_id, ticker) pairs for fast dedup
-    existing_keys: set[str] = set()
-    for d in st.session_state.feed:
-        existing_keys.add(f"{d.get('item_id', '')}:{d.get('ticker', '')}")
-
-    new_from_jsonl = [
-        d for d in restored
-        if f"{d.get('item_id', '')}:{d.get('ticker', '')}" not in existing_keys
-    ]
-
-    if new_from_jsonl:
-        st.session_state.feed = new_from_jsonl + st.session_state.feed
-        logger.info("JSONL resync: merged %d items into session feed", len(new_from_jsonl))
+    merged = dedup_merge(st.session_state.feed, restored)
+    new_count = len(merged) - len(st.session_state.feed)
+    if new_count > 0:
+        st.session_state.feed = merged
+        logger.info("JSONL resync: merged %d items into session feed", new_count)
 
     # Prune stale items after merge
     st.session_state.feed = _prune_stale_items(st.session_state.feed)
@@ -529,28 +537,13 @@ with st.sidebar:
             st.info("RT Engine: not running (terminal poller is independent)")
 
 
-# ── Sentiment helpers ───────────────────────────────────────────
-
-_SENTIMENT_COLORS = {
-    "bullish": "🟢",
-    "bearish": "🔴",
-    "neutral": "🟡",
-}
-
-_MATERIALITY_COLORS = {
-    "HIGH": "🔴",
-    "MEDIUM": "🟠",
-    "LOW": "⚪",
-}
-
-_RECENCY_COLORS = {
-    "ULTRA_FRESH": "🔥",
-    "FRESH": "🟢",
-    "WARM": "🟡",
-    "AGING": "🟠",
-    "STALE": "⚫",
-    "UNKNOWN": "❓",
-}
+# ── Sentiment helpers (imported from terminal_ui_helpers) ──────
+# SENTIMENT_COLORS, MATERIALITY_COLORS, RECENCY_COLORS are
+# imported at the top of the file from terminal_ui_helpers.
+# Legacy aliases kept for backward compat inside this module.
+_SENTIMENT_COLORS = SENTIMENT_COLORS
+_MATERIALITY_COLORS = MATERIALITY_COLORS
+_RECENCY_COLORS = RECENCY_COLORS
 
 
 # ── Cached FMP wrappers (avoid re-fetching every Streamlit rerun) ──
@@ -605,7 +598,14 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
             cond = rule["condition"]
             fired = False
 
-            if (cond == "score >= threshold" and ci.news_score >= rule.get("threshold", 0.80)) or (cond == "sentiment == bearish" and ci.sentiment_label == "bearish") or (cond == "sentiment == bullish" and ci.sentiment_label == "bullish") or (cond == "materiality == HIGH" and ci.materiality == "HIGH") or (cond == "category matches" and ci.category == rule.get("category", "")):
+            if match_alert_rule(
+                rule,
+                ticker=ci.ticker,
+                news_score=ci.news_score,
+                sentiment_label=ci.sentiment_label,
+                materiality=ci.materiality,
+                category=ci.category,
+            ):
                 fired = True
 
             if fired:
@@ -947,25 +947,14 @@ if not feed:
 else:
     # ── Stats bar ───────────────────────────────────────────
     col1, col2, col3, col4, col5, col6 = st.columns(6)
-    unique_tickers = len(set(d["ticker"] for d in feed if d.get("ticker") != "MARKET"))
-    actionable = sum(1 for d in feed if d.get("is_actionable"))
-    high_mat = sum(1 for d in feed if d.get("materiality") == "HIGH")
-    avg_relevance = sum(d.get("relevance", 0) for d in feed) / max(1, len(feed))
+    _stats = compute_feed_stats(feed)
 
-    # Compute age of the newest item so users can tell if the feed is
-    # stale because the market is quiet vs polling is broken.
-    _newest_ts = max(
-        (d.get("published_ts") or 0 for d in feed),
-        default=0,
-    )
-    _newest_age_min = (time.time() - _newest_ts) / 60 if _newest_ts > 0 else 0
-
-    col1.metric("Feed items", len(feed))
-    col2.metric("Unique tickers", unique_tickers)
-    col3.metric("Actionable", actionable)
-    col4.metric("HIGH materiality", high_mat)
-    col5.metric("Avg relevance", f"{avg_relevance:.3f}")
-    col6.metric("Newest item", f"{_newest_age_min:.0f}m ago")
+    col1.metric("Feed items", _stats["count"])
+    col2.metric("Unique tickers", _stats["unique_tickers"])
+    col3.metric("Actionable", _stats["actionable"])
+    col4.metric("HIGH materiality", _stats["high_materiality"])
+    col5.metric("Avg relevance", f"{_stats['avg_relevance']:.3f}")
+    col6.metric("Newest item", f"{_stats['newest_age_min']:.0f}m ago")
 
     st.divider()
 
@@ -1006,31 +995,17 @@ else:
         with dcol2:
             date_to = st.date_input("To", value=datetime.now(UTC).date(), key="feed_date_to")
 
-        # Apply filters
-        filtered = feed
-        if search_q:
-            q_lower = search_q.lower()
-            filtered = [
-                d for d in filtered
-                if q_lower in (d.get("headline", "") or "").lower()
-                or q_lower in (d.get("ticker", "") or "").lower()
-                or q_lower in (d.get("snippet", "") or "").lower()
-            ]
-        if filter_sentiment != "all":
-            filtered = [d for d in filtered if d.get("sentiment_label") == filter_sentiment]
-        if filter_category != "all":
-            filtered = [d for d in filtered if d.get("category") == filter_category]
-
-        # Date filter (UTC-aware to match published_ts epoch)
+        # Apply filters (pure function from terminal_ui_helpers)
         from_epoch = datetime.combine(date_from, datetime.min.time(), tzinfo=UTC).timestamp()
         to_epoch = datetime.combine(date_to, datetime.max.time(), tzinfo=UTC).timestamp()
-        filtered = [
-            d for d in filtered
-            if from_epoch <= d.get("published_ts", 0) <= to_epoch
-        ]
-
-        # Sort feed by score descending for consistent ranking across environments
-        filtered.sort(key=lambda d: (-d.get("news_score", 0), d.get("published_ts", 0)))
+        filtered = filter_feed(
+            feed,
+            search_q=search_q,
+            sentiment=filter_sentiment,
+            category=filter_category,
+            from_epoch=from_epoch,
+            to_epoch=to_epoch,
+        )
 
         st.caption(f"Showing {len(filtered)} of {len(feed)} items")
 
@@ -1056,39 +1031,21 @@ else:
             headline = d.get("headline", "")
             event_label = d.get("event_label", "")
             source_tier = d.get("source_tier", "")
-            provider = d.get("provider", "")
+            _provider = d.get("provider", "")
             url = d.get("url", "")
 
-            # Recompute age live from published_ts
-            pub_ts = d.get("published_ts")
-            if pub_ts and pub_ts > 0:
-                age_min = max((time.time() - pub_ts) / 60.0, 0.0)
-            else:
-                age_min = d.get("age_minutes")
-
-            age_str = f"{age_min:.0f}m" if age_min is not None else "?"
-
-            # Color the score
-            if score >= 0.80:
-                score_badge = f":red[**{score:.2f}**]"
-            elif score >= 0.50:
-                score_badge = f":orange[{score:.2f}]"
-            else:
-                score_badge = f"{score:.2f}"
-
-            # Provider badge
-            prov_icon = "🅱️" if "benzinga" in provider else ("📊" if "fmp" in provider else "")
-
-            # Sanitise URL for safe markdown rendering (strip parens/brackets)
-            safe_url = (url or "").replace(")", "%29").replace("(", "%28") if url else ""
+            age_str = format_age_string(d.get("published_ts"))
+            score_badge = format_score_badge(score)
+            prov_icon = provider_icon(_provider)
+            _safe_url = safe_url(url)
 
             with st.container():
                 cols = st.columns([1, 5, 1, 1, 1, 1])
                 with cols[0]:
                     st.markdown(f"**{ticker}**")
                 with cols[1]:
-                    safe_hl = headline[:100].replace("[", "\\[").replace("]", "\\]")
-                    link = f"[{safe_hl}]({safe_url})" if safe_url else headline[:100]
+                    safe_hl = safe_markdown_text(headline[:100])
+                    link = f"[{safe_hl}]({_safe_url})" if _safe_url else headline[:100]
                     st.markdown(f"{sent_icon} {link}")
                 with cols[2]:
                     st.markdown(f"`{category}`")
@@ -1101,27 +1058,12 @@ else:
 
     # ── TAB: Top Movers ─────────────────────────────────────
     with tab_movers:
-        # Best-scored item per ticker in the last 30 minutes
-        now_epoch = time.time()
-        recent = [d for d in feed if (now_epoch - d.get("published_ts", 0)) < 1800]
+        sorted_movers = compute_top_movers(feed)
 
-        best_by_tk: dict[str, dict[str, Any]] = {}
-        for d in recent:
-            tk = d.get("ticker", "?")
-            if tk == "MARKET":
-                continue
-            prev = best_by_tk.get(tk)
-            if prev is None or d.get("news_score", 0) > prev.get("news_score", 0):
-                best_by_tk[tk] = d
-
-        if not best_by_tk:
+        if not sorted_movers:
             st.info("No movers in the last 30 minutes.")
         else:
-            sorted_movers = sorted(
-                best_by_tk.values(),
-                key=lambda x: (-x.get("news_score", 0), x.get("ticker", "")),
-            )
-            for d in sorted_movers[:20]:
+            for d in sorted_movers:
                 sent_icon = _SENTIMENT_COLORS.get(d.get("sentiment_label", ""), "")
                 mat_icon = _MATERIALITY_COLORS.get(d.get("materiality", ""), "")
                 ticker = d.get("ticker", "?")
@@ -1142,10 +1084,10 @@ else:
                         st.markdown(f"Score: **{score:.3f}** | Rel: {relevance:.2f}")
                         st.markdown(f"{event_label} | {source_tier} | 🏷️{entity_count}")
                     with c2:
-                        safe_hl = headline[:200].replace("[", "\\[").replace("]", "\\]")
+                        safe_hl = safe_markdown_text(headline[:200])
                         url = d.get("url", "")
-                        safe_url = (url or "").replace(")", "%29").replace("(", "%28") if url else ""
-                        hl_display = f"[{safe_hl}]({safe_url})" if safe_url else f"**{safe_hl}**"
+                        _s_url = safe_url(url)
+                        hl_display = f"[{safe_hl}]({_s_url})" if _s_url else f"**{safe_hl}**"
                         st.markdown(hl_display)
                         channels = ", ".join(d.get("channels", [])[:5])
                         tags = ", ".join(d.get("tags", [])[:5])
@@ -1166,16 +1108,7 @@ else:
         if not rank_rows:
             st.info("No per-ticker data yet.")
         else:
-            _MAT_MAP = {"HIGH": "🔴", "MEDIUM": "🟠", "LOW": "⚪"}
-            _REC_MAP = {
-                "ULTRA_FRESH": "🔥", "FRESH": "🟢", "WARM": "🟡",
-                "AGING": "🟠", "STALE": "⚫", "UNKNOWN": "❓",
-            }
-
-            # Enrich rows with display-friendly emoji prefixes
-            for r in rank_rows:
-                r["materiality"] = _MAT_MAP.get(r.get("materiality", ""), "") + " " + r.get("materiality", "")
-                r["recency"] = _REC_MAP.get(r.get("recency", ""), "") + " " + r.get("recency", "")
+            enrich_rank_rows(rank_rows)
 
             # Show top 20 ranked symbols
             top_n = min(30, len(rank_rows))
@@ -1194,11 +1127,8 @@ else:
             st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")
 
             # Highlight fresh entries (< 20 min old) with orange text
-            def _highlight_fresh(row: "pd.Series") -> list[str]:  # type: ignore[name-defined]
-                age = row.get("age_min", 999)
-                if isinstance(age, (int, float)) and age < 20:
-                    return ["color: #FF8C00"] * len(row)
-                return [""] * len(row)
+            def _highlight_fresh(row: pd.Series) -> list[str]:  # type: ignore[name-defined]
+                return highlight_fresh_row(row.get("age_min", 999), len(row))
 
             # Build column config — headline links to article URL
             _col_cfg: dict[str, Any] = {}
@@ -1224,77 +1154,13 @@ else:
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments:
-        # ── Build segment map from Benzinga channels ──────────────
-        _SKIP_CHANNELS = {"", "news", "general", "markets", "trading", "top stories"}
+        seg_rows = aggregate_segments(feed)
 
-        seg_items: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for d in feed:
-            tk = d.get("ticker", "?")
-            if tk == "MARKET":
-                continue
-            chs = d.get("channels", [])
-            if not chs:
-                chs = [d.get("category", "other")]
-            for ch in chs:
-                ch_clean = ch.strip().title() if isinstance(ch, str) else str(ch)
-                if ch_clean.lower() not in _SKIP_CHANNELS:
-                    seg_items[ch_clean].append(d)
-
-        if not seg_items:
+        if not seg_rows:
             st.info("No segment data yet. Channels are populated by Benzinga articles.")
         else:
-            # Aggregate per segment
-            seg_rows: list[dict[str, Any]] = []
-            for seg_name, items_list in seg_items.items():
-                tickers_in_seg: dict[str, dict[str, Any]] = {}
-                bull = bear = neut = 0
-                total_score = 0.0
-                for d in items_list:
-                    tk = d.get("ticker", "?")
-                    s = d.get("news_score", 0)
-                    total_score += s
-                    sent = d.get("sentiment_label", "neutral")
-                    if sent == "bullish":
-                        bull += 1
-                    elif sent == "bearish":
-                        bear += 1
-                    else:
-                        neut += 1
-                    prev = tickers_in_seg.get(tk)
-                    if prev is None or s > prev.get("news_score", 0):
-                        tickers_in_seg[tk] = d
-
-                n_articles = len(items_list)
-                avg_score = total_score / n_articles if n_articles else 0
-                net_sent = bull - bear
-                sent_icon = "🟢" if net_sent > 0 else ("🔴" if net_sent < 0 else "🟡")
-
-                seg_rows.append({
-                    "segment": seg_name,
-                    "articles": n_articles,
-                    "tickers": len(tickers_in_seg),
-                    "avg_score": round(avg_score, 4),
-                    "sentiment": sent_icon,
-                    "bull": bull,
-                    "bear": bear,
-                    "neut": neut,
-                    "net_sent": net_sent,
-                    "_ticker_map": tickers_in_seg,
-                })
-
-            seg_rows.sort(key=lambda r: r["articles"], reverse=True)
-
             # ── Overview table ──────────────────────────────────────
-            summary_data = [{
-                "Segment": r["segment"],
-                "Articles": r["articles"],
-                "Tickers": r["tickers"],
-                "Avg Score": r["avg_score"],
-                "Sentiment": r["sentiment"],
-                "🟢": r["bull"],
-                "🔴": r["bear"],
-                "🟡": r["neut"],
-            } for r in seg_rows]
+            summary_data = build_segment_summary_rows(seg_rows)
 
             st.caption(f"{len(seg_rows)} segments across {len(feed)} articles")
             df_seg = pd.DataFrame(summary_data)
@@ -1304,32 +1170,27 @@ else:
             st.divider()
 
             # ── Per-segment drill-down ──────────────────────────────
-            leading = [r for r in seg_rows if r["net_sent"] > 0]
-            lagging = [r for r in seg_rows if r["net_sent"] < 0]
-            neutral_segs = [r for r in seg_rows if r["net_sent"] == 0]
+            leading, neutral_segs, lagging = split_segments_by_sentiment(seg_rows)
 
             scols = st.columns(3)
-            def _safe_seg(name: str) -> str:
-                return name.replace("[", "\\[").replace("]", "\\]")
-
             with scols[0]:
                 st.markdown("**🟢 Bullish Segments**")
                 if not leading:
                     st.caption("None")
                 for r in leading[:8]:
-                    st.markdown(f"**{_safe_seg(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    st.markdown(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
             with scols[1]:
                 st.markdown("**🟡 Neutral Segments**")
                 if not neutral_segs:
                     st.caption("None")
                 for r in neutral_segs[:8]:
-                    st.markdown(f"{_safe_seg(r['segment'])} — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    st.markdown(f"{safe_markdown_text(r['segment'])} — {r['articles']} articles, avg {r['avg_score']:.3f}")
             with scols[2]:
                 st.markdown("**🔴 Bearish Segments**")
                 if not lagging:
                     st.caption("None")
                 for r in lagging[:8]:
-                    st.markdown(f"**{_safe_seg(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    st.markdown(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
 
             st.divider()
 
@@ -1384,56 +1245,7 @@ else:
         try:
             import plotly.express as px  # type: ignore
 
-            # Build treemap data from segment rows
-            hm_data: list[dict[str, Any]] = []
-
-            # If we have segment data from the Segments tab computation, reuse it
-            # Otherwise recompute from feed
-            _seg_data: dict[str, list[dict[str, Any]]] = defaultdict(list)
-            for d in feed:
-                tk = d.get("ticker", "?")
-                if tk == "MARKET":
-                    continue
-                chs = d.get("channels", [])
-                if not chs:
-                    chs = [d.get("category", "other")]
-                for ch in chs:
-                    ch_clean = ch.strip().title() if isinstance(ch, str) else str(ch)
-                    skip = {"", "news", "general", "markets", "trading", "top stories"}
-                    if ch_clean.lower() not in skip:
-                        _seg_data[ch_clean].append(d)
-
-            for seg_name, items_list in _seg_data.items():
-                tickers_seen: dict[str, dict[str, Any]] = {}
-                bull_count = bear_count = 0
-                for d in items_list:
-                    tk = d.get("ticker", "?")
-                    s = d.get("news_score", 0)
-                    sent = d.get("sentiment_label", "neutral")
-                    if sent == "bullish":
-                        bull_count += 1
-                    elif sent == "bearish":
-                        bear_count += 1
-                    prev = tickers_seen.get(tk)
-                    if prev is None or s > prev.get("news_score", 0):
-                        tickers_seen[tk] = d
-
-                # Pre-compute article counts per ticker (avoids O(n²))
-                _tk_counts: dict[str, int] = defaultdict(int)
-                for _d in items_list:
-                    _tk_counts[_d.get("ticker", "?")] += 1
-
-                # For treemap: each ticker is a leaf under its segment
-                for tk, d in tickers_seen.items():
-                    net = bull_count - bear_count
-                    hm_data.append({
-                        "sector": seg_name,
-                        "ticker": tk,
-                        "score": d.get("news_score", 0),
-                        "sentiment": d.get("sentiment_label", "neutral"),
-                        "net_sent": net,
-                        "articles": _tk_counts.get(tk, 0),
-                    })
+            hm_data = build_heatmap_data(feed)
 
             if hm_data:
                 df_hm = pd.DataFrame(hm_data)
@@ -1560,7 +1372,7 @@ else:
                     for _, row in upcoming.head(10).iterrows():
                         impact = row.get("impact", "")
                         impact_icon = "🔴" if impact == "High" else ("🟠" if impact == "Medium" else "🟡")
-                        _ev = str(row.get('event', '?')).replace("[", "\\[").replace("]", "\\]")
+                        _ev = safe_markdown_text(str(row.get('event', '?')))
                         st.markdown(
                             f"{impact_icon} **{_ev}** — "
                             f"{row.get('country', '?')} | {row.get('date', '?')} | "
@@ -1595,7 +1407,7 @@ else:
             st.caption(f"{len(alert_log)} alert(s) fired")
             for entry in alert_log[:20]:
                 ts = datetime.fromtimestamp(entry["ts"], tz=UTC).strftime("%H:%M:%S")
-                _ahl = entry['headline'][:80].replace("[", "\\[").replace("]", "\\]")
+                _ahl = safe_markdown_text(entry['headline'][:80])
                 st.markdown(
                     f"⚡ `{ts}` **{entry['ticker']}** — "
                     f"{_ahl} | Rule: {entry['rule']} | Score: {entry['score']:.3f}"
