@@ -225,8 +225,8 @@ def build_vd_snapshot(
             "vol_ratio":        rt.get("vol_ratio", 0.0),
         })
 
-    # Sort by score descending
-    rows.sort(key=lambda r: r.get("score", 0), reverse=True)
+    # Sort by score desc, then freshest first, then symbol asc (deterministic)
+    rows.sort(key=lambda r: (-r.get("score", 0), r.get("age_min", 9999), r.get("symbol", "")))
     return rows
 
 

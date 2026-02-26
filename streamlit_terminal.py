@@ -666,6 +666,9 @@ else:
             if from_epoch <= d.get("published_ts", 0) <= to_epoch
         ]
 
+        # Sort feed by score descending for consistent ranking across environments
+        filtered.sort(key=lambda d: (-d.get("news_score", 0), d.get("published_ts", 0)))
+
         st.caption(f"Showing {len(filtered)} of {len(feed)} items")
 
         # Show filtered items
@@ -753,8 +756,7 @@ else:
         else:
             sorted_movers = sorted(
                 best_by_tk.values(),
-                key=lambda x: x.get("news_score", 0),
-                reverse=True,
+                key=lambda x: (-x.get("news_score", 0), x.get("ticker", "")),
             )
             for d in sorted_movers[:20]:
                 sent_icon = _SENTIMENT_COLORS.get(d.get("sentiment_label", ""), "")
