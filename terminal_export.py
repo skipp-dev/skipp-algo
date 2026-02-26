@@ -93,7 +93,7 @@ _RT_VD_SIGNALS_DEFAULT = "artifacts/open_prep/latest/latest_vd_signals.jsonl"
 _SENT_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}
 
 # Fields copied from RT engine rows into the terminal VisiData snapshot
-_RT_QUOTE_FIELDS = ("signal", "direction", "tick", "streak", "price", "chg_pct", "vol_ratio")
+_RT_QUOTE_FIELDS = ("direction", "tick", "streak", "price", "chg_pct", "vol_ratio")
 
 
 def load_rt_quotes(
@@ -141,11 +141,11 @@ def build_vd_snapshot(
     """Build one row per ticker from the full feed, ranked by best news_score.
 
     When *rt_quotes* is provided (from ``load_rt_quotes()``), the live
-    quote fields (signal, tick, streak, price, chg_pct, vol_ratio) are
+    quote fields (tick, streak, price, chg_pct, vol_ratio) are
     merged in from the RT engine's latest snapshot.
 
     Columns mirror the open_prep realtime VisiData format:
-    symbol, N, sentiment, signal, tick, score, streak, category, event,
+    symbol, N, sentiment, tick, score, streak, category, event,
     materiality, impact, clarity, sentiment_score, polarity, recency,
     age_min, actionable, price, chg_pct, vol_ratio
     """
@@ -173,7 +173,6 @@ def build_vd_snapshot(
             "symbol":           tk,
             "N":                counts.get(tk, 0),
             "sentiment":        _SENT_EMOJI.get(sent_label, "🟡"),
-            "signal":           rt.get("signal", ""),
             "tick":             rt.get("tick", ""),
             "score":            round(d.get("news_score", 0), 4),
             "streak":           rt.get("streak", 0),
@@ -206,7 +205,7 @@ def save_vd_snapshot(
 
     Automatically loads RT engine quotes from *rt_jsonl_path* (if the RT
     engine is running and the file is fresh) and merges live quote fields
-    (signal, tick, streak, price, chg_pct, vol_ratio) into each row.
+    (tick, streak, price, chg_pct, vol_ratio) into each row.
 
     Uses the same atomic-replace pattern as the RT engine
     (tempfile + os.replace) so VisiData can ``--reload`` every few
