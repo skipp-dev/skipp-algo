@@ -140,7 +140,7 @@ with st.sidebar:
     st.session_state.auto_refresh = st.toggle("Auto-refresh", value=st.session_state.auto_refresh)
 
     # Manual poll button
-    force_poll = st.button("🔄 Poll Now", use_container_width=True)
+    force_poll = st.button("🔄 Poll Now", width="stretch")
 
     st.divider()
 
@@ -163,7 +163,7 @@ with st.sidebar:
         st.caption(f"Last poll: {poll_status}")
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
-    if st.button("🗑️ Reset dedup DB", use_container_width=True):
+    if st.button("🗑️ Reset dedup DB", width="stretch"):
         import pathlib
         db_path = pathlib.Path(cfg.sqlite_path)
         # Remove main DB + SQLite WAL/SHM journal files
@@ -332,8 +332,8 @@ else:
     st.divider()
 
     # ── Tabs ────────────────────────────────────────────────
-    tab_feed, tab_movers, tab_rank, tab_table = st.tabs(
-        ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "📊 Data Table"],
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_table = st.tabs(
+        ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments", "📊 Data Table"],
     )
 
     with tab_feed:
@@ -447,16 +447,163 @@ else:
                 r["materiality"] = _MAT_MAP.get(r.get("materiality", ""), "") + " " + r.get("materiality", "")
                 r["recency"] = _REC_MAP.get(r.get("recency", ""), "") + " " + r.get("recency", "")
 
-            df_rank = pd.DataFrame(rank_rows)
+            # Show top 20 ranked symbols
+            top_n = min(20, len(rank_rows))
+            df_rank = pd.DataFrame(rank_rows[:top_n])
             df_rank.index = df_rank.index + 1  # 1-based ranking
 
             rt_label = f" | RT: {len(rt_quotes)} symbols" if rt_quotes else ""
-            st.caption(f"{len(df_rank)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")
+            st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")
             st.dataframe(
                 df_rank,
-                use_container_width=True,
+                width="stretch",
                 height=min(600, 40 + 35 * len(df_rank)),
             )
+
+    with tab_segments:
+        import pandas as pd
+        from collections import defaultdict
+
+        # ── Build segment map from Benzinga channels ──────────────
+        # Each article can belong to multiple channels (= industry segments).
+        # We aggregate: best score, article count, sentiment, top tickers.
+        _SKIP_CHANNELS = {"", "news", "general", "markets", "trading", "top stories"}
+
+        seg_items: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for d in feed:
+            tk = d.get("ticker", "?")
+            if tk == "MARKET":
+                continue
+            chs = d.get("channels", [])
+            if not chs:
+                chs = [d.get("category", "other")]
+            for ch in chs:
+                ch_clean = ch.strip().title() if isinstance(ch, str) else str(ch)
+                if ch_clean.lower() not in _SKIP_CHANNELS:
+                    seg_items[ch_clean].append(d)
+
+        if not seg_items:
+            st.info("No segment data yet. Channels are populated by Benzinga articles.")
+        else:
+            # Aggregate per segment
+            seg_rows: list[dict[str, Any]] = []
+            for seg_name, items_list in seg_items.items():
+                # Unique tickers in this segment
+                tickers_in_seg: dict[str, dict[str, Any]] = {}
+                bull = bear = neut = 0
+                total_score = 0.0
+                for d in items_list:
+                    tk = d.get("ticker", "?")
+                    s = d.get("news_score", 0)
+                    total_score += s
+                    sent = d.get("sentiment_label", "neutral")
+                    if sent == "bullish":
+                        bull += 1
+                    elif sent == "bearish":
+                        bear += 1
+                    else:
+                        neut += 1
+                    prev = tickers_in_seg.get(tk)
+                    if prev is None or s > prev.get("news_score", 0):
+                        tickers_in_seg[tk] = d
+
+                n_articles = len(items_list)
+                avg_score = total_score / n_articles if n_articles else 0
+                # Net sentiment: +1 per bullish, -1 per bearish
+                net_sent = bull - bear
+                sent_icon = "🟢" if net_sent > 0 else ("🔴" if net_sent < 0 else "🟡")
+
+                seg_rows.append({
+                    "segment": seg_name,
+                    "articles": n_articles,
+                    "tickers": len(tickers_in_seg),
+                    "avg_score": round(avg_score, 4),
+                    "sentiment": sent_icon,
+                    "bull": bull,
+                    "bear": bear,
+                    "neut": neut,
+                    "net_sent": net_sent,
+                    "_ticker_map": tickers_in_seg,  # for drill-down
+                })
+
+            # Sort by article count (most active segments first)
+            seg_rows.sort(key=lambda r: r["articles"], reverse=True)
+
+            # ── Overview table ──────────────────────────────────────
+            summary_data = [{
+                "Segment": r["segment"],
+                "Articles": r["articles"],
+                "Tickers": r["tickers"],
+                "Avg Score": r["avg_score"],
+                "Sentiment": r["sentiment"],
+                "🟢": r["bull"],
+                "🔴": r["bear"],
+                "🟡": r["neut"],
+            } for r in seg_rows]
+
+            st.caption(f"{len(seg_rows)} segments across {len(feed)} articles")
+            df_seg = pd.DataFrame(summary_data)
+            df_seg.index = df_seg.index + 1
+            st.dataframe(df_seg, width="stretch", height=min(400, 40 + 35 * len(df_seg)))
+
+            st.divider()
+
+            # ── Per-segment drill-down: top 10 symbols ──────────────
+            # Show 3-column layout for leading / neutral / lagging
+            leading = [r for r in seg_rows if r["net_sent"] > 0]
+            lagging = [r for r in seg_rows if r["net_sent"] < 0]
+            neutral_segs = [r for r in seg_rows if r["net_sent"] == 0]
+
+            scols = st.columns(3)
+            with scols[0]:
+                st.markdown("**🟢 Bullish Segments**")
+                if not leading:
+                    st.caption("None")
+                for r in leading[:8]:
+                    st.markdown(f"**{r['segment']}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+            with scols[1]:
+                st.markdown("**🟡 Neutral Segments**")
+                if not neutral_segs:
+                    st.caption("None")
+                for r in neutral_segs[:8]:
+                    st.markdown(f"{r['segment']} — {r['articles']} articles, avg {r['avg_score']:.3f}")
+            with scols[2]:
+                st.markdown("**🔴 Bearish Segments**")
+                if not lagging:
+                    st.caption("None")
+                for r in lagging[:8]:
+                    st.markdown(f"**{r['segment']}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+
+            st.divider()
+
+            # ── Detailed drill-down per segment (top 10 symbols each) ──
+            st.subheader("Top 10 Symbols per Segment")
+            for r in seg_rows:
+                ticker_map = r["_ticker_map"]
+                sorted_tks = sorted(
+                    ticker_map.values(),
+                    key=lambda x: x.get("news_score", 0),
+                    reverse=True,
+                )[:10]
+
+                with st.expander(f"{r['sentiment']} **{r['segment']}** — {r['tickers']} tickers, {r['articles']} articles"):
+                    tk_rows = []
+                    for d in sorted_tks:
+                        sent_label = d.get("sentiment_label", "neutral")
+                        tk_rows.append({
+                            "Symbol": d.get("ticker", "?"),
+                            "Score": round(d.get("news_score", 0), 4),
+                            "Sentiment": _SENTIMENT_COLORS.get(sent_label, "🟡") + " " + sent_label,
+                            "Event": d.get("event_label", ""),
+                            "Materiality": d.get("materiality", ""),
+                            "Headline": (d.get("headline", "") or "")[:100],
+                        })
+                    if tk_rows:
+                        df_tk = pd.DataFrame(tk_rows)
+                        df_tk.index = df_tk.index + 1
+                        st.dataframe(df_tk, width="stretch", height=min(400, 40 + 35 * len(df_tk)))
+                    else:
+                        st.caption("No ticker data")
 
     with tab_table:
         import pandas as pd
@@ -473,7 +620,7 @@ else:
             show_cols = [c for c in display_cols if c in df.columns]
             st.dataframe(
                 df[show_cols],
-                use_container_width=True,
+                width="stretch",
                 height=600,
             )
         else:
