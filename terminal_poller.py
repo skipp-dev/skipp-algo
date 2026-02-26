@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -471,7 +472,8 @@ def fetch_economic_calendar(
                 return data
             return []
     except Exception as exc:
-        logger.warning("FMP economic calendar fetch failed: %s", exc)
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("FMP economic calendar fetch failed: %s", _msg)
         return []
 
 
@@ -494,5 +496,6 @@ def fetch_sector_performance(api_key: str) -> List[Dict[str, Any]]:
                 return data
             return []
     except Exception as exc:
-        logger.warning("FMP sector performance fetch failed: %s", exc)
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("FMP sector performance fetch failed: %s", _msg)
         return []

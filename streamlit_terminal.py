@@ -524,7 +524,10 @@ def _do_poll() -> None:
     # JSONL export (before dict conversion — append_jsonl expects ClassifiedItem)
     if cfg.jsonl_path:
         for ci in items:
-            append_jsonl(ci, cfg.jsonl_path)
+            try:
+                append_jsonl(ci, cfg.jsonl_path)
+            except Exception as exc:
+                logger.warning("JSONL append failed for %s: %s", ci.item_id[:40], exc)
 
     # Prepend batch in one operation (avoids O(n²) repeated insert(0, …))
     new_dicts = [ci.to_dict() for ci in items]
@@ -751,7 +754,8 @@ else:
                         st.markdown(f"Score: **{score:.3f}** | Rel: {relevance:.2f}")
                         st.markdown(f"{event_label} | {source_tier} | 🏷️{entity_count}")
                     with c2:
-                        st.markdown(f"**{headline[:200]}**")
+                        safe_hl = headline[:200].replace("[", "\\[").replace("]", "\\]")
+                        st.markdown(f"**{safe_hl}**")
                         channels = ", ".join(d.get("channels", [])[:5])
                         tags = ", ".join(d.get("tags", [])[:5])
                         if channels:
@@ -1143,9 +1147,10 @@ else:
             st.caption(f"{len(alert_log)} alert(s) fired")
             for entry in alert_log[:20]:
                 ts = datetime.fromtimestamp(entry["ts"], tz=UTC).strftime("%H:%M:%S")
+                _ahl = entry['headline'][:80].replace("[", "\\[").replace("]", "\\]")
                 st.markdown(
                     f"⚡ `{ts}` **{entry['ticker']}** — "
-                    f"{entry['headline'][:80]} | Rule: {entry['rule']} | Score: {entry['score']:.3f}"
+                    f"{_ahl} | Rule: {entry['rule']} | Score: {entry['score']:.3f}"
                 )
         else:
             st.caption("No alerts fired yet.")

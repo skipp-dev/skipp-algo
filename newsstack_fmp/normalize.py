@@ -18,6 +18,7 @@ Benzinga WS (news stream):
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from datetime import timezone
@@ -107,7 +108,8 @@ def normalize_fmp(provider: str, it: Dict[str, Any]) -> NewsItem:
     # Guard: FMP has no stable ``id``; if URL is also missing, generate a
     # deterministic fallback so dedup doesn't collapse unrelated items.
     if not item_id:
-        item_id = f"fmp_{int(ts)}_{hash(headline) & 0xFFFFFFFF:08x}"
+        _digest = hashlib.md5(headline.encode("utf-8", errors="replace")).hexdigest()[:8]
+        item_id = f"fmp_{int(ts)}_{_digest}"
 
     return NewsItem(
         provider=provider,

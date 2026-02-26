@@ -292,7 +292,9 @@ class BenzingaWsAdapter:
         """Unpack WS message into a list of raw dicts."""
         if isinstance(msg, dict) and "data" in msg:
             data = msg["data"]
-            return data if isinstance(data, list) else [data] if isinstance(data, dict) else []
+            if isinstance(data, list):
+                return [d for d in data if isinstance(d, dict)]
+            return [data] if isinstance(data, dict) else []
         if isinstance(msg, list):
             return [m for m in msg if isinstance(m, dict)]
         if isinstance(msg, dict):
