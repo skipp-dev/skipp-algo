@@ -448,7 +448,7 @@ def fetch_economic_calendar(
     from_date: str,
     to_date: str,
 ) -> list[dict[str, Any]]:
-    """Fetch economic calendar events from FMP.
+    """Fetch economic calendar events from FMP (stable endpoint).
 
     Parameters
     ----------
@@ -463,11 +463,11 @@ def fetch_economic_calendar(
     -------
     list[dict]
         List of economic events with keys: date, country, event,
-        actual, previous, consensus, impact, etc.
+        actual, previous, estimate, currency, etc.
     """
     import httpx
 
-    url = "https://financialmodelingprep.com/api/v3/economic_calendar"
+    url = "https://financialmodelingprep.com/stable/economic-calendar"
     params = {"from": from_date, "to": to_date, "apikey": api_key}
 
     try:
@@ -487,21 +487,42 @@ def fetch_economic_calendar(
 # ── FMP Sector Performance ──────────────────────────────────────
 
 def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
-    """Fetch current sector performance from FMP.
+    """Fetch current sector performance from FMP (stable endpoint).
+
+    Uses ``/stable/sector-performance-snapshot`` with today's date.
+    The endpoint returns one row per (sector, exchange) pair; this
+    function aggregates across exchanges to return the mean change
+    per sector with a ``changesPercentage`` key for downstream
+    compatibility.
 
     Returns list of dicts with keys: sector, changesPercentage.
     """
+    from datetime import date as _date
+
     import httpx
 
-    url = "https://financialmodelingprep.com/api/v3/sectors-performance"
+    url = "https://financialmodelingprep.com/stable/sector-performance-snapshot"
     try:
         with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params={"apikey": api_key})
+            r = client.get(url, params={"apikey": api_key, "date": _date.today().isoformat()})
             r.raise_for_status()
             data = r.json()
-            if isinstance(data, list):
-                return data
-            return []
+            if not isinstance(data, list):
+                return []
+
+            # Aggregate across exchanges: mean averageChange per sector
+            sector_totals: dict[str, list[float]] = {}
+            for row in data:
+                sector = row.get("sector")
+                change = row.get("averageChange")
+                if sector and change is not None:
+                    sector_totals.setdefault(sector, []).append(float(change))
+
+            result: list[dict[str, Any]] = []
+            for sector, changes in sector_totals.items():
+                avg = sum(changes) / len(changes) if changes else 0.0
+                result.append({"sector": sector, "changesPercentage": round(avg, 4)})
+            return result
     except Exception as exc:
         _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
         logger.warning("FMP sector performance fetch failed: %s", _msg)

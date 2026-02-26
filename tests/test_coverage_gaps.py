@@ -381,8 +381,10 @@ class TestFetchSectorPerformance(unittest.TestCase):
         from terminal_poller import fetch_sector_performance
 
         mock_resp = MagicMock()
+        # Stable API returns per (sector, exchange) with averageChange
         mock_resp.json.return_value = [
-            {"sector": "Technology", "changesPercentage": "1.5"},
+            {"date": "2026-02-26", "sector": "Technology", "exchange": "NASDAQ", "averageChange": 1.5},
+            {"date": "2026-02-26", "sector": "Technology", "exchange": "NYSE", "averageChange": 0.5},
         ]
         mock_resp.raise_for_status = MagicMock()
         mock_client = MagicMock()
@@ -394,6 +396,8 @@ class TestFetchSectorPerformance(unittest.TestCase):
         result = fetch_sector_performance("fake_key")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["sector"], "Technology")
+        # Mean of 1.5 and 0.5
+        self.assertAlmostEqual(result[0]["changesPercentage"], 1.0, places=4)
 
     @patch("httpx.Client")
     def test_returns_empty_on_failure(self, MockClient: MagicMock) -> None:

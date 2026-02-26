@@ -1110,6 +1110,10 @@ else:
             if cal_data:
                 df_cal = pd.DataFrame(cal_data)
 
+                # Normalise column names: stable API uses "estimate", legacy used "consensus"
+                if "estimate" in df_cal.columns and "consensus" not in df_cal.columns:
+                    df_cal = df_cal.rename(columns={"estimate": "consensus"})
+
                 # Filter to major events
                 impact_filter = st.selectbox(
                     "Impact filter", ["all", "High", "Medium", "Low"],
