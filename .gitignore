@@ -4,6 +4,10 @@ test_output*.txt
 .DS_Store
 .commit_msg.txt
 
+# Secrets — NEVER commit
+.env
+.env.*
+
 # Generated open_prep artifacts
 artifacts/open_prep/cache/
 artifacts/open_prep/*.json
