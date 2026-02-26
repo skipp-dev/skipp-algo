@@ -1,8 +1,11 @@
 """Polling engine for the Bloomberg Terminal.
 
-Wraps ``BenzingaRestAdapter`` + open_prep classifiers into a single
-``poll_and_classify()`` call that fetches new items, deduplicates them,
-scores them, and returns fully classified records ready for display.
+Wraps ``BenzingaRestAdapter`` + optional ``FmpAdapter`` + open_prep
+classifiers into a single ``poll_and_classify()`` call that fetches new
+items, deduplicates them, scores them, and returns fully classified
+records ready for display.
+
+Supports multi-source ingestion: Benzinga (primary) + FMP (secondary).
 
 This module is imported by ``streamlit_terminal.py`` — it is **not**
 a standalone script.
@@ -43,6 +46,10 @@ class TerminalConfig:
         default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""),
         repr=False,
     )
+    fmp_api_key: str = field(
+        default_factory=lambda: os.getenv("FMP_API_KEY", ""),
+        repr=False,
+    )
     poll_interval_s: float = field(
         default_factory=lambda: float(os.getenv("TERMINAL_POLL_INTERVAL_S", "5.0")),
     )
@@ -70,6 +77,9 @@ class TerminalConfig:
     )
     display_output: str = field(
         default_factory=lambda: os.getenv("TERMINAL_DISPLAY_OUTPUT", "abstract"),
+    )
+    fmp_enabled: bool = field(
+        default_factory=lambda: os.getenv("TERMINAL_FMP_ENABLED", "1") == "1",
     )
 
 
@@ -99,6 +109,8 @@ class ClassifiedItem:
     news_score: float
     cluster_hash: str
     novelty_count: int
+    relevance: float  # 0.0–1.0 composite relevance
+    entity_count: int  # number of tickers mentioned
 
     # open_prep: sentiment
     sentiment_label: str  # bullish / neutral / bearish
@@ -142,6 +154,8 @@ class ClassifiedItem:
             "news_score": round(self.news_score, 4),
             "cluster_hash": self.cluster_hash,
             "novelty_count": self.novelty_count,
+            "relevance": round(self.relevance, 4),
+            "entity_count": self.entity_count,
             "sentiment_label": self.sentiment_label,
             "sentiment_score": self.sentiment_score,
             "event_class": self.event_class,
@@ -235,6 +249,8 @@ def _classify_item(
             news_score=score_result.score,
             cluster_hash=score_result.cluster_hash,
             novelty_count=c_count,
+            relevance=score_result.relevance,
+            entity_count=score_result.entity_count,
             # sentiment
             sentiment_label=sentiment_label,
             sentiment_score=sentiment_score,
@@ -307,3 +323,136 @@ def poll_and_classify(
     )
 
     return all_classified, new_cursor
+
+
+# ── Multi-source polling (Benzinga + FMP) ───────────────────────
+
+def poll_and_classify_multi(
+    benzinga_adapter: Optional[BenzingaRestAdapter],
+    fmp_adapter: "Any | None",
+    store: SqliteStore,
+    cursor: Optional[str] = None,
+    page_size: int = 100,
+) -> tuple[List[ClassifiedItem], str]:
+    """Poll Benzinga + FMP in one cycle, dedup across sources.
+
+    Parameters
+    ----------
+    benzinga_adapter : BenzingaRestAdapter or None
+    fmp_adapter : FmpAdapter or None
+    store : SqliteStore
+    cursor : str, optional
+    page_size : int
+
+    Returns
+    -------
+    (items, new_cursor)
+    """
+    now_utc = datetime.now(UTC)
+    raw_items: List[NewsItem] = []
+
+    # ── Benzinga ────────────────────────────────────────────
+    if benzinga_adapter is not None:
+        try:
+            bz_items = benzinga_adapter.fetch_news(
+                updated_since=cursor, page_size=page_size,
+            )
+            raw_items.extend(bz_items)
+        except Exception as exc:
+            logger.warning("Benzinga poll failed: %s", exc)
+
+    # ── FMP (stock news + press releases) ───────────────────
+    if fmp_adapter is not None:
+        try:
+            raw_items.extend(fmp_adapter.fetch_stock_latest(page=0, limit=page_size))
+        except Exception as exc:
+            logger.warning("FMP stock-news poll failed: %s", exc)
+        try:
+            raw_items.extend(fmp_adapter.fetch_press_latest(page=0, limit=page_size))
+        except Exception as exc:
+            logger.warning("FMP press-release poll failed: %s", exc)
+
+    all_classified: List[ClassifiedItem] = []
+    max_ts = float(cursor) if cursor else 0.0
+
+    for item in raw_items:
+        classified = _classify_item(item, store, now_utc)
+        all_classified.extend(classified)
+
+        ts = item.updated_ts or item.published_ts
+        if ts and ts > 0:
+            max_ts = max(max_ts, ts)
+
+    new_cursor = str(int(max_ts)) if max_ts > 0 else (cursor or "")
+
+    logger.info(
+        "Terminal multi-poll: %d raw → %d classified | cursor %s → %s",
+        len(raw_items), len(all_classified), cursor or "(initial)", new_cursor,
+    )
+
+    return all_classified, new_cursor
+
+
+# ── FMP Economic Calendar Fetcher ───────────────────────────────
+
+def fetch_economic_calendar(
+    api_key: str,
+    from_date: str,
+    to_date: str,
+) -> List[Dict[str, Any]]:
+    """Fetch economic calendar events from FMP.
+
+    Parameters
+    ----------
+    api_key : str
+        FMP API key.
+    from_date : str
+        Start date in YYYY-MM-DD format.
+    to_date : str
+        End date in YYYY-MM-DD format.
+
+    Returns
+    -------
+    list[dict]
+        List of economic events with keys: date, country, event,
+        actual, previous, consensus, impact, etc.
+    """
+    import httpx
+
+    url = "https://financialmodelingprep.com/api/v3/economic_calendar"
+    params = {"from": from_date, "to": to_date, "apikey": api_key}
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(url, params=params)
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list):
+                return data
+            return []
+    except Exception as exc:
+        logger.warning("FMP economic calendar fetch failed: %s", exc)
+        return []
+
+
+# ── FMP Sector Performance ──────────────────────────────────────
+
+def fetch_sector_performance(api_key: str) -> List[Dict[str, Any]]:
+    """Fetch current sector performance from FMP.
+
+    Returns list of dicts with keys: sector, changesPercentage.
+    """
+    import httpx
+
+    url = "https://financialmodelingprep.com/api/v3/sectors-performance"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(url, params={"apikey": api_key})
+            r.raise_for_status()
+            data = r.json()
+            if isinstance(data, list):
+                return data
+            return []
+    except Exception as exc:
+        logger.warning("FMP sector performance fetch failed: %s", exc)
+        return []
