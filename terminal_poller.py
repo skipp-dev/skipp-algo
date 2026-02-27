@@ -567,14 +567,12 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
 
     Returns list of dicts with keys: sector, changesPercentage.
     """
-    from datetime import date as _date
-
     import httpx
 
     url = "https://financialmodelingprep.com/stable/sector-performance-snapshot"
     try:
         with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params={"apikey": api_key, "date": _date.today().isoformat()})
+            r = client.get(url, params={"apikey": api_key, "date": date.today().isoformat()})
             r.raise_for_status()
             data = r.json()
             if not isinstance(data, list):
@@ -687,7 +685,12 @@ def fetch_industry_performance(
             if not isinstance(data, list):
                 return []
             # Sort by market cap descending
-            data.sort(key=lambda x: float(x.get("marketCap", 0) or 0), reverse=True)
+            def _safe_mcap(x: dict[str, Any]) -> float:
+                try:
+                    return float(x.get("marketCap", 0) or 0)
+                except (ValueError, TypeError):
+                    return 0.0
+            data.sort(key=_safe_mcap, reverse=True)
             return data
     except Exception as exc:
         _msg = _sanitize_exc(exc)
@@ -991,16 +994,15 @@ def fetch_benzinga_news_by_channel(
     adapter = BenzingaRestAdapter(api_key)
     try:
         items = adapter.fetch_news(page_size=page_size, channels=channels)
-        # Convert NewsItem namedtuples to plain dicts for Streamlit
+        # Convert NewsItem objects to plain dicts for Streamlit
         return [
             {
-                "title": getattr(it, "title", ""),
-                "summary": getattr(it, "summary", ""),
+                "title": getattr(it, "headline", ""),
+                "summary": getattr(it, "snippet", ""),
                 "source": getattr(it, "source", ""),
                 "url": getattr(it, "url", ""),
                 "published_ts": getattr(it, "published_ts", ""),
                 "tickers": getattr(it, "tickers", []),
-                "sentiment": getattr(it, "sentiment", ""),
             }
             for it in items
         ]
@@ -1411,8 +1413,6 @@ def compute_power_gaps(
             gap_type = "PEG"
         elif abs_gap >= monster_min_gap and rvol >= monster_min_rvol:
             gap_type = "MG"
-        elif abs_gap >= peg_min_gap:
-            gap_type = "Gap Up" if mv["gap_pct"] > 0 else "Gap Down"
         else:
             gap_type = "Gap Up" if mv["gap_pct"] > 0 else "Gap Down"
 

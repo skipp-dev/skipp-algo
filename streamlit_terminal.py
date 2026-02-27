@@ -671,6 +671,12 @@ def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
     return fetch_defense_watchlist(api_key)
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_defense_watchlist_custom(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache custom Aerospace & Defense watchlist quotes for 2 minutes."""
+    return fetch_defense_watchlist(api_key, tickers=tickers)
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_industry_performance(api_key: str, industry: str = "Aerospace & Defense") -> list[dict[str, Any]]:
     """Cache industry screen results for 5 minutes."""
@@ -3135,7 +3141,7 @@ else:
                     key="defense_tickers_input",
                 ).strip().upper()
 
-                def_data = _cached_defense_watchlist(fmp_key) if not custom_tickers or custom_tickers == DEFENSE_TICKERS else fetch_defense_watchlist(fmp_key, tickers=custom_tickers)
+                def_data = _cached_defense_watchlist(fmp_key) if (not custom_tickers or custom_tickers == DEFENSE_TICKERS) else _cached_defense_watchlist_custom(fmp_key, custom_tickers)
 
                 if def_data:
                     df_def = pd.DataFrame(def_data)
@@ -3264,9 +3270,7 @@ else:
         if not bz_key and not fmp_key:
             st.warning("Configure at least one API key (Benzinga or FMP) to compute the outlook.")
         else:
-            from datetime import date as _outlook_date
-
-            _today_iso = _outlook_date.today().isoformat()
+            _today_iso = datetime.now(UTC).strftime("%Y-%m-%d")
 
             # API-heavy factors (earnings, economics, sectors) are cached.
             # Feed sentiment is computed live below since the feed is mutable
