@@ -79,15 +79,45 @@ from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
     TerminalConfig,
+    fetch_benzinga_channel_list,
     fetch_benzinga_delayed_quotes,
+    fetch_benzinga_dividends,
     fetch_benzinga_earnings,
     fetch_benzinga_economics,
+    fetch_benzinga_guidance,
+    fetch_benzinga_ipos,
     fetch_benzinga_market_movers,
+    fetch_benzinga_quantified,
     fetch_benzinga_ratings,
+    fetch_benzinga_retail,
+    fetch_benzinga_splits,
+    fetch_benzinga_top_news_items,
     fetch_economic_calendar,
     fetch_sector_performance,
     poll_and_classify_multi,
 )
+
+try:
+    from terminal_poller import (
+        fetch_benzinga_auto_complete as _tp_auto_complete,
+        fetch_benzinga_company_profile as _tp_company_profile,
+        fetch_benzinga_financials as _tp_financials,
+        fetch_benzinga_fundamentals as _tp_fundamentals,
+        fetch_benzinga_logos as _tp_logos,
+        fetch_benzinga_options_activity as _tp_options_activity,
+        fetch_benzinga_price_history as _tp_price_history,
+        fetch_benzinga_ticker_detail as _tp_ticker_detail,
+    )
+except ImportError:
+    _tp_auto_complete = None  # type: ignore[assignment]
+    _tp_company_profile = None  # type: ignore[assignment]
+    _tp_financials = None  # type: ignore[assignment]
+    _tp_fundamentals = None  # type: ignore[assignment]
+    _tp_logos = None  # type: ignore[assignment]
+    _tp_options_activity = None  # type: ignore[assignment]
+    _tp_price_history = None  # type: ignore[assignment]
+    _tp_ticker_detail = None  # type: ignore[assignment]
+
 from terminal_spike_scanner import (
     SESSION_ICONS,
     build_spike_rows,
@@ -684,6 +714,100 @@ def _cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
     """Cache Benzinga delayed quotes for 60 seconds."""
     syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
     return fetch_benzinga_delayed_quotes(api_key, syms)
+
+
+# ── Cached Benzinga NEW Calendar Wrappers ───────────────────────
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_dividends(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga dividends calendar for 5 minutes."""
+    return fetch_benzinga_dividends(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_splits(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga splits calendar for 5 minutes."""
+    return fetch_benzinga_splits(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_ipos(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga IPO calendar for 5 minutes."""
+    return fetch_benzinga_ipos(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_guidance(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga guidance calendar for 5 minutes."""
+    return fetch_benzinga_guidance(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_retail(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
+    """Cache Benzinga retail sales calendar for 5 minutes."""
+    return fetch_benzinga_retail(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+# ── Cached Benzinga News Wrappers ───────────────────────────────
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_top_news(api_key: str, channel: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    """Cache Benzinga top news for 2 minutes."""
+    return fetch_benzinga_top_news_items(api_key, channel=channel, limit=limit)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_quantified(api_key: str, from_date: str | None = None, to_date: str | None = None) -> list[dict[str, Any]]:
+    """Cache Benzinga quantified news for 2 minutes."""
+    return fetch_benzinga_quantified(api_key, date_from=from_date, date_to=to_date)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_bz_channel_list(api_key: str) -> list[dict[str, Any]]:
+    """Cache Benzinga channel list for 1 hour (rarely changes)."""
+    return fetch_benzinga_channel_list(api_key)
+
+
+# ── Cached Benzinga Financial Data Wrappers ─────────────────────
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_options_activity(api_key: str, tickers: str, from_date: str | None = None, to_date: str | None = None) -> list[dict[str, Any]]:
+    """Cache Benzinga options activity for 5 minutes."""
+    if _tp_options_activity is None:
+        return []
+    return _tp_options_activity(api_key, tickers, date_from=from_date, date_to=to_date)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_bz_fundamentals(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga fundamentals for 10 minutes."""
+    if _tp_fundamentals is None:
+        return []
+    return _tp_fundamentals(api_key, tickers)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_bz_financials(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga financials for 10 minutes."""
+    if _tp_financials is None:
+        return []
+    return _tp_financials(api_key, tickers)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_bz_company_profile(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga company profile for 10 minutes."""
+    if _tp_company_profile is None:
+        return []
+    return _tp_company_profile(api_key, tickers)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_ticker_detail(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga ticker detail for 5 minutes."""
+    if _tp_ticker_detail is None:
+        return []
+    return _tp_ticker_detail(api_key, tickers)
 
 
 # ── Alert evaluation ────────────────────────────────────────────
@@ -2051,7 +2175,7 @@ else:
             st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga calendar data.")
         else:
             st.subheader("📊 Benzinga Intelligence")
-            st.caption("Analyst Ratings, Earnings Calendar, and Economic Data from Benzinga")
+            st.caption("Full Benzinga data suite: Ratings, Earnings, Economics, Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified News, Options Flow")
 
             bz_cal_col1, bz_cal_col2 = st.columns(2)
             with bz_cal_col1:
@@ -2068,9 +2192,14 @@ else:
             bz_from_str = bz_cal_from.strftime("%Y-%m-%d")
             bz_to_str = bz_cal_to.strftime("%Y-%m-%d")
 
-            # ── Sub-tabs for Ratings / Earnings / Economics ─
-            bz_sub_ratings, bz_sub_earnings, bz_sub_econ = st.tabs(
-                ["🎯 Analyst Ratings", "💰 Earnings", "🌐 Economics"],
+            # ── Sub-tabs for all Benzinga data types ───────
+            (bz_sub_ratings, bz_sub_earnings, bz_sub_econ, bz_sub_divs,
+             bz_sub_splits, bz_sub_ipos, bz_sub_guidance, bz_sub_retail,
+             bz_sub_top_news, bz_sub_quantified, bz_sub_options) = st.tabs(
+                ["🎯 Ratings", "💰 Earnings", "🌐 Economics",
+                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
+                 "🔮 Guidance", "🛒 Retail", "📰 Top News",
+                 "📈 Quantified", "🎰 Options Flow"],
             )
 
             # ── Analyst Ratings ─────────────────────────────
@@ -2274,6 +2403,199 @@ else:
                             )
                 else:
                     st.info("No Benzinga economic events found for the selected range.")
+
+            # ── Dividends Calendar ──────────────────────────
+            with bz_sub_divs:
+                div_data = _cached_bz_dividends(bz_key, bz_from_str, bz_to_str)
+                if div_data:
+                    df_div = pd.DataFrame(div_data)
+                    display_cols = [c for c in [
+                        "ticker", "name", "date", "ex_date", "payable_date",
+                        "record_date", "dividend", "dividend_prior",
+                        "dividend_yield", "frequency", "importance",
+                    ] if c in df_div.columns]
+                    st.caption(f"{len(df_div)} dividend(s) from {bz_from_str} to {bz_to_str}")
+                    st.dataframe(
+                        df_div[display_cols] if display_cols else df_div,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_div)),
+                    )
+                else:
+                    st.info("No Benzinga dividend data found for the selected range.")
+
+            # ── Splits Calendar ─────────────────────────────
+            with bz_sub_splits:
+                splits_data = _cached_bz_splits(bz_key, bz_from_str, bz_to_str)
+                if splits_data:
+                    df_spl = pd.DataFrame(splits_data)
+                    display_cols = [c for c in [
+                        "ticker", "exchange", "date", "ratio",
+                        "optionable", "date_ex", "date_recorded",
+                        "date_distribution", "importance",
+                    ] if c in df_spl.columns]
+                    st.caption(f"{len(df_spl)} split(s) from {bz_from_str} to {bz_to_str}")
+                    st.dataframe(
+                        df_spl[display_cols] if display_cols else df_spl,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_spl)),
+                    )
+                else:
+                    st.info("No Benzinga stock splits found for the selected range.")
+
+            # ── IPO Calendar ────────────────────────────────
+            with bz_sub_ipos:
+                ipo_data = _cached_bz_ipos(bz_key, bz_from_str, bz_to_str)
+                if ipo_data:
+                    df_ipo = pd.DataFrame(ipo_data)
+                    display_cols = [c for c in [
+                        "ticker", "name", "exchange", "pricing_date",
+                        "price_min", "price_max", "deal_status",
+                        "offering_value", "offering_shares",
+                        "lead_underwriters", "importance",
+                    ] if c in df_ipo.columns]
+                    st.caption(f"{len(df_ipo)} IPO(s) from {bz_from_str} to {bz_to_str}")
+                    st.dataframe(
+                        df_ipo[display_cols] if display_cols else df_ipo,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_ipo)),
+                    )
+
+                    # Highlight upcoming IPOs
+                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
+                    date_col = "pricing_date" if "pricing_date" in df_ipo.columns else "date"
+                    if date_col in df_ipo.columns:
+                        upcoming = df_ipo[df_ipo[date_col] >= now_str]
+                        if not upcoming.empty:
+                            st.divider()
+                            st.subheader("🚀 Upcoming IPOs")
+                            for _, row in upcoming.head(10).iterrows():
+                                _tk = safe_markdown_text(str(row.get("ticker", "?")))
+                                _nm = safe_markdown_text(str(row.get("name", "")))
+                                st.markdown(
+                                    f"**{_tk}** {_nm} — "
+                                    f"{row.get(date_col, '?')} | "
+                                    f"${row.get('price_min', '?')} – ${row.get('price_max', '?')} | "
+                                    f"Status: {row.get('deal_status', '?')}"
+                                )
+                else:
+                    st.info("No Benzinga IPO data found for the selected range.")
+
+            # ── Guidance Calendar ───────────────────────────
+            with bz_sub_guidance:
+                guid_data = _cached_bz_guidance(bz_key, bz_from_str, bz_to_str)
+                if guid_data:
+                    df_guid = pd.DataFrame(guid_data)
+                    display_cols = [c for c in [
+                        "ticker", "name", "date", "period", "period_year",
+                        "prelim", "eps_guidance_est", "eps_guidance_max",
+                        "eps_guidance_min", "revenue_guidance_est",
+                        "revenue_guidance_max", "revenue_guidance_min",
+                        "importance",
+                    ] if c in df_guid.columns]
+                    st.caption(f"{len(df_guid)} guidance item(s) from {bz_from_str} to {bz_to_str}")
+                    st.dataframe(
+                        df_guid[display_cols] if display_cols else df_guid,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_guid)),
+                    )
+                else:
+                    st.info("No Benzinga guidance data found for the selected range.")
+
+            # ── Retail Sales Calendar ───────────────────────
+            with bz_sub_retail:
+                retail_data = _cached_bz_retail(bz_key, bz_from_str, bz_to_str)
+                if retail_data:
+                    df_ret = pd.DataFrame(retail_data)
+                    display_cols = [c for c in [
+                        "ticker", "name", "date", "period", "period_year",
+                        "sss", "sss_est", "retail_surprise", "importance",
+                    ] if c in df_ret.columns]
+                    st.caption(f"{len(df_ret)} retail item(s) from {bz_from_str} to {bz_to_str}")
+
+                    # Highlight beats/misses
+                    def _color_retail_surprise(val: Any) -> str:
+                        try:
+                            v = float(val)
+                            return "color: #00C853" if v > 0 else ("color: #FF1744" if v < 0 else "")
+                        except (ValueError, TypeError):
+                            return ""
+
+                    df_display = df_ret[display_cols] if display_cols else df_ret
+                    surprise_cols = [c for c in ["retail_surprise"] if c in df_display.columns]
+                    if surprise_cols:
+                        styled = df_display.style.map(_color_retail_surprise, subset=surprise_cols)
+                        st.dataframe(styled, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+                    else:
+                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
+                else:
+                    st.info("No Benzinga retail sales data found for the selected range.")
+
+            # ── Top News ────────────────────────────────────
+            with bz_sub_top_news:
+                tn_limit = st.selectbox("Max stories", [10, 20, 50], index=1, key="bz_tn_limit")
+                top_news = _cached_bz_top_news(bz_key, limit=tn_limit)
+                if top_news:
+                    st.caption(f"{len(top_news)} curated top stories")
+                    for i, story in enumerate(top_news):
+                        title = safe_markdown_text(str(story.get("title", "Untitled")))
+                        author = story.get("author", "")
+                        created = story.get("created", "")
+                        url = story.get("url", "")
+                        teaser = story.get("teaser", "")
+                        stocks = story.get("stocks", [])
+                        tickers_str = ", ".join(
+                            s.get("name", "") if isinstance(s, dict) else str(s)
+                            for s in (stocks if isinstance(stocks, list) else [])
+                        )
+
+                        header_parts = [f"**{title}**"]
+                        if tickers_str:
+                            header_parts.append(f"[{tickers_str}]")
+                        if author:
+                            header_parts.append(f"— {safe_markdown_text(str(author))}")
+                        if created:
+                            header_parts.append(f"| {created[:16]}")
+
+                        st.markdown(" ".join(header_parts))
+                        if teaser:
+                            st.caption(safe_markdown_text(str(teaser)[:200]))
+                        if url:
+                            st.markdown(f"[Read more]({url})", unsafe_allow_html=True)
+                        if i < len(top_news) - 1:
+                            st.divider()
+                else:
+                    st.info("No Benzinga top news available.")
+
+            # ── Quantified News (price-impact context) ──────
+            with bz_sub_quantified:
+                qn_data = _cached_bz_quantified(bz_key, from_date=bz_from_str, to_date=bz_to_str)
+                if qn_data:
+                    df_qn = pd.DataFrame(qn_data)
+                    st.caption(f"{len(df_qn)} quantified news item(s)")
+                    st.dataframe(df_qn, width='stretch', height=min(600, 40 + 35 * len(df_qn)))
+                else:
+                    st.info("No Benzinga quantified news available for the selected range.")
+
+            # ── Options Activity (unusual flow) ─────────────
+            with bz_sub_options:
+                opt_ticker = st.text_input(
+                    "Ticker(s)", value="AAPL,NVDA,SPY",
+                    placeholder="e.g. AAPL,NVDA,SPY",
+                    key="bz_opt_ticker",
+                )
+                if opt_ticker.strip():
+                    opt_data = _cached_bz_options_activity(
+                        bz_key, opt_ticker.strip(),
+                        from_date=bz_from_str, to_date=bz_to_str,
+                    )
+                    if opt_data:
+                        df_opt = pd.DataFrame(opt_data)
+                        st.caption(f"{len(df_opt)} options activity record(s)")
+                        st.dataframe(df_opt, width='stretch', height=min(600, 40 + 35 * len(df_opt)))
+                    else:
+                        st.info("No Benzinga options activity found. (Requires Options Activity API access.)")
+                else:
+                    st.info("Enter ticker(s) above to view options activity.")
 
     # ── TAB: Benzinga Market Movers + Quotes ────────────────
     with tab_bz_movers:

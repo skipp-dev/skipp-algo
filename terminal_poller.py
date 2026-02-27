@@ -22,7 +22,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
-from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+from newsstack_fmp.ingest_benzinga import (
+    BenzingaRestAdapter,
+    fetch_benzinga_channels,
+    fetch_benzinga_quantified_news,
+    fetch_benzinga_top_news,
+)
 
 try:
     from newsstack_fmp.ingest_benzinga_calendar import (
@@ -34,6 +39,29 @@ except ImportError:
     BenzingaCalendarAdapter = None  # type: ignore[assignment,misc]
     fetch_benzinga_movers = None  # type: ignore[assignment]
     fetch_benzinga_quotes = None  # type: ignore[assignment]
+
+try:
+    from newsstack_fmp.ingest_benzinga_financial import (
+        BenzingaFinancialAdapter,
+        fetch_benzinga_auto_complete,
+        fetch_benzinga_company_profile,
+        fetch_benzinga_financials,
+        fetch_benzinga_fundamentals,
+        fetch_benzinga_logos,
+        fetch_benzinga_options_activity,
+        fetch_benzinga_price_history,
+        fetch_benzinga_ticker_detail,
+    )
+except ImportError:
+    BenzingaFinancialAdapter = None  # type: ignore[assignment,misc]
+    fetch_benzinga_auto_complete = None  # type: ignore[assignment]
+    fetch_benzinga_company_profile = None  # type: ignore[assignment]
+    fetch_benzinga_financials = None  # type: ignore[assignment]
+    fetch_benzinga_fundamentals = None  # type: ignore[assignment]
+    fetch_benzinga_logos = None  # type: ignore[assignment]
+    fetch_benzinga_options_activity = None  # type: ignore[assignment]
+    fetch_benzinga_price_history = None  # type: ignore[assignment]
+    fetch_benzinga_ticker_detail = None  # type: ignore[assignment]
 
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
 from newsstack_fmp.store_sqlite import SqliteStore
@@ -668,3 +696,163 @@ def fetch_benzinga_delayed_quotes(
     if fetch_benzinga_quotes is None:
         return []
     return fetch_benzinga_quotes(api_key, symbols)
+
+
+# ── New Calendar Wrappers (dividends, splits, IPO, guidance, retail) ─
+
+
+def fetch_benzinga_dividends(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch dividend calendar from Benzinga."""
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_dividends(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga dividends fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_splits(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch stock splits calendar from Benzinga."""
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_splits(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga splits fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_ipos(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch IPO calendar from Benzinga."""
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_ipos(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga IPOs fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_guidance(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch earnings/revenue guidance from Benzinga."""
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_guidance(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga guidance fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_retail(
+    api_key: str,
+    *,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+    importance: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch retail sales calendar from Benzinga."""
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_retail(
+            date_from=date_from, date_to=date_to,
+            page_size=page_size, importance=importance,
+        )
+    except Exception as exc:
+        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        logger.warning("Benzinga retail fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
+
+
+# ── News Wrappers (top news, quantified news, channels) ──────
+
+
+def fetch_benzinga_top_news_items(
+    api_key: str,
+    *,
+    channel: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Fetch curated top news from Benzinga."""
+    return fetch_benzinga_top_news(api_key, channel=channel, limit=limit)
+
+
+def fetch_benzinga_quantified(
+    api_key: str,
+    *,
+    page_size: int = 50,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch quantified news (with price-impact context) from Benzinga."""
+    return fetch_benzinga_quantified_news(
+        api_key, page_size=page_size,
+        date_from=date_from, date_to=date_to,
+    )
+
+
+def fetch_benzinga_channel_list(api_key: str) -> list[dict[str, Any]]:
+    """Fetch available channel names/IDs from Benzinga."""
+    return fetch_benzinga_channels(api_key)

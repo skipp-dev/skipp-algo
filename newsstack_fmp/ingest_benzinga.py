@@ -4,6 +4,11 @@ REST:
     Polls ``/api/v2/news`` with ``updatedSince`` for delta-only fetches.
     Synchronous (httpx.Client) — called from ``poll_once()``.
 
+    Additional news endpoints:
+    - ``/api/v2/news/top`` — curated top news stories
+    - ``/api/v2/news/channels`` — list available channel IDs/names
+    - ``/api/v2/news/quantified`` — quantified news with price context
+
 WebSocket:
     Connects to Benzinga's news stream WS endpoint.  Runs in a **daemon
     thread** with its own asyncio event loop and pushes ``NewsItem``
@@ -166,6 +171,182 @@ class BenzingaRestAdapter:
 
     def close(self) -> None:
         self.client.close()
+
+
+# =====================================================================
+# 1b) Additional News endpoints (synchronous, standalone functions)
+# =====================================================================
+
+BENZINGA_TOP_NEWS_URL = "https://api.benzinga.com/api/v2/news/top"
+BENZINGA_CHANNELS_URL = "https://api.benzinga.com/api/v2/news/channels"
+BENZINGA_QUANTIFIED_URL = "https://api.benzinga.com/api/v2/news/quantified"
+
+_NEWS_RETRYABLE = {429, 500, 502, 503, 504}
+_NEWS_MAX_ATTEMPTS = 3
+
+
+def _news_request_with_retry(
+    client: httpx.Client,
+    url: str,
+    params: dict[str, Any],
+) -> httpx.Response:
+    """GET with exponential backoff on retryable status codes (news)."""
+    last_exc: Exception | None = None
+    r: httpx.Response | None = None
+    for attempt in range(_NEWS_MAX_ATTEMPTS):
+        try:
+            r = client.get(url, params=params)
+            if r.status_code in _NEWS_RETRYABLE and attempt < _NEWS_MAX_ATTEMPTS - 1:
+                time.sleep(2 ** attempt)
+                continue
+            r.raise_for_status()
+            return r
+        except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+            last_exc = exc
+            if attempt < _NEWS_MAX_ATTEMPTS - 1:
+                time.sleep(2 ** attempt)
+                continue
+            raise
+        except httpx.HTTPStatusError:
+            raise
+    if r is not None:
+        return r
+    raise RuntimeError(
+        "Benzinga news: no response after retries"
+        + (f" (last error: {last_exc})" if last_exc else "")
+    )
+
+
+def fetch_benzinga_top_news(
+    api_key: str,
+    *,
+    channel: str | None = None,
+    limit: int = 20,
+    display_output: str | None = None,
+    type_: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch curated top news from Benzinga.
+
+    Parameters
+    ----------
+    api_key : str
+        Benzinga API key.
+    channel : str, optional
+        Comma-separated channel names to filter by.
+    limit : int
+        Maximum number of stories (default 20).
+    display_output : str, optional
+        ``"full"``, ``"abstract"`` or ``"headline"``.
+    type_ : str, optional
+        Content type filter.
+
+    Returns
+    -------
+    list[dict]
+        Raw top news items with keys: author, created, updated, title,
+        teaser, body, url, image, channels, stocks, tags.
+    """
+    params: dict[str, Any] = {"token": api_key, "limit": str(limit)}
+    if channel:
+        params["channel"] = channel
+    if display_output:
+        params["displayOutput"] = display_output
+    if type_:
+        params["type"] = type_
+
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        try:
+            r = _news_request_with_retry(client, BENZINGA_TOP_NEWS_URL, params)
+            data = r.json()
+        except Exception as exc:
+            logger.warning("Benzinga top_news fetch failed: %s", _sanitize_url(str(exc)))
+            return []
+
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return data.get("articles") or data.get("results") or data.get("data") or []
+    return []
+
+
+def fetch_benzinga_channels(
+    api_key: str,
+    *,
+    page_size: int = 100,
+    page: int = 0,
+) -> list[dict[str, Any]]:
+    """Fetch available news channel IDs/names from Benzinga.
+
+    Returns
+    -------
+    list[dict]
+        Channel entries with keys like ``name``, ``id``.
+    """
+    params: dict[str, Any] = {
+        "token": api_key,
+        "pageSize": str(page_size),
+        "page": str(page),
+    }
+
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        try:
+            r = _news_request_with_retry(client, BENZINGA_CHANNELS_URL, params)
+            data = r.json()
+        except Exception as exc:
+            logger.warning("Benzinga channels fetch failed: %s", _sanitize_url(str(exc)))
+            return []
+
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return data.get("channels") or data.get("data") or []
+    return []
+
+
+def fetch_benzinga_quantified_news(
+    api_key: str,
+    *,
+    page_size: int = 50,
+    page: int = 0,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    updated_since: str | None = None,
+    publish_since: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch quantified news (news with price-impact context) from Benzinga.
+
+    Returns
+    -------
+    list[dict]
+        Items with keys: headline, volume, day_open, open_gap, range, etc.
+    """
+    params: dict[str, Any] = {
+        "token": api_key,
+        "pageSize": str(page_size),
+        "page": str(page),
+    }
+    if date_from:
+        params["dateFrom"] = date_from
+    if date_to:
+        params["dateTo"] = date_to
+    if updated_since:
+        params["updatedSince"] = updated_since
+    if publish_since:
+        params["publishSince"] = publish_since
+
+    with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
+        try:
+            r = _news_request_with_retry(client, BENZINGA_QUANTIFIED_URL, params)
+            data = r.json()
+        except Exception as exc:
+            logger.warning("Benzinga quantified_news fetch failed: %s", _sanitize_url(str(exc)))
+            return []
+
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return data.get("articles") or data.get("results") or data.get("data") or []
+    return []
 
 
 # =====================================================================

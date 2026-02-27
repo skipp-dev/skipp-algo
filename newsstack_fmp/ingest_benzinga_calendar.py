@@ -7,6 +7,11 @@ Calendar (all use ``parameters[updated]=<epoch>`` for delta sync):
     - Earnings:           ``/api/v2.1/calendar/earnings``
     - Economics:          ``/api/v2.1/calendar/economics``
     - Conference Calls:   ``/api/v2.1/calendar/conference-calls``
+    - Dividends:          ``/api/v2.1/calendar/dividends``
+    - Splits:             ``/api/v2.1/calendar/splits``
+    - IPO:                ``/api/v2.1/calendar/ipos``
+    - Guidance:           ``/api/v2.1/calendar/guidance``
+    - Retail:             ``/api/v2.1/calendar/retail``
 
 Market Data:
     - Market Movers:      ``/api/v1/market/movers``
@@ -291,6 +296,140 @@ class BenzingaCalendarAdapter:
             date_from=date_from,
             date_to=date_to,
             page_size=page_size,
+        )
+
+    # ── New calendar fetchers ───────────────────────────────
+
+    def fetch_dividends(
+        self,
+        *,
+        updated_since: int | None = None,
+        tickers: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page_size: int = 100,
+        importance: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch dividend calendar.
+
+        Returns list of dicts with keys: ticker, name, exchange,
+        frequency, dividend, dividend_prior, dividend_type, dividend_yield,
+        ex_date, payable_date, record_date, importance, updated, etc.
+        """
+        return self._fetch_calendar(
+            "dividends",
+            updated_since=updated_since,
+            tickers=tickers,
+            date_from=date_from,
+            date_to=date_to,
+            page_size=page_size,
+            importance=importance,
+        )
+
+    def fetch_splits(
+        self,
+        *,
+        updated_since: int | None = None,
+        tickers: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page_size: int = 100,
+        importance: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch stock splits calendar.
+
+        Returns list of dicts with keys: ticker, exchange, ratio,
+        optionable, date_ex, date_recorded, date_distribution,
+        importance, updated, etc.
+        """
+        return self._fetch_calendar(
+            "splits",
+            updated_since=updated_since,
+            tickers=tickers,
+            date_from=date_from,
+            date_to=date_to,
+            page_size=page_size,
+            importance=importance,
+        )
+
+    def fetch_ipos(
+        self,
+        *,
+        updated_since: int | None = None,
+        tickers: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page_size: int = 100,
+        importance: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch IPO calendar.
+
+        Returns list of dicts with keys: ticker, exchange, name,
+        pricing_date, price_min, price_max, deal_status,
+        insider_lockup_days, offering_value, offering_shares,
+        lead_underwriters, importance, updated, etc.
+        """
+        return self._fetch_calendar(
+            "ipos",
+            updated_since=updated_since,
+            tickers=tickers,
+            date_from=date_from,
+            date_to=date_to,
+            page_size=page_size,
+            importance=importance,
+        )
+
+    def fetch_guidance(
+        self,
+        *,
+        updated_since: int | None = None,
+        tickers: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page_size: int = 100,
+        importance: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch earnings/revenue guidance calendar.
+
+        Returns list of dicts with keys: ticker, date, period,
+        period_year, prelim, eps_guidance_est, eps_guidance_max,
+        eps_guidance_min, revenue_guidance_est, revenue_guidance_max,
+        revenue_guidance_min, importance, updated, etc.
+        """
+        return self._fetch_calendar(
+            "guidance",
+            updated_since=updated_since,
+            tickers=tickers,
+            date_from=date_from,
+            date_to=date_to,
+            page_size=page_size,
+            importance=importance,
+        )
+
+    def fetch_retail(
+        self,
+        *,
+        updated_since: int | None = None,
+        tickers: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        page_size: int = 100,
+        importance: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch retail sales calendar.
+
+        Returns list of dicts with keys: ticker, name, period,
+        period_year, sss, sss_est, retail_surprise, importance,
+        updated, etc.
+        """
+        return self._fetch_calendar(
+            "retail",
+            updated_since=updated_since,
+            tickers=tickers,
+            date_from=date_from,
+            date_to=date_to,
+            page_size=page_size,
+            importance=importance,
         )
 
 
