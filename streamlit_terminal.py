@@ -94,6 +94,8 @@ from terminal_spike_scanner import (
     fetch_losers,
     fetch_most_active,
     filter_spike_rows,
+    market_session,
+    overlay_extended_hours_quotes,
 )
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
@@ -1342,10 +1344,31 @@ else:
             st.info("Set `FMP_API_KEY` in `.env` for price & volume spike screening.")
         else:
             st.subheader("🚨 Price & Volume Spike Scanner")
-            st.caption(
-                "Real-time screening for rapid price moves and unusual volume. "
-                "Data from FMP (gainers, losers, most-active). Refreshes every 30 s."
-            )
+
+            # Market session indicator
+            _session = market_session()
+            _session_icons = {
+                "pre-market": "🌅 Pre-Market",
+                "regular": "🟢 Regular Session",
+                "after-hours": "🌙 After-Hours",
+                "closed": "⚫ Market Closed",
+            }
+            _session_label = _session_icons.get(_session, _session)
+
+            if _session in ("pre-market", "after-hours"):
+                st.caption(
+                    f"**{_session_label}** — FMP gainers/losers show previous session. "
+                    "Extended-hours prices overlaid from Benzinga delayed quotes."
+                )
+            elif _session == "closed":
+                st.caption(
+                    f"**{_session_label}** — Showing last session data."
+                )
+            else:
+                st.caption(
+                    f"**{_session_label}** — Live screening for rapid price moves "
+                    "and unusual volume. Data from FMP. Refreshes every 30 s."
+                )
 
             # Fetch cached spike data
             spike_data = _cached_spike_data(fmp_key)
@@ -1354,6 +1377,15 @@ else:
                 spike_data["losers"],
                 spike_data["actives"],
             )
+
+            # Overlay Benzinga extended-hours quotes when outside regular session
+            if _session in ("pre-market", "after-hours") and spike_rows:
+                bz_key = st.session_state.cfg.benzinga_api_key
+                if bz_key:
+                    _spike_symbols = [r["symbol"] for r in spike_rows]
+                    _bz_quotes = _cached_bz_quotes(bz_key, ",".join(_spike_symbols))
+                    if _bz_quotes:
+                        overlay_extended_hours_quotes(spike_rows, _bz_quotes)
 
             # Filter controls
             sp_col1, sp_col2, sp_col3, sp_col4 = st.columns(4)

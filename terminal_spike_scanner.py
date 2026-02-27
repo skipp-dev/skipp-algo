@@ -5,6 +5,11 @@ Uses FMP API endpoints to detect real-time price and volume spikes:
 - ``/stable/biggest-losers``   — top price losers
 - ``/stable/most-actives``     — highest volume symbols
 
+During pre-market and after-hours, FMP gainers/losers data is stale
+(last regular-session close).  When a Benzinga API key is available,
+Benzinga delayed quotes are overlaid to show current extended-hours
+prices, replacing the stale FMP change data.
+
 All functions are pure (no Streamlit dependency) and can be tested
 independently.
 """
@@ -14,12 +19,40 @@ from __future__ import annotations
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
 # ── Regex to strip API keys from error messages ──────────────────
 _APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+
+# US Eastern timezone for market session detection
+_ET = ZoneInfo("America/New_York")
+
+
+def market_session() -> str:
+    """Return current US market session label.
+
+    Returns one of: ``"pre-market"``, ``"regular"``, ``"after-hours"``,
+    ``"closed"``.
+    """
+    now = datetime.now(_ET)
+    weekday = now.weekday()  # 0=Mon … 6=Sun
+    if weekday >= 5:
+        return "closed"
+    t = now.time()
+    from datetime import time as _time
+    if t < _time(4, 0):
+        return "closed"
+    if t < _time(9, 30):
+        return "pre-market"
+    if t < _time(16, 0):
+        return "regular"
+    if t < _time(20, 0):
+        return "after-hours"
+    return "closed"
 
 
 # ── FMP data fetchers ─────────────────────────────────────────────
@@ -287,3 +320,85 @@ def filter_spike_rows(
         result = [r for r in result if r["vol_spike"]]
 
     return result
+
+
+# ── Pre/post-market overlay ──────────────────────────────────────
+
+
+def overlay_extended_hours_quotes(
+    rows: list[dict[str, Any]],
+    quotes: list[dict[str, Any]],
+    *,
+    price_spike_threshold: float = 1.0,
+) -> list[dict[str, Any]]:
+    """Overlay Benzinga delayed quotes onto spike rows.
+
+    During extended hours (pre-market / after-hours) FMP biggest-gainers
+    and biggest-losers return stale regular-session data.  This function
+    replaces the stale price / change fields with fresh extended-hours
+    data from Benzinga delayed quotes, so the UI shows the *current*
+    move instead of yesterday's close.
+
+    Parameters
+    ----------
+    rows : list[dict]
+        Spike rows produced by :func:`build_spike_rows`.
+    quotes : list[dict]
+        Flattened Benzinga delayed-quote dicts (as returned by
+        ``fetch_benzinga_quotes``).  Expected keys: ``symbol``,
+        ``last``, ``change``, ``changePercent``, ``previousClose``,
+        ``volume``.
+    price_spike_threshold : float
+        Passed to :func:`classify_spike` for re-classification.
+
+    Returns
+    -------
+    list[dict]
+        The same rows list, mutated in place, with updated price /
+        change / direction fields where a Benzinga quote was available.
+    """
+    if not quotes:
+        return rows
+
+    bz_by_sym: dict[str, dict[str, Any]] = {}
+    for q in quotes:
+        sym = (q.get("symbol") or "").upper().strip()
+        if sym:
+            bz_by_sym[sym] = q
+
+    for row in rows:
+        sym = row["symbol"]
+        q = bz_by_sym.get(sym)
+        if q is None:
+            continue
+
+        new_price = _safe_float(q.get("last"))
+        new_change = _safe_float(q.get("change"))
+        new_change_pct = _safe_float(q.get("changePercent"))
+        new_vol = _safe_float(q.get("volume"))
+
+        if new_price <= 0:
+            continue
+
+        row["price"] = round(new_price, 2)
+        row["change"] = round(new_change, 2)
+        row["change_pct"] = round(new_change_pct, 2)
+        row["change_display"] = format_change_pct(new_change_pct)
+
+        direction = classify_spike(new_change_pct, price_spike_threshold=price_spike_threshold)
+        row["spike_dir"] = direction
+        row["spike_icon"] = spike_icon(direction)
+
+        if new_vol > 0:
+            row["volume"] = int(new_vol)
+            avg_vol = row.get("avg_volume", 0)
+            if avg_vol > 0:
+                row["volume_ratio"] = round(new_vol / avg_vol, 2)
+                row["vol_spike"] = classify_volume_spike(new_vol, avg_vol)
+                row["vol_icon"] = volume_icon(row["vol_spike"])
+
+        row["source"] = row["source"] + "+bz"
+
+    # Re-sort after overlay
+    rows.sort(key=lambda r: abs(r["change_pct"]), reverse=True)
+    return rows

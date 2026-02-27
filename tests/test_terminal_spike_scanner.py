@@ -17,6 +17,8 @@ from terminal_spike_scanner import (
     filter_spike_rows,
     format_change_pct,
     format_market_cap,
+    market_session,
+    overlay_extended_hours_quotes,
     spike_icon,
     volume_icon,
 )
@@ -378,3 +380,148 @@ class TestFilterSpikeRows:
 
     def test_empty_input(self):
         assert filter_spike_rows([]) == []
+
+
+# ── Market session tests ────────────────────────────────────────
+
+
+class TestMarketSession:
+    def test_returns_valid_session(self):
+        result = market_session()
+        assert result in ("pre-market", "regular", "after-hours", "closed")
+
+    def test_weekend_is_closed(self):
+        from unittest.mock import patch
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        # Saturday 10:00 ET
+        fake_sat = datetime(2026, 2, 28, 10, 0, tzinfo=ZoneInfo("America/New_York"))
+        with patch("terminal_spike_scanner.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_sat
+            assert market_session() == "closed"
+
+    def test_premarket(self):
+        from unittest.mock import patch
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        # Monday 7:00 ET
+        fake_mon = datetime(2026, 3, 2, 7, 0, tzinfo=ZoneInfo("America/New_York"))
+        with patch("terminal_spike_scanner.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_mon
+            assert market_session() == "pre-market"
+
+    def test_regular(self):
+        from unittest.mock import patch
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        # Monday 12:00 ET
+        fake_mon = datetime(2026, 3, 2, 12, 0, tzinfo=ZoneInfo("America/New_York"))
+        with patch("terminal_spike_scanner.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_mon
+            assert market_session() == "regular"
+
+    def test_afterhours(self):
+        from unittest.mock import patch
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        # Monday 17:00 ET
+        fake_mon = datetime(2026, 3, 2, 17, 0, tzinfo=ZoneInfo("America/New_York"))
+        with patch("terminal_spike_scanner.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_mon
+            assert market_session() == "after-hours"
+
+    def test_late_night_closed(self):
+        from unittest.mock import patch
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        # Monday 22:00 ET
+        fake_mon = datetime(2026, 3, 2, 22, 0, tzinfo=ZoneInfo("America/New_York"))
+        with patch("terminal_spike_scanner.datetime") as mock_dt:
+            mock_dt.now.return_value = fake_mon
+            assert market_session() == "closed"
+
+
+# ── Overlay extended-hours quotes tests ─────────────────────────
+
+
+class TestOverlayExtendedHoursQuotes:
+    @staticmethod
+    def _make_rows() -> list[dict[str, Any]]:
+        gainers = [
+            _raw("ALBT", changesPercentage=114.48, change=0.58, price=1.09, volume=300000),
+            _raw("TSLA", changesPercentage=3.5, change=8.0, price=236.0, volume=50000000),
+        ]
+        return build_spike_rows(gainers, [], [])
+
+    def test_overlay_replaces_price_and_change(self):
+        rows = self._make_rows()
+        quotes = [
+            {"symbol": "ALBT", "last": 0.75, "change": -0.34,
+             "changePercent": -31.19, "volume": 2000000},
+        ]
+        overlay_extended_hours_quotes(rows, quotes)
+        albt = next(r for r in rows if r["symbol"] == "ALBT")
+        assert albt["price"] == 0.75
+        assert albt["change"] == -0.34
+        assert albt["change_pct"] == -31.19
+        assert albt["spike_dir"] == "DOWN"
+
+    def test_overlay_preserves_unmatched_rows(self):
+        rows = self._make_rows()
+        quotes = [
+            {"symbol": "ALBT", "last": 0.75, "change": -0.34,
+             "changePercent": -31.19, "volume": 2000000},
+        ]
+        overlay_extended_hours_quotes(rows, quotes)
+        tsla = next(r for r in rows if r["symbol"] == "TSLA")
+        assert tsla["change_pct"] == 3.5  # Unchanged
+
+    def test_overlay_empty_quotes_is_noop(self):
+        rows = self._make_rows()
+        original_prices = {r["symbol"]: r["price"] for r in rows}
+        overlay_extended_hours_quotes(rows, [])
+        for r in rows:
+            assert r["price"] == original_prices[r["symbol"]]
+
+    def test_overlay_skips_zero_price_quotes(self):
+        rows = self._make_rows()
+        quotes = [{"symbol": "ALBT", "last": 0, "change": 0, "changePercent": 0}]
+        overlay_extended_hours_quotes(rows, quotes)
+        albt = next(r for r in rows if r["symbol"] == "ALBT")
+        assert albt["price"] == 1.09  # Unchanged
+
+    def test_overlay_resorts_by_abs_change(self):
+        rows = self._make_rows()
+        # ALBT was #1 with +114%, now becomes -31% (abs 31 < TSLA's 3.5? No, 31 > 3.5)
+        # Actually ALBT at -31% is still bigger than TSLA at 3.5%
+        quotes = [
+            {"symbol": "ALBT", "last": 0.75, "change": -0.34,
+             "changePercent": -31.19, "volume": 2000000},
+        ]
+        overlay_extended_hours_quotes(rows, quotes)
+        assert rows[0]["symbol"] == "ALBT"  # Still first (31% > 3.5%)
+
+    def test_overlay_marks_source_with_bz_suffix(self):
+        rows = self._make_rows()
+        quotes = [
+            {"symbol": "ALBT", "last": 0.75, "change": -0.34,
+             "changePercent": -31.19, "volume": 2000000},
+        ]
+        overlay_extended_hours_quotes(rows, quotes)
+        albt = next(r for r in rows if r["symbol"] == "ALBT")
+        assert "+bz" in albt["source"]
+
+    def test_overlay_updates_volume_ratio(self):
+        rows = self._make_rows()
+        quotes = [
+            {"symbol": "ALBT", "last": 0.75, "change": -0.34,
+             "changePercent": -31.19, "volume": 5000000},
+        ]
+        overlay_extended_hours_quotes(rows, quotes)
+        albt = next(r for r in rows if r["symbol"] == "ALBT")
+        assert albt["volume"] == 5000000
