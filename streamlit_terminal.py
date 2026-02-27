@@ -3268,10 +3268,9 @@ else:
 
             _today_iso = _outlook_date.today().isoformat()
 
-            # Pass the current feed sentiment so the outlook can factor it in.
-            # The cached wrapper doesn't accept mutable feed_items (unhashable),
-            # so we compute outlook with feed_items outside caching, but cache
-            # the API-heavy part separately.
+            # API-heavy factors (earnings, economics, sectors) are cached.
+            # Feed sentiment is computed live below since the feed is mutable
+            # session state that cannot be hashed for caching.
             outlook = _cached_tomorrow_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
 
             # Overlay live feed sentiment on top of cached outlook
@@ -3279,11 +3278,11 @@ else:
             if _feed_for_outlook:
                 _bear_c = sum(
                     1 for it in _feed_for_outlook
-                    if str(it.get("sentiment") or "").lower() == "bearish"
+                    if str(it.get("sentiment_label") or "").lower() == "bearish"
                 )
                 _bull_c = sum(
                     1 for it in _feed_for_outlook
-                    if str(it.get("sentiment") or "").lower() == "bullish"
+                    if str(it.get("sentiment_label") or "").lower() == "bullish"
                 )
                 _total_f = len(_feed_for_outlook)
                 if _total_f > 10:
@@ -3324,14 +3323,14 @@ else:
             st.divider()
 
             # ── High-impact events detail ──
-            hi_details = outlook.get("high_impact_events_tomorrow_details") or []
+            hi_details: list[dict[str, Any]] = outlook.get("high_impact_events_tomorrow_details") or []
             if hi_details:
                 st.subheader("📋 Scheduled High-Impact Events")
-                for ev in hi_details:
-                    ev_name = safe_markdown_text(str(ev.get("event", "—")))
-                    ev_country = safe_markdown_text(str(ev.get("country", "US")))
-                    ev_source = safe_markdown_text(str(ev.get("source", "")))
-                    st.markdown(f"- **{ev_name}** ({ev_country}) — Source: {ev_source}")
+                for _hi_ev in hi_details:
+                    _hi_name = safe_markdown_text(str(_hi_ev.get("event", "—")))
+                    _hi_country = safe_markdown_text(str(_hi_ev.get("country", "US")))
+                    _hi_source = safe_markdown_text(str(_hi_ev.get("source", "")))
+                    st.markdown(f"- **{_hi_name}** ({_hi_country}) — Source: {_hi_source}")
             else:
                 st.info("No high-impact macro events scheduled for the next trading day.")
 

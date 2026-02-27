@@ -1014,20 +1014,83 @@ def fetch_benzinga_news_by_channel(
 
 # ── Tomorrow Outlook (next-trading-day traffic light) ────────
 
-# US equity market holidays (simplified, NYSE-based)
-_US_FIXED_HOLIDAYS: set[tuple[int, int]] = {
-    (1, 1),   # New Year's Day
-    (6, 19),  # Juneteenth
-    (7, 4),   # Independence Day
-    (12, 25), # Christmas Day
-}
+# ── NYSE holiday helpers (mirrored from open_prep.run_open_prep) ──
+
+def _nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> date:
+    """Return the *n*-th occurrence of *weekday* in *month* of *year*."""
+    first = date(year, month, 1)
+    offset = (weekday - first.weekday()) % 7
+    return first + timedelta(days=offset + (n - 1) * 7)
+
+
+def _last_weekday_of_month(year: int, month: int, weekday: int) -> date:
+    if month == 12:
+        last = date(year + 1, 1, 1) - timedelta(days=1)
+    else:
+        last = date(year, month + 1, 1) - timedelta(days=1)
+    offset = (last.weekday() - weekday) % 7
+    return last - timedelta(days=offset)
+
+
+def _observed_fixed_holiday(year: int, month: int, day: int) -> date:
+    holiday = date(year, month, day)
+    if holiday.weekday() == 5:  # Saturday -> observed Friday
+        return holiday - timedelta(days=1)
+    if holiday.weekday() == 6:  # Sunday -> observed Monday
+        return holiday + timedelta(days=1)
+    return holiday
+
+
+def _easter_sunday(year: int) -> date:
+    """Gregorian Easter Sunday (Meeus/Jones/Butcher algorithm)."""
+    a = year % 19
+    b = year // 100
+    c = year % 100
+    d = b // 4
+    e = b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i = c // 4
+    k = c % 4
+    el = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * el) // 451
+    month = (h + el - 7 * m + 114) // 31
+    day = ((h + el - 7 * m + 114) % 31) + 1
+    return date(year, month, day)
+
+
+def _us_equity_market_holidays(year: int) -> set[date]:
+    """NYSE full-day holiday set (core schedule)."""
+    good_friday = _easter_sunday(year) - timedelta(days=2)
+    return {
+        _observed_fixed_holiday(year, 1, 1),      # New Year's Day
+        _nth_weekday_of_month(year, 1, 0, 3),     # MLK Day
+        _nth_weekday_of_month(year, 2, 0, 3),     # Presidents Day
+        good_friday,
+        _last_weekday_of_month(year, 5, 0),       # Memorial Day
+        _observed_fixed_holiday(year, 6, 19),     # Juneteenth
+        _observed_fixed_holiday(year, 7, 4),      # Independence Day
+        _nth_weekday_of_month(year, 9, 0, 1),     # Labor Day
+        _nth_weekday_of_month(year, 11, 3, 4),    # Thanksgiving
+        _observed_fixed_holiday(year, 12, 25),    # Christmas Day
+    }
+
+
+def _is_us_equity_trading_day(d: date) -> bool:
+    if d.weekday() >= 5:
+        return False
+    if d in _us_equity_market_holidays(d.year):
+        return False
+    # Cross-year edge case: Jan 1 on Saturday → observed Dec 31 Friday
+    return not (d.month == 12 and d in _us_equity_market_holidays(d.year + 1))
 
 
 def _next_trading_day(today: date) -> date:
-    """Return the next US equity trading day after *today*, skipping weekends and holidays."""
+    """Return the next US equity trading day after *today*."""
     d = today + timedelta(days=1)
     for _ in range(14):
-        if d.weekday() < 5 and (d.month, d.day) not in _US_FIXED_HOLIDAYS:
+        if _is_us_equity_trading_day(d):
             return d
         d += timedelta(days=1)
     return d
@@ -1036,8 +1099,6 @@ def _next_trading_day(today: date) -> date:
 def compute_tomorrow_outlook(
     bz_api_key: str,
     fmp_api_key: str,
-    *,
-    feed_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Compute a next-trading-day outlook signal (🟢 / 🟡 / 🔴).
 
@@ -1049,8 +1110,10 @@ def compute_tomorrow_outlook(
     - Benzinga earnings calendar for the next trading day (BMO count)
     - FMP economic calendar high-impact events for the next trading day
     - Benzinga economics (FOMC, CPI, NFP, GDP) for the next trading day
-    - Current feed sentiment distribution (bearish-heavy = risk-off)
     - Current sector performance balance (majority red = caution)
+
+    Feed sentiment is evaluated separately in the UI layer because the
+    feed is a mutable session-state object that cannot be cached.
 
     Returns
     -------
@@ -1125,7 +1188,7 @@ def compute_tomorrow_outlook(
                 page_size=100, importance=0,
             )
             for ev in bz_econ:
-                imp = str(ev.get("importance") or "").lower()
+                imp = str(ev.get("importance", "")).lower()
                 ev_name = str(ev.get("event_name") or ev.get("name") or "")
                 # Benzinga importance: 0=high, 1=medium, 2=low
                 if imp in {"0", "high"} or any(
@@ -1158,45 +1221,19 @@ def compute_tomorrow_outlook(
     else:
         reasons.append("no_high_impact_events")
 
-    # ── 3. Current feed sentiment distribution ──
+    # ── 3. Sector performance balance ──
     sector_mood = "neutral"
-    if feed_items:
-        bearish_count = sum(
-            1 for it in feed_items
-            if str(it.get("sentiment") or "").lower() == "bearish"
-        )
-        bullish_count = sum(
-            1 for it in feed_items
-            if str(it.get("sentiment") or "").lower() == "bullish"
-        )
-        total = len(feed_items)
-        if total > 10:
-            bear_ratio = bearish_count / total
-            bull_ratio = bullish_count / total
-            if bear_ratio > 0.55:
-                outlook_score -= 1.0
-                reasons.append("current_sentiment_bearish_heavy")
-                sector_mood = "risk-off"
-            elif bull_ratio > 0.55:
-                outlook_score += 0.5
-                reasons.append("current_sentiment_bullish_heavy")
-                sector_mood = "risk-on"
-            else:
-                reasons.append("current_sentiment_mixed")
-        else:
-            reasons.append("insufficient_feed_data")
-    else:
-        reasons.append("no_feed_data")
-
-    # ── 4. Sector performance balance ──
     if fmp_api_key:
         try:
             sectors = fetch_sector_performance(fmp_api_key)
             if sectors:
-                red_count = sum(
-                    1 for s in sectors
-                    if float(s.get("changesPercentage", 0) or 0) < 0
-                )
+                red_count = 0
+                for s in sectors:
+                    try:
+                        if float(s.get("changesPercentage", 0) or 0) < 0:
+                            red_count += 1
+                    except (ValueError, TypeError):
+                        pass
                 if red_count > len(sectors) * 0.7:
                     outlook_score -= 0.5
                     reasons.append("sectors_mostly_red")
@@ -1204,8 +1241,7 @@ def compute_tomorrow_outlook(
                 elif red_count < len(sectors) * 0.3:
                     outlook_score += 0.5
                     reasons.append("sectors_mostly_green")
-                    if sector_mood == "neutral":
-                        sector_mood = "risk-on"
+                    sector_mood = "risk-on"
                 else:
                     reasons.append("sectors_mixed")
         except Exception:
