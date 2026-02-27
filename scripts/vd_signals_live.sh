@@ -92,12 +92,27 @@ if [[ ! -f "$DATA_FILE" ]]; then
   exit 1
 fi
 
-# Staleness check
+# Staleness check + auto-recovery
 _sig_age_s=$(( $(date +%s) - $(stat -f "%m" "$DATA_FILE" 2>/dev/null || stat -c "%Y" "$DATA_FILE" 2>/dev/null || echo "$(date +%s)") ))
 _sig_age_m=$(( _sig_age_s / 60 ))
 if [[ "$_sig_age_m" -gt 5 ]]; then
   echo "⚠️  WARNUNG: Signaldatei ist ${_sig_age_m} Minuten alt — Engine läuft möglicherweise nicht."
   echo ""
+  # Auto-recovery: restart engine if it's not running
+  if ! pgrep -f "open_prep.realtime_signals" >/dev/null 2>&1; then
+    echo "🔄 Auto-Recovery: Engine-Prozess nicht gefunden — starte automatisch …"
+    if [[ -f "$PROJECT_DIR/.env" ]]; then
+      set -a
+      # shellcheck disable=SC1091
+      source "$PROJECT_DIR/.env"
+      set +a
+    fi
+    nohup env PYTHONPATH="$PROJECT_DIR" \
+      python3 -m open_prep.realtime_signals --interval "$INTERVAL" \
+      > "$LOG_FILE" 2>&1 &
+    echo "  ▶️  Engine gestartet (PID $!, interval=${INTERVAL}s)"
+    sleep 2
+  fi
 fi
 
 echo "📈 Öffne Realtime-Signale in VisiData:"

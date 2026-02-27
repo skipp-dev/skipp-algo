@@ -273,14 +273,31 @@ if [[ "$WATCH_INTERVAL" -gt 0 ]]; then
   echo "🔄 Auto-Refresh alle ${WATCH_INTERVAL}s aktiv. In VisiData: Ctrl+R = Reload."
   echo ""
   (
+    _consecutive_fails=0
     while true; do
       sleep "$WATCH_INTERVAL"
       if _run_pipeline 2>/dev/null; then
         _run_extraction 2>/dev/null
         _ts=$(jq -r '.run_datetime_utc // "?"' "$JSON_FILE" 2>/dev/null)
         echo "  ↻ Refresh $(date +%H:%M:%S) (Daten: $_ts)" >&2
+        _consecutive_fails=0
       else
-        echo "  ⚠ Refresh fehlgeschlagen $(date +%H:%M:%S)" >&2
+        _consecutive_fails=$(( _consecutive_fails + 1 ))
+        echo "  ⚠ Refresh fehlgeschlagen $(date +%H:%M:%S) (${_consecutive_fails}× in Folge)" >&2
+        # Auto-recovery: after 3 consecutive failures, clear env caches
+        # and extend sleep to avoid hammering a broken API.
+        if [[ "$_consecutive_fails" -ge 3 ]]; then
+          echo "  🔄 Auto-Recovery: 3 Fehler in Folge — warte 60s vor erneutem Versuch" >&2
+          # Re-source .env in case keys were rotated
+          if [[ -f "$PROJECT_DIR/.env" ]]; then
+            set -a
+            # shellcheck disable=SC1091
+            source "$PROJECT_DIR/.env"
+            set +a
+          fi
+          sleep 60
+          _consecutive_fails=0
+        fi
       fi
     done
   ) &

@@ -58,6 +58,8 @@ BERLIN_TZ = ZoneInfo("Europe/Berlin")
 MIN_AUTO_REFRESH_SECONDS = 20
 RATE_LIMIT_COOLDOWN_SECONDS = 120
 MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
+_STALE_CACHE_MAX_AGE_MIN = 30  # auto-recovery if cache older than this during market hours
+_STALE_RECOVERY_COOLDOWN_S = 300  # 5 min between auto-recovery attempts
 
 # ── Market session awareness (optional — may be unavailable on Streamlit Cloud)
 try:
@@ -464,6 +466,8 @@ def main() -> None:
     st.session_state.setdefault("latest_result_cache", None)
     st.session_state.setdefault("last_live_fetch_utc", None)
     st.session_state.setdefault("force_live_fetch", False)
+    st.session_state.setdefault("_stale_recovery_ts", 0.0)
+    st.session_state.setdefault("_stale_recovery_count", 0)
 
     def _on_force_refresh() -> None:
         st.session_state["force_live_fetch"] = True
@@ -599,6 +603,9 @@ def main() -> None:
             st.caption("Daten-Alter: (kein Fetch)")
         _diag_cached = st.session_state.get("latest_result_cache")
         st.caption(f"Cache: {'aktiv' if _diag_cached else 'leer'}")
+        _diag_recovery_n = int(st.session_state.get("_stale_recovery_count", 0))
+        if _diag_recovery_n > 0:
+            st.caption(f"Auto-Recovery: {_diag_recovery_n}× ausgelöst")
 
         last_universe_reload_utc = st.session_state.get("last_universe_reload_utc")
         last_universe_reload = _format_berlin_only(last_universe_reload_utc)
@@ -623,6 +630,45 @@ def main() -> None:
         now_utc = datetime.now(UTC)
         live_fetch_interval = max(int(effective_refresh_seconds), MIN_LIVE_FETCH_INTERVAL_SECONDS)
         use_cached_result = False
+
+        # ── Auto-recovery: invalidate stale cache during market hours ──
+        if (
+            not force_live_fetch
+            and isinstance(cached_result, dict)
+            and last_live_fetch_raw
+        ):
+            try:
+                _ar_last = datetime.fromisoformat(
+                    str(last_live_fetch_raw).replace("Z", "+00:00")
+                )
+                if _ar_last.tzinfo is None:
+                    _ar_last = _ar_last.replace(tzinfo=UTC)
+                _ar_age_min = max((now_utc - _ar_last).total_seconds(), 0) / 60
+                _ar_is_market = (
+                    callable(_market_session)
+                    and _market_session() in ("regular", "pre-market", "after-hours")
+                )
+                _ar_cooldown_ok = (
+                    (__import__("time").time() - float(st.session_state.get("_stale_recovery_ts", 0)))
+                    >= _STALE_RECOVERY_COOLDOWN_S
+                )
+                if _ar_age_min > _STALE_CACHE_MAX_AGE_MIN and _ar_is_market and _ar_cooldown_ok:
+                    st.session_state["latest_result_cache"] = None
+                    st.session_state["force_live_fetch"] = True
+                    st.session_state["_stale_recovery_ts"] = __import__("time").time()
+                    st.session_state["_stale_recovery_count"] = (
+                        int(st.session_state.get("_stale_recovery_count", 0)) + 1
+                    )
+                    force_live_fetch = True
+                    cached_result = None
+                    logger.info(
+                        "Auto-recovery: cache %.0f min stale during market hours "
+                        "— forcing fresh pipeline run (recovery #%d)",
+                        _ar_age_min,
+                        st.session_state["_stale_recovery_count"],
+                    )
+            except Exception as exc:
+                logger.warning("Auto-recovery staleness check failed: %s", exc)
 
         if auto_refresh_enabled and not force_live_fetch and isinstance(cached_result, dict) and last_live_fetch_raw:
             try:
