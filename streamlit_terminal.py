@@ -404,7 +404,7 @@ with st.sidebar:
     _diag_staleness = feed_staleness_minutes(_diag_feed)
     if _diag_staleness is not None:
         _stale_label = f"Feed age: {_diag_staleness:.0f}m"
-        if _diag_staleness > 5 and is_market_hours():
+        if _diag_staleness > 2 and is_market_hours():
             st.warning(_stale_label)
         else:
             st.caption(_stale_label)
