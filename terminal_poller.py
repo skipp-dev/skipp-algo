@@ -914,3 +914,148 @@ def fetch_benzinga_news_by_channel(
         return []
     finally:
         adapter.close()
+
+
+# ── Power Gap Scanner (PEG / Monster PEG / Monster Gap) ──────
+
+
+def compute_power_gaps(
+    api_key: str,
+    *,
+    peg_min_gap: float = 4.0,
+    monster_min_gap: float = 8.0,
+    peg_min_rvol: float = 1.5,
+    monster_min_rvol: float = 2.0,
+) -> list[dict[str, Any]]:
+    """Compute Power Earning Gap / Monster Gap classifications.
+
+    Cross-references Benzinga Market Movers with today's earnings calendar:
+
+    * **Power Earning Gap (PEG)**: gap ≥ *peg_min_gap* % AND earnings beat
+      (``eps_surprise > 0``) AND relative-volume ≥ *peg_min_rvol*.
+    * **Monster Power Earning Gap (MPEG)**: gap ≥ *monster_min_gap* % AND
+      earnings beat AND relative-volume ≥ *monster_min_rvol*.
+    * **Monster Gap (MG)**: gap ≥ *monster_min_gap* % AND relative-volume ≥
+      *monster_min_rvol* (no earnings requirement).
+    * **Gap Up / Gap Down**: significant move that doesn't meet PEG/MPEG/MG
+      criteria.
+
+    Parameters
+    ----------
+    api_key : str
+        Benzinga API key.
+    peg_min_gap : float
+        Minimum absolute gap % for Power Earning Gap (default 4%).
+    monster_min_gap : float
+        Minimum absolute gap % for Monster classifications (default 8%).
+    peg_min_rvol : float
+        Minimum relative volume for PEG (default 1.5×).
+    monster_min_rvol : float
+        Minimum relative volume for Monster classifications (default 2.0×).
+
+    Returns
+    -------
+    list[dict]
+        Classified gap records sorted by absolute gap descending.  Each dict
+        contains: ``symbol``, ``company_name``, ``gap_pct``, ``change``,
+        ``price``, ``volume``, ``avg_volume``, ``rel_vol``, ``sector``,
+        ``gap_type`` (``"MPEG"``, ``"PEG"``, ``"MG"``, ``"Gap Up"``, or
+        ``"Gap Down"``), ``has_earnings``, ``eps_surprise``,
+        ``eps_surprise_pct``.
+    """
+    from datetime import datetime, timezone
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # 1) Fetch movers
+    movers_data = fetch_benzinga_market_movers(api_key)
+    gainers = movers_data.get("gainers", [])
+    losers = movers_data.get("losers", [])
+    all_movers: list[dict[str, Any]] = []
+    for m in gainers + losers:
+        sym = str(m.get("symbol", m.get("ticker", ""))).upper()
+        if not sym:
+            continue
+        try:
+            change_pct = float(m.get("changePercent", m.get("change_percent", 0)))
+        except (ValueError, TypeError):
+            change_pct = 0.0
+        try:
+            vol = float(m.get("volume", 0))
+        except (ValueError, TypeError):
+            vol = 0.0
+        try:
+            avg_vol = float(m.get("averageVolume", m.get("average_volume", 0)))
+        except (ValueError, TypeError):
+            avg_vol = 0.0
+        rel_vol = (vol / avg_vol) if avg_vol > 0 else 0.0
+
+        all_movers.append({
+            "symbol": sym,
+            "company_name": str(m.get("companyName", m.get("company_name", ""))),
+            "gap_pct": change_pct,
+            "change": m.get("change", 0),
+            "price": m.get("price", m.get("last", 0)),
+            "volume": vol,
+            "avg_volume": avg_vol,
+            "rel_vol": round(rel_vol, 2),
+            "sector": str(m.get("gicsSectorName", m.get("sector", ""))),
+            "market_cap": m.get("marketCap", m.get("market_cap", "")),
+        })
+
+    if not all_movers:
+        return []
+
+    # 2) Fetch today's earnings to identify earnings gaps
+    earnings = fetch_benzinga_earnings(api_key, date_from=today, date_to=today, page_size=500)
+    earnings_map: dict[str, dict[str, Any]] = {}
+    for e in earnings:
+        tk = str(e.get("ticker", "")).upper()
+        if tk:
+            earnings_map[tk] = e
+
+    # 3) Classify each mover
+    results: list[dict[str, Any]] = []
+    for mv in all_movers:
+        sym = mv["symbol"]
+        abs_gap = abs(mv["gap_pct"])
+        rvol = mv["rel_vol"]
+
+        # Check earnings beat/miss
+        earn = earnings_map.get(sym)
+        has_earnings = earn is not None
+        eps_surprise = 0.0
+        eps_surprise_pct = 0.0
+        if earn:
+            try:
+                eps_surprise = float(earn.get("eps_surprise", 0) or 0)
+            except (ValueError, TypeError):
+                eps_surprise = 0.0
+            try:
+                eps_surprise_pct = float(earn.get("eps_surprise_percent", 0) or 0)
+            except (ValueError, TypeError):
+                eps_surprise_pct = 0.0
+
+        earnings_beat = has_earnings and eps_surprise > 0
+
+        # Classify
+        if abs_gap >= monster_min_gap and earnings_beat and rvol >= monster_min_rvol:
+            gap_type = "MPEG"
+        elif abs_gap >= peg_min_gap and earnings_beat and rvol >= peg_min_rvol:
+            gap_type = "PEG"
+        elif abs_gap >= monster_min_gap and rvol >= monster_min_rvol:
+            gap_type = "MG"
+        elif abs_gap >= peg_min_gap:
+            gap_type = "Gap Up" if mv["gap_pct"] > 0 else "Gap Down"
+        else:
+            gap_type = "Gap Up" if mv["gap_pct"] > 0 else "Gap Down"
+
+        mv["gap_type"] = gap_type
+        mv["has_earnings"] = has_earnings
+        mv["eps_surprise"] = eps_surprise
+        mv["eps_surprise_pct"] = round(eps_surprise_pct, 2)
+        results.append(mv)
+
+    # Sort by absolute gap descending
+    results.sort(key=lambda x: abs(x["gap_pct"]), reverse=True)
+    return results

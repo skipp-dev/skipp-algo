@@ -79,6 +79,7 @@ from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
     TerminalConfig,
+    compute_power_gaps,
     fetch_benzinga_channel_list,
     fetch_benzinga_conference_calls,
     fetch_benzinga_delayed_quotes,
@@ -770,6 +771,12 @@ def _cached_bz_insider_transactions(
         api_key, date_from=date_from, date_to=date_to,
         action=action, page_size=page_size,
     )
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_power_gaps(api_key: str) -> list[dict[str, Any]]:
+    """Cache power gap classifications for 2 minutes."""
+    return compute_power_gaps(api_key)
 
 
 # ── Cached Benzinga News Wrappers ───────────────────────────────
@@ -2205,7 +2212,7 @@ else:
             st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga calendar data.")
         else:
             st.subheader("📊 Benzinga Intelligence")
-            st.caption("Full Benzinga data suite: Ratings, Earnings, Economics, Conference Calls, Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified News, Options Flow, Insider Trades, Channel Browser")
+            st.caption("Full Benzinga data suite: Ratings, Earnings, Economics, Conference Calls, Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified News, Options Flow, Insider Trades, Power Gaps, Channel Browser")
 
             bz_cal_col1, bz_cal_col2 = st.columns(2)
             with bz_cal_col1:
@@ -2227,13 +2234,14 @@ else:
              bz_sub_divs,
              bz_sub_splits, bz_sub_ipos, bz_sub_guidance, bz_sub_retail,
              bz_sub_top_news, bz_sub_quantified, bz_sub_options,
-             bz_sub_insider, bz_sub_channels) = st.tabs(
+             bz_sub_insider, bz_sub_power_gaps, bz_sub_channels) = st.tabs(
                 ["🎯 Ratings", "💰 Earnings", "🌐 Economics",
                  "📞 Conf Calls",
                  "💵 Dividends", "✂️ Splits", "🚀 IPOs",
                  "🔮 Guidance", "🛒 Retail", "📰 Top News",
                  "📈 Quantified", "🎰 Options Flow",
-                 "🔍 Insider Trades", "📡 Channel Browser"],
+                 "🔍 Insider Trades", "⚡ Power Gaps",
+                 "📡 Channel Browser"],
             )
 
             # ── Analyst Ratings ─────────────────────────────
@@ -2767,6 +2775,103 @@ else:
                                 )
                 else:
                     st.info("No insider transactions found for the selected filters and date range.")
+
+            # ── Power Gap Scanner ───────────────────────────
+            with bz_sub_power_gaps:
+                st.caption(
+                    "Power Gap Scanner — classifies today's movers by combining "
+                    "gap %, earnings surprise, and relative volume."
+                )
+                st.markdown(
+                    "| Label | Criteria |\n"
+                    "| --- | --- |\n"
+                    "| **MPEG** (Monster Power Earning Gap) | Gap ≥ 8%, earnings beat, rel-vol ≥ 2× |\n"
+                    "| **PEG** (Power Earning Gap) | Gap ≥ 4%, earnings beat, rel-vol ≥ 1.5× |\n"
+                    "| **MG** (Monster Gap) | Gap ≥ 8%, rel-vol ≥ 2× (no earnings req.) |\n"
+                    "| **Gap Up / Gap Down** | Significant mover — criteria not met |"
+                )
+                st.divider()
+
+                power_data = _cached_bz_power_gaps(bz_key)
+
+                if power_data:
+                    df_pg = pd.DataFrame(power_data)
+
+                    # Filter controls
+                    pg_col1, pg_col2 = st.columns(2)
+                    with pg_col1:
+                        pg_filter = st.multiselect(
+                            "Gap Type",
+                            options=["MPEG", "PEG", "MG", "Gap Up", "Gap Down"],
+                            default=["MPEG", "PEG", "MG"],
+                            key="bz_pg_filter",
+                        )
+                    with pg_col2:
+                        pg_min_gap = st.slider(
+                            "Min |Gap %|", 0.0, 30.0, 4.0, 0.5, key="bz_pg_min_gap",
+                        )
+
+                    # Apply filters
+                    if pg_filter:
+                        df_pg = df_pg[df_pg["gap_type"].isin(pg_filter)]
+                    df_pg = df_pg[df_pg["gap_pct"].abs() >= pg_min_gap]
+
+                    if not df_pg.empty:
+                        # Color-code gap_type
+                        display_cols = [c for c in [
+                            "gap_type", "symbol", "company_name", "gap_pct",
+                            "rel_vol", "has_earnings", "eps_surprise",
+                            "eps_surprise_pct", "price", "volume",
+                            "avg_volume", "sector",
+                        ] if c in df_pg.columns]
+
+                        st.caption(f"{len(df_pg)} classified gap(s)")
+                        st.dataframe(
+                            df_pg[display_cols] if display_cols else df_pg,
+                            width='stretch',
+                            height=min(600, 40 + 35 * len(df_pg)),
+                        )
+
+                        # Summary metrics
+                        m1, m2, m3, m4 = st.columns(4)
+                        mpeg_count = len(df_pg[df_pg["gap_type"] == "MPEG"])
+                        peg_count = len(df_pg[df_pg["gap_type"] == "PEG"])
+                        mg_count = len(df_pg[df_pg["gap_type"] == "MG"])
+                        m1.metric("⚡ MPEG", mpeg_count)
+                        m2.metric("💡 PEG", peg_count)
+                        m3.metric("🔥 Monster Gap", mg_count)
+                        m4.metric("Total Gaps", len(df_pg))
+
+                        # Highlight top gaps
+                        top_gaps = df_pg[df_pg["gap_type"].isin(["MPEG", "PEG", "MG"])].head(10)
+                        if not top_gaps.empty:
+                            st.divider()
+                            st.subheader("⚡ Notable Power Gaps")
+                            for _, row in top_gaps.iterrows():
+                                _sym = safe_markdown_text(str(row.get("symbol", "?")))
+                                _name = safe_markdown_text(str(row.get("company_name", "")))
+                                _type = row.get("gap_type", "?")
+                                _gap = row.get("gap_pct", 0)
+                                _rv = row.get("rel_vol", 0)
+                                _eps = row.get("eps_surprise", 0)
+                                _price = row.get("price", 0)
+                                _sector = row.get("sector", "")
+
+                                type_emoji = {"MPEG": "⚡", "PEG": "💡", "MG": "🔥"}.get(_type, "📊")
+                                direction = "🟢" if _gap > 0 else "🔴"
+                                eps_part = f" | EPS surprise: {_eps:+.2f}" if row.get("has_earnings") else ""
+                                st.markdown(
+                                    f"{type_emoji} **[{_type}]** {direction} **{_sym}** "
+                                    f"({_name}) — Gap: {_gap:+.1f}% | "
+                                    f"Rel Vol: {_rv:.1f}× | "
+                                    f"Price: ${_price}"
+                                    f"{eps_part}"
+                                    + (f" | {_sector}" if _sector else "")
+                                )
+                    else:
+                        st.info("No gaps match the current filters.")
+                else:
+                    st.info("No market mover data available. Power Gap Scanner requires active market hours.")
 
             # ── Channel News Browser ────────────────────────
             with bz_sub_channels:

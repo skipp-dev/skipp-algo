@@ -91,6 +91,7 @@ try:
         fetch_benzinga_channel_list as _fetch_bz_channels,
         fetch_benzinga_conference_calls as _fetch_bz_conf_calls,
         fetch_benzinga_news_by_channel as _fetch_bz_news_by_channel,
+        compute_power_gaps as _compute_power_gaps,
     )
 except ImportError:  # pragma: no cover
     _fetch_bz_dividends = None  # type: ignore[assignment]
@@ -103,6 +104,7 @@ except ImportError:  # pragma: no cover
     _fetch_bz_channels = None  # type: ignore[assignment]
     _fetch_bz_conf_calls = None  # type: ignore[assignment]
     _fetch_bz_news_by_channel = None  # type: ignore[assignment]
+    _compute_power_gaps = None  # type: ignore[assignment]
 
 try:
     from newsstack_fmp.ingest_benzinga_financial import (
@@ -234,6 +236,14 @@ def _cached_bz_insider_op(
         api_key, date_from=date_from, date_to=date_to,
         action=action, page_size=page_size,
     ) or []
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_power_gaps_op(api_key: str) -> list[dict[str, Any]]:
+    """Cache power gap classifications for 2 minutes."""
+    if _compute_power_gaps is None:
+        return []
+    return _compute_power_gaps(api_key) or []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1549,7 +1559,7 @@ def main() -> None:
             st.caption(
                 "Full Benzinga data suite: Dividends, Splits, IPOs, "
                 "Guidance, Retail, Conference Calls, Top News, Quantified News, "
-                "Options Flow, Insider Trades, Channel Browser"
+                "Options Flow, Insider Trades, Power Gaps, Channel Browser"
             )
 
             _today = datetime.now(UTC).date()
@@ -1558,12 +1568,14 @@ def main() -> None:
 
             (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
              bz_op_retail, bz_op_conf, bz_op_top, bz_op_quant,
-             bz_op_opts, bz_op_insider, bz_op_channels) = st.tabs([
+             bz_op_opts, bz_op_insider, bz_op_power_gaps,
+             bz_op_channels) = st.tabs([
                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
                 "🔮 Guidance", "🛒 Retail", "📞 Conf Calls",
                 "📰 Top News",
                 "📈 Quantified", "🎰 Options",
-                "🔍 Insider Trades", "📡 Channel Browser",
+                "🔍 Insider Trades", "⚡ Power Gaps",
+                "📡 Channel Browser",
             ])
 
             # ── Dividends ──
@@ -1840,6 +1852,98 @@ def main() -> None:
                                 )
                 else:
                     st.info("No insider transactions found.")
+
+            # ── Power Gap Scanner ──
+            with bz_op_power_gaps:
+                st.caption(
+                    "Power Gap Scanner — classifies today's movers by combining "
+                    "gap %, earnings surprise, and relative volume."
+                )
+                st.markdown(
+                    "| Label | Criteria |\n"
+                    "| --- | --- |\n"
+                    "| **MPEG** (Monster Power Earning Gap) | Gap ≥ 8%, earnings beat, rel-vol ≥ 2× |\n"
+                    "| **PEG** (Power Earning Gap) | Gap ≥ 4%, earnings beat, rel-vol ≥ 1.5× |\n"
+                    "| **MG** (Monster Gap) | Gap ≥ 8%, rel-vol ≥ 2× (no earnings req.) |\n"
+                    "| **Gap Up / Gap Down** | Significant mover — criteria not met |"
+                )
+                st.divider()
+
+                pg_data_op = _cached_bz_power_gaps_op(bz_key)
+
+                if pg_data_op:
+                    df_pgop = pd.DataFrame(pg_data_op)
+
+                    # Filter controls
+                    pgc1, pgc2 = st.columns(2)
+                    with pgc1:
+                        pg_filt_op = st.multiselect(
+                            "Gap Type",
+                            options=["MPEG", "PEG", "MG", "Gap Up", "Gap Down"],
+                            default=["MPEG", "PEG", "MG"],
+                            key="bz_op_pg_filter",
+                        )
+                    with pgc2:
+                        pg_min_op = st.slider(
+                            "Min |Gap %|", 0.0, 30.0, 4.0, 0.5,
+                            key="bz_op_pg_min",
+                        )
+
+                    if pg_filt_op:
+                        df_pgop = df_pgop[df_pgop["gap_type"].isin(pg_filt_op)]
+                    df_pgop = df_pgop[df_pgop["gap_pct"].abs() >= pg_min_op]
+
+                    if not df_pgop.empty:
+                        _cols = [c for c in [
+                            "gap_type", "symbol", "company_name", "gap_pct",
+                            "rel_vol", "has_earnings", "eps_surprise",
+                            "eps_surprise_pct", "price", "volume",
+                            "avg_volume", "sector",
+                        ] if c in df_pgop.columns]
+
+                        st.caption(f"{len(df_pgop)} classified gap(s)")
+                        st.dataframe(
+                            df_pgop[_cols] if _cols else df_pgop,
+                            width="stretch",
+                            height=min(400, 40 + 35 * len(df_pgop)),
+                        )
+
+                        m1, m2, m3 = st.columns(3)
+                        m1.metric("⚡ MPEG", len(df_pgop[df_pgop["gap_type"] == "MPEG"]))
+                        m2.metric("💡 PEG", len(df_pgop[df_pgop["gap_type"] == "PEG"]))
+                        m3.metric("🔥 Monster Gap", len(df_pgop[df_pgop["gap_type"] == "MG"]))
+
+                        top_pg = df_pgop[df_pgop["gap_type"].isin(["MPEG", "PEG", "MG"])].head(8)
+                        if not top_pg.empty:
+                            st.divider()
+                            st.markdown("**⚡ Notable Power Gaps**")
+                            for _, row in top_pg.iterrows():
+                                _sym = _safe_md(str(row.get("symbol", "?")))
+                                _nm = _safe_md(str(row.get("company_name", "")))
+                                _tp = row.get("gap_type", "?")
+                                _gp = row.get("gap_pct", 0)
+                                _rv = row.get("rel_vol", 0)
+                                _ep = row.get("eps_surprise", 0)
+                                _pr = row.get("price", 0)
+                                _sec = row.get("sector", "")
+
+                                te = {
+                                    "MPEG": "⚡", "PEG": "💡", "MG": "🔥",
+                                }.get(_tp, "📊")
+                                d = "🟢" if _gp > 0 else "🔴"
+                                ep_part = f" | EPS surprise: {_ep:+.2f}" if row.get("has_earnings") else ""
+                                st.markdown(
+                                    f"{te} **[{_tp}]** {d} **{_sym}** "
+                                    f"({_nm}) — Gap: {_gp:+.1f}% | "
+                                    f"Rel Vol: {_rv:.1f}× | "
+                                    f"Price: ${_pr}"
+                                    f"{ep_part}"
+                                    + (f" | {_sec}" if _sec else "")
+                                )
+                    else:
+                        st.info("No gaps match the current filters.")
+                else:
+                    st.info("No market mover data available. Power Gap Scanner requires active market hours.")
 
             # ── Channel News Browser ──
             with bz_op_channels:
