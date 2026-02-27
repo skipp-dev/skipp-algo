@@ -59,6 +59,78 @@ MIN_AUTO_REFRESH_SECONDS = 20
 RATE_LIMIT_COOLDOWN_SECONDS = 120
 MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
 
+# ── Market session awareness (optional — may be unavailable on Streamlit Cloud)
+try:
+    from terminal_spike_scanner import market_session as _market_session
+except ImportError:  # pragma: no cover
+    _market_session = None
+
+try:
+    from terminal_poller import fetch_benzinga_delayed_quotes as _fetch_bz_quotes
+except ImportError:  # pragma: no cover
+    _fetch_bz_quotes = None
+
+_SESSION_ICONS = {
+    "pre-market": "🌅 Pre-Market",
+    "regular": "🟢 Regular Session",
+    "after-hours": "🌙 After-Hours",
+    "closed": "⚫ Market Closed",
+}
+
+
+def _get_bz_quotes_for_symbols(
+    symbols: list[str],
+    *,
+    max_symbols: int = 50,
+) -> dict[str, dict[str, Any]]:
+    """Fetch Benzinga delayed quotes keyed by uppercase symbol.
+
+    Returns empty dict when the API key is not set or the import
+    is unavailable.
+    """
+    if _fetch_bz_quotes is None or not symbols:
+        return {}
+    bz_key = os.environ.get("BENZINGA_API_KEY", "")
+    if not bz_key:
+        return {}
+    try:
+        quotes = _fetch_bz_quotes(bz_key, symbols[:max_symbols])
+        return {
+            (q.get("symbol") or "").upper().strip(): q
+            for q in (quotes or [])
+            if q.get("symbol")
+        }
+    except Exception as exc:
+        logger.debug("Benzinga delayed quotes unavailable: %s", exc)
+        return {}
+
+
+def _overlay_bz_prices(
+    rows: list[dict[str, Any]],
+    bz_map: dict[str, dict[str, Any]],
+    sym_key: str = "symbol",
+) -> list[dict[str, Any]]:
+    """Overlay Benzinga delayed quote prices onto candidate rows.
+
+    Adds ``bz_price`` and ``bz_chg_pct`` columns when the symbol has
+    a Benzinga quote.  Returns *rows* for chaining.
+    """
+    if not bz_map:
+        return rows
+    for row in rows:
+        sym = str(row.get(sym_key, "")).upper().strip()
+        bq = bz_map.get(sym)
+        if bq:
+            try:
+                row["bz_price"] = round(float(bq.get("last", 0)), 2)
+            except (ValueError, TypeError):
+                row["bz_price"] = None
+            try:
+                row["bz_chg_pct"] = round(float(bq.get("changePercent", 0)), 2)
+            except (ValueError, TypeError):
+                row["bz_chg_pct"] = None
+    return rows
+
 
 def _parse_symbols(raw: str) -> list[str]:
     return [s.strip().upper() for s in raw.split(",") if s.strip()]
@@ -303,6 +375,8 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "upgrade_downgrade_emoji",
         "score",
         "price",
+        "bz_price",
+        "bz_chg_pct",
         "gap_bucket",
         "gap_grade",
         "gap_pct",
@@ -614,6 +688,23 @@ def main() -> None:
                 ranked_gap_go_earn.append(entry)
                 earnings_symbols_set.add(sym)
 
+        # ── Market session indicator (applies to all FMP-sourced data) ──
+        _session = _market_session() if _market_session else "regular"
+        _session_label = _SESSION_ICONS.get(_session, _session)
+        if _session in ("pre-market", "after-hours"):
+            st.info(
+                f"**{_session_label}** — FMP price/sector data shows previous close. "
+                "Benzinga delayed quotes are overlaid where available for fresher prices."
+            )
+        elif _session == "closed":
+            st.caption(f"**{_session_label}** — Showing last session data.")
+
+        # Fetch Benzinga delayed quotes for all candidate symbols (fallback)
+        _all_syms = sorted({str(r.get("symbol", "")).upper() for r in ranked_candidates if r.get("symbol")})
+        _bz_map: dict[str, dict[str, Any]] = {}
+        if _session in ("pre-market", "after-hours"):
+            _bz_map = _get_bz_quotes_for_symbols(_all_syms)
+
         # ===================================================================
         # 0. REALTIME SIGNALS (A0/A1 — top of page)
         # ===================================================================
@@ -715,6 +806,10 @@ def main() -> None:
                 cs = r.get("consolidation_score", 0)
                 parts.append(f"📦 Cons({cs:.0%})")
             return " · ".join(parts)
+
+        # Overlay BZ prices on v2 candidates during extended hours
+        if _bz_map and ranked_v2:
+            _overlay_bz_prices(ranked_v2, _bz_map)
 
         if ranked_v2:
             promoted = [r for r in ranked_v2 if r.get("rt_promoted")]
@@ -884,11 +979,17 @@ def main() -> None:
         st.subheader(f"LONG GAP-GO  ({len(ranked_gap_go)} Trend-Kandidaten)")
         if earn_warn:
             st.caption(f"⚠️ Earnings-Warnungen in GAP-GO: {earn_warn}")
+        # Overlay BZ prices on GAP-GO during extended hours
+        if _bz_map and ranked_gap_go:
+            _overlay_bz_prices(ranked_gap_go, _bz_map)
         if ranked_gap_go:
             st.dataframe(ranked_gap_go, width="stretch", height=320)
         else:
             st.info("Keine GAP-GO Kandidaten (strengere Kriterien nicht erfüllt).")
 
+        # Overlay BZ prices on GAP-WATCHLIST during extended hours
+        if _bz_map and ranked_gap_watch:
+            _overlay_bz_prices(ranked_gap_watch, _bz_map)
         with st.expander(f"GAP-WATCHLIST  ({len(ranked_gap_watch)} — prüfen im Chart)"):
             if ranked_gap_watch:
                 st.dataframe(ranked_gap_watch, width="stretch", height=320)
@@ -941,6 +1042,12 @@ def main() -> None:
             lagging = [s for s in sector_performance if s.get("changesPercentage", 0.0) < -0.5]
             neutral = [s for s in sector_performance if -0.5 <= s.get("changesPercentage", 0.0) <= 0.5]
             st.subheader(f"Sector Performance  ({len(sector_performance)} Sektoren)")
+            if _session in ("pre-market", "after-hours"):
+                st.caption(
+                    f"**{_session_label}** — FMP Sektordaten zeigen vorherige Sitzung."
+                )
+            elif _session == "closed":
+                st.caption("**⚫ Markt geschlossen** — Letzte Sitzungsdaten.")
             scols = st.columns(3)
             with scols[0]:
                 st.markdown("**🟢 Leading**")
@@ -1079,7 +1186,15 @@ def main() -> None:
         # ===================================================================
         all_quotes = list(result.get("enriched_quotes") or result.get("ranked_candidates") or [])
         gap_scanner_results = build_gap_scanner(all_quotes)
+        # Overlay BZ prices on gap scanner results during extended hours
+        if _bz_map and gap_scanner_results:
+            _overlay_bz_prices(gap_scanner_results, _bz_map)
         st.subheader(f"Gap Scanner ({len(gap_scanner_results)} Treffer)")
+        if _session in ("pre-market", "after-hours") and _bz_map:
+            st.caption(
+                f"**{_session_label}** — `bz_price` / `bz_chg_pct` Spalten zeigen "
+                "aktuelle Benzinga Delayed Quotes (frischer als FMP-Daten)."
+            )
         if gap_scanner_results:
             st.dataframe(gap_scanner_results, width="stretch", height=320)
         else:
