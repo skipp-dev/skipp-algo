@@ -78,6 +78,7 @@ from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes
 from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
+    DEFENSE_TICKERS,
     TerminalConfig,
     compute_power_gaps,
     fetch_benzinga_channel_list,
@@ -96,7 +97,9 @@ from terminal_poller import (
     fetch_benzinga_retail,
     fetch_benzinga_splits,
     fetch_benzinga_top_news_items,
+    fetch_defense_watchlist,
     fetch_economic_calendar,
+    fetch_industry_performance,
     fetch_sector_performance,
     poll_and_classify_multi,
 )
@@ -659,6 +662,18 @@ _RECENCY_COLORS = RECENCY_COLORS
 def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
     """Cache sector performance for 60 seconds."""
     return fetch_sector_performance(api_key)
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
+    """Cache Aerospace & Defense watchlist quotes for 2 minutes."""
+    return fetch_defense_watchlist(api_key)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_industry_performance(api_key: str, industry: str = "Aerospace & Defense") -> list[dict[str, Any]]:
+    """Cache industry screen results for 5 minutes."""
+    return fetch_industry_performance(api_key, industry=industry)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1317,10 +1332,10 @@ else:
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
 
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_defense, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
          "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
-         "💹 Bz Movers", "⚡ Alerts", "📊 Data Table"],
+         "💹 Bz Movers", "🛡️ Defense & Aerospace", "⚡ Alerts", "📊 Data Table"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -3082,6 +3097,149 @@ else:
                         st.dataframe(df_quotes, width='stretch', height=min(600, 40 + 35 * len(df_quotes)))
                 else:
                     st.info("No quote data returned. Check that symbols are valid.")
+
+    # ── TAB: Defense & Aerospace ────────────────────────────
+    with tab_defense:
+        st.subheader("🛡️ Defense & Aerospace Industry Dashboard")
+
+        fmp_key = st.session_state.cfg.fmp_api_key
+        if not fmp_key:
+            st.warning("FMP API key required for Defense & Aerospace data. Set FMP_API_KEY in environment.")
+        else:
+            def_tab_quotes, def_tab_industry = st.tabs(["📊 A&D Watchlist", "🏭 Industry Screen"])
+
+            # ── Sub-tab: A&D Watchlist ──────────────────────
+            with def_tab_quotes:
+                st.caption(
+                    "Real-time quotes for major Aerospace & Defense names. "
+                    "Covers defense primes, mid-caps, and key suppliers."
+                )
+
+                # Allow custom ticker override
+                custom_tickers = st.text_input(
+                    "Tickers (comma-separated)",
+                    value=DEFENSE_TICKERS,
+                    key="defense_tickers_input",
+                ).strip().upper()
+
+                def_data = _cached_defense_watchlist(fmp_key) if not custom_tickers or custom_tickers == DEFENSE_TICKERS else fetch_defense_watchlist(fmp_key, tickers=custom_tickers)
+
+                if def_data:
+                    df_def = pd.DataFrame(def_data)
+
+                    # Summary metrics
+                    m1, m2, m3, m4 = st.columns(4)
+                    m1.metric("Stocks", len(df_def))
+
+                    if "changesPercentage" in df_def.columns:
+                        avg_chg = df_def["changesPercentage"].astype(float).mean()
+                        _cg_mask = df_def["changesPercentage"].astype(float)
+                        m2.metric("Avg Change", f"{avg_chg:+.2f}%")
+                        m3.metric("🟢 Gainers", int((_cg_mask > 0).sum()))
+                        m4.metric("🔴 Losers", int((_cg_mask < 0).sum()))
+
+                    # Data table
+                    display_cols = [c for c in [
+                        "symbol", "name", "price", "change",
+                        "changesPercentage", "volume", "avgVolume",
+                        "marketCap", "pe", "yearHigh", "yearLow",
+                    ] if c in df_def.columns]
+
+                    st.dataframe(
+                        df_def[display_cols] if display_cols else df_def,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_def)),
+                    )
+
+                    # Top movers within A&D
+                    if "changesPercentage" in df_def.columns:
+                        df_def["_chg"] = pd.to_numeric(df_def["changesPercentage"], errors="coerce")
+                        top_up = df_def.nlargest(5, "_chg")
+                        top_dn = df_def.nsmallest(5, "_chg")
+
+                        col_up, col_dn = st.columns(2)
+                        with col_up:
+                            st.markdown("**🟢 Top A&D Gainers**")
+                            for _, r in top_up.iterrows():
+                                sym = safe_markdown_text(str(r.get("symbol", "?")))
+                                chg = r.get("_chg", 0)
+                                price = r.get("price", 0)
+                                st.markdown(f"**{sym}** — ${price} ({chg:+.2f}%)")
+                        with col_dn:
+                            st.markdown("**🔴 Top A&D Losers**")
+                            for _, r in top_dn.iterrows():
+                                sym = safe_markdown_text(str(r.get("symbol", "?")))
+                                chg = r.get("_chg", 0)
+                                price = r.get("price", 0)
+                                st.markdown(f"**{sym}** — ${price} ({chg:+.2f}%)")
+                else:
+                    st.info("No Defense & Aerospace data available.")
+
+            # ── Sub-tab: Industry Screen ────────────────────
+            with def_tab_industry:
+                st.caption(
+                    "Full industry screen — all US-listed Aerospace & Defense stocks "
+                    "from FMP, sorted by market cap."
+                )
+
+                ind_col1, ind_col2 = st.columns(2)
+                with ind_col1:
+                    industry_name = st.text_input(
+                        "Industry",
+                        value="Aerospace & Defense",
+                        key="defense_industry_input",
+                    ).strip()
+                with ind_col2:
+                    ind_limit = st.selectbox("Max results", [25, 50, 100, 200], index=1, key="defense_ind_limit")
+
+                ind_data = _cached_industry_performance(fmp_key, industry=industry_name)
+                if ind_limit and ind_data:
+                    ind_data = ind_data[:ind_limit]
+
+                if ind_data:
+                    df_ind = pd.DataFrame(ind_data)
+
+                    display_cols = [c for c in [
+                        "symbol", "companyName", "marketCap", "price",
+                        "volume", "beta", "lastAnnualDividend",
+                        "sector", "industry", "exchange", "country",
+                    ] if c in df_ind.columns]
+
+                    st.caption(f"{len(df_ind)} {industry_name} stock(s)")
+                    st.dataframe(
+                        df_ind[display_cols] if display_cols else df_ind,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_ind)),
+                    )
+
+                    # Market cap distribution
+                    if "marketCap" in df_ind.columns:
+                        df_ind["_mcap"] = pd.to_numeric(df_ind["marketCap"], errors="coerce") / 1e9
+                        total_mcap = df_ind["_mcap"].sum()
+                        m1, m2, m3 = st.columns(3)
+                        m1.metric("Total Market Cap", f"${total_mcap:,.1f}B")
+                        m2.metric("Largest", safe_markdown_text(str(df_ind.iloc[0].get("symbol", "?"))))
+                        m3.metric("Companies", len(df_ind))
+
+                        # Top 10 by market cap
+                        st.divider()
+                        st.markdown(f"**Top 10 {industry_name} by Market Cap**")
+                        for _, r in df_ind.head(10).iterrows():
+                            sym = safe_markdown_text(str(r.get("symbol", "?")))
+                            name = safe_markdown_text(str(r.get("companyName", "")))
+                            mcap = r.get("_mcap", 0)
+                            price = r.get("price", 0)
+                            beta = r.get("beta", "")
+                            div_str = ""
+                            if r.get("lastAnnualDividend"):
+                                div_str = f" | Div: ${r['lastAnnualDividend']:.2f}"
+                            beta_str = f" | β: {beta:.2f}" if beta else ""
+                            st.markdown(
+                                f"**{sym}** ({name}) — ${price} | "
+                                f"Cap: ${mcap:,.1f}B{beta_str}{div_str}"
+                            )
+                else:
+                    st.info(f"No stocks found for industry: {industry_name}")
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts:

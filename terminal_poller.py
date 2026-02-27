@@ -599,6 +599,102 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
         return []
 
 
+# ── Aerospace & Defense Industry Watchlist ──────────────────────
+
+# Default A&D tickers — major US defense primes + notable mid-caps
+DEFENSE_TICKERS = (
+    "LMT,RTX,NOC,GD,BA,LHX,HII,LDOS,BAH,KTOS,PLTR,AVAV,"
+    "TXT,AXON,MRCY,SWBI,RGR,AJRD,BWXT,HEI"
+)
+
+
+def fetch_defense_watchlist(
+    fmp_api_key: str,
+    *,
+    tickers: str = DEFENSE_TICKERS,
+) -> list[dict[str, Any]]:
+    """Fetch real-time quotes for Aerospace & Defense tickers from FMP.
+
+    Parameters
+    ----------
+    fmp_api_key : str
+        FMP API key.
+    tickers : str
+        Comma-separated ticker symbols (default: major A&D names).
+
+    Returns
+    -------
+    list[dict]
+        Quote records with keys like ``symbol``, ``name``, ``price``,
+        ``change``, ``changesPercentage``, ``volume``, ``avgVolume``,
+        ``marketCap``, ``pe``, ``yearHigh``, ``yearLow``.
+    """
+    import httpx
+
+    url = "https://financialmodelingprep.com/stable/quote"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(url, params={"apikey": fmp_api_key, "symbol": tickers})
+            r.raise_for_status()
+            data = r.json()
+            return data if isinstance(data, list) else []
+    except Exception as exc:
+        _msg = _sanitize_exc(exc)
+        logger.warning("FMP defense watchlist fetch failed: %s", _msg)
+        return []
+
+
+def fetch_industry_performance(
+    fmp_api_key: str,
+    *,
+    industry: str = "Aerospace & Defense",
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Fetch stocks in a specific industry via FMP stock screener.
+
+    Returns quote-like records for all stocks in the given industry,
+    sorted by market cap descending.
+
+    Parameters
+    ----------
+    fmp_api_key : str
+        FMP API key.
+    industry : str
+        GICS industry name (default: "Aerospace & Defense").
+    limit : int
+        Max number of results.
+
+    Returns
+    -------
+    list[dict]
+        Screener results with ``symbol``, ``companyName``, ``marketCap``,
+        ``price``, ``volume``, ``sector``, ``industry``, ``beta``,
+        ``lastAnnualDividend``, etc.
+    """
+    import httpx
+
+    url = "https://financialmodelingprep.com/api/v3/stock-screener"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            r = client.get(url, params={
+                "apikey": fmp_api_key,
+                "industry": industry,
+                "limit": str(limit),
+                "exchange": "NYSE,NASDAQ,AMEX",
+            })
+            r.raise_for_status()
+            data = r.json()
+            if not isinstance(data, list):
+                return []
+            # Sort by market cap descending
+            data.sort(key=lambda x: float(x.get("marketCap", 0) or 0), reverse=True)
+            return data
+    except Exception as exc:
+        _msg = _sanitize_exc(exc)
+        logger.warning("FMP industry performance fetch failed: %s", _msg)
+        return []
+
+
 # ── Benzinga Calendar Wrappers ──────────────────────────────────
 # Thin wrappers that mirror the fetch_economic_calendar / fetch_sector_performance
 # pattern: accept an API key, return list[dict].  The BenzingaCalendarAdapter is

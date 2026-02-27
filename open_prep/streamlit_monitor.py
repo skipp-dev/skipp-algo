@@ -92,6 +92,9 @@ try:
         fetch_benzinga_conference_calls as _fetch_bz_conf_calls,
         fetch_benzinga_news_by_channel as _fetch_bz_news_by_channel,
         compute_power_gaps as _compute_power_gaps,
+        DEFENSE_TICKERS as _DEFENSE_TICKERS,
+        fetch_defense_watchlist as _fetch_defense_wl,
+        fetch_industry_performance as _fetch_ind_perf,
     )
 except ImportError:  # pragma: no cover
     _fetch_bz_dividends = None  # type: ignore[assignment]
@@ -105,6 +108,9 @@ except ImportError:  # pragma: no cover
     _fetch_bz_conf_calls = None  # type: ignore[assignment]
     _fetch_bz_news_by_channel = None  # type: ignore[assignment]
     _compute_power_gaps = None  # type: ignore[assignment]
+    _DEFENSE_TICKERS = ""  # type: ignore[assignment]
+    _fetch_defense_wl = None  # type: ignore[assignment]
+    _fetch_ind_perf = None  # type: ignore[assignment]
 
 try:
     from newsstack_fmp.ingest_benzinga_financial import (
@@ -244,6 +250,22 @@ def _cached_bz_power_gaps_op(api_key: str) -> list[dict[str, Any]]:
     if _compute_power_gaps is None:
         return []
     return _compute_power_gaps(api_key) or []
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
+    """Cache Defense & Aerospace watchlist for 2 minutes."""
+    if _fetch_defense_wl is None:
+        return []
+    return _fetch_defense_wl(api_key) or []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_ind_perf_op(api_key: str, industry: str = "Aerospace & Defense") -> list[dict[str, Any]]:
+    """Cache industry screen results for 5 minutes."""
+    if _fetch_ind_perf is None:
+        return []
+    return _fetch_ind_perf(api_key, industry=industry) or []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1997,6 +2019,50 @@ def main() -> None:
                         st.info("Select one or more channels above to browse news.")
                 else:
                     st.info("Could not load Benzinga channel list.")
+
+        # ===================================================================
+        # 11c. Defense & Aerospace Watchlist
+        # ===================================================================
+        fmp_key_op = os.environ.get("FMP_API_KEY", "")
+        if fmp_key_op:
+            with st.expander("🛡️ Defense & Aerospace", expanded=False):
+                def_wl_op = _cached_defense_wl_op(fmp_key_op)
+                if def_wl_op:
+                    df_dop = pd.DataFrame(def_wl_op)
+
+                    # Summary
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("A&D Stocks", len(df_dop))
+                    if "changesPercentage" in df_dop.columns:
+                        avg_c = pd.to_numeric(df_dop["changesPercentage"], errors="coerce").mean()
+                        gn = len(df_dop[pd.to_numeric(df_dop["changesPercentage"], errors="coerce") > 0])
+                        m2.metric("Avg Change", f"{avg_c:+.2f}%")
+                        m3.metric("Gainers / Losers", f"{gn} / {len(df_dop) - gn}")
+
+                    _cols = [c for c in [
+                        "symbol", "name", "price", "change",
+                        "changesPercentage", "volume", "marketCap", "pe",
+                    ] if c in df_dop.columns]
+                    st.dataframe(
+                        df_dop[_cols] if _cols else df_dop,
+                        width="stretch",
+                        height=min(400, 40 + 35 * len(df_dop)),
+                    )
+
+                    # Top movers
+                    if "changesPercentage" in df_dop.columns:
+                        df_dop["_chg"] = pd.to_numeric(df_dop["changesPercentage"], errors="coerce")
+                        cu, cd = st.columns(2)
+                        with cu:
+                            st.markdown("**🟢 Top A&D Gainers**")
+                            for _, r in df_dop.nlargest(5, "_chg").iterrows():
+                                st.markdown(f"**{_safe_md(str(r.get('symbol', '?')))}** — ${r.get('price', 0)} ({r.get('_chg', 0):+.2f}%)")
+                        with cd:
+                            st.markdown("**🔴 Top A&D Losers**")
+                            for _, r in df_dop.nsmallest(5, "_chg").iterrows():
+                                st.markdown(f"**{_safe_md(str(r.get('symbol', '?')))}** — ${r.get('price', 0)} ({r.get('_chg', 0):+.2f}%)")
+                else:
+                    st.info("No Defense & Aerospace data available.")
 
         # ===================================================================
         # 12. Tomorrow Outlook
