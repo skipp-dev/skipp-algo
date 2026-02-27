@@ -605,9 +605,9 @@ _RECENCY_COLORS = RECENCY_COLORS
 
 # ── Cached FMP wrappers (avoid re-fetching every Streamlit rerun) ──
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
-    """Cache sector performance for 5 minutes."""
+    """Cache sector performance for 60 seconds."""
     return fetch_sector_performance(api_key)
 
 

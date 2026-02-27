@@ -1799,15 +1799,29 @@ class RealtimeEngine:
             logger.warning("Failed to save signals: %s", exc)
 
     @staticmethod
-    def load_signals_from_disk() -> dict[str, Any]:
-        """Load latest signals from JSON (for Streamlit/VisiData)."""
+    def load_signals_from_disk(max_age_s: float = 300.0) -> dict[str, Any]:
+        """Load latest signals from JSON (for Streamlit/VisiData).
+
+        Parameters
+        ----------
+        max_age_s : float
+            Maximum acceptable file age in seconds (default 5 min).
+            If the file is older, a ``stale`` flag is set in the
+            returned dict so callers can surface a warning.
+        """
+        _empty: dict[str, Any] = {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0}
         if not SIGNALS_PATH.exists():
-            return {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0}
+            return _empty
         try:
+            file_age_s = time.time() - SIGNALS_PATH.stat().st_mtime
             with open(SIGNALS_PATH, "r", encoding="utf-8") as fh:
-                return json.load(fh)  # type: ignore[no-any-return]
+                data: dict[str, Any] = json.load(fh)
+            if file_age_s > max_age_s:
+                data["stale"] = True
+                data["stale_age_s"] = round(file_age_s)
+            return data
         except Exception:
-            return {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0}
+            return _empty
 
 
 # ---------------------------------------------------------------------------

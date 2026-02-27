@@ -92,6 +92,14 @@ if [[ ! -f "$DATA_FILE" ]]; then
   exit 1
 fi
 
+# Staleness check
+_sig_age_s=$(( $(date +%s) - $(stat -f "%m" "$DATA_FILE" 2>/dev/null || stat -c "%Y" "$DATA_FILE" 2>/dev/null || echo "$(date +%s)") ))
+_sig_age_m=$(( _sig_age_s / 60 ))
+if [[ "$_sig_age_m" -gt 5 ]]; then
+  echo "⚠️  WARNUNG: Signaldatei ist ${_sig_age_m} Minuten alt — Engine läuft möglicherweise nicht."
+  echo ""
+fi
+
 echo "📈 Öffne Realtime-Signale in VisiData:"
 echo "   $DATA_FILE"
 echo ""

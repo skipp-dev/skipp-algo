@@ -147,6 +147,11 @@ _run_extraction() {
   [[ -f "$SIGNALS_FILE" ]] || SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
 
   if [[ -f "$VD_SIGNALS_FILE" ]]; then
+    # Check if VD signals file is stale (>5 min old)
+    _vd_age_s=$(( $(date +%s) - $(stat -f "%m" "$VD_SIGNALS_FILE" 2>/dev/null || stat -c "%Y" "$VD_SIGNALS_FILE" 2>/dev/null || echo "$(date +%s)") ))
+    if [[ "$_vd_age_s" -gt 300 ]]; then
+      echo "⚠️  RT-Signale veraltet ($(( _vd_age_s / 60 ))m) — Engine läuft möglicherweise nicht." >&2
+    fi
     jq -s '.' "$VD_SIGNALS_FILE" > "$EXTRACT_DIR/realtime_signals_live.json" 2>/dev/null || echo "[]" > "$EXTRACT_DIR/realtime_signals_live.json"
 
     jq -s '[.[] | {
@@ -231,6 +236,17 @@ _run_extraction
 # ── Extract timestamp ──
 RUN_TS=$(jq -r '.run_datetime_utc // "unknown"' "$JSON_FILE")
 echo "📊 Datenstand: $RUN_TS"
+
+# ── Staleness check: warn if data is old ──
+if [[ -f "$JSON_FILE" ]]; then
+  _file_age_s=$(( $(date +%s) - $(stat -f "%m" "$JSON_FILE" 2>/dev/null || stat -c "%Y" "$JSON_FILE" 2>/dev/null || echo "$(date +%s)") ))
+  _file_age_m=$(( _file_age_s / 60 ))
+  if [[ "$_file_age_m" -gt 30 ]]; then
+    echo "⚠️  WARNUNG: Daten sind ${_file_age_m} Minuten alt! Pipeline ggf. erneut starten."
+  elif [[ "$_file_age_m" -gt 5 ]]; then
+    echo "ℹ️  Daten-Alter: ${_file_age_m} Minuten"
+  fi
+fi
 
 # Summary one-liner
 MACRO_BIAS=$(jq -r '.macro_bias // 0' "$JSON_FILE")

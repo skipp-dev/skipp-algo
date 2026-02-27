@@ -776,10 +776,14 @@ def main() -> None:
             a1_signals = [s for s in rt_signals if s.get("level") == "A1"]
             rt_updated = rt_data.get("updated_at", "")
             rt_watched = rt_data.get("watched_symbols", [])
+            rt_is_stale = bool(rt_data.get("stale"))
 
             if rt_signals:
                 st.subheader(f"🔴 Realtime Signals  ({len(a0_signals)} A0 · {len(a1_signals)} A1)")
-                if rt_updated:
+                if rt_is_stale:
+                    _stale_age = rt_data.get('stale_age_s', 0)
+                    st.warning(f"⚠️ RT-Engine Daten sind veraltet ({_stale_age // 60:.0f}m) — Engine läuft möglicherweise nicht.")
+                elif rt_updated:
                     st.caption(f"Letzte Aktualisierung: {rt_updated}")
 
                 if a0_signals:
