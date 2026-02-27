@@ -58,7 +58,7 @@ BERLIN_TZ = ZoneInfo("Europe/Berlin")
 MIN_AUTO_REFRESH_SECONDS = 20
 RATE_LIMIT_COOLDOWN_SECONDS = 120
 MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
-_STALE_CACHE_MAX_AGE_MIN = 30  # auto-recovery if cache older than this during market hours
+_STALE_CACHE_MAX_AGE_MIN = 5  # auto-recovery if cache older than this during market hours
 _STALE_RECOVERY_COOLDOWN_S = 300  # 5 min between auto-recovery attempts
 
 # ── Market session awareness (optional — may be unavailable on Streamlit Cloud)
