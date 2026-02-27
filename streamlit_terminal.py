@@ -1470,10 +1470,48 @@ else:
             if not _rank_all:
                 st.info("No ranking data available yet.")
             else:
-                # Sort by absolute change%
+                # ── Merge news scores from feed ─────────────────────
+                _news_by_ticker: dict[str, dict[str, Any]] = {}
+                for _ni in feed:
+                    _nticker = (_ni.get("ticker") or "").upper().strip()
+                    if not _nticker or _nticker == "MARKET":
+                        continue
+                    _nscore = _safe_float_mov(_ni.get("composite_score"))
+                    _existing_news = _news_by_ticker.get(_nticker)
+                    if not _existing_news or _nscore > _safe_float_mov(_existing_news.get("news_score")):
+                        _news_by_ticker[_nticker] = {
+                            "news_score": _nscore,
+                            "headline": (_ni.get("headline") or "")[:120],
+                            "url": _ni.get("url") or "",
+                            "sentiment": _ni.get("sentiment_label") or "",
+                        }
+
+                # Enrich _rank_all with news data
+                _news_match_count = 0
+                for sym, row in _rank_all.items():
+                    news = _news_by_ticker.get(sym)
+                    if news:
+                        row["news_score"] = news["news_score"]
+                        row["headline"] = news["headline"]
+                        row["url"] = news["url"]
+                        row["sentiment"] = news["sentiment"]
+                        _news_match_count += 1
+                    else:
+                        row["news_score"] = 0.0
+                        row["headline"] = ""
+                        row["url"] = ""
+                        row["sentiment"] = ""
+
+                # Composite ranking: 70% price move + 30% news score
+                # news_score is typically 0-1, scale to comparable range
+                def _composite_score(r: dict[str, Any]) -> float:
+                    _chg = float(r.get("chg_pct") or 0)
+                    _ns = float(r.get("news_score") or 0)
+                    return abs(_chg) * 0.7 + _ns * 100.0 * 0.3
+
                 _ranked = sorted(
                     _rank_all.values(),
-                    key=lambda x: abs(x.get("chg_pct", 0)),
+                    key=_composite_score,
                     reverse=True,
                 )
 
@@ -1481,6 +1519,11 @@ else:
                 _rank_rows = []
                 for i, m in enumerate(_ranked[:top_n], 1):
                     _dir = "🟢" if m.get("chg_pct", 0) > 0 else "🔴" if m.get("chg_pct", 0) < 0 else "⚪"
+                    _sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(
+                        (m.get("sentiment") or "").lower(), ""
+                    )
+                    _hl_url = m.get("url", "")
+                    _hl_text = m.get("headline", "")
                     _rank_rows.append({
                         "#": i,
                         "": _dir,
@@ -1489,25 +1532,43 @@ else:
                         "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
                         "Change": f"{m['change']:+.2f}",
                         "Change %": f"{m['chg_pct']:+.2f}%",
+                        "Score": round(_composite_score(m), 2),
+                        "News": f"{m.get('news_score', 0):.3f}" if m.get("news_score") else "",
+                        "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
+                        "Headline": _hl_url if _hl_url else _hl_text,
                         "Volume": f"{m['volume']:,}" if m.get("volume") else "",
-                        "Mkt Cap": m.get("mkt_cap", ""),
-                        "Sector": m.get("sector", ""),
                     })
 
                 df_rank = pd.DataFrame(_rank_rows)
                 df_rank = df_rank.set_index("#")
 
-                st.caption(f"Top {top_n} of {len(_ranked)} symbols ranked by absolute price change %")
+                st.caption(
+                    f"Top {top_n} of {len(_ranked)} symbols — "
+                    f"composite rank (70% price move + 30% news score) · "
+                    f"{_news_match_count} with news"
+                )
+
+                # Build column config
+                _rank_col_cfg: dict[str, Any] = {
+                    "": st.column_config.TextColumn("", width="small"),
+                    "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                    "Change %": st.column_config.TextColumn("Change %", width="small"),
+                    "Score": st.column_config.NumberColumn("Score", width="small"),
+                    "News": st.column_config.TextColumn("News", width="small"),
+                }
+                # Use LinkColumn for headlines when URLs are present
+                if any(r.get("Headline", "").startswith("http") for r in _rank_rows):
+                    _rank_col_cfg["Headline"] = st.column_config.LinkColumn(
+                        "Headline",
+                        display_text=r"https?://[^/]+/(.{0,60}).*",
+                        width="large",
+                    )
 
                 st.dataframe(
                     df_rank,
                     width='stretch',
                     height=min(800, 40 + 35 * len(df_rank)),
-                    column_config={
-                        "": st.column_config.TextColumn("", width="small"),
-                        "Symbol": st.column_config.TextColumn("Symbol", width="small"),
-                        "Change %": st.column_config.TextColumn("Change %", width="small"),
-                    },
+                    column_config=_rank_col_cfg,
                 )
 
     # ── TAB: Segments ───────────────────────────────────────
