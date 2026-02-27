@@ -78,6 +78,15 @@ _SESSION_ICONS = {
 }
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_bz_quotes_op(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
+    """Cache Benzinga delayed quotes for 60 s (open_prep)."""
+    if _fetch_bz_quotes is None:
+        return []
+    syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
+    return _fetch_bz_quotes(api_key, syms) or []
+
+
 def _get_bz_quotes_for_symbols(
     symbols: list[str],
     *,
@@ -86,7 +95,7 @@ def _get_bz_quotes_for_symbols(
     """Fetch Benzinga delayed quotes keyed by uppercase symbol.
 
     Returns empty dict when the API key is not set or the import
-    is unavailable.
+    is unavailable.  Results are cached for 60 s via Streamlit.
     """
     if _fetch_bz_quotes is None or not symbols:
         return {}
@@ -94,10 +103,11 @@ def _get_bz_quotes_for_symbols(
     if not bz_key:
         return {}
     try:
-        quotes = _fetch_bz_quotes(bz_key, symbols[:max_symbols])
+        syms = sorted(set(symbols))[:max_symbols]
+        quotes = _cached_bz_quotes_op(bz_key, ",".join(syms))
         return {
             (q.get("symbol") or "").upper().strip(): q
-            for q in (quotes or [])
+            for q in quotes
             if q.get("symbol")
         }
     except Exception as exc:

@@ -877,7 +877,7 @@ def _do_poll() -> None:
     _vd_bz_quotes: list[dict[str, Any]] | None = None
     _vd_session = market_session()
     if _vd_session in ("pre-market", "after-hours") and cfg.benzinga_api_key and st.session_state.feed:
-        _vd_syms = list({d.get("ticker", "") for d in st.session_state.feed
+        _vd_syms = sorted({d.get("ticker", "") for d in st.session_state.feed
                          if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
         if _vd_syms:
             try:
@@ -996,7 +996,7 @@ if st.session_state.use_bg_poller:
         _vd_bz_quotes_bg: list[dict[str, Any]] | None = None
         _vd_session_bg = market_session()
         if _vd_session_bg in ("pre-market", "after-hours") and _bg_cfg.benzinga_api_key and st.session_state.feed:
-            _vd_syms_bg = list({d.get("ticker", "") for d in st.session_state.feed
+            _vd_syms_bg = sorted({d.get("ticker", "") for d in st.session_state.feed
                                 if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
             if _vd_syms_bg:
                 try:
@@ -1080,6 +1080,8 @@ else:
         "after-hours": "🌙 After-Hours",
         "closed": "⚫ Market Closed",
     }
+    # Compute once per render — avoids 4+ redundant calls and cross-tab drift
+    _current_session = market_session()
 
     tab_feed, tab_movers, tab_rank, tab_segments, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
@@ -1231,9 +1233,8 @@ else:
         # Benzinga delayed quotes as fallback (freshest during extended hours)
         _bz_quotes_rank: list[dict[str, Any]] | None = None
         _rank_bz_key = st.session_state.cfg.benzinga_api_key
-        _rank_session = market_session()
-        if _rank_session in ("pre-market", "after-hours") and _rank_bz_key and feed:
-            _rank_syms = list({d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"})
+        if _current_session in ("pre-market", "after-hours") and _rank_bz_key and feed:
+            _rank_syms = sorted({d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"})
             if _rank_syms:
                 _bz_quotes_rank = _cached_bz_quotes(_rank_bz_key, ",".join(_rank_syms[:50]))
 
@@ -1389,15 +1390,14 @@ else:
             st.subheader("🚨 Price & Volume Spike Scanner")
 
             # Market session indicator
-            _session = market_session()
-            _session_label = _session_icons.get(_session, _session)
+            _session_label = _session_icons.get(_current_session, _current_session)
 
-            if _session in ("pre-market", "after-hours"):
+            if _current_session in ("pre-market", "after-hours"):
                 st.caption(
                     f"**{_session_label}** — FMP gainers/losers show previous session. "
                     "Extended-hours prices overlaid from Benzinga delayed quotes."
                 )
-            elif _session == "closed":
+            elif _current_session == "closed":
                 st.caption(
                     f"**{_session_label}** — Showing last session data."
                 )
@@ -1416,7 +1416,7 @@ else:
             )
 
             # Overlay Benzinga extended-hours quotes when outside regular session
-            if _session in ("pre-market", "after-hours") and spike_rows:
+            if _current_session in ("pre-market", "after-hours") and spike_rows:
                 bz_key = st.session_state.cfg.benzinga_api_key
                 if bz_key:
                     _spike_symbols = [r["symbol"] for r in spike_rows]
@@ -1560,13 +1560,12 @@ else:
             fmp_key = st.session_state.cfg.fmp_api_key
             if fmp_key:
                 st.subheader("📊 Market Sector Performance (FMP)")
-                _hm_session = market_session()
-                if _hm_session in ("pre-market", "after-hours"):
+                if _current_session in ("pre-market", "after-hours"):
                     st.caption(
-                        f"**{_session_icons.get(_hm_session, _hm_session)}** — "
+                        f"**{_session_icons.get(_current_session, _current_session)}** — "
                         "FMP sector data shows previous regular session."
                     )
-                elif _hm_session == "closed":
+                elif _current_session == "closed":
                     st.caption("**⚫ Market Closed** — Showing last session sector data.")
                 sector_data = _cached_sector_perf(fmp_key)
                 if sector_data:
@@ -1913,7 +1912,7 @@ else:
             st.subheader("💹 Benzinga Market Movers")
 
             # Session indicator — Benzinga movers are regular-session only
-            _bz_mov_session = market_session()
+            _bz_mov_session = _current_session
             if _bz_mov_session in ("pre-market", "after-hours"):
                 st.caption(
                     f"**{_session_icons.get(_bz_mov_session, _bz_mov_session)}** — "
@@ -1935,7 +1934,7 @@ else:
             # During extended hours, fetch delayed quotes to overlay fresh prices
             _bz_mov_quote_map: dict[str, dict[str, Any]] = {}
             if _bz_mov_session in ("pre-market", "after-hours") and (gainers or losers):
-                _mov_syms = list({
+                _mov_syms = sorted({
                     g.get("symbol", g.get("ticker", ""))
                     for g in gainers + losers
                     if g.get("symbol") or g.get("ticker")

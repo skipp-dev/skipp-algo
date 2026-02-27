@@ -916,3 +916,18 @@ class TestBzQuotesFallback:
         rows = build_vd_snapshot(feed, bz_quotes=bz, max_age_s=0)
         # price should stay None — not become 0.0
         assert rows[0]["price"] is None
+
+
+class TestSymbolListDeterminism:
+    """Ensure symbol lists produce deterministic CSV cache keys."""
+
+    def test_sorted_set_produces_stable_order(self) -> None:
+        """sorted({...}) always yields the same CSV regardless of insertion order."""
+        feed_a = [{"ticker": t} for t in ["MSFT", "AAPL", "TSLA", "GOOG"]]
+        feed_b = [{"ticker": t} for t in ["TSLA", "GOOG", "AAPL", "MSFT"]]
+
+        def _to_csv(feed: list[dict]) -> str:
+            return ",".join(sorted({d["ticker"] for d in feed}))
+
+        assert _to_csv(feed_a) == _to_csv(feed_b)
+        assert _to_csv(feed_a) == "AAPL,GOOG,MSFT,TSLA"
