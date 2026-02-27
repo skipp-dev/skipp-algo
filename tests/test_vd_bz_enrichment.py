@@ -332,3 +332,19 @@ class TestSaveVdBzCalendar:
         tickers = {json.loads(l)["ticker"] for l in lines}
         assert "AAPL" not in tickers
         assert tickers == {"MSFT", "NVDA"}
+
+    def test_creates_parent_dirs(self, tmp_path: Path):
+        """Should create parent directories if they don't exist."""
+        path = str(tmp_path / "nested" / "dir" / "bz_cal.jsonl")
+        divs = [{"ticker": "AAPL", "ex_date": "2025-02-07",
+                 "dividend": "0.25", "dividend_yield": "0.5%"}]
+        save_vd_bz_calendar(bz_dividends=divs, path=path)
+        assert os.path.exists(path)
+        with open(path) as f:
+            row = json.loads(f.readline())
+        assert row["ticker"] == "AAPL"
+
+    def test_default_path_includes_artifacts(self):
+        """Default path constant should point to artifacts/ directory."""
+        from terminal_export import _VD_BZ_CALENDAR_DEFAULT
+        assert _VD_BZ_CALENDAR_DEFAULT.startswith("artifacts/")

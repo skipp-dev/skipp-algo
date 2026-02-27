@@ -111,6 +111,12 @@ except ImportError:  # pragma: no cover
     _fetch_bz_profile = None  # type: ignore[assignment]
     _fetch_bz_detail = None  # type: ignore[assignment]
 
+try:
+    from terminal_ui_helpers import safe_markdown_text as _safe_md
+except ImportError:  # pragma: no cover
+    def _safe_md(text: str) -> str:  # type: ignore[misc]
+        return text.replace("[", "\\[").replace("]", "\\]")
+
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_bz_quotes_op(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
@@ -1498,11 +1504,9 @@ def main() -> None:
                 "Guidance, Retail, Top News, Quantified News, Options Flow"
             )
 
-            from datetime import timedelta as _td
-
             _today = datetime.now(UTC).date()
-            _bz_from = (_today - _td(days=7)).isoformat()
-            _bz_to = (_today + _td(days=14)).isoformat()
+            _bz_from = (_today - timedelta(days=7)).isoformat()
+            _bz_to = (_today + timedelta(days=14)).isoformat()
 
             (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
              bz_op_retail, bz_op_top, bz_op_quant, bz_op_opts) = st.tabs([
@@ -1564,7 +1568,7 @@ def main() -> None:
                             st.markdown("**🚀 Upcoming IPOs**")
                             for _, row in upcoming.head(8).iterrows():
                                 st.markdown(
-                                    f"**{row.get('ticker', '?')}** {row.get('name', '')} — "
+                                    f"**{_safe_md(str(row.get('ticker', '?')))}** {_safe_md(str(row.get('name', '')))} — "
                                     f"{row.get(_dcol, '?')} | "
                                     f"${row.get('price_min', '?')} – ${row.get('price_max', '?')} | "
                                     f"Status: {row.get('deal_status', '?')}"
@@ -1608,7 +1612,7 @@ def main() -> None:
                 if top_news:
                     st.caption(f"{len(top_news)} curated top stories")
                     for idx, story in enumerate(top_news):
-                        title = str(story.get("title", "Untitled"))
+                        title = _safe_md(str(story.get("title", "Untitled")))
                         author = story.get("author", "")
                         created = story.get("created", "")
                         url = story.get("url", "")
@@ -1623,12 +1627,12 @@ def main() -> None:
                         if tickers_str:
                             parts.append(f"[{tickers_str}]")
                         if author:
-                            parts.append(f"— {author}")
+                            parts.append(f"— {_safe_md(str(author))}")
                         if created:
                             parts.append(f"| {str(created)[:16]}")
                         st.markdown(" ".join(parts))
                         if teaser:
-                            st.caption(str(teaser)[:200])
+                            st.caption(_safe_md(str(teaser)[:200]))
                         if url:
                             st.markdown(f"[Read more]({url})", unsafe_allow_html=True)
                         if idx < len(top_news) - 1:

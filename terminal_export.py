@@ -468,7 +468,7 @@ def save_vd_snapshot(
 
 # ── Benzinga Calendar JSONL Export ─────────────────────────────
 
-_VD_BZ_CALENDAR_DEFAULT = "vd_bz_calendar.jsonl"
+_VD_BZ_CALENDAR_DEFAULT = "artifacts/vd_bz_calendar.jsonl"
 
 
 def build_vd_bz_calendar(
@@ -577,19 +577,26 @@ def save_vd_bz_calendar(
         logger.debug("No BZ calendar data to write to %s", path)
         return
 
-    tmp_path = path + ".tmp"
+    dest = os.path.abspath(path)
+    dest_dir = os.path.dirname(dest)
+    os.makedirs(dest_dir, exist_ok=True)
+
     try:
-        with open(tmp_path, "w") as fh:
-            for row in rows:
-                fh.write(json.dumps(row, default=str) + "\n")
-        os.replace(tmp_path, path)
-        logger.debug("Wrote %d BZ calendar events to %s", len(rows), path)
-    except Exception:
+        fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="vd_bz_")
         try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
-        raise
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                for row in rows:
+                    fh.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+            os.replace(tmp_path, dest)
+            logger.debug("Wrote %d BZ calendar events to %s", len(rows), dest)
+        except BaseException:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+    except Exception as exc:
+        logger.debug("BZ calendar write failed: %s", exc)
 
 
 # ── TradersPost Webhook Stub ───────────────────────────────────

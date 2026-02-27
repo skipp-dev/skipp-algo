@@ -42,7 +42,7 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 | **Instruments** | `GET https://api.benzinga.com/api/v2.1/instruments` |
 | **Logos** | `GET https://api.benzinga.com/api/v2.1/logos` |
 | **Ticker Detail** | `GET https://api.benzinga.com/api/v2.1/tickerDetail` |
-| **Options Activity** | `GET https://api.benzinga.com/api/v3/stock/optionsActivity` |
+| **Options Activity** | `GET https://api.benzinga.com/api/v2.1/calendar/options_activity` |
 | **Auth** | `?token=<API_KEY>` query parameter |
 | **Delta sync** | `updatedSince=<unix_epoch>` for news polling |
 | **Filtering** | `channels=` and `topics=` params for news + WebSocket |
