@@ -63,7 +63,7 @@ MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
 try:
     from terminal_spike_scanner import SESSION_ICONS as _SESSION_ICONS, market_session as _market_session
 except ImportError:  # pragma: no cover
-    _market_session = None
+    _market_session = None  # type: ignore[assignment]
     _SESSION_ICONS = {
         "pre-market": "🌅 Pre-Market",
         "regular": "🟢 Regular Session",
@@ -74,7 +74,7 @@ except ImportError:  # pragma: no cover
 try:
     from terminal_poller import fetch_benzinga_delayed_quotes as _fetch_bz_quotes
 except ImportError:  # pragma: no cover
-    _fetch_bz_quotes = None
+    _fetch_bz_quotes = None  # type: ignore[assignment]
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -258,7 +258,7 @@ def _update_status_history(traffic_label: str, updated_at: str) -> list[str]:
     if not history or history[-1] != entry:
         history.append(entry)
     st.session_state["status_history"] = history[-MAX_STATUS_HISTORY:]
-    return st.session_state["status_history"]
+    return list(st.session_state["status_history"])
 
 
 def _render_soft_refresh_status(updated_at: str | None) -> None:
@@ -698,7 +698,7 @@ def main() -> None:
                 earnings_symbols_set.add(sym)
 
         # ── Market session indicator (applies to all FMP-sourced data) ──
-        _session = _market_session() if _market_session else "regular"
+        _session = _market_session() if callable(_market_session) else "regular"
         _session_label = _SESSION_ICONS.get(_session, _session)
         if _session in ("pre-market", "after-hours"):
             st.info(

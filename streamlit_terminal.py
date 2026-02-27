@@ -313,7 +313,7 @@ def _get_adapter() -> BenzingaRestAdapter | None:
         return None
     if st.session_state.adapter is None:
         st.session_state.adapter = BenzingaRestAdapter(cfg.benzinga_api_key)
-    return st.session_state.adapter
+    return st.session_state.adapter  # type: ignore[no-any-return]
 
 
 def _get_fmp_adapter():
@@ -334,7 +334,7 @@ def _get_store() -> SqliteStore:
         cfg: TerminalConfig = st.session_state.cfg
         os.makedirs(os.path.dirname(cfg.sqlite_path) or ".", exist_ok=True)
         st.session_state.store = SqliteStore(cfg.sqlite_path)
-    return st.session_state.store
+    return st.session_state.store  # type: ignore[no-any-return]
 
 
 # ── Sidebar ─────────────────────────────────────────────────────
@@ -713,8 +713,8 @@ def _should_poll(poll_interval: float) -> bool:
     cfg: TerminalConfig = st.session_state.cfg
     if not cfg.benzinga_api_key and not cfg.fmp_api_key:
         return False
-    elapsed = time.time() - st.session_state.last_poll_ts
-    return elapsed >= poll_interval
+    elapsed: float = time.time() - st.session_state.last_poll_ts
+    return elapsed >= poll_interval  # type: ignore[no-any-return]
 
 
 def _do_poll() -> None:

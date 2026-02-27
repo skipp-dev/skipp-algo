@@ -183,7 +183,7 @@ class BenzingaCalendarAdapter:
             # Try common wrapper keys
             for key in (endpoint, endpoint.replace("-", "_"), endpoint.rstrip("s")):
                 if key in data and isinstance(data[key], list):
-                    return data[key]
+                    return list(data[key])
             # Fallback: find first list value
             for v in data.values():
                 if isinstance(v, list):

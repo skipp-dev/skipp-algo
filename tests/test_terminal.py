@@ -28,6 +28,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.scoring import ScoreResult, classify_and_score, cluster_hash
 from newsstack_fmp.store_sqlite import SqliteStore
+from terminal_poller import ClassifiedItem
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -269,9 +270,9 @@ class TestPollAndClassify:
 class TestJsonlExport:
     """Tests for terminal_export.append_jsonl and rotate_jsonl."""
 
-    def _make_classified_item(self, **overrides: Any) -> "ClassifiedItem":
-        from terminal_poller import ClassifiedItem
-        defaults = dict(
+    def _make_classified_item(self, **overrides: Any) -> ClassifiedItem:
+        from terminal_poller import ClassifiedItem as _CI
+        defaults: dict[str, Any] = dict(
             item_id="test1", ticker="NVDA", tickers_all=["NVDA"],
             headline="Test headline", snippet="Test snippet",
             url="https://example.com", source="Test",
@@ -290,7 +291,7 @@ class TestJsonlExport:
             is_wiim=False,
         )
         defaults.update(overrides)
-        return ClassifiedItem(**defaults)
+        return _CI(**defaults)
 
     def test_append_creates_file(self, tmp_path: Path) -> None:
         from terminal_export import append_jsonl
@@ -350,9 +351,9 @@ class TestJsonlExport:
 class TestWebhookStub:
     """Tests for terminal_export.fire_webhook."""
 
-    def _make_ci(self, **kw: Any) -> "ClassifiedItem":
-        from terminal_poller import ClassifiedItem
-        defaults = dict(
+    def _make_ci(self, **kw: Any) -> ClassifiedItem:
+        from terminal_poller import ClassifiedItem as _CI
+        defaults: dict[str, Any] = dict(
             item_id="wh1", ticker="NVDA", tickers_all=["NVDA"],
             headline="NVIDIA beats estimates", snippet="Details",
             url="https://example.com", source="Benzinga",
@@ -371,7 +372,7 @@ class TestWebhookStub:
             is_wiim=False,
         )
         defaults.update(kw)
-        return ClassifiedItem(**defaults)
+        return _CI(**defaults)
 
     def test_disabled_when_no_url(self) -> None:
         from terminal_export import fire_webhook

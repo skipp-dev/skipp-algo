@@ -145,7 +145,7 @@ class BackgroundPoller:
 
     def _get_interval(self) -> float:
         with self._lock:
-            return getattr(self, "_interval_override", self._cfg.poll_interval_s)
+            return float(getattr(self, "_interval_override", self._cfg.poll_interval_s))
 
     def _run_loop(self) -> None:
         """Main loop running in the background thread."""

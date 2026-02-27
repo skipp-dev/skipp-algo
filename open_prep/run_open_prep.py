@@ -700,7 +700,7 @@ def _momentum_z_score_from_eod(candles: list[dict], period: int = 50) -> float:
         return 0.0
 
     z = (window[-1] - mean_ret) / std_ret
-    return round(max(min(z, 5.0), -5.0), 4)
+    return float(round(max(min(z, 5.0), -5.0), 4))
 
 
 def _enrich_quote_with_hvb(quote: dict[str, Any], hvb_multiplier: float = HVB_MULTIPLIER) -> None:

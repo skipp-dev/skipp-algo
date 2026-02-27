@@ -239,7 +239,7 @@ class FMPClient:
         delay = min(delay, cap)
         # Add ±25 % jitter so concurrent callers don't retry in lockstep
         jitter = delay * 0.25 * (2 * random.random() - 1)
-        return max(0.0, delay + jitter)
+        return float(max(0.0, delay + jitter))
 
     @classmethod
     def from_env(cls, key_name: str = "FMP_API_KEY") -> FMPClient:

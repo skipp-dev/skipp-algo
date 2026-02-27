@@ -612,7 +612,7 @@ class GateHysteresis:
             "Hysteresis: %s kept at %s (proposed %s, elapsed=%.0fs)",
             symbol, prev["level"], proposed_level, elapsed,
         )
-        return prev["level"]
+        return str(prev["level"])
 
     def record(self, symbol: str, level: str) -> None:
         """Record the level for a symbol without hysteresis evaluation."""
@@ -1775,7 +1775,7 @@ class RealtimeEngine:
             return {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0}
         try:
             with open(SIGNALS_PATH, "r", encoding="utf-8") as fh:
-                return json.load(fh)
+                return json.load(fh)  # type: ignore[no-any-return]
         except Exception:
             return {"signals": [], "signal_count": 0, "a0_count": 0, "a1_count": 0}
 

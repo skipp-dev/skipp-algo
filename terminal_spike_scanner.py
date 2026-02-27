@@ -374,10 +374,10 @@ def overlay_extended_hours_quotes(
         return rows
 
     bz_by_sym: dict[str, dict[str, Any]] = {}
-    for q in quotes:
-        sym = (q.get("symbol") or "").upper().strip()
+    for quote in quotes:
+        sym = (quote.get("symbol") or "").upper().strip()
         if sym:
-            bz_by_sym[sym] = q
+            bz_by_sym[sym] = quote
 
     for row in rows:
         sym = row["symbol"]

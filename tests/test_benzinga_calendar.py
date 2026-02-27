@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Generator
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -40,7 +40,7 @@ from newsstack_fmp.ingest_benzinga_calendar import (
 # ═══════════════════════════════════════════════════════════════
 
 @pytest.fixture
-def adapter() -> BenzingaCalendarAdapter:
+def adapter() -> Generator[BenzingaCalendarAdapter, None, None]:
     """BenzingaCalendarAdapter with a dummy key."""
     a = BenzingaCalendarAdapter("test_key_12345")
     yield a
