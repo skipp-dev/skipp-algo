@@ -38,7 +38,7 @@ from .normalize import normalize_benzinga_rest, normalize_benzinga_ws
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _TOKEN_RE, _sanitize_url  # noqa: E402
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url  # noqa: E402
 
 
 # =====================================================================
@@ -175,41 +175,6 @@ BENZINGA_TOP_NEWS_URL = "https://api.benzinga.com/api/v2/news/top"
 BENZINGA_CHANNELS_URL = "https://api.benzinga.com/api/v2/news/channels"
 BENZINGA_QUANTIFIED_URL = "https://api.benzinga.com/api/v2/news/quantified"
 
-_NEWS_RETRYABLE = {429, 500, 502, 503, 504}
-_NEWS_MAX_ATTEMPTS = 3
-
-
-def _news_request_with_retry(
-    client: httpx.Client,
-    url: str,
-    params: dict[str, Any],
-) -> httpx.Response:
-    """GET with exponential backoff on retryable status codes (news)."""
-    last_exc: Exception | None = None
-    r: httpx.Response | None = None
-    for attempt in range(_NEWS_MAX_ATTEMPTS):
-        try:
-            r = client.get(url, params=params)
-            if r.status_code in _NEWS_RETRYABLE and attempt < _NEWS_MAX_ATTEMPTS - 1:
-                time.sleep(2 ** attempt)
-                continue
-            r.raise_for_status()
-            return r
-        except (httpx.ConnectError, httpx.ReadTimeout) as exc:
-            last_exc = exc
-            if attempt < _NEWS_MAX_ATTEMPTS - 1:
-                time.sleep(2 ** attempt)
-                continue
-            raise
-        except httpx.HTTPStatusError:
-            raise
-    if r is not None:
-        return r
-    raise RuntimeError(
-        "Benzinga news: no response after retries"
-        + (f" (last error: {last_exc})" if last_exc else "")
-    )
-
 
 def fetch_benzinga_top_news(
     api_key: str,
@@ -250,10 +215,10 @@ def fetch_benzinga_top_news(
 
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _news_request_with_retry(client, BENZINGA_TOP_NEWS_URL, params)
+            r = _request_with_retry(client, BENZINGA_TOP_NEWS_URL, params)
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga top_news fetch failed: %s", _sanitize_url(str(exc)))
+            logger.warning("Benzinga top_news fetch failed: %s", _sanitize_exc(exc))
             return []
 
     if isinstance(data, list):
@@ -284,10 +249,10 @@ def fetch_benzinga_channels(
 
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _news_request_with_retry(client, BENZINGA_CHANNELS_URL, params)
+            r = _request_with_retry(client, BENZINGA_CHANNELS_URL, params)
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga channels fetch failed: %s", _sanitize_url(str(exc)))
+            logger.warning("Benzinga channels fetch failed: %s", _sanitize_exc(exc))
             return []
 
     if isinstance(data, list):
@@ -330,10 +295,10 @@ def fetch_benzinga_quantified_news(
 
     with httpx.Client(timeout=10.0, headers={"Accept": "application/json"}) as client:
         try:
-            r = _news_request_with_retry(client, BENZINGA_QUANTIFIED_URL, params)
+            r = _request_with_retry(client, BENZINGA_QUANTIFIED_URL, params)
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga quantified_news fetch failed: %s", _sanitize_url(str(exc)))
+            logger.warning("Benzinga quantified_news fetch failed: %s", _sanitize_exc(exc))
             return []
 
     if isinstance(data, list):

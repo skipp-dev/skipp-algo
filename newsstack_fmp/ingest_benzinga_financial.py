@@ -47,55 +47,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _TOKEN_RE, _sanitize_exc, _sanitize_url  # noqa: E402
-
-
-# =====================================================================
-# Shared HTTP helpers
-# =====================================================================
-
-_RETRYABLE = {429, 500, 502, 503, 504}
-_MAX_ATTEMPTS = 3
-
-
-def _request_with_retry(
-    client: httpx.Client,
-    url: str,
-    params: dict[str, Any],
-) -> httpx.Response:
-    """GET with exponential backoff on retryable status codes."""
-    last_exc: Exception | None = None
-    r: httpx.Response | None = None
-    for attempt in range(_MAX_ATTEMPTS):
-        try:
-            r = client.get(url, params=params)
-            if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
-                logger.warning(
-                    "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
-                    r.status_code, attempt + 1, _MAX_ATTEMPTS, 2 ** attempt,
-                )
-                time.sleep(2 ** attempt)
-                continue
-            r.raise_for_status()
-            return r
-        except (httpx.ConnectError, httpx.ReadTimeout) as exc:
-            last_exc = exc
-            if attempt < _MAX_ATTEMPTS - 1:
-                logger.warning(
-                    "Benzinga network error (attempt %d/%d): %s – retrying in %ds",
-                    attempt + 1, _MAX_ATTEMPTS, exc, 2 ** attempt,
-                )
-                time.sleep(2 ** attempt)
-                continue
-            raise
-        except httpx.HTTPStatusError:
-            raise
-    if r is not None:
-        return r
-    raise RuntimeError(
-        "Benzinga: no response after retries"
-        + (f" (last error: {last_exc})" if last_exc else "")
-    )
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url  # noqa: E402
 
 
 # =====================================================================

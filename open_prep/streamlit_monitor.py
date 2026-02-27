@@ -2088,7 +2088,12 @@ def main() -> None:
             ocols[2].metric("High-Impact Events", hi_events)
             hi_details = tomorrow_outlook.get("high_impact_events_tomorrow_details") or []
             if hi_details:
-                detail_lines = [f"- **{d['event']}** ({d['country']}) — {d['date']}" for d in hi_details]
+                detail_lines = [
+                    f"- **{_safe_md(str(d.get('event', '—')))}** "
+                    f"({_safe_md(str(d.get('country', 'US')))}) — "
+                    f"{_safe_md(str(d.get('date', '—')))}"
+                    for d in hi_details
+                ]
                 st.markdown("**Scheduled High-Impact Events:**\n" + "\n".join(detail_lines))
             if reasons:
                 st.caption("Factors: " + ", ".join(reasons))
