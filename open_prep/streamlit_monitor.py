@@ -667,26 +667,22 @@ def main() -> None:
         for row in ranked_candidates:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
-        ranked_candidates = _reorder_ranked_columns(ranked_candidates)
 
         # Prepare common data first
         ranked_gap_go = list(result.get("ranked_gap_go") or [])
         for row in ranked_gap_go:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
-        ranked_gap_go = _reorder_ranked_columns(ranked_gap_go)
 
         ranked_gap_watch = list(result.get("ranked_gap_watch") or [])
         for row in ranked_gap_watch:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
-        ranked_gap_watch = _reorder_ranked_columns(ranked_gap_watch)
 
         ranked_gap_go_earn = list(result.get("ranked_gap_go_earnings") or [])
         for row in ranked_gap_go_earn:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
-        ranked_gap_go_earn = _reorder_ranked_columns(ranked_gap_go_earn)
 
         earnings_symbols_set = {r.get("symbol") for r in ranked_gap_go_earn}
         for row in ranked_candidates:
@@ -713,11 +709,25 @@ def main() -> None:
         elif _session == "closed":
             st.caption(f"**{_session_label}** — Showing last session data.")
 
-        # Fetch Benzinga delayed quotes for all candidate symbols (fallback)
+        # Fetch Benzinga delayed quotes for all candidate symbols (fallback).
+        # Overlay BEFORE _reorder_ranked_columns so bz_price/bz_chg_pct
+        # appear in the correct column position (priority list slot).
         _all_syms = sorted({str(r.get("symbol", "")).upper() for r in ranked_candidates if r.get("symbol")})
         _bz_map: dict[str, dict[str, Any]] = {}
         if _session in ("pre-market", "after-hours"):
             _bz_map = _get_bz_quotes_for_symbols(_all_syms)
+
+        if _bz_map:
+            _overlay_bz_prices(ranked_candidates, _bz_map)
+            _overlay_bz_prices(ranked_gap_go, _bz_map)
+            _overlay_bz_prices(ranked_gap_watch, _bz_map)
+            _overlay_bz_prices(ranked_gap_go_earn, _bz_map)
+
+        # Reorder columns (bz_price/bz_chg_pct now placed after "price")
+        ranked_candidates = _reorder_ranked_columns(ranked_candidates)
+        ranked_gap_go = _reorder_ranked_columns(ranked_gap_go)
+        ranked_gap_watch = _reorder_ranked_columns(ranked_gap_watch)
+        ranked_gap_go_earn = _reorder_ranked_columns(ranked_gap_go_earn)
 
         # ===================================================================
         # 0. REALTIME SIGNALS (A0/A1 — top of page)
@@ -993,17 +1003,11 @@ def main() -> None:
         st.subheader(f"LONG GAP-GO  ({len(ranked_gap_go)} Trend-Kandidaten)")
         if earn_warn:
             st.caption(f"⚠️ Earnings-Warnungen in GAP-GO: {earn_warn}")
-        # Overlay BZ prices on GAP-GO during extended hours
-        if _bz_map and ranked_gap_go:
-            _overlay_bz_prices(ranked_gap_go, _bz_map)
         if ranked_gap_go:
             st.dataframe(ranked_gap_go, width="stretch", height=320)
         else:
             st.info("Keine GAP-GO Kandidaten (strengere Kriterien nicht erfüllt).")
 
-        # Overlay BZ prices on GAP-WATCHLIST during extended hours
-        if _bz_map and ranked_gap_watch:
-            _overlay_bz_prices(ranked_gap_watch, _bz_map)
         with st.expander(f"GAP-WATCHLIST  ({len(ranked_gap_watch)} — prüfen im Chart)"):
             if ranked_gap_watch:
                 st.dataframe(ranked_gap_watch, width="stretch", height=320)

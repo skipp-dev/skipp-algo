@@ -1419,7 +1419,7 @@ else:
             if _current_session in ("pre-market", "after-hours") and spike_rows:
                 bz_key = st.session_state.cfg.benzinga_api_key
                 if bz_key:
-                    _spike_symbols = [r["symbol"] for r in spike_rows]
+                    _spike_symbols = sorted(r["symbol"] for r in spike_rows)
                     _bz_quotes = _cached_bz_quotes(bz_key, ",".join(_spike_symbols))
                     if _bz_quotes:
                         overlay_extended_hours_quotes(spike_rows, _bz_quotes)
