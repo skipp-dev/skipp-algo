@@ -375,7 +375,7 @@ def save_vd_snapshot(
     # Compute snapshot-level freshness metadata
     now_epoch = time.time()
     _newest_age = min((r.get("age_min", 9999) for r in rows), default=0)
-    _stale_warn = "⚠️ STALE" if _newest_age > 30 else ""
+    _stale_warn = "⚠️ STALE" if _newest_age > 5 else ""
     _meta_row: dict[str, Any] = {
         "symbol":    f"_META {_stale_warn}".strip(),
         "N":         len(rows),

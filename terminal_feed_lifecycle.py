@@ -266,7 +266,7 @@ class FeedLifecycleManager:
         #    dedup so next poll starts fresh.  Guarded by a cooldown
         #    so we don't reset every 30 s if the API genuinely has no
         #    new articles.
-        if is_market_hours() and is_feed_stale(feed, max_age_min=30):
+        if is_market_hours() and is_feed_stale(feed, max_age_min=5):
             staleness = feed_staleness_minutes(feed)
             result["feed_stale"] = True
             result["staleness_min"] = staleness

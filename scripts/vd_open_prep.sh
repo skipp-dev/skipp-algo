@@ -241,9 +241,9 @@ echo "📊 Datenstand: $RUN_TS"
 if [[ -f "$JSON_FILE" ]]; then
   _file_age_s=$(( $(date +%s) - $(stat -f "%m" "$JSON_FILE" 2>/dev/null || stat -c "%Y" "$JSON_FILE" 2>/dev/null || echo "$(date +%s)") ))
   _file_age_m=$(( _file_age_s / 60 ))
-  if [[ "$_file_age_m" -gt 30 ]]; then
+  if [[ "$_file_age_m" -gt 5 ]]; then
     echo "⚠️  WARNUNG: Daten sind ${_file_age_m} Minuten alt! Pipeline ggf. erneut starten."
-  elif [[ "$_file_age_m" -gt 5 ]]; then
+  elif [[ "$_file_age_m" -gt 2 ]]; then
     echo "ℹ️  Daten-Alter: ${_file_age_m} Minuten"
   fi
 fi

@@ -19,11 +19,11 @@ All notable changes to this project are documented in this file.
 
   | Surface | What is checked | Threshold | Action |
   | --- | --- | --- | --- |
-  | Terminal feed | Newest article age | 30 min | Cursor reset + dedup prune |
+  | Terminal feed | Newest article age | 5 min | Cursor reset + dedup prune |
   | Open Prep cache | Pipeline cache age | 5 min | Cache invalidate + fresh pipeline |
   | RT signals (Streamlit) | Signal file mtime | 5 min | Orange warning banner |
   | VD signals launcher | Signal file mtime | 5 min | Auto-start engine |
-  | VD open-prep launcher | JSON file mtime | 30 min warn / 5 min info | Console warning |
+  | VD open-prep launcher | JSON file mtime | 5 min | Console warning |
   | Sector performance cache | `@st.cache_data` TTL | 60s (was 300s) | Auto-evict |
 
 - **Hardened failure handling (auto-recovery never crashes):**

@@ -250,7 +250,7 @@ class TestFeedLifecycleManager:
 
     @patch("terminal_feed_lifecycle._now_et")
     def test_manage_stale_recovery_during_market_hours(self, mock_now):
-        """When feed is >30 min stale during market hours, manage() returns stale_recovery."""
+        """When feed is >5 min stale during market hours, manage() returns stale_recovery."""
         mock_now.return_value = _make_et(1, 10)  # Tuesday 10am
         mgr = FeedLifecycleManager()
         mgr._last_lifecycle_check = 0  # force check
