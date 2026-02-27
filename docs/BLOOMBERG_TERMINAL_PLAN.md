@@ -17,11 +17,35 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 | Item | Value |
 |---|---|
 | **News** | `GET https://api.benzinga.com/api/v2/news` |
-| **Calendar** | `GET https://api.benzinga.com/api/v2.1/calendar/{endpoint}` |
+| **Top News** | `GET https://api.benzinga.com/api/v2/news` (sort=mostPopular) |
+| **Channels** | `GET https://api.benzinga.com/api/v2/news/channels` |
+| **Quantified News** | `GET https://api.benzinga.com/api/v2/news/quantified` |
+| **Calendar (Ratings)** | `GET https://api.benzinga.com/api/v2.1/calendar/ratings` |
+| **Calendar (Earnings)** | `GET https://api.benzinga.com/api/v2.1/calendar/earnings` |
+| **Calendar (Economics)** | `GET https://api.benzinga.com/api/v2.1/calendar/economics` |
+| **Calendar (Conference Calls)** | `GET https://api.benzinga.com/api/v2.1/calendar/conference-calls` |
+| **Calendar (Dividends)** | `GET https://api.benzinga.com/api/v2.1/calendar/dividends` |
+| **Calendar (Splits)** | `GET https://api.benzinga.com/api/v2.1/calendar/splits` |
+| **Calendar (IPOs)** | `GET https://api.benzinga.com/api/v2.1/calendar/ipos` |
+| **Calendar (Guidance)** | `GET https://api.benzinga.com/api/v2.1/calendar/guidance` |
+| **Calendar (Retail)** | `GET https://api.benzinga.com/api/v2.1/calendar/retail` |
 | **Movers** | `GET https://api.benzinga.com/api/v1/market/movers` |
 | **Delayed Quotes** | `GET https://api.benzinga.com/api/v1/quoteDelayed` |
+| **Fundamentals** | `GET https://api.benzinga.com/api/v2.1/fundamentals` |
+| **Financials** | `GET https://api.benzinga.com/api/v2.1/fundamentals/financials` |
+| **Valuation Ratios** | `GET https://api.benzinga.com/api/v2.1/fundamentals/valuationRatios` |
+| **Company Profiles** | `GET https://api.benzinga.com/api/v2.1/fundamentals/companyProfile` |
+| **Price History** | `GET https://api.benzinga.com/api/v2.1/stock/priceHistory` |
+| **Chart** | `GET https://api.benzinga.com/api/v2.1/stock/chart` |
+| **Auto-Complete** | `GET https://api.benzinga.com/api/v2.1/search/autocomplete` |
+| **Security (Lookup)** | `GET https://api.benzinga.com/api/v2.1/security` |
+| **Instruments** | `GET https://api.benzinga.com/api/v2.1/instruments` |
+| **Logos** | `GET https://api.benzinga.com/api/v2.1/logos` |
+| **Ticker Detail** | `GET https://api.benzinga.com/api/v2.1/tickerDetail` |
+| **Options Activity** | `GET https://api.benzinga.com/api/v3/stock/optionsActivity` |
 | **Auth** | `?token=<API_KEY>` query parameter |
 | **Delta sync** | `updatedSince=<unix_epoch>` for news polling |
+| **Filtering** | `channels=` and `topics=` params for news + WebSocket |
 
 ### FMP API
 
@@ -155,9 +179,42 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 
 - `BenzingaCalendarAdapter` with typed fetchers:
   - `fetch_ratings()`, `fetch_earnings()`, `fetch_economics()`, `fetch_conference_calls()`
+  - `fetch_dividends()`, `fetch_splits()`, `fetch_ipos()`, `fetch_guidance()`, `fetch_retail()`
 - `fetch_benzinga_movers(api_key)` — top gainers/losers
 - `fetch_benzinga_delayed_quotes(api_key, symbols)` — delayed price quotes
 - WIIM boost in `_classify_item()` for "Why Is It Moving" articles
+
+### J) `newsstack_fmp/ingest_benzinga.py` — News Adapters (Extended)
+
+- `fetch_benzinga_top_news(api_key)` — curated top/most-popular stories
+- `fetch_benzinga_channels(api_key)` — available channel list for filtering
+- `fetch_benzinga_quantified_news(api_key)` — sentiment-scored articles with entity-level scores
+- REST + WebSocket adapters support `channels` and `topics` query params for server-side filtering
+
+### K) `newsstack_fmp/ingest_benzinga_financial.py` — Financial Data Adapter (NEW)
+
+- `BenzingaFinancialAdapter` with 20+ methods:
+  - `fetch_fundamentals()`, `fetch_financials()`, `fetch_valuation_ratios()`, `fetch_company_profiles()`
+  - `fetch_price_history()`, `fetch_chart()`, `fetch_auto_complete()`, `fetch_security()`
+  - `fetch_instruments()`, `fetch_logos()`, `fetch_ticker_detail()`, `fetch_options_activity()`
+- Eight standalone wrapper functions for direct use: `fetch_benzinga_fundamentals()`, `fetch_benzinga_financials()`, `fetch_benzinga_ratios()`, `fetch_benzinga_profiles()`, `fetch_benzinga_options_activity()`, `fetch_benzinga_price_history()`, `fetch_benzinga_logos()`, `fetch_benzinga_ticker_detail()`
+- Full retry/backoff via httpx, consistent error handling
+
+### L) Open Prep Benzinga Intelligence
+
+- `open_prep/streamlit_monitor.py` — 8-tab Benzinga Intelligence section:
+  - Dividends, Splits, IPOs, Guidance, Retail Sentiment, Top News, Quantified News, Options Flow
+- 10 cached wrapper functions with `@st.cache_data(ttl=120)` TTLs
+- Import-guarded for Streamlit Cloud compatibility
+
+### M) VisiData Benzinga Enrichment
+
+- `terminal_export.py` — per-ticker enrichment columns:
+  - `div_exdate`, `div_yield` (from dividends calendar)
+  - `guid_eps` (from guidance calendar)
+  - `options_flow` (from options activity)
+- `build_vd_bz_calendar()` / `save_vd_bz_calendar()` — standalone Benzinga Calendar JSONL
+- Default export path: `artifacts/vd_bz_calendar.jsonl`
 
 ---
 
@@ -166,7 +223,8 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 | Component | Import Path | What it does |
 |---|---|---|
 | `BenzingaRestAdapter` | `newsstack_fmp.ingest_benzinga` | REST polling with retry/backoff |
-| `BenzingaCalendarAdapter` | `newsstack_fmp.ingest_benzinga_calendar` | Calendar/movers/quotes |
+| `BenzingaCalendarAdapter` | `newsstack_fmp.ingest_benzinga_calendar` | Calendar/movers/quotes (ratings, earnings, economics, dividends, splits, IPOs, guidance, retail) |
+| `BenzingaFinancialAdapter` | `newsstack_fmp.ingest_benzinga_financial` | Fundamentals, financials, ratios, profiles, price history, options activity |
 | `normalize_benzinga_rest` | `newsstack_fmp.normalize` | Raw Benzinga → `NewsItem` |
 | `NewsItem` | `newsstack_fmp.common_types` | Unified internal schema |
 | `classify_and_score` | `newsstack_fmp.scoring` | Category + impact + novelty score |
@@ -187,13 +245,16 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 ```text
 streamlit_terminal.py                  ← Streamlit app (streamlit run streamlit_terminal.py)
 terminal_poller.py                     ← Poll engine + ClassifiedItem + classifier orchestration
-terminal_export.py                     ← JSONL writer + TradersPost webhook
+terminal_export.py                     ← JSONL writer + TradersPost webhook + VisiData BZ enrichment
 terminal_spike_scanner.py              ← Spike detection, market session, BZ overlay
 terminal_background_poller.py          ← Background polling thread
 terminal_feed_lifecycle.py             ← Ring-buffer feed state management
 terminal_notifications.py              ← Desktop push notifications
 terminal_ui_helpers.py                 ← Sentiment coloring, heatmap, movers aggregation
-newsstack_fmp/ingest_benzinga_calendar.py ← Calendar/movers/quotes adapters
+newsstack_fmp/ingest_benzinga.py       ← REST/WS news adapter + top news, channels, quantified
+newsstack_fmp/ingest_benzinga_calendar.py ← Calendar adapters (ratings, earnings, dividends, splits, IPOs, guidance, retail) + movers/quotes
+newsstack_fmp/ingest_benzinga_financial.py ← Financial data adapter (fundamentals, ratios, profiles, options, charts)
+open_prep/streamlit_monitor.py         ← Open Prep Streamlit app with Benzinga Intelligence section
 tests/test_terminal.py                 ← Core terminal tests
 tests/test_terminal_spike_scanner.py   ← Spike scanner + BZ overlay tests
 tests/test_terminal_background_poller.py ← Background poller tests
@@ -201,6 +262,10 @@ tests/test_terminal_feed_lifecycle.py  ← Feed lifecycle tests
 tests/test_terminal_notifications.py   ← Notification tests
 tests/test_terminal_ui_helpers.py      ← UI helper tests
 tests/test_benzinga_calendar.py        ← Calendar/movers/quotes adapter tests (79 tests)
+tests/test_benzinga_news_endpoints.py  ← Top news, channels, quantified news tests (18 tests)
+tests/test_benzinga_financial.py       ← Financial data adapter tests (44 tests)
+tests/test_benzinga_calendar_extended.py ← Extended calendar tests (dividends, splits, IPOs, guidance, retail — 17 tests)
+tests/test_vd_bz_enrichment.py        ← VisiData Benzinga enrichment tests (24 tests)
 docs/BLOOMBERG_TERMINAL_PLAN.md        ← This document
 ```
 
@@ -219,13 +284,16 @@ docs/BLOOMBERG_TERMINAL_PLAN.md        ← This document
 | `TERMINAL_WEBHOOK_SECRET` | *(empty)* | HMAC secret for webhook signing |
 | `TERMINAL_MAX_ITEMS` | `500` | Max items to keep in live feed (ring-buffer) |
 | `TERMINAL_CHANNELS` | *(empty = all)* | Comma-separated channel filter |
+| `TERMINAL_TOPICS` | *(empty = all)* | Comma-separated topics filter |
 
 ---
 
 ## 7. Test Coverage
 
-- 30 test files, **1474 tests** total (as of 27 Feb 2026)
+- 34 test files, **1599 tests** total (as of 27 Feb 2026)
 - Terminal-specific: `test_terminal.py`, `test_terminal_spike_scanner.py`, `test_terminal_background_poller.py`, `test_terminal_feed_lifecycle.py`, `test_terminal_notifications.py`, `test_terminal_ui_helpers.py`, `test_benzinga_calendar.py`
+- Benzinga API coverage: `test_benzinga_news_endpoints.py`, `test_benzinga_financial.py`, `test_benzinga_calendar_extended.py`
+- VisiData enrichment: `test_vd_bz_enrichment.py`
 - All Pylance/Pyright lint errors resolved (0 workspace errors)
 
 ---
@@ -243,6 +311,27 @@ VisiData auto-reloads on file change.
 
 The `build_vd_snapshot()` function in `terminal_spike_scanner.py` produces
 VisiData-ready rows with price priority: RT (realtime) > BZ (Benzinga delayed) > FMP (close).
+
+### Benzinga Enrichment Columns
+
+When Benzinga calendar/financial data is available, `build_vd_snapshot()` and
+`save_vd_snapshot()` in `terminal_export.py` enrich each ticker row with:
+
+| Column | Source | Description |
+|---|---|---|
+| `div_exdate` | Dividends calendar | Next ex-dividend date |
+| `div_yield` | Dividends calendar | Dividend yield |
+| `guid_eps` | Guidance calendar | EPS guidance estimate |
+| `options_flow` | Options activity | Unusual options activity summary |
+
+### Benzinga Calendar JSONL
+
+`build_vd_bz_calendar()` / `save_vd_bz_calendar()` in `terminal_export.py` produce
+a standalone calendar export combining dividends, splits, IPOs, and guidance events:
+
+```bash
+vd --filetype jsonl artifacts/vd_bz_calendar.jsonl
+```
 
 ---
 

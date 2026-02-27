@@ -45,6 +45,28 @@ All notable changes to this project are documented in this file.
   - WIIM article boost in `_classify_item()` for "Why Is It Moving" actionability.
   - 79 tests in `tests/test_benzinga_calendar.py`.
 
+- **Benzinga full API coverage (news + calendar + financial endpoints):**
+  - **News endpoints (3 new):** `fetch_benzinga_top_news()` (curated top stories), `fetch_benzinga_channels()` (available channel list), `fetch_benzinga_quantified_news()` (sentiment-scored articles with entity scores) — all added to `newsstack_fmp/ingest_benzinga.py`.
+  - **Calendar endpoints (5 new):** `fetch_dividends()`, `fetch_splits()`, `fetch_ipos()`, `fetch_guidance()`, `fetch_retail()` — all added to `BenzingaCalendarAdapter` in `newsstack_fmp/ingest_benzinga_calendar.py`.
+  - **Financial Data adapter (20+ methods, new file):** `BenzingaFinancialAdapter` in `newsstack_fmp/ingest_benzinga_financial.py` covering fundamentals, financials, valuation ratios, company profiles, price history, charts, auto-complete, security/instruments lookup, logos, ticker detail, options activity. Eight standalone wrapper functions exported.
+  - **Channels & topics filtering:** `channels` and `topics` query parameters wired into REST adapter, WebSocket adapter, `Config`, and `terminal_poller.py`. New env var `TERMINAL_TOPICS`.
+  - 103 new tests across 4 files: `test_benzinga_news_endpoints.py` (18), `test_benzinga_financial.py` (44), `test_benzinga_calendar_extended.py` (17), `test_vd_bz_enrichment.py` (24).
+
+- **Benzinga Intelligence — Streamlit Terminal (expanded):**
+  - Expanded Benzinga Intel tab from 3 to 11 sub-tabs: Ratings, Earnings, Economics, **Dividends**, **Splits**, **IPOs**, **Guidance**, **Retail**, **Top News**, **Quantified News**, **Options Flow**.
+  - All new sub-tabs use `@st.cache_data(ttl=120)` wrappers and graceful error handling.
+
+- **Benzinga Intelligence — Open Prep Streamlit:**
+  - New "📊 Benzinga Intelligence" section in `open_prep/streamlit_monitor.py` with 8 tabs: Dividends, Splits, IPOs, Guidance, Retail Sentiment, Top News, Quantified News, Options Flow.
+  - 10 cached wrapper functions with `@st.cache_data(ttl=120)` TTLs.
+  - All imports guarded by `try/except ImportError` for Streamlit Cloud compatibility.
+
+- **VisiData Benzinga enrichment:**
+  - `build_vd_snapshot()` and `save_vd_snapshot()` accept `bz_dividends`, `bz_guidance`, `bz_options` parameters.
+  - Per-ticker enrichment columns: `div_exdate`, `div_yield` (from dividends), `guid_eps` (from guidance), `options_flow` (from options activity).
+  - New `build_vd_bz_calendar()` and `save_vd_bz_calendar()` functions produce a standalone Benzinga Calendar JSONL file with dividends, splits, IPOs, and guidance events.
+  - Default export path: `artifacts/vd_bz_calendar.jsonl`.
+
 - **Terminal UI improvements:**
   - Data table headlines are now clickable links to source articles (`LinkColumn`).
   - Ring-buffer eviction replaces queue drop-on-full (maxsize 100 → 500).
@@ -68,7 +90,7 @@ All notable changes to this project are documented in this file.
 
 ### Verification (2026-02-27)
 
-- Full regression suite: **1474 passed, 34 subtests passed**.
+- Full regression suite: **1599 passed, 34 subtests passed**.
 - Pylance/Pyright: **0 workspace errors** (only external `~/.visidatarc` stub, suppressed).
 - Lint (`ruff`): clean.
 

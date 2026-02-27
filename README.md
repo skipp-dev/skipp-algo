@@ -161,7 +161,7 @@ Timing note:
 
 For the Python modules (`newsstack_fmp`, `open_prep`, `terminal_*`, `streamlit_terminal`), the repository uses a documented quality gate with `pytest`, `ruff`, `mypy`, and Pylance/Pyright.
 
-- Test suite (1474 tests): `python -m pytest tests/ -q`
+- Test suite (1599 tests): `python -m pytest tests/ -q`
 - Linting: `ruff check newsstack_fmp/ open_prep/ terminal_poller.py terminal_export.py terminal_spike_scanner.py terminal_background_poller.py`
 - Type-checking: `mypy newsstack_fmp/ terminal_poller.py terminal_export.py`
 - Coverage (core modules):
@@ -172,14 +172,21 @@ Pylance/Pyright: 0 workspace errors (verified 27 Feb 2026).
 
 ## Recent changes (Feb 2026)
 
-- **Latest (27 Feb 2026) — Benzinga delayed-quote overlay + production hardening:**
+- **Latest (27 Feb 2026) — Benzinga full API coverage + Intelligence dashboards:**
+  - **Full Benzinga API coverage:** 3 news endpoints (top news, channels, quantified), 5 calendar endpoints (dividends, splits, IPOs, guidance, retail), 20+ financial data methods (fundamentals, ratios, profiles, price history, options activity, charts) via new `BenzingaFinancialAdapter`.
+  - **Benzinga Intelligence — Terminal:** Expanded from 3 to 11 sub-tabs (added Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified, Options Flow).
+  - **Benzinga Intelligence — Open Prep:** New 8-tab Benzinga Intelligence section in `open_prep/streamlit_monitor.py` (Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified, Options).
+  - **VisiData enrichment:** Per-ticker enrichment columns (`div_exdate`, `div_yield`, `guid_eps`, `options_flow`) + standalone Benzinga Calendar JSONL export.
+  - **Channels & topics filtering:** `channels` and `topics` params wired into REST/WS adapters, Config, terminal_poller.
+  - 103 new tests across 4 files. Verification: **1599 passed**, 0 lint errors.
+
+- **Previous (27 Feb 2026) — Benzinga delayed-quote overlay + production hardening:**
   - Benzinga delayed quotes overlaid on stale FMP data during pre-market/after-hours across terminal spike scanner, VisiData, Rankings tab, and open_prep Streamlit monitor.
   - Market-session detection (`market_session()`) with canonical `SESSION_ICONS` in `terminal_spike_scanner.py`.
   - Benzinga calendar, movers, and quotes adapters with 79 tests.
   - 3 production readiness review cycles: 12 bugs fixed (cache key thrashing, falsy `or` patterns, unconditional API calls, BZ column ordering, etc.).
   - Full Pylance/Pyright lint cleanup: 0 workspace errors.
   - Terminal UI: clickable headline links, ring-buffer eviction, optional imports for Streamlit Cloud.
-  - Verification: **1474 passed, 34 subtests passed**, 0 lint errors.
 
 - **Previous (26 Feb 2026) — Python docs + quality hardening update:**
   - Added `pyproject.toml` as the central configuration for:
