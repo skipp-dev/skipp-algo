@@ -1,7 +1,7 @@
 # Open Prep Suite — Ops Quick Reference (24/7)
 
-Stand: 25.02.2026  
-Scope: `open_prep` + `newsstack_fmp` Betrieb
+Stand: 27.02.2026  
+Scope: `open_prep` + `newsstack_fmp` + Terminal-Suite Betrieb
 
 ---
 
@@ -49,6 +49,14 @@ Incident-Matrix (Symptom → Ursache → Maßnahme → ETA):
 - Entry: `open_prep/streamlit_monitor.py`
 - Nutzt `generate_open_prep_result(...)` + Realtime/Newsstack Integration.
 
+### E) Benzinga Delayed-Quote Overlay
+
+- Aktiv in: `streamlit_terminal.py`, `streamlit_monitor.py`, VisiData Snapshots
+- In Pre-Market/After-Hours werden `bz_price`/`bz_chg_pct` Spalten eingeblendet
+- Session-Erkennung: `terminal_spike_scanner.market_session()` (US-Handelszeiten, pytz)
+- Caching: `@st.cache_data(ttl=60)` — Quotes werden max. alle 60s neu abgeholt
+- Preis-Priorität: RT (Realtime) > BZ (Benzinga delayed) > FMP (Schlusskurs)
+
 ---
 
 ## 3) Kritische Output-Dateien (SOLL)
@@ -76,9 +84,11 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 5. **Premarket/ATR-Qualität**
    - `premarket_fetch_error`, `atr_fetch_errors`
 
----
+6. **Benzinga Quote Freshness (Pre-/After-Market)**
+   - Prüfen: `bz_price` Spalte vorhanden in Spike Scanner / Rankings?
+   - Wenn nicht: `BENZINGA_API_KEY` gesetzt? `market_session()` korrekt?
 
-## 5) Betriebsrelevante ENV-Schalter
+---
 
 ### Open Prep
 
@@ -95,6 +105,15 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `ENABLE_BENZINGA_WS` (default `0`)
 - `BENZINGA_API_KEY` (wenn REST/WS aktiviert)
 - `POLL_INTERVAL_S`, `TOP_N_EXPORT`, `SCORE_ENRICH_THRESHOLD`
+
+### Terminal
+
+- `BENZINGA_API_KEY` (for delayed quotes + calendar/movers)
+- `FMP_API_KEY` (for spike scanner, sector performance)
+- `TERMINAL_POLL_INTERVAL_S` (default `5.0`)
+- `TERMINAL_SQLITE_PATH`
+- `TERMINAL_JSONL_PATH`
+- `TERMINAL_MAX_ITEMS` (default `500`)
 
 ---
 
@@ -199,6 +218,8 @@ Wichtig: Fail-open bedeutet **nicht** „alles gut“, sondern „laufend, aber 
 Bei Änderungen an produktionskritischen Modulen:
 
 - `run_open_prep.py`, `scorer.py`, `macro.py`, `realtime_signals.py`, `pipeline.py`
+- `terminal_spike_scanner.py`, `terminal_poller.py`, `streamlit_terminal.py`
+- `newsstack_fmp/ingest_benzinga_calendar.py`
 
 immer:
 
@@ -217,3 +238,4 @@ Wenn’s brennt:
 2. Realtime und Newsstack getrennt testen
 3. bei Bedarf degraded weiterlaufen lassen (fail-open) statt blind stoppen
 4. nach Recovery auf Timestamps + Kandidaten + Warnungen verifizieren
+5. Bei stale Preisen in Pre-/After-Market: `BENZINGA_API_KEY` + `market_session()` prüfen

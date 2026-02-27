@@ -1,7 +1,7 @@
 # Open Prep Suite — Vollständige technische Referenz
 
-Stand: 25.02.2026  
-Codebasis: `open_prep/` + Integration `newsstack_fmp/`
+Stand: 27.02.2026  
+Codebasis: `open_prep/` + Integration `newsstack_fmp/` + Terminal-Suite `terminal_*.py` + `streamlit_terminal.py`
 
 ---
 
@@ -334,6 +334,24 @@ Features:
   - Trade Cards, Tomorrow Outlook, Diff, Watchlist, Runtime-Warnungen
 - Soft-Refresh über Streamlit Fragments
 
+### 11.1 Benzinga Delayed-Quote Overlay
+
+Bei Pre-Market/After-Hours liefert FMP nur den letzten Schlusskurs.
+Die Suite overlaid daher Benzinga delayed-quotes (`fetch_benzinga_delayed_quotes()`)
+als frischere Preisquelle:
+
+- Kernfunktion: `overlay_extended_hours_quotes()` in `terminal_spike_scanner.py`
+- Sichtbar als `bz_price` / `bz_chg_pct` Spalten in Rankings-Tabelle und VisiData.
+- Markt-Session-Erkennung: `market_session()` (US-Handelszeiten, pytz-basiert).
+- Canonical `SESSION_ICONS` Dict (in `terminal_spike_scanner.py`), importiert von beiden Streamlit-Apps.
+- Caching: `@st.cache_data(ttl=60)` Wrapper `_cached_bz_quotes_op()` in `streamlit_monitor.py`.
+- Preis-Priorität: RT (Realtime) > BZ (Benzinga delayed) > FMP (Schlusskurs).
+
+### 11.2 Realtime Auto-Promotion
+
+- Symbole mit aktiven `A0`/`A1`-Signalen, die nur wegen `below_top_n_cutoff` nicht in v2 erscheinen,
+  werden in einen dedizierten **🔥 RT-PROMOTED** Block hochgestuft.
+
 ---
 
 ## 12) `newsstack_fmp` Integration
@@ -343,6 +361,7 @@ Relevante Dateien:
 - `newsstack_fmp/pipeline.py`
 - `newsstack_fmp/ingest_fmp.py`
 - `newsstack_fmp/ingest_benzinga.py`
+- `newsstack_fmp/ingest_benzinga_calendar.py`
 - `newsstack_fmp/normalize.py`
 - `newsstack_fmp/scoring.py`
 - `newsstack_fmp/store_sqlite.py`
@@ -360,6 +379,19 @@ Relevante Dateien:
 - Cluster/Novelty (`cluster_touch`)
 - Scoring + optional URL-Enrichment (mit Budget)
 - Export mit Atomic Write
+
+### 12.3 Benzinga Calendar & Market Data Adapters
+
+Datei: `newsstack_fmp/ingest_benzinga_calendar.py`
+
+- `BenzingaCalendarAdapter` — REST-basierter Zugriff auf Benzinga Calendar Endpoints:
+  - `fetch_ratings()` — Analyst-Ratings
+  - `fetch_earnings()` — Earnings-Kalender
+  - `fetch_economics()` — Wirtschaftsdaten
+  - `fetch_conference_calls()` — Earnings-Calls
+- `fetch_benzinga_movers()` — Top Market-Movers (Gainers/Losers)
+- `fetch_benzinga_delayed_quotes(api_key, symbols)` — Delayed Quotes für Pre-/After-Market
+- WIIM-Boost: `_classify_item()` erkennt "Why Is It Moving" Artikel und boostet deren Impact-Score.
 
 ---
 
@@ -468,5 +500,15 @@ Die aktuelle Suite-Implementierung hat bereits produktionsnahe Guardrails:
 - Dedupe/Cursor- und Cluster-State in Newsstack
 - NaN-sichere Serialisierung
 - Profiling + Statuswarnungen für operativen Betrieb
+- Benzinga delayed-quote Overlay für Extended-Hours Freshness
+- Sortierte Cache-Keys für deterministische `@st.cache_data` Hits
+- `callable()` statt Truthiness-Check für optional importierte Funktionen
+- Pylance/Pyright: 0 Workspace-Errors (Stand 27.02.2026)
+
+### 17.1 Test-Abdeckung
+
+- **1474 Tests** in 30 Test-Dateien
+- **~22 900 LOC** Python (open_prep + newsstack_fmp + terminal_*)
+- Coverage-Gate via `pyproject.toml`
 
 Damit ist die `open_prep`-Suite als technische Basis für 24/7 Monitoring- und Pre-Open-Workflows geeignet, inklusive nachvollziehbarer Explainability entlang des gesamten Daten- und Entscheidungsflusses.

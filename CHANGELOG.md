@@ -6,6 +6,48 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-02-27)
+
+- **Benzinga delayed-quote overlay (extended-hours freshness):**
+  - Integrated `fetch_benzinga_delayed_quotes()` into terminal spike scanner, VisiData snapshot, open_prep Streamlit monitor, and all stale FMP price displays.
+  - During pre-market/after-hours, `bz_price`/`bz_chg_pct` columns overlay fresher Benzinga quotes on top of stale FMP close data.
+  - Market-session aware: `market_session()` in `terminal_spike_scanner.py` detects pre-market, regular, after-hours, and closed states.
+  - `SESSION_ICONS` extracted as canonical dict in `terminal_spike_scanner.py`, imported by both Streamlit apps.
+  - Rankings tab in `streamlit_terminal.py` accepts `bz_quotes` param with RT > BZ > None price source priority.
+
+- **Benzinga calendar, movers & quotes adapters:**
+  - `BenzingaCalendarAdapter` in `newsstack_fmp/ingest_benzinga_calendar.py` with typed fetchers (ratings, earnings, economics, conference calls).
+  - `fetch_benzinga_movers()` and `fetch_benzinga_delayed_quotes()` via REST endpoints.
+  - WIIM article boost in `_classify_item()` for "Why Is It Moving" actionability.
+  - 79 tests in `tests/test_benzinga_calendar.py`.
+
+- **Terminal UI improvements:**
+  - Data table headlines are now clickable links to source articles (`LinkColumn`).
+  - Ring-buffer eviction replaces queue drop-on-full (maxsize 100 → 500).
+  - Optional import guard for `ingest_benzinga_calendar` on Streamlit Cloud.
+
+### Fixed (2026-02-27)
+
+- **Production readiness hardening (3 review cycles, 12 bugs fixed):**
+  - **Review #1:** P0 falsy `or` in dict lookup, P1 `bq.get("last", 0)` default, P1 unconditional API calls in non-extended sessions, P2 inner import, P2 source concatenation, P2 duplicate dicts.
+  - **Review #2:** P1 cache key thrashing from non-deterministic set iteration → `sorted()`, P2 6× `market_session()` per render → consolidated to single `_current_session`, P1 `_get_bz_quotes_for_symbols` in open_prep had no caching → added `@st.cache_data(ttl=60)` wrapper, P2 unused `timezone` import.
+  - **Review #3:** P2 spike symbols not sorted before `join()` for cache key, P2 BZ overlay ran after `_reorder_ranked_columns` so bz columns appeared at tail.
+  - **Refactoring:** DRY `SESSION_ICONS` extraction, symbol extraction `g.get("symbol") or g.get("ticker", "")` pattern, loop var rename `l` → `loser`.
+
+- **Pylance/Pyright lint cleanup (0 workspace errors):**
+  - Wrapped `json.load`, `getattr`, `round/max/min`, `st.session_state` returns with explicit casts (`float()`, `str()`, `list()`, `# type: ignore[no-any-return]`).
+  - Added `# type: ignore[assignment]` for optional import `None` sentinel assignments.
+  - Renamed loop var `q` → `quote` in `terminal_spike_scanner.py` to avoid type-narrowing shadow.
+  - Imported `ClassifiedItem` at module level + `dict[str, Any]` annotation on defaults in tests.
+  - Fixed `Generator` return type for yield fixtures in `tests/test_benzinga_calendar.py`.
+  - Used `callable()` check instead of truthiness for `_market_session` function.
+
+### Verification (2026-02-27)
+
+- Full regression suite: **1474 passed, 34 subtests passed**.
+- Pylance/Pyright: **0 workspace errors** (only external `~/.visidatarc` stub, suppressed).
+- Lint (`ruff`): clean.
+
 ### Added (2026-02-26)
 
 - **Python quality/documentation baseline (repo-level):**

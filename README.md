@@ -141,11 +141,13 @@ Timing note:
 
 ## Documentation
 
+- **Bloomberg Terminal — Architecture & Plan:** `docs/BLOOMBERG_TERMINAL_PLAN.md`
 - **Open Prep Suite — technische Vollreferenz:** `docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md`
 - **Open Prep Suite — Ops Quick Reference (24/7):** `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md`
 - **Open Prep Suite — Incident Runbook Matrix:** `docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md`
 - **Open Prep Suite — Incident One-Page (Markdown):** `docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md`
 - **Open Prep Suite — Incident One-Page (Print HTML):** `docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE_PRINT.html`
+- **Open Prep Suite — Code Reviews:** `docs/REVIEW_open_prep_suite.md`, `docs/REVIEW_open_prep_v2_post_fixes.md`
 - **Deep technical documentation:** `docs/SkippALGO_Deep_Technical_Documentation.md`
 - **Deep technical documentation (current):** `docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md`
 - **Kurzfassung für neue Nutzer:** `docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md`
@@ -157,19 +159,29 @@ Timing note:
 
 ## Developer quality checks (Python workspace)
 
-For the Python modules (`newsstack_fmp`, `open_prep`, `terminal_*`), the repository now uses a documented quality gate with `pytest`, `ruff`, and `mypy`.
+For the Python modules (`newsstack_fmp`, `open_prep`, `terminal_*`, `streamlit_terminal`), the repository uses a documented quality gate with `pytest`, `ruff`, `mypy`, and Pylance/Pyright.
 
-- Test suite: `python -m pytest tests/ -q`
-- Linting: `ruff check newsstack_fmp/ open_prep/ terminal_poller.py terminal_export.py`
+- Test suite (1474 tests): `python -m pytest tests/ -q`
+- Linting: `ruff check newsstack_fmp/ open_prep/ terminal_poller.py terminal_export.py terminal_spike_scanner.py terminal_background_poller.py`
 - Type-checking: `mypy newsstack_fmp/ terminal_poller.py terminal_export.py`
 - Coverage (core modules):
   - `python -m pytest tests/ -q --cov=newsstack_fmp --cov=terminal_poller --cov=terminal_export --cov-report=term-missing`
 
 Configuration is centralized in `pyproject.toml`.
+Pylance/Pyright: 0 workspace errors (verified 27 Feb 2026).
 
 ## Recent changes (Feb 2026)
 
-- **Latest (26 Feb 2026) — Python docs + quality hardening update:**
+- **Latest (27 Feb 2026) — Benzinga delayed-quote overlay + production hardening:**
+  - Benzinga delayed quotes overlaid on stale FMP data during pre-market/after-hours across terminal spike scanner, VisiData, Rankings tab, and open_prep Streamlit monitor.
+  - Market-session detection (`market_session()`) with canonical `SESSION_ICONS` in `terminal_spike_scanner.py`.
+  - Benzinga calendar, movers, and quotes adapters with 79 tests.
+  - 3 production readiness review cycles: 12 bugs fixed (cache key thrashing, falsy `or` patterns, unconditional API calls, BZ column ordering, etc.).
+  - Full Pylance/Pyright lint cleanup: 0 workspace errors.
+  - Terminal UI: clickable headline links, ring-buffer eviction, optional imports for Streamlit Cloud.
+  - Verification: **1474 passed, 34 subtests passed**, 0 lint errors.
+
+- **Previous (26 Feb 2026) — Python docs + quality hardening update:**
   - Added `pyproject.toml` as the central configuration for:
     - `pytest` discovery/options,
     - `ruff` lint rules,
