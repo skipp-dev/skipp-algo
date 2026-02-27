@@ -89,6 +89,8 @@ try:
         fetch_benzinga_top_news_items as _fetch_bz_top_news,
         fetch_benzinga_quantified as _fetch_bz_quantified,
         fetch_benzinga_channel_list as _fetch_bz_channels,
+        fetch_benzinga_conference_calls as _fetch_bz_conf_calls,
+        fetch_benzinga_news_by_channel as _fetch_bz_news_by_channel,
     )
 except ImportError:  # pragma: no cover
     _fetch_bz_dividends = None  # type: ignore[assignment]
@@ -99,6 +101,8 @@ except ImportError:  # pragma: no cover
     _fetch_bz_top_news = None  # type: ignore[assignment]
     _fetch_bz_quantified = None  # type: ignore[assignment]
     _fetch_bz_channels = None  # type: ignore[assignment]
+    _fetch_bz_conf_calls = None  # type: ignore[assignment]
+    _fetch_bz_news_by_channel = None  # type: ignore[assignment]
 
 try:
     from newsstack_fmp.ingest_benzinga_financial import (
@@ -169,6 +173,14 @@ def _cached_bz_retail_op(api_key: str, from_d: str, to_d: str) -> list[dict[str,
     return _fetch_bz_retail(api_key, date_from=from_d, date_to=to_d) or []
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_conf_calls_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
+    """Cache Benzinga conference calls calendar for 5 minutes."""
+    if _fetch_bz_conf_calls is None:
+        return []
+    return _fetch_bz_conf_calls(api_key, date_from=from_d, date_to=to_d) or []
+
+
 # ── Cached Benzinga News Wrappers (open_prep) ──────────────────
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -185,6 +197,22 @@ def _cached_bz_quantified_op(api_key: str, from_d: str | None = None, to_d: str 
     if _fetch_bz_quantified is None:
         return []
     return _fetch_bz_quantified(api_key, date_from=from_d, date_to=to_d) or []
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_bz_channel_list_op(api_key: str) -> list[dict[str, Any]]:
+    """Cache Benzinga channel list for 1 hour (rarely changes)."""
+    if _fetch_bz_channels is None:
+        return []
+    return _fetch_bz_channels(api_key) or []
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_news_by_channel_op(api_key: str, channels: str, page_size: int = 50) -> list[dict[str, Any]]:
+    """Cache channel-filtered Benzinga news for 2 minutes."""
+    if _fetch_bz_news_by_channel is None:
+        return []
+    return _fetch_bz_news_by_channel(api_key, channels, page_size=page_size) or []
 
 
 # ── Cached Benzinga Financial Wrappers (open_prep) ─────────────
@@ -1501,7 +1529,8 @@ def main() -> None:
             st.subheader("📊 Benzinga Intelligence")
             st.caption(
                 "Full Benzinga data suite: Dividends, Splits, IPOs, "
-                "Guidance, Retail, Top News, Quantified News, Options Flow"
+                "Guidance, Retail, Conference Calls, Top News, Quantified News, "
+                "Options Flow, Channel Browser"
             )
 
             _today = datetime.now(UTC).date()
@@ -1509,10 +1538,13 @@ def main() -> None:
             _bz_to = (_today + timedelta(days=14)).isoformat()
 
             (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
-             bz_op_retail, bz_op_top, bz_op_quant, bz_op_opts) = st.tabs([
+             bz_op_retail, bz_op_conf, bz_op_top, bz_op_quant,
+             bz_op_opts, bz_op_channels) = st.tabs([
                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
-                "🔮 Guidance", "🛒 Retail", "📰 Top News",
+                "🔮 Guidance", "🛒 Retail", "📞 Conf Calls",
+                "📰 Top News",
                 "📈 Quantified", "🎰 Options",
+                "📡 Channel Browser",
             ])
 
             # ── Dividends ──
@@ -1670,6 +1702,96 @@ def main() -> None:
                         st.info("No options activity found. (Requires Options Activity API access.)")
                 else:
                     st.info("Enter ticker(s) above to view options activity.")
+
+            # ── Conference Calls ──
+            with bz_op_conf:
+                conf_data = _cached_bz_conf_calls_op(bz_key, _bz_from, _bz_to)
+                if conf_data:
+                    df_cc = pd.DataFrame(conf_data)
+                    _cols = [c for c in [
+                        "ticker", "date", "start_time", "phone",
+                        "international_phone", "webcast_url",
+                        "period", "period_year", "importance",
+                    ] if c in df_cc.columns]
+                    st.caption(f"{len(df_cc)} conference call(s)")
+                    st.dataframe(
+                        df_cc[_cols] if _cols else df_cc,
+                        width="stretch",
+                        height=min(400, 40 + 35 * len(df_cc)),
+                    )
+
+                    # Upcoming calls
+                    _now_str = _today.isoformat()
+                    if "date" in df_cc.columns:
+                        upcoming = df_cc[df_cc["date"] >= _now_str]
+                        if not upcoming.empty:
+                            st.divider()
+                            st.markdown("**📞 Upcoming Conference Calls**")
+                            for _, row in upcoming.head(8).iterrows():
+                                _tk = _safe_md(str(row.get("ticker", "?")))
+                                _url = row.get("webcast_url", "")
+                                _time = row.get("start_time", "")
+                                link = f" | [Webcast]({_url})" if _url else ""
+                                st.markdown(
+                                    f"**{_tk}** — {row.get('date', '?')} {_time} | "
+                                    f"{row.get('period', '?')} {row.get('period_year', '')}"
+                                    f"{link}"
+                                )
+                else:
+                    st.info("No conference call data found.")
+
+            # ── Channel News Browser ──
+            with bz_op_channels:
+                st.caption("Browse Benzinga news by channel.")
+                ch_list = _cached_bz_channel_list_op(bz_key)
+                if ch_list:
+                    ch_names = sorted(set(
+                        str(c.get("name", "")).strip()
+                        for c in ch_list if c.get("name")
+                    ))
+                    selected_ch = st.multiselect(
+                        "Channels",
+                        options=ch_names,
+                        default=[],
+                        placeholder="Pick channels…",
+                        key="bz_op_channel_select",
+                    )
+                    ch_limit = st.selectbox("Max articles", [20, 50, 100], index=0, key="bz_op_ch_limit")
+
+                    if selected_ch:
+                        ch_csv = ",".join(selected_ch)
+                        ch_news = _cached_bz_news_by_channel_op(bz_key, ch_csv, page_size=ch_limit)
+                        if ch_news:
+                            st.caption(f"{len(ch_news)} article(s) for: {ch_csv}")
+                            for idx, art in enumerate(ch_news):
+                                _title = _safe_md(str(art.get("title", "Untitled")))
+                                _src = art.get("source", "")
+                                _url = art.get("url", "")
+                                _ts = art.get("published_ts", "")
+                                _tickers = art.get("tickers", [])
+                                _summary = art.get("summary", "")
+
+                                parts = [f"**{_title}**"]
+                                if _tickers:
+                                    tk_str = ", ".join(str(t) for t in _tickers[:5])
+                                    parts.append(f"[{tk_str}]")
+                                if _src:
+                                    parts.append(f"— {_safe_md(str(_src))}")
+                                if _ts:
+                                    parts.append(f"| {str(_ts)[:16]}")
+                                st.markdown(" ".join(parts))
+                                if _summary:
+                                    st.caption(_safe_md(str(_summary)[:250]))
+                                if _url:
+                                    st.markdown(f"[Read more]({_url})", unsafe_allow_html=True)
+                                if idx < len(ch_news) - 1:
+                                    st.divider()
+                        else:
+                            st.info(f"No articles found for: {ch_csv}")
+                    else:
+                        st.info("Select one or more channels above to browse news.")
+                else:
+                    st.info("Could not load Benzinga channel list.")
 
         # ===================================================================
         # 12. Tomorrow Outlook

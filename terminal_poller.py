@@ -694,7 +694,32 @@ def fetch_benzinga_delayed_quotes(
     return fetch_benzinga_quotes(api_key, symbols)
 
 
-# ── New Calendar Wrappers (dividends, splits, IPO, guidance, retail) ─
+# ── New Calendar Wrappers (conference calls, dividends, splits, IPO, guidance, retail) ─
+
+
+def fetch_benzinga_conference_calls(
+    api_key: str,
+    *,
+    tickers: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Fetch conference call schedule from Benzinga."""
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        return adapter.fetch_conference_calls(
+            tickers=tickers, date_from=date_from, date_to=date_to,
+            page_size=page_size,
+        )
+    except Exception as exc:
+        _msg = _sanitize_exc(exc)
+        logger.warning("Benzinga conference calls fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()
 
 
 def fetch_benzinga_dividends(
@@ -852,3 +877,38 @@ def fetch_benzinga_quantified(
 def fetch_benzinga_channel_list(api_key: str) -> list[dict[str, Any]]:
     """Fetch available channel names/IDs from Benzinga."""
     return fetch_benzinga_channels(api_key)
+
+
+def fetch_benzinga_news_by_channel(
+    api_key: str,
+    channels: str,
+    *,
+    page_size: int = 50,
+) -> list[dict[str, Any]]:
+    """Fetch news filtered by channel name(s) from Benzinga.
+
+    Uses the ``/api/v2/news`` endpoint with ``channels`` parameter.
+    Returns raw article dicts (not normalized ``NewsItem``).
+    """
+    adapter = BenzingaRestAdapter(api_key)
+    try:
+        items = adapter.fetch_news(page_size=page_size, channels=channels)
+        # Convert NewsItem namedtuples to plain dicts for Streamlit
+        return [
+            {
+                "title": getattr(it, "title", ""),
+                "summary": getattr(it, "summary", ""),
+                "source": getattr(it, "source", ""),
+                "url": getattr(it, "url", ""),
+                "published_ts": getattr(it, "published_ts", ""),
+                "tickers": getattr(it, "tickers", []),
+                "sentiment": getattr(it, "sentiment", ""),
+            }
+            for it in items
+        ]
+    except Exception as exc:
+        _msg = _sanitize_exc(exc)
+        logger.warning("Benzinga channel news fetch failed: %s", _msg)
+        return []
+    finally:
+        adapter.close()

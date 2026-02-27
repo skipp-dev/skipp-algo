@@ -15,7 +15,7 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 ### Benzinga REST API
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | **News** | `GET https://api.benzinga.com/api/v2/news` |
 | **Top News** | `GET https://api.benzinga.com/api/v2/news` (sort=mostPopular) |
 | **Channels** | `GET https://api.benzinga.com/api/v2/news/channels` |
@@ -50,7 +50,7 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 ### FMP API
 
 | Item | Value |
-|---|---|
+| --- | --- |
 | **Spike Scanner** | Pre-market/after-hours price & volume screening |
 | **Sector Performance** | Sector heatmap data |
 | **Auth** | `?apikey=<API_KEY>` query parameter |
@@ -58,7 +58,7 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 ### News response fields per item
 
 | Field | Type | Notes |
-|---|---|---|
+| --- | --- | --- |
 | `id` | int | Unique article ID |
 | `author` | str | Journalist name |
 | `created` | str | RFC 2822 datetime |
@@ -221,7 +221,7 @@ existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit ap
 ## 4. Reused Components
 
 | Component | Import Path | What it does |
-|---|---|---|
+| --- | --- | --- |
 | `BenzingaRestAdapter` | `newsstack_fmp.ingest_benzinga` | REST polling with retry/backoff |
 | `BenzingaCalendarAdapter` | `newsstack_fmp.ingest_benzinga_calendar` | Calendar/movers/quotes (ratings, earnings, economics, dividends, splits, IPOs, guidance, retail) |
 | `BenzingaFinancialAdapter` | `newsstack_fmp.ingest_benzinga_financial` | Fundamentals, financials, ratios, profiles, price history, options activity |
@@ -274,7 +274,7 @@ docs/BLOOMBERG_TERMINAL_PLAN.md        ← This document
 ## 6. Environment Variables
 
 | Var | Default | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `BENZINGA_API_KEY` | *(required for BZ features)* | API token for news, calendar, movers, quotes |
 | `FMP_API_KEY` | *(required for FMP features)* | API token for spike scanner, sectors |
 | `TERMINAL_POLL_INTERVAL_S` | `5.0` | Seconds between polls |
@@ -318,7 +318,7 @@ When Benzinga calendar/financial data is available, `build_vd_snapshot()` and
 `save_vd_snapshot()` in `terminal_export.py` enrich each ticker row with:
 
 | Column | Source | Description |
-|---|---|---|
+| --- | --- | --- |
 | `div_exdate` | Dividends calendar | Next ex-dividend date |
 | `div_yield` | Dividends calendar | Dividend yield |
 | `guid_eps` | Guidance calendar | EPS guidance estimate |
