@@ -81,6 +81,7 @@ from terminal_poller import (
     DEFENSE_TICKERS,
     TerminalConfig,
     compute_power_gaps,
+    compute_tomorrow_outlook,
     fetch_benzinga_channel_list,
     fetch_benzinga_conference_calls,
     fetch_benzinga_delayed_quotes,
@@ -690,6 +691,18 @@ def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
         "losers": fetch_losers(api_key),
         "actives": fetch_most_active(api_key),
     }
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_tomorrow_outlook(
+    bz_key: str, fmp_key: str, _cache_buster: str = "",
+) -> dict[str, Any]:
+    """Cache tomorrow outlook for 5 minutes.
+
+    *_cache_buster* is unused but forces a new cache entry when the date
+    changes (caller passes today's ISO date).
+    """
+    return compute_tomorrow_outlook(bz_key, fmp_key)
 
 
 def _safe_float_mov(val: Any, default: float = 0.0) -> float:
@@ -1332,10 +1345,10 @@ else:
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
 
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_defense, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_defense, tab_outlook, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
          "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
-         "💹 Bz Movers", "🛡️ Defense & Aerospace", "⚡ Alerts", "📊 Data Table"],
+         "💹 Bz Movers", "🛡️ Defense & Aerospace", "🔮 Tomorrow Outlook", "⚡ Alerts", "📊 Data Table"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -3240,6 +3253,110 @@ else:
                             )
                 else:
                     st.info(f"No stocks found for industry: {industry_name}")
+
+    # ── TAB: Tomorrow Outlook ───────────────────────────────
+    with tab_outlook:
+        st.subheader("🔮 Tomorrow Outlook — Next-Trading-Day Assessment")
+
+        bz_key = cfg.benzinga_api_key
+        fmp_key = cfg.fmp_api_key
+
+        if not bz_key and not fmp_key:
+            st.warning("Configure at least one API key (Benzinga or FMP) to compute the outlook.")
+        else:
+            from datetime import date as _outlook_date
+
+            _today_iso = _outlook_date.today().isoformat()
+
+            # Pass the current feed sentiment so the outlook can factor it in.
+            # The cached wrapper doesn't accept mutable feed_items (unhashable),
+            # so we compute outlook with feed_items outside caching, but cache
+            # the API-heavy part separately.
+            outlook = _cached_tomorrow_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
+
+            # Overlay live feed sentiment on top of cached outlook
+            _feed_for_outlook = feed[-200:] if feed else []
+            if _feed_for_outlook:
+                _bear_c = sum(
+                    1 for it in _feed_for_outlook
+                    if str(it.get("sentiment") or "").lower() == "bearish"
+                )
+                _bull_c = sum(
+                    1 for it in _feed_for_outlook
+                    if str(it.get("sentiment") or "").lower() == "bullish"
+                )
+                _total_f = len(_feed_for_outlook)
+                if _total_f > 10:
+                    _bear_ratio = _bear_c / _total_f
+                    _bull_ratio = _bull_c / _total_f
+                    if _bear_ratio > 0.55:
+                        _feed_sentiment_label = "🔴 Bearish-heavy"
+                    elif _bull_ratio > 0.55:
+                        _feed_sentiment_label = "🟢 Bullish-heavy"
+                    else:
+                        _feed_sentiment_label = "🟡 Mixed"
+                else:
+                    _feed_sentiment_label = "⚪ Insufficient data"
+            else:
+                _feed_sentiment_label = "⚪ No feed data"
+
+            # ── Traffic light banner ──
+            o_label = outlook.get("outlook_label", "🟡 NEUTRAL")
+            o_color = outlook.get("outlook_color", "orange")
+            next_td_str = outlook.get("next_trading_day", "—")
+
+            st.markdown(
+                f"<div style='padding:0.8rem 1.2rem;border-radius:0.6rem;"
+                f"background:{o_color};color:white;font-weight:700;"
+                f"font-size:1.3rem;text-align:center;margin-bottom:1rem'>"
+                f"{o_label} — {next_td_str}</div>",
+                unsafe_allow_html=True,
+            )
+
+            # ── Key metrics ──
+            ocols = st.columns(5)
+            ocols[0].metric("Outlook Score", f"{outlook.get('outlook_score', 0):.2f}")
+            ocols[1].metric("Earnings Tomorrow", outlook.get("earnings_tomorrow_count", 0))
+            ocols[2].metric("Earnings BMO", outlook.get("earnings_bmo_tomorrow_count", 0))
+            ocols[3].metric("High-Impact Events", outlook.get("high_impact_events_tomorrow", 0))
+            ocols[4].metric("Feed Sentiment", _feed_sentiment_label)
+
+            st.divider()
+
+            # ── High-impact events detail ──
+            hi_details = outlook.get("high_impact_events_tomorrow_details") or []
+            if hi_details:
+                st.subheader("📋 Scheduled High-Impact Events")
+                for ev in hi_details:
+                    ev_name = safe_markdown_text(str(ev.get("event", "—")))
+                    ev_country = safe_markdown_text(str(ev.get("country", "US")))
+                    ev_source = safe_markdown_text(str(ev.get("source", "")))
+                    st.markdown(f"- **{ev_name}** ({ev_country}) — Source: {ev_source}")
+            else:
+                st.info("No high-impact macro events scheduled for the next trading day.")
+
+            # ── Notable earnings ──
+            notable = outlook.get("notable_earnings") or []
+            if notable:
+                st.subheader(f"📊 Earnings Reporting on {next_td_str}")
+                _ne_df = pd.DataFrame(notable)
+                display_cols = [c for c in ["ticker", "name", "timing"] if c in _ne_df.columns]
+                st.dataframe(
+                    _ne_df[display_cols] if display_cols else _ne_df,
+                    width='stretch',
+                    height=min(400, 40 + 35 * len(_ne_df)),
+                )
+
+            # ── Reasoning factors ──
+            reasons = outlook.get("reasons") or []
+            if reasons:
+                st.divider()
+                st.caption("**Factors:** " + " · ".join(reasons))
+
+            # ── Sector mood ──
+            sector_mood = outlook.get("sector_mood", "neutral")
+            mood_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(sector_mood, "⚪")
+            st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts:

@@ -17,7 +17,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
@@ -1010,6 +1010,240 @@ def fetch_benzinga_news_by_channel(
         return []
     finally:
         adapter.close()
+
+
+# ── Tomorrow Outlook (next-trading-day traffic light) ────────
+
+# US equity market holidays (simplified, NYSE-based)
+_US_FIXED_HOLIDAYS: set[tuple[int, int]] = {
+    (1, 1),   # New Year's Day
+    (6, 19),  # Juneteenth
+    (7, 4),   # Independence Day
+    (12, 25), # Christmas Day
+}
+
+
+def _next_trading_day(today: date) -> date:
+    """Return the next US equity trading day after *today*, skipping weekends and holidays."""
+    d = today + timedelta(days=1)
+    for _ in range(14):
+        if d.weekday() < 5 and (d.month, d.day) not in _US_FIXED_HOLIDAYS:
+            return d
+        d += timedelta(days=1)
+    return d
+
+
+def compute_tomorrow_outlook(
+    bz_api_key: str,
+    fmp_api_key: str,
+    *,
+    feed_items: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Compute a next-trading-day outlook signal (🟢 / 🟡 / 🔴).
+
+    This is a standalone version for the Bloomberg Terminal that uses
+    live Benzinga + FMP data rather than the open_prep pipeline result.
+
+    Factors
+    -------
+    - Benzinga earnings calendar for the next trading day (BMO count)
+    - FMP economic calendar high-impact events for the next trading day
+    - Benzinga economics (FOMC, CPI, NFP, GDP) for the next trading day
+    - Current feed sentiment distribution (bearish-heavy = risk-off)
+    - Current sector performance balance (majority red = caution)
+
+    Returns
+    -------
+    dict with keys: next_trading_day, outlook_label, outlook_color,
+    outlook_score, reasons, earnings_tomorrow_count,
+    earnings_bmo_tomorrow_count, high_impact_events_tomorrow,
+    high_impact_events_tomorrow_details, sector_mood
+    """
+    today = date.today()
+    next_td = _next_trading_day(today)
+    next_td_iso = next_td.isoformat()
+
+    outlook_score = 0.0
+    reasons: list[str] = []
+
+    # ── 1. Benzinga earnings for next trading day ──
+    earnings_tomorrow: list[dict[str, Any]] = []
+    earnings_bmo: list[dict[str, Any]] = []
+    if bz_api_key:
+        try:
+            earnings_all = fetch_benzinga_earnings(
+                bz_api_key, date_from=next_td_iso, date_to=next_td_iso,
+                page_size=500,
+            )
+            earnings_tomorrow = [
+                e for e in earnings_all
+                if str(e.get("date") or "").startswith(next_td_iso)
+            ]
+            earnings_bmo = [
+                e for e in earnings_tomorrow
+                if str(e.get("earnings_timing") or e.get("time") or "").lower()
+                in {"bmo", "before market open", "before_open"}
+            ]
+        except Exception:
+            pass
+
+    if len(earnings_bmo) >= 10:
+        outlook_score += 0.5
+        reasons.append(f"heavy_earnings_bmo_{len(earnings_bmo)}")
+    elif len(earnings_tomorrow) >= 20:
+        outlook_score += 0.25
+        reasons.append(f"earnings_dense_{len(earnings_tomorrow)}")
+    elif len(earnings_tomorrow) == 0:
+        reasons.append("no_earnings_tomorrow")
+    else:
+        reasons.append(f"earnings_{len(earnings_tomorrow)}")
+
+    # ── 2. High-impact macro events for next trading day ──
+    hi_events: list[dict[str, Any]] = []
+
+    # 2a) FMP economic calendar
+    if fmp_api_key:
+        try:
+            econ_data = fetch_economic_calendar(fmp_api_key, next_td_iso, next_td_iso)
+            for ev in econ_data:
+                imp = str(ev.get("impact") or ev.get("importance") or "").lower()
+                if imp == "high":
+                    hi_events.append({
+                        "event": str(ev.get("event") or "—"),
+                        "date": str(ev.get("date") or next_td_iso),
+                        "country": str(ev.get("country") or "US"),
+                        "source": "FMP",
+                    })
+        except Exception:
+            pass
+
+    # 2b) Benzinga economics calendar
+    if bz_api_key:
+        try:
+            bz_econ = fetch_benzinga_economics(
+                bz_api_key, date_from=next_td_iso, date_to=next_td_iso,
+                page_size=100, importance=0,
+            )
+            for ev in bz_econ:
+                imp = str(ev.get("importance") or "").lower()
+                ev_name = str(ev.get("event_name") or ev.get("name") or "")
+                # Benzinga importance: 0=high, 1=medium, 2=low
+                if imp in {"0", "high"} or any(
+                    kw in ev_name.upper()
+                    for kw in ("CPI", "NFP", "FOMC", "GDP", "PCE", "PPI", "EMPLOYMENT")
+                ):
+                    # Avoid duplicates from FMP
+                    already = any(
+                        h["event"].lower() == ev_name.lower() for h in hi_events
+                    )
+                    if not already:
+                        hi_events.append({
+                            "event": ev_name or "—",
+                            "date": str(ev.get("date") or next_td_iso),
+                            "country": str(ev.get("country") or "US"),
+                            "source": "Benzinga",
+                        })
+        except Exception:
+            pass
+
+    if len(hi_events) >= 3:
+        outlook_score -= 1.5
+        reasons.append(f"high_impact_events_{len(hi_events)}")
+    elif len(hi_events) >= 2:
+        outlook_score -= 1.0
+        reasons.append(f"high_impact_events_{len(hi_events)}")
+    elif len(hi_events) == 1:
+        outlook_score -= 0.5
+        reasons.append("high_impact_event_1")
+    else:
+        reasons.append("no_high_impact_events")
+
+    # ── 3. Current feed sentiment distribution ──
+    sector_mood = "neutral"
+    if feed_items:
+        bearish_count = sum(
+            1 for it in feed_items
+            if str(it.get("sentiment") or "").lower() == "bearish"
+        )
+        bullish_count = sum(
+            1 for it in feed_items
+            if str(it.get("sentiment") or "").lower() == "bullish"
+        )
+        total = len(feed_items)
+        if total > 10:
+            bear_ratio = bearish_count / total
+            bull_ratio = bullish_count / total
+            if bear_ratio > 0.55:
+                outlook_score -= 1.0
+                reasons.append("current_sentiment_bearish_heavy")
+                sector_mood = "risk-off"
+            elif bull_ratio > 0.55:
+                outlook_score += 0.5
+                reasons.append("current_sentiment_bullish_heavy")
+                sector_mood = "risk-on"
+            else:
+                reasons.append("current_sentiment_mixed")
+        else:
+            reasons.append("insufficient_feed_data")
+    else:
+        reasons.append("no_feed_data")
+
+    # ── 4. Sector performance balance ──
+    if fmp_api_key:
+        try:
+            sectors = fetch_sector_performance(fmp_api_key)
+            if sectors:
+                red_count = sum(
+                    1 for s in sectors
+                    if float(s.get("changesPercentage", 0) or 0) < 0
+                )
+                if red_count > len(sectors) * 0.7:
+                    outlook_score -= 0.5
+                    reasons.append("sectors_mostly_red")
+                    sector_mood = "risk-off"
+                elif red_count < len(sectors) * 0.3:
+                    outlook_score += 0.5
+                    reasons.append("sectors_mostly_green")
+                    if sector_mood == "neutral":
+                        sector_mood = "risk-on"
+                else:
+                    reasons.append("sectors_mixed")
+        except Exception:
+            pass
+
+    # ── Map score to traffic light ──
+    if outlook_score >= 0.5:
+        label = "🟢 POSITIVE"
+        color = "green"
+    elif outlook_score <= -1.0:
+        label = "🔴 CAUTION"
+        color = "red"
+    else:
+        label = "🟡 NEUTRAL"
+        color = "orange"
+
+    # Build notable earnings list (top names for display)
+    notable_earnings: list[dict[str, str]] = []
+    for e in earnings_tomorrow[:20]:
+        tk = str(e.get("ticker") or "")
+        nm = str(e.get("name") or "")
+        timing = str(e.get("earnings_timing") or e.get("time") or "—")
+        if tk:
+            notable_earnings.append({"ticker": tk, "name": nm, "timing": timing})
+
+    return {
+        "next_trading_day": next_td_iso,
+        "outlook_label": label,
+        "outlook_color": color,
+        "outlook_score": round(outlook_score, 2),
+        "reasons": reasons,
+        "earnings_tomorrow_count": len(earnings_tomorrow),
+        "earnings_bmo_tomorrow_count": len(earnings_bmo),
+        "high_impact_events_tomorrow": len(hi_events),
+        "high_impact_events_tomorrow_details": hi_events,
+        "notable_earnings": notable_earnings,
+        "sector_mood": sector_mood,
+    }
 
 
 # ── Power Gap Scanner (PEG / Monster PEG / Monster Gap) ──────
