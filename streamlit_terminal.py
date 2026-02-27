@@ -2015,10 +2015,26 @@ else:
             df = pd.DataFrame(feed)
             # Only show columns that exist
             show_cols = [c for c in display_cols if c in df.columns]
+            df_display = df[show_cols].copy()
+
+            # Make headlines clickable links to the article URL
+            _dt_col_cfg: dict[str, Any] = {}
+            if "url" in df.columns and "headline" in df_display.columns:
+                df_display["headline"] = df.apply(
+                    lambda r: r["url"] if r.get("url") else r.get("headline", ""),
+                    axis=1,
+                )
+                if df_display["headline"].str.startswith("http").any():
+                    _dt_col_cfg["headline"] = st.column_config.LinkColumn(
+                        "Headline",
+                        display_text=r"https?://[^/]+/(.{0,80}).*",
+                    )
+
             st.dataframe(
-                df[show_cols],
+                df_display,
                 width='stretch',
                 height=600,
+                column_config=_dt_col_cfg if _dt_col_cfg else None,
             )
         else:
             st.info("No data yet.")
