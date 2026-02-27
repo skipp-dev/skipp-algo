@@ -17,3 +17,8 @@ artifacts/open_prep/latest/
 open_prep/streamlit_monitor.log
 open_prep/latest_open_prep_run.json
 open_prep/latest_realtime_signals.json
+
+# SQLite databases (runtime state)
+*.db
+*.db-wal
+*.db-shm
