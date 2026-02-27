@@ -248,6 +248,58 @@ class TestFeedLifecycleManager:
 
         assert result.get("feed_action") == "cleared"
 
+    @patch("terminal_feed_lifecycle._now_et")
+    def test_manage_stale_recovery_during_market_hours(self, mock_now):
+        """When feed is >30 min stale during market hours, manage() returns stale_recovery."""
+        mock_now.return_value = _make_et(1, 10)  # Tuesday 10am
+        mgr = FeedLifecycleManager()
+        mgr._last_lifecycle_check = 0  # force check
+
+        # Feed with a single item 45 minutes old
+        stale_feed = [{"published_ts": time.time() - 2700}]  # 45 min
+        store = MagicMock()
+
+        result = mgr.manage(stale_feed, store)
+
+        assert result.get("feed_stale") is True
+        assert result.get("feed_action") == "stale_recovery"
+        store.prune_seen.assert_called_once_with(keep_seconds=0.0)
+        store.prune_clusters.assert_called_once_with(keep_seconds=0.0)
+
+    @patch("terminal_feed_lifecycle._now_et")
+    def test_manage_stale_recovery_cooldown(self, mock_now):
+        """Stale recovery should not fire again within the 5 min cooldown."""
+        mock_now.return_value = _make_et(1, 10)
+        mgr = FeedLifecycleManager()
+        mgr._last_lifecycle_check = 0
+        # Simulate recent stale recovery
+        mgr._last_stale_recovery_ts = time.time() - 60  # 1 min ago
+
+        stale_feed = [{"published_ts": time.time() - 2700}]
+        store = MagicMock()
+
+        result = mgr.manage(stale_feed, store)
+
+        # Stale detected but no recovery action (cooldown)
+        assert result.get("feed_stale") is True
+        assert result.get("feed_action") is None
+        store.prune_seen.assert_not_called()
+
+    @patch("terminal_feed_lifecycle._now_et")
+    def test_manage_no_stale_recovery_off_hours(self, mock_now):
+        """Stale recovery should not fire outside market hours."""
+        mock_now.return_value = _make_et(5, 10)  # Saturday 10am
+        mgr = FeedLifecycleManager()
+        mgr._last_lifecycle_check = 0
+
+        stale_feed = [{"published_ts": time.time() - 7200}]
+        store = MagicMock()
+
+        result = mgr.manage(stale_feed, store)
+
+        assert result.get("feed_stale") is None
+        assert result.get("feed_action") is None
+
     # ── Status display ──────────────────────────────────────
 
     @patch("terminal_feed_lifecycle._now_et")

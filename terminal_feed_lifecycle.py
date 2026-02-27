@@ -49,6 +49,7 @@ _NYSE_OPEN_MIN = 9 * 60 + 30   # 570
 _NYSE_CLOSE_MIN = 16 * 60      # 960
 _PREMARKET_START_MIN = 4 * 60  # 04:00 ET
 _PRESEED_WINDOW_MIN = 30       # pre-seed 30 min before open
+_STALE_RECOVERY_COOLDOWN_S = 300.0  # 5 min between auto-recovery attempts
 
 
 def is_weekend(dt: datetime | None = None) -> bool:
@@ -141,6 +142,7 @@ class FeedLifecycleManager:
         self._weekend_cleared: bool = False
         self._preseed_done: bool = False
         self._last_lifecycle_check: float = 0.0
+        self._last_stale_recovery_ts: float = 0.0
         # Date of last weekend clear (to only clear once per Monday)
         self._weekend_clear_date: str = ""
 
@@ -237,7 +239,10 @@ class FeedLifecycleManager:
     ) -> dict[str, Any]:
         """Run lifecycle checks. Call on every Streamlit rerun.
 
-        Returns a dict with any actions taken.
+        Returns a dict with any actions taken.  When ``feed_action``
+        is ``"stale_recovery"`` the caller should reset its cursor to
+        ``None`` and trigger an immediate re-poll so the API returns
+        the latest articles without an ``updatedSince`` filter.
         """
         # Throttle: only check every 30 seconds
         now = time.time()
@@ -255,10 +260,31 @@ class FeedLifecycleManager:
                 result["feed_action"] = "cleared"
                 return result
 
-        # 2. Detect stale feed during market hours
+        # 2. Stale-data auto-recovery during market hours
+        #    When the newest item is > 30 min old AND we're in
+        #    extended hours (04:00-20:00 ET), reset cursor + prune
+        #    dedup so next poll starts fresh.  Guarded by a cooldown
+        #    so we don't reset every 30 s if the API genuinely has no
+        #    new articles.
         if is_market_hours() and is_feed_stale(feed, max_age_min=30):
+            staleness = feed_staleness_minutes(feed)
             result["feed_stale"] = True
-            result["staleness_min"] = feed_staleness_minutes(feed)
+            result["staleness_min"] = staleness
+
+            cooldown_ok = (now - self._last_stale_recovery_ts) >= _STALE_RECOVERY_COOLDOWN_S
+            if cooldown_ok:
+                try:
+                    store.prune_seen(keep_seconds=0.0)
+                    store.prune_clusters(keep_seconds=0.0)
+                except Exception as exc:
+                    logger.warning("Stale-recovery prune failed: %s", exc)
+                self._last_stale_recovery_ts = now
+                result["feed_action"] = "stale_recovery"
+                logger.info(
+                    "Stale-recovery triggered: feed %.0f min old during market hours — "
+                    "cursor reset + dedup pruned",
+                    staleness or 0,
+                )
 
         # 3. Pre-seed window detection
         if self.should_preseed():

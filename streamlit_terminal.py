@@ -74,7 +74,7 @@ from terminal_export import (
     rotate_jsonl,
     save_vd_snapshot,
 )
-from terminal_feed_lifecycle import FeedLifecycleManager
+from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
 from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
@@ -371,6 +371,21 @@ with st.sidebar:
     # Manual poll button
     force_poll = st.button("🔄 Poll Now", width='stretch')
 
+    # Reset cursor (forces next poll to fetch latest without updatedSince)
+    if st.button("🔃 Reset Cursor", width='stretch',
+                 help="Reset the API cursor so the next poll fetches the most recent articles "
+                      "without an updatedSince filter. Use when data appears stale."):
+        _store = _get_store()
+        try:
+            _store.prune_seen(keep_seconds=0.0)
+            _store.prune_clusters(keep_seconds=0.0)
+        except Exception as exc:
+            logger.warning("Cursor reset prune failed: %s", exc)
+        st.session_state.cursor = None
+        st.session_state.consecutive_empty_polls = 0
+        st.toast("Cursor reset — next poll will fetch latest articles", icon="🔃")
+        st.rerun()
+
     st.divider()
 
     # Stats
@@ -380,6 +395,28 @@ with st.sidebar:
     if st.session_state.last_poll_ts:
         ago = time.time() - st.session_state.last_poll_ts
         st.caption(f"Last poll: {ago:.0f}s ago")
+
+    # Feed staleness + cursor diagnostics
+    _diag_feed = st.session_state.feed
+    _diag_staleness = feed_staleness_minutes(_diag_feed)
+    if _diag_staleness is not None:
+        _stale_label = f"Feed age: {_diag_staleness:.0f}m"
+        if _diag_staleness > 30 and is_market_hours():
+            st.warning(_stale_label)
+        else:
+            st.caption(_stale_label)
+    _diag_cursor = st.session_state.cursor
+    if _diag_cursor:
+        try:
+            _cursor_ago = (time.time() - float(_diag_cursor)) / 60
+            st.caption(f"Cursor: {_cursor_ago:.0f}m ago")
+        except (ValueError, TypeError):
+            st.caption(f"Cursor: {str(_diag_cursor)[:20]}")
+    else:
+        st.caption("Cursor: (initial)")
+    _diag_empty = st.session_state.get("consecutive_empty_polls", 0)
+    if _diag_empty > 0:
+        st.caption(f"Empty polls: {_diag_empty}")
 
     st.divider()
 
@@ -902,6 +939,10 @@ if _lc_result.get("feed_action") == "cleared":
     st.session_state.cursor = None
     st.session_state.poll_count = 0
     logger.info("Feed lifecycle: weekend data cleared")
+elif _lc_result.get("feed_action") == "stale_recovery":
+    st.session_state.cursor = None
+    st.session_state.consecutive_empty_polls = 0
+    logger.info("Feed lifecycle: stale-recovery cursor reset")
 
 # Adjust poll interval for off-hours
 _effective_interval = _lifecycle.get_off_hours_poll_interval(float(interval))
