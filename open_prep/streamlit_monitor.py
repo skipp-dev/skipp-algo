@@ -109,11 +109,13 @@ try:
         fetch_benzinga_options_activity as _fetch_bz_options,
         fetch_benzinga_company_profile as _fetch_bz_profile,
         fetch_benzinga_ticker_detail as _fetch_bz_detail,
+        fetch_benzinga_insider_transactions as _fetch_bz_insider,
     )
 except ImportError:  # pragma: no cover
     _fetch_bz_options = None  # type: ignore[assignment]
     _fetch_bz_profile = None  # type: ignore[assignment]
     _fetch_bz_detail = None  # type: ignore[assignment]
+    _fetch_bz_insider = None  # type: ignore[assignment]
 
 try:
     from terminal_ui_helpers import safe_markdown_text as _safe_md
@@ -216,6 +218,23 @@ def _cached_bz_news_by_channel_op(api_key: str, channels: str, page_size: int = 
 
 
 # ── Cached Benzinga Financial Wrappers (open_prep) ─────────────
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_bz_insider_op(
+    api_key: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    action: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache Benzinga insider transactions for 3 minutes."""
+    if _fetch_bz_insider is None:
+        return []
+    return _fetch_bz_insider(
+        api_key, date_from=date_from, date_to=date_to,
+        action=action, page_size=page_size,
+    ) or []
+
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
@@ -1530,7 +1549,7 @@ def main() -> None:
             st.caption(
                 "Full Benzinga data suite: Dividends, Splits, IPOs, "
                 "Guidance, Retail, Conference Calls, Top News, Quantified News, "
-                "Options Flow, Channel Browser"
+                "Options Flow, Insider Trades, Channel Browser"
             )
 
             _today = datetime.now(UTC).date()
@@ -1539,12 +1558,12 @@ def main() -> None:
 
             (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
              bz_op_retail, bz_op_conf, bz_op_top, bz_op_quant,
-             bz_op_opts, bz_op_channels) = st.tabs([
+             bz_op_opts, bz_op_insider, bz_op_channels) = st.tabs([
                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
                 "🔮 Guidance", "🛒 Retail", "📞 Conf Calls",
                 "📰 Top News",
                 "📈 Quantified", "🎰 Options",
-                "📡 Channel Browser",
+                "🔍 Insider Trades", "📡 Channel Browser",
             ])
 
             # ── Dividends ──
@@ -1739,6 +1758,88 @@ def main() -> None:
                                 )
                 else:
                     st.info("No conference call data found.")
+
+            # ── Insider Trades ──
+            with bz_op_insider:
+                st.caption("SEC Form 4 insider transactions.")
+
+                ic1, ic2, ic3 = st.columns(3)
+                with ic1:
+                    ins_action_op = st.selectbox(
+                        "Type",
+                        ["All", "Purchases (P)", "Sales (S)", "Grants/Awards (A)",
+                         "Dispositions (D)", "Exercises (M)"],
+                        key="bz_op_ins_action",
+                    )
+                with ic2:
+                    ins_tk_op = st.text_input(
+                        "Ticker(s)", value="", placeholder="e.g. AAPL,MSFT",
+                        key="bz_op_ins_ticker",
+                    ).strip().upper()
+                with ic3:
+                    ins_lim_op = st.selectbox("Max results", [50, 100, 200], index=1, key="bz_op_ins_limit")
+
+                _act_map = {
+                    "All": None, "Purchases (P)": "P", "Sales (S)": "S",
+                    "Grants/Awards (A)": "A", "Dispositions (D)": "D",
+                    "Exercises (M)": "M",
+                }
+                api_act = _act_map.get(ins_action_op)
+
+                ins_data_op = _cached_bz_insider_op(
+                    bz_key, date_from=_bz_from, date_to=_bz_to,
+                    action=api_act, page_size=ins_lim_op,
+                )
+
+                if ins_tk_op and ins_data_op:
+                    wanted = {t.strip() for t in ins_tk_op.split(",") if t.strip()}
+                    ins_data_op = [r for r in ins_data_op if str(r.get("ticker", "")).upper() in wanted]
+
+                if ins_data_op:
+                    df_io = pd.DataFrame(ins_data_op)
+                    _cols = [c for c in [
+                        "ticker", "company_name", "owner_name", "owner_title",
+                        "transaction_type", "date", "shares_traded",
+                        "price_per_share", "total_value", "shares_held",
+                    ] if c in df_io.columns]
+                    st.caption(f"{len(df_io)} insider transaction(s)")
+                    st.dataframe(
+                        df_io[_cols] if _cols else df_io,
+                        width="stretch",
+                        height=min(400, 40 + 35 * len(df_io)),
+                    )
+
+                    if "total_value" in df_io.columns:
+                        df_io["_val"] = pd.to_numeric(df_io["total_value"], errors="coerce")
+                        if "transaction_type" in df_io.columns:
+                            buys = df_io[df_io["transaction_type"].str.upper().str.contains("P|PURCHASE", na=False)]
+                            sells = df_io[df_io["transaction_type"].str.upper().str.contains("S|SALE", na=False)]
+                        else:
+                            buys = pd.DataFrame()
+                            sells = pd.DataFrame()
+                        m1, m2, m3 = st.columns(3)
+                        m1.metric("Transactions", len(df_io))
+                        m2.metric("Purchases", len(buys))
+                        m3.metric("Sales", len(sells))
+
+                        big = df_io[df_io["_val"] >= 100_000].sort_values("_val", ascending=False)
+                        if not big.empty:
+                            st.divider()
+                            st.markdown("**🔍 Notable (≥$100K)**")
+                            for _, row in big.head(10).iterrows():
+                                _tk = _safe_md(str(row.get("ticker", "?")))
+                                _nm = _safe_md(str(row.get("owner_name", "?")))
+                                _title = row.get("owner_title", "")
+                                _tp = row.get("transaction_type", "?")
+                                _vl = row.get("_val", 0)
+                                _dt = row.get("date", "?")
+                                st.markdown(
+                                    f"**{_tk}** — {_nm}"
+                                    + (f" ({_title})" if _title else "")
+                                    + f" | {_tp} | ${_vl:,.0f} | {_dt}"
+                                )
+                else:
+                    st.info("No insider transactions found.")
 
             # ── Channel News Browser ──
             with bz_op_channels:

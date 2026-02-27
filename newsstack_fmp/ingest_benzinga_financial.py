@@ -30,6 +30,7 @@ Other:
     - Movers:                 ``/api/v1/market/movers``
     - Ticker Detail:          ``/api/v2/tickerDetail``
     - Options Activity:       ``/api/v2.1/calendar/options_activity``
+    - SEC Insider Transactions: ``/api/v2.1/ownership``
 
 All adapters are **optional** — they are only called when
 ``BENZINGA_API_KEY`` is set.
@@ -109,6 +110,7 @@ INSTRUMENTS_URL = "https://api.benzinga.com/api/v2.1/instruments"
 LOGOS_URL = "https://api.benzinga.com/api/v2/logos"
 TICKER_DETAIL_URL = "https://api.benzinga.com/api/v2/tickerDetail"
 OPTIONS_ACTIVITY_URL = "https://api.benzinga.com/api/v2.1/calendar/options_activity"
+OWNERSHIP_URL = "https://api.benzinga.com/api/v2.1/ownership"
 
 
 class BenzingaFinancialAdapter:
@@ -613,10 +615,61 @@ class BenzingaFinancialAdapter:
         data = self._fetch_json(OPTIONS_ACTIVITY_URL, params)
         return self._extract_list(data, "options_activity", "result", "data")
 
+    # ── SEC Insider Transactions (Ownership API) ────────────
+
+    def fetch_insider_transactions(
+        self,
+        *,
+        tickers: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        action: str | None = None,
+        page_size: int = 100,
+        page: int = 0,
+    ) -> list[dict[str, Any]]:
+        """Fetch SEC insider transactions (Form 4 filings).
+
+        Parameters
+        ----------
+        tickers : str, optional
+            Ticker symbol(s), comma-separated.
+        date_from, date_to : str, optional
+            Date range in ``"YYYY-MM-DD"`` format.
+        action : str, optional
+            Filter by transaction type: ``"S"`` (sale), ``"P"`` (purchase),
+            ``"A"`` (grant/award), ``"D"`` (disposition), ``"M"`` (exercise).
+        page_size : int
+            Max results per page (default 100).
+        page : int
+            Page number (0-based).
+
+        Returns
+        -------
+        list[dict]
+            Insider transaction records with keys like:
+            ``ticker``, ``company_name``, ``owner_name``, ``owner_title``,
+            ``transaction_type``, ``date``, ``shares_traded``,
+            ``price_per_share``, ``total_value``, ``shares_held``.
+        """
+        params: dict[str, Any] = {
+            "pageSize": str(page_size),
+            "page": str(page),
+        }
+        if tickers:
+            params["symbols"] = tickers
+        if date_from:
+            params["dateFrom"] = date_from
+        if date_to:
+            params["dateTo"] = date_to
+        if action:
+            params["action"] = action
+        data = self._fetch_json(OWNERSHIP_URL, params)
+        return self._extract_list(data, "ownership", "data", "result")
+
 
 # =====================================================================
 # Convenience standalone functions (no adapter lifecycle management)
-# =====================================================================
+# ===================================================================
 
 
 def fetch_benzinga_fundamentals(
@@ -741,6 +794,21 @@ def fetch_benzinga_auto_complete(
         return adapter.fetch_auto_complete(query, **kwargs)
     except Exception as exc:
         logger.warning("Benzinga auto-complete fetch failed: %s", _sanitize_exc(exc))
+        return []
+    finally:
+        adapter.close()
+
+
+def fetch_benzinga_insider_transactions(
+    api_key: str,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Fetch SEC insider transactions — standalone wrapper."""
+    adapter = BenzingaFinancialAdapter(api_key)
+    try:
+        return adapter.fetch_insider_transactions(**kwargs)
+    except Exception as exc:
+        logger.warning("Benzinga insider transactions fetch failed: %s", _sanitize_exc(exc))
         return []
     finally:
         adapter.close()

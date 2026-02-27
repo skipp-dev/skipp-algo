@@ -47,6 +47,7 @@ try:
         fetch_benzinga_company_profile,
         fetch_benzinga_financials,
         fetch_benzinga_fundamentals,
+        fetch_benzinga_insider_transactions,
         fetch_benzinga_logos,
         fetch_benzinga_options_activity,
         fetch_benzinga_price_history,
@@ -58,6 +59,7 @@ except ImportError:
     fetch_benzinga_company_profile = None  # type: ignore[assignment]
     fetch_benzinga_financials = None  # type: ignore[assignment]
     fetch_benzinga_fundamentals = None  # type: ignore[assignment]
+    fetch_benzinga_insider_transactions = None  # type: ignore[assignment]
     fetch_benzinga_logos = None  # type: ignore[assignment]
     fetch_benzinga_options_activity = None  # type: ignore[assignment]
     fetch_benzinga_price_history = None  # type: ignore[assignment]

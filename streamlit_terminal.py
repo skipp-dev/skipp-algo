@@ -86,6 +86,7 @@ from terminal_poller import (
     fetch_benzinga_earnings,
     fetch_benzinga_economics,
     fetch_benzinga_guidance,
+    fetch_benzinga_insider_transactions,
     fetch_benzinga_ipos,
     fetch_benzinga_market_movers,
     fetch_benzinga_news_by_channel,
@@ -754,6 +755,21 @@ def _cached_bz_retail(api_key: str, from_date: str, to_date: str) -> list[dict[s
 def _cached_bz_conference_calls(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
     """Cache Benzinga conference calls calendar for 5 minutes."""
     return fetch_benzinga_conference_calls(api_key, date_from=from_date, date_to=to_date, page_size=100)
+
+
+@st.cache_data(ttl=180, show_spinner=False)
+def _cached_bz_insider_transactions(
+    api_key: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    action: str | None = None,
+    page_size: int = 100,
+) -> list[dict[str, Any]]:
+    """Cache Benzinga insider transactions for 3 minutes."""
+    return fetch_benzinga_insider_transactions(
+        api_key, date_from=date_from, date_to=date_to,
+        action=action, page_size=page_size,
+    )
 
 
 # ── Cached Benzinga News Wrappers ───────────────────────────────
@@ -2189,7 +2205,7 @@ else:
             st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga calendar data.")
         else:
             st.subheader("📊 Benzinga Intelligence")
-            st.caption("Full Benzinga data suite: Ratings, Earnings, Economics, Conference Calls, Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified News, Options Flow, Channel Browser")
+            st.caption("Full Benzinga data suite: Ratings, Earnings, Economics, Conference Calls, Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified News, Options Flow, Insider Trades, Channel Browser")
 
             bz_cal_col1, bz_cal_col2 = st.columns(2)
             with bz_cal_col1:
@@ -2211,13 +2227,13 @@ else:
              bz_sub_divs,
              bz_sub_splits, bz_sub_ipos, bz_sub_guidance, bz_sub_retail,
              bz_sub_top_news, bz_sub_quantified, bz_sub_options,
-             bz_sub_channels) = st.tabs(
+             bz_sub_insider, bz_sub_channels) = st.tabs(
                 ["🎯 Ratings", "💰 Earnings", "🌐 Economics",
                  "📞 Conf Calls",
                  "💵 Dividends", "✂️ Splits", "🚀 IPOs",
                  "🔮 Guidance", "🛒 Retail", "📰 Top News",
                  "📈 Quantified", "🎰 Options Flow",
-                 "📡 Channel Browser"],
+                 "🔍 Insider Trades", "📡 Channel Browser"],
             )
 
             # ── Analyst Ratings ─────────────────────────────
@@ -2651,6 +2667,106 @@ else:
                                 )
                 else:
                     st.info("No Benzinga conference call data found for the selected range.")
+
+            # ── Insider Trades ──────────────────────────────
+            with bz_sub_insider:
+                st.caption("SEC Form 4 insider transactions — purchases, sales, grants, and exercises.")
+
+                ins_col1, ins_col2, ins_col3 = st.columns(3)
+                with ins_col1:
+                    ins_action = st.selectbox(
+                        "Transaction Type",
+                        ["All", "Purchases (P)", "Sales (S)", "Grants/Awards (A)",
+                         "Dispositions (D)", "Exercises (M)"],
+                        key="bz_ins_action",
+                    )
+                with ins_col2:
+                    ins_ticker = st.text_input(
+                        "Ticker(s)", value="", placeholder="e.g. AAPL,MSFT",
+                        key="bz_ins_ticker",
+                    ).strip().upper()
+                with ins_col3:
+                    ins_limit = st.selectbox("Max results", [50, 100, 200, 500], index=1, key="bz_ins_limit")
+
+                # Map display label to API action code
+                _action_map = {
+                    "All": None,
+                    "Purchases (P)": "P",
+                    "Sales (S)": "S",
+                    "Grants/Awards (A)": "A",
+                    "Dispositions (D)": "D",
+                    "Exercises (M)": "M",
+                }
+                api_action = _action_map.get(ins_action)
+
+                ins_data = _cached_bz_insider_transactions(
+                    bz_key,
+                    date_from=bz_from_str,
+                    date_to=bz_to_str,
+                    action=api_action,
+                    page_size=ins_limit,
+                )
+
+                # Client-side ticker filter
+                if ins_ticker and ins_data:
+                    wanted = {t.strip() for t in ins_ticker.split(",") if t.strip()}
+                    ins_data = [r for r in ins_data if str(r.get("ticker", "")).upper() in wanted]
+
+                if ins_data:
+                    df_ins = pd.DataFrame(ins_data)
+
+                    # Display columns
+                    display_cols = [c for c in [
+                        "ticker", "company_name", "owner_name", "owner_title",
+                        "transaction_type", "date", "shares_traded",
+                        "price_per_share", "total_value", "shares_held",
+                    ] if c in df_ins.columns]
+
+                    st.caption(f"{len(df_ins)} insider transaction(s) from {bz_from_str} to {bz_to_str}")
+                    st.dataframe(
+                        df_ins[display_cols] if display_cols else df_ins,
+                        width='stretch',
+                        height=min(600, 40 + 35 * len(df_ins)),
+                    )
+
+                    # Summary metrics
+                    if "total_value" in df_ins.columns:
+                        df_ins["_val"] = pd.to_numeric(df_ins["total_value"], errors="coerce")
+                        if "transaction_type" in df_ins.columns:
+                            buys = df_ins[df_ins["transaction_type"].str.upper().str.contains("P|PURCHASE", na=False)]
+                            sells = df_ins[df_ins["transaction_type"].str.upper().str.contains("S|SALE", na=False)]
+                        else:
+                            buys = pd.DataFrame()
+                            sells = pd.DataFrame()
+                        m1, m2, m3, m4 = st.columns(4)
+                        m1.metric("Total Transactions", len(df_ins))
+                        m2.metric("Total Purchases", len(buys))
+                        m3.metric("Total Sales", len(sells))
+                        total_val = df_ins["_val"].sum()
+                        m4.metric("Total Value", f"${total_val:,.0f}" if total_val else "N/A")
+
+                    # Notable transactions (>$100K)
+                    if "_val" in df_ins.columns:
+                        big = df_ins[df_ins["_val"] >= 100_000].sort_values("_val", ascending=False)
+                        if not big.empty:
+                            st.divider()
+                            st.subheader("🔍 Notable Transactions (≥$100K)")
+                            for _, row in big.head(15).iterrows():
+                                _tk = safe_markdown_text(str(row.get("ticker", "?")))
+                                _name = safe_markdown_text(str(row.get("owner_name", "?")))
+                                _title = row.get("owner_title", "")
+                                _type = row.get("transaction_type", "?")
+                                _val = row.get("_val", 0)
+                                _shares = row.get("shares_traded", "?")
+                                _date = row.get("date", "?")
+                                st.markdown(
+                                    f"**{_tk}** — {_name}"
+                                    + (f" ({_title})" if _title else "")
+                                    + f" | {_type} | {_shares} shares | "
+                                    f"${_val:,.0f} | {_date}"
+                                )
+                else:
+                    st.info("No insider transactions found for the selected filters and date range.")
 
             # ── Channel News Browser ────────────────────────
             with bz_sub_channels:
