@@ -777,6 +777,22 @@ class TestRtIntegration:
         assert row["symbol"] == "GOOG"
         assert row["price"] == 175.0
 
+    def test_save_with_bz_quotes_fallback(self, tmp_path: Path) -> None:
+        """save_vd_snapshot forwards bz_quotes to build_vd_snapshot."""
+        from terminal_export import save_vd_snapshot
+        feed = [self._make_feed_item("ALBT", 0.80)]
+        bz = [{"symbol": "ALBT", "last": "0.77", "changePercent": "-29.7"}]
+        out = str(tmp_path / "vd_bz.jsonl")
+        # No RT engine running — use non-existent RT path
+        save_vd_snapshot(feed, path=out, rt_jsonl_path=str(tmp_path / "nope.jsonl"),
+                         bz_quotes=bz)
+        lines = Path(out).read_text().strip().split("\n")
+        assert len(lines) == 1
+        row = json.loads(lines[0])
+        assert row["symbol"] == "ALBT"
+        assert row["price"] == 0.77
+        assert row["chg_pct"] == -29.7
+
 
 # ═════════════════════════════════════════════════════════════════
 # Benzinga Delayed Quotes Fallback in build_vd_snapshot

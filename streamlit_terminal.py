@@ -873,7 +873,18 @@ def _do_poll() -> None:
             logger.warning("SQLite prune failed: %s", exc)
 
     # Write per-symbol VisiData snapshot (atomic overwrite)
-    save_vd_snapshot(st.session_state.feed)
+    # Fetch Benzinga delayed quotes as fallback for extended hours
+    _vd_bz_quotes: list[dict[str, Any]] | None = None
+    if cfg.benzinga_api_key and st.session_state.feed:
+        _vd_syms = list({d.get("ticker", "") for d in st.session_state.feed
+                         if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
+        if _vd_syms:
+            try:
+                _vd_bz_quotes = fetch_benzinga_delayed_quotes(
+                    cfg.benzinga_api_key, _vd_syms)
+            except Exception:
+                pass  # non-critical fallback
+    save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
 
     if items:
         st.toast(f"📡 {len(items)} new item(s) [{src_label}]", icon="✅")
@@ -980,7 +991,18 @@ if st.session_state.use_bg_poller:
         if len(st.session_state.feed) > max_items:
             st.session_state.feed = st.session_state.feed[:max_items]
         st.session_state.feed = _prune_stale_items(st.session_state.feed)
-        save_vd_snapshot(st.session_state.feed)
+        # Fetch Benzinga delayed quotes as fallback for extended hours
+        _vd_bz_quotes_bg: list[dict[str, Any]] | None = None
+        if _bg_cfg.benzinga_api_key and st.session_state.feed:
+            _vd_syms_bg = list({d.get("ticker", "") for d in st.session_state.feed
+                                if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
+            if _vd_syms_bg:
+                try:
+                    _vd_bz_quotes_bg = fetch_benzinga_delayed_quotes(
+                        _bg_cfg.benzinga_api_key, _vd_syms_bg)
+                except Exception:
+                    pass  # non-critical fallback
+        save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes_bg)
         st.toast(f"📡 {len(_bg_items)} new item(s) [BG]", icon="✅")
 
     # Sync status from background poller for sidebar display
@@ -1049,6 +1071,14 @@ else:
     st.divider()
 
     # ── Tabs ────────────────────────────────────────────────
+    # Session icon map — shared across tabs that show market-data freshness
+    _session_icons = {
+        "pre-market": "🌅 Pre-Market",
+        "regular": "🟢 Regular Session",
+        "after-hours": "🌙 After-Hours",
+        "closed": "⚫ Market Closed",
+    }
+
     tab_feed, tab_movers, tab_rank, tab_segments, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
          "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
@@ -1357,12 +1387,6 @@ else:
 
             # Market session indicator
             _session = market_session()
-            _session_icons = {
-                "pre-market": "🌅 Pre-Market",
-                "regular": "🟢 Regular Session",
-                "after-hours": "🌙 After-Hours",
-                "closed": "⚫ Market Closed",
-            }
             _session_label = _session_icons.get(_session, _session)
 
             if _session in ("pre-market", "after-hours"):
@@ -1533,6 +1557,14 @@ else:
             fmp_key = st.session_state.cfg.fmp_api_key
             if fmp_key:
                 st.subheader("📊 Market Sector Performance (FMP)")
+                _hm_session = market_session()
+                if _hm_session in ("pre-market", "after-hours"):
+                    st.caption(
+                        f"**{_session_icons.get(_hm_session, _hm_session)}** — "
+                        "FMP sector data shows previous regular session."
+                    )
+                elif _hm_session == "closed":
+                    st.caption("**⚫ Market Closed** — Showing last session sector data.")
                 sector_data = _cached_sector_perf(fmp_key)
                 if sector_data:
                     df_sp = pd.DataFrame(sector_data)
@@ -1876,11 +1908,42 @@ else:
             st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga market movers & quotes.")
         else:
             st.subheader("💹 Benzinga Market Movers")
-            st.caption("Real-time market movers from Benzinga. Gainers & Losers with delayed quotes.")
+
+            # Session indicator — Benzinga movers are regular-session only
+            _bz_mov_session = market_session()
+            if _bz_mov_session in ("pre-market", "after-hours"):
+                st.caption(
+                    f"**{_session_icons.get(_bz_mov_session, _bz_mov_session)}** — "
+                    "Movers show previous regular session. "
+                    "Use Delayed Quotes below for current extended-hours prices."
+                )
+            elif _bz_mov_session == "closed":
+                st.caption(
+                    f"**{_session_icons.get(_bz_mov_session, _bz_mov_session)}** — "
+                    "Showing last session movers."
+                )
+            else:
+                st.caption("Real-time market movers from Benzinga. Gainers & Losers with delayed quotes.")
 
             movers_data = _cached_bz_movers(bz_key)
             gainers = movers_data.get("gainers", [])
             losers = movers_data.get("losers", [])
+
+            # During extended hours, fetch delayed quotes to overlay fresh prices
+            _bz_mov_quote_map: dict[str, dict[str, Any]] = {}
+            if _bz_mov_session in ("pre-market", "after-hours") and (gainers or losers):
+                _mov_syms = list({
+                    g.get("symbol", g.get("ticker", ""))
+                    for g in gainers + losers
+                    if g.get("symbol") or g.get("ticker")
+                })[:50]
+                if _mov_syms:
+                    _mov_quotes = _cached_bz_quotes(bz_key, ",".join(_mov_syms))
+                    if _mov_quotes:
+                        for q in _mov_quotes:
+                            s = (q.get("symbol") or "").upper().strip()
+                            if s:
+                                _bz_mov_quote_map[s] = q
 
             # Summary metrics
             m1, m2, m3 = st.columns(3)
@@ -1895,13 +1958,15 @@ else:
                 if gainers:
                     gainer_rows = []
                     for g in gainers:
+                        _gsym = g.get("symbol", g.get("ticker", "?"))
+                        _gq = _bz_mov_quote_map.get(_gsym.upper(), {})
                         gainer_rows.append({
-                            "Symbol": g.get("symbol", g.get("ticker", "?")),
+                            "Symbol": _gsym,
                             "Company": g.get("companyName", g.get("company_name", "")),
-                            "Price": g.get("price", g.get("last", "")),
-                            "Change": g.get("change", ""),
-                            "Change %": g.get("changePercent", g.get("change_percent", "")),
-                            "Volume": g.get("volume", ""),
+                            "Price": _gq.get("last") or g.get("price", g.get("last", "")),
+                            "Change": _gq.get("change") or g.get("change", ""),
+                            "Change %": _gq.get("changePercent") or g.get("changePercent", g.get("change_percent", "")),
+                            "Volume": _gq.get("volume") or g.get("volume", ""),
                             "Avg Volume": g.get("averageVolume", g.get("average_volume", "")),
                             "Mkt Cap": g.get("marketCap", g.get("market_cap", "")),
                             "Sector": g.get("gicsSectorName", g.get("sector", "")),
@@ -1916,13 +1981,15 @@ else:
                 if losers:
                     loser_rows = []
                     for l in losers:
+                        _lsym = l.get("symbol", l.get("ticker", "?"))
+                        _lq = _bz_mov_quote_map.get(_lsym.upper(), {})
                         loser_rows.append({
-                            "Symbol": l.get("symbol", l.get("ticker", "?")),
+                            "Symbol": _lsym,
                             "Company": l.get("companyName", l.get("company_name", "")),
-                            "Price": l.get("price", l.get("last", "")),
-                            "Change": l.get("change", ""),
-                            "Change %": l.get("changePercent", l.get("change_percent", "")),
-                            "Volume": l.get("volume", ""),
+                            "Price": _lq.get("last") or l.get("price", l.get("last", "")),
+                            "Change": _lq.get("change") or l.get("change", ""),
+                            "Change %": _lq.get("changePercent") or l.get("changePercent", l.get("change_percent", "")),
+                            "Volume": _lq.get("volume") or l.get("volume", ""),
                             "Avg Volume": l.get("averageVolume", l.get("average_volume", "")),
                             "Mkt Cap": l.get("marketCap", l.get("market_cap", "")),
                             "Sector": l.get("gicsSectorName", l.get("sector", "")),

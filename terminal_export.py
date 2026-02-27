@@ -345,12 +345,17 @@ def save_vd_snapshot(
     path: str = _VD_SNAPSHOT_DEFAULT,
     rt_jsonl_path: str = _RT_VD_SIGNALS_DEFAULT,
     max_age_s: float = 14400.0,
+    bz_quotes: list[dict[str, Any]] | None = None,
 ) -> None:
     """Write per-symbol VisiData JSONL — atomic overwrite, one line per ticker.
 
     Automatically loads RT engine quotes from *rt_jsonl_path* (if the RT
     engine is running and the file is fresh) and merges live quote fields
     (tick, streak, price, chg_pct, vol_ratio) into each row.
+
+    When *bz_quotes* is provided (Benzinga delayed quotes), they serve as
+    a fallback for symbols not covered by the RT engine — keeping the
+    VisiData file fresh during extended hours.
 
     Items older than *max_age_s* are excluded (pass 0 to disable).
 
@@ -359,7 +364,7 @@ def save_vd_snapshot(
     seconds without reading a half-written file.
     """
     rt_quotes = load_rt_quotes(rt_jsonl_path)
-    rows = build_vd_snapshot(feed, rt_quotes=rt_quotes, max_age_s=max_age_s)
+    rows = build_vd_snapshot(feed, rt_quotes=rt_quotes, bz_quotes=bz_quotes, max_age_s=max_age_s)
     if not rows:
         return
 
