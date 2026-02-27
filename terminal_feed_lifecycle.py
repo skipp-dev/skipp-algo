@@ -273,11 +273,15 @@ class FeedLifecycleManager:
 
             cooldown_ok = (now - self._last_stale_recovery_ts) >= _STALE_RECOVERY_COOLDOWN_S
             if cooldown_ok:
-                try:
-                    store.prune_seen(keep_seconds=0.0)
-                    store.prune_clusters(keep_seconds=0.0)
-                except Exception as exc:
-                    logger.warning("Stale-recovery prune failed: %s", exc)
+                # Each prune is independent — one failing must not block the other.
+                for _prune_fn, _tbl in (
+                    (store.prune_seen, "seen"),
+                    (store.prune_clusters, "clusters"),
+                ):
+                    try:
+                        _prune_fn(keep_seconds=0.0)
+                    except Exception as exc:
+                        logger.warning("Stale-recovery prune(%s) failed: %s", _tbl, exc)
                 self._last_stale_recovery_ts = now
                 result["feed_action"] = "stale_recovery"
                 logger.info(

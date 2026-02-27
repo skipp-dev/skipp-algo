@@ -206,21 +206,26 @@ class BackgroundPoller:
             if not items:
                 self.consecutive_empty_polls += 1
                 if self.consecutive_empty_polls >= 3:
-                    try:
-                        # Partial prune when items have been ingested before;
-                        # full clear only when nothing was ever ingested (the
-                        # dedup DB is blocking everything from the start).
-                        _keep = 0.0 if self.total_items_ingested == 0 else self._cfg.feed_max_age_s
-                        self._store.prune_seen(keep_seconds=_keep)
-                        self._store.prune_clusters(keep_seconds=_keep)
-                        with self._lock:
-                            self._cursor = None
-                        logger.info(
-                            "BG poller: reset cursor + pruned SQLite after %d empty polls",
-                            self.consecutive_empty_polls,
-                        )
-                    except Exception as exc:
-                        logger.warning("BG poller SQLite prune failed: %s", exc)
+                    # Partial prune when items have been ingested before;
+                    # full clear only when nothing was ever ingested (the
+                    # dedup DB is blocking everything from the start).
+                    _keep = 0.0 if self.total_items_ingested == 0 else self._cfg.feed_max_age_s
+                    for _prune_fn, _tbl in (
+                        (self._store.prune_seen, "seen"),
+                        (self._store.prune_clusters, "clusters"),
+                    ):
+                        try:
+                            _prune_fn(keep_seconds=_keep)
+                        except Exception as exc:
+                            logger.warning("BG poller prune(%s) failed: %s", _tbl, exc)
+                    # Cursor reset MUST happen even if prune failed — the
+                    # cursor is the primary recovery action.
+                    with self._lock:
+                        self._cursor = None
+                    logger.info(
+                        "BG poller: reset cursor + pruned SQLite after %d empty polls",
+                        self.consecutive_empty_polls,
+                    )
                     self.consecutive_empty_polls = 0
             else:
                 self.consecutive_empty_polls = 0

@@ -376,11 +376,14 @@ with st.sidebar:
                  help="Reset the API cursor so the next poll fetches the most recent articles "
                       "without an updatedSince filter. Use when data appears stale."):
         _store = _get_store()
-        try:
-            _store.prune_seen(keep_seconds=0.0)
-            _store.prune_clusters(keep_seconds=0.0)
-        except Exception as exc:
-            logger.warning("Cursor reset prune failed: %s", exc)
+        for _prune_fn, _tbl in (
+            (_store.prune_seen, "seen"),
+            (_store.prune_clusters, "clusters"),
+        ):
+            try:
+                _prune_fn(keep_seconds=0.0)
+            except Exception as exc:
+                logger.warning("Cursor reset prune(%s) failed: %s", _tbl, exc)
         st.session_state.cursor = None
         st.session_state.consecutive_empty_polls = 0
         st.toast("Cursor reset — next poll will fetch latest articles", icon="🔃")
@@ -804,21 +807,26 @@ def _do_poll() -> None:
             "consecutive_empty_polls", 0
         ) + 1
         if st.session_state.consecutive_empty_polls >= 3:
-            try:
-                # Full clear (keep=0) when the feed is empty — a partial
-                # prune with keep=4h still blocks recently-seen items and
-                # the poll keeps returning 0 classified results.
-                _prune_keep = 0.0 if not st.session_state.feed else cfg.feed_max_age_s
-                store.prune_seen(keep_seconds=_prune_keep)
-                store.prune_clusters(keep_seconds=_prune_keep)
-                st.session_state.cursor = None
-                logger.info(
-                    "Reset cursor + pruned SQLite (keep=%.0f) after %d consecutive empty polls",
-                    _prune_keep,
-                    st.session_state.consecutive_empty_polls,
-                )
-            except Exception as exc:
-                logger.warning("SQLite prune after empty polls failed: %s", exc)
+            # Full clear (keep=0) when the feed is empty — a partial
+            # prune with keep=4h still blocks recently-seen items and
+            # the poll keeps returning 0 classified results.
+            _prune_keep = 0.0 if not st.session_state.feed else cfg.feed_max_age_s
+            for _prune_fn, _tbl in (
+                (store.prune_seen, "seen"),
+                (store.prune_clusters, "clusters"),
+            ):
+                try:
+                    _prune_fn(keep_seconds=_prune_keep)
+                except Exception as exc:
+                    logger.warning("SQLite prune(%s) after empty polls failed: %s", _tbl, exc)
+            # Cursor reset MUST happen even if prune failed — the cursor
+            # is the primary recovery action (API returns latest articles).
+            st.session_state.cursor = None
+            logger.info(
+                "Reset cursor + pruned SQLite (keep=%.0f) after %d consecutive empty polls",
+                _prune_keep,
+                st.session_state.consecutive_empty_polls,
+            )
             st.session_state.consecutive_empty_polls = 0
     else:
         st.session_state.consecutive_empty_polls = 0
@@ -933,7 +941,11 @@ def _do_poll() -> None:
 
 # Feed lifecycle management (weekend clear, pre-seed, off-hours throttle)
 _lifecycle: FeedLifecycleManager = st.session_state.lifecycle_mgr
-_lc_result = _lifecycle.manage(st.session_state.feed, _get_store())
+try:
+    _lc_result = _lifecycle.manage(st.session_state.feed, _get_store())
+except Exception as _lc_exc:
+    logger.warning("Feed lifecycle manage() failed: %s", _lc_exc)
+    _lc_result = {"action": "error"}
 if _lc_result.get("feed_action") == "cleared":
     st.session_state.feed = []
     st.session_state.cursor = None
