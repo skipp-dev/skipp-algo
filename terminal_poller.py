@@ -15,13 +15,13 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
+from newsstack_fmp._bz_http import _sanitize_exc
 from newsstack_fmp.ingest_benzinga import (
     BenzingaRestAdapter,
     fetch_benzinga_channels,
@@ -448,10 +448,6 @@ def poll_and_classify_multi(
     raw_items: list[NewsItem] = []
     errors: list[str] = []
 
-    def _sanitize_exc(exc: Exception) -> str:
-        """Strip API keys/tokens from exception text for safe logging."""
-        return re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
-
     # ── Benzinga ────────────────────────────────────────────
     if benzinga_adapter is not None:
         try:
@@ -551,7 +547,7 @@ def fetch_economic_calendar(
                 return data
             return []
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("FMP economic calendar fetch failed: %s", _msg)
         return []
 
@@ -596,7 +592,7 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
                 result.append({"sector": sector, "changesPercentage": round(avg, 4)})
             return result
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("FMP sector performance fetch failed: %s", _msg)
         return []
 
@@ -624,7 +620,7 @@ def fetch_benzinga_ratings(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga ratings fetch failed: %s", _msg)
         return []
     finally:
@@ -649,7 +645,7 @@ def fetch_benzinga_earnings(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga earnings fetch failed: %s", _msg)
         return []
     finally:
@@ -674,7 +670,7 @@ def fetch_benzinga_economics(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga economics fetch failed: %s", _msg)
         return []
     finally:
@@ -719,7 +715,7 @@ def fetch_benzinga_dividends(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga dividends fetch failed: %s", _msg)
         return []
     finally:
@@ -744,7 +740,7 @@ def fetch_benzinga_splits(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga splits fetch failed: %s", _msg)
         return []
     finally:
@@ -769,7 +765,7 @@ def fetch_benzinga_ipos(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga IPOs fetch failed: %s", _msg)
         return []
     finally:
@@ -794,7 +790,7 @@ def fetch_benzinga_guidance(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga guidance fetch failed: %s", _msg)
         return []
     finally:
@@ -819,7 +815,7 @@ def fetch_benzinga_retail(
             page_size=page_size, importance=importance,
         )
     except Exception as exc:
-        _msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _msg = _sanitize_exc(exc)
         logger.warning("Benzinga retail fetch failed: %s", _msg)
         return []
     finally:

@@ -32,18 +32,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Regex to strip API keys/tokens from URLs before logging.
-_TOKEN_RE = re.compile(r"(apikey|token)=[^&]+", re.IGNORECASE)
-
-
-def _sanitize_url(url: str) -> str:
-    """Remove apikey/token query params from a URL for safe logging."""
-    return _TOKEN_RE.sub(r"\1=***", url)
-
-
-def _sanitize_exc(exc: Exception) -> str:
-    """Strip API keys/tokens from exception text for safe logging."""
-    return re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+from newsstack_fmp._bz_http import _TOKEN_RE, _sanitize_exc, _sanitize_url  # noqa: E402
 
 
 # =====================================================================
