@@ -643,6 +643,16 @@ def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
     }
 
 
+def _safe_float_mov(val: Any, default: float = 0.0) -> float:
+    """Safe float conversion for mover data."""
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+
 # ── Cached Benzinga Calendar Wrappers ───────────────────────────
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1245,114 +1255,260 @@ else:
 
     # ── TAB: Top Movers ─────────────────────────────────────
     with tab_movers:
-        sorted_movers = compute_top_movers(feed)
+        # ── Real-time Top Movers: merge FMP + Benzinga ──────────
+        fmp_key_mov = st.session_state.cfg.fmp_api_key
+        bz_key_mov = st.session_state.cfg.benzinga_api_key
+        _session_label_mov = _session_icons.get(_current_session, _current_session)
 
-        if not sorted_movers:
-            st.info("No movers in the last 30 minutes.")
+        if not fmp_key_mov and not bz_key_mov:
+            st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time movers.")
         else:
-            for d in sorted_movers:
-                sent_icon = _SENTIMENT_COLORS.get(d.get("sentiment_label", ""), "")
-                mat_icon = _MATERIALITY_COLORS.get(d.get("materiality", ""), "")
-                ticker = d.get("ticker", "?")
-                score = d.get("news_score", 0)
-                headline = d.get("headline", "")
-                event_label = d.get("event_label", "")
-                materiality = d.get("materiality", "")
-                sentiment = d.get("sentiment_label", "")
-                source_tier = d.get("source_tier", "")
-                relevance = d.get("relevance", 0)
-                entity_count = d.get("entity_count", 0)
+            st.subheader("🔥 Real-Time Top Movers")
+            st.caption(f"**{_session_label_mov}** — Live gainers & losers ranked by absolute price change. Auto-refreshes each cycle.")
 
-                with st.container():
-                    c1, c2 = st.columns([2, 8])
-                    with c1:
-                        st.markdown(f"### {ticker}")
-                        st.markdown(f"{sent_icon} {sentiment} | {mat_icon} {materiality}")
-                        st.markdown(f"Score: **{score:.3f}** | Rel: {relevance:.2f}")
-                        st.markdown(f"{event_label} | {source_tier} | 🏷️{entity_count}")
-                    with c2:
-                        safe_hl = safe_markdown_text(headline[:200])
-                        url = d.get("url", "")
-                        _s_url = safe_url(url)
-                        hl_display = f"[{safe_hl}]({_s_url})" if _s_url else f"**{safe_hl}**"
-                        st.markdown(hl_display)
-                        channels = ", ".join(d.get("channels", [])[:5])
-                        tags = ", ".join(d.get("tags", [])[:5])
-                        if channels:
-                            st.caption(f"Channels: {channels}")
-                        if tags:
-                            st.caption(f"Tags: {tags}")
-                    st.divider()
+            # Gather data from all sources
+            _mov_all: dict[str, dict[str, Any]] = {}  # symbol → best row
 
-    # ── TAB: Rankings ───────────────────────────────────────
-    with tab_rank:
-        from terminal_export import build_vd_snapshot, load_rt_quotes
+            # 1) FMP gainers/losers/actives (30s TTL)
+            if fmp_key_mov:
+                _fmp_data = _cached_spike_data(fmp_key_mov)
+                for _src_list, _src_label in [
+                    (_fmp_data["gainers"], "FMP-Gainer"),
+                    (_fmp_data["losers"], "FMP-Loser"),
+                    (_fmp_data["actives"], "FMP-Active"),
+                ]:
+                    for item in _src_list:
+                        sym = (item.get("symbol") or "").upper().strip()
+                        if not sym:
+                            continue
+                        price = _safe_float_mov(item.get("price"))
+                        chg_pct = _safe_float_mov(item.get("changesPercentage"))
+                        chg = _safe_float_mov(item.get("change"))
+                        vol = int(_safe_float_mov(item.get("volume")))
+                        name = item.get("name") or item.get("companyName") or ""
+                        existing = _mov_all.get(sym)
+                        if not existing or abs(chg_pct) > abs(existing.get("chg_pct", 0)):
+                            _mov_all[sym] = {
+                                "symbol": sym,
+                                "name": name[:50],
+                                "price": price,
+                                "change": chg,
+                                "chg_pct": chg_pct,
+                                "volume": vol,
+                                "source": _src_label,
+                            }
 
-        # Reuse the canonical build_vd_snapshot (includes RT merge)
-        rt_quotes = load_rt_quotes()
+            # 2) Benzinga movers (60s TTL)
+            if bz_key_mov:
+                _bz_movers = _cached_bz_movers(bz_key_mov)
+                for _bz_list, _bz_label in [
+                    (_bz_movers.get("gainers", []), "BZ-Gainer"),
+                    (_bz_movers.get("losers", []), "BZ-Loser"),
+                ]:
+                    for item in _bz_list:
+                        sym = (item.get("symbol") or item.get("ticker") or "").upper().strip()
+                        if not sym:
+                            continue
+                        price = _safe_float_mov(item.get("price") or item.get("last"))
+                        chg_pct = _safe_float_mov(item.get("changePercent") or item.get("change_percent"))
+                        chg = _safe_float_mov(item.get("change"))
+                        vol = int(_safe_float_mov(item.get("volume")))
+                        name = item.get("companyName") or item.get("company_name") or ""
+                        existing = _mov_all.get(sym)
+                        # Benzinga is fresher than FMP during extended hours
+                        if not existing or (_current_session in ("pre-market", "after-hours")):
+                            _mov_all[sym] = {
+                                "symbol": sym,
+                                "name": name[:50],
+                                "price": price,
+                                "change": chg,
+                                "chg_pct": chg_pct,
+                                "volume": vol,
+                                "source": _bz_label,
+                            }
 
-        # Benzinga delayed quotes as fallback (freshest during extended hours)
-        _bz_quotes_rank: list[dict[str, Any]] | None = None
-        _rank_bz_key = st.session_state.cfg.benzinga_api_key
-        if _current_session in ("pre-market", "after-hours") and _rank_bz_key and feed:
-            _rank_syms = sorted({d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"})
-            if _rank_syms:
-                _bz_quotes_rank = _cached_bz_quotes(_rank_bz_key, ",".join(_rank_syms[:50]))
+            # 3) RT spike events from our detector (real-time, sub-minute)
+            _detector_mov: SpikeDetector = st.session_state.spike_detector
+            for ev in _detector_mov.events[:50]:
+                sym = ev.symbol
+                existing = _mov_all.get(sym)
+                # If spike is larger than what we already have, use it
+                if not existing or abs(ev.spike_pct) > abs(existing.get("chg_pct", 0)):
+                    _mov_all[sym] = {
+                        "symbol": sym,
+                        "name": ev.name[:50],
+                        "price": ev.price,
+                        "change": ev.change,
+                        "chg_pct": ev.spike_pct,
+                        "volume": ev.volume,
+                        "source": f"RT-Spike {ev.direction}",
+                    }
 
-        rank_rows = build_vd_snapshot(feed, rt_quotes=rt_quotes, bz_quotes=_bz_quotes_rank)
-
-        if not rank_rows:
-            st.info("No per-ticker data yet.")
-        else:
-            enrich_rank_rows(rank_rows)
-
-            # Show top 20 ranked symbols
-            top_n = min(30, len(rank_rows))
-            df_rank = pd.DataFrame(rank_rows[:top_n])
-            df_rank.index = df_rank.index + 1  # 1-based ranking
-
-            # Hide RT-only columns when RT engine has no data for displayed symbols
-            _rt_cols = ["tick", "streak", "price", "chg_pct", "vol_ratio"]
-            for _rc in _rt_cols:
-                if _rc in df_rank.columns and df_rank[_rc].apply(
-                    lambda v: v is None or v == "" or v == 0 or v == 0.0
-                ).all():
-                    df_rank = df_rank.drop(columns=[_rc])
-
-            rt_label = f" | RT: {len(rt_quotes)} symbols" if rt_quotes else ""
-            bz_label = f" | BZ quotes: {len(_bz_quotes_rank)}" if _bz_quotes_rank else ""
-            st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}{bz_label}")
-
-            # Highlight fresh entries (< 20 min old) with orange text
-            def _highlight_fresh(row: pd.Series) -> list[str]:  # type: ignore[name-defined]
-                return highlight_fresh_row(row.get("age_min", 999), len(row))
-
-            # Build column config — headline links to article URL
-            _col_cfg: dict[str, Any] = {}
-            if "url" in df_rank.columns and "headline" in df_rank.columns:
-                # Merge URL into headline for LinkColumn display.
-                # Keep original headline when URL is missing so the
-                # column never becomes blank.
-                df_rank["headline"] = df_rank.apply(
-                    lambda r: r["url"] if r.get("url") else r.get("headline", ""),
-                    axis=1,
+            if not _mov_all:
+                st.info("No mover data available yet. Data sources are loading.")
+            else:
+                # Sort by absolute change% (biggest movers first)
+                _sorted_movers = sorted(
+                    _mov_all.values(),
+                    key=lambda x: abs(x.get("chg_pct", 0)),
+                    reverse=True,
                 )
-                # Only use LinkColumn when at least one row has a URL;
-                # otherwise fall back to plain text so headlines display.
-                if df_rank["headline"].str.startswith("http").any():
-                    _col_cfg["headline"] = st.column_config.LinkColumn(
-                        "Headline",
-                        display_text=r"https?://[^/]+/(.{0,80}).*",
-                    )
-                df_rank = df_rank.drop(columns=["url"])
 
-            styled = df_rank.style.apply(_highlight_fresh, axis=1)
-            st.dataframe(
-                styled,
-                width='stretch',
-                height=min(600, 40 + 35 * len(df_rank)),
-                column_config=_col_cfg if _col_cfg else None,
-            )
+                # Summary metrics
+                _n_up = sum(1 for m in _sorted_movers if m.get("chg_pct", 0) > 0)
+                _n_dn = sum(1 for m in _sorted_movers if m.get("chg_pct", 0) < 0)
+                _m1, _m2, _m3, _m4 = st.columns(4)
+                _m1.metric("Total Movers", len(_sorted_movers))
+                _m2.metric("🟢 Gainers", _n_up)
+                _m3.metric("🔴 Losers", _n_dn)
+                if _sorted_movers:
+                    _top = _sorted_movers[0]
+                    _m4.metric("🏆 Top Mover", f"{_top['symbol']} {_top['chg_pct']:+.2f}%")
+
+                # Build table
+                _mov_rows = []
+                for m in _sorted_movers[:100]:
+                    _dir_icon = "🟢" if m.get("chg_pct", 0) > 0 else "🔴"
+                    _mov_rows.append({
+                        "": _dir_icon,
+                        "Symbol": m["symbol"],
+                        "Name": m.get("name", ""),
+                        "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
+                        "Change": f"{m['change']:+.2f}",
+                        "Change %": f"{m['chg_pct']:+.2f}%",
+                        "Volume": f"{m['volume']:,}" if m.get("volume") else "",
+                        "Source": m.get("source", ""),
+                    })
+
+                df_mov = pd.DataFrame(_mov_rows)
+                df_mov.index = df_mov.index + 1
+
+                st.dataframe(
+                    df_mov,
+                    width='stretch',
+                    height=min(800, 40 + 35 * len(df_mov)),
+                    column_config={
+                        "": st.column_config.TextColumn("", width="small"),
+                        "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                        "Name": st.column_config.TextColumn("Name", width="medium"),
+                        "Change %": st.column_config.TextColumn("Change %", width="small"),
+                    },
+                )
+
+    # ── TAB: Rankings (real-time price-based) ─────────────────
+    with tab_rank:
+        fmp_key_rank = st.session_state.cfg.fmp_api_key
+        bz_key_rank = st.session_state.cfg.benzinga_api_key
+        _session_label_rank = _session_icons.get(_current_session, _current_session)
+
+        if not fmp_key_rank and not bz_key_rank:
+            st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time rankings.")
+        else:
+            st.subheader("🏆 Real-Time Rankings")
+            st.caption(f"**{_session_label_rank}** — All movers ranked by absolute price change %. Combines FMP + Benzinga + RT Spike data.")
+
+            # Build unified symbol map (same data as Movers, re-sorted by abs change)
+            _rank_all: dict[str, dict[str, Any]] = {}
+
+            # 1) FMP gainers/losers/actives
+            if fmp_key_rank:
+                _fmp_rank = _cached_spike_data(fmp_key_rank)
+                for _src_list in [_fmp_rank["gainers"], _fmp_rank["losers"], _fmp_rank["actives"]]:
+                    for item in _src_list:
+                        sym = (item.get("symbol") or "").upper().strip()
+                        if not sym:
+                            continue
+                        price = _safe_float_mov(item.get("price"))
+                        chg_pct = _safe_float_mov(item.get("changesPercentage"))
+                        chg = _safe_float_mov(item.get("change"))
+                        vol = int(_safe_float_mov(item.get("volume")))
+                        name = item.get("name") or item.get("companyName") or ""
+                        mkt_cap = item.get("marketCap") or ""
+                        existing = _rank_all.get(sym)
+                        if not existing or abs(chg_pct) > abs(existing.get("chg_pct", 0)):
+                            _rank_all[sym] = {
+                                "symbol": sym, "name": name[:50],
+                                "price": price, "change": chg, "chg_pct": chg_pct,
+                                "volume": vol, "mkt_cap": mkt_cap,
+                            }
+
+            # 2) Benzinga movers
+            if bz_key_rank:
+                _bz_rank = _cached_bz_movers(bz_key_rank)
+                for _bz_list in [_bz_rank.get("gainers", []), _bz_rank.get("losers", [])]:
+                    for item in _bz_list:
+                        sym = (item.get("symbol") or item.get("ticker") or "").upper().strip()
+                        if not sym:
+                            continue
+                        price = _safe_float_mov(item.get("price") or item.get("last"))
+                        chg_pct = _safe_float_mov(item.get("changePercent") or item.get("change_percent"))
+                        chg = _safe_float_mov(item.get("change"))
+                        vol = int(_safe_float_mov(item.get("volume")))
+                        name = item.get("companyName") or item.get("company_name") or ""
+                        mkt_cap = item.get("marketCap") or item.get("market_cap") or ""
+                        sector = item.get("gicsSectorName") or item.get("sector") or ""
+                        existing = _rank_all.get(sym)
+                        if not existing or (_current_session in ("pre-market", "after-hours")):
+                            _rank_all[sym] = {
+                                "symbol": sym, "name": name[:50],
+                                "price": price, "change": chg, "chg_pct": chg_pct,
+                                "volume": vol, "mkt_cap": mkt_cap, "sector": sector,
+                            }
+
+            # 3) RT spike events
+            _detector_rank: SpikeDetector = st.session_state.spike_detector
+            for ev in _detector_rank.events[:50]:
+                sym = ev.symbol
+                existing = _rank_all.get(sym)
+                if not existing or abs(ev.spike_pct) > abs(existing.get("chg_pct", 0)):
+                    _rank_all[sym] = {
+                        "symbol": sym, "name": ev.name[:50],
+                        "price": ev.price, "change": ev.change, "chg_pct": ev.spike_pct,
+                        "volume": ev.volume, "mkt_cap": "",
+                    }
+
+            if not _rank_all:
+                st.info("No ranking data available yet.")
+            else:
+                # Sort by absolute change%
+                _ranked = sorted(
+                    _rank_all.values(),
+                    key=lambda x: abs(x.get("chg_pct", 0)),
+                    reverse=True,
+                )
+
+                top_n = min(50, len(_ranked))
+                _rank_rows = []
+                for i, m in enumerate(_ranked[:top_n], 1):
+                    _dir = "🟢" if m.get("chg_pct", 0) > 0 else "🔴" if m.get("chg_pct", 0) < 0 else "⚪"
+                    _rank_rows.append({
+                        "#": i,
+                        "": _dir,
+                        "Symbol": m["symbol"],
+                        "Name": m.get("name", ""),
+                        "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
+                        "Change": f"{m['change']:+.2f}",
+                        "Change %": f"{m['chg_pct']:+.2f}%",
+                        "Volume": f"{m['volume']:,}" if m.get("volume") else "",
+                        "Mkt Cap": m.get("mkt_cap", ""),
+                        "Sector": m.get("sector", ""),
+                    })
+
+                df_rank = pd.DataFrame(_rank_rows)
+                df_rank = df_rank.set_index("#")
+
+                st.caption(f"Top {top_n} of {len(_ranked)} symbols ranked by absolute price change %")
+
+                st.dataframe(
+                    df_rank,
+                    width='stretch',
+                    height=min(800, 40 + 35 * len(df_rank)),
+                    column_config={
+                        "": st.column_config.TextColumn("", width="small"),
+                        "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                        "Change %": st.column_config.TextColumn("Change %", width="small"),
+                    },
+                )
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments:
