@@ -61,21 +61,20 @@ MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
 
 # ── Market session awareness (optional — may be unavailable on Streamlit Cloud)
 try:
-    from terminal_spike_scanner import market_session as _market_session
+    from terminal_spike_scanner import SESSION_ICONS as _SESSION_ICONS, market_session as _market_session
 except ImportError:  # pragma: no cover
     _market_session = None
+    _SESSION_ICONS = {
+        "pre-market": "🌅 Pre-Market",
+        "regular": "🟢 Regular Session",
+        "after-hours": "🌙 After-Hours",
+        "closed": "⚫ Market Closed",
+    }
 
 try:
     from terminal_poller import fetch_benzinga_delayed_quotes as _fetch_bz_quotes
 except ImportError:  # pragma: no cover
     _fetch_bz_quotes = None
-
-_SESSION_ICONS = {
-    "pre-market": "🌅 Pre-Market",
-    "regular": "🟢 Regular Session",
-    "after-hours": "🌙 After-Hours",
-    "closed": "⚫ Market Closed",
-}
 
 
 @st.cache_data(ttl=60, show_spinner=False)

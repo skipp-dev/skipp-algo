@@ -37,6 +37,14 @@ _T_0930 = datetime(2000, 1, 1, 9, 30).time()
 _T_1600 = datetime(2000, 1, 1, 16, 0).time()
 _T_2000 = datetime(2000, 1, 1, 20, 0).time()
 
+# Session icon labels — shared by streamlit_terminal and open_prep
+SESSION_ICONS: dict[str, str] = {
+    "pre-market": "🌅 Pre-Market",
+    "regular": "🟢 Regular Session",
+    "after-hours": "🌙 After-Hours",
+    "closed": "⚫ Market Closed",
+}
+
 
 def market_session() -> str:
     """Return current US market session label.

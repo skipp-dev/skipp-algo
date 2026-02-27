@@ -89,6 +89,7 @@ from terminal_poller import (
     poll_and_classify_multi,
 )
 from terminal_spike_scanner import (
+    SESSION_ICONS,
     build_spike_rows,
     fetch_gainers,
     fetch_losers,
@@ -1073,13 +1074,7 @@ else:
     st.divider()
 
     # ── Tabs ────────────────────────────────────────────────
-    # Session icon map — shared across tabs that show market-data freshness
-    _session_icons = {
-        "pre-market": "🌅 Pre-Market",
-        "regular": "🟢 Regular Session",
-        "after-hours": "🌙 After-Hours",
-        "closed": "⚫ Market Closed",
-    }
+    _session_icons = SESSION_ICONS
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
 
@@ -1935,7 +1930,7 @@ else:
             _bz_mov_quote_map: dict[str, dict[str, Any]] = {}
             if _bz_mov_session in ("pre-market", "after-hours") and (gainers or losers):
                 _mov_syms = sorted({
-                    g.get("symbol", g.get("ticker", ""))
+                    g.get("symbol") or g.get("ticker", "")
                     for g in gainers + losers
                     if g.get("symbol") or g.get("ticker")
                 })[:50]
@@ -1960,7 +1955,7 @@ else:
                 if gainers:
                     gainer_rows = []
                     for g in gainers:
-                        _gsym = g.get("symbol", g.get("ticker", "?"))
+                        _gsym = g.get("symbol") or g.get("ticker", "?")
                         _gq = _bz_mov_quote_map.get(_gsym.upper(), {})
                         gainer_rows.append({
                             "Symbol": _gsym,
@@ -1982,19 +1977,19 @@ else:
             with bz_mov_lose:
                 if losers:
                     loser_rows = []
-                    for l in losers:
-                        _lsym = l.get("symbol", l.get("ticker", "?"))
+                    for loser in losers:
+                        _lsym = loser.get("symbol") or loser.get("ticker", "?")
                         _lq = _bz_mov_quote_map.get(_lsym.upper(), {})
                         loser_rows.append({
                             "Symbol": _lsym,
-                            "Company": l.get("companyName", l.get("company_name", "")),
-                            "Price": _lq["last"] if "last" in _lq else l.get("price", l.get("last", "")),
-                            "Change": _lq["change"] if "change" in _lq else l.get("change", ""),
-                            "Change %": _lq["changePercent"] if "changePercent" in _lq else l.get("changePercent", l.get("change_percent", "")),
-                            "Volume": _lq["volume"] if "volume" in _lq else l.get("volume", ""),
-                            "Avg Volume": l.get("averageVolume", l.get("average_volume", "")),
-                            "Mkt Cap": l.get("marketCap", l.get("market_cap", "")),
-                            "Sector": l.get("gicsSectorName", l.get("sector", "")),
+                            "Company": loser.get("companyName", loser.get("company_name", "")),
+                            "Price": _lq["last"] if "last" in _lq else loser.get("price", loser.get("last", "")),
+                            "Change": _lq["change"] if "change" in _lq else loser.get("change", ""),
+                            "Change %": _lq["changePercent"] if "changePercent" in _lq else loser.get("changePercent", loser.get("change_percent", "")),
+                            "Volume": _lq["volume"] if "volume" in _lq else loser.get("volume", ""),
+                            "Avg Volume": loser.get("averageVolume", loser.get("average_volume", "")),
+                            "Mkt Cap": loser.get("marketCap", loser.get("market_cap", "")),
+                            "Sector": loser.get("gicsSectorName", loser.get("sector", "")),
                         })
                     df_lose = pd.DataFrame(loser_rows)
                     df_lose.index = df_lose.index + 1
