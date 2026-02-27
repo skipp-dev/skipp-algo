@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
+import pandas as pd
 import streamlit as st
 
 logger = logging.getLogger("open_prep.streamlit_monitor")
@@ -78,6 +79,38 @@ try:
 except ImportError:  # pragma: no cover
     _fetch_bz_quotes = None  # type: ignore[assignment]
 
+try:
+    from terminal_poller import (
+        fetch_benzinga_dividends as _fetch_bz_dividends,
+        fetch_benzinga_splits as _fetch_bz_splits,
+        fetch_benzinga_ipos as _fetch_bz_ipos,
+        fetch_benzinga_guidance as _fetch_bz_guidance,
+        fetch_benzinga_retail as _fetch_bz_retail,
+        fetch_benzinga_top_news_items as _fetch_bz_top_news,
+        fetch_benzinga_quantified as _fetch_bz_quantified,
+        fetch_benzinga_channel_list as _fetch_bz_channels,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_bz_dividends = None  # type: ignore[assignment]
+    _fetch_bz_splits = None  # type: ignore[assignment]
+    _fetch_bz_ipos = None  # type: ignore[assignment]
+    _fetch_bz_guidance = None  # type: ignore[assignment]
+    _fetch_bz_retail = None  # type: ignore[assignment]
+    _fetch_bz_top_news = None  # type: ignore[assignment]
+    _fetch_bz_quantified = None  # type: ignore[assignment]
+    _fetch_bz_channels = None  # type: ignore[assignment]
+
+try:
+    from newsstack_fmp.ingest_benzinga_financial import (
+        fetch_benzinga_options_activity as _fetch_bz_options,
+        fetch_benzinga_company_profile as _fetch_bz_profile,
+        fetch_benzinga_ticker_detail as _fetch_bz_detail,
+    )
+except ImportError:  # pragma: no cover
+    _fetch_bz_options = None  # type: ignore[assignment]
+    _fetch_bz_profile = None  # type: ignore[assignment]
+    _fetch_bz_detail = None  # type: ignore[assignment]
+
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_bz_quotes_op(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
@@ -86,6 +119,92 @@ def _cached_bz_quotes_op(api_key: str, symbols_csv: str) -> list[dict[str, Any]]
         return []
     syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
     return _fetch_bz_quotes(api_key, syms) or []
+
+
+# ── Cached Benzinga Calendar Wrappers (open_prep) ──────────────
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_dividends_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
+    """Cache Benzinga dividends calendar for 5 minutes."""
+    if _fetch_bz_dividends is None:
+        return []
+    return _fetch_bz_dividends(api_key, date_from=from_d, date_to=to_d) or []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_splits_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
+    """Cache Benzinga splits calendar for 5 minutes."""
+    if _fetch_bz_splits is None:
+        return []
+    return _fetch_bz_splits(api_key, date_from=from_d, date_to=to_d) or []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_ipos_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
+    """Cache Benzinga IPO calendar for 5 minutes."""
+    if _fetch_bz_ipos is None:
+        return []
+    return _fetch_bz_ipos(api_key, date_from=from_d, date_to=to_d) or []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_guidance_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
+    """Cache Benzinga guidance calendar for 5 minutes."""
+    if _fetch_bz_guidance is None:
+        return []
+    return _fetch_bz_guidance(api_key, date_from=from_d, date_to=to_d) or []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_retail_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, Any]]:
+    """Cache Benzinga retail sales calendar for 5 minutes."""
+    if _fetch_bz_retail is None:
+        return []
+    return _fetch_bz_retail(api_key, date_from=from_d, date_to=to_d) or []
+
+
+# ── Cached Benzinga News Wrappers (open_prep) ──────────────────
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_top_news_op(api_key: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Cache Benzinga top news for 2 minutes."""
+    if _fetch_bz_top_news is None:
+        return []
+    return _fetch_bz_top_news(api_key, limit=limit) or []
+
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _cached_bz_quantified_op(api_key: str, from_d: str | None = None, to_d: str | None = None) -> list[dict[str, Any]]:
+    """Cache Benzinga quantified news for 2 minutes."""
+    if _fetch_bz_quantified is None:
+        return []
+    return _fetch_bz_quantified(api_key, date_from=from_d, date_to=to_d) or []
+
+
+# ── Cached Benzinga Financial Wrappers (open_prep) ─────────────
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga options activity for 5 minutes."""
+    if _fetch_bz_options is None:
+        return []
+    return _fetch_bz_options(api_key, tickers) or []
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _cached_bz_profile_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga company profile for 10 minutes."""
+    if _fetch_bz_profile is None:
+        return []
+    return _fetch_bz_profile(api_key, tickers) or []
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_bz_detail_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
+    """Cache Benzinga ticker detail for 5 minutes."""
+    if _fetch_bz_detail is None:
+        return []
+    return _fetch_bz_detail(api_key, tickers) or []
 
 
 def _get_bz_quotes_for_symbols(
@@ -1366,6 +1485,187 @@ def main() -> None:
             st.dataframe(earnings_calendar, width="stretch", height=320)
         else:
             st.info("Keine Earnings im Kalender (heute + 5 Tage).")
+
+        # ===================================================================
+        # 11b. Benzinga Intelligence Suite
+        # ===================================================================
+        bz_key = os.environ.get("BENZINGA_API_KEY", "")
+        if bz_key:
+            st.divider()
+            st.subheader("📊 Benzinga Intelligence")
+            st.caption(
+                "Full Benzinga data suite: Dividends, Splits, IPOs, "
+                "Guidance, Retail, Top News, Quantified News, Options Flow"
+            )
+
+            from datetime import timedelta as _td
+
+            _today = datetime.now(UTC).date()
+            _bz_from = (_today - _td(days=7)).isoformat()
+            _bz_to = (_today + _td(days=14)).isoformat()
+
+            (bz_op_divs, bz_op_splits, bz_op_ipos, bz_op_guid,
+             bz_op_retail, bz_op_top, bz_op_quant, bz_op_opts) = st.tabs([
+                "💵 Dividends", "✂️ Splits", "🚀 IPOs",
+                "🔮 Guidance", "🛒 Retail", "📰 Top News",
+                "📈 Quantified", "🎰 Options",
+            ])
+
+            # ── Dividends ──
+            with bz_op_divs:
+                div_data = _cached_bz_dividends_op(bz_key, _bz_from, _bz_to)
+                if div_data:
+                    df_d = pd.DataFrame(div_data)
+                    _cols = [c for c in [
+                        "ticker", "name", "date", "ex_date", "payable_date",
+                        "dividend", "dividend_prior", "dividend_yield",
+                        "frequency", "importance",
+                    ] if c in df_d.columns]
+                    st.caption(f"{len(df_d)} dividend(s)")
+                    st.dataframe(df_d[_cols] if _cols else df_d, width="stretch", height=min(400, 40 + 35 * len(df_d)))
+                else:
+                    st.info("No dividend data found.")
+
+            # ── Splits ──
+            with bz_op_splits:
+                spl_data = _cached_bz_splits_op(bz_key, _bz_from, _bz_to)
+                if spl_data:
+                    df_s = pd.DataFrame(spl_data)
+                    _cols = [c for c in [
+                        "ticker", "exchange", "date", "ratio",
+                        "optionable", "date_ex", "date_distribution",
+                        "importance",
+                    ] if c in df_s.columns]
+                    st.caption(f"{len(df_s)} split(s)")
+                    st.dataframe(df_s[_cols] if _cols else df_s, width="stretch", height=min(400, 40 + 35 * len(df_s)))
+                else:
+                    st.info("No stock splits found.")
+
+            # ── IPOs ──
+            with bz_op_ipos:
+                ipo_data = _cached_bz_ipos_op(bz_key, _bz_from, _bz_to)
+                if ipo_data:
+                    df_i = pd.DataFrame(ipo_data)
+                    _cols = [c for c in [
+                        "ticker", "name", "exchange", "pricing_date",
+                        "price_min", "price_max", "deal_status",
+                        "offering_value", "lead_underwriters", "importance",
+                    ] if c in df_i.columns]
+                    st.caption(f"{len(df_i)} IPO(s)")
+                    st.dataframe(df_i[_cols] if _cols else df_i, width="stretch", height=min(400, 40 + 35 * len(df_i)))
+
+                    # Highlight upcoming
+                    _now_str = _today.isoformat()
+                    _dcol = "pricing_date" if "pricing_date" in df_i.columns else "date"
+                    if _dcol in df_i.columns:
+                        upcoming = df_i[df_i[_dcol] >= _now_str]
+                        if not upcoming.empty:
+                            st.divider()
+                            st.markdown("**🚀 Upcoming IPOs**")
+                            for _, row in upcoming.head(8).iterrows():
+                                st.markdown(
+                                    f"**{row.get('ticker', '?')}** {row.get('name', '')} — "
+                                    f"{row.get(_dcol, '?')} | "
+                                    f"${row.get('price_min', '?')} – ${row.get('price_max', '?')} | "
+                                    f"Status: {row.get('deal_status', '?')}"
+                                )
+                else:
+                    st.info("No IPO data found.")
+
+            # ── Guidance ──
+            with bz_op_guid:
+                guid_data = _cached_bz_guidance_op(bz_key, _bz_from, _bz_to)
+                if guid_data:
+                    df_g = pd.DataFrame(guid_data)
+                    _cols = [c for c in [
+                        "ticker", "name", "date", "period", "period_year",
+                        "eps_guidance_est", "eps_guidance_max", "eps_guidance_min",
+                        "revenue_guidance_est", "revenue_guidance_max",
+                        "revenue_guidance_min", "importance",
+                    ] if c in df_g.columns]
+                    st.caption(f"{len(df_g)} guidance item(s)")
+                    st.dataframe(df_g[_cols] if _cols else df_g, width="stretch", height=min(400, 40 + 35 * len(df_g)))
+                else:
+                    st.info("No guidance data found.")
+
+            # ── Retail ──
+            with bz_op_retail:
+                ret_data = _cached_bz_retail_op(bz_key, _bz_from, _bz_to)
+                if ret_data:
+                    df_r = pd.DataFrame(ret_data)
+                    _cols = [c for c in [
+                        "ticker", "name", "date", "period", "period_year",
+                        "sss", "sss_est", "retail_surprise", "importance",
+                    ] if c in df_r.columns]
+                    st.caption(f"{len(df_r)} retail item(s)")
+                    st.dataframe(df_r[_cols] if _cols else df_r, width="stretch", height=min(400, 40 + 35 * len(df_r)))
+                else:
+                    st.info("No retail sales data found.")
+
+            # ── Top News ──
+            with bz_op_top:
+                top_news = _cached_bz_top_news_op(bz_key, limit=20)
+                if top_news:
+                    st.caption(f"{len(top_news)} curated top stories")
+                    for idx, story in enumerate(top_news):
+                        title = str(story.get("title", "Untitled"))
+                        author = story.get("author", "")
+                        created = story.get("created", "")
+                        url = story.get("url", "")
+                        teaser = story.get("teaser", "")
+                        stocks = story.get("stocks", [])
+                        tickers_str = ", ".join(
+                            s.get("name", "") if isinstance(s, dict) else str(s)
+                            for s in (stocks if isinstance(stocks, list) else [])
+                        )
+
+                        parts = [f"**{title}**"]
+                        if tickers_str:
+                            parts.append(f"[{tickers_str}]")
+                        if author:
+                            parts.append(f"— {author}")
+                        if created:
+                            parts.append(f"| {str(created)[:16]}")
+                        st.markdown(" ".join(parts))
+                        if teaser:
+                            st.caption(str(teaser)[:200])
+                        if url:
+                            st.markdown(f"[Read more]({url})", unsafe_allow_html=True)
+                        if idx < len(top_news) - 1:
+                            st.divider()
+                else:
+                    st.info("No Benzinga top news available.")
+
+            # ── Quantified News ──
+            with bz_op_quant:
+                qn_data = _cached_bz_quantified_op(bz_key, from_d=_bz_from, to_d=_bz_to)
+                if qn_data:
+                    df_q = pd.DataFrame(qn_data)
+                    st.caption(f"{len(df_q)} quantified news item(s)")
+                    st.dataframe(df_q, width="stretch", height=min(400, 40 + 35 * len(df_q)))
+                else:
+                    st.info("No quantified news available.")
+
+            # ── Options Activity ──
+            with bz_op_opts:
+                # Use top movers as default tickers for options
+                _opt_syms_default = "AAPL,NVDA,SPY,QQQ,TSLA"
+                _opt_tickers = st.text_input(
+                    "Ticker(s)",
+                    value=_opt_syms_default,
+                    placeholder="e.g. AAPL,NVDA,SPY",
+                    key="bz_op_opt_tickers",
+                )
+                if _opt_tickers.strip():
+                    opt_data = _cached_bz_options_op(bz_key, _opt_tickers.strip())
+                    if opt_data:
+                        df_o = pd.DataFrame(opt_data)
+                        st.caption(f"{len(df_o)} options activity record(s)")
+                        st.dataframe(df_o, width="stretch", height=min(400, 40 + 35 * len(df_o)))
+                    else:
+                        st.info("No options activity found. (Requires Options Activity API access.)")
+                else:
+                    st.info("Enter ticker(s) above to view options activity.")
 
         # ===================================================================
         # 12. Tomorrow Outlook

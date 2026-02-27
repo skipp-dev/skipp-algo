@@ -214,6 +214,9 @@ def build_vd_snapshot(
     rt_quotes: dict[str, dict[str, Any]] | None = None,
     bz_quotes: list[dict[str, Any]] | None = None,
     max_age_s: float = 14400.0,
+    bz_dividends: list[dict[str, Any]] | None = None,
+    bz_guidance: list[dict[str, Any]] | None = None,
+    bz_options: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Build one row per ticker from the full feed, ranked by best news_score.
 
@@ -226,6 +229,10 @@ def build_vd_snapshot(
     During extended hours (pre-market / after-hours), Benzinga delayed
     quotes are the freshest price source available.
 
+    When *bz_dividends*, *bz_guidance*, or *bz_options* are provided
+    (from Benzinga calendar/financial endpoints), enrichment columns
+    are added per symbol: div_exdate, div_yield, guid_eps, options_flow.
+
     Time-dependent fields (age_min, recency, actionable) are
     **recomputed live** from the item's ``published_ts`` so the
     VisiData snapshot always reflects current staleness — not the
@@ -237,7 +244,8 @@ def build_vd_snapshot(
     Columns mirror the open_prep realtime VisiData format:
     symbol, N, sentiment, tick, score, streak, category, event,
     materiality, impact, clarity, sentiment_score, polarity, recency,
-    age_min, actionable, price, chg_pct, vol_ratio
+    age_min, actionable, price, chg_pct, vol_ratio,
+    div_exdate, div_yield, guid_eps, options_flow
     """
     if rt_quotes is None:
         rt_quotes = {}
@@ -249,6 +257,28 @@ def build_vd_snapshot(
             sym = (q.get("symbol") or "").upper().strip()
             if sym:
                 bz_by_sym[sym] = q
+
+    # Build Benzinga enrichment lookups (ticker → best entry)
+    _div_by_sym: dict[str, dict[str, Any]] = {}
+    if bz_dividends:
+        for d in bz_dividends:
+            sym = (d.get("ticker") or "").upper().strip()
+            if sym:
+                _div_by_sym.setdefault(sym, d)
+
+    _guid_by_sym: dict[str, dict[str, Any]] = {}
+    if bz_guidance:
+        for g in bz_guidance:
+            sym = (g.get("ticker") or "").upper().strip()
+            if sym:
+                _guid_by_sym.setdefault(sym, g)
+
+    _opts_by_sym: dict[str, dict[str, Any]] = {}
+    if bz_options:
+        for o in bz_options:
+            sym = (o.get("ticker") or "").upper().strip()
+            if sym:
+                _opts_by_sym.setdefault(sym, o)
 
     best: dict[str, dict[str, Any]] = {}   # ticker → best-scored item
     counts: dict[str, int] = {}             # ticker → article count
@@ -337,6 +367,11 @@ def build_vd_snapshot(
             "price":            price,
             "chg_pct":          chg_pct,
             "vol_ratio":        vol_ratio,
+            # Benzinga enrichment columns
+            "div_exdate":       _div_by_sym.get(tk, {}).get("ex_date", ""),
+            "div_yield":        _div_by_sym.get(tk, {}).get("dividend_yield", ""),
+            "guid_eps":         _guid_by_sym.get(tk, {}).get("eps_guidance_est", ""),
+            "options_flow":     "🎰" if tk in _opts_by_sym else "",
         })
 
     # Composite rank: 70% absolute price change + 30% news score
@@ -356,6 +391,9 @@ def save_vd_snapshot(
     rt_jsonl_path: str = _RT_VD_SIGNALS_DEFAULT,
     max_age_s: float = 14400.0,
     bz_quotes: list[dict[str, Any]] | None = None,
+    bz_dividends: list[dict[str, Any]] | None = None,
+    bz_guidance: list[dict[str, Any]] | None = None,
+    bz_options: list[dict[str, Any]] | None = None,
 ) -> None:
     """Write per-symbol VisiData JSONL — atomic overwrite, one line per ticker.
 
@@ -367,6 +405,10 @@ def save_vd_snapshot(
     a fallback for symbols not covered by the RT engine — keeping the
     VisiData file fresh during extended hours.
 
+    When *bz_dividends*, *bz_guidance*, or *bz_options* are provided,
+    enrichment columns (div_exdate, div_yield, guid_eps, options_flow)
+    are added per symbol.
+
     Items older than *max_age_s* are excluded (pass 0 to disable).
 
     Uses the same atomic-replace pattern as the RT engine
@@ -374,7 +416,10 @@ def save_vd_snapshot(
     seconds without reading a half-written file.
     """
     rt_quotes = load_rt_quotes(rt_jsonl_path)
-    rows = build_vd_snapshot(feed, rt_quotes=rt_quotes, bz_quotes=bz_quotes, max_age_s=max_age_s)
+    rows = build_vd_snapshot(
+        feed, rt_quotes=rt_quotes, bz_quotes=bz_quotes, max_age_s=max_age_s,
+        bz_dividends=bz_dividends, bz_guidance=bz_guidance, bz_options=bz_options,
+    )
     if not rows:
         return
 
@@ -419,6 +464,132 @@ def save_vd_snapshot(
             raise
     except Exception as exc:
         logger.debug("VisiData snapshot write failed: %s", exc)
+
+
+# ── Benzinga Calendar JSONL Export ─────────────────────────────
+
+_VD_BZ_CALENDAR_DEFAULT = "vd_bz_calendar.jsonl"
+
+
+def build_vd_bz_calendar(
+    bz_dividends: list[dict[str, Any]] | None = None,
+    bz_splits: list[dict[str, Any]] | None = None,
+    bz_ipos: list[dict[str, Any]] | None = None,
+    bz_guidance: list[dict[str, Any]] | None = None,
+    bz_retail: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Build a flat JSONL-ready list from all Benzinga calendar types.
+
+    Each row includes a ``type`` column (``dividend``, ``split``, ``ipo``,
+    ``guidance``, ``retail``) and the key fields from that calendar type.
+    This creates a unified VisiData-friendly view of upcoming corporate
+    events that complements the per-symbol news snapshot.
+
+    Returns
+    -------
+    list[dict]
+        One dict per calendar event, sorted by date descending.
+    """
+    rows: list[dict[str, Any]] = []
+
+    for d in (bz_dividends or []):
+        rows.append({
+            "type":       "dividend",
+            "ticker":     d.get("ticker", ""),
+            "name":       d.get("name", ""),
+            "date":       d.get("ex_date", d.get("date", "")),
+            "detail":     f"${d.get('dividend', '?')} (yield: {d.get('dividend_yield', '?')})",
+            "frequency":  d.get("frequency", ""),
+            "importance": d.get("importance", ""),
+        })
+
+    for s in (bz_splits or []):
+        rows.append({
+            "type":       "split",
+            "ticker":     s.get("ticker", ""),
+            "name":       s.get("name", ""),
+            "date":       s.get("date_ex", s.get("date", "")),
+            "detail":     f"Ratio: {s.get('ratio', '?')}",
+            "frequency":  "",
+            "importance": s.get("importance", ""),
+        })
+
+    for i in (bz_ipos or []):
+        rows.append({
+            "type":       "ipo",
+            "ticker":     i.get("ticker", ""),
+            "name":       i.get("name", ""),
+            "date":       i.get("pricing_date", i.get("date", "")),
+            "detail":     f"${i.get('price_min', '?')}-${i.get('price_max', '?')} | {i.get('deal_status', '?')}",
+            "frequency":  "",
+            "importance": i.get("importance", ""),
+        })
+
+    for g in (bz_guidance or []):
+        rows.append({
+            "type":       "guidance",
+            "ticker":     g.get("ticker", ""),
+            "name":       g.get("name", ""),
+            "date":       g.get("date", ""),
+            "detail":     f"EPS: {g.get('eps_guidance_est', '?')} | Rev: {g.get('revenue_guidance_est', '?')}",
+            "frequency":  f"{g.get('period', '')} {g.get('period_year', '')}".strip(),
+            "importance": g.get("importance", ""),
+        })
+
+    for r in (bz_retail or []):
+        rows.append({
+            "type":       "retail",
+            "ticker":     r.get("ticker", ""),
+            "name":       r.get("name", ""),
+            "date":       r.get("date", ""),
+            "detail":     f"SSS: {r.get('sss', '?')} (est: {r.get('sss_est', '?')}) surprise: {r.get('retail_surprise', '?')}",
+            "frequency":  f"{r.get('period', '')} {r.get('period_year', '')}".strip(),
+            "importance": r.get("importance", ""),
+        })
+
+    # Sort by date descending (most recent first)
+    rows.sort(key=lambda x: str(x.get("date", "")), reverse=True)
+    return rows
+
+
+def save_vd_bz_calendar(
+    bz_dividends: list[dict[str, Any]] | None = None,
+    bz_splits: list[dict[str, Any]] | None = None,
+    bz_ipos: list[dict[str, Any]] | None = None,
+    bz_guidance: list[dict[str, Any]] | None = None,
+    bz_retail: list[dict[str, Any]] | None = None,
+    path: str = _VD_BZ_CALENDAR_DEFAULT,
+) -> None:
+    """Write Benzinga calendar data as a JSONL file for VisiData.
+
+    Creates a unified view of dividends, splits, IPOs, guidance, and
+    retail events — one line per event, sorted by date.
+    Atomic write (tmp + rename) to avoid partial reads.
+    """
+    rows = build_vd_bz_calendar(
+        bz_dividends=bz_dividends,
+        bz_splits=bz_splits,
+        bz_ipos=bz_ipos,
+        bz_guidance=bz_guidance,
+        bz_retail=bz_retail,
+    )
+    if not rows:
+        logger.debug("No BZ calendar data to write to %s", path)
+        return
+
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "w") as fh:
+            for row in rows:
+                fh.write(json.dumps(row, default=str) + "\n")
+        os.replace(tmp_path, path)
+        logger.debug("Wrote %d BZ calendar events to %s", len(rows), path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 # ── TradersPost Webhook Stub ───────────────────────────────────
