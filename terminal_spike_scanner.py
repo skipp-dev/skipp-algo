@@ -31,6 +31,12 @@ _APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
 # US Eastern timezone for market session detection
 _ET = ZoneInfo("America/New_York")
 
+# Session boundaries (ET)
+_T_0400 = datetime(2000, 1, 1, 4, 0).time()
+_T_0930 = datetime(2000, 1, 1, 9, 30).time()
+_T_1600 = datetime(2000, 1, 1, 16, 0).time()
+_T_2000 = datetime(2000, 1, 1, 20, 0).time()
+
 
 def market_session() -> str:
     """Return current US market session label.
@@ -43,14 +49,13 @@ def market_session() -> str:
     if weekday >= 5:
         return "closed"
     t = now.time()
-    from datetime import time as _time
-    if t < _time(4, 0):
+    if t < _T_0400:
         return "closed"
-    if t < _time(9, 30):
+    if t < _T_0930:
         return "pre-market"
-    if t < _time(16, 0):
+    if t < _T_1600:
         return "regular"
-    if t < _time(20, 0):
+    if t < _T_2000:
         return "after-hours"
     return "closed"
 
@@ -397,7 +402,8 @@ def overlay_extended_hours_quotes(
                 row["vol_spike"] = classify_volume_spike(new_vol, avg_vol)
                 row["vol_icon"] = volume_icon(row["vol_spike"])
 
-        row["source"] = row["source"] + "+bz"
+        if "+bz" not in row["source"]:
+            row["source"] = row["source"] + "+bz"
 
     # Re-sort after overlay
     rows.sort(key=lambda r: abs(r["change_pct"]), reverse=True)

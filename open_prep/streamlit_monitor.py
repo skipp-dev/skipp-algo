@@ -121,14 +121,18 @@ def _overlay_bz_prices(
         sym = str(row.get(sym_key, "")).upper().strip()
         bq = bz_map.get(sym)
         if bq:
-            try:
-                row["bz_price"] = round(float(bq.get("last", 0)), 2)
-            except (ValueError, TypeError):
-                row["bz_price"] = None
-            try:
-                row["bz_chg_pct"] = round(float(bq.get("changePercent", 0)), 2)
-            except (ValueError, TypeError):
-                row["bz_chg_pct"] = None
+            bz_last = bq.get("last")
+            if bz_last is not None:
+                try:
+                    row["bz_price"] = round(float(bz_last), 2)
+                except (ValueError, TypeError):
+                    row["bz_price"] = None
+            bz_chg = bq.get("changePercent")
+            if bz_chg is not None:
+                try:
+                    row["bz_chg_pct"] = round(float(bz_chg), 2)
+                except (ValueError, TypeError):
+                    row["bz_chg_pct"] = None
     return rows
 
 

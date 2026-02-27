@@ -895,3 +895,24 @@ class TestBzQuotesFallback:
         feed = [self._make_feed_item("AAPL", 0.80)]
         rows = build_vd_snapshot(feed, bz_quotes=None, max_age_s=0)
         assert rows[0]["price"] is None
+
+    def test_rt_zero_chg_pct_not_overridden_by_bz(self) -> None:
+        """RT chg_pct=0.0 (flat stock) must NOT fall through to BZ."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("FLAT", 0.70)]
+        rt = {"FLAT": {"price": 100.0, "chg_pct": 0.0, "tick": "→",
+                        "streak": 0, "vol_ratio": 1.0}}
+        bz = [self._make_bz_quote("FLAT", 99.0, -1.0)]
+        rows = build_vd_snapshot(feed, rt_quotes=rt, bz_quotes=bz, max_age_s=0)
+        assert rows[0]["price"] == 100.0   # RT wins
+        assert rows[0]["chg_pct"] == 0.0   # RT zero preserved, not BZ -1.0
+        assert rows[0]["vol_ratio"] == 1.0
+
+    def test_bz_missing_last_key_no_zero_price(self) -> None:
+        """BZ quote without 'last' key must NOT produce price=0.0."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("NOLAST", 0.60)]
+        bz = [{"symbol": "NOLAST", "changePercent": "5.0"}]  # no 'last' key
+        rows = build_vd_snapshot(feed, bz_quotes=bz, max_age_s=0)
+        # price should stay None — not become 0.0
+        assert rows[0]["price"] is None

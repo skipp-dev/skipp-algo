@@ -875,7 +875,8 @@ def _do_poll() -> None:
     # Write per-symbol VisiData snapshot (atomic overwrite)
     # Fetch Benzinga delayed quotes as fallback for extended hours
     _vd_bz_quotes: list[dict[str, Any]] | None = None
-    if cfg.benzinga_api_key and st.session_state.feed:
+    _vd_session = market_session()
+    if _vd_session in ("pre-market", "after-hours") and cfg.benzinga_api_key and st.session_state.feed:
         _vd_syms = list({d.get("ticker", "") for d in st.session_state.feed
                          if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
         if _vd_syms:
@@ -993,7 +994,8 @@ if st.session_state.use_bg_poller:
         st.session_state.feed = _prune_stale_items(st.session_state.feed)
         # Fetch Benzinga delayed quotes as fallback for extended hours
         _vd_bz_quotes_bg: list[dict[str, Any]] | None = None
-        if _bg_cfg.benzinga_api_key and st.session_state.feed:
+        _vd_session_bg = market_session()
+        if _vd_session_bg in ("pre-market", "after-hours") and _bg_cfg.benzinga_api_key and st.session_state.feed:
             _vd_syms_bg = list({d.get("ticker", "") for d in st.session_state.feed
                                 if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
             if _vd_syms_bg:
@@ -1229,7 +1231,8 @@ else:
         # Benzinga delayed quotes as fallback (freshest during extended hours)
         _bz_quotes_rank: list[dict[str, Any]] | None = None
         _rank_bz_key = st.session_state.cfg.benzinga_api_key
-        if _rank_bz_key and feed:
+        _rank_session = market_session()
+        if _rank_session in ("pre-market", "after-hours") and _rank_bz_key and feed:
             _rank_syms = list({d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"})
             if _rank_syms:
                 _bz_quotes_rank = _cached_bz_quotes(_rank_bz_key, ",".join(_rank_syms[:50]))
@@ -1963,10 +1966,10 @@ else:
                         gainer_rows.append({
                             "Symbol": _gsym,
                             "Company": g.get("companyName", g.get("company_name", "")),
-                            "Price": _gq.get("last") or g.get("price", g.get("last", "")),
-                            "Change": _gq.get("change") or g.get("change", ""),
-                            "Change %": _gq.get("changePercent") or g.get("changePercent", g.get("change_percent", "")),
-                            "Volume": _gq.get("volume") or g.get("volume", ""),
+                            "Price": _gq["last"] if "last" in _gq else g.get("price", g.get("last", "")),
+                            "Change": _gq["change"] if "change" in _gq else g.get("change", ""),
+                            "Change %": _gq["changePercent"] if "changePercent" in _gq else g.get("changePercent", g.get("change_percent", "")),
+                            "Volume": _gq["volume"] if "volume" in _gq else g.get("volume", ""),
                             "Avg Volume": g.get("averageVolume", g.get("average_volume", "")),
                             "Mkt Cap": g.get("marketCap", g.get("market_cap", "")),
                             "Sector": g.get("gicsSectorName", g.get("sector", "")),
@@ -1986,10 +1989,10 @@ else:
                         loser_rows.append({
                             "Symbol": _lsym,
                             "Company": l.get("companyName", l.get("company_name", "")),
-                            "Price": _lq.get("last") or l.get("price", l.get("last", "")),
-                            "Change": _lq.get("change") or l.get("change", ""),
-                            "Change %": _lq.get("changePercent") or l.get("changePercent", l.get("change_percent", "")),
-                            "Volume": _lq.get("volume") or l.get("volume", ""),
+                            "Price": _lq["last"] if "last" in _lq else l.get("price", l.get("last", "")),
+                            "Change": _lq["change"] if "change" in _lq else l.get("change", ""),
+                            "Change %": _lq["changePercent"] if "changePercent" in _lq else l.get("changePercent", l.get("change_percent", "")),
+                            "Volume": _lq["volume"] if "volume" in _lq else l.get("volume", ""),
                             "Avg Volume": l.get("averageVolume", l.get("average_volume", "")),
                             "Mkt Cap": l.get("marketCap", l.get("market_cap", "")),
                             "Sector": l.get("gicsSectorName", l.get("sector", "")),

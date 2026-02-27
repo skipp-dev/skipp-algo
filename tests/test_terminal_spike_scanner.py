@@ -516,6 +516,18 @@ class TestOverlayExtendedHoursQuotes:
         albt = next(r for r in rows if r["symbol"] == "ALBT")
         assert "+bz" in albt["source"]
 
+    def test_overlay_source_suffix_idempotent(self):
+        """Calling overlay twice must not accumulate +bz+bz."""
+        rows = self._make_rows()
+        quotes = [
+            {"symbol": "ALBT", "last": 0.75, "change": -0.34,
+             "changePercent": -31.19, "volume": 2000000},
+        ]
+        overlay_extended_hours_quotes(rows, quotes)
+        overlay_extended_hours_quotes(rows, quotes)
+        albt = next(r for r in rows if r["symbol"] == "ALBT")
+        assert albt["source"].count("+bz") == 1
+
     def test_overlay_updates_volume_ratio(self):
         rows = self._make_rows()
         quotes = [

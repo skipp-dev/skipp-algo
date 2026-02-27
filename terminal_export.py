@@ -274,9 +274,13 @@ def build_vd_snapshot(
         rt = rt_quotes.get(tk, {})
 
         # Price data priority: RT engine > Benzinga delayed quotes
-        price = rt.get("price") or None
-        chg_pct = rt.get("chg_pct") or None
-        vol_ratio = rt.get("vol_ratio") or None
+        # Use `is not None` — 0.0 is a valid value (e.g. flat stock chg_pct=0)
+        _rt_price = rt.get("price")
+        _rt_chg = rt.get("chg_pct")
+        _rt_vol = rt.get("vol_ratio")
+        price = _rt_price if _rt_price is not None else None
+        chg_pct = _rt_chg if _rt_chg is not None else None
+        vol_ratio = _rt_vol if _rt_vol is not None else None
         tick = rt.get("tick", "")
         streak = rt.get("streak", 0)
 
