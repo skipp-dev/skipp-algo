@@ -1708,6 +1708,33 @@ class RealtimeEngine:
         """
         if not self._vd_rows:
             return
+
+        # Compute snapshot-level freshness meta row
+        _now = time.time()
+        _a0_count = sum(1 for r in self._vd_rows.values() if r.get("signal") == "A0")
+        _a1_count = sum(1 for r in self._vd_rows.values() if r.get("signal") == "A1")
+        _max_change_age = max(
+            (r.get("last_change_age_s", 0) for r in self._vd_rows.values()), default=0,
+        )
+        _stale_warn = "⚠️ STALE" if _max_change_age > 300 else ""
+        _meta_row: dict[str, Any] = {
+            "symbol": f"_META {_stale_warn}".strip(),
+            "signal": f"A0={_a0_count} A1={_a1_count}",
+            "direction": "",
+            "tick": "",
+            "score": 0,
+            "streak": 0,
+            "price": 0,
+            "chg_pct": 0,
+            "vol_ratio": 0,
+            "news": f"poll#{self._poll_seq} · {len(self._vd_rows)} syms",
+            "news_score": 0,
+            "signal_age_hms": "",
+            "last_change_age_s": int(_max_change_age),
+            "poll_seq": self._poll_seq,
+            "poll_changed": True,
+        }
+
         try:
             VD_SIGNALS_PATH.parent.mkdir(parents=True, exist_ok=True)
             tmp_fd, tmp_path = tempfile.mkstemp(
@@ -1715,6 +1742,9 @@ class RealtimeEngine:
             )
             try:
                 with os.fdopen(tmp_fd, "w", encoding="utf-8") as fh:
+                    # Meta row first — immediately visible in VisiData
+                    fh.write(json.dumps(_meta_row, default=str, allow_nan=False))
+                    fh.write("\n")
                     for row in self._vd_rows.values():
                         fh.write(json.dumps(row, default=str, allow_nan=False))
                         fh.write("\n")

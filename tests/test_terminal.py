@@ -607,9 +607,11 @@ class TestVdSnapshot:
         save_vd_snapshot(feed, path=out)
 
         lines = Path(out).read_text().strip().split("\n")
-        assert len(lines) == 2
-        row0 = json.loads(lines[0])
-        assert row0["symbol"] == "GOOG"  # highest score first
+        assert len(lines) == 3  # 1 meta + 2 data rows
+        meta = json.loads(lines[0])
+        assert meta["symbol"].startswith("_META")
+        row1 = json.loads(lines[1])
+        assert row1["symbol"] == "GOOG"  # highest score first
 
     def test_empty_feed_no_file(self, tmp_path: Path) -> None:
         from terminal_export import save_vd_snapshot
@@ -773,8 +775,10 @@ class TestRtIntegration:
         save_vd_snapshot(feed, path=out, rt_jsonl_path=str(rt_path))
 
         lines = Path(out).read_text().strip().split("\n")
-        assert len(lines) == 1
-        row = json.loads(lines[0])
+        assert len(lines) == 2  # 1 meta + 1 data
+        meta = json.loads(lines[0])
+        assert meta["symbol"].startswith("_META")
+        row = json.loads(lines[1])
         assert row["symbol"] == "GOOG"
         assert row["price"] == 175.0
 
@@ -788,8 +792,10 @@ class TestRtIntegration:
         save_vd_snapshot(feed, path=out, rt_jsonl_path=str(tmp_path / "nope.jsonl"),
                          bz_quotes=bz)
         lines = Path(out).read_text().strip().split("\n")
-        assert len(lines) == 1
-        row = json.loads(lines[0])
+        assert len(lines) == 2  # 1 meta + 1 data
+        meta = json.loads(lines[0])
+        assert meta["symbol"].startswith("_META")
+        row = json.loads(lines[1])
         assert row["symbol"] == "ALBT"
         assert row["price"] == 0.77
         assert row["chg_pct"] == -29.7

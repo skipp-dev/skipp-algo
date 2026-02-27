@@ -561,9 +561,45 @@ def main() -> None:
         if st.button("🔄 Sofort aktualisieren", width="stretch", on_click=_on_force_refresh):
             if not auto_refresh_enabled:
                 st.rerun()
+
+        # Reset cache (forces a complete fresh pipeline run)
+        if st.button("🔃 Cache leeren", width="stretch",
+                     help="Verwirft den Cache und erzwingt einen vollständigen Pipeline-Lauf "
+                          "beim nächsten Refresh. Nutzen wenn Daten veraltet erscheinen."):
+            st.session_state["latest_result_cache"] = None
+            st.session_state["last_live_fetch_utc"] = None
+            st.session_state["force_live_fetch"] = True
+            st.toast("Cache geleert — nächster Refresh holt frische Daten", icon="🔃")
+            st.rerun()
+
         if st.button("🔎 Nur Universum neu laden", width="stretch", on_click=_on_reload_universe):
             if not auto_refresh_enabled:
                 st.rerun()
+
+        # ── Data freshness diagnostics ──────────────────────
+        _diag_last_fetch_raw = st.session_state.get("last_live_fetch_utc")
+        if _diag_last_fetch_raw:
+            try:
+                _diag_last_fetch = datetime.fromisoformat(
+                    str(_diag_last_fetch_raw).replace("Z", "+00:00")
+                )
+                if _diag_last_fetch.tzinfo is None:
+                    _diag_last_fetch = _diag_last_fetch.replace(tzinfo=UTC)
+                _diag_age_s = max((datetime.now(UTC) - _diag_last_fetch).total_seconds(), 0)
+                _diag_age_min = _diag_age_s / 60
+                _diag_label = f"Daten-Alter: {_diag_age_min:.0f}m"
+                _diag_is_market = callable(_market_session) and _market_session() in ("regular", "pre-market", "after-hours")
+                if _diag_age_min > 30 and _diag_is_market:
+                    st.warning(_diag_label)
+                else:
+                    st.caption(_diag_label)
+            except (ValueError, TypeError):
+                pass
+        else:
+            st.caption("Daten-Alter: (kein Fetch)")
+        _diag_cached = st.session_state.get("latest_result_cache")
+        st.caption(f"Cache: {'aktiv' if _diag_cached else 'leer'}")
+
         last_universe_reload_utc = st.session_state.get("last_universe_reload_utc")
         last_universe_reload = _format_berlin_only(last_universe_reload_utc)
         last_universe_reload_freshness = _universe_reload_freshness(last_universe_reload_utc)

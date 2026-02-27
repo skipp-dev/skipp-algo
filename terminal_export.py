@@ -372,6 +372,24 @@ def save_vd_snapshot(
     if not rows:
         return
 
+    # Compute snapshot-level freshness metadata
+    now_epoch = time.time()
+    _newest_age = min((r.get("age_min", 9999) for r in rows), default=0)
+    _stale_warn = "⚠️ STALE" if _newest_age > 30 else ""
+    _meta_row: dict[str, Any] = {
+        "symbol":    f"_META {_stale_warn}".strip(),
+        "N":         len(rows),
+        "sentiment": "",
+        "tick":      "",
+        "score":     0,
+        "relevance": 0,
+        "streak":    0,
+        "category":  f"snapshot {datetime.fromtimestamp(now_epoch, tz=UTC).strftime('%H:%M:%S')} UTC",
+        "event":     f"feed_age={_newest_age:.0f}m",
+        "materiality": _stale_warn or "OK",
+        "headline":  f"{len(rows)} symbols · newest {_newest_age:.0f}m ago",
+    }
+
     dest = os.path.abspath(path)
     dest_dir = os.path.dirname(dest)
     os.makedirs(dest_dir, exist_ok=True)
@@ -380,6 +398,9 @@ def save_vd_snapshot(
         fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="vd_")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                # Meta row first — immediately visible in VisiData
+                fh.write(json.dumps(_meta_row, ensure_ascii=False, default=str))
+                fh.write("\n")
                 for row in rows:
                     fh.write(json.dumps(row, ensure_ascii=False, default=str))
                     fh.write("\n")
