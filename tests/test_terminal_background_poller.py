@@ -25,6 +25,8 @@ class _FakeCfg:
     page_size: int = 10
     benzinga_api_key: str = "test"
     fmp_api_key: str = ""
+    channels: str = ""
+    topics: str = ""
 
 
 @dataclass

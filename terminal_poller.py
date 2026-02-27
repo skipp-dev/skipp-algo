@@ -103,6 +103,9 @@ class TerminalConfig:
     channels: str = field(
         default_factory=lambda: os.getenv("TERMINAL_CHANNELS", ""),
     )
+    topics: str = field(
+        default_factory=lambda: os.getenv("TERMINAL_TOPICS", ""),
+    )
     page_size: int = field(
         default_factory=lambda: _env_int("TERMINAL_PAGE_SIZE", 100),
     )
@@ -324,6 +327,8 @@ def poll_and_classify(
     store: SqliteStore,
     cursor: str | None = None,
     page_size: int = 100,
+    channels: str | None = None,
+    topics: str | None = None,
 ) -> tuple[list[ClassifiedItem], str]:
     """Run one poll cycle: fetch → dedup → classify → return.
 
@@ -338,6 +343,10 @@ def poll_and_classify(
         Pass ``None`` for initial load.
     page_size : int
         Number of items per API call (max 100).
+    channels : str, optional
+        Comma-separated Benzinga channel names to filter by.
+    topics : str, optional
+        Comma-separated Benzinga topic names to filter by.
 
     Returns
     -------
@@ -346,7 +355,8 @@ def poll_and_classify(
         new_cursor: Updated cursor string for next poll.
     """
     now_utc = datetime.now(UTC)
-    raw_items = adapter.fetch_news(updated_since=cursor, page_size=page_size)
+    raw_items = adapter.fetch_news(updated_since=cursor, page_size=page_size,
+                                    channels=channels, topics=topics)
 
     all_classified: list[ClassifiedItem] = []
     try:
@@ -385,6 +395,8 @@ def poll_and_classify_multi(
     store: SqliteStore,
     cursor: str | None = None,
     page_size: int = 100,
+    channels: str | None = None,
+    topics: str | None = None,
 ) -> tuple[list[ClassifiedItem], str]:
     """Poll Benzinga + FMP in one cycle, dedup across sources.
 
@@ -395,6 +407,10 @@ def poll_and_classify_multi(
     store : SqliteStore
     cursor : str, optional
     page_size : int
+    channels : str, optional
+        Comma-separated Benzinga channel names.
+    topics : str, optional
+        Comma-separated Benzinga topic names.
 
     Returns
     -------
@@ -413,6 +429,7 @@ def poll_and_classify_multi(
         try:
             bz_items = benzinga_adapter.fetch_news(
                 updated_since=cursor, page_size=page_size,
+                channels=channels, topics=topics,
             )
             raw_items.extend(bz_items)
         except Exception as exc:

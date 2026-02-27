@@ -58,6 +58,14 @@ class Config:
     # ── Benzinga REST settings ──────────────────────────────────
     benzinga_rest_page_size: int = field(default_factory=lambda: _env_int("BENZINGA_REST_PAGE_SIZE", 100))
 
+    # Comma-separated channel names to filter Benzinga news.
+    # When empty (default), no channel filter is applied (all channels).
+    benzinga_channels: str = field(default_factory=lambda: os.getenv("BENZINGA_CHANNELS", ""))
+
+    # Comma-separated topic names to filter Benzinga news.
+    # When empty (default), no topic filter is applied.
+    benzinga_topics: str = field(default_factory=lambda: os.getenv("BENZINGA_TOPICS", ""))
+
     # ── Benzinga WebSocket settings ─────────────────────────────
     benzinga_ws_url: str = field(default_factory=lambda: os.getenv(
         "BENZINGA_WS_URL",

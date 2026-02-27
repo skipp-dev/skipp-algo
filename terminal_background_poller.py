@@ -177,6 +177,8 @@ class BackgroundPoller:
                     store=self._store,
                     cursor=self._cursor,
                     page_size=self._cfg.page_size,
+                    channels=getattr(self._cfg, "channels", None) or None,
+                    topics=getattr(self._cfg, "topics", None) or None,
                 )
             except Exception as exc:
                 _safe = _re.sub(

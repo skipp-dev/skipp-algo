@@ -797,6 +797,8 @@ def _do_poll() -> None:
             store=store,
             cursor=st.session_state.cursor,
             page_size=cfg.page_size,
+            channels=cfg.channels or None,
+            topics=cfg.topics or None,
         )
     except Exception as exc:
         import re as _re

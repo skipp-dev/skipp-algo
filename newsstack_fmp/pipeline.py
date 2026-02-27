@@ -66,7 +66,11 @@ def _get_bz_ws_adapter(cfg: Config) -> Any:
     global _bz_ws_adapter
     if _bz_ws_adapter is None:
         from .ingest_benzinga import BenzingaWsAdapter
-        _bz_ws_adapter = BenzingaWsAdapter(cfg.benzinga_api_key, cfg.benzinga_ws_url)
+        _bz_ws_adapter = BenzingaWsAdapter(
+            cfg.benzinga_api_key,
+            cfg.benzinga_ws_url,
+            channels=cfg.benzinga_channels or None,
+        )
         _bz_ws_adapter.start()
     return _bz_ws_adapter
 
@@ -295,6 +299,8 @@ def poll_once(
             bz_rest_items = bz_rest.fetch_news(
                 updated_since=bz_rest_cursor,
                 page_size=cfg.benzinga_rest_page_size,
+                channels=cfg.benzinga_channels or None,
+                topics=cfg.benzinga_topics or None,
             )
             all_items.extend(bz_rest_items)
         except Exception as exc:

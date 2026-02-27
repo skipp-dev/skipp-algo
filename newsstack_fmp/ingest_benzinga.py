@@ -65,10 +65,22 @@ class BenzingaRestAdapter:
         self,
         updated_since: str | None = None,
         page_size: int = 100,
+        channels: str | None = None,
+        topics: str | None = None,
     ) -> list[NewsItem]:
         """Fetch latest news, optionally only items updated since *updated_since*.
 
-        ``updated_since`` format depends on Benzinga API (epoch or ISO).
+        Parameters
+        ----------
+        updated_since : str, optional
+            ``updatedSince`` value (epoch or ISO) for delta-only fetches.
+        page_size : int
+            Number of items per API call.
+        channels : str, optional
+            Comma-separated channel names to filter by (e.g.
+            ``"Analyst Ratings,SEC,Markets"``).
+        topics : str, optional
+            Comma-separated topic names to filter by.
         """
         params: dict[str, Any] = {
             "token": self.api_key,
@@ -76,6 +88,10 @@ class BenzingaRestAdapter:
         }
         if updated_since:
             params["updatedSince"] = updated_since
+        if channels:
+            params["channels"] = channels
+        if topics:
+            params["topics"] = topics
 
         _RETRYABLE = {429, 500, 502, 503, 504}
         _MAX_ATTEMPTS = 3
@@ -175,15 +191,47 @@ class BenzingaWsAdapter:
         items = ws.drain()  # returns List[NewsItem], may be empty
     """
 
-    def __init__(self, api_key: str, ws_url: str = DEFAULT_BENZINGA_WS_URL) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        ws_url: str = DEFAULT_BENZINGA_WS_URL,
+        channels: str | None = None,
+    ) -> None:
         self.api_key = api_key
         self.ws_url = ws_url
         self.queue: queue.Queue[NewsItem] = queue.Queue(maxsize=5000)
+
+        # Optional client-side channel filter (WS pushes all news).
+        self._channel_filter: set[str] | None = None
+        if channels:
+            self._channel_filter = {
+                c.strip().lower() for c in channels.split(",") if c.strip()
+            }
 
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
 
     # ── Public API ──────────────────────────────────────────────
+
+    def _matches_channel_filter(self, item: NewsItem) -> bool:
+        """Return True if item matches the channel filter (or no filter set)."""
+        if self._channel_filter is None:
+            return True
+        # Extract channels from the raw Benzinga payload.
+        # Benzinga WS items have raw["channels"] as list of dicts with "name".
+        raw_channels = item.raw.get("channels") or []
+        item_channels: set[str] = set()
+        if isinstance(raw_channels, list):
+            for ch in raw_channels:
+                if isinstance(ch, dict):
+                    name = ch.get("name", "")
+                elif isinstance(ch, str):
+                    name = ch
+                else:
+                    continue
+                if name:
+                    item_channels.add(name.strip().lower())
+        return bool(item_channels & self._channel_filter)
 
     def start(self) -> None:
         """Start the background WS loop (daemon thread)."""
@@ -259,7 +307,7 @@ class BenzingaWsAdapter:
                         payloads = self._extract_payloads(msg)
                         for p in payloads:
                             item = normalize_benzinga_ws(p)
-                            if item.is_valid:
+                            if item.is_valid and self._matches_channel_filter(item):
                                 try:
                                     self.queue.put_nowait(item)
                                 except queue.Full:
