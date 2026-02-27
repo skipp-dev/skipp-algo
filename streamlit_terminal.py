@@ -98,6 +98,11 @@ from terminal_spike_scanner import (
     market_session,
     overlay_extended_hours_quotes,
 )
+from terminal_spike_detector import (
+    SpikeDetector,
+    format_spike_description,
+    format_time_et,
+)
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
@@ -304,6 +309,14 @@ if "use_bg_poller" not in st.session_state:
     st.session_state.use_bg_poller = os.getenv("TERMINAL_BG_POLL", "1") == "1"
 if "news_chart_auto_webhook" not in st.session_state:
     st.session_state.news_chart_auto_webhook = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK", "0") == "1"
+if "spike_detector" not in st.session_state:
+    st.session_state.spike_detector = SpikeDetector(
+        spike_threshold_pct=1.0,
+        lookback_s=60.0,
+        max_history=200,
+        max_event_age_s=3600.0,
+        cooldown_s=120.0,
+    )
 
 
 def _get_adapter() -> BenzingaRestAdapter | None:
@@ -1131,9 +1144,9 @@ else:
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
 
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
-         "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
+         "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
          "💹 Bz Movers", "⚡ Alerts", "📊 Data Table"],
     )
 
@@ -1429,7 +1442,99 @@ else:
                     else:
                         st.caption("No ticker data")
 
-    # ── TAB: Sector Heatmap (treemap) ───────────────────────
+    # ── TAB: RT Price Spikes (real-time detector) ───────────
+    with tab_rt_spikes:
+        fmp_key_rt = st.session_state.cfg.fmp_api_key
+        if not fmp_key_rt:
+            st.info("Set `FMP_API_KEY` in `.env` for real-time price spike detection.")
+        else:
+            st.subheader("⚡ Real-Time Price Spikes")
+            _session_label_rt = _session_icons.get(_current_session, _current_session)
+            st.caption(
+                f"**{_session_label_rt}** — Detecting rapid price moves (≥1% within 60 s). "
+                "Updates every refresh cycle."
+            )
+
+            # Feed current quotes into the detector
+            _rt_spike_data = _cached_spike_data(fmp_key_rt)
+            _rt_all_quotes: list[dict[str, Any]] = (
+                list(_rt_spike_data["gainers"])
+                + list(_rt_spike_data["losers"])
+                + list(_rt_spike_data["actives"])
+            )
+            _detector: SpikeDetector = st.session_state.spike_detector
+            _new_spikes = _detector.update(_rt_all_quotes)
+
+            # Diagnostics
+            _rt_diag_col1, _rt_diag_col2, _rt_diag_col3, _rt_diag_col4 = st.columns(4)
+            _rt_events = _detector.events
+            _rt_up = sum(1 for e in _rt_events if e.direction == "UP")
+            _rt_dn = sum(1 for e in _rt_events if e.direction == "DOWN")
+            _rt_diag_col1.metric("Total Spikes", len(_rt_events))
+            _rt_diag_col2.metric("🟢 Spike UP", _rt_up)
+            _rt_diag_col3.metric("🔴 Spike DOWN", _rt_dn)
+            _rt_diag_col4.metric("Symbols Tracked", _detector.symbols_tracked)
+
+            if _new_spikes:
+                st.success(
+                    f"🆕 {len(_new_spikes)} new spike(s) detected: "
+                    + ", ".join(f"{e.icon} {e.symbol} {e.spike_pct:+.1f}%" for e in _new_spikes)
+                )
+
+            if not _rt_events:
+                st.info(
+                    "No spikes detected yet. The detector needs at least 2 poll cycles "
+                    "(~60 s apart) to compare prices. Keep the terminal refreshing."
+                )
+            else:
+                # Build display table matching Benzinga Pro layout
+                _rt_rows = []
+                for ev in _rt_events:
+                    _rt_rows.append({
+                        "Signal": f"{ev.icon} Price Spike {ev.direction}",
+                        "Symbol": ev.symbol,
+                        "Time": format_time_et(ev.ts),
+                        "Spike %": f"{ev.spike_pct:+.2f}%",
+                        "Type": ev.asset_type,
+                        "Description": format_spike_description(ev),
+                        "Quote": f"${ev.price:.2f}" if ev.price >= 1 else f"${ev.price:.4f}",
+                        "Day Chg": f"{ev.change:+.2f}",
+                        "Day Chg %": f"{ev.change_pct:+.4f}%",
+                    })
+
+                _df_rt = pd.DataFrame(_rt_rows)
+                _df_rt.index = _df_rt.index + 1
+
+                st.dataframe(
+                    _df_rt,
+                    width='stretch',
+                    height=min(800, 40 + 35 * len(_df_rt)),
+                    column_config={
+                        "Signal": st.column_config.TextColumn("Signal", width="medium"),
+                        "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                        "Time": st.column_config.TextColumn("Time", width="small"),
+                        "Spike %": st.column_config.TextColumn("Spike %", width="small"),
+                        "Description": st.column_config.TextColumn("Description", width="large"),
+                    },
+                )
+
+                # Age distribution
+                st.divider()
+                _age_col1, _age_col2 = st.columns(2)
+                with _age_col1:
+                    st.caption(
+                        f"📊 Polls: {_detector.poll_count} · "
+                        f"Total spikes ever: {_detector.total_spikes_detected}"
+                    )
+                with _age_col2:
+                    if _rt_events:
+                        _newest = _rt_events[0].age_s
+                        _oldest = _rt_events[-1].age_s
+                        st.caption(
+                            f"Newest: {_newest:.0f}s ago · Oldest: {_oldest / 60:.1f}m ago"
+                        )
+
+    # ── TAB: Spikes (daily change scanner) ──────────────────
     with tab_spikes:
         fmp_key = st.session_state.cfg.fmp_api_key
         if not fmp_key:
