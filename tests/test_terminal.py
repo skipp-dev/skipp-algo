@@ -776,3 +776,106 @@ class TestRtIntegration:
         row = json.loads(lines[0])
         assert row["symbol"] == "GOOG"
         assert row["price"] == 175.0
+
+
+# ═════════════════════════════════════════════════════════════════
+# Benzinga Delayed Quotes Fallback in build_vd_snapshot
+# ═════════════════════════════════════════════════════════════════
+
+class TestBzQuotesFallback:
+    """Tests for Benzinga delayed quotes as fallback price source."""
+
+    def _make_feed_item(self, ticker: str, score: float, **kw: Any) -> Dict[str, Any]:
+        base: Dict[str, Any] = {
+            "ticker": ticker,
+            "news_score": score,
+            "published_ts": time.time(),
+            "headline": f"Test headline for {ticker}",
+            "sentiment_label": "bullish",
+        }
+        base.update(kw)
+        return base
+
+    def _make_bz_quote(self, symbol: str, last: float, chg_pct: float) -> Dict[str, Any]:
+        return {
+            "symbol": symbol,
+            "last": str(last),
+            "changePercent": str(chg_pct),
+            "volume": "1000000",
+        }
+
+    def test_bz_fallback_when_no_rt(self) -> None:
+        """Benzinga quote used when RT engine has no data."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("ALBT", 0.80)]
+        bz = [self._make_bz_quote("ALBT", 0.77, -29.7)]
+        rows = build_vd_snapshot(feed, bz_quotes=bz, max_age_s=0)
+        assert len(rows) == 1
+        assert rows[0]["price"] == 0.77
+        assert rows[0]["chg_pct"] == -29.7
+
+    def test_rt_takes_priority_over_bz(self) -> None:
+        """RT engine quote wins when both RT and Benzinga have data."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("AAPL", 0.90)]
+        rt = {"AAPL": {"price": 195.5, "chg_pct": 1.2, "tick": "↑",
+                        "streak": 3, "vol_ratio": 2.1}}
+        bz = [self._make_bz_quote("AAPL", 190.0, -0.5)]
+        rows = build_vd_snapshot(feed, rt_quotes=rt, bz_quotes=bz, max_age_s=0)
+        assert rows[0]["price"] == 195.5  # RT wins
+        assert rows[0]["chg_pct"] == 1.2
+
+    def test_bz_fallback_mixed_coverage(self) -> None:
+        """RT used for covered symbols, BZ fallback for uncovered."""
+        from terminal_export import build_vd_snapshot
+        feed = [
+            self._make_feed_item("AAPL", 0.90),
+            self._make_feed_item("ALBT", 0.80),
+            self._make_feed_item("NVDA", 0.70),
+        ]
+        rt = {"AAPL": {"price": 195.0, "chg_pct": 1.0,
+                        "tick": "↑", "streak": 2, "vol_ratio": 1.5}}
+        bz = [
+            self._make_bz_quote("ALBT", 0.77, -29.7),
+            self._make_bz_quote("NVDA", 850.0, 2.1),
+        ]
+        rows = build_vd_snapshot(feed, rt_quotes=rt, bz_quotes=bz, max_age_s=0)
+        by_sym = {r["symbol"]: r for r in rows}
+        # AAPL: RT data
+        assert by_sym["AAPL"]["price"] == 195.0
+        # ALBT: BZ fallback
+        assert by_sym["ALBT"]["price"] == 0.77
+        assert by_sym["ALBT"]["chg_pct"] == -29.7
+        # NVDA: BZ fallback
+        assert by_sym["NVDA"]["price"] == 850.0
+
+    def test_bz_no_match_stays_none(self) -> None:
+        """Symbol not in RT or BZ → price stays None."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("XYZ", 0.60)]
+        bz = [self._make_bz_quote("ALBT", 0.77, -29.7)]
+        rows = build_vd_snapshot(feed, bz_quotes=bz, max_age_s=0)
+        assert rows[0]["price"] is None
+        assert rows[0]["chg_pct"] is None
+
+    def test_bz_invalid_last_ignored(self) -> None:
+        """Invalid Benzinga last price is ignored gracefully."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("BAD", 0.50)]
+        bz = [{"symbol": "BAD", "last": "N/A", "changePercent": ""}]
+        rows = build_vd_snapshot(feed, bz_quotes=bz, max_age_s=0)
+        assert rows[0]["price"] is None
+
+    def test_bz_empty_list_no_crash(self) -> None:
+        """Empty bz_quotes list is handled without errors."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("AAPL", 0.80)]
+        rows = build_vd_snapshot(feed, bz_quotes=[], max_age_s=0)
+        assert rows[0]["price"] is None
+
+    def test_bz_none_no_crash(self) -> None:
+        """bz_quotes=None is the default and handled safely."""
+        from terminal_export import build_vd_snapshot
+        feed = [self._make_feed_item("AAPL", 0.80)]
+        rows = build_vd_snapshot(feed, bz_quotes=None, max_age_s=0)
+        assert rows[0]["price"] is None

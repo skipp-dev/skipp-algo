@@ -212,6 +212,7 @@ def load_rt_quotes(
 def build_vd_snapshot(
     feed: list[dict[str, Any]],
     rt_quotes: dict[str, dict[str, Any]] | None = None,
+    bz_quotes: list[dict[str, Any]] | None = None,
     max_age_s: float = 14400.0,
 ) -> list[dict[str, Any]]:
     """Build one row per ticker from the full feed, ranked by best news_score.
@@ -219,6 +220,11 @@ def build_vd_snapshot(
     When *rt_quotes* is provided (from ``load_rt_quotes()``), the live
     quote fields (tick, streak, price, chg_pct, vol_ratio) are
     merged in from the RT engine's latest snapshot.
+
+    When *bz_quotes* is provided (from Benzinga delayed quotes), they
+    serve as a **fallback** for symbols not covered by the RT engine.
+    During extended hours (pre-market / after-hours), Benzinga delayed
+    quotes are the freshest price source available.
 
     Time-dependent fields (age_min, recency, actionable) are
     **recomputed live** from the item's ``published_ts`` so the
@@ -235,6 +241,14 @@ def build_vd_snapshot(
     """
     if rt_quotes is None:
         rt_quotes = {}
+
+    # Build Benzinga quote lookup (symbol → quote dict)
+    bz_by_sym: dict[str, dict[str, Any]] = {}
+    if bz_quotes:
+        for q in bz_quotes:
+            sym = (q.get("symbol") or "").upper().strip()
+            if sym:
+                bz_by_sym[sym] = q
 
     best: dict[str, dict[str, Any]] = {}   # ticker → best-scored item
     counts: dict[str, int] = {}             # ticker → article count
@@ -259,6 +273,29 @@ def build_vd_snapshot(
         sent_label = d.get("sentiment_label", "neutral")
         rt = rt_quotes.get(tk, {})
 
+        # Price data priority: RT engine > Benzinga delayed quotes
+        price = rt.get("price") or None
+        chg_pct = rt.get("chg_pct") or None
+        vol_ratio = rt.get("vol_ratio") or None
+        tick = rt.get("tick", "")
+        streak = rt.get("streak", 0)
+
+        # Fallback to Benzinga delayed quotes when RT has no data
+        if price is None and tk in bz_by_sym:
+            bq = bz_by_sym[tk]
+            bz_last = bq.get("last")
+            if bz_last is not None:
+                try:
+                    price = round(float(bz_last), 2)
+                except (ValueError, TypeError):
+                    pass
+            bz_chg = bq.get("changePercent")
+            if bz_chg is not None and chg_pct is None:
+                try:
+                    chg_pct = round(float(bz_chg), 2)
+                except (ValueError, TypeError):
+                    pass
+
         # Recompute recency live from published_ts
         pub_ts = d.get("published_ts")
         if pub_ts and pub_ts > 0:
@@ -276,10 +313,10 @@ def build_vd_snapshot(
             "symbol":           tk,
             "N":                counts.get(tk, 0),
             "sentiment":        _SENT_EMOJI.get(sent_label, "🟡"),
-            "tick":             rt.get("tick", ""),
+            "tick":             tick,
             "score":            round(d.get("news_score", 0), 4),
             "relevance":        round(d.get("relevance", 0), 4),
-            "streak":           rt.get("streak", 0),
+            "streak":           streak,
             "category":         d.get("category", ""),
             "event":            d.get("event_label", ""),
             "materiality":      d.get("materiality", ""),
@@ -293,9 +330,9 @@ def build_vd_snapshot(
             "headline":         (d.get("headline", "") or "")[:120],
             "url":              d.get("url", ""),
             "provider":         d.get("provider", ""),
-            "price":            rt.get("price") or None,
-            "chg_pct":          rt.get("chg_pct") or None,
-            "vol_ratio":        rt.get("vol_ratio") or None,
+            "price":            price,
+            "chg_pct":          chg_pct,
+            "vol_ratio":        vol_ratio,
         })
 
     # Sort by score desc, then freshest first, then symbol asc (deterministic)

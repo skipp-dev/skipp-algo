@@ -1195,7 +1195,16 @@ else:
 
         # Reuse the canonical build_vd_snapshot (includes RT merge)
         rt_quotes = load_rt_quotes()
-        rank_rows = build_vd_snapshot(feed, rt_quotes=rt_quotes)
+
+        # Benzinga delayed quotes as fallback (freshest during extended hours)
+        _bz_quotes_rank: list[dict[str, Any]] | None = None
+        _rank_bz_key = st.session_state.cfg.benzinga_api_key
+        if _rank_bz_key and feed:
+            _rank_syms = list({d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"})
+            if _rank_syms:
+                _bz_quotes_rank = _cached_bz_quotes(_rank_bz_key, ",".join(_rank_syms[:50]))
+
+        rank_rows = build_vd_snapshot(feed, rt_quotes=rt_quotes, bz_quotes=_bz_quotes_rank)
 
         if not rank_rows:
             st.info("No per-ticker data yet.")
@@ -1216,7 +1225,8 @@ else:
                     df_rank = df_rank.drop(columns=[_rc])
 
             rt_label = f" | RT: {len(rt_quotes)} symbols" if rt_quotes else ""
-            st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}")
+            bz_label = f" | BZ quotes: {len(_bz_quotes_rank)}" if _bz_quotes_rank else ""
+            st.caption(f"Top {top_n} of {len(rank_rows)} symbols ranked by best news_score — {len(feed)} total articles{rt_label}{bz_label}")
 
             # Highlight fresh entries (< 20 min old) with orange text
             def _highlight_fresh(row: pd.Series) -> list[str]:  # type: ignore[name-defined]
