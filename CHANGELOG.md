@@ -8,6 +8,30 @@ All notable changes to this project are documented in this file.
 
 ### Added (2026-02-27)
 
+- **Auto-recovery mechanism (data freshness self-healing):**
+  - **Terminal (`streamlit_terminal.py` + `terminal_feed_lifecycle.py`):** When news feed is >30 min stale during market hours (04:00–20:00 ET), automatically resets API cursor + prunes SQLite dedup to force a fresh poll. 5 min cooldown between attempts. Manual "Reset Cursor" sidebar button as escape hatch. Sidebar shows feed age, cursor age, empty poll count.
+  - **Open Prep Streamlit (`open_prep/streamlit_monitor.py`):** When cached pipeline data is >5 min old during market hours, automatically invalidates cache and forces a fresh pipeline run (~68s). 5 min cooldown between attempts. Sidebar shows recovery counter. `_STALE_CACHE_MAX_AGE_MIN = 5`.
+  - **VisiData signals (`scripts/vd_signals_live.sh`):** When signal file is >5 min old and engine process is not running, auto-starts `open_prep.realtime_signals` in the background.
+  - **VisiData open-prep watch mode (`scripts/vd_open_prep.sh`):** Tracks consecutive pipeline failures; after 3 failures, re-sources `.env` (catches rotated keys) and waits 60s before retrying.
+  - **Background poller (`terminal_background_poller.py`):** Same hardened prune + cursor reset pattern as terminal — each prune call independent, cursor reset always executes even if prune fails.
+
+- **Staleness thresholds (all surfaces):**
+
+  | Surface | What is checked | Threshold | Action |
+  | --- | --- | --- | --- |
+  | Terminal feed | Newest article age | 30 min | Cursor reset + dedup prune |
+  | Open Prep cache | Pipeline cache age | 5 min | Cache invalidate + fresh pipeline |
+  | RT signals (Streamlit) | Signal file mtime | 5 min | Orange warning banner |
+  | VD signals launcher | Signal file mtime | 5 min | Auto-start engine |
+  | VD open-prep launcher | JSON file mtime | 30 min warn / 5 min info | Console warning |
+  | Sector performance cache | `@st.cache_data` TTL | 60s (was 300s) | Auto-evict |
+
+- **Hardened failure handling (auto-recovery never crashes):**
+  - Each `prune_seen` / `prune_clusters` call has its own try/except — one failing doesn't block the other.
+  - Cursor reset moved outside try blocks — the primary recovery action always executes even when SQLite prune fails.
+  - `manage()` call site wrapped in try/except — lifecycle errors can never crash the Streamlit page.
+  - Individual prune error logging (`prune(seen)` vs `prune(clusters)`) for debugging.
+
 - **Benzinga delayed-quote overlay (extended-hours freshness):**
   - Integrated `fetch_benzinga_delayed_quotes()` into terminal spike scanner, VisiData snapshot, open_prep Streamlit monitor, and all stale FMP price displays.
   - During pre-market/after-hours, `bz_price`/`bz_chg_pct` columns overlay fresher Benzinga quotes on top of stale FMP close data.
