@@ -388,6 +388,7 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "N",
         "news_sentiment_emoji",
         "upgrade_downgrade_emoji",
+        "rank_score",
         "score",
         "price",
         "bz_price",
@@ -408,6 +409,8 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         "no_trade_reason",
         "long_allowed",
         "prediction_side",
+        "news_headline",
+        "news_url",
     ]
 
     for row in rows:
@@ -748,6 +751,28 @@ def main() -> None:
         for row in ranked_candidates:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
+            # Composite rank: 70% absolute price change + 30% pipeline score
+            _chg = abs(float(row.get("gap_pct") or row.get("bz_chg_pct") or 0))
+            _ns = float(row.get("score") or 0)
+            row["rank_score"] = round(_chg * 0.7 + _ns * 100.0 * 0.3, 2)
+
+        # Enrich ranked_candidates with news headlines + links
+        _rc_news = result.get("news_catalyst_by_symbol") or {}
+        for row in ranked_candidates:
+            _sym = str(row.get("symbol", "")).upper()
+            _cat_info = _rc_news.get(_sym)
+            if isinstance(_cat_info, dict):
+                _arts = _cat_info.get("articles") or []
+                if _arts:
+                    _best_art = _arts[0]
+                    row["news_headline"] = (_best_art.get("title") or "")[:120]
+                    row["news_url"] = _best_art.get("link") or ""
+                else:
+                    row["news_headline"] = ""
+                    row["news_url"] = ""
+            else:
+                row["news_headline"] = ""
+                row["news_url"] = ""
 
         # Prepare common data first
         ranked_gap_go = list(result.get("ranked_gap_go") or [])
@@ -951,6 +976,12 @@ def main() -> None:
                         f"pipeline score {score:.2f} · gap {gap:+.1f}% · "
                         f"RT chg {rt_chg:+.1f}% · vol {rt_vr:.1f}x"
                     )
+                    _nhl = r.get("news_headline", "")
+                    _nurl = r.get("news_url", "")
+                    if _nhl and _nurl:
+                        st.caption(f"    📰 [{_nhl}]({_nurl})")
+                    elif _nhl:
+                        st.caption(f"    📰 {_nhl}")
             if high_conviction:
                 st.markdown(f"**🟢 HIGH CONVICTION ({len(high_conviction)})**")
                 for r in high_conviction:
@@ -967,6 +998,12 @@ def main() -> None:
                     bo = _bo_badge(r)
                     bo_txt = f" · {bo}" if bo else ""
                     st.markdown(f"  🟢 **{sym}** — score {score:.2f} · gap {gap:+.1f}%{hr_txt}{sec_txt}{rel_txt}{bo_txt}")
+                    _nhl = r.get("news_headline", "")
+                    _nurl = r.get("news_url", "")
+                    if _nhl and _nurl:
+                        st.caption(f"    📰 [{_nhl}]({_nurl})")
+                    elif _nhl:
+                        st.caption(f"    📰 {_nhl}")
             if standard:
                 st.markdown(f"**🟡 STANDARD ({len(standard)})**")
                 for r in standard:
@@ -981,6 +1018,12 @@ def main() -> None:
                     bo = _bo_badge(r)
                     bo_txt = f" · {bo}" if bo else ""
                     st.markdown(f"  🟡 {sym} — score {score:.2f} · gap {gap:+.1f}%{sec_txt}{rel_txt}{bo_txt}")
+                    _nhl = r.get("news_headline", "")
+                    _nurl = r.get("news_url", "")
+                    if _nhl and _nurl:
+                        st.caption(f"    📰 [{_nhl}]({_nurl})")
+                    elif _nhl:
+                        st.caption(f"    📰 {_nhl}")
             if watchlist_tier:
                 st.markdown(f"**🔵 WATCHLIST ({len(watchlist_tier)})**")
                 for r in watchlist_tier:
@@ -995,6 +1038,12 @@ def main() -> None:
                     bo = _bo_badge(r)
                     bo_txt = f" · {bo}" if bo else ""
                     st.markdown(f"  🔵 {sym} — score {score:.2f} · gap {gap:+.1f}%{sec_txt}{rel_txt}{bo_txt}")
+                    _nhl = r.get("news_headline", "")
+                    _nurl = r.get("news_url", "")
+                    if _nhl and _nurl:
+                        st.caption(f"    📰 [{_nhl}]({_nurl})")
+                    elif _nhl:
+                        st.caption(f"    📰 {_nhl}")
         else:
             st.subheader("v2 Tiered Candidates")
             _v2_source = "Cache" if use_cached_result else "Live"

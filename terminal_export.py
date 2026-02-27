@@ -339,8 +339,14 @@ def build_vd_snapshot(
             "vol_ratio":        vol_ratio,
         })
 
-    # Sort by score desc, then freshest first, then symbol asc (deterministic)
-    rows.sort(key=lambda r: (-r.get("score", 0), r.get("age_min", 9999), r.get("symbol", "")))
+    # Composite rank: 70% absolute price change + 30% news score
+    for r in rows:
+        _chg = abs(float(r.get("chg_pct") or 0))
+        _ns = float(r.get("score") or 0)
+        r["rank_score"] = round(_chg * 0.7 + _ns * 100.0 * 0.3, 2)
+
+    # Sort by rank_score desc, then freshest first, then symbol asc
+    rows.sort(key=lambda r: (-r.get("rank_score", 0), r.get("age_min", 9999), r.get("symbol", "")))
     return rows
 
 
