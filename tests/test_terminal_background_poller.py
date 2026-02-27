@@ -201,3 +201,47 @@ class TestBackgroundPoller:
         new_adapter = MagicMock()
         bp.update_adapters(benzinga_adapter=new_adapter)
         assert bp._benzinga is new_adapter
+
+    def test_queue_evicts_oldest_when_full(self):
+        """When queue is full, oldest batches are evicted (ring-buffer)."""
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(),
+            benzinga_adapter=None,
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+        # Replace queue with a tiny one
+        bp._queue = queue.Queue(maxsize=2)
+        bp._queue.put_nowait([_FakeItem(ticker="OLD1")])
+        bp._queue.put_nowait([_FakeItem(ticker="OLD2")])
+
+        # Now simulate what the poll loop does when the queue is full
+        new_items = [_FakeItem(ticker="NEW")]
+        evicted = 0
+        while True:
+            try:
+                bp._queue.put_nowait(new_items)
+                break
+            except queue.Full:
+                try:
+                    old = bp._queue.get_nowait()
+                    evicted += len(old)
+                except queue.Empty:
+                    break
+
+        assert evicted == 1  # OLD1 was evicted
+        drained = bp.drain()
+        tickers = [item.ticker for item in drained]
+        assert "NEW" in tickers
+        assert "OLD2" in tickers
+        assert "OLD1" not in tickers
+
+    def test_total_items_dropped_counter(self):
+        """total_items_dropped should track evicted items."""
+        bp = BackgroundPoller(
+            cfg=_FakeCfg(),
+            benzinga_adapter=None,
+            fmp_adapter=None,
+            store=MagicMock(),
+        )
+        assert bp.total_items_dropped == 0

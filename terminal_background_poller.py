@@ -54,7 +54,7 @@ class BackgroundPoller:
         self._fmp = fmp_adapter
         self._store = store
 
-        self._queue: queue.Queue[list[Any]] = queue.Queue(maxsize=100)
+        self._queue: queue.Queue[list[Any]] = queue.Queue(maxsize=500)
         self._cursor: str | None = None
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -66,6 +66,7 @@ class BackgroundPoller:
         self.last_poll_status: str = "—"
         self.last_poll_error: str = ""
         self.total_items_ingested: int = 0
+        self.total_items_dropped: int = 0
         self.consecutive_empty_polls: int = 0
 
     # ── Thread lifecycle ────────────────────────────────────
@@ -224,12 +225,27 @@ class BackgroundPoller:
             else:
                 self.consecutive_empty_polls = 0
 
-            # Enqueue items for the main thread
+            # Enqueue items for the main thread (ring-buffer: evict oldest
+            # batches when full so the newest data always gets through)
             if items:
-                try:
-                    self._queue.put_nowait(items)
-                except queue.Full:
-                    logger.warning("BG poller queue full, dropping %d items", len(items))
+                evicted = 0
+                while True:
+                    try:
+                        self._queue.put_nowait(items)
+                        break
+                    except queue.Full:
+                        try:
+                            old = self._queue.get_nowait()
+                            evicted += len(old)
+                        except queue.Empty:
+                            # Shouldn't happen, but guard anyway
+                            break
+                if evicted:
+                    self.total_items_dropped += evicted
+                    logger.info(
+                        "BG poller evicted %d stale items to make room (total dropped: %d)",
+                        evicted, self.total_items_dropped,
+                    )
 
             # Periodic SQLite prune (every 100 polls)
             if self.poll_count % 100 == 0:
