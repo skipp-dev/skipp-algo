@@ -23,11 +23,18 @@ from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
-from newsstack_fmp.ingest_benzinga_calendar import (
-    BenzingaCalendarAdapter,
-    fetch_benzinga_movers,
-    fetch_benzinga_quotes,
-)
+
+try:
+    from newsstack_fmp.ingest_benzinga_calendar import (
+        BenzingaCalendarAdapter,
+        fetch_benzinga_movers,
+        fetch_benzinga_quotes,
+    )
+except ImportError:
+    BenzingaCalendarAdapter = None  # type: ignore[assignment,misc]
+    fetch_benzinga_movers = None  # type: ignore[assignment]
+    fetch_benzinga_quotes = None  # type: ignore[assignment]
+
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
 from newsstack_fmp.store_sqlite import SqliteStore
 
@@ -563,6 +570,8 @@ def fetch_benzinga_ratings(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch analyst ratings from Benzinga (upgrades, downgrades, PT changes)."""
+    if BenzingaCalendarAdapter is None:
+        return []
     adapter = BenzingaCalendarAdapter(api_key)
     try:
         return adapter.fetch_ratings(
@@ -586,6 +595,8 @@ def fetch_benzinga_earnings(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch earnings calendar from Benzinga (EPS, revenue estimates/actuals)."""
+    if BenzingaCalendarAdapter is None:
+        return []
     adapter = BenzingaCalendarAdapter(api_key)
     try:
         return adapter.fetch_earnings(
@@ -609,6 +620,8 @@ def fetch_benzinga_economics(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch economic calendar from Benzinga (GDP, NFP, CPI, FOMC, etc.)."""
+    if BenzingaCalendarAdapter is None:
+        return []
     adapter = BenzingaCalendarAdapter(api_key)
     try:
         return adapter.fetch_economics(
@@ -625,6 +638,8 @@ def fetch_benzinga_economics(
 
 def fetch_benzinga_market_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     """Fetch market movers (gainers + losers) from Benzinga."""
+    if fetch_benzinga_movers is None:
+        return {"gainers": [], "losers": []}
     return fetch_benzinga_movers(api_key)
 
 
@@ -633,4 +648,6 @@ def fetch_benzinga_delayed_quotes(
     symbols: list[str],
 ) -> list[dict[str, Any]]:
     """Fetch delayed quotes from Benzinga for given symbols."""
+    if fetch_benzinga_quotes is None:
+        return []
     return fetch_benzinga_quotes(api_key, symbols)
