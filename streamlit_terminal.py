@@ -3113,7 +3113,7 @@ else:
                             elif _tech and _tech.error:
                                 st.caption(f"{_label}: ⚠️ {_tech.error}")
 
-                    with st.expander("📋 Full Outlook Analysis"):
+                    with st.expander("📋 Full Outlook Analysis", expanded=True):
                         st.markdown(_btc_outlook.summary_text)
                 elif _btc_outlook and _btc_outlook.error:
                     st.warning(f"⚠️ Bitcoin outlook unavailable: {_btc_outlook.error}")
@@ -3151,80 +3151,80 @@ else:
                 st.markdown("---")
 
             # ── Combined Price + Volume Chart ───────────────
-            st.markdown("### 📊 Price & Volume Chart (48h)")
-            try:
-                import plotly.graph_objects as go
-                from plotly.subplots import make_subplots
+            with st.expander("📊 Price & Volume Chart (48h)"):
+                try:
+                    import plotly.graph_objects as go
+                    from plotly.subplots import make_subplots
 
-                _ohlcv_10m = fetch_btc_ohlcv_10min(hours=48)
-                if _ohlcv_10m:
-                    _chart_dates = [r["date"] for r in _ohlcv_10m]
-                    _chart_opens = [r["open"] for r in _ohlcv_10m]
-                    _chart_highs = [r["high"] for r in _ohlcv_10m]
-                    _chart_lows = [r["low"] for r in _ohlcv_10m]
-                    _chart_closes = [r["close"] for r in _ohlcv_10m]
-                    _chart_volumes = [r["volume"] for r in _ohlcv_10m]
+                    _ohlcv_10m = fetch_btc_ohlcv_10min(hours=48)
+                    if _ohlcv_10m:
+                        _chart_dates = [r["date"] for r in _ohlcv_10m]
+                        _chart_opens = [r["open"] for r in _ohlcv_10m]
+                        _chart_highs = [r["high"] for r in _ohlcv_10m]
+                        _chart_lows = [r["low"] for r in _ohlcv_10m]
+                        _chart_closes = [r["close"] for r in _ohlcv_10m]
+                        _chart_volumes = [r["volume"] for r in _ohlcv_10m]
 
-                    # Color volume bars by direction
-                    _vol_colors = [
-                        "rgba(38, 166, 91, 0.6)" if c >= o else "rgba(239, 83, 80, 0.6)"
-                        for o, c in zip(_chart_opens, _chart_closes)
-                    ]
+                        # Color volume bars by direction
+                        _vol_colors = [
+                            "rgba(38, 166, 91, 0.6)" if c >= o else "rgba(239, 83, 80, 0.6)"
+                            for o, c in zip(_chart_opens, _chart_closes)
+                        ]
 
-                    fig = make_subplots(
-                        rows=2, cols=1,
-                        shared_xaxes=True,
-                        vertical_spacing=0.03,
-                        row_heights=[0.7, 0.3],
-                        subplot_titles=("BTC/USD · 10min Candles", "Volume (10min)"),
-                    )
+                        fig = make_subplots(
+                            rows=2, cols=1,
+                            shared_xaxes=True,
+                            vertical_spacing=0.03,
+                            row_heights=[0.7, 0.3],
+                            subplot_titles=("BTC/USD · 10min Candles", "Volume (10min)"),
+                        )
 
-                    # Candlestick chart
-                    fig.add_trace(
-                        go.Candlestick(
-                            x=_chart_dates,
-                            open=_chart_opens,
-                            high=_chart_highs,
-                            low=_chart_lows,
-                            close=_chart_closes,
-                            name="BTC/USD",
-                            increasing_line_color="#26a65b",
-                            decreasing_line_color="#ef5350",
-                            increasing_fillcolor="#26a65b",
-                            decreasing_fillcolor="#ef5350",
-                        ),
-                        row=1, col=1,
-                    )
+                        # Candlestick chart
+                        fig.add_trace(
+                            go.Candlestick(
+                                x=_chart_dates,
+                                open=_chart_opens,
+                                high=_chart_highs,
+                                low=_chart_lows,
+                                close=_chart_closes,
+                                name="BTC/USD",
+                                increasing_line_color="#26a65b",
+                                decreasing_line_color="#ef5350",
+                                increasing_fillcolor="#26a65b",
+                                decreasing_fillcolor="#ef5350",
+                            ),
+                            row=1, col=1,
+                        )
 
-                    # Volume bars
-                    fig.add_trace(
-                        go.Bar(
-                            x=_chart_dates,
-                            y=_chart_volumes,
-                            name="Volume",
-                            marker_color=_vol_colors,
-                            opacity=0.7,
-                        ),
-                        row=2, col=1,
-                    )
+                        # Volume bars
+                        fig.add_trace(
+                            go.Bar(
+                                x=_chart_dates,
+                                y=_chart_volumes,
+                                name="Volume",
+                                marker_color=_vol_colors,
+                                opacity=0.7,
+                            ),
+                            row=2, col=1,
+                        )
 
-                    fig.update_layout(
-                        height=650,
-                        template="plotly_dark",
-                        showlegend=False,
-                        xaxis_rangeslider_visible=False,
-                        margin=dict(l=50, r=20, t=40, b=20),
-                        font=dict(size=11),
-                    )
-                    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
-                    fig.update_yaxes(title_text="Volume", row=2, col=1)
-                    fig.update_xaxes(title_text="Time (UTC)", row=2, col=1)
+                        fig.update_layout(
+                            height=650,
+                            template="plotly_dark",
+                            showlegend=False,
+                            xaxis_rangeslider_visible=False,
+                            margin=dict(l=50, r=20, t=40, b=20),
+                            font=dict(size=11),
+                        )
+                        fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
+                        fig.update_yaxes(title_text="Volume", row=2, col=1)
+                        fig.update_xaxes(title_text="Time (UTC)", row=2, col=1)
 
-                    st.plotly_chart(fig, width='stretch')
-                else:
-                    st.info("No 10-minute OHLCV data available. Install yfinance and pandas for chart data.")
-            except ImportError:
-                st.warning("Install plotly for charts: `pip install plotly`")
+                        st.plotly_chart(fig, width='stretch')
+                    else:
+                        st.info("No 10-minute OHLCV data available. Install yfinance and pandas for chart data.")
+                except ImportError:
+                    st.warning("Install plotly for charts: `pip install plotly`")
 
             st.markdown("---")
 
