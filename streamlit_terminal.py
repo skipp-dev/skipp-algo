@@ -2184,19 +2184,61 @@ else:
                 if not leading:
                     st.caption("None")
                 for r in leading[:8]:
-                    st.markdown(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    with st.expander(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}"):
+                        _seg_articles = sorted(
+                            r.get("_items", []),
+                            key=lambda d: d.get("news_score", 0),
+                            reverse=True,
+                        )[:20]
+                        for _sa in _seg_articles:
+                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
+                            _sa_url = _sa.get("url", "")
+                            _sa_tk = _sa.get("ticker", "")
+                            _sa_sc = _sa.get("news_score", 0)
+                            if _sa_url:
+                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
+                            else:
+                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
             with scols[1]:
                 st.markdown("**🟡 Neutral Segments**")
                 if not neutral_segs:
                     st.caption("None")
                 for r in neutral_segs[:8]:
-                    st.markdown(f"{safe_markdown_text(r['segment'])} — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    with st.expander(f"{safe_markdown_text(r['segment'])} — {r['articles']} articles, avg {r['avg_score']:.3f}"):
+                        _seg_articles = sorted(
+                            r.get("_items", []),
+                            key=lambda d: d.get("news_score", 0),
+                            reverse=True,
+                        )[:20]
+                        for _sa in _seg_articles:
+                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
+                            _sa_url = _sa.get("url", "")
+                            _sa_tk = _sa.get("ticker", "")
+                            _sa_sc = _sa.get("news_score", 0)
+                            if _sa_url:
+                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
+                            else:
+                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
             with scols[2]:
                 st.markdown("**🔴 Bearish Segments**")
                 if not lagging:
                     st.caption("None")
                 for r in lagging[:8]:
-                    st.markdown(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}")
+                    with st.expander(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}"):
+                        _seg_articles = sorted(
+                            r.get("_items", []),
+                            key=lambda d: d.get("news_score", 0),
+                            reverse=True,
+                        )[:20]
+                        for _sa in _seg_articles:
+                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
+                            _sa_url = _sa.get("url", "")
+                            _sa_tk = _sa.get("ticker", "")
+                            _sa_sc = _sa.get("news_score", 0)
+                            if _sa_url:
+                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
+                            else:
+                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
 
             st.divider()
 

@@ -314,6 +314,7 @@ def aggregate_segments(
             "neut": neut,
             "net_sent": net_sent,
             "_ticker_map": tickers_in_seg,
+            "_items": items_list,
         })
 
     seg_rows.sort(key=lambda r: r["articles"], reverse=True)
