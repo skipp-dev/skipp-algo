@@ -118,7 +118,8 @@ def _set_cached(key: str, val: Any) -> None:
 # TTLs (seconds) — Bitcoin is 24/7 so we can be more aggressive
 _QUOTE_TTL = 30       # 30s for real-time price
 _OHLCV_TTL = 120      # 2 min for historical data
-_TECHNICALS_TTL = 300  # 5 min for TradingView (avoid 429 rate limits)
+_TECHNICALS_TTL = 600  # 10 min for TradingView (avoid 429 rate limits)
+_TECHNICALS_429_TTL = 900  # 15 min cache for 429 errors (don't retry quickly)
 _FG_TTL = 300          # 5 min for Fear & Greed
 _MOVERS_TTL = 120      # 2 min for crypto movers
 _LISTINGS_TTL = 3600   # 1h for exchange listings
@@ -127,6 +128,53 @@ _NEWS_TTL = 120        # 2 min for news
 _OUTLOOK_TTL = 300     # 5 min for tomorrow outlook
 
 _APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+
+# ── Global TradingView rate limiter (BTC crypto calls) ────────────
+_TV_MIN_CALL_SPACING = 2.0  # minimum seconds between TradingView API calls
+_tv_last_call_ts: float = 0.0
+_tv_rate_lock = threading.Lock()
+
+# 429 cooldown: after a 429 response, block ALL TradingView calls for a period
+_tv_cooldown_until: float = 0.0
+_tv_consecutive_429s: int = 0
+_TV_COOLDOWN_BASE = 60.0   # base cooldown: 60 seconds
+_TV_COOLDOWN_MAX = 300.0   # max cooldown: 5 minutes
+
+
+def _tv_is_cooling_down() -> bool:
+    """Return True if we are in a 429 cooldown period."""
+    return time.time() < _tv_cooldown_until
+
+
+def _tv_register_429() -> None:
+    """Register a 429 response and set a cooldown period."""
+    global _tv_cooldown_until, _tv_consecutive_429s
+    with _tv_rate_lock:
+        _tv_consecutive_429s += 1
+        cooldown = min(_TV_COOLDOWN_BASE * (2 ** (_tv_consecutive_429s - 1)), _TV_COOLDOWN_MAX)
+        _tv_cooldown_until = time.time() + cooldown
+        log.warning(
+            "TradingView BTC 429 — cooldown %.0fs (consecutive: %d)",
+            cooldown, _tv_consecutive_429s,
+        )
+
+
+def _tv_register_success() -> None:
+    """Reset 429 counter on successful call."""
+    global _tv_consecutive_429s
+    with _tv_rate_lock:
+        _tv_consecutive_429s = 0
+
+
+def _tv_throttle() -> None:
+    """Enforce minimum spacing between TradingView API calls."""
+    global _tv_last_call_ts
+    with _tv_rate_lock:
+        now = time.time()
+        elapsed = now - _tv_last_call_ts
+        if elapsed < _TV_MIN_CALL_SPACING:
+            time.sleep(_TV_MIN_CALL_SPACING - elapsed)
+        _tv_last_call_ts = time.time()
 
 
 # ── FMP helper ───────────────────────────────────────────────────
@@ -520,12 +568,27 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     Bitcoin is 24/7 so this always returns data.
     """
     cache_key = f"btc_tech:{interval}"
-    cached = _get_cached(cache_key, _TECHNICALS_TTL)
-    if cached is not None:
-        return cached  # type: ignore
+
+    # Use longer TTL for cached 429 errors
+    cached_raw = _get_cached(cache_key, _TECHNICALS_TTL)
+    if cached_raw is not None:
+        return cached_raw  # type: ignore
+    # Also check with longer 429 TTL
+    cached_429 = _get_cached(cache_key, _TECHNICALS_429_TTL)
+    if cached_429 is not None and getattr(cached_429, 'error', '') and '429' in str(cached_429.error):
+        return cached_429  # type: ignore
 
     if not _TV:
         return BTCTechnicals(interval=interval, error="tradingview_ta not installed")
+
+    # Check 429 cooldown — return stale cache or error without hitting API
+    if _tv_is_cooling_down():
+        stale = _get_cached(cache_key, 86400)  # return any cached value
+        if stale is not None:
+            return stale  # type: ignore
+        remaining = _tv_cooldown_until - time.time()
+        log.debug("TradingView BTC cooldown active (%.0fs remaining), skipping %s", remaining, interval)
+        return BTCTechnicals(interval=interval, error="Rate limited — cooldown active")
 
     interval_map = {
         "1m": Interval.INTERVAL_1_MINUTE,
@@ -542,10 +605,11 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     tv_interval = interval_map.get(interval, Interval.INTERVAL_1_HOUR)
 
     _MAX_RETRIES = 3
-    _BASE_BACKOFF = 3.0  # seconds
+    _BASE_BACKOFF = 5.0  # seconds
 
     for attempt in range(_MAX_RETRIES + 1):
         try:
+            _tv_throttle()  # enforce spacing between calls
             handler = TA_Handler(
                 symbol="BTCUSDT",
                 screener="crypto",
@@ -581,19 +645,24 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
                 interval=interval,
             )
             _set_cached(cache_key, result)
+            _tv_register_success()
             return result
         except Exception as exc:
             _msg = str(exc)
-            if "429" in _msg and attempt < _MAX_RETRIES:
-                _sleep = _BASE_BACKOFF * (2 ** attempt)
-                log.info(
-                    "TradingView BTC 429 (%s) — retry %d/%d after %.1fs",
-                    interval, attempt + 1, _MAX_RETRIES, _sleep,
-                )
-                time.sleep(_sleep)
-                continue
+            if "429" in _msg:
+                _tv_register_429()
+                if attempt < _MAX_RETRIES:
+                    _sleep = _BASE_BACKOFF * (2 ** attempt)
+                    log.info(
+                        "TradingView BTC 429 (%s) — retry %d/%d after %.1fs",
+                        interval, attempt + 1, _MAX_RETRIES, _sleep,
+                    )
+                    time.sleep(_sleep)
+                    continue
             log.warning("TradingView BTC technicals (%s) failed: %s", interval, exc)
-            return BTCTechnicals(interval=interval, error=str(exc))
+            result = BTCTechnicals(interval=interval, error=str(exc))
+            _set_cached(cache_key, result)  # cache errors too
+            return result
     return BTCTechnicals(interval=interval, error="Max retries exceeded")
 
 
@@ -814,9 +883,9 @@ def fetch_btc_outlook() -> BTCOutlook:
 
     fg = fetch_fear_greed()
     tech_1h = fetch_btc_technicals("1h")
-    time.sleep(0.5)  # small delay to avoid TradingView 429
+    time.sleep(1.0)  # delay to avoid TradingView 429
     tech_4h = fetch_btc_technicals("4h")
-    time.sleep(0.5)
+    time.sleep(1.0)
     tech_1d = fetch_btc_technicals("1d")
     quote = fetch_btc_quote()
 

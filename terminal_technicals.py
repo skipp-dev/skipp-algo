@@ -159,9 +159,58 @@ class TechnicalResult:
 
 # ── In-memory cache ──────────────────────────────────────────────────
 _cache: dict[tuple[str, str], TechnicalResult] = {}
-_CACHE_TTL_S = 120.0  # 2 minutes
+_CACHE_TTL_S = 300.0  # 5 minutes (avoid TradingView 429 rate limits)
+_CACHE_ERROR_TTL_S = 600.0  # 10 minutes for 429 errors (longer backoff)
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
+
+# ── Global TradingView rate limiter ──────────────────────────────────
+_TV_MIN_CALL_SPACING = 1.5  # minimum seconds between TradingView API calls
+_tv_last_call_ts: float = 0.0
+_tv_rate_lock = threading.Lock()
+
+# 429 cooldown: after a 429 response, block ALL TradingView calls for a period
+_tv_cooldown_until: float = 0.0
+_tv_consecutive_429s: int = 0
+_TV_COOLDOWN_BASE = 60.0   # base cooldown: 60 seconds
+_TV_COOLDOWN_MAX = 300.0   # max cooldown: 5 minutes
+
+
+def _tv_is_cooling_down() -> bool:
+    """Return True if we are in a 429 cooldown period."""
+    return time.time() < _tv_cooldown_until
+
+
+def _tv_register_429() -> None:
+    """Register a 429 response and set a cooldown period."""
+    global _tv_cooldown_until, _tv_consecutive_429s
+    with _tv_rate_lock:
+        _tv_consecutive_429s += 1
+        cooldown = min(_TV_COOLDOWN_BASE * (2 ** (_tv_consecutive_429s - 1)), _TV_COOLDOWN_MAX)
+        _tv_cooldown_until = time.time() + cooldown
+        log.warning(
+            "TradingView 429 — cooldown %.0fs (consecutive: %d)",
+            cooldown, _tv_consecutive_429s,
+        )
+
+
+def _tv_register_success() -> None:
+    """Reset 429 counter on successful call."""
+    global _tv_consecutive_429s
+    with _tv_rate_lock:
+        _tv_consecutive_429s = 0
+
+
+def _tv_throttle() -> None:
+    """Enforce minimum spacing between TradingView API calls."""
+    global _tv_last_call_ts
+    with _tv_rate_lock:
+        now = time.time()
+        elapsed = now - _tv_last_call_ts
+        if elapsed < _TV_MIN_CALL_SPACING:
+            time.sleep(_TV_MIN_CALL_SPACING - elapsed)
+        _tv_last_call_ts = time.time()
+
 
 def _cache_key(symbol: str, interval: str) -> tuple[str, str]:
     return (symbol.upper().strip(), interval)
@@ -172,11 +221,12 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
     import time as _time  # local import to avoid circular
 
     _MAX_RETRIES = 2
-    _BASE_BACKOFF = 2.0  # seconds
+    _BASE_BACKOFF = 4.0  # seconds
 
     for attempt in range(_MAX_RETRIES + 1):
         for exchange in ("NASDAQ", "NYSE", "AMEX"):
             try:
+                _tv_throttle()  # enforce spacing
                 h = TA_Handler(
                     symbol=symbol,
                     screener="america",
@@ -185,10 +235,12 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
                 )
                 analysis = h.get_analysis()
                 if analysis and analysis.summary:
+                    _tv_register_success()
                     return analysis
             except Exception as exc:
                 _msg = str(exc)
                 if "429" in _msg:
+                    _tv_register_429()
                     if attempt < _MAX_RETRIES:
                         _sleep = _BASE_BACKOFF * (2 ** attempt)
                         log.info(
@@ -236,8 +288,21 @@ def fetch_technicals(
     if not force:
         with _cache_lock:
             cached = _cache.get(key)
-            if cached and (now - cached.ts) < _CACHE_TTL_S:
+            if cached:
+                # Use longer TTL for 429 errors to avoid hammering TradingView
+                ttl = _CACHE_ERROR_TTL_S if (cached.error and "429" in cached.error) else _CACHE_TTL_S
+                if (now - cached.ts) < ttl:
+                    return cached
+
+    # Check 429 cooldown — return stale cache or error without hitting API
+    if _tv_is_cooling_down():
+        with _cache_lock:
+            cached = _cache.get(key)
+            if cached:
                 return cached
+        remaining = _tv_cooldown_until - now
+        log.debug("TradingView cooldown active (%.0fs remaining), skipping %s", remaining, sym)
+        return TechnicalResult(symbol=sym, interval=interval, ts=now, error="Rate limited — cooldown active")
 
     interval_val = INTERVAL_MAP.get(interval)
     if not interval_val:
@@ -315,8 +380,11 @@ def fetch_technicals(
         return result
 
     except Exception as exc:
+        _msg = str(exc)
+        if "429" in _msg:
+            _tv_register_429()
         log.warning("TradingView technicals fetch failed for %s: %s", sym, exc)
-        result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=str(exc))
+        result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=_msg)
         with _cache_lock:
             _cache[key] = result
         return result
