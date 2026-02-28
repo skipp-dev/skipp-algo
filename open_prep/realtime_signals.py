@@ -896,6 +896,14 @@ class RealtimeEngine:
     def _enrich_watchlist_live(self) -> None:
         """Fetch avg_volume + earnings from FMP for watchlist symbols.
 
+        .. note:: N+1 pattern (one /stable/profile call per symbol)
+
+           The batch-quote endpoint omits avgVolume, so we fall back to
+           individual profile calls.  This is acceptable at the current
+           scale (≤10 watchlist symbols, 0.15 s throttle between calls,
+           worst-case ~1.5 s total).  If the watchlist grows much larger,
+           consider switching to ``get_profile_bulk()``.
+
         The batch-quote endpoint omits avgVolume.  Without it the volume
         ratio is meaningless (everything looks like A0).  We fetch company
         profiles once per watchlist load and cache the value.

@@ -710,6 +710,14 @@ class FMPClient:
             return data
         return {}
 
+    # ------------------------------------------------------------------
+    # Public FMP convenience wrappers
+    # ------------------------------------------------------------------
+    # The following methods are intentionally provided for interactive
+    # use (REPL, notebooks, external scripts) and may not be called from
+    # within the codebase itself.  Do NOT remove as dead code.
+    # ------------------------------------------------------------------
+
     def get_institutional_holders(
         self,
         symbol: str,
