@@ -1,11 +1,11 @@
 """Polling engine for the Bloomberg Terminal.
 
-Wraps ``BenzingaRestAdapter`` + optional ``FmpAdapter`` + open_prep
+Wraps news REST adapter + optional FMP adapter + open_prep
 classifiers into a single ``poll_and_classify()`` call that fetches new
 items, deduplicates them, scores them, and returns fully classified
 records ready for display.
 
-Supports multi-source ingestion: Benzinga (primary) + FMP (secondary).
+Supports multi-source ingestion: REST news API (primary) + FMP (secondary).
 
 This module is imported by ``streamlit_terminal.py`` — it is **not**
 a standalone script.
@@ -21,7 +21,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
-from newsstack_fmp._bz_http import _sanitize_exc
+from newsstack_fmp._bz_http import _sanitize_exc, log_fetch_warning
 from newsstack_fmp.ingest_benzinga import (
     BenzingaRestAdapter,
     fetch_benzinga_channels,
@@ -197,10 +197,10 @@ class ClassifiedItem:
     source_tier: str  # TIER_1 … TIER_4
     source_rank: int  # 1-4
 
-    # Benzinga metadata
+    # News provider metadata
     channels: list[str]
     tags: list[str]
-    is_wiim: bool  # "Why Is It Moving" — Benzinga's high-signal channel
+    is_wiim: bool  # "Why Is It Moving" — high-signal channel
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to plain dict (for JSON export / Streamlit display)."""
@@ -339,7 +339,7 @@ def _classify_item(
             # source
             source_tier=source_info["source_tier"],
             source_rank=source_info["source_rank"],
-            # benzinga metadata
+            # news provider metadata
             channels=channels,
             tags=tags,
             is_wiim=is_wiim,
@@ -549,9 +549,49 @@ def fetch_economic_calendar(
                 return data
             return []
     except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("FMP economic calendar fetch failed: %s", _msg)
+        log_fetch_warning("FMP economic calendar", exc)
         return []
+
+
+# ── FMP Ticker → GICS Sector Mapping ────────────────────────────
+
+
+def fetch_ticker_sectors(api_key: str, tickers: list[str]) -> dict[str, str]:
+    """Map tickers to GICS sectors via FMP ``/stable/profile``.
+
+    Returns dict mapping uppercase ticker → sector string.
+    Tickers without a sector in the profile are omitted.
+    """
+    import httpx
+
+    if not api_key or not tickers:
+        return {}
+
+    sym_str = ",".join(t.upper().strip() for t in tickers if t.strip())
+    if not sym_str:
+        return {}
+
+    try:
+        with httpx.Client(timeout=12.0) as client:
+            r = client.get(
+                "https://financialmodelingprep.com/stable/profile",
+                params={"apikey": api_key, "symbol": sym_str},
+            )
+            r.raise_for_status()
+            profiles = r.json()
+            if not isinstance(profiles, list):
+                return {}
+
+            result: dict[str, str] = {}
+            for p in profiles:
+                sym = (p.get("symbol") or "").upper().strip()
+                sector = (p.get("sector") or "").strip()
+                if sym and sector:
+                    result[sym] = sector
+            return result
+    except Exception as exc:
+        log_fetch_warning("FMP ticker sectors", exc)
+        return {}
 
 
 # ── FMP Sector Performance ──────────────────────────────────────
@@ -592,8 +632,7 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
                 result.append({"sector": sector, "changesPercentage": round(avg, 4)})
             return result
     except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("FMP sector performance fetch failed: %s", _msg)
+        log_fetch_warning("FMP sector performance", exc)
         return []
 
 
@@ -629,16 +668,15 @@ def fetch_defense_watchlist(
     """
     import httpx
 
-    url = "https://financialmodelingprep.com/stable/quote"
+    url = "https://financialmodelingprep.com/stable/batch-quote"
     try:
         with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params={"apikey": fmp_api_key, "symbol": tickers})
+            r = client.get(url, params={"apikey": fmp_api_key, "symbols": tickers})
             r.raise_for_status()
             data = r.json()
             return data if isinstance(data, list) else []
     except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("FMP defense watchlist fetch failed: %s", _msg)
+        log_fetch_warning("FMP defense watchlist", exc)
         return []
 
 
@@ -671,7 +709,7 @@ def fetch_industry_performance(
     """
     import httpx
 
-    url = "https://financialmodelingprep.com/api/v3/stock-screener"
+    url = "https://financialmodelingprep.com/stable/company-screener"
     try:
         with httpx.Client(timeout=10.0) as client:
             r = client.get(url, params={
@@ -693,8 +731,7 @@ def fetch_industry_performance(
             data.sort(key=_safe_mcap, reverse=True)
             return data
     except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("FMP industry performance fetch failed: %s", _msg)
+        log_fetch_warning("FMP industry performance", exc)
         return []
 
 
@@ -722,7 +759,7 @@ def _bz_calendar_call(
         result: list[dict[str, Any]] = getattr(adapter, method_name)(**kwargs)
         return result
     except Exception as exc:
-        logger.warning("Benzinga %s fetch failed: %s", label, _sanitize_exc(exc))
+        log_fetch_warning(f"Benzinga {label}", exc)
         return []
     finally:
         adapter.close()
@@ -948,8 +985,7 @@ def fetch_benzinga_news_by_channel(
             for it in items
         ]
     except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga channel news fetch failed: %s", _msg)
+        log_fetch_warning("Benzinga channel news", exc)
         return []
     finally:
         adapter.close()
@@ -1014,8 +1050,8 @@ def compute_tomorrow_outlook(
                 if str(e.get("earnings_timing") or e.get("time") or "").lower()
                 in {"bmo", "before market open", "before_open"}
             ]
-        except Exception:
-            pass
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            logger.warning("Tomorrow outlook: earnings fetch failed: %s", exc)
 
     if len(earnings_bmo) >= 10:
         outlook_score += 0.5
@@ -1044,8 +1080,8 @@ def compute_tomorrow_outlook(
                         "country": str(ev.get("country") or "US"),
                         "source": "FMP",
                     })
-        except Exception:
-            pass
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            logger.warning("Tomorrow outlook: FMP econ calendar failed: %s", exc)
 
     # 2b) Benzinga economics calendar
     if bz_api_key:
@@ -1073,8 +1109,8 @@ def compute_tomorrow_outlook(
                             "country": str(ev.get("country") or "US"),
                             "source": "Benzinga",
                         })
-        except Exception:
-            pass
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            logger.warning("Tomorrow outlook: Benzinga econ calendar failed: %s", exc)
 
     if len(hi_events) >= 3:
         outlook_score -= 1.5
@@ -1111,8 +1147,8 @@ def compute_tomorrow_outlook(
                     sector_mood = "risk-on"
                 else:
                     reasons.append("sectors_mixed")
-        except Exception:
-            pass
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            logger.warning("Tomorrow outlook: sector performance failed: %s", exc)
 
     # ── Map score to traffic light ──
     if outlook_score >= 0.5:
@@ -1290,3 +1326,4 @@ def compute_power_gaps(
     # Sort by absolute gap descending
     results.sort(key=lambda x: abs(x["gap_pct"]), reverse=True)
     return results
+

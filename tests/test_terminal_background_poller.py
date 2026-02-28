@@ -27,6 +27,7 @@ class _FakeCfg:
     fmp_api_key: str = ""
     channels: str = ""
     topics: str = ""
+    feed_max_age_s: float = 14400.0
 
 
 @dataclass

@@ -74,7 +74,7 @@ class Config:
 
     # ── Universe (optional) ─────────────────────────────────────
     universe_path: str = field(default_factory=lambda: os.getenv("UNIVERSE_PATH", "universe.txt"))
-    filter_to_universe: bool = field(default_factory=lambda: os.getenv("FILTER_TO_UNIVERSE", "1") == "1")
+    filter_to_universe: bool = field(default_factory=lambda: os.getenv("FILTER_TO_UNIVERSE", "0") == "1")
 
     # ── State ───────────────────────────────────────────────────
     sqlite_path: str = field(default_factory=lambda: os.getenv("SQLITE_PATH", "newsstack_fmp/state.db"))

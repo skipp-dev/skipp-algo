@@ -205,6 +205,16 @@ class SpikeDetector:
         # Prune old events
         self._prune_old_events(now)
 
+        # Prune stale symbol buffers every 100 polls to prevent unbounded growth
+        if self._poll_count % 100 == 0:
+            stale_syms = [
+                s for s, buf in self._price_buf.items()
+                if buf and (now - buf[-1].ts) > self.max_event_age_s
+            ]
+            for s in stale_syms:
+                del self._price_buf[s]
+                self._last_spike_ts.pop(s, None)
+
         if new_spikes:
             logger.info(
                 "Spike detector: %d new spikes (poll #%d, total %d)",

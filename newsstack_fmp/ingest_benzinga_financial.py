@@ -47,7 +47,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url  # noqa: E402
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url, log_fetch_warning  # noqa: E402
 
 
 # =====================================================================
@@ -119,15 +119,6 @@ class BenzingaFinancialAdapter:
                 if isinstance(v, list):
                     return v
         return []
-
-    def _extract_dict(self, data: Any, *keys: str) -> dict[str, Any]:
-        """Extract a dict from *data* trying *keys* in order."""
-        if isinstance(data, dict):
-            for key in keys:
-                if key in data and isinstance(data[key], dict):
-                    return dict(data[key])
-            return data
-        return {}
 
     # ── Fundamentals (ticker-level) ─────────────────────────
 
@@ -682,7 +673,7 @@ def fetch_benzinga_options_activity(
     try:
         return adapter.fetch_options_activity(tickers, **kwargs)
     except Exception as exc:
-        logger.warning("Benzinga options activity fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga options activity", exc)
         return []
     finally:
         adapter.close()
@@ -760,7 +751,7 @@ def fetch_benzinga_insider_transactions(
     try:
         return adapter.fetch_insider_transactions(**kwargs)
     except Exception as exc:
-        logger.warning("Benzinga insider transactions fetch failed: %s", _sanitize_exc(exc))
+        log_fetch_warning("Benzinga insider transactions", exc)
         return []
     finally:
         adapter.close()

@@ -431,16 +431,20 @@ class TestRealtimeSignalFloatSafety:
         """Arrange: quote with strong breakout. Assert: signal produced."""
         engine = self._make_bare_engine()
 
-        signal = engine._detect_signal(
-            "TEST",
-            {
-                "price": 30.0,
-                "previousClose": 24.0,
-                "volume": 1_500_000,
-                "avgVolume": 300_000,
-            },
-            {"atr_pct_computed": 3.5, "score": 8.5, "confidence_tier": "HIGH"},
-        )
+        # Mock market-hours gate so the test works regardless of day/time
+        with patch(
+            "open_prep.realtime_signals._is_within_market_hours", return_value=True
+        ):
+            signal = engine._detect_signal(
+                "TEST",
+                {
+                    "price": 30.0,
+                    "previousClose": 24.0,
+                    "volume": 1_500_000,
+                    "avgVolume": 300_000,
+                },
+                {"atr_pct_computed": 3.5, "score": 8.5, "confidence_tier": "HIGH"},
+            )
         # 25% change with 5x volume → A0 signal
         assert signal is not None
         assert signal.level == "A0"

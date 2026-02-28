@@ -229,8 +229,9 @@ class FeedLifecycleManager:
             if _NYSE_CLOSE_MIN <= mins < 20 * 60:
                 # After-hours: slower
                 return base_interval * 3
-        # Off-hours
-        return max(60.0, base_interval * 10)
+        # Off-hours / weekends: moderate throttle (×4) to save API quota
+        # while still keeping data reasonably fresh.
+        return max(60.0, base_interval * 4)
 
     def manage(
         self,

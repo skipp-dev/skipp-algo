@@ -6,6 +6,75 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-02-28)
+
+- **README.md rewritten:** Comprehensive GitHub-ready documentation covering Streamlit News Terminal (17-tab architecture, module map, data sources, configuration, background poller, notifications, export), Open-Prep Pipeline (Streamlit monitor, macro explainability), Pine Script (Outlook/Forecast, signal modes, key features), and Developer Guide (tests, linting, project structure, documentation index).
+
+### Removed (2026-02-28)
+
+- **Dead code removal (~680 lines across 6 files):**
+  - `terminal_poller.py`: Removed 21 unused fetch functions — `fetch_treasury_rates`, `fetch_house_trading`, `fetch_congress_trading`, 15× `fetch_finnhub_*` (insider sentiment, peers, market status, FDA calendar, lobbying, USA spending, patents, social sentiment, pattern recognition, support/resistance, aggregate indicators, supply chain, earnings quality, news sentiment, ESG), 3× `fetch_alpaca_*` (news, most active, top movers). File reduced from ~1 865 to ~1 329 lines.
+  - `terminal_newsapi.py`: Removed `concept_type_icon` (unused icon mapper) and `fetch_market_articles` (unreferenced ad-hoc article query wrapper).
+  - `newsstack_fmp/scoring.py`: Removed `headline_jaccard`, `_headline_tokens`, `_TOKEN_RX`, `_STOP_WORDS` (unused Jaccard-similarity helpers).
+  - `open_prep/realtime_signals.py`: Removed `get_a0_signals` and `get_a1_signals` (unused filter methods).
+  - `open_prep/streamlit_monitor.py`: Removed `_cached_ind_perf_op`, `_cached_bz_profile_op`, `_cached_bz_detail_op` (uncalled cached wrappers) and their dead imports (`_fetch_ind_perf`, `_fetch_bz_profile`, `_fetch_bz_detail`).
+  - `newsstack_fmp/ingest_benzinga_financial.py`: Removed `_extract_dict` (unused extraction method).
+
+### Fixed (2026-02-28)
+
+- **Race condition** in `terminal_notifications.py`: `_last_notified` dict now protected by `threading.Lock()` to prevent concurrent access from background poller and main Streamlit thread.
+- **API key leak** in `terminal_bitcoin.py` and `terminal_newsapi.py`: `httpx` exception strings containing full URLs with `apikey=` parameters are now sanitized via `_APIKEY_RE` regex before logging.
+- **Silent exception swallowers** in `streamlit_terminal.py`: Added `logger.warning()` to 3 bare `except` handlers (alert rules JSON load, extended-hours quotes, BG extended-hours quotes).
+- **SSRF vulnerability** in `streamlit_terminal.py`: Webhook URL input now validated with `_is_safe_webhook_url()` — blocks private IP ranges (127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x, localhost, 0.0.0.0) and requires http/https scheme.
+- **State desync** in `streamlit_terminal.py`: Feed lifecycle cursor reset now propagates to background poller session state, preventing cursor drift after auto-recovery.
+- **Unbounded memory** in `terminal_spike_detector.py`: Stale symbols in `_price_buf` and `_last_spike_ts` are now pruned every 100 polls when newest snapshot exceeds `max_event_age_s`.
+- **Narrow exception** in `newsstack_fmp/ingest_benzinga.py`: WebSocket JSON parse now catches `(json.JSONDecodeError, ValueError)` instead of bare `Exception`.
+- **Pre-existing test failure** in `tests/test_production_gatekeeper.py`: `test_valid_quote_produces_signal` now patches `_is_within_market_hours` and `_expected_cumulative_volume_fraction` to pass regardless of time-of-day.
+
+### Added (2026-02-28)
+
+- **Finnhub + Alpaca Multi-Provider Integration (Phase 1–3):**
+  - **`FinnhubClient`** in `open_prep/macro.py` — 15 methods across 3 tiers:
+    - Phase 1 FREE (8 endpoints): `get_insider_sentiment` (MSPR score), `get_peers`, `get_market_status`, `get_market_holiday`, `get_fda_calendar`, `get_lobbying`, `get_usa_spending`, `get_patents`
+    - Phase 2 PREMIUM (8 endpoints): `get_social_sentiment` (Reddit+Twitter), `get_pattern_recognition`, `get_support_resistance`, `get_aggregate_indicators`, `get_supply_chain`, `get_earnings_quality`, `get_news_sentiment`, `get_esg`
+    - Auth via `FINNHUB_API_KEY` env var, 30 req/s free tier
+  - **`AlpacaClient`** in `open_prep/macro.py` — 4 methods:
+    - `get_news` (real-time news with sentiment), `get_most_active` (screener), `get_top_movers` (gainers/losers), `get_option_chain`
+    - Auth via `APCA_API_KEY_ID` + `APCA_API_SECRET_KEY` headers
+
+- **Pipeline expansion (`open_prep/run_open_prep.py`):**
+  - `TOTAL_STAGES` 15 → 17 (2 new Finnhub stages)
+  - Stage 12: Finnhub Insider Sentiment + Company Peers + FDA Calendar
+  - Stage 13: Finnhub Social Sentiment + Pattern Recognition (PREMIUM)
+  - 4 new pipeline helpers: `_fetch_finnhub_insider_sentiment`, `_fetch_finnhub_peers`, `_fetch_finnhub_social_sentiment`, `_fetch_finnhub_patterns`
+  - Enriched quotes with: `fh_mspr_avg`, `fh_insider_sentiment_emoji`, `fh_peers`, `fh_social_score`, `fh_social_mentions`, `fh_pattern_label`, `fh_tech_signal`, `fh_support_levels`, `fh_resistance_levels`
+
+- **Streamlit dashboard (`streamlit_terminal.py`) — 5 new tabs (16 → 21 total):**
+  - 🧠 Insider Sentiment — Finnhub MSPR scores with color-coded emojis + company peers
+  - 📡 Social Sentiment — Reddit/Twitter mention counts and sentiment scores
+  - 📐 Patterns & S/R — Chart pattern recognition + support/resistance levels + composite tech signals
+  - 💊 FDA Calendar — Upcoming FDA advisory committee meetings
+  - 🗞️ Alpaca News — Real-time news feed + Most Active screener + Top Movers (sub-tabs)
+  - 14 new `@st.cache_data` cached functions (11 Finnhub + 3 Alpaca)
+
+- **Fetch functions (`terminal_poller.py`) — 18 new functions:**
+  - 7 Finnhub FREE: `fetch_finnhub_insider_sentiment`, `fetch_finnhub_peers`, `fetch_finnhub_market_status`, `fetch_finnhub_fda_calendar`, `fetch_finnhub_lobbying`, `fetch_finnhub_usa_spending`, `fetch_finnhub_patents`
+  - 8 Finnhub PREMIUM: `fetch_finnhub_social_sentiment`, `fetch_finnhub_pattern_recognition`, `fetch_finnhub_support_resistance`, `fetch_finnhub_aggregate_indicators`, `fetch_finnhub_supply_chain`, `fetch_finnhub_earnings_quality`, `fetch_finnhub_news_sentiment`, `fetch_finnhub_esg`
+  - 3 Alpaca: `fetch_alpaca_news`, `fetch_alpaca_most_active`, `fetch_alpaca_top_movers`
+
+- **VisiData export (`terminal_export.py`) — 6 new columns:**
+  - `insider_mspr` (MSPR avg score), `insider_sent` (emoji), `social_score` (composite), `social_emoji`, `pattern` (detected chart pattern), `tech_signal` (composite buy/sell/neutral)
+
+- **Provider comparison report (`docs/ANBIETER_VERGLEICH_Finnhub_TwelveData_Alpaca.md`):**
+  - Comprehensive German-language analysis of Finnhub, Twelve Data, and Alpaca APIs
+  - Gap analysis against existing FMP + Benzinga coverage
+  - Integration roadmap with effort estimates
+
+### Fixed (2026-02-28)
+
+- **Markdown lint (MD060)** in `docs/FMP_ENDPOINT_GAP_ANALYSE.md`: Fixed all table separator spacing
+- **Markdown lint (MD060 + MD051)** in `docs/ANBIETER_VERGLEICH_Finnhub_TwelveData_Alpaca.md`: Fixed table separators and link fragment anchors
+
 ### Added (2026-02-27)
 
 - **Auto-recovery mechanism (data freshness self-healing):**
@@ -87,6 +156,12 @@ All notable changes to this project are documented in this file.
   - Imported `ClassifiedItem` at module level + `dict[str, Any]` annotation on defaults in tests.
   - Fixed `Generator` return type for yield fixtures in `tests/test_benzinga_calendar.py`.
   - Used `callable()` check instead of truthiness for `_market_session` function.
+
+### Verification (2026-02-28)
+
+- Full regression suite: **1 674 passed, 34 subtests passed, 0 failures**.
+- Pylance/Pyright: **0 workspace errors**.
+- Dead code removed: **~680 lines across 6 files** (31 functions).
 
 ### Verification (2026-02-27)
 

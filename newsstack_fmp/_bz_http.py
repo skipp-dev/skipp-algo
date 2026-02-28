@@ -21,6 +21,49 @@ logger = logging.getLogger(__name__)
 # Regex to strip API keys/tokens from URLs before logging.
 _TOKEN_RE = re.compile(r"(apikey|token)=[^&]+", re.IGNORECASE)
 
+# ── Once-per-endpoint error suppression ─────────────────────────
+# 400/403/404 responses typically mean the endpoint is not available
+# on the user's API tier.  Warn once, then suppress to avoid log spam.
+_WARNED_ENDPOINTS: set[str] = set()
+
+# HTTP status codes that indicate a tier/plan limitation rather than
+# a transient error.  These are suppressed after the first occurrence.
+_TIER_LIMITED_CODES: frozenset[int] = frozenset({400, 401, 403, 404})
+
+
+def _is_tier_limited_error(exc: Exception) -> bool:
+    """Return True if *exc* is an httpx.HTTPStatusError with a tier-limited code."""
+    return (
+        isinstance(exc, httpx.HTTPStatusError)
+        and exc.response.status_code in _TIER_LIMITED_CODES
+    )
+
+
+def log_fetch_warning(label: str, exc: Exception) -> None:
+    """Log a fetch failure, suppressing repeated tier-limited errors.
+
+    On the first occurrence of a 400/401/403/404 for a given *label*,
+    the error is logged at WARNING level with a note that further
+    occurrences will be suppressed.  Subsequent occurrences for the
+    same *label* are logged at DEBUG only.
+
+    Other errors (network, 5xx, etc.) are always logged at WARNING.
+    """
+    msg = _sanitize_exc(exc)
+    if _is_tier_limited_error(exc):
+        if label not in _WARNED_ENDPOINTS:
+            _WARNED_ENDPOINTS.add(label)
+            code = exc.response.status_code  # type: ignore
+            logger.warning(
+                "%s fetch failed (HTTP %d) – endpoint not available on "
+                "your API plan; suppressing further warnings: %s",
+                label, code, msg,
+            )
+        else:
+            logger.debug("%s fetch failed (tier-limited, suppressed): %s", label, msg)
+    else:
+        logger.warning("%s fetch failed: %s", label, msg)
+
 # Status codes eligible for automatic retry with backoff.
 _RETRYABLE: frozenset[int] = frozenset({429, 500, 502, 503, 504})
 

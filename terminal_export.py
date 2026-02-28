@@ -23,6 +23,7 @@ from typing import Any
 import httpx
 
 from open_prep.playbook import classify_recency
+from terminal_feed_lifecycle import is_market_hours
 from terminal_poller import ClassifiedItem
 
 logger = logging.getLogger(__name__)
@@ -217,6 +218,7 @@ def build_vd_snapshot(
     bz_dividends: list[dict[str, Any]] | None = None,
     bz_guidance: list[dict[str, Any]] | None = None,
     bz_options: list[dict[str, Any]] | None = None,
+    open_prep_data: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Build one row per ticker from the full feed, ranked by best news_score.
 
@@ -279,6 +281,17 @@ def build_vd_snapshot(
             sym = (o.get("ticker") or "").upper().strip()
             if sym:
                 _opts_by_sym.setdefault(sym, o)
+
+    # Open-prep enrichment (DCF, House trading, Finnhub)
+    _op = open_prep_data or {}
+    _dcf_by_sym: dict[str, dict[str, Any]] = _op.get("dcf_valuations") or {}
+    _house_by_sym: dict[str, dict[str, Any]] = _op.get("house_trading") or {}
+    _treasury = _op.get("treasury_rates") or {}
+    _yield_spread = _treasury.get("yield_2y10y_spread")
+    # Finnhub enrichment
+    _fh_insider: dict[str, dict[str, Any]] = _op.get("finnhub_insider_sentiment") or {}
+    _fh_social: dict[str, dict[str, Any]] = _op.get("finnhub_social_sentiment") or {}
+    _fh_patterns: dict[str, dict[str, Any]] = _op.get("finnhub_patterns") or {}
 
     best: dict[str, dict[str, Any]] = {}   # ticker → best-scored item
     counts: dict[str, int] = {}             # ticker → article count
@@ -372,6 +385,18 @@ def build_vd_snapshot(
             "div_yield":        _div_by_sym.get(tk, {}).get("dividend_yield", ""),
             "guid_eps":         _guid_by_sym.get(tk, {}).get("eps_guidance_est", ""),
             "options_flow":     "🎰" if tk in _opts_by_sym else "",
+            # DCF & Congress enrichment (from open_prep pipeline)
+            "dcf_value":        _dcf_by_sym.get(tk, {}).get("dcf_value"),
+            "dcf_dev_pct":      _dcf_by_sym.get(tk, {}).get("dcf_deviation_pct"),
+            "congress":         _house_by_sym.get(tk, {}).get("house_emoji", ""),
+            "yield_spread":     _yield_spread,
+            # Finnhub enrichment
+            "insider_mspr":     _fh_insider.get(tk, {}).get("mspr_avg"),
+            "insider_sent":     _fh_insider.get(tk, {}).get("insider_sentiment_emoji", ""),
+            "social_score":     _fh_social.get(tk, {}).get("social_score"),
+            "social_emoji":     _fh_social.get(tk, {}).get("social_sentiment_emoji", ""),
+            "pattern":          _fh_patterns.get(tk, {}).get("pattern_label", ""),
+            "tech_signal":      _fh_patterns.get(tk, {}).get("tech_signal", ""),
         })
 
     # Composite rank: 70% absolute price change + 30% news score
@@ -394,6 +419,7 @@ def save_vd_snapshot(
     bz_dividends: list[dict[str, Any]] | None = None,
     bz_guidance: list[dict[str, Any]] | None = None,
     bz_options: list[dict[str, Any]] | None = None,
+    open_prep_data: dict[str, Any] | None = None,
 ) -> None:
     """Write per-symbol VisiData JSONL — atomic overwrite, one line per ticker.
 
@@ -419,6 +445,7 @@ def save_vd_snapshot(
     rows = build_vd_snapshot(
         feed, rt_quotes=rt_quotes, bz_quotes=bz_quotes, max_age_s=max_age_s,
         bz_dividends=bz_dividends, bz_guidance=bz_guidance, bz_options=bz_options,
+        open_prep_data=open_prep_data,
     )
     if not rows:
         return
@@ -426,9 +453,14 @@ def save_vd_snapshot(
     # Compute snapshot-level freshness metadata
     now_epoch = time.time()
     _newest_age = min((r.get("age_min", 9999) for r in rows), default=0)
-    _stale_warn = "⚠️ STALE" if _newest_age > 2 else ""
+    # Only warn STALE during market hours (Mon-Fri 04:00-20:00 ET) and
+    # only when the newest article is older than 30 minutes.  Outside
+    # market hours slow news flow is expected — suppress the warning.
+    _stale_warn = (
+        "⚠️ STALE" if is_market_hours() and _newest_age > 30 else ""
+    )
     _meta_row: dict[str, Any] = {
-        "symbol":    f"_META {_stale_warn}".strip(),
+        "symbol":    "_META",
         "N":         len(rows),
         "sentiment": "",
         "tick":      "",

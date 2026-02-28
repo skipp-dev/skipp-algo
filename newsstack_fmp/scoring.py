@@ -56,27 +56,6 @@ NEG_HINTS = re.compile(
 
 # ── Headline token set for Jaccard novelty ──────────────────────
 
-_TOKEN_RX = re.compile(r"\b[a-z]{3,}\b")
-_STOP_WORDS: frozenset[str] = frozenset({
-    "the", "and", "for", "with", "that", "this", "from", "has", "have",
-    "its", "are", "was", "were", "will", "been", "their", "which",
-    "about", "into", "than", "also", "says", "said", "new", "not",
-})
-
-
-def _headline_tokens(headline: str) -> set[str]:
-    """Extract meaningful tokens from a headline for similarity comparison."""
-    tokens = set(_TOKEN_RX.findall(headline.lower()))
-    return tokens - _STOP_WORDS
-
-
-def headline_jaccard(a: str, b: str) -> float:
-    """Jaccard similarity between two headline token sets (0.0 – 1.0)."""
-    ta, tb = _headline_tokens(a), _headline_tokens(b)
-    if not ta or not tb:
-        return 0.0
-    return len(ta & tb) / len(ta | tb)
-
 
 @dataclass(frozen=True)
 class ScoreResult:

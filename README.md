@@ -1,402 +1,415 @@
-# SkippALGO — Outlook + Forecast (Calibrated Probabilities)
+# SkippALGO
 
-Pine Script v6 · Non-repainting core logic · Intrabar alerts/labels (default)
+**Pine Script v6 Signal Engine · Bloomberg-Style Streamlit Terminal · Pre-Open Briefing Pipeline**
 
-SkippALGO combines a signal engine with a multi‑timeframe dashboard that clearly separates:
+SkippALGO is a modular trading intelligence platform combining three core systems:
 
-- **Outlook (State):** current regime/bias snapshot per timeframe (non‑predictive).
-- **Forecast (Probability):** calibrated probability of a defined forward outcome, gated by sample sufficiency.
+1. **SkippALGO Pine Script** — non-repainting signal engine with multi-timeframe Outlook/Forecast dashboard for TradingView.
+2. **Streamlit News Terminal** — a Bloomberg-style real-time news intelligence dashboard with 17 tabs covering news, movers, spikes, macro, crypto, and more.
+3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
-## What you get
+---
 
-- Multi‑timeframe **Outlook** with bias, score, and components (Trend/Momentum/Location).
-- **Forecast** block with Pred(N)/Pred(1) plus calibrated $P(\mathrm{Up})$.
-- Strict **non‑repainting** behavior (`lookahead_off`, `barstate.isconfirmed`).
-- Intrabar-first alert/label UX by default:
-  - `Alerts: bar close only = false` (default) sends preview alerts/labels before candle close,
-  - switching it to `true` restores bar-close-only signaling.
-- Confidence gating, macro + drawdown guards, and MTF confirmation.
+## Table of Contents
 
-## Quick start
+- [Streamlit News Terminal](#streamlit-news-terminal)
+- [Open-Prep Pipeline](#open-prep-pipeline)
+- [SkippALGO Pine Script](#skippalgo-pine-script)
+- [Developer Guide](#developer-guide)
+- [Documentation Index](#documentation-index)
+
+---
+
+## Streamlit News Terminal
+
+A self-hosted, real-time financial intelligence dashboard built with Streamlit. It aggregates news, market data, sentiment, and technical analysis from multiple providers into a single unified interface — inspired by Bloomberg Terminal workflows.
+
+### Architecture
+
+The terminal is composed of 14 Python modules organized around a central UI driver:
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    streamlit_terminal.py                          │
+│                  (3 900+ lines · 17 tabs · main UI)              │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
+│  │ terminal_poller  │  │ terminal_bitcoin │  │ terminal_      │  │
+│  │  poll_and_       │  │  10 fetch fns    │  │  newsapi       │  │
+│  │  classify()      │  │  FMP+yfinance+   │  │  NewsAPI.ai    │  │
+│  │  FMP+Benzinga    │  │  TradingView     │  │  breaking/     │  │
+│  │  scoring engine  │  │  Finnhub         │  │  trending/NLP  │  │
+│  └────────┬─────────┘  └────────┬─────────┘  └───────┬────────┘  │
+│           │                     │                     │          │
+│  ┌────────┴─────────┐  ┌───────┴──────────┐  ┌───────┴────────┐ │
+│  │ terminal_spike_  │  │ terminal_        │  │ terminal_      │ │
+│  │  scanner         │  │  technicals      │  │  forecast      │ │
+│  │  + spike_        │  │  TradingView TA  │  │  FMP analyst   │ │
+│  │  detector (RT)   │  │  oscillators/MA  │  │  targets/EPS   │ │
+│  └──────────────────┘  └──────────────────┘  └────────────────┘ │
+│                                                                  │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ terminal_        │  │ terminal_feed_   │  │ terminal_      │ │
+│  │  notifications   │  │  lifecycle       │  │  background_   │ │
+│  │  Telegram/       │  │  staleness       │  │  poller        │ │
+│  │  Discord/        │  │  detection &     │  │  async poll    │ │
+│  │  Pushover        │  │  auto-recovery   │  │  loop          │ │
+│  └──────────────────┘  └──────────────────┘  └────────────────┘ │
+│                                                                  │
+│  ┌──────────────────┐  ┌──────────────────┐                     │
+│  │ terminal_export  │  │ terminal_ui_     │                     │
+│  │  JSONL/VisiData  │  │  helpers         │                     │
+│  │  webhook fire    │  │  sentiment fmt   │                     │
+│  └──────────────────┘  └──────────────────┘                     │
+│                                                                  │
+├──────────────────────────────────────────────────────────────────┤
+│                       newsstack_fmp/                             │
+│  ingest_benzinga.py · ingest_fmp.py · scoring.py · store_sqlite │
+│  ingest_benzinga_calendar.py · ingest_benzinga_financial.py      │
+│  pipeline.py · normalize.py · enrich.py · config.py              │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Module Map
+
+| Module | Lines | Purpose |
+|--------|-------|---------|
+| `streamlit_terminal.py` | ~3 900 | Main Streamlit UI — 17 tabs, sidebar, polling orchestration, alert evaluation |
+| `terminal_poller.py` | ~1 300 | Polling engine — REST/FMP ingestion, dedup, classification, sector perf, defense watchlist, tomorrow outlook, power gaps |
+| `terminal_bitcoin.py` | ~950 | Bitcoin data — 10 fetch functions (quote, OHLCV, technicals, news, social, F&G, movers, exchange listings) |
+| `terminal_newsapi.py` | ~1 150 | NewsAPI.ai — breaking events, trending concepts, NLP sentiment, event-clustered news, social score ranking |
+| `terminal_spike_scanner.py` | ~500 | FMP spike scanner — gainers/losers/actives with Benzinga extended-hours overlay |
+| `terminal_spike_detector.py` | ~320 | RT spike detector — sub-minute price delta tracking with rolling buffer |
+| `terminal_technicals.py` | ~350 | TradingView TA — oscillator/MA summaries, cached per (symbol, interval) |
+| `terminal_forecast.py` | ~430 | Analyst forecasts — price targets, ratings, EPS estimates via FMP + yfinance |
+| `terminal_notifications.py` | ~410 | Push notifications — Telegram, Discord, Pushover dispatch with per-symbol throttling |
+| `terminal_export.py` | ~730 | Export — JSONL append/rotate, VisiData snapshots, webhook fire, RT quote loading |
+| `terminal_feed_lifecycle.py` | ~320 | Feed health — staleness detection, auto-recovery (cursor reset + SQLite dedup prune) |
+| `terminal_background_poller.py` | ~270 | Background poller — threaded async poll loop for Streamlit session state |
+| `terminal_ui_helpers.py` | ~490 | UI formatting — sentiment badges, Streamlit column utilities |
+| `newsstack_fmp/` | ~2 500 | News pipeline — Benzinga adapters (REST, WS, calendar, financial), FMP adapter, SQLite store, scoring, enrichment |
+
+### Tabs Overview
+
+| # | Tab | Description |
+|---|-----|-------------|
+| 1 | 📰 **Live Feed** | Real-time Benzinga + FMP news with 16-category NLP classifier, full-text search, and date filters |
+| 2 | 🔥 **Top Movers** | FMP gainers/losers enriched with Benzinga delayed quotes during extended hours |
+| 3 | 🏆 **Rankings** | Symbol-level news scoring with aggregated sentiment, volume signals, and RT quote overlay |
+| 4 | 🏗️ **Segments** | News items grouped by 16 event categories (earnings, M&A, FDA, macro, etc.) |
+| 5 | ⚡ **RT Spikes** | Sub-minute real-time price spike detection from consecutive quote snapshots |
+| 6 | 🚨 **Spikes** | FMP biggest gainers/losers/most-actives with batch-quote enrichment |
+| 7 | 🗺️ **Heatmap** | Plotly treemap sector heatmap of market performance |
+| 8 | 📅 **Calendar** | FMP economic calendar with impact filters |
+| 9 | 🔮 **Tomorrow Outlook** | Composite next-trading-day forecast (traffic light system) |
+| 10 | 💹 **Movers** | Benzinga movers with gainers/losers sub-tabs |
+| 11 | ₿ **Bitcoin** | BTC dashboard: price, chart, technicals, Fear & Greed, news, social sentiment, crypto movers |
+| 12 | 🛡️ **Defense & Aerospace** | A&D watchlist quotes + industry performance screen |
+| 13 | 🔴 **Breaking** | NewsAPI.ai breaking events with article counts, sentiment, social scores |
+| 14 | 📈 **Trending** | NewsAPI.ai trending concepts and entities across global news |
+| 15 | 🔥 **Social** | Social sentiment scoring and viral article detection |
+| 16 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
+| 17 | 📊 **Data Table** | Full data export table with all enrichment columns |
+
+### Data Sources
+
+| Provider | API Key Env Var | Coverage |
+|----------|-----------------|----------|
+| **Benzinga** | `BENZINGA_API_KEY` | News (REST + WebSocket), calendar (ratings, earnings, economics, dividends, splits, IPOs, guidance, retail), financial data, delayed quotes, movers |
+| **FMP** | `FMP_API_KEY` | Quotes, sector performance, economic calendar, gainers/losers/actives, crypto, fear & greed, analyst targets, company profiles |
+| **NewsAPI.ai** | `NEWSAPI_AI_KEY` | Breaking events, trending concepts, NLP sentiment scoring |
+| **TradingView** | *(none — scraper)* | Technical analysis (oscillators, moving averages) for equities and crypto |
+| **yfinance** | *(none — free)* | Fallback historical OHLCV, market cap, company info |
+| **Finnhub** | `FINNHUB_API_KEY` | Social sentiment for crypto |
+
+### Quick Start (Terminal)
+
+```bash
+# 1. Clone and install
+git clone https://github.com/skipp-dev/skipp-algo.git
+cd skipp-algo
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Configure API keys
+cp .env.example .env   # or create .env manually
+# Required:
+#   BENZINGA_API_KEY=your_key
+# Optional (enables more tabs):
+#   FMP_API_KEY=your_key
+#   NEWSAPI_AI_KEY=your_key
+#   FINNHUB_API_KEY=your_key
+
+# 3. Run
+streamlit run streamlit_terminal.py
+```
+
+The dashboard opens at `http://localhost:8501` with a dark theme.
+
+### Configuration
+
+**Environment variables** (`.env` file or shell):
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BENZINGA_API_KEY` | Yes | Benzinga API key for primary news feed |
+| `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto |
+| `NEWSAPI_AI_KEY` | No | NewsAPI.ai key for breaking/trending/NLP tabs |
+| `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
+| `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
+| `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
+| `TERMINAL_NOTIFY_THROTTLE_S` | No | Throttle window in seconds (default: `600`) |
+| `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
+| `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
+| `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
+
+**Streamlit config** (`.streamlit/config.toml`):
+
+```toml
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+
+[theme]
+base = "dark"
+```
+
+### Background Poller
+
+The terminal supports a threaded background poller that fetches new data between Streamlit reruns. This prevents data gaps when the browser tab is inactive:
+
+- Poller runs continuously in a background thread
+- Results are stored in `st.session_state` and merged on next rerun
+- Feed lifecycle manager detects staleness (>5 min) and auto-recovers via cursor reset + SQLite dedup prune
+- Manual "Reset Cursor" button in sidebar as escape hatch
+
+### Notifications
+
+High-score news items can trigger push notifications to:
+
+- **Telegram** (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`)
+- **Discord** (`DISCORD_WEBHOOK_URL`)
+- **Pushover** (`PUSHOVER_USER_KEY` + `PUSHOVER_APP_TOKEN`)
+
+Notifications are throttled per symbol (default: 10 min) and thread-safe.
+
+### Export & VisiData
+
+- **JSONL** — continuous append to `artifacts/*.jsonl` with automatic rotation
+- **VisiData snapshots** — `artifacts/vd_snapshot.jsonl` for `vd --reload` live monitoring
+- **Webhook** — fire classified items to external endpoints (SSRF-protected)
+- **Benzinga Calendar JSONL** — standalone export of dividends, splits, IPOs, guidance events
+
+---
+
+## Open-Prep Pipeline
+
+`open_prep/` generates reproducible pre-open briefings for a symbol universe:
+
+- Quotes enriched with gap metadata (mode, availability, evidence timestamps)
+- Macro context (economic indicators, earnings, institutional data) merged into candidate ranking
+- Optional news catalyst scores via Benzinga + NLP
+- Top-N candidates exported with structured trade cards and ATR-based stop/trail profiles
+- Score-driven and setup-oriented (ORB, VWAP-hold patterns)
+
+### Open-Prep Streamlit Monitor
+
+A companion Streamlit app for live pre-open monitoring:
+
+```bash
+streamlit run open_prep/streamlit_monitor.py
+```
+
+- Auto-refresh every 15 seconds during market hours
+- Sidebar: symbols, gap mode, ATR settings, pre-open filters
+- Benzinga Intelligence tabs (dividends, splits, IPOs, guidance, retail, top news, options flow)
+- Realtime auto-promotion: A0/A1 signal symbols promoted from below-cutoff into displayed candidates
+- Staleness detection with auto-recovery (>5 min cache invalidation)
+
+### Macro Explainability
+
+Each candidate includes:
+
+- `macro_score_components[]` with canonical event, consensus, surprise, weight, contribution, data quality flags
+- `ranked_candidates[]` with allowed setups, max trades, data sufficiency, no-trade reason, score breakdown
+- Risk-off regime handling: long setups degraded to `vwap_reclaim` with `max_trades=1`
+
+---
+
+## SkippALGO Pine Script
+
+Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/labels.
+
+### Outlook vs Forecast
+
+| Layer | What it shows | Predictive? |
+|-------|---------------|-------------|
+| **Outlook (State)** | Current regime/bias snapshot per timeframe | No — descriptive |
+| **Forecast (Probability)** | Calibrated probability of a defined forward outcome | Yes — gated by sample sufficiency |
+
+### Quick Start (Pine)
 
 1. Add `SkippALGO.pine` to your TradingView chart.
-2. Start with default horizons (1m–1d) and **predBins=3**.
+2. Start with default horizons (1m–1d) and `predBins=3`.
 3. Let calibration warm up (watch sample sufficiency in Forecast rows).
 4. Read **Outlook first**, then confirm with **Forecast** probabilities.
 
-### Preset: Intrabar Labels (Repainting ON)
+### Signal Modes
 
-Use this preset if you explicitly want labels to print **before candle close** (realtime preview behavior).
+- **Intrabar (default):** `Alerts: bar close only = false` — preview alerts/labels before candle close
+- **Bar-close only:** `Alerts: bar close only = true` — confirmed signals only
+- **Entry presets:** Manual, Intraday, Swing — drive effective score thresholds/weights
+- **Engines:** Hybrid, Breakout, Trend+Pullback, Loose
+- **Score Engine (Option C):** High-quality setup scoring independent of rigid engine logic
 
-- `Alerts: bar close only = false`
-- `Show Long labels (BUY / EXIT) = true`
-- `Show Short labels (SHORT / COVER) = true`
-- `Show PRE labels (PRE-BUY / PRE-SHORT) = true`
+### Key Features
 
-Notes:
+- Multi-timeframe Outlook with bias, score, components (Trend/Momentum/Location)
+- Forecast block with Pred(N)/Pred(1) plus calibrated P(Up)
+- USI (Ultimate Stacking Indicator) trend state and entry gating
+- ChoCH (Change of Character) structure detection
+- Dynamic TP expansion and SL profiling
+- Regime Classifier 2.0 with hysteresis (optional)
+- VWT (Volume Weighted Trend) filter (optional)
+- Drawdown hard gate, macro guards, MTF confirmation
+- Consolidated alert dispatch (one `alert()` per bar per symbol)
 
-- This mode is intentionally **repainting/intrabar** and can differ from final close-confirmed outcomes.
-- Preview labels are realtime-only; historical bars still reflect confirmed logic.
+### Additional Pine Scripts
 
-## Table guide (short)
+| Script | Description |
+|--------|-------------|
+| `SkippALGO_Strategy.pine` | Strategy version with backtesting |
+| `SkippALGO_Lite.pine` | Lightweight variant |
+| `SkippALGO_Mid.pine` / `SkippALGO_Mid_Strategy.pine` | Mid-tier variants |
+| `QuickALGO.pine` | Score+Verify optimized logic |
+| `VWAP_Long_Reclaim_*.pine` | VWAP reclaim strategies |
+| `CHOCH-*.pine` | Change-of-Character variants |
+| `BTC 3m EV Scalper BALANCED (Harmonized).pine` | BTC scalper |
 
-- **Outlook (State):** descriptive snapshot at the last confirmed bar for each TF.
-- **Forecast (Prob):** conditional probability for the defined target (default: next‑bar direction).
-- `…` and `n0` indicate insufficient data; do not treat as a signal.
-- Forecast rows include **nCur/Total** and a target footer describing active target definitions.
+---
 
-## Open-Prep: Pre-Open Briefing Contract
+## Developer Guide
 
-`open_prep` generates a reproducible pre-open briefing for a symbol universe:
+### Tests
 
-- Quotes are enriched with gap metadata (mode + availability + evidence timestamps).
-- Macro context and optional news catalyst scores are merged into candidate ranking.
-- Top-N candidates are exported with structured trade cards and ATR-based stop/trail profiles.
+```bash
+# Full test suite (1 674 tests)
+python -m pytest tests/ -q
 
-This output is intentionally score-driven and setup-oriented (for example ORB / VWAP-hold patterns),
-not hard-coded to a single directional narrative in documentation.
+# Single test
+python -m pytest tests/test_production_gatekeeper.py -q
 
-### Macro explainability and risk guardrails
+# With coverage
+python -m pytest tests/ -q \
+  --cov=newsstack_fmp --cov=terminal_poller --cov=terminal_export \
+  --cov-report=term-missing
+```
 
-- `macro_score_components[]` includes:
-  - `canonical_event`, `consensus_value`, `consensus_field`, `surprise`, `weight`, `contribution`, `data_quality_flags`
-  - optional `dedup` object when canonical duplicates were collapsed (`duplicates`, `chosen_event`, `policy`)
-- `ranked_candidates[]` includes:
-  - `allowed_setups`, `max_trades`, `data_sufficiency`, `no_trade_reason`, `score_breakdown`
-- In `macro_risk_off_extreme`, long setups are degraded to `vwap_reclaim` with `max_trades=1`.
-- If RVOL/liquidity is missing in that regime (`rel_volume <= 0`), candidate is fail-safe blocked via
-  `no_trade_reason += ["missing_rvol"]`, `long_allowed=false`, and `data_sufficiency.low=true`.
-- Headline PCE confirmation is controlled by explicit switch
-  `include_headline_pce_confirm` (separate from `include_mid_if_no_high`).
+### Linting & Type Checking
 
-### Monday gap semantics (explicit)
+```bash
+# Ruff lint
+ruff check newsstack_fmp/ open_prep/ terminal_*.py streamlit_terminal.py
 
-- `RTH_OPEN`: available only when an actual Monday RTH open exists;
-  otherwise `gap_available=false` with reason metadata.
-- `PREMARKET_INDICATIVE`: available only with timestamp-backed premarket/extended quote evidence;
-  otherwise unavailable with explicit `gap_reason`.
-- `OFF`: no active Monday gap computation (placeholder/fallback semantics only).
+# Mypy
+mypy newsstack_fmp/ terminal_poller.py terminal_export.py
 
-### Candidate data contract (operational fields)
-
-Each candidate row carries gap evidence fields used by downstream exports and reviews:
-
-- `gap_available`, `gap_reason`, `gap_price_source`, `gap_from_ts`, `gap_to_ts`
-
-Run-level metadata includes reproducibility and run context fields:
-
-- `run_datetime_utc`, `inputs_hash`, `gap_mode`
-
-Scoring is a weighted blend of gap, volume/liquidity, macro context, and optional news inputs;
-exact weights/clamps are defined in implementation and may evolve with controlled changes.
-
-### Open-Prep Live Monitor (Streamlit)
-
-Für einen laufenden Monitor mit automatischem Refresh alle 15 Sekunden:
-
-- Start: `streamlit run open_prep/streamlit_monitor.py`
-- Die App ruft bei jedem Refresh die Datenquellen neu über `generate_open_prep_result(...)` ab.
-- Parameter (Symbole, Gap-Mode, ATR-Settings, Pre-Open-Filter) sind in der Sidebar einstellbar.
-- v2 candidate view supports realtime-assisted surfacing:
-  - symbols with active `A0`/`A1` signals that were only `below_top_n_cutoff` in pipeline scoring
-    are auto-promoted into a dedicated **🔥 RT-PROMOTED** section.
-  - this prevents high-momentum symbols from being hidden purely due to snapshot cutoff timing.
-
-## Sideways/Chop semantics (quick)
-
-- `sidewaysVisual`: visual consolidation state for dots/alerts (UX layer).
-- `chopRisk`: score-layer chop risk used to shape/veto score injections.
-- `usiTightSpread`: strict USI verify compression check (verification layer).
-
-These names separate chart UX, score risk handling, and USI verification strictness.
-For the full explanation, see `docs/TRADINGVIEW_STRATEGY_GUIDE.md` (section **L**).
-
-Global score floor note:
-
-- `Enforce score min pU/pD on all entries` does **not** block `REV-BUY`.
-- `REV-BUY` uses its own reversal probability gates (`revMinProb` + reversal/open-window path).
-
-## Cooldown same-bar toggles (indicator)
-
-In `SkippALGO.pine` (indicator), cooldown behavior now has symmetric same-bar re-entry controls:
-
-- `Allow same-bar BUY after COVER`
-- `Allow same-bar SHORT after EXIT`
-
-Default behavior remains conservative (`false`): re-entry waits until the next bar.
-
-Cooldown trigger modes now support:
-
-- `ExitsOnly` (default): cooldown timer updates on `EXIT`/`COVER`
-- `AllSignals`: timer updates on every signal (`BUY`/`SHORT`/`EXIT`/`COVER`)
-- `EntriesOnly`: timer updates only on entries (`BUY`/`SHORT`)
-
-Timing note:
-
-- State machine order is exits first, then entries per confirmed bar. A newly opened `BUY`/`SHORT` on bar $N$ cannot be exited on bar $N$; earliest `EXIT`/`COVER` is bar $N+1$.
-- With `cooldownBars = 1`, entry cooldown check uses `bar_index - lastSignalBar > cooldownBars`, so new entries are blocked on $N+1$ and allowed again from $N+2$.
-- Strategy/Indicator note: with `cooldownTriggers = EntriesOnly` and `cooldownBars >= 1`, exits are hold-gated by entry bar index; for `cooldownBars = 1`, generic exits are earliest on bar $N+2$.
-- Exceptions in `EntriesOnly` mode: only protective `SL`/`TP` and directional engulfing exits can bypass the hold gate immediately after entry.
-- `USI-FLIP` does **not** bypass `EntriesOnly` hold; it remains blocked until the hold window is over.
-
-## Documentation
-
-- **Bloomberg Terminal — Architecture & Plan:** `docs/BLOOMBERG_TERMINAL_PLAN.md`
-- **Open Prep Suite — technische Vollreferenz:** `docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md`
-- **Open Prep Suite — Ops Quick Reference (24/7):** `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md`
-- **Open Prep Suite — Incident Runbook Matrix:** `docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md`
-- **Open Prep Suite — Incident One-Page (Markdown):** `docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md`
-- **Open Prep Suite — Incident One-Page (Print HTML):** `docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE_PRINT.html`
-- **Open Prep Suite — Code Reviews:** `docs/REVIEW_open_prep_suite.md`, `docs/REVIEW_open_prep_v2_post_fixes.md`
-- **Deep technical documentation:** `docs/SkippALGO_Deep_Technical_Documentation.md`
-- **Deep technical documentation (current):** `docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md`
-- **Kurzfassung für neue Nutzer:** `docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md`
-- **Roadmap enhancements:** `docs/SkippALGO_Roadmap_Enhancements.md`
-- **Functional test matrix (behavior-driven):** `docs/FUNCTIONAL_TEST_MATRIX.md`
-- **RFC v6.4 (Adaptive Zero-Lag + Regime Classifier):** `docs/RFC_v6.4_AdaptiveZeroLag_RegimeClassifier.md`
-- **Wiki (local mirror):** `docs/wiki/Home.md`
-- **Changelog:** `CHANGELOG.md`
-
-## Developer quality checks (Python workspace)
-
-For the Python modules (`newsstack_fmp`, `open_prep`, `terminal_*`, `streamlit_terminal`), the repository uses a documented quality gate with `pytest`, `ruff`, `mypy`, and Pylance/Pyright.
-
-- Test suite (1599 tests): `python -m pytest tests/ -q`
-- Linting: `ruff check newsstack_fmp/ open_prep/ terminal_poller.py terminal_export.py terminal_spike_scanner.py terminal_background_poller.py`
-- Type-checking: `mypy newsstack_fmp/ terminal_poller.py terminal_export.py`
-- Coverage (core modules):
-  - `python -m pytest tests/ -q --cov=newsstack_fmp --cov=terminal_poller --cov=terminal_export --cov-report=term-missing`
+# Pylance/Pyright: 0 workspace errors (verified 28 Feb 2026)
+```
 
 Configuration is centralized in `pyproject.toml`.
-Pylance/Pyright: 0 workspace errors (verified 27 Feb 2026).
 
-## Recent changes (Feb 2026)
+### Project Structure
 
-- **Latest (27 Feb 2026) — Benzinga full API coverage + Intelligence dashboards:**
-  - **Full Benzinga API coverage:** 3 news endpoints (top news, channels, quantified), 5 calendar endpoints (dividends, splits, IPOs, guidance, retail), 20+ financial data methods (fundamentals, ratios, profiles, price history, options activity, charts) via new `BenzingaFinancialAdapter`.
-  - **Benzinga Intelligence — Terminal:** Expanded from 3 to 11 sub-tabs (added Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified, Options Flow).
-  - **Benzinga Intelligence — Open Prep:** New 8-tab Benzinga Intelligence section in `open_prep/streamlit_monitor.py` (Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified, Options).
-  - **VisiData enrichment:** Per-ticker enrichment columns (`div_exdate`, `div_yield`, `guid_eps`, `options_flow`) + standalone Benzinga Calendar JSONL export.
-  - **Channels & topics filtering:** `channels` and `topics` params wired into REST/WS adapters, Config, terminal_poller.
-  - 103 new tests across 4 files. Verification: **1599 passed**, 0 lint errors.
+```
+skipp-algo/
+├── streamlit_terminal.py          # Main Bloomberg-style terminal (17 tabs)
+├── terminal_poller.py             # Polling engine (news + FMP + classification)
+├── terminal_bitcoin.py            # Bitcoin data (10 sources)
+├── terminal_newsapi.py            # NewsAPI.ai integration
+├── terminal_spike_scanner.py      # FMP spike scanner
+├── terminal_spike_detector.py     # RT spike detector
+├── terminal_technicals.py         # TradingView TA
+├── terminal_forecast.py           # Analyst forecasts (FMP + yfinance)
+├── terminal_notifications.py      # Push notifications (Telegram/Discord/Pushover)
+├── terminal_export.py             # JSONL/VisiData export + webhooks
+├── terminal_feed_lifecycle.py     # Feed staleness detection + auto-recovery
+├── terminal_background_poller.py  # Threaded background poll loop
+├── terminal_ui_helpers.py         # UI formatting + sentiment helpers
+│
+├── newsstack_fmp/                 # News pipeline library
+│   ├── ingest_benzinga.py         # Benzinga REST + WebSocket adapter
+│   ├── ingest_benzinga_calendar.py # Benzinga calendar adapter
+│   ├── ingest_benzinga_financial.py # Benzinga financial data adapter
+│   ├── ingest_fmp.py              # FMP news adapter
+│   ├── scoring.py                 # Impact/clarity/polarity scoring
+│   ├── store_sqlite.py            # SQLite dedup store
+│   ├── pipeline.py                # Ingestion pipeline orchestrator
+│   ├── normalize.py               # Article normalization
+│   ├── enrich.py                  # Entity + ticker enrichment
+│   └── config.py                  # Pipeline configuration
+│
+├── open_prep/                     # Pre-open briefing pipeline
+│   ├── streamlit_monitor.py       # Open-Prep Streamlit monitor
+│   ├── run_open_prep.py           # Pipeline runner (17 stages)
+│   ├── macro.py                   # FMP + Finnhub macro data
+│   ├── news.py                    # News scoring
+│   ├── realtime_signals.py        # RT signal engine
+│   ├── playbook.py                # Setup classification
+│   ├── outcomes.py                # Outcome tracking
+│   ├── alerts.py                  # Alert configuration
+│   └── watchlist.py               # Symbol watchlist management
+│
+├── tests/                         # 1 674 tests
+├── scripts/                       # VisiData launchers, export scripts
+├── docs/                          # Technical docs, reviews, runbooks
+├── *.pine                         # TradingView Pine Script v6
+├── pyproject.toml                 # Centralized config (pytest/ruff/mypy)
+├── requirements.txt               # Python dependencies
+└── CHANGELOG.md                   # Full changelog
+```
 
-- **Previous (27 Feb 2026) — Benzinga delayed-quote overlay + production hardening:**
-  - Benzinga delayed quotes overlaid on stale FMP data during pre-market/after-hours across terminal spike scanner, VisiData, Rankings tab, and open_prep Streamlit monitor.
-  - Market-session detection (`market_session()`) with canonical `SESSION_ICONS` in `terminal_spike_scanner.py`.
-  - Benzinga calendar, movers, and quotes adapters with 79 tests.
-  - 3 production readiness review cycles: 12 bugs fixed (cache key thrashing, falsy `or` patterns, unconditional API calls, BZ column ordering, etc.).
-  - Full Pylance/Pyright lint cleanup: 0 workspace errors.
-  - Terminal UI: clickable headline links, ring-buffer eviction, optional imports for Streamlit Cloud.
+---
 
-- **Previous (26 Feb 2026) — Python docs + quality hardening update:**
-  - Added `pyproject.toml` as the central configuration for:
-    - `pytest` discovery/options,
-    - `ruff` lint rules,
-    - `mypy` type-checking profile,
-    - coverage thresholds/reporting.
-  - Added focused Python coverage expansion in `tests/test_coverage_gaps.py`.
-  - Updated terminal/newsstack test expectations for current runtime contracts (for example `cluster_hash` signature and VisiData snapshot columns).
-  - Verification:
-    - full suite green (**1116 passed, 34 subtests passed**),
-    - lint clean (**ruff: all checks passed**),
-    - type-check clean (**mypy: no issues found**),
-    - core Python coverage improved to **83%**.
+## Documentation Index
 
-- **Latest (25 Feb 2026) — Open-Prep Streamlit v2 realtime auto-promotion:**
-  - Added auto-promotion of realtime `A0`/`A1` symbols from `below_top_n_cutoff` into displayed v2 candidates.
-  - Added dedicated **🔥 RT-PROMOTED** section in the monitor.
-  - Cross-reference “missing from v2” now excludes already-promoted symbols (shows only hard-filtered / not-in-universe cases).
-  - Added focused regression coverage in `tests/test_rt_promotion.py`.
-  - Verification: full test suite green (**985 passed, 34 subtests passed**).
+### Terminal & Operations
 
-- **Latest (v6.3.13b — 16 Feb 2026) — Alert Surface + Consolidation UX:**
-  - Added dedicated alert conditions in **indicator + strategy**:
-    - `REV-BUY`
-    - `REV-SHORT`
-    - `CONSOLIDATION` (fires on consolidation phase entry: `trendSide and not trendSide[1]`)
-  - Consolidated runtime alert labeling now prioritizes reversal labels (`REV-BUY`/`REV-SHORT`) over generic `BUY`/`SHORT` when applicable.
-  - Consolidation dot coloring in indicator refined:
-    - USI short state (`usiStackDir == -1`) → reddish dot,
-    - otherwise → orange dot.
+- [Bloomberg Terminal Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
+- [Open Prep Suite — Technical Reference](docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
+- [Open Prep Suite — Ops Quick Reference](docs/OPEN_PREP_OPS_QUICK_REFERENCE.md)
+- [Open Prep Suite — Incident Runbook Matrix](docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md)
+- [Open Prep Suite — Incident Runbook (One-Page)](docs/OPEN_PREP_INCIDENT_RUNBOOK_ONEPAGE.md)
+- [TradersPost Integration](docs/TRADERSPOST_INTEGRATION.md)
+- [TradingView Strategy Guide](docs/TRADINGVIEW_STRATEGY_GUIDE.md)
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
 
-- **Latest (v6.3.13a — 16 Feb 2026) — Intrabar Default for Alerts/Labels:**
-  - `Alerts: bar close only` now defaults to `false` in both indicator and strategy.
-  - BUY/SHORT/EXIT/COVER and PRE-BUY/PRE-SHORT alerts + labels are intrabar-first by default (realtime preview pulses).
-  - Users can still force close-confirmed behavior by setting `Alerts: bar close only = true`.
+### Pine Script
 
-- **Latest (v6.3.13 — 16 Feb 2026) — Parity Hardening + Wiring Completion:**
-  - Restored strict Strategy entry-gate parity with Indicator (`reliability/evidence/eval/decision`).
-  - Added missing Strategy runtime modules for dynamic risk adaptation:
-    - Dynamic TP expansion (preset-aware effective mapping + trend/conf gates),
-    - Dynamic SL profile (widen/tighten phases + trend/conf gates).
-  - Wired previously dormant ChoCH volume requirement (`chochReqVol`) in both scripts.
-  - Completed structure tag wiring:
-    - Strategy now plots BOS/ChoCH tags,
-    - Indicator now plots BOS tags in addition to ChoCH.
-  - Verification: full suite green (**386 passed**).
+- [Deep Technical Documentation](docs/SkippALGO_Deep_Technical_Documentation.md)
+- [Deep Technical Documentation (v6.2.22)](docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md)
+- [Market Structure Guide](docs/SkippALGO_Market_Structure.md)
+- [Tuning Guide](docs/SkippALGO_Tuning_Guide.md)
+- [Kurzfassung für Nutzer](docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md)
 
-- **Latest (v6.3.12 — 15 Feb 2026) — Phase-3 Quality Tuning (Regime Hysteresis):**
-  - Added regime transition stability controls (both scripts):
-    - `regimeMinHoldBars`
-    - `regimeShockReleaseDelta`
-  - Implemented latched regime state flow:
-    - `rawRegime2State` (instant classifier output)
-    - `regime2State` + `regime2HoldBars` (hysteresis-governed effective state)
-  - VOL_SHOCK now persists until ATR percentile cools below the configured release threshold (reduces flapping around shock boundary).
-  - Added parity regression lock:
-    - `tests/test_score_engine_parity.py::test_phase3_regime_hysteresis_parity`
-  - Added behavioral snapshot coverage for hysteresis edge cases:
-    - `tests/test_functional_features.py::TestPhase3RegimeHysteresisBehavior`
-    - includes flapping damping and VOL_SHOCK sticky-release scenarios.
-  - Verification: full test suite green (**384 passed**).
+### Architecture & Planning
 
-- **Latest (v6.3.11 — 15 Feb 2026) — Phase-2 Opt-In Wiring (Adaptive Zero-Lag + Regime Classifier):**
-  - Wired trend-core output directly into trend regime/strength decisions:
-    - `trendReg = f_trend_regime(trendCoreFast, trendCoreSlow, atrNormHere)`
-    - `trendStrength = f_trend_strength(trendCoreFast, trendCoreSlow)`
-  - Added regime-driven effective mappings under safe opt-in gate (`useRegimeClassifier2` + `regimeAutoPreset`):
-    - `cooldownBarsEff`
-    - `chochMinProbEff`
-    - `abstainOverrideConfEff`
-  - Switched ChoCH filters and abstain override to their effective thresholds for regime-aware behavior.
-  - Preserved safe defaults: behavior is unchanged unless the new regime classifier path is explicitly enabled.
-  - Added/updated parity regression checks:
-    - `tests/test_score_engine_parity.py` (`test_phase2_optin_wiring_parity`)
-    - trend-regime expectation updates in indicator/strategy test suites.
-  - Verification: full test suite green (**378 passed**).
+- [RFC v6.4 — Adaptive Zero-Lag + Regime Classifier](docs/RFC_v6.4_AdaptiveZeroLag_RegimeClassifier.md)
+- [Roadmap Enhancements](docs/SkippALGO_Roadmap_Enhancements.md)
 
-- **Latest (v6.3.10 — 15 Feb 2026) — Phase-1 Scaffold (Adaptive Zero-Lag + Regime Classifier):**
-  - Added default-off Phase-1 scaffold inputs in both scripts:
-    - `useZeroLagTrendCore`, `trendCoreMode`, `zlTrendLenFast/Slow`, `zlTrendAggressiveness`, `zlTrendNoiseGuard`
-    - `useRegimeClassifier2`, `regimeLookback`, `regimeAtrShockPct`, `regimeAdxTrendMin`, `regimeHurstRangeMax`, `regimeChopBandMax`, `regimeAutoPreset`
-  - Added derived internal helper logic (`f_zl_trend_core`, `f_hurst_proxy`) and non-invasive runtime diagnostics (`regime2State`, `regime2Name`).
-  - Added hidden Data Window debug plots under `showPhase1Debug` for trend-core/regime observability.
-  - Added parity + functional tests for the Phase-1 scaffold and invariance behavior.
+### Reviews & Reports
 
-- **Latest (v6.3.9 — 15 Feb 2026) — CI + Test Coverage Hardening:**
-  - Added behavior-driven functional coverage in `tests/test_functional_features.py` (gates, open-window/strict, engines, risk-exit, reversals, flag matrix, invariants, golden snapshots).
-  - Added label/display regression coverage in `tests/test_label_display_regression.py` (payload/style/color contracts and event→label family mapping).
-  - Added functional test documentation in `docs/FUNCTIONAL_TEST_MATRIX.md`.
-  - Hardened CI workflow (`.github/workflows/ci.yml`) with explicit permissions, concurrency cancel-in-progress, workflow dispatch, timeout, and strict pytest guard.
-  - Synced script headers/titles and docs references to `v6.3.9`.
+- [Comprehensive Audit Report](docs/AUDIT_REPORT_Comprehensive.md)
+- [Functional Test Matrix](docs/FUNCTIONAL_TEST_MATRIX.md)
+- [TradingView Test Checklist](docs/TRADINGVIEW_TEST_CHECKLIST.md)
 
-- **Latest (15 Feb 2026) — USI behavior + safety hardening:**
-  - Added **Entry Presets** for Score Engine tuning:
-    - `entryPreset = Manual | Intraday | Swing`
-    - Presets drive effective score thresholds/weights/probability floors (`*_Eff`) without changing your manual inputs.
-  - Added optional **Preset-controlled Cooldown**:
-    - `presetAutoCooldown` (default `false`)
-    - when enabled with Intraday/Swing, cooldown uses effective preset profile (Bars + ExitsOnly, with profile minutes).
-  - Added optional **hard confidence gate** for score entries:
-    - `scoreUseConfGate`
-    - `scoreMinConfLong`, `scoreMinConfShort`
-    - **Default now enabled** with balanced floors:
-      - `scoreUseConfGate = true`
-      - `scoreMinConfLong = 0.50`
-      - `scoreMinConfShort = 0.50`
-  - Added optional **USI Red de-lag path (Option 2)** with:
-    - `useUsiZeroLagRed`
-    - `usiZlAggressiveness`
-  - Added **hard USI state veto** for score-based entries:
-    - no BUY while USI is bearish,
-    - no SHORT while USI is bullish.
-  - Refined **USI touch/cross handling** for practical flip timing (Red vs Blue/Envelope touch transitions are now recognized more reliably).
-  - Extended parity regression checks in `tests/test_score_engine_parity.py` for the new USI controls and blocking logic.
-  - Refined Score Engine merge behavior:
-    - score path can inject entries again (`engine OR score`),
-    - but active chop now hard-vetoes entries via `chopVeto`.
-  - Added score injection directional-context gate (`scoreRequireDirectionalContext`, default ON):
-    - score BUY injection requires bullish context,
-    - score SHORT injection requires bearish context.
-  - Added debug visibility for chop blocking with `veto:0/1` in score debug labels.
-  - Added debug visibility for score context and blockers:
-    - `ctxL:0/1`, `ctxS:0/1` (directional context pass/fail),
-    - explicit blocker line (for example `BLOCK:IN_POSITION`),
-    - safe last-signal age formatting (`LS:...@n/a` when unavailable).
-  - Unified exit trigger behavior is now explicit and parity-locked for both LONG and SHORT:
-    - `riskExitHit (TP/SL/Trailing) OR usiExitHit OR engExitHit`.
-    - First trigger wins and closes the active position.
-  - Restored cooldown semantics on exits/covers:
-    - with `cooldownTriggers = ExitsOnly` or `AllSignals`, cooldown timestamps are updated on both EXIT and COVER events.
-  - Dynamic risk profile defaults:
-    - `Dynamic TP Expansion` is ON by default,
-    - `Dynamic SL Profile` is ON by default.
-  - Strategy compile-budget hardening:
-    - score debug payload was compacted,
-    - strategy table rendering was removed (visual-only) to reduce Pine token load,
-    - trading logic and Indicator/Strategy parity remain intact.
+### Changelog
 
-- **Latest (v6.3.5 — 14 Feb 2026) — Score Engine (Option C):**
-  - **New Entry Path**: "Score Engine" (Option C) allows high-quality setups (USI Cross, Liquidity Sweeps) to trigger entries independent of the rigid Engine logic.
-  - **Fail-Open Design**: Missing feature data (e.g., waiting for USI calculation) contributes 0 points rather than blocking the trade.
-  - **Risk Safety**: Score entries strictly respect the global **Drawdown Hard Gate (`ddOk`)** to prevent trading during portfolio risk events.
-  - **Parity**: Fully synchronized between Strategy and Indicator.
+- [Full Changelog](CHANGELOG.md)
 
-- **Previous (v6.3.4 — 14 Feb 2026) — Final Parity Release:**
-  - **Strategy Fix (v6.3.4)**: Applied `plotchar` scope fix to Strategy script (parity with Indicator).
-  - **Syntax Fix (v6.3.3)**: Moved `plotchar()` from local scope to global scope (Pine Script requirement).
-  - **Syntax Fix (v6.3.2)**: Replaced `color.cyan` with `color.aqua`.
-  - **Syntax Fix (v6.3.1)**: Removed erratic duplicate code block.
-  - **Cooldown Fix (v6.3.0)**: `cooldownMode` "Minutes" support.
-  - **Fast Entries (v6.3.0)**: `cooldownTriggers` "ExitsOnly" logic explicitly allows add-on entries.
-  - **QuickALGO (v6.3.0)**: Optimized to Score+Verify logic; fixed MTF repainting.
-  - **Validation**: Full regression test suite passed (339 tests).
-  - **Pine Hardening**: Fixed type-safety issues in `ta.barssince` logic across all scripts.
-
-- **Latest (12 Feb 2026) — QuickALGO signal/context upgrade:**
-  - Added optional **3-candle engulfing filter** (default OFF) in both indicator and strategy:
-    - Long entries require bullish engulfing after 3 bearish candles.
-    - Short entries require bearish engulfing after 3 bullish candles.
-    - Optional body-dominance check (`body > previous body`).
-    - Optional engulfing bar coloring (bullish yellow / bearish white).
-  - Added optional **ATR volatility context layer** (default OFF) in both scripts:
-    - Regime overlay: `COMPRESSION`, `EXPANSION`, `HIGH VOL`, `EXHAUSTION`.
-    - Regime label with ATR ratio.
-    - Optional ATR percentile context (`0..100`) with configurable lookback.
-  - All additions were implemented with **Indicator ⇄ Strategy parity** and validated without diagnostics errors.
-
-- **Latest (12 Feb 2026) — PRE label intelligence + parity hardening:**
-  - PRE labels were upgraded from static `plotshape` markers to dynamic `label.new()` payloads in **both** scripts.
-  - PRE-BUY / PRE-SHORT now show:
-    - trigger **Gap** in ATR units (distance-to-trigger),
-    - directional probability (`pU` / `pD`),
-    - model confidence (`Conf`).
-  - Gap semantics are engine-aware:
-    - **Hybrid:** close ↔ EMA fast distance
-    - **Breakout:** close ↔ swing high/low distance
-    - **Trend+Pullback:** EMA flip/reclaim proximity
-    - **Loose:** close ↔ EMA fast proximity
-  - ChoCH behavior was aligned back to v6.2.18 intent:
-    - visual ChoCH structure tags are not probability-filtered,
-    - `chochMinProb` remains an entry-level gate (not a visual marker gate).
-
-- **TradingView settings persistence:**
-  - Script titles were stabilized to avoid input resets on updates:
-    - `indicator("SkippALGO", ...)`
-    - `strategy("SkippALGO Strategy", ...)`
-- **REV probability controls (clarified and exposed):**
-  - Added `REV: Min dir prob` (`revMinProb`, default `0.50`) for the normal REV entry path.
-  - `Rescue Mode: Min Probability` (`rescueMinProb`) continues to govern only the rescue fallback path (with huge volume + impulse).
-- **Open-window behavior:**
-  - Near market open (±window), directional probability bypass (`pU`/`pD`) can be configured by side, mode, and engine scope for standard and reversal entries.
-- **Exit/Cover label formatting:**
-  - Long first line was split into multiple rows for better readability on chart labels.
-- **Watchlist alert stability:**
-  - Reworked alert dispatch to send at most **one consolidated `alert()` per bar** per symbol (instead of multiple independent alert calls), reducing TradingView throttling / “eingeschränkte Funktionalität” risk on large watchlists.
-
-- **Parity fixes (Indicator ⇄ Strategy):**
-  - Loose engine now applies `enhLongOk/enhShortOk` consistently in both scripts.
-  - `barsSinceEntry` now starts at `0` on the entry bar in both scripts (no risk-decay tightening on the entry bar) and uses `>=` for `canStructExit`.
-  - Regression Slope (RegSlope) subsystem is now supported in the Strategy as well (inputs + helpers + gating in `enhLongOk/enhShortOk`).
-- **Governance:** added regression tests to lock these behaviors and keep future edits honest.
-
-## Current verification status
-
-- **Pytest:** See latest CI run attached to the active pull request (count evolves as tests are added).
-- Includes dedicated regression coverage for:
-  - PRE-BUY / PRE-SHORT signal plumbing and dynamic label payloads,
-  - BUY / REV-BUY / EXIT label + alert wiring,
-  - Indicator/Strategy parity-critical entry/exit invariants.
+---
 
 ## License
 

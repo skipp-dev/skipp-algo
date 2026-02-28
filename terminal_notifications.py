@@ -28,6 +28,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -119,28 +120,32 @@ def _is_market_hours() -> bool:
 # ---------------------------------------------------------------------------
 
 _last_notified: dict[str, float] = {}
+_throttle_lock = threading.Lock()
 _THROTTLE_DICT_MAX = 500
 
 
 def _is_throttled(symbol: str, throttle_s: int) -> bool:
     now = time.time()
-    last = _last_notified.get(symbol, 0.0)
+    with _throttle_lock:
+        last = _last_notified.get(symbol, 0.0)
     return (now - last) < throttle_s
 
 
 def _mark_notified(symbol: str) -> None:
-    _last_notified[symbol] = time.time()
-    # Evict old entries
-    if len(_last_notified) > _THROTTLE_DICT_MAX:
-        now = time.time()
-        stale = [k for k, v in _last_notified.items() if (now - v) > 3600]
-        for k in stale:
-            del _last_notified[k]
+    with _throttle_lock:
+        _last_notified[symbol] = time.time()
+        # Evict old entries
+        if len(_last_notified) > _THROTTLE_DICT_MAX:
+            now = time.time()
+            stale = [k for k, v in _last_notified.items() if (now - v) > 3600]
+            for k in stale:
+                del _last_notified[k]
 
 
 def reset_throttle() -> None:
     """Clear the throttle state (used on session reset)."""
-    _last_notified.clear()
+    with _throttle_lock:
+        _last_notified.clear()
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Bloomberg Terminal — Real-Time News Intelligence Dashboard.
 
 Features:
-- Multi-source ingestion (Benzinga + FMP)
+- Multi-source news ingestion
 - Enhanced NLP: 16-category event classifier, relevance scoring, entity analysis
 - Full-text search + date filters on Live Feed
 - Economic Calendar (FMP API)
@@ -64,6 +64,7 @@ _load_env_file(PROJECT_ROOT / ".env")
 
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
+from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from open_prep.playbook import classify_recency as _classify_recency
 from terminal_background_poller import BackgroundPoller
 from terminal_export import (
@@ -80,55 +81,22 @@ from terminal_poller import (
     ClassifiedItem,
     DEFENSE_TICKERS,
     TerminalConfig,
-    compute_power_gaps,
     compute_tomorrow_outlook,
-    fetch_benzinga_channel_list,
-    fetch_benzinga_conference_calls,
     fetch_benzinga_delayed_quotes,
-    fetch_benzinga_dividends,
-    fetch_benzinga_earnings,
-    fetch_benzinga_economics,
-    fetch_benzinga_guidance,
-    fetch_benzinga_insider_transactions,
-    fetch_benzinga_ipos,
     fetch_benzinga_market_movers,
-    fetch_benzinga_news_by_channel,
-    fetch_benzinga_quantified,
-    fetch_benzinga_ratings,
-    fetch_benzinga_retail,
-    fetch_benzinga_splits,
-    fetch_benzinga_top_news_items,
     fetch_defense_watchlist,
     fetch_economic_calendar,
     fetch_industry_performance,
     fetch_sector_performance,
+    fetch_ticker_sectors,
     poll_and_classify_multi,
 )
 
-try:
-    from terminal_poller import (
-        fetch_benzinga_auto_complete as _tp_auto_complete,
-        fetch_benzinga_company_profile as _tp_company_profile,
-        fetch_benzinga_financials as _tp_financials,
-        fetch_benzinga_fundamentals as _tp_fundamentals,
-        fetch_benzinga_logos as _tp_logos,
-        fetch_benzinga_options_activity as _tp_options_activity,
-        fetch_benzinga_price_history as _tp_price_history,
-        fetch_benzinga_ticker_detail as _tp_ticker_detail,
-    )
-except ImportError:
-    _tp_auto_complete = None  # type: ignore[assignment]
-    _tp_company_profile = None  # type: ignore[assignment]
-    _tp_financials = None  # type: ignore[assignment]
-    _tp_fundamentals = None  # type: ignore[assignment]
-    _tp_logos = None  # type: ignore[assignment]
-    _tp_options_activity = None  # type: ignore[assignment]
-    _tp_price_history = None  # type: ignore[assignment]
-    _tp_ticker_detail = None  # type: ignore[assignment]
 
 from terminal_spike_scanner import (
     SESSION_ICONS,
     build_spike_rows,
+    enrich_with_batch_quote,
     fetch_gainers,
     fetch_losers,
     fetch_most_active,
@@ -163,6 +131,66 @@ from terminal_ui_helpers import (
     safe_url,
     split_segments_by_sentiment,
 )
+from terminal_technicals import (
+    TechnicalResult,
+    fetch_technicals,
+    fetch_multi_interval,
+    signal_icon,
+    signal_label,
+    summary_badge,
+    INTERVAL_MAP,
+    _SIGNAL_ICON,
+    _SIGNAL_LABEL,
+)
+from terminal_forecast import (
+    ForecastResult,
+    fetch_forecast,
+    price_target_badge,
+    rating_badge,
+)
+from terminal_newsapi import (
+    BreakingEvent,
+    EventCluster,
+    NLPSentiment,
+    SocialArticle,
+    TrendingConcept,
+    fetch_breaking_events,
+    fetch_event_articles,
+    fetch_event_clusters,
+    fetch_nlp_sentiment,
+    fetch_social_ranked_articles,
+    fetch_trending_concepts,
+    get_token_usage,
+    has_tokens,
+    nlp_vs_keyword_badge,
+    sentiment_badge as newsapi_sentiment_badge,
+    is_available as newsapi_available,
+)
+from terminal_bitcoin import (
+    BTCQuote,
+    BTCTechnicals,
+    BTCSupply,
+    BTCOutlook,
+    FearGreed,
+    CryptoMover,
+    CryptoListing,
+    fetch_btc_quote,
+    fetch_btc_ohlcv,
+    fetch_btc_ohlcv_10min,
+    fetch_btc_technicals,
+    fetch_fear_greed,
+    fetch_crypto_movers,
+    fetch_crypto_listings,
+    fetch_btc_supply,
+    fetch_btc_news,
+    fetch_btc_outlook,
+    format_large_number,
+    format_btc_price,
+    format_supply,
+    technicals_signal_label,
+    technicals_signal_icon,
+    is_available as btc_available,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +211,309 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+
+def _bz_tier_warning(label: str, fallback: str) -> None:
+    """Show tier-limited warning if endpoint is known-blocked, else info."""
+    if label in _WARNED_ENDPOINTS:
+        st.warning(f"⚠️ {label} – endpoint not available on your API plan.")
+    else:
+        st.info(fallback)
+
+
+# ── Technical Analysis UI helper ────────────────────────────────
+
+
+def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech") -> None:
+    """Render a TradingView Technical Analysis expander for a list of symbols.
+
+    Shows interval selector, summary gauges, oscillator + MA detail tables.
+    Only renders if the ``tradingview_ta`` library is available and at least
+    one symbol is provided.
+    """
+    if not INTERVAL_MAP or not symbols:
+        return
+
+    with st.expander("📊 Technical Data", expanded=False):
+        _tc1, _tc2 = st.columns([1, 3])
+        with _tc1:
+            _sel_sym = st.selectbox(
+                "Symbol",
+                symbols[:50],
+                key=f"{key_prefix}_sym",
+            )
+        with _tc2:
+            _sel_iv = st.selectbox(
+                "Interval",
+                list(INTERVAL_MAP.keys()),
+                index=list(INTERVAL_MAP.keys()).index("1D"),
+                key=f"{key_prefix}_iv",
+            )
+
+        if _sel_sym and _sel_iv:
+            _tech = fetch_technicals(_sel_sym, _sel_iv)
+
+            if _tech.error:
+                st.warning(f"No technical data: {_tech.error}")
+                return
+
+            # ── Summary gauge ────────────────────────────────
+            st.markdown(f"### {_sel_sym} · Technical Data · {_sel_iv}")
+
+            _g1, _g2, _g3 = st.columns(3)
+            with _g1:
+                _s_icon = signal_icon(_tech.summary_signal)
+                _s_label = signal_label(_tech.summary_signal)
+                st.metric("Summary", f"{_s_icon} {_s_label}")
+                st.caption(f"Buy {_tech.summary_buy} · Neutral {_tech.summary_neutral} · Sell {_tech.summary_sell}")
+            with _g2:
+                _o_icon = signal_icon(_tech.osc_signal)
+                _o_label = signal_label(_tech.osc_signal)
+                st.metric("Oscillators", f"{_o_icon} {_o_label}")
+                st.caption(f"Buy {_tech.osc_buy} · Neutral {_tech.osc_neutral} · Sell {_tech.osc_sell}")
+            with _g3:
+                _m_icon = signal_icon(_tech.ma_signal)
+                _m_label = signal_label(_tech.ma_signal)
+                st.metric("Moving Averages", f"{_m_icon} {_m_label}")
+                st.caption(f"Buy {_tech.ma_buy} · Neutral {_tech.ma_neutral} · Sell {_tech.ma_sell}")
+
+            # ── Multi-interval summary strip ─────────────────
+            _strip_intervals = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1D", "1W", "1M"]
+            _strip_cols = st.columns(len(_strip_intervals))
+            for _si, _siv in enumerate(_strip_intervals):
+                with _strip_cols[_si]:
+                    if _siv == _sel_iv:
+                        # Already fetched
+                        _sr = _tech
+                    else:
+                        _sr = fetch_technicals(_sel_sym, _siv)
+                    if _sr.error:
+                        st.caption(f"**{_siv}**\n—")
+                    else:
+                        _si_icon = signal_icon(_sr.summary_signal)
+                        _si_lbl = signal_label(_sr.summary_signal)
+                        st.caption(f"**{_siv}**\n{_si_icon} {_si_lbl}")
+
+            # ── Oscillator detail table ──────────────────────
+            _osc_tab, _ma_tab = st.tabs(["Oscillators", "Moving Averages"])
+
+            with _osc_tab:
+                if _tech.osc_detail:
+                    _osc_rows = []
+                    for d in _tech.osc_detail:
+                        _a = d["action"]
+                        _a_icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(_a, "")
+                        _osc_rows.append({
+                            "Name": d["name"],
+                            "Value": d["value"] if d["value"] is not None else "—",
+                            "Action": f"{_a_icon} {_a}",
+                        })
+                    st.dataframe(
+                        pd.DataFrame(_osc_rows),
+                        width='stretch',
+                        hide_index=True,
+                        height=min(500, 40 + 35 * len(_osc_rows)),
+                    )
+                else:
+                    st.info("No oscillator data available.")
+
+            with _ma_tab:
+                if _tech.ma_detail:
+                    _ma_rows = []
+                    for d in _tech.ma_detail:
+                        _a = d["action"]
+                        _a_icon = {"BUY": "🟢", "SELL": "🔴", "NEUTRAL": "🟡"}.get(_a, "")
+                        _ma_rows.append({
+                            "Name": d["name"],
+                            "Value": d["value"] if d["value"] is not None else "—",
+                            "Action": f"{_a_icon} {_a}",
+                        })
+                    st.dataframe(
+                        pd.DataFrame(_ma_rows),
+                        width='stretch',
+                        hide_index=True,
+                        height=min(500, 40 + 35 * len(_ma_rows)),
+                    )
+                else:
+                    st.info("No moving average data available.")
+
+
+def _render_event_clusters_expander(symbols: list[str], *, key_prefix: str = "ec") -> None:
+    """Render an event-clustered news expander for a list of symbols.
+
+    Groups articles by event (story) using NewsAPI.ai, reducing noise
+    compared to showing individual articles per ticker.
+    """
+    if not symbols or not newsapi_available():
+        return
+
+    with st.expander("📰 Event-Clustered News (NewsAPI.ai)", expanded=False):
+        _ec_sym = st.selectbox(
+            "Symbol",
+            symbols[:50],
+            key=f"{key_prefix}_sym",
+        )
+        if not _ec_sym:
+            return
+
+        clusters = fetch_event_clusters(_ec_sym, count=8, hours=48)
+        if not clusters:
+            st.info(f"No event clusters found for {_ec_sym} in the last 48h.")
+            return
+
+        st.caption(f"**{_ec_sym}** — {len(clusters)} stories grouped by event · Source: NewsAPI.ai")
+
+        for _ci, cluster in enumerate(clusters):
+            _c_title = cluster.title or "(Untitled event)"
+            _c_sources = ", ".join(cluster.sources[:3]) if cluster.sources else ""
+
+            with st.expander(
+                f"{cluster.sentiment_icon} **{_c_title[:100]}** — "
+                f"📰 {cluster.article_count} articles · {cluster.event_date}",
+                expanded=(_ci == 0),
+            ):
+                _ec1, _ec2, _ec3 = st.columns(3)
+                with _ec1:
+                    st.metric("Articles", cluster.article_count)
+                with _ec2:
+                    if cluster.sentiment is not None:
+                        st.metric("NLP Sentiment", f"{cluster.sentiment:+.2f}")
+                    else:
+                        st.metric("NLP Sentiment", "n/a")
+                with _ec3:
+                    st.metric("Sources", len(cluster.sources))
+
+                if cluster.summary:
+                    st.markdown(f"**Summary:** {cluster.summary}")
+
+                if _c_sources:
+                    st.caption(f"Sources: {_c_sources}")
+
+                if cluster.top_articles:
+                    st.markdown("**Top articles:**")
+                    for _ta in cluster.top_articles:
+                        if _ta.get("url"):
+                            st.markdown(f"- [{_ta['title'][:80]}]({_ta['url']}) — *{_ta.get('source', '')}*")
+                        else:
+                            st.markdown(f"- {_ta['title'][:80]} — *{_ta.get('source', '')}*")
+
+
+def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> None:
+    """Render an analyst forecast expander for a list of symbols.
+
+    Shows price targets, analyst ratings, EPS estimates, and recent
+    upgrades/downgrades.  Uses FMP (primary) with yfinance fallback.
+    """
+    if not symbols:
+        return
+
+    with st.expander("🔮 Forecast", expanded=False):
+
+        _fc_sym = st.selectbox(
+            "Symbol",
+            symbols[:50],
+            key=f"{key_prefix}_sym",
+        )
+        if not _fc_sym:
+            return
+
+        fc = fetch_forecast(_fc_sym)
+        if fc.error:
+            st.warning(f"No forecast data: {fc.error}")
+            return
+        if not fc.has_data:
+            st.info("No forecast data available for this symbol.")
+            return
+
+        _src_tag = f"  ·  *via {fc.source}*" if fc.source else ""
+        st.caption(f"**{_fc_sym}** — Analyst Forecast{_src_tag}")
+
+        # ── Price Target ─────────────────────────────────
+        if fc.price_target and fc.price_target.target_mean > 0:
+            pt = fc.price_target
+            st.markdown("### 🎯 Price Target")
+            _pt1, _pt2, _pt3, _pt4 = st.columns(4)
+            _pt1.metric("Current", f"${pt.current_price:.2f}")
+            _pt2.metric("Target (Avg)", f"${pt.target_mean:.2f}", f"{pt.upside_pct:+.1f}%")
+            _pt3.metric("Target High", f"${pt.target_high:.2f}", f"{pt.upside_high_pct:+.1f}%")
+            _pt4.metric("Target Low", f"${pt.target_low:.2f}", f"{pt.upside_low_pct:+.1f}%")
+
+            # FMP price-target-summary timeline
+            if pt.last_month_count or pt.last_quarter_count or pt.last_year_count:
+                _pts_rows = []
+                if pt.last_month_count:
+                    _pts_rows.append({"Period": "Last Month", "Avg Target": f"${pt.last_month_avg:.2f}", "Analysts": pt.last_month_count})
+                if pt.last_quarter_count:
+                    _pts_rows.append({"Period": "Last Quarter", "Avg Target": f"${pt.last_quarter_avg:.2f}", "Analysts": pt.last_quarter_count})
+                if pt.last_year_count:
+                    _pts_rows.append({"Period": "Last Year", "Avg Target": f"${pt.last_year_avg:.2f}", "Analysts": pt.last_year_count})
+                st.dataframe(pd.DataFrame(_pts_rows), width='stretch', hide_index=True, height=min(180, 40 + 35 * len(_pts_rows)))
+
+        # ── Analyst Rating ───────────────────────────────
+        if fc.rating and fc.rating.total > 0:
+            rt = fc.rating
+            st.markdown(f"### 📊 Analyst Rating — {rt.consensus_icon} {rt.consensus}")
+            st.caption(f"Based on {rt.total} analysts")
+            _rt1, _rt2, _rt3, _rt4, _rt5 = st.columns(5)
+            _rt1.metric("Strong Buy", rt.strong_buy)
+            _rt2.metric("Buy", rt.buy)
+            _rt3.metric("Hold", rt.hold)
+            _rt4.metric("Sell", rt.sell)
+            _rt5.metric("Strong Sell", rt.strong_sell)
+
+        # ── EPS Estimates ────────────────────────────────
+        if fc.eps_estimates:
+            st.markdown("### 📈 EPS Estimates")
+            _eps_rows = []
+            for e in fc.eps_estimates:
+                row: dict[str, Any] = {
+                    "Period": e.period,
+                    "EPS Est.": f"{e.avg:.2f}",
+                    "Low": f"{e.low:.2f}",
+                    "High": f"{e.high:.2f}",
+                }
+                if e.year_ago_eps:
+                    row["Year Ago"] = f"{e.year_ago_eps:.2f}"
+                if e.growth:
+                    row["Growth"] = f"{e.growth * 100:+.1f}%"
+                row["Analysts"] = e.num_analysts
+                if e.revenue_avg:
+                    row["Rev Est."] = f"${e.revenue_avg / 1e9:.1f}B" if e.revenue_avg > 1e9 else f"${e.revenue_avg / 1e6:.0f}M"
+                _eps_rows.append(row)
+            st.dataframe(
+                pd.DataFrame(_eps_rows),
+                width='stretch',
+                hide_index=True,
+                height=min(350, 40 + 35 * len(_eps_rows)),
+            )
+
+        # ── Upgrades / Downgrades ────────────────────────
+        if fc.upgrades_downgrades:
+            st.markdown("### 📋 Recent Upgrades / Downgrades")
+            _action_icons = {
+                "upgrade": "⬆️", "up": "⬆️",
+                "downgrade": "⬇️", "down": "⬇️",
+                "maintain": "➡️", "main": "➡️",
+                "init": "🆕", "initiated": "🆕",
+                "reiterate": "🔄", "reit": "🔄",
+            }
+            _ud_rows = []
+            for u in fc.upgrades_downgrades:
+                _action_icon = _action_icons.get(u.action.lower(), "")
+                _ud_rows.append({
+                    "Date": u.date,
+                    "Firm": u.firm,
+                    "Action": f"{_action_icon} {u.action}",
+                    "From": u.from_grade,
+                    "To": u.to_grade,
+                })
+            st.dataframe(
+                pd.DataFrame(_ud_rows),
+                width='stretch',
+                hide_index=True,
+                height=min(500, 40 + 35 * len(_ud_rows)),
+            )
+
+
 # ── Persistent state (survives reruns) ──────────────────────────
 
 
@@ -191,10 +522,14 @@ def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = Non
 
     Thin wrapper around ``terminal_ui_helpers.prune_stale_items`` that
     reads the default max-age from Streamlit session state.
+    Outside market hours the retention is extended to at least 72 h so
+    weekend / overnight feeds are not pruned empty.
     """
     if max_age_s is None:
         cfg_obj = st.session_state.get("cfg")
         max_age_s = cfg_obj.feed_max_age_s if cfg_obj else 14400.0
+    if not is_market_hours():
+        max_age_s = max(max_age_s, 259200.0)  # 72 h
     return prune_stale_items(feed, max_age_s)
 
 
@@ -325,6 +660,7 @@ if "alert_rules" not in st.session_state:
             _loaded = json.loads(_alert_path.read_text())
             st.session_state.alert_rules = _loaded if isinstance(_loaded, list) else []
         except Exception:
+            logger.warning("Failed to load alert_rules.json, resetting", exc_info=True)
             st.session_state.alert_rules = []
     else:
         st.session_state.alert_rules = []
@@ -397,13 +733,13 @@ with st.sidebar:
 
     # API key status
     if cfg.benzinga_api_key:
-        st.success(f"Benzinga: …{cfg.benzinga_api_key[-4:]}")
+        st.success("News API: ✅ configured")
     else:
         st.error("No BENZINGA_API_KEY found in .env")
         st.info("Set `BENZINGA_API_KEY=your_key` in `.env` and restart.")
 
     if cfg.fmp_api_key:
-        st.success(f"FMP: …{cfg.fmp_api_key[-4:]}")
+        st.success("FMP: ✅ configured")
     else:
         st.caption("FMP: not configured (optional)")
 
@@ -485,7 +821,7 @@ with st.sidebar:
     # Data sources active
     sources = []
     if cfg.benzinga_api_key:
-        sources.append("Benzinga")
+        sources.append("News")
     if cfg.fmp_api_key and cfg.fmp_enabled and _FmpAdapter:
         sources.append("FMP")
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
@@ -493,6 +829,13 @@ with st.sidebar:
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
     if st.button("🗑️ Reset dedup DB", width='stretch'):
         import pathlib
+        # Stop background poller FIRST so it doesn't use closed adapters
+        _bp_reset = st.session_state.get("bg_poller")
+        if _bp_reset is not None:
+            try:
+                _bp_reset.stop()
+            except Exception:
+                pass
         # Close existing SQLite connection before deleting files
         if st.session_state.store is not None:
             try:
@@ -520,8 +863,10 @@ with st.sidebar:
         st.session_state.feed = []
         st.session_state.poll_count = 0
         st.session_state.total_items_ingested = 0
+        st.session_state.consecutive_empty_polls = 0
         st.session_state.last_poll_status = "DB reset — will re-poll"
         st.session_state.last_poll_error = ""
+        st.session_state.bg_poller = None
         st.toast("Dedup DB cleared. Next poll will re-ingest.", icon="🗑️")
         st.rerun()
 
@@ -544,22 +889,50 @@ with st.sidebar:
         alert_webhook = st.text_input("Webhook URL (optional)", value="", key="alert_wh")
 
         if st.button("Add Rule", key="add_rule"):
-            new_rule = {
-                "ticker": alert_ticker.upper().strip(),
-                "condition": alert_cond,
-                "threshold": alert_threshold,
-                "category": alert_cat.lower().strip(),
-                "webhook_url": alert_webhook.strip(),
-                "created": time.time(),
-            }
-            st.session_state.alert_rules.append(new_rule)
-            # Persist
-            os.makedirs("artifacts", exist_ok=True)
-            Path("artifacts/alert_rules.json").write_text(
-                json.dumps(st.session_state.alert_rules, indent=2),
-            )
-            st.toast(f"Alert rule added for {new_rule['ticker']}", icon="⚡")
-            st.rerun()
+            _wh_url = alert_webhook.strip()
+            _wh_valid = True
+            if _wh_url:
+                try:
+                    from urllib.parse import urlparse
+                    import ipaddress
+                    import socket
+                    _parsed = urlparse(_wh_url)
+                    if _parsed.scheme not in ("http", "https"):
+                        st.error("Webhook URL must use http:// or https://")
+                        _wh_valid = False
+                    elif _parsed.hostname:
+                        _host = _parsed.hostname.lower()
+                        if _host in ("localhost", "0.0.0.0", ""):
+                            st.error("Webhook URL must not target localhost")
+                            _wh_valid = False
+                        else:
+                            try:
+                                _ip = ipaddress.ip_address(socket.gethostbyname(_host))
+                                if _ip.is_private or _ip.is_loopback or _ip.is_link_local:
+                                    st.error("Webhook URL must not target private/internal networks")
+                                    _wh_valid = False
+                            except (socket.gaierror, ValueError):
+                                pass  # DNS resolution failed — allow; will fail at POST time
+                except Exception:
+                    _wh_valid = True  # Fallback: allow and let POST fail
+
+            if _wh_valid:
+                new_rule = {
+                    "ticker": alert_ticker.upper().strip(),
+                    "condition": alert_cond,
+                    "threshold": alert_threshold,
+                    "category": alert_cat.lower().strip(),
+                    "webhook_url": _wh_url,
+                    "created": time.time(),
+                }
+                st.session_state.alert_rules.append(new_rule)
+                # Persist
+                os.makedirs("artifacts", exist_ok=True)
+                Path("artifacts/alert_rules.json").write_text(
+                    json.dumps(st.session_state.alert_rules, indent=2),
+                )
+                st.toast(f"Alert rule added for {new_rule['ticker']}", icon="⚡")
+                st.rerun()
 
     # Show existing rules
     for i, rule in enumerate(st.session_state.alert_rules):
@@ -665,6 +1038,13 @@ def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
     return fetch_sector_performance(api_key)
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
+    """Cache ticker→GICS sector mapping for 5 minutes."""
+    tickers = [t.strip() for t in tickers_csv.split(",") if t.strip()]
+    return fetch_ticker_sectors(api_key, tickers)
+
+
 @st.cache_data(ttl=120, show_spinner=False)
 def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
     """Cache Aerospace & Defense watchlist quotes for 2 minutes."""
@@ -691,12 +1071,16 @@ def _cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[di
 
 @st.cache_data(ttl=30, show_spinner=False)
 def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Cache gainers/losers/actives for 30 seconds."""
-    return {
-        "gainers": fetch_gainers(api_key),
-        "losers": fetch_losers(api_key),
-        "actives": fetch_most_active(api_key),
-    }
+    """Cache gainers/losers/actives for 30 seconds.
+
+    The FMP ``/stable/biggest-gainers`` etc. endpoints only return
+    price/change data.  We backfill volume & market-cap from
+    ``/stable/batch-quote`` so the Spike Scanner table is complete.
+    """
+    gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
+    losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
+    actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
+    return {"gainers": gainers, "losers": losers, "actives": actives}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -721,164 +1105,20 @@ def _safe_float_mov(val: Any, default: float = 0.0) -> float:
         return default
 
 
-# ── Cached Benzinga Calendar Wrappers ───────────────────────────
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_ratings(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga analyst ratings for 5 minutes."""
-    return fetch_benzinga_ratings(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_earnings(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga earnings calendar for 5 minutes."""
-    return fetch_benzinga_earnings(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_economics(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga economics calendar for 5 minutes."""
-    return fetch_benzinga_economics(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
+# ── Cached Movers & Quotes ──────────────────────────────────
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_bz_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Cache Benzinga market movers for 60 seconds."""
+    """Cache market movers for 60 seconds."""
     return fetch_benzinga_market_movers(api_key)
 
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
-    """Cache Benzinga delayed quotes for 60 seconds."""
+    """Cache delayed quotes for 60 seconds."""
     syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
     return fetch_benzinga_delayed_quotes(api_key, syms)
 
-
-# ── Cached Benzinga NEW Calendar Wrappers ───────────────────────
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_dividends(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga dividends calendar for 5 minutes."""
-    return fetch_benzinga_dividends(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_splits(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga splits calendar for 5 minutes."""
-    return fetch_benzinga_splits(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_ipos(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga IPO calendar for 5 minutes."""
-    return fetch_benzinga_ipos(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_guidance(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga guidance calendar for 5 minutes."""
-    return fetch_benzinga_guidance(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_retail(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga retail sales calendar for 5 minutes."""
-    return fetch_benzinga_retail(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_conference_calls(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache Benzinga conference calls calendar for 5 minutes."""
-    return fetch_benzinga_conference_calls(api_key, date_from=from_date, date_to=to_date, page_size=100)
-
-
-@st.cache_data(ttl=180, show_spinner=False)
-def _cached_bz_insider_transactions(
-    api_key: str,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    action: str | None = None,
-    page_size: int = 100,
-) -> list[dict[str, Any]]:
-    """Cache Benzinga insider transactions for 3 minutes."""
-    return fetch_benzinga_insider_transactions(
-        api_key, date_from=date_from, date_to=date_to,
-        action=action, page_size=page_size,
-    )
-
-
-@st.cache_data(ttl=120, show_spinner=False)
-def _cached_bz_power_gaps(api_key: str) -> list[dict[str, Any]]:
-    """Cache power gap classifications for 2 minutes."""
-    return compute_power_gaps(api_key)
-
-
-# ── Cached Benzinga News Wrappers ───────────────────────────────
-
-@st.cache_data(ttl=120, show_spinner=False)
-def _cached_bz_top_news(api_key: str, channel: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
-    """Cache Benzinga top news for 2 minutes."""
-    return fetch_benzinga_top_news_items(api_key, channel=channel, limit=limit)
-
-
-@st.cache_data(ttl=120, show_spinner=False)
-def _cached_bz_quantified(api_key: str, from_date: str | None = None, to_date: str | None = None) -> list[dict[str, Any]]:
-    """Cache Benzinga quantified news for 2 minutes."""
-    return fetch_benzinga_quantified(api_key, date_from=from_date, date_to=to_date)
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def _cached_bz_channel_list(api_key: str) -> list[dict[str, Any]]:
-    """Cache Benzinga channel list for 1 hour (rarely changes)."""
-    return fetch_benzinga_channel_list(api_key)
-
-
-@st.cache_data(ttl=120, show_spinner=False)
-def _cached_bz_news_by_channel(api_key: str, channels: str, page_size: int = 50) -> list[dict[str, Any]]:
-    """Cache channel-filtered Benzinga news for 2 minutes."""
-    return fetch_benzinga_news_by_channel(api_key, channels, page_size=page_size)
-
-
-# ── Cached Benzinga Financial Data Wrappers ─────────────────────
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_options_activity(api_key: str, tickers: str, from_date: str | None = None, to_date: str | None = None) -> list[dict[str, Any]]:
-    """Cache Benzinga options activity for 5 minutes."""
-    if _tp_options_activity is None:
-        return []
-    return _tp_options_activity(api_key, tickers, date_from=from_date, date_to=to_date)
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def _cached_bz_fundamentals(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga fundamentals for 10 minutes."""
-    if _tp_fundamentals is None:
-        return []
-    return _tp_fundamentals(api_key, tickers)
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def _cached_bz_financials(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga financials for 10 minutes."""
-    if _tp_financials is None:
-        return []
-    return _tp_financials(api_key, tickers)
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def _cached_bz_company_profile(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga company profile for 10 minutes."""
-    if _tp_company_profile is None:
-        return []
-    return _tp_company_profile(api_key, tickers)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_ticker_detail(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga ticker detail for 5 minutes."""
-    if _tp_ticker_detail is None:
-        return []
-    return _tp_ticker_detail(api_key, tickers)
 
 
 # ── Alert evaluation ────────────────────────────────────────────
@@ -976,7 +1216,7 @@ def _should_poll(poll_interval: float) -> bool:
 
 
 def _do_poll() -> None:
-    """Execute one poll cycle (multi-source: Benzinga + FMP)."""
+    """Execute one poll cycle (multi-source)."""
     adapter = _get_adapter()
     fmp = _get_fmp_adapter()
     if adapter is None and fmp is None:
@@ -1139,7 +1379,7 @@ def _do_poll() -> None:
             logger.warning("SQLite prune failed: %s", exc)
 
     # Write per-symbol VisiData snapshot (atomic overwrite)
-    # Fetch Benzinga delayed quotes as fallback for extended hours
+    # Fetch delayed quotes as fallback for extended hours
     _vd_bz_quotes: list[dict[str, Any]] | None = None
     _vd_session = market_session()
     if _vd_session in ("pre-market", "after-hours") and cfg.benzinga_api_key and st.session_state.feed:
@@ -1150,7 +1390,7 @@ def _do_poll() -> None:
                 _vd_bz_quotes = fetch_benzinga_delayed_quotes(
                     cfg.benzinga_api_key, _vd_syms)
             except Exception:
-                pass  # non-critical fallback
+                logger.debug("Extended-hours quote fetch skipped", exc_info=True)
     save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
 
     if items:
@@ -1170,10 +1410,16 @@ if _lc_result.get("feed_action") == "cleared":
     st.session_state.feed = []
     st.session_state.cursor = None
     st.session_state.poll_count = 0
+    _bp_sync = st.session_state.get("bg_poller")
+    if _bp_sync is not None:
+        _bp_sync.cursor = None
     logger.info("Feed lifecycle: weekend data cleared")
 elif _lc_result.get("feed_action") == "stale_recovery":
     st.session_state.cursor = None
     st.session_state.consecutive_empty_polls = 0
+    _bp_sync = st.session_state.get("bg_poller")
+    if _bp_sync is not None:
+        _bp_sync.cursor = None
     logger.info("Feed lifecycle: stale-recovery cursor reset")
 
 # Adjust poll interval for off-hours
@@ -1190,6 +1436,12 @@ _feed_empty_needs_poll = (
 
 # ── Background poller mode ──────────────────────────────────────
 if st.session_state.use_bg_poller:
+    # Foreground initial poll BEFORE creating the bg poller so both
+    # don't race on the same SQLite store with cursor=None.
+    if _feed_empty_needs_poll:
+        with st.spinner("Loading latest news…"):
+            _do_poll()
+
     # Start background poller if not running
     if st.session_state.bg_poller is None or not st.session_state.bg_poller.is_alive:
         _bp = BackgroundPoller(
@@ -1266,7 +1518,7 @@ if st.session_state.use_bg_poller:
         if len(st.session_state.feed) > max_items:
             st.session_state.feed = st.session_state.feed[:max_items]
         st.session_state.feed = _prune_stale_items(st.session_state.feed)
-        # Fetch Benzinga delayed quotes as fallback for extended hours
+        # Fetch delayed quotes as fallback for extended hours
         _vd_bz_quotes_bg: list[dict[str, Any]] | None = None
         _vd_session_bg = market_session()
         if _vd_session_bg in ("pre-market", "after-hours") and _bg_cfg.benzinga_api_key and st.session_state.feed:
@@ -1277,27 +1529,21 @@ if st.session_state.use_bg_poller:
                     _vd_bz_quotes_bg = fetch_benzinga_delayed_quotes(
                         _bg_cfg.benzinga_api_key, _vd_syms_bg)
                 except Exception:
-                    pass  # non-critical fallback
+                    logger.debug("BG extended-hours quote fetch skipped", exc_info=True)
         save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes_bg)
         st.toast(f"📡 {len(_bg_items)} new item(s) [BG]", icon="✅")
 
     # Sync status from background poller for sidebar display
     _bp = st.session_state.bg_poller
-    st.session_state.poll_count = _bp.poll_count
+    st.session_state.poll_count = max(st.session_state.poll_count, _bp.poll_count)
     st.session_state.last_poll_ts = _bp.last_poll_ts
     st.session_state.last_poll_status = _bp.last_poll_status
-    st.session_state.last_poll_error = _bp.last_poll_error
-    st.session_state.total_items_ingested = _bp.total_items_ingested
+    if _bp.last_poll_ts > 0:
+        st.session_state.last_poll_error = _bp.last_poll_error
+    st.session_state.total_items_ingested = max(
+        st.session_state.total_items_ingested, _bp.total_items_ingested)
     st.session_state.cursor = _bp.cursor
 
-    # Force poll still works in BG mode (for initial load)
-    if _feed_empty_needs_poll:
-        with st.spinner("Loading latest news…"):
-            _do_poll()
-        # Sync the newly-advanced cursor into the BG poller so its
-        # first real poll doesn't re-fetch what the foreground just got.
-        if st.session_state.bg_poller is not None:
-            st.session_state.bg_poller.cursor = st.session_state.cursor
 else:
     # ── Foreground (legacy) polling ─────────────────────────
     if _feed_empty_needs_poll:
@@ -1351,10 +1597,12 @@ else:
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
 
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_bz_cal, tab_bz_movers, tab_defense, tab_outlook, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
-         "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar", "📊 Benzinga Intel",
-         "💹 Bz Movers", "🛡️ Defense & Aerospace", "🔮 Tomorrow Outlook", "⚡ Alerts", "📊 Data Table"],
+         "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
+         "🔮 Tomorrow Outlook", "💹 Movers", "₿ Bitcoin", "🛡️ Defense & Aerospace",
+         "🔴 Breaking", "📈 Trending", "🔥 Social",
+         "⚡ Alerts", "📊 Data Table"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -1402,7 +1650,80 @@ else:
 
         st.caption(f"Showing {len(filtered)} of {len(feed)} items")
 
+        # ── NLP Sentiment enrichment (NewsAPI.ai validation layer) ──
+        _feed_nlp: dict[str, NLPSentiment] = {}
+        if newsapi_available():
+            _feed_tickers = list({
+                d.get("ticker", "").upper()
+                for d in filtered[:50]
+                if d.get("ticker") and d.get("ticker") != "MARKET"
+            })
+            if _feed_tickers:
+                _feed_nlp = fetch_nlp_sentiment(_feed_tickers[:30], hours=24)
+
         # Show filtered items
+        # Column headers with info popovers
+        _hdr_cols = st.columns([1, 4, 1, 1, 1, 1, 1])
+        with _hdr_cols[0]:
+            with st.popover("**Ticker** ℹ️"):
+                st.markdown("**Stock symbol** — The ticker symbol of the company mentioned in the article (e.g. AAPL, TSLA, NVDA).")
+        with _hdr_cols[1]:
+            with st.popover("**Headline** ℹ️"):
+                st.markdown("**News headline** with sentiment icon (🟢 positive / 🔴 negative / ⚪ neutral). Click the link to open the full article.")
+        with _hdr_cols[2]:
+            with st.popover("**Category** ℹ️"):
+                st.markdown(
+                    "**News category** — Classifies the type of news.\n\n"
+                    "Common values:\n"
+                    "- `mna` — Mergers & Acquisitions\n"
+                    "- `earnings` — Earnings reports\n"
+                    "- `macro` — Macroeconomic news\n"
+                    "- `analyst` — Analyst actions\n"
+                    "- `crypto` — Cryptocurrency\n"
+                    "- `guidance` — Company guidance\n"
+                    "- `insider` — Insider trading\n"
+                    "- `govt` — Government/regulation"
+                )
+        with _hdr_cols[3]:
+            with st.popover("**Score** ℹ️"):
+                st.markdown(
+                    "**News importance score** (0–1) computed by the scoring engine based on "
+                    "source tier, relevance, materiality, and sentiment strength.\n\n"
+                    "Higher = more market-moving.\n\n"
+                    "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation of the article's market relevance."
+                )
+        with _hdr_cols[4]:
+            with st.popover("**Age** ℹ️"):
+                st.markdown(
+                    "**Time since publication** — How long ago the article was published.\n\n"
+                    "Recency icons:\n"
+                    "- 🟢 Fresh (< 1 hour)\n"
+                    "- 🟡 Recent (1–4 hours)\n"
+                    "- ⚪ Older (> 4 hours)"
+                )
+        with _hdr_cols[5]:
+            with st.popover("**Event** ℹ️"):
+                st.markdown(
+                    "**Event classification label** — Describes the type of market event.\n\n"
+                    "Examples:\n"
+                    "- `ma deal` — M&A transaction\n"
+                    "- `earnings beat` — Earnings surprise\n"
+                    "- `analyst upgrade` — Rating change\n"
+                    "- `guidance raised` — Outlook revision\n"
+                    "- `stock split` — Corporate action\n\n"
+                    "The provider icon shows the data source."
+                )
+        with _hdr_cols[6]:
+            with st.popover("**NLP** ℹ️"):
+                st.markdown(
+                    "**NLP sentiment cross-validation** from NewsAPI.ai — An independent sentiment score "
+                    "computed via natural language processing on recent articles.\n\n"
+                    "Compares against the keyword-based sentiment to spot divergences. "
+                    "A large gap between NLP and keyword sentiment may indicate the article's "
+                    "true tone differs from its headline."
+                )
+        st.divider()
+
         for d in filtered[:50]:
             sent_icon = _SENTIMENT_COLORS.get(d.get("sentiment_label", ""), "")
             mat_icon = _MATERIALITY_COLORS.get(d.get("materiality", ""), "")
@@ -1434,7 +1755,7 @@ else:
             _wiim_badge = " 🔍" if d.get("is_wiim") else ""
 
             with st.container():
-                cols = st.columns([1, 5, 1, 1, 1, 1])
+                cols = st.columns([1, 4, 1, 1, 1, 1, 1])
                 with cols[0]:
                     st.markdown(f"**{ticker}**")
                 with cols[1]:
@@ -1449,10 +1770,18 @@ else:
                     st.markdown(f"{rec_icon} {age_str}")
                 with cols[5]:
                     st.markdown(f"{prov_icon} {event_label}")
+                with cols[6]:
+                    # NLP sentiment validation (NewsAPI.ai)
+                    _nlp_data = _feed_nlp.get(ticker.upper())
+                    if _nlp_data and _nlp_data.article_count > 0:
+                        st.markdown(f"{_nlp_data.icon} `NLP {_nlp_data.nlp_score:+.2f}`")
+                    elif _feed_nlp:
+                        st.markdown("⚪ `NLP —`")
+                    # else: no NLP data fetched (NewsAPI.ai unavailable)
 
     # ── TAB: Top Movers ─────────────────────────────────────
     with tab_movers:
-        # ── Real-time Top Movers: merge FMP + Benzinga ──────────
+        # ── Real-time Top Movers: merge data sources ──────────
         fmp_key_mov = st.session_state.cfg.fmp_api_key
         bz_key_mov = st.session_state.cfg.benzinga_api_key
         _session_label_mov = _session_icons.get(_current_session, _current_session)
@@ -1464,6 +1793,7 @@ else:
             st.caption(f"**{_session_label_mov}** — Live gainers & losers ranked by absolute price change. Auto-refreshes each cycle.")
 
             # Gather data from all sources
+            _mov_now = time.time()
             _mov_all: dict[str, dict[str, Any]] = {}  # symbol → best row
 
             # 1) FMP gainers/losers/actives (30s TTL)
@@ -1493,9 +1823,10 @@ else:
                                 "chg_pct": chg_pct,
                                 "volume": vol,
                                 "source": _src_label,
+                                "_ts": _mov_now,
                             }
 
-            # 2) Benzinga movers (60s TTL)
+            # 2) Market movers (60s TTL)
             if bz_key_mov:
                 _bz_movers = _cached_bz_movers(bz_key_mov)
                 for _bz_list, _bz_label in [
@@ -1512,7 +1843,7 @@ else:
                         vol = int(_safe_float_mov(item.get("volume")))
                         name = item.get("companyName") or item.get("company_name") or ""
                         existing = _mov_all.get(sym)
-                        # Benzinga is fresher than FMP during extended hours
+                        # Delayed quotes are fresher than FMP during extended hours
                         if not existing or (_current_session in ("pre-market", "after-hours")):
                             _mov_all[sym] = {
                                 "symbol": sym,
@@ -1522,6 +1853,7 @@ else:
                                 "chg_pct": chg_pct,
                                 "volume": vol,
                                 "source": _bz_label,
+                                "_ts": _mov_now,
                             }
 
             # 3) RT spike events from our detector (real-time, sub-minute)
@@ -1539,6 +1871,7 @@ else:
                         "chg_pct": ev.spike_pct,
                         "volume": ev.volume,
                         "source": f"RT-Spike {ev.direction}",
+                        "_ts": ev.ts,
                     }
 
             if not _mov_all:
@@ -1564,15 +1897,17 @@ else:
 
                 # Build table
                 _mov_rows = []
+                _now_mov = time.time()
                 for m in _sorted_movers[:100]:
                     _dir_icon = "🟢" if m.get("chg_pct", 0) > 0 else "🔴"
                     _mov_rows.append({
-                        "": _dir_icon,
+                        "Dir": _dir_icon,
                         "Symbol": m["symbol"],
                         "Name": m.get("name", ""),
                         "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
                         "Change": f"{m['change']:+.2f}",
                         "Change %": f"{m['chg_pct']:+.2f}%",
+                        "Age": format_age_string(m.get("_ts"), now=_now_mov),
                         "Volume": f"{m['volume']:,}" if m.get("volume") else "",
                         "Source": m.get("source", ""),
                     })
@@ -1585,12 +1920,19 @@ else:
                     width='stretch',
                     height=min(800, 40 + 35 * len(df_mov)),
                     column_config={
-                        "": st.column_config.TextColumn("", width="small"),
+                        "Dir": st.column_config.TextColumn("Dir", width="small"),
                         "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                         "Name": st.column_config.TextColumn("Name", width="medium"),
                         "Change %": st.column_config.TextColumn("Change %", width="small"),
+                        "Age": st.column_config.TextColumn("Age", width="small"),
                     },
                 )
+
+                # Technical Analysis expander
+                _mov_symbols = [m["symbol"] for m in _sorted_movers[:50]]
+                _render_technicals_expander(_mov_symbols, key_prefix="tech_movers")
+                _render_forecast_expander(_mov_symbols, key_prefix="fc_movers")
+                _render_event_clusters_expander(_mov_symbols, key_prefix="ec_movers")
 
     # ── TAB: Rankings (real-time price-based) ─────────────────
     with tab_rank:
@@ -1602,9 +1944,10 @@ else:
             st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time rankings.")
         else:
             st.subheader("🏆 Real-Time Rankings")
-            st.caption(f"**{_session_label_rank}** — All movers ranked by absolute price change %. Combines FMP + Benzinga + RT Spike data.")
+            st.caption(f"**{_session_label_rank}** — All movers ranked by absolute price change %. Combines multiple data sources + RT Spike data.")
 
             # Build unified symbol map (same data as Movers, re-sorted by abs change)
+            _rank_now = time.time()
             _rank_all: dict[str, dict[str, Any]] = {}
 
             # 1) FMP gainers/losers/actives
@@ -1627,9 +1970,10 @@ else:
                                 "symbol": sym, "name": name[:50],
                                 "price": price, "change": chg, "chg_pct": chg_pct,
                                 "volume": vol, "mkt_cap": mkt_cap,
+                                "_ts": _rank_now,
                             }
 
-            # 2) Benzinga movers
+            # 2) Market movers
             if bz_key_rank:
                 _bz_rank = _cached_bz_movers(bz_key_rank)
                 for _bz_list in [_bz_rank.get("gainers", []), _bz_rank.get("losers", [])]:
@@ -1650,6 +1994,7 @@ else:
                                 "symbol": sym, "name": name[:50],
                                 "price": price, "change": chg, "chg_pct": chg_pct,
                                 "volume": vol, "mkt_cap": mkt_cap, "sector": sector,
+                                "_ts": _rank_now,
                             }
 
             # 3) RT spike events
@@ -1662,6 +2007,7 @@ else:
                         "symbol": sym, "name": ev.name[:50],
                         "price": ev.price, "change": ev.change, "chg_pct": ev.spike_pct,
                         "volume": ev.volume, "mkt_cap": "",
+                        "_ts": ev.ts,
                     }
 
             if not _rank_all:
@@ -1712,6 +2058,12 @@ else:
                     reverse=True,
                 )
 
+                # NLP sentiment enrichment for top ranked symbols
+                _rank_nlp: dict[str, NLPSentiment] = {}
+                if newsapi_available():
+                    _rank_syms = [m["symbol"] for m in _ranked[:30]]
+                    _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
+
                 top_n = min(50, len(_ranked))
                 _rank_rows = []
                 for i, m in enumerate(_ranked[:top_n], 1):
@@ -1721,17 +2073,24 @@ else:
                     )
                     _hl_url = m.get("url", "")
                     _hl_text = m.get("headline", "")
+                    _nlp_r = _rank_nlp.get(m["symbol"])
+                    _nlp_col = ""
+                    if _nlp_r and _nlp_r.article_count > 0:
+                        _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
+                    elif _rank_nlp:
+                        _nlp_col = "⚪ —"
                     _rank_rows.append({
                         "#": i,
-                        "": _dir,
+                        "Dir": _dir,
                         "Symbol": m["symbol"],
                         "Name": m.get("name", ""),
                         "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
                         "Change": f"{m['change']:+.2f}",
                         "Change %": f"{m['chg_pct']:+.2f}%",
                         "Score": round(_composite_score(m), 2),
-                        "News": f"{m.get('news_score', 0):.3f}" if m.get("news_score") else "",
+                        "Age": format_age_string(m.get("_ts")),
                         "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
+                        "NLP": _nlp_col,
                         "Headline": _hl_url if _hl_url else _hl_text,
                         "Volume": f"{m['volume']:,}" if m.get("volume") else "",
                     })
@@ -1745,13 +2104,23 @@ else:
                     f"{_news_match_count} with news"
                 )
 
+                with st.popover("ℹ️ Column guide"):
+                    st.markdown(
+                        "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
+                        "- **NLP Sent.** — NLP sentiment from NewsAPI.ai (requires `NEWSAPI_AI_KEY` env var)\n"
+                        "- **Headline** — Latest matching news headline (clickable when a URL is available)\n"
+                        "- **Volume** — Trading volume from market data source\n\n"
+                        "Empty columns mean no matching data is available yet for that ticker."
+                    )
+
                 # Build column config
                 _rank_col_cfg: dict[str, Any] = {
-                    "": st.column_config.TextColumn("", width="small"),
+                    "Dir": st.column_config.TextColumn("Dir", width="small"),
                     "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                     "Change %": st.column_config.TextColumn("Change %", width="small"),
                     "Score": st.column_config.NumberColumn("Score", width="small"),
-                    "News": st.column_config.TextColumn("News", width="small"),
+                    "Age": st.column_config.TextColumn("Age", width="small"),
+                    "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
                 }
                 # Use LinkColumn for headlines when URLs are present
                 if any(r.get("Headline", "").startswith("http") for r in _rank_rows):
@@ -1768,12 +2137,18 @@ else:
                     column_config=_rank_col_cfg,
                 )
 
+                # Technical Analysis expander
+                _rank_symbols = [m["symbol"] for m in _ranked[:50]]
+                _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
+                _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
+                _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
+
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments:
         seg_rows = aggregate_segments(feed)
 
         if not seg_rows:
-            st.info("No segment data yet. Channels are populated by Benzinga articles.")
+            st.info("No segment data yet. Channels are populated by news articles.")
         else:
             # ── Overview table ──────────────────────────────────────
             summary_data = build_segment_summary_rows(seg_rows)
@@ -1901,13 +2276,14 @@ else:
                     "(~60 s apart) to compare prices. Keep the terminal refreshing."
                 )
             else:
-                # Build display table matching Benzinga Pro layout
+                # Build display table
                 _rt_rows = []
                 for ev in _rt_events:
                     _rt_rows.append({
                         "Signal": f"{ev.icon} Price Spike {ev.direction}",
                         "Symbol": ev.symbol,
                         "Time": format_time_et(ev.ts),
+                        "Age": format_age_string(ev.ts),
                         "Spike %": f"{ev.spike_pct:+.2f}%",
                         "Type": ev.asset_type,
                         "Description": format_spike_description(ev),
@@ -1948,6 +2324,12 @@ else:
                             f"Newest: {_newest:.0f}s ago · Oldest: {_oldest / 60:.1f}m ago"
                         )
 
+                # Technical Analysis expander
+                _rt_symbols = list(dict.fromkeys(ev.symbol for ev in _rt_events[:50]))
+                _render_technicals_expander(_rt_symbols, key_prefix="tech_rt")
+                _render_forecast_expander(_rt_symbols, key_prefix="fc_rt")
+                _render_event_clusters_expander(_rt_symbols, key_prefix="ec_rt")
+
     # ── TAB: Spikes (daily change scanner) ──────────────────
     with tab_spikes:
         fmp_key = st.session_state.cfg.fmp_api_key
@@ -1962,7 +2344,7 @@ else:
             if _current_session in ("pre-market", "after-hours"):
                 st.caption(
                     f"**{_session_label}** — FMP gainers/losers show previous session. "
-                    "Extended-hours prices overlaid from Benzinga delayed quotes."
+                    "Extended-hours prices overlaid from delayed quotes."
                 )
             elif _current_session == "closed":
                 st.caption(
@@ -1976,13 +2358,16 @@ else:
 
             # Fetch cached spike data
             spike_data = _cached_spike_data(fmp_key)
+            _spike_ts = time.time()
             spike_rows = build_spike_rows(
                 spike_data["gainers"],
                 spike_data["losers"],
                 spike_data["actives"],
             )
+            for _sr in spike_rows:
+                _sr["_ts"] = _spike_ts
 
-            # Overlay Benzinga extended-hours quotes when outside regular session
+            # Overlay extended-hours quotes when outside regular session
             if _current_session in ("pre-market", "after-hours") and spike_rows:
                 bz_key = st.session_state.cfg.benzinga_api_key
                 if bz_key:
@@ -2037,6 +2422,7 @@ else:
                 st.info("No spikes matching current filters.")
             else:
                 # Build display DataFrame
+                _now_sp = time.time()
                 display_rows = []
                 for r in filtered_spikes:
                     display_rows.append({
@@ -2048,6 +2434,7 @@ else:
                         "Price": f"${r['price']:.2f}",
                         "Change %": r["change_display"],
                         "Change": f"{r['change']:+.2f}",
+                        "Age": format_age_string(r.get("_ts"), now=_now_sp),
                         "Volume": f"{r['volume']:,}",
                         "Vol Ratio": f"{r['volume_ratio']:.1f}x" if r["volume_ratio"] > 0 else "—",
                         "Mkt Cap": r["mktcap_display"],
@@ -2062,6 +2449,12 @@ else:
                     width='stretch',
                     height=min(800, 40 + 35 * len(df_spikes)),
                 )
+
+                # Technical Analysis expander
+                _spike_symbols = list(dict.fromkeys(r["symbol"] for r in filtered_spikes[:50]))
+                _render_technicals_expander(_spike_symbols, key_prefix="tech_spikes")
+                _render_forecast_expander(_spike_symbols, key_prefix="fc_spikes")
+                _render_event_clusters_expander(_spike_symbols, key_prefix="ec_spikes")
 
                 # ── Detail cards for top 10 ──────────────────────
                 st.divider()
@@ -2096,7 +2489,21 @@ else:
         try:
             import plotly.express as px  # type: ignore
 
-            hm_data = build_heatmap_data(feed)
+            # Build GICS sector mapping from FMP profile data
+            _hm_fmp_key = st.session_state.cfg.fmp_api_key
+            _hm_sector_map: dict[str, str] | None = None
+            if _hm_fmp_key and feed:
+                _hm_tickers = sorted({
+                    d.get("ticker", "")
+                    for d in feed
+                    if d.get("ticker") and d.get("ticker") not in ("", "MARKET", "?")
+                })
+                if _hm_tickers:
+                    _hm_sector_map = _cached_ticker_sectors(
+                        _hm_fmp_key, ",".join(_hm_tickers)
+                    )
+
+            hm_data = build_heatmap_data(feed, sector_map=_hm_sector_map)
 
             if hm_data:
                 df_hm = pd.DataFrame(hm_data)
@@ -2111,7 +2518,7 @@ else:
                     color="sentiment",
                     color_discrete_map=color_map,
                     hover_data=["score", "articles"],
-                    title="Sector × Ticker Heatmap (article count, colored by sentiment)",
+                    title="GICS Sector × Ticker Heatmap (article count, colored by sentiment)",
                 )
                 fig.update_layout(
                     height=600,
@@ -2120,6 +2527,16 @@ else:
                     font_color="white",
                 )
                 st.plotly_chart(fig, width='stretch')
+                if _hm_sector_map:
+                    st.caption(
+                        "💡 Tickers are grouped by GICS sector (via FMP profile data). "
+                        'Tickers without a known sector appear under "Other".'
+                    )
+                else:
+                    st.caption(
+                        "💡 Set `FMP_API_KEY` to group tickers by GICS sector. "
+                        "Currently grouped by news article channels."
+                    )
             else:
                 st.info("No segment data available for heatmap.")
 
@@ -2161,7 +2578,7 @@ else:
                     else:
                         st.dataframe(df_sp, width='stretch')
                 else:
-                    st.caption("No sector data returned from FMP.")
+                    _bz_tier_warning("FMP industry performance", "No sector data returned from FMP.")
             else:
                 st.caption("Set FMP_API_KEY for live sector performance.")
 
@@ -2220,7 +2637,13 @@ else:
                     df_cal[display_cols] if display_cols else df_cal,
                     width='stretch',
                     height=min(600, 40 + 35 * len(df_cal)),
+                    hide_index=True,
+                    column_config={
+                        "date": st.column_config.TextColumn("Date", width="medium"),
+                        "impact": st.column_config.TextColumn("Impact", width="small"),
+                    },
                 )
+                st.caption("💡 Sorted by date ascending. Use the Impact filter above to narrow to High/Medium/Low.")
 
                 # ── Upcoming highlights ─────────────────────────────
                 now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M")
@@ -2230,745 +2653,151 @@ else:
                     for _, row in upcoming.head(10).iterrows():
                         impact = row.get("impact", "")
                         impact_icon = "🔴" if impact == "High" else ("🟠" if impact == "Medium" else "🟡")
-                        _ev = safe_markdown_text(str(row.get('event', '?')))
+                        _cal_ev = safe_markdown_text(str(row.get('event', '?')))
                         st.markdown(
-                            f"{impact_icon} **{_ev}** — "
+                            f"{impact_icon} **{_cal_ev}** — "
                             f"{row.get('country', '?')} | {row.get('date', '?')} | "
                             f"Prev: {row.get('previous', '?')} | Cons: {row.get('consensus', '?')}"
                         )
             else:
                 st.info("No calendar events found for the selected range.")
 
-    # ── TAB: Benzinga Intel (Ratings + Earnings + Economics) ─
-    with tab_bz_cal:
-        bz_key = st.session_state.cfg.benzinga_api_key
-        if not bz_key:
-            st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga calendar data.")
+    # ── TAB: Tomorrow Outlook ───────────────────────────────
+    with tab_outlook:
+        st.subheader("🔮 Tomorrow Outlook — Next-Trading-Day Assessment")
+
+        bz_key = cfg.benzinga_api_key
+        fmp_key = cfg.fmp_api_key
+
+        if not bz_key and not fmp_key:
+            st.warning("Configure at least one API key to compute the outlook.")
         else:
-            st.subheader("📊 Benzinga Intelligence")
-            st.caption("Full Benzinga data suite: Ratings, Earnings, Economics, Conference Calls, Dividends, Splits, IPOs, Guidance, Retail, Top News, Quantified News, Options Flow, Insider Trades, Power Gaps, Channel Browser")
+            _today_iso = datetime.now(UTC).strftime("%Y-%m-%d")
 
-            bz_cal_col1, bz_cal_col2 = st.columns(2)
-            with bz_cal_col1:
-                bz_cal_from = st.date_input(
-                    "From", value=datetime.now(UTC).date(),
-                    key="bz_cal_from",
+            # API-heavy factors (earnings, economics, sectors) are cached.
+            # Feed sentiment is computed live below since the feed is mutable
+            # session state that cannot be hashed for caching.
+            outlook = _cached_tomorrow_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
+
+            # Overlay live feed sentiment on top of cached outlook
+            _feed_for_outlook = feed[-200:] if feed else []
+            if _feed_for_outlook:
+                _bear_c = sum(
+                    1 for it in _feed_for_outlook
+                    if str(it.get("sentiment_label") or "").lower() == "bearish"
                 )
-            with bz_cal_col2:
-                bz_cal_to = st.date_input(
-                    "To", value=datetime.now(UTC).date() + timedelta(days=7),
-                    key="bz_cal_to",
+                _bull_c = sum(
+                    1 for it in _feed_for_outlook
+                    if str(it.get("sentiment_label") or "").lower() == "bullish"
                 )
+                _total_f = len(_feed_for_outlook)
+                if _total_f > 10:
+                    _bear_ratio = _bear_c / _total_f
+                    _bull_ratio = _bull_c / _total_f
+                    if _bear_ratio > 0.55:
+                        _feed_sentiment_label = "🔴 Bearish-heavy"
+                    elif _bull_ratio > 0.55:
+                        _feed_sentiment_label = "🟢 Bullish-heavy"
+                    else:
+                        _feed_sentiment_label = "🟡 Mixed"
+                else:
+                    _feed_sentiment_label = "⚪ Insufficient data"
+            else:
+                _feed_sentiment_label = "⚪ No feed data"
 
-            bz_from_str = bz_cal_from.strftime("%Y-%m-%d")
-            bz_to_str = bz_cal_to.strftime("%Y-%m-%d")
+            # ── Traffic light banner ──
+            o_label = outlook.get("outlook_label", "🟡 NEUTRAL")
+            o_color = outlook.get("outlook_color", "orange")
+            next_td_str = outlook.get("next_trading_day", "—")
 
-            # ── Sub-tabs for all Benzinga data types ───────
-            (bz_sub_ratings, bz_sub_earnings, bz_sub_econ, bz_sub_conf,
-             bz_sub_divs,
-             bz_sub_splits, bz_sub_ipos, bz_sub_guidance, bz_sub_retail,
-             bz_sub_top_news, bz_sub_quantified, bz_sub_options,
-             bz_sub_insider, bz_sub_power_gaps, bz_sub_channels) = st.tabs(
-                ["🎯 Ratings", "💰 Earnings", "🌐 Economics",
-                 "📞 Conf Calls",
-                 "💵 Dividends", "✂️ Splits", "🚀 IPOs",
-                 "🔮 Guidance", "🛒 Retail", "📰 Top News",
-                 "📈 Quantified", "🎰 Options Flow",
-                 "🔍 Insider Trades", "⚡ Power Gaps",
-                 "📡 Channel Browser"],
+            st.markdown(
+                f"<div style='padding:0.8rem 1.2rem;border-radius:0.6rem;"
+                f"background:{o_color};color:white;font-weight:700;"
+                f"font-size:1.3rem;text-align:center;margin-bottom:1rem'>"
+                f"{o_label} — {next_td_str}</div>",
+                unsafe_allow_html=True,
             )
 
-            # ── Analyst Ratings ─────────────────────────────
-            with bz_sub_ratings:
-                ratings_data = _cached_bz_ratings(bz_key, bz_from_str, bz_to_str)
-                if ratings_data:
-                    df_rat = pd.DataFrame(ratings_data)
+            # ── Key metrics ──
+            ocols = st.columns(5)
+            ocols[0].metric("Outlook Score", f"{outlook.get('outlook_score', 0):.2f}")
+            ocols[1].metric("Earnings Tomorrow", outlook.get("earnings_tomorrow_count", 0))
+            ocols[2].metric("Earnings BMO", outlook.get("earnings_bmo_tomorrow_count", 0))
+            ocols[3].metric("High-Impact Events", outlook.get("high_impact_events_tomorrow", 0))
+            ocols[4].metric("Feed Sentiment", _feed_sentiment_label)
 
-                    # Action filter
-                    actions = sorted(set(str(r.get("action_company", "")).strip() for r in ratings_data if r.get("action_company")))
-                    rat_action = st.selectbox("Action Filter", ["all"] + actions, key="bz_rat_action")
+            st.divider()
 
-                    display_cols = [c for c in [
-                        "ticker", "date", "action_company", "action_pt",
-                        "analyst_name", "rating_current", "rating_prior",
-                        "pt_current", "pt_prior", "importance",
-                    ] if c in df_rat.columns]
+            # ── High-impact events detail ──
+            hi_details: list[dict[str, Any]] = outlook.get("high_impact_events_tomorrow_details") or []
+            if hi_details:
+                st.subheader("📋 Scheduled High-Impact Events")
+                for _hi_ev in hi_details:
+                    _hi_name = safe_markdown_text(str(_hi_ev.get("event", "—")))
+                    _hi_country = safe_markdown_text(str(_hi_ev.get("country", "US")))
+                    _hi_source = safe_markdown_text(str(_hi_ev.get("source", "")))
+                    st.markdown(f"- **{_hi_name}** ({_hi_country}) — Source: {_hi_source}")
+            else:
+                st.info("No high-impact macro events scheduled for the next trading day.")
 
-                    if rat_action != "all" and "action_company" in df_rat.columns:
-                        df_rat = df_rat[df_rat["action_company"] == rat_action]
-
-                    st.caption(f"{len(df_rat)} analyst rating(s) from {bz_from_str} to {bz_to_str}")
-
-                    # Highlight upgrades/downgrades
-                    def _color_action(val: str) -> str:
-                        val_lower = str(val).lower()
-                        if "upgrade" in val_lower or "initiate" in val_lower:
-                            return "color: #00C853"
-                        if "downgrade" in val_lower:
-                            return "color: #FF1744"
-                        return ""
-
-                    df_display = df_rat[display_cols] if display_cols else df_rat
-                    if "action_company" in df_display.columns:
-                        styled_rat = df_display.style.map(_color_action, subset=["action_company"])
-                        st.dataframe(styled_rat, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-                    else:
-                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-
-                    # ── Key upgrades/downgrades summary ─────
-                    upgrades = [r for r in ratings_data if "upgrade" in str(r.get("action_company", "")).lower()]
-                    downgrades = [r for r in ratings_data if "downgrade" in str(r.get("action_company", "")).lower()]
-
-                    if upgrades or downgrades:
-                        st.divider()
-                        st.subheader("⚡ Key Rating Changes")
-                        rc1, rc2 = st.columns(2)
-                        with rc1:
-                            st.markdown("**🟢 Upgrades**")
-                            for r in upgrades[:10]:
-                                pt_cur = r.get("pt_current", "?")
-                                pt_pri = r.get("pt_prior", "?")
-                                _tk = safe_markdown_text(str(r.get("ticker", "?")))
-                                _analyst = safe_markdown_text(str(r.get("analyst_name", "?")))
-                                st.markdown(
-                                    f"**{_tk}** — {_analyst} | "
-                                    f"{r.get('rating_prior', '?')} → {r.get('rating_current', '?')} | "
-                                    f"PT: ${pt_pri} → ${pt_cur}"
-                                )
-                        with rc2:
-                            st.markdown("**🔴 Downgrades**")
-                            for r in downgrades[:10]:
-                                pt_cur = r.get("pt_current", "?")
-                                pt_pri = r.get("pt_prior", "?")
-                                _tk = safe_markdown_text(str(r.get("ticker", "?")))
-                                _analyst = safe_markdown_text(str(r.get("analyst_name", "?")))
-                                st.markdown(
-                                    f"**{_tk}** — {_analyst} | "
-                                    f"{r.get('rating_prior', '?')} → {r.get('rating_current', '?')} | "
-                                    f"PT: ${pt_pri} → ${pt_cur}"
-                                )
-                else:
-                    st.info("No analyst ratings found for the selected range.")
-
-            # ── Earnings Calendar ───────────────────────────
-            with bz_sub_earnings:
-                earnings_data = _cached_bz_earnings(bz_key, bz_from_str, bz_to_str)
-                if earnings_data:
-                    df_earn = pd.DataFrame(earnings_data)
-
-                    # Period filter
-                    periods = sorted(set(str(r.get("period", "")).strip() for r in earnings_data if r.get("period")))
-                    earn_period = st.selectbox("Period Filter", ["all"] + periods, key="bz_earn_period")
-
-                    display_cols = [c for c in [
-                        "ticker", "date", "period", "period_year",
-                        "eps", "eps_est", "eps_prior", "eps_surprise", "eps_surprise_percent",
-                        "revenue", "revenue_est", "revenue_prior", "revenue_surprise",
-                        "importance",
-                    ] if c in df_earn.columns]
-
-                    if earn_period != "all" and "period" in df_earn.columns:
-                        df_earn = df_earn[df_earn["period"] == earn_period]
-
-                    st.caption(f"{len(df_earn)} earnings report(s) from {bz_from_str} to {bz_to_str}")
-
-                    # Highlight beats/misses
-                    def _color_surprise(val: Any) -> str:
-                        try:
-                            v = float(val)
-                            if v > 0:
-                                return "color: #00C853"
-                            if v < 0:
-                                return "color: #FF1744"
-                        except (ValueError, TypeError):
-                            pass
-                        return ""
-
-                    df_display = df_earn[display_cols] if display_cols else df_earn
-                    surprise_cols = [c for c in ["eps_surprise", "eps_surprise_percent", "revenue_surprise"] if c in df_display.columns]
-                    if surprise_cols:
-                        styled_earn = df_display.style.map(_color_surprise, subset=surprise_cols)
-                        st.dataframe(styled_earn, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-                    else:
-                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-
-                    # ── Upcoming earnings highlight ─────────
-                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
-                    upcoming = df_earn[df_earn["date"] >= now_str] if "date" in df_earn.columns else pd.DataFrame()
-                    if not upcoming.empty:
-                        st.divider()
-                        st.subheader("⏰ Upcoming Earnings")
-                        for _, row in upcoming.head(15).iterrows():
-                            imp = row.get("importance", 0)
-                            imp_icon = "🔴" if imp and int(imp) >= 4 else ("🟠" if imp and int(imp) >= 2 else "🟡")
-                            _tk = safe_markdown_text(str(row.get("ticker", "?")))
-                            st.markdown(
-                                f"{imp_icon} **{_tk}** — {row.get('date', '?')} | "
-                                f"{row.get('period', '?')} {row.get('period_year', '')} | "
-                                f"EPS est: {row.get('eps_est', '?')} | Rev est: {row.get('revenue_est', '?')}"
-                            )
-                else:
-                    st.info("No earnings data found for the selected range.")
-
-            # ── Benzinga Economics ──────────────────────────
-            with bz_sub_econ:
-                econ_data = _cached_bz_economics(bz_key, bz_from_str, bz_to_str)
-                if econ_data:
-                    df_econ = pd.DataFrame(econ_data)
-
-                    # Country filter
-                    countries = sorted(set(str(r.get("country", "")).strip() for r in econ_data if r.get("country")))
-                    econ_country = st.selectbox("Country Filter", ["all"] + countries, key="bz_econ_country")
-
-                    # Importance filter
-                    econ_imp = st.selectbox("Min Importance", ["all", "1", "2", "3", "4", "5"], key="bz_econ_imp")
-
-                    display_cols = [c for c in [
-                        "date", "time", "country", "event_name",
-                        "actual", "consensus", "prior", "importance",
-                    ] if c in df_econ.columns]
-
-                    if econ_country != "all" and "country" in df_econ.columns:
-                        df_econ = df_econ[df_econ["country"] == econ_country]
-                    if econ_imp != "all" and "importance" in df_econ.columns:
-                        df_econ = df_econ[pd.to_numeric(df_econ["importance"], errors="coerce") >= int(econ_imp)]
-
-                    st.caption(f"{len(df_econ)} economic event(s) from {bz_from_str} to {bz_to_str}")
-
-                    # Highlight beats/misses vs consensus
-                    def _color_vs_consensus(row: pd.Series) -> list[str]:
-                        styles = [""] * len(row)
-                        try:
-                            actual = float(row.get("actual", ""))
-                            cons = float(row.get("consensus", ""))
-                            idx = list(row.index).index("actual") if "actual" in row.index else -1
-                            if idx >= 0:
-                                if actual > cons:
-                                    styles[idx] = "color: #00C853"
-                                elif actual < cons:
-                                    styles[idx] = "color: #FF1744"
-                        except (ValueError, TypeError):
-                            pass
-                        return styles
-
-                    df_display = df_econ[display_cols] if display_cols else df_econ
-                    if "actual" in df_display.columns and "consensus" in df_display.columns:
-                        styled_econ = df_display.style.apply(_color_vs_consensus, axis=1)
-                        st.dataframe(styled_econ, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-                    else:
-                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-
-                    # Upcoming events
-                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
-                    upcoming = df_econ[df_econ["date"] >= now_str] if "date" in df_econ.columns else pd.DataFrame()
-                    if not upcoming.empty:
-                        st.divider()
-                        st.subheader("⏰ Upcoming Economic Events")
-                        for _, row in upcoming.head(10).iterrows():
-                            imp = row.get("importance", 0)
-                            try:
-                                imp_val = int(imp)
-                            except (ValueError, TypeError):
-                                imp_val = 0
-                            imp_icon = "🔴" if imp_val >= 4 else ("🟠" if imp_val >= 2 else "🟡")
-                            _ev = safe_markdown_text(str(row.get("event_name", "?")))
-                            st.markdown(
-                                f"{imp_icon} **{_ev}** — "
-                                f"{row.get('country', '?')} | {row.get('date', '?')} {row.get('time', '')} | "
-                                f"Prior: {row.get('prior', '?')} | Consensus: {row.get('consensus', '?')}"
-                            )
-                else:
-                    st.info("No Benzinga economic events found for the selected range.")
-
-            # ── Dividends Calendar ──────────────────────────
-            with bz_sub_divs:
-                div_data = _cached_bz_dividends(bz_key, bz_from_str, bz_to_str)
-                if div_data:
-                    df_div = pd.DataFrame(div_data)
-                    display_cols = [c for c in [
-                        "ticker", "name", "date", "ex_date", "payable_date",
-                        "record_date", "dividend", "dividend_prior",
-                        "dividend_yield", "frequency", "importance",
-                    ] if c in df_div.columns]
-                    st.caption(f"{len(df_div)} dividend(s) from {bz_from_str} to {bz_to_str}")
-                    st.dataframe(
-                        df_div[display_cols] if display_cols else df_div,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_div)),
-                    )
-                else:
-                    st.info("No Benzinga dividend data found for the selected range.")
-
-            # ── Splits Calendar ─────────────────────────────
-            with bz_sub_splits:
-                splits_data = _cached_bz_splits(bz_key, bz_from_str, bz_to_str)
-                if splits_data:
-                    df_spl = pd.DataFrame(splits_data)
-                    display_cols = [c for c in [
-                        "ticker", "exchange", "date", "ratio",
-                        "optionable", "date_ex", "date_recorded",
-                        "date_distribution", "importance",
-                    ] if c in df_spl.columns]
-                    st.caption(f"{len(df_spl)} split(s) from {bz_from_str} to {bz_to_str}")
-                    st.dataframe(
-                        df_spl[display_cols] if display_cols else df_spl,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_spl)),
-                    )
-                else:
-                    st.info("No Benzinga stock splits found for the selected range.")
-
-            # ── IPO Calendar ────────────────────────────────
-            with bz_sub_ipos:
-                ipo_data = _cached_bz_ipos(bz_key, bz_from_str, bz_to_str)
-                if ipo_data:
-                    df_ipo = pd.DataFrame(ipo_data)
-                    display_cols = [c for c in [
-                        "ticker", "name", "exchange", "pricing_date",
-                        "price_min", "price_max", "deal_status",
-                        "offering_value", "offering_shares",
-                        "lead_underwriters", "importance",
-                    ] if c in df_ipo.columns]
-                    st.caption(f"{len(df_ipo)} IPO(s) from {bz_from_str} to {bz_to_str}")
-                    st.dataframe(
-                        df_ipo[display_cols] if display_cols else df_ipo,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_ipo)),
-                    )
-
-                    # Highlight upcoming IPOs
-                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
-                    date_col = "pricing_date" if "pricing_date" in df_ipo.columns else "date"
-                    if date_col in df_ipo.columns:
-                        upcoming = df_ipo[df_ipo[date_col] >= now_str]
-                        if not upcoming.empty:
-                            st.divider()
-                            st.subheader("🚀 Upcoming IPOs")
-                            for _, row in upcoming.head(10).iterrows():
-                                _tk = safe_markdown_text(str(row.get("ticker", "?")))
-                                _nm = safe_markdown_text(str(row.get("name", "")))
-                                st.markdown(
-                                    f"**{_tk}** {_nm} — "
-                                    f"{row.get(date_col, '?')} | "
-                                    f"${row.get('price_min', '?')} – ${row.get('price_max', '?')} | "
-                                    f"Status: {row.get('deal_status', '?')}"
-                                )
-                else:
-                    st.info("No Benzinga IPO data found for the selected range.")
-
-            # ── Guidance Calendar ───────────────────────────
-            with bz_sub_guidance:
-                guid_data = _cached_bz_guidance(bz_key, bz_from_str, bz_to_str)
-                if guid_data:
-                    df_guid = pd.DataFrame(guid_data)
-                    display_cols = [c for c in [
-                        "ticker", "name", "date", "period", "period_year",
-                        "prelim", "eps_guidance_est", "eps_guidance_max",
-                        "eps_guidance_min", "revenue_guidance_est",
-                        "revenue_guidance_max", "revenue_guidance_min",
-                        "importance",
-                    ] if c in df_guid.columns]
-                    st.caption(f"{len(df_guid)} guidance item(s) from {bz_from_str} to {bz_to_str}")
-                    st.dataframe(
-                        df_guid[display_cols] if display_cols else df_guid,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_guid)),
-                    )
-                else:
-                    st.info("No Benzinga guidance data found for the selected range.")
-
-            # ── Retail Sales Calendar ───────────────────────
-            with bz_sub_retail:
-                retail_data = _cached_bz_retail(bz_key, bz_from_str, bz_to_str)
-                if retail_data:
-                    df_ret = pd.DataFrame(retail_data)
-                    display_cols = [c for c in [
-                        "ticker", "name", "date", "period", "period_year",
-                        "sss", "sss_est", "retail_surprise", "importance",
-                    ] if c in df_ret.columns]
-                    st.caption(f"{len(df_ret)} retail item(s) from {bz_from_str} to {bz_to_str}")
-
-                    # Highlight beats/misses
-                    def _color_retail_surprise(val: Any) -> str:
-                        try:
-                            v = float(val)
-                            return "color: #00C853" if v > 0 else ("color: #FF1744" if v < 0 else "")
-                        except (ValueError, TypeError):
-                            return ""
-
-                    df_display = df_ret[display_cols] if display_cols else df_ret
-                    surprise_cols = [c for c in ["retail_surprise"] if c in df_display.columns]
-                    if surprise_cols:
-                        styled = df_display.style.map(_color_retail_surprise, subset=surprise_cols)
-                        st.dataframe(styled, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-                    else:
-                        st.dataframe(df_display, width='stretch', height=min(600, 40 + 35 * len(df_display)))
-                else:
-                    st.info("No Benzinga retail sales data found for the selected range.")
-
-            # ── Top News ────────────────────────────────────
-            with bz_sub_top_news:
-                tn_limit = st.selectbox("Max stories", [10, 20, 50], index=1, key="bz_tn_limit")
-                top_news = _cached_bz_top_news(bz_key, limit=tn_limit)
-                if top_news:
-                    st.caption(f"{len(top_news)} curated top stories")
-                    for i, story in enumerate(top_news):
-                        title = safe_markdown_text(str(story.get("title", "Untitled")))
-                        author = story.get("author", "")
-                        created = story.get("created", "")
-                        url = story.get("url", "")
-                        teaser = story.get("teaser", "")
-                        stocks = story.get("stocks", [])
-                        tickers_str = ", ".join(
-                            s.get("name", "") if isinstance(s, dict) else str(s)
-                            for s in (stocks if isinstance(stocks, list) else [])
-                        )
-
-                        header_parts = [f"**{title}**"]
-                        if tickers_str:
-                            header_parts.append(f"[{tickers_str}]")
-                        if author:
-                            header_parts.append(f"— {safe_markdown_text(str(author))}")
-                        if created:
-                            header_parts.append(f"| {created[:16]}")
-
-                        st.markdown(" ".join(header_parts))
-                        if teaser:
-                            st.caption(safe_markdown_text(str(teaser)[:200]))
-                        if url:
-                            st.markdown(f"[Read more]({url})", unsafe_allow_html=True)
-                        if i < len(top_news) - 1:
-                            st.divider()
-                else:
-                    st.info("No Benzinga top news available.")
-
-            # ── Quantified News (price-impact context) ──────
-            with bz_sub_quantified:
-                qn_data = _cached_bz_quantified(bz_key, from_date=bz_from_str, to_date=bz_to_str)
-                if qn_data:
-                    df_qn = pd.DataFrame(qn_data)
-                    st.caption(f"{len(df_qn)} quantified news item(s)")
-                    st.dataframe(df_qn, width='stretch', height=min(600, 40 + 35 * len(df_qn)))
-                else:
-                    st.info("No Benzinga quantified news available for the selected range.")
-
-            # ── Options Activity (unusual flow) ─────────────
-            with bz_sub_options:
-                opt_ticker = st.text_input(
-                    "Ticker(s)", value="AAPL,NVDA,SPY",
-                    placeholder="e.g. AAPL,NVDA,SPY",
-                    key="bz_opt_ticker",
-                )
-                if opt_ticker.strip():
-                    opt_data = _cached_bz_options_activity(
-                        bz_key, opt_ticker.strip(),
-                        from_date=bz_from_str, to_date=bz_to_str,
-                    )
-                    if opt_data:
-                        df_opt = pd.DataFrame(opt_data)
-                        st.caption(f"{len(df_opt)} options activity record(s)")
-                        st.dataframe(df_opt, width='stretch', height=min(600, 40 + 35 * len(df_opt)))
-                    else:
-                        st.info("No Benzinga options activity found. (Requires Options Activity API access.)")
-                else:
-                    st.info("Enter ticker(s) above to view options activity.")
-
-            # ── Conference Calls ────────────────────────────
-            with bz_sub_conf:
-                conf_data = _cached_bz_conference_calls(bz_key, bz_from_str, bz_to_str)
-                if conf_data:
-                    df_conf = pd.DataFrame(conf_data)
-                    display_cols = [c for c in [
-                        "ticker", "date", "start_time", "phone",
-                        "international_phone", "webcast_url",
-                        "period", "period_year", "importance",
-                    ] if c in df_conf.columns]
-                    st.caption(f"{len(df_conf)} conference call(s) from {bz_from_str} to {bz_to_str}")
-                    st.dataframe(
-                        df_conf[display_cols] if display_cols else df_conf,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_conf)),
-                    )
-
-                    # Highlight upcoming calls
-                    now_str = datetime.now(UTC).strftime("%Y-%m-%d")
-                    if "date" in df_conf.columns:
-                        upcoming = df_conf[df_conf["date"] >= now_str]
-                        if not upcoming.empty:
-                            st.divider()
-                            st.subheader("📞 Upcoming Conference Calls")
-                            for _, row in upcoming.head(10).iterrows():
-                                _tk = safe_markdown_text(str(row.get("ticker", "?")))
-                                _url = row.get("webcast_url", "")
-                                _time = row.get("start_time", "")
-                                link_part = f" | [Webcast]({_url})" if _url else ""
-                                st.markdown(
-                                    f"**{_tk}** — {row.get('date', '?')} {_time} | "
-                                    f"{row.get('period', '?')} {row.get('period_year', '')}"
-                                    f"{link_part}"
-                                )
-                else:
-                    st.info("No Benzinga conference call data found for the selected range.")
-
-            # ── Insider Trades ──────────────────────────────
-            with bz_sub_insider:
-                st.caption("SEC Form 4 insider transactions — purchases, sales, grants, and exercises.")
-
-                ins_col1, ins_col2, ins_col3 = st.columns(3)
-                with ins_col1:
-                    ins_action = st.selectbox(
-                        "Transaction Type",
-                        ["All", "Purchases (P)", "Sales (S)", "Grants/Awards (A)",
-                         "Dispositions (D)", "Exercises (M)"],
-                        key="bz_ins_action",
-                    )
-                with ins_col2:
-                    ins_ticker = st.text_input(
-                        "Ticker(s)", value="", placeholder="e.g. AAPL,MSFT",
-                        key="bz_ins_ticker",
-                    ).strip().upper()
-                with ins_col3:
-                    ins_limit = st.selectbox("Max results", [50, 100, 200, 500], index=1, key="bz_ins_limit")
-
-                # Map display label to API action code
-                _action_map = {
-                    "All": None,
-                    "Purchases (P)": "P",
-                    "Sales (S)": "S",
-                    "Grants/Awards (A)": "A",
-                    "Dispositions (D)": "D",
-                    "Exercises (M)": "M",
-                }
-                api_action = _action_map.get(ins_action)
-
-                ins_data = _cached_bz_insider_transactions(
-                    bz_key,
-                    date_from=bz_from_str,
-                    date_to=bz_to_str,
-                    action=api_action,
-                    page_size=ins_limit,
+            # ── Notable earnings ──
+            notable = outlook.get("notable_earnings") or []
+            if notable:
+                st.subheader(f"📊 Earnings Reporting on {next_td_str}")
+                _ne_df = pd.DataFrame(notable)
+                display_cols = [c for c in ["ticker", "name", "timing"] if c in _ne_df.columns]
+                st.dataframe(
+                    _ne_df[display_cols] if display_cols else _ne_df,
+                    width='stretch',
+                    height=min(400, 40 + 35 * len(_ne_df)),
                 )
 
-                # Client-side ticker filter
-                if ins_ticker and ins_data:
-                    wanted = {t.strip() for t in ins_ticker.split(",") if t.strip()}
-                    ins_data = [r for r in ins_data if str(r.get("ticker", "")).upper() in wanted]
-
-                if ins_data:
-                    df_ins = pd.DataFrame(ins_data)
-
-                    # Display columns
-                    display_cols = [c for c in [
-                        "ticker", "company_name", "owner_name", "owner_title",
-                        "transaction_type", "date", "shares_traded",
-                        "price_per_share", "total_value", "shares_held",
-                    ] if c in df_ins.columns]
-
-                    st.caption(f"{len(df_ins)} insider transaction(s) from {bz_from_str} to {bz_to_str}")
-                    st.dataframe(
-                        df_ins[display_cols] if display_cols else df_ins,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_ins)),
-                    )
-
-                    # Summary metrics
-                    if "total_value" in df_ins.columns:
-                        df_ins["_val"] = pd.to_numeric(df_ins["total_value"], errors="coerce")
-                        if "transaction_type" in df_ins.columns:
-                            buys = df_ins[df_ins["transaction_type"].str.upper().str.contains("P|PURCHASE", na=False)]
-                            sells = df_ins[df_ins["transaction_type"].str.upper().str.contains("S|SALE", na=False)]
-                        else:
-                            buys = pd.DataFrame()
-                            sells = pd.DataFrame()
-                        m1, m2, m3, m4 = st.columns(4)
-                        m1.metric("Total Transactions", len(df_ins))
-                        m2.metric("Total Purchases", len(buys))
-                        m3.metric("Total Sales", len(sells))
-                        total_val = df_ins["_val"].sum()
-                        m4.metric("Total Value", f"${total_val:,.0f}" if total_val else "N/A")
-
-                    # Notable transactions (>$100K)
-                    if "_val" in df_ins.columns:
-                        big = df_ins[df_ins["_val"] >= 100_000].sort_values("_val", ascending=False)
-                        if not big.empty:
-                            st.divider()
-                            st.subheader("🔍 Notable Transactions (≥$100K)")
-                            for _, row in big.head(15).iterrows():
-                                _tk = safe_markdown_text(str(row.get("ticker", "?")))
-                                _name = safe_markdown_text(str(row.get("owner_name", "?")))
-                                _title = row.get("owner_title", "")
-                                _type = row.get("transaction_type", "?")
-                                _val = row.get("_val", 0)
-                                _shares = row.get("shares_traded", "?")
-                                _date = row.get("date", "?")
-                                st.markdown(
-                                    f"**{_tk}** — {_name}"
-                                    + (f" ({_title})" if _title else "")
-                                    + f" | {_type} | {_shares} shares | "
-                                    f"${_val:,.0f} | {_date}"
-                                )
-                else:
-                    st.info("No insider transactions found for the selected filters and date range.")
-
-            # ── Power Gap Scanner ───────────────────────────
-            with bz_sub_power_gaps:
-                st.caption(
-                    "Power Gap Scanner — classifies today's movers by combining "
-                    "gap %, earnings surprise, and relative volume."
-                )
-                st.markdown(
-                    "| Label | Criteria |\n"
-                    "| --- | --- |\n"
-                    "| **MPEG** (Monster Power Earning Gap) | Gap ≥ 8%, earnings beat, rel-vol ≥ 2× |\n"
-                    "| **PEG** (Power Earning Gap) | Gap ≥ 4%, earnings beat, rel-vol ≥ 1.5× |\n"
-                    "| **MG** (Monster Gap) | Gap ≥ 8%, rel-vol ≥ 2× (no earnings req.) |\n"
-                    "| **Gap Up / Gap Down** | Significant mover — criteria not met |"
-                )
+            # ── Reasoning factors ──
+            reasons = outlook.get("reasons") or []
+            if reasons:
                 st.divider()
+                st.caption("**Factors:** " + " · ".join(reasons))
 
-                power_data = _cached_bz_power_gaps(bz_key)
+            # ── Sector mood ──
+            sector_mood = outlook.get("sector_mood", "neutral")
+            mood_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(sector_mood, "⚪")
+            st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
 
-                if power_data:
-                    df_pg = pd.DataFrame(power_data)
-
-                    # Filter controls
-                    pg_col1, pg_col2 = st.columns(2)
-                    with pg_col1:
-                        pg_filter = st.multiselect(
-                            "Gap Type",
-                            options=["MPEG", "PEG", "MG", "Gap Up", "Gap Down"],
-                            default=["MPEG", "PEG", "MG"],
-                            key="bz_pg_filter",
-                        )
-                    with pg_col2:
-                        pg_min_gap = st.slider(
-                            "Min |Gap %|", 0.0, 30.0, 4.0, 0.5, key="bz_pg_min_gap",
-                        )
-
-                    # Apply filters
-                    if pg_filter:
-                        df_pg = df_pg[df_pg["gap_type"].isin(pg_filter)]
-                    df_pg = df_pg[df_pg["gap_pct"].abs() >= pg_min_gap]
-
-                    if not df_pg.empty:
-                        # Color-code gap_type
-                        display_cols = [c for c in [
-                            "gap_type", "symbol", "company_name", "gap_pct",
-                            "rel_vol", "has_earnings", "eps_surprise",
-                            "eps_surprise_pct", "price", "volume",
-                            "avg_volume", "sector",
-                        ] if c in df_pg.columns]
-
-                        st.caption(f"{len(df_pg)} classified gap(s)")
-                        st.dataframe(
-                            df_pg[display_cols] if display_cols else df_pg,
-                            width='stretch',
-                            height=min(600, 40 + 35 * len(df_pg)),
-                        )
-
-                        # Summary metrics
-                        m1, m2, m3, m4 = st.columns(4)
-                        mpeg_count = len(df_pg[df_pg["gap_type"] == "MPEG"])
-                        peg_count = len(df_pg[df_pg["gap_type"] == "PEG"])
-                        mg_count = len(df_pg[df_pg["gap_type"] == "MG"])
-                        m1.metric("⚡ MPEG", mpeg_count)
-                        m2.metric("💡 PEG", peg_count)
-                        m3.metric("🔥 Monster Gap", mg_count)
-                        m4.metric("Total Gaps", len(df_pg))
-
-                        # Highlight top gaps
-                        top_gaps = df_pg[df_pg["gap_type"].isin(["MPEG", "PEG", "MG"])].head(10)
-                        if not top_gaps.empty:
-                            st.divider()
-                            st.subheader("⚡ Notable Power Gaps")
-                            for _, row in top_gaps.iterrows():
-                                _sym = safe_markdown_text(str(row.get("symbol", "?")))
-                                _name = safe_markdown_text(str(row.get("company_name", "")))
-                                _type = row.get("gap_type", "?")
-                                _gap = row.get("gap_pct", 0)
-                                _rv = row.get("rel_vol", 0)
-                                _eps = row.get("eps_surprise", 0)
-                                _price = row.get("price", 0)
-                                _sector = row.get("sector", "")
-
-                                type_emoji = {"MPEG": "⚡", "PEG": "💡", "MG": "🔥"}.get(_type, "📊")
-                                direction = "🟢" if _gap > 0 else "🔴"
-                                eps_part = f" | EPS surprise: {_eps:+.2f}" if row.get("has_earnings") else ""
-                                st.markdown(
-                                    f"{type_emoji} **[{_type}]** {direction} **{_sym}** "
-                                    f"({_name}) — Gap: {_gap:+.1f}% | "
-                                    f"Rel Vol: {_rv:.1f}× | "
-                                    f"Price: ${_price}"
-                                    f"{eps_part}"
-                                    + (f" | {_sector}" if _sector else "")
-                                )
-                    else:
-                        st.info("No gaps match the current filters.")
-                else:
-                    st.info("No market mover data available. Power Gap Scanner requires active market hours.")
-
-            # ── Channel News Browser ────────────────────────
-            with bz_sub_channels:
-                st.caption("Browse Benzinga news by channel. Select one or more channels to filter.")
-                ch_list = _cached_bz_channel_list(bz_key)
-                if ch_list:
-                    ch_names = sorted(set(
-                        str(c.get("name", "")).strip()
-                        for c in ch_list if c.get("name")
-                    ))
-                    selected_channels = st.multiselect(
-                        "Channels",
-                        options=ch_names,
-                        default=[],
-                        placeholder="Pick channels…",
-                        key="bz_channel_browser_select",
+            # ── Trending Themes (NewsAPI.ai market awareness) ──
+            if newsapi_available():
+                _outlook_trending = fetch_trending_concepts(count=10, source="news")
+                if _outlook_trending:
+                    st.divider()
+                    st.subheader("🔥 Trending Themes in Global News")
+                    st.caption("Real-time trending entities — emerging themes that may affect tomorrow's session.")
+                    _trend_chips = " → ".join(
+                        f"{c.type_icon} **{c.label}** ({c.article_count})" for c in _outlook_trending[:8]
                     )
-                    ch_limit = st.selectbox("Max articles", [20, 50, 100], index=0, key="bz_ch_limit")
+                    st.markdown(_trend_chips)
 
-                    if selected_channels:
-                        ch_csv = ",".join(selected_channels)
-                        ch_news = _cached_bz_news_by_channel(bz_key, ch_csv, page_size=ch_limit)
-                        if ch_news:
-                            st.caption(f"{len(ch_news)} article(s) for: {ch_csv}")
-                            for i, art in enumerate(ch_news):
-                                _title = safe_markdown_text(str(art.get("title", "Untitled")))
-                                _src = art.get("source", "")
-                                _url = art.get("url", "")
-                                _ts = art.get("published_ts", "")
-                                _tickers = art.get("tickers", [])
-                                _summary = art.get("summary", "")
+                    # Sentiment of trending entities
+                    _trend_labels = [c.label for c in _outlook_trending[:5] if c.concept_type in ("org", "person")]
+                    if _trend_labels:
+                        _trend_nlp = fetch_nlp_sentiment(_trend_labels, hours=12)
+                        if any(v.article_count > 0 for v in _trend_nlp.values()):
+                            st.markdown("**Sentiment of top trending entities:**")
+                            for _tl in _trend_labels:
+                                _tn = _trend_nlp.get(_tl)
+                                if _tn and _tn.article_count > 0:
+                                    st.markdown(
+                                        f"- {_tn.icon} **{_tl}**: NLP {_tn.nlp_score:+.2f} "
+                                        f"({_tn.article_count} articles, {_tn.agreement:.0%} agreement)"
+                                    )
 
-                                header = [f"**{_title}**"]
-                                if _tickers:
-                                    tk_str = ", ".join(str(t) for t in _tickers[:5])
-                                    header.append(f"[{tk_str}]")
-                                if _src:
-                                    header.append(f"— {safe_markdown_text(str(_src))}")
-                                if _ts:
-                                    header.append(f"| {str(_ts)[:16]}")
-                                st.markdown(" ".join(header))
-                                if _summary:
-                                    st.caption(safe_markdown_text(str(_summary)[:250]))
-                                if _url:
-                                    st.markdown(f"[Read more]({_url})", unsafe_allow_html=True)
-                                if i < len(ch_news) - 1:
-                                    st.divider()
-                        else:
-                            st.info(f"No articles found for: {ch_csv}")
-                    else:
-                        st.info("Select one or more channels above to browse news.")
-                else:
-                    st.info("Could not load Benzinga channel list.")
-
-    # ── TAB: Benzinga Market Movers + Quotes ────────────────
+    # ── TAB: Market Movers + Quotes ────────────────
     with tab_bz_movers:
         bz_key = st.session_state.cfg.benzinga_api_key
         if not bz_key:
-            st.info("Set `BENZINGA_API_KEY` in `.env` for Benzinga market movers & quotes.")
+            st.info("Set `BENZINGA_API_KEY` in `.env` for market movers & quotes.")
         else:
-            st.subheader("💹 Benzinga Market Movers")
+            st.subheader("💹 Market Movers")
 
-            # Session indicator — Benzinga movers are regular-session only
+            # Session indicator — movers are regular-session only
             _bz_mov_session = _current_session
             if _bz_mov_session in ("pre-market", "after-hours"):
                 st.caption(
@@ -2982,7 +2811,7 @@ else:
                     "Showing last session movers."
                 )
             else:
-                st.caption("Real-time market movers from Benzinga. Gainers & Losers with delayed quotes.")
+                st.caption("Real-time market movers. Gainers & Losers with delayed quotes.")
 
             movers_data = _cached_bz_movers(bz_key)
             gainers = movers_data.get("gainers", [])
@@ -3025,6 +2854,7 @@ else:
                             "Price": _gq["last"] if "last" in _gq else g.get("price", g.get("last", "")),
                             "Change": _gq["change"] if "change" in _gq else g.get("change", ""),
                             "Change %": _gq["changePercent"] if "changePercent" in _gq else g.get("changePercent", g.get("change_percent", "")),
+                            "Age": format_age_string(time.time()),
                             "Volume": _gq["volume"] if "volume" in _gq else g.get("volume", ""),
                             "Avg Volume": g.get("averageVolume", g.get("average_volume", "")),
                             "Mkt Cap": g.get("marketCap", g.get("market_cap", "")),
@@ -3048,6 +2878,7 @@ else:
                             "Price": _lq["last"] if "last" in _lq else loser.get("price", loser.get("last", "")),
                             "Change": _lq["change"] if "change" in _lq else loser.get("change", ""),
                             "Change %": _lq["changePercent"] if "changePercent" in _lq else loser.get("changePercent", loser.get("change_percent", "")),
+                            "Age": format_age_string(time.time()),
                             "Volume": _lq["volume"] if "volume" in _lq else loser.get("volume", ""),
                             "Avg Volume": loser.get("averageVolume", loser.get("average_volume", "")),
                             "Mkt Cap": loser.get("marketCap", loser.get("market_cap", "")),
@@ -3059,10 +2890,15 @@ else:
                 else:
                     st.info("No losers data available.")
 
+            st.caption(
+                "💡 Sector column may be empty — movers endpoints do not always "
+                "include GICS sector classification. Check the *Segments* tab for sector-level data."
+            )
+
             # ── Delayed Quotes Lookup ───────────────────────
             st.divider()
             st.subheader("🔎 Delayed Quotes Lookup")
-            st.caption("Enter up to 50 comma-separated tickers for Benzinga delayed quotes.")
+            st.caption("Enter up to 50 comma-separated tickers for delayed quotes.")
 
             # Auto-populate from feed tickers
             _feed_tickers = sorted(set(d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"))[:20]
@@ -3075,7 +2911,10 @@ else:
             )
 
             if quote_symbols.strip():
-                quotes_data = _cached_bz_quotes(bz_key, quote_symbols)
+                # Sanitize: allow only alphanumeric, commas, dots, spaces, hyphens
+                import re as _re
+                _sanitized_syms = _re.sub(r"[^A-Za-z0-9,.\- ]", "", quote_symbols)
+                quotes_data = _cached_bz_quotes(bz_key, _sanitized_syms)
                 if quotes_data:
                     quote_rows = []
                     for q in quotes_data:
@@ -3116,6 +2955,346 @@ else:
                         st.dataframe(df_quotes, width='stretch', height=min(600, 40 + 35 * len(df_quotes)))
                 else:
                     st.info("No quote data returned. Check that symbols are valid.")
+
+    # ── TAB: Bitcoin ────────────────────────────────────────
+    with tab_bitcoin:
+        st.subheader("₿ Bitcoin Dashboard")
+        st.caption("🟢 Market: 24/7 — always open")
+
+        if not btc_available():
+            st.warning("No data sources available. Set FMP_API_KEY or install yfinance / tradingview_ta.")
+        else:
+            # ── Tomorrow Outlook (on top as requested) ──────
+            with st.container():
+                st.markdown("### 🔮 Bitcoin Outlook")
+                _btc_outlook = fetch_btc_outlook()
+                if _btc_outlook and not _btc_outlook.error:
+                    _oc1, _oc2, _oc3, _oc4 = st.columns(4)
+                    with _oc1:
+                        st.metric(
+                            "Trend",
+                            _btc_outlook.trend_label,
+                            delta=f"RSI {_btc_outlook.rsi:.1f}" if _btc_outlook.rsi else None,
+                        )
+                    with _oc2:
+                        if _btc_outlook.fear_greed:
+                            _ol_fg = _btc_outlook.fear_greed
+                            st.metric("Fear & Greed", f"{_ol_fg.value:.0f}", delta=_ol_fg.label)
+                    with _oc3:
+                        st.metric("Support", format_btc_price(_btc_outlook.support))
+                    with _oc4:
+                        st.metric("Resistance", format_btc_price(_btc_outlook.resistance))
+
+                    # Technicals summary row
+                    _tc1, _tc2, _tc3 = st.columns(3)
+                    for _col, _label, _tech in [
+                        (_tc1, "1H", _btc_outlook.technicals_1h),
+                        (_tc2, "4H", _btc_outlook.technicals_4h),
+                        (_tc3, "1D", _btc_outlook.technicals_1d),
+                    ]:
+                        with _col:
+                            if _tech and not _tech.error:
+                                st.markdown(
+                                    f"**{_label}:** {technicals_signal_icon(_tech.summary)} "
+                                    f"{technicals_signal_label(_tech.summary)} "
+                                    f"(Buy {_tech.buy} / Sell {_tech.sell} / Neutral {_tech.neutral})"
+                                )
+                            elif _tech and _tech.error:
+                                st.caption(f"{_label}: ⚠️ {_tech.error}")
+
+                    with st.expander("📋 Full Outlook Analysis"):
+                        st.markdown(_btc_outlook.summary_text)
+                elif _btc_outlook and _btc_outlook.error:
+                    st.warning(f"⚠️ Bitcoin outlook unavailable: {_btc_outlook.error}")
+
+                st.markdown("---")
+
+            # ── Real-time Quote ─────────────────────────────
+            _btc_quote = fetch_btc_quote()
+            if _btc_quote and _btc_quote.price > 0:
+                st.markdown("### 💰 Real-time Quote")
+                _qc1, _qc2, _qc3, _qc4 = st.columns(4)
+                with _qc1:
+                    st.metric(
+                        "BTC Price",
+                        format_btc_price(_btc_quote.price),
+                        delta=f"{_btc_quote.change_pct:+.2f}%",
+                    )
+                with _qc2:
+                    st.metric("24h Volume", format_large_number(_btc_quote.volume))
+                with _qc3:
+                    st.metric("Day Range", f"{format_btc_price(_btc_quote.day_low)} – {format_btc_price(_btc_quote.day_high)}")
+                with _qc4:
+                    st.metric("Market Cap", format_large_number(_btc_quote.market_cap))
+
+                _qc5, _qc6, _qc7, _qc8 = st.columns(4)
+                with _qc5:
+                    st.metric("Open", format_btc_price(_btc_quote.open_price))
+                with _qc6:
+                    st.metric("Prev Close", format_btc_price(_btc_quote.prev_close))
+                with _qc7:
+                    st.metric("52w High", format_btc_price(_btc_quote.year_high))
+                with _qc8:
+                    st.metric("52w Low", format_btc_price(_btc_quote.year_low))
+
+                st.markdown("---")
+
+            # ── Combined Price + Volume Chart ───────────────
+            st.markdown("### 📊 Price & Volume Chart (48h)")
+            try:
+                import plotly.graph_objects as go
+                from plotly.subplots import make_subplots
+
+                _ohlcv_10m = fetch_btc_ohlcv_10min(hours=48)
+                if _ohlcv_10m:
+                    _chart_dates = [r["date"] for r in _ohlcv_10m]
+                    _chart_opens = [r["open"] for r in _ohlcv_10m]
+                    _chart_highs = [r["high"] for r in _ohlcv_10m]
+                    _chart_lows = [r["low"] for r in _ohlcv_10m]
+                    _chart_closes = [r["close"] for r in _ohlcv_10m]
+                    _chart_volumes = [r["volume"] for r in _ohlcv_10m]
+
+                    # Color volume bars by direction
+                    _vol_colors = [
+                        "rgba(38, 166, 91, 0.6)" if c >= o else "rgba(239, 83, 80, 0.6)"
+                        for o, c in zip(_chart_opens, _chart_closes)
+                    ]
+
+                    fig = make_subplots(
+                        rows=2, cols=1,
+                        shared_xaxes=True,
+                        vertical_spacing=0.03,
+                        row_heights=[0.7, 0.3],
+                        subplot_titles=("BTC/USD · 10min Candles", "Volume (10min)"),
+                    )
+
+                    # Candlestick chart
+                    fig.add_trace(
+                        go.Candlestick(
+                            x=_chart_dates,
+                            open=_chart_opens,
+                            high=_chart_highs,
+                            low=_chart_lows,
+                            close=_chart_closes,
+                            name="BTC/USD",
+                            increasing_line_color="#26a65b",
+                            decreasing_line_color="#ef5350",
+                            increasing_fillcolor="#26a65b",
+                            decreasing_fillcolor="#ef5350",
+                        ),
+                        row=1, col=1,
+                    )
+
+                    # Volume bars
+                    fig.add_trace(
+                        go.Bar(
+                            x=_chart_dates,
+                            y=_chart_volumes,
+                            name="Volume",
+                            marker_color=_vol_colors,
+                            opacity=0.7,
+                        ),
+                        row=2, col=1,
+                    )
+
+                    fig.update_layout(
+                        height=650,
+                        template="plotly_dark",
+                        showlegend=False,
+                        xaxis_rangeslider_visible=False,
+                        margin=dict(l=50, r=20, t=40, b=20),
+                        font=dict(size=11),
+                    )
+                    fig.update_yaxes(title_text="Price (USD)", row=1, col=1)
+                    fig.update_yaxes(title_text="Volume", row=2, col=1)
+                    fig.update_xaxes(title_text="Time (UTC)", row=2, col=1)
+
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("No 10-minute OHLCV data available. Install yfinance and pandas for chart data.")
+            except ImportError:
+                st.warning("Install plotly for charts: `pip install plotly`")
+
+            st.markdown("---")
+
+            # ── Technical Analysis ──────────────────────────
+            st.markdown("### 📐 Technical Analysis")
+            _btc_tech_interval = st.selectbox(
+                "Interval", ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w"],
+                index=4,  # default 1h
+                key="btc_tech_interval",
+            )
+            _btc_tech = fetch_btc_technicals(_btc_tech_interval)
+            if _btc_tech and not _btc_tech.error:
+                _tech_c1, _tech_c2, _tech_c3 = st.columns(3)
+                with _tech_c1:
+                    st.markdown(
+                        f"**Overall:** {technicals_signal_icon(_btc_tech.summary)} "
+                        f"{technicals_signal_label(_btc_tech.summary)}"
+                    )
+                    st.caption(f"Buy {_btc_tech.buy} · Sell {_btc_tech.sell} · Neutral {_btc_tech.neutral}")
+                with _tech_c2:
+                    st.markdown(
+                        f"**Oscillators:** {technicals_signal_icon(_btc_tech.osc_signal)} "
+                        f"{technicals_signal_label(_btc_tech.osc_signal)}"
+                    )
+                    st.caption(f"Buy {_btc_tech.osc_buy} · Sell {_btc_tech.osc_sell} · Neutral {_btc_tech.osc_neutral}")
+                with _tech_c3:
+                    st.markdown(
+                        f"**Moving Avgs:** {technicals_signal_icon(_btc_tech.ma_signal)} "
+                        f"{technicals_signal_label(_btc_tech.ma_signal)}"
+                    )
+                    st.caption(f"Buy {_btc_tech.ma_buy} · Sell {_btc_tech.ma_sell} · Neutral {_btc_tech.ma_neutral}")
+
+                # Key indicators
+                with st.expander("📊 Key Indicators"):
+                    _ind_c1, _ind_c2, _ind_c3 = st.columns(3)
+                    with _ind_c1:
+                        if _btc_tech.rsi is not None:
+                            _rsi_status = "🔴 Overbought" if _btc_tech.rsi > 70 else ("🟢 Oversold" if _btc_tech.rsi < 30 else "⚪ Normal")
+                            st.metric("RSI (14)", f"{_btc_tech.rsi:.1f}", delta=_rsi_status)
+                        if _btc_tech.adx is not None:
+                            st.metric("ADX", f"{_btc_tech.adx:.1f}")
+                    with _ind_c2:
+                        if _btc_tech.macd is not None:
+                            _macd_delta = "Bullish" if _btc_tech.macd > 0 else "Bearish"
+                            st.metric("MACD", f"{_btc_tech.macd:.2f}", delta=_macd_delta)
+                        if _btc_tech.cci is not None:
+                            st.metric("CCI (20)", f"{_btc_tech.cci:.1f}")
+                    with _ind_c3:
+                        if _btc_tech.stoch_k is not None:
+                            st.metric("Stoch %K", f"{_btc_tech.stoch_k:.1f}")
+                        if _btc_tech.macd_signal is not None:
+                            st.metric("MACD Signal", f"{_btc_tech.macd_signal:.2f}")
+            elif _btc_tech and _btc_tech.error:
+                st.warning(f"Technical analysis unavailable: {_btc_tech.error}")
+
+            st.markdown("---")
+
+            # ── Fear & Greed Index ──────────────────────────
+            st.markdown("### 😱 Fear & Greed Index")
+            _fg = fetch_fear_greed()
+            if _fg:
+                _fg_c1, _fg_c2 = st.columns([1, 3])
+                with _fg_c1:
+                    st.metric(f"{_fg.icon} Index", f"{_fg.value:.0f}", delta=_fg.label)
+                with _fg_c2:
+                    # Simple gauge using progress bar
+                    st.progress(min(_fg.value / 100, 1.0), text=f"{_fg.label} ({_fg.value:.0f}/100)")
+                    st.caption(f"Updated: {_fg.timestamp}")
+            else:
+                st.info("Fear & Greed data not available. Set FMP_API_KEY.")
+
+            st.markdown("---")
+
+            # ── Market Cap & Supply ─────────────────────────
+            st.markdown("### 🏦 Market Cap & Supply")
+            _supply = fetch_btc_supply()
+            if _supply and _supply.market_cap > 0:
+                _sc1, _sc2, _sc3 = st.columns(3)
+                with _sc1:
+                    st.metric("Market Cap", format_large_number(_supply.market_cap))
+                    st.metric("Circulating Supply", format_supply(_supply.circulating_supply))
+                with _sc2:
+                    st.metric("Max Supply", "21.00M BTC")
+                    _pct_mined = (_supply.circulating_supply / 21_000_000 * 100) if _supply.circulating_supply > 0 else 0
+                    st.progress(min(_pct_mined / 100, 1.0), text=f"{_pct_mined:.1f}% mined")
+                with _sc3:
+                    st.metric("50-day Avg", format_btc_price(_supply.fifty_day_avg))
+                    st.metric("200-day Avg", format_btc_price(_supply.two_hundred_day_avg))
+            else:
+                st.info("Supply data not available. Install yfinance.")
+
+            st.markdown("---")
+
+            # ── Bitcoin News ────────────────────────────────
+            st.markdown("### 📰 Bitcoin News")
+            _btc_news_articles = fetch_btc_news(limit=10)
+            if _btc_news_articles:
+                for _btc_art in _btc_news_articles:
+                    _art_title = _btc_art.get("title", "")
+                    _art_url = _btc_art.get("url", "")
+                    _art_source = _btc_art.get("source", "")
+                    _art_date = _btc_art.get("date", "")
+                    _art_sent = _btc_art.get("sentiment", "")
+                    _sent_icon = "🟢" if _art_sent == "Bullish" else ("🔴" if _art_sent == "Bearish" else "⚪")
+                    _source_str = f" — *{_art_source}*" if _art_source else ""
+                    _date_str = f" · {_art_date[:10]}" if _art_date else ""
+                    if _art_url:
+                        st.markdown(f"- {_sent_icon} [{_art_title[:120]}]({_art_url}){_source_str}{_date_str}")
+                    else:
+                        st.markdown(f"- {_sent_icon} {_art_title[:120]}{_source_str}{_date_str}")
+                    if _btc_art.get("text"):
+                        st.caption(f"  {_btc_art['text'][:200]}...")
+            else:
+                st.info("No Bitcoin news available.")
+
+            # NewsAPI.ai Bitcoin breaking events (if available)
+            if newsapi_available() and has_tokens():
+                with st.expander("🔴 NewsAPI.ai Bitcoin Headlines"):
+                    _btc_breaking = fetch_breaking_events(count=20)
+                    # Filter to Bitcoin-related events
+                    _btc_breaking = [
+                        ev for ev in _btc_breaking
+                        if any(kw in (ev.title or "").lower() or kw in (ev.summary or "").lower()
+                               for kw in ("bitcoin", "btc", "crypto", "cryptocurrency"))
+                    ][:5]
+                    if _btc_breaking:
+                        for _ev in _btc_breaking:
+                            st.markdown(f"- **{_ev.title}** (📰 {_ev.article_count} articles)")
+                            if _ev.summary:
+                                st.caption(f"  {_ev.summary[:200]}")
+                    else:
+                        st.caption("No Bitcoin breaking events found.")
+
+            st.markdown("---")
+
+            # ── Crypto Movers ───────────────────────────────
+            st.markdown("### 🚀 Crypto Movers (24h)")
+            _crypto_movers = fetch_crypto_movers()
+            _movers_c1, _movers_c2 = st.columns(2)
+            with _movers_c1:
+                st.markdown("#### 🟢 Top Gainers")
+                _gainers = _crypto_movers.get("gainers", [])[:10]
+                if _gainers:
+                    _gainer_data = [{
+                        "Symbol": g.symbol,
+                        "Name": g.name[:30],
+                        "Price": f"${g.price:,.4f}" if g.price < 1 else f"${g.price:,.2f}",
+                        "Change %": f"{g.change_pct:+.2f}%",
+                    } for g in _gainers]
+                    st.dataframe(_gainer_data, width='stretch', hide_index=True)
+                else:
+                    st.caption("No gainers data.")
+            with _movers_c2:
+                st.markdown("#### 🔴 Top Losers")
+                _losers = _crypto_movers.get("losers", [])[:10]
+                if _losers:
+                    _loser_data = [{
+                        "Symbol": lo.symbol,
+                        "Name": lo.name[:30],
+                        "Price": f"${lo.price:,.4f}" if lo.price < 1 else f"${lo.price:,.2f}",
+                        "Change %": f"{lo.change_pct:+.2f}%",
+                    } for lo in _losers]
+                    st.dataframe(_loser_data, width='stretch', hide_index=True)
+                else:
+                    st.caption("No losers data.")
+
+            st.markdown("---")
+
+            # ── Exchange Listings ───────────────────────────
+            with st.expander("🏦 Cryptocurrency Exchange Listings"):
+                _listings = fetch_crypto_listings(limit=50)
+                if _listings:
+                    _listing_data = [{
+                        "Symbol": li.symbol,
+                        "Name": li.name,
+                        "Currency": li.currency,
+                        "Exchange": li.exchange,
+                    } for li in _listings]
+                    st.dataframe(_listing_data, width='stretch', hide_index=True, height=400)
+                else:
+                    st.info("No listing data available. Set FMP_API_KEY.")
 
     # ── TAB: Defense & Aerospace ────────────────────────────
     with tab_defense:
@@ -3260,106 +3439,384 @@ else:
                 else:
                     st.info(f"No stocks found for industry: {industry_name}")
 
-    # ── TAB: Tomorrow Outlook ───────────────────────────────
-    with tab_outlook:
-        st.subheader("🔮 Tomorrow Outlook — Next-Trading-Day Assessment")
-
-        bz_key = cfg.benzinga_api_key
-        fmp_key = cfg.fmp_api_key
-
-        if not bz_key and not fmp_key:
-            st.warning("Configure at least one API key (Benzinga or FMP) to compute the outlook.")
+    # ── TAB: Breaking Events (NewsAPI.ai) ───────────────────
+    with tab_breaking:
+        st.subheader("🔴 Breaking Events")
+        if not newsapi_available():
+            st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai integration.")
         else:
-            _today_iso = datetime.now(UTC).strftime("%Y-%m-%d")
-
-            # API-heavy factors (earnings, economics, sectors) are cached.
-            # Feed sentiment is computed live below since the feed is mutable
-            # session state that cannot be hashed for caching.
-            outlook = _cached_tomorrow_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
-
-            # Overlay live feed sentiment on top of cached outlook
-            _feed_for_outlook = feed[-200:] if feed else []
-            if _feed_for_outlook:
-                _bear_c = sum(
-                    1 for it in _feed_for_outlook
-                    if str(it.get("sentiment_label") or "").lower() == "bearish"
+            # Token usage indicator
+            _usage = get_token_usage()
+            _avail = _usage.get("availableTokens", 0)
+            _used = _usage.get("usedTokens", 0)
+            if _avail > 0 and _used >= _avail:
+                st.warning(
+                    f"⚠️ NewsAPI.ai token limit reached ({_used:,}/{_avail:,} used). "
+                    "Upgrade to a paid plan or wait for monthly reset."
                 )
-                _bull_c = sum(
-                    1 for it in _feed_for_outlook
-                    if str(it.get("sentiment_label") or "").lower() == "bullish"
+                st.stop()
+            elif _avail > 0:
+                _remaining = _avail - _used
+                st.caption(f"📊 API tokens: {_remaining:,} remaining ({_used:,}/{_avail:,} used)")
+
+            _brk_col1, _brk_col2, _brk_col3 = st.columns([1, 1, 1])
+            with _brk_col1:
+                _brk_count = st.slider(
+                    "Max events", 5, 50, 20, key="brk_count",
                 )
-                _total_f = len(_feed_for_outlook)
-                if _total_f > 10:
-                    _bear_ratio = _bear_c / _total_f
-                    _bull_ratio = _bull_c / _total_f
-                    if _bear_ratio > 0.55:
-                        _feed_sentiment_label = "🔴 Bearish-heavy"
-                    elif _bull_ratio > 0.55:
-                        _feed_sentiment_label = "🟢 Bullish-heavy"
-                    else:
-                        _feed_sentiment_label = "🟡 Mixed"
-                else:
-                    _feed_sentiment_label = "⚪ Insufficient data"
-            else:
-                _feed_sentiment_label = "⚪ No feed data"
+            with _brk_col2:
+                _brk_min_articles = st.slider(
+                    "Min articles", 2, 50, 5, key="brk_min_art",
+                )
+            with _brk_col3:
+                _brk_category = st.selectbox(
+                    "Category",
+                    ["All", "Business", "Politics", "Technology", "Health", "Science", "Sports", "Entertainment"],
+                    key="brk_cat",
+                )
 
-            # ── Traffic light banner ──
-            o_label = outlook.get("outlook_label", "🟡 NEUTRAL")
-            o_color = outlook.get("outlook_color", "orange")
-            next_td_str = outlook.get("next_trading_day", "—")
+            _cat_uri = None
+            if _brk_category != "All":
+                _cat_uri = f"news/{_brk_category}"
 
-            st.markdown(
-                f"<div style='padding:0.8rem 1.2rem;border-radius:0.6rem;"
-                f"background:{o_color};color:white;font-weight:700;"
-                f"font-size:1.3rem;text-align:center;margin-bottom:1rem'>"
-                f"{o_label} — {next_td_str}</div>",
-                unsafe_allow_html=True,
+            _breaking = fetch_breaking_events(
+                count=_brk_count,
+                min_articles=_brk_min_articles,
+                category=_cat_uri,
             )
 
-            # ── Key metrics ──
-            ocols = st.columns(5)
-            ocols[0].metric("Outlook Score", f"{outlook.get('outlook_score', 0):.2f}")
-            ocols[1].metric("Earnings Tomorrow", outlook.get("earnings_tomorrow_count", 0))
-            ocols[2].metric("Earnings BMO", outlook.get("earnings_bmo_tomorrow_count", 0))
-            ocols[3].metric("High-Impact Events", outlook.get("high_impact_events_tomorrow", 0))
-            ocols[4].metric("Feed Sentiment", _feed_sentiment_label)
+            if _breaking:
+                st.caption(f"Showing {len(_breaking)} breaking events · Source: NewsAPI.ai (Event Registry)")
+                for _ev in _breaking:
+                    _ev_title = _ev.title or "(Untitled event)"
+                    _art_badge = f"📰 {_ev.article_count}"
+                    _loc_str = f" · 📍 {_ev.location}" if _ev.location else ""
+                    _date_str = f" · 📅 {_ev.event_date}" if _ev.event_date else ""
 
-            st.divider()
+                    with st.expander(
+                        f"{_ev.sentiment_icon} **{_ev_title[:120]}** — {_art_badge} articles{_loc_str}{_date_str}",
+                        expanded=False,
+                    ):
+                        # Top metrics row
+                        _m1, _m2, _m3, _m4 = st.columns(4)
+                        with _m1:
+                            st.metric("Articles", _ev.article_count)
+                        with _m2:
+                            if _ev.sentiment is not None:
+                                st.metric("Sentiment", f"{_ev.sentiment:+.2f}")
+                            else:
+                                st.metric("Sentiment", "n/a")
+                        with _m3:
+                            st.metric("Social Score", f"{_ev.social_score:,}" if _ev.social_score else "0")
+                        with _m4:
+                            st.metric("Date", _ev.event_date or "—")
 
-            # ── High-impact events detail ──
-            hi_details: list[dict[str, Any]] = outlook.get("high_impact_events_tomorrow_details") or []
-            if hi_details:
-                st.subheader("📋 Scheduled High-Impact Events")
-                for _hi_ev in hi_details:
-                    _hi_name = safe_markdown_text(str(_hi_ev.get("event", "—")))
-                    _hi_country = safe_markdown_text(str(_hi_ev.get("country", "US")))
-                    _hi_source = safe_markdown_text(str(_hi_ev.get("source", "")))
-                    st.markdown(f"- **{_hi_name}** ({_hi_country}) — Source: {_hi_source}")
+                        # Summary
+                        if _ev.summary:
+                            st.markdown(f"**Summary:** {_ev.summary[:500]}")
+
+                        # Concepts chips
+                        if _ev.concepts:
+                            _concept_chips = " · ".join(
+                                f"`{c['label']}`" for c in _ev.concepts[:10] if c.get("label")
+                            )
+                            st.markdown(f"**Key entities:** {_concept_chips}")
+
+                        # Categories
+                        if _ev.categories:
+                            _cat_chips = " · ".join(f"`{c}`" for c in _ev.categories[:5])
+                            st.markdown(f"**Categories:** {_cat_chips}")
+
+                        # Articles for this event — click to load (saves API tokens)
+                        _art_key = f"brk_art_{_ev.uri}"
+                        if st.button("📰 Load articles", key=_art_key):
+                            st.session_state[_art_key] = True
+
+                        if st.session_state.get(_art_key):
+                            _ev_articles = fetch_event_articles(_ev.uri, count=5)
+                            if _ev_articles:
+                                st.markdown("---")
+                                st.markdown("**Top articles (by social shares):**")
+                                for _art in _ev_articles:
+                                    _art_sent = newsapi_sentiment_badge(_art.sentiment) if _art.sentiment is not None else ""
+                                    _art_source = f" — *{_art.source}*" if _art.source else ""
+                                    _art_social = f" 📊{_art.social_score:,}" if _art.social_score else ""
+                                    if _art.url:
+                                        st.markdown(
+                                            f"- [{_art.title[:100]}]({_art.url}){_art_source}{_art_social} {_art_sent}"
+                                        )
+                                    else:
+                                        st.markdown(f"- {_art.title[:100]}{_art_source}{_art_social} {_art_sent}")
+
+                                    # Show enriched data inline
+                                    _enriched_parts: list[str] = []
+                                    if _art.authors:
+                                        _enriched_parts.append(f"✍️ {', '.join(_art.authors[:3])}")
+                                    if _art.concepts:
+                                        _enriched_parts.append(f"🏷️ {', '.join(_art.concepts[:4])}")
+                                    if _enriched_parts:
+                                        st.caption(f"  {'  ·  '.join(_enriched_parts)}")
+                            else:
+                                st.caption("No articles found for this event.")
             else:
-                st.info("No high-impact macro events scheduled for the next trading day.")
+                st.info("No breaking events found. Try lowering the minimum articles threshold.")
 
-            # ── Notable earnings ──
-            notable = outlook.get("notable_earnings") or []
-            if notable:
-                st.subheader(f"📊 Earnings Reporting on {next_td_str}")
-                _ne_df = pd.DataFrame(notable)
-                display_cols = [c for c in ["ticker", "name", "timing"] if c in _ne_df.columns]
-                st.dataframe(
-                    _ne_df[display_cols] if display_cols else _ne_df,
-                    width='stretch',
-                    height=min(400, 40 + 35 * len(_ne_df)),
+    # ── TAB: Trending Concepts (NewsAPI.ai) ─────────────────
+    with tab_trending:
+        st.subheader("📈 Trending Concepts")
+        if not newsapi_available():
+            st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai integration.")
+        else:
+            _tr_col1, _tr_col2, _tr_col3 = st.columns([1, 1, 1])
+            with _tr_col1:
+                _tr_count = st.slider(
+                    "Max concepts", 5, 50, 20, key="tr_count",
+                )
+            with _tr_col2:
+                _tr_source = st.selectbox(
+                    "Source", ["news", "social"],
+                    key="tr_source",
+                )
+            with _tr_col3:
+                _tr_type = st.selectbox(
+                    "Type",
+                    ["All", "person", "org", "loc", "wiki"],
+                    key="tr_type",
                 )
 
-            # ── Reasoning factors ──
-            reasons = outlook.get("reasons") or []
-            if reasons:
-                st.divider()
-                st.caption("**Factors:** " + " · ".join(reasons))
+            _type_filter = _tr_type if _tr_type != "All" else None
 
-            # ── Sector mood ──
-            sector_mood = outlook.get("sector_mood", "neutral")
-            mood_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(sector_mood, "⚪")
-            st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
+            _trending = fetch_trending_concepts(
+                count=_tr_count,
+                source=_tr_source,
+                concept_type=_type_filter,
+            )
+
+            if _trending:
+                st.caption(
+                    f"Showing {len(_trending)} trending concepts · Source: NewsAPI.ai ({_tr_source})"
+                )
+
+                # Summary bar with top 5 as chips
+                _top5 = _trending[:5]
+                _chips = " → ".join(
+                    f"{c.type_icon} **{c.label}**" for c in _top5
+                )
+                st.markdown(f"🔥 Top trending: {_chips}")
+                st.markdown("---")
+
+                # Full table
+                _tr_rows: list[dict[str, Any]] = []
+                for _idx, _c in enumerate(_trending, 1):
+                    _tr_rows.append({
+                        "#": _idx,
+                        "Type": _c.type_icon,
+                        "Concept": _c.label,
+                        "Category": _c.concept_type,
+                        "Score": round(_c.trending_score, 1),
+                        "Articles": _c.article_count,
+                    })
+
+                if _tr_rows:
+                    _tr_df = pd.DataFrame(_tr_rows)
+                    with st.expander("ℹ️ Column guide", expanded=False):
+                        st.markdown(
+                            "- **#** — Rank position by trending momentum\n"
+                            "- **Type** — Entity type icon (👤 person, 🏢 org, 📍 location, 📄 wiki/concept)\n"
+                            "- **Concept** — Entity detected by NLP in recent news articles\n"
+                            "- **Category** — Classification of the entity type\n"
+                            "- **Score** — Trending momentum score from NewsAPI.ai: "
+                            "higher values indicate a sharper increase in media attention\n"
+                            "- **Articles** — Number of news articles mentioning this concept in the lookback period. "
+                            "Use the *Breaking* tab to read relevant articles for a concept."
+                        )
+                    st.dataframe(
+                        _tr_df,
+                        width="stretch",
+                        height=min(40 * len(_tr_rows) + 50, 600),
+                        hide_index=True,
+                        column_config={
+                            "#": st.column_config.NumberColumn("#", width="small"),
+                            "Type": st.column_config.TextColumn("Type", width="small"),
+                            "Score": st.column_config.NumberColumn("Score", width="small"),
+                            "Articles": st.column_config.NumberColumn("Articles", width="small"),
+                        },
+                    )
+            else:
+                st.info("No trending concepts found.")
+
+    # ── TAB: Social Score Ranking (NewsAPI.ai) ──────────────
+    with tab_social:
+        st.subheader("🔥 Social Score — Most Shared News")
+        if not newsapi_available():
+            st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai Social Score ranking.")
+        else:
+            _soc_col1, _soc_col2, _soc_col3 = st.columns([1, 1, 1])
+            with _soc_col1:
+                _soc_count = st.slider(
+                    "Max articles", 10, 100, 30, key="soc_count",
+                )
+            with _soc_col2:
+                _soc_hours = st.slider(
+                    "Hours lookback", 1, 72, 24, key="soc_hours",
+                )
+            with _soc_col3:
+                _soc_category = st.selectbox(
+                    "Category",
+                    ["Business", "Technology", "Politics", "Health", "Science", "Sports", "Entertainment"],
+                    key="soc_cat",
+                )
+
+            _soc_cat_uri = f"news/{_soc_category}"
+
+            _social_articles = fetch_social_ranked_articles(
+                count=_soc_count,
+                category=_soc_cat_uri,
+                hours=_soc_hours,
+            )
+
+            if _social_articles:
+                st.caption(
+                    f"Showing {len(_social_articles)} most-shared articles · "
+                    f"Last {_soc_hours}h · {_soc_category} · Source: NewsAPI.ai"
+                )
+
+                # Warn if all social scores are zero (plan limitation)
+                _all_soc_zero = all(a.social_score == 0 for a in _social_articles)
+                if _all_soc_zero:
+                    st.info(
+                        "ℹ️ Social sharing scores are unavailable on this API plan. "
+                        "This is a NewsAPI.ai plan limitation — enterprise plans include "
+                        "Facebook shares, tweet counts, etc. Articles below are still sorted "
+                        "by the API's internal social relevance ranking."
+                    )
+
+                # ── Top 5 viral cards ──
+                _top5_social = _social_articles[:5]
+                _soc_cards = st.columns(min(5, len(_top5_social)))
+                for _si, _sa in enumerate(_top5_social):
+                    with _soc_cards[_si]:
+                        _soc_sent = newsapi_sentiment_badge(_sa.sentiment) if _sa.sentiment is not None else ""
+                        st.markdown(f"**#{_si + 1}** {_sa.sentiment_icon}")
+                        st.markdown(f"📊 **{_sa.social_score:,}** shares")
+                        _safe_title = _sa.title[:60]
+                        if _sa.url:
+                            st.markdown(f"[{_safe_title}]({_sa.url})")
+                        else:
+                            st.markdown(_safe_title)
+                        st.caption(f"*{_sa.source}* · {_soc_sent}")
+
+                st.markdown("---")
+
+                # ── Full table ──
+                _soc_rows: list[dict[str, Any]] = []
+                for _si, _sa in enumerate(_social_articles, 1):
+                    _soc_rows.append({
+                        "#": _si,
+                        "Sentiment": _sa.sentiment_icon,
+                        "Title": _sa.title[:80],
+                        "Source": _sa.source,
+                        "Social Score": "N/A" if _all_soc_zero else f"{_sa.social_score:,}",
+                        "NLP Sentiment": f"{_sa.sentiment:+.2f}" if _sa.sentiment is not None else "—",
+                        "Published": _sa.date[:16] if _sa.date else "—",
+                        "Entities": ", ".join(_sa.concepts[:4]) if _sa.concepts else "",
+                        "URL": _sa.url,
+                    })
+
+                if _soc_rows:
+                    _soc_df = pd.DataFrame(_soc_rows)
+
+                    _soc_col_cfg: dict[str, Any] = {
+                        "#": st.column_config.NumberColumn("#", width="small"),
+                        "Social Score": st.column_config.TextColumn("Social Score", width="small"),
+                        "NLP Sentiment": st.column_config.TextColumn("NLP Sent.", width="small"),
+                    }
+                    # Use LinkColumn for URLs
+                    if any(r.get("URL", "").startswith("http") for r in _soc_rows):
+                        _soc_col_cfg["URL"] = st.column_config.LinkColumn(
+                            "Link",
+                            display_text="🔗",
+                            width="small",
+                        )
+                        # Also make Title clickable by linking to source
+                        _soc_col_cfg["Title"] = st.column_config.TextColumn(
+                            "Title", width="large",
+                        )
+
+                    st.dataframe(
+                        _soc_df,
+                        width="stretch",
+                        height=min(40 * len(_soc_rows) + 50, 800),
+                        hide_index=True,
+                        column_config=_soc_col_cfg,
+                    )
+
+                # ── Sentiment distribution ──
+                _soc_sents = [a.sentiment for a in _social_articles if a.sentiment is not None]
+                if _soc_sents:
+                    st.markdown("---")
+                    _sc1, _sc2, _sc3, _sc4 = st.columns(4)
+                    _pos = sum(1 for s in _soc_sents if s >= 0.2)
+                    _neg = sum(1 for s in _soc_sents if s <= -0.2)
+                    _neu = len(_soc_sents) - _pos - _neg
+                    _avg = sum(_soc_sents) / len(_soc_sents)
+                    _sc1.metric("Avg Sentiment", f"{_avg:+.2f}")
+                    _sc2.metric("🟢 Positive", _pos)
+                    _sc3.metric("🔴 Negative", _neg)
+                    _sc4.metric("⚪ Neutral", _neu)
+
+                # ── Article detail expanders ──
+                st.markdown("---")
+                st.subheader("📄 Article Details")
+                for _di, _da in enumerate(_social_articles[:10]):
+                    _da_sent = newsapi_sentiment_badge(_da.sentiment) if _da.sentiment is not None else ""
+                    with st.expander(
+                        f"{_da.sentiment_icon} #{_di + 1} — {_da.title[:80]} "
+                        f"(📊 {_da.social_score:,})",
+                        expanded=False,
+                    ):
+                        _d1, _d2, _d3 = st.columns(3)
+                        with _d1:
+                            st.metric("Social Score", f"{_da.social_score:,}")
+                        with _d2:
+                            st.metric("NLP Sentiment", f"{_da.sentiment:+.2f}" if _da.sentiment is not None else "n/a")
+                        with _d3:
+                            st.metric("Source", _da.source)
+
+                        if _da.url:
+                            st.markdown(f"🔗 [Open article]({_da.url})")
+
+                        if _da.authors:
+                            st.caption(f"✍️ Authors: {', '.join(_da.authors[:5])}")
+
+                        if _da.body:
+                            st.markdown(f"**Body preview:** {_da.body[:500]}{'…' if len(_da.body) > 500 else ''}")
+
+                        if _da.concepts:
+                            st.markdown(f"🏷️ **Entities:** {' · '.join(_da.concepts)}")
+
+                        if _da.categories:
+                            st.markdown(f"📂 **Categories:** {' · '.join(_da.categories)}")
+
+                        if _da.links:
+                            with st.expander("🔗 Links from article body", expanded=False):
+                                for _lnk in _da.links[:10]:
+                                    _lnk_str = _lnk if isinstance(_lnk, str) else str(_lnk.get("uri", _lnk))
+                                    st.markdown(f"- [{_lnk_str[:60]}]({_lnk_str})")
+
+                        if _da.videos:
+                            with st.expander("🎥 Videos", expanded=False):
+                                for _vid in _da.videos[:5]:
+                                    _vid_str = _vid if isinstance(_vid, str) else str(_vid.get("uri", _vid))
+                                    st.markdown(f"- [{_vid_str[:60]}]({_vid_str})")
+
+                        if _da.event_uri:
+                            st.caption(f"Event cluster: `{_da.event_uri}`")
+                        if _da.is_duplicate:
+                            st.caption("⚠️ Marked as duplicate")
+
+            else:
+                st.info("No social-ranked articles found. Try expanding the time window.")
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts:
@@ -3419,12 +3876,20 @@ else:
     with tab_table:
         if feed:
             display_cols = [
-                "ticker", "headline", "news_score", "relevance",
+                "ticker", "headline", "age", "news_score", "relevance",
                 "sentiment_label", "category", "event_label", "materiality",
-                "recency_bucket", "age_minutes", "source_tier", "provider",
+                "recency_bucket", "source_tier", "provider",
                 "entity_count", "novelty_count", "impact", "polarity", "is_wiim",
             ]
             df = pd.DataFrame(feed)
+
+            # Add human-readable Age column (d:hh:mm:ss)
+            _dt_now = time.time()
+            df["age"] = df.apply(
+                lambda r: format_age_string(r.get("published_ts") or r.get("ts"), now=_dt_now),
+                axis=1,
+            )
+
             # Only show columns that exist
             show_cols = [c for c in display_cols if c in df.columns]
             df_display = df[show_cols].copy()
@@ -3446,6 +3911,7 @@ else:
                 df_display,
                 width='stretch',
                 height=600,
+                hide_index=True,
                 column_config=_dt_col_cfg if _dt_col_cfg else None,
             )
         else:

@@ -1689,14 +1689,6 @@ class RealtimeEngine:
         self._active_signals = [s for s in self._active_signals if not s.is_expired()]
         return list(self._active_signals)
 
-    def get_a0_signals(self) -> list[RealtimeSignal]:
-        """Return only A0 (immediate action) signals."""
-        return [s for s in self.get_active_signals() if s.level == "A0"]
-
-    def get_a1_signals(self) -> list[RealtimeSignal]:
-        """Return only A1 (watch closely) signals."""
-        return [s for s in self.get_active_signals() if s.level == "A1"]
-
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

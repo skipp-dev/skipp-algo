@@ -8,6 +8,7 @@ import math
 import os
 import re
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass
@@ -28,6 +29,7 @@ from .diff import (
 from .log_redaction import apply_global_log_redaction
 from .macro import (
     FMPClient,
+    FinnhubClient,
     dedupe_events,
     filter_us_events,
     filter_us_high_impact_events,
@@ -1121,6 +1123,448 @@ def _fetch_institutional_ownership(
         except FuturesTimeoutError:
             logger.warning("Institutional ownership fetch timed out after 30 s; continuing with partial.")
 
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Treasury Rates — yield-curve snapshot for macro regime analysis
+# ---------------------------------------------------------------------------
+
+
+def _fetch_treasury_rates(
+    *,
+    client: FMPClient,
+    today: date,
+) -> dict[str, Any]:
+    """Fetch latest US Treasury yield-curve rates.
+
+    Returns a dict with individual maturities (month1 … year30),
+    the 2Y-10Y spread, and a ``curve_inverted`` flag.
+    """
+    try:
+        raw = client.get_treasury_rates(
+            date_from=today - timedelta(days=7),
+            date_to=today,
+        )
+    except Exception as exc:
+        logger.warning("Treasury rates fetch failed: %s", exc)
+        return {}
+
+    if not raw:
+        return {}
+
+    latest = raw[0]  # most recent date
+
+    def _fl(key: str) -> float | None:
+        v = latest.get(key)
+        if v is None:
+            return None
+        try:
+            return round(float(v), 4)
+        except (ValueError, TypeError):
+            return None
+
+    y2 = _fl("year2")
+    y10 = _fl("year10")
+    spread = round(y10 - y2, 4) if y2 is not None and y10 is not None else None
+
+    return {
+        "date": latest.get("date", ""),
+        "month1": _fl("month1"),
+        "month3": _fl("month3"),
+        "month6": _fl("month6"),
+        "year1": _fl("year1"),
+        "year2": y2,
+        "year5": _fl("year5"),
+        "year10": y10,
+        "year20": _fl("year20"),
+        "year30": _fl("year30"),
+        "yield_2y10y_spread": spread,
+        "curve_inverted": spread is not None and spread < 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# House of Representatives trading — mirrors Senate trading enrichment
+# ---------------------------------------------------------------------------
+
+
+def _fetch_house_trading(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Fetch House trading disclosures and aggregate per symbol.
+
+    Returns dict[sym -> {house_buys, house_sells, house_net, house_emoji}].
+    Follows the same structure as ``_fetch_insider_trading``.
+    """
+    result: dict[str, dict[str, Any]] = {}
+    try:
+        raw = client.get_house_trading(limit=500)
+    except Exception as exc:
+        logger.warning("House trading fetch failed: %s", exc)
+        return result
+
+    if not raw:
+        return result
+
+    symbol_set = {s.upper() for s in symbols if s.strip()}
+
+    for row in raw:
+        sym = str(row.get("symbol") or row.get("ticker") or "").strip().upper()
+        if not sym or sym not in symbol_set:
+            continue
+        tx_type = str(row.get("type") or row.get("transactionType") or "").strip().lower()
+        entry = result.setdefault(sym, {"house_buys": 0, "house_sells": 0})
+        if "purchase" in tx_type or "buy" in tx_type:
+            entry["house_buys"] += 1
+        elif "sale" in tx_type or "sell" in tx_type:
+            entry["house_sells"] += 1
+
+    for sym, data in result.items():
+        net = data["house_buys"] - data["house_sells"]
+        data["house_net"] = net
+        if net > 0:
+            data["house_emoji"] = "🏛️🟢"
+        elif net < 0:
+            data["house_emoji"] = "🏛️🔴"
+        else:
+            data["house_emoji"] = "🏛️⚪"
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# DCF Valuations — intrinsic value vs. market price
+# ---------------------------------------------------------------------------
+_MAX_DCF_LOOKUPS = 20  # Cap API calls for DCF data
+
+
+def _fetch_dcf_valuations(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Fetch discounted-cash-flow valuations for top symbols.
+
+    Returns dict[sym -> {dcf_value, stock_price, dcf_deviation_pct, dcf_date}].
+    A positive ``dcf_deviation_pct`` means the stock trades ABOVE its DCF
+    estimate (overvalued); negative means below (undervalued).
+    """
+    result: dict[str, dict[str, Any]] = {}
+    batch = [str(s).strip().upper() for s in symbols[:_MAX_DCF_LOOKUPS] if str(s).strip()]
+    if not batch:
+        return result
+
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
+        try:
+            dcf_data = client.get_dcf(sym)
+        except Exception as exc:
+            logger.debug("DCF fetch failed for %s: %s", sym, exc)
+            return sym, None
+        if not dcf_data:
+            return sym, None
+        _dcf_raw = dcf_data.get("dcf")
+        _sp_raw = dcf_data.get("stockPrice")
+        dcf_val: float | None = _to_float(_dcf_raw) if _dcf_raw is not None else None
+        stock_price: float | None = _to_float(_sp_raw) if _sp_raw is not None else None
+        if dcf_val and stock_price and dcf_val > 0:
+            deviation_pct = round((stock_price - dcf_val) / dcf_val * 100, 2)
+        else:
+            deviation_pct = None
+        return sym, {
+            "dcf_value": dcf_val,
+            "stock_price": stock_price,
+            "dcf_deviation_pct": deviation_pct,
+            "dcf_date": dcf_data.get("date", ""),
+        }
+
+    workers = max(1, min(5, len(batch)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                sym_key = futs[fut]
+                try:
+                    _, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception as exc:
+                    logger.debug("DCF worker failed for %s: %s", sym_key, exc)
+        except FuturesTimeoutError:
+            logger.warning("DCF fetch timed out after 30 s; continuing with partial.")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Finnhub: Insider Sentiment (MSPR) enrichment
+# ---------------------------------------------------------------------------
+_MAX_FINNHUB_LOOKUPS = 25  # Cap parallel API calls
+
+
+def _fetch_finnhub_insider_sentiment(
+    *,
+    finnhub_client: Any,
+    symbols: list[str],
+    today: date,
+) -> dict[str, dict[str, Any]]:
+    """Fetch Finnhub insider sentiment per symbol.
+
+    Returns dict[sym -> {mspr, positive_change, negative_change, ...}].
+    """
+    result: dict[str, dict[str, Any]] = {}
+    if finnhub_client is None or not getattr(finnhub_client, "available", lambda: False)():
+        return result
+
+    from_date = (today - timedelta(days=90)).isoformat()
+    to_date = today.isoformat()
+    batch = [s.upper() for s in symbols[:_MAX_FINNHUB_LOOKUPS] if s.strip()]
+
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
+        try:
+            raw = finnhub_client.get_insider_sentiment(sym, from_date, to_date)
+            rows = raw.get("data", []) if isinstance(raw, dict) else []
+            if not rows:
+                return sym, None
+            # Aggregate MSPR over all months
+            total_mspr = sum(float(r.get("mspr", 0)) for r in rows if r.get("mspr") is not None)
+            total_pos = sum(float(r.get("positiveChange", 0)) for r in rows)
+            total_neg = sum(float(r.get("negativeChange", 0)) for r in rows)
+            avg_mspr = total_mspr / len(rows) if rows else 0
+            if avg_mspr > 10:
+                emoji = "🧠🟢"
+            elif avg_mspr < -10:
+                emoji = "🧠🔴"
+            else:
+                emoji = "🧠⚪"
+            return sym, {
+                "mspr_avg": round(avg_mspr, 2),
+                "mspr_total": round(total_mspr, 2),
+                "positive_change": round(total_pos, 2),
+                "negative_change": round(total_neg, 2),
+                "months": len(rows),
+                "insider_sentiment_emoji": emoji,
+            }
+        except Exception as exc:
+            logger.debug("Finnhub insider sentiment failed for %s: %s", sym, exc)
+            return sym, None
+
+    workers = max(1, min(5, len(batch)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                try:
+                    sym_key, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Finnhub insider sentiment timed out; continuing with partial.")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Finnhub: Peers enrichment
+# ---------------------------------------------------------------------------
+
+
+def _fetch_finnhub_peers(
+    *,
+    finnhub_client: Any,
+    symbols: list[str],
+) -> dict[str, list[str]]:
+    """Fetch company peers for each symbol. Returns dict[sym -> [peer_symbols]]."""
+    result: dict[str, list[str]] = {}
+    if finnhub_client is None or not getattr(finnhub_client, "available", lambda: False)():
+        return result
+
+    batch = [s.upper() for s in symbols[:_MAX_FINNHUB_LOOKUPS] if s.strip()]
+
+    def _single(sym: str) -> tuple[str, list[str]]:
+        try:
+            peers = finnhub_client.get_peers(sym)
+            # Filter out the symbol itself
+            return sym, [p for p in peers if p.upper() != sym]
+        except Exception as exc:
+            logger.debug("Finnhub peers failed for %s: %s", sym, exc)
+            return sym, []
+
+    workers = max(1, min(5, len(batch)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=20.0):
+                try:
+                    sym_key, peers_list = fut.result()
+                    if peers_list:
+                        result[sym_key] = peers_list
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Finnhub peers timed out; continuing with partial.")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Finnhub: Social Sentiment (Reddit/Twitter) — PREMIUM
+# ---------------------------------------------------------------------------
+
+
+def _fetch_finnhub_social_sentiment(
+    *,
+    finnhub_client: Any,
+    symbols: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Fetch social media sentiment from Finnhub (PREMIUM).
+
+    Returns dict[sym -> {reddit_mentions, twitter_mentions, social_score, emoji}].
+    """
+    result: dict[str, dict[str, Any]] = {}
+    if finnhub_client is None or not getattr(finnhub_client, "available", lambda: False)():
+        return result
+
+    batch = [s.upper() for s in symbols[:_MAX_FINNHUB_LOOKUPS] if s.strip()]
+
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
+        try:
+            raw = finnhub_client.get_social_sentiment(sym)
+            reddit = raw.get("reddit", [])
+            twitter = raw.get("twitter", [])
+            if not reddit and not twitter:
+                return sym, None
+
+            r_mentions = sum(r.get("mention", 0) for r in reddit) if reddit else 0
+            r_pos = sum(r.get("positiveScore", 0) for r in reddit) if reddit else 0
+            r_neg = sum(r.get("negativeScore", 0) for r in reddit) if reddit else 0
+            t_mentions = sum(t.get("mention", 0) for t in twitter) if twitter else 0
+            t_pos = sum(t.get("positiveScore", 0) for t in twitter) if twitter else 0
+            t_neg = sum(t.get("negativeScore", 0) for t in twitter) if twitter else 0
+
+            total_pos = r_pos + t_pos
+            total_neg = r_neg + t_neg
+            total_mentions = r_mentions + t_mentions
+            score = 0.0
+            if total_pos + total_neg > 0:
+                score = round((total_pos - total_neg) / (total_pos + total_neg), 4)
+
+            if score > 0.3:
+                emoji = "📡🟢"
+            elif score < -0.3:
+                emoji = "📡🔴"
+            else:
+                emoji = "📡⚪"
+
+            return sym, {
+                "reddit_mentions": r_mentions,
+                "twitter_mentions": t_mentions,
+                "total_mentions": total_mentions,
+                "social_score": score,
+                "social_sentiment_emoji": emoji,
+            }
+        except Exception as exc:
+            logger.debug("Finnhub social sentiment failed for %s: %s", sym, exc)
+            return sym, None
+
+    workers = max(1, min(5, len(batch)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=30.0):
+                try:
+                    sym_key, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Finnhub social sentiment timed out; continuing with partial.")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Finnhub: Pattern Recognition + Support/Resistance — PREMIUM
+# ---------------------------------------------------------------------------
+
+
+def _fetch_finnhub_patterns(
+    *,
+    finnhub_client: Any,
+    symbols: list[str],
+) -> dict[str, dict[str, Any]]:
+    """Fetch pattern recognition + S/R levels from Finnhub (PREMIUM).
+
+    Returns dict[sym -> {patterns, support, resistance, signal}].
+    """
+    result: dict[str, dict[str, Any]] = {}
+    if finnhub_client is None or not getattr(finnhub_client, "available", lambda: False)():
+        return result
+
+    batch = [s.upper() for s in symbols[:_MAX_FINNHUB_LOOKUPS] if s.strip()]
+
+    def _single(sym: str) -> tuple[str, dict[str, Any] | None]:
+        try:
+            patterns = finnhub_client.get_pattern_recognition(sym)
+            time.sleep(0.05)  # Rate-limit: 3 calls/symbol × many symbols
+            sr = finnhub_client.get_support_resistance(sym)
+            time.sleep(0.05)
+            agg = finnhub_client.get_aggregate_indicators(sym)
+
+            pattern_points = patterns.get("points", []) if isinstance(patterns, dict) else []
+            _raw_levels = sr.get("levels", []) if isinstance(sr, dict) else []
+            sr_levels: list[float] = []
+            for _lv in _raw_levels:
+                try:
+                    sr_levels.append(float(_lv))
+                except (ValueError, TypeError):
+                    pass
+
+            # Extract signal from aggregate indicators
+            tech_signal = ""
+            if isinstance(agg, dict):
+                ta = agg.get("technicalAnalysis", {})
+                if isinstance(ta, dict):
+                    tech_signal = str(ta.get("signal", ""))
+
+            pattern_names = []
+            for p in pattern_points:
+                pn = p.get("patternname") or p.get("pattern_name") or p.get("name")
+                if pn:
+                    pattern_names.append(str(pn))
+
+            if not pattern_names and not sr_levels and not tech_signal:
+                return sym, None
+
+            return sym, {
+                "patterns": pattern_names[:5],
+                "pattern_count": len(pattern_names),
+                "support_levels": sorted(sr_levels)[:3] if sr_levels else [],
+                "resistance_levels": sorted(sr_levels, reverse=True)[:3] if sr_levels else [],
+                "tech_signal": tech_signal,
+                "pattern_label": pattern_names[0] if pattern_names else "",
+            }
+        except Exception as exc:
+            logger.debug("Finnhub patterns failed for %s: %s", sym, exc)
+            return sym, None
+
+    # Serial execution (1 worker) to stay within Finnhub free-tier 30 req/s.
+    # Each symbol fires 3 sequential API calls with 0.05 s sleeps between.
+    workers = 1
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futs = {executor.submit(_single, s): s for s in batch}
+        try:
+            for fut in as_completed(futs, timeout=45.0):
+                try:
+                    sym_key, data = fut.result()
+                    if data is not None:
+                        result[sym_key] = data
+                except Exception:
+                    pass
+        except FuturesTimeoutError:
+            logger.warning("Finnhub patterns timed out; continuing with partial.")
     return result
 
 
@@ -3058,6 +3502,14 @@ def _build_result_payload(
     upgrades_downgrades: dict[str, dict[str, Any]] | None = None,
     insider_trading: dict[str, dict[str, Any]] | None = None,
     institutional_ownership: dict[str, dict[str, Any]] | None = None,
+    treasury_rates: dict[str, Any] | None = None,
+    house_trading: dict[str, dict[str, Any]] | None = None,
+    dcf_valuations: dict[str, dict[str, Any]] | None = None,
+    finnhub_insider_sentiment: dict[str, dict[str, Any]] | None = None,
+    finnhub_peers: dict[str, list[str]] | None = None,
+    finnhub_fda_calendar: list[dict[str, Any]] | None = None,
+    finnhub_social_sentiment: dict[str, dict[str, Any]] | None = None,
+    finnhub_patterns: dict[str, dict[str, Any]] | None = None,
     enriched_quotes: list[dict[str, Any]] | None = None,
     # v2 pipeline outputs
     ranked_v2: list[dict[str, Any]] | None = None,
@@ -3154,6 +3606,14 @@ def _build_result_payload(
         "upgrades_downgrades": upgrades_downgrades or {},
         "insider_trading": insider_trading or {},
         "institutional_ownership": institutional_ownership or {},
+        "treasury_rates": treasury_rates or {},
+        "house_trading": house_trading or {},
+        "dcf_valuations": dcf_valuations or {},
+        "finnhub_insider_sentiment": finnhub_insider_sentiment or {},
+        "finnhub_peers": finnhub_peers or {},
+        "finnhub_fda_calendar": finnhub_fda_calendar or [],
+        "finnhub_social_sentiment": finnhub_social_sentiment or {},
+        "finnhub_patterns": finnhub_patterns or {},
         "enriched_quotes": enriched_quotes or [],
         # --- v2 pipeline outputs ---
         "ranked_v2": ranked_v2 or [],
@@ -3212,11 +3672,12 @@ def generate_open_prep_result(
             except Exception:
                 pass
 
-    TOTAL_STAGES = 12
+    TOTAL_STAGES = 17
     _profiler = StageProfiler()
     reset_regime_state()  # prevent stale hysteresis from prior run
     run_dt = now_utc or datetime.now(UTC)
     data_client = client or FMPClient.from_env()
+    finnhub_client = FinnhubClient.from_env()  # Phase 1+2 Finnhub integration
     provided_symbols = [str(s).strip().upper() for s in (symbols or []) if str(s).strip()]
     _progress(1, TOTAL_STAGES, "Universum auflösen …")
     with _profiler.stage("Universum auflösen"):
@@ -3382,6 +3843,64 @@ def generate_open_prep_result(
     except Exception as exc:
         logger.warning("Sector performance fetch failed: %s", exc)
 
+    # --- Treasury Rates (yield curve) ---
+    _progress(9, TOTAL_STAGES, "Treasury Rates laden …")
+    treasury_rates: dict[str, Any] = {}
+    try:
+        treasury_rates = _fetch_treasury_rates(client=data_client, today=today)
+        if treasury_rates:
+            logger.info(
+                "Treasury rates: 2Y=%.3f%% 10Y=%.3f%% spread=%.4f (inverted=%s)",
+                treasury_rates.get("year2") or 0,
+                treasury_rates.get("year10") or 0,
+                treasury_rates.get("yield_2y10y_spread") or 0,
+                treasury_rates.get("curve_inverted"),
+            )
+    except Exception as exc:
+        logger.warning("Treasury rates fetch failed: %s", exc)
+
+    # --- House Trading (Congress) ---
+    _progress(10, TOTAL_STAGES, "House Trading laden …")
+    house_trading: dict[str, dict[str, Any]] = {}
+    try:
+        house_trading = _fetch_house_trading(
+            client=data_client,
+            symbols=symbol_list,
+        )
+        if house_trading:
+            logger.info("House trading: %d symbols with activity", len(house_trading))
+    except Exception as exc:
+        logger.warning("House trading fetch failed: %s", exc)
+
+    # Merge house trading data into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        ht = house_trading.get(sym, {})
+        q["house_buys"] = ht.get("house_buys", 0)
+        q["house_sells"] = ht.get("house_sells", 0)
+        q["house_net"] = ht.get("house_net", 0)
+        q["house_emoji"] = ht.get("house_emoji", "")
+
+    # --- DCF Valuations ---
+    _progress(11, TOTAL_STAGES, "DCF Bewertungen laden …")
+    dcf_valuations: dict[str, dict[str, Any]] = {}
+    try:
+        dcf_valuations = _fetch_dcf_valuations(
+            client=data_client,
+            symbols=symbol_list,
+        )
+        if dcf_valuations:
+            logger.info("DCF valuations: %d symbols enriched", len(dcf_valuations))
+    except Exception as exc:
+        logger.warning("DCF valuations fetch failed: %s", exc)
+
+    # Merge DCF data into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        dcf = dcf_valuations.get(sym, {})
+        q["dcf_value"] = dcf.get("dcf_value")
+        q["dcf_deviation_pct"] = dcf.get("dcf_deviation_pct")
+
     # --- Insider Trading (Ultimate-tier) ---
     insider_trading: dict[str, dict[str, Any]] = {}
     try:
@@ -3423,8 +3942,91 @@ def generate_open_prep_result(
         q["inst_ownership_holders"] = io_data.get("inst_ownership_holders", 0)
         q["inst_ownership_top_holders"] = io_data.get("inst_ownership_top_holders", [])
 
+    # --- Finnhub: Insider Sentiment + Peers + FDA Calendar (Phase 1 FREE) ---
+    _progress(12, TOTAL_STAGES, "Finnhub Insider Sentiment + Peers …")
+    finnhub_insider_sentiment: dict[str, dict[str, Any]] = {}
+    finnhub_peers: dict[str, list[str]] = {}
+    finnhub_fda_calendar: list[dict[str, Any]] = []
+    try:
+        with _profiler.stage("Finnhub Insider Sentiment"):
+            finnhub_insider_sentiment = _fetch_finnhub_insider_sentiment(
+                finnhub_client=finnhub_client,
+                symbols=symbol_list,
+                today=today,
+            )
+        if finnhub_insider_sentiment:
+            logger.info("Finnhub insider sentiment: %d symbols", len(finnhub_insider_sentiment))
+    except Exception as exc:
+        logger.warning("Finnhub insider sentiment failed: %s", exc)
+
+    try:
+        with _profiler.stage("Finnhub Peers"):
+            finnhub_peers = _fetch_finnhub_peers(
+                finnhub_client=finnhub_client,
+                symbols=symbol_list,
+            )
+        if finnhub_peers:
+            logger.info("Finnhub peers: %d symbols with peers", len(finnhub_peers))
+    except Exception as exc:
+        logger.warning("Finnhub peers fetch failed: %s", exc)
+
+    try:
+        with _profiler.stage("Finnhub FDA Calendar"):
+            finnhub_fda_calendar = finnhub_client.get_fda_calendar() if finnhub_client.available() else []
+        if finnhub_fda_calendar:
+            logger.info("Finnhub FDA calendar: %d events", len(finnhub_fda_calendar))
+    except Exception as exc:
+        logger.warning("Finnhub FDA calendar failed: %s", exc)
+
+    # Merge Finnhub insider sentiment into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        fh_is = finnhub_insider_sentiment.get(sym, {})
+        q["fh_mspr_avg"] = fh_is.get("mspr_avg")
+        q["fh_insider_sentiment_emoji"] = fh_is.get("insider_sentiment_emoji", "")
+        q["fh_peers"] = finnhub_peers.get(sym, [])
+
+    # --- Finnhub: Social Sentiment + Patterns (Phase 2 PREMIUM) ---
+    _progress(13, TOTAL_STAGES, "Finnhub Social Sentiment + Patterns …")
+    finnhub_social_sentiment: dict[str, dict[str, Any]] = {}
+    finnhub_patterns: dict[str, dict[str, Any]] = {}
+    try:
+        with _profiler.stage("Finnhub Social Sentiment"):
+            finnhub_social_sentiment = _fetch_finnhub_social_sentiment(
+                finnhub_client=finnhub_client,
+                symbols=symbol_list,
+            )
+        if finnhub_social_sentiment:
+            logger.info("Finnhub social sentiment: %d symbols", len(finnhub_social_sentiment))
+    except Exception as exc:
+        logger.warning("Finnhub social sentiment failed: %s", exc)
+
+    try:
+        with _profiler.stage("Finnhub Patterns"):
+            finnhub_patterns = _fetch_finnhub_patterns(
+                finnhub_client=finnhub_client,
+                symbols=symbol_list,
+            )
+        if finnhub_patterns:
+            logger.info("Finnhub patterns: %d symbols with patterns", len(finnhub_patterns))
+    except Exception as exc:
+        logger.warning("Finnhub patterns failed: %s", exc)
+
+    # Merge Finnhub social + patterns into quotes
+    for q in quotes:
+        sym = str(q.get("symbol") or "").strip().upper()
+        fh_ss = finnhub_social_sentiment.get(sym, {})
+        q["fh_social_score"] = fh_ss.get("social_score")
+        q["fh_social_mentions"] = fh_ss.get("total_mentions")
+        q["fh_social_sentiment_emoji"] = fh_ss.get("social_sentiment_emoji", "")
+        fh_p = finnhub_patterns.get(sym, {})
+        q["fh_pattern_label"] = fh_p.get("pattern_label", "")
+        q["fh_tech_signal"] = fh_p.get("tech_signal", "")
+        q["fh_support_levels"] = fh_p.get("support_levels", [])
+        q["fh_resistance_levels"] = fh_p.get("resistance_levels", [])
+
     # --- Premarket High/Low (PMH/PML) for attention names ---
-    _progress(9, TOTAL_STAGES, "PMH/PML-Daten laden …")
+    _progress(14, TOTAL_STAGES, "PMH/PML-Daten laden …")
     pmh_fetch_error: str | None = None
     pm_fetch_timeout_seconds = _to_float(
         os.environ.get("OPEN_PREP_PMH_FETCH_TIMEOUT_SECONDS"),
@@ -3476,7 +4078,7 @@ def generate_open_prep_result(
         q["atr_pct"] = round((atr_val / prev_c) * 100.0, 4) if atr_val > 0 and prev_c > 0 else None
 
     # --- GAP-GO / GAP-WATCH classification (long only) ---
-    _progress(10, TOTAL_STAGES, "Ranking + Gap-Klassifizierung …")
+    _progress(15, TOTAL_STAGES, "Ranking + Gap-Klassifizierung …")
     for q in quotes:
         meta = classify_long_gap(q, bias=bias)
         q["gap_bucket"] = meta["bucket"]
@@ -3565,7 +4167,7 @@ def generate_open_prep_result(
 
     # ===================================================================
     # v2 pipeline: VIX → regime → sector-relative → v2 scorer → outcomes
-    _progress(11, TOTAL_STAGES, "v2-Pipeline (Regime, Scoring) …")
+    _progress(16, TOTAL_STAGES, "v2-Pipeline (Regime, Scoring) …")
     # ===================================================================
     vix_level: float | None = None
     try:
@@ -3807,7 +4409,7 @@ def generate_open_prep_result(
         logger.warning("Result snapshot save error: %s", exc)
 
     # Load watchlist for payload
-    _progress(12, TOTAL_STAGES, "Ergebnis zusammenbauen …")
+    _progress(17, TOTAL_STAGES, "Ergebnis zusammenbauen …")
     watchlist = load_watchlist()
 
     cards = build_trade_cards(ranked_candidates=ranked, bias=bias, top_n=max(config.trade_cards, 1))
@@ -3856,6 +4458,14 @@ def generate_open_prep_result(
         upgrades_downgrades=upgrades_downgrades,
         insider_trading=insider_trading,
         institutional_ownership=institutional_ownership,
+        treasury_rates=treasury_rates,
+        house_trading=house_trading,
+        dcf_valuations=dcf_valuations,
+        finnhub_insider_sentiment=finnhub_insider_sentiment,
+        finnhub_peers=finnhub_peers,
+        finnhub_fda_calendar=finnhub_fda_calendar,
+        finnhub_social_sentiment=finnhub_social_sentiment,
+        finnhub_patterns=finnhub_patterns,
         enriched_quotes=quotes,
         # v2 pipeline outputs
         ranked_v2=ranked_v2,

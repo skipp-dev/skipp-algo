@@ -94,7 +94,6 @@ try:
         compute_power_gaps as _compute_power_gaps,
         DEFENSE_TICKERS as _DEFENSE_TICKERS,
         fetch_defense_watchlist as _fetch_defense_wl,
-        fetch_industry_performance as _fetch_ind_perf,
     )
 except ImportError:  # pragma: no cover
     _fetch_bz_dividends = None  # type: ignore[assignment]
@@ -110,19 +109,14 @@ except ImportError:  # pragma: no cover
     _compute_power_gaps = None  # type: ignore[assignment]
     _DEFENSE_TICKERS = ""  # type: ignore[assignment]
     _fetch_defense_wl = None  # type: ignore[assignment]
-    _fetch_ind_perf = None  # type: ignore[assignment]
 
 try:
     from newsstack_fmp.ingest_benzinga_financial import (
         fetch_benzinga_options_activity as _fetch_bz_options,
-        fetch_benzinga_company_profile as _fetch_bz_profile,
-        fetch_benzinga_ticker_detail as _fetch_bz_detail,
         fetch_benzinga_insider_transactions as _fetch_bz_insider,
     )
 except ImportError:  # pragma: no cover
     _fetch_bz_options = None  # type: ignore[assignment]
-    _fetch_bz_profile = None  # type: ignore[assignment]
-    _fetch_bz_detail = None  # type: ignore[assignment]
     _fetch_bz_insider = None  # type: ignore[assignment]
 
 try:
@@ -261,35 +255,11 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def _cached_ind_perf_op(api_key: str, industry: str = "Aerospace & Defense") -> list[dict[str, Any]]:
-    """Cache industry screen results for 5 minutes."""
-    if _fetch_ind_perf is None:
-        return []
-    return _fetch_ind_perf(api_key, industry=industry) or []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     """Cache Benzinga options activity for 5 minutes."""
     if _fetch_bz_options is None:
         return []
     return _fetch_bz_options(api_key, tickers) or []
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def _cached_bz_profile_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga company profile for 10 minutes."""
-    if _fetch_bz_profile is None:
-        return []
-    return _fetch_bz_profile(api_key, tickers) or []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_bz_detail_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga ticker detail for 5 minutes."""
-    if _fetch_bz_detail is None:
-        return []
-    return _fetch_bz_detail(api_key, tickers) or []
 
 
 def _get_bz_quotes_for_symbols(

@@ -127,13 +127,19 @@ def format_score_badge(score: float) -> str:
 
 
 def format_age_string(published_ts: float | None, *, now: float | None = None) -> str:
-    """Human-readable age string like ``3m`` or ``?``."""
+    """Human-readable age string in ``d:hh:mm:ss`` format, or ``?``."""
     if published_ts is None or published_ts <= 0:
         return "?"
     if now is None:
         now = time.time()
-    age_min = max((now - published_ts) / 60.0, 0.0)
-    return f"{age_min:.0f}m"
+    delta = max(now - published_ts, 0.0)
+    total_s = int(delta)
+    days, rem = divmod(total_s, 86400)
+    hours, rem = divmod(rem, 3600)
+    mins, secs = divmod(rem, 60)
+    if days > 0:
+        return f"{days}:{hours:02d}:{mins:02d}:{secs:02d}"
+    return f"0:{hours:02d}:{mins:02d}:{secs:02d}"
 
 
 def provider_icon(provider: str) -> str:
@@ -151,10 +157,18 @@ def safe_markdown_text(text: str) -> str:
 
 
 def safe_url(url: str) -> str:
-    """Escape parentheses in URLs for safe markdown link rendering."""
+    """Validate scheme and escape parentheses for safe markdown/HTML link rendering.
+
+    Only ``http`` and ``https`` schemes are allowed; anything else (e.g.
+    ``javascript:``, ``data:``, ``vbscript:``) is rejected and returns ``""``.
+    """
     if not url:
         return ""
-    return url.replace("(", "%28").replace(")", "%29")
+    stripped = url.strip()
+    # Only allow http(s) — reject javascript:, data:, vbscript: etc.
+    if not stripped.lower().startswith(("http://", "https://")):
+        return ""
+    return stripped.replace("(", "%28").replace(")", "%29")
 
 
 # ── Highlight helpers ───────────────────────────────────────────
@@ -254,7 +268,7 @@ _SKIP_CHANNELS: set[str] = {"", "news", "general", "markets", "trading", "top st
 def aggregate_segments(
     feed: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Build per-segment (Benzinga channel) aggregation rows.
+    """Build per-segment (news channel) aggregation rows.
 
     Each returned dict contains:
     ``segment``, ``articles``, ``tickers``, ``avg_score``, ``sentiment``,
@@ -351,8 +365,12 @@ def build_segment_summary_rows(
 
 def build_heatmap_data(
     feed: list[dict[str, Any]],
+    sector_map: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build treemap leaf rows from feed channels.
+    """Build treemap leaf rows grouped by sector.
+
+    When *sector_map* is provided (ticker → GICS sector), groups items
+    by GICS sector.  Otherwise falls back to news article channels.
 
     Each row: ``sector``, ``ticker``, ``score``, ``sentiment``,
     ``net_sent``, ``articles``.
@@ -362,13 +380,20 @@ def build_heatmap_data(
         tk = d.get("ticker", "?")
         if tk == "MARKET":
             continue
-        chs = d.get("channels", [])
-        if not chs:
-            chs = [d.get("category", "other")]
-        for ch in chs:
-            ch_clean = ch.strip().title() if isinstance(ch, str) else str(ch)
-            if ch_clean.lower() not in _SKIP_CHANNELS:
-                seg_data[ch_clean].append(d)
+
+        if sector_map is not None:
+            # Use GICS sector lookup
+            sector = sector_map.get(tk.upper(), "Other")
+            seg_data[sector].append(d)
+        else:
+            # Fallback: group by news channels
+            chs = d.get("channels", [])
+            if not chs:
+                chs = [d.get("category", "other")]
+            for ch in chs:
+                ch_clean = ch.strip().title() if isinstance(ch, str) else str(ch)
+                if ch_clean.lower() not in _SKIP_CHANNELS:
+                    seg_data[ch_clean].append(d)
 
     hm_data: list[dict[str, Any]] = []
     for seg_name, items_list in seg_data.items():

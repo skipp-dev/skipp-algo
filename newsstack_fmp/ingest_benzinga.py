@@ -38,7 +38,7 @@ from .normalize import normalize_benzinga_rest, normalize_benzinga_ws
 
 logger = logging.getLogger(__name__)
 
-from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url  # noqa: E402
+from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize_url, log_fetch_warning  # noqa: E402
 
 
 # =====================================================================
@@ -218,7 +218,7 @@ def fetch_benzinga_top_news(
             r = _request_with_retry(client, BENZINGA_TOP_NEWS_URL, params)
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga top_news fetch failed: %s", _sanitize_exc(exc))
+            log_fetch_warning("Benzinga top_news", exc)
             return []
 
     if isinstance(data, list):
@@ -252,7 +252,7 @@ def fetch_benzinga_channels(
             r = _request_with_retry(client, BENZINGA_CHANNELS_URL, params)
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga channels fetch failed: %s", _sanitize_exc(exc))
+            log_fetch_warning("Benzinga channels", exc)
             return []
 
     if isinstance(data, list):
@@ -298,7 +298,7 @@ def fetch_benzinga_quantified_news(
             r = _request_with_retry(client, BENZINGA_QUANTIFIED_URL, params)
             data = r.json()
         except Exception as exc:
-            logger.warning("Benzinga quantified_news fetch failed: %s", _sanitize_exc(exc))
+            log_fetch_warning("Benzinga quantified_news", exc)
             return []
 
     if isinstance(data, list):
@@ -441,7 +441,7 @@ class BenzingaWsAdapter:
                             break
                         try:
                             msg = json.loads(message)
-                        except Exception:
+                        except (json.JSONDecodeError, ValueError):
                             continue
 
                         payloads = self._extract_payloads(msg)

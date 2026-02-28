@@ -367,7 +367,7 @@ class TestFetchEconomicCalendar(unittest.TestCase):
         MockClient.return_value = mock_client
 
         # Should not raise; returns empty list
-        with self.assertLogs("terminal_poller", level="WARNING") as cm:
+        with self.assertLogs("newsstack_fmp._bz_http", level="WARNING") as cm:
             result = fetch_economic_calendar("MY_SECRET_KEY", "2026-02-26", "2026-02-27")
         self.assertEqual(result, [])
         # Ensure API key is sanitised in log

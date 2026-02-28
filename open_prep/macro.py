@@ -981,6 +981,563 @@ class FMPClient:
             return []
         return [item for item in data if isinstance(item, dict)]
 
+    # ------------------------------------------------------------------
+    # Phase 1 — newly evaluated FMP endpoints (Gap-Analyse v1)
+    # ------------------------------------------------------------------
+
+    def get_house_trading(
+        self,
+        symbol: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Fetch US House of Representatives stock trading disclosures.
+
+        Mirrors get_senate_trading() for the lower chamber.
+        Without a symbol returns the latest trades across all members.
+        """
+        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500))}
+        if symbol:
+            sym = str(symbol).strip().upper()
+            if sym:
+                params["symbol"] = sym
+        try:
+            data = self._get("/stable/house-trading", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_treasury_rates(
+        self,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch US Treasury yield curve rates (1M through 30Y).
+
+        Returns daily snapshots with fields like month1, month3, year2,
+        year5, year10, year30. Useful for yield-curve slope / inversion
+        analysis (e.g. 2Y-10Y spread as recession indicator).
+        """
+        params: dict[str, Any] = {}
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/treasury-rates", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_economic_indicators(
+        self,
+        name: str,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch historical economic indicator time-series from FMP.
+
+        *name* is the indicator key (e.g. "GDP", "CPI", "unemploymentRate",
+        "federalFundsRate", "inflationRate", "retailSales").
+        Returns actual data points — not calendar events — enabling
+        quantitative macro analysis (actual vs. forecast over time).
+        """
+        indicator = str(name or "").strip()
+        if not indicator:
+            return []
+        params: dict[str, Any] = {"name": indicator}
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/economic-indicators", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_technical_indicator(
+        self,
+        name: str,
+        symbol: str,
+        period_length: int = 14,
+        timeframe: str = "1day",
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch a server-side technical indicator from FMP.
+
+        *name* is one of: sma, ema, wma, dema, tema, rsi,
+        standarddeviation, williams, adx.
+        *timeframe*: 1min, 5min, 15min, 30min, 1hour, 4hour, 1day.
+
+        Each response row contains OHLCV fields plus the computed
+        indicator value keyed by the indicator name.
+        """
+        indicator = str(name or "").strip().lower()
+        sym = str(symbol or "").strip().upper()
+        if not indicator or not sym:
+            return []
+        valid_indicators = {
+            "sma", "ema", "wma", "dema", "tema",
+            "rsi", "standarddeviation", "williams", "adx",
+        }
+        if indicator not in valid_indicators:
+            logger.warning(
+                "Unknown FMP technical indicator %r (valid: %s)",
+                indicator,
+                ", ".join(sorted(valid_indicators)),
+            )
+            return []
+        params: dict[str, Any] = {
+            "symbol": sym,
+            "periodLength": max(1, int(period_length)),
+            "timeframe": str(timeframe or "1day").strip().lower(),
+        }
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get(f"/stable/technical-indicators/{indicator}", params)
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+    def get_dcf(self, symbol: str) -> dict[str, Any]:
+        """Fetch discounted-cash-flow intrinsic value for a symbol.
+
+        Returns a dict with keys like dcf, stockPrice, date.
+        Useful for value-deviation scoring (DCF vs. market price).
+        """
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return {}
+        try:
+            data = self._get("/stable/discounted-cash-flow", {"symbol": sym})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return {}
+            raise
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    def get_levered_dcf(self, symbol: str) -> dict[str, Any]:
+        """Fetch levered DCF (debt-adjusted intrinsic value) for a symbol."""
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return {}
+        try:
+            data = self._get("/stable/levered-discounted-cash-flow", {"symbol": sym})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return {}
+            raise
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    def get_price_target_consensus(self, symbol: str) -> dict[str, Any]:
+        """Fetch aggregated analyst price-target consensus for a symbol.
+
+        Returns a compact dict with targetHigh, targetLow, targetConsensus,
+        targetMedian — lighter than get_price_target_summary().
+        """
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return {}
+        try:
+            data = self._get("/stable/price-target-consensus", {"symbol": sym})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return {}
+            raise
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return data[0]
+        if isinstance(data, dict):
+            return data
+        return {}
+
+    def get_index_constituents(
+        self,
+        index: str = "sp500",
+    ) -> list[dict[str, Any]]:
+        """Fetch index constituents (symbols, sectors, weights).
+
+        *index*: "sp500", "nasdaq", "dowjones".
+        """
+        slug_map = {
+            "sp500": "sp500-constituent",
+            "nasdaq": "nasdaq-constituent",
+            "dowjones": "dowjones-constituent",
+        }
+        key = str(index or "sp500").strip().lower()
+        slug = slug_map.get(key)
+        if not slug:
+            logger.warning(
+                "Unknown index %r for constituents (valid: %s)",
+                key,
+                ", ".join(sorted(slug_map)),
+            )
+            return []
+        try:
+            data = self._get(f"/stable/{slug}", {})
+        except RuntimeError as exc:
+            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
+                return []
+            raise
+        if not isinstance(data, list):
+            return []
+        return [item for item in data if isinstance(item, dict)]
+
+
+# ───────────────────────────────────────────────────────────────
+# Finnhub Client — Alternative-Data provider (Phase 1 FREE + Phase 2 PREMIUM)
+# ───────────────────────────────────────────────────────────────
+
+
+class FinnhubClient:
+    """Lightweight Finnhub REST client.
+
+    Auth via ``?token=API_KEY`` query parameter.
+    Free tier: 30 req/s, no daily limit.
+
+    Environment variable: ``FINNHUB_API_KEY``.
+    """
+
+    BASE = "https://finnhub.io/api/v1"
+
+    def __init__(self, api_key: str | None = None) -> None:
+        self.api_key = api_key or os.environ.get("FINNHUB_API_KEY", "")
+
+    @classmethod
+    def from_env(cls, key_name: str = "FINNHUB_API_KEY") -> "FinnhubClient":
+        value = os.environ.get(key_name, "")
+        return cls(api_key=value)
+
+    # ── internal ─────────────────────────────────────────────
+
+    def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        if not self.api_key:
+            logger.debug("FinnhubClient: no API key — skipping %s", path)
+            return {}
+        query: dict[str, Any] = dict(params or {})
+        query["token"] = self.api_key
+        url = f"{self.BASE}{path}?{urlencode(query)}"
+        request = Request(url, headers={"Accept": "application/json"})
+        try:
+            with urlopen(request, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429:
+                logger.warning("Finnhub rate-limited (429) for %s — back off", path)
+            elif exc.code in (401, 403):
+                logger.debug("Finnhub auth error %s for %s", exc.code, path)
+            else:
+                logger.warning("Finnhub HTTP %s for %s: %s", exc.code, path, exc.reason)
+            return {}
+        except Exception as exc:
+            logger.warning("Finnhub request failed for %s: %s", path, exc)
+            return {}
+
+    def available(self) -> bool:
+        """Return True when a Finnhub API key is configured."""
+        return bool(self.api_key)
+
+    # ── Phase 1: FREE endpoints ──────────────────────────────
+
+    def get_insider_sentiment(
+        self,
+        symbol: str,
+        from_date: str,
+        to_date: str,
+    ) -> dict[str, Any]:
+        """Insider sentiment (MSPR score -100 to +100).
+
+        MSPR = Monthly Share Purchase Ratio. Positive means net buying.
+        """
+        data = self._get("/stock/insider-sentiment", {
+            "symbol": symbol.upper(),
+            "from": from_date,
+            "to": to_date,
+        })
+        if isinstance(data, dict) and "data" in data:
+            return data
+        return {"data": [], "symbol": symbol.upper()}
+
+    def get_peers(self, symbol: str) -> list[str]:
+        """Company peers — same industry/sub-industry."""
+        data = self._get("/stock/peers", {"symbol": symbol.upper()})
+        if isinstance(data, list):
+            return [str(s) for s in data if isinstance(s, str)]
+        return []
+
+    def get_market_status(self, exchange: str = "US") -> dict[str, Any]:
+        """Current market status (open/closed/pre/post)."""
+        data = self._get("/stock/market-status", {"exchange": exchange})
+        return data if isinstance(data, dict) else {}
+
+    def get_market_holiday(self, exchange: str = "US") -> list[dict[str, Any]]:
+        """Upcoming market holidays."""
+        data = self._get("/stock/market-holiday", {"exchange": exchange})
+        return data if isinstance(data, list) else []
+
+    def get_fda_calendar(self) -> list[dict[str, Any]]:
+        """FDA advisory committee calendar (pharma/biotech)."""
+        data = self._get("/fda-advisory-committee-calendar", {})
+        return data if isinstance(data, list) else []
+
+    def get_lobbying(
+        self,
+        symbol: str,
+        from_date: str,
+        to_date: str,
+    ) -> list[dict[str, Any]]:
+        """Senate lobbying activities for a company."""
+        data = self._get("/stock/lobbying", {
+            "symbol": symbol.upper(),
+            "from": from_date,
+            "to": to_date,
+        })
+        if isinstance(data, list):
+            return data
+        return data.get("data") or [] if isinstance(data, dict) else []
+
+    def get_usa_spending(
+        self,
+        symbol: str,
+        from_date: str,
+        to_date: str,
+    ) -> list[dict[str, Any]]:
+        """US government contracts / spending for a company."""
+        data = self._get("/stock/usa-spending", {
+            "symbol": symbol.upper(),
+            "from": from_date,
+            "to": to_date,
+        })
+        if isinstance(data, list):
+            return data
+        return data.get("data") or [] if isinstance(data, dict) else []
+
+    def get_patents(
+        self,
+        symbol: str,
+        from_date: str,
+        to_date: str,
+    ) -> list[dict[str, Any]]:
+        """USPTO patent grants for a company."""
+        data = self._get("/stock/uspto-patent", {
+            "symbol": symbol.upper(),
+            "from": from_date,
+            "to": to_date,
+        })
+        if isinstance(data, list):
+            return data
+        return data.get("data") or [] if isinstance(data, dict) else []
+
+    # ── Phase 2: PREMIUM endpoints ───────────────────────────
+
+    def get_social_sentiment(
+        self,
+        symbol: str,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> dict[str, Any]:
+        """Reddit + Twitter social sentiment (-1 to +1 score, mention count)."""
+        params: dict[str, Any] = {"symbol": symbol.upper()}
+        if from_date:
+            params["from"] = from_date
+        if to_date:
+            params["to"] = to_date
+        data = self._get("/stock/social-sentiment", params)
+        if isinstance(data, dict) and ("reddit" in data or "twitter" in data):
+            return data
+        return {"reddit": [], "twitter": [], "symbol": symbol.upper()}
+
+    def get_pattern_recognition(
+        self,
+        symbol: str,
+        resolution: str = "D",
+    ) -> dict[str, Any]:
+        """Chart pattern recognition (double top/bottom, H&S, triangles etc.)."""
+        data = self._get("/scan/pattern", {
+            "symbol": symbol.upper(),
+            "resolution": resolution,
+        })
+        return data if isinstance(data, dict) else {"points": []}
+
+    def get_support_resistance(
+        self,
+        symbol: str,
+        resolution: str = "D",
+    ) -> dict[str, Any]:
+        """Auto-computed support/resistance levels."""
+        data = self._get("/scan/support-resistance", {
+            "symbol": symbol.upper(),
+            "resolution": resolution,
+        })
+        return data if isinstance(data, dict) else {"levels": []}
+
+    def get_aggregate_indicators(
+        self,
+        symbol: str,
+        resolution: str = "D",
+    ) -> dict[str, Any]:
+        """Composite buy/sell/neutral technical signal."""
+        data = self._get("/scan/technical-indicator", {
+            "symbol": symbol.upper(),
+            "resolution": resolution,
+        })
+        return data if isinstance(data, dict) else {}
+
+    def get_supply_chain(self, symbol: str) -> dict[str, Any]:
+        """Customer/supplier supply-chain relationships."""
+        data = self._get("/stock/supply-chain", {"symbol": symbol.upper()})
+        return data if isinstance(data, dict) else {"data": []}
+
+    def get_earnings_quality(
+        self,
+        symbol: str,
+        freq: str = "quarterly",
+    ) -> dict[str, Any]:
+        """Earnings quality score."""
+        data = self._get("/stock/earnings-quality-score", {
+            "symbol": symbol.upper(),
+            "freq": freq,
+        })
+        if isinstance(data, list) and data:
+            entry = data[0]
+            return dict(entry) if isinstance(entry, dict) else {}
+        return data if isinstance(data, dict) else {}
+
+    def get_news_sentiment(self, symbol: str) -> dict[str, Any]:
+        """News sentiment with bullish/bearish percentages."""
+        data = self._get("/news-sentiment", {"symbol": symbol.upper()})
+        return data if isinstance(data, dict) else {}
+
+    def get_esg(self, symbol: str) -> dict[str, Any]:
+        """Company ESG score (current + historical)."""
+        data = self._get("/stock/esg", {"symbol": symbol.upper()})
+        if isinstance(data, list) and data:
+            entry = data[0]
+            return dict(entry) if isinstance(entry, dict) else {}
+        return data if isinstance(data, dict) else {}
+
+
+# ───────────────────────────────────────────────────────────────
+# Alpaca Client — Market Data + News (Phase 3)
+# ───────────────────────────────────────────────────────────────
+
+
+class AlpacaClient:
+    """Lightweight Alpaca Market Data client.
+
+    Auth via ``APCA-API-KEY-ID`` + ``APCA-API-SECRET-KEY`` headers.
+    Free tier: 200 req/min, IEX data.
+
+    Environment variables: ``APCA_API_KEY_ID``, ``APCA_API_SECRET_KEY``.
+    """
+
+    DATA_BASE = "https://data.alpaca.markets"
+
+    def __init__(
+        self,
+        key_id: str | None = None,
+        secret_key: str | None = None,
+    ) -> None:
+        self.key_id = key_id or os.environ.get("APCA_API_KEY_ID", "")
+        self.secret_key = secret_key or os.environ.get("APCA_API_SECRET_KEY", "")
+
+    @classmethod
+    def from_env(cls) -> "AlpacaClient":
+        return cls()
+
+    def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        if not self.key_id or not self.secret_key:
+            logger.debug("AlpacaClient: no API keys — skipping %s", path)
+            return {}
+        query_str = f"?{urlencode(params)}" if params else ""
+        url = f"{self.DATA_BASE}{path}{query_str}"
+        request = Request(url, headers={
+            "Accept": "application/json",
+            "APCA-API-KEY-ID": self.key_id,
+            "APCA-API-SECRET-KEY": self.secret_key,
+        })
+        try:
+            with urlopen(request, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            logger.warning("Alpaca HTTP %s for %s: %s", exc.code, path, exc.reason)
+            return {}
+        except Exception as exc:
+            logger.warning("Alpaca request failed for %s: %s", path, exc)
+            return {}
+
+    def available(self) -> bool:
+        """Return True when Alpaca API keys are configured."""
+        return bool(self.key_id and self.secret_key)
+
+    def get_news(
+        self,
+        symbols: list[str] | None = None,
+        limit: int = 50,
+        sort: str = "desc",
+    ) -> list[dict[str, Any]]:
+        """Fetch latest news articles (with sentiment + tickers)."""
+        params: dict[str, Any] = {"limit": min(limit, 50), "sort": sort}
+        if symbols:
+            params["symbols"] = ",".join(s.upper() for s in symbols)
+        data = self._get("/v1beta1/news", params)
+        if isinstance(data, dict) and "news" in data:
+            return list(data["news"])
+        return data if isinstance(data, list) else []
+
+    def get_most_active(self, top: int = 20) -> list[dict[str, Any]]:
+        """Screener: most actively traded stocks."""
+        data = self._get("/v1beta1/screener/stocks/most-actives", {"top": min(top, 100)})
+        if isinstance(data, dict) and "most_actives" in data:
+            return list(data["most_actives"])
+        return data if isinstance(data, list) else []
+
+    def get_top_movers(self, top: int = 20, market_type: str = "stocks") -> dict[str, Any]:
+        """Screener: top movers (gainers + losers by %)."""
+        data = self._get(f"/v1beta1/screener/{market_type}/movers", {"top": min(top, 50)})
+        return data if isinstance(data, dict) else {}
+
+    def get_option_chain(
+        self,
+        underlying: str,
+        expiration_date: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Fetch option chain snapshots for an underlying symbol."""
+        params: dict[str, Any] = {}
+        if expiration_date:
+            params["expiration_date"] = expiration_date
+        data = self._get(f"/v1beta1/options/snapshots/{underlying.upper()}", params)
+        if isinstance(data, dict) and "snapshots" in data:
+            return list(data["snapshots"])
+        return data if isinstance(data, list) else []
+
 
 CANONICAL_EVENT_PATTERNS = [
     ("core_pce_mom", [r"\bcore\b", r"\bpce\b", r"\bmom\b"]),

@@ -155,12 +155,18 @@ class BackgroundPoller:
 
         logger.info("Background poll loop entered")
 
+        _first_iteration = True
         while not self._stop_event.is_set():
             interval = self._get_interval()
 
-            # Wait for the poll interval (interruptible by stop_event)
-            if self._stop_event.wait(timeout=interval):
-                break
+            # First iteration: poll immediately so the counter increments
+            # on startup instead of waiting the full interval.
+            if _first_iteration:
+                _first_iteration = False
+            else:
+                # Wait for the poll interval (interruptible by stop_event)
+                if self._stop_event.wait(timeout=interval):
+                    break
 
             # Grab adapters under lock
             with self._lock:

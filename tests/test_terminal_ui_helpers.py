@@ -286,7 +286,7 @@ class TestFormatScoreBadge:
 class TestFormatAgeString:
     def test_recent(self):
         now = 1000.0
-        assert format_age_string(now - 120, now=now) == "2m"
+        assert format_age_string(now - 120, now=now) == "0:00:02:00"
 
     def test_none_ts(self):
         assert format_age_string(None) == "?"
@@ -300,12 +300,22 @@ class TestFormatAgeString:
     def test_future_ts_clamped(self):
         now = 1000.0
         result = format_age_string(1500, now=now)
-        assert result == "0m"
+        assert result == "0:00:00:00"
 
     def test_uses_current_time_by_default(self):
         ts = time.time() - 600  # 10 min ago
         result = format_age_string(ts)
-        assert "10m" in result or "9m" in result  # allow rounding
+        assert "00:10:0" in result  # matches 0:00:10:00
+
+    def test_days_format(self):
+        now = 100000.0
+        result = format_age_string(now - 90061, now=now)  # 1 day, 1 hour, 1 min, 1 sec
+        assert result == "1:01:01:01"
+
+    def test_hours_format(self):
+        now = 10000.0
+        result = format_age_string(now - 3723, now=now)  # 1h 2m 3s
+        assert result == "0:01:02:03"
 
 
 class TestProviderIcon:
