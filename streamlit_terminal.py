@@ -3090,7 +3090,23 @@ else:
                     with _oc2:
                         if _btc_outlook.fear_greed:
                             _ol_fg = _btc_outlook.fear_greed
-                            st.metric("Fear & Greed", f"{_ol_fg.value:.0f}", delta=_ol_fg.label)
+                            _fg_val = _ol_fg.value
+                            _fg_label = _ol_fg.label
+                            st.metric("Fear & Greed", f"{_fg_val:.0f}", delta=_fg_label)
+                            with st.expander(f"ℹ️ {_fg_label} — what does {_fg_val:.0f} mean?"):
+                                st.markdown(
+                                    f"**Fear & Greed Index: {_fg_val:.0f}** means **{_fg_label}**. "
+                                    "The scale runs 0–100:\n\n"
+                                    "| Range | Meaning |\n"
+                                    "|---|---|\n"
+                                    "| **0–24** | Extreme Fear — investors are very worried (often a contrarian buy signal) |\n"
+                                    "| **25–49** | Fear |\n"
+                                    "| **50** | Neutral |\n"
+                                    "| **51–74** | Greed |\n"
+                                    "| **75–100** | Extreme Greed — market euphoria (often a contrarian sell signal) |\n\n"
+                                    f"A reading of **{_fg_val:.0f}** indicates the market is in "
+                                    f"{'deep panic territory.' if _fg_val < 25 else 'a fearful state.' if _fg_val < 50 else 'neutral territory.' if _fg_val < 55 else 'a greedy state.' if _fg_val < 75 else 'euphoric territory.'}"
+                                )
                     with _oc3:
                         st.metric("Support", format_btc_price(_btc_outlook.support))
                     with _oc4:
