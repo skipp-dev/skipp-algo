@@ -50,7 +50,7 @@ def load_alert_config() -> dict[str, Any]:
             with open(ALERT_CONFIG_PATH, "r", encoding="utf-8") as fh:
                 return {**DEFAULT_CONFIG, **json.load(fh)}
         except Exception:
-            logger.warning("Failed to load alert config, using defaults")
+            logger.warning("Failed to load alert config, using defaults", exc_info=True)
     return dict(DEFAULT_CONFIG)
 
 
@@ -264,7 +264,7 @@ def dispatch_alerts(
                 else:
                     payload = _format_generic_payload(candidate, regime=regime)
             except Exception:
-                logger.warning("Failed to format alert payload for %s/%s", symbol, target_type)
+                logger.warning("Failed to format alert payload for %s/%s", symbol, target_type, exc_info=True)
                 continue
 
             result = _send_webhook(url, payload, target.get("headers"))
@@ -332,14 +332,14 @@ def _send_webhook(
                 last_exc = exc
                 continue
             logger.warning("Webhook HTTP error %d for %s", exc.code, masked_url)
-            return {"status": exc.code, "error": str(exc)}
+            return {"status": exc.code, "error": type(exc).__name__}
         except Exception as exc:
             logger.warning("Webhook error for %s: %s", masked_url, exc)
-            return {"status": 0, "error": str(exc)}
+            return {"status": 0, "error": type(exc).__name__}
 
     # All retries exhausted (should only reach here after 429 retries)
     logger.warning("Webhook retries exhausted for %s", masked_url)
-    return {"status": 429, "error": str(last_exc) if last_exc else "retries exhausted"}
+    return {"status": 429, "error": type(last_exc).__name__ if last_exc else "retries exhausted"}
 
 
 # ---------------------------------------------------------------------------

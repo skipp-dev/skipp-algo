@@ -20,6 +20,8 @@ import certifi
 
 logger = logging.getLogger("open_prep.macro")
 
+_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # #5  Circuit Breaker — prevents hammering FMP during outages
@@ -472,7 +474,7 @@ class FMPClient:
                 {"from": date_from.isoformat(), "to": date_to.isoformat()},
             )
         except RuntimeError as exc:
-            msg = str(exc)
+            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
             if (
                 "/stable/earnings-calendar" in msg
                 and (
@@ -547,7 +549,7 @@ class FMPClient:
         try:
             data = self._get("/stable/eod-bulk", {"date": as_of.isoformat(), "datatype": "json"})
         except RuntimeError as exc:
-            msg = str(exc)
+            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
             # Free-tier accounts can receive HTTP 402 (Payment Required) for this
             # endpoint.  FMP may also return CSV despite requesting JSON, which
             # triggers an "invalid JSON" error when CSV fallback parsing also
@@ -641,7 +643,7 @@ class FMPClient:
         try:
             data = self._get("/stable/grades", params)
         except RuntimeError as exc:
-            msg = str(exc)
+            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
             if (
                 "/stable/grades" in msg
                 and (
@@ -664,7 +666,7 @@ class FMPClient:
         try:
             data = self._get("/stable/sector-performance-snapshot", {"date": _date.today().isoformat()})
         except RuntimeError as exc:
-            msg = str(exc)
+            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
             if (
                 "/stable/sector-performance-snapshot" in msg
                 and (
@@ -694,7 +696,7 @@ class FMPClient:
         try:
             data = self._get("/stable/quote", {"symbol": sym})
         except RuntimeError as exc:
-            msg = str(exc)
+            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
             if "/stable/quote" in msg and (
                 "HTTP 400" in msg
                 or "HTTP 402" in msg
@@ -1265,7 +1267,7 @@ class FinnhubClient:
                 logger.warning("Finnhub HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
         except Exception as exc:
-            logger.warning("Finnhub request failed for %s: %s", path, re.sub(r"token=[^&\s]+", "token=***", str(exc)))
+            logger.warning("Finnhub request failed for %s: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)))
             return {}
 
     def available(self) -> bool:

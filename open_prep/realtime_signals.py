@@ -860,7 +860,7 @@ class RealtimeEngine:
                 self._client = FMPClient.from_env()
             except Exception as exc:
                 # Fail-open: disable polling if API key missing or client cannot be built
-                self._client_disabled_reason = str(exc)
+                self._client_disabled_reason = type(exc).__name__
                 raise
         return self._client
 
@@ -891,7 +891,7 @@ class RealtimeEngine:
             )
             self._enrich_watchlist_live()
         except Exception as exc:
-            logger.warning("Failed to load watchlist: %s", exc)
+            logger.warning("Failed to load watchlist: %s", exc, exc_info=True)
 
     def _enrich_watchlist_live(self) -> None:
         """Fetch avg_volume + earnings from FMP for watchlist symbols.
@@ -1012,7 +1012,7 @@ class RealtimeEngine:
                 if sym:
                     quotes[sym] = q
         except Exception as exc:
-            logger.warning("Failed to fetch realtime quotes: %s", exc)
+            logger.warning("Failed to fetch realtime quotes: %s", exc, exc_info=True)
             # Fallback — individual quotes (capped to 10 to limit rate-limit pressure)
             for i, sym in enumerate(symbols[:10]):
                 try:
@@ -1796,7 +1796,7 @@ class RealtimeEngine:
                     pass
                 raise
         except Exception as exc:
-            logger.warning("Failed to save signals: %s", exc)
+            logger.warning("Failed to save signals: %s", exc, exc_info=True)
 
     @staticmethod
     def load_signals_from_disk(max_age_s: float = 300.0) -> dict[str, Any]:
@@ -1821,7 +1821,7 @@ class RealtimeEngine:
                 data["stale_age_s"] = round(file_age_s)
             return data
         except Exception as exc:
-            logger.warning("Failed to load signals from disk: %s", exc)
+            logger.warning("Failed to load signals from disk: %s", exc, exc_info=True)
             return _empty
 
 

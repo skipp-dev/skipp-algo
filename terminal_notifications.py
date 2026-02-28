@@ -247,7 +247,7 @@ def _send_pushover(app_token: str, user_key: str, title: str, message: str, url:
         logger.warning("Pushover HTTP error %d", exc.code)
         return False
     except Exception as exc:
-        logger.warning("Pushover send failed: %s", exc)
+        logger.warning("Pushover send failed: %s", type(exc).__name__, exc_info=True)
         return False
 
 

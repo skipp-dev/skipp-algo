@@ -189,8 +189,8 @@ class FeedLifecycleManager:
 
             result["cleared"] = True
         except Exception as exc:
-            logger.warning("Weekend clear failed: %s", exc)
-            result["error"] = str(exc)
+            logger.warning("Weekend clear failed: %s", exc, exc_info=True)
+            result["error"] = type(exc).__name__
 
         now = _now_et()
         self._weekend_cleared = True
@@ -282,7 +282,7 @@ class FeedLifecycleManager:
                     try:
                         _prune_fn(keep_seconds=0.0)
                     except Exception as exc:
-                        logger.warning("Stale-recovery prune(%s) failed: %s", _tbl, exc)
+                        logger.warning("Stale-recovery prune(%s) failed: %s", _tbl, exc, exc_info=True)
                 self._last_stale_recovery_ts = now
                 result["feed_action"] = "stale_recovery"
                 logger.info(

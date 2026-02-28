@@ -90,7 +90,7 @@ def load_weight_set(label: str = "default") -> dict[str, float]:
                 merged.update({k: float(v) for k, v in data.items() if isinstance(v, (int, float))})
                 return merged
         except Exception:
-            logger.warning("Failed to load weight set '%s', using default.", label)
+            logger.warning("Failed to load weight set '%s', using default.", label, exc_info=True)
     return dict(DEFAULT_WEIGHTS)
 
 

@@ -61,6 +61,8 @@ from .watchlist import (
 
 logger = logging.getLogger("open_prep.run")
 
+_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+
 DEFAULT_UNIVERSE = [
     "NVDA",
     "PLTR",
@@ -921,7 +923,7 @@ def _fetch_upgrades_downgrades(
     try:
         raw = client.get_upgrades_downgrades(date_from=date_from, date_to=today)
     except Exception as exc:
-        logger.warning("Upgrades/downgrades fetch failed: %s", exc)
+        logger.warning("Upgrades/downgrades fetch failed: %s", exc, exc_info=True)
         return {}
 
     universe_set = {s.upper() for s in symbols}
@@ -960,7 +962,7 @@ def _fetch_sector_performance(client: FMPClient) -> list[dict[str, Any]]:
     try:
         raw = client.get_sector_performance()
     except Exception as exc:
-        logger.warning("Sector performance fetch failed: %s", exc)
+        logger.warning("Sector performance fetch failed: %s", exc, exc_info=True)
         return []
 
     sectors: list[dict[str, Any]] = []
@@ -1007,7 +1009,7 @@ def _fetch_insider_trading(
     try:
         raw = client.get_insider_trading_latest(limit=500)
     except Exception as exc:
-        logger.warning("Insider trading fetch failed: %s", exc)
+        logger.warning("Insider trading fetch failed: %s", exc, exc_info=True)
         return {}
 
     by_symbol: dict[str, list[dict[str, Any]]] = {}
@@ -1147,7 +1149,7 @@ def _fetch_treasury_rates(
             date_to=today,
         )
     except Exception as exc:
-        logger.warning("Treasury rates fetch failed: %s", exc)
+        logger.warning("Treasury rates fetch failed: %s", exc, exc_info=True)
         return {}
 
     if not raw:
@@ -1203,7 +1205,7 @@ def _fetch_house_trading(
     try:
         raw = client.get_house_trading(limit=500)
     except Exception as exc:
-        logger.warning("House trading fetch failed: %s", exc)
+        logger.warning("House trading fetch failed: %s", exc, exc_info=True)
         return result
 
     if not raw:
@@ -1678,7 +1680,7 @@ def _probe_fmp_endpoint(
             "detail": "Endpoint reachable",
         }
     except Exception as exc:
-        msg = str(exc)
+        msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         code = _extract_http_status_code(msg)
         if code in {401, 402, 403}:
             status = "plan_limited"
@@ -1948,7 +1950,7 @@ def _fetch_premarket_context(
             premarket[sym]["revenue_estimate"] = event.get("revenue_estimate")
             premarket[sym]["revenue_surprise_pct"] = event.get("revenue_surprise_pct")
     except Exception as exc:
-        logger.warning("Earnings calendar fetch failed: %s", exc)
+        logger.warning("Earnings calendar fetch failed: %s", exc, exc_info=True)
         errors.append(f"earnings_calendar: {exc}")
         for sym in symbols:
             premarket[sym]["earnings_today"] = False
@@ -1973,7 +1975,7 @@ def _fetch_premarket_context(
                 )
             )
     except Exception as exc:
-        logger.warning("Earnings-distance fetch failed: %s", exc)
+        logger.warning("Earnings-distance fetch failed: %s", exc, exc_info=True)
         errors.append(f"earnings_distance: {exc}")
         for sym in symbols:
             premarket[sym].setdefault("days_since_last_earnings", None)
@@ -1991,7 +1993,7 @@ def _fetch_premarket_context(
         for sym in symbols:
             premarket[sym].update(corp.get(sym, {}))
     except Exception as exc:
-        logger.warning("Corporate-action fetch failed: %s", exc)
+        logger.warning("Corporate-action fetch failed: %s", exc, exc_info=True)
         errors.append(f"corporate_actions: {exc}")
         for sym in symbols:
             premarket[sym].setdefault("split_today", False)
@@ -2018,7 +2020,7 @@ def _fetch_premarket_context(
                 )
             )
     except Exception as exc:
-        logger.warning("Analyst catalyst fetch failed: %s", exc)
+        logger.warning("Analyst catalyst fetch failed: %s", exc, exc_info=True)
         errors.append(f"analyst_catalyst: {exc}")
         for sym in symbols:
             premarket[sym].setdefault("analyst_price_target", None)
@@ -2133,7 +2135,7 @@ def _fetch_premarket_context(
             premarket[sym]["ext_volume_ratio"] = round(ext_vol_ratio, 6)
             premarket[sym]["ext_hours_score"] = ext_hours_score
     except Exception as exc:
-        logger.warning("Premarket movers fetch failed: %s", exc)
+        logger.warning("Premarket movers fetch failed: %s", exc, exc_info=True)
         errors.append(f"premarket_movers: {exc}")
         for sym in symbols:
             premarket[sym].setdefault("is_premarket_mover", False)
@@ -2630,7 +2632,7 @@ def _fetch_symbol_atr(
             return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, "atr_zero_or_insufficient_bars"
         return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, None
     except RuntimeError as exc:
-        return symbol, 0.0, 0.0, None, 0.0, str(exc)
+        return symbol, 0.0, 0.0, None, 0.0, _APIKEY_RE.sub(r"\1=***", str(exc))
 
 
 def _atr14_by_symbol(
@@ -2705,7 +2707,7 @@ def _atr14_by_symbol(
                     momentum_z_map[symbol] = 0.0
                     vwap_map[symbol] = None
                     avg_volume_fallback_map[symbol] = 0.0
-                    errors[symbol] = str(exc)
+                    errors[symbol] = _APIKEY_RE.sub(r"\1=***", str(exc))
 
     # Keep deterministic key presence/order compatibility.
     for symbol in symbols:
@@ -3388,7 +3390,7 @@ def _fetch_news_context(
         articles = client.get_fmp_articles(limit=250)
         news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
     except Exception as exc:
-        news_fetch_error = str(exc)
+        news_fetch_error = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("News fetch failed, continuing without news scores: %s", exc)
 
     return news_scores, news_metrics, news_fetch_error
@@ -3413,7 +3415,7 @@ def _fetch_quotes_with_atr(
         # Return empty quotes so pipeline produces a degraded result with
         # runtime_status explaining the failure, rather than SystemExit.
         logger.error("Quote fetch failed (fail-open, returning empty quotes): %s", exc, exc_info=True)
-        return [], {}, {}, {}, {"__batch__": str(exc)}
+        return [], {}, {}, {}, {"__batch__": _APIKEY_RE.sub(r"\1=***", str(exc))}
 
     # Filter to US exchanges only — the batch-quote response may contain
     # entries for symbols that are listed on non-US exchanges (e.g. OTC,
@@ -4052,8 +4054,8 @@ def generate_open_prep_result(
             fetch_timeout_seconds=scaled_timeout,
         )
     except Exception as exc:
-        logger.warning("PMH/PML fetch failed, continuing without it: %s", exc)
-        pmh_fetch_error = str(exc)
+        logger.warning("PMH/PML fetch failed, continuing without it: %s", exc, exc_info=True)
+        pmh_fetch_error = _APIKEY_RE.sub(r"\1=***", str(exc))
         pm_levels = {}
 
     if pmh_fetch_error:

@@ -9,12 +9,15 @@ hammering TradingView's scanner endpoint.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
 
 try:
     from tradingview_ta import TA_Handler, Interval  # type: ignore[import-untyped]
@@ -247,7 +250,7 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
                     _tv_register_success()
                     return analysis
             except Exception as exc:
-                _msg = str(exc)
+                _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
                 if "429" in _msg:
                     _tv_register_429()
                     if attempt < _MAX_RETRIES:
@@ -389,7 +392,7 @@ def fetch_technicals(
         return result
 
     except Exception as exc:
-        _msg = str(exc)
+        _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         if "429" in _msg:
             _tv_register_429()
         log.warning("TradingView technicals fetch failed for %s: %s", sym, exc)

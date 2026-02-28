@@ -481,17 +481,17 @@ def _cleanup_singletons() -> None:
             try:
                 obj.close()
             except Exception:
-                pass
+                logger.debug("singleton cleanup error", exc_info=True)
     if _bz_ws_adapter is not None and hasattr(_bz_ws_adapter, "stop"):
         try:
             _bz_ws_adapter.stop()
         except Exception:
-            pass
+            logger.debug("singleton cleanup error", exc_info=True)
     if _store is not None:
         try:
             _store.close()
         except Exception:
-            pass
+            logger.debug("singleton cleanup error", exc_info=True)
     with _bbt_lock:
         _best_by_ticker.clear()
     _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None

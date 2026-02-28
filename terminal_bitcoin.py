@@ -611,7 +611,7 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
             _tv_register_success()
             return result
         except Exception as exc:
-            _msg = str(exc)
+            _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
             if "429" in _msg:
                 _tv_register_429()
                 if attempt < _MAX_RETRIES:
@@ -623,7 +623,7 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
                     time.sleep(_sleep)
                     continue
             log.warning("TradingView BTC technicals (%s) failed: %s", interval, exc)
-            result = BTCTechnicals(interval=interval, error=str(exc))
+            result = BTCTechnicals(interval=interval, error=_APIKEY_RE.sub(r"\1=***", str(exc)))
             _set_cached(cache_key, result)  # cache errors too
             return result
     return BTCTechnicals(interval=interval, error="Max retries exceeded")

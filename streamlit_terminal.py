@@ -549,8 +549,8 @@ def _resync_feed_from_jsonl() -> None:
     into the session feed, keeping long-lived tabs in sync with the
     persisted data.
     """
-    cfg: TerminalConfig = st.session_state.cfg
-    if not cfg.jsonl_path:
+    cfg = st.session_state.get("cfg")
+    if cfg is None or not cfg.jsonl_path:
         # Still update the timestamp so we don't re-check every rerun.
         st.session_state.last_resync_ts = time.time()
         return
@@ -772,7 +772,7 @@ with st.sidebar:
             try:
                 _prune_fn(keep_seconds=0.0)
             except Exception as exc:
-                logger.warning("Cursor reset prune(%s) failed: %s", _tbl, exc)
+                logger.warning("Cursor reset prune(%s) failed: %s", _tbl, exc, exc_info=True)
         st.session_state.cursor = None
         st.session_state.consecutive_empty_polls = 0
         st.toast("Cursor reset — next poll will fetch latest articles", icon="🔃")
@@ -919,7 +919,7 @@ with st.sidebar:
                             except (socket.gaierror, ValueError):
                                 pass  # DNS resolution failed — allow; will fail at POST time
                 except Exception as exc:
-                    logger.warning("Webhook URL validation error: %s", exc)
+                    logger.warning("Webhook URL validation error: %s", exc, exc_info=True)
                     _wh_valid = False  # deny by default on validation failure
 
             if _wh_valid:
@@ -1205,9 +1205,9 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
                         body = json.dumps(wh_payload, default=str).encode()
                         client.post(wh_url, content=body, headers={"Content-Type": "application/json"})
                     except Exception as exc:
-                        logger.warning("Alert webhook POST failed (%s): %s", wh_url[:40], exc)
+                        logger.warning("Alert webhook POST failed (%s): %s", wh_url[:40], exc, exc_info=True)
         except Exception as exc:
-            logger.warning("Alert webhook client init failed: %s", exc)
+            logger.warning("Alert webhook client init failed: %s", exc, exc_info=True)
 
 
 # ── Poll logic ──────────────────────────────────────────────────
@@ -1286,7 +1286,7 @@ def _do_poll() -> None:
                 try:
                     _prune_fn(keep_seconds=_prune_keep)
                 except Exception as exc:
-                    logger.warning("SQLite prune(%s) after empty polls failed: %s", _tbl, exc)
+                    logger.warning("SQLite prune(%s) after empty polls failed: %s", _tbl, exc, exc_info=True)
             # Cursor reset MUST happen even if prune failed — the cursor
             # is the primary recovery action (API returns latest articles).
             st.session_state.cursor = None
@@ -1308,7 +1308,7 @@ def _do_poll() -> None:
             try:
                 append_jsonl(ci, cfg.jsonl_path)
             except Exception as exc:
-                logger.warning("JSONL append failed for %s: %s", ci.item_id[:40], exc)
+                logger.warning("JSONL append failed for %s: %s", ci.item_id[:40], exc, exc_info=True)
 
     # Prepend batch in one operation (avoids O(n²) repeated insert(0, …))
     new_dicts = [ci.to_dict() for ci in items]
@@ -1337,7 +1337,7 @@ def _do_poll() -> None:
                     _notify_results + st.session_state.notify_log
                 )[:100]
         except Exception as exc:
-            logger.warning("Push notification dispatch failed: %s", exc)
+            logger.warning("Push notification dispatch failed: %s", exc, exc_info=True)
 
     # ── News→Chart auto-webhook: route high-score items to TradersPost.
     # Only fire when the auto-webhook URL differs from the global webhook,
@@ -1384,7 +1384,7 @@ def _do_poll() -> None:
             store.prune_seen(keep_seconds=86400)
             store.prune_clusters(keep_seconds=86400)
         except Exception as exc:
-            logger.warning("SQLite prune failed: %s", exc)
+            logger.warning("SQLite prune failed: %s", exc, exc_info=True)
 
     # Write per-symbol VisiData snapshot (atomic overwrite)
     # Fetch delayed quotes as fallback for extended hours
@@ -1412,7 +1412,7 @@ _lifecycle: FeedLifecycleManager = st.session_state.lifecycle_mgr
 try:
     _lc_result = _lifecycle.manage(st.session_state.feed, _get_store())
 except Exception as _lc_exc:
-    logger.warning("Feed lifecycle manage() failed: %s", _lc_exc)
+    logger.warning("Feed lifecycle manage() failed: %s", _lc_exc, exc_info=True)
     _lc_result = {"action": "error"}
 if _lc_result.get("feed_action") == "cleared":
     st.session_state.feed = []
@@ -1483,7 +1483,7 @@ if st.session_state.use_bg_poller:
                 try:
                     append_jsonl(ci, _bg_cfg.jsonl_path)
                 except Exception as exc:
-                    logger.warning("JSONL append failed: %s", exc)
+                    logger.warning("JSONL append failed: %s", exc, exc_info=True)
 
         new_dicts = [ci.to_dict() for ci in _bg_items]
         st.session_state.feed = new_dicts + st.session_state.feed
@@ -1494,7 +1494,7 @@ if st.session_state.use_bg_poller:
             if _nr:
                 st.session_state.notify_log = (_nr + st.session_state.notify_log)[:100]
         except Exception as exc:
-            logger.warning("Push notification dispatch failed: %s", exc)
+            logger.warning("Push notification dispatch failed: %s", exc, exc_info=True)
 
         # ── Global webhook for qualifying items ─────────────
         if _bg_cfg.webhook_url:

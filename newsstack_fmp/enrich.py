@@ -98,7 +98,7 @@ class Enricher:
                 }
         except Exception as exc:
             logger.debug("Enrich failed for %s: %s", url, exc)
-            return {"enriched": False, "error": str(exc)}
+            return {"enriched": False, "error": type(exc).__name__}
 
     def close(self) -> None:
         self.client.close()

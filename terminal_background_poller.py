@@ -227,7 +227,7 @@ class BackgroundPoller:
                         try:
                             _prune_fn(keep_seconds=_keep)
                         except Exception as exc:
-                            logger.warning("BG poller prune(%s) failed: %s", _tbl, exc)
+                            logger.warning("BG poller prune(%s) failed: %s", _tbl, exc, exc_info=True)
                     # Cursor reset MUST happen even if prune failed — the
                     # cursor is the primary recovery action.
                     with self._lock:
@@ -268,6 +268,6 @@ class BackgroundPoller:
                     self._store.prune_seen(keep_seconds=86400)
                     self._store.prune_clusters(keep_seconds=86400)
                 except Exception as exc:
-                    logger.warning("BG poller periodic prune failed: %s", exc)
+                    logger.warning("BG poller periodic prune failed: %s", exc, exc_info=True)
 
         logger.info("Background poll loop exited")
