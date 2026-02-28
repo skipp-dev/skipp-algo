@@ -56,7 +56,7 @@ from open_prep.run_open_prep import (  # noqa: E402
 DEFAULT_REFRESH_SECONDS = 60
 MAX_STATUS_HISTORY = 20
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
-MIN_AUTO_REFRESH_SECONDS = 20
+MIN_AUTO_REFRESH_SECONDS = 5
 RATE_LIMIT_COOLDOWN_SECONDS = 120
 MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
 _STALE_CACHE_MAX_AGE_MIN = 5  # auto-recovery if cache older than this during market hours
@@ -645,6 +645,7 @@ def main() -> None:
     st.session_state.setdefault("force_live_fetch", False)
     st.session_state.setdefault("_stale_recovery_ts", 0.0)
     st.session_state.setdefault("_stale_recovery_count", 0)
+    st.session_state.setdefault("soft_refresh_count", 0)
 
     def _on_force_refresh() -> None:
         st.session_state["force_live_fetch"] = True
@@ -783,6 +784,8 @@ def main() -> None:
         _diag_recovery_n = int(st.session_state.get("_stale_recovery_count", 0))
         if _diag_recovery_n > 0:
             st.caption(f"Auto-Recovery: {_diag_recovery_n}× ausgelöst")
+        _diag_refreshes = int(st.session_state.get("soft_refresh_count", 0))
+        st.caption(f"Refreshes: {_diag_refreshes}")
 
         last_universe_reload_utc = st.session_state.get("last_universe_reload_utc")
         last_universe_reload = _format_berlin_only(last_universe_reload_utc)
@@ -794,6 +797,7 @@ def main() -> None:
             st.rerun()
 
     def _render_open_prep_snapshot() -> None:
+        st.session_state["soft_refresh_count"] = int(st.session_state.get("soft_refresh_count", 0)) + 1
         symbols = _parse_symbols(symbols_raw)
         use_auto_universe = bool(auto_universe)
 

@@ -632,6 +632,8 @@ if "feed" not in st.session_state:
             st.session_state["cursor"] = str(int(max(_ts_vals)))
 if "poll_count" not in st.session_state:
     st.session_state.poll_count = 0
+if "poll_attempts" not in st.session_state:
+    st.session_state.poll_attempts = 0
 if "last_poll_ts" not in st.session_state:
     st.session_state.last_poll_ts = 0.0
 if "last_resync_ts" not in st.session_state:
@@ -780,6 +782,9 @@ with st.sidebar:
 
     # Stats
     st.metric("Polls", st.session_state.poll_count)
+    _poll_attempts = st.session_state.get("poll_attempts", 0)
+    if _poll_attempts > st.session_state.poll_count:
+        st.caption(f"Attempts: {_poll_attempts} (failures: {_poll_attempts - st.session_state.poll_count})")
     st.metric("Items in feed", len(st.session_state.feed))
     st.metric("Total ingested", st.session_state.total_items_ingested)
     if st.session_state.last_poll_ts:
@@ -1226,6 +1231,8 @@ def _do_poll() -> None:
     store = _get_store()
     cfg: TerminalConfig = st.session_state.cfg
 
+    st.session_state["poll_attempts"] = st.session_state.get("poll_attempts", 0) + 1
+
     try:
         items, new_cursor = poll_and_classify_multi(
             benzinga_adapter=adapter,
@@ -1425,6 +1432,11 @@ elif _lc_result.get("feed_action") == "stale_recovery":
 
 # Adjust poll interval for off-hours
 _effective_interval = _lifecycle.get_off_hours_poll_interval(float(interval))
+if _effective_interval != float(interval):
+    st.sidebar.caption(
+        f"⏳ Effective interval: {_effective_interval:.0f}s "
+        f"({'weekend' if _lifecycle.get_status_display().get('phase', '').startswith('🌙 Weekend') else 'off-hours'} throttle)"
+    )
 
 # When the feed is completely empty (e.g. all JSONL items were stale
 # and pruned on startup), force an immediate poll so the user sees
@@ -1537,6 +1549,8 @@ if st.session_state.use_bg_poller:
     # Sync status from background poller for sidebar display
     _bp = st.session_state.bg_poller
     st.session_state.poll_count = max(st.session_state.poll_count, _bp.poll_count)
+    st.session_state["poll_attempts"] = max(
+        st.session_state.get("poll_attempts", 0), _bp.poll_attempts)
     st.session_state.last_poll_ts = _bp.last_poll_ts
     st.session_state.last_poll_status = _bp.last_poll_status
     if _bp.last_poll_ts > 0:

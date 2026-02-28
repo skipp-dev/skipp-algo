@@ -62,6 +62,7 @@ class BackgroundPoller:
 
         # Observable status (read from Streamlit main thread)
         self.poll_count: int = 0
+        self.poll_attempts: int = 0
         self.last_poll_ts: float = 0.0
         self.last_poll_status: str = "—"
         self.last_poll_error: str = ""
@@ -176,6 +177,7 @@ class BackgroundPoller:
             if bz is None and fmp is None:
                 continue
 
+            self.poll_attempts += 1
             try:
                 items, new_cursor = poll_and_classify_multi(
                     benzinga_adapter=bz,
