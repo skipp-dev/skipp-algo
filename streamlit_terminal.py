@@ -1550,7 +1550,7 @@ if st.session_state.use_bg_poller:
     _bp = st.session_state.bg_poller
     st.session_state.poll_count = max(st.session_state.poll_count, _bp.poll_count)
     st.session_state["poll_attempts"] = max(
-        st.session_state.get("poll_attempts", 0), _bp.poll_attempts)
+        st.session_state.get("poll_attempts", 0), getattr(_bp, "poll_attempts", _bp.poll_count))
     st.session_state.last_poll_ts = _bp.last_poll_ts
     st.session_state.last_poll_status = _bp.last_poll_status
     if _bp.last_poll_ts > 0:
