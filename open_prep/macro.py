@@ -1257,7 +1257,7 @@ class FinnhubClient:
                 logger.warning("Finnhub HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
         except Exception as exc:
-            logger.warning("Finnhub request failed for %s: %s", path, exc)
+            logger.warning("Finnhub request failed for %s: %s", path, re.sub(r"token=[^&\s]+", "token=***", str(exc)))
             return {}
 
     def available(self) -> bool:

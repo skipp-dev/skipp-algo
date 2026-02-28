@@ -9,6 +9,7 @@ hammering TradingView's scanner endpoint.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -160,6 +161,7 @@ class TechnicalResult:
 _cache: dict[tuple[str, str], TechnicalResult] = {}
 _CACHE_TTL_S = 120.0  # 2 minutes
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
+_cache_lock = threading.Lock()
 
 def _cache_key(symbol: str, interval: str) -> tuple[str, str]:
     return (symbol.upper().strip(), interval)
@@ -232,9 +234,10 @@ def fetch_technicals(
     now = time.time()
 
     if not force:
-        cached = _cache.get(key)
-        if cached and (now - cached.ts) < _CACHE_TTL_S:
-            return cached
+        with _cache_lock:
+            cached = _cache.get(key)
+            if cached and (now - cached.ts) < _CACHE_TTL_S:
+                return cached
 
     interval_val = INTERVAL_MAP.get(interval)
     if not interval_val:
@@ -244,7 +247,8 @@ def fetch_technicals(
         analysis = _try_exchanges(sym, interval_val)
         if analysis is None:
             result = TechnicalResult(symbol=sym, interval=interval, ts=now, error="Symbol not found on TradingView")
-            _cache[key] = result
+            with _cache_lock:
+                _cache[key] = result
             return result
 
         s = analysis.summary or {}
@@ -301,18 +305,20 @@ def fetch_technicals(
             ma_neutral=m.get("NEUTRAL", 0),
             ma_detail=ma_detail,
         )
-        _cache[key] = result
-        # Evict expired when cache grows beyond limit
-        if len(_cache) > _CACHE_MAX_SIZE:
-            expired_keys = [k for k, v in _cache.items() if now - v.ts > _CACHE_TTL_S]
-            for k in expired_keys:
-                del _cache[k]
+        with _cache_lock:
+            _cache[key] = result
+            # Evict expired when cache grows beyond limit
+            if len(_cache) > _CACHE_MAX_SIZE:
+                expired_keys = [k for k, v in _cache.items() if now - v.ts > _CACHE_TTL_S]
+                for k in expired_keys:
+                    del _cache[k]
         return result
 
     except Exception as exc:
         log.warning("TradingView technicals fetch failed for %s: %s", sym, exc)
         result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=str(exc))
-        _cache[key] = result
+        with _cache_lock:
+            _cache[key] = result
         return result
 
 

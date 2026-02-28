@@ -240,6 +240,8 @@ Each candidate includes:
 
 ## SkippALGO Pine Script
 
+- **Latest (v6.3.13 — Pine Script v6)**
+
 Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/labels.
 
 ### Outlook vs Forecast

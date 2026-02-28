@@ -1011,8 +1011,8 @@ class RealtimeEngine:
                     q_list = self.client.get_batch_quotes([sym])
                     if q_list and isinstance(q_list, list) and q_list:
                         quotes[sym] = q_list[0]
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Fallback quote fetch failed for %s: %s", sym, exc)
                 if i < len(symbols) - 1:
                     time.sleep(0.25)  # throttle fallback calls
         return quotes
@@ -1812,7 +1812,8 @@ class RealtimeEngine:
                 data["stale"] = True
                 data["stale_age_s"] = round(file_age_s)
             return data
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to load signals from disk: %s", exc)
             return _empty
 
 

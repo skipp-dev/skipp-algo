@@ -913,8 +913,9 @@ with st.sidebar:
                                     _wh_valid = False
                             except (socket.gaierror, ValueError):
                                 pass  # DNS resolution failed — allow; will fail at POST time
-                except Exception:
-                    _wh_valid = True  # Fallback: allow and let POST fail
+                except Exception as exc:
+                    logger.warning("Webhook URL validation error: %s", exc)
+                    _wh_valid = False  # deny by default on validation failure
 
             if _wh_valid:
                 new_rule = {

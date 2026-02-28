@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -203,6 +204,7 @@ class ForecastResult:
 _cache: dict[str, ForecastResult] = {}
 _CACHE_TTL_S = 300.0  # 5 minutes
 _CACHE_MAX_SIZE = 200  # evict expired entries when exceeded
+_cache_lock = threading.Lock()
 
 
 # ── FMP fetcher (primary) ────────────────────────────────────────
@@ -387,9 +389,10 @@ def fetch_forecast(symbol: str, *, force: bool = False) -> ForecastResult:
     now = time.time()
 
     if not force:
-        cached = _cache.get(sym)
-        if cached and (now - cached.ts) < _CACHE_TTL_S:
-            return cached
+        with _cache_lock:
+            cached = _cache.get(sym)
+            if cached and (now - cached.ts) < _CACHE_TTL_S:
+                return cached
 
     # Try FMP first (primary)
     result = _fetch_fmp(sym)
@@ -403,12 +406,13 @@ def fetch_forecast(symbol: str, *, force: bool = False) -> ForecastResult:
         result = ForecastResult(symbol=sym, ts=now, error="No forecast data available")
 
     result.ts = now
-    _cache[sym] = result
-    # Evict expired entries when cache grows beyond limit
-    if len(_cache) > _CACHE_MAX_SIZE:
-        expired = [k for k, v in _cache.items() if now - v.ts > _CACHE_TTL_S]
-        for k in expired:
-            del _cache[k]
+    with _cache_lock:
+        _cache[sym] = result
+        # Evict expired entries when cache grows beyond limit
+        if len(_cache) > _CACHE_MAX_SIZE:
+            expired = [k for k, v in _cache.items() if now - v.ts > _CACHE_TTL_S]
+            for k in expired:
+                del _cache[k]
     return result
 
 
