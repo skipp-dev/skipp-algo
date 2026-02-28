@@ -28,6 +28,14 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+
+from terminal_technicals import (
+    _tv_cooldown_remaining,
+    _tv_is_cooling_down,
+    _tv_register_429,
+    _tv_register_success,
+    _tv_throttle,
+)
 from typing import Any
 
 log = logging.getLogger(__name__)
@@ -130,55 +138,6 @@ _NEWS_TTL = 120        # 2 min for news
 _OUTLOOK_TTL = 300     # 5 min for tomorrow outlook
 
 _APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
-
-# ── Global TradingView rate limiter (BTC crypto calls) ────────────
-_TV_MIN_CALL_SPACING = 2.0  # minimum seconds between TradingView API calls
-_tv_last_call_ts: float = 0.0
-_tv_rate_lock = threading.Lock()
-
-# 429 cooldown: after a 429 response, block ALL TradingView calls for a period
-_tv_cooldown_until: float = 0.0
-_tv_consecutive_429s: int = 0
-_TV_COOLDOWN_BASE = 60.0   # base cooldown: 60 seconds
-_TV_COOLDOWN_MAX = 300.0   # max cooldown: 5 minutes
-
-
-def _tv_is_cooling_down() -> bool:
-    """Return True if we are in a 429 cooldown period."""
-    with _tv_rate_lock:
-        deadline = _tv_cooldown_until
-    return time.time() < deadline
-
-
-def _tv_register_429() -> None:
-    """Register a 429 response and set a cooldown period."""
-    global _tv_cooldown_until, _tv_consecutive_429s
-    with _tv_rate_lock:
-        _tv_consecutive_429s += 1
-        cooldown = min(_TV_COOLDOWN_BASE * (2 ** (_tv_consecutive_429s - 1)), _TV_COOLDOWN_MAX)
-        _tv_cooldown_until = time.time() + cooldown
-        log.warning(
-            "TradingView BTC 429 — cooldown %.0fs (consecutive: %d)",
-            cooldown, _tv_consecutive_429s,
-        )
-
-
-def _tv_register_success() -> None:
-    """Reset 429 counter on successful call."""
-    global _tv_consecutive_429s
-    with _tv_rate_lock:
-        _tv_consecutive_429s = 0
-
-
-def _tv_throttle() -> None:
-    """Enforce minimum spacing between TradingView API calls."""
-    global _tv_last_call_ts
-    with _tv_rate_lock:
-        now = time.time()
-        elapsed = now - _tv_last_call_ts
-        if elapsed < _TV_MIN_CALL_SPACING:
-            time.sleep(_TV_MIN_CALL_SPACING - elapsed)
-        _tv_last_call_ts = time.time()
 
 
 # ── FMP helper ───────────────────────────────────────────────────
@@ -590,7 +549,7 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
         stale = _get_cached(cache_key, 86400)  # return any cached value
         if stale is not None:
             return stale  # type: ignore
-        remaining = _tv_cooldown_until - time.time()
+        remaining = _tv_cooldown_remaining()
         log.debug("TradingView BTC cooldown active (%.0fs remaining), skipping %s", remaining, interval)
         return BTCTechnicals(interval=interval, error="Rate limited — cooldown active")
 

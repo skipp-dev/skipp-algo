@@ -183,6 +183,13 @@ def _tv_is_cooling_down() -> bool:
     return time.time() < deadline
 
 
+def _tv_cooldown_remaining() -> float:
+    """Return seconds remaining in the 429 cooldown, or 0 if not cooling down."""
+    with _tv_rate_lock:
+        deadline = _tv_cooldown_until
+    return max(0.0, deadline - time.time())
+
+
 def _tv_register_429() -> None:
     """Register a 429 response and set a cooldown period."""
     global _tv_cooldown_until, _tv_consecutive_429s
