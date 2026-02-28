@@ -1498,7 +1498,7 @@ class AlpacaClient:
             logger.warning("Alpaca HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
         except Exception as exc:
-            logger.warning("Alpaca request failed for %s: %s", path, exc)
+            logger.warning("Alpaca request failed for %s: %s", path, type(exc).__name__)
             return {}
 
     def available(self) -> bool:

@@ -55,7 +55,10 @@ def load_alert_config() -> dict[str, Any]:
 
 
 def save_alert_config(config: dict[str, Any]) -> Path:
-    """Persist alert configuration."""
+    """Persist alert configuration.
+
+    Public utility — kept for REPL / notebook / external-script use.
+    """
     ALERT_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(config, indent=2)
     tmp_fd, tmp_path = tempfile.mkstemp(

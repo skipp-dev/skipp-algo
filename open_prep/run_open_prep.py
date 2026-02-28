@@ -3670,8 +3670,8 @@ def generate_open_prep_result(
         if progress_callback is not None:
             try:
                 progress_callback(stage, total, label)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("progress_callback failed at stage %d: %s", stage, exc)
 
     TOTAL_STAGES = 17
     _profiler = StageProfiler()

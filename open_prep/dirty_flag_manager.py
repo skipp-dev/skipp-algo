@@ -125,7 +125,10 @@ class PipelineDirtyManager:
         return dict(self._stats)
 
     def log_stats(self) -> None:
-        """Log a summary of cache usage."""
+        """Log a summary of cache usage.
+
+        Public utility — kept for REPL / notebook / diagnostics use.
+        """
         total = self._stats["hits"] + self._stats["misses"]
         if total > 0:
             hit_rate = 100.0 * self._stats["hits"] / total

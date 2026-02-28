@@ -178,7 +178,9 @@ _TV_COOLDOWN_MAX = 300.0   # max cooldown: 5 minutes
 
 def _tv_is_cooling_down() -> bool:
     """Return True if we are in a 429 cooldown period."""
-    return time.time() < _tv_cooldown_until
+    with _tv_rate_lock:
+        deadline = _tv_cooldown_until
+    return time.time() < deadline
 
 
 def _tv_register_429() -> None:

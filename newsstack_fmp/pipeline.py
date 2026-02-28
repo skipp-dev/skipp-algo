@@ -37,48 +37,59 @@ _bz_ws_adapter: Any | None = None  # BenzingaWsAdapter (lazy)
 _enricher: Enricher | None = None
 _best_by_ticker: dict[str, dict[str, Any]] = {}
 _bbt_lock = threading.Lock()
+_init_lock = threading.Lock()  # protects all singleton getters below
 
 
 def _get_store(cfg: Config) -> SqliteStore:
     global _store
     if _store is None:
-        os.makedirs(os.path.dirname(cfg.sqlite_path) or ".", exist_ok=True)
-        _store = SqliteStore(cfg.sqlite_path)
+        with _init_lock:
+            if _store is None:
+                os.makedirs(os.path.dirname(cfg.sqlite_path) or ".", exist_ok=True)
+                _store = SqliteStore(cfg.sqlite_path)
     return _store
 
 
 def _get_fmp_adapter(cfg: Config) -> FmpAdapter:
     global _fmp_adapter
     if _fmp_adapter is None:
-        _fmp_adapter = FmpAdapter(cfg.fmp_api_key)
+        with _init_lock:
+            if _fmp_adapter is None:
+                _fmp_adapter = FmpAdapter(cfg.fmp_api_key)
     return _fmp_adapter
 
 
 def _get_bz_rest_adapter(cfg: Config) -> Any:
     global _bz_rest_adapter
     if _bz_rest_adapter is None:
-        from .ingest_benzinga import BenzingaRestAdapter
-        _bz_rest_adapter = BenzingaRestAdapter(cfg.benzinga_api_key)
+        with _init_lock:
+            if _bz_rest_adapter is None:
+                from .ingest_benzinga import BenzingaRestAdapter
+                _bz_rest_adapter = BenzingaRestAdapter(cfg.benzinga_api_key)
     return _bz_rest_adapter
 
 
 def _get_bz_ws_adapter(cfg: Config) -> Any:
     global _bz_ws_adapter
     if _bz_ws_adapter is None:
-        from .ingest_benzinga import BenzingaWsAdapter
-        _bz_ws_adapter = BenzingaWsAdapter(
-            cfg.benzinga_api_key,
-            cfg.benzinga_ws_url,
-            channels=cfg.benzinga_channels or None,
-        )
-        _bz_ws_adapter.start()
+        with _init_lock:
+            if _bz_ws_adapter is None:
+                from .ingest_benzinga import BenzingaWsAdapter
+                _bz_ws_adapter = BenzingaWsAdapter(
+                    cfg.benzinga_api_key,
+                    cfg.benzinga_ws_url,
+                    channels=cfg.benzinga_channels or None,
+                )
+                _bz_ws_adapter.start()
     return _bz_ws_adapter
 
 
 def _get_enricher() -> Enricher:
     global _enricher
     if _enricher is None:
-        _enricher = Enricher()
+        with _init_lock:
+            if _enricher is None:
+                _enricher = Enricher()
     return _enricher
 
 

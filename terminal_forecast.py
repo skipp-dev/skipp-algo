@@ -35,12 +35,16 @@ except ImportError:
 # ── FMP base URL & client ────────────────────────────────────────
 _FMP_BASE = "https://financialmodelingprep.com"
 _fmp_client: httpx.Client | None = None
+_fmp_client_lock = threading.Lock()
+_APIKEY_RE = __import__("re").compile(r"(apikey|token)=[^&\s]+", __import__("re").IGNORECASE)
 
 
 def _get_fmp_client() -> httpx.Client | None:
     global _fmp_client
     if _fmp_client is None and _HTTPX_AVAILABLE:
-        _fmp_client = httpx.Client(timeout=10.0)
+        with _fmp_client_lock:
+            if _fmp_client is None:
+                _fmp_client = httpx.Client(timeout=10.0)
     return _fmp_client
 
 
@@ -62,7 +66,7 @@ def _fmp_get(path: str, **params: Any) -> list[dict] | dict | None:
         r.raise_for_status()
         return r.json()  # type: ignore[no-any-return]
     except Exception as exc:
-        log.debug("FMP %s failed: %s", path, exc)
+        log.debug("FMP %s failed: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)))
         return None
 
 

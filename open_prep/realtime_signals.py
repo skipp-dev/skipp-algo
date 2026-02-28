@@ -910,7 +910,7 @@ class RealtimeEngine:
         """
         try:
             client = self.client
-        except Exception:
+        except (AttributeError, ValueError, RuntimeError):
             return  # no API key — cannot enrich
 
         symbols = [
