@@ -2790,10 +2790,34 @@ else:
             if hi_details:
                 st.subheader("📋 Scheduled High-Impact Events")
                 for _hi_ev in hi_details:
-                    _hi_name = safe_markdown_text(str(_hi_ev.get("event", "—")))
+                    _hi_name_raw = str(_hi_ev.get("event", "—"))
+                    _hi_name = safe_markdown_text(_hi_name_raw)
                     _hi_country = safe_markdown_text(str(_hi_ev.get("country", "US")))
                     _hi_source = safe_markdown_text(str(_hi_ev.get("source", "")))
-                    st.markdown(f"- **{_hi_name}** ({_hi_country}) — Source: {_hi_source}")
+                    # Find related articles in current feed
+                    _hi_keywords = [w.lower() for w in _hi_name_raw.split() if len(w) > 3]
+                    _hi_articles: list[dict[str, Any]] = []
+                    if _hi_keywords and feed:
+                        for _fd in feed:
+                            _fd_hl = str(_fd.get("headline") or "").lower()
+                            if _fd_hl and any(kw in _fd_hl for kw in _hi_keywords):
+                                _hi_articles.append(_fd)
+                        _hi_articles.sort(key=lambda d: d.get("news_score", 0), reverse=True)
+                        _hi_articles = _hi_articles[:20]
+                    _hi_match_label = f" · {len(_hi_articles)} related" if _hi_articles else ""
+                    with st.expander(f"**{_hi_name}** ({_hi_country}) — Source: {_hi_source}{_hi_match_label}"):
+                        if _hi_articles:
+                            for _ha in _hi_articles:
+                                _ha_hl = (str(_ha.get("headline") or "(no headline)"))[:100]
+                                _ha_url = _ha.get("url", "")
+                                _ha_tk = _ha.get("ticker", "")
+                                _ha_sc = _ha.get("news_score", 0)
+                                if _ha_url:
+                                    st.markdown(f"- [{safe_markdown_text(_ha_hl)}]({_ha_url}) · `{_ha_tk}` · {_ha_sc:.3f}")
+                                else:
+                                    st.markdown(f"- {safe_markdown_text(_ha_hl)} · `{_ha_tk}` · {_ha_sc:.3f}")
+                        else:
+                            st.caption("No related articles in current feed.")
             else:
                 st.info("No high-impact macro events scheduled for the next trading day.")
 
@@ -2827,10 +2851,40 @@ else:
                     st.divider()
                     st.subheader("🔥 Trending Themes in Global News")
                     st.caption("Real-time trending entities — emerging themes that may affect tomorrow's session.")
-                    _trend_chips = " → ".join(
-                        f"{c.type_icon} **{c.label}** ({c.article_count})" for c in _outlook_trending[:8]
-                    )
-                    st.markdown(_trend_chips)
+
+                    for _tc in _outlook_trending[:8]:
+                        # Find related articles in current feed
+                        _tc_label_lower = _tc.label.lower()
+                        _tc_keywords = [w.lower() for w in _tc.label.split() if len(w) > 3]
+                        _tc_articles: list[dict[str, Any]] = []
+                        if feed and (_tc_keywords or len(_tc_label_lower) > 3):
+                            for _fd in feed:
+                                _fd_hl = str(_fd.get("headline") or "").lower()
+                                if not _fd_hl:
+                                    continue
+                                if _tc_label_lower in _fd_hl or (
+                                    _tc_keywords and any(kw in _fd_hl for kw in _tc_keywords)
+                                ):
+                                    _tc_articles.append(_fd)
+                            _tc_articles.sort(key=lambda d: d.get("news_score", 0), reverse=True)
+                            _tc_articles = _tc_articles[:20]
+                        _tc_match_label = f" · {len(_tc_articles)} in feed" if _tc_articles else ""
+                        with st.expander(
+                            f"{_tc.type_icon} **{safe_markdown_text(_tc.label)}** "
+                            f"({_tc.article_count} global){_tc_match_label}"
+                        ):
+                            if _tc_articles:
+                                for _ta in _tc_articles:
+                                    _ta_hl = (str(_ta.get("headline") or "(no headline)"))[:100]
+                                    _ta_url = _ta.get("url", "")
+                                    _ta_tk = _ta.get("ticker", "")
+                                    _ta_sc = _ta.get("news_score", 0)
+                                    if _ta_url:
+                                        st.markdown(f"- [{safe_markdown_text(_ta_hl)}]({_ta_url}) · `{_ta_tk}` · {_ta_sc:.3f}")
+                                    else:
+                                        st.markdown(f"- {safe_markdown_text(_ta_hl)} · `{_ta_tk}` · {_ta_sc:.3f}")
+                            else:
+                                st.caption("No matching articles in current feed.")
 
                     # Sentiment of trending entities
                     _trend_labels = [c.label for c in _outlook_trending[:5] if c.concept_type in ("org", "person")]
