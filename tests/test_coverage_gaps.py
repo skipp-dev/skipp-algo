@@ -306,8 +306,8 @@ class TestClassifiedItemDataclass(unittest.TestCase):
 class TestFetchEconomicCalendar(unittest.TestCase):
     """Tests for terminal_poller.fetch_economic_calendar (lines 468-494)."""
 
-    @patch("httpx.Client")
-    def test_returns_list_on_success(self, MockClient: MagicMock) -> None:
+    @patch("terminal_poller._get_fmp_client")
+    def test_returns_list_on_success(self, mock_get_client: MagicMock) -> None:
         from terminal_poller import fetch_economic_calendar
 
         mock_resp = MagicMock()
@@ -317,16 +317,14 @@ class TestFetchEconomicCalendar(unittest.TestCase):
         mock_resp.raise_for_status = MagicMock()
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        MockClient.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         result = fetch_economic_calendar("fake_key", "2026-02-26", "2026-02-27")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["event"], "GDP")
 
-    @patch("httpx.Client")
-    def test_returns_empty_on_non_list(self, MockClient: MagicMock) -> None:
+    @patch("terminal_poller._get_fmp_client")
+    def test_returns_empty_on_non_list(self, mock_get_client: MagicMock) -> None:
         from terminal_poller import fetch_economic_calendar
 
         mock_resp = MagicMock()
@@ -334,37 +332,31 @@ class TestFetchEconomicCalendar(unittest.TestCase):
         mock_resp.raise_for_status = MagicMock()
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        MockClient.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         result = fetch_economic_calendar("fake_key", "2026-02-26", "2026-02-27")
         self.assertEqual(result, [])
 
-    @patch("httpx.Client")
-    def test_returns_empty_on_network_error(self, MockClient: MagicMock) -> None:
+    @patch("terminal_poller._get_fmp_client")
+    def test_returns_empty_on_network_error(self, mock_get_client: MagicMock) -> None:
         from terminal_poller import fetch_economic_calendar
 
         mock_client = MagicMock()
         mock_client.get.side_effect = httpx.ConnectError("timeout")
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        MockClient.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         result = fetch_economic_calendar("fake_key", "2026-02-26", "2026-02-27")
         self.assertEqual(result, [])
 
-    @patch("httpx.Client")
-    def test_sanitizes_api_key_in_error(self, MockClient: MagicMock) -> None:
+    @patch("terminal_poller._get_fmp_client")
+    def test_sanitizes_api_key_in_error(self, mock_get_client: MagicMock) -> None:
         from terminal_poller import fetch_economic_calendar
 
         mock_client = MagicMock()
         mock_client.get.side_effect = httpx.ConnectError(
             "https://api.com?apikey=MY_SECRET_KEY failed"
         )
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        MockClient.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         # Should not raise; returns empty list
         with self.assertLogs("newsstack_fmp._bz_http", level="WARNING") as cm:
@@ -378,8 +370,8 @@ class TestFetchEconomicCalendar(unittest.TestCase):
 class TestFetchSectorPerformance(unittest.TestCase):
     """Tests for terminal_poller.fetch_sector_performance (lines 497-508)."""
 
-    @patch("httpx.Client")
-    def test_returns_list_on_success(self, MockClient: MagicMock) -> None:
+    @patch("terminal_poller._get_fmp_client")
+    def test_returns_list_on_success(self, mock_get_client: MagicMock) -> None:
         from terminal_poller import fetch_sector_performance
 
         mock_resp = MagicMock()
@@ -391,9 +383,7 @@ class TestFetchSectorPerformance(unittest.TestCase):
         mock_resp.raise_for_status = MagicMock()
         mock_client = MagicMock()
         mock_client.get.return_value = mock_resp
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        MockClient.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         result = fetch_sector_performance("fake_key")
         self.assertEqual(len(result), 1)
@@ -401,15 +391,13 @@ class TestFetchSectorPerformance(unittest.TestCase):
         # Mean of 1.5 and 0.5
         self.assertAlmostEqual(result[0]["changesPercentage"], 1.0, places=4)
 
-    @patch("httpx.Client")
-    def test_returns_empty_on_failure(self, MockClient: MagicMock) -> None:
+    @patch("terminal_poller._get_fmp_client")
+    def test_returns_empty_on_failure(self, mock_get_client: MagicMock) -> None:
         from terminal_poller import fetch_sector_performance
 
         mock_client = MagicMock()
         mock_client.get.side_effect = httpx.ReadTimeout("timeout")
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        MockClient.return_value = mock_client
+        mock_get_client.return_value = mock_client
 
         result = fetch_sector_performance("fake_key")
         self.assertEqual(result, [])

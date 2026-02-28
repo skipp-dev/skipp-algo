@@ -723,9 +723,10 @@ def fire_webhook(
         try:
             return dict(r.json())  # type: ignore[arg-type]
         except Exception:
+            logger.debug("Webhook response not JSON-parseable (HTTP %d)", r.status_code)
             return {"status": r.status_code, "text": r.text[:200]}
     except Exception as exc:
-        logger.warning("Webhook failed for %s: %s", item.ticker, exc)
+        logger.warning("Webhook failed for %s: %s", item.ticker, type(exc).__name__)
         return None
     finally:
         if managed:

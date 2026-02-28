@@ -28,6 +28,25 @@ logger = logging.getLogger(__name__)
 # ── Regex to strip API keys from error messages ──────────────────
 _APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
 
+# ── Shared FMP httpx client (avoid per-call TCP+TLS overhead) ──
+import atexit
+import threading as _threading
+
+_fmp_client: "httpx.Client | None" = None  # type: ignore[name-defined]
+_fmp_client_lock = _threading.Lock()
+
+
+def _get_fmp_client() -> "httpx.Client":  # type: ignore[name-defined]
+    """Return a lazily-created, module-scoped httpx.Client for FMP."""
+    global _fmp_client
+    if _fmp_client is None:
+        with _fmp_client_lock:
+            if _fmp_client is None:
+                import httpx
+                _fmp_client = httpx.Client(timeout=10.0)
+                atexit.register(_fmp_client.close)
+    return _fmp_client  # type: ignore[return-value]
+
 # US Eastern timezone for market session detection
 _ET = ZoneInfo("America/New_York")
 
@@ -73,19 +92,16 @@ def market_session() -> str:
 
 def _fetch_fmp_list(api_key: str, endpoint: str) -> list[dict[str, Any]]:
     """Generic FMP list endpoint fetcher with retry and safe error logging."""
-    import httpx
-
     url = f"https://financialmodelingprep.com/stable/{endpoint}"
     params = {"apikey": api_key}
 
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            data = r.json()
-            if isinstance(data, list):
-                return [d for d in data if isinstance(d, dict)]
-            return []
+        r = _get_fmp_client().get(url, params=params)
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list):
+            return [d for d in data if isinstance(d, dict)]
+        return []
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("FMP %s fetch failed: %s", endpoint, _msg)
@@ -121,8 +137,6 @@ def enrich_with_batch_quote(
     if not items or not api_key:
         return items
 
-    import httpx
-
     symbols = [d.get("symbol", "") for d in items if d.get("symbol")]
     if not symbols:
         return items
@@ -132,18 +146,17 @@ def enrich_with_batch_quote(
     # batch-quote supports comma-separated symbols via 'symbols' param
     quote_map: dict[str, dict[str, Any]] = {}
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(
-                "https://financialmodelingprep.com/stable/batch-quote",
-                params={"apikey": api_key, "symbols": sym_str},
-            )
-            r.raise_for_status()
-            quotes = r.json()
-            if isinstance(quotes, list):
-                for q in quotes:
-                    sym = (q.get("symbol") or "").upper().strip()
-                    if sym:
-                        quote_map[sym] = q
+        r = _get_fmp_client().get(
+            "https://financialmodelingprep.com/stable/batch-quote",
+            params={"apikey": api_key, "symbols": sym_str},
+        )
+        r.raise_for_status()
+        quotes = r.json()
+        if isinstance(quotes, list):
+            for q in quotes:
+                sym = (q.get("symbol") or "").upper().strip()
+                if sym:
+                    quote_map[sym] = q
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("FMP batch-quote enrichment failed: %s", _msg)
@@ -151,18 +164,17 @@ def enrich_with_batch_quote(
     # Also fetch profile for averageVolume and sector
     profile_map: dict[str, dict[str, Any]] = {}
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(
-                "https://financialmodelingprep.com/stable/profile",
-                params={"apikey": api_key, "symbol": sym_str},
-            )
-            r.raise_for_status()
-            profiles = r.json()
-            if isinstance(profiles, list):
-                for p in profiles:
-                    sym = (p.get("symbol") or "").upper().strip()
-                    if sym:
-                        profile_map[sym] = p
+        r = _get_fmp_client().get(
+            "https://financialmodelingprep.com/stable/profile",
+            params={"apikey": api_key, "symbol": sym_str},
+        )
+        r.raise_for_status()
+        profiles = r.json()
+        if isinstance(profiles, list):
+            for p in profiles:
+                sym = (p.get("symbol") or "").upper().strip()
+                if sym:
+                    profile_map[sym] = p
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("FMP profile enrichment failed: %s", _msg)

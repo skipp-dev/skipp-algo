@@ -78,6 +78,26 @@ from open_prep.playbook import (
 
 logger = logging.getLogger(__name__)
 
+# ── Shared FMP httpx client (avoid per-call TCP+TLS overhead) ──
+
+import atexit
+import threading
+
+_fmp_client: "httpx.Client | None" = None   # type: ignore[name-defined]
+_fmp_client_lock = threading.Lock()
+
+
+def _get_fmp_client() -> "httpx.Client":   # type: ignore[name-defined]
+    """Return a lazily-created, module-scoped httpx.Client for FMP."""
+    global _fmp_client
+    if _fmp_client is None:
+        with _fmp_client_lock:
+            if _fmp_client is None:
+                import httpx
+                _fmp_client = httpx.Client(timeout=12.0)
+                atexit.register(_fmp_client.close)
+    return _fmp_client  # type: ignore[return-value]
+
 
 # ── Safe env-var parsers ────────────────────────────────────────
 
@@ -535,19 +555,16 @@ def fetch_economic_calendar(
         List of economic events with keys: date, country, event,
         actual, previous, estimate, currency, etc.
     """
-    import httpx
-
     url = "https://financialmodelingprep.com/stable/economic-calendar"
     params = {"from": from_date, "to": to_date, "apikey": api_key}
 
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params=params)
-            r.raise_for_status()
-            data = r.json()
-            if isinstance(data, list):
-                return data
-            return []
+        r = _get_fmp_client().get(url, params=params)
+        r.raise_for_status()
+        data = r.json()
+        if isinstance(data, list):
+            return data
+        return []
     except Exception as exc:
         log_fetch_warning("FMP economic calendar", exc)
         return []
@@ -562,8 +579,6 @@ def fetch_ticker_sectors(api_key: str, tickers: list[str]) -> dict[str, str]:
     Returns dict mapping uppercase ticker → sector string.
     Tickers without a sector in the profile are omitted.
     """
-    import httpx
-
     if not api_key or not tickers:
         return {}
 
@@ -572,23 +587,22 @@ def fetch_ticker_sectors(api_key: str, tickers: list[str]) -> dict[str, str]:
         return {}
 
     try:
-        with httpx.Client(timeout=12.0) as client:
-            r = client.get(
-                "https://financialmodelingprep.com/stable/profile",
-                params={"apikey": api_key, "symbol": sym_str},
-            )
-            r.raise_for_status()
-            profiles = r.json()
-            if not isinstance(profiles, list):
-                return {}
+        r = _get_fmp_client().get(
+            "https://financialmodelingprep.com/stable/profile",
+            params={"apikey": api_key, "symbol": sym_str},
+        )
+        r.raise_for_status()
+        profiles = r.json()
+        if not isinstance(profiles, list):
+            return {}
 
-            result: dict[str, str] = {}
-            for p in profiles:
-                sym = (p.get("symbol") or "").upper().strip()
-                sector = (p.get("sector") or "").strip()
-                if sym and sector:
-                    result[sym] = sector
-            return result
+        result: dict[str, str] = {}
+        for p in profiles:
+            sym = (p.get("symbol") or "").upper().strip()
+            sector = (p.get("sector") or "").strip()
+            if sym and sector:
+                result[sym] = sector
+        return result
     except Exception as exc:
         log_fetch_warning("FMP ticker sectors", exc)
         return {}
@@ -607,30 +621,27 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
 
     Returns list of dicts with keys: sector, changesPercentage.
     """
-    import httpx
-
     url = "https://financialmodelingprep.com/stable/sector-performance-snapshot"
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params={"apikey": api_key, "date": date.today().isoformat()})
-            r.raise_for_status()
-            data = r.json()
-            if not isinstance(data, list):
-                return []
+        r = _get_fmp_client().get(url, params={"apikey": api_key, "date": date.today().isoformat()})
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list):
+            return []
 
-            # Aggregate across exchanges: mean averageChange per sector
-            sector_totals: dict[str, list[float]] = {}
-            for row in data:
-                sector = row.get("sector")
-                change = row.get("averageChange")
-                if sector and change is not None:
-                    sector_totals.setdefault(sector, []).append(float(change))
+        # Aggregate across exchanges: mean averageChange per sector
+        sector_totals: dict[str, list[float]] = {}
+        for row in data:
+            sector = row.get("sector")
+            change = row.get("averageChange")
+            if sector and change is not None:
+                sector_totals.setdefault(sector, []).append(float(change))
 
-            result: list[dict[str, Any]] = []
-            for sector, changes in sector_totals.items():
-                avg = sum(changes) / len(changes) if changes else 0.0
-                result.append({"sector": sector, "changesPercentage": round(avg, 4)})
-            return result
+        result: list[dict[str, Any]] = []
+        for sector, changes in sector_totals.items():
+            avg = sum(changes) / len(changes) if changes else 0.0
+            result.append({"sector": sector, "changesPercentage": round(avg, 4)})
+        return result
     except Exception as exc:
         log_fetch_warning("FMP sector performance", exc)
         return []
@@ -666,15 +677,12 @@ def fetch_defense_watchlist(
         ``change``, ``changesPercentage``, ``volume``, ``avgVolume``,
         ``marketCap``, ``pe``, ``yearHigh``, ``yearLow``.
     """
-    import httpx
-
     url = "https://financialmodelingprep.com/stable/batch-quote"
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params={"apikey": fmp_api_key, "symbols": tickers})
-            r.raise_for_status()
-            data = r.json()
-            return data if isinstance(data, list) else []
+        r = _get_fmp_client().get(url, params={"apikey": fmp_api_key, "symbols": tickers})
+        r.raise_for_status()
+        data = r.json()
+        return data if isinstance(data, list) else []
     except Exception as exc:
         log_fetch_warning("FMP defense watchlist", exc)
         return []
@@ -707,29 +715,26 @@ def fetch_industry_performance(
         ``price``, ``volume``, ``sector``, ``industry``, ``beta``,
         ``lastAnnualDividend``, etc.
     """
-    import httpx
-
     url = "https://financialmodelingprep.com/stable/company-screener"
     try:
-        with httpx.Client(timeout=10.0) as client:
-            r = client.get(url, params={
-                "apikey": fmp_api_key,
-                "industry": industry,
-                "limit": str(limit),
-                "exchange": "NYSE,NASDAQ,AMEX",
-            })
-            r.raise_for_status()
-            data = r.json()
-            if not isinstance(data, list):
-                return []
-            # Sort by market cap descending
-            def _safe_mcap(x: dict[str, Any]) -> float:
-                try:
-                    return float(x.get("marketCap", 0) or 0)
-                except (ValueError, TypeError):
-                    return 0.0
-            data.sort(key=_safe_mcap, reverse=True)
-            return data
+        r = _get_fmp_client().get(url, params={
+            "apikey": fmp_api_key,
+            "industry": industry,
+            "limit": str(limit),
+            "exchange": "NYSE,NASDAQ,AMEX",
+        })
+        r.raise_for_status()
+        data = r.json()
+        if not isinstance(data, list):
+            return []
+        # Sort by market cap descending
+        def _safe_mcap(x: dict[str, Any]) -> float:
+            try:
+                return float(x.get("marketCap", 0) or 0)
+            except (ValueError, TypeError):
+                return 0.0
+        data.sort(key=_safe_mcap, reverse=True)
+        return data
     except Exception as exc:
         log_fetch_warning("FMP industry performance", exc)
         return []

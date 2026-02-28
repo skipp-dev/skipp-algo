@@ -20,6 +20,7 @@ Fallback/supplementary: yfinance, TradingView, NewsAPI.ai, Finnhub.
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 import re
@@ -82,6 +83,7 @@ def _get_client() -> httpx.Client | None:
         if not _HTTPX:
             return None
         _client = httpx.Client(timeout=15.0)
+        atexit.register(_client.close)
         return _client
 
 
@@ -143,7 +145,9 @@ _TV_COOLDOWN_MAX = 300.0   # max cooldown: 5 minutes
 
 def _tv_is_cooling_down() -> bool:
     """Return True if we are in a 429 cooldown period."""
-    return time.time() < _tv_cooldown_until
+    with _tv_rate_lock:
+        deadline = _tv_cooldown_until
+    return time.time() < deadline
 
 
 def _tv_register_429() -> None:
@@ -575,7 +579,7 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
         return cached_raw  # type: ignore
     # Also check with longer 429 TTL
     cached_429 = _get_cached(cache_key, _TECHNICALS_429_TTL)
-    if cached_429 is not None and getattr(cached_429, 'error', '') and '429' in str(cached_429.error):
+    if cached_429 is not None and getattr(cached_429, 'error', '') and '429' in str(cached_429.error):  # type: ignore[arg-type]
         return cached_429  # type: ignore
 
     if not _TV:

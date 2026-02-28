@@ -8,6 +8,7 @@ configurable TTL.
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 import threading
@@ -45,6 +46,7 @@ def _get_fmp_client() -> httpx.Client | None:
         with _fmp_client_lock:
             if _fmp_client is None:
                 _fmp_client = httpx.Client(timeout=10.0)
+                atexit.register(_fmp_client.close)
     return _fmp_client
 
 

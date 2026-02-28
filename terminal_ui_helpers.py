@@ -33,20 +33,9 @@ RECENCY_COLORS: dict[str, str] = {
     "UNKNOWN": "❓",
 }
 
-MATERIALITY_EMOJI: dict[str, str] = {
-    "HIGH": "🔴",
-    "MEDIUM": "🟠",
-    "LOW": "⚪",
-}
+MATERIALITY_EMOJI = MATERIALITY_COLORS
 
-RECENCY_EMOJI: dict[str, str] = {
-    "ULTRA_FRESH": "🔥",
-    "FRESH": "🟢",
-    "WARM": "🟡",
-    "AGING": "🟠",
-    "STALE": "⚫",
-    "UNKNOWN": "❓",
-}
+RECENCY_EMOJI = RECENCY_COLORS
 
 
 # ── Feed pruning ────────────────────────────────────────────────

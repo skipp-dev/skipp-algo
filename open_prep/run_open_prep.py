@@ -3317,7 +3317,7 @@ def _fetch_todays_events(
     except RuntimeError as exc:
         # Fail-open: macro calendar is enrichment, not a prerequisite.
         # Pipeline continues with empty events; macro_bias defaults to 0.0.
-        logger.error("Macro calendar fetch failed (fail-open, continuing with empty events): %s", exc)
+        logger.error("Macro calendar fetch failed (fail-open, continuing with empty events): %s", exc, exc_info=True)
         return [], []
 
     todays_events = [event for event in macro_events if _event_is_today(event, today)]
@@ -3330,7 +3330,7 @@ def _fetch_todays_events(
     except ValueError as exc:
         # Fail-open: invalid cutoff format should not crash the pipeline.
         # Fall back to unfiltered events.
-        logger.error("Invalid --pre-open-cutoff-utc (fail-open, using unfiltered events): %s", exc)
+        logger.error("Invalid --pre-open-cutoff-utc (fail-open, using unfiltered events): %s", exc, exc_info=True)
         return todays_events, macro_events
 
 
@@ -3412,7 +3412,7 @@ def _fetch_quotes_with_atr(
         # Fail-open: quote fetch failure is critical but must not crash.
         # Return empty quotes so pipeline produces a degraded result with
         # runtime_status explaining the failure, rather than SystemExit.
-        logger.error("Quote fetch failed (fail-open, returning empty quotes): %s", exc)
+        logger.error("Quote fetch failed (fail-open, returning empty quotes): %s", exc, exc_info=True)
         return [], {}, {}, {}, {"__batch__": str(exc)}
 
     # Filter to US exchanges only — the batch-quote response may contain

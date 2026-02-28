@@ -406,6 +406,8 @@ def get_token_usage() -> dict[str, int]:
             data = r.json()
             if isinstance(data, dict):
                 return data
+        else:
+            log.debug("Token usage HTTP %d", r.status_code)
     except (httpx.HTTPError, OSError, ValueError) as exc:
         log.debug("get_token_usage failed: %s", _APIKEY_RE.sub(r"\1=***", str(exc)))
     return {"availableTokens": 0, "usedTokens": 0}
