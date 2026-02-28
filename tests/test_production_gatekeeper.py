@@ -370,9 +370,9 @@ class TestPrevTradingDaySafety:
         last iterated date (NOT d-1 which could be a weekend)."""
         from open_prep.run_open_prep import _prev_trading_day
 
-        # Patch _is_us_equity_trading_day to always return False
+        # Patch is_us_equity_trading_day where prev_trading_day calls it
         with patch(
-            "open_prep.run_open_prep._is_us_equity_trading_day",
+            "newsstack_fmp._market_cal.is_us_equity_trading_day",
             return_value=False,
         ):
             # Should not hang — safety bound returns last checked date
@@ -947,7 +947,7 @@ class TestPrevTradingDayFallback:
 
         # If we call on a Monday and all days are non-trading,
         # fallback should still return a date that's at most 15 days back
-        with patch("open_prep.run_open_prep._is_us_equity_trading_day", return_value=False):
+        with patch("newsstack_fmp._market_cal.is_us_equity_trading_day", return_value=False):
             monday = date(2025, 1, 6)
             result = _prev_trading_day(monday)
             # Should NOT return d-1 (Sunday Jan 5)

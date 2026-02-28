@@ -699,9 +699,34 @@ def fetch_industry_performance(
 
 
 # ── Benzinga Calendar Wrappers ──────────────────────────────────
-# Thin wrappers that mirror the fetch_economic_calendar / fetch_sector_performance
-# pattern: accept an API key, return list[dict].  The BenzingaCalendarAdapter is
+# Generic factory + thin wrappers.  The BenzingaCalendarAdapter is
 # instantiated-per-call so callers don't need to manage its lifecycle.
+
+
+def _bz_calendar_call(
+    api_key: str,
+    method_name: str,
+    label: str,
+    **kwargs: Any,
+) -> list[dict[str, Any]]:
+    """Generic lifecycle wrapper for ``BenzingaCalendarAdapter`` methods.
+
+    Creates an adapter, calls *method_name* with *kwargs*, logs on error,
+    and closes the adapter.  Returns ``[]`` when the adapter package is
+    not installed.
+    """
+    if BenzingaCalendarAdapter is None:
+        return []
+    adapter = BenzingaCalendarAdapter(api_key)
+    try:
+        result: list[dict[str, Any]] = getattr(adapter, method_name)(**kwargs)
+        return result
+    except Exception as exc:
+        logger.warning("Benzinga %s fetch failed: %s", label, _sanitize_exc(exc))
+        return []
+    finally:
+        adapter.close()
+
 
 def fetch_benzinga_ratings(
     api_key: str,
@@ -712,20 +737,11 @@ def fetch_benzinga_ratings(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch analyst ratings from Benzinga (upgrades, downgrades, PT changes)."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_ratings(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga ratings fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_ratings", "ratings",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_earnings(
@@ -737,20 +753,11 @@ def fetch_benzinga_earnings(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch earnings calendar from Benzinga (EPS, revenue estimates/actuals)."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_earnings(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga earnings fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_earnings", "earnings",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_economics(
@@ -762,20 +769,11 @@ def fetch_benzinga_economics(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch economic calendar from Benzinga (GDP, NFP, CPI, FOMC, etc.)."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_economics(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga economics fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_economics", "economics",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_market_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
@@ -795,9 +793,6 @@ def fetch_benzinga_delayed_quotes(
     return fetch_benzinga_quotes(api_key, symbols)
 
 
-# ── New Calendar Wrappers (conference calls, dividends, splits, IPO, guidance, retail) ─
-
-
 def fetch_benzinga_conference_calls(
     api_key: str,
     *,
@@ -807,20 +802,11 @@ def fetch_benzinga_conference_calls(
     page_size: int = 100,
 ) -> list[dict[str, Any]]:
     """Fetch conference call schedule from Benzinga."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_conference_calls(
-            tickers=tickers, date_from=date_from, date_to=date_to,
-            page_size=page_size,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga conference calls fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_conference_calls", "conference calls",
+        tickers=tickers, date_from=date_from, date_to=date_to,
+        page_size=page_size,
+    )
 
 
 def fetch_benzinga_dividends(
@@ -832,20 +818,11 @@ def fetch_benzinga_dividends(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch dividend calendar from Benzinga."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_dividends(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga dividends fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_dividends", "dividends",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_splits(
@@ -857,20 +834,11 @@ def fetch_benzinga_splits(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch stock splits calendar from Benzinga."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_splits(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga splits fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_splits", "splits",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_ipos(
@@ -882,20 +850,11 @@ def fetch_benzinga_ipos(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch IPO calendar from Benzinga."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_ipos(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga IPOs fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_ipos", "IPOs",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_guidance(
@@ -907,20 +866,11 @@ def fetch_benzinga_guidance(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch earnings/revenue guidance from Benzinga."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_guidance(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga guidance fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_guidance", "guidance",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 def fetch_benzinga_retail(
@@ -932,20 +882,11 @@ def fetch_benzinga_retail(
     importance: int | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch retail sales calendar from Benzinga."""
-    if BenzingaCalendarAdapter is None:
-        return []
-    adapter = BenzingaCalendarAdapter(api_key)
-    try:
-        return adapter.fetch_retail(
-            date_from=date_from, date_to=date_to,
-            page_size=page_size, importance=importance,
-        )
-    except Exception as exc:
-        _msg = _sanitize_exc(exc)
-        logger.warning("Benzinga retail fetch failed: %s", _msg)
-        return []
-    finally:
-        adapter.close()
+    return _bz_calendar_call(
+        api_key, "fetch_retail", "retail",
+        date_from=date_from, date_to=date_to,
+        page_size=page_size, importance=importance,
+    )
 
 
 # ── News Wrappers (top news, quantified news, channels) ──────
@@ -1016,86 +957,10 @@ def fetch_benzinga_news_by_channel(
 
 # ── Tomorrow Outlook (next-trading-day traffic light) ────────
 
-# ── NYSE holiday helpers (mirrored from open_prep.run_open_prep) ──
-
-def _nth_weekday_of_month(year: int, month: int, weekday: int, n: int) -> date:
-    """Return the *n*-th occurrence of *weekday* in *month* of *year*."""
-    first = date(year, month, 1)
-    offset = (weekday - first.weekday()) % 7
-    return first + timedelta(days=offset + (n - 1) * 7)
-
-
-def _last_weekday_of_month(year: int, month: int, weekday: int) -> date:
-    if month == 12:
-        last = date(year + 1, 1, 1) - timedelta(days=1)
-    else:
-        last = date(year, month + 1, 1) - timedelta(days=1)
-    offset = (last.weekday() - weekday) % 7
-    return last - timedelta(days=offset)
-
-
-def _observed_fixed_holiday(year: int, month: int, day: int) -> date:
-    holiday = date(year, month, day)
-    if holiday.weekday() == 5:  # Saturday -> observed Friday
-        return holiday - timedelta(days=1)
-    if holiday.weekday() == 6:  # Sunday -> observed Monday
-        return holiday + timedelta(days=1)
-    return holiday
-
-
-def _easter_sunday(year: int) -> date:
-    """Gregorian Easter Sunday (Meeus/Jones/Butcher algorithm)."""
-    a = year % 19
-    b = year // 100
-    c = year % 100
-    d = b // 4
-    e = b % 4
-    f = (b + 8) // 25
-    g = (b - f + 1) // 3
-    h = (19 * a + b - d - g + 15) % 30
-    i = c // 4
-    k = c % 4
-    el = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * el) // 451
-    month = (h + el - 7 * m + 114) // 31
-    day = ((h + el - 7 * m + 114) % 31) + 1
-    return date(year, month, day)
-
-
-def _us_equity_market_holidays(year: int) -> set[date]:
-    """NYSE full-day holiday set (core schedule)."""
-    good_friday = _easter_sunday(year) - timedelta(days=2)
-    return {
-        _observed_fixed_holiday(year, 1, 1),      # New Year's Day
-        _nth_weekday_of_month(year, 1, 0, 3),     # MLK Day
-        _nth_weekday_of_month(year, 2, 0, 3),     # Presidents Day
-        good_friday,
-        _last_weekday_of_month(year, 5, 0),       # Memorial Day
-        _observed_fixed_holiday(year, 6, 19),     # Juneteenth
-        _observed_fixed_holiday(year, 7, 4),      # Independence Day
-        _nth_weekday_of_month(year, 9, 0, 1),     # Labor Day
-        _nth_weekday_of_month(year, 11, 3, 4),    # Thanksgiving
-        _observed_fixed_holiday(year, 12, 25),    # Christmas Day
-    }
-
-
-def _is_us_equity_trading_day(d: date) -> bool:
-    if d.weekday() >= 5:
-        return False
-    if d in _us_equity_market_holidays(d.year):
-        return False
-    # Cross-year edge case: Jan 1 on Saturday → observed Dec 31 Friday
-    return not (d.month == 12 and d in _us_equity_market_holidays(d.year + 1))
-
-
-def _next_trading_day(today: date) -> date:
-    """Return the next US equity trading day after *today*."""
-    d = today + timedelta(days=1)
-    for _ in range(14):
-        if _is_us_equity_trading_day(d):
-            return d
-        d += timedelta(days=1)
-    return d
+from newsstack_fmp._market_cal import (
+    is_us_equity_trading_day as _is_us_equity_trading_day,
+    next_trading_day as _next_trading_day,
+)
 
 
 def compute_tomorrow_outlook(
