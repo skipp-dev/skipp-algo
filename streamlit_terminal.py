@@ -277,7 +277,7 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
                 st.caption(f"Buy {_tech.ma_buy} · Neutral {_tech.ma_neutral} · Sell {_tech.ma_sell}")
 
             # ── Multi-interval summary strip ─────────────────
-            _strip_intervals = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1D", "1W", "1M"]
+            _strip_intervals = ["1m", "15m", "1h", "4h", "1D"]
             _strip_cols = st.columns(len(_strip_intervals))
             for _si, _siv in enumerate(_strip_intervals):
                 with _strip_cols[_si]:

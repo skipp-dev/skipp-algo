@@ -159,13 +159,13 @@ class TechnicalResult:
 
 # ── In-memory cache ──────────────────────────────────────────────────
 _cache: dict[tuple[str, str], TechnicalResult] = {}
-_CACHE_TTL_S = 300.0  # 5 minutes (avoid TradingView 429 rate limits)
-_CACHE_ERROR_TTL_S = 600.0  # 10 minutes for 429 errors (longer backoff)
+_CACHE_TTL_S = 600.0  # 10 minutes
+_CACHE_ERROR_TTL_S = 900.0  # 15 minutes for 429 errors (longer backoff)
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
 
 # ── Global TradingView rate limiter ──────────────────────────────────
-_TV_MIN_CALL_SPACING = 1.5  # minimum seconds between TradingView API calls
+_TV_MIN_CALL_SPACING = 3.0  # minimum seconds between TradingView API calls
 _tv_last_call_ts: float = 0.0
 _tv_rate_lock = threading.Lock()
 
@@ -309,7 +309,7 @@ def fetch_technicals(
             cached = _cache.get(key)
             if cached:
                 return cached
-        remaining = _tv_cooldown_until - now
+        remaining = _tv_cooldown_remaining()
         log.debug("TradingView cooldown active (%.0fs remaining), skipping %s", remaining, sym)
         return TechnicalResult(symbol=sym, interval=interval, ts=now, error="Rate limited — cooldown active")
 
