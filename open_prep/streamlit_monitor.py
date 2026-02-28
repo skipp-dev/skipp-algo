@@ -1094,7 +1094,8 @@ def main() -> None:
         try:
             from .realtime_signals import RealtimeEngine as _RealtimeEngine
             _rt_sigs = (_RealtimeEngine.load_signals_from_disk().get("signals") or [])
-        except Exception:
+        except Exception as exc:
+            logger.debug("RT signal disk load failed: %s", exc)
             _rt_sigs = []
         ranked_v2, filtered_out_v2, _rt_promoted_syms, _rt_a0a1 = (
             promote_a0a1_signals(ranked_v2, filtered_out_v2, _rt_sigs)

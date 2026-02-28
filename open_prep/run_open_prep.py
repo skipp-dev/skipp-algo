@@ -1360,8 +1360,8 @@ def _fetch_finnhub_insider_sentiment(
                     sym_key, data = fut.result()
                     if data is not None:
                         result[sym_key] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Finnhub insider sentiment future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
             logger.warning("Finnhub insider sentiment timed out; continuing with partial.")
     return result
@@ -1402,8 +1402,8 @@ def _fetch_finnhub_peers(
                     sym_key, peers_list = fut.result()
                     if peers_list:
                         result[sym_key] = peers_list
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Finnhub peers future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
             logger.warning("Finnhub peers timed out; continuing with partial.")
     return result
@@ -1478,8 +1478,8 @@ def _fetch_finnhub_social_sentiment(
                     sym_key, data = fut.result()
                     if data is not None:
                         result[sym_key] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Finnhub social sentiment future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
             logger.warning("Finnhub social sentiment timed out; continuing with partial.")
     return result
@@ -1561,8 +1561,8 @@ def _fetch_finnhub_patterns(
                     sym_key, data = fut.result()
                     if data is not None:
                         result[sym_key] = data
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Finnhub patterns future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
             logger.warning("Finnhub patterns timed out; continuing with partial.")
     return result
@@ -1633,8 +1633,8 @@ def _enrich_symbol_sectors_from_profiles(
                     if sector:
                         symbol_sectors[sym_key] = sector
                         fetched += 1
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Sector profile future failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
             logger.warning("Sector profile fetch timed out after 30 s; continuing with partial.")
 
@@ -2935,7 +2935,8 @@ def _fetch_premarket_high_low_bulk(
                 try:
                     s, pmh, pml = fut.result()
                     out[s] = {"premarket_high": pmh, "premarket_low": pml}
-                except Exception:
+                except Exception as exc:
+                    logger.debug("PMH/PML future failed for %s: %s", sym, exc)
                     out[sym] = {"premarket_high": None, "premarket_low": None}
         except FuturesTimeoutError:
             timeout_msg = (
@@ -4314,8 +4315,8 @@ def generate_open_prep_result(
                         sym_res, bars_list = fut.result()
                         if bars_list:
                             _daily_bars_cache[sym_res] = bars_list
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Daily bars future failed: %s", exc)
             except FuturesTimeoutError:
                 logger.warning("Daily bars fetch timed out after 30s; continuing with partial.")
 

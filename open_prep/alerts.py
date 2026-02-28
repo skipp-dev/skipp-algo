@@ -11,6 +11,7 @@ import logging
 import os
 import ssl
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -81,6 +82,7 @@ def save_alert_config(config: dict[str, Any]) -> Path:
 # ---------------------------------------------------------------------------
 
 _last_sent: dict[str, float] = {}
+_throttle_lock = threading.Lock()
 
 # Maximum entries kept in the throttle dict to prevent unbounded growth
 # in long-running processes (e.g. Streamlit).
@@ -89,22 +91,25 @@ _LAST_SENT_MAX = 500
 
 def _is_throttled(symbol: str, throttle_seconds: int) -> bool:
     """Check if we recently sent an alert for this symbol."""
-    last = _last_sent.get(symbol, 0.0)
+    with _throttle_lock:
+        last = _last_sent.get(symbol, 0.0)
     return (time.time() - last) < throttle_seconds
 
 
 def _mark_sent(symbol: str) -> None:
-    _last_sent[symbol] = time.time()
+    with _throttle_lock:
+        _last_sent[symbol] = time.time()
 
 
 def _prune_stale_entries(throttle_seconds: int) -> None:
     """Remove entries older than throttle window to cap memory usage."""
-    if len(_last_sent) <= _LAST_SENT_MAX:
-        return
-    now = time.time()
-    stale = [k for k, v in _last_sent.items() if (now - v) >= throttle_seconds]
-    for k in stale:
-        del _last_sent[k]
+    with _throttle_lock:
+        if len(_last_sent) <= _LAST_SENT_MAX:
+            return
+        now = time.time()
+        stale = [k for k, v in _last_sent.items() if (now - v) >= throttle_seconds]
+        for k in stale:
+            del _last_sent[k]
 
 
 # ---------------------------------------------------------------------------

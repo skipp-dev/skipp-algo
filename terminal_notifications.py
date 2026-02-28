@@ -185,7 +185,7 @@ def _send_telegram(token: str, chat_id: str, text: str) -> bool:
         logger.warning("Telegram HTTP error %d: %s", exc.code, exc.read()[:200])
         return False
     except Exception as exc:
-        logger.warning("Telegram send failed: %s", exc)
+        logger.warning("Telegram send failed: %s", type(exc).__name__)
         return False
 
 
@@ -214,7 +214,7 @@ def _send_discord(webhook_url: str, text: str) -> bool:
         logger.warning("Discord HTTP error %d", exc.code)
         return False
     except Exception as exc:
-        logger.warning("Discord send failed: %s", exc)
+        logger.warning("Discord send failed: %s", type(exc).__name__)
         return False
 
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 import time
 from typing import Any
 
@@ -25,6 +26,7 @@ _TOKEN_RE = re.compile(r"(apikey|token)=[^&]+", re.IGNORECASE)
 # 400/403/404 responses typically mean the endpoint is not available
 # on the user's API tier.  Warn once, then suppress to avoid log spam.
 _WARNED_ENDPOINTS: set[str] = set()
+_warned_lock = threading.Lock()
 
 # HTTP status codes that indicate a tier/plan limitation rather than
 # a transient error.  These are suppressed after the first occurrence.
@@ -51,8 +53,10 @@ def log_fetch_warning(label: str, exc: Exception) -> None:
     """
     msg = _sanitize_exc(exc)
     if _is_tier_limited_error(exc):
-        if label not in _WARNED_ENDPOINTS:
+        with _warned_lock:
+            already_warned = label in _WARNED_ENDPOINTS
             _WARNED_ENDPOINTS.add(label)
+        if not already_warned:
             code = exc.response.status_code  # type: ignore
             logger.warning(
                 "%s fetch failed (HTTP %d) – endpoint not available on "

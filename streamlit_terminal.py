@@ -3110,7 +3110,7 @@ else:
                     fig.update_yaxes(title_text="Volume", row=2, col=1)
                     fig.update_xaxes(title_text="Time (UTC)", row=2, col=1)
 
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("No 10-minute OHLCV data available. Install yfinance and pandas for chart data.")
             except ImportError:

@@ -118,7 +118,7 @@ def _set_cached(key: str, val: Any) -> None:
 # TTLs (seconds) — Bitcoin is 24/7 so we can be more aggressive
 _QUOTE_TTL = 30       # 30s for real-time price
 _OHLCV_TTL = 120      # 2 min for historical data
-_TECHNICALS_TTL = 120  # 2 min for TradingView
+_TECHNICALS_TTL = 300  # 5 min for TradingView (avoid 429 rate limits)
 _FG_TTL = 300          # 5 min for Fear & Greed
 _MOVERS_TTL = 120      # 2 min for crypto movers
 _LISTINGS_TTL = 3600   # 1h for exchange listings
@@ -311,7 +311,7 @@ def fetch_btc_quote() -> BTCQuote | None:
     if cached is not None:
         return cached  # type: ignore
 
-    data = _fmp_get("cryptocurrency-quote", {"symbol": "BTCUSD"})
+    data = _fmp_get("quote", {"symbol": "BTCUSD"})
     if not data:
         # Fallback: yfinance
         return _btc_quote_yfinance()
@@ -324,7 +324,7 @@ def fetch_btc_quote() -> BTCQuote | None:
     quote = BTCQuote(
         price=float(d.get("price", 0)),
         change=float(d.get("change", 0)),
-        change_pct=float(d.get("changesPercentage", 0)),
+        change_pct=float(d.get("changePercentage", d.get("changesPercentage", 0))),
         day_high=float(d.get("dayHigh", 0)),
         day_low=float(d.get("dayLow", 0)),
         year_high=float(d.get("yearHigh", 0)),
@@ -541,8 +541,8 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     }
     tv_interval = interval_map.get(interval, Interval.INTERVAL_1_HOUR)
 
-    _MAX_RETRIES = 2
-    _BASE_BACKOFF = 2.0  # seconds
+    _MAX_RETRIES = 3
+    _BASE_BACKOFF = 3.0  # seconds
 
     for attempt in range(_MAX_RETRIES + 1):
         try:
@@ -671,18 +671,25 @@ def fetch_crypto_movers() -> dict[str, list[CryptoMover]]:
 
     result: dict[str, list[CryptoMover]] = {"gainers": [], "losers": []}
 
-    # Use batch-crypto-quotes (all crypto quotes) and sort by change %
+    # Use batch-crypto-quotes (fields: symbol, price, change, volume)
+    # and compute change_pct ourselves since the endpoint doesn't provide it.
     data = _fmp_get("batch-crypto-quotes")
     if data and isinstance(data, list):
         for d in data:
             if not isinstance(d, dict):
                 continue
-            chg_pct = float(d.get("changesPercentage", 0) or 0)
+            price = float(d.get("price", 0) or 0)
+            change = float(d.get("change", 0) or 0)
+            prev_price = price - change
+            chg_pct = (change / prev_price * 100) if prev_price else 0.0
+            sym = d.get("symbol", "")
+            # Derive display name from symbol (strip trailing USD)
+            name = sym[:-3] if sym.endswith("USD") else sym
             mover = CryptoMover(
-                symbol=d.get("symbol", ""),
-                name=d.get("name", ""),
-                price=float(d.get("price", 0) or 0),
-                change=float(d.get("change", 0) or 0),
+                symbol=sym,
+                name=name,
+                price=price,
+                change=change,
                 change_pct=chg_pct,
             )
             if chg_pct >= 0:
@@ -807,7 +814,9 @@ def fetch_btc_outlook() -> BTCOutlook:
 
     fg = fetch_fear_greed()
     tech_1h = fetch_btc_technicals("1h")
+    time.sleep(0.5)  # small delay to avoid TradingView 429
     tech_4h = fetch_btc_technicals("4h")
+    time.sleep(0.5)
     tech_1d = fetch_btc_technicals("1d")
     quote = fetch_btc_quote()
 
