@@ -7,3 +7,5 @@ python-dateutil>=2.9.0
 websockets>=16.0
 plotly>=5.18.0
 eventregistry>=9.1
+yfinance>=0.2.30
+tradingview-ta>=3.3.0

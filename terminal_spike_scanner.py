@@ -172,7 +172,7 @@ def _yf_screen_movers() -> dict[str, list[dict[str, Any]]]:
                 try:
                     info_name = t.info.get("shortName", sym) if hasattr(t, "info") else sym
                 except Exception:
-                    pass
+                    pass  # info lookup is best-effort; name defaults to sym
 
                 all_items.append({
                     "symbol": sym,
@@ -185,7 +185,8 @@ def _yf_screen_movers() -> dict[str, list[dict[str, Any]]]:
                     "marketCap": market_cap,
                     "previousClose": round(prev_close, 2),
                 })
-            except Exception:
+            except Exception as _e:
+                logger.debug("Screener: skipping %s: %s", sym, _e)
                 continue
 
         if not all_items:

@@ -244,7 +244,9 @@ def canonical_article_key(d: dict[str, Any]) -> str:
     item_id = str(d.get("item_id") or "").strip()
     if item_id:
         return f"id:{item_id}:{ticker}"
-    return f"fallback:{ticker}"
+    # Last resort: include published_ts to avoid collapsing distinct items
+    _ts = d.get("published_ts") or 0
+    return f"fallback:{ticker}:{_ts}"
 
 
 def dedup_articles(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -580,7 +582,7 @@ def match_alert_rule(
 
 def item_dedup_key(d: dict[str, Any]) -> str:
     """Canonical dedup key for a feed item: ``{item_id}:{ticker}``."""
-    return f"{d.get('item_id', '')}:{d.get('ticker', '')}"
+    return f"{d.get('item_id') or ''}:{d.get('ticker') or ''}"
 
 
 def dedup_merge(
