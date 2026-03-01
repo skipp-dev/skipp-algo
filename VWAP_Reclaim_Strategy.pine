@@ -77,7 +77,7 @@ preset3m = input.string("Neutral", "3m Preset", options=["Aggressive", "Neutral"
 reclaimWindowBars = input.int(12, "Reclaim: Max Bars bis Retest", minval=1, group="Reclaim Settings")
 retestTolATR = input.float(0.10, "Retest Toleranz (ATR-Anteil)", minval=0.0, step=0.01, group="Reclaim Settings")
 useAtrTol = input.bool(true, "Toleranz via ATR", group="Reclaim Settings")
-debug = input.bool(true, "Debug Markers", group="Reclaim Settings")
+debug = input.bool(false, "Debug Markers", group="Reclaim Settings")
 showStatusTable = input.bool(true, "Show Status Table", group="Reclaim Settings")
 pullbackLookback = input.int(5, "Pullback Lookback", minval=2, maxval=30,
     tooltip="Rolling-Fenster für Pullback High (Long) / Pullback Low (Short) — Donchian. Kleiner = schneller. Default 5.",
@@ -101,13 +101,13 @@ usiMinStack = input.int(2, "Min Stack Count", minval=1, maxval=2,
     group="⚡ USI Trend Filter")
 
 // Signal Filter Settings — bar-close confirmation + volume gate
-barCloseOnly = input.bool(true, "Bar Close Only",
+barCloseOnly = input.bool(false, "Bar Close Only",
     tooltip="Labels und Alerts nur auf geschlossenen Bars. Verhindert Intra-Bar-Flicker bei Live-Daten.",
     group="🔒 Signal Filters")
-useVolFilter = input.bool(false, "Volume Filter",
+useVolFilter = input.bool(true, "Volume Filter",
     tooltip="Signale nur wenn das aktuelle Barvolumen über dem Durchschnitt liegt. Filtert Signale in ruhigen/illiquiden Phasen.",
     group="🔒 Signal Filters")
-minVolRatio = input.float(1.0, "Min Volume Ratio", minval=0.1, step=0.1,
+minVolRatio = input.float(1.4, "Min Volume Ratio", minval=0.1, step=0.1,
     tooltip="Mindest-Verhältnis: Aktuelles Barvolumen / SMA(Volumen). 1.0 = Durchschnitt, 1.5 = 50% über Durchschnitt.",
     group="🔒 Signal Filters")
 volSmaLen = input.int(20, "Volume SMA Length", minval=5, maxval=100,
