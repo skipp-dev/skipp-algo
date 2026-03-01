@@ -32,7 +32,7 @@ src = input(title="Source", defval=hlc3, group="VWAP Settings")
 offset = input(0, title="Offset", group="VWAP Settings")
 
 // Standard Deviation Bands Settings
-showBand_1 = input(true, title="Show Band 1", group="Standard Deviation Bands Settings")
+showBand_1 = input(false, title="Show Band 1", group="Standard Deviation Bands Settings")
 stdevMult_1 = input(0.88, title="Standard Deviation Multiplier", group="Standard Deviation Bands Settings")
 
 // Strategy Settings
@@ -47,7 +47,7 @@ matchedTrends = input.bool(true, "Only Show Matched Trends",
     group="Strategy")
 
 displaybars = input.bool(true, "Barcolors", group="Display")
-showTradeLabels = input.bool(true, "Show Trade Labels", group="Display")
+showTradeLabels = input.bool(false, "Show Trade Labels", group="Display")
 
 // Trend Detection Settings
 trendSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, maxval=20,
@@ -63,7 +63,7 @@ reclaimWindowBars = input.int(12, "Reclaim: Max Bars bis Retest", minval=1, grou
 retestTolATR = input.float(0.10, "Retest Toleranz (ATR-Anteil)", minval=0.0, step=0.01, group="Reclaim Settings")
 useAtrTol = input.bool(true, "Toleranz via ATR", group="Reclaim Settings")
 debug = input.bool(false, "Debug Markers", group="Reclaim Settings")
-showStatusTable = input.bool(true, "Show Status Table", group="Reclaim Settings")
+showStatusTable = input.bool(false, "Show Status Table", group="Reclaim Settings")
 pullbackLookback = input.int(5, "Pullback Lookback", minval=2, maxval=30,
     tooltip="Rolling-Fenster für Pullback High (Long) / Pullback Low (Short) — Donchian. Kleiner = schneller. Default 5.",
     group="Reclaim Settings")
@@ -312,10 +312,10 @@ plot(vwapValue, title="VWAP", color=color.white, linewidth=2, offset=offset)
 upperBand_1 = plot(showBand_1 ? upperBandValue1 : na, title="Upper Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
 lowerBand_1 = plot(showBand_1 ? lowerBandValue1 : na, title="Lower Band #1", color=color.new(color.gray, 50), offset=offset, linewidth=1)
 
-plot(upperBandValue2, title="Upper Band #2", color=color.lime, linewidth=1)
-plot(lowerBandValue2, title="Lower Band #2", color=color.red, linewidth=1)
+plot(upperBandValue2, title="Upper Band #2", color=color.lime, linewidth=1, display=display.none)
+plot(lowerBandValue2, title="Lower Band #2", color=color.red, linewidth=1, display=display.none)
 
-hl2_plot = plot(hl2, color=na, title="HL2")
+hl2_plot = plot(hl2, color=na, title="HL2", display=display.none)
 
 // ==================== FILLS ====================
 
@@ -344,8 +344,8 @@ plotshape(showTradeLabels and shortSignal, title="Short Entry", style=shape.labe
 plotshape(showTradeLabels and exitShort,   title="Short Exit",  style=shape.labelup,   location=location.belowbar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Cover")
 
 // Pullback channels
-plot(allowLong  and (inReclaimSeqL or inVirtualLong)  ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
-plot(allowShort and (inReclaimSeqS or inVirtualShort) ? pullbackLow  : na, title="Pullback Low",  color=color.new(color.fuchsia, 0), linewidth=1)
+plot(allowLong  and (inReclaimSeqL or inVirtualLong)  ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1, display=display.none)
+plot(allowShort and (inReclaimSeqS or inVirtualShort) ? pullbackLow  : na, title="Pullback Low",  color=color.new(color.fuchsia, 0), linewidth=1, display=display.none)
 
 // ==================== STATUS TABLE ====================
 
