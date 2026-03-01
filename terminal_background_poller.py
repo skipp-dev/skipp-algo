@@ -69,6 +69,7 @@ class BackgroundPoller:
         self.total_items_ingested: int = 0
         self.total_items_dropped: int = 0
         self.consecutive_empty_polls: int = 0
+        self.last_poll_duration_s: float = 0.0
 
     # ── Thread lifecycle ────────────────────────────────────
 
@@ -178,6 +179,7 @@ class BackgroundPoller:
                 continue
 
             self.poll_attempts += 1
+            _t0 = time.monotonic()
             try:
                 items, new_cursor = poll_and_classify_multi(
                     benzinga_adapter=bz,
@@ -197,11 +199,13 @@ class BackgroundPoller:
                 self.last_poll_error = _safe
                 self.last_poll_status = "ERROR"
                 self.last_poll_ts = time.time()
+                self.last_poll_duration_s = time.monotonic() - _t0
                 continue
 
             with self._lock:
                 self._cursor = new_cursor
 
+            self.last_poll_duration_s = time.monotonic() - _t0
             self.poll_count += 1
             self.last_poll_ts = time.time()
             self.total_items_ingested += len(items)

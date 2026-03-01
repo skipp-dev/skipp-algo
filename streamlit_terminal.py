@@ -624,6 +624,7 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "auto_refresh": True,
     "last_poll_status": "—",
     "last_poll_error": "",
+    "last_poll_duration_s": 0.0,
     "alert_log": [],
     "bg_poller": None,
     "notify_log": [],
@@ -765,7 +766,9 @@ with st.sidebar:
     st.metric("Total ingested", st.session_state.total_items_ingested)
     if st.session_state.last_poll_ts:
         ago = time.time() - st.session_state.last_poll_ts
-        st.caption(f"Last poll: {ago:.0f}s ago")
+        _dur = st.session_state.get("last_poll_duration_s", 0.0)
+        _dur_txt = f" ({_dur:.1f}s)" if _dur > 0 else ""
+        st.caption(f"Last poll: {ago:.0f}s ago{_dur_txt}")
 
     # Feed staleness + cursor diagnostics
     _diag_feed = st.session_state.feed
@@ -1529,6 +1532,7 @@ if st.session_state.use_bg_poller:
     st.session_state.last_poll_status = _bp.last_poll_status
     if _bp.last_poll_ts > 0:
         st.session_state.last_poll_error = _bp.last_poll_error
+    st.session_state.last_poll_duration_s = getattr(_bp, "last_poll_duration_s", 0.0)
     st.session_state.total_items_ingested = max(
         st.session_state.total_items_ingested, _bp.total_items_ingested)
     st.session_state.cursor = _bp.cursor

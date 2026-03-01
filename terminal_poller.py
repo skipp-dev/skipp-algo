@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -470,33 +471,33 @@ def poll_and_classify_multi(
     raw_items: list[NewsItem] = []
     errors: list[str] = []
 
-    # ── Benzinga ────────────────────────────────────────────
-    if benzinga_adapter is not None:
-        try:
-            bz_items = benzinga_adapter.fetch_news(
+    # ── Parallel HTTP fetch (Benzinga + FMP) ────────────────
+    # Each source runs in its own thread so a slow/retrying endpoint
+    # doesn't block the others.  Typical poll drops from ~6-10s to ~3s.
+    futures: dict[Any, str] = {}
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="poll") as pool:
+        if benzinga_adapter is not None:
+            futures[pool.submit(
+                benzinga_adapter.fetch_news,
                 updated_since=cursor, page_size=page_size,
                 channels=channels, topics=topics,
-            )
-            raw_items.extend(bz_items)
-        except Exception as exc:
-            _msg = _sanitize_exc(exc)
-            logger.warning("Benzinga poll failed: %s", _msg)
-            errors.append(f"Benzinga: {_msg}")
+            )] = "Benzinga"
+        if fmp_adapter is not None:
+            futures[pool.submit(
+                fmp_adapter.fetch_stock_latest, page=0, limit=page_size,
+            )] = "FMP-stock"
+            futures[pool.submit(
+                fmp_adapter.fetch_press_latest, page=0, limit=page_size,
+            )] = "FMP-press"
 
-    # ── FMP (stock news + press releases) ───────────────────
-    if fmp_adapter is not None:
-        try:
-            raw_items.extend(fmp_adapter.fetch_stock_latest(page=0, limit=page_size))
-        except Exception as exc:
-            _msg = _sanitize_exc(exc)
-            logger.warning("FMP stock-news poll failed: %s", _msg)
-            errors.append(f"FMP-stock: {_msg}")
-        try:
-            raw_items.extend(fmp_adapter.fetch_press_latest(page=0, limit=page_size))
-        except Exception as exc:
-            _msg = _sanitize_exc(exc)
-            logger.warning("FMP press-release poll failed: %s", _msg)
-            errors.append(f"FMP-press: {_msg}")
+        for fut in as_completed(futures):
+            label = futures[fut]
+            try:
+                raw_items.extend(fut.result())
+            except Exception as exc:
+                _msg = _sanitize_exc(exc)
+                logger.warning("%s poll failed: %s", label, _msg)
+                errors.append(f"{label}: {_msg}")
 
     # If ALL configured sources failed, raise so the caller can surface
     # the error in the UI instead of showing misleading "0 items" success.
