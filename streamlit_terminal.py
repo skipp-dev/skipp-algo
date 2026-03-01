@@ -1603,8 +1603,13 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 # ── Main display ────────────────────────────────────────────────
 
-st.title("📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported")
-st.caption("Jump to [🤖 AI Insights](#ai-insights) for LLM-powered analysis of your live feed.")
+st.markdown(
+    '<h1 style="margin-bottom:0">'
+    '<a href="#ai-insights" style="text-decoration:none;color:inherit">'
+    '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported'
+    '</a></h1>',
+    unsafe_allow_html=True,
+)
 
 if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
     st.warning("Set `BENZINGA_API_KEY` and/or `FMP_API_KEY` in `.env` to start polling.")
