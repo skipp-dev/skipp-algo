@@ -215,7 +215,7 @@ except ImportError:
 # ── Page config ─────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Real-Time News Intelligence Dashboard",
+    page_title="Real-Time News Intelligence Stock + Bitcoin Dashboard",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1603,7 +1603,7 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 # ── Main display ────────────────────────────────────────────────
 
-st.title("📡 Real-Time News Intelligence Dashboard — AI supported")
+st.title("📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported")
 st.caption("Jump to [🤖 AI Insights](#ai-insights) for LLM-powered analysis of your live feed.")
 
 if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
