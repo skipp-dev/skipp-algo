@@ -163,12 +163,12 @@ class TechnicalResult:
 # ── In-memory cache ──────────────────────────────────────────────────
 _cache: dict[tuple[str, str], TechnicalResult] = {}
 _CACHE_TTL_S = 600.0  # 10 minutes
-_CACHE_ERROR_TTL_S = 900.0  # 15 minutes for 429 errors (longer backoff)
+_CACHE_ERROR_TTL_S = 1200.0  # 20 minutes for 429 errors (longer backoff)
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
 
 # ── Global TradingView rate limiter ──────────────────────────────────
-_TV_MIN_CALL_SPACING = 3.0  # minimum seconds between TradingView API calls
+_TV_MIN_CALL_SPACING = 5.0  # minimum seconds between TradingView API calls
 _tv_last_call_ts: float = 0.0
 _tv_rate_lock = threading.Lock()
 
@@ -176,7 +176,7 @@ _tv_rate_lock = threading.Lock()
 _tv_cooldown_until: float = 0.0
 _tv_consecutive_429s: int = 0
 _TV_COOLDOWN_BASE = 60.0   # base cooldown: 60 seconds
-_TV_COOLDOWN_MAX = 300.0   # max cooldown: 5 minutes
+_TV_COOLDOWN_MAX = 600.0   # max cooldown: 10 minutes
 
 
 def _tv_is_cooling_down() -> bool:
@@ -214,9 +214,17 @@ def _tv_register_success() -> None:
 
 
 def _tv_throttle() -> None:
-    """Enforce minimum spacing between TradingView API calls."""
+    """Enforce minimum spacing AND 429 cooldown between TradingView API calls.
+
+    Raises ``RuntimeError`` if a 429 cooldown is active so the caller can
+    abort immediately instead of hitting the API and collecting another 429.
+    """
     global _tv_last_call_ts
     with _tv_rate_lock:
+        # Check cooldown FIRST — don't even space-wait if we're blocked
+        remaining = _tv_cooldown_until - time.time()
+        if remaining > 0:
+            raise RuntimeError(f"TradingView 429 cooldown active ({remaining:.0f}s remaining)")
         now = time.time()
         elapsed = now - _tv_last_call_ts
         if elapsed < _TV_MIN_CALL_SPACING:
@@ -229,44 +237,31 @@ def _cache_key(symbol: str, interval: str) -> tuple[str, str]:
 
 
 def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
-    """Try common US exchanges in priority order, with retry on 429."""
-    import time as _time  # local import to avoid circular
+    """Try common US exchanges in priority order.
 
-    _MAX_RETRIES = 2
-    _BASE_BACKOFF = 4.0  # seconds
-
-    for attempt in range(_MAX_RETRIES + 1):
-        for exchange in ("NASDAQ", "NYSE", "AMEX"):
-            try:
-                _tv_throttle()  # enforce spacing
-                h = TA_Handler(
-                    symbol=symbol,
-                    screener="america",
-                    exchange=exchange,
-                    interval=interval_val,
-                )
-                analysis = h.get_analysis()
-                if analysis and analysis.summary:
-                    _tv_register_success()
-                    return analysis
-            except Exception as exc:
-                _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-                if "429" in _msg:
-                    _tv_register_429()
-                    if attempt < _MAX_RETRIES:
-                        _sleep = _BASE_BACKOFF * (2 ** attempt)
-                        log.info(
-                            "TradingView 429 for %s/%s — retry %d/%d after %.1fs",
-                            symbol, exchange, attempt + 1, _MAX_RETRIES, _sleep,
-                        )
-                        _time.sleep(_sleep)
-                        break  # break inner exchange loop → retry all exchanges
-                    # last attempt — propagate so caller can display it
-                    raise
-                continue
-        else:
-            # inner loop completed without break → no 429, all exchanges tried
-            return None
+    On 429 the function stops immediately and re-raises so that the
+    caller's cooldown logic (``fetch_technicals``) handles back-off.
+    No internal retry loop — retrying inside cooldown only generates
+    more 429s and extends the ban.
+    """
+    for exchange in ("NASDAQ", "NYSE", "AMEX"):
+        try:
+            _tv_throttle()  # enforces spacing + raises on cooldown
+            h = TA_Handler(
+                symbol=symbol,
+                screener="america",
+                exchange=exchange,
+                interval=interval_val,
+            )
+            analysis = h.get_analysis()
+            if analysis and analysis.summary:
+                _tv_register_success()
+                return analysis
+        except Exception as exc:
+            _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
+            if "429" in _msg or "cooldown active" in _msg:
+                raise  # let caller handle 429 / cooldown
+            continue
     return None
 
 

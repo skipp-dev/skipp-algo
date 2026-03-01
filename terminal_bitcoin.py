@@ -129,7 +129,7 @@ def _set_cached(key: str, val: Any) -> None:
 _QUOTE_TTL = 30       # 30s for real-time price
 _OHLCV_TTL = 120      # 2 min for historical data
 _TECHNICALS_TTL = 600  # 10 min for TradingView (avoid 429 rate limits)
-_TECHNICALS_429_TTL = 900  # 15 min cache for 429 errors (don't retry quickly)
+_TECHNICALS_429_TTL = 1200  # 20 min cache for 429 errors (don't retry quickly)
 _FG_TTL = 300          # 5 min for Fear & Greed
 _MOVERS_TTL = 120      # 2 min for crypto movers
 _LISTINGS_TTL = 3600   # 1h for exchange listings
@@ -567,66 +567,53 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
     }
     tv_interval = interval_map.get(interval, Interval.INTERVAL_1_HOUR)
 
-    _MAX_RETRIES = 3
-    _BASE_BACKOFF = 5.0  # seconds
+    try:
+        _tv_throttle()  # enforce spacing + raises on cooldown
+        handler = TA_Handler(
+            symbol="BTCUSDT",
+            screener="crypto",
+            exchange="BINANCE",
+            interval=tv_interval,
+        )
+        analysis = handler.get_analysis()
+        if not analysis or not analysis.summary:
+            return BTCTechnicals(interval=interval, error="No analysis data")
 
-    for attempt in range(_MAX_RETRIES + 1):
-        try:
-            _tv_throttle()  # enforce spacing between calls
-            handler = TA_Handler(
-                symbol="BTCUSDT",
-                screener="crypto",
-                exchange="BINANCE",
-                interval=tv_interval,
-            )
-            analysis = handler.get_analysis()
-            if not analysis or not analysis.summary:
-                return BTCTechnicals(interval=interval, error="No analysis data")
+        s = analysis.summary
+        indicators = analysis.indicators or {}
 
-            s = analysis.summary
-            indicators = analysis.indicators or {}
-
-            result = BTCTechnicals(
-                summary=s.get("RECOMMENDATION", ""),
-                buy=s.get("BUY", 0),
-                sell=s.get("SELL", 0),
-                neutral=s.get("NEUTRAL", 0),
-                osc_signal=analysis.oscillators.get("RECOMMENDATION", "") if analysis.oscillators else "",
-                osc_buy=analysis.oscillators.get("BUY", 0) if analysis.oscillators else 0,
-                osc_sell=analysis.oscillators.get("SELL", 0) if analysis.oscillators else 0,
-                osc_neutral=analysis.oscillators.get("NEUTRAL", 0) if analysis.oscillators else 0,
-                ma_signal=analysis.moving_averages.get("RECOMMENDATION", "") if analysis.moving_averages else "",
-                ma_buy=analysis.moving_averages.get("BUY", 0) if analysis.moving_averages else 0,
-                ma_sell=analysis.moving_averages.get("SELL", 0) if analysis.moving_averages else 0,
-                ma_neutral=analysis.moving_averages.get("NEUTRAL", 0) if analysis.moving_averages else 0,
-                rsi=indicators.get("RSI"),
-                macd=indicators.get("MACD.macd"),
-                macd_signal=indicators.get("MACD.signal"),
-                stoch_k=indicators.get("Stoch.K"),
-                adx=indicators.get("ADX"),
-                cci=indicators.get("CCI20"),
-                interval=interval,
-            )
-            _set_cached(cache_key, result)
-            _tv_register_success()
-            return result
-        except Exception as exc:
-            _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-            if "429" in _msg:
-                _tv_register_429()
-                if attempt < _MAX_RETRIES:
-                    _sleep = _BASE_BACKOFF * (2 ** attempt)
-                    log.info(
-                        "TradingView BTC 429 (%s) — retry %d/%d after %.1fs",
-                        interval, attempt + 1, _MAX_RETRIES, _sleep,
-                    )
-                    time.sleep(_sleep)
-                    continue
-            log.warning("TradingView BTC technicals (%s) failed: %s", interval, exc)
-            result = BTCTechnicals(interval=interval, error=_APIKEY_RE.sub(r"\1=***", str(exc)))
-            _set_cached(cache_key, result)  # cache errors too
-            return result
-    return BTCTechnicals(interval=interval, error="Max retries exceeded")
+        result = BTCTechnicals(
+            summary=s.get("RECOMMENDATION", ""),
+            buy=s.get("BUY", 0),
+            sell=s.get("SELL", 0),
+            neutral=s.get("NEUTRAL", 0),
+            osc_signal=analysis.oscillators.get("RECOMMENDATION", "") if analysis.oscillators else "",
+            osc_buy=analysis.oscillators.get("BUY", 0) if analysis.oscillators else 0,
+            osc_sell=analysis.oscillators.get("SELL", 0) if analysis.oscillators else 0,
+            osc_neutral=analysis.oscillators.get("NEUTRAL", 0) if analysis.oscillators else 0,
+            ma_signal=analysis.moving_averages.get("RECOMMENDATION", "") if analysis.moving_averages else "",
+            ma_buy=analysis.moving_averages.get("BUY", 0) if analysis.moving_averages else 0,
+            ma_sell=analysis.moving_averages.get("SELL", 0) if analysis.moving_averages else 0,
+            ma_neutral=analysis.moving_averages.get("NEUTRAL", 0) if analysis.moving_averages else 0,
+            rsi=indicators.get("RSI"),
+            macd=indicators.get("MACD.macd"),
+            macd_signal=indicators.get("MACD.signal"),
+            stoch_k=indicators.get("Stoch.K"),
+            adx=indicators.get("ADX"),
+            cci=indicators.get("CCI20"),
+            interval=interval,
+        )
+        _set_cached(cache_key, result)
+        _tv_register_success()
+        return result
+    except Exception as exc:
+        _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
+        if "429" in _msg:
+            _tv_register_429()
+        log.warning("TradingView BTC technicals (%s) failed: %s", interval, _msg)
+        result = BTCTechnicals(interval=interval, error=_msg)
+        _set_cached(cache_key, result)  # cache errors too
+        return result
 
 
 def fetch_fear_greed() -> FearGreed | None:
