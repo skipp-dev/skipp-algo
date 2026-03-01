@@ -21,3 +21,4 @@ from terminal_tabs.tab_trending import render as render_trending  # noqa: F401
 from terminal_tabs.tab_social import render as render_social  # noqa: F401
 from terminal_tabs.tab_alerts import render as render_alerts  # noqa: F401
 from terminal_tabs.tab_data_table import render as render_data_table  # noqa: F401
+from terminal_tabs.tab_ai import render as render_ai  # noqa: F401

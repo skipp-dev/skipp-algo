@@ -720,6 +720,11 @@ with st.sidebar:
     else:
         st.caption("FMP: not configured (optional)")
 
+    if cfg.openai_api_key:
+        st.success("OpenAI: ✅ configured")
+    else:
+        st.caption("OpenAI: not configured (AI Insights disabled)")
+
     # Poll interval
     interval = st.slider(
         "Poll interval (seconds)",
@@ -1600,12 +1605,12 @@ else:
             st.error(f"⚠️ {label} tab failed to render.")
             logger.exception("Tab %s render error", label)
 
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table, tab_ai = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
          "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
          "🔮 Tomorrow Outlook", "💹 Movers", "₿ Bitcoin", "🛡️ Defense & Aerospace",
          "🔴 Breaking", "📈 Trending", "🔥 Social",
-         "⚡ Alerts", "📊 Data Table"],
+         "⚡ Alerts", "📊 Data Table", "🤖 AI Insights"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -1693,6 +1698,25 @@ else:
                     "**News importance score** (0–1) computed by the scoring engine based on "
                     "source tier, relevance, materiality, and sentiment strength.\n\n"
                     "Higher = more market-moving.\n\n"
+                    "**Colour coding** (colour = impact × direction)\n\n"
+                    "| Colour | Threshold | Meaning |\n"
+                    "|--------|-----------|---------|\n"
+                    "| 🟢 **green bold** | + score ≥ 0.80 | **High-impact bullish** — actionable. "
+                    "Triggers an A1→A0 upgrade and fires the alert webhook. |\n"
+                    "| 🔴 **red bold** | − score ≥ 0.80 | **High-impact bearish** — actionable. "
+                    "Scored strongly across source tier, relevance, materiality & sentiment. |\n"
+                    "| 🟡 yellow | + score ≥ 0.50 | **Moderate-impact bullish** — notable but below "
+                    "high-conviction threshold. |\n"
+                    "| 🟠 orange | − score ≥ 0.50 | **Moderate-impact bearish** — notable but below "
+                    "high-conviction threshold. |\n"
+                    "| plain | score < 0.50 | **Low-impact** — informational only, "
+                    "no alert action taken. |\n\n"
+                    "**Direction prefix**\n\n"
+                    "| Prefix | Meaning |\n"
+                    "|--------|---------|\n"
+                    "| **+** | Bullish impact |\n"
+                    "| **n** | Neutral impact |\n"
+                    "| **−** | Bearish impact |\n\n"
                     "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation of the article's market relevance."
                 )
         with _hdr_cols[4]:
@@ -1752,7 +1776,7 @@ else:
             url = d.get("url", "")
 
             age_str = format_age_string(d.get("published_ts"))
-            score_badge = format_score_badge(score)
+            score_badge = format_score_badge(score, d.get("sentiment_label", ""))
             prov_icon = provider_icon(_provider)
             _safe_url = safe_url(url)
             _wiim_badge = " 🔍" if d.get("is_wiim") else ""
@@ -4055,6 +4079,11 @@ else:
             )
         else:
             st.info("No data yet.")
+
+    # ── TAB: AI Insights ────────────────────────────────────────
+    with tab_ai:
+        from terminal_tabs.tab_ai import render as render_ai
+        _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
 
 
 # ── Auto-refresh trigger ───────────────────────────────────────

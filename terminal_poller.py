@@ -132,6 +132,10 @@ class TerminalConfig:
         default_factory=lambda: os.getenv("FMP_API_KEY", ""),
         repr=False,
     )
+    openai_api_key: str = field(
+        default_factory=lambda: os.getenv("OPENAI_API_KEY", ""),
+        repr=False,
+    )
     poll_interval_s: float = field(
         default_factory=lambda: _env_float("TERMINAL_POLL_INTERVAL_S", 5.0),
     )
