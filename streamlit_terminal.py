@@ -708,20 +708,33 @@ with st.sidebar:
 
     cfg: TerminalConfig = st.session_state.cfg
 
-    # API key status
-    if cfg.benzinga_api_key:
+    # API key status — re-read env vars directly so keys added after
+    # session start are detected without requiring a full server restart.
+    _bz_key = os.environ.get("BENZINGA_API_KEY", "") or cfg.benzinga_api_key
+    if _bz_key:
         st.success("News API: ✅ configured")
+        if not cfg.benzinga_api_key:
+            cfg.benzinga_api_key = _bz_key
     else:
         st.error("No BENZINGA_API_KEY found in .env")
         st.info("Set `BENZINGA_API_KEY=your_key` in `.env` and restart.")
 
-    if cfg.fmp_api_key:
+    _fmp_key = os.environ.get("FMP_API_KEY", "") or cfg.fmp_api_key
+    if _fmp_key:
         st.success("FMP: ✅ configured")
+        if not cfg.fmp_api_key:
+            cfg.fmp_api_key = _fmp_key
     else:
         st.caption("FMP: not configured (optional)")
 
-    if cfg.openai_api_key:
+    # Re-read env var directly — the cached TerminalConfig may have been
+    # created before the user added the key to .env.
+    _oai_key = os.environ.get("OPENAI_API_KEY", "") or cfg.openai_api_key
+    if _oai_key:
         st.success("OpenAI: ✅ configured")
+        # Patch live config so downstream code sees the key too
+        if not cfg.openai_api_key:
+            cfg.openai_api_key = _oai_key
     else:
         st.caption("OpenAI: not configured (AI Insights disabled)")
 
@@ -998,14 +1011,15 @@ with st.sidebar:
 
     st.divider()
 
-    # RT engine status
-    _rt_path = "artifacts/open_prep/latest/latest_vd_signals.jsonl"
+    # RT engine status — use absolute path so CWD doesn't matter
+    _rt_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
     _rt_quotes = load_rt_quotes(_rt_path)
     if _rt_quotes:
         st.success(f"RT Engine: {len(_rt_quotes)} symbols live")
     else:
         if os.path.isfile(_rt_path):
-            st.warning("RT Engine: file exists but stale (>120s)")
+            _rt_age = time.time() - os.path.getmtime(_rt_path)
+            st.warning(f"RT Engine: file exists but stale ({_rt_age:.0f}s old > 120s limit)")
         else:
             st.info("RT Engine: not running (terminal poller is independent)")
 
