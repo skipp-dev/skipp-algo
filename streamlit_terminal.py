@@ -1603,32 +1603,7 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 # ── Main display ────────────────────────────────────────────────
 
-st.markdown(
-    '<h1 id="main-heading" style="margin-bottom:0;cursor:pointer">'
-    '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported'
-    '</h1>',
-    unsafe_allow_html=True,
-)
-
-# Use st.components.v1.html() for JS injection — st.markdown strips <script> tags.
-# Clicking the heading activates the "🤖 AI Insights" tab (2nd tab, index 1).
-import streamlit.components.v1 as _components
-_components.html(
-    """<script>
-    (function() {
-        const doc = window.parent.document;
-        const heading = doc.getElementById('main-heading');
-        if (heading && !heading.dataset.bound) {
-            heading.dataset.bound = '1';
-            heading.addEventListener('click', function() {
-                const tabs = doc.querySelectorAll('button[data-baseweb="tab"]');
-                if (tabs.length > 1) { tabs[1].click(); }
-            });
-        }
-    })();
-    </script>""",
-    height=0,
-)
+st.title("📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported")
 
 if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
     st.warning("Set `BENZINGA_API_KEY` and/or `FMP_API_KEY` in `.env` to start polling.")
