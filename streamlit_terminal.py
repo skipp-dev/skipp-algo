@@ -1653,10 +1653,10 @@ else:
             st.error(f"⚠️ {label} tab failed to render.")
             logger.exception("Tab %s render error", label)
 
-    tab_feed, tab_ai, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_movers, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
+    tab_feed, tab_ai, tab_rank, tab_segments, tab_bitcoin, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_movers, tab_bz_movers, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🤖 AI Insights", "🏆 Rankings", "🏗️ Segments",
-         "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
-         "🔮 Outlook", "🔥 Top Movers", "💹 Movers", "₿ Bitcoin", "🛡️ Defense & Aerospace",
+         "₿ Bitcoin", "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
+         "🔮 Outlook", "🔥 Top Movers", "💹 Movers", "🛡️ Defense & Aerospace",
          "🔴 Breaking", "📈 Trending", "🔥 Social",
          "⚡ Alerts", "📊 Data Table"],
     )
