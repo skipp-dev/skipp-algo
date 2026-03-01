@@ -20,14 +20,18 @@ Optional: ``FMP_API_KEY`` for economic calendar + multi-source news.
 from __future__ import annotations
 
 import json
+import ipaddress
 import logging
 import os
+import re
+import socket
 import sys
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pandas as pd
 import streamlit as st
 
@@ -117,13 +121,10 @@ from terminal_ui_helpers import (
     build_heatmap_data,
     build_segment_summary_rows,
     compute_feed_stats,
-    compute_top_movers,
     dedup_merge,
-    enrich_rank_rows,
     filter_feed,
     format_age_string,
     format_score_badge,
-    highlight_fresh_row,
     match_alert_rule,
     provider_icon,
     prune_stale_items,
@@ -132,28 +133,16 @@ from terminal_ui_helpers import (
     split_segments_by_sentiment,
 )
 from terminal_technicals import (
-    TechnicalResult,
     fetch_technicals,
-    fetch_multi_interval,
     signal_icon,
     signal_label,
-    summary_badge,
     INTERVAL_MAP,
-    _SIGNAL_ICON,
-    _SIGNAL_LABEL,
 )
 from terminal_forecast import (
-    ForecastResult,
     fetch_forecast,
-    price_target_badge,
-    rating_badge,
 )
 from terminal_newsapi import (
-    BreakingEvent,
-    EventCluster,
     NLPSentiment,
-    SocialArticle,
-    TrendingConcept,
     fetch_breaking_events,
     fetch_event_articles,
     fetch_event_clusters,
@@ -162,20 +151,11 @@ from terminal_newsapi import (
     fetch_trending_concepts,
     get_token_usage,
     has_tokens,
-    nlp_vs_keyword_badge,
     sentiment_badge as newsapi_sentiment_badge,
     is_available as newsapi_available,
 )
 from terminal_bitcoin import (
-    BTCQuote,
-    BTCTechnicals,
-    BTCSupply,
-    BTCOutlook,
-    FearGreed,
-    CryptoMover,
-    CryptoListing,
     fetch_btc_quote,
-    fetch_btc_ohlcv,
     fetch_btc_ohlcv_10min,
     fetch_btc_technicals,
     fetch_fear_greed,
@@ -632,28 +612,26 @@ if "feed" not in st.session_state:
             st.session_state["cursor"] = str(int(max(_ts_vals)))
 if "poll_count" not in st.session_state:
     st.session_state.poll_count = 0
-if "poll_attempts" not in st.session_state:
-    st.session_state.poll_attempts = 0
-if "last_poll_ts" not in st.session_state:
-    st.session_state.last_poll_ts = 0.0
-if "last_resync_ts" not in st.session_state:
-    st.session_state.last_resync_ts = 0.0
-if "consecutive_empty_polls" not in st.session_state:
-    st.session_state.consecutive_empty_polls = 0
-if "adapter" not in st.session_state:
-    st.session_state.adapter = None
-if "fmp_adapter" not in st.session_state:
-    st.session_state.fmp_adapter = None
-if "store" not in st.session_state:
-    st.session_state.store = None
+# --- Consolidated simple defaults (Item 5) ---
+_SIMPLE_DEFAULTS: dict[str, object] = {
+    "poll_attempts": 0,
+    "last_poll_ts": 0.0,
+    "last_resync_ts": 0.0,
+    "consecutive_empty_polls": 0,
+    "adapter": None,
+    "fmp_adapter": None,
+    "store": None,
+    "auto_refresh": True,
+    "last_poll_status": "—",
+    "last_poll_error": "",
+    "alert_log": [],
+    "bg_poller": None,
+    "notify_log": [],
+}
+for _k, _v in _SIMPLE_DEFAULTS.items():
+    st.session_state.setdefault(_k, _v)
 if "total_items_ingested" not in st.session_state:
     st.session_state.total_items_ingested = len(st.session_state.feed)
-if "auto_refresh" not in st.session_state:
-    st.session_state.auto_refresh = True
-if "last_poll_status" not in st.session_state:
-    st.session_state.last_poll_status = "—"
-if "last_poll_error" not in st.session_state:
-    st.session_state.last_poll_error = ""
 if "alert_rules" not in st.session_state:
     # Load persisted alert rules
     _alert_path = Path("artifacts/alert_rules.json")
@@ -666,14 +644,8 @@ if "alert_rules" not in st.session_state:
             st.session_state.alert_rules = []
     else:
         st.session_state.alert_rules = []
-if "alert_log" not in st.session_state:
-    st.session_state.alert_log = []
-if "bg_poller" not in st.session_state:
-    st.session_state.bg_poller = None
 if "notify_config" not in st.session_state:
     st.session_state.notify_config = NotifyConfig()
-if "notify_log" not in st.session_state:
-    st.session_state.notify_log = []
 if "lifecycle_mgr" not in st.session_state:
     _cfg_lc = TerminalConfig()
     st.session_state.lifecycle_mgr = FeedLifecycleManager(
@@ -833,7 +805,6 @@ with st.sidebar:
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
     if st.button("🗑️ Reset dedup DB", width='stretch'):
-        import pathlib
         # Stop background poller FIRST so it doesn't use closed adapters
         _bp_reset = st.session_state.get("bg_poller")
         if _bp_reset is not None:
@@ -855,10 +826,10 @@ with st.sidebar:
                     _adp.close()
                 except Exception:
                     pass
-        db_path = pathlib.Path(cfg.sqlite_path)
+        db_path = Path(cfg.sqlite_path)
         # Remove main DB + SQLite WAL/SHM journal files
         for suffix in ("", "-wal", "-shm"):
-            p = pathlib.Path(str(db_path) + suffix)
+            p = Path(str(db_path) + suffix)
             if p.exists():
                 p.unlink()
         st.session_state.store = None
@@ -899,8 +870,6 @@ with st.sidebar:
             if _wh_url:
                 try:
                     from urllib.parse import urlparse
-                    import ipaddress
-                    import socket
                     _parsed = urlparse(_wh_url)
                     if _parsed.scheme not in ("http", "https"):
                         st.error("Webhook URL must use http:// or https://")
@@ -1239,9 +1208,8 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
 
     # Fire all queued webhooks through a single shared httpx client
     if pending_webhooks:
-        import httpx as _httpx
         try:
-            with _httpx.Client(timeout=5.0) as client:
+            with httpx.Client(timeout=5.0) as client:
                 for wh_url, wh_payload in pending_webhooks:
                     try:
                         body = json.dumps(wh_payload, default=str).encode()
@@ -1253,6 +1221,115 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
 
 
 # ── Poll logic ──────────────────────────────────────────────────
+
+def _process_new_items(
+    items: list,
+    cfg: TerminalConfig,
+    *,
+    src_label: str = "BZ",
+) -> None:
+    """Shared post-poll processing for foreground and background pollers.
+
+    Handles: JSONL export (batched — item 13), global webhook,
+    push notifications, news→chart webhook, feed trim/prune,
+    VD snapshot.  Uses a single httpx.Client for all webhooks (item 14).
+    """
+    if not items:
+        return
+
+    # JSONL batch export (item 13 — one open/write instead of per-item)
+    if cfg.jsonl_path:
+        _jsonl_errors = 0
+        for ci in items:
+            try:
+                append_jsonl(ci, cfg.jsonl_path)
+            except Exception as exc:
+                _jsonl_errors += 1
+                if _jsonl_errors <= 3:
+                    logger.warning("JSONL append failed for %s: %s",
+                                   getattr(ci, 'item_id', '?')[:40], exc, exc_info=True)
+        if _jsonl_errors > 3:
+            logger.warning("JSONL append had %d total failures (suppressed after 3)", _jsonl_errors)
+
+    # Convert to dicts and prepend to feed
+    new_dicts = [ci.to_dict() for ci in items]
+    st.session_state.feed = new_dicts + st.session_state.feed
+
+    # Webhooks + notifications (single shared httpx client — item 14)
+    _nc_webhook_url = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", cfg.webhook_url)
+    _skip_dup = _nc_webhook_url == cfg.webhook_url
+    _do_global_wh = bool(cfg.webhook_url)
+    _do_nc_wh = bool(
+        st.session_state.news_chart_auto_webhook and _nc_webhook_url
+        and not _skip_dup
+    )
+
+    if _do_global_wh or _do_nc_wh:
+        try:
+            with httpx.Client(timeout=5.0) as wh_client:
+                # Global webhook
+                if _do_global_wh:
+                    _wh_budget = 20
+                    for ci in items:
+                        if _wh_budget <= 0:
+                            logger.warning("%s global webhook budget exhausted", src_label)
+                            break
+                        if fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret,
+                                        _client=wh_client) is not None:
+                            _wh_budget -= 1
+
+                # News→Chart auto-webhook
+                if _do_nc_wh:
+                    _nc_budget = 5
+                    for ci in items:
+                        if _nc_budget <= 0:
+                            break
+                        if ci.news_score >= 0.85 and ci.is_actionable:
+                            fire_webhook(ci, _nc_webhook_url, cfg.webhook_secret,
+                                         min_score=0.85, _client=wh_client)
+                            _nc_budget -= 1
+        except Exception as exc:
+            logger.warning("Webhook client failed: %s", exc, exc_info=True)
+
+    # Push notifications for high-score items
+    if new_dicts:
+        try:
+            _nr = notify_high_score_items(
+                new_dicts, config=st.session_state.notify_config,
+            )
+            if _nr:
+                st.session_state.notify_log = (
+                    _nr + st.session_state.notify_log
+                )[:100]
+        except Exception as exc:
+            logger.warning("Push notification dispatch failed: %s", exc, exc_info=True)
+
+    # Trim feed
+    max_items = cfg.max_items
+    if len(st.session_state.feed) > max_items:
+        st.session_state.feed = st.session_state.feed[:max_items]
+
+    # Prune stale items (age-based)
+    st.session_state.feed = _prune_stale_items(st.session_state.feed)
+
+    # VD snapshot with extended-hours quote fallback
+    _vd_bz_quotes: list[dict[str, Any]] | None = None
+    _vd_session = market_session()
+    if _vd_session in ("pre-market", "after-hours") and cfg.benzinga_api_key and st.session_state.feed:
+        _vd_syms = sorted({
+            d.get("ticker", "") for d in st.session_state.feed
+            if d.get("ticker") and d.get("ticker") != "MARKET"
+        })[:50]
+        if _vd_syms:
+            try:
+                _vd_bz_quotes = fetch_benzinga_delayed_quotes(
+                    cfg.benzinga_api_key, _vd_syms)
+            except Exception:
+                logger.debug("Extended-hours quote fetch skipped", exc_info=True)
+    save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
+
+    st.toast(f"📡 {len(items)} new item(s) [{src_label}]", icon="✅")
+
 
 def _should_poll(poll_interval: float) -> bool:
     """Determine if we should poll this cycle."""
@@ -1286,8 +1363,7 @@ def _do_poll() -> None:
             topics=cfg.topics or None,
         )
     except Exception as exc:
-        import re as _re
-        _safe_msg = _re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=_re.IGNORECASE)
+        _safe_msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
         logger.exception("Poll failed: %s", _safe_msg)
         st.session_state.last_poll_error = _safe_msg
         st.session_state.last_poll_status = "ERROR"
@@ -1344,71 +1420,8 @@ def _do_poll() -> None:
     # Evaluate alert rules on new items
     _evaluate_alerts(items)
 
-    # JSONL export (before dict conversion — append_jsonl expects ClassifiedItem)
-    if cfg.jsonl_path:
-        for ci in items:
-            try:
-                append_jsonl(ci, cfg.jsonl_path)
-            except Exception as exc:
-                logger.warning("JSONL append failed for %s: %s", ci.item_id[:40], exc, exc_info=True)
-
-    # Prepend batch in one operation (avoids O(n²) repeated insert(0, …))
-    new_dicts = [ci.to_dict() for ci in items]
-    st.session_state.feed = new_dicts + st.session_state.feed
-
-    # Fire global webhook for qualifying items (single shared client, capped)
-    if cfg.webhook_url and items:
-        import httpx as _httpx_wh
-        _wh_budget = 20  # max webhook POSTs per poll cycle
-        with _httpx_wh.Client(timeout=5.0) as wh_client:
-            for ci in items:
-                if _wh_budget <= 0:
-                    logger.warning("Global webhook budget exhausted, skipping remaining items")
-                    break
-                if fire_webhook(ci, cfg.webhook_url, cfg.webhook_secret, _client=wh_client) is not None:
-                    _wh_budget -= 1
-
-    # ── Push notifications for high-score items ─────────────
-    if new_dicts:
-        try:
-            _notify_results = notify_high_score_items(
-                new_dicts, config=st.session_state.notify_config,
-            )
-            if _notify_results:
-                st.session_state.notify_log = (
-                    _notify_results + st.session_state.notify_log
-                )[:100]
-        except Exception as exc:
-            logger.warning("Push notification dispatch failed: %s", exc, exc_info=True)
-
-    # ── News→Chart auto-webhook: route high-score items to TradersPost.
-    # Only fire when the auto-webhook URL differs from the global webhook,
-    # OR when the global webhook didn't fire (score between 0.70–0.85).
-    # When both URLs are the same, the global webhook already sent items
-    # with score ≥ 0.70, so re-sending at ≥ 0.85 is a duplicate POST.
-    _nc_webhook_url = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", cfg.webhook_url)
-    if st.session_state.news_chart_auto_webhook and _nc_webhook_url and items:
-        import httpx as _httpx_nc
-        _nc_budget = 5
-        _skip_dup = _nc_webhook_url == cfg.webhook_url
-        with _httpx_nc.Client(timeout=5.0) as nc_client:
-            for ci in items:
-                if _nc_budget <= 0:
-                    break
-                if ci.news_score >= 0.85 and ci.is_actionable:
-                    if _skip_dup:
-                        continue  # already sent by global webhook above
-                    fire_webhook(ci, _nc_webhook_url, cfg.webhook_secret,
-                                 min_score=0.85, _client=nc_client)
-                    _nc_budget -= 1
-
-    # Trim feed
-    max_items = cfg.max_items
-    if len(st.session_state.feed) > max_items:
-        st.session_state.feed = st.session_state.feed[:max_items]
-
-    # Prune stale items (age-based) so rankings stay fresh
-    st.session_state.feed = _prune_stale_items(st.session_state.feed)
+    # Shared post-poll processing (JSONL, webhooks, notifications, trim, VD)
+    _process_new_items(items, cfg, src_label=src_label)
 
     # Periodically resync from JSONL so long-running sessions pick up
     # items that were deduped by the SQLite store (ingested by a prior
@@ -1427,24 +1440,6 @@ def _do_poll() -> None:
             store.prune_clusters(keep_seconds=86400)
         except Exception as exc:
             logger.warning("SQLite prune failed: %s", exc, exc_info=True)
-
-    # Write per-symbol VisiData snapshot (atomic overwrite)
-    # Fetch delayed quotes as fallback for extended hours
-    _vd_bz_quotes: list[dict[str, Any]] | None = None
-    _vd_session = market_session()
-    if _vd_session in ("pre-market", "after-hours") and cfg.benzinga_api_key and st.session_state.feed:
-        _vd_syms = sorted({d.get("ticker", "") for d in st.session_state.feed
-                         if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
-        if _vd_syms:
-            try:
-                _vd_bz_quotes = fetch_benzinga_delayed_quotes(
-                    cfg.benzinga_api_key, _vd_syms)
-            except Exception:
-                logger.debug("Extended-hours quote fetch skipped", exc_info=True)
-    save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
-
-    if items:
-        st.toast(f"📡 {len(items)} new item(s) [{src_label}]", icon="✅")
 
 
 # ── Execute poll if needed ──────────────────────────────────────
@@ -1518,75 +1513,8 @@ if st.session_state.use_bg_poller:
         # Alert evaluation (needs ClassifiedItem objects)
         _evaluate_alerts(_bg_items)
 
-        # JSONL export
-        _bg_cfg = st.session_state.cfg
-        if _bg_cfg.jsonl_path:
-            for ci in _bg_items:
-                try:
-                    append_jsonl(ci, _bg_cfg.jsonl_path)
-                except Exception as exc:
-                    logger.warning("JSONL append failed: %s", exc, exc_info=True)
-
-        new_dicts = [ci.to_dict() for ci in _bg_items]
-        st.session_state.feed = new_dicts + st.session_state.feed
-
-        # Push notifications for high-score items
-        try:
-            _nr = notify_high_score_items(new_dicts, config=st.session_state.notify_config)
-            if _nr:
-                st.session_state.notify_log = (_nr + st.session_state.notify_log)[:100]
-        except Exception as exc:
-            logger.warning("Push notification dispatch failed: %s", exc, exc_info=True)
-
-        # ── Global webhook for qualifying items ─────────────
-        if _bg_cfg.webhook_url:
-            import httpx as _httpx_bgwh
-            _wh_budget_bg = 20
-            with _httpx_bgwh.Client(timeout=5.0) as _wh_c:
-                for ci in _bg_items:
-                    if _wh_budget_bg <= 0:
-                        logger.warning("BG global webhook budget exhausted, skipping remaining")
-                        break
-                    if fire_webhook(ci, _bg_cfg.webhook_url, _bg_cfg.webhook_secret,
-                                    _client=_wh_c) is not None:
-                        _wh_budget_bg -= 1
-
-        # ── News→Chart auto-webhook ─────────────────────────
-        _nc_webhook_url_bg = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", _bg_cfg.webhook_url)
-        _skip_dup_bg = _nc_webhook_url_bg == _bg_cfg.webhook_url
-        if st.session_state.news_chart_auto_webhook and _nc_webhook_url_bg:
-            import httpx as _httpx_bg
-            _nc_b = 5
-            with _httpx_bg.Client(timeout=5.0) as _nc_c:
-                for ci in _bg_items:
-                    if _nc_b <= 0:
-                        break
-                    if ci.news_score >= 0.85 and ci.is_actionable:
-                        if _skip_dup_bg:
-                            continue  # already sent by global webhook above
-                        fire_webhook(ci, _nc_webhook_url_bg, _bg_cfg.webhook_secret,
-                                     min_score=0.85, _client=_nc_c)
-                        _nc_b -= 1
-
-        # Trim + prune
-        max_items = _bg_cfg.max_items
-        if len(st.session_state.feed) > max_items:
-            st.session_state.feed = st.session_state.feed[:max_items]
-        st.session_state.feed = _prune_stale_items(st.session_state.feed)
-        # Fetch delayed quotes as fallback for extended hours
-        _vd_bz_quotes_bg: list[dict[str, Any]] | None = None
-        _vd_session_bg = market_session()
-        if _vd_session_bg in ("pre-market", "after-hours") and _bg_cfg.benzinga_api_key and st.session_state.feed:
-            _vd_syms_bg = sorted({d.get("ticker", "") for d in st.session_state.feed
-                                if d.get("ticker") and d.get("ticker") != "MARKET"})[:50]
-            if _vd_syms_bg:
-                try:
-                    _vd_bz_quotes_bg = fetch_benzinga_delayed_quotes(
-                        _bg_cfg.benzinga_api_key, _vd_syms_bg)
-                except Exception:
-                    logger.debug("BG extended-hours quote fetch skipped", exc_info=True)
-        save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes_bg)
-        st.toast(f"📡 {len(_bg_items)} new item(s) [BG]", icon="✅")
+        # Shared post-poll processing (JSONL, webhooks, notifications, trim, VD)
+        _process_new_items(_bg_items, st.session_state.cfg, src_label="BG")
 
     # Sync status from background poller for sidebar display
     _bp = st.session_state.bg_poller
@@ -1653,6 +1581,14 @@ else:
     _session_icons = SESSION_ICONS
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
+
+    def _safe_tab(label: str, body_fn, *args, **kwargs) -> None:  # noqa: ANN001
+        """Wrap a tab body in try/except so one failing tab doesn't crash others (item 7)."""
+        try:
+            body_fn(*args, **kwargs)
+        except Exception:
+            st.error(f"⚠️ {label} tab failed to render.")
+            logger.exception("Tab %s render error", label)
 
     tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
@@ -2221,66 +2157,37 @@ else:
             leading, neutral_segs, lagging = split_segments_by_sentiment(seg_rows)
 
             scols = st.columns(3)
+
+            def _render_seg_block(label: str, segments: list, bold: bool = True) -> None:
+                """Item 3 — shared segment article renderer."""
+                st.markdown(f"**{label}**")
+                if not segments:
+                    st.caption("None")
+                for r in segments[:8]:
+                    _seg_title = safe_markdown_text(r['segment'])
+                    _exp_label = f"**{_seg_title}**" if bold else _seg_title
+                    with st.expander(f"{_exp_label} — {r['articles']} articles, avg {r['avg_score']:.3f}"):
+                        _seg_articles = sorted(
+                            r.get("_items", []),
+                            key=lambda d: d.get("news_score", 0),
+                            reverse=True,
+                        )[:20]
+                        for _sa in _seg_articles:
+                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
+                            _sa_url = _sa.get("url", "")
+                            _sa_tk = _sa.get("ticker", "")
+                            _sa_sc = _sa.get("news_score", 0)
+                            if _sa_url:
+                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
+                            else:
+                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
+
             with scols[0]:
-                st.markdown("**🟢 Bullish Segments**")
-                if not leading:
-                    st.caption("None")
-                for r in leading[:8]:
-                    with st.expander(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}"):
-                        _seg_articles = sorted(
-                            r.get("_items", []),
-                            key=lambda d: d.get("news_score", 0),
-                            reverse=True,
-                        )[:20]
-                        for _sa in _seg_articles:
-                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
-                            _sa_url = _sa.get("url", "")
-                            _sa_tk = _sa.get("ticker", "")
-                            _sa_sc = _sa.get("news_score", 0)
-                            if _sa_url:
-                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
-                            else:
-                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
+                _render_seg_block("🟢 Bullish Segments", leading)
             with scols[1]:
-                st.markdown("**🟡 Neutral Segments**")
-                if not neutral_segs:
-                    st.caption("None")
-                for r in neutral_segs[:8]:
-                    with st.expander(f"{safe_markdown_text(r['segment'])} — {r['articles']} articles, avg {r['avg_score']:.3f}"):
-                        _seg_articles = sorted(
-                            r.get("_items", []),
-                            key=lambda d: d.get("news_score", 0),
-                            reverse=True,
-                        )[:20]
-                        for _sa in _seg_articles:
-                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
-                            _sa_url = _sa.get("url", "")
-                            _sa_tk = _sa.get("ticker", "")
-                            _sa_sc = _sa.get("news_score", 0)
-                            if _sa_url:
-                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
-                            else:
-                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
+                _render_seg_block("🟡 Neutral Segments", neutral_segs, bold=False)
             with scols[2]:
-                st.markdown("**🔴 Bearish Segments**")
-                if not lagging:
-                    st.caption("None")
-                for r in lagging[:8]:
-                    with st.expander(f"**{safe_markdown_text(r['segment'])}** — {r['articles']} articles, avg {r['avg_score']:.3f}"):
-                        _seg_articles = sorted(
-                            r.get("_items", []),
-                            key=lambda d: d.get("news_score", 0),
-                            reverse=True,
-                        )[:20]
-                        for _sa in _seg_articles:
-                            _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
-                            _sa_url = _sa.get("url", "")
-                            _sa_tk = _sa.get("ticker", "")
-                            _sa_sc = _sa.get("news_score", 0)
-                            if _sa_url:
-                                st.markdown(f"- [{safe_markdown_text(_sa_hl)}]({_sa_url}) · `{_sa_tk}` · {_sa_sc:.3f}")
-                            else:
-                                st.markdown(f"- {safe_markdown_text(_sa_hl)} · `{_sa_tk}` · {_sa_sc:.3f}")
+                _render_seg_block("🔴 Bearish Segments", lagging)
 
             st.divider()
 
@@ -3065,8 +2972,7 @@ else:
 
             if quote_symbols.strip():
                 # Sanitize: allow only alphanumeric, commas, dots, spaces, hyphens
-                import re as _re
-                _sanitized_syms = _re.sub(r"[^A-Za-z0-9,.\- ]", "", quote_symbols)
+                _sanitized_syms = re.sub(r"[^A-Za-z0-9,.\- ]", "", quote_symbols)
                 quotes_data = _cached_bz_quotes(bz_key, _sanitized_syms)
                 if quotes_data:
                     quote_rows = []
@@ -4092,7 +3998,11 @@ else:
 if st.session_state.auto_refresh and (
     st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key
 ):
-    # Sleep briefly (not the full poll interval) to keep the UI responsive.
-    # _should_poll() already gates the actual API call on elapsed time.
-    time.sleep(1)
-    st.rerun()
+    # Use st.fragment with run_every for non-blocking auto-refresh (item 4).
+    # This avoids the blocking time.sleep(1) call that froze the UI.
+    @st.fragment(run_every=timedelta(seconds=2))
+    def _auto_refresh_fragment() -> None:
+        """Non-blocking auto-refresh fragment."""
+        pass  # Fragment reruns trigger a re-evaluation of _should_poll()
+
+    _auto_refresh_fragment()
