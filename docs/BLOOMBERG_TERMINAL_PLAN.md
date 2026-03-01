@@ -1,8 +1,8 @@
-# Bloomberg Terminal — Architecture & Implementation
+# News Intelligence Dashboard — Architecture & Implementation
 
 ## Summary
 
-Real-time news terminal powered by **Benzinga REST polling** + **FMP market data** +
+Real-time news intelligence dashboard powered by **Benzinga REST polling** + **FMP market data** +
 existing open\_prep intelligence classifiers.  Runs as a standalone Streamlit app
 (`streamlit_terminal.py`), separate from the batch-oriented `streamlit_monitor.py`.
 
@@ -266,7 +266,7 @@ tests/test_benzinga_news_endpoints.py  ← Top news, channels, quantified news t
 tests/test_benzinga_financial.py       ← Financial data adapter tests (44 tests)
 tests/test_benzinga_calendar_extended.py ← Extended calendar tests (dividends, splits, IPOs, guidance, retail — 17 tests)
 tests/test_vd_bz_enrichment.py        ← VisiData Benzinga enrichment tests (24 tests)
-docs/BLOOMBERG_TERMINAL_PLAN.md        ← This document
+docs/BLOOMBERG_TERMINAL_PLAN.md        ← This document (legacy filename)
 ```
 
 ---

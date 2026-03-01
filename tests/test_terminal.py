@@ -1,4 +1,4 @@
-"""Unit tests for the Bloomberg Terminal components.
+"""Unit tests for the News Intelligence Dashboard components.
 
 Tests terminal_poller (poll_and_classify, _classify_item, ClassifiedItem),
 terminal_export (append_jsonl, rotate_jsonl, fire_webhook), and the

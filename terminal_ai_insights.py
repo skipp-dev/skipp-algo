@@ -141,8 +141,8 @@ def assemble_context(
 # ---------------------------------------------------------------------------
 
 _SYSTEM_PROMPT = """\
-You are a senior financial analyst assistant integrated into a Bloomberg-style
-news terminal.  You have access to a real-time feed of classified news articles
+You are a senior financial analyst assistant integrated into a real-time
+news intelligence dashboard.  You have access to a live feed of classified news articles
 with sentiment scores, ticker mentions, sector segments, and (when available)
 technical indicators and macro data.
 

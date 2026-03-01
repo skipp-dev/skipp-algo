@@ -1,4 +1,4 @@
-"""Export utilities for the Bloomberg Terminal.
+"""Export utilities for the News Intelligence Dashboard.
 
 - **JSONL writer**: appends one JSON object per line for VisiData tailing.
 - **VisiData snapshot**: per-symbol ranked JSONL (atomic overwrite, one row per ticker).

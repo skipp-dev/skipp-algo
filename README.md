@@ -1,11 +1,11 @@
 # SkippALGO
 
-**Pine Script v6 Signal Engine · Bloomberg-Style Streamlit Terminal · Pre-Open Briefing Pipeline**
+**Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Open Briefing Pipeline**
 
 SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with multi-timeframe Outlook/Forecast dashboard for TradingView.
-2. **Streamlit News Terminal** — a Bloomberg-style **Research & Monitoring Terminal** with 18 tabs for **News Intelligence + Alerting** and operational market monitoring.
+2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 18 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 ## Product Positioning & Compliance Notes
@@ -25,7 +25,7 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 ## Table of Contents
 
-- [Streamlit News Terminal](#streamlit-news-terminal)
+- [Real-Time News Intelligence Dashboard](#real-time-news-intelligence-dashboard)
 - [Open-Prep Pipeline](#open-prep-pipeline)
 - [SkippALGO Pine Script](#skippalgo-pine-script)
 - [Developer Guide](#developer-guide)
@@ -33,9 +33,9 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 ---
 
-## Streamlit News Terminal
+## Real-Time News Intelligence Dashboard
 
-A self-hosted, real-time financial intelligence dashboard built with Streamlit. It serves as a **Research & Monitoring Terminal** for **News Intelligence + Alerting** and **Workflow/Decision Support**. It aggregates news, market data, sentiment, and technical analysis from multiple providers into a single unified interface — inspired by Bloomberg Terminal workflows.
+A self-hosted, AI-supported financial intelligence dashboard built with Streamlit. It serves as a **Research & Monitoring Terminal** for **News Intelligence + Alerting** and **Workflow/Decision Support**. It aggregates news, market data, sentiment, and technical analysis from multiple providers into a single unified interface.
 
 ### Architecture
 
@@ -411,7 +411,7 @@ Configuration is centralized in `pyproject.toml`.
 
 ```
 skipp-algo/
-├── streamlit_terminal.py          # Main Bloomberg-style terminal (18 tabs)
+├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (18 tabs)
 ├── terminal_poller.py             # Polling engine (news + FMP + classification)
 ├── terminal_bitcoin.py            # Bitcoin data (10 sources)
 ├── terminal_newsapi.py            # NewsAPI.ai integration
@@ -472,7 +472,7 @@ skipp-algo/
 
 ### Terminal & Operations
 
-- [Bloomberg Terminal Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
+- [Terminal Architecture Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
 - [Open Prep Suite — Technical Reference](docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
 - [Open Prep Suite — Ops Quick Reference](docs/OPEN_PREP_OPS_QUICK_REFERENCE.md)
 - [Open Prep Suite — Incident Runbook Matrix](docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md)

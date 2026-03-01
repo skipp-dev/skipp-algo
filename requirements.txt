@@ -1,4 +1,4 @@
-# Streamlit News Terminal – deployment dependencies
+# Real-Time News Intelligence Dashboard – deployment dependencies
 streamlit>=1.54.0
 httpx>=0.28.0
 pandas>=2.0.0

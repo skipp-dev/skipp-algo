@@ -1,4 +1,4 @@
-"""Polling engine for the Bloomberg Terminal.
+"""Polling engine for the Real-Time News Intelligence Dashboard.
 
 Wraps news REST adapter + optional FMP adapter + open_prep
 classifiers into a single ``poll_and_classify()`` call that fetches new
@@ -1027,7 +1027,7 @@ def compute_tomorrow_outlook(
 ) -> dict[str, Any]:
     """Compute a next-trading-day outlook signal (🟢 / 🟡 / 🔴).
 
-    This is a standalone version for the Bloomberg Terminal that uses
+    This is a standalone version for the News Intelligence Dashboard that uses
     live Benzinga + FMP data rather than the open_prep pipeline result.
 
     Factors

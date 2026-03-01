@@ -10,9 +10,17 @@ All notable changes to this project are documented in this file.
 
 - **Streamlit Cloud inotify crash:** Added `fileWatcherType = "none"` to `.streamlit/config.toml` to prevent `OSError: [Errno 24] inotify instance limit reached` on shared Linux hosts. Streamlit's default `watchdog`-based file watcher exhausted the low inotify limit, cascading to EMFILE errors on all network connections (Benzinga, FMP).
 - **EMFILE resilience in `load_jsonl_feed`:** Catch `OSError` during JSONL file read so the app degrades gracefully (returns partial data) instead of crashing if file descriptors are exhausted.
+- **Sidebar API key detection:** Re-reads `os.environ` directly instead of stale cached `TerminalConfig`, so keys added to `.env` after session start are detected.
+- **Streamlit Cloud secrets bridge:** Added `_load_streamlit_secrets()` to both `streamlit_terminal.py` and `open_prep/streamlit_monitor.py` — copies `st.secrets` into `os.environ` for Cloud deployments where `.env` is gitignored.
+- **RT Engine path resolution:** VD signals JSONL path now resolved as absolute (`PROJECT_ROOT`-relative) so CWD doesn't matter.
 
 ### Changed (2026-03-02)
 
+- **Rebranding: "Real-Time News Intelligence Dashboard — AI supported":**
+  - Replaced all "Bloomberg-style" / "News Terminal" branding references across README, docstrings, LLM system prompt, changelog, requirements.txt, and docs/BLOOMBERG_TERMINAL_PLAN.md.
+  - Page title and main heading in `streamlit_terminal.py` updated.
+  - Added AI Insights anchor link directly below the main heading.
+  - Kept factual references to Bloomberg as a news source (source tier classification in playbook.py, FMP endpoint docs) — only product branding was neutralized.
 - **Documentation refresh (README):**
   - Updated tab count from 17 → 18 (AI Insights tab added).
   - Updated module count from 14 → 16 (added `terminal_ai_insights.py` and `terminal_tabs/`).
@@ -36,7 +44,7 @@ All notable changes to this project are documented in this file.
 
 ### Changed (2026-02-28)
 
-- **README.md rewritten:** Comprehensive GitHub-ready documentation covering Streamlit News Terminal (17-tab architecture, module map, data sources, configuration, background poller, notifications, export), Open-Prep Pipeline (Streamlit monitor, macro explainability), Pine Script (Outlook/Forecast, signal modes, key features), and Developer Guide (tests, linting, project structure, documentation index).
+- **README.md rewritten:** Comprehensive GitHub-ready documentation covering Real-Time News Intelligence Dashboard (17-tab architecture, module map, data sources, configuration, background poller, notifications, export), Open-Prep Pipeline (Streamlit monitor, macro explainability), Pine Script (Outlook/Forecast, signal modes, key features), and Developer Guide (tests, linting, project structure, documentation index).
 
 ### Removed (2026-02-28)
 
@@ -219,7 +227,7 @@ All notable changes to this project are documented in this file.
     - `Volume SMA Length`
   - Integrated `barCloseGate` + `volGate` into signal generation and visualization flow.
 
-- **Bloomberg-style terminal integration (workspace):**
+- **News Intelligence Dashboard integration (workspace):**
   - Added terminal pipeline/runtime modules:
     - `terminal_poller.py`
     - `terminal_export.py`
