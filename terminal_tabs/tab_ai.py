@@ -37,14 +37,22 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     st.caption(f"Feed: {len(feed)} articles · Session: {current_session}")
 
+    # Persist AI workflow state across Streamlit reruns so results do not
+    # disappear when auto-refresh triggers a rerender.
+    st.session_state.setdefault("ai_selected_question", "")
+    st.session_state.setdefault("ai_run_requested", False)
+    st.session_state.setdefault("ai_last_result", None)
+    st.session_state.setdefault("ai_last_context_json", "")
+    st.session_state.setdefault("ai_pause_auto_refresh", False)
+
     # --- Preset question buttons ---
     st.markdown("##### Quick Analysis")
     cols = st.columns(3)
-    preset_clicked: str | None = None
     for i, (label, question) in enumerate(PRESET_QUESTIONS):
         col = cols[i % 3]
         if col.button(label, key=f"ai_preset_{i}", use_container_width=True):
-            preset_clicked = question
+            st.session_state["ai_selected_question"] = question
+            st.session_state["ai_run_requested"] = True
 
     # --- Custom question input ---
     st.markdown("##### Ask a Custom Question")
@@ -54,34 +62,99 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         key="ai_custom_question",
     )
 
-    # Determine which question to run
-    question = preset_clicked or custom_q
-    if not question:
-        st.caption("Click a preset or type a question above to get AI analysis.")
+    _qa_c1, _qa_c2, _qa_c3 = st.columns([1, 1, 2])
+    with _qa_c1:
+        if st.button("▶️ Generate", key="ai_generate", use_container_width=True):
+            _q = (custom_q or "").strip()
+            if _q:
+                st.session_state["ai_selected_question"] = _q
+                st.session_state["ai_run_requested"] = True
+            else:
+                st.warning("Please enter a question first.")
+    with _qa_c2:
+        if st.button("🔁 Regenerate", key="ai_regenerate", use_container_width=True):
+            _q = (st.session_state.get("ai_selected_question") or "").strip()
+            if _q:
+                st.session_state["ai_run_requested"] = True
+            else:
+                st.warning("No previous question available yet.")
+    with _qa_c3:
+        st.session_state.ai_pause_auto_refresh = st.toggle(
+            "Pause auto-refresh while reviewing AI result",
+            value=bool(st.session_state.get("ai_pause_auto_refresh", False)),
+            key="ai_pause_auto_refresh_toggle",
+            help=(
+                "Prevents automatic page jumps while you read AI output. "
+                "Background polling can continue; UI reruns are paused."
+            ),
+        )
+
+    if st.button("🧹 Clear AI result", key="ai_clear_result"):
+        st.session_state["ai_last_result"] = None
+        st.session_state["ai_last_context_json"] = ""
+        st.session_state["ai_selected_question"] = ""
+        st.session_state["ai_run_requested"] = False
+
+    # Determine run state
+    question = str(st.session_state.get("ai_selected_question") or "").strip()
+    run_requested = bool(st.session_state.get("ai_run_requested", False))
+
+    # Run the LLM query only when explicitly requested. This prevents
+    # repeated calls on every auto-refresh rerun.
+    if run_requested and question:
+        # --- Assemble context ---
+        # Gather optional technicals and macro from session state
+        technicals = st.session_state.get("_cached_technicals")
+        macro = st.session_state.get("_cached_macro")
+
+        with st.spinner("Assembling context and querying AI…"):
+            context_json = assemble_context(
+                feed,
+                technicals=technicals,
+                macro=macro,
+                max_articles=40,
+            )
+            result: LLMResponse = query_llm(
+                question=question,
+                context_json=context_json,
+                api_key=api_key,
+            )
+
+        st.session_state["ai_last_result"] = {
+            "answer": result.answer,
+            "model": result.model,
+            "cached": result.cached,
+            "context_articles": result.context_articles,
+            "context_tickers": result.context_tickers,
+            "error": result.error,
+            "question": question,
+        }
+        st.session_state["ai_last_context_json"] = context_json
+        st.session_state["ai_run_requested"] = False
+
+    # --- Display last persisted result ---
+    last_result = st.session_state.get("ai_last_result")
+    if not last_result:
+        st.caption("Click a preset or enter a question and press Generate.")
         return
 
-    # --- Assemble context ---
-    # Gather optional technicals and macro from session state
-    technicals = st.session_state.get("_cached_technicals")
-    macro = st.session_state.get("_cached_macro")
+    _last_question = safe_markdown_text(str(last_result.get("question") or ""))
+    if _last_question:
+        st.markdown(f"**Question:** {_last_question}")
 
-    with st.spinner("Assembling context and querying AI…"):
-        context_json = assemble_context(
-            feed,
-            technicals=technicals,
-            macro=macro,
-            max_articles=40,
-        )
-        result: LLMResponse = query_llm(
-            question=question,
-            context_json=context_json,
-            api_key=api_key,
-        )
-
-    # --- Display result ---
-    if result.error:
-        st.error(f"⚠️ {safe_markdown_text(result.error)}")
+    if last_result.get("error"):
+        st.error(f"⚠️ {safe_markdown_text(str(last_result.get('error') or 'Unknown AI error'))}")
         return
+
+    result = LLMResponse(
+        answer=str(last_result.get("answer") or ""),
+        model=str(last_result.get("model") or ""),
+        cached=bool(last_result.get("cached", False)),
+        context_articles=int(last_result.get("context_articles", 0)),
+        context_tickers=int(last_result.get("context_tickers", 0)),
+        error="",
+    )
+    context_json = str(st.session_state.get("ai_last_context_json") or "")
 
     # Response metadata
     meta_parts = [f"Model: `{result.model}`"]

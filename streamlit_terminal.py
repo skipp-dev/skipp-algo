@@ -4388,6 +4388,9 @@ if st.session_state.auto_refresh and (
         code in the main script never re-executes and the sidebar
         shows stale "Polls: 0 / Last poll: —" indefinitely.
         """
+        if st.session_state.get("ai_pause_auto_refresh", False):
+            return
+
         _bp_frag = st.session_state.get("bg_poller")
         if _bp_frag is not None:
             # BG mode: rerun when poller completed a poll (success or failure)
