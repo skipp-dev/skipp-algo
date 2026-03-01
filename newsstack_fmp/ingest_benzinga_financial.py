@@ -97,6 +97,9 @@ class BenzingaFinancialAdapter:
         if params:
             p.update(params)
         r = _request_with_retry(self.client, url, p)
+        if r.status_code != 200:
+            logger.warning("Benzinga financial HTTP %d", r.status_code)
+            return []
         try:
             return r.json()
         except Exception:

@@ -115,6 +115,10 @@ class BenzingaCalendarAdapter:
 
         r = _request_with_retry(self.client, url, params)
 
+        if r.status_code != 200:
+            logger.warning("Benzinga calendar/%s HTTP %d", endpoint, r.status_code)
+            return []
+
         try:
             data = r.json()
         except Exception:

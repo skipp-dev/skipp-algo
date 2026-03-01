@@ -2332,14 +2332,16 @@ class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
         self.assertEqual(result, [])
 
     def test_unrelated_error_still_propagates(self):
+        """After _handle_fmp_error refactor, all RuntimeErrors are handled
+        gracefully (fail-open) — the method returns [] instead of raising."""
         from open_prep.macro import FMPClient
         client = FMPClient(api_key="test")
         with patch.object(
             FMPClient, "_get",
             side_effect=RuntimeError("FMP API network error on /stable/eod-bulk: timeout"),
         ):
-            with self.assertRaises(RuntimeError):
-                client.get_eod_bulk(date(2026, 2, 25))
+            result = client.get_eod_bulk(date(2026, 2, 25))
+            self.assertEqual(result, [])
 
 
 class TestCapabilityProbeEodBulkDatatype(unittest.TestCase):

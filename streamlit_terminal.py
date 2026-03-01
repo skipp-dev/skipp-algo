@@ -1037,42 +1037,68 @@ _RECENCY_COLORS = RECENCY_COLORS
 
 
 # ── Cached FMP wrappers (avoid re-fetching every Streamlit rerun) ──
+# NOTE: Each wrapper catches exceptions so Streamlit never caches a raised
+# exception for the full TTL — callers always get a safe fallback.
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
     """Cache sector performance for 60 seconds."""
-    return fetch_sector_performance(api_key)
+    try:
+        return fetch_sector_performance(api_key)
+    except Exception:
+        logger.debug("_cached_sector_perf failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
     """Cache ticker→GICS sector mapping for 5 minutes."""
-    tickers = [t.strip() for t in tickers_csv.split(",") if t.strip()]
-    return fetch_ticker_sectors(api_key, tickers)
+    try:
+        tickers = [t.strip() for t in tickers_csv.split(",") if t.strip()]
+        return fetch_ticker_sectors(api_key, tickers)
+    except Exception:
+        logger.debug("_cached_ticker_sectors failed", exc_info=True)
+        return {}
 
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
     """Cache Aerospace & Defense watchlist quotes for 2 minutes."""
-    return fetch_defense_watchlist(api_key)
+    try:
+        return fetch_defense_watchlist(api_key)
+    except Exception:
+        logger.debug("_cached_defense_watchlist failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _cached_defense_watchlist_custom(api_key: str, tickers: str) -> list[dict[str, Any]]:
     """Cache custom Aerospace & Defense watchlist quotes for 2 minutes."""
-    return fetch_defense_watchlist(api_key, tickers=tickers)
+    try:
+        return fetch_defense_watchlist(api_key, tickers=tickers)
+    except Exception:
+        logger.debug("_cached_defense_watchlist_custom failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_industry_performance(api_key: str, industry: str = "Aerospace & Defense") -> list[dict[str, Any]]:
     """Cache industry screen results for 5 minutes."""
-    return fetch_industry_performance(api_key, industry=industry)
+    try:
+        return fetch_industry_performance(api_key, industry=industry)
+    except Exception:
+        logger.debug("_cached_industry_performance failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def _cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
     """Cache economic calendar for 5 minutes."""
-    return fetch_economic_calendar(api_key, from_date, to_date)
+    try:
+        return fetch_economic_calendar(api_key, from_date, to_date)
+    except Exception:
+        logger.debug("_cached_econ_calendar failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=30, show_spinner=False)
@@ -1083,10 +1109,14 @@ def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
     price/change data.  We backfill volume & market-cap from
     ``/stable/batch-quote`` so the Spike Scanner table is complete.
     """
-    gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
-    losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
-    actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
-    return {"gainers": gainers, "losers": losers, "actives": actives}
+    try:
+        gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
+        losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
+        actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
+        return {"gainers": gainers, "losers": losers, "actives": actives}
+    except Exception:
+        logger.debug("_cached_spike_data failed", exc_info=True)
+        return {"gainers": [], "losers": [], "actives": []}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1098,7 +1128,11 @@ def _cached_tomorrow_outlook(
     *_cache_buster* is unused but forces a new cache entry when the date
     changes (caller passes today's ISO date).
     """
-    return compute_tomorrow_outlook(bz_key, fmp_key)
+    try:
+        return compute_tomorrow_outlook(bz_key, fmp_key)
+    except Exception:
+        logger.debug("_cached_tomorrow_outlook failed", exc_info=True)
+        return {}
 
 
 def _safe_float_mov(val: Any, default: float = 0.0) -> float:
@@ -1116,14 +1150,22 @@ def _safe_float_mov(val: Any, default: float = 0.0) -> float:
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_bz_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     """Cache market movers for 60 seconds."""
-    return fetch_benzinga_market_movers(api_key)
+    try:
+        return fetch_benzinga_market_movers(api_key)
+    except Exception:
+        logger.debug("_cached_bz_movers failed", exc_info=True)
+        return {}
 
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
     """Cache delayed quotes for 60 seconds."""
-    syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
-    return fetch_benzinga_delayed_quotes(api_key, syms)
+    try:
+        syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
+        return fetch_benzinga_delayed_quotes(api_key, syms)
+    except Exception:
+        logger.debug("_cached_bz_quotes failed", exc_info=True)
+        return []
 
 
 

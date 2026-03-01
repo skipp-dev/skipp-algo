@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import csv
+import functools
 import io
 import json
 import logging
 import os
+import random
 import re
 import ssl
 import threading
@@ -12,7 +14,7 @@ import time
 import urllib.error
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any
+from typing import Any, TypeVar
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -21,6 +23,42 @@ import certifi
 logger = logging.getLogger("open_prep.macro")
 
 _APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+
+_T = TypeVar("_T")
+
+
+def _handle_fmp_error(exc: RuntimeError, context: str, default: _T = None) -> _T:  # type: ignore[assignment]
+    """Handle a RuntimeError from FMP API calls with sanitized logging."""
+    msg = _APIKEY_RE.sub(r"\1=***", str(exc))
+    if "429" in msg or "403" in msg:
+        logger.warning("FMP rate-limited/forbidden for %s: %s", context, msg, exc_info=True)
+    else:
+        logger.warning("FMP fetch failed for %s: %s", context, msg, exc_info=True)
+    return default if default is not None else []  # type: ignore[return-value]
+
+
+def _retry_transient(max_attempts: int = 3, backoff_base: float = 2.0):
+    """Retry on transient HTTP errors (500, 502, 503, 504, timeout) with exponential backoff + jitter."""
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except RuntimeError as exc:
+                    msg = str(exc)
+                    if any(code in msg for code in ("500", "502", "503", "504", "timed out", "timeout")):
+                        last_exc = exc
+                        if attempt < max_attempts - 1:
+                            delay = backoff_base ** attempt + random.uniform(0, 1)
+                            logger.debug("Retrying %s (attempt %d/%d) after %.1fs", func.__name__, attempt + 2, max_attempts, delay)
+                            time.sleep(delay)
+                    else:
+                        raise
+            raise last_exc  # type: ignore[misc]
+        return wrapper
+    return decorator
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -252,6 +290,7 @@ class FMPClient:
             )
         return cls(api_key=value)
 
+    @_retry_transient()
     def _get(self, path: str, params: dict[str, Any]) -> Any:
         # ── #5 Circuit breaker check ──────────────────────────────
         if not self._circuit_breaker.allow_request():
@@ -474,19 +513,7 @@ class FMPClient:
                 {"from": date_from.isoformat(), "to": date_to.isoformat()},
             )
         except RuntimeError as exc:
-            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-            if (
-                "/stable/earnings-calendar" in msg
-                and (
-                    "HTTP 400" in msg
-                    or "HTTP 402" in msg
-                    or "HTTP 403" in msg
-                    or "HTTP 404" in msg
-                    or "circuit breaker OPEN" in msg
-                )
-            ):
-                return []
-            raise
+            return _handle_fmp_error(exc, "earnings calendar")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -549,17 +576,7 @@ class FMPClient:
         try:
             data = self._get("/stable/eod-bulk", {"date": as_of.isoformat(), "datatype": "json"})
         except RuntimeError as exc:
-            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-            # Free-tier accounts can receive HTTP 402 (Payment Required) for this
-            # endpoint.  FMP may also return CSV despite requesting JSON, which
-            # triggers an "invalid JSON" error when CSV fallback parsing also
-            # fails.  In both cases, degrade gracefully so callers can fall back
-            # to per-symbol historical endpoint logic.
-            if "/stable/eod-bulk" in msg and (
-                "HTTP 402" in msg or "invalid JSON" in msg
-            ):
-                return []
-            raise
+            return _handle_fmp_error(exc, "eod bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -643,19 +660,7 @@ class FMPClient:
         try:
             data = self._get("/stable/grades", params)
         except RuntimeError as exc:
-            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-            if (
-                "/stable/grades" in msg
-                and (
-                    "HTTP 400" in msg
-                    or "HTTP 402" in msg
-                    or "HTTP 403" in msg
-                    or "HTTP 404" in msg
-                    or "circuit breaker OPEN" in msg
-                )
-            ):
-                return []
-            raise
+            return _handle_fmp_error(exc, "analyst grades")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -666,19 +671,7 @@ class FMPClient:
         try:
             data = self._get("/stable/sector-performance-snapshot", {"date": _date.today().isoformat()})
         except RuntimeError as exc:
-            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-            if (
-                "/stable/sector-performance-snapshot" in msg
-                and (
-                    "HTTP 400" in msg
-                    or "HTTP 402" in msg
-                    or "HTTP 403" in msg
-                    or "HTTP 404" in msg
-                    or "circuit breaker OPEN" in msg
-                )
-            ):
-                return []
-            raise
+            return _handle_fmp_error(exc, "sector performance")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -696,16 +689,7 @@ class FMPClient:
         try:
             data = self._get("/stable/quote", {"symbol": sym})
         except RuntimeError as exc:
-            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-            if "/stable/quote" in msg and (
-                "HTTP 400" in msg
-                or "HTTP 402" in msg
-                or "HTTP 403" in msg
-                or "HTTP 404" in msg
-                or "circuit breaker OPEN" in msg
-            ):
-                return {}
-            raise
+            return _handle_fmp_error(exc, "index quote", default={})
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict) and data:
@@ -783,9 +767,7 @@ class FMPClient:
         try:
             data = self._get("/stable/profile-bulk", {"datatype": "json"})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "profile bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -795,9 +777,7 @@ class FMPClient:
         try:
             data = self._get("/stable/scores-bulk", {"datatype": "json"})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "scores bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -807,9 +787,7 @@ class FMPClient:
         try:
             data = self._get("/stable/price-target-summary-bulk", {"datatype": "json"})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "price target summary bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -819,9 +797,7 @@ class FMPClient:
         try:
             data = self._get("/stable/earnings-surprises-bulk", {"datatype": "json"})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "earnings surprises bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -831,9 +807,7 @@ class FMPClient:
         try:
             data = self._get("/stable/key-metrics-ttm-bulk", {"datatype": "json"})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "key metrics TTM bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -843,9 +817,7 @@ class FMPClient:
         try:
             data = self._get("/stable/ratios-ttm-bulk", {"datatype": "json"})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "ratios TTM bulk")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -871,9 +843,7 @@ class FMPClient:
         try:
             data = self._get("/stable/insider-trading", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "insider trading")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -889,9 +859,7 @@ class FMPClient:
         try:
             data = self._get("/stable/insider-trading-statistics", {"symbol": sym})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return {}
-            raise
+            return _handle_fmp_error(exc, "insider trade statistics", default={})
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
@@ -913,9 +881,7 @@ class FMPClient:
                 {"symbol": sym, "limit": max(1, min(int(limit), 100))},
             )
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "institutional ownership")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -941,9 +907,7 @@ class FMPClient:
         try:
             data = self._get("/stable/earning-call-transcript", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "earnings transcript")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -963,9 +927,7 @@ class FMPClient:
                 {"symbol": sym, "limit": max(1, min(int(limit), 500))},
             )
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "ETF holdings")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -984,9 +946,7 @@ class FMPClient:
         try:
             data = self._get("/stable/senate-trading", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "senate trading")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -1013,9 +973,7 @@ class FMPClient:
         try:
             data = self._get("/stable/house-trading", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "house trading")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -1039,9 +997,7 @@ class FMPClient:
         try:
             data = self._get("/stable/treasury-rates", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "treasury rates")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -1070,9 +1026,7 @@ class FMPClient:
         try:
             data = self._get("/stable/economic-indicators", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "economic indicators")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -1122,9 +1076,7 @@ class FMPClient:
         try:
             data = self._get(f"/stable/technical-indicators/{indicator}", params)
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "technical indicator")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -1141,9 +1093,7 @@ class FMPClient:
         try:
             data = self._get("/stable/discounted-cash-flow", {"symbol": sym})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return {}
-            raise
+            return _handle_fmp_error(exc, "DCF", default={})
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
@@ -1158,9 +1108,7 @@ class FMPClient:
         try:
             data = self._get("/stable/levered-discounted-cash-flow", {"symbol": sym})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return {}
-            raise
+            return _handle_fmp_error(exc, "levered DCF", default={})
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
@@ -1179,9 +1127,7 @@ class FMPClient:
         try:
             data = self._get("/stable/price-target-consensus", {"symbol": sym})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return {}
-            raise
+            return _handle_fmp_error(exc, "price target consensus", default={})
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
@@ -1213,9 +1159,7 @@ class FMPClient:
         try:
             data = self._get(f"/stable/{slug}", {})
         except RuntimeError as exc:
-            if "HTTP 402" in str(exc) or "HTTP 404" in str(exc):
-                return []
-            raise
+            return _handle_fmp_error(exc, "index constituents")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -1247,6 +1191,7 @@ class FinnhubClient:
 
     # ── internal ─────────────────────────────────────────────
 
+    @_retry_transient()
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         if not self.api_key:
             logger.debug("FinnhubClient: no API key — skipping %s", path)
@@ -1482,6 +1427,7 @@ class AlpacaClient:
     def from_env(cls) -> "AlpacaClient":
         return cls()
 
+    @_retry_transient()
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         if not self.key_id or not self.secret_key:
             logger.debug("AlpacaClient: no API keys — skipping %s", path)

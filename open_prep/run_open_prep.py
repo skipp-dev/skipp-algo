@@ -112,6 +112,38 @@ PM_CACHE_TTL_SECONDS = 120
 TOP_N_EXT_FOR_PMH = 50
 PM_FETCH_TIMEOUT_SECONDS = 30.0
 
+# ── Macro relevance scoring weights ─────────────────────────
+MACRO_RELEVANCE_HIGH = 30       # CPI, PPI, PCE, nonfarm, jobless
+MACRO_RELEVANCE_MID = 20        # GDP, ISM, retail sales, sentiment
+MACRO_RELEVANCE_LOW = 10        # Housing, durable goods, factory orders
+
+# ── Extended-hours score constants ───────────────────────────
+EXT_CHANGE_DIVISOR = 5.0        # normalise ext-change %
+EXT_CHANGE_CLAMP = 3.0          # clamp ± after normalisation
+EXT_VOL_CLAMP = 5.0             # max ext-volume ratio
+EXT_DEFAULT_FRESHNESS = -0.25   # freshness when timestamp missing
+EXT_SPREAD_DIVISOR = 25.0       # spread_bps normaliser
+EXT_SPREAD_PENALTY_CAP = 2.0    # max spread penalty
+EXT_WEIGHT_CHANGE = 0.40
+EXT_WEIGHT_VOL = 0.30
+EXT_WEIGHT_FRESHNESS = 0.30
+EXT_WEIGHT_SPREAD = 0.25
+EXT_SCORE_CLAMP = 5.0           # final score ± clamp
+
+# ── Pre-market liquidity filter thresholds ───────────────────
+EXT_SCORE_MIN = 0.75
+EXT_VOL_RATIO_MIN = 0.05
+SPREAD_BPS_MAX = 60.0
+
+# ── News recency thresholds (minutes) ───────────────────────
+NEWS_RECENCY_NEAR_MIN = 30.0
+NEWS_RECENCY_FAR_MIN = 60.0
+
+# ── Corporate-action penalties ───────────────────────────────
+PENALTY_SPLIT = 1.25
+PENALTY_DIVIDEND = 0.35
+PENALTY_IPO = 0.85
+
 
 @dataclass(frozen=True)
 class OpenPrepConfig:
@@ -164,13 +196,13 @@ def _macro_relevance_score(event_name: str) -> int:
 
     # Rates/inflation/labor shocks first.
     if any(token in name for token in ("cpi", "ppi", "pce", "nonfarm payroll", "jobless claims")):
-        score += 30
+        score += MACRO_RELEVANCE_HIGH
     # Growth pulse tier.
     elif any(token in name for token in ("gdp", "ism", "retail sales", "consumer sentiment")):
-        score += 20
+        score += MACRO_RELEVANCE_MID
     # Housing and secondary surveys.
     elif any(token in name for token in ("home sales", "housing", "durable goods", "factory orders")):
-        score += 10
+        score += MACRO_RELEVANCE_LOW
 
     return score
 
@@ -564,12 +596,12 @@ def _time_based_warn_flags(
     stale = bool(q.get("premarket_stale", False))
     spread_bps = _to_float(q.get("premarket_spread_bps"), default=float("nan"))
 
-    spread_ok = not math.isnan(spread_bps) and spread_bps <= 60.0  # NaN-safe; lenient threshold
+    spread_ok = not math.isnan(spread_bps) and spread_bps <= SPREAD_BPS_MAX  # NaN-safe; lenient threshold
     if (
         _in_window(ny_mins, (6, 0), (8, 0))
         and not stale
         and spread_ok
-        and (ext_score >= 0.75 or ext_vol_ratio >= 0.05)
+        and (ext_score >= EXT_SCORE_MIN or ext_vol_ratio >= EXT_VOL_RATIO_MIN)
     ):
         flags.append("premarket_liquidity_step")
 
@@ -577,9 +609,9 @@ def _time_based_warn_flags(
     latest_news_dt = _extract_latest_news_ts_utc(news_metrics_row)
     if latest_news_dt is not None:
         age_min = max((run_dt_utc - latest_news_dt).total_seconds() / 60.0, 0.0)
-        if age_min <= 30.0:
+        if age_min <= NEWS_RECENCY_NEAR_MIN:
             flags.append("news_recency_30m")
-        elif age_min <= 60.0:
+        elif age_min <= NEWS_RECENCY_FAR_MIN:
             flags.append("news_recency_60m")
 
     return flags
@@ -760,16 +792,16 @@ def _compute_ext_hours_score(
     freshness_sec: float | None,
     spread_bps: float | None,
 ) -> float:
-    change = 0.0 if ext_change_pct is None else max(min(ext_change_pct / 5.0, 3.0), -3.0)
-    vol = max(min(ext_vol_ratio, 5.0), 0.0)
+    change = 0.0 if ext_change_pct is None else max(min(ext_change_pct / EXT_CHANGE_DIVISOR, EXT_CHANGE_CLAMP), -EXT_CHANGE_CLAMP)
+    vol = max(min(ext_vol_ratio, EXT_VOL_CLAMP), 0.0)
     if freshness_sec is None:
-        freshness = -0.25
+        freshness = EXT_DEFAULT_FRESHNESS
     else:
         freshness = max(min((PREMARKET_STALE_SECONDS - freshness_sec) / PREMARKET_STALE_SECONDS, 1.0), -1.0)
-    spread_penalty = 0.0 if spread_bps is None else min(max(spread_bps / 25.0, 0.0), 2.0)
+    spread_penalty = 0.0 if spread_bps is None else min(max(spread_bps / EXT_SPREAD_DIVISOR, 0.0), EXT_SPREAD_PENALTY_CAP)
     # Normalized weights (sum to 1.0 before penalty deduction)
-    score = (0.40 * change) + (0.30 * vol) + (0.30 * freshness) - (0.25 * spread_penalty)
-    return round(max(min(score, 5.0), -5.0), 4)
+    score = (EXT_WEIGHT_CHANGE * change) + (EXT_WEIGHT_VOL * vol) + (EXT_WEIGHT_FRESHNESS * freshness) - (EXT_WEIGHT_SPREAD * spread_penalty)
+    return round(max(min(score, EXT_SCORE_CLAMP), -EXT_SCORE_CLAMP), 4)
 
 
 def _fetch_earnings_today(client: FMPClient, today: date) -> dict[str, dict[str, Any]]:
@@ -859,11 +891,11 @@ def _fetch_corporate_action_flags(
         ipo_window = sym in ipo_window_symbols
         penalty = 0.0
         if split_today:
-            penalty += 1.25
+            penalty += PENALTY_SPLIT
         if dividend_today:
-            penalty += 0.35
+            penalty += PENALTY_DIVIDEND
         if ipo_window:
-            penalty += 0.85
+            penalty += PENALTY_IPO
         out[sym] = {
             "split_today": split_today,
             "dividend_today": dividend_today,

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sys
+import tempfile
 from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
@@ -98,10 +100,16 @@ def main() -> None:
             ]
         )
 
-    with ranked_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(ranked_headers)
-        writer.writerows(ranked_rows)
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=str(ranked_csv.parent), suffix=".tmp")
+    try:
+        with os.fdopen(_tmp_fd, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(ranked_headers)
+            writer.writerows(ranked_rows)
+        os.replace(_tmp_path, str(ranked_csv))
+    except BaseException:
+        os.unlink(_tmp_path)
+        raise
 
     cards_headers = [
         "rank",
@@ -145,10 +153,16 @@ def main() -> None:
             ]
         )
 
-    with cards_csv.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(cards_headers)
-        writer.writerows(cards_rows)
+    _tmp_fd, _tmp_path = tempfile.mkstemp(dir=str(cards_csv.parent), suffix=".tmp")
+    try:
+        with os.fdopen(_tmp_fd, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(cards_headers)
+            writer.writerows(cards_rows)
+        os.replace(_tmp_path, str(cards_csv))
+    except BaseException:
+        os.unlink(_tmp_path)
+        raise
 
     html = f"""<!doctype html>
 <html>

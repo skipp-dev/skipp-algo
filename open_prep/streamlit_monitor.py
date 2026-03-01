@@ -132,7 +132,11 @@ def _cached_bz_quotes_op(api_key: str, symbols_csv: str) -> list[dict[str, Any]]
     if _fetch_bz_quotes is None:
         return []
     syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
-    return _fetch_bz_quotes(api_key, syms) or []
+    try:
+        return _fetch_bz_quotes(api_key, syms) or []
+    except Exception:
+        logger.debug("_cached_bz_quotes_op failed", exc_info=True)
+        return []
 
 
 # ── Cached Benzinga Calendar Wrappers (open_prep) ──────────────
@@ -142,7 +146,11 @@ def _cached_bz_dividends_op(api_key: str, from_d: str, to_d: str) -> list[dict[s
     """Cache Benzinga dividends calendar for 5 minutes."""
     if _fetch_bz_dividends is None:
         return []
-    return _fetch_bz_dividends(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_dividends(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_dividends_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -150,7 +158,11 @@ def _cached_bz_splits_op(api_key: str, from_d: str, to_d: str) -> list[dict[str,
     """Cache Benzinga splits calendar for 5 minutes."""
     if _fetch_bz_splits is None:
         return []
-    return _fetch_bz_splits(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_splits(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_splits_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -158,7 +170,11 @@ def _cached_bz_ipos_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, A
     """Cache Benzinga IPO calendar for 5 minutes."""
     if _fetch_bz_ipos is None:
         return []
-    return _fetch_bz_ipos(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_ipos(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_ipos_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -166,7 +182,11 @@ def _cached_bz_guidance_op(api_key: str, from_d: str, to_d: str) -> list[dict[st
     """Cache Benzinga guidance calendar for 5 minutes."""
     if _fetch_bz_guidance is None:
         return []
-    return _fetch_bz_guidance(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_guidance(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_guidance_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -174,7 +194,11 @@ def _cached_bz_retail_op(api_key: str, from_d: str, to_d: str) -> list[dict[str,
     """Cache Benzinga retail sales calendar for 5 minutes."""
     if _fetch_bz_retail is None:
         return []
-    return _fetch_bz_retail(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_retail(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_retail_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -182,7 +206,11 @@ def _cached_bz_conf_calls_op(api_key: str, from_d: str, to_d: str) -> list[dict[
     """Cache Benzinga conference calls calendar for 5 minutes."""
     if _fetch_bz_conf_calls is None:
         return []
-    return _fetch_bz_conf_calls(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_conf_calls(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_conf_calls_op failed", exc_info=True)
+        return []
 
 
 # ── Cached Benzinga News Wrappers (open_prep) ──────────────────
@@ -192,7 +220,11 @@ def _cached_bz_top_news_op(api_key: str, limit: int = 20) -> list[dict[str, Any]
     """Cache Benzinga top news for 2 minutes."""
     if _fetch_bz_top_news is None:
         return []
-    return _fetch_bz_top_news(api_key, limit=limit) or []
+    try:
+        return _fetch_bz_top_news(api_key, limit=limit) or []
+    except Exception:
+        logger.debug("_cached_bz_top_news_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -200,7 +232,11 @@ def _cached_bz_quantified_op(api_key: str, from_d: str | None = None, to_d: str 
     """Cache Benzinga quantified news for 2 minutes."""
     if _fetch_bz_quantified is None:
         return []
-    return _fetch_bz_quantified(api_key, date_from=from_d, date_to=to_d) or []
+    try:
+        return _fetch_bz_quantified(api_key, date_from=from_d, date_to=to_d) or []
+    except Exception:
+        logger.debug("_cached_bz_quantified_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -208,7 +244,11 @@ def _cached_bz_channel_list_op(api_key: str) -> list[dict[str, Any]]:
     """Cache Benzinga channel list for 1 hour (rarely changes)."""
     if _fetch_bz_channels is None:
         return []
-    return _fetch_bz_channels(api_key) or []
+    try:
+        return _fetch_bz_channels(api_key) or []
+    except Exception:
+        logger.debug("_cached_bz_channel_list_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -216,7 +256,11 @@ def _cached_bz_news_by_channel_op(api_key: str, channels: str, page_size: int = 
     """Cache channel-filtered Benzinga news for 2 minutes."""
     if _fetch_bz_news_by_channel is None:
         return []
-    return _fetch_bz_news_by_channel(api_key, channels, page_size=page_size) or []
+    try:
+        return _fetch_bz_news_by_channel(api_key, channels, page_size=page_size) or []
+    except Exception:
+        logger.debug("_cached_bz_news_by_channel_op failed", exc_info=True)
+        return []
 
 
 # ── Cached Benzinga Financial Wrappers (open_prep) ─────────────
@@ -232,10 +276,14 @@ def _cached_bz_insider_op(
     """Cache Benzinga insider transactions for 3 minutes."""
     if _fetch_bz_insider is None:
         return []
-    return _fetch_bz_insider(
-        api_key, date_from=date_from, date_to=date_to,
-        action=action, page_size=page_size,
-    ) or []
+    try:
+        return _fetch_bz_insider(
+            api_key, date_from=date_from, date_to=date_to,
+            action=action, page_size=page_size,
+        ) or []
+    except Exception:
+        logger.debug("_cached_bz_insider_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -243,7 +291,11 @@ def _cached_bz_power_gaps_op(api_key: str) -> list[dict[str, Any]]:
     """Cache power gap classifications for 2 minutes."""
     if _compute_power_gaps is None:
         return []
-    return _compute_power_gaps(api_key) or []
+    try:
+        return _compute_power_gaps(api_key) or []
+    except Exception:
+        logger.debug("_cached_bz_power_gaps_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=120, show_spinner=False)
@@ -251,7 +303,11 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
     """Cache Defense & Aerospace watchlist for 2 minutes."""
     if _fetch_defense_wl is None:
         return []
-    return _fetch_defense_wl(api_key) or []
+    try:
+        return _fetch_defense_wl(api_key) or []
+    except Exception:
+        logger.debug("_cached_defense_wl_op failed", exc_info=True)
+        return []
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -259,7 +315,11 @@ def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     """Cache Benzinga options activity for 5 minutes."""
     if _fetch_bz_options is None:
         return []
-    return _fetch_bz_options(api_key, tickers) or []
+    try:
+        return _fetch_bz_options(api_key, tickers) or []
+    except Exception:
+        logger.debug("_cached_bz_options_op failed", exc_info=True)
+        return []
 
 
 def _get_bz_quotes_for_symbols(
