@@ -215,7 +215,7 @@ except ImportError:
 # ── Page config ─────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="News Terminal",
+    page_title="Real-Time News Intelligence Dashboard",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -1603,7 +1603,8 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 # ── Main display ────────────────────────────────────────────────
 
-st.title("📡 News Terminal")
+st.title("📡 Real-Time News Intelligence Dashboard — AI supported")
+st.caption("Jump to [🤖 AI Insights](#ai-insights) for LLM-powered analysis of your live feed.")
 
 if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
     st.warning("Set `BENZINGA_API_KEY` and/or `FMP_API_KEY` in `.env` to start polling.")
@@ -3004,6 +3005,7 @@ else:
 
     # ── TAB: AI Insights ────────────────────────────────────────
     with tab_ai:
+        st.markdown('<div id="ai-insights"></div>', unsafe_allow_html=True)
         from terminal_tabs.tab_ai import render as render_ai
         _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
 
