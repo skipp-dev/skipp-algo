@@ -794,7 +794,7 @@ with st.sidebar:
     )
 
     # Auto-refresh toggle
-    st.toggle("Auto-refresh", value=st.session_state.auto_refresh, key="auto_refresh")
+    st.toggle("Auto-refresh", key="auto_refresh")
 
     # Manual poll button
     force_poll = st.button("🔄 Poll Now", width='stretch')
@@ -1013,21 +1013,18 @@ with st.sidebar:
 
     st.toggle(
         "Background Polling",
-        value=st.session_state.use_bg_poller,
         key="use_bg_poller",
         help="Run API polling in a background thread to prevent UI stalls.",
     )
 
     st.toggle(
         "News→Chart Auto-Webhook",
-        value=st.session_state.news_chart_auto_webhook,
         key="news_chart_auto_webhook",
         help="Auto-fire webhook for score ≥ 0.85 actionable items (routes to TradersPost).",
     )
 
     st.toggle(
         "Optional intelligence modules",
-        value=bool(st.session_state.get("enable_optional_intelligence", False)),
         key="enable_optional_intelligence",
         help=(
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "

@@ -106,10 +106,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             else:
                 st.warning("No previous question available yet.")
     with _qa_c3:
-        st.session_state.ai_pause_auto_refresh = st.toggle(
+        st.toggle(
             "Pause auto-refresh while reviewing AI result",
-            value=bool(st.session_state.get("ai_pause_auto_refresh", False)),
-            key="ai_pause_auto_refresh_toggle",
+            key="ai_pause_auto_refresh",
             help=(
                 "Prevents automatic page jumps while you read AI output. "
                 "Background polling can continue; UI reruns are paused."

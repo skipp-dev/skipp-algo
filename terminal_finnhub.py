@@ -32,6 +32,7 @@ _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 _cache: dict[str, tuple[float, Any]] = {}
 _cache_lock = threading.Lock()
 _SOCIAL_TTL = 600  # 10 min — Finnhub social data updates slowly
+_CACHE_MAX_SIZE = 200  # hard cap on cache entries
 
 
 def _get_cached(key: str, ttl: float) -> Any | None:
@@ -49,6 +50,17 @@ def _get_cached(key: str, ttl: float) -> Any | None:
 def _set_cached(key: str, val: Any) -> None:
     with _cache_lock:
         _cache[key] = (time.time(), val)
+        # Evict oldest entries when cache grows beyond limit
+        if len(_cache) > _CACHE_MAX_SIZE:
+            now = time.time()
+            expired = [k for k, (ts, _) in _cache.items() if now - ts > _SOCIAL_TTL]
+            for k in expired:
+                del _cache[k]
+            # If still over limit after TTL eviction, remove oldest
+            if len(_cache) > _CACHE_MAX_SIZE:
+                oldest = sorted(_cache, key=lambda k: _cache[k][0])
+                for k in oldest[: len(_cache) - _CACHE_MAX_SIZE]:
+                    del _cache[k]
 
 
 # ── API key ──────────────────────────────────────────────────────
