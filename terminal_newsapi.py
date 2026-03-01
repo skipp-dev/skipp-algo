@@ -312,63 +312,79 @@ _cache_lock = threading.Lock()
 _CACHE_MAX_SIZE = 500  # evict when cache exceeds this
 _cache_write_count = 0
 
-# TTLs — long enough to stay well within the 5 000 token / month budget.
-# With ~6 distinct query types and 15-30 min TTLs the daily token burn is
-# roughly:  6 types × (1440 min / 15 min) × ~2 tokens avg ≈ 1 150 tokens/day
-# which leaves headroom even with multiple browser sessions.
-_BREAKING_TTL = 900      # 15 minutes  (was 2 min — caused 720 calls/day)
-_TRENDING_TTL = 1800     # 30 minutes  (was 3 min)
-_SENTIMENT_TTL = 1800    # 30 minutes  (was 5 min — NLP enrichment, not time-critical)
-_SOCIAL_TTL = 900        # 15 minutes  (was 2 min)
-_EVENT_CLUSTER_TTL = 1800  # 30 minutes  (was 5 min)
+# TTLs — 1 hour each.  With ~6 query types the daily token burn is:
+#   6 types × 24 misses/day × ~3 tokens avg ≈ 432 tokens/day  (≈ 13 000 / month)
+# Well within a 10 000 monthly cap when combined with the real-usage gate below.
+_BREAKING_TTL = 3600       # 1 hour
+_TRENDING_TTL = 3600       # 1 hour
+_SENTIMENT_TTL = 3600      # 1 hour
+_SOCIAL_TTL = 3600         # 1 hour
+_EVENT_CLUSTER_TTL = 3600  # 1 hour
 
-# ── Daily token budget guard ────────────────────────────────────
-# Block further API calls once the daily budget is exhausted.
-# 5 000 tokens / month ÷ 31 days ≈ 161 tokens/day.
-# Default 150/day leaves a small buffer.
+# ── Monthly token cap (real-usage based) ────────────────────────
+# Instead of an in-memory daily counter (which resets on every Streamlit
+# Cloud restart), we query the *actual* usage from the NewsAPI.ai HTTP
+# endpoint and block calls once the real usage exceeds the cap.
+# The usage check itself is FREE (no tokens consumed).
 
-_DAILY_TOKEN_BUDGET = int(os.environ.get("NEWSAPI_DAILY_TOKEN_BUDGET", "150"))
+_MONTHLY_TOKEN_CAP = int(os.environ.get("NEWSAPI_MONTHLY_CAP", "9000"))
+_USAGE_CHECK_TTL = 300  # cache the usage HTTP call for 5 minutes
+
 _daily_tokens_used = 0
 _daily_reset_date: str = ""  # ISO date of last reset
 _budget_lock = threading.Lock()
 
 
 def _check_budget(estimated_cost: int = 1) -> bool:
-    """Return True if the daily budget allows ``estimated_cost`` more tokens.
+    """Return True if real API usage is still below the monthly cap.
 
-    Call this *before* every SDK query.  If it returns False the caller
-    should return cached / empty data instead of hitting the API.
+    Uses the free ``/api/v1/usage`` endpoint (cached for 5 min) so it
+    survives process restarts — unlike a pure in-memory counter.
     """
+    cached_ok = _get_cached("_budget_ok", _USAGE_CHECK_TTL)
+    if cached_ok is not None:
+        return cached_ok  # type: ignore[return-value]
+
+    usage = get_token_usage()
+    used = usage.get("usedTokens", 0)
+    avail = usage.get("availableTokens", 0)
+
+    # If HTTP call fails (both 0), assume OK rather than blocking
+    if used == 0 and avail == 0:
+        return True
+
+    ok = used + estimated_cost <= _MONTHLY_TOKEN_CAP
+    if not ok:
+        log.warning(
+            "NewsAPI.ai monthly cap reached (%d/%d used, cap %d). "
+            "Blocking API call. Override via NEWSAPI_MONTHLY_CAP env var.",
+            used, avail, _MONTHLY_TOKEN_CAP,
+        )
+    _set_cached("_budget_ok", ok)
+    return ok
+
+
+def _record_tokens(cost: int = 1) -> None:
+    """Record that ``cost`` tokens were consumed (local tracking only)."""
     global _daily_tokens_used, _daily_reset_date
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     with _budget_lock:
         if _daily_reset_date != today:
             _daily_tokens_used = 0
             _daily_reset_date = today
-        if _daily_tokens_used + estimated_cost > _DAILY_TOKEN_BUDGET:
-            log.warning(
-                "NewsAPI.ai daily token budget exhausted (%d/%d used). "
-                "Skipping API call. Raise via NEWSAPI_DAILY_TOKEN_BUDGET env var.",
-                _daily_tokens_used, _DAILY_TOKEN_BUDGET,
-            )
-            return False
-        return True
-
-
-def _record_tokens(cost: int = 1) -> None:
-    """Record that ``cost`` tokens were consumed by an API call."""
-    global _daily_tokens_used
-    with _budget_lock:
         _daily_tokens_used += cost
 
 
 def get_daily_token_status() -> dict[str, int]:
-    """Return daily budget status: used, budget, remaining."""
+    """Return combined local + real usage status."""
+    real = get_token_usage()
     with _budget_lock:
         return {
-            "used": _daily_tokens_used,
-            "budget": _DAILY_TOKEN_BUDGET,
-            "remaining": max(0, _DAILY_TOKEN_BUDGET - _daily_tokens_used),
+            "used_today_local": _daily_tokens_used,
+            "used_month_real": real.get("usedTokens", 0),
+            "available_month": real.get("availableTokens", 0),
+            "monthly_cap": _MONTHLY_TOKEN_CAP,
+            "remaining": max(0, _MONTHLY_TOKEN_CAP - real.get("usedTokens", 0)),
         }
 
 
@@ -397,6 +413,24 @@ def _set_cached(key: str, val: Any) -> None:
             expired_keys = [k for k, (ts, _) in _cache.items() if now - ts > max_ttl]
             for k in expired_keys:
                 del _cache[k]
+
+
+def _dedup_articles(articles: list, key_attr: str = "title") -> list:
+    """Remove duplicate articles by title (case-insensitive).
+
+    The NewsAPI.ai ``isDuplicateFilter`` catches many dupes server-side,
+    but the same article can still appear via different event clusters,
+    concept queries, or across successive cache misses.  This is the
+    final client-side safety net.
+    """
+    seen: set[str] = set()
+    result = []
+    for a in articles:
+        k = getattr(a, key_attr, "").strip().lower()
+        if k and k not in seen:
+            seen.add(k)
+            result.append(a)
+    return result
 
 
 # ── EventRegistry singleton ─────────────────────────────────────
@@ -622,7 +656,7 @@ def fetch_event_articles(
         return []
 
     try:
-        q = QueryArticles(eventUri=event_uri)
+        q = QueryArticles(eventUri=event_uri, isDuplicateFilter="skipDuplicates")
         q.setRequestedResult(
             RequestArticlesInfo(
                 count=min(count, 100),
@@ -682,6 +716,7 @@ def fetch_event_articles(
                 concepts=_concept_labels[:8],
             ))
 
+        articles = _dedup_articles(articles)
         _set_cached(cache_key, articles)
         return articles
 
@@ -801,7 +836,7 @@ def fetch_trending_concepts(
 
 # ── Articles for a Trending Concept ─────────────────────────────
 
-_CONCEPT_ARTICLES_TTL = 300  # 5 min cache
+_CONCEPT_ARTICLES_TTL = 3600  # 1 hour  # 5 min cache
 
 def fetch_concept_articles(
     concept_uri: str,
@@ -833,7 +868,7 @@ def fetch_concept_articles(
         return []
 
     try:
-        q = QueryArticles(conceptUri=concept_uri)
+        q = QueryArticles(conceptUri=concept_uri, isDuplicateFilter="skipDuplicates")
         q.setRequestedResult(
             RequestArticlesInfo(
                 count=min(count, 100),
@@ -884,6 +919,7 @@ def fetch_concept_articles(
                 concepts=[],
             ))
 
+        articles = _dedup_articles(articles)
         _set_cached(cache_key, articles)
         return articles
 
@@ -1241,6 +1277,7 @@ def fetch_social_ranked_articles(
 
         # Already sorted by socialScore from the API, but ensure
         articles.sort(key=lambda a: a.social_score, reverse=True)
+        articles = _dedup_articles(articles)
         _set_cached(cache_key, articles)
         return articles
 

@@ -1319,6 +1319,9 @@ def _process_new_items(
 
     # Convert to dicts and prepend to feed
     new_dicts = [ci.to_dict() for ci in items]
+    # Headline-level dedup: skip items with identical headlines already in the feed
+    _existing_headlines = {d.get("headline", "").strip().lower() for d in st.session_state.feed if d.get("headline")}
+    new_dicts = [d for d in new_dicts if d.get("headline", "").strip().lower() not in _existing_headlines]
     st.session_state.feed = new_dicts + st.session_state.feed
 
     # Webhooks + notifications (single shared httpx client — item 14)
