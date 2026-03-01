@@ -41,6 +41,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ── Suppress Tornado WebSocket noise ────────────────────────────
+# Streamlit's Tornado server logs harmless WebSocketClosedError /
+# StreamClosedError when browser tabs refresh or connections drop.
+logging.getLogger("tornado.application").setLevel(logging.ERROR)
+logging.getLogger("tornado.general").setLevel(logging.ERROR)
+
 
 def _load_env_file(env_path: Path) -> None:
     """Load KEY=VALUE pairs from .env into process env."""
