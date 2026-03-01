@@ -1590,6 +1590,54 @@ else:
     col5.metric("Avg relevance", f"{_stats['avg_relevance']:.3f}")
     col6.metric("Newest item", f"{_stats['newest_age_min']:.0f}m ago")
 
+    # ── Expandable detail lists behind the top-line metrics ──
+    _detail_cols = st.columns(3)
+
+    # Group feed items by ticker for unique-tickers detail
+    _tickers_seen: dict[str, list[dict[str, Any]]] = {}
+    for _fi in feed:
+        _tk = _fi.get("ticker", "")
+        if _tk and _tk != "MARKET":
+            _tickers_seen.setdefault(_tk, []).append(_fi)
+
+    with _detail_cols[0]:
+        with st.expander(f"Unique tickers ({_stats['unique_tickers']})"):
+            for _tk_sym in sorted(_tickers_seen):
+                _tk_items = _tickers_seen[_tk_sym]
+                _best = max(_tk_items, key=lambda x: x.get("news_score", 0))
+                _hl = safe_markdown_text((_best.get("headline") or "")[:100])
+                _u = safe_url(_best.get("url") or "")
+                _link = f"[{_hl}]({_u})" if _u else _hl
+                st.markdown(f"**{_tk_sym}** — {_link}")
+
+    with _detail_cols[1]:
+        with st.expander(f"Actionable ({_stats['actionable']})"):
+            _act_items = [d for d in feed if d.get("is_actionable")]
+            if _act_items:
+                for _ai in _act_items:
+                    _tk = _ai.get("ticker", "?")
+                    _hl = safe_markdown_text((_ai.get("headline") or "")[:100])
+                    _u = safe_url(_ai.get("url") or "")
+                    _sc = _ai.get("news_score", 0)
+                    _link = f"[{_hl}]({_u})" if _u else _hl
+                    st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
+            else:
+                st.caption("No actionable items.")
+
+    with _detail_cols[2]:
+        with st.expander(f"HIGH materiality ({_stats['high_materiality']})"):
+            _high_items = [d for d in feed if d.get("materiality") == "HIGH"]
+            if _high_items:
+                for _hi in _high_items:
+                    _tk = _hi.get("ticker", "?")
+                    _hl = safe_markdown_text((_hi.get("headline") or "")[:100])
+                    _u = safe_url(_hi.get("url") or "")
+                    _sc = _hi.get("news_score", 0)
+                    _link = f"[{_hl}]({_u})" if _u else _hl
+                    st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
+            else:
+                st.caption("No HIGH materiality items.")
+
     st.divider()
 
     # ── Tabs ────────────────────────────────────────────────
@@ -1605,12 +1653,12 @@ else:
             st.error(f"⚠️ {label} tab failed to render.")
             logger.exception("Tab %s render error", label)
 
-    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table, tab_ai = st.tabs(
+    tab_feed, tab_movers, tab_rank, tab_segments, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_ai, tab_bz_movers, tab_bitcoin, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🔥 Top Movers", "🏆 Rankings", "🏗️ Segments",
          "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
-         "🔮 Tomorrow Outlook", "💹 Movers", "₿ Bitcoin", "🛡️ Defense & Aerospace",
+         "🔮 Outlook", "🤖 AI Insights", "💹 Movers", "₿ Bitcoin", "🛡️ Defense & Aerospace",
          "🔴 Breaking", "📈 Trending", "🔥 Social",
-         "⚡ Alerts", "📊 Data Table", "🤖 AI Insights"],
+         "⚡ Alerts", "📊 Data Table"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -2731,9 +2779,9 @@ else:
             else:
                 st.info("No calendar events found for the selected range.")
 
-    # ── TAB: Tomorrow Outlook ───────────────────────────────
+    # ── TAB: Outlook ────────────────────────────────────────
     with tab_outlook:
-        st.subheader("🔮 Tomorrow Outlook — Next-Trading-Day Assessment")
+        st.subheader("🔮 Outlook — Next-Trading-Day Assessment")
 
         bz_key = cfg.benzinga_api_key
         fmp_key = cfg.fmp_api_key
@@ -2911,6 +2959,11 @@ else:
                                         f"- {_tn.icon} **{_tl}**: NLP {_tn.nlp_score:+.2f} "
                                         f"({_tn.article_count} articles, {_tn.agreement:.0%} agreement)"
                                     )
+
+    # ── TAB: AI Insights ────────────────────────────────────────
+    with tab_ai:
+        from terminal_tabs.tab_ai import render as render_ai
+        _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
 
     # ── TAB: Market Movers + Quotes ────────────────
     with tab_bz_movers:
@@ -4079,11 +4132,6 @@ else:
             )
         else:
             st.info("No data yet.")
-
-    # ── TAB: AI Insights ────────────────────────────────────────
-    with tab_ai:
-        from terminal_tabs.tab_ai import render as render_ai
-        _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
 
 
 # ── Auto-refresh trigger ───────────────────────────────────────
