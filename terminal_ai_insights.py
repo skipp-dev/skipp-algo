@@ -82,7 +82,7 @@ def assemble_context(
     sorted_feed = sorted(feed, key=lambda d: abs(d.get("news_score", 0)), reverse=True)
     articles: list[dict[str, Any]] = []
     for item in sorted_feed[:max_articles]:
-        articles.append({
+        entry: dict[str, Any] = {
             "headline": (item.get("headline") or "")[:200],
             "ticker": item.get("ticker", ""),
             "score": round(item.get("news_score", 0), 3),
@@ -90,7 +90,11 @@ def assemble_context(
             "segment": item.get("segment", ""),
             "source": item.get("source", ""),
             "age_min": item.get("age_minutes", 0),
-        })
+        }
+        _url = item.get("url") or ""
+        if _url:
+            entry["url"] = _url
+        articles.append(entry)
 
     # --- Ticker sentiment summary ---
     ticker_scores: dict[str, list[float]] = {}
@@ -152,6 +156,9 @@ Your role:
 - When technicals are available, cross-reference news sentiment with
   indicator signals (RSI, MACD, ADX, etc.).
 - Be specific: cite tickers, scores, and article headlines when relevant.
+- When articles have a "url" field, include the source link inline using
+  markdown link syntax, e.g. [headline](url).  Always cite at least the
+  key supporting articles so the user can verify the source.
 - Use markdown formatting for readability.
 - If the data is insufficient to answer confidently, say so.
 - Never fabricate data not present in the context.
@@ -180,7 +187,7 @@ def query_llm(
     api_key: str,
     *,
     model: str = _DEFAULT_MODEL,
-    max_tokens: int = 1500,
+    max_tokens: int = 2500,
     temperature: float = 0.3,
 ) -> LLMResponse:
     """Send a question + context to the OpenAI chat-completions API.
@@ -279,6 +286,6 @@ PRESET_QUESTIONS: list[tuple[str, str]] = [
     ("🔥 Top Movers", "Which tickers have the strongest positive or negative sentiment signals right now? List the top 5 bullish and top 5 bearish, with their scores and key headlines."),
     ("⚠️ Risk Signals", "Identify any risk signals, red flags, or negative catalysts in the current feed. Focus on high-impact items like earnings misses, regulatory actions, downgrades, or sector-wide concerns."),
     ("🏗️ Sector Themes", "What are the dominant sector themes in the current news cycle? Group by segment/industry and highlight cross-sector signals."),
-    ("💡 Trade Ideas", "Based on the current sentiment data and any available technicals, suggest 3-5 high-conviction trade ideas with rationale. Include both long and short opportunities."),
+    ("💡 Trade Ideas", "Based on the current sentiment data and any available technicals, suggest high-conviction trade ideas with rationale. Include both long and short opportunities. Provide at least 5 ideas (up to 10) when there are enough tickers with strong scores (|score| >= 0.3). For each idea cite the supporting article headlines with their source links."),
     ("🔮 Outlook", "What is the likely near-term direction based on the current news flow? Consider sentiment momentum, volume of coverage, and any macro signals."),
 ]

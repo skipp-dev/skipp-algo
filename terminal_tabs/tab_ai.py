@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -16,6 +19,30 @@ from terminal_ai_insights import (
 from terminal_ui_helpers import safe_markdown_text
 
 logger = logging.getLogger(__name__)
+
+_SAVE_DIR = Path(os.getenv("AI_INSIGHTS_DIR", "artifacts"))
+
+
+def _save_ai_result(question: str, answer: str, model: str,
+                    n_articles: int, n_tickers: int) -> str:
+    """Append an AI result to a timestamped text file and return the path."""
+    _SAVE_DIR.mkdir(parents=True, exist_ok=True)
+    fpath = _SAVE_DIR / "ai_trade_ideas.txt"
+    now = datetime.now(timezone.utc)
+    ts_display = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+    separator = "=" * 72
+    block = (
+        f"\n{separator}\n"
+        f"Saved:    {ts_display}\n"
+        f"Model:    {model}\n"
+        f"Articles: {n_articles}  |  Tickers: {n_tickers}\n"
+        f"Question: {question}\n"
+        f"{separator}\n\n"
+        f"{answer}\n"
+    )
+    with open(fpath, "a", encoding="utf-8") as fh:
+        fh.write(block)
+    return str(fpath)
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -166,6 +193,21 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     # The answer
     st.markdown(result.answer)
+
+    # --- Save to file ---
+    if st.button("💾 Save AI result to file", key="ai_save_to_file"):
+        try:
+            saved_path = _save_ai_result(
+                question=str(last_result.get("question") or ""),
+                answer=result.answer,
+                model=result.model,
+                n_articles=result.context_articles,
+                n_tickers=result.context_tickers,
+            )
+            st.success(f"Saved to `{saved_path}`")
+        except Exception as exc:
+            logger.warning("Failed to save AI result: %s", exc, exc_info=True)
+            st.error(f"Could not save: {exc}")
 
     # --- Divider and context details ---
     with st.expander("📋 Context sent to AI"):
