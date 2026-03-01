@@ -87,7 +87,137 @@ def market_session() -> str:
     return "closed"
 
 
-# ── FMP data fetchers ─────────────────────────────────────────────
+# ── yfinance helpers (real-time, free, no API key) ────────────────
+
+try:
+    import yfinance as yf  # type: ignore[import-untyped]
+    _YF_AVAILABLE = True
+except ImportError:
+    _YF_AVAILABLE = False
+
+# Curated lists of liquid US tickers for gainers/losers/actives screening.
+# yfinance doesn't have a "top movers" endpoint, so we screen from a broad
+# universe and sort by % change.  This list covers the S&P 500 + popular
+# high-beta / meme / ETF names.
+_YF_UNIVERSE_CACHE: tuple[float, list[str]] = (0.0, [])
+_YF_UNIVERSE_TTL = 86400  # refresh once/day
+
+
+def _yf_universe() -> list[str]:
+    """Return a broad ticker universe for screening.  Cached 24h."""
+    global _YF_UNIVERSE_CACHE
+    now = time.time()
+    if _YF_UNIVERSE_CACHE[1] and now - _YF_UNIVERSE_CACHE[0] < _YF_UNIVERSE_TTL:
+        return _YF_UNIVERSE_CACHE[1]
+    # ~100 liquid US tickers covering major sectors & high-beta names
+    _universe = [
+        # Mega-caps / tech
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO",
+        "ORCL", "ADBE", "CRM", "AMD", "INTC", "QCOM", "MU", "AMAT",
+        # Finance
+        "JPM", "BAC", "GS", "MS", "WFC", "C", "BLK", "SCHW",
+        # Healthcare
+        "UNH", "JNJ", "PFE", "ABBV", "MRK", "LLY", "TMO", "AMGN",
+        # Consumer
+        "WMT", "COST", "HD", "MCD", "NKE", "SBUX", "TGT", "LOW",
+        # Energy
+        "XOM", "CVX", "COP", "SLB", "EOG", "OXY", "MPC", "VLO",
+        # Industrial / defense
+        "BA", "LMT", "RTX", "GE", "CAT", "DE", "HON", "UPS",
+        # High-beta / meme / retail-popular
+        "PLTR", "SOFI", "RIVN", "LCID", "NIO", "MARA", "RIOT", "COIN",
+        "GME", "AMC", "HOOD", "RBLX", "SNAP", "PINS", "SQ", "SHOP",
+        "ROKU", "DKNG", "ABNB", "UBER", "LYFT", "DASH", "ZM", "CRWD",
+        # Major ETFs
+        "SPY", "QQQ", "IWM", "DIA", "XLF", "XLE", "XLK", "XLV",
+        "ARKK", "SOXL", "TQQQ", "SQQQ", "VXX", "GLD", "SLV", "TLT",
+    ]
+    _YF_UNIVERSE_CACHE = (now, _universe)
+    return _universe
+
+
+def _yf_screen_movers() -> dict[str, list[dict[str, Any]]]:
+    """Screen for gainers, losers, and most-active using yfinance.
+
+    Downloads 1-day data for the broad universe and classifies tickers.
+    Returns {"gainers": [...], "losers": [...], "actives": [...]}.
+    Each item has the same keys as FMP: symbol, name, price,
+    changesPercentage, change, volume, avgVolume, marketCap.
+    """
+    if not _YF_AVAILABLE:
+        return {"gainers": [], "losers": [], "actives": []}
+
+    universe = _yf_universe()
+    try:
+        tickers = yf.Tickers(" ".join(universe))
+        # Use fast_info for quick data without heavy API calls
+        all_items: list[dict[str, Any]] = []
+        for sym in universe:
+            try:
+                t = tickers.tickers.get(sym)
+                if t is None:
+                    continue
+                fi = t.fast_info
+                price = fi.get("lastPrice", 0) or fi.get("last_price", 0) or 0
+                prev_close = fi.get("previousClose", 0) or fi.get("previous_close", 0) or 0
+                if not price or not prev_close:
+                    continue
+                change = price - prev_close
+                change_pct = (change / prev_close) * 100 if prev_close else 0
+                volume = fi.get("lastVolume", 0) or fi.get("last_volume", 0) or 0
+                avg_volume = fi.get("threeMonthAverageVolume", 0) or fi.get("three_month_average_volume", 0) or 0
+                market_cap = fi.get("marketCap", 0) or fi.get("market_cap", 0) or 0
+
+                info_name = sym  # fast_info doesn't have company name
+                try:
+                    info_name = t.info.get("shortName", sym) if hasattr(t, "info") else sym
+                except Exception:
+                    pass
+
+                all_items.append({
+                    "symbol": sym,
+                    "name": info_name,
+                    "price": round(price, 2),
+                    "changesPercentage": round(change_pct, 2),
+                    "change": round(change, 2),
+                    "volume": int(volume),
+                    "avgVolume": int(avg_volume),
+                    "marketCap": market_cap,
+                    "previousClose": round(prev_close, 2),
+                })
+            except Exception:
+                continue
+
+        if not all_items:
+            return {"gainers": [], "losers": [], "actives": []}
+
+        # Sort for gainers (top positive change), losers (top negative),
+        # actives (highest volume)
+        gainers = sorted(
+            [i for i in all_items if i["changesPercentage"] > 0],
+            key=lambda x: x["changesPercentage"],
+            reverse=True,
+        )[:20]
+
+        losers = sorted(
+            [i for i in all_items if i["changesPercentage"] < 0],
+            key=lambda x: x["changesPercentage"],
+        )[:20]
+
+        actives = sorted(
+            all_items,
+            key=lambda x: x["volume"],
+            reverse=True,
+        )[:20]
+
+        return {"gainers": gainers, "losers": losers, "actives": actives}
+
+    except Exception as exc:
+        logger.warning("yfinance screen_movers failed: %s", exc)
+        return {"gainers": [], "losers": [], "actives": []}
+
+
+# ── FMP data fetchers (fallback when yfinance unavailable) ────────
 
 
 def _fetch_fmp_list(api_key: str, endpoint: str) -> list[dict[str, Any]]:

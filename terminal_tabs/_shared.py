@@ -36,6 +36,8 @@ from terminal_poller import (
 )
 from terminal_spike_detector import SpikeDetector
 from terminal_spike_scanner import (
+    _YF_AVAILABLE,
+    _yf_screen_movers,
     enrich_with_batch_quote,
     fetch_gainers,
     fetch_losers,
@@ -143,18 +145,24 @@ def cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[dic
         return []
 
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=90, show_spinner=False)
 def cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Cache gainers/losers/actives for 30 seconds.
+    """Cache gainers/losers/actives for 90 seconds.
 
-    Backfills volume & market-cap from batch-quote so the Spike
-    Scanner table is complete.
+    Uses yfinance (free, real-time) as primary source.  Falls back to
+    FMP (15-min delayed) when yfinance is unavailable.
     """
     try:
-        gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
-        losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
-        actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
-        return {"gainers": gainers, "losers": losers, "actives": actives}
+        if _YF_AVAILABLE:
+            yf_data = _yf_screen_movers()
+            if yf_data["gainers"] or yf_data["losers"] or yf_data["actives"]:
+                return yf_data
+        if api_key:
+            gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
+            losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
+            actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
+            return {"gainers": gainers, "losers": losers, "actives": actives}
+        return {"gainers": [], "losers": [], "actives": []}
     except Exception:
         logger.debug("cached_spike_data failed", exc_info=True)
         return {"gainers": [], "losers": [], "actives": []}

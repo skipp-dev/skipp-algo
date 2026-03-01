@@ -135,6 +135,8 @@ from terminal_poller import (
 
 from terminal_spike_scanner import (
     SESSION_ICONS,
+    _YF_AVAILABLE,
+    _yf_screen_movers,
     build_spike_rows,
     enrich_with_batch_quote,
     fetch_gainers,
@@ -189,6 +191,10 @@ from terminal_newsapi import (
     has_tokens,
     sentiment_badge as newsapi_sentiment_badge,
     is_available as newsapi_available,
+)
+from terminal_finnhub import (
+    fetch_social_sentiment_batch,
+    is_available as finnhub_available,
 )
 from terminal_bitcoin import (
     fetch_btc_quote,
@@ -1075,9 +1081,9 @@ _RECENCY_COLORS = RECENCY_COLORS
 # NOTE: Each wrapper catches exceptions so Streamlit never caches a raised
 # exception for the full TTL — callers always get a safe fallback.
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
-    """Cache sector performance for 60 seconds."""
+    """Cache sector performance for 5 minutes."""
     try:
         return fetch_sector_performance(api_key)
     except Exception:
@@ -1096,9 +1102,9 @@ def _cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
         return {}
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
-    """Cache Aerospace & Defense watchlist quotes for 2 minutes."""
+    """Cache Aerospace & Defense watchlist quotes for 5 minutes."""
     try:
         return fetch_defense_watchlist(api_key)
     except Exception:
@@ -1106,9 +1112,9 @@ def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
         return []
 
 
-@st.cache_data(ttl=120, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def _cached_defense_watchlist_custom(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache custom Aerospace & Defense watchlist quotes for 2 minutes."""
+    """Cache custom Aerospace & Defense watchlist quotes for 5 minutes."""
     try:
         return fetch_defense_watchlist(api_key, tickers=tickers)
     except Exception:
@@ -1136,19 +1142,27 @@ def _cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[di
         return []
 
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=90, show_spinner=False)
 def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Cache gainers/losers/actives for 30 seconds.
+    """Cache gainers/losers/actives for 90 seconds.
 
-    The FMP ``/stable/biggest-gainers`` etc. endpoints only return
-    price/change data.  We backfill volume & market-cap from
-    ``/stable/batch-quote`` so the Spike Scanner table is complete.
+    Uses yfinance (free, real-time) as primary source.  Falls back to
+    FMP ``/stable/biggest-gainers`` etc. (15-min delayed) when yfinance
+    is unavailable.
     """
     try:
-        gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
-        losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
-        actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
-        return {"gainers": gainers, "losers": losers, "actives": actives}
+        # Primary: yfinance (real-time, no API key needed)
+        if _YF_AVAILABLE:
+            yf_data = _yf_screen_movers()
+            if yf_data["gainers"] or yf_data["losers"] or yf_data["actives"]:
+                return yf_data
+        # Fallback: FMP (15-min delayed, needs API key)
+        if api_key:
+            gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
+            losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
+            actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
+            return {"gainers": gainers, "losers": losers, "actives": actives}
+        return {"gainers": [], "losers": [], "actives": []}
     except Exception:
         logger.debug("_cached_spike_data failed", exc_info=True)
         return {"gainers": [], "losers": [], "actives": []}
@@ -1303,25 +1317,44 @@ def _process_new_items(
     if not items:
         return
 
-    # JSONL batch export (item 13 — one open/write instead of per-item)
+    # Convert to dicts and deduplicate BEFORE persisting to JSONL
+    new_dicts = [ci.to_dict() for ci in items]
+    # Dedup by item_id:ticker against existing feed
+    _existing_keys = {f"{d.get('item_id', '')}:{d.get('ticker', '')}" for d in st.session_state.feed}
+    # Also dedup by headline (catches near-identical articles with different item_ids)
+    _existing_headlines = {d.get("headline", "").strip().lower() for d in st.session_state.feed if d.get("headline")}
+    unique_dicts: list[dict] = []
+    _batch_keys: set[str] = set()  # dedup within the incoming batch itself
+    for d in new_dicts:
+        key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
+        hl = d.get("headline", "").strip().lower()
+        if key in _existing_keys or key in _batch_keys:
+            continue
+        if hl and hl in _existing_headlines:
+            continue
+        _batch_keys.add(key)
+        unique_dicts.append(d)
+    new_dicts = unique_dicts
+
+    # JSONL batch export (item 13 — only unique items reach disk)
     if cfg.jsonl_path:
         _jsonl_errors = 0
-        for ci in items:
+        for d in new_dicts:
             try:
-                append_jsonl(ci, cfg.jsonl_path)
+                # Write dict directly to avoid re-converting from ClassifiedItem
+                os.makedirs(os.path.dirname(cfg.jsonl_path) or ".", exist_ok=True)
+                line = json.dumps(d, ensure_ascii=False, default=str)
+                with open(cfg.jsonl_path, "a", encoding="utf-8") as f:
+                    f.write(line + "\n")
+                    f.flush()
             except Exception as exc:
                 _jsonl_errors += 1
                 if _jsonl_errors <= 3:
                     logger.warning("JSONL append failed for %s: %s",
-                                   getattr(ci, 'item_id', '?')[:40], exc, exc_info=True)
+                                   d.get('item_id', '?')[:40] if isinstance(d, dict) else '?', exc, exc_info=True)
         if _jsonl_errors > 3:
             logger.warning("JSONL append had %d total failures (suppressed after 3)", _jsonl_errors)
 
-    # Convert to dicts and prepend to feed
-    new_dicts = [ci.to_dict() for ci in items]
-    # Headline-level dedup: skip items with identical headlines already in the feed
-    _existing_headlines = {d.get("headline", "").strip().lower() for d in st.session_state.feed if d.get("headline")}
-    new_dicts = [d for d in new_dicts if d.get("headline", "").strip().lower() not in _existing_headlines]
     st.session_state.feed = new_dicts + st.session_state.feed
 
     # Webhooks + notifications (single shared httpx client — item 14)
@@ -3917,9 +3950,63 @@ else:
             else:
                 st.info("No trending concepts found.")
 
-    # ── TAB: Social Score Ranking (NewsAPI.ai) ──────────────
+    # ── TAB: Social Score Ranking (NewsAPI.ai + Finnhub) ──────────────
     with tab_social:
         st.subheader("🔥 Social Score — Most Shared News")
+
+        # ── Finnhub Reddit + Twitter Sentiment ──────────────────
+        if finnhub_available():
+            # Extract tickers from the live feed for social lookups
+            _fh_tickers: list[str] = []
+            _fh_seen: set[str] = set()
+            for _fi in st.session_state.get("feed", []):
+                for _ft in _fi.get("tickers", []):
+                    _fts = _ft.upper().strip()
+                    if _fts and _fts not in _fh_seen and len(_fts) <= 5:
+                        _fh_seen.add(_fts)
+                        _fh_tickers.append(_fts)
+            _fh_tickers = _fh_tickers[:20]
+
+            if _fh_tickers:
+                st.markdown("### 📡 Reddit & Twitter Sentiment")
+                st.caption(
+                    f"Live social-media mentions for {len(_fh_tickers)} trending tickers · "
+                    "Source: Finnhub (free tier, real-time)"
+                )
+                _fh_social = fetch_social_sentiment_batch(_fh_tickers)
+                if _fh_social:
+                    _fh_sorted = sorted(_fh_social.values(), key=lambda s: s.total_mentions, reverse=True)
+                    _fh_top = _fh_sorted[:5]
+                    _fh_cols = st.columns(min(5, len(_fh_top)))
+                    for _fi, _fs in enumerate(_fh_top):
+                        with _fh_cols[_fi]:
+                            st.markdown(f"**{_fs.symbol}** {_fs.emoji}")
+                            st.metric("Mentions", f"{_fs.total_mentions:,}")
+                            st.caption(
+                                f"Reddit {_fs.reddit_mentions:,} · Twitter {_fs.twitter_mentions:,}\n\n"
+                                f"Score: {_fs.score:+.2f}"
+                            )
+                    _fh_rows = []
+                    for _fs in _fh_sorted:
+                        _fh_rows.append({
+                            "Symbol": _fs.symbol,
+                            "Sentiment": _fs.emoji,
+                            "Total Mentions": _fs.total_mentions,
+                            "Reddit": _fs.reddit_mentions,
+                            "Twitter/X": _fs.twitter_mentions,
+                            "Score": f"{_fs.score:+.4f}",
+                            "Label": _fs.sentiment_label.title(),
+                        })
+                    if _fh_rows:
+                        _fh_df = pd.DataFrame(_fh_rows)
+                        st.dataframe(
+                            _fh_df, hide_index=True,
+                            height=min(40 * len(_fh_rows) + 50, 400),
+                        )
+                else:
+                    st.caption("No social sentiment data available for current tickers.")
+                st.markdown("---")
+
         if not newsapi_available():
             st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai Social Score ranking.")
         else:

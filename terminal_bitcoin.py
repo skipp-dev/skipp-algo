@@ -126,8 +126,8 @@ def _set_cached(key: str, val: Any) -> None:
 
 
 # TTLs (seconds) — Bitcoin is 24/7 so we can be more aggressive
-_QUOTE_TTL = 30       # 30s for real-time price
-_OHLCV_TTL = 120      # 2 min for historical data
+_QUOTE_TTL = 60       # 60s for real-time price
+_OHLCV_TTL = 300      # 5 min for historical data
 _TECHNICALS_TTL = 600  # 10 min for TradingView (avoid 429 rate limits)
 _TECHNICALS_429_TTL = 1200  # 20 min cache for 429 errors (don't retry quickly)
 _FG_TTL = 300          # 5 min for Fear & Greed
