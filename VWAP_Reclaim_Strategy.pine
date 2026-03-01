@@ -9,7 +9,7 @@ strategy(
     default_qty_type=strategy.percent_of_equity,
     default_qty_value=3,
     initial_capital=1000,
-    pyramiding=2,
+    pyramiding=0,
     commission_type=strategy.commission.percent,
     commission_value=0.025,
     process_orders_on_close=true,
@@ -56,6 +56,9 @@ breakoutEntry = input.bool(true, "Breakout Entry (Pullback High/Low)",
     group="Strategy")
 matchedTrends = input.bool(true, "Only Enter on Matched Trends",
     tooltip="Long nur bei VWAP-Aufwärtstrend, Short nur bei VWAP-Abwärtstrend.",
+    group="Strategy")
+allowSameBarReversal = input.bool(true, "Same-Bar Reversal (Cover→Buy / Exit→Short)",
+    tooltip="Erlaubt sofortigen Richtungswechsel auf derselben Candle: Cover + Buy bzw. Exit + Short.",
     group="Strategy")
 
 displaybars = input.bool(true, "Barcolors", group="Display")
@@ -299,6 +302,17 @@ goShort = inReclaimSeqS and retestSeenS and close < pullbackLow[1] and bar_index
 entryTriggerS = simpleVwapCross ? reclaimDown : (breakoutEntry and goShort)
 shortSignal = allowShort and entryTriggerS and matchedTrendsFilter_short and usiGateShort and barCloseGate and volGate and not inPositionS
 
+// Exit conditions (computed before entries for same-bar reversal logic)
+exitLongCond  = inPositionL and close < vwapValue - tol and barCloseGate
+exitShortCond = inPositionS and close > vwapValue + tol and barCloseGate
+
+// Same-bar reversal: when exiting one side, enter the other if conditions are met
+reversalLong  = allowSameBarReversal and exitShortCond and allowLong  and matchedTrendsFilter_long  and usiGateLong  and volGate
+reversalShort = allowSameBarReversal and exitLongCond  and allowShort and matchedTrendsFilter_short and usiGateShort and volGate
+
+longSignal  := longSignal  or reversalLong
+shortSignal := shortSignal or reversalShort
+
 // ==================== STRATEGY LOGIC ====================
 
 var float longStop  = na
@@ -315,8 +329,7 @@ if longSignal
 if strategy.position_size > 0 and not na(longStop)
     strategy.exit("L-Stop", "Long", stop=longStop)
 
-exitLong = inPositionL and close < vwapValue - tol and barCloseGate
-if exitLong
+if exitLongCond
     strategy.close("Long")
     inPositionL := false
 
@@ -336,8 +349,7 @@ if shortSignal
 if strategy.position_size < 0 and not na(shortStop)
     strategy.exit("S-Stop", "Short", stop=shortStop)
 
-exitShort = inPositionS and close > vwapValue + tol and barCloseGate
-if exitShort
+if exitShortCond
     strategy.close("Short")
     inPositionS := false
 
@@ -379,9 +391,9 @@ plotshape(debug and barCloseGate and retestSeenS and inReclaimSeqS and allowShor
 
 // Entry/Exit labels
 plotshape(showTradeLabels and longSignal,  title="Long Entry",  style=shape.labelup,   location=location.belowbar, color=color.new(color.lime, 0),   textcolor=color.white, size=size.tiny, text="Buy")
-plotshape(showTradeLabels and exitLong,    title="Long Exit",   style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
-plotshape(showTradeLabels and shortSignal, title="Short Entry", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0),    textcolor=color.white, size=size.tiny, text="Sell")
-plotshape(showTradeLabels and exitShort,   title="Short Exit",  style=shape.labelup,   location=location.belowbar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Cover")
+plotshape(showTradeLabels and exitLongCond,  title="Long Exit",   style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
+plotshape(showTradeLabels and shortSignal,   title="Short Entry", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0),    textcolor=color.white, size=size.tiny, text="Short")
+plotshape(showTradeLabels and exitShortCond, title="Short Exit",  style=shape.labelup,   location=location.belowbar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Cover")
 
 // Pullback channels
 plot(allowLong  and (inReclaimSeqL or inPositionL) ? pullbackHigh : na, title="Pullback High", color=color.new(color.aqua, 0), linewidth=1)
@@ -389,7 +401,7 @@ plot(allowShort and (inReclaimSeqS or inPositionS) ? pullbackLow  : na, title="P
 
 // ==================== STATUS TABLE ====================
 
-var table statusTable = table.new(position.top_right, 2, 11, border_width=1)
+var table statusTable = table.new(position.top_right, 2, 12, border_width=1)
 if barstate.islast
     if showStatusTable
         table.cell(statusTable, 0, 0, "Direction", text_color=color.white, bgcolor=color.new(color.blue, 65))
@@ -432,5 +444,10 @@ if barstate.islast
         volBg = not useVolFilter ? color.new(color.gray, 70) : (volGate ? color.new(color.green, 65) : color.new(color.red, 65))
         table.cell(statusTable, 0, 10, "VolFilt", text_color=color.white, bgcolor=color.new(color.gray, 70))
         table.cell(statusTable, 1, 10, volLabel, text_color=color.white, bgcolor=volBg)
+
+        revLabel = allowSameBarReversal ? "ON" : "OFF"
+        revBg = allowSameBarReversal ? color.new(color.green, 65) : color.new(color.gray, 70)
+        table.cell(statusTable, 0, 11, "Reversal", text_color=color.white, bgcolor=color.new(color.gray, 70))
+        table.cell(statusTable, 1, 11, revLabel, text_color=color.white, bgcolor=revBg)
     else
-        table.clear(statusTable, 0, 0, 1, 10)
+        table.clear(statusTable, 0, 0, 1, 11)

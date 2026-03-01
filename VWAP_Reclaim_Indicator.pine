@@ -340,7 +340,7 @@ plotshape(debug and barCloseGate and retestSeenS and inReclaimSeqS and allowShor
 // Entry/Exit labels
 plotshape(showTradeLabels and longSignal,  title="Long Entry",  style=shape.labelup,   location=location.belowbar, color=color.new(color.lime, 0),   textcolor=color.white, size=size.tiny, text="Buy")
 plotshape(showTradeLabels and exitLong,    title="Long Exit",   style=shape.labeldown, location=location.abovebar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Exit")
-plotshape(showTradeLabels and shortSignal, title="Short Entry", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0),    textcolor=color.white, size=size.tiny, text="Sell")
+plotshape(showTradeLabels and shortSignal, title="Short Entry", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0),    textcolor=color.white, size=size.tiny, text="Short")
 plotshape(showTradeLabels and exitShort,   title="Short Exit",  style=shape.labelup,   location=location.belowbar, color=color.new(color.orange, 0), textcolor=color.white, size=size.tiny, text="Cover")
 
 // Pullback channels
