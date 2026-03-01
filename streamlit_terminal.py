@@ -1610,20 +1610,24 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Inject JS: clicking the heading activates the "🤖 AI Insights" tab (2nd tab, index 1).
-st.markdown(
+# Use st.components.v1.html() for JS injection — st.markdown strips <script> tags.
+# Clicking the heading activates the "🤖 AI Insights" tab (2nd tab, index 1).
+import streamlit.components.v1 as _components
+_components.html(
     """<script>
-    const heading = window.parent.document.getElementById('main-heading');
-    if (heading) {
-        heading.addEventListener('click', function() {
-            const tabs = window.parent.document.querySelectorAll(
-                'button[data-baseweb="tab"]'
-            );
-            if (tabs.length > 1) { tabs[1].click(); }
-        });
-    }
+    (function() {
+        const doc = window.parent.document;
+        const heading = doc.getElementById('main-heading');
+        if (heading && !heading.dataset.bound) {
+            heading.dataset.bound = '1';
+            heading.addEventListener('click', function() {
+                const tabs = doc.querySelectorAll('button[data-baseweb="tab"]');
+                if (tabs.length > 1) { tabs[1].click(); }
+            });
+        }
+    })();
     </script>""",
-    unsafe_allow_html=True,
+    height=0,
 )
 
 if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
