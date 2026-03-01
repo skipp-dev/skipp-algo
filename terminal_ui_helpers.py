@@ -71,10 +71,13 @@ def filter_feed(
     category: str = "all",
     from_epoch: float = 0.0,
     to_epoch: float = float("inf"),
+    sort_by: str = "newest",
 ) -> list[dict[str, Any]]:
     """Apply text-search, sentiment, category, and date-range filters.
 
-    Returns the filtered list **sorted by score descending**.
+    Returns the filtered list sorted according to *sort_by*:
+    - ``"newest"`` — published_ts descending (freshest first, default)
+    - ``"score"``  — news_score descending, published_ts as tiebreaker
     """
     filtered = list(feed)
 
@@ -102,8 +105,11 @@ def filter_feed(
     # Remove duplicate feed rows (same ticker + same canonical article)
     filtered = dedup_feed_items(filtered)
 
-    # Score descending, then published_ts ascending as tiebreaker
-    filtered.sort(key=lambda d: (-d.get("news_score", 0), d.get("published_ts", 0)))
+    # Sort order
+    if sort_by == "score":
+        filtered.sort(key=lambda d: (-d.get("news_score", 0), d.get("published_ts", 0)))
+    else:  # "newest" (default)
+        filtered.sort(key=lambda d: -(d.get("published_ts", 0) or 0))
     return filtered
 
 

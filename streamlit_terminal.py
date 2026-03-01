@@ -1775,7 +1775,7 @@ else:
     # ── TAB: Live Feed (with search + date filter) ──────────
     with tab_feed:
         # Search + filter controls
-        fcol1, fcol2, fcol3 = st.columns([3, 2, 2])
+        fcol1, fcol2, fcol3, fcol4 = st.columns([3, 1.5, 1.5, 1])
         with fcol1:
             search_q = st.text_input(
                 "🔍 Search headlines", value="", placeholder="e.g. AAPL earnings",
@@ -1790,6 +1790,11 @@ else:
             filter_category = st.selectbox(
                 "Category", ["all", *sorted(set(d.get("category", "other") for d in feed))],
                 key="feed_cat",
+            )
+        with fcol4:
+            feed_sort = st.selectbox(
+                "Sort by", ["Newest", "Score"],
+                key="feed_sort",
             )
 
         # Date range filter
@@ -1813,6 +1818,7 @@ else:
             category=filter_category,
             from_epoch=from_epoch,
             to_epoch=to_epoch,
+            sort_by=feed_sort.lower(),
         )
 
         st.caption(f"Showing {len(filtered)} of {len(feed)} items")
