@@ -312,11 +312,64 @@ _cache_lock = threading.Lock()
 _CACHE_MAX_SIZE = 500  # evict when cache exceeds this
 _cache_write_count = 0
 
-_BREAKING_TTL = 120  # 2 minutes
-_TRENDING_TTL = 180  # 3 minutes
-_SENTIMENT_TTL = 300  # 5 minutes  (NLP enrichment — less time-critical)
-_SOCIAL_TTL = 120    # 2 minutes
-_EVENT_CLUSTER_TTL = 300  # 5 minutes
+# TTLs — long enough to stay well within the 5 000 token / month budget.
+# With ~6 distinct query types and 15-30 min TTLs the daily token burn is
+# roughly:  6 types × (1440 min / 15 min) × ~2 tokens avg ≈ 1 150 tokens/day
+# which leaves headroom even with multiple browser sessions.
+_BREAKING_TTL = 900      # 15 minutes  (was 2 min — caused 720 calls/day)
+_TRENDING_TTL = 1800     # 30 minutes  (was 3 min)
+_SENTIMENT_TTL = 1800    # 30 minutes  (was 5 min — NLP enrichment, not time-critical)
+_SOCIAL_TTL = 900        # 15 minutes  (was 2 min)
+_EVENT_CLUSTER_TTL = 1800  # 30 minutes  (was 5 min)
+
+# ── Daily token budget guard ────────────────────────────────────
+# Block further API calls once the daily budget is exhausted.
+# 5 000 tokens / month ÷ 31 days ≈ 161 tokens/day.
+# Default 150/day leaves a small buffer.
+
+_DAILY_TOKEN_BUDGET = int(os.environ.get("NEWSAPI_DAILY_TOKEN_BUDGET", "150"))
+_daily_tokens_used = 0
+_daily_reset_date: str = ""  # ISO date of last reset
+_budget_lock = threading.Lock()
+
+
+def _check_budget(estimated_cost: int = 1) -> bool:
+    """Return True if the daily budget allows ``estimated_cost`` more tokens.
+
+    Call this *before* every SDK query.  If it returns False the caller
+    should return cached / empty data instead of hitting the API.
+    """
+    global _daily_tokens_used, _daily_reset_date
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with _budget_lock:
+        if _daily_reset_date != today:
+            _daily_tokens_used = 0
+            _daily_reset_date = today
+        if _daily_tokens_used + estimated_cost > _DAILY_TOKEN_BUDGET:
+            log.warning(
+                "NewsAPI.ai daily token budget exhausted (%d/%d used). "
+                "Skipping API call. Raise via NEWSAPI_DAILY_TOKEN_BUDGET env var.",
+                _daily_tokens_used, _DAILY_TOKEN_BUDGET,
+            )
+            return False
+        return True
+
+
+def _record_tokens(cost: int = 1) -> None:
+    """Record that ``cost`` tokens were consumed by an API call."""
+    global _daily_tokens_used
+    with _budget_lock:
+        _daily_tokens_used += cost
+
+
+def get_daily_token_status() -> dict[str, int]:
+    """Return daily budget status: used, budget, remaining."""
+    with _budget_lock:
+        return {
+            "used": _daily_tokens_used,
+            "budget": _DAILY_TOKEN_BUDGET,
+            "remaining": max(0, _DAILY_TOKEN_BUDGET - _daily_tokens_used),
+        }
 
 
 def _get_cached(key: str, ttl: float) -> Any:
@@ -443,6 +496,8 @@ def fetch_breaking_events(
     er = _get_er()
     if er is None:
         return []
+    if not _check_budget(5):  # event search = 5 tokens
+        return []
 
     try:
         q = QueryEvents(
@@ -458,6 +513,7 @@ def fetch_breaking_events(
             )
         )
         result = er.execQuery(q)
+        _record_tokens(5)
 
         # Guard against SDK returning None
         if not isinstance(result, dict):
@@ -562,6 +618,8 @@ def fetch_event_articles(
     er = _get_er()
     if er is None:
         return []
+    if not _check_budget(1):  # article search = 1 token
+        return []
 
     try:
         q = QueryArticles(eventUri=event_uri)
@@ -573,6 +631,7 @@ def fetch_event_articles(
             )
         )
         result = er.execQuery(q)
+        _record_tokens(1)
 
         if not isinstance(result, dict):
             log.warning("execQuery returned non-dict for event articles: %r", type(result))
@@ -664,6 +723,8 @@ def fetch_trending_concepts(
     er = _get_er()
     if er is None:
         return []
+    if not _check_budget(5):  # trending concepts = 5 tokens
+        return []
 
     try:
         q = GetTrendingConcepts(
@@ -672,6 +733,7 @@ def fetch_trending_concepts(
             **({"conceptType": concept_type} if concept_type else {}),
         )
         result = er.execQuery(q)
+        _record_tokens(5)
 
         if result is None:
             log.warning("execQuery returned None for trending concepts")
@@ -767,6 +829,8 @@ def fetch_concept_articles(
     er = _get_er()
     if er is None:
         return []
+    if not _check_budget(1):  # article search = 1 token
+        return []
 
     try:
         q = QueryArticles(conceptUri=concept_uri)
@@ -779,6 +843,7 @@ def fetch_concept_articles(
             )
         )
         result = er.execQuery(q)
+        _record_tokens(1)
 
         if not isinstance(result, dict):
             log.warning("execQuery returned non-dict for concept articles: %r", type(result))
@@ -861,6 +926,8 @@ def fetch_nlp_sentiment(
     er = _get_er()
     if er is None:
         return {}
+    if not _check_budget(1):  # article search = 1 token
+        return {}
 
     result: dict[str, NLPSentiment] = {}
 
@@ -884,6 +951,7 @@ def fetch_nlp_sentiment(
             )
         )
         api_result = er.execQuery(q)
+        _record_tokens(1)
         if not isinstance(api_result, dict):
             log.warning("execQuery returned non-dict for NLP sentiment: %r", type(api_result))
             return {}
@@ -989,6 +1057,8 @@ def fetch_event_clusters(
     er = _get_er()
     if er is None:
         return []
+    if not _check_budget(5):  # event search = 5 tokens
+        return []
 
     try:
         date_start = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%d")
@@ -1006,6 +1076,7 @@ def fetch_event_clusters(
             )
         )
         api_result = er.execQuery(q)
+        _record_tokens(5)
 
         if not isinstance(api_result, dict):
             log.warning("execQuery returned non-dict for event clusters: %r", type(api_result))
@@ -1092,6 +1163,8 @@ def fetch_social_ranked_articles(
     er = _get_er()
     if er is None:
         return []
+    if not _check_budget(1):  # article search = 1 token
+        return []
 
     try:
         date_start = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%d")
@@ -1112,6 +1185,7 @@ def fetch_social_ranked_articles(
             )
         )
         api_result = er.execQuery(q)
+        _record_tokens(1)
         if not isinstance(api_result, dict):
             log.warning("execQuery returned non-dict for social articles: %r", type(api_result))
             _set_cached(cache_key, [])
