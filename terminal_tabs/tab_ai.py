@@ -20,7 +20,7 @@ from terminal_ui_helpers import safe_markdown_text
 
 logger = logging.getLogger(__name__)
 
-_SAVE_DIR = Path(os.getenv("AI_INSIGHTS_DIR", "artifacts"))
+_SAVE_DIR = Path(os.getenv("AI_INSIGHTS_DIR", os.path.expanduser("~/Downloads")))
 
 
 def _save_ai_result(question: str, answer: str, model: str,

@@ -126,7 +126,7 @@ def _yf_universe() -> list[str]:
         "BA", "LMT", "RTX", "GE", "CAT", "DE", "HON", "UPS",
         # High-beta / meme / retail-popular
         "PLTR", "SOFI", "RIVN", "LCID", "NIO", "MARA", "RIOT", "COIN",
-        "GME", "AMC", "HOOD", "RBLX", "SNAP", "PINS", "SQ", "SHOP",
+        "GME", "AMC", "HOOD", "RBLX", "SNAP", "PINS", "XYZ", "SHOP",
         "ROKU", "DKNG", "ABNB", "UBER", "LYFT", "DASH", "ZM", "CRWD",
         # Major ETFs
         "SPY", "QQQ", "IWM", "DIA", "XLF", "XLE", "XLK", "XLV",
