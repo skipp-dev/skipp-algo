@@ -1983,7 +1983,7 @@ def _fetch_premarket_context(
             premarket[sym]["revenue_surprise_pct"] = event.get("revenue_surprise_pct")
     except Exception as exc:
         logger.warning("Earnings calendar fetch failed: %s", exc, exc_info=True)
-        errors.append(f"earnings_calendar: {exc}")
+        errors.append(f"earnings_calendar: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
         for sym in symbols:
             premarket[sym]["earnings_today"] = False
             premarket[sym]["earnings_timing"] = None
@@ -2008,7 +2008,7 @@ def _fetch_premarket_context(
             )
     except Exception as exc:
         logger.warning("Earnings-distance fetch failed: %s", exc, exc_info=True)
-        errors.append(f"earnings_distance: {exc}")
+        errors.append(f"earnings_distance: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
         for sym in symbols:
             premarket[sym].setdefault("days_since_last_earnings", None)
             premarket[sym].setdefault("days_to_next_earnings", None)
@@ -2026,7 +2026,7 @@ def _fetch_premarket_context(
             premarket[sym].update(corp.get(sym, {}))
     except Exception as exc:
         logger.warning("Corporate-action fetch failed: %s", exc, exc_info=True)
-        errors.append(f"corporate_actions: {exc}")
+        errors.append(f"corporate_actions: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
         for sym in symbols:
             premarket[sym].setdefault("split_today", False)
             premarket[sym].setdefault("dividend_today", False)
@@ -2053,7 +2053,7 @@ def _fetch_premarket_context(
             )
     except Exception as exc:
         logger.warning("Analyst catalyst fetch failed: %s", exc, exc_info=True)
-        errors.append(f"analyst_catalyst: {exc}")
+        errors.append(f"analyst_catalyst: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
         for sym in symbols:
             premarket[sym].setdefault("analyst_price_target", None)
             premarket[sym].setdefault("analyst_coverage_count", 0)
@@ -2168,7 +2168,7 @@ def _fetch_premarket_context(
             premarket[sym]["ext_hours_score"] = ext_hours_score
     except Exception as exc:
         logger.warning("Premarket movers fetch failed: %s", exc, exc_info=True)
-        errors.append(f"premarket_movers: {exc}")
+        errors.append(f"premarket_movers: {_APIKEY_RE.sub(r'\\1=***', str(exc))}")
         for sym in symbols:
             premarket[sym].setdefault("is_premarket_mover", False)
             premarket[sym].setdefault("mover_seed_hit", False)
@@ -3306,7 +3306,7 @@ def _resolve_symbol_universe(
             )
             mover_seed = _build_mover_seed(client, mover_seed_max_symbols)
         except RuntimeError as exc:
-            logger.warning("FMP auto-universe fetch failed; using static fallback: %s", exc)
+            logger.warning("FMP auto-universe fetch failed; using static fallback: %s", type(exc).__name__, exc_info=True)
             auto_symbols = []
             mover_seed = []
 
@@ -3423,7 +3423,7 @@ def _fetch_news_context(
         news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
     except Exception as exc:
         news_fetch_error = _APIKEY_RE.sub(r"\1=***", str(exc))
-        logger.warning("News fetch failed, continuing without news scores: %s", exc)
+        logger.warning("News fetch failed, continuing without news scores: %s", type(exc).__name__, exc_info=True)
 
     return news_scores, news_metrics, news_fetch_error
 
@@ -3858,7 +3858,7 @@ def generate_open_prep_result(
             lookback_days=3,
         )
     except Exception as exc:
-        logger.warning("Upgrades/downgrades fetch failed: %s", exc)
+        logger.warning("Upgrades/downgrades fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge upgrade/downgrade data into quotes
     for q in quotes:
@@ -3876,7 +3876,7 @@ def generate_open_prep_result(
     try:
         sector_performance = _fetch_sector_performance(data_client)
     except Exception as exc:
-        logger.warning("Sector performance fetch failed: %s", exc)
+        logger.warning("Sector performance fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # --- Treasury Rates (yield curve) ---
     _progress(9, TOTAL_STAGES, "Treasury Rates laden …")
@@ -3892,7 +3892,7 @@ def generate_open_prep_result(
                 treasury_rates.get("curve_inverted"),
             )
     except Exception as exc:
-        logger.warning("Treasury rates fetch failed: %s", exc)
+        logger.warning("Treasury rates fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # --- House Trading (Congress) ---
     _progress(10, TOTAL_STAGES, "House Trading laden …")
@@ -3905,7 +3905,7 @@ def generate_open_prep_result(
         if house_trading:
             logger.info("House trading: %d symbols with activity", len(house_trading))
     except Exception as exc:
-        logger.warning("House trading fetch failed: %s", exc)
+        logger.warning("House trading fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge house trading data into quotes
     for q in quotes:
@@ -3927,7 +3927,7 @@ def generate_open_prep_result(
         if dcf_valuations:
             logger.info("DCF valuations: %d symbols enriched", len(dcf_valuations))
     except Exception as exc:
-        logger.warning("DCF valuations fetch failed: %s", exc)
+        logger.warning("DCF valuations fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge DCF data into quotes
     for q in quotes:
@@ -3946,7 +3946,7 @@ def generate_open_prep_result(
         if insider_trading:
             logger.info("Insider trading: %d symbols with activity", len(insider_trading))
     except Exception as exc:
-        logger.warning("Insider trading fetch failed: %s", exc)
+        logger.warning("Insider trading fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge insider trading data into quotes
     for q in quotes:
@@ -3968,7 +3968,7 @@ def generate_open_prep_result(
         if institutional_ownership:
             logger.info("Institutional ownership: %d symbols enriched", len(institutional_ownership))
     except Exception as exc:
-        logger.warning("Institutional ownership fetch failed: %s", exc)
+        logger.warning("Institutional ownership fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge institutional ownership data into quotes
     for q in quotes:
@@ -3992,7 +3992,7 @@ def generate_open_prep_result(
         if finnhub_insider_sentiment:
             logger.info("Finnhub insider sentiment: %d symbols", len(finnhub_insider_sentiment))
     except Exception as exc:
-        logger.warning("Finnhub insider sentiment failed: %s", exc)
+        logger.warning("Finnhub insider sentiment failed: %s", type(exc).__name__, exc_info=True)
 
     try:
         with _profiler.stage("Finnhub Peers"):
@@ -4003,7 +4003,7 @@ def generate_open_prep_result(
         if finnhub_peers:
             logger.info("Finnhub peers: %d symbols with peers", len(finnhub_peers))
     except Exception as exc:
-        logger.warning("Finnhub peers fetch failed: %s", exc)
+        logger.warning("Finnhub peers fetch failed: %s", type(exc).__name__, exc_info=True)
 
     try:
         with _profiler.stage("Finnhub FDA Calendar"):
@@ -4011,7 +4011,7 @@ def generate_open_prep_result(
         if finnhub_fda_calendar:
             logger.info("Finnhub FDA calendar: %d events", len(finnhub_fda_calendar))
     except Exception as exc:
-        logger.warning("Finnhub FDA calendar failed: %s", exc)
+        logger.warning("Finnhub FDA calendar failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge Finnhub insider sentiment into quotes
     for q in quotes:
@@ -4034,7 +4034,7 @@ def generate_open_prep_result(
         if finnhub_social_sentiment:
             logger.info("Finnhub social sentiment: %d symbols", len(finnhub_social_sentiment))
     except Exception as exc:
-        logger.warning("Finnhub social sentiment failed: %s", exc)
+        logger.warning("Finnhub social sentiment failed: %s", type(exc).__name__, exc_info=True)
 
     try:
         with _profiler.stage("Finnhub Patterns"):
@@ -4045,7 +4045,7 @@ def generate_open_prep_result(
         if finnhub_patterns:
             logger.info("Finnhub patterns: %d symbols with patterns", len(finnhub_patterns))
     except Exception as exc:
-        logger.warning("Finnhub patterns failed: %s", exc)
+        logger.warning("Finnhub patterns failed: %s", type(exc).__name__, exc_info=True)
 
     # Merge Finnhub social + patterns into quotes
     for q in quotes:
@@ -4198,7 +4198,7 @@ def generate_open_prep_result(
             })
         earnings_calendar.sort(key=lambda x: (x.get("date") or "", x.get("symbol") or ""))
     except Exception as exc:
-        logger.warning("Earnings calendar (6-day) fetch failed: %s", exc)
+        logger.warning("Earnings calendar (6-day) fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # ===================================================================
     # v2 pipeline: VIX → regime → sector-relative → v2 scorer → outcomes
@@ -4210,7 +4210,7 @@ def generate_open_prep_result(
         vix_level = _to_float(vix_quote.get("price"), default=0.0) or None
         logger.info("VIX level: %s", vix_level)
     except Exception as exc:
-        logger.warning("VIX fetch failed: %s", exc)
+        logger.warning("VIX fetch failed: %s", type(exc).__name__, exc_info=True)
 
     # Enrich symbol_sectors with profile lookups for symbols missing sector
     # info (typically mover-seeded symbols not from the screener).  Only
@@ -4420,7 +4420,7 @@ def generate_open_prep_result(
         # Candidate alerts
         alert_results.extend(dispatch_alerts(ranked_v2, regime=regime_snapshot.regime, config=alert_config))
     except Exception as exc:
-        logger.warning("Alert dispatch error: %s", exc)
+        logger.warning("Alert dispatch error: %s", type(exc).__name__, exc_info=True)
 
     # Auto-add high conviction to watchlist
     try:
@@ -4428,20 +4428,20 @@ def generate_open_prep_result(
         if n_added:
             logger.info("Auto-added %d HIGH_CONVICTION symbols to watchlist", n_added)
     except Exception as exc:
-        logger.warning("Watchlist auto-add error: %s", exc)
+        logger.warning("Watchlist auto-add error: %s", type(exc).__name__, exc_info=True)
 
     # Store outcome snapshot for backward validation (profitable_30m backfilled later)
     try:
         outcome_records = prepare_outcome_snapshot(ranked_v2, today)
         store_daily_outcomes(today, outcome_records)
     except Exception as exc:
-        logger.warning("Outcome storage error: %s", exc)
+        logger.warning("Outcome storage error: %s", type(exc).__name__, exc_info=True)
 
     # Save current snapshot for next run's diff
     try:
         save_result_snapshot(diff_current)
     except Exception as exc:
-        logger.warning("Result snapshot save error: %s", exc)
+        logger.warning("Result snapshot save error: %s", type(exc).__name__, exc_info=True)
 
     # Load watchlist for payload
     _progress(17, TOTAL_STAGES, "Ergebnis zusammenbauen …")

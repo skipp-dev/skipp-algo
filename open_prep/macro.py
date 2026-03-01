@@ -666,15 +666,22 @@ class FMPClient:
         return [item for item in data if isinstance(item, dict)]
 
     def get_sector_performance(self) -> list[dict[str, Any]]:
-        """Fetch current sector performance snapshot from FMP stable endpoint."""
-        from datetime import date as _date
-        try:
-            data = self._get("/stable/sector-performance-snapshot", {"date": _date.today().isoformat()})
-        except RuntimeError as exc:
-            return _handle_fmp_error(exc, "sector performance")
-        if not isinstance(data, list):
-            return []
-        return [item for item in data if isinstance(item, dict)]
+        """Fetch current sector performance snapshot from FMP stable endpoint.
+
+        The endpoint only returns data for trading days, so on weekends
+        and holidays we walk back up to 5 calendar days to find the most
+        recent session with data.
+        """
+        from datetime import date as _date, timedelta as _td
+        for offset in range(6):
+            query_date = _date.today() - _td(days=offset)
+            try:
+                data = self._get("/stable/sector-performance-snapshot", {"date": query_date.isoformat()})
+            except RuntimeError as exc:
+                return _handle_fmp_error(exc, "sector performance")
+            if isinstance(data, list) and data:
+                return [item for item in data if isinstance(item, dict)]
+        return []
 
     # ------------------------------------------------------------------
     # New endpoints for v2 pipeline
@@ -1212,7 +1219,7 @@ class FinnhubClient:
                 logger.warning("Finnhub HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
         except Exception as exc:
-            logger.warning("Finnhub request failed for %s: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)))
+            logger.warning("Finnhub request failed for %s: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)), exc_info=True)
             return {}
 
     def available(self) -> bool:
@@ -1446,7 +1453,7 @@ class AlpacaClient:
             logger.warning("Alpaca HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
         except Exception as exc:
-            logger.warning("Alpaca request failed for %s: %s", path, type(exc).__name__)
+            logger.warning("Alpaca request failed for %s: %s", path, type(exc).__name__, exc_info=True)
             return {}
 
     def available(self) -> bool:

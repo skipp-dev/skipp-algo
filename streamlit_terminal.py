@@ -144,6 +144,7 @@ from terminal_forecast import (
 from terminal_newsapi import (
     NLPSentiment,
     fetch_breaking_events,
+    fetch_concept_articles,
     fetch_event_articles,
     fetch_event_clusters,
     fetch_nlp_sentiment,
@@ -3389,10 +3390,13 @@ else:
                 )
 
                 # Allow custom ticker override
-                custom_tickers = st.text_input(
-                    "Tickers (comma-separated)",
-                    value=DEFENSE_TICKERS,
-                    key="defense_tickers_input",
+                custom_tickers = re.sub(
+                    r"[^A-Za-z0-9,.\- ]", "",
+                    st.text_input(
+                        "Tickers (comma-separated)",
+                        value=DEFENSE_TICKERS,
+                        key="defense_tickers_input",
+                    ),
                 ).strip().upper()
 
                 def_data = _cached_defense_watchlist(fmp_key) if (not custom_tickers or custom_tickers == DEFENSE_TICKERS) else _cached_defense_watchlist_custom(fmp_key, custom_tickers)
@@ -3703,7 +3707,7 @@ else:
                             "- **Score** — Trending momentum score from NewsAPI.ai: "
                             "higher values indicate a sharper increase in media attention\n"
                             "- **Articles** — Number of news articles mentioning this concept in the lookback period. "
-                            "Use the *Breaking* tab to read relevant articles for a concept."
+                            "Click the article count to expand and view the latest 20 articles."
                         )
                     st.dataframe(
                         _tr_df,
@@ -3717,6 +3721,28 @@ else:
                             "Articles": st.column_config.NumberColumn("Articles", width="small"),
                         },
                     )
+
+                    # ── Per-concept article expanders ────────────────────
+                    st.markdown("#### 📰 Articles per Concept")
+                    for _idx, _c in enumerate(_trending, 1):
+                        if _c.article_count == 0 and not _c.uri:
+                            continue
+                        with st.expander(
+                            f"{_c.type_icon} **{_c.label}** — {_c.article_count} articles",
+                            expanded=False,
+                        ):
+                            _concept_arts = fetch_concept_articles(_c.uri, count=20)
+                            if _concept_arts:
+                                for _art in _concept_arts:
+                                    _art_date = _art.date[:16] if _art.date else ""
+                                    _art_src = f" · {_art.source}" if _art.source else ""
+                                    st.markdown(
+                                        f"- [{_art.title}]({_art.url})"
+                                        f"  <small style='color:gray'>{_art_date}{_art_src}</small>",
+                                        unsafe_allow_html=True,
+                                    )
+                            else:
+                                st.caption("No articles found for this concept.")
             else:
                 st.info("No trending concepts found.")
 

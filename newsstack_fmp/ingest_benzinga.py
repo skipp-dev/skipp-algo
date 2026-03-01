@@ -465,7 +465,7 @@ class BenzingaWsAdapter:
             except Exception as exc:
                 if self._stop_event.is_set():
                     break
-                logger.warning("BenzingaWsAdapter: connection error: %s — reconnecting in %.1fs", exc, backoff)
+                logger.warning("BenzingaWsAdapter: connection error: %s — reconnecting in %.1fs", type(exc).__name__, backoff, exc_info=True)
                 # Split sleep into short intervals to allow faster shutdown
                 _slept = 0.0
                 while _slept < backoff and not self._stop_event.is_set():

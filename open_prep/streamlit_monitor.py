@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import re
 import sys
 from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
@@ -13,6 +14,8 @@ import pandas as pd
 import streamlit as st
 
 logger = logging.getLogger("open_prep.streamlit_monitor")
+
+_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
 
 # Ensure package imports work even when Streamlit is started outside project root.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -909,7 +912,7 @@ def main() -> None:
                         st.session_state["_stale_recovery_count"],
                     )
             except Exception as exc:
-                logger.warning("Auto-recovery staleness check failed: %s", exc)
+                logger.warning("Auto-recovery staleness check failed: %s", type(exc).__name__, exc_info=True)
 
         if auto_refresh_enabled and not force_live_fetch and isinstance(cached_result, dict) and last_live_fetch_raw:
             try:
@@ -956,8 +959,8 @@ def main() -> None:
                 )
             except Exception as exc:
                 status_container.update(label="Pipeline fehlgeschlagen", state="error", expanded=False)
-                logger.error("Pipeline error: %s", exc, exc_info=True)
-                st.error(f"Pipeline fehlgeschlagen: {type(exc).__name__}: {exc}")
+                logger.error("Pipeline error: %s", type(exc).__name__, exc_info=True)
+                st.error(f"Pipeline fehlgeschlagen: {type(exc).__name__}: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
                 return
             total_elapsed = __import__("time").monotonic() - _pipeline_start
             status_container.update(
@@ -1569,8 +1572,8 @@ def main() -> None:
                 st.info("Newsstack: keine neuen Kandidaten in diesem Zyklus.")
         except Exception as exc:
             _ns_log = logging.getLogger("open_prep.streamlit_monitor")
-            _ns_log.warning("News Stack integration error: %s", exc)
-            st.warning(f"News Stack nicht verfügbar: {exc}")
+            _ns_log.warning("News Stack integration error: %s", type(exc).__name__, exc_info=True)
+            st.warning(f"News Stack nicht verfügbar: {_APIKEY_RE.sub(r'\1=***', str(exc))}")
 
         # ===================================================================
         # 9. Gap Scanner

@@ -98,7 +98,7 @@ def resolve_current_pio_release_url(timeout_seconds: int = 12) -> tuple[str | No
     except urllib.error.URLError as exc:
         return None, f"bea_network_error:{exc.reason}"
     except Exception as exc:  # pragma: no cover - defensive fallback
-        return None, f"bea_unexpected_error:{exc}"
+        return None, f"bea_unexpected_error:{type(exc).__name__}"
 
     url = extract_current_release_url(html)
     if not url:

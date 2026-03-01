@@ -737,6 +737,99 @@ def fetch_trending_concepts(
         return []
 
 
+# ── Articles for a Trending Concept ─────────────────────────────
+
+_CONCEPT_ARTICLES_TTL = 300  # 5 min cache
+
+def fetch_concept_articles(
+    concept_uri: str,
+    count: int = 20,
+) -> list[BreakingArticle]:
+    """Fetch recent articles mentioning a specific concept URI.
+
+    Parameters
+    ----------
+    concept_uri : str
+        The concept URI from the trending concepts response (e.g.
+        ``"http://en.wikipedia.org/wiki/Bitcoin"``).
+    count : int
+        Max articles to return (default 20).
+
+    Returns
+    -------
+    list[BreakingArticle]
+    """
+    cache_key = f"concept_articles:{concept_uri}:{count}"
+    cached = _get_cached(cache_key, _CONCEPT_ARTICLES_TTL)
+    if cached is not None:
+        return cached  # type: ignore
+
+    er = _get_er()
+    if er is None:
+        return []
+
+    try:
+        q = QueryArticles(conceptUri=concept_uri)
+        q.setRequestedResult(
+            RequestArticlesInfo(
+                count=min(count, 100),
+                sortBy="date",
+                sortByAsc=False,
+                returnInfo=_rich_return_info() or ReturnInfo(),
+            )
+        )
+        result = er.execQuery(q)
+
+        if not isinstance(result, dict):
+            log.warning("execQuery returned non-dict for concept articles: %r", type(result))
+            _set_cached(cache_key, [])
+            return []
+
+        articles_data = (
+            result.get("articles", {})
+            .get("results", [])
+        )
+
+        articles: list[BreakingArticle] = []
+        for art in articles_data:
+            source = art.get("source", {})
+            _raw_authors = art.get("authors", []) or []
+            _author_names: list[str] = []
+            for _au in _raw_authors:
+                if isinstance(_au, dict):
+                    _author_names.append(_au.get("name", "") or "")
+                elif isinstance(_au, str):
+                    _author_names.append(_au)
+            _author_names = [a for a in _author_names if a]
+
+            articles.append(BreakingArticle(
+                title=art.get("title", ""),
+                body=art.get("body", "") or "",
+                url=art.get("url", ""),
+                source=source.get("title", "") if isinstance(source, dict) else str(source),
+                date=art.get("dateTimePub", ""),
+                authors=_author_names,
+                links=art.get("links", []) or [],
+                videos=art.get("videos", []) or [],
+                sentiment=art.get("sentiment"),
+                social_score=int(art.get("socialScore", 0) or 0),
+                image=art.get("image", ""),
+                event_uri=art.get("eventUri", "") or "",
+                is_duplicate=bool(art.get("isDuplicate", False)),
+                concepts=[],
+            ))
+
+        _set_cached(cache_key, articles)
+        return articles
+
+    except (ConnectionError, TimeoutError, OSError, ValueError, KeyError) as exc:
+        log.warning("fetch_concept_articles(%s) failed: %s", concept_uri, exc)
+        return []
+    except Exception as exc:
+        log.exception("fetch_concept_articles(%s) unexpected error: %s", concept_uri, exc)
+        return []
+
+
 # ── NLP Sentiment for symbols ───────────────────────────────────
 
 def fetch_nlp_sentiment(

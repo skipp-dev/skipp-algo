@@ -419,7 +419,7 @@ def poll_and_classify(
             classified = _classify_item(item, store, now_utc)
             all_classified.extend(classified)
         except Exception as exc:
-            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], exc)
+            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], type(exc).__name__, exc_info=True)
 
         # Track cursor: use the max updated_ts from valid items
         ts = item.updated_ts or item.published_ts
@@ -515,7 +515,7 @@ def poll_and_classify_multi(
             classified = _classify_item(item, store, now_utc)
             all_classified.extend(classified)
         except Exception as exc:
-            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], exc)
+            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], type(exc).__name__, exc_info=True)
 
         ts = item.updated_ts or item.published_ts
         if ts and ts > 0:
@@ -613,7 +613,11 @@ def fetch_ticker_sectors(api_key: str, tickers: list[str]) -> dict[str, str]:
 def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
     """Fetch current sector performance from FMP (stable endpoint).
 
-    Uses ``/stable/sector-performance-snapshot`` with today's date.
+    Uses ``/stable/sector-performance-snapshot``.  The endpoint only
+    returns data for actual trading days, so on weekends and holidays
+    this function walks back up to 5 calendar days to find the most
+    recent session with data.
+
     The endpoint returns one row per (sector, exchange) pair; this
     function aggregates across exchanges to return the mean change
     per sector with a ``changesPercentage`` key for downstream
@@ -623,10 +627,19 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
     """
     url = "https://financialmodelingprep.com/stable/sector-performance-snapshot"
     try:
-        r = _get_fmp_client().get(url, params={"apikey": api_key, "date": date.today().isoformat()})
-        r.raise_for_status()
-        data = r.json()
-        if not isinstance(data, list):
+        client = _get_fmp_client()
+        data: list = []
+        # Walk back up to 5 days to find the most recent trading day
+        for offset in range(6):
+            query_date = date.today() - timedelta(days=offset)
+            r = client.get(url, params={"apikey": api_key, "date": query_date.isoformat()})
+            r.raise_for_status()
+            candidate = r.json()
+            if isinstance(candidate, list) and candidate:
+                data = candidate
+                break
+
+        if not data:
             return []
 
         # Aggregate across exchanges: mean averageChange per sector
@@ -1056,7 +1069,7 @@ def compute_tomorrow_outlook(
                 in {"bmo", "before market open", "before_open"}
             ]
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: earnings fetch failed: %s", exc)
+            logger.warning("Tomorrow outlook: earnings fetch failed: %s", type(exc).__name__, exc_info=True)
 
     if len(earnings_bmo) >= 10:
         outlook_score += 0.5
@@ -1086,7 +1099,7 @@ def compute_tomorrow_outlook(
                         "source": "FMP",
                     })
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: FMP econ calendar failed: %s", exc)
+            logger.warning("Tomorrow outlook: FMP econ calendar failed: %s", type(exc).__name__, exc_info=True)
 
     # 2b) Benzinga economics calendar
     if bz_api_key:
@@ -1115,7 +1128,7 @@ def compute_tomorrow_outlook(
                             "source": "Benzinga",
                         })
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: Benzinga econ calendar failed: %s", exc)
+            logger.warning("Tomorrow outlook: Benzinga econ calendar failed: %s", type(exc).__name__, exc_info=True)
 
     if len(hi_events) >= 3:
         outlook_score -= 1.5
@@ -1153,7 +1166,7 @@ def compute_tomorrow_outlook(
                 else:
                     reasons.append("sectors_mixed")
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: sector performance failed: %s", exc)
+            logger.warning("Tomorrow outlook: sector performance failed: %s", type(exc).__name__, exc_info=True)
 
     # ── Map score to traffic light ──
     if outlook_score >= 0.5:

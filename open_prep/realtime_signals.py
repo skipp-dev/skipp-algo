@@ -406,7 +406,7 @@ def _start_telemetry_server(
         logger.info("Telemetry HTTP server listening on http://127.0.0.1:%d", port)
         return server
     except OSError as exc:
-        logger.warning("Could not start telemetry server on port %d: %s", port, exc)
+        logger.warning("Could not start telemetry server on port %d: %s", port, type(exc).__name__, exc_info=True)
         return None
 
 
@@ -514,6 +514,13 @@ class DynamicCooldown:
             self._transitions[symbol] = deque(maxlen=self._osc_window)
         self._transitions[symbol].append((now, direction))
         self._last_a0[symbol] = now
+
+        # Prune stale symbols to prevent unbounded dict growth
+        stale_cutoff = now - self.max_seconds * 5
+        stale_syms = [s for s, ts in self._last_a0.items() if ts < stale_cutoff]
+        for s in stale_syms:
+            self._last_a0.pop(s, None)
+            self._transitions.pop(s, None)
 
     def check_cooldown(
         self,
@@ -1276,6 +1283,10 @@ class RealtimeEngine:
             n_cleared = len(self._last_prices)
             self._last_prices.clear()
             self._price_history.clear()
+            self._quote_hashes.clear()
+            self._avg_vol_cache.clear()
+            self._earnings_today_cache.clear()
+            self._new_entrant_set.clear()
             self._was_outside_market = False
             logger.info("Session boundary — cleared stale _last_prices (%d symbols)", n_cleared)
 

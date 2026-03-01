@@ -425,7 +425,7 @@ def poll_once(
     try:
         export_open_prep(cfg.export_path, export_candidates, meta)
     except Exception as exc:
-        logger.warning("export_open_prep failed: %s", exc)
+        logger.warning("export_open_prep failed: %s", type(exc).__name__, exc_info=True)
 
     # ── 7) Prune old records + stale best_by_ticker entries ────
     store.prune_seen(cfg.keep_seen_seconds)

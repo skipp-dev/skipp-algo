@@ -119,7 +119,7 @@ def store_daily_outcomes(
                 stale.unlink(missing_ok=True)
                 logger.debug("Rotated stale outcome file: %s", stale.name)
     except Exception as exc:
-        logger.warning("Outcome rotation failed (non-fatal): %s", exc)
+        logger.warning("Outcome rotation failed (non-fatal): %s", type(exc).__name__, exc_info=True)
 
     return path
 
