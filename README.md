@@ -5,8 +5,21 @@
 SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with multi-timeframe Outlook/Forecast dashboard for TradingView.
-2. **Streamlit News Terminal** — a Bloomberg-style real-time news intelligence dashboard with 18 tabs covering news, AI insights, movers, spikes, macro, crypto, and more.
+2. **Streamlit News Terminal** — a Bloomberg-style **Research & Monitoring Terminal** with 18 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
+
+## Product Positioning & Compliance Notes
+
+- SkippALGO is positioned as a **Research & Monitoring Terminal**.
+- Core value proposition: **News Intelligence + Alerting**.
+- Primary use case: **Workflow/Decision Support** — not direct “Buy/Sell” instructions.
+
+### Important Disclaimer
+
+- This project provides market data aggregation, analytics, alerts, and workflow support.
+- It does **not** provide personalized investment recommendations.
+- It does **not** execute orders or place trades on behalf of users.
+- Users remain solely responsible for their own investment decisions, risk management, and regulatory compliance.
 
 ---
 
@@ -22,7 +35,7 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 ## Streamlit News Terminal
 
-A self-hosted, real-time financial intelligence dashboard built with Streamlit. It aggregates news, market data, sentiment, and technical analysis from multiple providers into a single unified interface — inspired by Bloomberg Terminal workflows.
+A self-hosted, real-time financial intelligence dashboard built with Streamlit. It serves as a **Research & Monitoring Terminal** for **News Intelligence + Alerting** and **Workflow/Decision Support**. It aggregates news, market data, sentiment, and technical analysis from multiple providers into a single unified interface — inspired by Bloomberg Terminal workflows.
 
 ### Architecture
 

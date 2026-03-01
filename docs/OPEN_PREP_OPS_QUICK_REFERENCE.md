@@ -21,6 +21,18 @@ Incident-Matrix (Symptom → Ursache → Maßnahme → ETA):
 
 - `docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md`
 
+### Produkt-Positionierung & Compliance-Hinweise
+
+- Die Suite ist als **Research & Monitoring Terminal** positioniert.
+- Kernnutzen: **News Intelligence + Alerting**.
+- Einsatzfokus: **Workflow/Decision Support** (nicht direkte “Buy/Sell”-Anweisungen).
+
+Wichtige Abgrenzung:
+
+- Keine personalisierten Anlageempfehlungen.
+- Keine Orderausführung / kein Trade-Placement.
+- Entscheidungen und Risiko liegen immer beim Nutzer.
+
 ---
 
 ## 2) Kernprozesse
