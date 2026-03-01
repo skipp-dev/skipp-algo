@@ -162,21 +162,21 @@ class TechnicalResult:
 
 # ── In-memory cache ──────────────────────────────────────────────────
 _cache: dict[tuple[str, str], TechnicalResult] = {}
-_CACHE_TTL_S = 600.0  # 10 minutes
-_CACHE_ERROR_TTL_S = 1200.0  # 20 minutes for 429 errors (longer backoff)
+_CACHE_TTL_S = 900.0  # 15 minutes
+_CACHE_ERROR_TTL_S = 1800.0  # 30 minutes for 429 errors (longer backoff)
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
 
 # ── Global TradingView rate limiter ──────────────────────────────────
-_TV_MIN_CALL_SPACING = 5.0  # minimum seconds between TradingView API calls
+_TV_MIN_CALL_SPACING = 8.0  # minimum seconds between TradingView API calls
 _tv_last_call_ts: float = 0.0
 _tv_rate_lock = threading.Lock()
 
 # 429 cooldown: after a 429 response, block ALL TradingView calls for a period
 _tv_cooldown_until: float = 0.0
 _tv_consecutive_429s: int = 0
-_TV_COOLDOWN_BASE = 60.0   # base cooldown: 60 seconds
-_TV_COOLDOWN_MAX = 600.0   # max cooldown: 10 minutes
+_TV_COOLDOWN_BASE = 120.0   # base cooldown: 2 minutes
+_TV_COOLDOWN_MAX = 900.0   # max cooldown: 15 minutes
 
 
 def _tv_is_cooling_down() -> bool:
@@ -390,6 +390,8 @@ def fetch_technicals(
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         if "429" in _msg:
             _tv_register_429()
+            remaining = _tv_cooldown_remaining()
+            _msg = f"Rate limited — cooldown {remaining:.0f}s"
         log.warning("TradingView technicals fetch failed for %s: %s", sym, exc)
         result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=_msg)
         with _cache_lock:

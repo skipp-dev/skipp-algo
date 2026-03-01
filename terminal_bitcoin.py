@@ -128,14 +128,14 @@ def _set_cached(key: str, val: Any) -> None:
 # TTLs (seconds) — Bitcoin is 24/7 so we can be more aggressive
 _QUOTE_TTL = 60       # 60s for real-time price
 _OHLCV_TTL = 300      # 5 min for historical data
-_TECHNICALS_TTL = 600  # 10 min for TradingView (avoid 429 rate limits)
-_TECHNICALS_429_TTL = 1200  # 20 min cache for 429 errors (don't retry quickly)
+_TECHNICALS_TTL = 900  # 15 min for TradingView (avoid 429 rate limits)
+_TECHNICALS_429_TTL = 1800  # 30 min cache for 429 errors (don't retry quickly)
 _FG_TTL = 300          # 5 min for Fear & Greed
 _MOVERS_TTL = 120      # 2 min for crypto movers
 _LISTINGS_TTL = 3600   # 1h for exchange listings
 _SUPPLY_TTL = 300      # 5 min for market cap/supply
 _NEWS_TTL = 120        # 2 min for news
-_OUTLOOK_TTL = 300     # 5 min for tomorrow outlook
+_OUTLOOK_TTL = 600     # 10 min for tomorrow outlook
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
@@ -610,6 +610,8 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         if "429" in _msg:
             _tv_register_429()
+            remaining = _tv_cooldown_remaining()
+            _msg = f"Rate limited — cooldown {remaining:.0f}s"
         log.warning("TradingView BTC technicals (%s) failed: %s", interval, _msg)
         result = BTCTechnicals(interval=interval, error=_msg)
         _set_cached(cache_key, result)  # cache errors too
@@ -833,9 +835,9 @@ def fetch_btc_outlook() -> BTCOutlook:
 
     fg = fetch_fear_greed()
     tech_1h = fetch_btc_technicals("1h")
-    time.sleep(1.0)  # delay to avoid TradingView 429
+    time.sleep(2.0)  # delay to avoid TradingView 429
     tech_4h = fetch_btc_technicals("4h")
-    time.sleep(1.0)
+    time.sleep(2.0)
     tech_1d = fetch_btc_technicals("1d")
     quote = fetch_btc_quote()
 
