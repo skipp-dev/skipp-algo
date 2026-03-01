@@ -50,6 +50,7 @@ from terminal_technicals import (
     INTERVAL_MAP,
 )
 from terminal_ui_helpers import (
+    dedup_articles,
     format_age_string,
     safe_markdown_text,
 )
@@ -361,7 +362,8 @@ def render_segment_articles(
                 r.get("_items", []),
                 key=lambda d: d.get("news_score", 0),
                 reverse=True,
-            )[:20]
+            )
+            articles = dedup_articles(articles)[:20]
             for a in articles:
                 hl = (a.get("headline") or "(no headline)")[:100]
                 url = a.get("url", "")

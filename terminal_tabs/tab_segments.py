@@ -7,6 +7,7 @@ from typing import Any
 import streamlit as st
 
 from terminal_tabs._shared import render_segment_articles
+from terminal_ui_helpers import dedup_articles
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -38,6 +39,11 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     # Compute averages
     for s in segs.values():
+        s["_items"] = dedup_articles(
+            sorted(s.get("_items", []), key=lambda d: d.get("news_score", 0), reverse=True)
+        )
+        s["articles"] = len(s["_items"])
+        s["total_score"] = sum(d.get("news_score", 0) for d in s["_items"])
         s["avg_score"] = s["total_score"] / max(s["articles"], 1)
 
     sorted_segs = sorted(segs.values(), key=lambda x: x["avg_score"], reverse=True)

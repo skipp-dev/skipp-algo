@@ -7,6 +7,7 @@ and can be tested in regular pytest without launching a Streamlit app.
 from __future__ import annotations
 
 import time
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from collections import defaultdict
 from typing import Any
 
@@ -98,6 +99,9 @@ def filter_feed(
         or (d.get("published_ts") or 0) == 0  # keep items with missing ts
     ]
 
+    # Remove duplicate feed rows (same ticker + same canonical article)
+    filtered = dedup_feed_items(filtered)
+
     # Score descending, then published_ts ascending as tiebreaker
     filtered.sort(key=lambda d: (-d.get("news_score", 0), d.get("published_ts", 0)))
     return filtered
@@ -178,6 +182,96 @@ def safe_url(url: str) -> str:
     if not stripped.lower().startswith(("http://", "https://")):
         return ""
     return stripped.replace("(", "%28").replace(")", "%29")
+
+
+# ── Article dedup helpers ───────────────────────────────────────
+
+_TRACKING_QUERY_PARAMS: set[str] = {
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_term",
+    "utm_content",
+    "gclid",
+    "fbclid",
+    "mc_cid",
+    "mc_eid",
+}
+
+
+def canonical_article_key(d: dict[str, Any]) -> str:
+    """Return a stable identity key for an article-like feed item.
+
+    Preference order:
+    1) normalized URL (without tracking params)
+    2) normalized (ticker + headline + hour bucket)
+    3) item_id + ticker
+    """
+    ticker = str(d.get("ticker") or "").strip().upper()
+    raw_url = str(d.get("url") or "").strip()
+    if raw_url.lower().startswith(("http://", "https://")):
+        try:
+            parts = urlsplit(raw_url)
+            clean_query = urlencode(
+                [
+                    (k, v)
+                    for k, v in parse_qsl(parts.query, keep_blank_values=True)
+                    if k.lower() not in _TRACKING_QUERY_PARAMS
+                ],
+                doseq=True,
+            )
+            path = parts.path.rstrip("/") or "/"
+            normalized = urlunsplit((parts.scheme.lower(), parts.netloc.lower(), path, clean_query, ""))
+            return f"url:{normalized}"
+        except Exception:
+            return f"url:{raw_url.lower()}"
+
+    headline = " ".join(str(d.get("headline") or "").strip().lower().split())
+    if headline:
+        published_ts = d.get("published_ts")
+        hour_bucket = ""
+        if isinstance(published_ts, (int, float)) and published_ts > 0:
+            hour_bucket = str(int(published_ts) // 3600)
+        return f"hl:{ticker}:{headline}:{hour_bucket}"
+
+    item_id = str(d.get("item_id") or "").strip()
+    if item_id:
+        return f"id:{item_id}:{ticker}"
+    return f"fallback:{ticker}"
+
+
+def dedup_articles(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate article items while preserving original order."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for d in items:
+        key = canonical_article_key(d)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
+
+def feed_item_identity_key(d: dict[str, Any]) -> str:
+    """Identity key for feed rows that preserves per-ticker visibility.
+
+    Unlike ``canonical_article_key``, this always namespaces by ticker so
+    one multi-ticker article can still appear once per ticker.
+    """
+    ticker = str(d.get("ticker") or "").strip().upper()
+    return f"{ticker}:{canonical_article_key(d)}"
+
+def dedup_feed_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate feed rows while preserving original order."""
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for d in items:
+        key = feed_item_identity_key(d)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(d)
+    return out
 
 
 # ── Highlight helpers ───────────────────────────────────────────
@@ -300,10 +394,13 @@ def aggregate_segments(
 
     seg_rows: list[dict[str, Any]] = []
     for seg_name, items_list in seg_items.items():
+        unique_items = dedup_articles(
+            sorted(items_list, key=lambda d: d.get("news_score", 0), reverse=True)
+        )
         tickers_in_seg: dict[str, dict[str, Any]] = {}
         bull = bear = neut = 0
         total_score = 0.0
-        for d in items_list:
+        for d in unique_items:
             tk = d.get("ticker", "?")
             s = d.get("news_score", 0)
             total_score += s
@@ -318,7 +415,7 @@ def aggregate_segments(
             if prev is None or s > prev.get("news_score", 0):
                 tickers_in_seg[tk] = d
 
-        n_articles = len(items_list)
+        n_articles = len(unique_items)
         avg_score = total_score / n_articles if n_articles else 0
         net_sent = bull - bear
         sent_icon = "🟢" if net_sent > 0 else ("🔴" if net_sent < 0 else "🟡")
@@ -334,7 +431,7 @@ def aggregate_segments(
             "neut": neut,
             "net_sent": net_sent,
             "_ticker_map": tickers_in_seg,
-            "_items": items_list,
+            "_items": unique_items,
         })
 
     seg_rows.sort(key=lambda r: r["articles"], reverse=True)

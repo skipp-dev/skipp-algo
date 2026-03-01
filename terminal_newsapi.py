@@ -343,7 +343,7 @@ def _check_budget(estimated_cost: int = 1) -> bool:
     """
     cached_ok = _get_cached("_budget_ok", _USAGE_CHECK_TTL)
     if cached_ok is not None:
-        return cached_ok  # type: ignore[return-value]
+        return bool(cached_ok)
 
     usage = get_token_usage()
     used = usage.get("usedTokens", 0)
@@ -1306,7 +1306,20 @@ def sentiment_badge(val: float | None) -> str:
 
 def is_available() -> bool:
     """Check if NewsAPI.ai integration is available (SDK + key)."""
-    return _ER_AVAILABLE and bool(os.environ.get("NEWSAPI_AI_KEY", ""))
+    ok, _ = availability_status()
+    return ok
+
+
+def availability_status() -> tuple[bool, str]:
+    """Return availability + a user-friendly reason when unavailable."""
+    if not _ER_AVAILABLE:
+        return False, (
+            "NewsAPI.ai client library is not available in this environment. "
+            "Install `eventregistry` and restart the app."
+        )
+    if not os.environ.get("NEWSAPI_AI_KEY", "").strip():
+        return False, "Missing `NEWSAPI_AI_KEY` environment variable."
+    return True, ""
 
 
 def has_tokens() -> bool:

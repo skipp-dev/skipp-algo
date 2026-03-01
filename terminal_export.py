@@ -61,6 +61,15 @@ def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
         items,
         key=lambda d: d.get("published_ts") or d.get("updated_ts") or 0,
     )
+    # Deduplicate by item_id:ticker
+    seen_keys: set[str] = set()
+    unique_items: list[dict[str, Any]] = []
+    for d in sorted_items:
+        key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
+        if key not in seen_keys:
+            seen_keys.add(key)
+            unique_items.append(d)
+    sorted_items = unique_items
     dest_dir = os.path.dirname(os.path.abspath(path)) or "."
     os.makedirs(dest_dir, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rw_")
@@ -94,21 +103,30 @@ def rotate_jsonl(path: str, max_lines: int = 5000, max_age_s: float = 14400.0) -
     except FileNotFoundError:
         return
 
-    # Age-based filtering
-    cutoff = time.time() - max_age_s if max_age_s > 0 else 0.0
-    if cutoff:
-        fresh_lines: list[str] = []
-        for raw in lines:
-            try:
-                d = json.loads(raw)
-                if (d.get("published_ts") or 0) >= cutoff:
-                    fresh_lines.append(raw)
-            except (json.JSONDecodeError, TypeError):
-                fresh_lines.append(raw)  # keep unparseable lines
-        lines = fresh_lines
+    original_count = len(lines)
 
-    # Line-count cap
-    if len(lines) <= max_lines and not cutoff:
+    # Age-based filtering + dedup within the file
+    cutoff = time.time() - max_age_s if max_age_s > 0 else 0.0
+    seen_keys: set[str] = set()
+    deduped_lines: list[str] = []
+    for raw in lines:
+        try:
+            d = json.loads(raw)
+            # Dedup by item_id:ticker
+            key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            # Age filter
+            if cutoff and (d.get("published_ts") or 0) < cutoff:
+                continue
+            deduped_lines.append(raw)
+        except (json.JSONDecodeError, TypeError):
+            deduped_lines.append(raw)  # keep unparseable lines
+    lines = deduped_lines
+
+    # Skip rewrite if nothing changed (no dupes removed, no age filter, within cap)
+    if len(lines) == original_count and len(lines) <= max_lines:
         return
     keep = lines[-max_lines:] if len(lines) > max_lines else lines
 
@@ -139,6 +157,7 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
     break if ``rewrite_jsonl`` or ``rotate_jsonl`` reorder lines.
     """
     result: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
     try:
         with open(path, "r", encoding="utf-8") as f:
             for raw in f:
@@ -146,9 +165,15 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
                 if not raw:
                     continue
                 try:
-                    result.append(json.loads(raw))
+                    d = json.loads(raw)
                 except json.JSONDecodeError:
                     continue
+                # Deduplicate by item_id:ticker (same key as dedup_merge)
+                key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                result.append(d)
     except FileNotFoundError:
         return []
     except OSError as exc:

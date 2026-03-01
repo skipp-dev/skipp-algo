@@ -31,10 +31,12 @@ from terminal_ui_helpers import (
     build_segment_summary_rows,
     compute_feed_stats,
     compute_top_movers,
+    dedup_feed_items,
     dedup_merge,
     enrich_materiality,
     enrich_rank_rows,
     enrich_recency,
+    feed_item_identity_key,
     filter_feed,
     format_age_string,
     format_score_badge,
@@ -248,6 +250,24 @@ class TestFilterFeed:
 
     def test_empty_feed(self):
         assert filter_feed([]) == []
+
+    def test_filter_feed_dedups_same_ticker_duplicate_article(self):
+        now = time.time()
+        a = _item(
+            ticker="NYT",
+            headline="APEX Tech Acquisition Inc. Announces Closing of Initial Public Offering",
+            url="https://example.com/ipo/apex?utm_source=x",
+            item_id="one",
+            published_ts=now - 60,
+            news_score=0.88,
+        )
+        b = {
+            **a,
+            "item_id": "two",
+            "url": "https://example.com/ipo/apex?utm_source=y",
+        }
+        out = filter_feed([a, b])
+        assert len(out) == 1
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -627,6 +647,25 @@ class TestAggregateSegments:
         seg_names = {s["segment"] for s in segs}
         assert seg_names == {"Tech", "Earnings"}
 
+    def test_dedups_duplicate_articles_in_segment(self):
+        base = _item(
+            ticker="NXPGF",
+            channels=["Transcripts"],
+            headline="MOBICO GROUP PLC (NXPGF) Q4 2025 Earnings Call Transcript",
+            news_score=0.84,
+            url="https://example.com/transcript/mobico-q4?utm_source=test",
+            item_id="",
+        )
+        dup = {
+            **base,
+            "item_id": "different-id",
+            "url": "https://example.com/transcript/mobico-q4?utm_source=other",
+        }
+        segs = aggregate_segments([base, dup])
+        assert len(segs) == 1
+        assert segs[0]["articles"] == 1
+        assert len(segs[0]["_items"]) == 1
+
     def test_empty_feed(self):
         assert aggregate_segments([]) == []
 
@@ -835,6 +874,28 @@ class TestDedupMerge:
         incoming = [_item(ticker="AAPL", item_id="a1")]
         merged = dedup_merge([], incoming)
         assert len(merged) == 1
+
+
+class TestFeedIdentityDedup:
+    def test_identity_key_namespaces_ticker(self):
+        a = _item(ticker="AAPL", url="https://example.com/n")
+        b = _item(ticker="MSFT", url="https://example.com/n")
+        assert feed_item_identity_key(a) != feed_item_identity_key(b)
+
+    def test_dedup_feed_items_removes_same_ticker_duplicate(self):
+        a = _item(
+            ticker="NYT",
+            headline="APEX IPO",
+            url="https://example.com/ipo/apex?utm_source=a",
+            item_id="id-1",
+        )
+        b = {
+            **a,
+            "item_id": "id-2",
+            "url": "https://example.com/ipo/apex?utm_source=b",
+        }
+        out = dedup_feed_items([a, b])
+        assert len(out) == 1
 
 
 # ═══════════════════════════════════════════════════════════════

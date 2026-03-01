@@ -158,6 +158,8 @@ from terminal_ui_helpers import (
     aggregate_segments,
     build_heatmap_data,
     compute_feed_stats,
+    dedup_feed_items,
+    dedup_articles,
     dedup_merge,
     filter_feed,
     format_age_string,
@@ -180,6 +182,7 @@ from terminal_forecast import (
 )
 from terminal_newsapi import (
     NLPSentiment,
+    availability_status as newsapi_availability_status,
     fetch_breaking_events,
     fetch_concept_articles,
     fetch_event_articles,
@@ -585,6 +588,7 @@ def _resync_feed_from_jsonl() -> None:
         return
 
     merged = dedup_merge(st.session_state.feed, restored)
+    merged = dedup_feed_items(merged)
     new_count = len(merged) - len(st.session_state.feed)
     if new_count > 0:
         st.session_state.feed = merged
@@ -616,6 +620,7 @@ if "cursor" not in st.session_state:
     st.session_state.cursor = None
 if "feed" not in st.session_state:
     _restored = load_jsonl_feed(TerminalConfig().jsonl_path)
+    _restored = dedup_feed_items(_restored)
     # Drop items older than feed_max_age_s so a stale JSONL doesn't
     # populate the session with outdated symbols.
     _before_len = len(_restored)
@@ -1355,7 +1360,7 @@ def _process_new_items(
         if _jsonl_errors > 3:
             logger.warning("JSONL append had %d total failures (suppressed after 3)", _jsonl_errors)
 
-    st.session_state.feed = new_dicts + st.session_state.feed
+    st.session_state.feed = dedup_feed_items(new_dicts + st.session_state.feed)
 
     # Webhooks + notifications (single shared httpx client — item 14)
     _nc_webhook_url = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", cfg.webhook_url)
@@ -1700,7 +1705,7 @@ else:
 
     with _detail_cols[1]:
         with st.expander(f"Actionable ({_stats['actionable']})"):
-            _act_items = [d for d in feed if d.get("is_actionable")]
+            _act_items = dedup_feed_items([d for d in feed if d.get("is_actionable")])
             if _act_items:
                 for _ai in _act_items:
                     _tk = _ai.get("ticker", "?")
@@ -1714,7 +1719,7 @@ else:
 
     with _detail_cols[2]:
         with st.expander(f"HIGH materiality ({_stats['high_materiality']})"):
-            _high_items = [d for d in feed if d.get("materiality") == "HIGH"]
+            _high_items = dedup_feed_items([d for d in feed if d.get("materiality") == "HIGH"])
             if _high_items:
                 for _hi in _high_items:
                     _tk = _hi.get("ticker", "?")
@@ -2331,7 +2336,8 @@ else:
                         _sr.get("_items", []),
                         key=lambda d: d.get("news_score", 0),
                         reverse=True,
-                    )[:20]
+                    )
+                    _sr_items = dedup_articles(_sr_items)[:20]
                     if not _sr_items:
                         st.caption("No articles.")
                     for _si in _sr_items:
@@ -2370,7 +2376,8 @@ else:
                             r.get("_items", []),
                             key=lambda d: d.get("news_score", 0),
                             reverse=True,
-                        )[:20]
+                        )
+                        _seg_articles = dedup_articles(_seg_articles)[:20]
                         for _sa in _seg_articles:
                             _sa_hl = (_sa.get("headline") or "(no headline)")[:100]
                             _sa_url = _sa.get("url", "")
@@ -2937,6 +2944,13 @@ else:
             hi_details: list[dict[str, Any]] = outlook.get("high_impact_events_tomorrow_details") or []
             if hi_details:
                 st.subheader("📋 Scheduled High-Impact Events")
+                _show_unmatched_hi = st.toggle(
+                    "Show scheduled events without related feed articles",
+                    value=False,
+                    key="outlook_show_unmatched_events",
+                    help="When off, only events with at least one related article in the current feed are shown.",
+                )
+                _rendered_hi = 0
                 for _hi_ev in hi_details:
                     _hi_name_raw = str(_hi_ev.get("event", "—"))
                     _hi_name = safe_markdown_text(_hi_name_raw)
@@ -2950,8 +2964,14 @@ else:
                             _fd_hl = str(_fd.get("headline") or "").lower()
                             if _fd_hl and any(kw in _fd_hl for kw in _hi_keywords):
                                 _hi_articles.append(_fd)
-                        _hi_articles.sort(key=lambda d: d.get("news_score", 0), reverse=True)
-                        _hi_articles = _hi_articles[:20]
+                        _hi_articles = dedup_articles(
+                            sorted(_hi_articles, key=lambda d: d.get("news_score", 0), reverse=True)
+                        )[:20]
+
+                    if not _hi_articles and not _show_unmatched_hi:
+                        continue
+
+                    _rendered_hi += 1
                     _hi_match_label = f" · {len(_hi_articles)} related" if _hi_articles else ""
                     with st.expander(f"**{_hi_name}** ({_hi_country}) — Source: {_hi_source}{_hi_match_label}"):
                         if _hi_articles:
@@ -2965,7 +2985,15 @@ else:
                                 else:
                                     st.markdown(f"- {safe_markdown_text(_ha_hl)} · `{_ha_tk}` · {_ha_sc:.3f}")
                         else:
-                            st.caption("No related articles in current feed.")
+                            st.caption(
+                                "No related articles in current feed yet. "
+                                "This event is from the macro calendar and may not be covered in headlines yet."
+                            )
+                if _rendered_hi == 0:
+                    st.info(
+                        "No related feed articles found for scheduled high-impact events right now. "
+                        "Enable 'Show scheduled events without related feed articles' to view all calendar entries."
+                    )
             else:
                 st.info("No high-impact macro events scheduled for the next trading day.")
 
@@ -2999,6 +3027,13 @@ else:
                     st.divider()
                     st.subheader("🔥 Trending Themes in Global News")
                     st.caption("Real-time trending entities — emerging themes that may affect tomorrow's session.")
+                    _show_unmatched_themes = st.toggle(
+                        "Show themes without feed matches",
+                        value=False,
+                        key="outlook_show_unmatched_themes",
+                        help="When off, only themes with at least one related article in the current feed are shown.",
+                    )
+                    _rendered_themes = 0
 
                     for _tc in _outlook_trending[:8]:
                         # Find related articles in current feed
@@ -3014,8 +3049,14 @@ else:
                                     _tc_keywords and any(kw in _fd_hl for kw in _tc_keywords)
                                 ):
                                     _tc_articles.append(_fd)
-                            _tc_articles.sort(key=lambda d: d.get("news_score", 0), reverse=True)
-                            _tc_articles = _tc_articles[:20]
+                            _tc_articles = dedup_articles(
+                                sorted(_tc_articles, key=lambda d: d.get("news_score", 0), reverse=True)
+                            )[:20]
+
+                        if not _tc_articles and not _show_unmatched_themes:
+                            continue
+
+                        _rendered_themes += 1
                         _tc_match_label = f" · {len(_tc_articles)} in feed" if _tc_articles else ""
                         with st.expander(
                             f"{_tc.type_icon} **{safe_markdown_text(_tc.label)}** "
@@ -3032,7 +3073,16 @@ else:
                                     else:
                                         st.markdown(f"- {safe_markdown_text(_ta_hl)} · `{_ta_tk}` · {_ta_sc:.3f}")
                             else:
-                                st.caption("No matching articles in current feed.")
+                                st.caption(
+                                    "No related articles in current feed yet. "
+                                    "Theme is trending globally but not represented in your current feed window."
+                                )
+
+                    if _rendered_themes == 0:
+                        st.info(
+                            "No related feed articles found for current trending themes. "
+                            "Enable 'Show themes without feed matches' to inspect all global themes."
+                        )
 
                     # Sentiment of trending entities
                     _trend_labels = [c.label for c in _outlook_trending[:5] if c.concept_type in ("org", "person")]
@@ -3726,7 +3776,8 @@ else:
     with tab_breaking:
         st.subheader("🔴 Breaking Events")
         if not newsapi_available():
-            st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai integration.")
+            _ok_newsapi, _newsapi_reason = newsapi_availability_status()
+            st.info(_newsapi_reason or "NewsAPI.ai integration is currently unavailable.")
         else:
             # Token usage indicator
             _usage = get_token_usage()
@@ -3848,7 +3899,8 @@ else:
     with tab_trending:
         st.subheader("📈 Trending Concepts")
         if not newsapi_available():
-            st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai integration.")
+            _ok_newsapi, _newsapi_reason = newsapi_availability_status()
+            st.info(_newsapi_reason or "NewsAPI.ai integration is currently unavailable.")
         else:
             _tr_col1, _tr_col2, _tr_col3 = st.columns([1, 1, 1])
             with _tr_col1:
@@ -4008,7 +4060,8 @@ else:
                 st.markdown("---")
 
         if not newsapi_available():
-            st.info("Set `NEWSAPI_AI_KEY` environment variable to enable NewsAPI.ai Social Score ranking.")
+            _ok_newsapi, _newsapi_reason = newsapi_availability_status()
+            st.info(_newsapi_reason or "NewsAPI.ai Social Score integration is currently unavailable.")
         else:
             _soc_col1, _soc_col2, _soc_col3 = st.columns([1, 1, 1])
             with _soc_col1:
