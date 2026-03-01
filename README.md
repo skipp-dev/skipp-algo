@@ -112,6 +112,24 @@ The terminal is composed of 14 Python modules organized around a central UI driv
 | 16 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
 | 17 | 📊 **Data Table** | Full data export table with all enrichment columns |
 
+### Live Feed Score Badge Semantics
+
+The **Score** column in `📰 Live Feed` combines impact strength and directional sentiment:
+
+- High-impact bullish: green bold (`🟢`, score ≥ `0.80`)
+- High-impact bearish: red bold (`🔴`, score ≥ `0.80`)
+- Moderate bullish: yellow (`🟡`, score ≥ `0.50`)
+- Moderate bearish: orange (`🟠`, score ≥ `0.50`)
+- Low impact: plain text (`score < 0.50`)
+
+Directional prefixes in the badge are:
+
+- `+` bullish
+- `−` bearish
+- `n` neutral
+
+The `🔍` badge marks **WIIM** (“Why It Matters”) enriched items.
+
 ### Data Sources
 
 | Provider | API Key Env Var | Coverage |
@@ -222,11 +240,16 @@ A companion Streamlit app for live pre-open monitoring:
 streamlit run open_prep/streamlit_monitor.py
 ```
 
-- Auto-refresh every 15 seconds during market hours
+- Auto-refresh with a hard minimum interval of 5 seconds (`MIN_AUTO_REFRESH_SECONDS`)
+- Built-in rate-limit cooldown handling (`429`/rate-limit warnings trigger temporary backoff)
 - Sidebar: symbols, gap mode, ATR settings, pre-open filters
 - Benzinga Intelligence tabs (dividends, splits, IPOs, guidance, retail, top news, options flow)
 - Realtime auto-promotion: A0/A1 signal symbols promoted from below-cutoff into displayed candidates
-- Staleness detection with auto-recovery (>5 min cache invalidation)
+- Smart cache strategy: UI refresh can run from cache while live fetches are throttled to reduce API pressure
+- Staleness detection with auto-recovery (cache invalidation when stale >5 min during market hours)
+- Per-run pipeline status panel with stage progress and elapsed runtime
+- UTC + Berlin dual timestamp display for operational clarity
+- Session-aware pricing: during pre/after-hours, Benzinga delayed quotes are overlaid on stale close-based prices where available
 
 ### Macro Explainability
 
