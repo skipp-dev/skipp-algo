@@ -51,7 +51,7 @@ try:
 except ImportError:
     _ER_AVAILABLE = False
 
-_APIKEY_RE = re.compile(r"(apikey|apiKey|token)=[^&\s]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|apiKey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 
 # ── Rich ReturnInfo leveraging all plan features ─────────────────

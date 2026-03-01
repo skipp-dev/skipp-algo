@@ -240,6 +240,7 @@ def _expected_cumulative_volume_fraction() -> float:
             from dateutil.tz import gettz
             now_et = datetime.now(gettz("America/New_York"))
         except Exception:
+            logger.debug("tz fallback in _expected_volume_fraction — no adjustment", exc_info=True)
             return 1.0  # no tz info → no adjustment
 
     if now_et.weekday() >= 5:
@@ -287,6 +288,7 @@ def _is_within_market_hours() -> bool:
             # Last resort: UTC − 4 (EDT) — accepts the full 04:00–20:00
             # ET window during both EST and EDT.  During EST (Nov–Mar) the
             # gate opens/closes ~1 h early, which is acceptable.
+            logger.debug("zoneinfo + dateutil unavailable, using UTC-4 fallback", exc_info=True)
             from datetime import timedelta
             now_et = datetime.now(UTC) - timedelta(hours=4)
 

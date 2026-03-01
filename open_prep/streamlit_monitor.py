@@ -15,7 +15,7 @@ import streamlit as st
 
 logger = logging.getLogger("open_prep.streamlit_monitor")
 
-_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 # Ensure package imports work even when Streamlit is started outside project root.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

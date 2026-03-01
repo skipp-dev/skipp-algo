@@ -20,7 +20,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Regex to strip API keys/tokens from URLs before logging.
-_TOKEN_RE = re.compile(r"(apikey|token)=[^&]+", re.IGNORECASE)
+_TOKEN_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
 
 # ── Once-per-endpoint error suppression ─────────────────────────
 # 400/403/404 responses typically mean the endpoint is not available
@@ -83,7 +83,7 @@ def _sanitize_url(url: str) -> str:
 def _sanitize_exc(exc: Exception) -> str:
     """Strip API keys/tokens from exception text for safe logging."""
     return re.sub(
-        r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE
+        r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE
     )
 
 

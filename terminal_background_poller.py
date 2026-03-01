@@ -192,7 +192,7 @@ class BackgroundPoller:
                 )
             except Exception as exc:
                 _safe = _re.sub(
-                    r"(apikey|token)=[^&\s]+", r"\1=***",
+                    r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***",
                     str(exc), flags=_re.IGNORECASE,
                 )
                 logger.exception("Background poll failed: %s", _safe)

@@ -284,7 +284,7 @@ def poll_once(
     cycle_warnings: list[str] = []
 
     def _sanitize_exc(exc: Exception) -> str:
-        return re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        return re.sub(r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
 
     # ── 1) FMP poll ─────────────────────────────────────────────
     if cfg.enable_fmp and cfg.fmp_api_key:

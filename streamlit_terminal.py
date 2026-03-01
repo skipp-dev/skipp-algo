@@ -80,6 +80,8 @@ from terminal_export import (
     save_vd_snapshot,
 )
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
+from open_prep.log_redaction import apply_global_log_redaction
+apply_global_log_redaction()
 from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
@@ -818,13 +820,13 @@ with st.sidebar:
             try:
                 _bp_reset.stop()
             except Exception:
-                pass
+                logger.debug("bg_poller.stop() failed during reset", exc_info=True)
         # Close existing SQLite connection before deleting files
         if st.session_state.store is not None:
             try:
                 st.session_state.store.close()
             except Exception:
-                pass
+                logger.debug("store.close() failed during reset", exc_info=True)
         # Close HTTP adapters to release connection pools
         for _adapter_key in ("adapter", "fmp_adapter"):
             _adp = st.session_state.get(_adapter_key)
@@ -832,7 +834,7 @@ with st.sidebar:
                 try:
                     _adp.close()
                 except Exception:
-                    pass
+                    logger.debug("%s.close() failed during reset", _adapter_key, exc_info=True)
         db_path = Path(cfg.sqlite_path)
         # Remove main DB + SQLite WAL/SHM journal files
         for suffix in ("", "-wal", "-shm"):
@@ -1370,7 +1372,7 @@ def _do_poll() -> None:
             topics=cfg.topics or None,
         )
     except Exception as exc:
-        _safe_msg = re.sub(r"(apikey|token)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
+        _safe_msg = re.sub(r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
         logger.exception("Poll failed: %s", _safe_msg)
         st.session_state.last_poll_error = _safe_msg
         st.session_state.last_poll_status = "ERROR"
@@ -3518,7 +3520,7 @@ else:
                         "sector", "industry", "exchange", "country",
                     ] if c in df_ind.columns]
 
-                    st.caption(f"{len(df_ind)} {industry_name} stock(s)")
+                    st.caption(f"{len(df_ind)} {safe_markdown_text(industry_name)} stock(s)")
                     st.dataframe(
                         df_ind[display_cols] if display_cols else df_ind,
                         width='stretch',
@@ -3536,7 +3538,7 @@ else:
 
                         # Top 10 by market cap
                         st.divider()
-                        st.markdown(f"**Top 10 {industry_name} by Market Cap**")
+                        st.markdown(f"**Top 10 {safe_markdown_text(industry_name)} by Market Cap**")
                         for _, r in df_ind.head(10).iterrows():
                             sym = safe_markdown_text(str(r.get("symbol", "?")))
                             name = safe_markdown_text(str(r.get("companyName", "")))
@@ -3552,7 +3554,7 @@ else:
                                 f"Cap: ${mcap:,.1f}B{beta_str}{div_str}"
                             )
                 else:
-                    st.info(f"No stocks found for industry: {industry_name}")
+                    st.info(f"No stocks found for industry: {safe_markdown_text(industry_name)}")
 
     # ── TAB: Breaking Events (NewsAPI.ai) ───────────────────
     with tab_breaking:

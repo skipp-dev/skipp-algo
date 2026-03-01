@@ -37,6 +37,7 @@ def _now_et() -> datetime:
         except Exception:
             from datetime import timezone
 
+            logger.debug("zoneinfo + dateutil unavailable, using UTC-4 fallback", exc_info=True)
             return datetime.now(timezone.utc) - timedelta(hours=4)
 
 

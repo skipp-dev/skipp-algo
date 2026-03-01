@@ -137,7 +137,7 @@ _SUPPLY_TTL = 300      # 5 min for market cap/supply
 _NEWS_TTL = 120        # 2 min for news
 _OUTLOOK_TTL = 300     # 5 min for tomorrow outlook
 
-_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 
 # ── FMP helper ───────────────────────────────────────────────────

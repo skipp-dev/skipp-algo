@@ -107,7 +107,7 @@ def retry(
                         try:
                             on_retry(attempt, exc)
                         except Exception:
-                            pass
+                            logger.debug("on_retry callback failed", exc_info=True)
                     jitter = delay * jitter_pct * (2 * random.random() - 1)
                     sleep_time = min(delay + jitter, max_delay)
                     logger.debug(

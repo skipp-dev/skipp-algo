@@ -175,14 +175,22 @@ def cached_tomorrow_outlook(
 @st.cache_data(ttl=60, show_spinner=False)
 def cached_bz_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     """Cache market movers for 60 seconds."""
-    return fetch_benzinga_market_movers(api_key)
+    try:
+        return fetch_benzinga_market_movers(api_key)
+    except Exception:
+        logger.debug("cached_bz_movers failed", exc_info=True)
+        return {}
 
 
 @st.cache_data(ttl=60, show_spinner=False)
 def cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
     """Cache delayed quotes for 60 seconds."""
-    syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
-    return fetch_benzinga_delayed_quotes(api_key, syms)
+    try:
+        syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
+        return fetch_benzinga_delayed_quotes(api_key, syms)
+    except Exception:
+        logger.debug("cached_bz_quotes failed", exc_info=True)
+        return []
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -61,7 +61,7 @@ from .watchlist import (
 
 logger = logging.getLogger("open_prep.run")
 
-_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 DEFAULT_UNIVERSE = [
     "NVDA",

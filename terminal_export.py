@@ -42,6 +42,7 @@ def append_jsonl(item: ClassifiedItem, path: str) -> None:
     line = json.dumps(item.to_dict(), ensure_ascii=False, default=str)
     with open(path, "a", encoding="utf-8") as f:
         f.write(line + "\n")
+        f.flush()
 
 
 def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:

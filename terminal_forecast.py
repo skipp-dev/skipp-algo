@@ -37,7 +37,7 @@ except ImportError:
 _FMP_BASE = "https://financialmodelingprep.com"
 _fmp_client: httpx.Client | None = None
 _fmp_client_lock = threading.Lock()
-_APIKEY_RE = __import__("re").compile(r"(apikey|token)=[^&\s]+", __import__("re").IGNORECASE)
+_APIKEY_RE = __import__("re").compile(r"(apikey|api_key|token|key)=[^&\s]+", __import__("re").IGNORECASE)
 
 
 def _get_fmp_client() -> httpx.Client | None:

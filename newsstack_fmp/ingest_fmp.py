@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 FMP_BASE = "https://financialmodelingprep.com/stable"
 
 # Regex to strip API keys from URLs before logging.
-_APIKEY_RE = re.compile(r"(apikey|token)=[^&]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&]+", re.IGNORECASE)
 
 
 def _sanitize_url(url: str) -> str:

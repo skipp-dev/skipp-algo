@@ -1013,7 +1013,6 @@ def fetch_benzinga_news_by_channel(
 # ── Tomorrow Outlook (next-trading-day traffic light) ────────
 
 from newsstack_fmp._market_cal import (
-    is_us_equity_trading_day as _is_us_equity_trading_day,
     next_trading_day as _next_trading_day,
 )
 

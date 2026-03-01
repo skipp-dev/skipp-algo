@@ -108,6 +108,7 @@ def _is_market_hours() -> bool:
         except Exception:
             from datetime import timedelta, timezone
 
+            logger.debug("zoneinfo + dateutil unavailable, using UTC-4 fallback", exc_info=True)
             now_et = datetime.now(timezone.utc) - timedelta(hours=4)
 
     if now_et.weekday() >= 5:

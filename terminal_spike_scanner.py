@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
 
 # ── Regex to strip API keys from error messages ──────────────────
-_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 # ── Shared FMP httpx client (avoid per-call TCP+TLS overhead) ──
 import atexit

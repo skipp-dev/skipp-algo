@@ -17,7 +17,7 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-_APIKEY_RE = re.compile(r"(apikey|token)=[^&\s]+", re.IGNORECASE)
+_APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 try:
     from tradingview_ta import TA_Handler, Interval  # type: ignore[import-untyped]
