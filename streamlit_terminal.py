@@ -64,7 +64,35 @@ def _load_env_file(env_path: Path) -> None:
         logging.getLogger(__name__).warning("Failed to parse .env file: %s", env_path)
 
 
+def _load_streamlit_secrets() -> None:
+    """Bridge Streamlit Cloud secrets into os.environ.
+
+    On Streamlit Cloud the .env file is gitignored (correctly), so API
+    keys must be configured via the Secrets dashboard.  Streamlit exposes
+    them through ``st.secrets``.  This helper copies any known key into
+    ``os.environ`` (without overriding values already present, e.g. from
+    a local .env).
+    """
+    _SECRET_KEYS = (
+        "BENZINGA_API_KEY",
+        "FMP_API_KEY",
+        "OPENAI_API_KEY",
+        "NEWSAPI_AI_KEY",
+        "TERMINAL_WEBHOOK_URL",
+        "TERMINAL_WEBHOOK_SECRET",
+    )
+    try:
+        secrets = st.secrets  # raises FileNotFoundError / KeyError when empty
+        for key in _SECRET_KEYS:
+            if key in secrets and not os.environ.get(key):
+                os.environ[key] = str(secrets[key])
+    except Exception:
+        # st.secrets unavailable (no secrets.toml / not on Cloud) — fine.
+        pass
+
+
 _load_env_file(PROJECT_ROOT / ".env")
+_load_streamlit_secrets()
 
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.store_sqlite import SqliteStore

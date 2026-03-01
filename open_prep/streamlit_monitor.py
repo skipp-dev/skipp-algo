@@ -45,7 +45,30 @@ def _load_env_file(env_path: Path) -> None:
         logger.debug("Could not load .env file %s: %s", env_path, exc)
 
 
+def _load_streamlit_secrets() -> None:
+    """Bridge Streamlit Cloud secrets into os.environ.
+
+    On Streamlit Cloud the .env file is gitignored, so API keys must be
+    configured via the Secrets dashboard.  This copies known keys into
+    os.environ without overriding values already present from a local .env.
+    """
+    _SECRET_KEYS = (
+        "BENZINGA_API_KEY",
+        "FMP_API_KEY",
+        "OPENAI_API_KEY",
+        "NEWSAPI_AI_KEY",
+    )
+    try:
+        secrets = st.secrets
+        for key in _SECRET_KEYS:
+            if key in secrets and not os.environ.get(key):
+                os.environ[key] = str(secrets[key])
+    except Exception:
+        pass
+
+
 _load_env_file(PROJECT_ROOT / ".env")
+_load_streamlit_secrets()
 
 from open_prep.run_open_prep import (  # noqa: E402
     GAP_MODE_CHOICES,
