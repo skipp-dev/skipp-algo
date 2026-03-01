@@ -675,6 +675,7 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "alert_log": [],
     "bg_poller": None,
     "notify_log": [],
+    "enable_optional_intelligence": os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
@@ -1022,6 +1023,15 @@ with st.sidebar:
         help="Auto-fire webhook for score ≥ 0.85 actionable items (routes to TradersPost).",
     )
 
+    st.session_state.enable_optional_intelligence = st.toggle(
+        "Optional intelligence modules",
+        value=bool(st.session_state.enable_optional_intelligence),
+        help=(
+            "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
+            "Enable only when you want deeper analysis."
+        ),
+    )
+
     # Lifecycle status
     _lc_status = st.session_state.lifecycle_mgr.get_status_display()
     st.caption(f"Market: {_lc_status['phase']} ({_lc_status['time_et']})")
@@ -1197,6 +1207,11 @@ def _safe_float_mov(val: Any, default: float = 0.0) -> float:
         return float(val)
     except (ValueError, TypeError):
         return default
+
+
+def _intel_enabled() -> bool:
+    """Whether optional intelligence modules are enabled for this session."""
+    return bool(st.session_state.get("enable_optional_intelligence", False))
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
@@ -1801,7 +1816,7 @@ else:
 
         # ── NLP Sentiment enrichment (NewsAPI.ai validation layer) ──
         _feed_nlp: dict[str, NLPSentiment] = {}
-        if newsapi_available():
+        if _intel_enabled() and newsapi_available():
             _feed_tickers = list({
                 d.get("ticker", "").upper()
                 for d in filtered[:50]
@@ -2098,9 +2113,12 @@ else:
 
                 # Technical Analysis expander
                 _mov_symbols = [m["symbol"] for m in _sorted_movers[:50]]
-                _render_technicals_expander(_mov_symbols, key_prefix="tech_movers")
-                _render_forecast_expander(_mov_symbols, key_prefix="fc_movers")
-                _render_event_clusters_expander(_mov_symbols, key_prefix="ec_movers")
+                if _intel_enabled():
+                    _render_technicals_expander(_mov_symbols, key_prefix="tech_movers")
+                    _render_forecast_expander(_mov_symbols, key_prefix="fc_movers")
+                    _render_event_clusters_expander(_mov_symbols, key_prefix="ec_movers")
+                else:
+                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Rankings (real-time price-based) ─────────────────
     with tab_rank:
@@ -2228,7 +2246,7 @@ else:
 
                 # NLP sentiment enrichment for top ranked symbols
                 _rank_nlp: dict[str, NLPSentiment] = {}
-                if newsapi_available():
+                if _intel_enabled() and newsapi_available():
                     _rank_syms = [m["symbol"] for m in _ranked[:30]]
                     _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
 
@@ -2307,9 +2325,12 @@ else:
 
                 # Technical Analysis expander
                 _rank_symbols = [m["symbol"] for m in _ranked[:50]]
-                _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
-                _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
-                _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
+                if _intel_enabled():
+                    _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
+                    _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
+                    _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
+                else:
+                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments:
@@ -2538,9 +2559,12 @@ else:
 
                 # Technical Analysis expander
                 _rt_symbols = list(dict.fromkeys(ev.symbol for ev in _rt_events[:50]))
-                _render_technicals_expander(_rt_symbols, key_prefix="tech_rt")
-                _render_forecast_expander(_rt_symbols, key_prefix="fc_rt")
-                _render_event_clusters_expander(_rt_symbols, key_prefix="ec_rt")
+                if _intel_enabled():
+                    _render_technicals_expander(_rt_symbols, key_prefix="tech_rt")
+                    _render_forecast_expander(_rt_symbols, key_prefix="fc_rt")
+                    _render_event_clusters_expander(_rt_symbols, key_prefix="ec_rt")
+                else:
+                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Spikes (daily change scanner) ──────────────────
     with tab_spikes:
@@ -2664,9 +2688,12 @@ else:
 
                 # Technical Analysis expander
                 _spike_symbols = list(dict.fromkeys(r["symbol"] for r in filtered_spikes[:50]))
-                _render_technicals_expander(_spike_symbols, key_prefix="tech_spikes")
-                _render_forecast_expander(_spike_symbols, key_prefix="fc_spikes")
-                _render_event_clusters_expander(_spike_symbols, key_prefix="ec_spikes")
+                if _intel_enabled():
+                    _render_technicals_expander(_spike_symbols, key_prefix="tech_spikes")
+                    _render_forecast_expander(_spike_symbols, key_prefix="fc_spikes")
+                    _render_event_clusters_expander(_spike_symbols, key_prefix="ec_spikes")
+                else:
+                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
                 # ── Detail cards for top 10 ──────────────────────
                 st.divider()
@@ -3021,7 +3048,7 @@ else:
             st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
 
             # ── Trending Themes (NewsAPI.ai market awareness) ──
-            if newsapi_available():
+            if _intel_enabled() and newsapi_available():
                 _outlook_trending = fetch_trending_concepts(count=10, source="news")
                 if _outlook_trending:
                     st.divider()
@@ -3101,8 +3128,11 @@ else:
     # ── TAB: AI Insights ────────────────────────────────────────
     with tab_ai:
         st.markdown('<div id="ai-insights"></div>', unsafe_allow_html=True)
-        from terminal_tabs.tab_ai import render as render_ai
-        _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
+        if _intel_enabled():
+            from terminal_tabs.tab_ai import render as render_ai
+            _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
+        else:
+            st.info("⚡ Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
 
     # ── TAB: Market Movers + Quotes ────────────────
     with tab_bz_movers:
@@ -3775,7 +3805,9 @@ else:
     # ── TAB: Breaking Events (NewsAPI.ai) ───────────────────
     with tab_breaking:
         st.subheader("🔴 Breaking Events")
-        if not newsapi_available():
+        if not _intel_enabled():
+            st.info("⚡ Low-latency mode: Breaking Events are disabled. Enable optional intelligence modules in the sidebar.")
+        elif not newsapi_available():
             _ok_newsapi, _newsapi_reason = newsapi_availability_status()
             st.info(_newsapi_reason or "NewsAPI.ai integration is currently unavailable.")
         else:
@@ -3898,7 +3930,9 @@ else:
     # ── TAB: Trending Concepts (NewsAPI.ai) ─────────────────
     with tab_trending:
         st.subheader("📈 Trending Concepts")
-        if not newsapi_available():
+        if not _intel_enabled():
+            st.info("⚡ Low-latency mode: Trending Concepts are disabled. Enable optional intelligence modules in the sidebar.")
+        elif not newsapi_available():
             _ok_newsapi, _newsapi_reason = newsapi_availability_status()
             st.info(_newsapi_reason or "NewsAPI.ai integration is currently unavailable.")
         else:
@@ -4007,12 +4041,12 @@ else:
         st.subheader("🔥 Social Score — Most Shared News")
 
         # ── Finnhub Reddit + Twitter Sentiment ──────────────────
-        if finnhub_available():
+        if _intel_enabled() and finnhub_available():
             # Extract tickers from the live feed for social lookups
             _fh_tickers: list[str] = []
             _fh_seen: set[str] = set()
-            for _fi in st.session_state.get("feed", []):
-                for _ft in _fi.get("tickers", []):
+            for _feed_item in st.session_state.get("feed", []):
+                for _ft in _feed_item.get("tickers", []):
                     _fts = _ft.upper().strip()
                     if _fts and _fts not in _fh_seen and len(_fts) <= 5:
                         _fh_seen.add(_fts)
@@ -4030,8 +4064,8 @@ else:
                     _fh_sorted = sorted(_fh_social.values(), key=lambda s: s.total_mentions, reverse=True)
                     _fh_top = _fh_sorted[:5]
                     _fh_cols = st.columns(min(5, len(_fh_top)))
-                    for _fi, _fs in enumerate(_fh_top):
-                        with _fh_cols[_fi]:
+                    for _fh_i, _fs in enumerate(_fh_top):
+                        with _fh_cols[_fh_i]:
                             st.markdown(f"**{_fs.symbol}** {_fs.emoji}")
                             st.metric("Mentions", f"{_fs.total_mentions:,}")
                             st.caption(
@@ -4059,7 +4093,9 @@ else:
                     st.caption("No social sentiment data available for current tickers.")
                 st.markdown("---")
 
-        if not newsapi_available():
+        if not _intel_enabled():
+            st.info("⚡ Low-latency mode: Social intelligence is disabled. Enable optional intelligence modules in the sidebar.")
+        elif not newsapi_available():
             _ok_newsapi, _newsapi_reason = newsapi_availability_status()
             st.info(_newsapi_reason or "NewsAPI.ai Social Score integration is currently unavailable.")
         else:
@@ -4106,10 +4142,12 @@ else:
                 # ── Top 5 viral cards ──
                 _top5_social = _social_articles[:5]
                 _soc_cards = st.columns(min(5, len(_top5_social)))
-                for _si, _sa in enumerate(_top5_social):
-                    with _soc_cards[_si]:
+                for _soc_pair in enumerate(_top5_social):
+                    _soc_i = int(_soc_pair[0])
+                    _sa = _soc_pair[1]
+                    with _soc_cards[_soc_i]:
                         _soc_sent = newsapi_sentiment_badge(_sa.sentiment) if _sa.sentiment is not None else ""
-                        st.markdown(f"**#{_si + 1}** {_sa.sentiment_icon}")
+                        st.markdown(f"**#{_soc_i + 1}** {_sa.sentiment_icon}")
                         st.markdown(f"📊 **{_sa.social_score:,}** shares")
                         _safe_title = _sa.title[:60]
                         if _sa.url:
@@ -4122,9 +4160,11 @@ else:
 
                 # ── Full table ──
                 _soc_rows: list[dict[str, Any]] = []
-                for _si, _sa in enumerate(_social_articles, 1):
+                for _soc_pair in enumerate(_social_articles, 1):
+                    _soc_rank = int(_soc_pair[0])
+                    _sa = _soc_pair[1]
                     _soc_rows.append({
-                        "#": _si,
+                        "#": _soc_rank,
                         "Sentiment": _sa.sentiment_icon,
                         "Title": _sa.title[:80],
                         "Source": _sa.source,
