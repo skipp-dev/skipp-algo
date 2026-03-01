@@ -119,7 +119,6 @@ from terminal_ui_helpers import (
     SENTIMENT_COLORS,
     aggregate_segments,
     build_heatmap_data,
-    build_segment_summary_rows,
     compute_feed_stats,
     dedup_merge,
     filter_feed,
@@ -2148,13 +2147,42 @@ else:
         if not seg_rows:
             st.info("No segment data yet. Channels are populated by news articles.")
         else:
-            # ── Overview table ──────────────────────────────────────
-            summary_data = build_segment_summary_rows(seg_rows)
-
+            # ── Overview table (expandable rows) ────────────────────
             st.caption(f"{len(seg_rows)} segments across {len(feed)} articles")
-            df_seg = pd.DataFrame(summary_data)
-            df_seg.index = df_seg.index + 1
-            st.dataframe(df_seg, width='stretch', height=min(400, 40 + 35 * len(df_seg)))
+
+            for _sr in seg_rows:
+                _sr_name = safe_markdown_text(_sr["segment"])
+                _sr_sent = _sr["sentiment"]
+                _sr_n = _sr["articles"]
+                _sr_tk = _sr["tickers"]
+                _sr_avg = _sr["avg_score"]
+                _exp_hdr = (
+                    f"{_sr_sent} **{_sr_name}** — "
+                    f"{_sr_n} articles · {_sr_tk} tickers · avg {_sr_avg:.3f}"
+                )
+                with st.expander(_exp_hdr):
+                    _sr_items = sorted(
+                        _sr.get("_items", []),
+                        key=lambda d: d.get("news_score", 0),
+                        reverse=True,
+                    )[:20]
+                    if not _sr_items:
+                        st.caption("No articles.")
+                    for _si in _sr_items:
+                        _si_hl = (_si.get("headline") or "(no headline)")[:120]
+                        _si_url = _si.get("url", "")
+                        _si_tk = _si.get("ticker", "")
+                        _si_sc = _si.get("news_score", 0)
+                        if _si_url:
+                            st.markdown(
+                                f"- [{safe_markdown_text(_si_hl)}]({safe_url(_si_url)})"
+                                f" · `{_si_tk}` · {_si_sc:.3f}"
+                            )
+                        else:
+                            st.markdown(
+                                f"- {safe_markdown_text(_si_hl)}"
+                                f" · `{_si_tk}` · {_si_sc:.3f}"
+                            )
 
             st.divider()
 
