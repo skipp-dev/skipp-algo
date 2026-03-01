@@ -1023,9 +1023,10 @@ with st.sidebar:
         help="Auto-fire webhook for score ≥ 0.85 actionable items (routes to TradersPost).",
     )
 
-    st.session_state.enable_optional_intelligence = st.toggle(
+    st.toggle(
         "Optional intelligence modules",
-        value=bool(st.session_state.enable_optional_intelligence),
+        value=bool(st.session_state.get("enable_optional_intelligence", False)),
+        key="enable_optional_intelligence",
         help=(
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
             "Enable only when you want deeper analysis."
