@@ -264,6 +264,41 @@ streamlit run open_prep/streamlit_monitor.py
 - UTC + Berlin dual timestamp display for operational clarity
 - Session-aware pricing: during pre/after-hours, Benzinga delayed quotes are overlaid on stale close-based prices where available
 
+### Open-Prep Realtime Engine (A0/A1) — Operations Quickstart
+
+`open_prep/streamlit_monitor.py` reads realtime signals from disk. The engine is a
+**separate long-running process** and does not auto-start with the Streamlit page.
+
+```bash
+# Start engine (recommended for active monitoring)
+source .venv/bin/activate
+PYTHONPATH="$PWD" python -m open_prep.realtime_signals --ultra
+
+# Alternative: lower API pressure
+PYTHONPATH="$PWD" python -m open_prep.realtime_signals --interval 15
+```
+
+Health check (without opening UI internals):
+
+```bash
+PYTHONPATH="$PWD" python - <<'PY'
+from open_prep.realtime_signals import RealtimeEngine
+d = RealtimeEngine.load_signals_from_disk()
+signals = d.get("signals") or []
+print("updated_at:", d.get("updated_at"))
+print("stale:", bool(d.get("stale")), "stale_age_s:", int(d.get("stale_age_s") or 0))
+print("signals:", len(signals), "A0:", sum(1 for s in signals if s.get("level") == "A0"), "A1:", sum(1 for s in signals if s.get("level") == "A1"))
+PY
+```
+
+If Monitor shows *"RT Engine not running"*:
+
+1. Ensure process exists: `pgrep -fal "open_prep.realtime_signals"`
+2. Check signal artifact freshness: `artifacts/open_prep/latest/latest_realtime_signals.json`
+3. Restart cleanly if needed: `pkill -f "open_prep.realtime_signals"` then start again.
+
+For runbook-style incident handling, see: `docs/OPEN_PREP_OPS_QUICK_REFERENCE.md`.
+
 ### Macro Explainability
 
 Each candidate includes:

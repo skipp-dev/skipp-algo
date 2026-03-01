@@ -27,6 +27,10 @@ All notable changes to this project are documented in this file.
 - **Documentation refresh (README):**
   - Added a dedicated **Live Feed Score Badge Semantics** section describing sentiment-aware color mapping, thresholds (`0.80` / `0.50`), directional prefixes (`+`, `−`, `n`), and WIIM (`🔍`) marker meaning.
   - Expanded **Open-Prep Streamlit Monitor** docs with operational behavior details: minimum auto-refresh floor, rate-limit cooldown handling, cache-vs-live fetch strategy, stale-cache auto-recovery, stage-progress status panel, UTC/Berlin timestamp display, and extended-hours Benzinga quote overlay behavior.
+  - Added **Open-Prep Realtime Engine operations quickstart** (start/verify/restart) and clarified that RT engine is a separate long-running process from Streamlit.
+- **Ops runbook refresh (`docs/OPEN_PREP_OPS_QUICK_REFERENCE.md`):**
+  - Updated document date to `01.03.2026`.
+  - Added copy/paste sections for RT engine **Start / Verify / Restart** including process and artifact freshness checks.
 
 ### Changed (2026-02-28)
 

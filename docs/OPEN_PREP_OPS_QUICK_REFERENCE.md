@@ -1,6 +1,6 @@
 # Open Prep Suite — Ops Quick Reference (24/7)
 
-Stand: 27.02.2026  
+Stand: 01.03.2026  
 Scope: `open_prep` + `newsstack_fmp` + Terminal-Suite Betrieb
 
 ---
@@ -114,6 +114,52 @@ Nach einem gesunden Lauf sollten folgende Dateien aktuell sein:
 - `TERMINAL_SQLITE_PATH`
 - `TERMINAL_JSONL_PATH`
 - `TERMINAL_MAX_ITEMS` (default `500`)
+
+---
+
+## 5) Realtime Engine — Start / Verify / Restart
+
+Die Realtime-Engine läuft **separat** vom Streamlit-Monitor.
+Wenn im Monitor stale/keine RT-Signale angezeigt werden, zuerst diese Schritte nutzen.
+
+### Start (Foreground)
+
+```bash
+source .venv/bin/activate
+PYTHONPATH="$PWD" python -m open_prep.realtime_signals --ultra
+```
+
+Alternative mit geringerer Last:
+
+```bash
+source .venv/bin/activate
+PYTHONPATH="$PWD" python -m open_prep.realtime_signals --interval 15
+```
+
+### Verify (läuft + schreibt frische Artefakte)
+
+```bash
+pgrep -fal "open_prep.realtime_signals"
+```
+
+```bash
+PYTHONPATH="$PWD" python - <<'PY'
+from open_prep.realtime_signals import RealtimeEngine
+d = RealtimeEngine.load_signals_from_disk()
+signals = d.get("signals") or []
+print("updated_at:", d.get("updated_at"))
+print("stale:", bool(d.get("stale")), "stale_age_s:", int(d.get("stale_age_s") or 0))
+print("signals:", len(signals), "A0:", sum(1 for s in signals if s.get("level") == "A0"), "A1:", sum(1 for s in signals if s.get("level") == "A1"))
+PY
+```
+
+### Restart (wenn stale oder Prozess hängt)
+
+```bash
+pkill -f "open_prep.realtime_signals"
+source .venv/bin/activate
+PYTHONPATH="$PWD" python -m open_prep.realtime_signals --ultra
+```
 
 ---
 
