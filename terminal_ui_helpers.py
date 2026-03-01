@@ -171,7 +171,8 @@ def provider_icon(provider: str) -> str:
 
 
 def safe_markdown_text(text: str) -> str:
-    """Escape square brackets for safe Streamlit markdown rendering."""
+    """Escape HTML entities and markdown link syntax for safe rendering."""
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return text.replace("[", "\\[").replace("]", "\\]")
 
 
@@ -315,7 +316,7 @@ def compute_feed_stats(feed: list[dict[str, Any]]) -> dict[str, Any]:
     ``count``, ``unique_tickers``, ``actionable``, ``high_materiality``,
     ``avg_relevance``, ``newest_age_min``.
     """
-    unique_tickers = len(set(d["ticker"] for d in feed if d.get("ticker") != "MARKET"))
+    unique_tickers = len(set(d.get("ticker", "") for d in feed if d.get("ticker") not in ("MARKET", None, "")))
     actionable = sum(1 for d in feed if d.get("is_actionable"))
     high_mat = sum(1 for d in feed if d.get("materiality") == "HIGH")
     total_rel = sum(d.get("relevance", 0) for d in feed)

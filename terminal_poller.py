@@ -293,7 +293,7 @@ def _classify_item(
         # Still classify ticker-less items under "MARKET"
         tickers = ["MARKET"]
 
-    if not item.headline.strip():
+    if not (item.headline or "").strip():
         return []
 
     # ── newsstack_fmp scoring ───────────────────────────────
@@ -354,16 +354,16 @@ def _classify_item(
             sentiment_label=sentiment_label,
             sentiment_score=sentiment_score,
             # event
-            event_class=event_info["event_class"],
-            event_label=event_info["event_label"],
-            materiality=event_info["materiality"],
+            event_class=event_info.get("event_class", "unknown"),
+            event_label=event_info.get("event_label", ""),
+            materiality=event_info.get("materiality", "LOW"),
             # recency
-            recency_bucket=recency_info["recency_bucket"],
-            age_minutes=recency_info["age_minutes"],
-            is_actionable=recency_info["is_actionable"],
+            recency_bucket=recency_info.get("recency_bucket", "stale"),
+            age_minutes=recency_info.get("age_minutes", 0),
+            is_actionable=recency_info.get("is_actionable", False),
             # source
-            source_tier=source_info["source_tier"],
-            source_rank=source_info["source_rank"],
+            source_tier=source_info.get("source_tier", "unknown"),
+            source_rank=source_info.get("source_rank", 99),
             # news provider metadata
             channels=channels,
             tags=tags,

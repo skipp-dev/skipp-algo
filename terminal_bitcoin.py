@@ -332,19 +332,28 @@ def fetch_btc_quote() -> BTCQuote | None:
         return _btc_quote_yfinance()
 
     d = rows[0] if isinstance(rows[0], dict) else {}
+    def _sf(val: object) -> float:
+        """Safely coerce API value to float (handles None, 'N/A', etc.)."""
+        if val is None:
+            return 0.0
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return 0.0
+
     quote = BTCQuote(
-        price=float(d.get("price", 0)),
-        change=float(d.get("change", 0)),
-        change_pct=float(d.get("changePercentage", d.get("changesPercentage", 0))),
-        day_high=float(d.get("dayHigh", 0)),
-        day_low=float(d.get("dayLow", 0)),
-        year_high=float(d.get("yearHigh", 0)),
-        year_low=float(d.get("yearLow", 0)),
-        volume=float(d.get("volume", 0)),
-        avg_volume=float(d.get("avgVolume", 0)),
-        market_cap=float(d.get("marketCap", 0)),
-        open_price=float(d.get("open", 0)),
-        prev_close=float(d.get("previousClose", 0)),
+        price=_sf(d.get("price")),
+        change=_sf(d.get("change")),
+        change_pct=_sf(d.get("changePercentage") or d.get("changesPercentage")),
+        day_high=_sf(d.get("dayHigh")),
+        day_low=_sf(d.get("dayLow")),
+        year_high=_sf(d.get("yearHigh")),
+        year_low=_sf(d.get("yearLow")),
+        volume=_sf(d.get("volume")),
+        avg_volume=_sf(d.get("avgVolume")),
+        market_cap=_sf(d.get("marketCap")),
+        open_price=_sf(d.get("open")),
+        prev_close=_sf(d.get("previousClose")),
         timestamp=str(d.get("timestamp", "")),
         name=d.get("name", "Bitcoin"),
         exchange=d.get("exchange", ""),
@@ -652,8 +661,12 @@ def fetch_fear_greed() -> FearGreed | None:
                     ts_str = datetime.fromtimestamp(int(ts_val), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
                 except (ValueError, OverflowError, OSError):
                     ts_str = str(ts_val)
+            try:
+                _fg_val = float(d.get("value") or 0)
+            except (ValueError, TypeError):
+                _fg_val = 0.0
             fg = FearGreed(
-                value=float(d.get("value", 0)),
+                value=_fg_val,
                 label=d.get("value_classification", ""),
                 timestamp=ts_str,
             )
@@ -672,8 +685,12 @@ def fetch_fear_greed() -> FearGreed | None:
         return None
 
     d = rows[0] if isinstance(rows[0], dict) else {}
+    try:
+        _fg_val = float(d.get("value") or 0)
+    except (ValueError, TypeError):
+        _fg_val = 0.0
     fg = FearGreed(
-        value=float(d.get("value", 0)),
+        value=_fg_val,
         label=d.get("valueClassification", d.get("label", "")),
         timestamp=str(d.get("timestamp", d.get("date", ""))),
     )

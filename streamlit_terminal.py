@@ -19,6 +19,7 @@ Optional: ``FMP_API_KEY`` for economic calendar + multi-source news.
 
 from __future__ import annotations
 
+import html
 import json
 import ipaddress
 import logging
@@ -3587,9 +3588,9 @@ else:
                     _source_str = f" — *{_art_source}*" if _art_source else ""
                     _date_str = f" · {_art_date[:10]}" if _art_date else ""
                     if _art_url:
-                        st.markdown(f"- {_sent_icon} [{_art_title[:120]}]({_art_url}){_source_str}{_date_str}")
+                        st.markdown(f"- {_sent_icon} [{safe_markdown_text(_art_title[:120])}]({safe_url(_art_url)}){_source_str}{_date_str}")
                     else:
-                        st.markdown(f"- {_sent_icon} {_art_title[:120]}{_source_str}{_date_str}")
+                        st.markdown(f"- {_sent_icon} {safe_markdown_text(_art_title[:120])}{_source_str}{_date_str}")
                     if _btc_art.get("text"):
                         st.caption(f"  {_btc_art['text'][:200]}...")
             else:
@@ -3780,7 +3781,7 @@ else:
                     )
 
                     # Market cap distribution
-                    if "marketCap" in df_ind.columns:
+                    if "marketCap" in df_ind.columns and not df_ind.empty:
                         df_ind["_mcap"] = pd.to_numeric(df_ind["marketCap"], errors="coerce") / 1e9
                         total_mcap = df_ind["_mcap"].sum()
                         m1, m2, m3 = st.columns(3)
@@ -4033,8 +4034,8 @@ else:
                                     _art_date = _art.date[:16] if _art.date else ""
                                     _art_src = f" · {_art.source}" if _art.source else ""
                                     st.markdown(
-                                        f"- [{_art.title}]({_art.url})"
-                                        f"  <small style='color:gray'>{_art_date}{_art_src}</small>",
+                                        f"- [{html.escape(_art.title)}]({safe_url(_art.url)})"
+                                        f"  <small style='color:gray'>{html.escape(_art_date)}{html.escape(_art_src)}</small>",
                                         unsafe_allow_html=True,
                                     )
                             else:
@@ -4260,13 +4261,13 @@ else:
                             with st.expander("🔗 Links from article body", expanded=False):
                                 for _lnk in _da.links[:10]:
                                     _lnk_str = _lnk if isinstance(_lnk, str) else str(_lnk.get("uri", _lnk))
-                                    st.markdown(f"- [{_lnk_str[:60]}]({_lnk_str})")
+                                    st.markdown(f"- [{safe_markdown_text(_lnk_str[:60])}]({safe_url(_lnk_str)})")
 
                         if _da.videos:
                             with st.expander("🎥 Videos", expanded=False):
                                 for _vid in _da.videos[:5]:
                                     _vid_str = _vid if isinstance(_vid, str) else str(_vid.get("uri", _vid))
-                                    st.markdown(f"- [{_vid_str[:60]}]({_vid_str})")
+                                    st.markdown(f"- [{safe_markdown_text(_vid_str[:60])}]({safe_url(_vid_str)})")
 
                         if _da.event_uri:
                             st.caption(f"Event cluster: `{_da.event_uri}`")
