@@ -1604,10 +1604,25 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 # ── Main display ────────────────────────────────────────────────
 
 st.markdown(
-    '<h1 style="margin-bottom:0">'
-    '<a href="#ai-insights" style="text-decoration:none;color:inherit">'
+    '<h1 id="main-heading" style="margin-bottom:0;cursor:pointer">'
     '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported'
-    '</a></h1>',
+    '</h1>',
+    unsafe_allow_html=True,
+)
+
+# Inject JS: clicking the heading activates the "🤖 AI Insights" tab (2nd tab, index 1).
+st.markdown(
+    """<script>
+    const heading = window.parent.document.getElementById('main-heading');
+    if (heading) {
+        heading.addEventListener('click', function() {
+            const tabs = window.parent.document.querySelectorAll(
+                'button[data-baseweb="tab"]'
+            );
+            if (tabs.length > 1) { tabs[1].click(); }
+        });
+    }
+    </script>""",
     unsafe_allow_html=True,
 )
 
