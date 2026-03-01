@@ -119,6 +119,25 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 "**News importance score** (0–1) computed by the scoring engine "
                 "based on source tier, relevance, materiality, and sentiment strength.\n\n"
                 "Higher = more market-moving.\n\n"
+                "**Colour coding** (colour = impact × direction)\n\n"
+                "| Colour | Threshold | Meaning |\n"
+                "|--------|-----------|---------|\n"
+                "| 🟢 **green bold** | + score ≥ 0.80 | **High-impact bullish** — actionable. "
+                "Triggers an A1→A0 upgrade and fires the alert webhook. |\n"
+                "| 🔴 **red bold** | − score ≥ 0.80 | **High-impact bearish** — actionable. "
+                "Scored strongly across source tier, relevance, materiality & sentiment. |\n"
+                "| 🟡 yellow | + score ≥ 0.50 | **Moderate-impact bullish** — notable but below "
+                "high-conviction threshold. |\n"
+                "| 🟠 orange | − score ≥ 0.50 | **Moderate-impact bearish** — notable but below "
+                "high-conviction threshold. |\n"
+                "| plain | score < 0.50 | **Low-impact** — informational only, "
+                "no alert action taken. |\n\n"
+                "**Direction prefix**\n\n"
+                "| Prefix | Meaning |\n"
+                "|--------|---------|\n"
+                "| **+** | Bullish impact |\n"
+                "| **n** | Neutral impact |\n"
+                "| **−** | Bearish impact |\n\n"
                 "The 🔍 badge means **WIIM** (Why It Matters) — a short explanation "
                 "of the article's market relevance."
             )
@@ -174,7 +193,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         url = d.get("url", "")
 
         age_str = format_age_string(d.get("published_ts"))
-        score_badge = format_score_badge(score)
+        score_badge = format_score_badge(score, d.get("sentiment_label", ""))
         prov_icon = provider_icon(_provider)
         _safe_url = safe_url(url)
         wiim_badge = " 🔍" if d.get("is_wiim") else ""

@@ -5,7 +5,7 @@
 SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with multi-timeframe Outlook/Forecast dashboard for TradingView.
-2. **Streamlit News Terminal** — a Bloomberg-style real-time news intelligence dashboard with 17 tabs covering news, movers, spikes, macro, crypto, and more.
+2. **Streamlit News Terminal** — a Bloomberg-style real-time news intelligence dashboard with 18 tabs covering news, AI insights, movers, spikes, macro, crypto, and more.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 ---
@@ -26,12 +26,12 @@ A self-hosted, real-time financial intelligence dashboard built with Streamlit. 
 
 ### Architecture
 
-The terminal is composed of 14 Python modules organized around a central UI driver:
+The terminal is composed of 16 Python modules organized around a central UI driver:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                    streamlit_terminal.py                          │
-│                  (3 900+ lines · 17 tabs · main UI)              │
+│                  (4 100+ lines · 18 tabs · main UI)              │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
@@ -57,11 +57,16 @@ The terminal is composed of 14 Python modules organized around a central UI driv
 │  │  Pushover        │  │  auto-recovery   │  │  loop          │ │
 │  └──────────────────┘  └──────────────────┘  └────────────────┘ │
 │                                                                  │
-│  ┌──────────────────┐  ┌──────────────────┐                     │
-│  │ terminal_export  │  │ terminal_ui_     │                     │
-│  │  JSONL/VisiData  │  │  helpers         │                     │
-│  │  webhook fire    │  │  sentiment fmt   │                     │
-│  └──────────────────┘  └──────────────────┘                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────────┐ │
+│  │ terminal_export  │  │ terminal_ui_     │  │ terminal_ai_   │ │
+│  │  JSONL/VisiData  │  │  helpers         │  │  insights      │ │
+│  │  webhook fire    │  │  sentiment fmt   │  │  LLM reasoning │ │
+│  └──────────────────┘  └──────────────────┘  └────────────────┘ │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────────┐ │
+│  │ terminal_tabs/  (18 tab modules — ~2 300 lines)             │ │
+│  │  tab_feed · tab_ai · tab_rankings · tab_segments · ...      │ │
+│  └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
 ├──────────────────────────────────────────────────────────────────┤
 │                       newsstack_fmp/                             │
@@ -75,7 +80,7 @@ The terminal is composed of 14 Python modules organized around a central UI driv
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
-| `streamlit_terminal.py` | ~3 900 | Main Streamlit UI — 17 tabs, sidebar, polling orchestration, alert evaluation |
+| `streamlit_terminal.py` | ~4 100 | Main Streamlit UI — 18 tabs, sidebar, polling orchestration, alert evaluation |
 | `terminal_poller.py` | ~1 300 | Polling engine — REST/FMP ingestion, dedup, classification, sector perf, defense watchlist, tomorrow outlook, power gaps |
 | `terminal_bitcoin.py` | ~950 | Bitcoin data — 10 fetch functions (quote, OHLCV, technicals, news, social, F&G, movers, exchange listings) |
 | `terminal_newsapi.py` | ~1 150 | NewsAPI.ai — breaking events, trending concepts, NLP sentiment, event-clustered news, social score ranking |
@@ -88,6 +93,8 @@ The terminal is composed of 14 Python modules organized around a central UI driv
 | `terminal_feed_lifecycle.py` | ~320 | Feed health — staleness detection, auto-recovery (cursor reset + SQLite dedup prune) |
 | `terminal_background_poller.py` | ~270 | Background poller — threaded async poll loop for Streamlit session state |
 | `terminal_ui_helpers.py` | ~490 | UI formatting — sentiment badges, Streamlit column utilities |
+| `terminal_ai_insights.py` | ~285 | AI Insights engine — LLM-powered market reasoning over live feed data |
+| `terminal_tabs/` | ~2 300 | Tab rendering modules — one module per tab (feed, AI, rankings, etc.) |
 | `newsstack_fmp/` | ~2 500 | News pipeline — Benzinga adapters (REST, WS, calendar, financial), FMP adapter, SQLite store, scoring, enrichment |
 
 ### Tabs Overview
@@ -95,22 +102,23 @@ The terminal is composed of 14 Python modules organized around a central UI driv
 | # | Tab | Description |
 |---|-----|-------------|
 | 1 | 📰 **Live Feed** | Real-time Benzinga + FMP news with 16-category NLP classifier, full-text search, and date filters |
-| 2 | 🔥 **Top Movers** | FMP gainers/losers enriched with Benzinga delayed quotes during extended hours |
+| 2 | 🤖 **AI Insights** | LLM-powered market analysis — structured reasoning over the live feed with cached responses |
 | 3 | 🏆 **Rankings** | Symbol-level news scoring with aggregated sentiment, volume signals, and RT quote overlay |
 | 4 | 🏗️ **Segments** | News items grouped by 16 event categories (earnings, M&A, FDA, macro, etc.) |
-| 5 | ⚡ **RT Spikes** | Sub-minute real-time price spike detection from consecutive quote snapshots |
-| 6 | 🚨 **Spikes** | FMP biggest gainers/losers/most-actives with batch-quote enrichment |
-| 7 | 🗺️ **Heatmap** | Plotly treemap sector heatmap of market performance |
-| 8 | 📅 **Calendar** | FMP economic calendar with impact filters |
-| 9 | 🔮 **Tomorrow Outlook** | Composite next-trading-day forecast (traffic light system) |
-| 10 | 💹 **Movers** | Benzinga movers with gainers/losers sub-tabs |
-| 11 | ₿ **Bitcoin** | BTC dashboard: price, chart, technicals, Fear & Greed, news, social sentiment, crypto movers |
-| 12 | 🛡️ **Defense & Aerospace** | A&D watchlist quotes + industry performance screen |
-| 13 | 🔴 **Breaking** | NewsAPI.ai breaking events with article counts, sentiment, social scores |
-| 14 | 📈 **Trending** | NewsAPI.ai trending concepts and entities across global news |
-| 15 | 🔥 **Social** | Social sentiment scoring and viral article detection |
-| 16 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
-| 17 | 📊 **Data Table** | Full data export table with all enrichment columns |
+| 5 | ₿ **Bitcoin** | BTC dashboard: price, chart, technicals, Fear & Greed, news, social sentiment, crypto movers |
+| 6 | ⚡ **RT Spikes** | Sub-minute real-time price spike detection from consecutive quote snapshots |
+| 7 | 🚨 **Spikes** | FMP biggest gainers/losers/most-actives with batch-quote enrichment |
+| 8 | 🗺️ **Heatmap** | Plotly treemap sector heatmap of market performance |
+| 9 | 📅 **Calendar** | FMP economic calendar with impact filters |
+| 10 | 🔮 **Outlook** | Composite next-trading-day forecast (traffic light system) |
+| 11 | 🔥 **Top Movers** | FMP gainers/losers enriched with Benzinga delayed quotes during extended hours |
+| 12 | 💹 **Movers** | Benzinga movers with gainers/losers sub-tabs |
+| 13 | 🛡️ **Defense & Aerospace** | A&D watchlist quotes + industry performance screen |
+| 14 | 🔴 **Breaking** | NewsAPI.ai breaking events with article counts, sentiment, social scores |
+| 15 | 📈 **Trending** | NewsAPI.ai trending concepts and entities across global news |
+| 16 | 🔥 **Social** | Social sentiment scoring and viral article detection |
+| 17 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
+| 18 | 📊 **Data Table** | Full data export table with all enrichment columns |
 
 ### Live Feed Score Badge Semantics
 
@@ -189,6 +197,11 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 headless = true
 address = "0.0.0.0"
 port = 8501
+# Disable inotify-based file watcher to prevent EMFILE crashes
+# on Streamlit Cloud (shared Linux hosts with low inotify limits).
+# For local development, override with:
+#   streamlit run --server.fileWatcherType watchdog streamlit_terminal.py
+fileWatcherType = "none"
 
 [theme]
 base = "dark"
@@ -320,7 +333,7 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 ### Tests
 
 ```bash
-# Full test suite (1 674 tests)
+# Full test suite (1 681 tests)
 python -m pytest tests/ -q
 
 # Single test
@@ -350,7 +363,7 @@ Configuration is centralized in `pyproject.toml`.
 
 ```
 skipp-algo/
-├── streamlit_terminal.py          # Main Bloomberg-style terminal (17 tabs)
+├── streamlit_terminal.py          # Main Bloomberg-style terminal (18 tabs)
 ├── terminal_poller.py             # Polling engine (news + FMP + classification)
 ├── terminal_bitcoin.py            # Bitcoin data (10 sources)
 ├── terminal_newsapi.py            # NewsAPI.ai integration
@@ -362,7 +375,16 @@ skipp-algo/
 ├── terminal_export.py             # JSONL/VisiData export + webhooks
 ├── terminal_feed_lifecycle.py     # Feed staleness detection + auto-recovery
 ├── terminal_background_poller.py  # Threaded background poll loop
+├── terminal_ai_insights.py        # AI Insights engine (LLM reasoning)
 ├── terminal_ui_helpers.py         # UI formatting + sentiment helpers
+│
+├── terminal_tabs/                 # Tab rendering modules (18 tabs)
+│   ├── tab_feed.py                # 📰 Live Feed tab
+│   ├── tab_ai.py                  # 🤖 AI Insights tab
+│   ├── tab_rankings.py            # 🏆 Rankings tab
+│   ├── tab_bitcoin.py             # ₿ Bitcoin tab
+│   ├── tab_*.py                   # … remaining 14 tabs
+│   └── _shared.py                 # Shared tab utilities
 │
 ├── newsstack_fmp/                 # News pipeline library
 │   ├── ingest_benzinga.py         # Benzinga REST + WebSocket adapter
@@ -387,7 +409,7 @@ skipp-algo/
 │   ├── alerts.py                  # Alert configuration
 │   └── watchlist.py               # Symbol watchlist management
 │
-├── tests/                         # 1 674 tests
+├── tests/                         # 1 681 tests
 ├── scripts/                       # VisiData launchers, export scripts
 ├── docs/                          # Technical docs, reviews, runbooks
 ├── *.pine                         # TradingView Pine Script v6

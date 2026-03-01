@@ -256,26 +256,64 @@ class TestFilterFeed:
 
 
 class TestFormatScoreBadge:
-    def test_high_score_red(self):
-        badge = format_score_badge(0.85)
+    # ── High-impact (≥ 0.80) ────────────────────────────────
+    def test_high_bullish_green(self):
+        badge = format_score_badge(0.85, "bullish")
+        assert ":green[" in badge
+        assert "+0.85" in badge
+
+    def test_high_bearish_red(self):
+        badge = format_score_badge(0.85, "bearish")
         assert ":red[" in badge
+        assert "\u22120.85" in badge
+
+    def test_high_neutral_gray(self):
+        badge = format_score_badge(0.85, "neutral")
+        assert ":gray[" in badge
+        assert "n0.85" in badge
+
+    def test_high_no_sentiment_gray(self):
+        badge = format_score_badge(0.85)
+        assert ":gray[" in badge
         assert "0.85" in badge
 
-    def test_mid_score_orange(self):
-        badge = format_score_badge(0.55)
-        assert ":orange[" in badge
+    # ── Moderate-impact (≥ 0.50) ────────────────────────────
+    def test_mid_bullish_yellow(self):
+        badge = format_score_badge(0.55, "bullish")
+        assert ":yellow[" in badge
+        assert "+0.55" in badge
 
+    def test_mid_bearish_orange(self):
+        badge = format_score_badge(0.60, "bearish")
+        assert ":orange[" in badge
+        assert "\u22120.60" in badge
+
+    def test_mid_neutral_gray(self):
+        badge = format_score_badge(0.55, "neutral")
+        assert ":gray[" in badge
+
+    def test_mid_no_sentiment_gray(self):
+        badge = format_score_badge(0.55)
+        assert ":gray[" in badge
+
+    # ── Low-impact (< 0.50) ─────────────────────────────────
     def test_low_score_plain(self):
         badge = format_score_badge(0.30)
         assert ":" not in badge
         assert "0.30" in badge
 
-    def test_boundary_080(self):
-        badge = format_score_badge(0.80)
-        assert ":red[" in badge
+    def test_low_score_with_sentiment(self):
+        badge = format_score_badge(0.30, "bullish")
+        assert ":" not in badge
+        assert "+0.30" in badge
 
-    def test_boundary_050(self):
-        badge = format_score_badge(0.50)
+    # ── Boundary tests ──────────────────────────────────────
+    def test_boundary_080_bullish(self):
+        badge = format_score_badge(0.80, "bullish")
+        assert ":green[" in badge
+
+    def test_boundary_050_bearish(self):
+        badge = format_score_badge(0.50, "bearish")
         assert ":orange[" in badge
 
     def test_zero(self):

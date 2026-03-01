@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-03-02)
+
+- **Streamlit Cloud inotify crash:** Added `fileWatcherType = "none"` to `.streamlit/config.toml` to prevent `OSError: [Errno 24] inotify instance limit reached` on shared Linux hosts. Streamlit's default `watchdog`-based file watcher exhausted the low inotify limit, cascading to EMFILE errors on all network connections (Benzinga, FMP).
+- **EMFILE resilience in `load_jsonl_feed`:** Catch `OSError` during JSONL file read so the app degrades gracefully (returns partial data) instead of crashing if file descriptors are exhausted.
+
+### Changed (2026-03-02)
+
+- **Documentation refresh (README):**
+  - Updated tab count from 17 → 18 (AI Insights tab added).
+  - Updated module count from 14 → 16 (added `terminal_ai_insights.py` and `terminal_tabs/`).
+  - Rewrote Tabs Overview table with current tab order (AI Insights #2, Bitcoin #5, Outlook replaces Tomorrow Outlook).
+  - Updated architecture diagram with `terminal_ai_insights` and `terminal_tabs/` directory.
+  - Updated test count 1 674 → 1 681.
+  - Updated Streamlit config section with `fileWatcherType = "none"` and local override instructions.
+  - Updated project structure tree with `terminal_ai_insights.py` and `terminal_tabs/` directory.
+
 ### Changed (2026-03-01)
 
 - **Documentation refresh (README):**

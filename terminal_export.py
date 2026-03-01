@@ -151,6 +151,13 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
                     continue
     except FileNotFoundError:
         return []
+    except OSError as exc:
+        # Catch EMFILE / inotify exhaustion so the app degrades
+        # gracefully instead of crashing on Streamlit Cloud.
+        logger.warning("load_jsonl_feed: OSError reading %s: %s", path, exc)
+        # Return whatever was parsed before the error
+        if not result:
+            return []
     # Sort by timestamp descending — always correct regardless of
     # on-disk line order (append, rewrite, rotate all may differ).
     result.sort(

@@ -106,13 +106,33 @@ def filter_feed(
 # ── Formatting helpers ──────────────────────────────────────────
 
 
-def format_score_badge(score: float) -> str:
-    """Return a Streamlit-markdown score badge with colour coding."""
+def format_score_badge(score: float, sentiment: str = "") -> str:
+    """Return a Streamlit-markdown score badge with colour coding.
+
+    Colour encodes **both** impact level and sentiment direction:
+
+    * score ≥ 0.80  → :green: (bullish) / :red: (bearish) / :gray: (neutral/unknown)  **bold**
+    * score ≥ 0.50  → :yellow: (bullish) / :orange: (bearish) / :gray: (neutral/unknown)
+    * score < 0.50  → plain text
+
+    A directional prefix is prepended: ``+`` bullish, ``−`` bearish, ``n`` neutral.
+    """
+    _DIR = {"bullish": "+", "bearish": "−", "neutral": "n"}
+    sent = sentiment.lower() if sentiment else ""
+    prefix = _DIR.get(sent, "")
     if score >= 0.80:
-        return f":red[**{score:.2f}**]"
+        if sent == "bullish":
+            return f":green[**{prefix}{score:.2f}**]"
+        if sent == "bearish":
+            return f":red[**{prefix}{score:.2f}**]"
+        return f":gray[**{prefix}{score:.2f}**]"
     if score >= 0.50:
-        return f":orange[{score:.2f}]"
-    return f"{score:.2f}"
+        if sent == "bullish":
+            return f":yellow[{prefix}{score:.2f}]"
+        if sent == "bearish":
+            return f":orange[{prefix}{score:.2f}]"
+        return f":gray[{prefix}{score:.2f}]"
+    return f"{prefix}{score:.2f}"
 
 
 def format_age_string(published_ts: float | None, *, now: float | None = None) -> str:
