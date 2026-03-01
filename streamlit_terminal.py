@@ -1,4 +1,4 @@
-"""Bloomberg Terminal — Real-Time News Intelligence Dashboard.
+"""Real-Time News Intelligence Dashboard AI supported.
 
 Features:
 - Multi-source news ingestion
