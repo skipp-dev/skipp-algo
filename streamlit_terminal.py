@@ -757,7 +757,11 @@ with st.sidebar:
     st.metric("Polls", st.session_state.poll_count)
     _poll_attempts = st.session_state.get("poll_attempts", 0)
     if _poll_attempts > st.session_state.poll_count:
-        st.caption(f"Attempts: {_poll_attempts} (failures: {_poll_attempts - st.session_state.poll_count})")
+        # Distinguish in-progress (no poll completed yet) from actual failures
+        if st.session_state.last_poll_status == "—":
+            st.caption(f"Attempts: {_poll_attempts} (in progress…)")
+        else:
+            st.caption(f"Attempts: {_poll_attempts} (failures: {_poll_attempts - st.session_state.poll_count})")
     st.metric("Items in feed", len(st.session_state.feed))
     st.metric("Total ingested", st.session_state.total_items_ingested)
     if st.session_state.last_poll_ts:
@@ -4028,7 +4032,23 @@ if st.session_state.auto_refresh and (
     # This avoids the blocking time.sleep(1) call that froze the UI.
     @st.fragment(run_every=timedelta(seconds=2))
     def _auto_refresh_fragment() -> None:
-        """Non-blocking auto-refresh fragment."""
-        pass  # Fragment reruns trigger a re-evaluation of _should_poll()
+        """Non-blocking auto-refresh fragment.
+
+        Streamlit fragments with ``run_every`` only re-execute the
+        fragment body — they do NOT trigger a full page rerun.  We
+        must explicitly call ``st.rerun()`` when the background
+        poller has new items or a status change, otherwise the sync
+        code in the main script never re-executes and the sidebar
+        shows stale "Polls: 0 / Last poll: —" indefinitely.
+        """
+        _bp_frag = st.session_state.get("bg_poller")
+        if _bp_frag is not None:
+            # BG mode: rerun when poller completed a poll (success or failure)
+            if _bp_frag.poll_count != st.session_state.get("poll_count", 0):
+                st.rerun()
+            if _bp_frag.last_poll_status != st.session_state.get("last_poll_status", "—"):
+                st.rerun()
+        elif st.session_state.get("auto_refresh") and _should_poll(_effective_interval):
+            st.rerun()
 
     _auto_refresh_fragment()
