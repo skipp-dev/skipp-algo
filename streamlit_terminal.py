@@ -1039,17 +1039,21 @@ with st.sidebar:
 
     st.divider()
 
-    # RT engine status — use absolute path so CWD doesn't matter
-    _rt_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
-    _rt_quotes = load_rt_quotes(_rt_path)
-    if _rt_quotes:
-        st.success(f"RT Engine: {len(_rt_quotes)} symbols live")
+    # RT engine status — skip on Streamlit Cloud where the local engine can't run
+    _is_cloud = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
+    if _is_cloud:
+        st.caption("RT Engine: ☁️ Cloud mode (local-only feature)")
     else:
-        if os.path.isfile(_rt_path):
-            _rt_age = time.time() - os.path.getmtime(_rt_path)
-            st.warning(f"RT Engine: file exists but stale ({_rt_age:.0f}s old > 120s limit)")
+        _rt_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
+        _rt_quotes = load_rt_quotes(_rt_path)
+        if _rt_quotes:
+            st.success(f"RT Engine: {len(_rt_quotes)} symbols live")
         else:
-            st.info("RT Engine: not running (terminal poller is independent)")
+            if os.path.isfile(_rt_path):
+                _rt_age = time.time() - os.path.getmtime(_rt_path)
+                st.warning(f"RT Engine: file exists but stale ({_rt_age:.0f}s old > 120s limit)")
+            else:
+                st.info("RT Engine: not running (terminal poller is independent)")
 
 
 # ── Sentiment helpers (imported from terminal_ui_helpers) ──────
