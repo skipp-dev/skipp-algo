@@ -1839,31 +1839,31 @@ else:
                 import pandas as pd
 
                 _sp_df = pd.DataFrame(_sp_data)
-                _sp_df = _sp_df.sort_values("changesPercentage", ascending=True)
-                _sp_df["color"] = _sp_df["changesPercentage"].apply(
-                    lambda x: "#26a69a" if x >= 0 else "#ef5350"
-                )
-                import plotly.graph_objects as go  # type: ignore[import-untyped]
-
-                _sp_fig = go.Figure(
-                    go.Bar(
-                        x=_sp_df["changesPercentage"],
-                        y=_sp_df["sector"],
-                        orientation="h",
-                        marker_color=_sp_df["color"].tolist(),
-                        text=_sp_df["changesPercentage"].apply(lambda v: f"{v:+.2f}%"),
-                        textposition="auto",
+                if "changesPercentage" in _sp_df.columns and "sector" in _sp_df.columns:
+                    _sp_df["changesPercentage"] = pd.to_numeric(
+                        _sp_df["changesPercentage"].astype(str).str.rstrip("%"),
+                        errors="coerce",
                     )
-                )
-                _sp_fig.update_layout(
-                    title="Market Sector Performance (FMP)",
-                    xaxis_title="Change %",
-                    yaxis_title="",
-                    height=340,
-                    margin=dict(l=10, r=10, t=40, b=30),
-                    template="plotly_dark",
-                )
-                st.plotly_chart(_sp_fig, width='stretch')
+                    _sp_df = _sp_df.sort_values("changesPercentage", ascending=False)
+
+                    import plotly.express as px  # type: ignore[import-untyped]
+
+                    _sp_fig = px.bar(
+                        _sp_df, x="sector", y="changesPercentage",
+                        color="changesPercentage",
+                        color_continuous_scale=["#FF1744", "#FFC107", "#00C853"],
+                        title="Sector Performance (%)",
+                    )
+                    _sp_fig.update_layout(
+                        height=350,
+                        paper_bgcolor="#0E1117",
+                        plot_bgcolor="#0E1117",
+                        font_color="white",
+                        xaxis_tickangle=-45,
+                    )
+                    st.plotly_chart(_sp_fig, width='stretch')
+                else:
+                    st.dataframe(pd.DataFrame(_sp_data), width='stretch')
         except Exception:
             logger.debug("Sector performance chart skipped", exc_info=True)
 
