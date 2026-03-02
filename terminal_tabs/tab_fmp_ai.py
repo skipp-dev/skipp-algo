@@ -25,6 +25,12 @@ from terminal_fmp_insights import (
 )
 from terminal_ui_helpers import safe_markdown_text
 
+try:
+    from terminal_technicals import fetch_technicals
+    _TV_AVAILABLE = True
+except ImportError:
+    _TV_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 _SAVE_DIR = Path(os.getenv("AI_INSIGHTS_DIR", os.path.expanduser("~/Downloads")))
@@ -179,10 +185,44 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         if not fmp_data and st.session_state.get("_cached_fmp_data"):
             fmp_data = st.session_state["_cached_fmp_data"]
 
+        # --- Fetch TradingView technicals for top tickers ---
+        technicals: dict[str, dict] | None = None
+        if _TV_AVAILABLE and _top_tickers:
+            import time as _time
+            _TECH_BUDGET_S = 30.0
+            _tech_start = _time.time()
+            with st.spinner(f"Fetching technicals for {len(_top_tickers)} tickers (≤30 s)…"):
+                _tech_ctx: dict[str, dict] = {}
+                for _sym in _top_tickers[:8]:
+                    if _time.time() - _tech_start > _TECH_BUDGET_S:
+                        logger.info("FMP AI technicals budget exceeded after %d tickers", len(_tech_ctx))
+                        break
+                    _r = fetch_technicals(_sym, "15m")
+                    if _r.error:
+                        continue
+                    _indicators = {}
+                    for _od in (_r.osc_detail or []):
+                        _indicators[_od["name"]] = {
+                            "value": _od["value"],
+                            "action": _od["action"],
+                        }
+                    _tech_ctx[_sym] = {
+                        "summary": _r.summary_signal,
+                        "oscillators": _r.osc_signal,
+                        "moving_averages": _r.ma_signal,
+                        "indicators": _indicators,
+                    }
+                if _tech_ctx:
+                    technicals = _tech_ctx
+                    st.session_state["_cached_fmp_technicals"] = _tech_ctx
+        if technicals is None and st.session_state.get("_cached_fmp_technicals"):
+            technicals = st.session_state["_cached_fmp_technicals"]
+
         with st.spinner("Assembling FMP-enriched context and querying AI…"):
             context_json = assemble_context(
                 feed,
                 fmp_data=fmp_data,
+                technicals=technicals,
                 macro=macro,
                 max_articles=40,
             )

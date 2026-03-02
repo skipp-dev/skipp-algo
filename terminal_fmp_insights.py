@@ -206,6 +206,7 @@ def assemble_context(
     feed: list[dict[str, Any]],
     *,
     fmp_data: dict[str, Any] | None = None,
+    technicals: dict[str, Any] | None = None,
     macro: dict[str, Any] | None = None,
     max_articles: int = 40,
 ) -> str:
@@ -263,6 +264,8 @@ def assemble_context(
     }
     if fmp_data:
         ctx["fmp_financials"] = fmp_data
+    if technicals:
+        ctx["technicals"] = technicals
     if macro:
         ctx["macro"] = macro
 
