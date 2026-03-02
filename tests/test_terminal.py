@@ -488,7 +488,7 @@ class TestTerminalConfig:
         # Clear any env vars that might interfere
         with patch.dict(os.environ, {}, clear=False):
             cfg = TerminalConfig()
-            assert cfg.poll_interval_s == 5.0
+            assert cfg.poll_interval_s == 10.0
             assert cfg.page_size == 100
             assert cfg.max_items == 500
             assert cfg.display_output == "abstract"

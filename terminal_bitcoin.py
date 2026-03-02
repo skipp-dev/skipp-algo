@@ -125,16 +125,16 @@ def _set_cached(key: str, val: Any) -> None:
                 del _cache[k]
 
 
-# TTLs (seconds) — Bitcoin is 24/7 so we can be more aggressive
-_QUOTE_TTL = 60       # 60s for real-time price
+# TTLs (seconds) — slowed down for API budget optimisation
+_QUOTE_TTL = 300      # 5 min (was 60s) — sentiment only, not time-critical
 _OHLCV_TTL = 300      # 5 min for historical data
 _TECHNICALS_TTL = 900  # 15 min for TradingView (avoid 429 rate limits)
 _TECHNICALS_429_TTL = 1800  # 30 min cache for 429 errors (don't retry quickly)
 _FG_TTL = 300          # 5 min for Fear & Greed
-_MOVERS_TTL = 120      # 2 min for crypto movers
+_MOVERS_TTL = 300      # 5 min (was 120s) — not time-critical
 _LISTINGS_TTL = 3600   # 1h for exchange listings
 _SUPPLY_TTL = 300      # 5 min for market cap/supply
-_NEWS_TTL = 120        # 2 min for news
+_NEWS_TTL = 300        # 5 min (was 120s) — BTC news not time-critical
 _OUTLOOK_TTL = 600     # 10 min for tomorrow outlook
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)

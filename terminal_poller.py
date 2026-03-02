@@ -137,7 +137,7 @@ class TerminalConfig:
         repr=False,
     )
     poll_interval_s: float = field(
-        default_factory=lambda: _env_float("TERMINAL_POLL_INTERVAL_S", 5.0),
+        default_factory=lambda: _env_float("TERMINAL_POLL_INTERVAL_S", 10.0),
     )
     sqlite_path: str = field(
         default_factory=lambda: os.getenv("TERMINAL_SQLITE_PATH", "newsstack_fmp/terminal_state.db"),

@@ -166,15 +166,10 @@ apply_global_log_redaction()
 from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
-    DEFENSE_TICKERS,
     TerminalConfig,
     compute_today_outlook,
     compute_tomorrow_outlook,
     fetch_benzinga_delayed_quotes,
-    fetch_benzinga_market_movers,
-    fetch_defense_watchlist,
-    fetch_economic_calendar,
-    fetch_industry_performance,
     fetch_sector_performance,
     fetch_ticker_sectors,
     poll_and_classify_multi,
@@ -183,13 +178,7 @@ from terminal_poller import (
 
 from terminal_spike_scanner import (
     SESSION_ICONS,
-    _YF_AVAILABLE,
-    _yf_screen_movers,
     build_spike_rows,
-    enrich_with_batch_quote,
-    fetch_gainers,
-    fetch_losers,
-    fetch_most_active,
     filter_spike_rows,
     market_session,
     overlay_extended_hours_quotes,
@@ -1234,70 +1223,7 @@ def _cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
         return {}
 
 
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
-    """Cache Aerospace & Defense watchlist quotes for 5 minutes."""
-    try:
-        return fetch_defense_watchlist(api_key)
-    except Exception:
-        logger.warning("_cached_defense_watchlist failed", exc_info=True)
-        return []
 
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_defense_watchlist_custom(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache custom Aerospace & Defense watchlist quotes for 5 minutes."""
-    try:
-        return fetch_defense_watchlist(api_key, tickers=tickers)
-    except Exception:
-        logger.warning("_cached_defense_watchlist_custom failed", exc_info=True)
-        return []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_industry_performance(api_key: str, industry: str = "Aerospace & Defense") -> list[dict[str, Any]]:
-    """Cache industry screen results for 5 minutes."""
-    try:
-        return fetch_industry_performance(api_key, industry=industry)
-    except Exception:
-        logger.warning("_cached_industry_performance failed", exc_info=True)
-        return []
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def _cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[dict[str, Any]]:
-    """Cache economic calendar for 5 minutes."""
-    try:
-        return fetch_economic_calendar(api_key, from_date, to_date)
-    except Exception:
-        logger.warning("_cached_econ_calendar failed", exc_info=True)
-        return []
-
-
-@st.cache_data(ttl=90, show_spinner=False)
-def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Cache gainers/losers/actives for 90 seconds.
-
-    Uses yfinance (free, real-time) as primary source.  Falls back to
-    FMP ``/stable/biggest-gainers`` etc. (15-min delayed) when yfinance
-    is unavailable.
-    """
-    try:
-        # Primary: yfinance (real-time, no API key needed)
-        if _YF_AVAILABLE:
-            yf_data = _yf_screen_movers()
-            if yf_data["gainers"] or yf_data["losers"] or yf_data["actives"]:
-                return yf_data
-        # Fallback: FMP (15-min delayed, needs API key)
-        if api_key:
-            gainers = enrich_with_batch_quote(api_key, fetch_gainers(api_key))
-            losers = enrich_with_batch_quote(api_key, fetch_losers(api_key))
-            actives = enrich_with_batch_quote(api_key, fetch_most_active(api_key))
-            return {"gainers": gainers, "losers": losers, "actives": actives}
-        return {"gainers": [], "losers": [], "actives": []}
-    except Exception:
-        logger.warning("_cached_spike_data failed", exc_info=True)
-        return {"gainers": [], "losers": [], "actives": []}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1348,28 +1274,6 @@ def _intel_enabled() -> bool:
     """
     return _INTEL_ENABLED  # type: ignore[name-defined]
 
-
-# ── Cached Movers & Quotes ──────────────────────────────────
-
-@st.cache_data(ttl=60, show_spinner=False)
-def _cached_bz_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
-    """Cache market movers for 60 seconds."""
-    try:
-        return fetch_benzinga_market_movers(api_key)
-    except Exception:
-        logger.warning("_cached_bz_movers failed", exc_info=True)
-        return {}
-
-
-@st.cache_data(ttl=60, show_spinner=False)
-def _cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
-    """Cache delayed quotes for 60 seconds."""
-    try:
-        syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
-        return fetch_benzinga_delayed_quotes(api_key, syms)
-    except Exception:
-        logger.warning("_cached_bz_quotes failed", exc_info=True)
-        return []
 
 
 
@@ -1926,11 +1830,46 @@ else:
             st.error(f"⚠️ {label} tab failed to render.")
             logger.exception("Tab %s render error", label)
 
-    tab_feed, tab_ai, tab_rank, tab_actionable, tab_segments, tab_bitcoin, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_movers, tab_bz_movers, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
+    # ── Sector Performance chart (above tabs) ───────────────
+    _sp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+    if _sp_key:
+        try:
+            _sp_data = _cached_sector_perf(_sp_key)
+            if _sp_data:
+                import pandas as pd
+
+                _sp_df = pd.DataFrame(_sp_data)
+                _sp_df = _sp_df.sort_values("changesPercentage", ascending=True)
+                _sp_df["color"] = _sp_df["changesPercentage"].apply(
+                    lambda x: "#26a69a" if x >= 0 else "#ef5350"
+                )
+                import plotly.graph_objects as go  # type: ignore[import-untyped]
+
+                _sp_fig = go.Figure(
+                    go.Bar(
+                        x=_sp_df["changesPercentage"],
+                        y=_sp_df["sector"],
+                        orientation="h",
+                        marker_color=_sp_df["color"].tolist(),
+                        text=_sp_df["changesPercentage"].apply(lambda v: f"{v:+.2f}%"),
+                        textposition="auto",
+                    )
+                )
+                _sp_fig.update_layout(
+                    title="Market Sector Performance (FMP)",
+                    xaxis_title="Change %",
+                    yaxis_title="",
+                    height=340,
+                    margin=dict(l=10, r=10, t=40, b=30),
+                    template="plotly_dark",
+                )
+                st.plotly_chart(_sp_fig, use_container_width=True)
+        except Exception:
+            logger.debug("Sector performance chart skipped", exc_info=True)
+
+    tab_feed, tab_ai, tab_rank, tab_actionable, tab_segments, tab_bitcoin, tab_outlook, tab_alerts, tab_table = st.tabs(
         ["📰 Live Feed", "🤖 AI Insights", "🏆 Rankings", "🎯 Actionable", "🏗️ Segments",
-         "₿ Bitcoin", "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
-         "🔮 Outlook", "🔥 Top Movers", "💹 Movers", "🛡️ Defense & Aerospace",
-         "🔴 Breaking", "📈 Trending", "🔥 Social",
+         "₿ Bitcoin", "🔮 Outlook",
          "⚡ Alerts", "📊 Data Table"],
     )
 
@@ -2133,379 +2072,166 @@ else:
                         st.markdown("⚪ `NLP —`")
                     # else: no NLP data fetched (NewsAPI.ai unavailable)
 
-    # ── TAB: Top Movers ─────────────────────────────────────
-    with tab_movers:
-        # ── Real-time Top Movers: merge data sources ──────────
-        fmp_key_mov = st.session_state.cfg.fmp_api_key
-        bz_key_mov = st.session_state.cfg.benzinga_api_key
-        _session_label_mov = _session_icons.get(_current_session, _current_session)
-
-        if not fmp_key_mov and not bz_key_mov:
-            st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time movers.")
-        else:
-            st.subheader("🔥 Real-Time Top Movers")
-            st.caption(f"**{_session_label_mov}** — Live gainers & losers ranked by absolute price change. Auto-refreshes each cycle.")
-
-            # Gather data from all sources
-            _mov_now = time.time()
-            _mov_all: dict[str, dict[str, Any]] = {}  # symbol → best row
-
-            # 1) FMP gainers/losers/actives (30s TTL)
-            if fmp_key_mov:
-                _fmp_data = _cached_spike_data(fmp_key_mov)
-                for _src_list, _src_label in [
-                    (_fmp_data["gainers"], "FMP-Gainer"),
-                    (_fmp_data["losers"], "FMP-Loser"),
-                    (_fmp_data["actives"], "FMP-Active"),
-                ]:
-                    for item in _src_list:
-                        sym = (item.get("symbol") or "").upper().strip()
-                        if not sym:
-                            continue
-                        price = _safe_float_mov(item.get("price"))
-                        chg_pct = _safe_float_mov(item.get("changesPercentage"))
-                        chg = _safe_float_mov(item.get("change"))
-                        vol = int(_safe_float_mov(item.get("volume")))
-                        name = item.get("name") or item.get("companyName") or ""
-                        existing = _mov_all.get(sym)
-                        if not existing or abs(chg_pct) > abs(existing.get("chg_pct", 0)):
-                            _mov_all[sym] = {
-                                "symbol": sym,
-                                "name": name[:50],
-                                "price": price,
-                                "change": chg,
-                                "chg_pct": chg_pct,
-                                "volume": vol,
-                                "source": _src_label,
-                                "_ts": _mov_now,
-                            }
-
-            # 2) Market movers (60s TTL)
-            if bz_key_mov:
-                _bz_movers = _cached_bz_movers(bz_key_mov)
-                for _bz_list, _bz_label in [
-                    (_bz_movers.get("gainers", []), "BZ-Gainer"),
-                    (_bz_movers.get("losers", []), "BZ-Loser"),
-                ]:
-                    for item in _bz_list:
-                        sym = (item.get("symbol") or item.get("ticker") or "").upper().strip()
-                        if not sym:
-                            continue
-                        price = _safe_float_mov(item.get("price") or item.get("last"))
-                        chg_pct = _safe_float_mov(item.get("changePercent") or item.get("change_percent"))
-                        chg = _safe_float_mov(item.get("change"))
-                        vol = int(_safe_float_mov(item.get("volume")))
-                        name = item.get("companyName") or item.get("company_name") or ""
-                        existing = _mov_all.get(sym)
-                        # Delayed quotes are fresher than FMP during extended hours
-                        if not existing or (_current_session in ("pre-market", "after-hours")):
-                            _mov_all[sym] = {
-                                "symbol": sym,
-                                "name": name[:50],
-                                "price": price,
-                                "change": chg,
-                                "chg_pct": chg_pct,
-                                "volume": vol,
-                                "source": _bz_label,
-                                "_ts": _mov_now,
-                            }
-
-            # 3) RT spike events from our detector (real-time, sub-minute)
-            _detector_mov: SpikeDetector = st.session_state.spike_detector
-            for ev in _detector_mov.events[:50]:
-                sym = ev.symbol
-                existing = _mov_all.get(sym)
-                # If spike is larger than what we already have, use it
-                if not existing or abs(ev.spike_pct) > abs(existing.get("chg_pct", 0)):
-                    _mov_all[sym] = {
-                        "symbol": sym,
-                        "name": ev.name[:50],
-                        "price": ev.price,
-                        "change": ev.change,
-                        "chg_pct": ev.spike_pct,
-                        "volume": ev.volume,
-                        "source": f"RT-Spike {ev.direction}",
-                        "_ts": ev.ts,
-                    }
-
-            if not _mov_all:
-                st.info("No mover data available yet. Data sources are loading.")
-            else:
-                # Sort by absolute change% (biggest movers first)
-                _sorted_movers = sorted(
-                    _mov_all.values(),
-                    key=lambda x: abs(x.get("chg_pct", 0)),
-                    reverse=True,
-                )
-
-                # Summary metrics
-                _n_up = sum(1 for m in _sorted_movers if m.get("chg_pct", 0) > 0)
-                _n_dn = sum(1 for m in _sorted_movers if m.get("chg_pct", 0) < 0)
-                _m1, _m2, _m3, _m4 = st.columns(4)
-                _m1.metric("Total Movers", len(_sorted_movers))
-                _m2.metric("🟢 Gainers", _n_up)
-                _m3.metric("🔴 Losers", _n_dn)
-                if _sorted_movers:
-                    _top = _sorted_movers[0]
-                    _m4.metric("🏆 Top Mover", f"{_top['symbol']} {_top['chg_pct']:+.2f}%")
-
-                # Build table
-                _mov_rows = []
-                _now_mov = time.time()
-                for m in _sorted_movers[:100]:
-                    _m_price = m.get("price") or 0
-                    _dir_icon = "🟢" if m.get("chg_pct", 0) > 0 else "🔴"
-                    _mov_rows.append({
-                        "Dir": _dir_icon,
-                        "Symbol": m.get("symbol", "?"),
-                        "Name": m.get("name", ""),
-                        "Price": f"${_m_price:.2f}" if _m_price >= 1 else f"${_m_price:.4f}",
-                        "Change": f"{m.get('change', 0):+.2f}",
-                        "Change %": f"{m.get('chg_pct', 0):+.2f}%",
-                        "Age": format_age_string(m.get("_ts"), now=_now_mov),
-                        "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
-                        "Source": m.get("source", ""),
-                        "Tech": _get_tech_summary(m.get("symbol", "")),
-                    })
-
-                df_mov = pd.DataFrame(_mov_rows)
-                df_mov.index = df_mov.index + 1
-
-                st.dataframe(
-                    df_mov,
-                    width='stretch',
-                    height=min(800, 40 + 35 * len(df_mov)),
-                    column_config={
-                        "Dir": st.column_config.TextColumn("Dir", width="small"),
-                        "Symbol": st.column_config.TextColumn("Symbol", width="small"),
-                        "Name": st.column_config.TextColumn("Name", width="medium"),
-                        "Change %": st.column_config.TextColumn("Change %", width="small"),
-                        "Age": st.column_config.TextColumn("Age", width="small"),
-                        "Tech": st.column_config.TextColumn("Tech", width="small"),
-                    },
-                )
-
-                # Technical Analysis expander
-                _mov_symbols = [m["symbol"] for m in _sorted_movers[:50]]
-                if _intel_enabled():
-                    _render_technicals_expander(_mov_symbols, key_prefix="tech_movers")
-                    _render_forecast_expander(_mov_symbols, key_prefix="fc_movers")
-                    _render_event_clusters_expander(_mov_symbols, key_prefix="ec_movers")
-                else:
-                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
-
-    # ── TAB: Rankings (real-time price-based) ─────────────────
+    # ── TAB: Rankings (feed + spike based — no extra API calls) ─
     with tab_rank:
-        fmp_key_rank = st.session_state.cfg.fmp_api_key
-        bz_key_rank = st.session_state.cfg.benzinga_api_key
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
-        if not fmp_key_rank and not bz_key_rank:
-            st.info("Set `FMP_API_KEY` and/or `BENZINGA_API_KEY` in `.env` for real-time rankings.")
+        st.subheader("🏆 Rankings")
+        st.caption(f"**{_session_label_rank}** — Symbols ranked by composite score (70% price move + 30% news score). From feed + RT spike events only.")
+
+        # Build unified symbol map from feed + RT spikes (zero API calls)
+        _rank_now = time.time()
+        _rank_all: dict[str, dict[str, Any]] = {}
+
+        # 1) RT spike events
+        _detector_rank: SpikeDetector = st.session_state.spike_detector
+        for ev in _detector_rank.events[:50]:
+            sym = ev.symbol
+            existing = _rank_all.get(sym)
+            if not existing or abs(ev.spike_pct) > abs(existing.get("chg_pct", 0)):
+                _rank_all[sym] = {
+                    "symbol": sym, "name": ev.name[:50],
+                    "price": ev.price, "change": ev.change, "chg_pct": ev.spike_pct,
+                    "volume": ev.volume, "mkt_cap": "",
+                    "_ts": ev.ts,
+                }
+
+        if not _rank_all:
+            st.info("No ranking data available yet.")
         else:
-            st.subheader("🏆 Real-Time Rankings")
-            st.caption(f"**{_session_label_rank}** — All movers ranked by absolute price change %. Combines multiple data sources + RT Spike data.")
-
-            # Build unified symbol map (same data as Movers, re-sorted by abs change)
-            _rank_now = time.time()
-            _rank_all: dict[str, dict[str, Any]] = {}
-
-            # 1) FMP gainers/losers/actives
-            if fmp_key_rank:
-                _fmp_rank = _cached_spike_data(fmp_key_rank)
-                for _src_list in [_fmp_rank["gainers"], _fmp_rank["losers"], _fmp_rank["actives"]]:
-                    for item in _src_list:
-                        sym = (item.get("symbol") or "").upper().strip()
-                        if not sym:
-                            continue
-                        price = _safe_float_mov(item.get("price"))
-                        chg_pct = _safe_float_mov(item.get("changesPercentage"))
-                        chg = _safe_float_mov(item.get("change"))
-                        vol = int(_safe_float_mov(item.get("volume")))
-                        name = item.get("name") or item.get("companyName") or ""
-                        mkt_cap = item.get("marketCap") or ""
-                        existing = _rank_all.get(sym)
-                        if not existing or abs(chg_pct) > abs(existing.get("chg_pct", 0)):
-                            _rank_all[sym] = {
-                                "symbol": sym, "name": name[:50],
-                                "price": price, "change": chg, "chg_pct": chg_pct,
-                                "volume": vol, "mkt_cap": mkt_cap,
-                                "_ts": _rank_now,
-                            }
-
-            # 2) Market movers
-            if bz_key_rank:
-                _bz_rank = _cached_bz_movers(bz_key_rank)
-                for _bz_list in [_bz_rank.get("gainers", []), _bz_rank.get("losers", [])]:
-                    for item in _bz_list:
-                        sym = (item.get("symbol") or item.get("ticker") or "").upper().strip()
-                        if not sym:
-                            continue
-                        price = _safe_float_mov(item.get("price") or item.get("last"))
-                        chg_pct = _safe_float_mov(item.get("changePercent") or item.get("change_percent"))
-                        chg = _safe_float_mov(item.get("change"))
-                        vol = int(_safe_float_mov(item.get("volume")))
-                        name = item.get("companyName") or item.get("company_name") or ""
-                        mkt_cap = item.get("marketCap") or item.get("market_cap") or ""
-                        sector = item.get("gicsSectorName") or item.get("sector") or ""
-                        existing = _rank_all.get(sym)
-                        if not existing or (_current_session in ("pre-market", "after-hours")):
-                            _rank_all[sym] = {
-                                "symbol": sym, "name": name[:50],
-                                "price": price, "change": chg, "chg_pct": chg_pct,
-                                "volume": vol, "mkt_cap": mkt_cap, "sector": sector,
-                                "_ts": _rank_now,
-                            }
-
-            # 3) RT spike events
-            _detector_rank: SpikeDetector = st.session_state.spike_detector
-            for ev in _detector_rank.events[:50]:
-                sym = ev.symbol
-                existing = _rank_all.get(sym)
-                if not existing or abs(ev.spike_pct) > abs(existing.get("chg_pct", 0)):
-                    _rank_all[sym] = {
-                        "symbol": sym, "name": ev.name[:50],
-                        "price": ev.price, "change": ev.change, "chg_pct": ev.spike_pct,
-                        "volume": ev.volume, "mkt_cap": "",
-                        "_ts": ev.ts,
+            # ── Merge news scores from feed ─────────────────────
+            _news_by_ticker: dict[str, dict[str, Any]] = {}
+            for _ni in feed:
+                _nticker = (_ni.get("ticker") or "").upper().strip()
+                if not _nticker or _nticker == "MARKET":
+                    continue
+                _nscore = _safe_float_mov(_ni.get("news_score") or _ni.get("composite_score"))
+                _existing_news = _news_by_ticker.get(_nticker)
+                if not _existing_news or _nscore > _safe_float_mov(_existing_news.get("news_score")):
+                    _news_by_ticker[_nticker] = {
+                        "news_score": _nscore,
+                        "headline": (_ni.get("headline") or "")[:120],
+                        "url": _ni.get("url") or "",
+                        "sentiment": _ni.get("sentiment_label") or "",
                     }
 
-            if not _rank_all:
-                st.info("No ranking data available yet.")
-            else:
-                # ── Merge news scores from feed ─────────────────────
-                _news_by_ticker: dict[str, dict[str, Any]] = {}
-                for _ni in feed:
-                    _nticker = (_ni.get("ticker") or "").upper().strip()
-                    if not _nticker or _nticker == "MARKET":
-                        continue
-                    _nscore = _safe_float_mov(_ni.get("news_score") or _ni.get("composite_score"))
-                    _existing_news = _news_by_ticker.get(_nticker)
-                    if not _existing_news or _nscore > _safe_float_mov(_existing_news.get("news_score")):
-                        _news_by_ticker[_nticker] = {
-                            "news_score": _nscore,
-                            "headline": (_ni.get("headline") or "")[:120],
-                            "url": _ni.get("url") or "",
-                            "sentiment": _ni.get("sentiment_label") or "",
-                        }
-
-                # Enrich _rank_all with news data
-                _news_match_count = 0
-                for sym, row in _rank_all.items():
-                    news = _news_by_ticker.get(sym)
-                    if news:
-                        row["news_score"] = news["news_score"]
-                        row["headline"] = news["headline"]
-                        row["url"] = news["url"]
-                        row["sentiment"] = news["sentiment"]
-                        _news_match_count += 1
-                    else:
-                        row["news_score"] = 0.0
-                        row["headline"] = ""
-                        row["url"] = ""
-                        row["sentiment"] = ""
-
-                # Composite ranking: 70% price move + 30% news score
-                # news_score is typically 0-1, scale to comparable range
-                def _composite_score(r: dict[str, Any]) -> float:
-                    _chg = float(r.get("chg_pct") or 0)
-                    _ns = float(r.get("news_score") or 0)
-                    return abs(_chg) * 0.7 + _ns * 100.0 * 0.3
-
-                _ranked = sorted(
-                    _rank_all.values(),
-                    key=_composite_score,
-                    reverse=True,
-                )
-
-                # NLP sentiment enrichment for top ranked symbols
-                _rank_nlp: dict[str, NLPSentiment] = {}
-                if _intel_enabled() and newsapi_available():
-                    _rank_syms = [m["symbol"] for m in _ranked[:30]]
-                    _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
-
-                top_n = min(50, len(_ranked))
-                _rank_rows = []
-                for i, m in enumerate(_ranked[:top_n], 1):
-                    _dir = "🟢" if m.get("chg_pct", 0) > 0 else "🔴" if m.get("chg_pct", 0) < 0 else "⚪"
-                    _sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(
-                        (m.get("sentiment") or "").lower(), ""
-                    )
-                    _hl_url = m.get("url", "")
-                    _hl_text = m.get("headline", "")
-                    _nlp_r = _rank_nlp.get(m["symbol"])
-                    _nlp_col = ""
-                    if _nlp_r and _nlp_r.article_count > 0:
-                        _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
-                    elif _rank_nlp:
-                        _nlp_col = "⚪ —"
-                    _r_price = m.get("price") or 0
-                    _rank_rows.append({
-                        "#": i,
-                        "Dir": _dir,
-                        "Symbol": m.get("symbol", "?"),
-                        "Name": m.get("name", ""),
-                        "Price": f"${_r_price:.2f}" if _r_price >= 1 else f"${_r_price:.4f}",
-                        "Change": f"{m.get('change', 0):+.2f}",
-                        "Change %": f"{m.get('chg_pct', 0):+.2f}%",
-                        "Score": round(_composite_score(m), 2),
-                        "Age": format_age_string(m.get("_ts")),
-                        "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
-                        "NLP": _nlp_col,
-                        "Headline": _hl_url if _hl_url else _hl_text,
-                        "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
-                    })
-
-                df_rank = pd.DataFrame(_rank_rows)
-                df_rank = df_rank.set_index("#")
-
-                st.caption(
-                    f"Top {top_n} of {len(_ranked)} symbols — "
-                    f"composite rank (70% price move + 30% news score) · "
-                    f"{_news_match_count} with news"
-                )
-
-                with st.popover("ℹ️ Column guide"):
-                    st.markdown(
-                        "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
-                        "- **NLP Sent.** — NLP sentiment from NewsAPI.ai (requires `NEWSAPI_AI_KEY` env var)\n"
-                        "- **Headline** — Latest matching news headline (clickable when a URL is available)\n"
-                        "- **Volume** — Trading volume from market data source\n\n"
-                        "Empty columns mean no matching data is available yet for that ticker."
-                    )
-
-                # Build column config
-                _rank_col_cfg: dict[str, Any] = {
-                    "Dir": st.column_config.TextColumn("Dir", width="small"),
-                    "Symbol": st.column_config.TextColumn("Symbol", width="small"),
-                    "Change %": st.column_config.TextColumn("Change %", width="small"),
-                    "Score": st.column_config.NumberColumn("Score", width="small"),
-                    "Age": st.column_config.TextColumn("Age", width="small"),
-                    "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
-                }
-                # Use LinkColumn for headlines when URLs are present
-                if any(r.get("Headline", "").startswith("http") for r in _rank_rows):
-                    _rank_col_cfg["Headline"] = st.column_config.LinkColumn(
-                        "Headline",
-                        display_text=r"https?://[^/]+/(.{0,60}).*",
-                        width="large",
-                    )
-
-                st.dataframe(
-                    df_rank,
-                    width='stretch',
-                    height=min(800, 40 + 35 * len(df_rank)),
-                    column_config=_rank_col_cfg,
-                )
-
-                # Technical Analysis expander
-                _rank_symbols = [m["symbol"] for m in _ranked[:50]]
-                if _intel_enabled():
-                    _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
-                    _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
-                    _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
+            # Enrich _rank_all with news data
+            _news_match_count = 0
+            for sym, row in _rank_all.items():
+                news = _news_by_ticker.get(sym)
+                if news:
+                    row["news_score"] = news["news_score"]
+                    row["headline"] = news["headline"]
+                    row["url"] = news["url"]
+                    row["sentiment"] = news["sentiment"]
+                    _news_match_count += 1
                 else:
-                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
+                    row["news_score"] = 0.0
+                    row["headline"] = ""
+                    row["url"] = ""
+                    row["sentiment"] = ""
+
+            # Composite ranking: 70% price move + 30% news score
+            # news_score is typically 0-1, scale to comparable range
+            def _composite_score(r: dict[str, Any]) -> float:
+                _chg = float(r.get("chg_pct") or 0)
+                _ns = float(r.get("news_score") or 0)
+                return abs(_chg) * 0.7 + _ns * 100.0 * 0.3
+
+            _ranked = sorted(
+                _rank_all.values(),
+                key=_composite_score,
+                reverse=True,
+            )
+
+            # NLP sentiment enrichment for top ranked symbols
+            _rank_nlp: dict[str, NLPSentiment] = {}
+            if _intel_enabled() and newsapi_available():
+                _rank_syms = [m["symbol"] for m in _ranked[:30]]
+                _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
+
+            top_n = min(50, len(_ranked))
+            _rank_rows = []
+            for i, m in enumerate(_ranked[:top_n], 1):
+                _dir = "🟢" if m.get("chg_pct", 0) > 0 else "🔴" if m.get("chg_pct", 0) < 0 else "⚪"
+                _sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(
+                    (m.get("sentiment") or "").lower(), ""
+                )
+                _hl_url = m.get("url", "")
+                _hl_text = m.get("headline", "")
+                _nlp_r = _rank_nlp.get(m["symbol"])
+                _nlp_col = ""
+                if _nlp_r and _nlp_r.article_count > 0:
+                    _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
+                elif _rank_nlp:
+                    _nlp_col = "⚪ —"
+                _r_price = m.get("price") or 0
+                _rank_rows.append({
+                    "#": i,
+                    "Dir": _dir,
+                    "Symbol": m.get("symbol", "?"),
+                    "Name": m.get("name", ""),
+                    "Price": f"${_r_price:.2f}" if _r_price >= 1 else f"${_r_price:.4f}",
+                    "Change": f"{m.get('change', 0):+.2f}",
+                    "Change %": f"{m.get('chg_pct', 0):+.2f}%",
+                    "Score": round(_composite_score(m), 2),
+                    "Age": format_age_string(m.get("_ts")),
+                    "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
+                    "NLP": _nlp_col,
+                    "Headline": _hl_url if _hl_url else _hl_text,
+                    "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
+                })
+
+            df_rank = pd.DataFrame(_rank_rows)
+            df_rank = df_rank.set_index("#")
+
+            st.caption(
+                f"Top {top_n} of {len(_ranked)} symbols — "
+                f"composite rank (70% price move + 30% news score) · "
+                f"{_news_match_count} with news"
+            )
+
+            with st.popover("ℹ️ Column guide"):
+                st.markdown(
+                    "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
+                    "- **NLP Sent.** — NLP sentiment from NewsAPI.ai (requires `NEWSAPI_AI_KEY` env var)\n"
+                    "- **Headline** — Latest matching news headline (clickable when a URL is available)\n"
+                    "- **Volume** — Trading volume from market data source\n\n"
+                    "Empty columns mean no matching data is available yet for that ticker."
+                )
+
+            # Build column config
+            _rank_col_cfg: dict[str, Any] = {
+                "Dir": st.column_config.TextColumn("Dir", width="small"),
+                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "Change %": st.column_config.TextColumn("Change %", width="small"),
+                "Score": st.column_config.NumberColumn("Score", width="small"),
+                "Age": st.column_config.TextColumn("Age", width="small"),
+                "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
+            }
+            # Use LinkColumn for headlines when URLs are present
+            if any(r.get("Headline", "").startswith("http") for r in _rank_rows):
+                _rank_col_cfg["Headline"] = st.column_config.LinkColumn(
+                    "Headline",
+                    display_text=r"https?://[^/]+/(.{0,60}).*",
+                    width="large",
+                )
+
+            st.dataframe(
+                df_rank,
+                width='stretch',
+                height=min(800, 40 + 35 * len(df_rank)),
+                column_config=_rank_col_cfg,
+            )
+
+            # Technical Analysis expander
+            _rank_symbols = [m["symbol"] for m in _ranked[:50]]
+            if _intel_enabled():
+                _render_technicals_expander(_rank_symbols, key_prefix="tech_rank")
+                _render_forecast_expander(_rank_symbols, key_prefix="fc_rank")
+                _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
+            else:
+                st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Actionable ────────────────────────────────────
     with tab_actionable:
@@ -2700,443 +2426,6 @@ else:
                         )
                     else:
                         st.caption("No ticker data")
-
-    # ── TAB: RT Price Spikes (real-time detector) ───────────
-    with tab_rt_spikes:
-        fmp_key_rt = st.session_state.cfg.fmp_api_key
-        if not fmp_key_rt:
-            st.info("Set `FMP_API_KEY` in `.env` for real-time price spike detection.")
-        else:
-            st.subheader("⚡ Real-Time Price Spikes")
-            _session_label_rt = _session_icons.get(_current_session, _current_session)
-            st.caption(
-                f"**{_session_label_rt}** — Detecting rapid price moves (≥1% within 60 s). "
-                "Updates every refresh cycle."
-            )
-
-            # Feed current quotes into the detector
-            _rt_spike_data = _cached_spike_data(fmp_key_rt)
-            _rt_all_quotes: list[dict[str, Any]] = (
-                list(_rt_spike_data["gainers"])
-                + list(_rt_spike_data["losers"])
-                + list(_rt_spike_data["actives"])
-            )
-            _detector: SpikeDetector = st.session_state.spike_detector
-            _new_spikes = _detector.update(_rt_all_quotes)
-
-            # Diagnostics
-            _rt_diag_col1, _rt_diag_col2, _rt_diag_col3, _rt_diag_col4 = st.columns(4)
-            _rt_events = _detector.events
-            _rt_up = sum(1 for e in _rt_events if e.direction == "UP")
-            _rt_dn = sum(1 for e in _rt_events if e.direction == "DOWN")
-            _rt_diag_col1.metric("Total Spikes", len(_rt_events))
-            _rt_diag_col2.metric("🟢 Spike UP", _rt_up)
-            _rt_diag_col3.metric("🔴 Spike DOWN", _rt_dn)
-            _rt_diag_col4.metric("Symbols Tracked", _detector.symbols_tracked)
-
-            if _new_spikes:
-                st.success(
-                    f"🆕 {len(_new_spikes)} new spike(s) detected: "
-                    + ", ".join(f"{e.icon} {e.symbol} {e.spike_pct:+.1f}%" for e in _new_spikes)
-                )
-
-            if not _rt_events:
-                st.info(
-                    "No spikes detected yet. The detector needs at least 2 poll cycles "
-                    "(~60 s apart) to compare prices. Keep the terminal refreshing."
-                )
-            else:
-                # Build display table
-                _rt_rows = []
-                for ev in _rt_events:
-                    _rt_rows.append({
-                        "Signal": f"{ev.icon} Price Spike {ev.direction}",
-                        "Symbol": ev.symbol,
-                        "Time": format_time_et(ev.ts),
-                        "Age": format_age_string(ev.ts),
-                        "Spike %": f"{ev.spike_pct:+.2f}%",
-                        "Type": ev.asset_type,
-                        "Description": format_spike_description(ev),
-                        "Quote": f"${ev.price:.2f}" if ev.price >= 1 else f"${ev.price:.4f}",
-                        "Day Chg": f"{ev.change:+.2f}",
-                        "Day Chg %": f"{ev.change_pct:+.4f}%",
-                    })
-
-                _df_rt = pd.DataFrame(_rt_rows)
-                _df_rt.index = _df_rt.index + 1
-
-                st.dataframe(
-                    _df_rt,
-                    width='stretch',
-                    height=min(800, 40 + 35 * len(_df_rt)),
-                    column_config={
-                        "Signal": st.column_config.TextColumn("Signal", width="medium"),
-                        "Symbol": st.column_config.TextColumn("Symbol", width="small"),
-                        "Time": st.column_config.TextColumn("Time", width="small"),
-                        "Spike %": st.column_config.TextColumn("Spike %", width="small"),
-                        "Description": st.column_config.TextColumn("Description", width="large"),
-                    },
-                )
-
-                # Age distribution
-                st.divider()
-                _age_col1, _age_col2 = st.columns(2)
-                with _age_col1:
-                    st.caption(
-                        f"📊 Polls: {_detector.poll_count} · "
-                        f"Total spikes ever: {_detector.total_spikes_detected}"
-                    )
-                with _age_col2:
-                    if _rt_events:
-                        _newest = _rt_events[0].age_s
-                        _oldest = _rt_events[-1].age_s
-                        st.caption(
-                            f"Newest: {_newest:.0f}s ago · Oldest: {_oldest / 60:.1f}m ago"
-                        )
-
-                # Technical Analysis expander
-                _rt_symbols = list(dict.fromkeys(ev.symbol for ev in _rt_events[:50]))
-                if _intel_enabled():
-                    _render_technicals_expander(_rt_symbols, key_prefix="tech_rt")
-                    _render_forecast_expander(_rt_symbols, key_prefix="fc_rt")
-                    _render_event_clusters_expander(_rt_symbols, key_prefix="ec_rt")
-                else:
-                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
-
-    # ── TAB: Spikes (daily change scanner) ──────────────────
-    with tab_spikes:
-        fmp_key = st.session_state.cfg.fmp_api_key
-        if not fmp_key:
-            st.info("Set `FMP_API_KEY` in `.env` for price & volume spike screening.")
-        else:
-            st.subheader("🚨 Price & Volume Spike Scanner")
-
-            # Market session indicator
-            _session_label = _session_icons.get(_current_session, _current_session)
-
-            if _current_session in ("pre-market", "after-hours"):
-                st.caption(
-                    f"**{_session_label}** — FMP gainers/losers show previous session. "
-                    "Extended-hours prices overlaid from delayed quotes."
-                )
-            elif _current_session == "closed":
-                st.caption(
-                    f"**{_session_label}** — Showing last session data."
-                )
-            else:
-                st.caption(
-                    f"**{_session_label}** — Live screening for rapid price moves "
-                    "and unusual volume. Data from FMP. Refreshes every 30 s."
-                )
-
-            # Fetch cached spike data
-            spike_data = _cached_spike_data(fmp_key)
-            _spike_ts = time.time()
-            spike_rows = build_spike_rows(
-                spike_data["gainers"],
-                spike_data["losers"],
-                spike_data["actives"],
-            )
-            for _sr in spike_rows:
-                _sr["_ts"] = _spike_ts
-
-            # Overlay extended-hours quotes when outside regular session
-            if _current_session in ("pre-market", "after-hours") and spike_rows:
-                bz_key = st.session_state.cfg.benzinga_api_key
-                if bz_key:
-                    _spike_symbols = sorted(r["symbol"] for r in spike_rows)
-                    _bz_quotes = _cached_bz_quotes(bz_key, ",".join(_spike_symbols))
-                    if _bz_quotes:
-                        overlay_extended_hours_quotes(spike_rows, _bz_quotes)
-
-            # Filter controls
-            sp_col1, sp_col2, sp_col3, sp_col4 = st.columns(4)
-            with sp_col1:
-                sp_direction = st.selectbox(
-                    "Direction", ["all", "UP", "DOWN"],
-                    key="spike_dir",
-                )
-            with sp_col2:
-                sp_min_chg = st.slider(
-                    "Min |Change| %", 0.0, 20.0, 1.0, 0.5,
-                    key="spike_min_chg",
-                )
-            with sp_col3:
-                sp_asset = st.selectbox(
-                    "Asset Type", ["all", "STOCK", "ETF"],
-                    key="spike_asset",
-                )
-            with sp_col4:
-                sp_vol_only = st.checkbox(
-                    "Volume Spikes Only", value=False,
-                    key="spike_vol_only",
-                )
-
-            filtered_spikes = filter_spike_rows(
-                spike_rows,
-                direction=sp_direction,
-                min_change_pct=sp_min_chg,
-                asset_type=sp_asset,
-                vol_spike_only=sp_vol_only,
-            )
-
-            # Summary metrics
-            _up_count = sum(1 for r in filtered_spikes if r["spike_dir"] == "UP")
-            _dn_count = sum(1 for r in filtered_spikes if r["spike_dir"] == "DOWN")
-            _vol_count = sum(1 for r in filtered_spikes if r["vol_spike"])
-
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Total Signals", len(filtered_spikes))
-            m2.metric("🟢 Price Spike UP", _up_count)
-            m3.metric("🔴 Price Spike DOWN", _dn_count)
-            m4.metric("📊 Volume Spikes", _vol_count)
-
-            if not filtered_spikes:
-                st.info("No spikes matching current filters.")
-            else:
-                # Build display DataFrame
-                _now_sp = time.time()
-                display_rows = []
-                for r in filtered_spikes:
-                    display_rows.append({
-                        "Signal": f"{r['spike_icon']} Price Spike {r['spike_dir']}" if r["spike_dir"] else (
-                            f"{r['vol_icon']} Volume Spike" if r["vol_spike"] else "Active"
-                        ),
-                        "Symbol": r["symbol"],
-                        "Name": r["name"],
-                        "Price": f"${r['price']:.2f}",
-                        "Change %": r["change_display"],
-                        "Change": f"{r['change']:+.2f}",
-                        "Age": format_age_string(r.get("_ts"), now=_now_sp),
-                        "Volume": f"{r['volume']:,}",
-                        "Vol Ratio": f"{r['volume_ratio']:.1f}x" if r["volume_ratio"] > 0 else "—",
-                        "Mkt Cap": r["mktcap_display"],
-                        "Type": r["asset_type"],
-                    })
-
-                df_spikes = pd.DataFrame(display_rows)
-                df_spikes.index = df_spikes.index + 1
-
-                st.dataframe(
-                    df_spikes,
-                    width='stretch',
-                    height=min(800, 40 + 35 * len(df_spikes)),
-                )
-
-                # Technical Analysis expander
-                _spike_symbols = list(dict.fromkeys(r["symbol"] for r in filtered_spikes[:50]))
-                if _intel_enabled():
-                    _render_technicals_expander(_spike_symbols, key_prefix="tech_spikes")
-                    _render_forecast_expander(_spike_symbols, key_prefix="fc_spikes")
-                    _render_event_clusters_expander(_spike_symbols, key_prefix="ec_spikes")
-                else:
-                    st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
-
-                # ── Detail cards for top 10 ──────────────────────
-                st.divider()
-                st.subheader("Top Spike Details")
-                for r in filtered_spikes[:10]:
-                    _sig = r["spike_dir"] or "VOL"
-                    _icon = r["spike_icon"]
-                    with st.container():
-                        c1, c2 = st.columns([2, 8])
-                        with c1:
-                            st.markdown(f"### {r['symbol']}")
-                            st.markdown(f"{_icon} **{_sig}** {r['change_display']}")
-                            if r["vol_spike"]:
-                                st.markdown(f"📊 Vol: **{r['volume_ratio']:.1f}x** avg")
-                        with c2:
-                            st.markdown(f"**{safe_markdown_text(r['name'])}**")
-                            st.markdown(
-                                f"Price: **${r['price']:.2f}** | "
-                                f"Change: {r['change']:+.2f} | "
-                                f"Mkt Cap: {r['mktcap_display']} | "
-                                f"Type: {r['asset_type']}"
-                            )
-                            st.markdown(
-                                f"Volume: {r['volume']:,} | "
-                                f"Avg Volume: {r['avg_volume']:,} | "
-                                f"Ratio: {r['volume_ratio']:.1f}x"
-                            )
-                        st.divider()
-
-    # ── TAB: Sector Heatmap (treemap) ───────────────────────
-    with tab_heatmap:
-        try:
-            import plotly.express as px  # type: ignore
-
-            # Build GICS sector mapping from FMP profile data
-            _hm_fmp_key = st.session_state.cfg.fmp_api_key
-            _hm_sector_map: dict[str, str] | None = None
-            if _hm_fmp_key and feed:
-                _hm_tickers = sorted({
-                    d.get("ticker", "")
-                    for d in feed
-                    if d.get("ticker") and d.get("ticker") not in ("", "MARKET", "?")
-                })
-                if _hm_tickers:
-                    _hm_sector_map = _cached_ticker_sectors(
-                        _hm_fmp_key, ",".join(_hm_tickers)
-                    )
-
-            hm_data = build_heatmap_data(feed, sector_map=_hm_sector_map)
-
-            if hm_data:
-                df_hm = pd.DataFrame(hm_data)
-
-                # Color by sentiment: bullish=green, bearish=red
-                color_map = {"bullish": "#00C853", "neutral": "#FFC107", "bearish": "#FF1744"}
-
-                fig = px.treemap(
-                    df_hm,
-                    path=["sector", "ticker"],
-                    values="articles",
-                    color="sentiment",
-                    color_discrete_map=color_map,
-                    hover_data=["score", "articles"],
-                    title="GICS Sector × Ticker Heatmap (article count, colored by sentiment)",
-                )
-                fig.update_layout(
-                    height=600,
-                    margin=dict(t=40, l=0, r=0, b=0),
-                    paper_bgcolor="#0E1117",
-                    font_color="white",
-                )
-                st.plotly_chart(fig, width='stretch')
-                if _hm_sector_map:
-                    st.caption(
-                        "💡 Tickers are grouped by GICS sector (via FMP profile data). "
-                        'Tickers without a known sector appear under "Other".'
-                    )
-                else:
-                    st.caption(
-                        "💡 Set `FMP_API_KEY` to group tickers by GICS sector. "
-                        "Currently grouped by news article channels."
-                    )
-            else:
-                st.info("No segment data available for heatmap.")
-
-            # ── FMP Sector Performance ──────────────────────────────
-            fmp_key = st.session_state.cfg.fmp_api_key
-            if fmp_key:
-                st.subheader("📊 Market Sector Performance (FMP)")
-                if _current_session in ("pre-market", "after-hours"):
-                    st.caption(
-                        f"**{_session_icons.get(_current_session, _current_session)}** — "
-                        "FMP sector data shows previous regular session."
-                    )
-                elif _current_session == "closed":
-                    st.caption("**⚫ Market Closed** — Showing last session sector data.")
-                sector_data = _cached_sector_perf(fmp_key)
-                if sector_data:
-                    df_sp = pd.DataFrame(sector_data)
-                    if "changesPercentage" in df_sp.columns and "sector" in df_sp.columns:
-                        df_sp["changesPercentage"] = pd.to_numeric(
-                            df_sp["changesPercentage"].astype(str).str.rstrip("%"),
-                            errors="coerce",
-                        )
-                        df_sp = df_sp.sort_values("changesPercentage", ascending=False)
-
-                        fig_sp = px.bar(
-                            df_sp, x="sector", y="changesPercentage",
-                            color="changesPercentage",
-                            color_continuous_scale=["#FF1744", "#FFC107", "#00C853"],
-                            title="Sector Performance (%)",
-                        )
-                        fig_sp.update_layout(
-                            height=350,
-                            paper_bgcolor="#0E1117",
-                            plot_bgcolor="#0E1117",
-                            font_color="white",
-                            xaxis_tickangle=-45,
-                        )
-                        st.plotly_chart(fig_sp, width='stretch')
-                    else:
-                        st.dataframe(df_sp, width='stretch')
-                else:
-                    _bz_tier_warning("FMP industry performance", "No sector data returned from FMP.")
-            else:
-                st.caption("Set FMP_API_KEY for live sector performance.")
-
-        except ImportError:
-            st.warning("Install `plotly` for heatmap: `pip install plotly`")
-
-    # ── TAB: Economic Calendar ──────────────────────────────
-    with tab_calendar:
-        fmp_key = st.session_state.cfg.fmp_api_key
-        if not fmp_key:
-            st.info("Set `FMP_API_KEY` in `.env` for economic calendar data.")
-        else:
-            st.subheader("📅 Economic Calendar")
-
-            cal_col1, cal_col2 = st.columns(2)
-            with cal_col1:
-                cal_from = st.date_input(
-                    "From", value=datetime.now(UTC).date(),
-                    key="cal_from",
-                )
-            with cal_col2:
-                cal_to = st.date_input(
-                    "To", value=datetime.now(UTC).date() + timedelta(days=7),
-                    key="cal_to",
-                )
-
-            cal_data = _cached_econ_calendar(
-                fmp_key,
-                from_date=cal_from.strftime("%Y-%m-%d"),
-                to_date=cal_to.strftime("%Y-%m-%d"),
-            )
-
-            if cal_data:
-                df_cal = pd.DataFrame(cal_data)
-
-                # Normalise column names: stable API uses "estimate", legacy used "consensus"
-                if "estimate" in df_cal.columns and "consensus" not in df_cal.columns:
-                    df_cal = df_cal.rename(columns={"estimate": "consensus"})
-
-                # Filter to major events
-                impact_filter = st.selectbox(
-                    "Impact filter", ["all", "High", "Medium", "Low"],
-                    key="cal_impact",
-                )
-
-                display_cols = [c for c in [
-                    "date", "country", "event", "impact",
-                    "actual", "previous", "consensus", "change",
-                ] if c in df_cal.columns]
-
-                if impact_filter != "all" and "impact" in df_cal.columns:
-                    df_cal = df_cal[df_cal["impact"].str.lower() == impact_filter.lower()]
-
-                st.caption(f"{len(df_cal)} economic events from {cal_from} to {cal_to}")
-                st.dataframe(
-                    df_cal[display_cols] if display_cols else df_cal,
-                    width='stretch',
-                    height=min(600, 40 + 35 * len(df_cal)),
-                    hide_index=True,
-                    column_config={
-                        "date": st.column_config.TextColumn("Date", width="medium"),
-                        "impact": st.column_config.TextColumn("Impact", width="small"),
-                    },
-                )
-                st.caption("💡 Sorted by date ascending. Use the Impact filter above to narrow to High/Medium/Low.")
-
-                # ── Upcoming highlights ─────────────────────────────
-                now_str = datetime.now(UTC).strftime("%Y-%m-%d %H:%M")
-                upcoming = df_cal[df_cal["date"] >= now_str] if "date" in df_cal.columns else pd.DataFrame()
-                if not upcoming.empty:
-                    st.subheader("⏰ Upcoming")
-                    for _, row in upcoming.head(10).iterrows():
-                        impact = row.get("impact", "")
-                        impact_icon = "🔴" if impact == "High" else ("🟠" if impact == "Medium" else "🟡")
-                        _cal_ev = safe_markdown_text(str(row.get('event', '?')))
-                        st.markdown(
-                            f"{impact_icon} **{_cal_ev}** — "
-                            f"{row.get('country', '?')} | {row.get('date', '?')} | "
-                            f"Prev: {row.get('previous', '?')} | Cons: {row.get('consensus', '?')}"
-                        )
-            else:
-                st.info("No calendar events found for the selected range.")
 
     # ── TAB: Outlook ────────────────────────────────────────
     with tab_outlook:
@@ -3428,172 +2717,6 @@ else:
             _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
         else:
             st.info("⚡ Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
-
-    # ── TAB: Market Movers + Quotes ────────────────
-    with tab_bz_movers:
-        bz_key = st.session_state.cfg.benzinga_api_key
-        if not bz_key:
-            st.info("Set `BENZINGA_API_KEY` in `.env` for market movers & quotes.")
-        else:
-            st.subheader("💹 Market Movers")
-
-            # Session indicator — movers are regular-session only
-            _bz_mov_session = _current_session
-            if _bz_mov_session in ("pre-market", "after-hours"):
-                st.caption(
-                    f"**{_session_icons.get(_bz_mov_session, _bz_mov_session)}** — "
-                    "Movers show previous regular session. "
-                    "Use Delayed Quotes below for current extended-hours prices."
-                )
-            elif _bz_mov_session == "closed":
-                st.caption(
-                    f"**{_session_icons.get(_bz_mov_session, _bz_mov_session)}** — "
-                    "Showing last session movers."
-                )
-            else:
-                st.caption("Real-time market movers. Gainers & Losers with delayed quotes.")
-
-            movers_data = _cached_bz_movers(bz_key)
-            gainers = movers_data.get("gainers", [])
-            losers = movers_data.get("losers", [])
-
-            # During extended hours, fetch delayed quotes to overlay fresh prices
-            _bz_mov_quote_map: dict[str, dict[str, Any]] = {}
-            if _bz_mov_session in ("pre-market", "after-hours") and (gainers or losers):
-                _mov_syms = sorted({
-                    g.get("symbol") or g.get("ticker", "")
-                    for g in gainers + losers
-                    if g.get("symbol") or g.get("ticker")
-                })[:50]
-                if _mov_syms:
-                    _mov_quotes = _cached_bz_quotes(bz_key, ",".join(_mov_syms))
-                    if _mov_quotes:
-                        for q in _mov_quotes:
-                            s = (q.get("symbol") or "").upper().strip()
-                            if s:
-                                _bz_mov_quote_map[s] = q
-
-            # Summary metrics
-            m1, m2, m3 = st.columns(3)
-            m1.metric("🟢 Gainers", len(gainers))
-            m2.metric("🔴 Losers", len(losers))
-            m3.metric("Total Movers", len(gainers) + len(losers))
-
-            # Gainers table
-            bz_mov_gain, bz_mov_lose = st.tabs(["🟢 Gainers", "🔴 Losers"])
-
-            with bz_mov_gain:
-                if gainers:
-                    gainer_rows = []
-                    for g in gainers:
-                        _gsym = g.get("symbol") or g.get("ticker", "?")
-                        _gq = _bz_mov_quote_map.get(_gsym.upper(), {})
-                        gainer_rows.append({
-                            "Symbol": _gsym,
-                            "Company": g.get("companyName", g.get("company_name", "")),
-                            "Price": _gq["last"] if "last" in _gq else g.get("price", g.get("last", "")),
-                            "Change": _gq["change"] if "change" in _gq else g.get("change", ""),
-                            "Change %": _gq["changePercent"] if "changePercent" in _gq else g.get("changePercent", g.get("change_percent", "")),
-                            "Age": format_age_string(time.time()),
-                            "Volume": _gq["volume"] if "volume" in _gq else g.get("volume", ""),
-                            "Avg Volume": g.get("averageVolume", g.get("average_volume", "")),
-                            "Mkt Cap": g.get("marketCap", g.get("market_cap", "")),
-                            "Sector": g.get("gicsSectorName", g.get("sector", "")),
-                        })
-                    df_gain = pd.DataFrame(gainer_rows)
-                    df_gain.index = df_gain.index + 1
-                    st.dataframe(df_gain, width='stretch', height=min(600, 40 + 35 * len(df_gain)))
-                else:
-                    st.info("No gainers data available.")
-
-            with bz_mov_lose:
-                if losers:
-                    loser_rows = []
-                    for loser in losers:
-                        _lsym = loser.get("symbol") or loser.get("ticker", "?")
-                        _lq = _bz_mov_quote_map.get(_lsym.upper(), {})
-                        loser_rows.append({
-                            "Symbol": _lsym,
-                            "Company": loser.get("companyName", loser.get("company_name", "")),
-                            "Price": _lq["last"] if "last" in _lq else loser.get("price", loser.get("last", "")),
-                            "Change": _lq["change"] if "change" in _lq else loser.get("change", ""),
-                            "Change %": _lq["changePercent"] if "changePercent" in _lq else loser.get("changePercent", loser.get("change_percent", "")),
-                            "Age": format_age_string(time.time()),
-                            "Volume": _lq["volume"] if "volume" in _lq else loser.get("volume", ""),
-                            "Avg Volume": loser.get("averageVolume", loser.get("average_volume", "")),
-                            "Mkt Cap": loser.get("marketCap", loser.get("market_cap", "")),
-                            "Sector": loser.get("gicsSectorName", loser.get("sector", "")),
-                        })
-                    df_lose = pd.DataFrame(loser_rows)
-                    df_lose.index = df_lose.index + 1
-                    st.dataframe(df_lose, width='stretch', height=min(600, 40 + 35 * len(df_lose)))
-                else:
-                    st.info("No losers data available.")
-
-            st.caption(
-                "💡 Sector column may be empty — movers endpoints do not always "
-                "include GICS sector classification. Check the *Segments* tab for sector-level data."
-            )
-
-            # ── Delayed Quotes Lookup ───────────────────────
-            st.divider()
-            st.subheader("🔎 Delayed Quotes Lookup")
-            st.caption("Enter up to 50 comma-separated tickers for delayed quotes.")
-
-            # Auto-populate from feed tickers
-            _feed_tickers = sorted(set(d.get("ticker", "") for d in feed if d.get("ticker") and d.get("ticker") != "MARKET"))[:20]
-            _default_symbols = ",".join(_feed_tickers) if _feed_tickers else "AAPL,NVDA,TSLA,MSFT,AMZN,SPY,QQQ"
-
-            quote_symbols = st.text_input(
-                "Symbols", value=_default_symbols,
-                key="bz_quote_symbols",
-                placeholder="AAPL, NVDA, TSLA, ...",
-            )
-
-            if quote_symbols.strip():
-                # Sanitize: allow only alphanumeric, commas, dots, spaces, hyphens
-                _sanitized_syms = re.sub(r"[^A-Za-z0-9,.\- ]", "", quote_symbols)
-                quotes_data = _cached_bz_quotes(bz_key, _sanitized_syms)
-                if quotes_data:
-                    quote_rows = []
-                    for q in quotes_data:
-                        change = q.get("change")
-                        change_pct = q.get("changePercent")
-                        change_str = f"{change:+.2f}" if isinstance(change, (int, float)) else str(change or "")
-                        change_pct_str = f"{change_pct:+.2f}%" if isinstance(change_pct, (int, float)) else str(change_pct or "")
-                        quote_rows.append({
-                            "Symbol": q.get("symbol", "?"),
-                            "Name": q.get("name", ""),
-                            "Last": q.get("last", ""),
-                            "Change": change_str,
-                            "Change %": change_pct_str,
-                            "Open": q.get("open", ""),
-                            "High": q.get("high", ""),
-                            "Low": q.get("low", ""),
-                            "Volume": q.get("volume", ""),
-                            "Prev Close": q.get("previousClose", ""),
-                            "52W High": q.get("fiftyTwoWeekHigh", ""),
-                            "52W Low": q.get("fiftyTwoWeekLow", ""),
-                        })
-                    df_quotes = pd.DataFrame(quote_rows)
-                    df_quotes.index = df_quotes.index + 1
-
-                    # Color change column
-                    def _color_change(val: str) -> str:
-                        if val.startswith("+"):
-                            return "color: #00C853"
-                        if val.startswith("-"):
-                            return "color: #FF1744"
-                        return ""
-
-                    change_cols = [c for c in ["Change", "Change %"] if c in df_quotes.columns]
-                    if change_cols:
-                        styled_q = df_quotes.style.map(_color_change, subset=change_cols)
-                        st.dataframe(styled_q, width='stretch', height=min(600, 40 + 35 * len(df_quotes)))
-                    else:
-                        st.dataframe(df_quotes, width='stretch', height=min(600, 40 + 35 * len(df_quotes)))
-                else:
-                    st.info("No quote data returned. Check that symbols are valid.")
 
     # ── TAB: Bitcoin ────────────────────────────────────────
     with tab_bitcoin:
@@ -3950,621 +3073,6 @@ else:
                     st.dataframe(_listing_data, width='stretch', hide_index=True, height=400)
                 else:
                     st.info("No listing data available. Set FMP_API_KEY.")
-
-    # ── TAB: Defense & Aerospace ────────────────────────────
-    with tab_defense:
-        st.subheader("🛡️ Defense & Aerospace Industry Dashboard")
-
-        fmp_key = st.session_state.cfg.fmp_api_key
-        if not fmp_key:
-            st.warning("FMP API key required for Defense & Aerospace data. Set FMP_API_KEY in environment.")
-        else:
-            def_tab_quotes, def_tab_industry = st.tabs(["📊 A&D Watchlist", "🏭 Industry Screen"])
-
-            # ── Sub-tab: A&D Watchlist ──────────────────────
-            with def_tab_quotes:
-                st.caption(
-                    "Real-time quotes for major Aerospace & Defense names. "
-                    "Covers defense primes, mid-caps, and key suppliers."
-                )
-
-                # Allow custom ticker override
-                custom_tickers = re.sub(
-                    r"[^A-Za-z0-9,.\- ]", "",
-                    st.text_input(
-                        "Tickers (comma-separated)",
-                        value=DEFENSE_TICKERS,
-                        key="defense_tickers_input",
-                    ),
-                ).strip().upper()
-
-                def_data = _cached_defense_watchlist(fmp_key) if (not custom_tickers or custom_tickers == DEFENSE_TICKERS) else _cached_defense_watchlist_custom(fmp_key, custom_tickers)
-
-                if def_data:
-                    df_def = pd.DataFrame(def_data)
-
-                    # Summary metrics
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Stocks", len(df_def))
-
-                    if "changesPercentage" in df_def.columns:
-                        avg_chg = df_def["changesPercentage"].astype(float).mean()
-                        _cg_mask = df_def["changesPercentage"].astype(float)
-                        m2.metric("Avg Change", f"{avg_chg:+.2f}%")
-                        m3.metric("🟢 Gainers", int((_cg_mask > 0).sum()))
-                        m4.metric("🔴 Losers", int((_cg_mask < 0).sum()))
-
-                    # Data table
-                    df_def["Tech"] = df_def["symbol"].apply(lambda s: _get_tech_summary(str(s)))
-                    display_cols = [c for c in [
-                        "symbol", "name", "price", "change",
-                        "changesPercentage", "Tech", "volume", "avgVolume",
-                        "marketCap", "pe", "yearHigh", "yearLow",
-                    ] if c in df_def.columns]
-
-                    st.dataframe(
-                        df_def[display_cols] if display_cols else df_def,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_def)),
-                    )
-
-                    # Top movers within A&D
-                    if "changesPercentage" in df_def.columns:
-                        df_def["_chg"] = pd.to_numeric(df_def["changesPercentage"], errors="coerce")
-                        top_up = df_def.nlargest(5, "_chg")
-                        top_dn = df_def.nsmallest(5, "_chg")
-
-                        col_up, col_dn = st.columns(2)
-                        with col_up:
-                            st.markdown("**🟢 Top A&D Gainers**")
-                            for _, r in top_up.iterrows():
-                                sym = safe_markdown_text(str(r.get("symbol", "?")))
-                                chg = r.get("_chg", 0)
-                                price = r.get("price", 0)
-                                st.markdown(f"**{sym}** — ${price} ({chg:+.2f}%)")
-                        with col_dn:
-                            st.markdown("**🔴 Top A&D Losers**")
-                            for _, r in top_dn.iterrows():
-                                sym = safe_markdown_text(str(r.get("symbol", "?")))
-                                chg = r.get("_chg", 0)
-                                price = r.get("price", 0)
-                                st.markdown(f"**{sym}** — ${price} ({chg:+.2f}%)")
-                else:
-                    st.info("No Defense & Aerospace data available.")
-
-            # ── Sub-tab: Industry Screen ────────────────────
-            with def_tab_industry:
-                st.caption(
-                    "Full industry screen — all US-listed Aerospace & Defense stocks "
-                    "from FMP, sorted by market cap."
-                )
-
-                ind_col1, ind_col2 = st.columns(2)
-                with ind_col1:
-                    industry_name = st.text_input(
-                        "Industry",
-                        value="Aerospace & Defense",
-                        key="defense_industry_input",
-                    ).strip()
-                with ind_col2:
-                    ind_limit = st.selectbox("Max results", [25, 50, 100, 200], index=1, key="defense_ind_limit")
-
-                ind_data = _cached_industry_performance(fmp_key, industry=industry_name)
-                if ind_limit and ind_data:
-                    ind_data = ind_data[:ind_limit]
-
-                if ind_data:
-                    df_ind = pd.DataFrame(ind_data)
-
-                    display_cols = [c for c in [
-                        "symbol", "companyName", "marketCap", "price",
-                        "volume", "beta", "lastAnnualDividend",
-                        "sector", "industry", "exchange", "country",
-                    ] if c in df_ind.columns]
-
-                    st.caption(f"{len(df_ind)} {safe_markdown_text(industry_name)} stock(s)")
-                    st.dataframe(
-                        df_ind[display_cols] if display_cols else df_ind,
-                        width='stretch',
-                        height=min(600, 40 + 35 * len(df_ind)),
-                    )
-
-                    # Market cap distribution
-                    if "marketCap" in df_ind.columns and not df_ind.empty:
-                        df_ind["_mcap"] = pd.to_numeric(df_ind["marketCap"], errors="coerce") / 1e9
-                        total_mcap = df_ind["_mcap"].sum()
-                        m1, m2, m3 = st.columns(3)
-                        m1.metric("Total Market Cap", f"${total_mcap:,.1f}B")
-                        m2.metric("Largest", safe_markdown_text(str(df_ind.iloc[0].get("symbol", "?"))))
-                        m3.metric("Companies", len(df_ind))
-
-                        # Top 10 by market cap
-                        st.divider()
-                        st.markdown(f"**Top 10 {safe_markdown_text(industry_name)} by Market Cap**")
-                        for _, r in df_ind.head(10).iterrows():
-                            sym = safe_markdown_text(str(r.get("symbol", "?")))
-                            name = safe_markdown_text(str(r.get("companyName", "")))
-                            mcap = r.get("_mcap", 0)
-                            price = r.get("price", 0)
-                            beta = r.get("beta", "")
-                            div_str = ""
-                            if r.get("lastAnnualDividend"):
-                                div_str = f" | Div: ${r['lastAnnualDividend']:.2f}"
-                            beta_str = f" | β: {beta:.2f}" if beta else ""
-                            st.markdown(
-                                f"**{sym}** ({name}) — ${price} | "
-                                f"Cap: ${mcap:,.1f}B{beta_str}{div_str}"
-                            )
-                else:
-                    st.info(f"No stocks found for industry: {safe_markdown_text(industry_name)}")
-
-    # ── TAB: Breaking Events (NewsAPI.ai) ───────────────────
-    with tab_breaking:
-        st.subheader("🔴 Breaking Events")
-        if not _intel_enabled():
-            st.info("⚡ Low-latency mode: Breaking Events are disabled. Enable optional intelligence modules in the sidebar.")
-        elif not newsapi_available():
-            _ok_newsapi, _newsapi_reason = newsapi_availability_status()
-            st.info(_newsapi_reason or "NewsAPI.ai integration is currently unavailable.")
-        else:
-            # Token usage indicator
-            _usage = get_token_usage()
-            _avail = _usage.get("availableTokens", 0)
-            _used = _usage.get("usedTokens", 0)
-            if _avail > 0 and _used >= _avail:
-                st.warning(
-                    f"⚠️ NewsAPI.ai token limit reached ({_used:,}/{_avail:,} used). "
-                    "Upgrade to a paid plan or wait for monthly reset."
-                )
-                st.stop()
-            elif _avail > 0:
-                _remaining = _avail - _used
-                st.caption(f"📊 API tokens: {_remaining:,} remaining ({_used:,}/{_avail:,} used)")
-
-            _brk_col1, _brk_col2, _brk_col3 = st.columns([1, 1, 1])
-            with _brk_col1:
-                _brk_count = st.slider(
-                    "Max events", 5, 50, 20, key="brk_count",
-                )
-            with _brk_col2:
-                _brk_min_articles = st.slider(
-                    "Min articles", 2, 50, 5, key="brk_min_art",
-                )
-            with _brk_col3:
-                _brk_category = st.selectbox(
-                    "Category",
-                    ["All", "Business", "Politics", "Technology", "Health", "Science", "Sports", "Entertainment"],
-                    key="brk_cat",
-                )
-
-            _cat_uri = None
-            if _brk_category != "All":
-                _cat_uri = f"news/{_brk_category}"
-
-            _breaking = fetch_breaking_events(
-                count=_brk_count,
-                min_articles=_brk_min_articles,
-                category=_cat_uri,
-            )
-
-            if _breaking:
-                st.caption(f"Showing {len(_breaking)} breaking events · Source: NewsAPI.ai (Event Registry)")
-                for _ev in _breaking:
-                    _ev_title = _ev.title or "(Untitled event)"
-                    _art_badge = f"📰 {_ev.article_count}"
-                    _loc_str = f" · 📍 {_ev.location}" if _ev.location else ""
-                    _date_str = f" · 📅 {_ev.event_date}" if _ev.event_date else ""
-
-                    with st.expander(
-                        f"{_ev.sentiment_icon} **{_ev_title[:120]}** — {_art_badge} articles{_loc_str}{_date_str}",
-                        expanded=False,
-                    ):
-                        # Top metrics row
-                        _m1, _m2, _m3, _m4 = st.columns(4)
-                        with _m1:
-                            st.metric("Articles", _ev.article_count)
-                        with _m2:
-                            if _ev.sentiment is not None:
-                                st.metric("Sentiment", f"{_ev.sentiment:+.2f}")
-                            else:
-                                st.metric("Sentiment", "n/a")
-                        with _m3:
-                            st.metric("Social Score", f"{_ev.social_score:,}" if _ev.social_score else "0")
-                        with _m4:
-                            st.metric("Date", _ev.event_date or "—")
-
-                        # Summary
-                        if _ev.summary:
-                            st.markdown(f"**Summary:** {_ev.summary[:500]}")
-
-                        # Concepts chips
-                        if _ev.concepts:
-                            _concept_chips = " · ".join(
-                                f"`{c['label']}`" for c in _ev.concepts[:10] if c.get("label")
-                            )
-                            st.markdown(f"**Key entities:** {_concept_chips}")
-
-                        # Categories
-                        if _ev.categories:
-                            _cat_chips = " · ".join(f"`{c}`" for c in _ev.categories[:5])
-                            st.markdown(f"**Categories:** {_cat_chips}")
-
-                        # Articles for this event — click to load (saves API tokens)
-                        _art_key = f"brk_art_{_ev.uri}"
-                        if st.button("📰 Load articles", key=_art_key):
-                            st.session_state[_art_key] = True
-
-                        if st.session_state.get(_art_key):
-                            _ev_articles = fetch_event_articles(_ev.uri, count=5)
-                            if _ev_articles:
-                                st.markdown("---")
-                                st.markdown("**Top articles (by social shares):**")
-                                for _art in _ev_articles:
-                                    _art_sent = newsapi_sentiment_badge(_art.sentiment) if _art.sentiment is not None else ""
-                                    _art_source = f" — *{_art.source}*" if _art.source else ""
-                                    _art_social = f" 📊{_art.social_score:,}" if _art.social_score else ""
-                                    if _art.url:
-                                        st.markdown(
-                                            f"- [{_art.title[:100]}]({_art.url}){_art_source}{_art_social} {_art_sent}"
-                                        )
-                                    else:
-                                        st.markdown(f"- {_art.title[:100]}{_art_source}{_art_social} {_art_sent}")
-
-                                    # Show enriched data inline
-                                    _enriched_parts: list[str] = []
-                                    if _art.authors:
-                                        _enriched_parts.append(f"✍️ {', '.join(_art.authors[:3])}")
-                                    if _art.concepts:
-                                        _enriched_parts.append(f"🏷️ {', '.join(_art.concepts[:4])}")
-                                    if _enriched_parts:
-                                        st.caption(f"  {'  ·  '.join(_enriched_parts)}")
-                            else:
-                                st.caption("No articles found for this event.")
-            else:
-                st.info("No breaking events found. Try lowering the minimum articles threshold.")
-
-    # ── TAB: Trending Concepts (NewsAPI.ai) ─────────────────
-    with tab_trending:
-        st.subheader("📈 Trending Concepts")
-        if not _intel_enabled():
-            st.info("⚡ Low-latency mode: Trending Concepts are disabled. Enable optional intelligence modules in the sidebar.")
-        elif not newsapi_available():
-            _ok_newsapi, _newsapi_reason = newsapi_availability_status()
-            st.info(_newsapi_reason or "NewsAPI.ai integration is currently unavailable.")
-        else:
-            _tr_col1, _tr_col2, _tr_col3 = st.columns([1, 1, 1])
-            with _tr_col1:
-                _tr_count = st.slider(
-                    "Max concepts", 5, 50, 20, key="tr_count",
-                )
-            with _tr_col2:
-                _tr_source = st.selectbox(
-                    "Source", ["news", "social"],
-                    key="tr_source",
-                )
-            with _tr_col3:
-                _tr_type = st.selectbox(
-                    "Type",
-                    ["All", "person", "org", "loc", "wiki"],
-                    key="tr_type",
-                )
-
-            _type_filter = _tr_type if _tr_type != "All" else None
-
-            _trending = fetch_trending_concepts(
-                count=_tr_count,
-                source=_tr_source,
-                concept_type=_type_filter,
-            )
-
-            if _trending:
-                st.caption(
-                    f"Showing {len(_trending)} trending concepts · Source: NewsAPI.ai ({_tr_source})"
-                )
-
-                # Summary bar with top 5 as chips
-                _top5 = _trending[:5]
-                _chips = " → ".join(
-                    f"{c.type_icon} **{c.label}**" for c in _top5
-                )
-                st.markdown(f"🔥 Top trending: {_chips}")
-                st.markdown("---")
-
-                # Full table
-                _tr_rows: list[dict[str, Any]] = []
-                for _idx, _c in enumerate(_trending, 1):
-                    _tr_rows.append({
-                        "#": _idx,
-                        "Type": _c.type_icon,
-                        "Concept": _c.label,
-                        "Category": _c.concept_type,
-                        "Score": round(_c.trending_score, 1),
-                        "Articles": _c.article_count,
-                    })
-
-                if _tr_rows:
-                    _tr_df = pd.DataFrame(_tr_rows)
-                    with st.expander("ℹ️ Column guide", expanded=False):
-                        st.markdown(
-                            "- **#** — Rank position by trending momentum\n"
-                            "- **Type** — Entity type icon (👤 person, 🏢 org, 📍 location, 📄 wiki/concept)\n"
-                            "- **Concept** — Entity detected by NLP in recent news articles\n"
-                            "- **Category** — Classification of the entity type\n"
-                            "- **Score** — Trending momentum score from NewsAPI.ai: "
-                            "higher values indicate a sharper increase in media attention\n"
-                            "- **Articles** — Number of news articles mentioning this concept in the lookback period. "
-                            "Click the article count to expand and view the latest 20 articles."
-                        )
-                    st.dataframe(
-                        _tr_df,
-                        width="stretch",
-                        height=min(40 * len(_tr_rows) + 50, 600),
-                        hide_index=True,
-                        column_config={
-                            "#": st.column_config.NumberColumn("#", width="small"),
-                            "Type": st.column_config.TextColumn("Type", width="small"),
-                            "Score": st.column_config.NumberColumn("Score", width="small"),
-                            "Articles": st.column_config.NumberColumn("Articles", width="small"),
-                        },
-                    )
-
-                    # ── Per-concept article expanders ────────────────────
-                    st.markdown("#### 📰 Articles per Concept")
-                    for _idx, _c in enumerate(_trending, 1):
-                        if _c.article_count == 0 and not _c.uri:
-                            continue
-                        with st.expander(
-                            f"{_c.type_icon} **{_c.label}** — {_c.article_count} articles",
-                            expanded=False,
-                        ):
-                            _concept_arts = fetch_concept_articles(_c.uri, count=20)
-                            if _concept_arts:
-                                for _art in _concept_arts:
-                                    _art_date = _art.date[:16] if _art.date else ""
-                                    _art_src = f" · {_art.source}" if _art.source else ""
-                                    st.markdown(
-                                        f"- [{html.escape(_art.title)}]({safe_url(_art.url)})"
-                                        f"  <small style='color:gray'>{html.escape(_art_date)}{html.escape(_art_src)}</small>",
-                                        unsafe_allow_html=True,
-                                    )
-                            else:
-                                st.caption("No articles found for this concept.")
-            else:
-                st.info("No trending concepts found.")
-
-    # ── TAB: Social Score Ranking (NewsAPI.ai + Finnhub) ──────────────
-    with tab_social:
-        st.subheader("🔥 Social Score — Most Shared News")
-
-        # ── Finnhub Reddit + Twitter Sentiment ──────────────────
-        if _intel_enabled() and finnhub_available():
-            # Extract tickers from the live feed for social lookups
-            _fh_tickers: list[str] = []
-            _fh_seen: set[str] = set()
-            for _feed_item in st.session_state.get("feed", []):
-                for _ft in _feed_item.get("tickers", []):
-                    _fts = _ft.upper().strip()
-                    if _fts and _fts not in _fh_seen and len(_fts) <= 5:
-                        _fh_seen.add(_fts)
-                        _fh_tickers.append(_fts)
-            _fh_tickers = _fh_tickers[:20]
-
-            if _fh_tickers:
-                st.markdown("### 📡 Reddit & Twitter Sentiment")
-                st.caption(
-                    f"Live social-media mentions for {len(_fh_tickers)} trending tickers · "
-                    "Source: Finnhub (free tier, real-time)"
-                )
-                _fh_social = fetch_social_sentiment_batch(_fh_tickers)
-                if _fh_social:
-                    _fh_sorted = sorted(_fh_social.values(), key=lambda s: s.total_mentions, reverse=True)
-                    _fh_top = _fh_sorted[:5]
-                    _fh_cols = st.columns(min(5, len(_fh_top)))
-                    for _fh_i, _fs in enumerate(_fh_top):
-                        with _fh_cols[_fh_i]:
-                            st.markdown(f"**{_fs.symbol}** {_fs.emoji}")
-                            st.metric("Mentions", f"{_fs.total_mentions:,}")
-                            st.caption(
-                                f"Reddit {_fs.reddit_mentions:,} · Twitter {_fs.twitter_mentions:,}\n\n"
-                                f"Score: {_fs.score:+.2f}"
-                            )
-                    _fh_rows = []
-                    for _fs in _fh_sorted:
-                        _fh_rows.append({
-                            "Symbol": _fs.symbol,
-                            "Sentiment": _fs.emoji,
-                            "Total Mentions": _fs.total_mentions,
-                            "Reddit": _fs.reddit_mentions,
-                            "Twitter/X": _fs.twitter_mentions,
-                            "Score": f"{_fs.score:+.4f}",
-                            "Label": _fs.sentiment_label.title(),
-                        })
-                    if _fh_rows:
-                        _fh_df = pd.DataFrame(_fh_rows)
-                        st.dataframe(
-                            _fh_df, hide_index=True,
-                            height=min(40 * len(_fh_rows) + 50, 400),
-                        )
-                else:
-                    st.caption("No social sentiment data available for current tickers.")
-                st.markdown("---")
-
-        if not _intel_enabled():
-            st.info("⚡ Low-latency mode: Social intelligence is disabled. Enable optional intelligence modules in the sidebar.")
-        elif not newsapi_available():
-            _ok_newsapi, _newsapi_reason = newsapi_availability_status()
-            st.info(_newsapi_reason or "NewsAPI.ai Social Score integration is currently unavailable.")
-        else:
-            _soc_col1, _soc_col2, _soc_col3 = st.columns([1, 1, 1])
-            with _soc_col1:
-                _soc_count = st.slider(
-                    "Max articles", 10, 100, 30, key="soc_count",
-                )
-            with _soc_col2:
-                _soc_hours = st.slider(
-                    "Hours lookback", 1, 72, 24, key="soc_hours",
-                )
-            with _soc_col3:
-                _soc_category = st.selectbox(
-                    "Category",
-                    ["Business", "Technology", "Politics", "Health", "Science", "Sports", "Entertainment"],
-                    key="soc_cat",
-                )
-
-            _soc_cat_uri = f"news/{_soc_category}"
-
-            _social_articles = fetch_social_ranked_articles(
-                count=_soc_count,
-                category=_soc_cat_uri,
-                hours=_soc_hours,
-            )
-
-            if _social_articles:
-                st.caption(
-                    f"Showing {len(_social_articles)} most-shared articles · "
-                    f"Last {_soc_hours}h · {_soc_category} · Source: NewsAPI.ai"
-                )
-
-                # Warn if all social scores are zero (plan limitation)
-                _all_soc_zero = all(a.social_score == 0 for a in _social_articles)
-                if _all_soc_zero:
-                    st.info(
-                        "ℹ️ Social sharing scores are unavailable on this API plan. "
-                        "This is a NewsAPI.ai plan limitation — enterprise plans include "
-                        "Facebook shares, tweet counts, etc. Articles below are still sorted "
-                        "by the API's internal social relevance ranking."
-                    )
-
-                # ── Top 5 viral cards ──
-                _top5_social = _social_articles[:5]
-                _soc_cards = st.columns(min(5, len(_top5_social)))
-                for _soc_pair in enumerate(_top5_social):
-                    _soc_i = int(_soc_pair[0])
-                    _sa = _soc_pair[1]
-                    with _soc_cards[_soc_i]:
-                        _soc_sent = newsapi_sentiment_badge(_sa.sentiment) if _sa.sentiment is not None else ""
-                        st.markdown(f"**#{_soc_i + 1}** {_sa.sentiment_icon}")
-                        st.markdown(f"📊 **{_sa.social_score:,}** shares")
-                        _safe_title = _sa.title[:60]
-                        if _sa.url:
-                            st.markdown(f"[{_safe_title}]({_sa.url})")
-                        else:
-                            st.markdown(_safe_title)
-                        st.caption(f"*{_sa.source}* · {_soc_sent}")
-
-                st.markdown("---")
-
-                # ── Full table ──
-                _soc_rows: list[dict[str, Any]] = []
-                for _soc_pair in enumerate(_social_articles, 1):
-                    _soc_rank = int(_soc_pair[0])
-                    _sa = _soc_pair[1]
-                    _soc_rows.append({
-                        "#": _soc_rank,
-                        "Sentiment": _sa.sentiment_icon,
-                        "Title": _sa.title[:80],
-                        "Source": _sa.source,
-                        "Social Score": "N/A" if _all_soc_zero else f"{_sa.social_score:,}",
-                        "NLP Sentiment": f"{_sa.sentiment:+.2f}" if _sa.sentiment is not None else "—",
-                        "Published": _sa.date[:16] if _sa.date else "—",
-                        "Entities": ", ".join(_sa.concepts[:4]) if _sa.concepts else "",
-                        "URL": _sa.url,
-                    })
-
-                if _soc_rows:
-                    _soc_df = pd.DataFrame(_soc_rows)
-
-                    _soc_col_cfg: dict[str, Any] = {
-                        "#": st.column_config.NumberColumn("#", width="small"),
-                        "Social Score": st.column_config.TextColumn("Social Score", width="small"),
-                        "NLP Sentiment": st.column_config.TextColumn("NLP Sent.", width="small"),
-                    }
-                    # Use LinkColumn for URLs
-                    if any(r.get("URL", "").startswith("http") for r in _soc_rows):
-                        _soc_col_cfg["URL"] = st.column_config.LinkColumn(
-                            "Link",
-                            display_text="🔗",
-                            width="small",
-                        )
-                        # Also make Title clickable by linking to source
-                        _soc_col_cfg["Title"] = st.column_config.TextColumn(
-                            "Title", width="large",
-                        )
-
-                    st.dataframe(
-                        _soc_df,
-                        width="stretch",
-                        height=min(40 * len(_soc_rows) + 50, 800),
-                        hide_index=True,
-                        column_config=_soc_col_cfg,
-                    )
-
-                # ── Sentiment distribution ──
-                _soc_sents = [a.sentiment for a in _social_articles if a.sentiment is not None]
-                if _soc_sents:
-                    st.markdown("---")
-                    _sc1, _sc2, _sc3, _sc4 = st.columns(4)
-                    _pos = sum(1 for s in _soc_sents if s >= 0.2)
-                    _neg = sum(1 for s in _soc_sents if s <= -0.2)
-                    _neu = len(_soc_sents) - _pos - _neg
-                    _avg = sum(_soc_sents) / len(_soc_sents)
-                    _sc1.metric("Avg Sentiment", f"{_avg:+.2f}")
-                    _sc2.metric("🟢 Positive", _pos)
-                    _sc3.metric("🔴 Negative", _neg)
-                    _sc4.metric("⚪ Neutral", _neu)
-
-                # ── Article detail expanders ──
-                st.markdown("---")
-                st.subheader("📄 Article Details")
-                for _di, _da in enumerate(_social_articles[:10]):
-                    _da_sent = newsapi_sentiment_badge(_da.sentiment) if _da.sentiment is not None else ""
-                    with st.expander(
-                        f"{_da.sentiment_icon} #{_di + 1} — {_da.title[:80]} "
-                        f"(📊 {_da.social_score:,})",
-                        expanded=False,
-                    ):
-                        _d1, _d2, _d3 = st.columns(3)
-                        with _d1:
-                            st.metric("Social Score", f"{_da.social_score:,}")
-                        with _d2:
-                            st.metric("NLP Sentiment", f"{_da.sentiment:+.2f}" if _da.sentiment is not None else "n/a")
-                        with _d3:
-                            st.metric("Source", _da.source)
-
-                        if _da.url:
-                            st.markdown(f"🔗 [Open article]({_da.url})")
-
-                        if _da.authors:
-                            st.caption(f"✍️ Authors: {', '.join(_da.authors[:5])}")
-
-                        if _da.body:
-                            st.markdown(f"**Body preview:** {_da.body[:500]}{'…' if len(_da.body) > 500 else ''}")
-
-                        if _da.concepts:
-                            st.markdown(f"🏷️ **Entities:** {' · '.join(_da.concepts)}")
-
-                        if _da.categories:
-                            st.markdown(f"📂 **Categories:** {' · '.join(_da.categories)}")
-
-                        if _da.links:
-                            with st.expander("🔗 Links from article body", expanded=False):
-                                for _lnk in _da.links[:10]:
-                                    _lnk_str = _lnk if isinstance(_lnk, str) else str(_lnk.get("uri", _lnk))
-                                    st.markdown(f"- [{safe_markdown_text(_lnk_str[:60])}]({safe_url(_lnk_str)})")
-
-                        if _da.videos:
-                            with st.expander("🎥 Videos", expanded=False):
-                                for _vid in _da.videos[:5]:
-                                    _vid_str = _vid if isinstance(_vid, str) else str(_vid.get("uri", _vid))
-                                    st.markdown(f"- [{safe_markdown_text(_vid_str[:60])}]({safe_url(_vid_str)})")
-
-                        if _da.event_uri:
-                            st.caption(f"Event cluster: `{_da.event_uri}`")
-                        if _da.is_duplicate:
-                            st.caption("⚠️ Marked as duplicate")
-
-            else:
-                st.info("No social-ranked articles found. Try expanding the time window.")
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts:

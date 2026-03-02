@@ -71,6 +71,7 @@ class BackgroundPoller:
         self.total_items_dropped: int = 0
         self.consecutive_empty_polls: int = 0
         self.last_poll_duration_s: float = 0.0
+        self._last_periodic_prune_ts: float = 0.0  # for 30s dedup reset
 
     # ── Thread lifecycle ────────────────────────────────────
 
@@ -315,5 +316,37 @@ class BackgroundPoller:
                     self._store.prune_clusters(keep_seconds=86400)
                 except Exception as exc:
                     logger.warning("BG poller periodic prune failed: %s", exc, exc_info=True)
+
+            # ── Periodic dedup reset (every 30s) ─────────────────
+            # Keeps the dedup DB fresh so genuinely new articles aren't
+            # blocked by stale seen-entries.  The in-memory dedup in
+            # _process_new_items() prevents duplicates from reaching the UI.
+            _DEDUP_RESET_INTERVAL_S = float(
+                getattr(self._cfg, "dedup_reset_interval_s", 0)
+                or 30.0
+            )
+            _now_mono = time.monotonic()
+            if (
+                self._last_periodic_prune_ts > 0
+                and (_now_mono - self._last_periodic_prune_ts) >= _DEDUP_RESET_INTERVAL_S
+            ):
+                for _prune_fn, _tbl in (
+                    (self._store.prune_seen, "seen"),
+                    (self._store.prune_clusters, "clusters"),
+                ):
+                    try:
+                        _prune_fn(keep_seconds=0)
+                    except Exception as exc:
+                        logger.warning("BG poller periodic dedup reset (%s) failed: %s", _tbl, exc, exc_info=True)
+                with self._lock:
+                    self._cursor = None
+                self._last_periodic_prune_ts = _now_mono
+                logger.debug(
+                    "BG poller: periodic dedup reset (every %.0fs)",
+                    _DEDUP_RESET_INTERVAL_S,
+                )
+            elif self._last_periodic_prune_ts == 0:
+                # Initialise timer on first poll
+                self._last_periodic_prune_ts = _now_mono
 
         logger.info("Background poll loop exited")
