@@ -48,6 +48,8 @@ from terminal_technicals import (
     signal_icon,
     signal_label,
     INTERVAL_MAP,
+    _tv_is_cooling_down,
+    _tv_cooldown_remaining,
 )
 from terminal_ui_helpers import (
     dedup_articles,
@@ -429,6 +431,11 @@ def render_technicals_expander(
             )
 
         if sel_sym and sel_iv:
+            if _tv_is_cooling_down():
+                _rem = _tv_cooldown_remaining()
+                st.info(f"⏳ TradingView rate-limited — cooldown {_rem:.0f}s remaining. Technicals temporarily unavailable.")
+                return
+
             tech = fetch_technicals(sel_sym, sel_iv)
             if tech.error:
                 st.warning(f"No technical data: {tech.error}")
