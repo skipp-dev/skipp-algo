@@ -152,40 +152,37 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             st.session_state["fmp_ai_run_requested"] = True
             st.rerun()
 
-    # --- Custom question input ---
+    # --- Custom question input (form ensures Enter triggers reliably) ---
     st.markdown("##### Ask a Custom Question")
 
-    def _on_custom_q_submit():
-        """Trigger FMP AI query when user presses Enter."""
-        q = (st.session_state.get("fmp_ai_custom_question") or "").strip()
-        if q:
-            st.session_state["fmp_ai_selected_question"] = q
-            st.session_state["fmp_ai_run_requested"] = True
-
-    custom_q = st.text_input(
-        "Your question about the current market data:",
-        placeholder="e.g. What are the key catalysts for NVDA today?",
-        key="fmp_ai_custom_question",
-        on_change=_on_custom_q_submit,
-    )
-
-    _qa_c1, _qa_c2, _qa_c3 = st.columns([1, 1, 2])
-    with _qa_c1:
-        if st.button("▶️ Generate", key="fmp_ai_generate", width='stretch'):
+    with st.form("fmp_ai_custom_form", clear_on_submit=False):
+        custom_q = st.text_input(
+            "Your question about the current market data:",
+            placeholder="e.g. What are the key catalysts for NVDA today?",
+            key="fmp_ai_custom_question",
+        )
+        _form_submitted = st.form_submit_button(
+            "▶️ Ask AI", use_container_width=True,
+        )
+        if _form_submitted:
             _q = (custom_q or "").strip()
             if _q:
                 st.session_state["fmp_ai_selected_question"] = _q
                 st.session_state["fmp_ai_run_requested"] = True
             else:
                 st.warning("Please enter a question first.")
-    with _qa_c2:
-        if st.button("🔁 Regenerate", key="fmp_ai_regenerate", width='stretch'):
+
+    _qa_c1, _qa_c2 = st.columns([1, 2])
+    with _qa_c1:
+        if st.button("🔁 Ask Again", key="fmp_ai_regenerate", width='stretch',
+                      help="Re-run the last question with fresh data"):
             _q = (st.session_state.get("fmp_ai_selected_question") or "").strip()
             if _q:
                 st.session_state["fmp_ai_run_requested"] = True
+                st.rerun()
             else:
-                st.warning("No previous question available yet.")
-    with _qa_c3:
+                st.warning("No previous question — type one above and press Enter.")
+    with _qa_c2:
         st.toggle(
             "Pause auto-refresh while reviewing AI result",
             key="fmp_ai_pause_auto_refresh",
@@ -549,7 +546,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # --- Display last persisted result ---
     last_result = st.session_state.get("fmp_ai_last_result")
     if not last_result:
-        st.caption("Click a preset or enter a question and press Generate.")
+        st.caption("Click a preset or type a question and press Enter (or Ask AI).")
         return
 
     _last_question = safe_markdown_text(str(last_result.get("question") or ""))
