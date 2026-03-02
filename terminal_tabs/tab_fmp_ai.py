@@ -83,17 +83,15 @@ def _question_to_slug(question: str) -> str:
 
 def _save_fmp_ai_result(question: str, answer: str, model: str,
                         n_articles: int, n_tickers: int,
-                        n_fmp: int) -> str:
-    """Save an FMP AI result to a separate file with question-slug + timestamp."""
-    _SAVE_DIR.mkdir(parents=True, exist_ok=True)
+                        n_fmp: int) -> tuple[str, str]:
+    """Build save content and filename. Returns (content, filename)."""
     now = datetime.now(timezone.utc)
     slug = _question_to_slug(question)
     ts_file = now.strftime("%Y%m%d_%H%M%S")
     ts_display = now.strftime("%Y-%m-%d %H:%M:%S UTC")
     fname = f"AI_{slug}_{ts_file}.txt"
-    fpath = _SAVE_DIR / fname
     separator = "=" * 72
-    block = (
+    content = (
         f"{separator}\n"
         f"Saved:    {ts_display}\n"
         f"Model:    {model}\n"
@@ -102,8 +100,7 @@ def _save_fmp_ai_result(question: str, answer: str, model: str,
         f"{separator}\n\n"
         f"{answer}\n"
     )
-    fpath.write_text(block, encoding="utf-8")
-    return str(fpath)
+    return content, fname
 
 
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
@@ -590,20 +587,21 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     st.markdown(result.answer)
 
     # --- Save to file ---
-    if st.button("💾 Save FMP AI result to file", key="fmp_ai_save_to_file"):
-        try:
-            saved_path = _save_fmp_ai_result(
-                question=str(last_result.get("question") or ""),
-                answer=result.answer,
-                model=result.model,
-                n_articles=result.context_articles,
-                n_tickers=result.context_tickers,
-                n_fmp=result.fmp_tickers,
-            )
-            st.success(f"Saved to `{saved_path}`")
-        except Exception as exc:
-            logger.warning("Failed to save FMP AI result: %s", exc, exc_info=True)
-            st.error(f"Could not save: {exc}")
+    _save_content, _save_fname = _save_fmp_ai_result(
+        question=str(last_result.get("question") or ""),
+        answer=result.answer,
+        model=result.model,
+        n_articles=result.context_articles,
+        n_tickers=result.context_tickers,
+        n_fmp=result.fmp_tickers,
+    )
+    st.download_button(
+        "💾 Download AI report",
+        data=_save_content,
+        file_name=_save_fname,
+        mime="text/plain",
+        key="fmp_ai_save_to_file",
+    )
 
     # --- Divider and context details ---
     with st.expander("📋 Context sent to AI (multi-layer enriched)"):
