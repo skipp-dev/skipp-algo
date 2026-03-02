@@ -703,7 +703,7 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "alert_log": [],
     "bg_poller": None,
     "notify_log": [],
-    "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
+    "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "1") != "0",
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
@@ -1245,9 +1245,7 @@ def _intel_enabled() -> bool:
     before any tab content renders, so it always reflects the current
     toggle position.
     """
-    # TEMP: always return True to diagnose whether the AI tab itself works.
-    # The toggle mechanism has consistently failed to persist across reruns.
-    return True
+    return _INTEL_ENABLED  # type: ignore[name-defined]
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
