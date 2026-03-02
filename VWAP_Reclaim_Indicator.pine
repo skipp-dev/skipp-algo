@@ -397,7 +397,7 @@ if barstate.islast
 
 // ==================== ALERTING ====================
 
-alertcondition(longSignal,  title="Long Entry",  message="VWAP Reclaim — Long Entry")
-alertcondition(exitLong,    title="Long Exit",    message="VWAP Reclaim — Long Exit (VWAP lost)")
-alertcondition(shortSignal, title="Short Entry",  message="VWAP Reclaim — Short Entry")
-alertcondition(exitShort,   title="Short Exit",   message="VWAP Reclaim — Short Exit (VWAP reclaimed)")
+alertcondition(longSignal,  title="Buy",    message="VWAP Reclaim — Buy")
+alertcondition(exitLong,    title="Exit",   message="VWAP Reclaim — Exit")
+alertcondition(shortSignal, title="Short",  message="VWAP Reclaim — Short")
+alertcondition(exitShort,   title="Cover",  message="VWAP Reclaim — Cover")

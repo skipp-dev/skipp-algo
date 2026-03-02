@@ -162,7 +162,7 @@ class TechnicalResult:
 
 # ── In-memory cache ──────────────────────────────────────────────────
 _cache: dict[tuple[str, str], TechnicalResult] = {}
-_CACHE_TTL_S = 900.0  # 15 minutes
+_CACHE_TTL_S = 180.0  # 3 minutes — keep data fresh for AI & tab displays
 _CACHE_ERROR_TTL_S = 1800.0  # 30 minutes for 429 errors (longer backoff)
 _CACHE_NOT_FOUND_TTL_S = 3600.0  # 1 hour for symbols not found on any exchange
 _CACHE_MAX_SIZE = 500  # evict expired entries when exceeded

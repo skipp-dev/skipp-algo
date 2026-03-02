@@ -5,7 +5,7 @@
 SkippALGO is a modular trading intelligence platform combining three core systems:
 
 1. **SkippALGO Pine Script** — non-repainting signal engine with multi-timeframe Outlook/Forecast dashboard for TradingView.
-2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 18 tabs for **News Intelligence + Alerting** and operational market monitoring.
+2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 19 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
 ## Product Positioning & Compliance Notes
@@ -44,7 +44,7 @@ The terminal is composed of 16 Python modules organized around a central UI driv
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                    streamlit_terminal.py                          │
-│                  (4 100+ lines · 18 tabs · main UI)              │
+│                  (4 700+ lines · 19 tabs · main UI)              │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────┐  ┌──────────────────┐  ┌────────────────┐  │
@@ -93,13 +93,13 @@ The terminal is composed of 16 Python modules organized around a central UI driv
 
 | Module | Lines | Purpose |
 |--------|-------|---------|
-| `streamlit_terminal.py` | ~4 100 | Main Streamlit UI — 18 tabs, sidebar, polling orchestration, alert evaluation |
+| `streamlit_terminal.py` | ~4 700 | Main Streamlit UI — 19 tabs, sidebar, polling orchestration, alert evaluation |
 | `terminal_poller.py` | ~1 300 | Polling engine — REST/FMP ingestion, dedup, classification, sector perf, defense watchlist, tomorrow outlook, power gaps |
 | `terminal_bitcoin.py` | ~950 | Bitcoin data — 10 fetch functions (quote, OHLCV, technicals, news, social, F&G, movers, exchange listings) |
 | `terminal_newsapi.py` | ~1 150 | NewsAPI.ai — breaking events, trending concepts, NLP sentiment, event-clustered news, social score ranking |
 | `terminal_spike_scanner.py` | ~500 | FMP spike scanner — gainers/losers/actives with Benzinga extended-hours overlay |
 | `terminal_spike_detector.py` | ~320 | RT spike detector — sub-minute price delta tracking with rolling buffer |
-| `terminal_technicals.py` | ~350 | TradingView TA — oscillator/MA summaries, cached per (symbol, interval) |
+| `terminal_technicals.py` | ~480 | TradingView TA — oscillator/MA summaries, cached per (symbol, interval), 3-min TTL |
 | `terminal_forecast.py` | ~430 | Analyst forecasts — price targets, ratings, EPS estimates via FMP + yfinance |
 | `terminal_notifications.py` | ~410 | Push notifications — Telegram, Discord, Pushover dispatch with per-symbol throttling |
 | `terminal_export.py` | ~730 | Export — JSONL append/rotate, VisiData snapshots, webhook fire, RT quote loading |
@@ -115,23 +115,24 @@ The terminal is composed of 16 Python modules organized around a central UI driv
 | # | Tab | Description |
 |---|-----|-------------|
 | 1 | 📰 **Live Feed** | Real-time Benzinga + FMP news with 16-category NLP classifier, full-text search, and date filters |
-| 2 | 🤖 **AI Insights** | LLM-powered market analysis — structured reasoning over the live feed with cached responses |
+| 2 | 🤖 **AI Insights** | LLM-powered market analysis — structured reasoning over live feed + TradingView technicals with cached responses |
 | 3 | 🏆 **Rankings** | Symbol-level news scoring with aggregated sentiment, volume signals, and RT quote overlay |
-| 4 | 🏗️ **Segments** | News items grouped by 16 event categories (earnings, M&A, FDA, macro, etc.) |
-| 5 | ₿ **Bitcoin** | BTC dashboard: price, chart, technicals, Fear & Greed, news, social sentiment, crypto movers |
-| 6 | ⚡ **RT Spikes** | Sub-minute real-time price spike detection from consecutive quote snapshots |
-| 7 | 🚨 **Spikes** | FMP biggest gainers/losers/most-actives with batch-quote enrichment |
-| 8 | 🗺️ **Heatmap** | Plotly treemap sector heatmap of market performance |
-| 9 | 📅 **Calendar** | FMP economic calendar with impact filters |
-| 10 | 🔮 **Outlook** | Composite next-trading-day forecast (traffic light system) |
-| 11 | 🔥 **Top Movers** | FMP gainers/losers enriched with Benzinga delayed quotes during extended hours |
-| 12 | 💹 **Movers** | Benzinga movers with gainers/losers sub-tabs |
-| 13 | 🛡️ **Defense & Aerospace** | A&D watchlist quotes + industry performance screen |
-| 14 | 🔴 **Breaking** | NewsAPI.ai breaking events with article counts, sentiment, social scores |
-| 15 | 📈 **Trending** | NewsAPI.ai trending concepts and entities across global news |
-| 16 | 🔥 **Social** | Social sentiment scoring and viral article detection |
-| 17 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
-| 18 | 📊 **Data Table** | Full data export table with all enrichment columns |
+| 4 | � **Actionable** | High-conviction trade setups ranked by composite news + technical score with Tech badges |
+| 5 | �🏗️ **Segments** | News items grouped by 16 event categories (earnings, M&A, FDA, macro, etc.) |
+| 6 | ₿ **Bitcoin** | BTC dashboard: price, chart, technicals, Fear & Greed, news, social sentiment, crypto movers |
+| 7 | ⚡ **RT Spikes** | Sub-minute real-time price spike detection from consecutive quote snapshots |
+| 8 | 🚨 **Spikes** | FMP biggest gainers/losers/most-actives with batch-quote enrichment |
+| 9 | 🗺️ **Heatmap** | Plotly treemap sector heatmap of market performance |
+| 10 | 📅 **Calendar** | FMP economic calendar with impact filters |
+| 11 | 🔮 **Outlook** | Today & next-trading-day composite forecast (traffic light system) |
+| 12 | 🔥 **Top Movers** | FMP gainers/losers enriched with Benzinga delayed quotes during extended hours |
+| 13 | 💹 **Movers** | Benzinga movers with gainers/losers sub-tabs + Tech badges |
+| 14 | 🛡️ **Defense & Aerospace** | A&D watchlist quotes + industry performance screen + Tech badges |
+| 15 | 🔴 **Breaking** | NewsAPI.ai breaking events with article counts, sentiment, social scores |
+| 16 | 📈 **Trending** | NewsAPI.ai trending concepts and entities across global news |
+| 17 | 🔥 **Social** | Social sentiment scoring and viral article detection |
+| 18 | ⚡ **Alerts** | Compound alert builder with configurable rules and webhook dispatch |
+| 19 | 📊 **Data Table** | Full data export table with all enrichment columns |
 
 ### Live Feed Score Badge Semantics
 
@@ -370,8 +371,8 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 | `SkippALGO_Lite.pine` | Lightweight variant |
 | `SkippALGO_Mid.pine` / `SkippALGO_Mid_Strategy.pine` | Mid-tier variants |
 | `QuickALGO.pine` | Score+Verify optimized logic |
-| `VWAP_Long_Reclaim_*.pine` | VWAP reclaim strategies |
-| `CHOCH-*.pine` | Change-of-Character variants |
+| `VWAP_Long_Reclaim_*.pine` | VWAP reclaim strategies (BUY/EXIT/SHORT/COVER alerts) |
+| `CHOCH-*.pine` | Change-of-Character variants (indicator has BUY/SHORT/EXIT/COVER alerts) |
 | `BTC 3m EV Scalper BALANCED (Harmonized).pine` | BTC scalper |
 
 ---
@@ -411,7 +412,7 @@ Configuration is centralized in `pyproject.toml`.
 
 ```
 skipp-algo/
-├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (18 tabs)
+├── streamlit_terminal.py          # Real-Time News Intelligence Dashboard (19 tabs)
 ├── terminal_poller.py             # Polling engine (news + FMP + classification)
 ├── terminal_bitcoin.py            # Bitcoin data (10 sources)
 ├── terminal_newsapi.py            # NewsAPI.ai integration
@@ -426,7 +427,7 @@ skipp-algo/
 ├── terminal_ai_insights.py        # AI Insights engine (LLM reasoning)
 ├── terminal_ui_helpers.py         # UI formatting + sentiment helpers
 │
-├── terminal_tabs/                 # Tab rendering modules (18 tabs)
+├── terminal_tabs/                 # Tab rendering modules (19 tabs)
 │   ├── tab_feed.py                # 📰 Live Feed tab
 │   ├── tab_ai.py                  # 🤖 AI Insights tab
 │   ├── tab_rankings.py            # 🏆 Rankings tab

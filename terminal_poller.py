@@ -1014,125 +1014,120 @@ def fetch_benzinga_news_by_channel(
         adapter.close()
 
 
-# ── Tomorrow Outlook (next-trading-day traffic light) ────────
+# ── Today / Tomorrow Outlook (trading-day traffic light) ─────
 
 from newsstack_fmp._market_cal import (
+    is_us_equity_trading_day as _is_trading_day,
     next_trading_day as _next_trading_day,
 )
 
 
-def compute_tomorrow_outlook(
+def _compute_outlook_for_date(
+    target_date: date,
     bz_api_key: str,
     fmp_api_key: str,
 ) -> dict[str, Any]:
-    """Compute a next-trading-day outlook signal (🟢 / 🟡 / 🔴).
+    """Compute a trading-day outlook signal (🟢 / 🟡 / 🔴) for *target_date*.
 
-    This is a standalone version for the News Intelligence Dashboard that uses
-    live Benzinga + FMP data rather than the open_prep pipeline result.
+    Shared core used by both ``compute_today_outlook`` and
+    ``compute_tomorrow_outlook``.
 
     Factors
     -------
-    - Benzinga earnings calendar for the next trading day (BMO count)
-    - FMP economic calendar high-impact events for the next trading day
-    - Benzinga economics (FOMC, CPI, NFP, GDP) for the next trading day
+    - Benzinga earnings calendar for *target_date* (BMO count)
+    - FMP economic calendar high-impact events for *target_date*
+    - Benzinga economics (FOMC, CPI, NFP, GDP) for *target_date*
     - Current sector performance balance (majority red = caution)
-
-    Feed sentiment is evaluated separately in the UI layer because the
-    feed is a mutable session-state object that cannot be cached.
 
     Returns
     -------
-    dict with keys: next_trading_day, outlook_label, outlook_color,
-    outlook_score, reasons, earnings_tomorrow_count,
-    earnings_bmo_tomorrow_count, high_impact_events_tomorrow,
-    high_impact_events_tomorrow_details, sector_mood
+    dict with keys: target_date, outlook_label, outlook_color,
+    outlook_score, reasons, earnings_count, earnings_bmo_count,
+    high_impact_events, high_impact_events_details, sector_mood,
+    notable_earnings
     """
-    today = date.today()
-    next_td = _next_trading_day(today)
-    next_td_iso = next_td.isoformat()
+    td_iso = target_date.isoformat()
 
     outlook_score = 0.0
     reasons: list[str] = []
 
-    # ── 1. Benzinga earnings for next trading day ──
-    earnings_tomorrow: list[dict[str, Any]] = []
+    # ── 1. Benzinga earnings ──
+    earnings_day: list[dict[str, Any]] = []
     earnings_bmo: list[dict[str, Any]] = []
     if bz_api_key:
         try:
             earnings_all = fetch_benzinga_earnings(
-                bz_api_key, date_from=next_td_iso, date_to=next_td_iso,
+                bz_api_key, date_from=td_iso, date_to=td_iso,
                 page_size=500,
             )
-            earnings_tomorrow = [
+            earnings_day = [
                 e for e in earnings_all
-                if str(e.get("date") or "").startswith(next_td_iso)
+                if str(e.get("date") or "").startswith(td_iso)
             ]
             earnings_bmo = [
-                e for e in earnings_tomorrow
+                e for e in earnings_day
                 if str(e.get("earnings_timing") or e.get("time") or "").lower()
                 in {"bmo", "before market open", "before_open"}
             ]
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: earnings fetch failed: %s", type(exc).__name__, exc_info=True)
+            logger.warning("Outlook %s: earnings fetch failed: %s", td_iso, type(exc).__name__, exc_info=True)
 
     if len(earnings_bmo) >= 10:
         outlook_score += 0.5
         reasons.append(f"heavy_earnings_bmo_{len(earnings_bmo)}")
-    elif len(earnings_tomorrow) >= 20:
+    elif len(earnings_day) >= 20:
         outlook_score += 0.25
-        reasons.append(f"earnings_dense_{len(earnings_tomorrow)}")
-    elif len(earnings_tomorrow) == 0:
-        reasons.append("no_earnings_tomorrow")
+        reasons.append(f"earnings_dense_{len(earnings_day)}")
+    elif len(earnings_day) == 0:
+        reasons.append("no_earnings")
     else:
-        reasons.append(f"earnings_{len(earnings_tomorrow)}")
+        reasons.append(f"earnings_{len(earnings_day)}")
 
-    # ── 2. High-impact macro events for next trading day ──
+    # ── 2. High-impact macro events ──
     hi_events: list[dict[str, Any]] = []
 
     # 2a) FMP economic calendar
     if fmp_api_key:
         try:
-            econ_data = fetch_economic_calendar(fmp_api_key, next_td_iso, next_td_iso)
+            econ_data = fetch_economic_calendar(fmp_api_key, td_iso, td_iso)
             for ev in econ_data:
                 imp = str(ev.get("impact") or ev.get("importance") or "").lower()
                 if imp == "high":
                     hi_events.append({
                         "event": str(ev.get("event") or "—"),
-                        "date": str(ev.get("date") or next_td_iso),
+                        "date": str(ev.get("date") or td_iso),
                         "country": str(ev.get("country") or "US"),
                         "source": "FMP",
                     })
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: FMP econ calendar failed: %s", type(exc).__name__, exc_info=True)
+            logger.warning("Outlook %s: FMP econ calendar failed: %s", td_iso, type(exc).__name__, exc_info=True)
 
     # 2b) Benzinga economics calendar
     if bz_api_key:
         try:
             bz_econ = fetch_benzinga_economics(
-                bz_api_key, date_from=next_td_iso, date_to=next_td_iso,
+                bz_api_key, date_from=td_iso, date_to=td_iso,
                 page_size=100, importance=0,
             )
             for ev in bz_econ:
                 imp = str(ev.get("importance", "")).lower()
                 ev_name = str(ev.get("event_name") or ev.get("name") or "")
-                # Benzinga importance: 0=high, 1=medium, 2=low
                 if imp in {"0", "high"} or any(
                     kw in ev_name.upper()
                     for kw in ("CPI", "NFP", "FOMC", "GDP", "PCE", "PPI", "EMPLOYMENT")
                 ):
-                    # Avoid duplicates from FMP
                     already = any(
                         h["event"].lower() == ev_name.lower() for h in hi_events
                     )
                     if not already:
                         hi_events.append({
                             "event": ev_name or "—",
-                            "date": str(ev.get("date") or next_td_iso),
+                            "date": str(ev.get("date") or td_iso),
                             "country": str(ev.get("country") or "US"),
                             "source": "Benzinga",
                         })
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: Benzinga econ calendar failed: %s", type(exc).__name__, exc_info=True)
+            logger.warning("Outlook %s: Benzinga econ calendar failed: %s", td_iso, type(exc).__name__, exc_info=True)
 
     if len(hi_events) >= 3:
         outlook_score -= 1.5
@@ -1170,7 +1165,7 @@ def compute_tomorrow_outlook(
                 else:
                     reasons.append("sectors_mixed")
         except (KeyError, TypeError, ValueError, OSError) as exc:
-            logger.warning("Tomorrow outlook: sector performance failed: %s", type(exc).__name__, exc_info=True)
+            logger.warning("Outlook %s: sector performance failed: %s", td_iso, type(exc).__name__, exc_info=True)
 
     # ── Map score to traffic light ──
     if outlook_score >= 0.5:
@@ -1183,9 +1178,9 @@ def compute_tomorrow_outlook(
         label = "🟡 NEUTRAL"
         color = "orange"
 
-    # Build notable earnings list (top names for display)
+    # Build notable earnings list
     notable_earnings: list[dict[str, str]] = []
-    for e in earnings_tomorrow[:20]:
+    for e in earnings_day[:20]:
         tk = str(e.get("ticker") or "")
         nm = str(e.get("name") or "")
         timing = str(e.get("earnings_timing") or e.get("time") or "—")
@@ -1193,18 +1188,72 @@ def compute_tomorrow_outlook(
             notable_earnings.append({"ticker": tk, "name": nm, "timing": timing})
 
     return {
-        "next_trading_day": next_td_iso,
+        "target_date": td_iso,
         "outlook_label": label,
         "outlook_color": color,
         "outlook_score": round(outlook_score, 2),
         "reasons": reasons,
-        "earnings_tomorrow_count": len(earnings_tomorrow),
-        "earnings_bmo_tomorrow_count": len(earnings_bmo),
-        "high_impact_events_tomorrow": len(hi_events),
-        "high_impact_events_tomorrow_details": hi_events,
+        "earnings_count": len(earnings_day),
+        "earnings_bmo_count": len(earnings_bmo),
+        "high_impact_events": len(hi_events),
+        "high_impact_events_details": hi_events,
         "notable_earnings": notable_earnings,
         "sector_mood": sector_mood,
     }
+
+
+def compute_today_outlook(
+    bz_api_key: str,
+    fmp_api_key: str,
+) -> dict[str, Any]:
+    """Compute a today-trading-day outlook signal.
+
+    If today is not a trading day, returns a dict with
+    ``outlook_label = "⚪ MARKET CLOSED"`` and no data.
+    """
+    today = date.today()
+    if not _is_trading_day(today):
+        return {
+            "target_date": today.isoformat(),
+            "outlook_label": "⚪ MARKET CLOSED",
+            "outlook_color": "gray",
+            "outlook_score": 0.0,
+            "reasons": ["not_a_trading_day"],
+            "earnings_count": 0,
+            "earnings_bmo_count": 0,
+            "high_impact_events": 0,
+            "high_impact_events_details": [],
+            "notable_earnings": [],
+            "sector_mood": "closed",
+        }
+    result = _compute_outlook_for_date(today, bz_api_key, fmp_api_key)
+    # Backward-compat alias
+    result["next_trading_day"] = result["target_date"]
+    return result
+
+
+def compute_tomorrow_outlook(
+    bz_api_key: str,
+    fmp_api_key: str,
+) -> dict[str, Any]:
+    """Compute a next-trading-day outlook signal (🟢 / 🟡 / 🔴).
+
+    Delegates to the shared ``_compute_outlook_for_date`` core with the
+    next US equity trading day.  Returns the same dict shape with
+    backward-compatible key aliases (``next_trading_day``,
+    ``earnings_tomorrow_count``, etc.).
+    """
+    today = date.today()
+    next_td = _next_trading_day(today)
+    result = _compute_outlook_for_date(next_td, bz_api_key, fmp_api_key)
+
+    # Backward-compatible aliases expected by UI layer
+    result["next_trading_day"] = result["target_date"]
+    result["earnings_tomorrow_count"] = result["earnings_count"]
+    result["earnings_bmo_tomorrow_count"] = result["earnings_bmo_count"]
+    result["high_impact_events_tomorrow"] = result["high_impact_events"]
+    result["high_impact_events_tomorrow_details"] = result["high_impact_events_details"]
+    return result
 
 
 # ── Power Gap Scanner (PEG / Monster PEG / Monster Gap) ──────

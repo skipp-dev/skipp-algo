@@ -58,6 +58,7 @@ class BackgroundPoller:
         self._cursor: str | None = None
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
+        self._wake_event = threading.Event()  # signal to interrupt sleep
         self._thread: threading.Thread | None = None
 
         # Observable status (read from Streamlit main thread)
@@ -94,7 +95,20 @@ class BackgroundPoller:
     def stop(self) -> None:
         """Signal the thread to stop (non-blocking)."""
         self._stop_event.set()
+        self._wake_event.set()  # interrupt sleep so thread exits promptly
         logger.info("Background poller stop requested")
+
+    def stop_and_join(self, timeout: float = 5.0) -> None:
+        """Signal the thread to stop and wait for it to finish.
+
+        Use this when the caller needs the BG thread to be fully stopped
+        before proceeding (e.g. before deleting the SQLite DB file).
+        """
+        self.stop()
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=timeout)
+            if self._thread.is_alive():
+                logger.warning("Background poller thread did not exit within %.1fs", timeout)
 
     def update_interval(self, interval_s: float) -> None:
         """Update poll interval at runtime (thread-safe)."""
@@ -143,6 +157,18 @@ class BackgroundPoller:
         with self._lock:
             self._cursor = value
 
+    def wake_and_reset_cursor(self) -> None:
+        """Atomically reset cursor to None AND wake the poll thread.
+
+        This ensures the next poll uses cursor=None (fetch latest) even
+        if the thread is mid-sleep.  The wake event interrupts the
+        sleep so the poll happens immediately instead of waiting for
+        the remaining interval.
+        """
+        with self._lock:
+            self._cursor = None
+        self._wake_event.set()
+
     # ── Internal poll loop ──────────────────────────────────
 
     def _get_interval(self) -> float:
@@ -166,8 +192,15 @@ class BackgroundPoller:
             if _first_iteration:
                 _first_iteration = False
             else:
-                # Wait for the poll interval (interruptible by stop_event)
-                if self._stop_event.wait(timeout=interval):
+                # Sleep for the poll interval, but wake early on:
+                #   - _stop_event: graceful shutdown
+                #   - _wake_event: stale recovery / forced re-poll
+                # We use _wake_event.wait() as the primary sleep so that
+                # wake_and_reset_cursor() can interrupt it immediately.
+                self._wake_event.clear()
+                self._wake_event.wait(timeout=interval)
+                self._wake_event.clear()
+                if self._stop_event.is_set():
                     break
 
             # Grab adapters under lock
@@ -180,12 +213,16 @@ class BackgroundPoller:
 
             self.poll_attempts += 1
             _t0 = time.monotonic()
+            # Snapshot cursor under lock so a concurrent reset is
+            # not overwritten by the new_cursor assignment below.
+            with self._lock:
+                _use_cursor = self._cursor
             try:
                 items, new_cursor = poll_and_classify_multi(
                     benzinga_adapter=bz,
                     fmp_adapter=fmp,
                     store=self._store,
-                    cursor=self._cursor,
+                    cursor=_use_cursor,
                     page_size=self._cfg.page_size,
                     channels=getattr(self._cfg, "channels", None) or None,
                     topics=getattr(self._cfg, "topics", None) or None,
@@ -200,10 +237,15 @@ class BackgroundPoller:
                 self.last_poll_status = "ERROR"
                 self.last_poll_ts = time.time()
                 self.last_poll_duration_s = time.monotonic() - _t0
+                # Count exceptions toward the empty-poll auto-prune so
+                # persistent failures don't freeze the cursor forever.
+                self.consecutive_empty_polls += 1
                 continue
 
             with self._lock:
-                self._cursor = new_cursor
+                # Only advance cursor if it wasn't reset while we were polling
+                if self._cursor == _use_cursor:
+                    self._cursor = new_cursor
 
             self.last_poll_duration_s = time.monotonic() - _t0
             self.poll_count += 1
@@ -220,10 +262,10 @@ class BackgroundPoller:
             if not items:
                 self.consecutive_empty_polls += 1
                 if self.consecutive_empty_polls >= 3:
-                    # Partial prune when items have been ingested before;
-                    # full clear only when nothing was ever ingested (the
-                    # dedup DB is blocking everything from the start).
-                    _keep = 0.0 if self.total_items_ingested == 0 else self._cfg.feed_max_age_s
+                    # Full clear: partial keeps (feed_max_age_s) re-block
+                    # items that the API returns on cursor reset, causing
+                    # a 3-poll oscillation cycle.  Always clear everything.
+                    _keep = 0.0
                     for _prune_fn, _tbl in (
                         (self._store.prune_seen, "seen"),
                         (self._store.prune_clusters, "clusters"),

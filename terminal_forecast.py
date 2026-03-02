@@ -30,6 +30,10 @@ try:
     import yfinance as yf  # type: ignore[import-untyped]
 
     _YF_AVAILABLE = True
+    # Suppress yfinance internal logger — it emits ERROR for every 404
+    # (e.g. leveraged ETFs with no fundamentals on Yahoo), which floods
+    # the console with non-actionable noise.
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 except ImportError:
     _YF_AVAILABLE = False
 
@@ -209,8 +213,25 @@ class ForecastResult:
 # ── In-memory cache ──────────────────────────────────────────────
 _cache: dict[str, ForecastResult] = {}
 _CACHE_TTL_S = 300.0  # 5 minutes
+_CACHE_NO_DATA_TTL_S = 1800.0  # 30 min for symbols with no data (avoids re-fetching SOXL etc.)
 _CACHE_MAX_SIZE = 200  # evict expired entries when exceeded
 _cache_lock = threading.Lock()
+
+# Leveraged / inverse / derivative ETFs that have no fundamentals on Yahoo
+# Finance.  Attempting yfinance calls for these symbols produces noisy 404s.
+_NO_FUNDAMENTALS_SYMBOLS: set[str] = {
+    # Leveraged / inverse equity
+    "SOXL", "SOXS", "TQQQ", "SQQQ", "SPXL", "SPXS", "UPRO", "SPXU",
+    "LABU", "LABD", "TNA", "TZA", "TECL", "TECS", "FAS", "FAZ",
+    "UDOW", "SDOW", "NUGT", "DUST", "JNUG", "JDST", "ERX", "ERY",
+    "NAIL", "DRV", "CURE", "FNGU", "FNGD", "BULZ", "BERZ",
+    "WEBL", "WEBS", "WANT", "OOTO",
+    # Volatility / commodity derivative
+    "VXX", "UVXY", "SVXY", "UVIX", "SVOL",
+    # Leveraged single-stock (popular)
+    "TSLL", "TSLQ", "NVDL", "NVDS", "AMZU", "AMZD", "MSFU", "MSFD",
+    "AAPD", "AAPU", "GGLL", "GLL",
+}
 
 
 # ── FMP fetcher (primary) ────────────────────────────────────────
@@ -308,6 +329,11 @@ def _fetch_yf(sym: str) -> ForecastResult | None:
     if not _YF_AVAILABLE:
         return None
 
+    # Skip symbols known to have no fundamentals on Yahoo (leveraged ETFs etc.)
+    if sym in _NO_FUNDAMENTALS_SYMBOLS:
+        log.debug("Skipping yfinance for %s — no fundamentals available", sym)
+        return None
+
     try:
         ticker = yf.Ticker(sym)
         result = ForecastResult(symbol=sym, ts=time.time(), source="yfinance")
@@ -397,8 +423,10 @@ def fetch_forecast(symbol: str, *, force: bool = False) -> ForecastResult:
     if not force:
         with _cache_lock:
             cached = _cache.get(sym)
-            if cached and (now - cached.ts) < _CACHE_TTL_S:
-                return cached
+            if cached:
+                ttl = _CACHE_NO_DATA_TTL_S if (cached.error or not cached.has_data) else _CACHE_TTL_S
+                if (now - cached.ts) < ttl:
+                    return cached
 
     # Try FMP first (primary)
     result = _fetch_fmp(sym)

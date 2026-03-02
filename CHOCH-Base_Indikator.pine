@@ -59,9 +59,9 @@ ms_swingR = input.int(2, "Swing R", minval=1, maxval=30, group=grp)
 ms_maxAge = input.int(0, "Swing max age (bars, 0=off)", minval=0, maxval=5000, group=grp)
 
 ms_breakSrc = input.string("Wick", "Breakout source", options=["Close","Wick"], group=grp)
-ms_logic    = input.string("Standard", "Structure logic", options=["Standard","SMC+Sweep"], group=grp)
+ms_logic    = input.string("SMC+Sweep", "Structure logic", options=["Standard","SMC+Sweep"], group=grp)
 
-ms_mode = input.string("Verify", "ChoCH mode", options=["Ping","Verify","Ping+Verify"], group=grp)
+ms_mode = input.string("Ping", "ChoCH mode", options=["Ping","Verify","Ping+Verify"], group=grp)
 useAdxFilter = input.bool(false, "Use ADX trend filter", group=grp)
 adxLen       = input.int(14, "ADX length", minval=1, group=grp)
 adxThreshold = input.float(20.0, "ADX threshold", step=0.5, group=grp)

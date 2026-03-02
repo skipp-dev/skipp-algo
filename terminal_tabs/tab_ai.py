@@ -16,6 +16,7 @@ from terminal_ai_insights import (
     assemble_context,
     query_llm,
 )
+from terminal_technicals import fetch_technicals, _TV_AVAILABLE
 from terminal_ui_helpers import safe_markdown_text
 
 logger = logging.getLogger(__name__)
@@ -80,13 +81,23 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         if col.button(label, key=f"ai_preset_{i}", use_container_width=True):
             st.session_state["ai_selected_question"] = question
             st.session_state["ai_run_requested"] = True
+            st.rerun()
 
     # --- Custom question input ---
     st.markdown("##### Ask a Custom Question")
+
+    def _on_custom_q_submit():
+        """Trigger AI query when user presses Enter in the text input."""
+        q = (st.session_state.get("ai_custom_question") or "").strip()
+        if q:
+            st.session_state["ai_selected_question"] = q
+            st.session_state["ai_run_requested"] = True
+
     custom_q = st.text_input(
         "Your question about the current market data:",
         placeholder="e.g. What are the key catalysts for NVDA today?",
         key="ai_custom_question",
+        on_change=_on_custom_q_submit,
     )
 
     _qa_c1, _qa_c2, _qa_c3 = st.columns([1, 1, 2])
@@ -120,6 +131,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.session_state["ai_last_context_json"] = ""
         st.session_state["ai_selected_question"] = ""
         st.session_state["ai_run_requested"] = False
+        st.rerun()
 
     # Determine run state
     question = str(st.session_state.get("ai_selected_question") or "").strip()
@@ -129,9 +141,42 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # repeated calls on every auto-refresh rerun.
     if run_requested and question:
         # --- Assemble context ---
-        # Gather optional technicals and macro from session state
-        technicals = st.session_state.get("_cached_technicals")
         macro = st.session_state.get("_cached_macro")
+
+        # Fetch fresh technicals for top tickers in the feed
+        technicals = None
+        if _TV_AVAILABLE:
+            _tk_scores: dict[str, float] = {}
+            for _d in feed:
+                _tk = (_d.get("ticker") or "").upper().strip()
+                if not _tk or _tk in ("?", "N/A", ""):
+                    continue
+                _sc = abs(float(_d.get("news_score") or _d.get("composite_score") or 0))
+                _tk_scores[_tk] = max(_tk_scores.get(_tk, 0), _sc)
+            _top_tickers = sorted(_tk_scores, key=_tk_scores.get, reverse=True)[:8]
+
+            if _top_tickers:
+                with st.spinner(f"Fetching technicals for {len(_top_tickers)} tickers…"):
+                    _tech_ctx: dict[str, dict] = {}
+                    for _sym in _top_tickers:
+                        _r = fetch_technicals(_sym, "15m")
+                        if _r.error:
+                            continue
+                        _indicators = {}
+                        for _od in (_r.osc_detail or []):
+                            _indicators[_od["name"]] = {
+                                "value": _od["value"],
+                                "action": _od["action"],
+                            }
+                        _tech_ctx[_sym] = {
+                            "summary": _r.summary_signal,
+                            "oscillators": _r.osc_signal,
+                            "moving_averages": _r.ma_signal,
+                            "indicators": _indicators,
+                        }
+                    if _tech_ctx:
+                        technicals = _tech_ctx
+                        st.session_state["_cached_technicals"] = _tech_ctx
 
         with st.spinner("Assembling context and querying AI…"):
             context_json = assemble_context(

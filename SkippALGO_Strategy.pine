@@ -595,6 +595,7 @@ useUsiTrendOverride = input.bool(true, "USI blocks contrary entries", group="⚡
 //====================
 grp_score = "Score Engine (Option C)"
 lockPresetOverrides = input.bool(false, "Preserve current settings (lock preset overrides)", group=grp_score, tooltip="When enabled, Intraday/Swing preset auto-overrides are ignored and your current input values are kept.")
+presetAutoCooldown = input.bool(false, "Preset controls cooldown", group=grp_score, tooltip="If enabled, Intraday/Swing preset also overrides cooldown mode/minutes/triggers.")
 strategyParityCompat = input.bool(false, "Parity compatibility flag", group=grp_score, tooltip="No-op compatibility input used to keep Indicator/Strategy input-count parity checks stable.")
 entryPreset = input.string("Manuell", "Entry preset", options=["Manuell", "Intraday", "Swing"], group=grp_score)
 entryBehaviorProfile = input.string("Legacy (v6.3.9-like)", "Entry behavior profile", options=["Current (v6.3.12)", "Legacy (v6.3.9-like)", "Scalp Early (v6.3.12-fast)"], group=grp_score, tooltip="Current keeps the stricter v6.3.12 score/context/chop behavior. Legacy loosens entry strictness to approximate v6.3.9 timing. Scalp Early keeps v6.3.12 structure but lowers entry thresholds for earlier confirmations.")
@@ -2943,17 +2944,22 @@ if legacyEntryBehavior
 bool scoreRequireDirectionalContextEff = not legacyEntryBehavior
 bool scoreChopHardVetoEff = not legacyEntryBehavior and not scalpEarlyEntryBehavior
 float chochMinProbEff = legacyEntryBehavior ? math.max(0.34, chochMinProb - 0.05) : scalpEarlyEntryBehavior ? math.max(0.30, chochMinProb - 0.08) : chochMinProb
+string cooldownModeEff = (presetAutoCooldown and presetOverridesActive) ? "Bars" : cooldownMode
+int cooldownMinutesPreset = presetIsIntraday ? 15 : 45
+int cooldownMinutesEff = (presetAutoCooldown and presetOverridesActive) ? cooldownMinutesPreset : cooldownMinutes
+string cooldownTriggersEff = (presetAutoCooldown and presetOverridesActive and cooldownTriggers != "EntriesOnly") ? "ExitsOnly" : cooldownTriggers
+int cooldownBarsEff = cooldownBars
 
 // C2 – Adaptive cooldown: halve wait when model confidence is high
-effectiveCooldownBars = (confidence >= 0.80) ? math.max(2, math.round(cooldownBars / 2)) : cooldownBars
-effectiveCooldownMin  = (confidence >= 0.80) ? math.max(2, math.round(cooldownMinutes / 2)) : cooldownMinutes
+effectiveCooldownBars = (confidence >= 0.80) ? math.max(2, math.round(cooldownBarsEff / 2)) : cooldownBarsEff
+effectiveCooldownMin  = (confidence >= 0.80) ? math.max(2, math.round(cooldownMinutesEff / 2)) : cooldownMinutesEff
 bool tpPreset30mIsManual = tpPreset30m == "Manual"
 float dynamicTpKickInREff = tpPreset30mIsManual ? dynamicTpKickInR : tpPreset30m == "Conservative" ? 1.0 : tpPreset30m == "Balanced" ? 0.7 : tpPreset30m == "Runner" ? 0.4 : 0.2
 float dynamicTpAddATRPerREff = tpPreset30mIsManual ? dynamicTpAddATRPerR : tpPreset30m == "Conservative" ? 0.30 : tpPreset30m == "Balanced" ? 0.50 : tpPreset30m == "Runner" ? 0.75 : 1.00
 float dynamicTpMaxAddATREff = tpPreset30mIsManual ? dynamicTpMaxAddATR : tpPreset30m == "Conservative" ? 2.5 : tpPreset30m == "Balanced" ? 4.0 : tpPreset30m == "Runner" ? 6.0 : 8.0
 
 cooldownOk =
-     cooldownMode == "Bars"
+     cooldownModeEff == "Bars"
          ? (na(lastSignalBar) ? true : (bar_index - lastSignalBar > effectiveCooldownBars))
          : (na(lastSignalTime) ? true : (time - lastSignalTime > (effectiveCooldownMin * 60 * 1000)))
 
@@ -3663,13 +3669,13 @@ allowEntry =
 // EntriesOnly exit-hold must follow configured cooldown duration (Bars/Minutes).
 // Use base (confidence-insensitive) cooldown for hold window so high-confidence
 // entries don't get a shortened protection period.
-holdCooldownBars = cooldownBars
-holdCooldownMin  = cooldownMinutes
+holdCooldownBars = cooldownBarsEff
+holdCooldownMin  = cooldownMinutesEff
 entryOnlyExitHoldActive =
-     (cooldownTriggers == "EntriesOnly")
+     (cooldownTriggersEff == "EntriesOnly")
  and pos != 0
  and (
-        cooldownMode == "Bars"
+        cooldownModeEff == "Bars"
             ? (holdCooldownBars >= 1 and (not na(enBar)) and (bar_index - enBar <= holdCooldownBars))
             : (holdCooldownMin  >= 1 and (not na(enTime)) and (time - enTime <= (holdCooldownMin * 60 * 1000)))
     )
@@ -4544,7 +4550,7 @@ if barstate.isconfirmed
         // Cooldown semantics:
         // - AllSignals: entries also reset timer
         // - EntriesOnly: reset timer on BUY/SHORT only
-        if cooldownTriggers == "AllSignals" or cooldownTriggers == "EntriesOnly"
+        if cooldownTriggersEff == "AllSignals" or cooldownTriggersEff == "EntriesOnly"
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "BUY"
@@ -4566,7 +4572,7 @@ if barstate.isconfirmed
         // Cooldown semantics:
         // - AllSignals: entries also reset timer
         // - EntriesOnly: reset timer on BUY/SHORT only
-        if cooldownTriggers == "AllSignals" or cooldownTriggers == "EntriesOnly"
+        if cooldownTriggersEff == "AllSignals" or cooldownTriggersEff == "EntriesOnly"
             lastSignalBar  := bar_index
             lastSignalTime := time
         lastSig := "SHORT"

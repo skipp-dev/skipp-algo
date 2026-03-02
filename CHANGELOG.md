@@ -6,6 +6,57 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-03-03)
+
+- **Live technicals wired into AI Insights:**
+  - `tab_ai.py` now fetches real TradingView technical analysis (RSI, MACD, ADX, oscillators, MAs) for the top 8 tickers by |news_score| on each AI query, using the 15m interval.
+  - Previously `_cached_technicals` was referenced but never populated — LLM context only included news headlines. The LLM now receives technicals summaries alongside news, dramatically improving Trade Ideas and Market Pulse quality.
+  - Results cached in `st.session_state["_cached_technicals"]` for reuse across tabs.
+
+- **Tech badge column in dashboard tabs:**
+  - Top Movers, Actionable, and Defense & Aerospace tabs now display a **Tech** column showing TradingView summary signals (🟢 Buy, 🔴 Sell, ⚪ Neutral, etc.) for each symbol.
+  - Added `_get_tech_summary()` helper in `streamlit_terminal.py` reads cached technicals from session state.
+
+- **🎯 Actionable tab (new — tab #4):**
+  - Curated view of high-conviction trade setups ranked by composite news + technical score.
+  - Includes Tech badge column and news score overlay.
+  - Tab count increased 18 → 19.
+
+- **Today Outlook in Outlook tab:**
+  - Outlook tab now shows both **Today** and **Next-Trading-Day** outlooks side by side.
+  - `compute_today_outlook()` function added to `terminal_poller.py` — uses shared `_compute_outlook_for_date()` core with the current trading day (returns "MARKET CLOSED" on non-trading days).
+  - Tomorrow outlook refactored into shared core (`_compute_outlook_for_date()`) with backward-compatible aliases.
+
+- **CHOCH-Indicator.pine alertcondition() calls:**
+  - Added 4 `alertcondition()` calls — **Buy**, **Short**, **Exit** (close long), **Cover** (close short) — enabling TradingView "Create Alert" directly from the CHOCH indicator.
+
+- **Leveraged ETF skip-list in terminal_forecast.py:**
+  - Added `_NO_FUNDAMENTALS_SYMBOLS` set (~45 tickers: SOXL, TQQQ, UVXY, TSLL, etc.) to skip yfinance fundamental lookups that always 404.
+  - Added 30-min negative-TTL cache (`_CACHE_NO_DATA_TTL_S`) to avoid re-fetching symbols with no data.
+  - Silenced yfinance internal logger (set to CRITICAL) to stop noisy 404 ERRORs flooding the console.
+
+### Fixed (2026-03-03)
+
+- **Race condition in BackgroundPoller:** `wake_event.set()` now properly interrupts `stop_event.wait()` — replaced `stop_event.wait()` with `wake_event.wait()` inside the poll loop and checking `stop_event.is_set()` explicitly.
+- **BackgroundPoller stop_and_join():** Added `stop_and_join()` method for clean thread shutdown in tests and session teardown; previous code called `stop_event.set()` but never joined the thread.
+- **Feed stuck on exception:** Empty-poll counter now increments on exception paths too, preventing infinite exception loops that kept the poller alive without producing data.
+- **Auto-prune oscillation:** Changed auto-prune `keep=250` → `keep=0` to fully clear the dedup gate and unblock fresh fetches instead of partially pruning.
+- **SQLite corruption resilience:** `store_sqlite.py` now runs `PRAGMA quick_check` on init; if the database is corrupt, it auto-renames the file and creates a fresh database instead of crashing.
+- **Movers KeyError guards:** Added `.get()` guards for Benzinga movers response fields (`symbol`, `change`, `price`) that could be missing, preventing uncaught KeyError crashes.
+- **Feed staleness churn loop:** Feed lifecycle recovery now tracks `last_ingest_ts` (time of most recent successful ingest) with a configurable grace period, preventing the recovery loop from firing repeatedly when published timestamps are old but the feed is actually active.
+- **AI Insights "Clear AI result" button:** Added `st.rerun()` after clearing session state so the UI immediately reflects the cleared state.
+- **AI Insights preset button switching:** Added `st.rerun()` after preset button clicks (e.g., switching from "Market Pulse" to "Trade Ideas") to ensure the new question is processed immediately instead of requiring a second click.
+
+### Changed (2026-03-03)
+
+- **Technicals cache TTL reduced:** `terminal_technicals.py` `_CACHE_TTL_S` changed from 900s (15 min) → 180s (3 min) for fresher intraday data.
+- **"News Score" column rename:** "Score" column in Movers tab renamed to "News Score" for clarity, avoiding confusion with technical/composite scores.
+- **CHOCH-Base_Indikator.pine defaults aligned:** `ms_logic` default changed "Standard" → "SMC+Sweep", `ms_mode` default changed "Verify" → "Ping" to match strategy defaults.
+- **SkippALGO_Strategy.pine cooldown sync:** Added `presetAutoCooldown` input and synchronized `cooldownTriggersEff`/`ModeEff`/`MinutesEff`/`BarsEff` to respect preset-driven cooldown overrides.
+- **VWAP_Reclaim_Indicator.pine alert rename:** Alert titles renamed from "Long Entry / Exit Long / Short Entry / Exit Short" to "Buy / Exit / Short / Cover" for consistency with CHOCH and SkippALGO conventions.
+- **Outlook tab refactored:** Renamed from "Tomorrow Outlook" to "Today & Next-Trading-Day Outlook", with `_compute_outlook_for_date()` shared core eliminating code duplication.
+- **Outlook return keys normalized:** Generic keys (`target_date`, `earnings_count`, `high_impact_events`) with backward-compatible aliases for existing consumers.
+
 ### Fixed (2026-03-02)
 
 - **Streamlit Cloud inotify crash:** Added `fileWatcherType = "none"` to `.streamlit/config.toml` to prevent `OSError: [Errno 24] inotify instance limit reached` on shared Linux hosts. Streamlit's default `watchdog`-based file watcher exhausted the low inotify limit, cascading to EMFILE errors on all network connections (Benzinga, FMP).

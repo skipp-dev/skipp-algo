@@ -168,6 +168,7 @@ from terminal_poller import (
     ClassifiedItem,
     DEFENSE_TICKERS,
     TerminalConfig,
+    compute_today_outlook,
     compute_tomorrow_outlook,
     fetch_benzinga_delayed_quotes,
     fetch_benzinga_market_movers,
@@ -948,6 +949,10 @@ with st.sidebar:
         _stale_label = f"Feed age: {_diag_staleness:.0f}m"
         if _diag_staleness > 2 and is_market_hours():
             st.warning(_stale_label)
+        elif _diag_staleness > 15 and not is_market_hours():
+            st.warning(f"{_stale_label} (off-hours)")
+        elif not is_market_hours():
+            st.caption(f"{_stale_label} (off-hours)")
         else:
             st.caption(_stale_label)
     _diag_cursor = st.session_state.cursor
@@ -983,13 +988,14 @@ with st.sidebar:
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
     if st.button("🗑️ Reset dedup DB", width='stretch'):
-        # Stop background poller FIRST so it doesn't use closed adapters
+        # Stop background poller AND WAIT for it to finish so it
+        # doesn't use the store/adapters after we close them.
         _bp_reset = st.session_state.get("bg_poller")
         if _bp_reset is not None:
             try:
-                _bp_reset.stop()
+                _bp_reset.stop_and_join(timeout=5.0)
             except Exception:
-                logger.debug("bg_poller.stop() failed during reset", exc_info=True)
+                logger.debug("bg_poller.stop_and_join() failed during reset", exc_info=True)
         # Close existing SQLite connection before deleting files
         if st.session_state.store is not None:
             try:
@@ -1135,7 +1141,7 @@ with st.sidebar:
     )
 
     _INTEL_ENABLED = st.toggle(
-        "Optional intelligence modules",
+        "Optional intelligence modules — Turn off for fast mode, disables AI Insights",
         key="intel_toggle",
         help=(
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
@@ -1292,6 +1298,18 @@ def _cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
     except Exception:
         logger.warning("_cached_spike_data failed", exc_info=True)
         return {"gainers": [], "losers": [], "actives": []}
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _cached_today_outlook(
+    bz_key: str, fmp_key: str, _cache_buster: str = "",
+) -> dict[str, Any]:
+    """Cache today outlook for 5 minutes."""
+    try:
+        return compute_today_outlook(bz_key, fmp_key)
+    except Exception:
+        logger.warning("_cached_today_outlook failed", exc_info=True)
+        return {}
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -1696,15 +1714,22 @@ if _lc_result.get("feed_action") == "cleared":
     st.session_state.poll_count = 0
     _bp_sync = st.session_state.get("bg_poller")
     if _bp_sync is not None:
-        _bp_sync.cursor = None
+        _bp_sync.wake_and_reset_cursor()
     logger.info("Feed lifecycle: weekend data cleared")
 elif _lc_result.get("feed_action") == "stale_recovery":
     st.session_state.cursor = None
     st.session_state.consecutive_empty_polls = 0
+    # Clear stale items so feed_staleness_minutes() reflects the
+    # recovery rather than re-measuring the same old timestamps.
+    st.session_state.feed = []
+    st.session_state.poll_count = 0
     _bp_sync = st.session_state.get("bg_poller")
     if _bp_sync is not None:
-        _bp_sync.cursor = None
-    logger.info("Feed lifecycle: stale-recovery cursor reset")
+        # Atomic reset + wake: avoids BG thread overwriting cursor and
+        # interrupts its sleep so the next poll is immediate.
+        _bp_sync.consecutive_empty_polls = 0
+        _bp_sync.wake_and_reset_cursor()
+    logger.info("Feed lifecycle: stale-recovery — feed cleared + cursor reset + BG poller woken")
 
 # Adjust poll interval for off-hours
 _effective_interval = _lifecycle.get_off_hours_poll_interval(float(interval))
@@ -1749,6 +1774,12 @@ if st.session_state.use_bg_poller:
     # Drain new items from background thread
     _bg_items = st.session_state.bg_poller.drain()
     if _bg_items:
+        # Record ingest time so lifecycle manager knows data is flowing
+        # even when article published_ts is old.
+        _lm = st.session_state.get("lifecycle_mgr")
+        if _lm is not None:
+            _lm.notify_ingest()
+
         # Alert evaluation (needs ClassifiedItem objects)
         _evaluate_alerts(_bg_items)
 
@@ -1786,6 +1817,7 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 # ── Main display ────────────────────────────────────────────────
 
+st.markdown("<style>h1 {margin-top: -1.2rem !important;}</style>", unsafe_allow_html=True)
 st.title("📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported")
 
 if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
@@ -1870,6 +1902,17 @@ else:
     # Compute once per render — avoids 4+ redundant calls and cross-tab drift
     _current_session = market_session()
 
+    def _get_tech_summary(symbol: str, interval: str = "15m") -> str:
+        """Return cached tech summary badge for dataframe cells."""
+        cache = st.session_state.get("_cached_technicals", {})
+        entry = cache.get(symbol.upper().strip())
+        if not entry:
+            return "\u2014"
+        sig = entry.get("summary", "")
+        icon = signal_icon(sig)
+        label = signal_label(sig)
+        return f"{icon} {label}" if icon else (label or "\u2014")
+
     def _safe_tab(label: str, body_fn, *args, **kwargs) -> None:  # noqa: ANN001
         """Wrap a tab body in try/except so one failing tab doesn't crash others (item 7)."""
         try:
@@ -1878,8 +1921,8 @@ else:
             st.error(f"⚠️ {label} tab failed to render.")
             logger.exception("Tab %s render error", label)
 
-    tab_feed, tab_ai, tab_rank, tab_segments, tab_bitcoin, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_movers, tab_bz_movers, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
-        ["📰 Live Feed", "🤖 AI Insights", "🏆 Rankings", "🏗️ Segments",
+    tab_feed, tab_ai, tab_rank, tab_actionable, tab_segments, tab_bitcoin, tab_rt_spikes, tab_spikes, tab_heatmap, tab_calendar, tab_outlook, tab_movers, tab_bz_movers, tab_defense, tab_breaking, tab_trending, tab_social, tab_alerts, tab_table = st.tabs(
+        ["📰 Live Feed", "🤖 AI Insights", "🏆 Rankings", "🎯 Actionable", "🏗️ Segments",
          "₿ Bitcoin", "⚡ RT Spikes", "🚨 Spikes", "🗺️ Heatmap", "📅 Calendar",
          "🔮 Outlook", "🔥 Top Movers", "💹 Movers", "🛡️ Defense & Aerospace",
          "🔴 Breaking", "📈 Trending", "🔥 Social",
@@ -2205,17 +2248,19 @@ else:
                 _mov_rows = []
                 _now_mov = time.time()
                 for m in _sorted_movers[:100]:
+                    _m_price = m.get("price") or 0
                     _dir_icon = "🟢" if m.get("chg_pct", 0) > 0 else "🔴"
                     _mov_rows.append({
                         "Dir": _dir_icon,
-                        "Symbol": m["symbol"],
+                        "Symbol": m.get("symbol", "?"),
                         "Name": m.get("name", ""),
-                        "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
-                        "Change": f"{m['change']:+.2f}",
-                        "Change %": f"{m['chg_pct']:+.2f}%",
+                        "Price": f"${_m_price:.2f}" if _m_price >= 1 else f"${_m_price:.4f}",
+                        "Change": f"{m.get('change', 0):+.2f}",
+                        "Change %": f"{m.get('chg_pct', 0):+.2f}%",
                         "Age": format_age_string(m.get("_ts"), now=_now_mov),
-                        "Volume": f"{m['volume']:,}" if m.get("volume") else "",
+                        "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                         "Source": m.get("source", ""),
+                        "Tech": _get_tech_summary(m.get("symbol", "")),
                     })
 
                 df_mov = pd.DataFrame(_mov_rows)
@@ -2231,6 +2276,7 @@ else:
                         "Name": st.column_config.TextColumn("Name", width="medium"),
                         "Change %": st.column_config.TextColumn("Change %", width="small"),
                         "Age": st.column_config.TextColumn("Age", width="small"),
+                        "Tech": st.column_config.TextColumn("Tech", width="small"),
                     },
                 )
 
@@ -2388,20 +2434,21 @@ else:
                         _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
                     elif _rank_nlp:
                         _nlp_col = "⚪ —"
+                    _r_price = m.get("price") or 0
                     _rank_rows.append({
                         "#": i,
                         "Dir": _dir,
-                        "Symbol": m["symbol"],
+                        "Symbol": m.get("symbol", "?"),
                         "Name": m.get("name", ""),
-                        "Price": f"${m['price']:.2f}" if m["price"] >= 1 else f"${m['price']:.4f}",
-                        "Change": f"{m['change']:+.2f}",
-                        "Change %": f"{m['chg_pct']:+.2f}%",
+                        "Price": f"${_r_price:.2f}" if _r_price >= 1 else f"${_r_price:.4f}",
+                        "Change": f"{m.get('change', 0):+.2f}",
+                        "Change %": f"{m.get('chg_pct', 0):+.2f}%",
                         "Score": round(_composite_score(m), 2),
                         "Age": format_age_string(m.get("_ts")),
                         "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
                         "NLP": _nlp_col,
                         "Headline": _hl_url if _hl_url else _hl_text,
-                        "Volume": f"{m['volume']:,}" if m.get("volume") else "",
+                        "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                     })
 
                 df_rank = pd.DataFrame(_rank_rows)
@@ -2454,6 +2501,68 @@ else:
                     _render_event_clusters_expander(_rank_symbols, key_prefix="ec_rank")
                 else:
                     st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
+
+    # ── TAB: Actionable ────────────────────────────────────
+    with tab_actionable:
+        st.subheader("🎯 Actionable Items")
+        _act_feed = dedup_feed_items([d for d in feed if d.get("is_actionable")])
+        # Sort by freshest first (highest published_ts on top)
+        _act_feed.sort(key=lambda d: d.get("published_ts") or 0, reverse=True)
+        if not _act_feed:
+            st.info("No actionable items in the current feed.")
+        else:
+            st.caption(
+                f"{len(_act_feed)} actionable items — "
+                "sorted by time (freshest first). Click column headers to re-sort."
+            )
+
+            _act_now = time.time()
+            _act_rows = []
+            for i, _ai in enumerate(_act_feed, 1):
+                _ai_tk = (_ai.get("ticker") or "?").upper()
+                _ai_sc = _safe_float_mov(_ai.get("news_score") or _ai.get("composite_score"))
+                _ai_sent = (_ai.get("sentiment_label") or "").lower()
+                _ai_sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ai_sent, "")
+                _ai_hl = (_ai.get("headline") or "")[:120]
+                _ai_url = _ai.get("url") or ""
+                _ai_cat = _ai.get("category") or ""
+                _ai_mat = _ai.get("materiality") or ""
+                _act_rows.append({
+                    "#": i,
+                    "Symbol": _ai_tk,
+                    "News Score": round(_ai_sc, 3),
+                    "Sentiment": f"{_ai_sent_icon} {_ai_sent.title()}" if _ai_sent else "",
+                    "Category": _ai_cat,
+                    "Materiality": _ai_mat,
+                    "Headline": _ai_url if _ai_url else _ai_hl,
+                    "Time": format_age_string(_ai.get("published_ts"), now=_act_now),
+                    "Tech": _get_tech_summary(_ai_tk),
+                })
+
+            _df_act = pd.DataFrame(_act_rows).set_index("#")
+
+            _act_col_cfg: dict[str, Any] = {
+                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "News Score": st.column_config.NumberColumn("News Score", width="small", format="%.3f"),
+                "Sentiment": st.column_config.TextColumn("Sentiment", width="small"),
+                "Category": st.column_config.TextColumn("Category", width="small"),
+                "Materiality": st.column_config.TextColumn("Materiality", width="small"),
+                "Time": st.column_config.TextColumn("Time", width="small"),
+                "Tech": st.column_config.TextColumn("Tech", width="small"),
+            }
+            if any(r.get("Headline", "").startswith("http") for r in _act_rows):
+                _act_col_cfg["Headline"] = st.column_config.LinkColumn(
+                    "Headline",
+                    display_text=r"https?://[^/]+/(.{0,60}).*",
+                    width="large",
+                )
+
+            st.dataframe(
+                _df_act,
+                use_container_width=True,
+                height=min(800, 40 + 35 * len(_df_act)),
+                column_config=_act_col_cfg,
+            )
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments:
@@ -3026,7 +3135,7 @@ else:
 
     # ── TAB: Outlook ────────────────────────────────────────
     with tab_outlook:
-        st.subheader("🔮 Outlook — Next-Trading-Day Assessment")
+        st.subheader("🔮 Outlook — Today & Next-Trading-Day")
 
         bz_key = cfg.benzinga_api_key
         fmp_key = cfg.fmp_api_key
@@ -3036,12 +3145,11 @@ else:
         else:
             _today_iso = datetime.now(UTC).strftime("%Y-%m-%d")
 
-            # API-heavy factors (earnings, economics, sectors) are cached.
-            # Feed sentiment is computed live below since the feed is mutable
-            # session state that cannot be hashed for caching.
+            # Fetch both outlooks (cached — 5 min TTL)
+            today_outlook = _cached_today_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
             outlook = _cached_tomorrow_outlook(bz_key, fmp_key, _cache_buster=_today_iso)
 
-            # Overlay live feed sentiment on top of cached outlook
+            # Compute live feed sentiment (shared between both sections)
             _feed_for_outlook = feed[-200:] if feed else []
             if _feed_for_outlook:
                 _bear_c = sum(
@@ -3067,16 +3175,75 @@ else:
             else:
                 _feed_sentiment_label = "⚪ No feed data"
 
-            # ── Traffic light banner ──
+            # ────────────────────────────────────────────────
+            # ── TODAY'S OUTLOOK ──
+            # ────────────────────────────────────────────────
+            if today_outlook:
+                _to_label = today_outlook.get("outlook_label", "🟡 NEUTRAL")
+                _to_color = today_outlook.get("outlook_color", "orange")
+                _to_date = today_outlook.get("target_date", _today_iso)
+
+                st.markdown(
+                    f"<div style='padding:0.7rem 1.2rem;border-radius:0.6rem;"
+                    f"background:{_to_color};color:white;font-weight:700;"
+                    f"font-size:1.2rem;text-align:center;margin-bottom:0.8rem'>"
+                    f"TODAY  {_to_label} — {_to_date}</div>",
+                    unsafe_allow_html=True,
+                )
+
+                if _to_label != "⚪ MARKET CLOSED":
+                    _to_cols = st.columns(5)
+                    _to_cols[0].metric("Outlook Score", f"{today_outlook.get('outlook_score', 0):.2f}")
+                    _to_cols[1].metric("Earnings Today", today_outlook.get("earnings_count", 0))
+                    _to_cols[2].metric("Earnings BMO", today_outlook.get("earnings_bmo_count", 0))
+                    _to_cols[3].metric("High-Impact Events", today_outlook.get("high_impact_events", 0))
+                    _to_cols[4].metric("Feed Sentiment", _feed_sentiment_label)
+
+                    # High-impact events for today
+                    _to_hi: list[dict[str, Any]] = today_outlook.get("high_impact_events_details") or []
+                    if _to_hi:
+                        with st.expander(f"📋 Today's High-Impact Events ({len(_to_hi)})", expanded=False):
+                            for _ev in _to_hi:
+                                _ev_n = safe_markdown_text(str(_ev.get("event", "—")))
+                                _ev_c = safe_markdown_text(str(_ev.get("country", "US")))
+                                _ev_s = safe_markdown_text(str(_ev.get("source", "")))
+                                st.markdown(f"- **{_ev_n}** ({_ev_c}) — {_ev_s}")
+
+                    # Notable earnings today
+                    _to_earn = today_outlook.get("notable_earnings") or []
+                    if _to_earn:
+                        with st.expander(f"📊 Earnings Reporting Today ({len(_to_earn)})", expanded=False):
+                            _to_df = pd.DataFrame(_to_earn)
+                            _to_disp = [c for c in ["ticker", "name", "timing"] if c in _to_df.columns]
+                            st.dataframe(
+                                _to_df[_to_disp] if _to_disp else _to_df,
+                                use_container_width=True,
+                                height=min(300, 40 + 35 * len(_to_df)),
+                            )
+
+                    # Today factors & mood
+                    _to_reasons = today_outlook.get("reasons") or []
+                    _to_mood = today_outlook.get("sector_mood", "neutral")
+                    _to_mood_e = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(_to_mood, "⚪")
+                    st.caption(
+                        f"**Factors:** {' · '.join(_to_reasons)}  ·  "
+                        f"**Sector Mood:** {_to_mood_e} {_to_mood.title()}"
+                    )
+
+                st.divider()
+
+            # ────────────────────────────────────────────────
+            # ── TOMORROW'S OUTLOOK ──
+            # ────────────────────────────────────────────────
             o_label = outlook.get("outlook_label", "🟡 NEUTRAL")
             o_color = outlook.get("outlook_color", "orange")
             next_td_str = outlook.get("next_trading_day", "—")
 
             st.markdown(
-                f"<div style='padding:0.8rem 1.2rem;border-radius:0.6rem;"
+                f"<div style='padding:0.7rem 1.2rem;border-radius:0.6rem;"
                 f"background:{o_color};color:white;font-weight:700;"
-                f"font-size:1.3rem;text-align:center;margin-bottom:1rem'>"
-                f"{o_label} — {next_td_str}</div>",
+                f"font-size:1.2rem;text-align:center;margin-bottom:0.8rem'>"
+                f"NEXT TRADING DAY  {o_label} — {next_td_str}</div>",
                 unsafe_allow_html=True,
             )
 
@@ -3823,9 +3990,10 @@ else:
                         m4.metric("🔴 Losers", int((_cg_mask < 0).sum()))
 
                     # Data table
+                    df_def["Tech"] = df_def["symbol"].apply(lambda s: _get_tech_summary(str(s)))
                     display_cols = [c for c in [
                         "symbol", "name", "price", "change",
-                        "changesPercentage", "volume", "avgVolume",
+                        "changesPercentage", "Tech", "volume", "avgVolume",
                         "marketCap", "pe", "yearHigh", "yearLow",
                     ] if c in df_def.columns]
 

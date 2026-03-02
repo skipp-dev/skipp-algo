@@ -50,7 +50,8 @@ _NYSE_OPEN_MIN = 9 * 60 + 30   # 570
 _NYSE_CLOSE_MIN = 16 * 60      # 960
 _PREMARKET_START_MIN = 4 * 60  # 04:00 ET
 _PRESEED_WINDOW_MIN = 30       # pre-seed 30 min before open
-_STALE_RECOVERY_COOLDOWN_S = 300.0  # 5 min between auto-recovery attempts
+_STALE_RECOVERY_COOLDOWN_S = 180.0  # 3 min between auto-recovery attempts
+_STALE_RECOVERY_GRACE_S = 90.0  # 90s grace after recovery before re-checking
 
 
 def is_weekend(dt: datetime | None = None) -> bool:
@@ -100,8 +101,19 @@ def feed_staleness_minutes(feed: list[dict[str, Any]]) -> float | None:
     return (time.time() - newest_ts) / 60
 
 
-def is_feed_stale(feed: list[dict[str, Any]], max_age_min: float = 120) -> bool:
-    """True if the newest feed item is older than max_age_min."""
+def is_feed_stale(feed: list[dict[str, Any]], max_age_min: float = 120,
+                  last_ingest_ts: float = 0.0) -> bool:
+    """True if the newest feed item is older than max_age_min.
+
+    If *last_ingest_ts* is provided and recent (within 2× max_age_min),
+    the feed is NOT considered stale — the API returned articles that
+    happen to have old publication timestamps but data IS flowing.
+    """
+    # If we ingested data recently, the feed is alive regardless of published_ts
+    if last_ingest_ts > 0:
+        ingest_age_min = (time.time() - last_ingest_ts) / 60
+        if ingest_age_min < max_age_min * 2:
+            return False
     age = feed_staleness_minutes(feed)
     if age is None:
         return True  # empty feed is stale
@@ -144,8 +156,18 @@ class FeedLifecycleManager:
         self._preseed_done: bool = False
         self._last_lifecycle_check: float = 0.0
         self._last_stale_recovery_ts: float = 0.0
+        self._last_ingest_ts: float = 0.0
         # Date of last weekend clear (to only clear once per Monday)
         self._weekend_clear_date: str = ""
+
+    def notify_ingest(self) -> None:
+        """Record that items were just ingested from the BG poller.
+
+        This timestamp is used by ``is_feed_stale`` to avoid false
+        positives when the API returns articles with old ``published_ts``
+        but data IS actually flowing.
+        """
+        self._last_ingest_ts = time.time()
 
     def should_clear_weekend_data(self) -> bool:
         """True on Monday pre-market if stale weekend data hasn't been cleared yet."""
@@ -217,7 +239,7 @@ class FeedLifecycleManager:
         """
         now = _now_et()
         if is_weekend(now):
-            return max(120.0, base_interval * 20)
+            return max(90.0, base_interval * 6)
 
         mins = _minutes_since_midnight(now)
         if now.weekday() < 5:
@@ -230,7 +252,7 @@ class FeedLifecycleManager:
             if _NYSE_CLOSE_MIN <= mins < 20 * 60:
                 # After-hours: slower
                 return base_interval * 3
-        # Off-hours / weekends: moderate throttle (×4) to save API quota
+        # Off-hours: moderate throttle (×4) to save API quota
         # while still keeping data reasonably fresh.
         return max(60.0, base_interval * 4)
 
@@ -262,13 +284,19 @@ class FeedLifecycleManager:
                 result["feed_action"] = "cleared"
                 return result
 
-        # 2. Stale-data auto-recovery during market hours
-        #    When the newest item is > 30 min old AND we're in
-        #    extended hours (04:00-20:00 ET), reset cursor + prune
-        #    dedup so next poll starts fresh.  Guarded by a cooldown
-        #    so we don't reset every 30 s if the API genuinely has no
-        #    new articles.
-        if is_market_hours() and is_feed_stale(feed, max_age_min=5):
+        # 2. Stale-data auto-recovery (all hours)
+        #    During market hours (04:00-20:00 ET): trigger when feed > 5 min old.
+        #    During off-hours / weekends: trigger when feed > 15 min old
+        #    (articles are still published but less frequently).
+        #    Guarded by a cooldown so we don't reset every 30 s if the
+        #    API genuinely has no new articles.
+        _stale_threshold = 5.0 if is_market_hours() else 15.0
+        _last_ingest = getattr(self, '_last_ingest_ts', 0.0)
+        # Grace period: skip stale check entirely right after a recovery
+        # to give the BG poller time to fetch and deliver items.
+        _in_grace = (now - self._last_stale_recovery_ts) < _STALE_RECOVERY_GRACE_S
+        if not _in_grace and is_feed_stale(feed, max_age_min=_stale_threshold,
+                                            last_ingest_ts=_last_ingest):
             staleness = feed_staleness_minutes(feed)
             result["feed_stale"] = True
             result["staleness_min"] = staleness
@@ -286,10 +314,11 @@ class FeedLifecycleManager:
                         logger.warning("Stale-recovery prune(%s) failed: %s", _tbl, exc, exc_info=True)
                 self._last_stale_recovery_ts = now
                 result["feed_action"] = "stale_recovery"
+                _phase = "market hours" if is_market_hours() else "off-hours"
                 logger.info(
-                    "Stale-recovery triggered: feed %.0f min old during market hours — "
+                    "Stale-recovery triggered: feed %.0f min old during %s — "
                     "cursor reset + dedup pruned",
-                    staleness or 0,
+                    staleness or 0, _phase,
                 )
 
         # 3. Pre-seed window detection

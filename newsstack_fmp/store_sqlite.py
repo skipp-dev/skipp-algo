@@ -6,9 +6,12 @@ retaining crash safety.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import threading
 import time
+
+logger = logging.getLogger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (
@@ -39,12 +42,36 @@ class SqliteStore:
 
     def __init__(self, path: str) -> None:
         self._lock = threading.Lock()
+        self._path = path
         self.conn = sqlite3.connect(
             path, isolation_level=None, check_same_thread=False,
         )
         self.conn.execute("PRAGMA journal_mode=WAL;")
         self.conn.execute("PRAGMA synchronous=NORMAL;")
         self.conn.execute("PRAGMA busy_timeout=5000;")
+
+        # Quick integrity check — if the DB is corrupted, delete and
+        # recreate rather than silently dropping every article.
+        try:
+            result = self.conn.execute("PRAGMA quick_check;").fetchone()
+            if result and result[0] != "ok":
+                raise sqlite3.DatabaseError(f"integrity: {result[0]}")
+        except sqlite3.DatabaseError as exc:
+            logger.warning("SQLite DB corrupt (%s) — recreating: %s", path, exc)
+            self.conn.close()
+            import os
+            for suffix in ("", "-wal", "-shm"):
+                try:
+                    os.remove(path + suffix)
+                except FileNotFoundError:
+                    pass
+            self.conn = sqlite3.connect(
+                path, isolation_level=None, check_same_thread=False,
+            )
+            self.conn.execute("PRAGMA journal_mode=WAL;")
+            self.conn.execute("PRAGMA synchronous=NORMAL;")
+            self.conn.execute("PRAGMA busy_timeout=5000;")
+
         self.conn.executescript(SCHEMA)
 
     # ── Key-value ───────────────────────────────────────────────
