@@ -50,6 +50,7 @@ what Benzinga returns.
 ## 4. Dedup Reset Cost
 
 A "Reset dedup DB" does:
+
 1. `prune_seen(keep_seconds=0)` — clear SQLite `seen` table
 2. `prune_clusters(keep_seconds=0)` — clear SQLite `clusters` table
 3. `cursor = None` — reset Benzinga cursor

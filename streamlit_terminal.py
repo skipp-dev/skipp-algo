@@ -1076,17 +1076,21 @@ with st.sidebar:
                     "webhook_url": _wh_url,
                     "created": time.time(),
                 }
-                st.session_state.alert_rules.append(new_rule)
-                # Persist
-                try:
-                    os.makedirs("artifacts", exist_ok=True)
-                    Path("artifacts/alert_rules.json").write_text(
-                        json.dumps(st.session_state.alert_rules, indent=2),
-                    )
-                except OSError:
-                    logger.warning("Failed to persist alert rules to disk", exc_info=True)
-                st.toast(f"Alert rule added for {new_rule['ticker']}", icon="⚡")
-                st.rerun()
+                # Cap alert rules at 100 to prevent unbounded memory growth
+                if len(st.session_state.alert_rules) >= 100:
+                    st.warning("Maximum of 100 alert rules reached. Please delete some before adding more.")
+                else:
+                    st.session_state.alert_rules.append(new_rule)
+                    # Persist
+                    try:
+                        os.makedirs("artifacts", exist_ok=True)
+                        Path("artifacts/alert_rules.json").write_text(
+                            json.dumps(st.session_state.alert_rules, indent=2),
+                        )
+                    except OSError:
+                        logger.warning("Failed to persist alert rules to disk", exc_info=True)
+                    st.toast(f"Alert rule added for {new_rule['ticker']}", icon="⚡")
+                    st.rerun()
 
     # Show existing rules
     for i, rule in enumerate(st.session_state.alert_rules):

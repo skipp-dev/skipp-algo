@@ -431,7 +431,15 @@ def query_fmp_llm(
             )
             resp.raise_for_status()
             data = resp.json()
-            answer = data["choices"][0]["message"]["content"].strip()
+            choices = data.get("choices") or []
+            if not choices:
+                return FMPLLMResponse(
+                    answer="", model=model, cached=False,
+                    context_articles=n_articles, context_tickers=n_tickers,
+                    fmp_tickers=n_fmp,
+                    error="OpenAI returned empty choices",
+                )
+            answer = choices[0].get("message", {}).get("content", "").strip()
     except httpx.HTTPStatusError as exc:
         _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("OpenAI API error (FMP AI): %s", _safe, exc_info=True)

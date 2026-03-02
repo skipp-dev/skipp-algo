@@ -4,7 +4,6 @@ Each sub-module exposes a ``render(feed, *, current_session)`` function
 that renders one Streamlit tab.  Shared helpers live in ``_shared.py``.
 """
 
-from terminal_tabs.tab_feed import render as render_feed  # noqa: F401
 from terminal_tabs.tab_movers import render as render_movers  # noqa: F401
 from terminal_tabs.tab_rankings import render as render_rankings  # noqa: F401
 from terminal_tabs.tab_segments import render as render_segments  # noqa: F401
