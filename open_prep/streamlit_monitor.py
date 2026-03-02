@@ -161,7 +161,7 @@ def _cached_bz_quotes_op(api_key: str, symbols_csv: str) -> list[dict[str, Any]]
     try:
         return _fetch_bz_quotes(api_key, syms) or []
     except Exception:
-        logger.debug("_cached_bz_quotes_op failed", exc_info=True)
+        logger.warning("_cached_bz_quotes_op failed", exc_info=True)
         return []
 
 
@@ -175,7 +175,7 @@ def _cached_bz_dividends_op(api_key: str, from_d: str, to_d: str) -> list[dict[s
     try:
         return _fetch_bz_dividends(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_dividends_op failed", exc_info=True)
+        logger.warning("_cached_bz_dividends_op failed", exc_info=True)
         return []
 
 
@@ -187,7 +187,7 @@ def _cached_bz_splits_op(api_key: str, from_d: str, to_d: str) -> list[dict[str,
     try:
         return _fetch_bz_splits(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_splits_op failed", exc_info=True)
+        logger.warning("_cached_bz_splits_op failed", exc_info=True)
         return []
 
 
@@ -199,7 +199,7 @@ def _cached_bz_ipos_op(api_key: str, from_d: str, to_d: str) -> list[dict[str, A
     try:
         return _fetch_bz_ipos(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_ipos_op failed", exc_info=True)
+        logger.warning("_cached_bz_ipos_op failed", exc_info=True)
         return []
 
 
@@ -211,7 +211,7 @@ def _cached_bz_guidance_op(api_key: str, from_d: str, to_d: str) -> list[dict[st
     try:
         return _fetch_bz_guidance(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_guidance_op failed", exc_info=True)
+        logger.warning("_cached_bz_guidance_op failed", exc_info=True)
         return []
 
 
@@ -223,7 +223,7 @@ def _cached_bz_retail_op(api_key: str, from_d: str, to_d: str) -> list[dict[str,
     try:
         return _fetch_bz_retail(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_retail_op failed", exc_info=True)
+        logger.warning("_cached_bz_retail_op failed", exc_info=True)
         return []
 
 
@@ -235,7 +235,7 @@ def _cached_bz_conf_calls_op(api_key: str, from_d: str, to_d: str) -> list[dict[
     try:
         return _fetch_bz_conf_calls(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_conf_calls_op failed", exc_info=True)
+        logger.warning("_cached_bz_conf_calls_op failed", exc_info=True)
         return []
 
 
@@ -249,7 +249,7 @@ def _cached_bz_top_news_op(api_key: str, limit: int = 20) -> list[dict[str, Any]
     try:
         return _fetch_bz_top_news(api_key, limit=limit) or []
     except Exception:
-        logger.debug("_cached_bz_top_news_op failed", exc_info=True)
+        logger.warning("_cached_bz_top_news_op failed", exc_info=True)
         return []
 
 
@@ -261,7 +261,7 @@ def _cached_bz_quantified_op(api_key: str, from_d: str | None = None, to_d: str 
     try:
         return _fetch_bz_quantified(api_key, date_from=from_d, date_to=to_d) or []
     except Exception:
-        logger.debug("_cached_bz_quantified_op failed", exc_info=True)
+        logger.warning("_cached_bz_quantified_op failed", exc_info=True)
         return []
 
 
@@ -273,7 +273,7 @@ def _cached_bz_channel_list_op(api_key: str) -> list[dict[str, Any]]:
     try:
         return _fetch_bz_channels(api_key) or []
     except Exception:
-        logger.debug("_cached_bz_channel_list_op failed", exc_info=True)
+        logger.warning("_cached_bz_channel_list_op failed", exc_info=True)
         return []
 
 
@@ -285,7 +285,7 @@ def _cached_bz_news_by_channel_op(api_key: str, channels: str, page_size: int = 
     try:
         return _fetch_bz_news_by_channel(api_key, channels, page_size=page_size) or []
     except Exception:
-        logger.debug("_cached_bz_news_by_channel_op failed", exc_info=True)
+        logger.warning("_cached_bz_news_by_channel_op failed", exc_info=True)
         return []
 
 
@@ -308,7 +308,7 @@ def _cached_bz_insider_op(
             action=action, page_size=page_size,
         ) or []
     except Exception:
-        logger.debug("_cached_bz_insider_op failed", exc_info=True)
+        logger.warning("_cached_bz_insider_op failed", exc_info=True)
         return []
 
 
@@ -320,7 +320,7 @@ def _cached_bz_power_gaps_op(api_key: str) -> list[dict[str, Any]]:
     try:
         return _compute_power_gaps(api_key) or []
     except Exception:
-        logger.debug("_cached_bz_power_gaps_op failed", exc_info=True)
+        logger.warning("_cached_bz_power_gaps_op failed", exc_info=True)
         return []
 
 
@@ -332,7 +332,7 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
     try:
         return _fetch_defense_wl(api_key) or []
     except Exception:
-        logger.debug("_cached_defense_wl_op failed", exc_info=True)
+        logger.warning("_cached_defense_wl_op failed", exc_info=True)
         return []
 
 
@@ -344,7 +344,7 @@ def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
     try:
         return _fetch_bz_options(api_key, tickers) or []
     except Exception:
-        logger.debug("_cached_bz_options_op failed", exc_info=True)
+        logger.warning("_cached_bz_options_op failed", exc_info=True)
         return []
 
 

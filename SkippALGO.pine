@@ -2525,10 +2525,8 @@ qFinalEntrySell = useUsi and qVerifySell and qGatesValidSell
 plotshape(qFinalEntryBuy, "QP Buy", shape.triangleup, location.belowbar, color.new(color.aqua, 0), size=size.small, text="QP")
 plotshape(qFinalEntrySell, "QP Sell", shape.triangledown, location.abovebar, color.new(color.orange, 0), size=size.small, text="QP")
 
-if qFinalEntryBuy
-    alert("USI Quantum Pulse (QP) BUY: " + syminfo.ticker, alert.freq_once_per_bar_close)
-if qFinalEntrySell
-    alert("USI Quantum Pulse (QP) SELL: " + syminfo.ticker, alert.freq_once_per_bar_close)
+// QP alerts consolidated into the single per-bar alert() call below
+// (see _parts array in the Alert Dispatch section).
 
 crossClose_EmaF_up   = ta.crossover(close, emaF)
 crossClose_EmaF_down = ta.crossunder(close, emaF)
@@ -4506,6 +4504,10 @@ if signalGateConfirmed and barstate.isrealtime
         array.push(_parts, "PRE-SHORT")
     if alertConsolidationCond
         array.push(_parts, "CONSOLIDATION")
+    if qFinalEntryBuy
+        array.push(_parts, "QP-BUY")
+    if qFinalEntrySell
+        array.push(_parts, "QP-SELL")
 
     if array.size(_parts) > 0
         string labels = array.join(_parts, "+")
