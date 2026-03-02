@@ -216,10 +216,15 @@ def _tv_register_429() -> None:
 
 
 def _tv_register_success() -> None:
-    """Reset 429 counter on successful call."""
+    """Reset 429 counter on successful call.
+
+    Only resets when the cooldown has fully expired — otherwise a
+    success for symbol A would reset the counter while symbol B is
+    still being 429'd, preventing exponential back-off.
+    """
     global _tv_consecutive_429s
     with _tv_rate_lock:
-        if _tv_consecutive_429s > 0:
+        if _tv_consecutive_429s > 0 and time.time() >= _tv_cooldown_until:
             _tv_consecutive_429s = 0
             log.info("TradingView 429 counter reset after successful call")
 
@@ -334,7 +339,10 @@ def fetch_technicals(
                 return cached
         remaining = _tv_cooldown_remaining()
         log.debug("TradingView cooldown active (%.0fs remaining), skipping %s", remaining, sym)
-        return TechnicalResult(symbol=sym, interval=interval, ts=now, error="Rate limited — cooldown active")
+        result = TechnicalResult(symbol=sym, interval=interval, ts=now, error="Rate limited — cooldown active")
+        with _cache_lock:
+            _cache[key] = result  # cache so next rerun returns immediately
+        return result
 
     interval_val = INTERVAL_MAP.get(interval)
     if not interval_val:
@@ -431,11 +439,18 @@ def fetch_technicals(
 
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-        if "429" in _msg:
+        if "cooldown active" in _msg:
+            # Cooldown RuntimeError from _tv_throttle — don't count as new 429
+            remaining = _tv_cooldown_remaining()
+            _msg = f"Rate limited — cooldown {remaining:.0f}s"
+            log.debug("TradingView cooldown blocked %s: %s", sym, _msg)
+        elif "429" in _msg:
             _tv_register_429()
             remaining = _tv_cooldown_remaining()
             _msg = f"Rate limited — cooldown {remaining:.0f}s"
-        log.warning("TradingView technicals fetch failed for %s: %s", sym, _msg)
+            log.warning("TradingView technicals fetch failed for %s: %s", sym, _msg)
+        else:
+            log.warning("TradingView technicals fetch failed for %s: %s", sym, _msg)
         result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=_msg)
         with _cache_lock:
             _cache[key] = result
