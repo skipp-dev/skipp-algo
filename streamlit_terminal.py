@@ -703,6 +703,7 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "alert_log": [],
     "bg_poller": None,
     "notify_log": [],
+    "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
@@ -1052,7 +1053,7 @@ with st.sidebar:
 
     _INTEL_ENABLED = st.toggle(
         "Optional intelligence modules",
-        value=os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
+        key="intel_toggle",
         help=(
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
             "Enable only when you want deeper analysis."
