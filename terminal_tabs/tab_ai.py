@@ -145,7 +145,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
         # Fetch fresh technicals for top tickers in the feed
         technicals = None
-        if _TV_AVAILABLE and not _tv_is_cooling_down():
+        if _TV_AVAILABLE:
             _tk_scores: dict[str, float] = {}
             for _d in feed:
                 _tk = (_d.get("ticker") or "").upper().strip()

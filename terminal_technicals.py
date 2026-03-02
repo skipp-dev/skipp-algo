@@ -261,6 +261,48 @@ def _cache_key(symbol: str, interval: str) -> tuple[str, str]:
     return (symbol.upper().strip(), interval)
 
 
+def _fmp_fallback(symbol: str, interval: str, ts: float) -> TechnicalResult | None:
+    """Try FMP as a fallback provider when TradingView is rate-limited.
+
+    Returns a ``TechnicalResult`` on success, or ``None`` if FMP is
+    unavailable or returns no data.
+    """
+    try:
+        from terminal_fmp_technicals import fetch_fmp_technicals
+    except ImportError:
+        return None
+
+    data = fetch_fmp_technicals(symbol, interval)
+    if data is None or data.get("error"):
+        return None
+
+    result = TechnicalResult(
+        symbol=data.get("symbol", symbol),
+        interval=data.get("interval", interval),
+        ts=ts,
+        summary_signal=data.get("summary_signal", ""),
+        summary_buy=data.get("summary_buy", 0),
+        summary_sell=data.get("summary_sell", 0),
+        summary_neutral=data.get("summary_neutral", 0),
+        osc_signal=data.get("osc_signal", ""),
+        osc_buy=data.get("osc_buy", 0),
+        osc_sell=data.get("osc_sell", 0),
+        osc_neutral=data.get("osc_neutral", 0),
+        osc_detail=data.get("osc_detail", []),
+        ma_signal=data.get("ma_signal", ""),
+        ma_buy=data.get("ma_buy", 0),
+        ma_sell=data.get("ma_sell", 0),
+        ma_neutral=data.get("ma_neutral", 0),
+        ma_detail=data.get("ma_detail", []),
+    )
+    log.info("FMP fallback provided technicals for %s/%s", symbol, interval)
+    # Cache the FMP result in the TV cache so subsequent calls get it instantly
+    key = _cache_key(symbol, interval)
+    with _cache_lock:
+        _cache[key] = result
+    return result
+
+
 def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
     """Try common US exchanges in priority order.
 
@@ -331,8 +373,19 @@ def fetch_technicals(
                 if (now - cached.ts) < ttl:
                     return cached
 
-    # Check 429 cooldown — return stale cache or error without hitting API
+    # Check 429 cooldown — try FMP fallback, then stale cache, then error
     if _tv_is_cooling_down():
+        with _cache_lock:
+            cached = _cache.get(key)
+            if cached and not cached.error:
+                return cached
+
+        # Try FMP fallback
+        fmp_result = _fmp_fallback(sym, interval, now)
+        if fmp_result is not None:
+            return fmp_result
+
+        # Return stale error cache or fresh error
         with _cache_lock:
             cached = _cache.get(key)
             if cached:
@@ -341,7 +394,7 @@ def fetch_technicals(
         log.debug("TradingView cooldown active (%.0fs remaining), skipping %s", remaining, sym)
         result = TechnicalResult(symbol=sym, interval=interval, ts=now, error="Rate limited — cooldown active")
         with _cache_lock:
-            _cache[key] = result  # cache so next rerun returns immediately
+            _cache[key] = result
         return result
 
     interval_val = INTERVAL_MAP.get(interval)
