@@ -2271,7 +2271,7 @@ else:
                     "#": i,
                     "Dir": _dir,
                     "Symbol": _r_sym,
-                    "Name": m.get("name", ""),
+                    "Analyst": _analyst_col,
                     "Price": f"${_r_price:.2f}" if _r_price >= 1 else (f"${_r_price:.4f}" if _r_price > 0 else "—"),
                     "Change": f"{m.get('change', 0):+.2f}",
                     "Change %": f"{m.get('chg_pct', 0):+.2f}%",
@@ -2279,10 +2279,9 @@ else:
                     "Age": format_age_string(m.get("_ts")),
                     "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
                     "NLP": _nlp_col,
-                    "Tech": _get_tech_summary(_r_sym),
                     "Social": _social_col,
-                    "Analyst": _analyst_col,
                     "P/E": f"{_r_pe:.1f}" if _r_pe and _r_pe > 0 else "—",
+                    "Name": m.get("name", ""),
                     "Headline": _hl_url if _hl_url else _hl_text,
                     "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                 })
@@ -2300,11 +2299,10 @@ else:
 
             with st.popover("ℹ️ Column guide"):
                 st.markdown(
+                    "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
                     "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
                     "- **NLP Sent.** — NLP sentiment from NewsAPI.ai\n"
-                    "- **Tech** — TradingView technical signal (BUY/SELL/NEUTRAL)\n"
                     "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
-                    "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
                     "- **P/E** — Price-to-Earnings ratio from FMP\n"
                     "- **Headline** — Latest matching news headline (clickable when URL is available)\n"
                     "- **Volume** — Trading volume from market data source\n\n"
@@ -2315,13 +2313,12 @@ else:
             _rank_col_cfg: dict[str, Any] = {
                 "Dir": st.column_config.TextColumn("Dir", width="small"),
                 "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "Analyst": st.column_config.TextColumn("Analyst", width="small"),
                 "Change %": st.column_config.TextColumn("Change %", width="small"),
                 "Score": st.column_config.NumberColumn("Score", width="small"),
                 "Age": st.column_config.TextColumn("Age", width="small"),
                 "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
-                "Tech": st.column_config.TextColumn("Tech", width="small"),
                 "Social": st.column_config.TextColumn("Social", width="small"),
-                "Analyst": st.column_config.TextColumn("Analyst", width="small"),
                 "P/E": st.column_config.TextColumn("P/E", width="small"),
             }
             # Use LinkColumn for headlines when URLs are present

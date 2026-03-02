@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+import ssl
 import threading
 import time
 from dataclasses import dataclass, field
@@ -22,6 +23,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.request import Request, urlopen
 import urllib.error
+
+try:
+    import certifi
+    _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL_CTX = ssl.create_default_context()
 
 log = logging.getLogger(__name__)
 
@@ -90,7 +97,7 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     url = f"{_BASE}{path}?{'&'.join(query_parts)}"
     request = Request(url, headers={"Accept": "application/json"})
     try:
-        with urlopen(request, timeout=15) as resp:
+        with urlopen(request, timeout=15, context=_SSL_CTX) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:

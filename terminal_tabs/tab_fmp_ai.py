@@ -60,17 +60,41 @@ logger = logging.getLogger(__name__)
 _SAVE_DIR = Path(os.getenv("AI_INSIGHTS_DIR", os.path.expanduser("~/Downloads")))
 
 
+def _question_to_slug(question: str) -> str:
+    """Derive a short filesystem-safe slug from the question."""
+    # Try to match known preset labels
+    _PRESET_SLUGS = {
+        "market pulse": "MarketPulse",
+        "top movers": "TopMovers",
+        "risk signals": "RiskSignals",
+        "sector themes": "SectorThemes",
+        "trade ideas": "TradeIdeas",
+        "outlook": "Outlook",
+    }
+    q_lower = question.lower()
+    for keyword, slug in _PRESET_SLUGS.items():
+        if keyword in q_lower:
+            return slug
+    # Fallback: first 30 chars normalised
+    import re as _re
+    slug = _re.sub(r"[^a-zA-Z0-9]+", "_", question[:30]).strip("_")
+    return slug or "Custom"
+
+
 def _save_fmp_ai_result(question: str, answer: str, model: str,
                         n_articles: int, n_tickers: int,
                         n_fmp: int) -> str:
-    """Append an FMP AI result to a timestamped text file and return the path."""
+    """Save an FMP AI result to a separate file with question-slug + timestamp."""
     _SAVE_DIR.mkdir(parents=True, exist_ok=True)
-    fpath = _SAVE_DIR / "fmp_ai_trade_ideas.txt"
     now = datetime.now(timezone.utc)
+    slug = _question_to_slug(question)
+    ts_file = now.strftime("%Y%m%d_%H%M%S")
     ts_display = now.strftime("%Y-%m-%d %H:%M:%S UTC")
+    fname = f"AI_{slug}_{ts_file}.txt"
+    fpath = _SAVE_DIR / fname
     separator = "=" * 72
     block = (
-        f"\n{separator}\n"
+        f"{separator}\n"
         f"Saved:    {ts_display}\n"
         f"Model:    {model}\n"
         f"Articles: {n_articles}  |  Tickers: {n_tickers}  |  FMP: {n_fmp}\n"
@@ -78,8 +102,7 @@ def _save_fmp_ai_result(question: str, answer: str, model: str,
         f"{separator}\n\n"
         f"{answer}\n"
     )
-    with open(fpath, "a", encoding="utf-8") as fh:
-        fh.write(block)
+    fpath.write_text(block, encoding="utf-8")
     return str(fpath)
 
 
