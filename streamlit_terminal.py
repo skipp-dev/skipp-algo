@@ -248,6 +248,22 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Disable Streamlit's page-dimming during reruns ──────────────
+# Streamlit fades the page to ~50% opacity while re-rendering, making
+# text hard to read.  This CSS override keeps the page fully opaque.
+st.markdown(
+    """<style>
+    div[data-testid="stAppViewContainer"] [data-stale="true"] {
+        opacity: 1 !important;
+    }
+    .stale-element { opacity: 1 !important; }
+    section[data-testid="stSidebar"] [data-stale="true"] {
+        opacity: 1 !important;
+    }
+    </style>""",
+    unsafe_allow_html=True,
+)
+
 
 def _bz_tier_warning(label: str, fallback: str) -> None:
     """Show tier-limited warning if endpoint is known-blocked, else info."""
