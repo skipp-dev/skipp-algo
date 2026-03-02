@@ -248,16 +248,58 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Disable Streamlit's page-dimming during reruns ──────────────
-# Streamlit fades the page to ~50% opacity while re-rendering, making
-# text hard to read.  This CSS override keeps the page fully opaque.
+# ── Disable ALL Streamlit dimming / fading during reruns ─────────
+# Streamlit dims stale elements, fades containers during re-rendering,
+# and applies transition animations that wash out text.  Override
+# every known mechanism so the page stays fully readable at all times.
 st.markdown(
     """<style>
-    div[data-testid="stAppViewContainer"] [data-stale="true"] {
+    /* 1. Stale-element opacity fade (main + sidebar + any nested) */
+    [data-stale="true"],
+    [data-stale="true"] * {
         opacity: 1 !important;
     }
-    .stale-element { opacity: 1 !important; }
-    section[data-testid="stSidebar"] [data-stale="true"] {
+    .stale-element,
+    .stale-element * {
+        opacity: 1 !important;
+    }
+
+    /* 2. Element container transition/animation dimming */
+    .element-container {
+        opacity: 1 !important;
+        transition: none !important;
+        animation: none !important;
+    }
+
+    /* 3. Block container (columns, expanders, tabs) fading */
+    .block-container,
+    [data-testid="stVerticalBlock"],
+    [data-testid="stHorizontalBlock"],
+    [data-testid="column"] {
+        opacity: 1 !important;
+        transition: none !important;
+    }
+
+    /* 4. Streamlit app view + main area */
+    div[data-testid="stAppViewContainer"],
+    div[data-testid="stAppViewContainer"] * {
+        transition: opacity 0s !important;
+    }
+
+    /* 5. Sidebar elements */
+    section[data-testid="stSidebar"],
+    section[data-testid="stSidebar"] * {
+        transition: opacity 0s !important;
+    }
+
+    /* 6. Tab content panels */
+    div[data-baseweb="tab-panel"] {
+        opacity: 1 !important;
+        transition: none !important;
+    }
+
+    /* 7. Skeleton / loading placeholder shimmer */
+    .stMarkdown, .stDataFrame, .stPlotlyChart, .stMetric {
         opacity: 1 !important;
     }
     </style>""",
