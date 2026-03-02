@@ -1816,7 +1816,7 @@ else:
 
     def _get_tech_summary(symbol: str, interval: str = "15m") -> str:
         """Return cached tech summary badge for dataframe cells."""
-        cache = st.session_state.get("_cached_technicals", {})
+        cache = st.session_state.get("_cached_technicals") or st.session_state.get("_cached_fmp_technicals") or {}
         entry = cache.get(symbol.upper().strip())
         if not entry:
             return "\u2014"
@@ -2192,11 +2192,30 @@ else:
                             sym: {"total_mentions": s.total_mentions, "score": s.score, "label": s.sentiment_label}
                             for sym, s in _raw_rs.items()
                         }
+                        st.session_state["_cached_social_sent"] = _rank_social
                 except Exception:
                     logger.debug("Rankings social sentiment failed", exc_info=True)
 
-            # Analyst forecasts (prefer cached)
+            # Analyst forecasts (prefer cached, fallback to fresh fetch)
             _rank_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
+            if not _rank_forecasts and _intel_enabled() and _rank_top_syms:
+                try:
+                    for _sym in _rank_top_syms[:10]:
+                        _fc = fetch_forecast(_sym)
+                        if _fc.has_data and _fc.price_target:
+                            _rank_forecasts[_sym] = {
+                                "price_target": {
+                                    "target_mean": _fc.price_target.target_mean,
+                                    "upside_pct": round(_fc.price_target.upside_pct, 1),
+                                },
+                                "rating": {
+                                    "consensus": _fc.rating.consensus if _fc.rating else "",
+                                },
+                            }
+                    if _rank_forecasts:
+                        st.session_state["_cached_forecasts"] = _rank_forecasts
+                except Exception:
+                    logger.debug("Rankings forecasts failed", exc_info=True)
 
             top_n = min(50, len(_ranked))
             _rank_rows = []
@@ -2368,6 +2387,7 @@ else:
                             }
                             for sym, s in _raw_soc.items()
                         }
+                        st.session_state["_cached_social_sent"] = _act_social
                 except Exception:
                     logger.debug("Actionable social sentiment failed", exc_info=True)
 
@@ -2387,6 +2407,8 @@ else:
                                     "consensus": _fc.rating.consensus if _fc.rating else "",
                                 },
                             }
+                    if _act_forecasts:
+                        st.session_state["_cached_forecasts"] = _act_forecasts
                 except Exception:
                     logger.debug("Actionable forecasts failed", exc_info=True)
 
@@ -2651,9 +2673,40 @@ else:
                 except Exception:
                     logger.debug("Segments FMP quotes failed", exc_info=True)
 
-            # Reuse cached social sentiment + forecasts
+            # Social sentiment (cached or fresh fallback)
             _seg_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
+            if not _seg_social and _intel_enabled() and finnhub_available() and _seg_all_tickers:
+                try:
+                    _raw_seg_soc = fetch_social_sentiment_batch(_seg_all_tickers[:15])
+                    if _raw_seg_soc:
+                        _seg_social = {
+                            sym: {"total_mentions": s.total_mentions, "score": s.score, "label": s.sentiment_label}
+                            for sym, s in _raw_seg_soc.items()
+                        }
+                        st.session_state["_cached_social_sent"] = _seg_social
+                except Exception:
+                    logger.debug("Segments social sentiment failed", exc_info=True)
+
+            # Analyst forecasts (cached or fresh fallback)
             _seg_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
+            if not _seg_forecasts and _intel_enabled() and _seg_all_tickers:
+                try:
+                    for _sym in _seg_all_tickers[:10]:
+                        _fc = fetch_forecast(_sym)
+                        if _fc.has_data and _fc.price_target:
+                            _seg_forecasts[_sym] = {
+                                "price_target": {
+                                    "target_mean": _fc.price_target.target_mean,
+                                    "upside_pct": round(_fc.price_target.upside_pct, 1),
+                                },
+                                "rating": {
+                                    "consensus": _fc.rating.consensus if _fc.rating else "",
+                                },
+                            }
+                    if _seg_forecasts:
+                        st.session_state["_cached_forecasts"] = _seg_forecasts
+                except Exception:
+                    logger.debug("Segments forecasts failed", exc_info=True)
 
             for r in seg_rows:
                 ticker_map = r["_ticker_map"]
