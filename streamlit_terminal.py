@@ -1863,7 +1863,7 @@ else:
                     margin=dict(l=10, r=10, t=40, b=30),
                     template="plotly_dark",
                 )
-                st.plotly_chart(_sp_fig, use_container_width=True)
+                st.plotly_chart(_sp_fig, width='stretch')
         except Exception:
             logger.debug("Sector performance chart skipped", exc_info=True)
 
@@ -2290,7 +2290,7 @@ else:
 
             st.dataframe(
                 _df_act,
-                use_container_width=True,
+                width='stretch',
                 height=min(800, 40 + 35 * len(_df_act)),
                 column_config=_act_col_cfg,
             )
@@ -2511,7 +2511,7 @@ else:
                             _to_disp = [c for c in ["ticker", "name", "timing"] if c in _to_df.columns]
                             st.dataframe(
                                 _to_df[_to_disp] if _to_disp else _to_df,
-                                use_container_width=True,
+                                width='stretch',
                                 height=min(300, 40 + 35 * len(_to_df)),
                             )
 
