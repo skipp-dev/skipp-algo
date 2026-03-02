@@ -91,7 +91,7 @@ def cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
     try:
         return fetch_sector_performance(api_key)
     except Exception:
-        logger.debug("cached_sector_perf failed", exc_info=True)
+        logger.warning("cached_sector_perf failed", exc_info=True)
         return []
 
 
@@ -102,7 +102,7 @@ def cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
         tickers = [t.strip() for t in tickers_csv.split(",") if t.strip()]
         return fetch_ticker_sectors(api_key, tickers)
     except Exception:
-        logger.debug("cached_ticker_sectors failed", exc_info=True)
+        logger.warning("cached_ticker_sectors failed", exc_info=True)
         return {}
 
 
@@ -112,7 +112,7 @@ def cached_defense_watchlist(api_key: str) -> list[dict[str, Any]]:
     try:
         return fetch_defense_watchlist(api_key)
     except Exception:
-        logger.debug("cached_defense_watchlist failed", exc_info=True)
+        logger.warning("cached_defense_watchlist failed", exc_info=True)
         return []
 
 
@@ -122,7 +122,7 @@ def cached_defense_watchlist_custom(api_key: str, tickers: str) -> list[dict[str
     try:
         return fetch_defense_watchlist(api_key, tickers=tickers)
     except Exception:
-        logger.debug("cached_defense_watchlist_custom failed", exc_info=True)
+        logger.warning("cached_defense_watchlist_custom failed", exc_info=True)
         return []
 
 
@@ -132,7 +132,7 @@ def cached_industry_performance(api_key: str, industry: str = "Aerospace & Defen
     try:
         return fetch_industry_performance(api_key, industry=industry)
     except Exception:
-        logger.debug("cached_industry_performance failed", exc_info=True)
+        logger.warning("cached_industry_performance failed", exc_info=True)
         return []
 
 
@@ -142,7 +142,7 @@ def cached_econ_calendar(api_key: str, from_date: str, to_date: str) -> list[dic
     try:
         return fetch_economic_calendar(api_key, from_date, to_date)
     except Exception:
-        logger.debug("cached_econ_calendar failed", exc_info=True)
+        logger.warning("cached_econ_calendar failed", exc_info=True)
         return []
 
 
@@ -165,7 +165,7 @@ def cached_spike_data(api_key: str) -> dict[str, list[dict[str, Any]]]:
             return {"gainers": gainers, "losers": losers, "actives": actives}
         return {"gainers": [], "losers": [], "actives": []}
     except Exception:
-        logger.debug("cached_spike_data failed", exc_info=True)
+        logger.warning("cached_spike_data failed", exc_info=True)
         return {"gainers": [], "losers": [], "actives": []}
 
 
@@ -177,7 +177,7 @@ def cached_tomorrow_outlook(
     try:
         return compute_tomorrow_outlook(bz_key, fmp_key)
     except Exception:
-        logger.debug("cached_tomorrow_outlook failed", exc_info=True)
+        logger.warning("cached_tomorrow_outlook failed", exc_info=True)
         return {}
 
 
@@ -187,7 +187,7 @@ def cached_bz_movers(api_key: str) -> dict[str, list[dict[str, Any]]]:
     try:
         return fetch_benzinga_market_movers(api_key)
     except Exception:
-        logger.debug("cached_bz_movers failed", exc_info=True)
+        logger.warning("cached_bz_movers failed", exc_info=True)
         return {}
 
 
@@ -198,7 +198,7 @@ def cached_bz_quotes(api_key: str, symbols_csv: str) -> list[dict[str, Any]]:
         syms = [s.strip() for s in symbols_csv.split(",") if s.strip()]
         return fetch_benzinga_delayed_quotes(api_key, syms)
     except Exception:
-        logger.debug("cached_bz_quotes failed", exc_info=True)
+        logger.warning("cached_bz_quotes failed", exc_info=True)
         return []
 
 

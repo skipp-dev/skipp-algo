@@ -2663,7 +2663,7 @@ def _fetch_symbol_atr(
         if atr_value <= 0.0:
             return symbol, 0.0, momentum_z, latest_vwap, avg_volume_fallback, "atr_zero_or_insufficient_bars"
         return symbol, atr_value, momentum_z, latest_vwap, avg_volume_fallback, None
-    except RuntimeError as exc:
+    except (RuntimeError, KeyError, ZeroDivisionError, TypeError) as exc:
         return symbol, 0.0, 0.0, None, 0.0, _APIKEY_RE.sub(r"\1=***", str(exc))
 
 
@@ -3442,7 +3442,7 @@ def _fetch_quotes_with_atr(
 ) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, float | None], dict[str, str]]:
     try:
         quotes = client.get_batch_quotes(symbols)
-    except RuntimeError as exc:
+    except (RuntimeError, TypeError) as exc:
         # Fail-open: quote fetch failure is critical but must not crash.
         # Return empty quotes so pipeline produces a degraded result with
         # runtime_status explaining the failure, rather than SystemExit.

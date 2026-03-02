@@ -491,7 +491,10 @@ class FMPClient:
         """Fetch pre/post-market quotes for symbols from stable batch endpoint."""
         if not symbols:
             return []
-        data = self._get("/stable/batch-aftermarket-quote", {"symbols": ",".join(symbols)})
+        try:
+            data = self._get("/stable/batch-aftermarket-quote", {"symbols": ",".join(symbols)})
+        except RuntimeError as exc:
+            return _handle_fmp_error(exc, "batch aftermarket quote")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -500,7 +503,10 @@ class FMPClient:
         """Fetch pre/post-market trades for symbols from stable batch endpoint."""
         if not symbols:
             return []
-        data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
+        try:
+            data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
+        except RuntimeError as exc:
+            return _handle_fmp_error(exc, "batch aftermarket trade")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -520,30 +526,39 @@ class FMPClient:
 
     def get_dividends_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         """Fetch dividends calendar for a date range."""
-        data = self._get(
-            "/stable/dividends-calendar",
-            {"from": date_from.isoformat(), "to": date_to.isoformat()},
-        )
+        try:
+            data = self._get(
+                "/stable/dividends-calendar",
+                {"from": date_from.isoformat(), "to": date_to.isoformat()},
+            )
+        except RuntimeError as exc:
+            return _handle_fmp_error(exc, "dividends calendar")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
 
     def get_splits_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         """Fetch stock splits calendar for a date range."""
-        data = self._get(
-            "/stable/splits-calendar",
-            {"from": date_from.isoformat(), "to": date_to.isoformat()},
-        )
+        try:
+            data = self._get(
+                "/stable/splits-calendar",
+                {"from": date_from.isoformat(), "to": date_to.isoformat()},
+            )
+        except RuntimeError as exc:
+            return _handle_fmp_error(exc, "splits calendar")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
 
     def get_ipos_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
         """Fetch IPO calendar for a date range."""
-        data = self._get(
-            "/stable/ipos-calendar",
-            {"from": date_from.isoformat(), "to": date_to.isoformat()},
-        )
+        try:
+            data = self._get(
+                "/stable/ipos-calendar",
+                {"from": date_from.isoformat(), "to": date_to.isoformat()},
+            )
+        except RuntimeError as exc:
+            return _handle_fmp_error(exc, "IPO calendar")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -554,7 +569,10 @@ class FMPClient:
         if not sym:
             return []
         safe_limit = max(1, min(int(limit), 1000))
-        data = self._get("/stable/earnings", {"symbol": sym, "limit": safe_limit})
+        try:
+            data = self._get("/stable/earnings", {"symbol": sym, "limit": safe_limit})
+        except RuntimeError as exc:
+            return _handle_fmp_error(exc, "earnings report")
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -564,7 +582,11 @@ class FMPClient:
         sym = str(symbol or "").strip().upper()
         if not sym:
             return {}
-        data = self._get("/stable/price-target-summary", {"symbol": sym})
+        try:
+            data = self._get("/stable/price-target-summary", {"symbol": sym})
+        except RuntimeError as exc:
+            _handle_fmp_error(exc, "price target summary")
+            return {}
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
@@ -758,7 +780,11 @@ class FMPClient:
         sym = str(symbol or "").strip().upper()
         if not sym:
             return {}
-        data = self._get("/stable/profile", {"symbol": sym})
+        try:
+            data = self._get("/stable/profile", {"symbol": sym})
+        except RuntimeError as exc:
+            _handle_fmp_error(exc, "company profile")
+            return {}
         if isinstance(data, list) and data and isinstance(data[0], dict):
             return data[0]
         if isinstance(data, dict):
