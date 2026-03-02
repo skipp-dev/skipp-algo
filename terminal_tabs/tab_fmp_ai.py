@@ -175,6 +175,9 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 fmp_data = assemble_fmp_data(fmp_key, _top_tickers)
                 if fmp_data:
                     st.session_state["_cached_fmp_data"] = fmp_data
+        # Fall back to cached FMP data if fresh fetch returned nothing
+        if not fmp_data and st.session_state.get("_cached_fmp_data"):
+            fmp_data = st.session_state["_cached_fmp_data"]
 
         with st.spinner("Assembling FMP-enriched context and querying AI…"):
             context_json = assemble_context(

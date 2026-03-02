@@ -16,7 +16,7 @@ from terminal_ai_insights import (
     assemble_context,
     query_llm,
 )
-from terminal_technicals import fetch_technicals, _TV_AVAILABLE
+from terminal_technicals import fetch_technicals, _TV_AVAILABLE, _tv_is_cooling_down, _tv_cooldown_remaining
 from terminal_ui_helpers import safe_markdown_text
 
 logger = logging.getLogger(__name__)
@@ -145,7 +145,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
         # Fetch fresh technicals for top tickers in the feed
         technicals = None
-        if _TV_AVAILABLE:
+        if _TV_AVAILABLE and not _tv_is_cooling_down():
             _tk_scores: dict[str, float] = {}
             for _d in feed:
                 _tk = (_d.get("ticker") or "").upper().strip()
@@ -184,10 +184,14 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                     if _tech_ctx:
                         technicals = _tech_ctx
                         st.session_state["_cached_technicals"] = _tech_ctx
-                    elif st.session_state.get("_cached_technicals"):
-                        # Use stale cached technicals if budget expired before
-                        # we could fetch any fresh data
-                        technicals = st.session_state["_cached_technicals"]
+        # Fall back to stale cached technicals when TradingView is
+        # rate-limited or no fresh data could be fetched.
+        if technicals is None and st.session_state.get("_cached_technicals"):
+            technicals = st.session_state["_cached_technicals"]
+        if _TV_AVAILABLE and _tv_is_cooling_down():
+            _rem = _tv_cooldown_remaining()
+            st.caption(f"⏳ TradingView rate-limited — cooldown {_rem:.0f}s remaining. "
+                       f"{'Using cached technicals.' if technicals else 'Proceeding without technicals.'}")
 
         with st.spinner("Assembling context and querying AI…"):
             context_json = assemble_context(
