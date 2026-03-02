@@ -68,6 +68,6 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             title="Sector Performance",
         )
         fig.update_layout(showlegend=False, height=400)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     except ImportError:
         st.caption("Install `plotly` for a sector bar chart.")

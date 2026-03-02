@@ -78,7 +78,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     cols = st.columns(3)
     for i, (label, question) in enumerate(PRESET_QUESTIONS):
         col = cols[i % 3]
-        if col.button(label, key=f"ai_preset_{i}", use_container_width=True):
+        if col.button(label, key=f"ai_preset_{i}", width='stretch'):
             st.session_state["ai_selected_question"] = question
             st.session_state["ai_run_requested"] = True
             st.rerun()
@@ -102,7 +102,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     _qa_c1, _qa_c2, _qa_c3 = st.columns([1, 1, 2])
     with _qa_c1:
-        if st.button("▶️ Generate", key="ai_generate", use_container_width=True):
+        if st.button("▶️ Generate", key="ai_generate", width='stretch'):
             _q = (custom_q or "").strip()
             if _q:
                 st.session_state["ai_selected_question"] = _q
@@ -110,7 +110,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             else:
                 st.warning("Please enter a question first.")
     with _qa_c2:
-        if st.button("🔁 Regenerate", key="ai_regenerate", use_container_width=True):
+        if st.button("🔁 Regenerate", key="ai_regenerate", width='stretch'):
             _q = (st.session_state.get("ai_selected_question") or "").strip()
             if _q:
                 st.session_state["ai_run_requested"] = True
