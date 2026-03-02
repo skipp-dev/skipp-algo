@@ -1,16 +1,17 @@
-"""Tab: FMP AI — LLM analysis enriched with FMP financial data.
+"""Tab: FMP AI — LLM analysis enriched with multi-layer financial data.
 
-Mirrors the AI Insights tab (tab_ai.py) but fetches real-time quotes
-and company profiles from Financial Modeling Prep before querying the LLM.
-This allows side-by-side comparison of analysis with vs. without
-institutional-grade financial data.
+Combines data from FMP, TradingView, Finnhub, and Benzinga to build
+the richest possible context for LLM analysis.  Data layers include:
+quotes, profiles, ratios, technicals, economic calendar, sector performance,
+social sentiment, analyst forecasts, analyst ratings, earnings calendar,
+insider trades, and congressional trades.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,29 @@ try:
     _TV_AVAILABLE = True
 except ImportError:
     _TV_AVAILABLE = False
+
+try:
+    from terminal_finnhub import fetch_social_sentiment_batch, is_available as _finnhub_available
+    _FINNHUB_AVAILABLE = _finnhub_available()
+except ImportError:
+    _FINNHUB_AVAILABLE = False
+
+try:
+    from terminal_forecast import fetch_forecast
+    _FORECAST_AVAILABLE = True
+except ImportError:
+    _FORECAST_AVAILABLE = False
+
+try:
+    from terminal_poller import (
+        fetch_economic_calendar,
+        fetch_sector_performance,
+        fetch_benzinga_ratings,
+        fetch_benzinga_earnings,
+    )
+    _POLLER_AVAILABLE = True
+except ImportError:
+    _POLLER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -218,12 +242,268 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         if technicals is None and st.session_state.get("_cached_fmp_technicals"):
             technicals = st.session_state["_cached_fmp_technicals"]
 
-        with st.spinner("Assembling FMP-enriched context and querying AI…"):
+        # --- Fetch economic calendar (today's macro events) ---
+        econ_cal: list[dict[str, Any]] | None = None
+        if _POLLER_AVAILABLE and fmp_key:
+            try:
+                _today = date.today().isoformat()
+                _raw_cal = fetch_economic_calendar(fmp_key, _today, _today)
+                if _raw_cal:
+                    # Keep only high-impact US events to save context tokens
+                    econ_cal = [
+                        {
+                            "event": e.get("event", ""),
+                            "country": e.get("country", ""),
+                            "estimate": e.get("estimate"),
+                            "actual": e.get("actual"),
+                            "previous": e.get("previous"),
+                            "impact": e.get("impact", ""),
+                            "date": e.get("date", ""),
+                        }
+                        for e in _raw_cal
+                        if (e.get("country") or "").upper() in ("US", "USA", "")
+                        and e.get("event")
+                    ][:25]
+                    if econ_cal:
+                        st.session_state["_cached_econ_cal"] = econ_cal
+            except Exception as exc:
+                logger.debug("FMP AI economic calendar fetch failed: %s", exc)
+        if not econ_cal:
+            econ_cal = st.session_state.get("_cached_econ_cal")
+
+        # --- Fetch sector performance ---
+        sector_perf: list[dict[str, Any]] | None = None
+        if _POLLER_AVAILABLE and fmp_key:
+            try:
+                _raw_sectors = fetch_sector_performance(fmp_key)
+                if _raw_sectors:
+                    sector_perf = [
+                        {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
+                        for s in _raw_sectors if s.get("sector")
+                    ]
+                    if sector_perf:
+                        st.session_state["_cached_sector_perf"] = sector_perf
+            except Exception as exc:
+                logger.debug("FMP AI sector performance fetch failed: %s", exc)
+        if not sector_perf:
+            sector_perf = st.session_state.get("_cached_sector_perf")
+
+        # --- Fetch Finnhub social sentiment (Reddit + Twitter) ---
+        social_sent: dict[str, Any] | None = None
+        if _FINNHUB_AVAILABLE and _top_tickers:
+            try:
+                with st.spinner("Fetching social sentiment…"):
+                    _raw_social = fetch_social_sentiment_batch(_top_tickers[:10])
+                if _raw_social:
+                    social_sent = {
+                        sym: {
+                            "reddit_mentions": s.reddit_mentions,
+                            "twitter_mentions": s.twitter_mentions,
+                            "total_mentions": s.total_mentions,
+                            "score": s.score,
+                            "label": s.sentiment_label,
+                        }
+                        for sym, s in _raw_social.items()
+                    }
+                    if social_sent:
+                        st.session_state["_cached_social_sent"] = social_sent
+            except Exception as exc:
+                logger.debug("FMP AI social sentiment fetch failed: %s", exc)
+        if not social_sent:
+            social_sent = st.session_state.get("_cached_social_sent")
+
+        # --- Fetch analyst forecasts (price targets, ratings, upgrades) ---
+        forecasts_ctx: dict[str, Any] | None = None
+        if _FORECAST_AVAILABLE and _top_tickers:
+            try:
+                with st.spinner("Fetching analyst forecasts…"):
+                    _fc_data: dict[str, Any] = {}
+                    for _sym in _top_tickers[:8]:
+                        _fc = fetch_forecast(_sym)
+                        if not _fc.has_data:
+                            continue
+                        _entry: dict[str, Any] = {}
+                        if _fc.price_target:
+                            _entry["price_target"] = {
+                                "current": _fc.price_target.current_price,
+                                "target_mean": _fc.price_target.target_mean,
+                                "target_high": _fc.price_target.target_high,
+                                "target_low": _fc.price_target.target_low,
+                                "upside_pct": round(_fc.price_target.upside_pct, 1),
+                            }
+                        if _fc.rating:
+                            _entry["rating"] = {
+                                "consensus": _fc.rating.consensus,
+                                "strong_buy": _fc.rating.strong_buy,
+                                "buy": _fc.rating.buy,
+                                "hold": _fc.rating.hold,
+                                "sell": _fc.rating.sell,
+                                "strong_sell": _fc.rating.strong_sell,
+                            }
+                        if _fc.upgrades_downgrades:
+                            _entry["recent_changes"] = [
+                                {
+                                    "date": ud.date,
+                                    "firm": ud.firm,
+                                    "action": ud.action,
+                                    "to": ud.to_grade,
+                                    "from": ud.from_grade,
+                                }
+                                for ud in _fc.upgrades_downgrades[:5]
+                            ]
+                        if _entry:
+                            _fc_data[_sym] = _entry
+                    if _fc_data:
+                        forecasts_ctx = _fc_data
+                        st.session_state["_cached_forecasts"] = _fc_data
+            except Exception as exc:
+                logger.debug("FMP AI analyst forecast fetch failed: %s", exc)
+        if not forecasts_ctx:
+            forecasts_ctx = st.session_state.get("_cached_forecasts")
+
+        # --- Fetch Benzinga analyst ratings ---
+        bz_ratings: list[dict[str, Any]] | None = None
+        if _POLLER_AVAILABLE:
+            _bz_key = getattr(cfg, "benzinga_api_key", "")
+            if _bz_key:
+                try:
+                    _today_str = date.today().isoformat()
+                    _week_ago = (date.today() - timedelta(days=7)).isoformat()
+                    _raw_ratings = fetch_benzinga_ratings(
+                        _bz_key, date_from=_week_ago, date_to=_today_str, page_size=30,
+                    )
+                    if _raw_ratings:
+                        bz_ratings = [
+                            {
+                                "ticker": r.get("ticker", ""),
+                                "analyst": r.get("analyst", ""),
+                                "rating_current": r.get("rating_current", ""),
+                                "rating_prior": r.get("rating_prior", ""),
+                                "action": r.get("action_company", "") or r.get("action_pt", ""),
+                                "pt_current": r.get("pt_current", ""),
+                                "pt_prior": r.get("pt_prior", ""),
+                                "date": r.get("date", ""),
+                            }
+                            for r in _raw_ratings if r.get("ticker")
+                        ][:20]
+                        if bz_ratings:
+                            st.session_state["_cached_bz_ratings"] = bz_ratings
+                except Exception as exc:
+                    logger.debug("FMP AI Benzinga ratings fetch failed: %s", exc)
+        if not bz_ratings:
+            bz_ratings = st.session_state.get("_cached_bz_ratings")
+
+        # --- Fetch Benzinga earnings calendar ---
+        bz_earnings: list[dict[str, Any]] | None = None
+        if _POLLER_AVAILABLE:
+            _bz_key = getattr(cfg, "benzinga_api_key", "")
+            if _bz_key:
+                try:
+                    _today_str = date.today().isoformat()
+                    _week_ahead = (date.today() + timedelta(days=7)).isoformat()
+                    _week_ago = (date.today() - timedelta(days=3)).isoformat()
+                    _raw_earn = fetch_benzinga_earnings(
+                        _bz_key, date_from=_week_ago, date_to=_week_ahead, page_size=30,
+                    )
+                    if _raw_earn:
+                        bz_earnings = [
+                            {
+                                "ticker": e.get("ticker", ""),
+                                "name": e.get("name", ""),
+                                "date": e.get("date", ""),
+                                "date_confirmed": e.get("date_confirmed", ""),
+                                "time": e.get("time", ""),
+                                "eps_estimate": e.get("eps_estimate"),
+                                "eps_actual": e.get("eps_actual"),
+                                "revenue_estimate": e.get("revenue_estimate"),
+                                "revenue_actual": e.get("revenue_actual"),
+                                "eps_surprise": e.get("eps_surprise"),
+                            }
+                            for e in _raw_earn if e.get("ticker")
+                        ][:20]
+                        if bz_earnings:
+                            st.session_state["_cached_bz_earnings"] = bz_earnings
+                except Exception as exc:
+                    logger.debug("FMP AI Benzinga earnings fetch failed: %s", exc)
+        if not bz_earnings:
+            bz_earnings = st.session_state.get("_cached_bz_earnings")
+
+        # --- Fetch FMP insider trades (via open_prep.macro) ---
+        insider_trades: list[dict[str, Any]] | None = None
+        if fmp_key:
+            try:
+                from open_prep.macro import FMPClient
+                _fmp_c = FMPClient(api_key=fmp_key)
+                _raw_insider = _fmp_c.get_insider_trading_latest(limit=30)
+                if _raw_insider:
+                    insider_trades = [
+                        {
+                            "symbol": t.get("symbol", ""),
+                            "name": (t.get("reportingName") or t.get("ownerName", ""))[:40],
+                            "type": t.get("transactionType", ""),
+                            "shares": t.get("securitiesTransacted"),
+                            "price": t.get("price"),
+                            "value": t.get("value"),
+                            "date": t.get("filingDate", ""),
+                        }
+                        for t in _raw_insider if t.get("symbol")
+                    ][:15]
+                    if insider_trades:
+                        st.session_state["_cached_insider_trades"] = insider_trades
+            except Exception as exc:
+                logger.debug("FMP AI insider trades fetch failed: %s", exc)
+        if not insider_trades:
+            insider_trades = st.session_state.get("_cached_insider_trades")
+
+        # --- Fetch Congressional trades (Senate + House) ---
+        congress_trades: list[dict[str, Any]] | None = None
+        if fmp_key:
+            try:
+                from open_prep.macro import FMPClient
+                _fmp_c = FMPClient(api_key=fmp_key)
+                _raw_senate = _fmp_c.get_senate_trading(limit=15)
+                _raw_house = _fmp_c.get_house_trading(limit=15)
+                _combined = []
+                for t in (_raw_senate or []) + (_raw_house or []):
+                    if t.get("ticker") or t.get("symbol"):
+                        _combined.append({
+                            "ticker": t.get("ticker") or t.get("symbol", ""),
+                            "member": (t.get("firstName", "") + " " + t.get("lastName", "")).strip()
+                                      or t.get("representative", ""),
+                            "chamber": "Senate" if t in (_raw_senate or []) else "House",
+                            "type": t.get("type", "") or t.get("transactionType", ""),
+                            "amount": t.get("amount", ""),
+                            "date": t.get("transactionDate") or t.get("disclosureDate", ""),
+                        })
+                if _combined:
+                    congress_trades = _combined[:15]
+                    st.session_state["_cached_congress_trades"] = congress_trades
+            except Exception as exc:
+                logger.debug("FMP AI congressional trades fetch failed: %s", exc)
+        if not congress_trades:
+            congress_trades = st.session_state.get("_cached_congress_trades")
+
+        # --- Count enrichment layers for metadata ---
+        _n_layers = sum(1 for x in [
+            fmp_data, technicals, econ_cal, sector_perf,
+            social_sent, forecasts_ctx, bz_ratings, bz_earnings,
+            insider_trades, congress_trades, macro,
+        ] if x)
+
+        with st.spinner(f"Assembling {_n_layers}-layer context and querying AI…"):
             context_json = assemble_context(
                 feed,
                 fmp_data=fmp_data,
                 technicals=technicals,
                 macro=macro,
+                economic_calendar=econ_cal,
+                sector_performance=sector_perf,
+                social_sentiment=social_sent,
+                analyst_forecasts=forecasts_ctx,
+                analyst_ratings=bz_ratings,
+                earnings_calendar=bz_earnings,
+                insider_trades=insider_trades,
+                congressional_trades=congress_trades,
                 max_articles=40,
             )
             result: FMPLLMResponse = query_fmp_llm(
@@ -239,6 +519,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             "context_articles": result.context_articles,
             "context_tickers": result.context_tickers,
             "fmp_tickers": result.fmp_tickers,
+            "enrichment_layers": _n_layers,
             "error": result.error,
             "question": question,
         }
@@ -271,12 +552,15 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     context_json = str(st.session_state.get("fmp_ai_last_context_json") or "")
 
     # Response metadata
+    _layers = int(last_result.get("enrichment_layers", 0))
     meta_parts = [f"Model: `{result.model}`"]
     if result.cached:
         meta_parts.append("⚡ cached")
     meta_parts.append(f"{result.context_articles} articles")
     meta_parts.append(f"{result.context_tickers} tickers")
     meta_parts.append(f"🏦 {result.fmp_tickers} FMP quotes")
+    if _layers:
+        meta_parts.append(f"🔗 {_layers} data layers")
     st.caption(" · ".join(meta_parts))
 
     # The answer
@@ -299,10 +583,12 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             st.error(f"Could not save: {exc}")
 
     # --- Divider and context details ---
-    with st.expander("📋 Context sent to AI (FMP-enriched)"):
+    with st.expander("📋 Context sent to AI (multi-layer enriched)"):
         st.caption(
             f"Top {min(40, len(feed))} articles by |score|, "
             f"up to 30 ticker summaries, top 15 segments, "
-            f"+ FMP quotes & profiles for top tickers."
+            f"+ FMP quotes/profiles, technicals, economic calendar, "
+            f"sector performance, social sentiment, analyst forecasts, "
+            f"Benzinga ratings/earnings, insider & congressional trades."
         )
         st.json(context_json)

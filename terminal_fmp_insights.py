@@ -208,9 +208,18 @@ def assemble_context(
     fmp_data: dict[str, Any] | None = None,
     technicals: dict[str, Any] | None = None,
     macro: dict[str, Any] | None = None,
+    economic_calendar: list[dict[str, Any]] | None = None,
+    sector_performance: list[dict[str, Any]] | None = None,
+    social_sentiment: dict[str, Any] | None = None,
+    analyst_forecasts: dict[str, Any] | None = None,
+    analyst_ratings: list[dict[str, Any]] | None = None,
+    earnings_calendar: list[dict[str, Any]] | None = None,
+    insider_trades: list[dict[str, Any]] | None = None,
+    congressional_trades: list[dict[str, Any]] | None = None,
     max_articles: int = 40,
 ) -> str:
-    """Build a compact JSON context string enriched with FMP financial data."""
+    """Build a compact JSON context string enriched with FMP financial data
+    and multiple alternative data layers (social, analyst, macro, insider)."""
     sorted_feed = sorted(feed, key=lambda d: abs(d.get("news_score", 0)), reverse=True)
     articles: list[dict[str, Any]] = []
     for item in sorted_feed[:max_articles]:
@@ -268,6 +277,22 @@ def assemble_context(
         ctx["technicals"] = technicals
     if macro:
         ctx["macro"] = macro
+    if economic_calendar:
+        ctx["economic_calendar"] = economic_calendar
+    if sector_performance:
+        ctx["sector_performance"] = sector_performance
+    if social_sentiment:
+        ctx["social_sentiment"] = social_sentiment
+    if analyst_forecasts:
+        ctx["analyst_forecasts"] = analyst_forecasts
+    if analyst_ratings:
+        ctx["analyst_ratings"] = analyst_ratings
+    if earnings_calendar:
+        ctx["earnings_calendar"] = earnings_calendar
+    if insider_trades:
+        ctx["insider_trades"] = insider_trades
+    if congressional_trades:
+        ctx["congressional_trades"] = congressional_trades
 
     return json.dumps(ctx, ensure_ascii=False, default=str)
 
@@ -278,21 +303,39 @@ def assemble_context(
 
 _SYSTEM_PROMPT = """\
 You are a senior financial analyst assistant integrated into a real-time
-news intelligence dashboard with access to FMP (Financial Modeling Prep)
-institutional-grade financial data.
+news intelligence dashboard with access to multi-layer institutional-grade
+financial data from FMP, Benzinga, Finnhub, and TradingView.
 
-You have access to:
+You have access to (when available in the data context):
 - A live feed of classified news articles with sentiment scores and ticker mentions
 - Real-time FMP quotes (price, change, volume, market cap, P/E, EPS)
 - Company profiles (sector, industry, beta, description)
+- Technical indicators (RSI, MACD, Stochastic, ADX, moving averages) from TradingView/FMP
+- Economic calendar (GDP, CPI, FOMC, NFP — today's macro events with estimates vs actuals)
+- Sector performance (GICS sector % changes for rotation analysis)
+- Social sentiment (Reddit + Twitter mention counts, bullish/bearish scores from Finnhub)
+- Analyst forecasts (price targets, consensus ratings, EPS estimates, recent upgrades/downgrades)
+- Analyst ratings from Benzinga (upgrades, downgrades, price target changes)
+- Earnings calendar (upcoming/recent EPS and revenue estimates vs actuals)
+- Insider trades (recent executive buys/sells with transaction values)
+- Congressional trades (Senate/House member stock trades)
 - Macro data (when available)
 
 Your role:
-- Provide concise, actionable analysis that cross-references news sentiment
-  with the real-time financial data from FMP.
+- Provide concise, actionable analysis that cross-references ALL available
+  data layers — news sentiment, price action, technicals, social sentiment,
+  analyst consensus, and macro environment.
 - When FMP quote data is available, always cite current prices, change %,
   volume vs average, and P/E ratios to support your analysis.
-- Identify disconnects between news sentiment and actual price action.
+- When social sentiment data is present, note retail attention levels
+  (mention counts) and sentiment divergences from institutional signals.
+- When analyst forecasts are present, cite price target upside/downside,
+  consensus ratings, and recent grade changes.
+- When economic calendar events are present, assess their potential market
+  impact on the tickers being discussed.
+- Identify disconnects between data layers (e.g. bullish news + bearish
+  technicals, insider selling + analyst upgrades, social hype + weak
+  fundamentals).
 - When articles have a "url" field, include the source link inline using
   markdown link syntax, e.g. [headline](url).
 - Use markdown formatting for readability.
@@ -362,7 +405,7 @@ def query_fmp_llm(
     user_message = (
         f"Current time: {now_str}\n\n"
         f"## Question\n{question}\n\n"
-        f"## Data Context (includes FMP real-time financials)\n"
+        f"## Data Context (multi-layer: FMP financials, technicals, social, analyst, macro)\n"
         f"```json\n{context_json}\n```"
     )
 

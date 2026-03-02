@@ -8,6 +8,25 @@ All notable changes to this project are documented in this file.
 
 ### Added (2026-03-02 – 2026-03-02)
 
+- **🧠 FMP AI multi-layer enrichment (8 new data sources):**
+  - FMP AI context now includes **11 data layers** (up from 3) for dramatically richer LLM analysis:
+    1. **FMP quotes** (price, change%, volume, P/E, EPS) — *existing*
+    2. **FMP profiles** (sector, industry, beta) — *existing*
+    3. **TradingView technicals** (RSI, MACD, Stoch, MAs) — *existing*
+    4. **Economic calendar** — today's US macro events (GDP, CPI, FOMC, NFP) with estimates vs actuals from FMP
+    5. **Sector performance** — 11 GICS sector % changes for rotation analysis from FMP
+    6. **Social sentiment** — Reddit + Twitter mention counts and bullish/bearish scores from Finnhub
+    7. **Analyst forecasts** — price targets, consensus ratings, EPS estimates, recent upgrades/downgrades from FMP
+    8. **Benzinga analyst ratings** — institutional upgrades, downgrades, price target changes (last 7 days)
+    9. **Benzinga earnings calendar** — upcoming/recent EPS and revenue estimates vs actuals (±7 days)
+    10. **Insider trades** — recent executive buys/sells with transaction values from FMP
+    11. **Congressional trades** — Senate + House member stock trades from FMP
+  - Each data source has independent caching and graceful fallback if the API is unavailable.
+  - UI metadata line now shows `🔗 N data layers` count alongside existing article/ticker/FMP metrics.
+  - System prompt upgraded to instruct the LLM to cross-reference ALL available layers and identify disconnects (e.g. bullish news + bearish technicals, insider selling + analyst upgrades).
+  - Context expander description updated to list all data sources.
+  - `assemble_context()` expanded with 8 new optional keyword parameters — fully backward-compatible.
+
 - **🏦 FMP AI tab (new):**
   - Mirrors the AI Insights tab UI — same 6 preset questions, custom question input, Generate/Regenerate/Clear buttons.
   - Fetches real-time FMP quotes (price, change%, volume, market cap, P/E, EPS) and company profiles (sector, industry, beta) for the top 12 tickers in the feed.
