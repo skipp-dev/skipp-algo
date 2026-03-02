@@ -451,3 +451,10 @@ if barstate.islast
         table.cell(statusTable, 1, 11, revLabel, text_color=color.white, bgcolor=revBg)
     else
         table.clear(statusTable, 0, 0, 1, 11)
+
+// ==================== ALERTING ====================
+
+alertcondition(longSignal,    title="Buy",   message="VWAP Reclaim — Buy")
+alertcondition(exitLongCond,  title="Exit",  message="VWAP Reclaim — Exit")
+alertcondition(shortSignal,   title="Short", message="VWAP Reclaim — Short")
+alertcondition(exitShortCond, title="Cover", message="VWAP Reclaim — Cover")
