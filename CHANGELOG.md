@@ -9,6 +9,14 @@ All notable changes to this project are documented in this file.
 ### Added (2026-03-02 – 2026-03-02)
 
 - **📊 Actionable / Rankings / Segments tab enrichment:**
+
+- **🧠 AI Insights consolidation & tab reorder:**
+  - Removed the old "AI Insights" tab (was using basic TradingView-only context)
+  - Renamed "FMP AI" → "AI Insights" (the multi-layer enriched version is now the default)
+  - Deleted `terminal_tabs/tab_ai.py` (no longer needed)
+  - Reordered tabs: AI Insights → Actionable → Segments → Rankings → Outlook → Live Feed → Bitcoin → Alerts → Data Table
+
+- **📊 Actionable / Rankings / Segments tab enrichment:**
   - **Actionable tab** — now shows 6 new inline columns: `Price`, `Chg%`, `Social` (Finnhub), `Analyst` (FMP consensus + upside%), `NLP` (NewsAPI.ai), `P/E`, `Vol`. Includes column guide popover explaining each data source.
   - **Rankings tab** — added 4 new inline columns: `Tech` (TradingView signal), `Social`, `Analyst`, `P/E`. FMP batch quotes enrich price data when spike data is missing. Social sentiment and analyst forecasts use cached data or fetch fresh.
   - **Segments tab** — added GICS sector performance overlay (expandable metric cards at top). "Top Symbols per Segment" drill-down now shows `Price`, `Chg%`, `Tech`, `Social`, `Analyst`, `P/E` columns per ticker.

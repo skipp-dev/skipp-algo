@@ -1870,9 +1870,9 @@ else:
         except Exception:
             logger.debug("Sector performance chart skipped", exc_info=True)
 
-    tab_feed, tab_ai, tab_fmp_ai, tab_rank, tab_actionable, tab_segments, tab_bitcoin, tab_outlook, tab_alerts, tab_table = st.tabs(
-        ["📰 Live Feed", "🤖 AI Insights", "🏦 FMP AI", "🏆 Rankings", "🎯 Actionable", "🏗️ Segments",
-         "₿ Bitcoin", "🔮 Outlook",
+    tab_ai, tab_actionable, tab_segments, tab_rank, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table = st.tabs(
+        ["🧠 AI Insights", "🎯 Actionable", "🏗️ Segments", "🏆 Rankings", "🔮 Outlook",
+         "📰 Live Feed", "₿ Bitcoin",
          "⚡ Alerts", "📊 Data Table"],
     )
 
@@ -3020,23 +3020,14 @@ else:
                                         f"({_tn.article_count} articles, {_tn.agreement:.0%} agreement)"
                                     )
 
-    # ── TAB: AI Insights ────────────────────────────────────────
+    # ── TAB: AI Insights (multi-layer enriched) ─────────────────
     with tab_ai:
         st.markdown('<div id="ai-insights"></div>', unsafe_allow_html=True)
         if _intel_enabled():
-            from terminal_tabs.tab_ai import render as render_ai
-            _safe_tab("AI Insights", render_ai, feed, current_session=_current_session)
+            from terminal_tabs.tab_fmp_ai import render as render_fmp_ai
+            _safe_tab("AI Insights", render_fmp_ai, feed, current_session=_current_session)
         else:
             st.info("⚡ Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
-
-    # ── TAB: FMP AI ─────────────────────────────────────────
-    with tab_fmp_ai:
-        st.markdown('<div id="fmp-ai"></div>', unsafe_allow_html=True)
-        if _intel_enabled():
-            from terminal_tabs.tab_fmp_ai import render as render_fmp_ai
-            _safe_tab("FMP AI", render_fmp_ai, feed, current_session=_current_session)
-        else:
-            st.info("⚡ Low-latency mode: FMP AI is disabled. Enable optional intelligence modules in the sidebar.")
 
     # ── TAB: Bitcoin ────────────────────────────────────────
     with tab_bitcoin:
@@ -3508,8 +3499,6 @@ if st.session_state.auto_refresh and (
     @st.fragment(run_every=timedelta(seconds=5))
     def _auto_refresh_fragment() -> None:
         """Non-blocking auto-refresh fragment."""
-        if st.session_state.get("ai_pause_auto_refresh", False):
-            return
         if st.session_state.get("fmp_ai_pause_auto_refresh", False):
             return
 
