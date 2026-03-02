@@ -6,6 +6,76 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-03-02 – 2026-03-02)
+
+- **🏦 FMP AI tab (new):**
+  - Mirrors the AI Insights tab UI — same 6 preset questions, custom question input, Generate/Regenerate/Clear buttons.
+  - Fetches real-time FMP quotes (price, change%, volume, market cap, P/E, EPS) and company profiles (sector, industry, beta) for the top 12 tickers in the feed.
+  - Sends FMP-enriched context to OpenAI GPT-4o with a finance-data-aware system prompt that cross-references news sentiment with actual price action.
+  - Separate session state keys (`fmp_ai_*`), separate cache, separate save file (`fmp_ai_trade_ideas.txt`).
+  - Auto-refresh pauses when FMP AI result is being reviewed (`fmp_ai_pause_auto_refresh`).
+  - Requires both `FMP_API_KEY` and `OPENAI_API_KEY`.
+  - New files: `terminal_fmp_insights.py` (backend), `terminal_tabs/tab_fmp_ai.py` (UI).
+  - Tab count increased 9 → 10.
+
+- **FMP technicals fallback provider:**
+  - New `terminal_fmp_technicals.py` module — fetches RSI(14), MACD(12,26), Stochastic(14,3,3), Williams %R(14), ADX(14), SMA & EMA (10, 20, 50, 100, 200) from FMP REST API.
+  - Computes Buy/Sell/Neutral signals using standard thresholds (RSI >70/< 30, MACD crossover, Stoch >80/<20, etc.).
+  - Returns data in the same `TechnicalResult` format as TradingView — transparent to all callers.
+  - 3-minute in-memory cache with thread-safe locking and auto-eviction.
+  - FMP has 3,000 calls/min rate limit — no 429 risk.
+
+### Fixed (2026-03-02 – 2026-03-02)
+
+- **TradingView 429 spam — proper cooldown escalation (`51a84e6`):**
+  - `_tv_register_success()` was resetting the consecutive 429 counter while a cooldown was still active, preventing escalation (120s → 240s → 480s). Now only resets when cooldown has fully expired.
+  - Cooldown early-return in `fetch_technicals()` now caches its result so repeated calls during cooldown skip immediately.
+  - Cooldown `RuntimeError`s from `_tv_throttle()` are now distinguished from actual TradingView 429 responses — they no longer re-register as new 429s, which was artificially escalating cooldown timers.
+  - Cooldown-block log messages downgraded from WARNING to DEBUG to reduce noise.
+
+- **AI Insights infinite spinner — 30s time budget (`d98aa25`):**
+  - The AI tab was hanging at "Fetching technicals for 8 tickers…" because each TradingView call has a 12s minimum spacing (anti-429 throttle). 8 tickers × up to 3 exchanges × 12s = up to 288 seconds of blocking.
+  - Added a 30-second time budget to the technicals fetch loop — breaks out early and uses whatever was collected.
+  - Falls back to previously cached technicals from session state if the time budget expires before any fresh data is fetched.
+  - Spinner now shows "≤30 s" hint so users know it won't hang indefinitely.
+
+- **AI tabs blocked during TradingView cooldown (`bb61050`, `caf082d`):**
+  - AI Insights and FMP AI tabs now check `_tv_is_cooling_down()` before the technicals fetch loop and skip entirely when TradingView is rate-limited.
+  - Shows a visible caption with remaining cooldown time (e.g., "⏳ TradingView rate-limited — cooldown 120s remaining. Using cached technicals.").
+  - Both tabs proceed straight to the LLM query with whatever data is available.
+  - Technical Data expander widgets in `streamlit_terminal.py` and `_shared.py` also had redundant cooldown guards that were removed after fallback integration.
+
+- **FMP as automatic TradingView fallback (`cbee41f`):**
+  - `fetch_technicals()` cooldown path now calls `_fmp_fallback()` which imports `fetch_fmp_technicals` and converts its dict result to a `TechnicalResult`.
+  - When TradingView is in 429 cooldown (120–900s), all callers transparently receive FMP-sourced technicals instead of error results.
+  - FMP results are cached in the TradingView cache so subsequent calls return instantly.
+  - Redundant widget-level cooldown guards removed from `streamlit_terminal.py` and `terminal_tabs/_shared.py` since `fetch_technicals()` now handles fallback internally.
+
+- **Deprecated `use_container_width` warnings (`836e223`, `72385f0`):**
+  - Replaced all 7 occurrences of `use_container_width=True` with `width='stretch'` across `streamlit_terminal.py` (3), `terminal_tabs/tab_ai.py` (3), and `terminal_tabs/tab_heatmap.py` (1).
+
+- **Rankings tab empty during off-hours (`f592850`):**
+  - Rankings tab was empty because it only sourced from `SpikeDetector.events` (empty outside market hours).
+  - Added feed items as a fallback data source so Rankings populates whenever there is feed data.
+
+- **Sector performance chart styling (`b32de5f`):**
+  - Restored original vertical bar chart with red-yellow-green gradient (`#FF1744`, `#FFC107`, `#00C853`), dark background, and angled labels — matching the pre-refactor appearance.
+
+### Changed (2026-03-02 – 2026-03-02)
+
+- **API budget optimization (`fc477c6`):**
+  - Removed 10 low-value tabs (~1,500 lines of UI code) to reduce API call volume and rendering overhead.
+  - Poll interval changed from 5s → 10s during market hours.
+  - Added 30-second periodic dedup reset to prevent feed staleness from accumulating duplicate filters.
+  - Slowed Bitcoin-related TTLs to reduce FMP bandwidth consumption.
+  - Refactored Rankings tab to use only feed + RT spike data (removed extra API calls).
+  - Removed 7 orphaned cached functions that were no longer called after tab removal.
+  - Added Sector Performance chart above the tab bar.
+  - Created `docs/API_BUDGET_CALCULATIONS.md` with detailed FMP budget analysis (150 GB/30d bandwidth, 3,000 calls/min rate limit).
+
+- **Feed staleness bypass fix (`6d9732e`):**
+  - `notify_ingest()` now only fires when the feed actually grows, preventing false staleness resets.
+
 ### Added (2026-03-03)
 
 - **Live technicals wired into AI Insights:**
