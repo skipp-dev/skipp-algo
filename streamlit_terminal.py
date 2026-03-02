@@ -1245,7 +1245,9 @@ def _intel_enabled() -> bool:
     before any tab content renders, so it always reflects the current
     toggle position.
     """
-    return st.session_state.get("intel_toggle", False)
+    # TEMP: always return True to diagnose whether the AI tab itself works.
+    # The toggle mechanism has consistently failed to persist across reruns.
+    return True
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
