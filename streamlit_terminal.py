@@ -1058,6 +1058,9 @@ with st.sidebar:
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
             "Enable only when you want deeper analysis."
         ),
+        on_change=lambda: st.session_state.update(
+            {"_intel_toggled_at": time.time()}
+        ),
     )
 
     # Lifecycle status
@@ -1239,7 +1242,13 @@ def _safe_float_mov(val: Any, default: float = 0.0) -> float:
 
 def _intel_enabled() -> bool:
     """Whether optional intelligence modules are enabled for this session."""
-    return bool(st.session_state.get("enable_optional_intelligence", False))
+    _val = bool(st.session_state.get("enable_optional_intelligence", False))
+    if not _val:
+        logger.debug(
+            "_intel_enabled=False  session_state keys containing 'intel': %s",
+            {k: v for k, v in st.session_state.items() if "intel" in str(k).lower()},
+        )
+    return _val
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
@@ -4425,6 +4434,12 @@ if st.session_state.auto_refresh and (
         _now = time.time()
         _last_frag_rerun = st.session_state.get("_last_fragment_rerun_ts", 0.0)
         if _now - _last_frag_rerun < _REFRESH_COOLDOWN_S:
+            return
+
+        # Suppress rerun right after a sidebar toggle change so the
+        # toggle state has time to settle before the next full rerun.
+        _toggled_at = st.session_state.get("_intel_toggled_at", 0.0)
+        if _now - _toggled_at < _REFRESH_COOLDOWN_S:
             return
 
         _need_rerun = False
