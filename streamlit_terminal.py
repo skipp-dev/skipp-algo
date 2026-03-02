@@ -703,10 +703,16 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "alert_log": [],
     "bg_poller": None,
     "notify_log": [],
-    "enable_optional_intelligence": os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
+# Intelligence toggle uses a SEPARATE key from the widget key so Streamlit's
+# widget-state lifecycle cannot clobber the flag.  The widget key is
+# "_toggle_intel" (widget-owned); the flag we read is "_intel_flag".
+st.session_state.setdefault(
+    "_intel_flag",
+    os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
+)
 if "total_items_ingested" not in st.session_state:
     st.session_state.total_items_ingested = len(st.session_state.feed)
 if "alert_rules" not in st.session_state:
@@ -1051,16 +1057,20 @@ with st.sidebar:
         help="Auto-fire webhook for score ≥ 0.85 actionable items (routes to TradersPost).",
     )
 
+    def _on_intel_toggle() -> None:
+        """Sync the widget-owned key to our non-widget flag."""
+        st.session_state["_intel_flag"] = st.session_state["_toggle_intel"]
+        st.session_state["_intel_toggled_at"] = time.time()
+
     st.toggle(
         "Optional intelligence modules",
-        key="enable_optional_intelligence",
+        value=st.session_state.get("_intel_flag", False),
+        key="_toggle_intel",
         help=(
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
             "Enable only when you want deeper analysis."
         ),
-        on_change=lambda: st.session_state.update(
-            {"_intel_toggled_at": time.time()}
-        ),
+        on_change=_on_intel_toggle,
     )
 
     # Lifecycle status
@@ -1242,13 +1252,7 @@ def _safe_float_mov(val: Any, default: float = 0.0) -> float:
 
 def _intel_enabled() -> bool:
     """Whether optional intelligence modules are enabled for this session."""
-    _val = bool(st.session_state.get("enable_optional_intelligence", False))
-    if not _val:
-        logger.debug(
-            "_intel_enabled=False  session_state keys containing 'intel': %s",
-            {k: v for k, v in st.session_state.items() if "intel" in str(k).lower()},
-        )
-    return _val
+    return bool(st.session_state.get("_intel_flag", False))
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
