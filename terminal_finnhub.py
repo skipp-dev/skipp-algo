@@ -40,6 +40,7 @@ _cache: dict[str, tuple[float, Any]] = {}
 _cache_lock = threading.Lock()
 _SOCIAL_TTL = 600  # 10 min — Finnhub social data updates slowly
 _CACHE_MAX_SIZE = 200  # hard cap on cache entries
+_social_sentiment_blocked: bool = False  # circuit breaker for 403 (premium-only)
 
 
 def _get_cached(key: str, ttl: float) -> Any | None:
@@ -102,6 +103,14 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
             log.warning("Finnhub rate-limited (429) for %s", path)
+        elif exc.code == 403:
+            log.warning(
+                "Finnhub HTTP 403 for %s — endpoint requires premium plan "
+                "(suppressing further calls this session)", path,
+            )
+            if "social-sentiment" in path:
+                global _social_sentiment_blocked  # noqa: PLW0603
+                _social_sentiment_blocked = True
         else:
             log.warning("Finnhub HTTP %s for %s", exc.code, path)
         return {}
@@ -142,6 +151,8 @@ def fetch_social_sentiment(symbol: str) -> SocialSentiment | None:
     Returns ``None`` when no data is available or key is missing.
     Results are cached for ``_SOCIAL_TTL`` seconds (10 min).
     """
+    if _social_sentiment_blocked:
+        return None
     sym = symbol.upper().strip()
     if not sym:
         return None
