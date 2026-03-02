@@ -1774,17 +1774,22 @@ if st.session_state.use_bg_poller:
     # Drain new items from background thread
     _bg_items = st.session_state.bg_poller.drain()
     if _bg_items:
-        # Record ingest time so lifecycle manager knows data is flowing
-        # even when article published_ts is old.
-        _lm = st.session_state.get("lifecycle_mgr")
-        if _lm is not None:
-            _lm.notify_ingest()
-
         # Alert evaluation (needs ClassifiedItem objects)
         _evaluate_alerts(_bg_items)
 
         # Shared post-poll processing (JSONL, webhooks, notifications, trim, VD)
+        _feed_len_before = len(st.session_state.feed)
         _process_new_items(_bg_items, st.session_state.cfg, src_label="BG")
+
+        # Only record ingest time if items actually grew the feed.
+        # Re-ingested duplicates (from BG poller's dedup-prune recovery
+        # cycles) must NOT reset the staleness clock — otherwise the
+        # lifecycle stale-recovery is permanently bypassed and the feed
+        # age grows without bound.
+        if len(st.session_state.feed) > _feed_len_before:
+            _lm = st.session_state.get("lifecycle_mgr")
+            if _lm is not None:
+                _lm.notify_ingest()
 
     # Sync status from background poller for sidebar display
     _bp = st.session_state.bg_poller
