@@ -977,7 +977,7 @@ class FMPClient:
             if sym:
                 params["symbol"] = sym
         try:
-            data = self._get("/stable/senate-trading", params)
+            data = self._get("/v4/senate-trading", params)
         except RuntimeError as exc:
             return _handle_fmp_error(exc, "senate trading")
         if not isinstance(data, list):
@@ -1004,7 +1004,7 @@ class FMPClient:
             if sym:
                 params["symbol"] = sym
         try:
-            data = self._get("/stable/house-trading", params)
+            data = self._get("/v4/house-trading", params)
         except RuntimeError as exc:
             return _handle_fmp_error(exc, "house trading")
         if not isinstance(data, list):
