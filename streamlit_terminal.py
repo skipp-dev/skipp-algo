@@ -2083,7 +2083,7 @@ else:
         _rank_now = time.time()
         _rank_all: dict[str, dict[str, Any]] = {}
 
-        # 1) RT spike events
+        # 1) RT spike events (highest fidelity — real-time price data)
         _detector_rank: SpikeDetector = st.session_state.spike_detector
         for ev in _detector_rank.events[:50]:
             sym = ev.symbol
@@ -2095,6 +2095,21 @@ else:
                     "volume": ev.volume, "mkt_cap": "",
                     "_ts": ev.ts,
                 }
+
+        # 2) Feed items — extract unique tickers not already covered by spikes
+        for _fi in feed:
+            _fticker = (_fi.get("ticker") or "").upper().strip()
+            if not _fticker or _fticker == "MARKET" or _fticker in _rank_all:
+                continue
+            _f_score = _safe_float_mov(_fi.get("news_score") or _fi.get("composite_score"))
+            _f_ts = _fi.get("published_ts") or _fi.get("created_ts") or 0
+            _rank_all[_fticker] = {
+                "symbol": _fticker,
+                "name": (_fi.get("name") or _fi.get("company") or "")[:50],
+                "price": 0, "change": 0, "chg_pct": 0,
+                "volume": 0, "mkt_cap": "",
+                "_ts": _f_ts,
+            }
 
         if not _rank_all:
             st.info("No ranking data available yet.")
