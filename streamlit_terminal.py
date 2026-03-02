@@ -2374,7 +2374,7 @@ else:
                     _nticker = (_ni.get("ticker") or "").upper().strip()
                     if not _nticker or _nticker == "MARKET":
                         continue
-                    _nscore = _safe_float_mov(_ni.get("composite_score"))
+                    _nscore = _safe_float_mov(_ni.get("news_score") or _ni.get("composite_score"))
                     _existing_news = _news_by_ticker.get(_nticker)
                     if not _existing_news or _nscore > _safe_float_mov(_existing_news.get("news_score")):
                         _news_by_ticker[_nticker] = {
