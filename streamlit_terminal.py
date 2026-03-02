@@ -236,6 +236,9 @@ from terminal_finnhub import (
     fetch_social_sentiment_batch,
     is_available as finnhub_available,
 )
+from terminal_fmp_insights import (
+    fetch_fmp_quotes,
+)
 from terminal_bitcoin import (
     fetch_btc_quote,
     fetch_btc_ohlcv_10min,
@@ -2165,6 +2168,36 @@ else:
                 _rank_syms = [m["symbol"] for m in _ranked[:30]]
                 _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
 
+            # FMP quotes enrichment for top ranked symbols
+            _rank_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+            _rank_fmp: dict[str, dict[str, Any]] = {}
+            _rank_top_syms = [m["symbol"] for m in _ranked[:50]]
+            if _rank_fmp_key and _rank_top_syms:
+                try:
+                    _raw_rq = fetch_fmp_quotes(_rank_fmp_key, _rank_top_syms[:20])
+                    for _rq in _raw_rq:
+                        _rq_s = (_rq.get("symbol") or "").upper()
+                        if _rq_s:
+                            _rank_fmp[_rq_s] = _rq
+                except Exception:
+                    logger.debug("Rankings FMP quotes failed", exc_info=True)
+
+            # Social sentiment for top ranked symbols (prefer cached)
+            _rank_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
+            if not _rank_social and _intel_enabled() and finnhub_available() and _rank_top_syms:
+                try:
+                    _raw_rs = fetch_social_sentiment_batch(_rank_top_syms[:15])
+                    if _raw_rs:
+                        _rank_social = {
+                            sym: {"total_mentions": s.total_mentions, "score": s.score, "label": s.sentiment_label}
+                            for sym, s in _raw_rs.items()
+                        }
+                except Exception:
+                    logger.debug("Rankings social sentiment failed", exc_info=True)
+
+            # Analyst forecasts (prefer cached)
+            _rank_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
+
             top_n = min(50, len(_ranked))
             _rank_rows = []
             for i, m in enumerate(_ranked[:top_n], 1):
@@ -2181,18 +2214,52 @@ else:
                 elif _rank_nlp:
                     _nlp_col = "⚪ —"
                 _r_price = m.get("price") or 0
+                _r_sym = m.get("symbol", "?")
+
+                # FMP enrichment (P/E + override price if spike data is 0)
+                _rfq = _rank_fmp.get(_r_sym, {})
+                _r_pe = _rfq.get("pe")
+                if _r_price == 0 and _rfq.get("price"):
+                    _r_price = _rfq["price"]
+
+                # Social sentiment
+                _rs = _rank_social.get(_r_sym, {})
+                _rs_label = _rs.get("label", "")
+                _rs_mentions = _rs.get("total_mentions", 0)
+                _social_col = ""
+                if _rs_label:
+                    _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_rs_label, "⚪")
+                    _social_col = f"{_soc_icon} {_rs_mentions}"
+
+                # Analyst forecast
+                _raf = _rank_forecasts.get(_r_sym, {})
+                _raf_pt = _raf.get("price_target", {})
+                _raf_rating = _raf.get("rating", {})
+                _analyst_col = ""
+                if _raf_pt.get("upside_pct") is not None:
+                    _up = _raf_pt["upside_pct"]
+                    _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
+                    _consensus = _raf_rating.get("consensus", "")
+                    _analyst_col = f"{_up_icon} {_up:+.0f}%"
+                    if _consensus:
+                        _analyst_col += f" {_consensus}"
+
                 _rank_rows.append({
                     "#": i,
                     "Dir": _dir,
-                    "Symbol": m.get("symbol", "?"),
+                    "Symbol": _r_sym,
                     "Name": m.get("name", ""),
-                    "Price": f"${_r_price:.2f}" if _r_price >= 1 else f"${_r_price:.4f}",
+                    "Price": f"${_r_price:.2f}" if _r_price >= 1 else (f"${_r_price:.4f}" if _r_price > 0 else "—"),
                     "Change": f"{m.get('change', 0):+.2f}",
                     "Change %": f"{m.get('chg_pct', 0):+.2f}%",
                     "Score": round(_composite_score(m), 2),
                     "Age": format_age_string(m.get("_ts")),
                     "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
                     "NLP": _nlp_col,
+                    "Tech": _get_tech_summary(_r_sym),
+                    "Social": _social_col,
+                    "Analyst": _analyst_col,
+                    "P/E": f"{_r_pe:.1f}" if _r_pe and _r_pe > 0 else "—",
                     "Headline": _hl_url if _hl_url else _hl_text,
                     "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                 })
@@ -2200,17 +2267,23 @@ else:
             df_rank = pd.DataFrame(_rank_rows)
             df_rank = df_rank.set_index("#")
 
+            _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_social, _rank_forecasts, _rank_nlp] if x)
             st.caption(
-                f"Top {top_n} of {len(_ranked)} symbols — "
+                f"Top {top_n} of {len(_ranked)} symbols · "
                 f"composite rank (70% price move + 30% news score) · "
-                f"{_news_match_count} with news"
+                f"{_news_match_count} with news · "
+                f"{_n_rank_enriched} enrichment layers"
             )
 
             with st.popover("ℹ️ Column guide"):
                 st.markdown(
                     "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
-                    "- **NLP Sent.** — NLP sentiment from NewsAPI.ai (requires `NEWSAPI_AI_KEY` env var)\n"
-                    "- **Headline** — Latest matching news headline (clickable when a URL is available)\n"
+                    "- **NLP Sent.** — NLP sentiment from NewsAPI.ai\n"
+                    "- **Tech** — TradingView technical signal (BUY/SELL/NEUTRAL)\n"
+                    "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
+                    "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
+                    "- **P/E** — Price-to-Earnings ratio from FMP\n"
+                    "- **Headline** — Latest matching news headline (clickable when URL is available)\n"
                     "- **Volume** — Trading volume from market data source\n\n"
                     "Empty columns mean no matching data is available yet for that ticker."
                 )
@@ -2223,6 +2296,10 @@ else:
                 "Score": st.column_config.NumberColumn("Score", width="small"),
                 "Age": st.column_config.TextColumn("Age", width="small"),
                 "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
+                "Tech": st.column_config.TextColumn("Tech", width="small"),
+                "Social": st.column_config.TextColumn("Social", width="small"),
+                "Analyst": st.column_config.TextColumn("Analyst", width="small"),
+                "P/E": st.column_config.TextColumn("P/E", width="small"),
             }
             # Use LinkColumn for headlines when URLs are present
             if any(r.get("Headline", "").startswith("http") for r in _rank_rows):
@@ -2257,9 +2334,72 @@ else:
         if not _act_feed:
             st.info("No actionable items in the current feed.")
         else:
+            # -- Collect unique tickers for enrichment batch calls --
+            _act_tickers = list({
+                (_ai.get("ticker") or "").upper().strip()
+                for _ai in _act_feed
+                if (_ai.get("ticker") or "").upper().strip() not in ("", "?", "MARKET", "N/A")
+            })
+
+            # FMP quotes (price, change%, P/E, volume)
+            _act_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+            _act_quotes: dict[str, dict[str, Any]] = {}
+            if _act_fmp_key and _act_tickers:
+                try:
+                    _raw_q = fetch_fmp_quotes(_act_fmp_key, _act_tickers[:20])
+                    for q in _raw_q:
+                        _sym = (q.get("symbol") or "").upper()
+                        if _sym:
+                            _act_quotes[_sym] = q
+                except Exception:
+                    logger.debug("Actionable FMP quotes failed", exc_info=True)
+
+            # Social sentiment (cached from FMP AI or fresh)
+            _act_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
+            if not _act_social and _intel_enabled() and finnhub_available() and _act_tickers:
+                try:
+                    _raw_soc = fetch_social_sentiment_batch(_act_tickers[:15])
+                    if _raw_soc:
+                        _act_social = {
+                            sym: {
+                                "total_mentions": s.total_mentions,
+                                "score": s.score,
+                                "label": s.sentiment_label,
+                            }
+                            for sym, s in _raw_soc.items()
+                        }
+                except Exception:
+                    logger.debug("Actionable social sentiment failed", exc_info=True)
+
+            # Analyst forecasts (cached from FMP AI or fresh)
+            _act_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
+            if not _act_forecasts and _intel_enabled() and _act_tickers:
+                try:
+                    for _sym in _act_tickers[:10]:
+                        _fc = fetch_forecast(_sym)
+                        if _fc.has_data and _fc.price_target:
+                            _act_forecasts[_sym] = {
+                                "price_target": {
+                                    "target_mean": _fc.price_target.target_mean,
+                                    "upside_pct": round(_fc.price_target.upside_pct, 1),
+                                },
+                                "rating": {
+                                    "consensus": _fc.rating.consensus if _fc.rating else "",
+                                },
+                            }
+                except Exception:
+                    logger.debug("Actionable forecasts failed", exc_info=True)
+
+            # NLP sentiment
+            _act_nlp: dict[str, NLPSentiment] = {}
+            if _intel_enabled() and newsapi_available() and _act_tickers:
+                _act_nlp = fetch_nlp_sentiment(_act_tickers[:20], hours=24)
+
+            _n_enriched = sum(1 for x in [_act_quotes, _act_social, _act_forecasts, _act_nlp] if x)
             st.caption(
-                f"{len(_act_feed)} actionable items — "
-                "sorted by time (freshest first). Click column headers to re-sort."
+                f"{len(_act_feed)} actionable items · "
+                f"{_n_enriched} enrichment layers · "
+                "sorted by time (freshest first)"
             )
 
             _act_now = time.time()
@@ -2273,9 +2413,49 @@ else:
                 _ai_url = _ai.get("url") or ""
                 _ai_cat = _ai.get("category") or ""
                 _ai_mat = _ai.get("materiality") or ""
+
+                # FMP quote enrichment
+                _aq = _act_quotes.get(_ai_tk, {})
+                _aq_price = _aq.get("price") or 0
+                _aq_chg = _aq.get("changesPercentage") or _aq.get("change_pct") or 0
+                _aq_pe = _aq.get("pe")
+                _aq_vol = _aq.get("volume") or 0
+
+                # Social sentiment
+                _as = _act_social.get(_ai_tk, {})
+                _as_label = _as.get("label", "")
+                _as_mentions = _as.get("total_mentions", 0)
+                _social_col = ""
+                if _as_label:
+                    _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_as_label, "⚪")
+                    _social_col = f"{_soc_icon} {_as_mentions}"
+
+                # Analyst forecast
+                _af = _act_forecasts.get(_ai_tk, {})
+                _af_pt = _af.get("price_target", {})
+                _af_rating = _af.get("rating", {})
+                _analyst_col = ""
+                if _af_pt.get("upside_pct") is not None:
+                    _up = _af_pt["upside_pct"]
+                    _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
+                    _consensus = _af_rating.get("consensus", "")
+                    _analyst_col = f"{_up_icon} {_up:+.0f}%"
+                    if _consensus:
+                        _analyst_col += f" {_consensus}"
+
+                # NLP sentiment
+                _nlp_r = _act_nlp.get(_ai_tk)
+                _nlp_col = ""
+                if _nlp_r and _nlp_r.article_count > 0:
+                    _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
+                elif _act_nlp:
+                    _nlp_col = "⚪ —"
+
                 _act_rows.append({
                     "#": i,
                     "Symbol": _ai_tk,
+                    "Price": f"${_aq_price:.2f}" if _aq_price >= 1 else (f"${_aq_price:.4f}" if _aq_price > 0 else "—"),
+                    "Chg%": f"{_aq_chg:+.2f}%" if _aq_chg else "—",
                     "News Score": round(_ai_sc, 3),
                     "Sentiment": f"{_ai_sent_icon} {_ai_sent.title()}" if _ai_sent else "",
                     "Category": _ai_cat,
@@ -2283,24 +2463,47 @@ else:
                     "Headline": _ai_url if _ai_url else _ai_hl,
                     "Time": format_age_string(_ai.get("published_ts"), now=_act_now),
                     "Tech": _get_tech_summary(_ai_tk),
+                    "Social": _social_col,
+                    "Analyst": _analyst_col,
+                    "NLP": _nlp_col,
+                    "P/E": f"{_aq_pe:.1f}" if _aq_pe and _aq_pe > 0 else "—",
+                    "Vol": f"{_aq_vol:,.0f}" if _aq_vol else "—",
                 })
 
             _df_act = pd.DataFrame(_act_rows).set_index("#")
 
             _act_col_cfg: dict[str, Any] = {
                 "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "Price": st.column_config.TextColumn("Price", width="small"),
+                "Chg%": st.column_config.TextColumn("Chg%", width="small"),
                 "News Score": st.column_config.NumberColumn("News Score", width="small", format="%.3f"),
                 "Sentiment": st.column_config.TextColumn("Sentiment", width="small"),
                 "Category": st.column_config.TextColumn("Category", width="small"),
                 "Materiality": st.column_config.TextColumn("Materiality", width="small"),
                 "Time": st.column_config.TextColumn("Time", width="small"),
                 "Tech": st.column_config.TextColumn("Tech", width="small"),
+                "Social": st.column_config.TextColumn("Social", width="small"),
+                "Analyst": st.column_config.TextColumn("Analyst", width="small"),
+                "NLP": st.column_config.TextColumn("NLP", width="small"),
+                "P/E": st.column_config.TextColumn("P/E", width="small"),
+                "Vol": st.column_config.TextColumn("Vol", width="small"),
             }
             if any(r.get("Headline", "").startswith("http") for r in _act_rows):
                 _act_col_cfg["Headline"] = st.column_config.LinkColumn(
                     "Headline",
                     display_text=r"https?://[^/]+/(.{0,60}).*",
                     width="large",
+                )
+
+            with st.popover("ℹ️ Column guide"):
+                st.markdown(
+                    "- **Price / Chg%** — Real-time quote from FMP (price, daily change %)\n"
+                    "- **Tech** — TradingView technical signal (BUY/SELL/NEUTRAL)\n"
+                    "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
+                    "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
+                    "- **NLP** — NLP sentiment cross-validation from NewsAPI.ai\n"
+                    "- **P/E** — Price-to-Earnings ratio from FMP\n"
+                    "- **Vol** — Trading volume from FMP"
                 )
 
             st.dataframe(
@@ -2317,6 +2520,36 @@ else:
         if not seg_rows:
             st.info("No segment data yet. Channels are populated by news articles.")
         else:
+            # ── Sector Performance Overlay ──────────────────────────
+            _seg_sector_perf: list[dict[str, Any]] = st.session_state.get("_cached_sector_perf") or []
+            if not _seg_sector_perf:
+                _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+                if _seg_fmp_key:
+                    try:
+                        _raw_sp = fetch_sector_performance(_seg_fmp_key)
+                        if _raw_sp:
+                            _seg_sector_perf = [
+                                {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
+                                for s in _raw_sp if s.get("sector")
+                            ]
+                            if _seg_sector_perf:
+                                st.session_state["_cached_sector_perf"] = _seg_sector_perf
+                    except Exception:
+                        logger.debug("Segments sector performance failed", exc_info=True)
+
+            if _seg_sector_perf:
+                with st.expander("📊 GICS Sector Performance (real-time)", expanded=False):
+                    _sp_cols = st.columns(min(len(_seg_sector_perf), 6))
+                    for _sp_i, _sp in enumerate(_seg_sector_perf[:12]):
+                        _sp_name = _sp.get("sector", "")
+                        _sp_chg = _sp.get("change_pct", 0)
+                        _sp_icon = "🟢" if _sp_chg > 0 else "🔴" if _sp_chg < 0 else "⚪"
+                        _sp_cols[_sp_i % len(_sp_cols)].metric(
+                            _sp_name[:20],
+                            f"{_sp_chg:+.2f}%",
+                            delta=None,
+                        )
+
             # ── Overview table (expandable rows) ────────────────────
             st.caption(f"{len(seg_rows)} segments across {len(feed)} articles")
 
@@ -2398,6 +2631,30 @@ else:
 
             # ── Detailed drill-down per segment (top 40 symbols each)
             st.subheader("Top Symbols per Segment")
+
+            # Batch-fetch FMP quotes for all segment tickers (one call)
+            _seg_all_tickers = list({
+                (d.get("ticker") or "").upper().strip()
+                for r in seg_rows
+                for d in (r.get("_ticker_map") or {}).values()
+                if (d.get("ticker") or "").upper().strip() not in ("", "?", "MARKET", "N/A")
+            })
+            _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+            _seg_fmp: dict[str, dict[str, Any]] = {}
+            if _seg_fmp_key and _seg_all_tickers:
+                try:
+                    _raw_sfq = fetch_fmp_quotes(_seg_fmp_key, _seg_all_tickers[:25])
+                    for _sq in _raw_sfq:
+                        _sq_s = (_sq.get("symbol") or "").upper()
+                        if _sq_s:
+                            _seg_fmp[_sq_s] = _sq
+                except Exception:
+                    logger.debug("Segments FMP quotes failed", exc_info=True)
+
+            # Reuse cached social sentiment + forecasts
+            _seg_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
+            _seg_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
+
             for r in seg_rows:
                 ticker_map = r["_ticker_map"]
                 sorted_tks = sorted(
@@ -2409,6 +2666,7 @@ else:
                 with st.expander(f"{r['sentiment']} **{r['segment']}** — {r['tickers']} tickers, {r['articles']} articles"):
                     tk_rows = []
                     for d in sorted_tks:
+                        _tk_sym = (d.get("ticker") or "?").upper()
                         sent_label = d.get("sentiment_label", "neutral")
                         raw_headline = (d.get("headline", "") or "")[:120]
                         article_url = d.get("url", "")
@@ -2417,10 +2675,41 @@ else:
                             if article_url
                             else raw_headline
                         )
+
+                        # FMP quote enrichment
+                        _sfq = _seg_fmp.get(_tk_sym, {})
+                        _sfq_price = _sfq.get("price") or 0
+                        _sfq_chg = _sfq.get("changesPercentage") or _sfq.get("change_pct") or 0
+                        _sfq_pe = _sfq.get("pe")
+
+                        # Social sentiment
+                        _ss = _seg_social.get(_tk_sym, {})
+                        _ss_label = _ss.get("label", "")
+                        _ss_mentions = _ss.get("total_mentions", 0)
+                        _social_col = ""
+                        if _ss_label:
+                            _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ss_label, "⚪")
+                            _social_col = f"{_soc_icon} {_ss_mentions}"
+
+                        # Analyst consensus
+                        _saf = _seg_forecasts.get(_tk_sym, {})
+                        _saf_pt = _saf.get("price_target", {})
+                        _analyst_col = ""
+                        if _saf_pt.get("upside_pct") is not None:
+                            _up = _saf_pt["upside_pct"]
+                            _up_icon = "🟢" if _up > 10 else "🔴" if _up < -10 else "🟡"
+                            _analyst_col = f"{_up_icon} {_up:+.0f}%"
+
                         tk_rows.append({
-                            "Symbol": d.get("ticker", "?"),
+                            "Symbol": _tk_sym,
+                            "Price": f"${_sfq_price:.2f}" if _sfq_price >= 1 else ("—" if _sfq_price == 0 else f"${_sfq_price:.4f}"),
+                            "Chg%": f"{_sfq_chg:+.2f}%" if _sfq_chg else "—",
                             "Score": round(d.get("news_score", 0), 4),
                             "Sentiment": _SENTIMENT_COLORS.get(sent_label, "🟡") + " " + sent_label,
+                            "Tech": _get_tech_summary(_tk_sym),
+                            "Social": _social_col,
+                            "Analyst": _analyst_col,
+                            "P/E": f"{_sfq_pe:.1f}" if _sfq_pe and _sfq_pe > 0 else "—",
                             "Event": d.get("event_label", ""),
                             "Materiality": d.get("materiality", ""),
                             "Headline": headline_display,
@@ -2433,6 +2722,13 @@ else:
                             width='stretch',
                             height=min(1000, 40 + 35 * len(df_tk)),
                             column_config={
+                                "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                                "Price": st.column_config.TextColumn("Price", width="small"),
+                                "Chg%": st.column_config.TextColumn("Chg%", width="small"),
+                                "Tech": st.column_config.TextColumn("Tech", width="small"),
+                                "Social": st.column_config.TextColumn("Social", width="small"),
+                                "Analyst": st.column_config.TextColumn("Analyst", width="small"),
+                                "P/E": st.column_config.TextColumn("P/E", width="small"),
                                 "Headline": st.column_config.LinkColumn(
                                     "Headline",
                                     display_text=r"(.*)",

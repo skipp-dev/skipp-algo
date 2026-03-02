@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file.
 
 ### Added (2026-03-02 – 2026-03-02)
 
+- **📊 Actionable / Rankings / Segments tab enrichment:**
+  - **Actionable tab** — now shows 6 new inline columns: `Price`, `Chg%`, `Social` (Finnhub), `Analyst` (FMP consensus + upside%), `NLP` (NewsAPI.ai), `P/E`, `Vol`. Includes column guide popover explaining each data source.
+  - **Rankings tab** — added 4 new inline columns: `Tech` (TradingView signal), `Social`, `Analyst`, `P/E`. FMP batch quotes enrich price data when spike data is missing. Social sentiment and analyst forecasts use cached data or fetch fresh.
+  - **Segments tab** — added GICS sector performance overlay (expandable metric cards at top). "Top Symbols per Segment" drill-down now shows `Price`, `Chg%`, `Tech`, `Social`, `Analyst`, `P/E` columns per ticker.
+  - All three tabs gracefully fall back to cached data or empty columns when APIs are unavailable.
+
 - **🧠 FMP AI multi-layer enrichment (8 new data sources):**
   - FMP AI context now includes **11 data layers** (up from 3) for dramatically richer LLM analysis:
     1. **FMP quotes** (price, change%, volume, P/E, EPS) — *existing*
