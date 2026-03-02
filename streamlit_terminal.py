@@ -45,12 +45,7 @@ class _FragmentWarningFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         return "does not exist anymore" not in record.getMessage()
 
-for _lg_name in (
-    "streamlit.runtime.fragment",
-    "streamlit.runtime.scriptrunner.exec_code",
-    "streamlit.runtime.scriptrunner_utils.script_run_context",
-):
-    logging.getLogger(_lg_name).addFilter(_FragmentWarningFilter())
+logging.getLogger("streamlit.runtime.app_session").addFilter(_FragmentWarningFilter())
 
 # ── Path setup ──────────────────────────────────────────────────
 
