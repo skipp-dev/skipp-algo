@@ -36,6 +36,22 @@ import httpx
 import pandas as pd
 import streamlit as st
 
+# ── Suppress harmless Streamlit fragment-scheduler warnings ────
+# When a run_every fragment calls st.rerun(), the full-page rerun
+# destroys the old fragment ID.  Streamlit's scheduler still fires
+# on the dead ID and logs a warning every cycle.  This is expected
+# and harmless — filter it out to keep logs clean.
+class _FragmentWarningFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "does not exist anymore" not in record.getMessage()
+
+for _lg_name in (
+    "streamlit.runtime.fragment",
+    "streamlit.runtime.scriptrunner.exec_code",
+    "streamlit.runtime.scriptrunner_utils.script_run_context",
+):
+    logging.getLogger(_lg_name).addFilter(_FragmentWarningFilter())
+
 # ── Path setup ──────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parent
