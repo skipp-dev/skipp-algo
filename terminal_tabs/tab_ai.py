@@ -156,9 +156,16 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             _top_tickers = sorted(_tk_scores, key=_tk_scores.get, reverse=True)[:8]
 
             if _top_tickers:
-                with st.spinner(f"Fetching technicals for {len(_top_tickers)} tickers…"):
+                import time as _time
+                _TECH_BUDGET_S = 30.0  # max seconds to spend fetching technicals
+                _tech_start = _time.time()
+                with st.spinner(f"Fetching technicals for {len(_top_tickers)} tickers (≤30 s)…"):
                     _tech_ctx: dict[str, dict] = {}
                     for _sym in _top_tickers:
+                        if _time.time() - _tech_start > _TECH_BUDGET_S:
+                            logger.info("Technicals time budget (%.0fs) exceeded after %d/%d tickers",
+                                        _TECH_BUDGET_S, len(_tech_ctx), len(_top_tickers))
+                            break
                         _r = fetch_technicals(_sym, "15m")
                         if _r.error:
                             continue
@@ -177,6 +184,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                     if _tech_ctx:
                         technicals = _tech_ctx
                         st.session_state["_cached_technicals"] = _tech_ctx
+                    elif st.session_state.get("_cached_technicals"):
+                        # Use stale cached technicals if budget expired before
+                        # we could fetch any fresh data
+                        technicals = st.session_state["_cached_technicals"]
 
         with st.spinner("Assembling context and querying AI…"):
             context_json = assemble_context(
