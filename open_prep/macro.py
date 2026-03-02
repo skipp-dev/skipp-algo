@@ -868,13 +868,21 @@ class FMPClient:
 
         Without symbol returns broad market insider activity.
         """
-        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500))}
+        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500)), "page": 0}
         if symbol:
             sym = str(symbol).strip().upper()
             if sym:
                 params["symbol"] = sym
+                # Symbol-specific search uses a different path
+                try:
+                    data = self._get("/stable/insider-trading/search", params)
+                except RuntimeError as exc:
+                    return _handle_fmp_error(exc, "insider trading")
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
         try:
-            data = self._get("/stable/insider-trading", params)
+            data = self._get("/stable/insider-trading/latest", params)
         except RuntimeError as exc:
             return _handle_fmp_error(exc, "insider trading")
         if not isinstance(data, list):
@@ -890,7 +898,7 @@ class FMPClient:
         if not sym:
             return {}
         try:
-            data = self._get("/stable/insider-trading-statistics", {"symbol": sym})
+            data = self._get("/stable/insider-trading/statistics", {"symbol": sym})
         except RuntimeError as exc:
             return _handle_fmp_error(exc, "insider trade statistics", default={})
         if isinstance(data, list) and data and isinstance(data[0], dict):
@@ -971,13 +979,20 @@ class FMPClient:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Fetch US Senate stock trading disclosures."""
-        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500))}
+        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500)), "page": 0}
         if symbol:
             sym = str(symbol).strip().upper()
             if sym:
                 params["symbol"] = sym
+                try:
+                    data = self._get("/stable/senate-trades", params)
+                except RuntimeError as exc:
+                    return _handle_fmp_error(exc, "senate trading")
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
         try:
-            data = self._get("/v4/senate-trading", params)
+            data = self._get("/stable/senate-latest", params)
         except RuntimeError as exc:
             return _handle_fmp_error(exc, "senate trading")
         if not isinstance(data, list):
@@ -998,13 +1013,20 @@ class FMPClient:
         Mirrors get_senate_trading() for the lower chamber.
         Without a symbol returns the latest trades across all members.
         """
-        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500))}
+        params: dict[str, Any] = {"limit": max(1, min(int(limit), 500)), "page": 0}
         if symbol:
             sym = str(symbol).strip().upper()
             if sym:
                 params["symbol"] = sym
+                try:
+                    data = self._get("/stable/house-trades", params)
+                except RuntimeError as exc:
+                    return _handle_fmp_error(exc, "house trading")
+                if not isinstance(data, list):
+                    return []
+                return [item for item in data if isinstance(item, dict)]
         try:
-            data = self._get("/v4/house-trading", params)
+            data = self._get("/stable/house-latest", params)
         except RuntimeError as exc:
             return _handle_fmp_error(exc, "house trading")
         if not isinstance(data, list):
