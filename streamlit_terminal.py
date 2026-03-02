@@ -47,6 +47,41 @@ class _FragmentWarningFilter(logging.Filter):
 
 logging.getLogger("streamlit.runtime.app_session").addFilter(_FragmentWarningFilter())
 
+# ── Patch Streamlit cache-key builder to tolerate TokenError ────
+# inspect.getsource() uses the tokenizer to locate function
+# boundaries.  On some files / runtimes the tokenizer raises
+# tokenize.TokenError (not caught by Streamlit's OSError|TypeError
+# handler) which crashes the app.  Monkey-patch _make_function_key
+# so it falls back to bytecode just like the existing OSError path.
+try:
+    import tokenize as _tokenize_mod
+    from streamlit.runtime.caching import cache_utils as _cu
+
+    _orig_make_function_key = _cu._make_function_key
+
+    def _patched_make_function_key(*args: Any, **kwargs: Any) -> str:  # type: ignore[override]
+        try:
+            return _orig_make_function_key(*args, **kwargs)
+        except _tokenize_mod.TokenError:
+            # Fallback: re-run with bytecode by temporarily monkey-patching
+            # inspect.getsource to raise OSError (which Streamlit already handles).
+            import inspect as _insp
+
+            _real_gs = _insp.getsource
+
+            def _gs_raise(*a: Any, **kw: Any) -> str:
+                raise OSError("tokenize fallback")
+
+            _insp.getsource = _gs_raise  # type: ignore[assignment]
+            try:
+                return _orig_make_function_key(*args, **kwargs)
+            finally:
+                _insp.getsource = _real_gs  # type: ignore[assignment]
+
+    _cu._make_function_key = _patched_make_function_key  # type: ignore[assignment]
+except Exception:
+    pass  # If Streamlit internals change, silently skip the patch.
+
 # ── Path setup ──────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).resolve().parent
