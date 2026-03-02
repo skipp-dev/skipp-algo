@@ -745,3 +745,16 @@ plotchar(showMsDbg and ms_sweepHigh,  title="DBG sweepHigh",  char="S", location
 plotchar(showMsDbg and ms_reclaimLow, title="DBG reclaimLow", char="R", location=location.belowbar, size=size.tiny)
 plotchar(showMsDbg and ms_pingS,      title="DBG pingS",      char="v", location=location.abovebar, size=size.tiny)
 
+// ==================== ALERTING ====================
+
+alertcondition(ms_isChoCH_L, title="Bullish ChoCH", message="{{ticker}} — Bullish ChoCH on {{interval}}")
+alertcondition(ms_isChoCH_S, title="Bearish ChoCH", message="{{ticker}} — Bearish ChoCH on {{interval}}")
+alertcondition(ms_bosL,      title="Bullish BOS",   message="{{ticker}} — Bullish BOS on {{interval}}")
+alertcondition(ms_bosS,      title="Bearish BOS",   message="{{ticker}} — Bearish BOS on {{interval}}")
+alertcondition(ms_isChoCH_L or ms_bosL, title="Any Bullish Structure (ChoCH+BOS)", message="{{ticker}} — Bullish structure on {{interval}}")
+alertcondition(ms_isChoCH_S or ms_bosS, title="Any Bearish Structure (ChoCH+BOS)", message="{{ticker}} — Bearish structure on {{interval}}")
+alertcondition(longCondFinal, title="Long Entry",      message="{{ticker}} — Long Entry on {{interval}}")
+alertcondition(takeRev,       title="RevCluster Long", message="{{ticker}} — RevCluster Long on {{interval}}")
+alertcondition(shortCond,     title="Short Entry",     message="{{ticker}} — Short Entry on {{interval}}")
+alertcondition(bearChochEvt,  title="Bear ChoCH Exit", message="{{ticker}} — Bear ChoCH Exit on {{interval}}")
+

@@ -336,3 +336,8 @@ if barstate.islast
         table.cell(statusTable, 1, 9, volLabel, text_color=color.white, bgcolor=volBg)
     else
         table.clear(statusTable, 0, 0, 1, 9)
+
+// ==================== ALERTING ====================
+
+alertcondition(longSignal,     title="Buy",  message="VWAP Reclaim — Buy")
+alertcondition(exitOnVwapLoss, title="Exit", message="VWAP Reclaim — Exit")

@@ -339,3 +339,16 @@ if doBuy
 if doShort
     strategy.entry("SHORT", strategy.short, qty=qtyEff)
     entryBar := bar_index
+
+// ==================== ALERTING ====================
+
+alertcondition(ms_isChoCH_L, title="Bullish ChoCH", message="{{ticker}} — Bullish ChoCH on {{interval}}")
+alertcondition(ms_isChoCH_S, title="Bearish ChoCH", message="{{ticker}} — Bearish ChoCH on {{interval}}")
+alertcondition(ms_bosL,      title="Bullish BOS",   message="{{ticker}} — Bullish BOS on {{interval}}")
+alertcondition(ms_bosS,      title="Bearish BOS",   message="{{ticker}} — Bearish BOS on {{interval}}")
+alertcondition(ms_isChoCH_L or ms_bosL, title="Any Bullish Structure (ChoCH+BOS)", message="{{ticker}} — Bullish structure event on {{interval}}")
+alertcondition(ms_isChoCH_S or ms_bosS, title="Any Bearish Structure (ChoCH+BOS)", message="{{ticker}} — Bearish structure event on {{interval}}")
+alertcondition(doBuy,   title="BUY Signal",   message="{{ticker}} — BUY on {{interval}}")
+alertcondition(doShort, title="SHORT Signal", message="{{ticker}} — SHORT on {{interval}}")
+alertcondition(doExit,  title="EXIT Signal",  message="{{ticker}} — EXIT on {{interval}}")
+alertcondition(doCover, title="COVER Signal", message="{{ticker}} — COVER on {{interval}}")

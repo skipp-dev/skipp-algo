@@ -331,5 +331,14 @@ bgcolor(useHtf ? (htfBull ? color.new(color.green, 93) : color.new(color.red, 93
 plotshape(longCond,  title="Long Signal",  style=shape.triangleup,   location=location.belowbar, size=size.tiny, color=color.new(color.green, 0), text="L")
 plotshape(shortCond, title="Short Signal", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.red, 0), text="S")
 
+// Structure alerts
+alertcondition(ms_isChoCH_L, title="Bullish ChoCH", message="{{ticker}} — Bullish ChoCH on {{interval}}")
+alertcondition(ms_isChoCH_S, title="Bearish ChoCH", message="{{ticker}} — Bearish ChoCH on {{interval}}")
+alertcondition(ms_bosL,      title="Bullish BOS",   message="{{ticker}} — Bullish BOS on {{interval}}")
+alertcondition(ms_bosS,      title="Bearish BOS",   message="{{ticker}} — Bearish BOS on {{interval}}")
+alertcondition(ms_isChoCH_L or ms_bosL, title="Any Bullish Structure (ChoCH+BOS)", message="{{ticker}} — Bullish structure on {{interval}}")
+alertcondition(ms_isChoCH_S or ms_bosS, title="Any Bearish Structure (ChoCH+BOS)", message="{{ticker}} — Bearish structure on {{interval}}")
+
+// Trade signal alerts
 alertcondition(longCond,  title="Long Signal",  message="LONG {{ticker}} [{{interval}}]")
 alertcondition(shortCond, title="Short Signal", message="SHORT {{ticker}} [{{interval}}]")
