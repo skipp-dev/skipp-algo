@@ -706,13 +706,6 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
-# Intelligence toggle uses a SEPARATE key from the widget key so Streamlit's
-# widget-state lifecycle cannot clobber the flag.  The widget key is
-# "_toggle_intel" (widget-owned); the flag we read is "_intel_flag".
-st.session_state.setdefault(
-    "_intel_flag",
-    os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
-)
 if "total_items_ingested" not in st.session_state:
     st.session_state.total_items_ingested = len(st.session_state.feed)
 if "alert_rules" not in st.session_state:
@@ -1057,20 +1050,13 @@ with st.sidebar:
         help="Auto-fire webhook for score ≥ 0.85 actionable items (routes to TradersPost).",
     )
 
-    def _on_intel_toggle() -> None:
-        """Sync the widget-owned key to our non-widget flag."""
-        st.session_state["_intel_flag"] = st.session_state["_toggle_intel"]
-        st.session_state["_intel_toggled_at"] = time.time()
-
-    st.toggle(
+    _INTEL_ENABLED = st.toggle(
         "Optional intelligence modules",
-        value=st.session_state.get("_intel_flag", False),
-        key="_toggle_intel",
+        value=os.getenv("TERMINAL_OPTIONAL_INTEL", "0") == "1",
         help=(
             "Disabled = lowest latency (skips heavy NLP/trending/AI calls). "
             "Enable only when you want deeper analysis."
         ),
-        on_change=_on_intel_toggle,
     )
 
     # Lifecycle status
@@ -1251,8 +1237,14 @@ def _safe_float_mov(val: Any, default: float = 0.0) -> float:
 
 
 def _intel_enabled() -> bool:
-    """Whether optional intelligence modules are enabled for this session."""
-    return bool(st.session_state.get("_intel_flag", False))
+    """Whether optional intelligence modules are enabled for this session.
+
+    Reads the captured return value from the sidebar toggle widget.
+    The variable ``_INTEL_ENABLED`` is set in the sidebar block above
+    before any tab content renders, so it always reflects the current
+    toggle position.
+    """
+    return _INTEL_ENABLED  # type: ignore[name-defined]
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
@@ -4438,12 +4430,6 @@ if st.session_state.auto_refresh and (
         _now = time.time()
         _last_frag_rerun = st.session_state.get("_last_fragment_rerun_ts", 0.0)
         if _now - _last_frag_rerun < _REFRESH_COOLDOWN_S:
-            return
-
-        # Suppress rerun right after a sidebar toggle change so the
-        # toggle state has time to settle before the next full rerun.
-        _toggled_at = st.session_state.get("_intel_toggled_at", 0.0)
-        if _now - _toggled_at < _REFRESH_COOLDOWN_S:
             return
 
         _need_rerun = False
