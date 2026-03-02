@@ -1245,7 +1245,7 @@ def _intel_enabled() -> bool:
     before any tab content renders, so it always reflects the current
     toggle position.
     """
-    return _INTEL_ENABLED  # type: ignore[name-defined]
+    return st.session_state.get("intel_toggle", False)
 
 
 # ── Cached Movers & Quotes ──────────────────────────────────
