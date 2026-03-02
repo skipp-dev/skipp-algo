@@ -4382,30 +4382,37 @@ else:
 if st.session_state.auto_refresh and (
     st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key
 ):
-    # Use st.fragment with run_every for non-blocking auto-refresh (item 4).
-    # This avoids the blocking time.sleep(1) call that froze the UI.
-    @st.fragment(run_every=timedelta(seconds=2))
-    def _auto_refresh_fragment() -> None:
-        """Non-blocking auto-refresh fragment.
+    # Use st.fragment with run_every for non-blocking auto-refresh.
+    # A longer run_every (5s) prevents orphaned-fragment log spam: each
+    # st.rerun() destroys the old fragment ID and Streamlit's scheduler
+    # keeps firing on the dead ID until the interval lapses.  A cooldown
+    # guard further prevents rapid consecutive full-page reruns.
+    _REFRESH_COOLDOWN_S = 4.0  # min seconds between full-page reruns
 
-        Streamlit fragments with ``run_every`` only re-execute the
-        fragment body — they do NOT trigger a full page rerun.  We
-        must explicitly call ``st.rerun()`` when the background
-        poller has new items or a status change, otherwise the sync
-        code in the main script never re-executes and the sidebar
-        shows stale "Polls: 0 / Last poll: —" indefinitely.
-        """
+    @st.fragment(run_every=timedelta(seconds=5))
+    def _auto_refresh_fragment() -> None:
+        """Non-blocking auto-refresh fragment."""
         if st.session_state.get("ai_pause_auto_refresh", False):
             return
 
+        # Cooldown: skip if we triggered a full rerun very recently
+        _last_frag_rerun = st.session_state.get("_last_fragment_rerun_ts", 0.0)
+        if time.time() - _last_frag_rerun < _REFRESH_COOLDOWN_S:
+            return
+
+        _need_rerun = False
         _bp_frag = st.session_state.get("bg_poller")
         if _bp_frag is not None:
             # BG mode: rerun when poller completed a poll (success or failure)
             if _bp_frag.poll_count != st.session_state.get("poll_count", 0):
-                st.rerun()
-            if _bp_frag.last_poll_status != st.session_state.get("last_poll_status", "—"):
-                st.rerun()
+                _need_rerun = True
+            elif _bp_frag.last_poll_status != st.session_state.get("last_poll_status", "—"):
+                _need_rerun = True
         elif st.session_state.get("auto_refresh") and _should_poll(_effective_interval):
+            _need_rerun = True
+
+        if _need_rerun:
+            st.session_state["_last_fragment_rerun_ts"] = time.time()
             st.rerun()
 
     _auto_refresh_fragment()
