@@ -1739,7 +1739,7 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 st.markdown("<style>h1 {margin-top: -1.2rem !important;}</style>", unsafe_allow_html=True)
 st.markdown(
-    '<p style="font-size:1.9rem; line-height:1.2; font-weight:400; color:inherit; margin-bottom:0.35rem;">'
+    '<p style="font-size:2.05rem; line-height:1.24; font-weight:400; color:inherit; margin-bottom:1.75rem;">'
     '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported</p>',
     unsafe_allow_html=True,
 )
@@ -1896,8 +1896,10 @@ else:
         """Wrap a tab body in try/except so one failing tab doesn't crash others (item 7)."""
         try:
             body_fn(*args, **kwargs)
-        except Exception:
+        except Exception as _tab_exc:
             st.error(f"⚠️ {label} tab failed to render.")
+            import traceback as _tb
+            st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
     # ── Sector Performance chart (above tabs) ───────────────
