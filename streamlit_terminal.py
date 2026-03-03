@@ -28,6 +28,7 @@ import re
 import socket
 import sys
 import time
+from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -1902,6 +1903,17 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
+    @contextmanager
+    def _tab_guard(label: str):
+        """Context-manager equivalent of _safe_tab for inline tab bodies."""
+        try:
+            yield
+        except Exception:
+            st.error(f"⚠️ {label} tab failed to render.")
+            import traceback as _tb
+            st.code(_tb.format_exc(), language="python")
+            logger.exception("Tab %s render error", label)
+
     # ── Sector Performance chart (above tabs) ───────────────
     _sp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
     if _sp_key:
@@ -1946,7 +1958,7 @@ else:
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
-    with tab_feed:
+    with tab_feed, _tab_guard("Live Feed"):
         # Search + filter controls
         fcol1, fcol2, fcol3, fcol4 = st.columns([3, 1.5, 1.5, 1])
         with fcol1:
@@ -2145,7 +2157,7 @@ else:
                     # else: no NLP data fetched (NewsAPI.ai unavailable)
 
     # ── TAB: Rankings (feed + spike based — no extra API calls) ─
-    with tab_rank:
+    with tab_rank, _tab_guard("Rankings"):
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
         st.subheader("🏆 Rankings")
@@ -2429,7 +2441,7 @@ else:
                 st.caption("⚡ Low-latency mode: optional intelligence modules are disabled.")
 
     # ── TAB: Actionable ────────────────────────────────────
-    with tab_actionable:
+    with tab_actionable, _tab_guard("Actionable"):
         st.subheader("🎯 Actionable Items")
         _act_feed = dedup_feed_items([d for d in feed if d.get("is_actionable")])
         # Sort by freshest first (highest published_ts on top)
@@ -2622,7 +2634,7 @@ else:
             )
 
     # ── TAB: Segments ───────────────────────────────────────
-    with tab_segments:
+    with tab_segments, _tab_guard("Segments"):
         seg_rows = aggregate_segments(feed)
 
         if not seg_rows:
@@ -2880,7 +2892,7 @@ else:
                         st.caption("No ticker data")
 
     # ── TAB: Outlook ────────────────────────────────────────
-    with tab_outlook:
+    with tab_outlook, _tab_guard("Outlook"):
         st.subheader("🔮 Outlook — Today & Next-Trading-Day")
 
         bz_key = cfg.benzinga_api_key
@@ -3171,7 +3183,7 @@ else:
             st.info("⚡ Low-latency mode: AI Insights are disabled. Enable optional intelligence modules in the sidebar.")
 
     # ── TAB: Bitcoin ────────────────────────────────────────
-    with tab_bitcoin:
+    with tab_bitcoin, _tab_guard("Bitcoin"):
         st.subheader("₿ Bitcoin Dashboard")
         st.caption("🟢 Market: 24/7 — always open")
 
@@ -3527,7 +3539,7 @@ else:
                     st.info("No listing data available. Set FMP_API_KEY.")
 
     # ── TAB: Alerts ─────────────────────────────────────────
-    with tab_alerts:
+    with tab_alerts, _tab_guard("Alerts"):
         st.subheader("⚡ Alert Log")
 
         alert_log = st.session_state.alert_log
@@ -3581,7 +3593,7 @@ else:
                 st.caption("No push notifications sent yet.")
 
     # ── TAB: Data Table ─────────────────────────────────────
-    with tab_table:
+    with tab_table, _tab_guard("Data Table"):
         if feed:
             display_cols = [
                 "ticker", "headline", "age", "news_score", "relevance",
