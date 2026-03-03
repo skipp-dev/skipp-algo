@@ -1191,7 +1191,11 @@ with st.sidebar:
         else:
             if os.path.isfile(_rt_path):
                 _rt_age = time.time() - os.path.getmtime(_rt_path)
-                st.warning(f"RT Engine: file exists but stale ({_rt_age:.0f}s old > 120s limit)")
+                if _rt_age < 300:
+                    st.info(f"RT Engine: idle ({_rt_age:.0f}s since last update)")
+                else:
+                    _rt_mins = _rt_age / 60
+                    st.caption(f"RT Engine: offline — last update {_rt_mins:.0f}min ago")
             else:
                 st.info("RT Engine: not running (terminal poller is independent)")
 
