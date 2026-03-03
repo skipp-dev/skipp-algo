@@ -198,16 +198,41 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.session_state["fmp_ai_selected_question"] = ""
         st.session_state["fmp_ai_run_requested"] = False
 
-    # Determine run state — consume flag immediately so a crash
-    # doesn't leave it stuck True and cause infinite retry loops.
+    # Determine run state — flag is consumed ONLY after successful
+    # completion or after catching an error (not eagerly).  This
+    # ensures that if a rerun interrupts the analysis mid-flight,
+    # the flag stays True and the analysis re-runs on the next pass.
     question = str(st.session_state.get("fmp_ai_selected_question") or "").strip()
     run_requested = bool(st.session_state.get("fmp_ai_run_requested", False))
 
-    if run_requested:
+    # Retry guard: prevent infinite loops if reruns keep interrupting.
+    _FMP_AI_MAX_RETRIES = 3
+    _retry_count = int(st.session_state.get("_fmp_ai_retry_count", 0))
+
+    if run_requested and question and _retry_count >= _FMP_AI_MAX_RETRIES:
+        logger.warning("FMP AI analysis exceeded %d retries — aborting", _FMP_AI_MAX_RETRIES)
         st.session_state["fmp_ai_run_requested"] = False
+        st.session_state["_fmp_ai_retry_count"] = 0
+        st.session_state["fmp_ai_last_result"] = {
+            "error": (
+                f"AI analysis was interrupted {_FMP_AI_MAX_RETRIES} times "
+                "(likely by auto-refresh). Toggle \u2018Pause auto-refresh\u2019 and try again."
+            ),
+            "question": question,
+            "answer": "",
+            "model": "",
+            "cached": False,
+            "context_articles": 0,
+            "context_tickers": 0,
+            "fmp_tickers": 0,
+            "enrichment_layers": 0,
+        }
+        run_requested = False  # skip the analysis block below
 
     if run_requested and question:
-        st.toast(f"🤖 Running AI analysis…")
+        st.session_state["_fmp_ai_retry_count"] = _retry_count + 1
+        _attempt_label = f" (attempt {_retry_count + 1})" if _retry_count else ""
+        st.toast(f"🤖 Running AI analysis…{_attempt_label}")
         # Guard: suppress auto-refresh while this long-running block executes.
         # We use _fmp_ai_executing (checked by the auto-refresh fragment)
         # instead of touching fmp_ai_pause_auto_refresh, because that key
@@ -558,6 +583,28 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 }
                 st.session_state["fmp_ai_last_context_json"] = context_json
                 _status_ctr.update(label="AI analysis complete ✅", state="complete", expanded=False)
+                # ── Success: consume the run flag and reset retry counter ──
+                st.session_state["fmp_ai_run_requested"] = False
+                st.session_state["_fmp_ai_retry_count"] = 0
+        except Exception as exc:
+            # Catch application errors (NOT Streamlit's RerunException
+            # which is BaseException and will propagate normally).
+            # Store the error persistently in session state so it
+            # survives auto-refresh reruns — the user will see it.
+            logger.exception("FMP AI analysis failed")
+            st.session_state["fmp_ai_run_requested"] = False
+            st.session_state["_fmp_ai_retry_count"] = 0
+            st.session_state["fmp_ai_last_result"] = {
+                "error": f"{type(exc).__name__}: {exc}",
+                "question": question,
+                "answer": "",
+                "model": "",
+                "cached": False,
+                "context_articles": 0,
+                "context_tickers": 0,
+                "fmp_tickers": 0,
+                "enrichment_layers": 0,
+            }
         finally:
             st.session_state["_fmp_ai_executing"] = False
 
