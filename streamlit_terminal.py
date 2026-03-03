@@ -1739,7 +1739,7 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 
 st.markdown("<style>h1 {margin-top: -1.2rem !important;}</style>", unsafe_allow_html=True)
 st.markdown(
-    '<p style="font-size:0.875rem; font-weight:600; color:inherit; margin-bottom:0.25rem;">'
+    '<p style="font-size:1.75rem; font-weight:400; color:inherit; margin-bottom:0.25rem;">'
     '📡 Real-Time News Intelligence Stock + Bitcoin Dashboard — AI supported</p>',
     unsafe_allow_html=True,
 )
