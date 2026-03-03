@@ -150,9 +150,10 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     cols = st.columns(3)
     for i, (lbl, q) in enumerate(PRESET_QUESTIONS):
         col = cols[i % 3]
-        if col.button(lbl, key=f"fmp_ai_preset_{i}", width='stretch'):
+        if col.button(lbl, key=f"fmp_ai_preset_{i}"):
             st.session_state["fmp_ai_selected_question"] = q
             st.session_state["fmp_ai_run_requested"] = True
+            logger.info("FMP AI preset clicked: [%d] %s", i, lbl)
 
     # --- Custom question input (form ensures Enter triggers reliably) ---
     st.markdown("##### Ask a Custom Question")
@@ -176,7 +177,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     _qa_c1, _qa_c2 = st.columns([1, 2])
     with _qa_c1:
-        if st.button("🔁 Ask Again", key="fmp_ai_regenerate", width='stretch',
+        if st.button("🔁 Ask Again", key="fmp_ai_regenerate",
                       help="Re-run the last question with fresh data"):
             _q = (st.session_state.get("fmp_ai_selected_question") or "").strip()
             if _q:
@@ -201,6 +202,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     # doesn't leave it stuck True and cause infinite retry loops.
     question = str(st.session_state.get("fmp_ai_selected_question") or "").strip()
     run_requested = bool(st.session_state.get("fmp_ai_run_requested", False))
+
     if run_requested:
         st.session_state["fmp_ai_run_requested"] = False
 
