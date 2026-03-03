@@ -621,7 +621,8 @@ def fetch_btc_technicals(interval: str = "1h") -> BTCTechnicals:
             _tv_register_429()
             remaining = _tv_cooldown_remaining()
             _msg = f"Rate limited — cooldown {remaining:.0f}s"
-        log.warning("TradingView BTC technicals (%s) failed: %s", interval, _msg)
+        _log_fn = log.info if "Rate limited" in _msg else log.warning
+        _log_fn("TradingView BTC technicals (%s) failed: %s", interval, _msg)
         result = BTCTechnicals(interval=interval, error=_msg)
         _set_cached(cache_key, result)  # cache errors too
         return result

@@ -209,7 +209,8 @@ def _tv_register_429() -> None:
         _tv_consecutive_429s += 1
         cooldown = min(_TV_COOLDOWN_BASE * (2 ** (_tv_consecutive_429s - 1)), _TV_COOLDOWN_MAX)
         _tv_cooldown_until = time.time() + cooldown
-        log.warning(
+        _log_fn = log.warning if _tv_consecutive_429s <= 1 else log.info
+        _log_fn(
             "TradingView 429 — cooldown %.0fs (consecutive: %d)",
             cooldown, _tv_consecutive_429s,
         )
@@ -501,7 +502,7 @@ def fetch_technicals(
             _tv_register_429()
             remaining = _tv_cooldown_remaining()
             _msg = f"Rate limited — cooldown {remaining:.0f}s"
-            log.warning("TradingView technicals fetch failed for %s: %s", sym, _msg)
+            log.info("TradingView technicals fetch failed for %s: %s", sym, _msg)
         else:
             log.warning("TradingView technicals fetch failed for %s: %s", sym, _msg)
         result = TechnicalResult(symbol=sym, interval=interval, ts=now, error=_msg)
