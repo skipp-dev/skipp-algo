@@ -1213,9 +1213,9 @@ _RECENCY_COLORS = RECENCY_COLORS
 # NOTE: Each wrapper catches exceptions so Streamlit never caches a raised
 # exception for the full TTL — callers always get a safe fallback.
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def _cached_sector_perf(api_key: str) -> list[dict[str, Any]]:
-    """Cache sector performance for 5 minutes."""
+    """Cache sector performance for 3 minutes."""
     try:
         return fetch_sector_performance(api_key)
     except Exception:
@@ -1237,11 +1237,11 @@ def _cached_ticker_sectors(api_key: str, tickers_csv: str) -> dict[str, str]:
 
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def _cached_today_outlook(
     bz_key: str, fmp_key: str, _cache_buster: str = "",
 ) -> dict[str, Any]:
-    """Cache today outlook for 5 minutes."""
+    """Cache today outlook for 3 minutes."""
     try:
         return compute_today_outlook(bz_key, fmp_key)
     except Exception:

@@ -336,9 +336,9 @@ def _cached_defense_wl_op(api_key: str) -> list[dict[str, Any]]:
         return []
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=180, show_spinner=False)
 def _cached_bz_options_op(api_key: str, tickers: str) -> list[dict[str, Any]]:
-    """Cache Benzinga options activity for 5 minutes."""
+    """Cache Benzinga options activity for 3 minutes."""
     if _fetch_bz_options is None:
         return []
     try:
