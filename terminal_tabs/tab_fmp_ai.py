@@ -199,9 +199,12 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.session_state["fmp_ai_run_requested"] = False
         st.rerun()
 
-    # Determine run state
+    # Determine run state — consume flag immediately so a crash
+    # doesn't leave it stuck True and cause infinite retry loops.
     question = str(st.session_state.get("fmp_ai_selected_question") or "").strip()
     run_requested = bool(st.session_state.get("fmp_ai_run_requested", False))
+    if run_requested:
+        st.session_state["fmp_ai_run_requested"] = False
 
     if run_requested and question:
         macro = st.session_state.get("_cached_macro")
@@ -541,7 +544,6 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             "question": question,
         }
         st.session_state["fmp_ai_last_context_json"] = context_json
-        st.session_state["fmp_ai_run_requested"] = False
 
     # --- Display last persisted result ---
     last_result = st.session_state.get("fmp_ai_last_result")
