@@ -3640,6 +3640,11 @@ if st.session_state.auto_refresh and (
         """Non-blocking auto-refresh fragment."""
         if st.session_state.get("fmp_ai_pause_auto_refresh", False):
             return
+        # Never interrupt a running AI query — it takes 30-60 s and a
+        # rerun would silently abort it (the run-requested flag is already
+        # consumed, so the query would not restart).
+        if st.session_state.get("_fmp_ai_executing", False):
+            return
 
         # Cooldown: skip if we triggered a full rerun very recently
         _now = time.time()
