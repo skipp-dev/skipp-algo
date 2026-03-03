@@ -1756,16 +1756,71 @@ if not feed:
     else:
         st.info("No items yet. Waiting for first poll…")
 else:
-    # ── Stats bar ───────────────────────────────────────────
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    # ── Stats bar: Top 3 ranked symbols + key metrics ─────
+    # Quick ranking from feed + spikes (same data as Rankings tab)
+    _top3_all: dict[str, dict[str, Any]] = {}
+    _top3_detector: SpikeDetector = st.session_state.spike_detector
+    for _t3ev in _top3_detector.events[:50]:
+        _t3s = _t3ev.symbol
+        _t3x = _top3_all.get(_t3s)
+        if not _t3x or abs(_t3ev.spike_pct) > abs(_t3x.get("chg_pct", 0)):
+            _top3_all[_t3s] = {
+                "symbol": _t3s, "name": _t3ev.name[:30],
+                "price": _t3ev.price, "chg_pct": _t3ev.spike_pct,
+                "news_score": 0.0, "sentiment": "",
+            }
+    for _t3fi in feed:
+        _t3tk = (_t3fi.get("ticker") or "").upper().strip()
+        if not _t3tk or _t3tk == "MARKET":
+            continue
+        _t3ns = _safe_float_mov(_t3fi.get("news_score") or _t3fi.get("composite_score"))
+        _t3sent = _t3fi.get("sentiment_label") or ""
+        if _t3tk in _top3_all:
+            if _t3ns > _safe_float_mov(_top3_all[_t3tk].get("news_score")):
+                _top3_all[_t3tk]["news_score"] = _t3ns
+                _top3_all[_t3tk]["sentiment"] = _t3sent
+        else:
+            _top3_all[_t3tk] = {
+                "symbol": _t3tk,
+                "name": (_t3fi.get("name") or _t3fi.get("company") or "")[:30],
+                "price": 0, "chg_pct": 0,
+                "news_score": _t3ns, "sentiment": _t3sent,
+            }
+
+    # Sort: bullish first, then best news score
+    def _top3_sort(r: dict[str, Any]) -> tuple[int, float, float]:
+        _chg = float(r.get("chg_pct") or 0)
+        _ns = float(r.get("news_score") or 0)
+        _sent = (r.get("sentiment") or "").lower()
+        _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
+        return (-_tier, -_ns, -_chg)
+
+    _top3_ranked = sorted(_top3_all.values(), key=_top3_sort)[:3]
+
     _stats = compute_feed_stats(feed)
 
-    col1.metric("Feed items", _stats["count"])
-    col2.metric("Unique tickers", _stats["unique_tickers"])
-    col3.metric("Actionable", _stats["actionable"])
-    col4.metric("HIGH materiality", _stats["high_materiality"])
-    col5.metric("Avg relevance", f"{_stats['avg_relevance']:.3f}")
-    col6.metric("Newest item", f"{_stats['newest_age_min']:.0f}m ago")
+    if _top3_ranked:
+        _t3_cols = st.columns(3)
+        for _t3i, _t3r in enumerate(_top3_ranked):
+            _t3_sym = _t3r["symbol"]
+            _t3_chg = _t3r.get("chg_pct", 0)
+            _t3_dir = "🟢" if _t3_chg > 0 else "🔴" if _t3_chg < 0 else "⚪"
+            _t3_ns = _t3r.get("news_score", 0)
+            _t3_price = _t3r.get("price", 0)
+            _t3_name = _t3r.get("name", "")
+            _t3_price_str = f"${_t3_price:.2f}" if _t3_price >= 1 else (f"${_t3_price:.4f}" if _t3_price > 0 else "")
+            _t3_sub = f"{_t3_dir} {_t3_chg:+.2f}%"
+            if _t3_price_str:
+                _t3_sub += f" · {_t3_price_str}"
+            if _t3_ns > 0:
+                _t3_sub += f" · NLP {_t3_ns:.2f}"
+            _t3_cols[_t3i].metric(
+                f"#{_t3i+1} {_t3_sym}",
+                _t3_name if _t3_name else _t3_sym,
+                _t3_sub,
+            )
+    else:
+        st.caption("No ranked symbols yet — waiting for data…")
 
     # ── Expandable detail lists behind the top-line metrics ──
     _detail_cols = st.columns(3)
@@ -2164,10 +2219,19 @@ else:
                 _ns = float(r.get("news_score") or 0)
                 return abs(_chg) * 0.7 + _ns * 100.0 * 0.3
 
+            # Default sort: bullish first (positive chg_pct), then best NLP/news score
+            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[int, float, float]:
+                _chg = float(r.get("chg_pct") or 0)
+                _ns = float(r.get("news_score") or 0)
+                _sent = (r.get("sentiment") or "").lower()
+                # Tier: 1=bullish/positive move, 0=neutral, -1=bearish
+                _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
+                # Within tier: sort by news_score desc, then chg_pct desc
+                return (-_tier, -_ns, -_chg)
+
             _ranked = sorted(
                 _rank_all.values(),
-                key=_composite_score,
-                reverse=True,
+                key=_bullish_nlp_key,
             )
 
             # NLP sentiment enrichment for top ranked symbols
@@ -2190,8 +2254,12 @@ else:
                 except Exception:
                     logger.debug("Rankings FMP quotes failed", exc_info=True)
 
-            # Social sentiment for top ranked symbols (prefer cached)
-            _rank_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
+            # Social sentiment for top ranked symbols (time-limited cache)
+            _RANK_CACHE_TTL = 180  # 3 minutes — keep rankings data fresh
+            _rank_social: dict[str, Any] = {}
+            _social_ts = st.session_state.get("_cached_social_sent_ts", 0)
+            if time.time() - _social_ts < _RANK_CACHE_TTL:
+                _rank_social = st.session_state.get("_cached_social_sent") or {}
             if not _rank_social and _intel_enabled() and finnhub_available() and _rank_top_syms:
                 try:
                     _raw_rs = fetch_social_sentiment_batch(_rank_top_syms[:15])
@@ -2201,11 +2269,15 @@ else:
                             for sym, s in _raw_rs.items()
                         }
                         st.session_state["_cached_social_sent"] = _rank_social
+                        st.session_state["_cached_social_sent_ts"] = time.time()
                 except Exception:
                     logger.debug("Rankings social sentiment failed", exc_info=True)
 
-            # Analyst forecasts (prefer cached, fallback to fresh fetch)
-            _rank_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
+            # Analyst forecasts (time-limited cache)
+            _rank_forecasts: dict[str, Any] = {}
+            _forecasts_ts = st.session_state.get("_cached_forecasts_ts", 0)
+            if time.time() - _forecasts_ts < _RANK_CACHE_TTL:
+                _rank_forecasts = st.session_state.get("_cached_forecasts") or {}
             if not _rank_forecasts and _intel_enabled() and _rank_top_syms:
                 try:
                     for _sym in _rank_top_syms[:10]:
@@ -2222,6 +2294,7 @@ else:
                             }
                     if _rank_forecasts:
                         st.session_state["_cached_forecasts"] = _rank_forecasts
+                        st.session_state["_cached_forecasts_ts"] = time.time()
                 except Exception:
                     logger.debug("Rankings forecasts failed", exc_info=True)
 
@@ -2296,7 +2369,7 @@ else:
             _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_social, _rank_forecasts, _rank_nlp] if x)
             st.caption(
                 f"Top {top_n} of {len(_ranked)} symbols · "
-                f"composite rank (70% price move + 30% news score) · "
+                f"sorted: bullish first → best news score · "
                 f"{_news_match_count} with news · "
                 f"{_n_rank_enriched} enrichment layers"
             )
@@ -2393,6 +2466,7 @@ else:
                             for sym, s in _raw_soc.items()
                         }
                         st.session_state["_cached_social_sent"] = _act_social
+                        st.session_state["_cached_social_sent_ts"] = time.time()
                 except Exception:
                     logger.debug("Actionable social sentiment failed", exc_info=True)
 
@@ -2414,6 +2488,7 @@ else:
                             }
                     if _act_forecasts:
                         st.session_state["_cached_forecasts"] = _act_forecasts
+                        st.session_state["_cached_forecasts_ts"] = time.time()
                 except Exception:
                     logger.debug("Actionable forecasts failed", exc_info=True)
 
@@ -2689,6 +2764,7 @@ else:
                             for sym, s in _raw_seg_soc.items()
                         }
                         st.session_state["_cached_social_sent"] = _seg_social
+                        st.session_state["_cached_social_sent_ts"] = time.time()
                 except Exception:
                     logger.debug("Segments social sentiment failed", exc_info=True)
 
@@ -2710,6 +2786,7 @@ else:
                             }
                     if _seg_forecasts:
                         st.session_state["_cached_forecasts"] = _seg_forecasts
+                        st.session_state["_cached_forecasts_ts"] = time.time()
                 except Exception:
                     logger.debug("Segments forecasts failed", exc_info=True)
 
