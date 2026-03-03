@@ -87,7 +87,6 @@ RATE_LIMIT_COOLDOWN_SECONDS = 120
 MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
 _STALE_CACHE_MAX_AGE_MIN = 5  # auto-recovery if cache older than this during market hours
 _STALE_RECOVERY_COOLDOWN_S = 300  # 5 min between auto-recovery attempts
-_ABSOLUTE_MAX_CACHE_AGE_MIN = 30  # force refresh regardless of market session detection
 
 # ── Market session awareness (optional — may be unavailable on Streamlit Cloud)
 try:
@@ -100,30 +99,6 @@ except ImportError:  # pragma: no cover
         "after-hours": "🌙 After-Hours",
         "closed": "⚫ Market Closed",
     }
-
-
-def _is_market_hours_fallback() -> bool:
-    """Return True if US equity markets are likely open (pre/regular/after).
-
-    Uses ``_market_session()`` when the import succeeded, otherwise falls
-    back to a simple UTC → Eastern time check for the 04:00-20:00 ET
-    window on weekdays.
-    """
-    if callable(_market_session):
-        try:
-            return _market_session() in ("regular", "pre-market", "after-hours")
-        except Exception:
-            pass
-    # Fallback: derive from wall-clock Eastern time
-    try:
-        et = ZoneInfo("America/New_York")
-        now_et = datetime.now(et)
-        if now_et.weekday() >= 5:  # Sat/Sun
-            return False
-        return time(4, 0) <= now_et.time() <= time(20, 0)
-    except Exception:
-        # If even timezone lookup fails, assume market hours to be safe
-        return True
 
 try:
     from terminal_poller import fetch_benzinga_delayed_quotes as _fetch_bz_quotes
@@ -881,12 +856,8 @@ def main() -> None:
                 _diag_age_s = max((datetime.now(UTC) - _diag_last_fetch).total_seconds(), 0)
                 _diag_age_min = _diag_age_s / 60
                 _diag_label = f"Daten-Alter: {_diag_age_min:.0f}m"
-                _diag_is_market = _is_market_hours_fallback()
-                if _diag_age_min > 60:
-                    st.error(f"🔴 {_diag_label} — STALE! Daten sind > 1h alt!")
-                elif _diag_age_min > 30 and _diag_is_market:
-                    st.warning(f"⚠️ {_diag_label} — Daten veraltet")
-                elif _diag_age_min > 10 and _diag_is_market:
+                _diag_is_market = callable(_market_session) and _market_session() in ("regular", "pre-market", "after-hours")
+                if _diag_age_min > 30 and _diag_is_market:
                     st.warning(_diag_label)
                 else:
                     st.caption(_diag_label)
@@ -940,18 +911,15 @@ def main() -> None:
                 if _ar_last.tzinfo is None:
                     _ar_last = _ar_last.replace(tzinfo=UTC)
                 _ar_age_min = max((now_utc - _ar_last).total_seconds(), 0) / 60
-                _ar_is_market = _is_market_hours_fallback()
+                _ar_is_market = (
+                    callable(_market_session)
+                    and _market_session() in ("regular", "pre-market", "after-hours")
+                )
                 _ar_cooldown_ok = (
                     (__import__("time").time() - float(st.session_state.get("_stale_recovery_ts", 0)))
                     >= _STALE_RECOVERY_COOLDOWN_S
                 )
-                # During market hours: recover after 5 min stale
-                # Any time: recover after absolute max (30 min) — never stay stale for hours
-                _ar_should_recover = (
-                    (_ar_age_min > _STALE_CACHE_MAX_AGE_MIN and _ar_is_market)
-                    or _ar_age_min > _ABSOLUTE_MAX_CACHE_AGE_MIN
-                )
-                if _ar_should_recover and _ar_cooldown_ok:
+                if _ar_age_min > _STALE_CACHE_MAX_AGE_MIN and _ar_is_market and _ar_cooldown_ok:
                     st.session_state["latest_result_cache"] = None
                     st.session_state["force_live_fetch"] = True
                     st.session_state["_stale_recovery_ts"] = __import__("time").time()
