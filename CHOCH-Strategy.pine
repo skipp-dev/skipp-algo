@@ -43,6 +43,7 @@ usiZeroLag       = input.bool(true, "USI: Zero-Lag mode", group=grpExit)
 usiLenBlue       = input.int(13, "USI Blue Len (L1)", minval=2, group=grpExit)
 usiLenRed        = input.int(3,  "USI Red Len (L5)",  minval=1, group=grpExit)
 usiExitOnState   = input.bool(false, "USI Exit on state (Red < Blue), not only cross", group=grpExit)
+usiBullFilter    = input.bool(true, "USI Bull Filter: block EXIT/SHORT while Red > Blue", group=grpExit)
 
 // Impulse Exit
 useImpulseExit   = input.bool(true, "Exit: Impulse Down", group=grpExit)
@@ -70,6 +71,7 @@ usiRed  = ta.rsi(usiSrcRed,  usiLenRed)   // L5
 
 usiCrossDown = ta.crossunder(usiRed, usiBlue)
 usiBearState = usiRed < usiBlue
+usiBullActive = useUsiExit and usiBullFilter and (usiRed > usiBlue)
 
 //====================
 // Swings (stable levels)
@@ -234,8 +236,8 @@ bool bearStructure = ms_isChoCH_S or ms_bosS
 
 // BUY when flat or short → go long
 bool doBuy   = (not inLong) and bullStructure and qtyEff > 0
-// SHORT when flat or long → go short
-bool doShort = (not inShort) and bearStructure and qtyEff > 0
+// SHORT when flat or long → go short (blocked by USI bull filter)
+bool doShort = (not inShort) and bearStructure and qtyEff > 0 and (not usiBullActive)
 
 //====================
 // EXIT reasons (close LONG — SkippALGO-like)
@@ -256,7 +258,9 @@ bool usiExitHit = useUsiExit and inLong and (usiExitOnState ? usiBearState : usi
 bool impulseDown = useImpulseExit and inLong and (close < open) and (body > atrExit * impulseExitMult)
 
 bool doExitCore = exitBearStruct or emaExitHit or usiExitHit or impulseDown
-bool doExit = allowSameBarExit ? doExitCore : (doExitCore and (bar_index != entryBar))
+// USI bull filter: suppress exit from long while momentum is bullish
+bool doExitFiltered = usiBullActive ? false : doExitCore
+bool doExit = allowSameBarExit ? doExitFiltered : (doExitFiltered and (bar_index != entryBar))
 
 //====================
 // COVER reasons (close SHORT — SkippALGO-like, mirrored)
