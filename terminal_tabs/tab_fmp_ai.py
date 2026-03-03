@@ -143,14 +143,22 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     st.session_state.setdefault("fmp_ai_pause_auto_refresh", False)
 
     # --- Preset question buttons ---
+    def _on_preset_click(q: str, lbl: str) -> None:
+        """Callback for preset buttons — runs BEFORE the script re-executes."""
+        st.session_state["fmp_ai_selected_question"] = q
+        st.session_state["fmp_ai_run_requested"] = True
+
     st.markdown("##### Quick Analysis")
     cols = st.columns(3)
     for i, (label, question) in enumerate(PRESET_QUESTIONS):
         col = cols[i % 3]
-        if col.button(label, key=f"fmp_ai_preset_{i}", width='stretch'):
-            st.session_state["fmp_ai_selected_question"] = question
-            st.session_state["fmp_ai_run_requested"] = True
-            st.rerun()
+        col.button(
+            label,
+            key=f"fmp_ai_preset_{i}",
+            width='stretch',
+            on_click=_on_preset_click,
+            args=(question, label),
+        )
 
     # --- Custom question input (form ensures Enter triggers reliably) ---
     st.markdown("##### Ask a Custom Question")
@@ -172,16 +180,16 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             else:
                 st.warning("Please enter a question first.")
 
+    def _on_regenerate() -> None:
+        _q = (st.session_state.get("fmp_ai_selected_question") or "").strip()
+        if _q:
+            st.session_state["fmp_ai_run_requested"] = True
+
     _qa_c1, _qa_c2 = st.columns([1, 2])
     with _qa_c1:
-        if st.button("🔁 Ask Again", key="fmp_ai_regenerate", width='stretch',
-                      help="Re-run the last question with fresh data"):
-            _q = (st.session_state.get("fmp_ai_selected_question") or "").strip()
-            if _q:
-                st.session_state["fmp_ai_run_requested"] = True
-                st.rerun()
-            else:
-                st.warning("No previous question — type one above and press Enter.")
+        st.button("🔁 Ask Again", key="fmp_ai_regenerate", width='stretch',
+                  help="Re-run the last question with fresh data",
+                  on_click=_on_regenerate)
     with _qa_c2:
         st.toggle(
             "Pause auto-refresh while reviewing AI result",
@@ -192,12 +200,13 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             ),
         )
 
-    if st.button("🧹 Clear AI result", key="fmp_ai_clear_result"):
+    def _on_clear() -> None:
         st.session_state["fmp_ai_last_result"] = None
         st.session_state["fmp_ai_last_context_json"] = ""
         st.session_state["fmp_ai_selected_question"] = ""
         st.session_state["fmp_ai_run_requested"] = False
-        st.rerun()
+
+    st.button("🧹 Clear AI result", key="fmp_ai_clear_result", on_click=_on_clear)
 
     # Determine run state — consume flag immediately so a crash
     # doesn't leave it stuck True and cause infinite retry loops.
@@ -207,6 +216,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         st.session_state["fmp_ai_run_requested"] = False
 
     if run_requested and question:
+        st.toast(f"🤖 Running AI analysis…")
         # Guard: suppress auto-refresh while this long-running block executes.
         # We use _fmp_ai_executing (checked by the auto-refresh fragment)
         # instead of touching fmp_ai_pause_auto_refresh, because that key
