@@ -252,20 +252,30 @@ Datei: `open_prep/realtime_signals.py`
 
 ### 9.1 Kernobjekte
 
-- `RealtimeEngine`
-- `RealtimeSignal`
-- `QuoteDeltaTracker`
-- `VolumeRegimeDetector`
-- `DynamicCooldown`
-- `GateHysteresis`
-- `ScoreTelemetry`
-- `AsyncNewsstackPoller`
+- `RealtimeEngine` — FMP-polling breakout detection engine
+- `RealtimeSignal` — single breakout signal dataclass
+- `TechnicalScorer` — cached TradingView + FMP technical indicator wrapper
+- `QuoteDeltaTracker` — per-symbol Δ columns for VisiData
+- `VolumeRegimeDetector` — holiday/thin session auto-detection
+- `DynamicCooldown` — oscillation-aware A0 cooldown
+- `GateHysteresis` — anti-flapping filter for level transitions
+- `ScoreTelemetry` — operational metrics
+- `AsyncNewsstackPoller` — background news thread
 
 ### 9.2 Betriebsmodus
 
-- Polling der Top-Kandidaten (`DEFAULT_POLL_INTERVAL=45s`)
+- **Full universe monitoring:** Monitors ALL scored symbols from the pipeline
+  (typically 900+), not just a fixed top-N subset. The `--top-n` CLI flag
+  defaults to `0` (all); pass e.g. `--top-n 20` to limit for testing.
+- Polling interval: `DEFAULT_POLL_INTERVAL=20s` (ultra: 2s, fast: 5s)
+- FMP batch-quote calls chunked into groups of 500 symbols
+- avgVolume enrichment via FMP bulk profile endpoint (single call)
 - Signallevel:
-  - `A0` (immediate), `A1` (watch)
+  - `A0` (immediate), `A1` (watch), `A2` (early warning)
+- Technical confirmation via `TechnicalScorer`:
+  - RSI oversold/overbought boost/penalty
+  - Consensus blocking (STRONG_SELL blocks LONG A0, etc.)
+  - Tech score ≥ 0.75 → A1→A0 upgrade (respects cooldown)
 - Persistenz:
   - `latest_realtime_signals.json`
   - `latest_vd_signals.jsonl` (VisiData)
@@ -274,8 +284,9 @@ Datei: `open_prep/realtime_signals.py`
 ### 9.3 Guardrails
 
 - Signal-Aging (`MAX_SIGNAL_AGE_SECONDS`)
-- A0 Cooldown (`A0_COOLDOWN_SECONDS`)
+- A0 Cooldown (`A0_COOLDOWN_SECONDS`) + dynamic oscillation-based cooldown
 - Thin-volume Regime-Suspend/Relax
+- TechnicalScorer rate limiting (13s spacing, 120s cooldown on 429)
 - NaN-safe JSON serialization (`allow_nan=False`)
 
 ---

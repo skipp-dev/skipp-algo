@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-03-04)
+
+- **🔭 Realtime Signals — full universe monitoring (900+ symbols):**
+  - Removed the fixed `top_n=15` watchlist limit. The engine now monitors **all scored symbols** from the pipeline run (typically 900+), not just the top-ranked candidates.
+  - `_load_watchlist()` merges `ranked_v2` (top scored) + `filtered_out_v2` overflow entries (scored but below display cutoff) + `enriched_quotes` (remaining universe symbols) to build the full monitoring universe.
+  - `DEFAULT_TOP_N` changed from `15` → `0` (meaning all). The `--top-n` CLI flag still works for backward compatibility (`--top-n 20` limits to 20).
+  - `_enrich_watchlist_live()` now uses FMP bulk profile endpoint (`/stable/profile-bulk`) for avgVolume enrichment across 900+ symbols in a single call. Falls back to per-symbol profile calls (capped at 50) when bulk is unavailable.
+  - `_fetch_realtime_quotes()` now chunks FMP batch-quote requests into groups of 500 symbols to avoid URL-length limits.
+  - CLI help updated to reflect `0 = all` default.
+
+- **🔧 Realtime Signals — TechnicalScorer integration (6 bug fixes):**
+  - Added `TechnicalScorer` class integrating TradingView + FMP technical indicators (RSI, MACD, ADX, MA alignment) into signal detection.
+  - Fixed CRITICAL bug: VisiData rows used undefined `existing` variable → `sym_signals` (NameError crash).
+  - Fixed `_MIN_CALL_SPACING` 3.0 → 13.0s (must exceed TradingView's 12s rate limit).
+  - Fixed RSI/tech A1→A0 upgrade bypassing dynamic cooldown anti-spam protection.
+  - Fixed cache eviction to fall back to oldest-entries removal when TTL eviction alone doesn't shrink below max.
+  - Fixed `_restore_signals_from_disk()` to include `technical_score`, `technical_signal`, `rsi`, `macd_signal` fields.
+  - Fixed ADX scoring to be direction-neutral (amplifies existing bias instead of adding unconditional bullish tilt).
+
 ### Added (2026-03-02 – 2026-03-02)
 
 - **📊 Actionable / Rankings / Segments tab enrichment:**

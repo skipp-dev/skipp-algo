@@ -28,7 +28,7 @@ Usage::
 
     # As a library (for Streamlit integration)
     from open_prep.realtime_signals import RealtimeEngine
-    engine = RealtimeEngine(poll_interval=45, top_n=10)
+    engine = RealtimeEngine(poll_interval=45)
     engine.poll_once()  # single iteration
     signals = engine.get_active_signals()
 """
@@ -39,6 +39,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
@@ -63,7 +64,10 @@ LATEST_RUN_PATH = _ARTIFACTS_LATEST / "latest_open_prep_run.json"
 # Backward-compat: also check old location in package dir
 _LEGACY_RUN_PATH = Path(__file__).resolve().parent / "latest_open_prep_run.json"
 DEFAULT_POLL_INTERVAL = 20  # seconds (was 45 — faster detection)
-DEFAULT_TOP_N = 15
+DEFAULT_TOP_N = 0  # 0 = monitor ALL symbols from pipeline (900+)
+
+# FMP batch-quote chunking: max symbols per request to avoid URL length limits
+_BATCH_QUOTE_CHUNK_SIZE = 500
 
 # Signal level thresholds
 A0_VOLUME_RATIO_MIN = 3.0        # 3x avg volume for A0
@@ -708,6 +712,241 @@ def _format_age_hms(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Technical Indicator Scoring Layer
+# ═══════════════════════════════════════════════════════════════════════════
+
+class TechnicalScorer:
+    """Cached technical indicator scoring layer.
+
+    Wraps ``fetch_technicals()`` (TradingView primary, FMP stable fallback)
+    with per-symbol caching and rate-limit awareness.  Computes a weighted
+    ``technical_score`` (0.0–1.0) from RSI, MACD, EMA/SMA alignment, and ADX.
+
+    Weight allocation (inspired by IB_monitoring EWMA engine):
+
+        RSI oversold/overbought :  40%
+        MA alignment            :  25%
+        MACD cross              :  15%
+        ADX trend strength      :  10%
+        Summary signal          :  10%
+
+    The scorer degrades gracefully: if indicators are unavailable (rate
+    limit, missing data), a neutral 0.5 score is returned so existing
+    price+volume logic is unaffected.
+    """
+
+    _CACHE_TTL = 90.0         # seconds — balance freshness vs rate limits
+    _MIN_CALL_SPACING = 13.0  # seconds — TV enforces ~12s spacing; 13s avoids 429
+    _CACHE_MAX = 200          # max entries before eviction
+
+    def __init__(self) -> None:
+        self._cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._lock = threading.Lock()
+        self._last_call_ts: float = 0.0
+        self._fetch_fn: Any = None  # lazy import
+
+    def _get_fetch_fn(self) -> Any:
+        if self._fetch_fn is None:
+            try:
+                import sys
+                parent = str(Path(__file__).resolve().parents[1])
+                if parent not in sys.path:
+                    sys.path.insert(0, parent)
+                from terminal_technicals import fetch_technicals
+                self._fetch_fn = fetch_technicals
+                logger.info("TechnicalScorer: loaded fetch_technicals OK")
+            except ImportError as exc:
+                logger.warning("TechnicalScorer: fetch_technicals unavailable: %s", exc)
+                self._fetch_fn = _noop_fetch
+        return self._fetch_fn
+
+    def get_technical_data(self, symbol: str, interval: str = "1D") -> dict[str, Any]:
+        """Get cached technical data for *symbol*.
+
+        Returns a dict with keys: ``rsi``, ``macd_signal``, ``adx``,
+        ``williams``, ``summary_signal``, ``summary_buy``, ``summary_sell``,
+        ``summary_neutral``, ``ma_buy``, ``ma_sell``, ``technical_score``,
+        ``technical_signal``, ``osc_detail``, ``ma_detail``, ``error``.
+        """
+        now = time.time()
+        key = f"{symbol}:{interval}"
+
+        # Fast path — return cached if fresh
+        with self._lock:
+            cached = self._cache.get(key)
+            if cached and (now - cached[0]) < self._CACHE_TTL:
+                return cached[1]
+
+        # Rate limit guard
+        with self._lock:
+            if (now - self._last_call_ts) < self._MIN_CALL_SPACING:
+                if cached:
+                    return cached[1]
+                return self._empty_result(symbol)
+            self._last_call_ts = now
+
+        # Fetch
+        fetch = self._get_fetch_fn()
+        try:
+            result = fetch(symbol, interval)
+            if result is None:
+                data = self._empty_result(symbol, error="fetch returned None")
+            elif hasattr(result, "error") and result.error:
+                data = self._empty_result(symbol, error=result.error)
+            else:
+                data = self._extract_and_score(result)
+        except Exception as exc:
+            logger.debug("TechnicalScorer fetch error for %s: %s", symbol, exc)
+            data = self._empty_result(symbol, error=str(exc))
+
+        with self._lock:
+            self._cache[key] = (now, data)
+            if len(self._cache) > self._CACHE_MAX:
+                cutoff = now - self._CACHE_TTL * 3
+                self._cache = {k: v for k, v in self._cache.items() if v[0] > cutoff}
+                # If TTL-based eviction didn't shrink enough, drop oldest entries
+                if len(self._cache) > self._CACHE_MAX:
+                    sorted_items = sorted(self._cache.items(), key=lambda x: x[1][0])
+                    keep = sorted_items[len(sorted_items) - self._CACHE_MAX:]
+                    self._cache = dict(keep)
+
+        return data
+
+    def clear(self) -> None:
+        """Clear the cache (e.g. on watchlist reload)."""
+        with self._lock:
+            self._cache.clear()
+
+    # ── Indicator extraction & scoring ──────────────────────────
+
+    def _extract_and_score(self, result: Any) -> dict[str, Any]:
+        """Extract individual indicators from a TechnicalResult and score."""
+        rsi: float | None = None
+        macd_signal: str | None = None
+        adx: float | None = None
+        williams: float | None = None
+
+        for osc in (result.osc_detail or []):
+            name = str(osc.get("name", "")).upper()
+            val = osc.get("value")
+            if val is None:
+                continue
+            if name.startswith("RSI") and "14" in name:
+                rsi = float(val)
+            elif "MACD" in name and "STOCHASTIC" not in name:
+                macd_signal = str(osc.get("action", "NEUTRAL")).upper()
+            elif name.startswith("ADX"):
+                adx = float(val)
+            elif "WILLIAMS" in name or name.startswith("WILL"):
+                williams = float(val)
+
+        # MA vote counts
+        ma_buy = int(result.ma_buy or 0)
+        ma_sell = int(result.ma_sell or 0)
+        ma_neutral = int(result.ma_neutral or 0)
+        ma_total = ma_buy + ma_sell + ma_neutral
+
+        # ── Weighted score (0.0 – 1.0) ──────────────────────────
+        score = 0.5  # neutral baseline
+
+        # 1) RSI component — 40 % weight
+        if rsi is not None:
+            if rsi < 20:
+                rsi_score = 0.95
+            elif rsi < 30:
+                rsi_score = 0.85
+            elif rsi < 40:
+                rsi_score = 0.65
+            elif rsi > 80:
+                rsi_score = 0.05
+            elif rsi > 70:
+                rsi_score = 0.15
+            elif rsi > 60:
+                rsi_score = 0.35
+            else:
+                rsi_score = 0.5
+            score += (rsi_score - 0.5) * 0.40
+
+        # 2) MA alignment — 25 % weight
+        if ma_total > 0:
+            ma_score = ma_buy / ma_total  # 0.0 (all sell) → 1.0 (all buy)
+            score += (ma_score - 0.5) * 0.25
+
+        # 3) MACD cross — 15 % weight
+        if macd_signal and macd_signal not in ("NEUTRAL", ""):
+            macd_val = 0.80 if macd_signal == "BUY" else 0.20
+            score += (macd_val - 0.5) * 0.15
+
+        # 4) ADX trend strength — 10 % weight (direction-neutral: higher = stronger trend)
+        #    ADX itself doesn't indicate direction; it measures trend strength.
+        #    We add its value only as a magnitude modifier (0 = no trend → 50+ = strong).
+        if adx is not None:
+            adx_norm = min(adx / 50.0, 1.0)
+            # Keep ADX direction-neutral: scale its contribution by the
+            # existing directional bias so it amplifies, not creates, bias.
+            directional_bias = score - 0.5  # current bias before ADX
+            if abs(directional_bias) < 0.01:
+                pass  # No existing bias → ADX contributes nothing
+            else:
+                # Amplify existing directional bias by ADX strength
+                score += directional_bias * adx_norm * 0.20  # 10% effective weight at adx_norm=0.5
+
+        # 5) Summary signal — 10 % weight
+        ss = (result.summary_signal or "").upper()
+        ss_map = {"STRONG_BUY": 0.9, "BUY": 0.7, "NEUTRAL": 0.5, "SELL": 0.3, "STRONG_SELL": 0.1}
+        ss_val = ss_map.get(ss, 0.5)
+        score += (ss_val - 0.5) * 0.10
+
+        score = max(0.0, min(1.0, score))
+
+        # Derive human-readable signal from score
+        if score >= 0.75:
+            tech_signal = "STRONG_BUY"
+        elif score >= 0.60:
+            tech_signal = "BUY"
+        elif score <= 0.25:
+            tech_signal = "STRONG_SELL"
+        elif score <= 0.40:
+            tech_signal = "SELL"
+        else:
+            tech_signal = "NEUTRAL"
+
+        return {
+            "rsi": round(rsi, 2) if rsi is not None else None,
+            "macd_signal": macd_signal,
+            "adx": round(adx, 2) if adx is not None else None,
+            "williams": round(williams, 2) if williams is not None else None,
+            "summary_signal": result.summary_signal or "",
+            "summary_buy": int(result.summary_buy or 0),
+            "summary_sell": int(result.summary_sell or 0),
+            "summary_neutral": int(result.summary_neutral or 0),
+            "ma_buy": ma_buy,
+            "ma_sell": ma_sell,
+            "technical_score": round(score, 3),
+            "technical_signal": tech_signal,
+            "osc_detail": result.osc_detail or [],
+            "ma_detail": result.ma_detail or [],
+            "error": "",
+        }
+
+    @staticmethod
+    def _empty_result(symbol: str, error: str = "") -> dict[str, Any]:
+        return {
+            "rsi": None, "macd_signal": None, "adx": None, "williams": None,
+            "summary_signal": "", "summary_buy": 0, "summary_sell": 0,
+            "summary_neutral": 0, "ma_buy": 0, "ma_sell": 0,
+            "technical_score": 0.5, "technical_signal": "NEUTRAL",
+            "osc_detail": [], "ma_detail": [],
+            "error": error,
+        }
+
+
+def _noop_fetch(symbol: str, interval: str = "1D") -> None:
+    """Stub when terminal_technicals is not importable."""
+    return None
+
+
 @dataclass
 class RealtimeSignal:
     """A single realtime breakout signal."""
@@ -734,6 +973,11 @@ class RealtimeSignal:
     news_category: str = ""
     news_headline: str = ""
     news_warn_flags: list[str] = field(default_factory=list)
+    # ── Technical indicator enrichment (TradingView / FMP) ──
+    technical_score: float = 0.5      # 0.0–1.0 weighted indicator score
+    technical_signal: str = "NEUTRAL" # STRONG_BUY / BUY / NEUTRAL / SELL / STRONG_SELL
+    rsi: float | None = None          # RSI-14 value (None if unavailable)
+    macd_signal: str = ""             # MACD action: BUY / SELL / NEUTRAL
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -765,13 +1009,13 @@ class RealtimeEngine:
         else:
             min_interval = 10
         self.poll_interval = max(min_interval, poll_interval)
-        self.top_n = top_n
+        self.top_n = top_n  # 0 = all symbols (default)
         self.fast_mode = fast_mode
         self.ultra_mode = ultra_mode
         self._client = fmp_client
         self._client_disabled_reason: str | None = None
         self._active_signals: list[RealtimeSignal] = []
-        self._watchlist: list[dict[str, Any]] = []  # top-N from latest run
+        self._watchlist: list[dict[str, Any]] = []  # all scored symbols from pipeline
         self._last_prices: dict[str, float] = {}
         self._price_history: dict[str, deque[float]] = {}  # rolling window for velocity
         self._was_outside_market: bool = False  # session-boundary detection
@@ -807,6 +1051,9 @@ class RealtimeEngine:
         self._avg_vol_cache: dict[str, float] = {}
         self._earnings_today_cache: dict[str, dict[str, Any]] = {}
         self._new_entrant_set: set[str] = set()
+
+        # #12 Technical indicator scorer (TradingView + FMP)
+        self._technical_scorer = TechnicalScorer()
 
         # #11 Dirty flag — {symbol: quote_hash}
         self._quote_hashes: dict[str, str] = {}
@@ -852,6 +1099,10 @@ class RealtimeEngine:
                     news_category=str(raw.get("news_category", "")),
                     news_headline=str(raw.get("news_headline", "")),
                     news_warn_flags=list(raw.get("news_warn_flags") or []),
+                    technical_score=_safe_float(raw.get("technical_score", 0.5), 0.5),
+                    technical_signal=str(raw.get("technical_signal", "NEUTRAL")),
+                    rsi=_safe_float(raw.get("rsi"), None) if raw.get("rsi") is not None else None,
+                    macd_signal=str(raw.get("macd_signal", "")),
                 )
                 self._active_signals.append(sig)
             if self._active_signals:
@@ -874,10 +1125,18 @@ class RealtimeEngine:
         return self._client
 
     # ------------------------------------------------------------------
-    # Load top-N symbols from latest open_prep run
+    # Load ALL symbols from latest open_prep run
     # ------------------------------------------------------------------
     def _load_watchlist(self) -> None:
-        """Load top-N candidates from the latest pipeline result."""
+        """Load all scored candidates from the latest pipeline result.
+
+        Merges ``ranked_v2`` (top scored) with overflow entries from
+        ``filtered_out_v2`` (scored but below display cutoff) to build
+        the full monitoring universe (typically 900+ symbols).
+
+        If ``self.top_n > 0`` the list is sliced for backward compat;
+        the default (0) means *all* symbols are monitored.
+        """
         run_path = LATEST_RUN_PATH if LATEST_RUN_PATH.exists() else _LEGACY_RUN_PATH
         if not run_path.exists():
             logger.warning("No latest_open_prep_run.json found — watchlist empty")
@@ -885,18 +1144,56 @@ class RealtimeEngine:
         try:
             with open(run_path, "r", encoding="utf-8") as fh:
                 data = json.load(fh)
+
+            # -- Build full universe: ranked + overflow -------------------
             ranked_v2 = data.get("ranked_v2") or []
-            # Take top_n by score (already sorted)
-            self._watchlist = ranked_v2[:self.top_n]
+            seen: set[str] = set()
+            full: list[dict[str, Any]] = []
+            for r in ranked_v2:
+                sym = str(r.get("symbol", "")).strip().upper()
+                if sym and sym not in seen:
+                    seen.add(sym)
+                    full.append(r)
+
+            # Recover scored-but-below-cutoff entries from filtered_out_v2
+            for r in (data.get("filtered_out_v2") or []):
+                reasons = r.get("filter_reasons") or []
+                if "below_top_n_cutoff" not in reasons:
+                    continue  # truly filtered out — skip
+                sym = str(r.get("symbol", "")).strip().upper()
+                if sym and sym not in seen:
+                    seen.add(sym)
+                    full.append(r)
+
+            # Also include any symbols from enriched_quotes not yet covered
+            for q in (data.get("enriched_quotes") or []):
+                sym = str(q.get("symbol", "")).strip().upper()
+                if sym and sym not in seen:
+                    seen.add(sym)
+                    # Build a minimal watchlist entry from the quote
+                    full.append({
+                        "symbol": sym,
+                        "avg_volume": _safe_float(
+                            q.get("avgVolume") or q.get("volAvg"), 0.0
+                        ),
+                        "price": _safe_float(q.get("price"), 0.0),
+                    })
+
+            # Optional backward-compat slice (top_n > 0)
+            if self.top_n > 0:
+                full = full[:self.top_n]
+
+            self._watchlist = full
+
             # Load new-entrant symbols from diff (for 🆕 column)
             diff = data.get("diff") or {}
             self._new_entrant_set = {
                 s.upper() for s in (diff.get("new_entrants") or [])
             }
             logger.info(
-                "Loaded %d symbols for realtime monitoring: %s",
+                "Loaded %d symbols for realtime monitoring (top_n=%s)",
                 len(self._watchlist),
-                [r.get("symbol") for r in self._watchlist],
+                self.top_n if self.top_n > 0 else "ALL",
             )
             self._enrich_watchlist_live()
         except Exception as exc:
@@ -905,13 +1202,9 @@ class RealtimeEngine:
     def _enrich_watchlist_live(self) -> None:
         """Fetch avg_volume + earnings from FMP for watchlist symbols.
 
-        .. note:: N+1 pattern (one /stable/profile call per symbol)
-
-           The batch-quote endpoint omits avgVolume, so we fall back to
-           individual profile calls.  This is acceptable at the current
-           scale (≤10 watchlist symbols, 0.15 s throttle between calls,
-           worst-case ~1.5 s total).  If the watchlist grows much larger,
-           consider switching to ``get_profile_bulk()``.
+        Uses bulk profile endpoint (single call) for efficient avg_volume
+        enrichment across 900+ symbols.  Falls back to per-symbol profile
+        calls (capped to 50) if bulk is unavailable.
 
         The batch-quote endpoint omits avgVolume.  Without it the volume
         ratio is meaningless (everything looks like A0).  We fetch company
@@ -928,32 +1221,71 @@ class RealtimeEngine:
         ]
         if not symbols:
             return
+        sym_set = set(symbols)
 
-        # ── avg_volume from /stable/profile (one call per symbol) ──
+        # Identify symbols that still need avgVolume enrichment
+        need_avg_vol: set[str] = set()
         for sym in symbols:
-            # Skip if watchlist already has a good value
+            if sym in self._avg_vol_cache:
+                continue  # already have it from a previous cycle
             wl_avg = 0.0
             for w in self._watchlist:
-                if w.get("symbol") == sym:
+                if str(w.get("symbol", "")).strip().upper() == sym:
                     wl_avg = _safe_float(w.get("avg_volume"), 0.0)
                     break
-            if wl_avg >= 1000 and sym in self._avg_vol_cache:
-                continue  # already enriched
+            if wl_avg < 1000:
+                need_avg_vol.add(sym)
+
+        if need_avg_vol:
+            enriched_count = 0
+            # Strategy 1: Bulk profile (single call, all symbols)
             try:
-                profile = client.get_company_profile(sym)
-                avg_vol = _safe_float(
-                    profile.get("averageVolume") or profile.get("volAvg"), 0.0
+                bulk = client.get_profile_bulk()
+                for item in bulk:
+                    sym = str(item.get("symbol") or "").strip().upper()
+                    if sym not in need_avg_vol:
+                        continue
+                    avg_vol = _safe_float(
+                        item.get("averageVolume") or item.get("volAvg"), 0.0
+                    )
+                    if avg_vol >= 1000:
+                        self._avg_vol_cache[sym] = avg_vol
+                        for w in self._watchlist:
+                            if str(w.get("symbol", "")).strip().upper() == sym:
+                                if _safe_float(w.get("avg_volume"), 0.0) < 1000:
+                                    w["avg_volume"] = avg_vol
+                                break
+                        enriched_count += 1
+                logger.info(
+                    "Bulk profile enriched %d/%d symbols with avgVolume",
+                    enriched_count, len(need_avg_vol),
                 )
-                if avg_vol >= 1000:
-                    self._avg_vol_cache[sym] = avg_vol
-                    # Also update watchlist entry so _detect_signal finds it
-                    for w in self._watchlist:
-                        if w.get("symbol") == sym and _safe_float(w.get("avg_volume"), 0.0) < 1000:
-                            w["avg_volume"] = avg_vol
-                            logger.debug("Enriched %s avg_volume=%.0f from profile", sym, avg_vol)
-                time.sleep(0.15)  # throttle
             except Exception as exc:
-                logger.debug("Profile fetch failed for %s: %s", sym, exc)
+                logger.debug("Bulk profile unavailable (%s) — falling back to per-symbol", exc)
+                # Strategy 2: Per-symbol fallback (capped to 50 to limit latency)
+                remaining = need_avg_vol - set(self._avg_vol_cache)
+                for i, sym in enumerate(sorted(remaining)[:50]):
+                    try:
+                        profile = client.get_company_profile(sym)
+                        avg_vol = _safe_float(
+                            profile.get("averageVolume") or profile.get("volAvg"), 0.0
+                        )
+                        if avg_vol >= 1000:
+                            self._avg_vol_cache[sym] = avg_vol
+                            for w in self._watchlist:
+                                if str(w.get("symbol", "")).strip().upper() == sym:
+                                    if _safe_float(w.get("avg_volume"), 0.0) < 1000:
+                                        w["avg_volume"] = avg_vol
+                                    break
+                        time.sleep(0.15)  # throttle
+                    except Exception as exc2:
+                        logger.debug("Profile fetch failed for %s: %s", sym, exc2)
+
+        # Apply cached avg_volume to any watchlist entries still missing it
+        for w in self._watchlist:
+            sym = str(w.get("symbol", "")).strip().upper()
+            if _safe_float(w.get("avg_volume"), 0.0) < 1000 and sym in self._avg_vol_cache:
+                w["avg_volume"] = self._avg_vol_cache[sym]
 
         # ── Earnings calendar for today ──
         try:
@@ -962,15 +1294,16 @@ class RealtimeEngine:
             earnings = client.get_earnings_calendar(today, today)
             for item in earnings:
                 sym = str(item.get("symbol") or "").strip().upper()
-                if sym in {s for s in symbols}:
+                if sym in sym_set:
                     self._earnings_today_cache[sym] = item
                     # Update watchlist entry
                     for w in self._watchlist:
-                        if w.get("symbol") == sym:
+                        if str(w.get("symbol", "")).strip().upper() == sym:
                             w["earnings_today"] = True
                             raw_time = str(item.get("time") or item.get("releaseTime") or "").strip().lower()
                             w["earnings_timing"] = raw_time or None
                             logger.info("Earnings today: %s (timing=%s)", sym, raw_time or "unknown")
+                            break
         except Exception as exc:
             logger.debug("Earnings calendar fetch failed: %s", exc)
 
@@ -993,6 +1326,8 @@ class RealtimeEngine:
             stale = set(d) - wl_syms
             for k in stale:
                 del d[k]
+        # Clear technical indicator cache for removed symbols
+        self._technical_scorer.clear()
 
     def start_async_newsstack(self, poll_interval: float = 15.0) -> None:
         """Start the background newsstack poller (call once at startup)."""
@@ -1003,7 +1338,11 @@ class RealtimeEngine:
     # Fetch current quotes for watched symbols
     # ------------------------------------------------------------------
     def _fetch_realtime_quotes(self) -> dict[str, dict[str, Any]]:
-        """Fetch current quotes for all watched symbols via FMP batch quote."""
+        """Fetch current quotes for all watched symbols via FMP batch quote.
+
+        For large watchlists (900+ symbols), requests are chunked into
+        batches of ``_BATCH_QUOTE_CHUNK_SIZE`` to avoid URL-length limits.
+        """
         if self._client_disabled_reason:
             return {}
         if not self._watchlist:
@@ -1013,25 +1352,21 @@ class RealtimeEngine:
             return {}
 
         quotes: dict[str, dict[str, Any]] = {}
-        try:
-            # FMP batch quote endpoint
-            raw = self.client.get_batch_quotes(symbols)
-            for q in raw:
-                sym = str(q.get("symbol", "")).strip().upper()
-                if sym:
-                    quotes[sym] = q
-        except Exception as exc:
-            logger.warning("Failed to fetch realtime quotes: %s", exc, exc_info=True)
-            # Fallback — individual quotes (capped to 10 to limit rate-limit pressure)
-            for i, sym in enumerate(symbols[:10]):
-                try:
-                    q_list = self.client.get_batch_quotes([sym])
-                    if q_list and isinstance(q_list, list) and q_list:
-                        quotes[sym] = q_list[0]
-                except Exception as exc:
-                    logger.debug("Fallback quote fetch failed for %s: %s", sym, exc)
-                if i < len(symbols) - 1:
-                    time.sleep(0.25)  # throttle fallback calls
+        # Chunk into batches for large watchlists
+        chunk_size = _BATCH_QUOTE_CHUNK_SIZE
+        for chunk_start in range(0, len(symbols), chunk_size):
+            chunk = symbols[chunk_start:chunk_start + chunk_size]
+            try:
+                raw = self.client.get_batch_quotes(chunk)
+                for q in raw:
+                    sym = str(q.get("symbol", "")).strip().upper()
+                    if sym:
+                        quotes[sym] = q
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch realtime quotes for chunk %d–%d: %s",
+                    chunk_start, chunk_start + len(chunk), exc,
+                )
         return quotes
 
     # ------------------------------------------------------------------
@@ -1224,6 +1559,67 @@ class RealtimeEngine:
                 else:
                     self._dynamic_cooldown.record_transition(symbol, direction)
 
+        # ── #12 Technical indicator confirmation/boost/penalty ───────
+        tech_data = self._technical_scorer.get_technical_data(symbol, "1D")
+        tech_score = tech_data.get("technical_score", 0.5)
+        tech_signal = tech_data.get("technical_signal", "NEUTRAL")
+        tech_rsi = tech_data.get("rsi")
+        tech_macd = tech_data.get("macd_signal") or ""
+
+        cooldown_forced = self._dynamic_cooldown.is_cooling(symbol)
+
+        if tech_rsi is not None and level:
+            if direction == "LONG":
+                # RSI oversold boost — upgrade A1→A0, A2→A1 (only if not in cooldown)
+                if tech_rsi < 30 and level == "A1" and not cooldown_forced:
+                    level = "A0"
+                    logger.debug(
+                        "%s RSI %.1f < 30 oversold — upgrading A1→A0", symbol, tech_rsi,
+                    )
+                elif tech_rsi < 30 and level == "A2":
+                    level = "A1"
+                # RSI overbought penalty — downgrade A0→A1
+                elif tech_rsi > 70 and level == "A0":
+                    level = "A1"
+                    logger.debug(
+                        "%s RSI %.1f > 70 overbought — downgrade A0→A1", symbol, tech_rsi,
+                    )
+            elif direction == "SHORT":
+                # RSI overbought boost for shorts (only if not in cooldown)
+                if tech_rsi > 70 and level == "A1" and not cooldown_forced:
+                    level = "A0"
+                    logger.debug(
+                        "%s RSI %.1f > 70 overbought — SHORT upgrade A1→A0", symbol, tech_rsi,
+                    )
+                elif tech_rsi > 70 and level == "A2":
+                    level = "A1"
+                # RSI oversold penalty for shorts
+                elif tech_rsi < 30 and level == "A0":
+                    level = "A1"
+
+        # Technical consensus confirmation (non-RSI)
+        if level == "A0" and tech_signal in ("STRONG_SELL",) and direction == "LONG":
+            level = "A1"
+            logger.debug(
+                "%s STRONG_SELL technicals — blocking A0 LONG", symbol,
+            )
+        elif level == "A0" and tech_signal in ("STRONG_BUY",) and direction == "SHORT":
+            level = "A1"
+            logger.debug(
+                "%s STRONG_BUY technicals — blocking A0 SHORT", symbol,
+            )
+
+        # Boost: strong tech alignment can raise A1→A0 for high-conviction
+        if (level == "A1" and tech_score >= 0.75
+                and ((direction == "LONG" and tech_signal in ("STRONG_BUY", "BUY"))
+                     or (direction == "SHORT" and tech_signal in ("STRONG_SELL", "SELL")))
+                and volume_ratio >= A1_VOLUME_RATIO_MIN * 1.5):
+            level = "A0"
+            logger.debug(
+                "%s tech_score=%.3f + aligned tech_signal=%s — upgrading A1→A0",
+                symbol, tech_score, tech_signal,
+            )
+
         now = datetime.now(UTC)
         now_iso = now.isoformat()
         now_ts = now.timestamp()
@@ -1250,8 +1646,20 @@ class RealtimeEngine:
                 "volume": volume,
                 "avg_volume": avg_volume,
                 "falling_knife": falling_knife_warned,
+                "tech_score": tech_score,
+                "tech_signal": tech_signal,
+                "rsi": tech_rsi,
+                "macd_signal": tech_macd,
+                "adx": tech_data.get("adx"),
+                "williams": tech_data.get("williams"),
+                "summary_buy": tech_data.get("summary_buy", 0),
+                "summary_sell": tech_data.get("summary_sell", 0),
             },
             symbol_regime=symbol_regime,
+            technical_score=tech_score,
+            technical_signal=tech_signal,
+            rsi=tech_rsi,
+            macd_signal=tech_macd,
         )
 
     # ------------------------------------------------------------------
@@ -1530,6 +1938,11 @@ class RealtimeEngine:
                 "last_change_age_s": last_change_age_s,
                 "poll_seq": self._poll_seq,
                 "poll_changed": poll_changed,
+                # Technical indicator columns
+                "tech_score": round(sym_signals[0].technical_score, 3) if sym_signals else 0.5,
+                "rsi": round(sym_signals[0].rsi, 1) if sym_signals and sym_signals[0].rsi is not None else "",
+                "tech_signal": sym_signals[0].technical_signal if sym_signals else "—",
+                "macd": sym_signals[0].macd_signal if sym_signals else "",
             }
 
         # Add new signals to active list
@@ -1868,7 +2281,7 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="Realtime signal engine")
     parser.add_argument("--interval", type=int, default=DEFAULT_POLL_INTERVAL, help="Poll interval in seconds")
-    parser.add_argument("--top-n", type=int, default=DEFAULT_TOP_N, help="Number of symbols to monitor")
+    parser.add_argument("--top-n", type=int, default=DEFAULT_TOP_N, help="Number of symbols to monitor (0 = all, default)")
     parser.add_argument("--reload-interval", type=int, default=300, help="Seconds between watchlist reloads")
     parser.add_argument(
         "--fast", action="store_true",
@@ -1907,9 +2320,10 @@ def main() -> None:
         logger.info("Async newsstack started (interval=%ds)", ns_interval)
 
     mode_label = "ULTRA" if args.ultra else ("FAST/VisiData" if args.fast else "standard")
+    top_label = str(args.top_n) if args.top_n > 0 else "ALL"
     logger.info(
-        "Starting realtime signal engine (interval=%ds, top_n=%d, mode=%s, vd=%s)",
-        engine.poll_interval, args.top_n, mode_label, VD_SIGNALS_PATH,
+        "Starting realtime signal engine (interval=%ds, top_n=%s, mode=%s, vd=%s)",
+        engine.poll_interval, top_label, mode_label, VD_SIGNALS_PATH,
     )
 
     last_reload = time.monotonic()
