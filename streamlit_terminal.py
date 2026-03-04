@@ -2469,15 +2469,21 @@ else:
                 _ns = float(r.get("news_score") or 0)
                 _tech = float(r.get("_rt_tech_score") or 0.5)
                 _base = abs(_chg) * 0.50 + _ns * 100.0 * 0.20
-                # Technical indicator contribution: deviation from neutral (0.5)
-                _tech_contrib = (_tech - 0.5) * 100.0 * 0.15
+                # Technical indicator contribution: direction-aware
+                # Bullish tech (>0.5) adds to score; bearish tech (<0.5)
+                # only adds when price direction aligns (short).
+                _tech_dev = _tech - 0.5
+                if _chg >= 0:
+                    _tech_contrib = max(_tech_dev, 0) * 100.0 * 0.15
+                else:
+                    _tech_contrib = max(-_tech_dev, 0) * 100.0 * 0.15
                 # RT signal tier bonus
                 _sig = _rt_signals.get(r.get("symbol", ""), "")
                 _sig_bonus = _RT_SIGNAL_BONUS.get(_sig, 0.0) * 0.15
-                return _base + abs(_tech_contrib) + _sig_bonus
+                return _base + _tech_contrib + _sig_bonus
 
             # Default sort: bullish first (positive chg_pct), then best composite score
-            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[int, float, float, float]:
+            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[int, float, float, float, float]:
                 _chg = float(r.get("chg_pct") or 0)
                 _ns = float(r.get("news_score") or 0)
                 _sent = (r.get("sentiment") or "").lower()
@@ -2485,8 +2491,9 @@ else:
                 _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
                 # A0/A1 signals get priority within their tier
                 _sig_pri = {"A0": 2.0, "A1": 1.0}.get(_rt_signals.get(r.get("symbol", ""), ""), 0.0)
-                # Within tier: sort by signal priority, then news_score desc, then chg_pct desc
-                return (-_tier, -_sig_pri, -_ns, -_chg)
+                # Composite score as final tiebreaker within same tier/signal/news
+                _cs = _composite_score(r)
+                return (-_tier, -_sig_pri, -_ns, -_chg, -_cs)
 
             _ranked = sorted(
                 _rank_all.values(),
@@ -2566,7 +2573,7 @@ else:
                         _rt_signals[_rts] = _sig
                     _rt_full[_rts] = _rtrow
             except Exception:
-                pass
+                logger.debug("Failed to load RT JSONL quotes", exc_info=True)
 
             # Also load structured signals from JSON for richer data
             _rt_json_signals: dict[str, dict[str, Any]] = {}
@@ -2577,7 +2584,7 @@ else:
                     if _rs_sym:
                         _rt_json_signals[_rs_sym] = _rs
             except Exception:
-                pass
+                logger.debug("Failed to load RT JSON signals", exc_info=True)
 
             # Enrich _rank_all with RT engine data (price, direction, technical)
             for sym, row in _rank_all.items():

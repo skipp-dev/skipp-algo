@@ -38,6 +38,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 import tempfile
 import threading
 import time
@@ -136,7 +137,7 @@ def ensure_rt_engine_running(
     # Also check via pgrep as fallback (covers cases where PID file is missing)
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "open_prep.realtime_signals"],
+            ["pgrep", "-f", "python.*-m open_prep.realtime_signals"],
             capture_output=True, text=True, timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -178,17 +179,20 @@ def ensure_rt_engine_running(
                     env[k] = v
 
         log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
-        proc = subprocess.Popen(
-            [
-                sys.executable, "-m", "open_prep.realtime_signals",
-                "--interval", str(poll_interval),
-            ],
-            cwd=str(project_root),
-            env=env,
-            stdout=log_fh,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,  # detach from parent — survives parent exit
-        )
+        try:
+            proc = subprocess.Popen(
+                [
+                    sys.executable, "-m", "open_prep.realtime_signals",
+                    "--interval", str(poll_interval),
+                ],
+                cwd=str(project_root),
+                env=env,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,  # detach from parent — survives parent exit
+            )
+        finally:
+            log_fh.close()  # parent doesn't need the fd — child inherited it
         _RT_ENGINE_PID_FILE.write_text(str(proc.pid))
         logger.info("RT engine started (PID %d, log: %s)", proc.pid, _RT_ENGINE_LOG_FILE)
         return True
@@ -761,7 +765,11 @@ class VolumeRegimeDetector:
         total = 0
         for _sym, q in quotes.items():
             vol = _safe_float(q.get("volume"), 0.0)
+            # FMP batch-quote omits avgVolume — try watchlist_avg_volumes
+            # fallback dict (populated from bulk profile enrichment).
             avg_vol = _safe_float(q.get("avgVolume"), 0.0)
+            if avg_vol <= 0 and hasattr(self, "_wl_avg_volumes"):
+                avg_vol = self._wl_avg_volumes.get(_sym, 0.0)
             if avg_vol <= 0:
                 continue   # unknown volume — exclude from both counts
             total += 1
@@ -790,7 +798,7 @@ class VolumeRegimeDetector:
         if self.regime == "HOLIDAY_SUSPECT":
             return {"vol_mult": 999.0, "chg_mult": 999.0}  # effectively suspend
         if self.regime == "LOW_VOLUME":
-            return {"vol_mult": 1.20, "chg_mult": 1.20}  # relax by 20%
+            return {"vol_mult": 0.80, "chg_mult": 0.80}  # relax by 20% (lower thresholds)
         return {"vol_mult": 1.0, "chg_mult": 1.0}
 
 
@@ -1846,6 +1854,15 @@ class RealtimeEngine:
         self._poll_seq += 1
 
         # ── #9  Volume-regime detection ──────────────────────────
+        # Feed cached avg volumes to regime detector (FMP batch omits avgVolume)
+        _wl_avgs: dict[str, float] = dict(self._avg_vol_cache)
+        for _w in self._watchlist:
+            _ws = str(_w.get("symbol", "")).strip().upper()
+            if _ws and _ws not in _wl_avgs:
+                _av = _safe_float(_w.get("avg_volume"), 0.0)
+                if _av >= 1000:
+                    _wl_avgs[_ws] = _av
+        self._volume_regime._wl_avg_volumes = _wl_avgs
         self._volume_regime.update(quotes)
         regime_thresholds = self._volume_regime.adjusted_thresholds()
 

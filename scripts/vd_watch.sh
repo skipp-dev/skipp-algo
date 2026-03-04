@@ -98,7 +98,8 @@ _render() {
   echo ""
 
   # Realtime Signals (from realtime engine, if running)
-  local SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
+  local SIGNALS_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_realtime_signals.json"
+  [[ -f "$SIGNALS_FILE" ]] || SIGNALS_FILE="$PROJECT_DIR/open_prep/latest_realtime_signals.json"
   if [[ -f "$SIGNALS_FILE" ]]; then
     local n_a0 n_a1 rt_updated rt_updated_utc1
     n_a0=$(jq '.a0_count // 0' "$SIGNALS_FILE" 2>/dev/null || echo 0)
