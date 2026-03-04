@@ -12,6 +12,7 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import os
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -69,6 +70,9 @@ _ai_pool = concurrent.futures.ThreadPoolExecutor(
 )
 
 
+_WORKER_SOCKET_TIMEOUT = 15  # seconds — hard cap for any socket op inside worker
+
+
 def _analysis_worker(
     *,
     feed: list[dict[str, Any]],
@@ -84,6 +88,36 @@ def _analysis_worker(
     poller_available: bool,
 ) -> dict[str, Any]:
     """Run AI analysis in a background thread.  **Thread-safe**: no Streamlit API calls."""
+    import socket as _socket
+    _prev_timeout = _socket.getdefaulttimeout()
+    _socket.setdefaulttimeout(_WORKER_SOCKET_TIMEOUT)
+    try:
+        return _analysis_worker_inner(
+            feed=feed, question=question, fmp_key=fmp_key,
+            openai_key=openai_key, benzinga_key=benzinga_key,
+            macro=macro, cached=cached,
+            tv_available=tv_available, finnhub_available=finnhub_available,
+            forecast_available=forecast_available, poller_available=poller_available,
+        )
+    finally:
+        _socket.setdefaulttimeout(_prev_timeout)
+
+
+def _analysis_worker_inner(
+    *,
+    feed: list[dict[str, Any]],
+    question: str,
+    fmp_key: str,
+    openai_key: str,
+    benzinga_key: str,
+    macro: dict[str, Any] | None,
+    cached: dict[str, Any],
+    tv_available: bool,
+    finnhub_available: bool,
+    forecast_available: bool,
+    poller_available: bool,
+) -> dict[str, Any]:
+    """Inner worker — runs with a global socket timeout set by the outer wrapper."""
     cache_updates: dict[str, Any] = {}
 
     try:
@@ -320,7 +354,7 @@ def _analysis_worker(
         if fmp_key:
             try:
                 from open_prep.macro import FMPClient
-                _fmp_c = FMPClient(api_key=fmp_key)
+                _fmp_c = FMPClient(api_key=fmp_key, timeout_seconds=10, retry_attempts=1)
                 _raw_insider = _fmp_c.get_insider_trading_latest(limit=30)
                 if _raw_insider:
                     insider_trades = [
@@ -347,7 +381,7 @@ def _analysis_worker(
         if fmp_key:
             try:
                 from open_prep.macro import FMPClient
-                _fmp_c = FMPClient(api_key=fmp_key)
+                _fmp_c = FMPClient(api_key=fmp_key, timeout_seconds=10, retry_attempts=1)
                 _raw_senate = _fmp_c.get_senate_trading(limit=15)
                 _raw_house = _fmp_c.get_house_trading(limit=15)
                 _combined: list[dict[str, Any]] = []
@@ -649,16 +683,45 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         )
         st.session_state["_fmp_ai_future"] = _submitted
         st.session_state["_fmp_ai_executing"] = True
+        st.session_state["_fmp_ai_submit_ts"] = time.time()
         st.session_state["fmp_ai_run_requested"] = False  # consume immediately
         st.toast("🤖 AI analysis started in background…")
         logger.info("FMP AI analysis submitted to background thread (question=%r)", question[:60])
 
     # Step C: show progress if analysis is running
+    _MAX_WORKER_SECONDS = 180  # hard timeout — cancel after 3 minutes
     if st.session_state.get("_fmp_ai_executing"):
-        st.info(
-            "⏳ AI analysis running in the background (30-60 s). "
-            "Results will appear automatically on the next refresh."
-        )
+        _elapsed = time.time() - st.session_state.get("_fmp_ai_submit_ts", time.time())
+        _ai_f = st.session_state.get("_fmp_ai_future")
+        # Safety: if the future completed between Step A and here, harvest now
+        if _ai_f is not None and _ai_f.done():
+            st.rerun()
+        # Stale execution: cancel after hard timeout
+        elif _elapsed > _MAX_WORKER_SECONDS:
+            logger.warning("FMP AI worker exceeded %ds hard timeout — cancelling", _MAX_WORKER_SECONDS)
+            if _ai_f is not None:
+                _ai_f.cancel()
+            st.session_state["_fmp_ai_executing"] = False
+            st.session_state.pop("_fmp_ai_future", None)
+            st.session_state.pop("_fmp_ai_submit_ts", None)
+            st.session_state["fmp_ai_last_result"] = {
+                "error": f"Analysis timed out after {int(_elapsed)}s. The background worker may have hung on a slow API call. Please try again.",
+                "question": question, "answer": "", "model": "", "cached": False,
+                "context_articles": 0, "context_tickers": 0, "fmp_tickers": 0, "enrichment_layers": 0,
+            }
+            st.rerun()
+        else:
+            st.info(f"⏳ AI analysis running… ({int(_elapsed)}s elapsed, up to ~60s)")
+            _cc1, _cc2 = st.columns([1, 3])
+            with _cc1:
+                if st.button("❌ Cancel", key="fmp_ai_cancel"):
+                    if _ai_f is not None:
+                        _ai_f.cancel()
+                    st.session_state["_fmp_ai_executing"] = False
+                    st.session_state.pop("_fmp_ai_future", None)
+                    st.session_state.pop("_fmp_ai_submit_ts", None)
+                    st.toast("AI analysis cancelled.")
+                    st.rerun()
 
     # --- Display last persisted result ---
     last_result = st.session_state.get("fmp_ai_last_result")

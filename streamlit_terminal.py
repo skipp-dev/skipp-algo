@@ -4140,6 +4140,25 @@ if st.session_state.auto_refresh and (
             st.session_state["_last_fragment_rerun_ts"] = time.time()
             st.rerun()
 
+        # Safety: detect stale AI execution (worker hung > 180s)
+        if st.session_state.get("_fmp_ai_executing", False):
+            _submit_ts = st.session_state.get("_fmp_ai_submit_ts", 0)
+            if _submit_ts and time.time() - _submit_ts > 180:
+                logger.warning("Fragment: FMP AI worker stale (>180s) — force-resetting")
+                if _ai_future is not None:
+                    _ai_future.cancel()
+                st.session_state["_fmp_ai_executing"] = False
+                st.session_state.pop("_fmp_ai_future", None)
+                st.session_state.pop("_fmp_ai_submit_ts", None)
+                st.session_state["fmp_ai_last_result"] = {
+                    "error": "Analysis timed out (>180s). The worker may have hung on a slow API call. Please try again.",
+                    "question": st.session_state.get("fmp_ai_selected_question", ""),
+                    "answer": "", "model": "", "cached": False,
+                    "context_articles": 0, "context_tickers": 0, "fmp_tickers": 0, "enrichment_layers": 0,
+                }
+                st.session_state["_last_fragment_rerun_ts"] = time.time()
+                st.rerun()
+
         if st.session_state.get("fmp_ai_pause_auto_refresh", False):
             return
         # Suppress while background AI thread is running — avoid
