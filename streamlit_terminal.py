@@ -3098,7 +3098,7 @@ else:
                     xaxis_title=None, yaxis_title=None,
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
-                st.plotly_chart(_fig_sp, use_container_width=True, key="seg_sector_perf_chart")
+                st.plotly_chart(_fig_sp, width='stretch', key="seg_sector_perf_chart")
             except Exception:
                 # Fallback to metrics columns if plotly unavailable
                 _sp_cols = st.columns(min(len(_seg_sector_perf), 6))

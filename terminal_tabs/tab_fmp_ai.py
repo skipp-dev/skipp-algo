@@ -551,7 +551,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         key="fmp_ai_custom_question",
         on_change=_on_custom_q_change,
     )
-    if st.button("▶️ Ask AI", use_container_width=True, key="fmp_ai_ask_btn"):
+    if st.button("▶️ Ask AI", width='stretch', key="fmp_ai_ask_btn"):
         _q = (st.session_state.get("fmp_ai_custom_question") or "").strip()
         if _q:
             st.session_state["fmp_ai_selected_question"] = _q
