@@ -2080,43 +2080,6 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    # ── Sector Performance chart (above tabs) ───────────────
-    _sp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
-    if _sp_key:
-        try:
-            _sp_data = _cached_sector_perf(_sp_key)
-            if _sp_data:
-                import pandas as pd
-
-                _sp_df = pd.DataFrame(_sp_data)
-                if "changesPercentage" in _sp_df.columns and "sector" in _sp_df.columns:
-                    _sp_df["changesPercentage"] = pd.to_numeric(
-                        _sp_df["changesPercentage"].astype(str).str.rstrip("%"),
-                        errors="coerce",
-                    )
-                    _sp_df = _sp_df.sort_values("changesPercentage", ascending=False)
-
-                    import plotly.express as px  # type: ignore[import-untyped]
-
-                    _sp_fig = px.bar(
-                        _sp_df, x="sector", y="changesPercentage",
-                        color="changesPercentage",
-                        color_continuous_scale=["#FF1744", "#FFC107", "#00C853"],
-                        title="Sector Performance (%)",
-                    )
-                    _sp_fig.update_layout(
-                        height=350,
-                        paper_bgcolor="#0E1117",
-                        plot_bgcolor="#0E1117",
-                        font_color="white",
-                        xaxis_tickangle=-45,
-                    )
-                    st.plotly_chart(_sp_fig, width='stretch')
-                else:
-                    st.dataframe(pd.DataFrame(_sp_data), width='stretch')
-        except Exception:
-            logger.debug("Sector performance chart skipped", exc_info=True)
-
     tab_ai, tab_actionable, tab_segments, tab_rank, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table = st.tabs(
         ["🧠 AI Insights", "🎯 Actionable", "🏗️ Segments", "🏆 Rankings", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
@@ -2326,7 +2289,7 @@ else:
     with tab_rank, _tab_guard("Rankings"):
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
-        st.subheader("🏆 Rankings")
+        st.header("🏆 Rankings")
         st.caption(f"**{_session_label_rank}** — Symbols ranked by composite score (50% price + 20% news + 15% tech + 15% RT signal). Feed + RT spike + realtime signals.")
 
         # Build unified symbol map from feed + RT spikes (zero API calls)
@@ -2837,7 +2800,7 @@ else:
 
     # ── TAB: Actionable ────────────────────────────────────
     with tab_actionable, _tab_guard("Actionable"):
-        st.subheader("🎯 Actionable Items")
+        st.header("🎯 Actionable Items")
         _act_feed = dedup_feed_items([d for d in feed if d.get("is_actionable")])
         # Sort by freshest first (highest published_ts on top)
         _act_feed.sort(key=lambda d: d.get("published_ts") or 0, reverse=True)
@@ -3079,45 +3042,63 @@ else:
 
     # ── TAB: Segments ───────────────────────────────────────
     with tab_segments, _tab_guard("Segments"):
+        st.header("🏗️ Segments")
         seg_rows = aggregate_segments(feed)
+
+        # ── Sector Performance Plotly Chart (5-min TTL) ─────────────────
+        _SECTOR_PERF_TTL = 300  # 5 minutes
+        _seg_sector_perf: list[dict[str, Any]] = []
+        _seg_sp_ts = st.session_state.get("_cached_sector_perf_ts", 0)
+        if time.time() - _seg_sp_ts < _SECTOR_PERF_TTL:
+            _seg_sector_perf = st.session_state.get("_cached_sector_perf") or []
+        if not _seg_sector_perf:
+            _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+            if _seg_fmp_key:
+                try:
+                    _raw_sp = fetch_sector_performance(_seg_fmp_key)
+                    if _raw_sp:
+                        _seg_sector_perf = [
+                            {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
+                            for s in _raw_sp if s.get("sector")
+                        ]
+                        if _seg_sector_perf:
+                            st.session_state["_cached_sector_perf"] = _seg_sector_perf
+                            st.session_state["_cached_sector_perf_ts"] = time.time()
+                except Exception:
+                    logger.debug("Segments sector performance failed", exc_info=True)
+
+        if _seg_sector_perf:
+            try:
+                import plotly.express as px
+                _sp_df = pd.DataFrame(_seg_sector_perf)
+                _sp_df = _sp_df.rename(columns={"change_pct": "Change %"})
+                _sp_df["Color"] = _sp_df["Change %"].apply(lambda x: "green" if x >= 0 else "red")
+                _fig_sp = px.bar(
+                    _sp_df, x="sector", y="Change %",
+                    color="Color", color_discrete_map={"green": "#22c55e", "red": "#ef4444"},
+                    title="📊 GICS Sector Performance (today)",
+                )
+                _fig_sp.update_layout(
+                    showlegend=False, height=260, margin=dict(l=0, r=0, t=30, b=0),
+                    xaxis_title=None, yaxis_title=None,
+                    plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(_fig_sp, use_container_width=True, key="seg_sector_perf_chart")
+            except Exception:
+                # Fallback to metrics columns if plotly unavailable
+                _sp_cols = st.columns(min(len(_seg_sector_perf), 6))
+                for _sp_i, _sp in enumerate(_seg_sector_perf[:12]):
+                    _sp_name = _sp.get("sector", "")
+                    _sp_chg = _sp.get("change_pct", 0)
+                    _sp_cols[_sp_i % len(_sp_cols)].metric(
+                        _sp_name[:20],
+                        f"{_sp_chg:+.2f}%",
+                        delta=None,
+                    )
 
         if not seg_rows:
             st.info("No segment data yet. Channels are populated by news articles.")
         else:
-            # ── Sector Performance Overlay (5-min TTL) ──────────────────────────
-            _SECTOR_PERF_TTL = 300  # 5 minutes
-            _seg_sector_perf: list[dict[str, Any]] = []
-            _seg_sp_ts = st.session_state.get("_cached_sector_perf_ts", 0)
-            if time.time() - _seg_sp_ts < _SECTOR_PERF_TTL:
-                _seg_sector_perf = st.session_state.get("_cached_sector_perf") or []
-            if not _seg_sector_perf:
-                _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
-                if _seg_fmp_key:
-                    try:
-                        _raw_sp = fetch_sector_performance(_seg_fmp_key)
-                        if _raw_sp:
-                            _seg_sector_perf = [
-                                {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
-                                for s in _raw_sp if s.get("sector")
-                            ]
-                            if _seg_sector_perf:
-                                st.session_state["_cached_sector_perf"] = _seg_sector_perf
-                                st.session_state["_cached_sector_perf_ts"] = time.time()
-                    except Exception:
-                        logger.debug("Segments sector performance failed", exc_info=True)
-
-            if _seg_sector_perf:
-                with st.expander("📊 GICS Sector Performance (real-time)", expanded=False):
-                    _sp_cols = st.columns(min(len(_seg_sector_perf), 6))
-                    for _sp_i, _sp in enumerate(_seg_sector_perf[:12]):
-                        _sp_name = _sp.get("sector", "")
-                        _sp_chg = _sp.get("change_pct", 0)
-                        _sp_icon = "🟢" if _sp_chg > 0 else "🔴" if _sp_chg < 0 else "⚪"
-                        _sp_cols[_sp_i % len(_sp_cols)].metric(
-                            _sp_name[:20],
-                            f"{_sp_chg:+.2f}%",
-                            delta=None,
-                        )
 
             # ── Overview table (expandable rows) ────────────────────
             st.caption(f"{len(seg_rows)} segments across {len(feed)} articles")
@@ -3347,7 +3328,7 @@ else:
 
     # ── TAB: Outlook ────────────────────────────────────────
     with tab_outlook, _tab_guard("Outlook"):
-        st.subheader("🔮 Outlook — Today & Next-Trading-Day")
+        st.header("🔮 Outlook")
 
         bz_key = cfg.benzinga_api_key
         fmp_key = cfg.fmp_api_key
@@ -3638,7 +3619,7 @@ else:
 
     # ── TAB: Bitcoin ────────────────────────────────────────
     with tab_bitcoin, _tab_guard("Bitcoin"):
-        st.subheader("₿ Bitcoin Dashboard")
+        st.header("₿ Bitcoin Dashboard")
         st.caption("🟢 Market: 24/7 — always open")
 
         if not btc_available():
@@ -3994,7 +3975,7 @@ else:
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts, _tab_guard("Alerts"):
-        st.subheader("⚡ Alert Log")
+        st.header("⚡ Alert Log")
 
         alert_log = st.session_state.alert_log
         rules = st.session_state.alert_rules
