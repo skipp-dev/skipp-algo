@@ -313,6 +313,31 @@ def enrich_recency(value: str) -> str:
 # ── Stats helpers ───────────────────────────────────────────────
 
 
+def _is_actionable_broad(d: dict[str, Any]) -> bool:
+    """Broadened actionable check — matches the Actionable tab filter.
+
+    True when:
+    - Explicitly flagged ``is_actionable`` (recency < 60 min), OR
+    - High news score (≥ 0.65) regardless of age, OR
+    - AGING bucket (< 24 h) with moderate score (≥ 0.45).
+    """
+    if d.get("is_actionable"):
+        return True
+    ns = 0.0
+    raw = d.get("news_score") or d.get("composite_score")
+    if raw is not None:
+        try:
+            ns = float(raw)
+        except (TypeError, ValueError):
+            pass
+    if ns >= 0.65:
+        return True
+    bucket = (d.get("recency_bucket") or "").upper()
+    if bucket == "AGING" and ns >= 0.45:
+        return True
+    return False
+
+
 def compute_feed_stats(feed: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate headline stats from the feed.
 
@@ -321,7 +346,7 @@ def compute_feed_stats(feed: list[dict[str, Any]]) -> dict[str, Any]:
     ``avg_relevance``, ``newest_age_min``.
     """
     unique_tickers = len(set(d.get("ticker", "") for d in feed if d.get("ticker") not in ("MARKET", None, "")))
-    actionable = sum(1 for d in feed if d.get("is_actionable"))
+    actionable = sum(1 for d in feed if _is_actionable_broad(d))
     high_mat = sum(1 for d in feed if d.get("materiality") == "HIGH")
     total_rel = sum(d.get("relevance", 0) for d in feed)
     avg_rel = total_rel / max(1, len(feed))

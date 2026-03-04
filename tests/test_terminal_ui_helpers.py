@@ -481,7 +481,7 @@ class TestComputeFeedStats:
             _item(ticker="AAPL", is_actionable=True, materiality="HIGH",
                   relevance=0.8, published_ts=now - 60),
             _item(ticker="MSFT", is_actionable=False, materiality="LOW",
-                  relevance=0.4, published_ts=now - 120),
+                  relevance=0.4, published_ts=now - 120, news_score=0.30),
             _item(ticker="AAPL", is_actionable=True, materiality="HIGH",
                   relevance=0.6, published_ts=now - 180),
         ]

@@ -195,6 +195,7 @@ from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
     SENTIMENT_COLORS,
+    _is_actionable_broad,
     aggregate_segments,
     build_heatmap_data,
     compute_feed_stats,
@@ -2031,7 +2032,7 @@ else:
 
     with _detail_cols[1]:
         with st.expander(f"Actionable ({_stats['actionable']})"):
-            _act_items = dedup_feed_items([d for d in feed if d.get("is_actionable")])
+            _act_items = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
             if _act_items:
                 for _ai in _act_items:
                     _tk = _ai.get("ticker", "?")
@@ -2817,7 +2818,12 @@ else:
     # ── TAB: Actionable ────────────────────────────────────
     with tab_actionable, _tab_guard("Actionable"):
         st.header("🎯 Actionable Items")
-        _act_feed = dedup_feed_items([d for d in feed if d.get("is_actionable")])
+
+        # Broadened actionable criteria (imported from terminal_ui_helpers):
+        #  1. Explicitly flagged is_actionable (recency < 60 min), OR
+        #  2. High news score (≥ 0.65) regardless of age, OR
+        #  3. AGING bucket (< 24h) with moderate score (≥ 0.45)
+        _act_feed = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
         # Sort by freshest first (highest published_ts on top)
         _act_feed.sort(key=lambda d: d.get("published_ts") or 0, reverse=True)
         if not _act_feed:
