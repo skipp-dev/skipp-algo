@@ -28,6 +28,7 @@ import re
 import socket
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -2604,6 +2605,75 @@ else:
                 row["_rt_direction"] = _rt_js.get("direction") or _rt_row.get("direction", "")
                 row["_rt_vol_ratio"] = _rt_js.get("volume_ratio") or _rt_row.get("vol_ratio", 0)
 
+            # ── FMP-based technical enrichment for symbols lacking RT data ──
+            # When the RT engine hasn't covered a symbol, batch-fetch RSI
+            # from FMP (fast, 3000 req/min limit) and compute a basic tech
+            # score so the Tech/RSI columns aren't blank.
+            _RANK_TECH_KEY = "_rank_fmp_tech_cache"
+            if _RANK_TECH_KEY not in st.session_state:
+                st.session_state[_RANK_TECH_KEY] = {}
+            _rank_tech_cache: dict[str, tuple[float, dict[str, Any]]] = st.session_state[_RANK_TECH_KEY]
+            _tech_ttl = 300.0  # 5-min cache
+            _fmp_tech_now = time.time()
+
+            # Apply cached FMP tech first; collect symbols still missing
+            _need_fmp_tech: list[str] = []
+            for sym, row in _rank_all.items():
+                if row.get("_rt_tech_signal"):  # already has RT data
+                    continue
+                _tc = _rank_tech_cache.get(sym)
+                if _tc and (_fmp_tech_now - _tc[0]) < _tech_ttl:
+                    row["_rt_tech_score"] = _tc[1].get("tech_score", 0.5)
+                    row["_rt_tech_signal"] = _tc[1].get("tech_signal", "")
+                    row["_rt_rsi"] = _tc[1].get("rsi")
+                    continue
+                _need_fmp_tech.append(sym)
+
+            if _need_fmp_tech and _rank_fmp_key:
+                def _fetch_rsi_for_rank(_sym: str) -> tuple[str, dict[str, Any] | None]:
+                    try:
+                        from terminal_fmp_technicals import _fetch_indicator
+                        _d = _fetch_indicator(_sym, "1day", "rsi", _rank_fmp_key, indicator_period=14)
+                        if _d and _d.get("rsi") is not None:
+                            _rsi = float(_d["rsi"])
+                            # Map RSI → tech score (0-1)
+                            if _rsi < 30:
+                                _sc = 0.8 + (30 - _rsi) / 150
+                            elif _rsi > 70:
+                                _sc = 0.2 - (_rsi - 70) / 150
+                            else:
+                                _sc = 0.3 + (70 - _rsi) / 100
+                            _sc = max(0.0, min(1.0, _sc))
+                            _sig = (
+                                "BUY" if _rsi < 30 else
+                                "SELL" if _rsi > 70 else
+                                "BUY" if _rsi < 40 else
+                                "SELL" if _rsi > 60 else
+                                "NEUTRAL"
+                            )
+                            return _sym, {"rsi": _rsi, "tech_score": round(_sc, 3), "tech_signal": _sig}
+                        return _sym, None
+                    except Exception:
+                        return _sym, None
+
+                try:
+                    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="rank_tech") as _tp:
+                        _futs = {_tp.submit(_fetch_rsi_for_rank, s): s for s in _need_fmp_tech[:40]}
+                        for _f in as_completed(_futs, timeout=20):
+                            try:
+                                _fs, _fr = _f.result()
+                                if _fr:
+                                    _rank_tech_cache[_fs] = (_fmp_tech_now, _fr)
+                                    _rr = _rank_all.get(_fs)
+                                    if _rr:
+                                        _rr["_rt_tech_score"] = _fr["tech_score"]
+                                        _rr["_rt_tech_signal"] = _fr["tech_signal"]
+                                        _rr["_rt_rsi"] = _fr["rsi"]
+                            except Exception:
+                                pass
+                except Exception:
+                    logger.debug("Rankings FMP tech enrichment failed", exc_info=True)
+
             top_n = min(50, len(_ranked))
             _rank_rows = []
             for i, m in enumerate(_ranked[:top_n], 1):
@@ -2684,6 +2754,16 @@ else:
                 })
 
             df_rank = pd.DataFrame(_rank_rows)
+
+            # Auto-hide columns that are entirely empty/blank
+            _hideable_cols = ["Signal", "Tech", "RSI", "MACD", "Analyst"]
+            _empty_cols = [
+                c for c in _hideable_cols
+                if c in df_rank.columns and df_rank[c].astype(str).str.strip().replace("", pd.NA).isna().all()
+            ]
+            if _empty_cols:
+                df_rank = df_rank.drop(columns=_empty_cols)
+
             df_rank = df_rank.set_index("#")
 
             _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_forecasts, _rank_nlp] if x)
