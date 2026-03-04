@@ -17,6 +17,9 @@ logger = logging.getLogger("open_prep.streamlit_monitor")
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
+# Code version fingerprint — bump on every deploy to auto-invalidate stale caches.
+_CODE_VERSION = "v2_diag_20260303"
+
 # Ensure package imports work even when Streamlit is started outside project root.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -671,14 +674,22 @@ def _reorder_ranked_columns(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ordered: list[dict[str, Any]] = []
     priority = [
         "symbol",
+        "name",
         "N",
+        "data_age_label",
         "news_sentiment_emoji",
         "upgrade_downgrade_emoji",
         "rank_score",
         "score",
         "price",
+        "change",
+        "changesPercentage",
         "bz_price",
         "bz_chg_pct",
+        "volume",
+        "avg_volume",
+        "pe",
+        "social_sentiment",
         "gap_bucket",
         "gap_grade",
         "gap_pct",
@@ -758,6 +769,28 @@ def main() -> None:
     st.session_state.setdefault("_stale_recovery_ts", 0.0)
     st.session_state.setdefault("_stale_recovery_count", 0)
     st.session_state.setdefault("soft_refresh_count", 0)
+
+    # ── Auto-start RT signal engine (background process) ───────────
+    # Runs once per session — engine persists across Streamlit reruns.
+    _is_cloud_mon = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
+    if not _is_cloud_mon and "rt_engine_started" not in st.session_state:
+        try:
+            from .realtime_signals import ensure_rt_engine_running
+            _rt_ok = ensure_rt_engine_running(project_root=PROJECT_ROOT)
+            st.session_state.rt_engine_started = _rt_ok
+            if _rt_ok:
+                logger.info("RT signal engine auto-started from streamlit_monitor")
+        except Exception as exc:
+            logger.debug("RT engine auto-start failed: %s", exc)
+            st.session_state.rt_engine_started = False
+
+    # ── Auto-bust stale session cache when code version changes ──
+    if st.session_state.get("_code_ver") != _CODE_VERSION:
+        st.session_state["latest_result_cache"] = None
+        st.session_state["last_live_fetch_utc"] = None
+        st.session_state["force_live_fetch"] = True
+        st.session_state["_code_ver"] = _CODE_VERSION
+        logger.info("Code version changed to %s — session cache invalidated", _CODE_VERSION)
 
     def _on_force_refresh() -> None:
         st.session_state["force_live_fetch"] = True
@@ -1041,13 +1074,52 @@ def main() -> None:
         # Mark new entrants with 🆕 column
         _diff = result.get("diff") or {}
         _new_entrant_set: set[str] = set(_diff.get("new_entrants") or [])
+        # ── Data-age staleness multiplier ──────────────────────
+        _data_age_minutes = 0.0
+        try:
+            _updated_raw = str(updated_at or "").replace("Z", "+00:00")
+            if _updated_raw:
+                _updated_dt = datetime.fromisoformat(_updated_raw)
+                if _updated_dt.tzinfo is None:
+                    _updated_dt = _updated_dt.replace(tzinfo=UTC)
+                _data_age_minutes = max((datetime.now(UTC) - _updated_dt).total_seconds(), 0) / 60.0
+        except (ValueError, TypeError):
+            _data_age_minutes = 0.0
+
+        def _staleness_multiplier(age_min: float) -> float:
+            """Exponential decay: 1.0 at 0 min, 0.5 at 30 min, ~0.25 at 60 min."""
+            if age_min <= 0:
+                return 1.0
+            import math as _m
+            return max(_m.exp(-age_min * _m.log(2) / 30.0), 0.05)
+
+        def _age_label(age_min: float) -> str:
+            if age_min < 5:
+                return "🟢 <5m"
+            if age_min < 15:
+                return f"🟡 {age_min:.0f}m"
+            if age_min < 60:
+                return f"🟠 {age_min:.0f}m"
+            return f"🔴 {age_min:.0f}m"
+
+        _stale_mult = _staleness_multiplier(_data_age_minutes)
+
         for row in ranked_candidates:
             row["prediction_side"] = _prediction_side(row, float(result.get("macro_bias", 0.0)))
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
+            row["data_age_label"] = _age_label(_data_age_minutes)
             # Composite rank: 70% absolute price change + 30% pipeline score
-            _chg = abs(float(row.get("gap_pct") or row.get("bz_chg_pct") or 0))
+            # Use changesPercentage from FMP quote as fallback when gap_pct is 0
+            _chg = abs(float(
+                row.get("gap_pct")
+                or row.get("bz_chg_pct")
+                or row.get("changesPercentage")
+                or 0
+            ))
             _ns = float(row.get("score") or 0)
-            row["rank_score"] = round(_chg * 0.7 + _ns * 100.0 * 0.3, 2)
+            _raw_rank = _chg * 0.7 + _ns * 100.0 * 0.3
+            # Apply staleness decay so old data sinks in the ranking
+            row["rank_score"] = round(_raw_rank * _stale_mult, 2)
 
         # Enrich ranked_candidates with news headlines + links
         _rc_news = result.get("news_catalyst_by_symbol") or {}
@@ -1239,20 +1311,61 @@ def main() -> None:
         if _bz_map and ranked_v2:
             _overlay_bz_prices(ranked_v2, _bz_map)
 
+        # ── Enrich ranked_v2 with rank_score, data_age, news (same as v1) ──
+        for row in ranked_v2:
+            row["data_age_label"] = _age_label(_data_age_minutes)
+            row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
+            _chg = abs(float(
+                row.get("gap_pct")
+                or row.get("bz_chg_pct")
+                or row.get("changesPercentage")
+                or 0
+            ))
+            _ns = float(row.get("score") or 0)
+            _raw_rank = _chg * 0.7 + _ns * 100.0 * 0.3
+            row["rank_score"] = round(_raw_rank * _stale_mult, 2)
+            # News enrichment
+            _sym = str(row.get("symbol", "")).upper()
+            _cat_info = _rc_news.get(_sym)
+            if isinstance(_cat_info, dict):
+                _arts = _cat_info.get("articles") or []
+                if _arts:
+                    _best_art = _arts[0]
+                    row["news_headline"] = (_best_art.get("title") or "")[:120]
+                    row["news_url"] = _best_art.get("link") or ""
+                else:
+                    row["news_headline"] = ""
+                    row["news_url"] = ""
+            else:
+                row["news_headline"] = ""
+                row["news_url"] = ""
+        # Sort v2 candidates by rank_score so freshest movers float to top
+        ranked_v2.sort(key=lambda r: float(r.get("rank_score") or 0), reverse=True)
+
+        # ── ALWAYS-VISIBLE header & diagnostic (shows even when ranked_v2 empty) ──
+        _v2_source = "Cache" if use_cached_result else "Live"
+        st.subheader(f"v2 Tiered Candidates  ({len(ranked_v2)} scored)")
+        st.caption(
+            f"Code: {_CODE_VERSION} · Quelle: {_v2_source} · Pipeline: {updated_berlin_label}"
+        )
+        if ranked_v2:
+            _sample = ranked_v2[0]
+            _diag_flds = ["name", "changesPercentage", "pe", "change", "volume", "avg_volume"]
+            _diag_parts = [f"{k}={'✅' if k in _sample else '❌'}" for k in _diag_flds]
+            st.caption(
+                f"🔬 Diag: {' · '.join(_diag_parts)} · total_keys={len(_sample)}"
+            )
+            st.caption(
+                f"🔬 Keys: {', '.join(sorted(_sample.keys())[:20])}"
+            )
+        else:
+            st.warning("🔬 Diag: ranked_v2 ist LEER — Pipeline hat 0 Kandidaten zurückgegeben!")
+
         if ranked_v2:
             promoted = [r for r in ranked_v2 if r.get("rt_promoted")]
             high_conviction = [r for r in ranked_v2 if not r.get("rt_promoted") and r.get("confidence_tier") == "HIGH_CONVICTION"]
             standard = [r for r in ranked_v2 if not r.get("rt_promoted") and r.get("confidence_tier") == "STANDARD"]
             watchlist_tier = [r for r in ranked_v2 if not r.get("rt_promoted") and r.get("confidence_tier") == "WATCHLIST"]
-
-            _n_pipeline = len(ranked_v2) - len(promoted)
-            _promo_label = f" + {len(promoted)} RT-promoted" if promoted else ""
-            st.subheader(f"v2 Tiered Candidates  ({_n_pipeline} scored{_promo_label})")
-            # Show data freshness so the user can tell if v2 is stale
-            _v2_source = "Cache" if use_cached_result else "Live"
-            st.caption(
-                f"Datenquelle: {_v2_source} · Pipeline-Lauf: {updated_berlin_label}"
-            )
             if promoted:
                 st.markdown(f"**🔥 RT-PROMOTED ({len(promoted)})** — active A0/A1 signals below pipeline cutoff")
                 for r in promoted:
@@ -1280,8 +1393,17 @@ def main() -> None:
                 st.markdown(f"**🟢 HIGH CONVICTION ({len(high_conviction)})**")
                 for r in high_conviction:
                     sym = r.get("symbol", "?")
-                    score = r.get("score", 0)
-                    gap = r.get("gap_pct", 0)
+                    _nm = r.get("name") or ""
+                    score = float(r.get("score") or 0)
+                    gap = float(r.get("gap_pct") or 0)
+                    _chg_pct = float(r.get("changesPercentage") or 0)
+                    _vol = float(r.get("volume") or 0)
+                    _rs = float(r.get("rank_score") or 0)
+                    _pe_raw = r.get("pe")
+                    try:
+                        _pe_val = float(_pe_raw) if _pe_raw is not None else None
+                    except (TypeError, ValueError):
+                        _pe_val = None
                     hr = r.get("historical_hit_rate")
                     hr_txt = f" · hist HR: {hr:.0%}" if hr is not None else ""
                     sec = r.get("symbol_sector", "")
@@ -1291,7 +1413,12 @@ def main() -> None:
                     rel_txt = f" (rel {sec_rel:+.1f}%)" if sec_rel is not None else ""
                     bo = _bo_badge(r)
                     bo_txt = f" · {bo}" if bo else ""
-                    st.markdown(f"  🟢 **{sym}** — score {score:.2f} · gap {gap:+.1f}%{hr_txt}{sec_txt}{rel_txt}{bo_txt}")
+                    _nm_txt = f" ({_nm})" if _nm else ""
+                    _chg_txt = f" · chg {_chg_pct:+.1f}%"
+                    _vol_txt = f" · vol {_vol / 1e6:.1f}M" if _vol >= 1e6 else (f" · vol {_vol / 1e3:.0f}K" if _vol >= 1e3 else (f" · vol {_vol:.0f}" if _vol > 0 else ""))
+                    _pe_txt = f" · P/E {_pe_val:.1f}" if _pe_val is not None else ""
+                    _age_txt = f" · {_age_label(_data_age_minutes)}"
+                    st.markdown(f"  🟢 **{sym}**{_nm_txt} — R:{_rs:.1f} · score {score:.2f} · gap {gap:+.1f}%{_chg_txt}{_vol_txt}{_pe_txt}{hr_txt}{sec_txt}{rel_txt}{bo_txt}{_age_txt}")
                     _nhl = r.get("news_headline", "")
                     _nurl = r.get("news_url", "")
                     if _nhl and _nurl:
@@ -1302,8 +1429,17 @@ def main() -> None:
                 st.markdown(f"**🟡 STANDARD ({len(standard)})**")
                 for r in standard:
                     sym = r.get("symbol", "?")
-                    score = r.get("score", 0)
-                    gap = r.get("gap_pct", 0)
+                    _nm = r.get("name") or ""
+                    score = float(r.get("score") or 0)
+                    gap = float(r.get("gap_pct") or 0)
+                    _chg_pct = float(r.get("changesPercentage") or 0)
+                    _vol = float(r.get("volume") or 0)
+                    _rs = float(r.get("rank_score") or 0)
+                    _pe_raw = r.get("pe")
+                    try:
+                        _pe_val = float(_pe_raw) if _pe_raw is not None else None
+                    except (TypeError, ValueError):
+                        _pe_val = None
                     sec = r.get("symbol_sector", "")
                     sec_chg = r.get("sector_change_pct")
                     sec_rel = r.get("sector_relative_gap")
@@ -1311,7 +1447,12 @@ def main() -> None:
                     rel_txt = f" (rel {sec_rel:+.1f}%)" if sec_rel is not None else ""
                     bo = _bo_badge(r)
                     bo_txt = f" · {bo}" if bo else ""
-                    st.markdown(f"  🟡 {sym} — score {score:.2f} · gap {gap:+.1f}%{sec_txt}{rel_txt}{bo_txt}")
+                    _nm_txt = f" ({_nm})" if _nm else ""
+                    _chg_txt = f" · chg {_chg_pct:+.1f}%"
+                    _vol_txt = f" · vol {_vol / 1e6:.1f}M" if _vol >= 1e6 else (f" · vol {_vol / 1e3:.0f}K" if _vol >= 1e3 else (f" · vol {_vol:.0f}" if _vol > 0 else ""))
+                    _pe_txt = f" · P/E {_pe_val:.1f}" if _pe_val is not None else ""
+                    _age_txt = f" · {_age_label(_data_age_minutes)}"
+                    st.markdown(f"  🟡 {sym}{_nm_txt} — R:{_rs:.1f} · score {score:.2f} · gap {gap:+.1f}%{_chg_txt}{_vol_txt}{_pe_txt}{sec_txt}{rel_txt}{bo_txt}{_age_txt}")
                     _nhl = r.get("news_headline", "")
                     _nurl = r.get("news_url", "")
                     if _nhl and _nurl:
@@ -1322,8 +1463,17 @@ def main() -> None:
                 st.markdown(f"**🔵 WATCHLIST ({len(watchlist_tier)})**")
                 for r in watchlist_tier:
                     sym = r.get("symbol", "?")
-                    score = r.get("score", 0)
-                    gap = r.get("gap_pct", 0)
+                    _nm = r.get("name") or ""
+                    score = float(r.get("score") or 0)
+                    gap = float(r.get("gap_pct") or 0)
+                    _chg_pct = float(r.get("changesPercentage") or 0)
+                    _vol = float(r.get("volume") or 0)
+                    _rs = float(r.get("rank_score") or 0)
+                    _pe_raw = r.get("pe")
+                    try:
+                        _pe_val = float(_pe_raw) if _pe_raw is not None else None
+                    except (TypeError, ValueError):
+                        _pe_val = None
                     sec = r.get("symbol_sector", "")
                     sec_chg = r.get("sector_change_pct")
                     sec_rel = r.get("sector_relative_gap")
@@ -1331,7 +1481,12 @@ def main() -> None:
                     rel_txt = f" (rel {sec_rel:+.1f}%)" if sec_rel is not None else ""
                     bo = _bo_badge(r)
                     bo_txt = f" · {bo}" if bo else ""
-                    st.markdown(f"  🔵 {sym} — score {score:.2f} · gap {gap:+.1f}%{sec_txt}{rel_txt}{bo_txt}")
+                    _nm_txt = f" ({_nm})" if _nm else ""
+                    _chg_txt = f" · chg {_chg_pct:+.1f}%"
+                    _vol_txt = f" · vol {_vol / 1e6:.1f}M" if _vol >= 1e6 else (f" · vol {_vol / 1e3:.0f}K" if _vol >= 1e3 else (f" · vol {_vol:.0f}" if _vol > 0 else ""))
+                    _pe_txt = f" · P/E {_pe_val:.1f}" if _pe_val is not None else ""
+                    _age_txt = f" · {_age_label(_data_age_minutes)}"
+                    st.markdown(f"  🔵 {sym}{_nm_txt} — R:{_rs:.1f} · score {score:.2f} · gap {gap:+.1f}%{_chg_txt}{_vol_txt}{_pe_txt}{sec_txt}{rel_txt}{bo_txt}{_age_txt}")
                     _nhl = r.get("news_headline", "")
                     _nurl = r.get("news_url", "")
                     if _nhl and _nurl:
@@ -1339,12 +1494,13 @@ def main() -> None:
                     elif _nhl:
                         st.caption(f"    📰 {_nhl}")
         else:
-            st.subheader("v2 Tiered Candidates")
-            _v2_source = "Cache" if use_cached_result else "Live"
-            st.caption(
-                f"Datenquelle: {_v2_source} · Pipeline-Lauf: {updated_berlin_label}"
-            )
             st.info("Keine v2-Kandidaten (Pipeline hat keine scored).")
+
+        # ── Sortable dataframe for v2 candidates ──────────────────
+        if ranked_v2:
+            with st.expander(f"v2 Sortable Table ({len(ranked_v2)} candidates)", expanded=False):
+                _v2_reordered = _reorder_ranked_columns(ranked_v2)
+                st.dataframe(_v2_reordered, width="stretch", height=min(400, 40 + 35 * len(_v2_reordered)))
 
         # Filtered Out (v2 stage-1 rejects + below-cutoff)
         # NOTE: filtered_out_v2 was already loaded above (before promotion).

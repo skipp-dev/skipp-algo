@@ -94,6 +94,108 @@ THIN_VOLUME_FRACTION_SUSPEND = 0.80  # ≥80% thin → suspend all signals
 THIN_VOLUME_FRACTION_RELAX = 0.50    # ≥50% thin → relax thresholds 20%
 THIN_VOLUME_RATIO = 0.5             # symbol is "thin" if vol < 50% avg
 
+# PID file for the background engine process
+_RT_ENGINE_PID_FILE = _ARTIFACTS_LATEST / "realtime_engine.pid"
+_RT_ENGINE_LOG_FILE = _ARTIFACTS_LATEST / "realtime_signals.log"
+
+
+def ensure_rt_engine_running(
+    *,
+    poll_interval: int = DEFAULT_POLL_INTERVAL,
+    project_root: Path | str | None = None,
+) -> bool:
+    """Ensure the realtime signal engine is running as a background process.
+
+    Call this from Streamlit apps, VisiData launchers, or any other entry
+    point that needs RT signal data.  If the engine is already running
+    (detected via PID file + process check) this is a no-op.
+
+    Returns ``True`` if the engine was started (or is already running),
+    ``False`` on failure.
+    """
+    import subprocess
+
+    if project_root is None:
+        project_root = Path(__file__).resolve().parents[1]
+    project_root = Path(project_root)
+
+    # Check if already running via PID file
+    if _RT_ENGINE_PID_FILE.exists():
+        try:
+            pid = int(_RT_ENGINE_PID_FILE.read_text().strip())
+            os.kill(pid, 0)  # signal 0 = check existence
+            logger.debug("RT engine already running (PID %d)", pid)
+            return True
+        except (ValueError, OSError):
+            # PID file stale or process gone — remove and re-launch
+            try:
+                _RT_ENGINE_PID_FILE.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    # Also check via pgrep as fallback (covers cases where PID file is missing)
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "open_prep.realtime_signals"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            pids = result.stdout.strip().split("\n")
+            logger.debug("RT engine detected via pgrep (PIDs: %s)", ", ".join(pids))
+            # Write PID file for next check
+            try:
+                _RT_ENGINE_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+                _RT_ENGINE_PID_FILE.write_text(pids[0].strip())
+            except OSError:
+                pass
+            return True
+    except Exception:
+        pass
+
+    # Not running — start it
+    logger.info("Starting RT engine as background process (interval=%ds)…", poll_interval)
+    try:
+        _RT_ENGINE_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _RT_ENGINE_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(project_root)
+
+        # Load .env for API keys
+        env_file = project_root / ".env"
+        if env_file.is_file():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("export "):
+                    line = line[len("export "):].strip()
+                if "=" not in line:
+                    continue
+                k, _, v = line.partition("=")
+                k, v = k.strip(), v.strip().strip("'\"")
+                if k and k not in env:
+                    env[k] = v
+
+        log_fh = open(_RT_ENGINE_LOG_FILE, "a", encoding="utf-8")
+        proc = subprocess.Popen(
+            [
+                sys.executable, "-m", "open_prep.realtime_signals",
+                "--interval", str(poll_interval),
+            ],
+            cwd=str(project_root),
+            env=env,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,  # detach from parent — survives parent exit
+        )
+        _RT_ENGINE_PID_FILE.write_text(str(proc.pid))
+        logger.info("RT engine started (PID %d, log: %s)", proc.pid, _RT_ENGINE_LOG_FILE)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to start RT engine: %s", exc, exc_info=True)
+        return False
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Quote Delta Tracker — per-symbol Δ columns for VisiData

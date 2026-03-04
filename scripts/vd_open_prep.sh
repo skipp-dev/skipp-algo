@@ -64,6 +64,24 @@ for cmd in jq vd; do
   fi
 done
 
+# ── Auto-start RT signal engine (if not already running) ───────
+RT_LOG="$PROJECT_DIR/artifacts/open_prep/latest/realtime_signals.log"
+_RT_PYTHON="$PROJECT_DIR/.venv/bin/python"
+[[ -x "$_RT_PYTHON" ]] || _RT_PYTHON="$(command -v python3)"
+if ! pgrep -f "open_prep.realtime_signals" >/dev/null 2>&1; then
+  echo "▶️  Starte Realtime-Engine im Hintergrund …"
+  mkdir -p "$(dirname "$RT_LOG")"
+  if [[ -z "${FMP_API_KEY:-}" ]] && [[ -f "$PROJECT_DIR/.env" ]]; then
+    set -a
+    source "$PROJECT_DIR/.env"
+    set +a
+  fi
+  nohup env PYTHONPATH="$PROJECT_DIR" \
+    "$_RT_PYTHON" -m open_prep.realtime_signals --interval 45 \
+    > "$RT_LOG" 2>&1 &
+  echo "  ▶️  Engine gestartet (PID $!)"
+fi
+
 # ── Helper: run pipeline ──
 _run_pipeline() {
   cd "$PROJECT_DIR"

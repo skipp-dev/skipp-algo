@@ -4,14 +4,15 @@
 # ──────────────────────────────────────────────────────────────────
 # Usage:
 #   ./scripts/vd_signals_live.sh
-#   ./scripts/vd_signals_live.sh --start-engine
-#   ./scripts/vd_signals_live.sh --start-engine --interval 15
+#   ./scripts/vd_signals_live.sh --interval 15
+#   ./scripts/vd_signals_live.sh --no-engine
 #
 # Optionen:
-#   --start-engine   startet open_prep.realtime_signals im Hintergrund,
-#                    falls noch kein Prozess läuft
-#   --interval N     Poll-Intervall für --start-engine (default 45)
+#   --no-engine      Engine NICHT automatisch starten
+#   --interval N     Poll-Intervall (default 45)
 #   --help           Hilfe anzeigen
+#
+# Die Engine wird automatisch gestartet, wenn sie nicht läuft.
 #
 # Liest live aus:
 #   artifacts/open_prep/latest/latest_vd_signals.jsonl
@@ -30,13 +31,19 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DATA_FILE="$PROJECT_DIR/artifacts/open_prep/latest/latest_vd_signals.jsonl"
 LOG_FILE="$PROJECT_DIR/artifacts/open_prep/latest/realtime_signals.log"
 
-START_ENGINE=false
+START_ENGINE=true
 INTERVAL=45
+NO_START=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --start-engine)
       START_ENGINE=true
+      shift
+      ;;
+    --no-engine)
+      NO_START=true
+      START_ENGINE=false
       shift
       ;;
     --interval)

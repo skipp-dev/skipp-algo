@@ -162,6 +162,7 @@ from terminal_export import (
     save_vd_snapshot,
 )
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
+from open_prep.realtime_signals import RealtimeEngine, ensure_rt_engine_running
 from open_prep.log_redaction import apply_global_log_redaction
 apply_global_log_redaction()
 from terminal_notifications import NotifyConfig, notify_high_score_items
@@ -236,6 +237,11 @@ from terminal_newsapi import (
 from terminal_finnhub import (
     fetch_social_sentiment_batch,
     is_available as finnhub_available,
+)
+from terminal_tradingview_news import (
+    fetch_tv_feed_dicts,
+    health_status as tv_health_status,
+    is_available as tv_available,
 )
 from terminal_fmp_insights import (
     fetch_fmp_quotes,
@@ -542,7 +548,11 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
 
         fc = fetch_forecast(_fc_sym)
         if fc.error:
-            st.warning(f"No forecast data: {fc.error}")
+            # ETF/fund — show info (blue) instead of warning (yellow)
+            if "ETF" in fc.error or "Fund" in fc.error:
+                st.info(f"📊 {_fc_sym}: {fc.error}")
+            else:
+                st.warning(f"No forecast data: {fc.error}")
             return
         if not fc.has_data:
             st.info("No forecast data available for this symbol.")
@@ -775,6 +785,8 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "bg_poller": None,
     "notify_log": [],
     "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "1") != "0",
+    "tv_health_prev_status": "healthy",
+    "tv_health_log": [],
 }
 for _k, _v in _SIMPLE_DEFAULTS.items():
     st.session_state.setdefault(_k, _v)
@@ -813,6 +825,15 @@ if "spike_detector" not in st.session_state:
         max_event_age_s=3600.0,
         cooldown_s=120.0,
     )
+
+# ── Auto-start RT signal engine (background process) ───────────
+# Runs once per session — the engine persists across Streamlit reruns.
+_is_cloud_rt = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
+if not _is_cloud_rt and "rt_engine_started" not in st.session_state:
+    _rt_started = ensure_rt_engine_running(project_root=PROJECT_ROOT)
+    st.session_state.rt_engine_started = _rt_started
+    if _rt_started:
+        logger.info("RT signal engine auto-started from streamlit_terminal")
 
 
 def _get_adapter() -> BenzingaRestAdapter | None:
@@ -977,7 +998,66 @@ with st.sidebar:
         sources.append("News")
     if cfg.fmp_api_key and cfg.fmp_enabled and _FmpAdapter:
         sources.append("FMP")
+    if tv_available():
+        sources.append("📺 TV")
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
+
+    # TradingView health alert (with state-transition detection)
+    _tv_hs = tv_health_status()
+    _tv_prev = st.session_state.get("tv_health_prev_status", "healthy")
+    _tv_cur = _tv_hs["status"]
+
+    # Detect transitions and fire proactive alerts
+    if _tv_cur != _tv_prev:
+        _tv_log_entry = {
+            "ts": time.time(),
+            "prev": _tv_prev,
+            "status": _tv_cur,
+            "failures": _tv_hs["consecutive_failures"],
+            "error": _tv_hs.get("last_error", ""),
+            "uptime_pct": _tv_hs.get("uptime_pct", 0),
+        }
+        st.session_state.tv_health_log.insert(0, _tv_log_entry)
+        if len(st.session_state.tv_health_log) > 50:
+            st.session_state.tv_health_log = st.session_state.tv_health_log[:50]
+
+        if _tv_cur == "down":
+            st.toast(
+                f"TradingView API DOWN — {_tv_hs['consecutive_failures']} consecutive failures. "
+                f"Headlines will be unavailable until recovery.",
+                icon="🚨",
+            )
+            # Also log to the main alert_log so it appears in the Alerts tab
+            st.session_state.alert_log.insert(0, {
+                "ts": time.time(),
+                "ticker": "SYSTEM",
+                "headline": f"TradingView API DOWN ({_tv_hs['consecutive_failures']} failures): {_tv_hs.get('last_error', 'unknown')}",
+                "rule": "tv_health",
+                "score": 0.0,
+                "item_id": f"tv_down_{int(time.time())}",
+            })
+        elif _tv_cur == "degraded" and _tv_prev == "healthy":
+            st.toast(
+                f"TradingView API degraded — {_tv_hs['consecutive_failures']} failure(s)",
+                icon="⚡",
+            )
+        elif _tv_cur == "healthy" and _tv_prev in ("down", "degraded"):
+            st.toast("TradingView API recovered — headlines flowing again", icon="✅")
+            st.session_state.alert_log.insert(0, {
+                "ts": time.time(),
+                "ticker": "SYSTEM",
+                "headline": f"TradingView API RECOVERED (uptime {_tv_hs.get('uptime_pct', 0):.0f}%)",
+                "rule": "tv_health",
+                "score": 0.0,
+                "item_id": f"tv_up_{int(time.time())}",
+            })
+        st.session_state.tv_health_prev_status = _tv_cur
+
+    # Static sidebar indicator (always visible)
+    if _tv_cur == "down":
+        st.warning(f"⚠️ TradingView headlines unavailable ({_tv_hs['consecutive_failures']} failures). Last error: {_tv_hs['last_error']}")
+    elif _tv_cur == "degraded":
+        st.caption(f"⚡ TV degraded ({_tv_hs['consecutive_failures']} failures)")
 
     # Reset dedup DB (clears mark_seen so next poll re-ingests)
     if st.button("🗑️ Reset dedup DB", width='stretch'):
@@ -1735,6 +1815,52 @@ else:
 if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
     _resync_feed_from_jsonl()
 
+# ── TradingView headline supplement ────────────────────────────
+# After the main poll cycle, fetch TradingView headlines for tickers
+# already present in the feed.  TV results are merged into the feed
+# with dedup so duplicate headlines are suppressed.  This runs on a
+# separate cadence (every 3 min via its internal cache TTL) to avoid
+# hammering the unofficial endpoint.
+_tv_last_ts: float = st.session_state.get("tv_supplement_ts", 0.0)
+if tv_available() and time.time() - _tv_last_ts >= 180:  # 3 min cadence
+    # Pick the 8 most-recently-seen tickers (newest feed items first)
+    _tv_seen: dict[str, None] = {}  # ordered-dict trick for dedup
+    for _fd in st.session_state.feed:
+        _tk = _fd.get("ticker", "")
+        if _tk and _tk not in ("MARKET", "") and _tk not in _tv_seen:
+            _tv_seen[_tk] = None
+            if len(_tv_seen) >= 8:
+                break
+    _tv_tickers = list(_tv_seen)
+    if _tv_tickers:
+        try:
+            _tv_dicts = fetch_tv_feed_dicts(_tv_tickers, max_per_ticker=8, max_total=30)
+            if _tv_dicts:
+                # Dedup against existing feed by headline text
+                _existing_hl = {
+                    d.get("headline", "").strip().lower()
+                    for d in st.session_state.feed if d.get("headline")
+                }
+                _existing_ids = {
+                    d.get("item_id", "") for d in st.session_state.feed
+                }
+                _tv_unique = [
+                    d for d in _tv_dicts
+                    if d.get("item_id") not in _existing_ids
+                    and d.get("headline", "").strip().lower() not in _existing_hl
+                ]
+                if _tv_unique:
+                    st.session_state.feed = dedup_feed_items(
+                        _tv_unique + st.session_state.feed
+                    )
+                    logger.info(
+                        "TV supplement: added %d headlines for %s",
+                        len(_tv_unique), ", ".join(_tv_tickers[:4]),
+                    )
+        except Exception as _tv_exc:
+            logger.warning("TV supplement fetch failed: %s", _tv_exc, exc_info=True)
+        st.session_state["tv_supplement_ts"] = time.time()
+
 
 # ── Main display ────────────────────────────────────────────────
 
@@ -1762,45 +1888,83 @@ if not feed:
         st.info("No items yet. Waiting for first poll…")
 else:
     # ── Stats bar: Top 3 ranked symbols + key metrics ─────
-    # Quick ranking from feed + spikes (same data as Rankings tab)
-    _top3_all: dict[str, dict[str, Any]] = {}
-    _top3_detector: SpikeDetector = st.session_state.spike_detector
-    for _t3ev in _top3_detector.events[:50]:
-        _t3s = _t3ev.symbol
-        _t3x = _top3_all.get(_t3s)
-        if not _t3x or abs(_t3ev.spike_pct) > abs(_t3x.get("chg_pct", 0)):
-            _top3_all[_t3s] = {
-                "symbol": _t3s, "name": _t3ev.name[:30],
-                "price": _t3ev.price, "chg_pct": _t3ev.spike_pct,
-                "news_score": 0.0, "sentiment": "",
-            }
-    for _t3fi in feed:
-        _t3tk = (_t3fi.get("ticker") or "").upper().strip()
-        if not _t3tk or _t3tk == "MARKET":
-            continue
-        _t3ns = _safe_float_mov(_t3fi.get("news_score") or _t3fi.get("composite_score"))
-        _t3sent = _t3fi.get("sentiment_label") or ""
-        if _t3tk in _top3_all:
-            if _t3ns > _safe_float_mov(_top3_all[_t3tk].get("news_score")):
-                _top3_all[_t3tk]["news_score"] = _t3ns
-                _top3_all[_t3tk]["sentiment"] = _t3sent
-        else:
-            _top3_all[_t3tk] = {
-                "symbol": _t3tk,
-                "name": (_t3fi.get("name") or _t3fi.get("company") or "")[:30],
-                "price": 0, "chg_pct": 0,
-                "news_score": _t3ns, "sentiment": _t3sent,
-            }
-
-    # Sort: bullish first, then best news score
-    def _top3_sort(r: dict[str, Any]) -> tuple[int, float, float]:
-        _chg = float(r.get("chg_pct") or 0)
-        _ns = float(r.get("news_score") or 0)
-        _sent = (r.get("sentiment") or "").lower()
-        _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
-        return (-_tier, -_ns, -_chg)
-
-    _top3_ranked = sorted(_top3_all.values(), key=_top3_sort)[:3]
+    # Use the ranked list from session state (computed in Rankings tab on
+    # the previous Streamlit rerun).  On the very first load, fall back to
+    # a quick inline ranking from feed + spikes.
+    _prev_ranked: list[dict[str, Any]] = st.session_state.get("_ranked_list") or []
+    if _prev_ranked:
+        # Take the exact top-3 from the ranking list (same order as the table)
+        _top3_ranked = _prev_ranked[:3]
+    else:
+        # Fallback: quick inline ranking (first load only)
+        _top3_all: dict[str, dict[str, Any]] = {}
+        _top3_detector: SpikeDetector = st.session_state.spike_detector
+        for _t3ev in _top3_detector.events[:50]:
+            _t3s = _t3ev.symbol
+            _t3x = _top3_all.get(_t3s)
+            if not _t3x or abs(_t3ev.spike_pct) > abs(_t3x.get("chg_pct", 0)):
+                _top3_all[_t3s] = {
+                    "symbol": _t3s, "name": _t3ev.name[:30],
+                    "price": _t3ev.price, "chg_pct": _t3ev.spike_pct,
+                    "news_score": 0.0, "sentiment": "",
+                }
+        for _t3fi in feed:
+            _t3tk = (_t3fi.get("ticker") or "").upper().strip()
+            if not _t3tk or _t3tk == "MARKET":
+                continue
+            _t3ns = _safe_float_mov(_t3fi.get("news_score") or _t3fi.get("composite_score"))
+            _t3sent = _t3fi.get("sentiment_label") or ""
+            if _t3tk in _top3_all:
+                if _t3ns > _safe_float_mov(_top3_all[_t3tk].get("news_score")):
+                    _top3_all[_t3tk]["news_score"] = _t3ns
+                    _top3_all[_t3tk]["sentiment"] = _t3sent
+            else:
+                _top3_all[_t3tk] = {
+                    "symbol": _t3tk,
+                    "name": (_t3fi.get("name") or _t3fi.get("company") or "")[:30],
+                    "price": 0, "chg_pct": 0,
+                    "news_score": _t3ns, "sentiment": _t3sent,
+                }
+        def _top3_sort(r: dict[str, Any]) -> tuple[int, float, float]:
+            _chg = float(r.get("chg_pct") or 0)
+            _ns = float(r.get("news_score") or 0)
+            _sent = (r.get("sentiment") or "").lower()
+            _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
+            return (-_tier, -_ns, -_chg)
+        _top3_ranked = sorted(_top3_all.values(), key=_top3_sort)[:3]
+        # FMP enrichment for fallback top-3 cards
+        _t3_fmp_key = os.environ.get("FMP_API_KEY", "")
+        if _t3_fmp_key and _top3_ranked:
+            try:
+                _t3_syms = [r["symbol"] for r in _top3_ranked]
+                _t3_fmp_syms = [s.replace("/", "-") for s in _t3_syms]
+                _t3_fmp_map = {s.replace("/", "-"): s for s in _t3_syms}
+                _t3_quotes = fetch_fmp_quotes(_t3_fmp_key, _t3_fmp_syms)
+                _t3_by_sym: dict[str, dict[str, Any]] = {}
+                for _t3q in _t3_quotes:
+                    _t3qs = (_t3q.get("symbol") or "").upper()
+                    _t3_orig = _t3_fmp_map.get(_t3qs)
+                    if _t3_orig:
+                        _t3_by_sym[_t3_orig] = _t3q
+                for _t3r in _top3_ranked:
+                    _t3fq = _t3_by_sym.get(_t3r["symbol"])
+                    if not _t3fq:
+                        continue
+                    if _t3r.get("price") == 0 and _t3fq.get("price"):
+                        _t3r["price"] = _t3fq["price"]
+                    if not _t3r.get("chg_pct"):
+                        _cp = _t3fq.get("changesPercentage") or _t3fq.get("changePercentage")
+                        if _cp is not None and _cp != 0:
+                            _t3r["chg_pct"] = _cp
+                        else:
+                            _c = float(_t3fq.get("change") or 0)
+                            _p = float(_t3fq.get("price") or 0)
+                            if _p > 0 and _c != 0:
+                                _t3r["chg_pct"] = round(_c / _p * 100, 4)
+                    if not _t3r.get("name") and _t3fq.get("name"):
+                        _t3r["name"] = str(_t3fq["name"])[:30]
+            except Exception:
+                logger.debug("Top-3 cards FMP enrichment failed", exc_info=True)
 
     _stats = compute_feed_stats(feed)
 
@@ -1819,11 +1983,12 @@ else:
                 _t3_sub += f" · {_t3_price_str}"
             if _t3_ns > 0:
                 _t3_sub += f" · NLP {_t3_ns:.2f}"
-            _t3_cols[_t3i].metric(
-                f"#{_t3i+1} {_t3_sym}",
-                _t3_name if _t3_name else _t3_sym,
-                _t3_sub,
-            )
+            _t3_name_safe = safe_markdown_text(_t3_name) if _t3_name else ""
+            with _t3_cols[_t3i]:
+                st.markdown(f"### #{_t3i+1} {_t3_sym}")
+                if _t3_name_safe:
+                    st.caption(_t3_name_safe)
+                st.markdown(_t3_sub)
     else:
         st.caption("No ranked symbols yet — waiting for data…")
 
@@ -2161,7 +2326,7 @@ else:
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
         st.subheader("🏆 Rankings")
-        st.caption(f"**{_session_label_rank}** — Symbols ranked by composite score (70% price move + 30% news score). From feed + RT spike events only.")
+        st.caption(f"**{_session_label_rank}** — Symbols ranked by composite score (50% price + 20% news + 15% tech + 15% RT signal). Feed + RT spike + realtime signals.")
 
         # Build unified symbol map from feed + RT spikes (zero API calls)
         _rank_now = time.time()
@@ -2177,7 +2342,7 @@ else:
                     "symbol": sym, "name": ev.name[:50],
                     "price": ev.price, "change": ev.change, "chg_pct": ev.spike_pct,
                     "volume": ev.volume, "mkt_cap": "",
-                    "_ts": ev.ts,
+                    "_ts": ev.ts, "_from_spike": True,
                 }
 
         # 2) Feed items — extract unique tickers not already covered by spikes
@@ -2230,27 +2395,106 @@ else:
                     row["url"] = ""
                     row["sentiment"] = ""
 
-            # Composite ranking: 70% price move + 30% news score
+            # ── Pre-sort FMP enrichment: fill price/change/volume for
+            #    feed-only items (which have price=0) BEFORE sorting so the
+            #    bullish/bearish sort and composite score use real data.
+            _rank_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+            _rank_fmp: dict[str, dict[str, Any]] = {}
+            _rank_all_syms = list(_rank_all.keys())
+            # Build FMP-compatible symbols (BRK/A → BRK-A for FMP API)
+            _fmp_sym_map: dict[str, str] = {}  # FMP symbol → original symbol
+            _fmp_query_syms: list[str] = []
+            for _orig in _rank_all_syms:
+                _fmp_s = _orig.replace("/", "-")
+                _fmp_sym_map[_fmp_s] = _orig
+                _fmp_query_syms.append(_fmp_s)
+            if _rank_fmp_key and _fmp_query_syms:
+                try:
+                    for _batch_start in range(0, len(_fmp_query_syms), 20):
+                        _batch = _fmp_query_syms[_batch_start:_batch_start + 20]
+                        _raw_rq = fetch_fmp_quotes(_rank_fmp_key, _batch)
+                        for _rq in _raw_rq:
+                            _rq_s = (_rq.get("symbol") or "").upper()
+                            if _rq_s:
+                                # Map back to original symbol (BRK-A → BRK/A)
+                                # Only accept symbols we explicitly queried — ignore
+                                # stray matches (e.g. FMP returns "BRK" penny stock
+                                # when we asked for "BRK-A").
+                                _orig_sym = _fmp_sym_map.get(_rq_s)
+                                if _orig_sym:
+                                    _rank_fmp[_orig_sym] = _rq
+                except Exception:
+                    logger.debug("Rankings FMP quotes (pre-sort) failed", exc_info=True)
+
+            # Apply FMP data to all items before sorting
+            for sym, row in _rank_all.items():
+                _fq = _rank_fmp.get(sym)
+                if not _fq:
+                    continue
+                if row.get("price") == 0 and _fq.get("price"):
+                    row["price"] = _fq["price"]
+                if row.get("change") == 0 and _fq.get("change") is not None:
+                    row["change"] = _fq["change"]
+                # changesPercentage from FMP; fallback: compute from change/price
+                if not row.get("chg_pct"):
+                    # FMP batch-quote uses "changePercentage" (no trailing 's')
+                    _fq_chg_pct = _fq.get("changesPercentage") or _fq.get("changePercentage")
+                    if _fq_chg_pct is not None and _fq_chg_pct != 0:
+                        row["chg_pct"] = _fq_chg_pct
+                    else:
+                        # Derive from change / price (handles off-hours when FMP returns 0)
+                        _chg_val = float(row.get("change") or _fq.get("change") or 0)
+                        _price_val = float(row.get("price") or _fq.get("price") or 0)
+                        if _price_val > 0 and _chg_val != 0:
+                            row["chg_pct"] = round(_chg_val / _price_val * 100, 4)
+                # Volume: try volume, then avgVolume as fallback
+                if not row.get("volume"):
+                    _fq_vol = _fq.get("volume") or _fq.get("avgVolume") or 0
+                    if _fq_vol:
+                        row["volume"] = _fq_vol
+                if not row.get("name") and _fq.get("name"):
+                    row["name"] = str(_fq["name"])[:50]
+                # Update Age timestamp: when FMP provided fresh market data for a
+                # feed-only item, reflect "data freshness" instead of stale
+                # news-article publish time.  Spike events keep their spike ts.
+                if row.get("_ts", 0) == 0 or (row.get("price") and not row.get("_from_spike")):
+                    row["_ts"] = time.time()
+
+            # Composite ranking: 50% price move + 20% news + 15% RT technical + 15% RT signal
             # news_score is typically 0-1, scale to comparable range
+            _RT_SIGNAL_BONUS = {"A0": 30.0, "A1": 15.0, "A2": 5.0}
+
             def _composite_score(r: dict[str, Any]) -> float:
                 _chg = float(r.get("chg_pct") or 0)
                 _ns = float(r.get("news_score") or 0)
-                return abs(_chg) * 0.7 + _ns * 100.0 * 0.3
+                _tech = float(r.get("_rt_tech_score") or 0.5)
+                _base = abs(_chg) * 0.50 + _ns * 100.0 * 0.20
+                # Technical indicator contribution: deviation from neutral (0.5)
+                _tech_contrib = (_tech - 0.5) * 100.0 * 0.15
+                # RT signal tier bonus
+                _sig = _rt_signals.get(r.get("symbol", ""), "")
+                _sig_bonus = _RT_SIGNAL_BONUS.get(_sig, 0.0) * 0.15
+                return _base + abs(_tech_contrib) + _sig_bonus
 
-            # Default sort: bullish first (positive chg_pct), then best NLP/news score
-            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[int, float, float]:
+            # Default sort: bullish first (positive chg_pct), then best composite score
+            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[int, float, float, float]:
                 _chg = float(r.get("chg_pct") or 0)
                 _ns = float(r.get("news_score") or 0)
                 _sent = (r.get("sentiment") or "").lower()
                 # Tier: 1=bullish/positive move, 0=neutral, -1=bearish
                 _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
-                # Within tier: sort by news_score desc, then chg_pct desc
-                return (-_tier, -_ns, -_chg)
+                # A0/A1 signals get priority within their tier
+                _sig_pri = {"A0": 2.0, "A1": 1.0}.get(_rt_signals.get(r.get("symbol", ""), ""), 0.0)
+                # Within tier: sort by signal priority, then news_score desc, then chg_pct desc
+                return (-_tier, -_sig_pri, -_ns, -_chg)
 
             _ranked = sorted(
                 _rank_all.values(),
                 key=_bullish_nlp_key,
             )
+
+            # Stash ranked list for top-3 cards (rendered earlier in layout)
+            st.session_state["_ranked_list"] = _ranked
 
             # NLP sentiment enrichment for top ranked symbols
             _rank_nlp: dict[str, NLPSentiment] = {}
@@ -2258,47 +2502,39 @@ else:
                 _rank_syms = [m["symbol"] for m in _ranked[:30]]
                 _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
 
-            # FMP quotes enrichment for top ranked symbols
-            _rank_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
-            _rank_fmp: dict[str, dict[str, Any]] = {}
+            # FMP quotes already fetched pre-sort (in _rank_fmp) — reuse them.
             _rank_top_syms = [m["symbol"] for m in _ranked[:50]]
-            if _rank_fmp_key and _rank_top_syms:
-                try:
-                    _raw_rq = fetch_fmp_quotes(_rank_fmp_key, _rank_top_syms[:20])
-                    for _rq in _raw_rq:
-                        _rq_s = (_rq.get("symbol") or "").upper()
-                        if _rq_s:
-                            _rank_fmp[_rq_s] = _rq
-                except Exception:
-                    logger.debug("Rankings FMP quotes failed", exc_info=True)
 
-            # Social sentiment for top ranked symbols (time-limited cache)
+            # Social sentiment — merge into shared cache with TTL
             _RANK_CACHE_TTL = 180  # 3 minutes — keep rankings data fresh
             _rank_social: dict[str, Any] = {}
             _social_ts = st.session_state.get("_cached_social_sent_ts", 0)
             if time.time() - _social_ts < _RANK_CACHE_TTL:
                 _rank_social = st.session_state.get("_cached_social_sent") or {}
-            if not _rank_social and _intel_enabled() and finnhub_available() and _rank_top_syms:
+            _rank_social_missing = [t for t in _rank_top_syms[:15] if t not in _rank_social]
+            if _rank_social_missing and _intel_enabled() and finnhub_available():
                 try:
-                    _raw_rs = fetch_social_sentiment_batch(_rank_top_syms[:15])
+                    _raw_rs = fetch_social_sentiment_batch(_rank_social_missing)
                     if _raw_rs:
-                        _rank_social = {
+                        _new_social = {
                             sym: {"total_mentions": s.total_mentions, "score": s.score, "label": s.sentiment_label}
                             for sym, s in _raw_rs.items()
                         }
+                        _rank_social = {**_rank_social, **_new_social}
                         st.session_state["_cached_social_sent"] = _rank_social
                         st.session_state["_cached_social_sent_ts"] = time.time()
                 except Exception:
                     logger.debug("Rankings social sentiment failed", exc_info=True)
 
-            # Analyst forecasts (time-limited cache)
+            # Analyst forecasts — merge into shared cache with TTL
             _rank_forecasts: dict[str, Any] = {}
             _forecasts_ts = st.session_state.get("_cached_forecasts_ts", 0)
             if time.time() - _forecasts_ts < _RANK_CACHE_TTL:
                 _rank_forecasts = st.session_state.get("_cached_forecasts") or {}
-            if not _rank_forecasts and _intel_enabled() and _rank_top_syms:
+            _rank_fc_missing = [t for t in _rank_top_syms[:10] if t not in _rank_forecasts]
+            if _rank_fc_missing and _intel_enabled():
                 try:
-                    for _sym in _rank_top_syms[:10]:
+                    for _sym in _rank_fc_missing:
                         _fc = fetch_forecast(_sym)
                         if _fc.has_data and _fc.price_target:
                             _rank_forecasts[_sym] = {
@@ -2316,6 +2552,50 @@ else:
                 except Exception:
                     logger.debug("Rankings forecasts failed", exc_info=True)
 
+            # Load RT engine signals (A0/A1 + technicals) with relaxed staleness
+            _rt_sig_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
+            _rt_signals: dict[str, str] = {}
+            _rt_full: dict[str, dict[str, Any]] = {}  # full RT row per symbol
+            try:
+                _rt_raw = load_rt_quotes(_rt_sig_path, max_age_s=7200)  # 2h grace for signal display
+                for _rts, _rtrow in _rt_raw.items():
+                    if _rts.startswith("_"):
+                        continue
+                    _sig = _rtrow.get("signal", "")
+                    if _sig:
+                        _rt_signals[_rts] = _sig
+                    _rt_full[_rts] = _rtrow
+            except Exception:
+                pass
+
+            # Also load structured signals from JSON for richer data
+            _rt_json_signals: dict[str, dict[str, Any]] = {}
+            try:
+                _rt_disk = RealtimeEngine.load_signals_from_disk(max_age_s=7200)
+                for _rs in (_rt_disk.get("signals") or []):
+                    _rs_sym = str(_rs.get("symbol", "")).upper()
+                    if _rs_sym:
+                        _rt_json_signals[_rs_sym] = _rs
+            except Exception:
+                pass
+
+            # Enrich _rank_all with RT engine data (price, direction, technical)
+            for sym, row in _rank_all.items():
+                _rt_row = _rt_full.get(sym, {})
+                _rt_js = _rt_json_signals.get(sym, {})
+                # Fill price/change from RT engine if feed didn't have it
+                if row.get("price") == 0 and _rt_row.get("price"):
+                    row["price"] = _rt_row["price"]
+                if not row.get("chg_pct") and _rt_row.get("chg_pct"):
+                    row["chg_pct"] = _rt_row["chg_pct"]
+                # Technical data from RT engine
+                row["_rt_tech_score"] = _rt_js.get("technical_score") or _rt_row.get("tech_score", 0.5)
+                row["_rt_tech_signal"] = _rt_js.get("technical_signal") or _rt_row.get("tech_signal", "")
+                row["_rt_rsi"] = _rt_js.get("rsi") or _rt_row.get("rsi")
+                row["_rt_macd"] = _rt_js.get("macd_signal") or _rt_row.get("macd", "")
+                row["_rt_direction"] = _rt_js.get("direction") or _rt_row.get("direction", "")
+                row["_rt_vol_ratio"] = _rt_js.get("volume_ratio") or _rt_row.get("vol_ratio", 0)
+
             top_n = min(50, len(_ranked))
             _rank_rows = []
             for i, m in enumerate(_ranked[:top_n], 1):
@@ -2329,25 +2609,37 @@ else:
                 _nlp_col = ""
                 if _nlp_r and _nlp_r.article_count > 0:
                     _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
-                elif _rank_nlp:
-                    _nlp_col = "⚪ —"
+                else:
+                    # Fallback: use the feed item's news_score (same value
+                    # the top-3 cards display as "NLP") so the ranking
+                    # table is consistent with the header cards.
+                    _ns_fallback = float(m.get("news_score") or 0)
+                    if _ns_fallback > 0:
+                        _ns_icon = "🟢" if _ns_fallback > 0.6 else ("🟡" if _ns_fallback > 0.3 else "⚪")
+                        _nlp_col = f"{_ns_icon} {_ns_fallback:.2f}"
+                    elif _rank_nlp:
+                        _nlp_col = "⚪ —"
                 _r_price = m.get("price") or 0
                 _r_sym = m.get("symbol", "?")
 
-                # FMP enrichment (P/E + override price if spike data is 0)
-                _rfq = _rank_fmp.get(_r_sym, {})
-                _r_pe = _rfq.get("pe")
-                if _r_price == 0 and _rfq.get("price"):
-                    _r_price = _rfq["price"]
+                # RT engine signal (A0/A1) + technicals
+                _rt_sig_col = _rt_signals.get(_r_sym, "")
+                _rt_tech = float(m.get("_rt_tech_score") or 0.5)
+                _rt_tech_sig = m.get("_rt_tech_signal", "")
+                _rt_rsi_val = m.get("_rt_rsi")
+                _rt_macd_val = m.get("_rt_macd", "")
+                _rt_dir = m.get("_rt_direction", "")
 
-                # Social sentiment
-                _rs = _rank_social.get(_r_sym, {})
-                _rs_label = _rs.get("label", "")
-                _rs_mentions = _rs.get("total_mentions", 0)
-                _social_col = ""
-                if _rs_label:
-                    _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_rs_label, "⚪")
-                    _social_col = f"{_soc_icon} {_rs_mentions}"
+                # Format technical indicator column
+                _tech_icon = {"STRONG_BUY": "🟢", "BUY": "🟢", "STRONG_SELL": "🔴", "SELL": "🔴"}.get(_rt_tech_sig, "🟡")
+                _tech_col = f"{_tech_icon} {_rt_tech:.2f}" if _rt_tech_sig else ""
+
+                # Format RSI column
+                _rsi_col = ""
+                if _rt_rsi_val is not None:
+                    _rsi_v = float(_rt_rsi_val)
+                    _rsi_icon = "🔴" if _rsi_v > 70 else ("🟢" if _rsi_v < 30 else "🟡")
+                    _rsi_col = f"{_rsi_icon} {_rsi_v:.0f}"
 
                 # Analyst forecast
                 _raf = _rank_forecasts.get(_r_sym, {})
@@ -2366,6 +2658,10 @@ else:
                     "#": i,
                     "Dir": _dir,
                     "Symbol": _r_sym,
+                    "Signal": _rt_sig_col,
+                    "Tech": _tech_col,
+                    "RSI": _rsi_col,
+                    "MACD": _rt_macd_val,
                     "Analyst": _analyst_col,
                     "Price": f"${_r_price:.2f}" if _r_price >= 1 else (f"${_r_price:.4f}" if _r_price > 0 else "—"),
                     "Change": f"{m.get('change', 0):+.2f}",
@@ -2374,33 +2670,39 @@ else:
                     "Age": format_age_string(m.get("_ts")),
                     "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
                     "NLP": _nlp_col,
-                    "Social": _social_col,
-                    "P/E": f"{_r_pe:.1f}" if _r_pe and _r_pe > 0 else "—",
+                    "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                     "Name": m.get("name", ""),
                     "Headline": _hl_url if _hl_url else _hl_text,
-                    "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                 })
 
             df_rank = pd.DataFrame(_rank_rows)
             df_rank = df_rank.set_index("#")
 
-            _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_social, _rank_forecasts, _rank_nlp] if x)
+            _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_forecasts, _rank_nlp] if x)
+            if _rt_signals:
+                _n_rank_enriched += 1
+            if _rt_full:
+                _n_rank_enriched += 1  # RT technicals layer
             st.caption(
                 f"Top {top_n} of {len(_ranked)} symbols · "
-                f"sorted: bullish first → best news score · "
+                f"sorted: bullish first → RT signal → composite score · "
                 f"{_news_match_count} with news · "
+                f"{len(_rt_signals)} RT signals · "
                 f"{_n_rank_enriched} enrichment layers"
             )
 
             with st.popover("ℹ️ Column guide"):
                 st.markdown(
+                    "- **Signal** — RT engine actionability tier (A0 = top conviction, A1 = secondary)\n"
+                    "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%)\n"
+                    "- **RSI** — RSI-14 (🟢 <30 oversold, 🔴 >70 overbought, 🟡 neutral)\n"
+                    "- **MACD** — MACD signal direction (BUY/SELL/NEUTRAL)\n"
                     "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
+                    "- **Score** — Composite: 50% price + 20% news + 15% technical + 15% signal\n"
                     "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
                     "- **NLP Sent.** — NLP sentiment from NewsAPI.ai\n"
-                    "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
-                    "- **P/E** — Price-to-Earnings ratio from FMP\n"
-                    "- **Headline** — Latest matching news headline (clickable when URL is available)\n"
-                    "- **Volume** — Trading volume from market data source\n\n"
+                    "- **Volume** — Trading volume from market data source\n"
+                    "- **Headline** — Latest matching news headline (clickable when URL is available)\n\n"
                     "Empty columns mean no matching data is available yet for that ticker."
                 )
 
@@ -2408,13 +2710,16 @@ else:
             _rank_col_cfg: dict[str, Any] = {
                 "Dir": st.column_config.TextColumn("Dir", width="small"),
                 "Symbol": st.column_config.TextColumn("Symbol", width="small"),
+                "Signal": st.column_config.TextColumn("Signal", width="small"),
+                "Tech": st.column_config.TextColumn("Tech", width="small"),
+                "RSI": st.column_config.TextColumn("RSI", width="small"),
+                "MACD": st.column_config.TextColumn("MACD", width="small"),
                 "Analyst": st.column_config.TextColumn("Analyst", width="small"),
                 "Change %": st.column_config.TextColumn("Change %", width="small"),
                 "Score": st.column_config.NumberColumn("Score", width="small"),
                 "Age": st.column_config.TextColumn("Age", width="small"),
                 "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
-                "Social": st.column_config.TextColumn("Social", width="small"),
-                "P/E": st.column_config.TextColumn("P/E", width="small"),
+                "Volume": st.column_config.TextColumn("Volume", width="small"),
             }
             # Use LinkColumn for headlines when URLs are present
             if any(r.get("Headline", "").startswith("http") for r in _rank_rows):
@@ -2456,26 +2761,29 @@ else:
                 if (_ai.get("ticker") or "").upper().strip() not in ("", "?", "MARKET", "N/A")
             })
 
-            # FMP quotes (price, change%, P/E, volume)
+            # FMP quotes (price, change%, P/E, volume) — batch in chunks of 20
             _act_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
             _act_quotes: dict[str, dict[str, Any]] = {}
             if _act_fmp_key and _act_tickers:
                 try:
-                    _raw_q = fetch_fmp_quotes(_act_fmp_key, _act_tickers[:20])
-                    for q in _raw_q:
-                        _sym = (q.get("symbol") or "").upper()
-                        if _sym:
-                            _act_quotes[_sym] = q
+                    for _batch_start in range(0, len(_act_tickers), 20):
+                        _batch = _act_tickers[_batch_start:_batch_start + 20]
+                        _raw_q = fetch_fmp_quotes(_act_fmp_key, _batch)
+                        for q in _raw_q:
+                            _sym = (q.get("symbol") or "").upper()
+                            if _sym:
+                                _act_quotes[_sym] = q
                 except Exception:
                     logger.debug("Actionable FMP quotes failed", exc_info=True)
 
-            # Social sentiment (cached from FMP AI or fresh)
+            # Social sentiment — merge into shared cache (not overwrite)
             _act_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
-            if not _act_social and _intel_enabled() and finnhub_available() and _act_tickers:
+            _act_social_missing = [t for t in _act_tickers if t not in _act_social]
+            if _act_social_missing and _intel_enabled() and finnhub_available():
                 try:
-                    _raw_soc = fetch_social_sentiment_batch(_act_tickers[:15])
+                    _raw_soc = fetch_social_sentiment_batch(_act_social_missing[:15])
                     if _raw_soc:
-                        _act_social = {
+                        _new_social = {
                             sym: {
                                 "total_mentions": s.total_mentions,
                                 "score": s.score,
@@ -2483,16 +2791,18 @@ else:
                             }
                             for sym, s in _raw_soc.items()
                         }
+                        _act_social = {**_act_social, **_new_social}
                         st.session_state["_cached_social_sent"] = _act_social
                         st.session_state["_cached_social_sent_ts"] = time.time()
                 except Exception:
                     logger.debug("Actionable social sentiment failed", exc_info=True)
 
-            # Analyst forecasts (cached from FMP AI or fresh)
+            # Analyst forecasts — merge into shared cache (not overwrite)
             _act_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
-            if not _act_forecasts and _intel_enabled() and _act_tickers:
+            _act_fc_missing = [t for t in _act_tickers[:10] if t not in _act_forecasts]
+            if _act_fc_missing and _intel_enabled():
                 try:
-                    for _sym in _act_tickers[:10]:
+                    for _sym in _act_fc_missing:
                         _fc = fetch_forecast(_sym)
                         if _fc.has_data and _fc.price_target:
                             _act_forecasts[_sym] = {
@@ -2640,8 +2950,12 @@ else:
         if not seg_rows:
             st.info("No segment data yet. Channels are populated by news articles.")
         else:
-            # ── Sector Performance Overlay ──────────────────────────
-            _seg_sector_perf: list[dict[str, Any]] = st.session_state.get("_cached_sector_perf") or []
+            # ── Sector Performance Overlay (5-min TTL) ──────────────────────────
+            _SECTOR_PERF_TTL = 300  # 5 minutes
+            _seg_sector_perf: list[dict[str, Any]] = []
+            _seg_sp_ts = st.session_state.get("_cached_sector_perf_ts", 0)
+            if time.time() - _seg_sp_ts < _SECTOR_PERF_TTL:
+                _seg_sector_perf = st.session_state.get("_cached_sector_perf") or []
             if not _seg_sector_perf:
                 _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
                 if _seg_fmp_key:
@@ -2654,6 +2968,7 @@ else:
                             ]
                             if _seg_sector_perf:
                                 st.session_state["_cached_sector_perf"] = _seg_sector_perf
+                                st.session_state["_cached_sector_perf_ts"] = time.time()
                     except Exception:
                         logger.debug("Segments sector performance failed", exc_info=True)
 
@@ -2763,34 +3078,39 @@ else:
             _seg_fmp: dict[str, dict[str, Any]] = {}
             if _seg_fmp_key and _seg_all_tickers:
                 try:
-                    _raw_sfq = fetch_fmp_quotes(_seg_fmp_key, _seg_all_tickers[:25])
-                    for _sq in _raw_sfq:
-                        _sq_s = (_sq.get("symbol") or "").upper()
-                        if _sq_s:
-                            _seg_fmp[_sq_s] = _sq
+                    for _batch_start in range(0, len(_seg_all_tickers), 20):
+                        _batch = _seg_all_tickers[_batch_start:_batch_start + 20]
+                        _raw_sfq = fetch_fmp_quotes(_seg_fmp_key, _batch)
+                        for _sq in _raw_sfq:
+                            _sq_s = (_sq.get("symbol") or "").upper()
+                            if _sq_s:
+                                _seg_fmp[_sq_s] = _sq
                 except Exception:
                     logger.debug("Segments FMP quotes failed", exc_info=True)
 
-            # Social sentiment (cached or fresh fallback)
+            # Social sentiment — merge into shared cache (not overwrite)
             _seg_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
-            if not _seg_social and _intel_enabled() and finnhub_available() and _seg_all_tickers:
+            _seg_social_missing = [t for t in _seg_all_tickers if t not in _seg_social]
+            if _seg_social_missing and _intel_enabled() and finnhub_available():
                 try:
-                    _raw_seg_soc = fetch_social_sentiment_batch(_seg_all_tickers[:15])
+                    _raw_seg_soc = fetch_social_sentiment_batch(_seg_social_missing[:15])
                     if _raw_seg_soc:
-                        _seg_social = {
+                        _new_seg_social = {
                             sym: {"total_mentions": s.total_mentions, "score": s.score, "label": s.sentiment_label}
                             for sym, s in _raw_seg_soc.items()
                         }
+                        _seg_social = {**_seg_social, **_new_seg_social}
                         st.session_state["_cached_social_sent"] = _seg_social
                         st.session_state["_cached_social_sent_ts"] = time.time()
                 except Exception:
                     logger.debug("Segments social sentiment failed", exc_info=True)
 
-            # Analyst forecasts (cached or fresh fallback)
+            # Analyst forecasts — merge into shared cache (not overwrite)
             _seg_forecasts: dict[str, Any] = st.session_state.get("_cached_forecasts") or {}
-            if not _seg_forecasts and _intel_enabled() and _seg_all_tickers:
+            _seg_fc_missing = [t for t in _seg_all_tickers[:10] if t not in _seg_forecasts]
+            if _seg_fc_missing and _intel_enabled():
                 try:
-                    for _sym in _seg_all_tickers[:10]:
+                    for _sym in _seg_fc_missing:
                         _fc = fetch_forecast(_sym)
                         if _fc.has_data and _fc.price_target:
                             _seg_forecasts[_sym] = {
@@ -3572,6 +3892,34 @@ else:
         else:
             st.caption("No alerts fired yet.")
 
+        # ── TradingView Health Log ───────────────────────
+        st.divider()
+        st.subheader("📺 TradingView Health")
+        _tv_h = tv_health_status()
+        _tv_status_icon = {"healthy": "🟢", "degraded": "⚡", "down": "🔴"}.get(_tv_h["status"], "⚪")
+        _tv_uptime = _tv_h.get("uptime_pct", 0)
+        st.markdown(
+            f"{_tv_status_icon} **Status: {_tv_h['status'].upper()}** "
+            f"· Uptime: {_tv_uptime:.0f}% "
+            f"· Requests: {_tv_h.get('total_requests', 0)} "
+            f"· Failures: {_tv_h.get('consecutive_failures', 0)} consecutive"
+        )
+        if _tv_h.get("last_error"):
+            st.caption(f"Last error: {_tv_h['last_error']}")
+
+        _tv_hlog = st.session_state.tv_health_log
+        if _tv_hlog:
+            st.caption(f"{len(_tv_hlog)} state transition(s)")
+            for _tl in _tv_hlog[:10]:
+                _tl_ts = datetime.fromtimestamp(_tl["ts"], tz=UTC).strftime("%H:%M:%S")
+                _tl_icon = {"healthy": "🟢", "degraded": "⚡", "down": "🔴"}.get(_tl["status"], "⚪")
+                _tl_err = f" — {_tl['error']}" if _tl.get("error") else ""
+                st.markdown(
+                    f"{_tl_icon} `{_tl_ts}` {_tl['prev']} → **{_tl['status']}**{_tl_err}"
+                )
+        else:
+            st.caption("No TV health transitions recorded.")
+
         # ── Push Notification Log ───────────────────────────
         st.divider()
         st.subheader("📱 Push Notification Log")
@@ -3652,11 +4000,19 @@ if st.session_state.auto_refresh and (
     @st.fragment(run_every=timedelta(seconds=5))
     def _auto_refresh_fragment() -> None:
         """Non-blocking auto-refresh fragment."""
+        # ── Check if background AI analysis completed ──────────
+        # The analysis runs in a daemon thread (ThreadPoolExecutor).
+        # When done, trigger a full-page rerun so the render function
+        # can harvest the result from the Future.
+        _ai_future = st.session_state.get("_fmp_ai_future")
+        if _ai_future is not None and _ai_future.done():
+            st.session_state["_last_fragment_rerun_ts"] = time.time()
+            st.rerun()
+
         if st.session_state.get("fmp_ai_pause_auto_refresh", False):
             return
-        # Never interrupt a running AI query — it takes 30-60 s and a
-        # rerun would silently abort it (the run-requested flag is already
-        # consumed, so the query would not restart).
+        # Suppress while background AI thread is running — avoid
+        # unnecessary full-page reruns that could confuse the user.
         if st.session_state.get("_fmp_ai_executing", False):
             return
 

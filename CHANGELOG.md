@@ -8,7 +8,21 @@ All notable changes to this project are documented in this file.
 
 ### Changed (2026-03-04)
 
-- **🔭 Realtime Signals — full universe monitoring (900+ symbols):**
+- **� RT Engine auto-start across all entry points:**
+  - Added `ensure_rt_engine_running()` helper in `realtime_signals.py` — PID file management + pgrep fallback + `subprocess.Popen` background launch.
+  - **streamlit_terminal.py**: Auto-starts RT engine on session init (skipped on Streamlit Cloud). Imports `RealtimeEngine` and `ensure_rt_engine_running`.
+  - **streamlit_monitor.py**: Auto-starts RT engine on session init (skipped on Streamlit Cloud).
+  - **vd_signals_live.sh**: Engine now auto-starts by default (previously required `--start-engine`). Added `--no-engine` flag to opt out.
+  - **vd_watch.sh**: Auto-starts RT engine before rendering dashboard.
+  - **vd_open_prep.sh**: Auto-starts RT engine before pipeline extraction.
+
+- **🏆 Rankings tab enhanced with realtime signals (streamlit_terminal.py):**
+  - Rankings composite score updated: **50% price move + 20% news + 15% RT technical + 15% RT signal tier**. Was 70/30 price/news.
+  - New columns: **Signal** (A0/A1/A2), **Tech** (weighted indicator score), **RSI** (RSI-14 with color coding), **MACD** (signal direction).
+  - Sort order now prioritizes RT signal tier (A0 > A1) within bullish/bearish tiers.
+  - Loads full RT signal data from both VisiData JSONL and structured JSON, enriching each ranked symbol with technical scores, RSI, MACD, direction, and volume ratio from the RT engine.
+
+- **�🔭 Realtime Signals — full universe monitoring (900+ symbols):**
   - Removed the fixed `top_n=15` watchlist limit. The engine now monitors **all scored symbols** from the pipeline run (typically 900+), not just the top-ranked candidates.
   - `_load_watchlist()` merges `ranked_v2` (top scored) + `filtered_out_v2` overflow entries (scored but below display cutoff) + `enriched_quotes` (remaining universe symbols) to build the full monitoring universe.
   - `DEFAULT_TOP_N` changed from `15` → `0` (meaning all). The `--top-n` CLI flag still works for backward compatibility (`--top-n 20` limits to 20).

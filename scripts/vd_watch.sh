@@ -40,6 +40,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# ── Auto-start RT signal engine (if not already running) ───────
+LOG_FILE="$PROJECT_DIR/artifacts/open_prep/latest/realtime_signals.log"
+if ! pgrep -f "open_prep.realtime_signals" >/dev/null 2>&1; then
+  echo "▶️  Starte Realtime-Engine im Hintergrund …"
+  mkdir -p "$(dirname "$LOG_FILE")"
+  nohup env PYTHONPATH="$PROJECT_DIR" \
+    "$VENV_PYTHON" -m open_prep.realtime_signals --interval 45 \
+    > "$LOG_FILE" 2>&1 &
+  echo "  ▶️  Engine gestartet (PID $!)"
+  sleep 1
+fi
+
 _run_pipeline() {
   echo "⏳ Pipeline wird ausgeführt …"
   cd "$PROJECT_DIR"
