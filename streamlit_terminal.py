@@ -2464,6 +2464,23 @@ else:
             # news_score is typically 0-1, scale to comparable range
             _RT_SIGNAL_BONUS = {"A0": 30.0, "A1": 15.0, "A2": 5.0}
 
+            # Pre-load RT engine signals so composite / sort closures can reference them.
+            # The dict is populated further down; this ensures it exists for the closures.
+            _rt_sig_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
+            _rt_signals: dict[str, str] = {}
+            _rt_full: dict[str, dict[str, Any]] = {}  # full RT row per symbol
+            try:
+                _rt_raw = load_rt_quotes(_rt_sig_path, max_age_s=7200)  # 2h grace for signal display
+                for _rts, _rtrow in _rt_raw.items():
+                    if _rts.startswith("_"):
+                        continue
+                    _sig = _rtrow.get("signal", "")
+                    if _sig:
+                        _rt_signals[_rts] = _sig
+                    _rt_full[_rts] = _rtrow
+            except Exception:
+                logger.debug("Failed to load RT JSONL quotes", exc_info=True)
+
             def _composite_score(r: dict[str, Any]) -> float:
                 _chg = float(r.get("chg_pct") or 0)
                 _ns = float(r.get("news_score") or 0)
@@ -2558,22 +2575,6 @@ else:
                         st.session_state["_cached_forecasts_ts"] = time.time()
                 except Exception:
                     logger.debug("Rankings forecasts failed", exc_info=True)
-
-            # Load RT engine signals (A0/A1 + technicals) with relaxed staleness
-            _rt_sig_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
-            _rt_signals: dict[str, str] = {}
-            _rt_full: dict[str, dict[str, Any]] = {}  # full RT row per symbol
-            try:
-                _rt_raw = load_rt_quotes(_rt_sig_path, max_age_s=7200)  # 2h grace for signal display
-                for _rts, _rtrow in _rt_raw.items():
-                    if _rts.startswith("_"):
-                        continue
-                    _sig = _rtrow.get("signal", "")
-                    if _sig:
-                        _rt_signals[_rts] = _sig
-                    _rt_full[_rts] = _rtrow
-            except Exception:
-                logger.debug("Failed to load RT JSONL quotes", exc_info=True)
 
             # Also load structured signals from JSON for richer data
             _rt_json_signals: dict[str, dict[str, Any]] = {}
