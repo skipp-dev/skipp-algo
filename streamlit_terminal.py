@@ -338,6 +338,14 @@ st.markdown(
     .stMarkdown, .stDataFrame, .stPlotlyChart, .stMetric {
         opacity: 1 !important;
     }
+
+    /* 8. Tab labels – larger, bolder text */
+    button[data-baseweb="tab"] {
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+        padding-top: 0.6rem !important;
+        padding-bottom: 0.6rem !important;
+    }
     </style>""",
     unsafe_allow_html=True,
 )
@@ -2080,8 +2088,8 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_ai, tab_actionable, tab_segments, tab_rank, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table = st.tabs(
-        ["🧠 AI Insights", "🎯 Actionable", "🏗️ Segments", "🏆 Rankings", "🔮 Outlook",
+    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table = st.tabs(
+        ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
          "⚡ Alerts", "📊 Data Table"],
     )
