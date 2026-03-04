@@ -158,19 +158,19 @@ def compute_gap_warn_flags(row: dict[str, Any]) -> list[str]:
     price = _to_float(row.get("price"), default=0.0)
 
     vwap_raw = row.get("vwap")
-    vwap: float | None = None if vwap_raw is None else _to_float(vwap_raw, default=0.0) or None
+    vwap: float | None = None if vwap_raw is None else (_to_float(vwap_raw, default=0.0) or None)
 
     pdl_raw = row.get("pdl")
-    pdl: float | None = None if pdl_raw is None else _to_float(pdl_raw, default=0.0) or None
+    pdl: float | None = None if pdl_raw is None else (_to_float(pdl_raw, default=0.0) or None)
 
     pdh_raw = row.get("pdh")
-    pdh: float | None = None if pdh_raw is None else _to_float(pdh_raw, default=0.0) or None
+    pdh: float | None = None if pdh_raw is None else (_to_float(pdh_raw, default=0.0) or None)
 
     pmh_raw = row.get("premarket_high")
-    pmh: float | None = None if pmh_raw is None else _to_float(pmh_raw, default=0.0) or None
+    pmh: float | None = None if pmh_raw is None else (_to_float(pmh_raw, default=0.0) or None)
 
     atr_raw = row.get("atr")
-    atr: float | None = None if atr_raw is None else _to_float(atr_raw, default=0.0) or None
+    atr: float | None = None if atr_raw is None else (_to_float(atr_raw, default=0.0) or None)
 
     prev_close_raw = row.get("previousClose")
     prev_close: float | None = None if prev_close_raw is None else _to_float(prev_close_raw, default=0.0) or None
@@ -507,6 +507,19 @@ def rank_candidates(
                 },
                 "long_allowed": long_allowed,
                 "no_trade_reason": no_trade_reason,
+                # Display-enrichment fields
+                "name": quote.get("name") or quote.get("companyName") or "",
+                "change": round(_to_float(quote.get("change"), default=0.0), 4),
+                "changesPercentage": round(
+                    _to_float(
+                        quote.get("changesPercentage") if quote.get("changesPercentage") is not None
+                        else quote.get("changePercentage"),
+                        default=0.0,
+                    ),
+                    4,
+                ),
+                "pe": _to_float(quote.get("pe"), default=0.0) or None,
+                "social_sentiment": round(_to_float(quote.get("social_sentiment"), default=0.0), 4),
             }
         )
 

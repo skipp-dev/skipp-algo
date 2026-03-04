@@ -354,7 +354,21 @@ def fetch_technicals(
         Bypass cache and fetch fresh data.
     """
     if not _TV_AVAILABLE:
-        return TechnicalResult(symbol=symbol, interval=interval, error="tradingview_ta not installed")
+        # TradingView library not installed — try FMP fallback directly
+        sym = symbol.upper().strip()
+        now = time.time()
+        key = _cache_key(sym, interval)
+        if not force:
+            with _cache_lock:
+                cached = _cache.get(key)
+                if cached and (now - cached.ts) < _CACHE_TTL_S:
+                    return cached
+        fmp_result = _fmp_fallback(sym, interval, now)
+        if fmp_result is not None:
+            with _cache_lock:
+                _cache[key] = fmp_result
+            return fmp_result
+        return TechnicalResult(symbol=symbol, interval=interval, error="tradingview_ta not installed; FMP fallback unavailable")
 
     sym = symbol.upper().strip()
     key = _cache_key(sym, interval)

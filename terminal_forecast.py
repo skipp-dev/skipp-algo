@@ -245,15 +245,23 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
     result = ForecastResult(symbol=sym, ts=time.time(), source="fmp")
     got_anything = False
 
+    # Fetch profile early — needed for current price AND ETF detection
+    _profile: dict[str, Any] = {}
+    q = _fmp_get("/stable/profile", symbol=sym)
+    if isinstance(q, list) and q:
+        _profile = q[0]
+
+    # ETF / fund check — these have no analyst forecasts
+    if _profile.get("isEtf") or _profile.get("isFund"):
+        _label = "ETF" if _profile.get("isEtf") else "Fund"
+        result.error = f"{_label} — analyst forecasts not available"
+        return result
+
     # 1) Price Target Consensus
     pt_data = _fmp_get("/stable/price-target-consensus", symbol=sym)
     if isinstance(pt_data, list) and pt_data:
         d = pt_data[0]
-        # Need current price — fetch quick profile
-        current = 0.0
-        q = _fmp_get("/stable/profile", symbol=sym)
-        if isinstance(q, list) and q:
-            current = float(q[0].get("price", 0))
+        current = float(_profile.get("price", 0))
 
         result.price_target = PriceTarget(
             current_price=current,

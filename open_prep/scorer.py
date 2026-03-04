@@ -229,10 +229,12 @@ def filter_candidate(
     symbol = str(quote.get("symbol") or "").strip().upper()
 
     price = _to_float(quote.get("price"), default=0.0)
-    gap_pct = _to_float(
-        quote.get("gap_pct") or quote.get("changesPercentage") or quote.get("changePercentage"),
-        default=0.0,
-    )
+    _gap_raw = quote.get("gap_pct")
+    if _gap_raw is None:
+        _gap_raw = quote.get("changesPercentage")
+    if _gap_raw is None:
+        _gap_raw = quote.get("changePercentage")
+    gap_pct = _to_float(_gap_raw, default=0.0)
     gap_available_raw = quote.get("gap_available")
     gap_available = False if gap_available_raw is None else bool(gap_available_raw)
     volume = _to_float(quote.get("volume"), default=0.0)
@@ -469,6 +471,16 @@ def filter_candidate(
             adx=_to_float(quote.get("adx"), default=15.0),
             bb_width_pct=_to_float(quote.get("bb_width_pct"), default=3.0),
         ),
+        # Pass-through display fields from FMP quote
+        "name": quote.get("name") or quote.get("companyName") or "",
+        "change": _to_float(quote.get("change"), default=0.0),
+        "changesPercentage": _to_float(
+            quote.get("changesPercentage") if quote.get("changesPercentage") is not None
+            else quote.get("changePercentage"),
+            default=0.0,
+        ),
+        "pe": _to_float(quote.get("pe"), default=0.0) or None,
+        "social_sentiment": _to_float(quote.get("social_sentiment"), default=0.0),
     }
 
     return FilterResult(
@@ -751,6 +763,12 @@ def score_candidate(
         "data_quality_issues": f.get("data_quality_issues", []),
         "long_allowed": fr.long_allowed,
         "no_trade_reason": fr.filter_reasons,
+        # Display-enrichment fields
+        "name": f.get("name") or "",
+        "change": round(f.get("change") or 0.0, 4),
+        "changesPercentage": round(f.get("changesPercentage") or 0.0, 4),
+        "pe": _to_float(f.get("pe"), default=0.0) or None,
+        "social_sentiment": round(f.get("social_sentiment") or 0.0, 4),
     }
 
 

@@ -657,6 +657,11 @@ class DynamicCooldown:
             return True, cd - elapsed
         return False, 0.0
 
+    def is_cooling(self, symbol: str) -> bool:
+        """Return True if *symbol* is still in cooldown (convenience wrapper)."""
+        active, _ = self.check_cooldown(symbol)
+        return active
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # #1  Gate Hysteresis — prevents A0↔A1 flapping near thresholds

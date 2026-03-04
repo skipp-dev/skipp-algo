@@ -395,6 +395,7 @@ class TestRealtimeSignalFloatSafety:
         """Create a bare RealtimeEngine bypassing __init__ with all needed attrs."""
         from open_prep.realtime_signals import (
             RealtimeEngine, GateHysteresis, DynamicCooldown, VolumeRegimeDetector,
+            TechnicalScorer,
         )
         engine = RealtimeEngine.__new__(RealtimeEngine)
         engine._last_prices = {}
@@ -403,6 +404,7 @@ class TestRealtimeSignalFloatSafety:
         engine._dynamic_cooldown = DynamicCooldown()
         engine._volume_regime = VolumeRegimeDetector()
         engine._avg_vol_cache = {}
+        engine._technical_scorer = TechnicalScorer()
         return engine
 
     def test_non_numeric_price_returns_none(self):

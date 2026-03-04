@@ -85,9 +85,10 @@ class CircuitBreaker:
     ):
         self._failure_threshold = failure_threshold
         self._recovery_timeout = recovery_timeout
-        self._state: str = "CLOSED"         # "CLOSED" | "OPEN" | "HALF_OPEN"
+        self._state: str = "CLOSED"         # "CLOSED" | "OPEN" | "HALF_OPEN" | "HALF_OPEN_TESTING"
         self._consecutive_failures: int = 0
         self._opened_at: float = 0.0
+        self._testing_started_at: float = 0.0
         self._lock = threading.Lock()
 
     @property
@@ -96,6 +97,12 @@ class CircuitBreaker:
             if self._state == "OPEN":
                 if time.time() - self._opened_at >= self._recovery_timeout:
                     self._state = "HALF_OPEN"
+            elif self._state == "HALF_OPEN_TESTING":
+                # Safety net: if the testing request never reported back
+                # (caller crashed / timed out), reset after recovery_timeout.
+                if time.time() - self._testing_started_at >= self._recovery_timeout:
+                    self._state = "HALF_OPEN"
+                    logger.warning("Circuit breaker: HALF_OPEN (testing slot timed out)")
             return self._state
 
     def allow_request(self) -> bool:
@@ -109,11 +116,17 @@ class CircuitBreaker:
             if self._state == "OPEN":
                 if time.time() - self._opened_at >= self._recovery_timeout:
                     self._state = "HALF_OPEN"
+            elif self._state == "HALF_OPEN_TESTING":
+                # Safety: reset stuck testing slot after timeout
+                if time.time() - self._testing_started_at >= self._recovery_timeout:
+                    self._state = "HALF_OPEN"
+                    logger.warning("Circuit breaker: reset stuck HALF_OPEN_TESTING slot")
             if self._state == "CLOSED":
                 return True
             if self._state == "HALF_OPEN":
                 # Atomically claim the single test slot
                 self._state = "HALF_OPEN_TESTING"
+                self._testing_started_at = time.time()
                 return True
             return False  # OPEN or HALF_OPEN_TESTING
 
@@ -290,8 +303,9 @@ class FMPClient:
             )
         return cls(api_key=value)
 
-    @_retry_transient()
     def _get(self, path: str, params: dict[str, Any]) -> Any:
+        # NOTE: No @_retry_transient decorator — this method has its own
+        # sophisticated retry loop with circuit-breaker integration below.
         # ── #5 Circuit breaker check ──────────────────────────────
         if not self._circuit_breaker.allow_request():
             raise RuntimeError(
@@ -1246,8 +1260,9 @@ class FinnhubClient:
 
     # ── internal ─────────────────────────────────────────────
 
-    @_retry_transient()
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        # NOTE: No @_retry_transient — errors are caught and return {}
+        # so the decorator's retry logic would never trigger.
         if not self.api_key:
             logger.debug("FinnhubClient: no API key — skipping %s", path)
             return {}
@@ -1266,8 +1281,8 @@ class FinnhubClient:
             else:
                 logger.warning("Finnhub HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
-        except Exception as exc:
-            logger.warning("Finnhub request failed for %s: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)), exc_info=True)
+        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError) as exc:
+            logger.warning("Finnhub request failed for %s: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)))
             return {}
 
     def available(self) -> bool:
@@ -1482,8 +1497,9 @@ class AlpacaClient:
     def from_env(cls) -> "AlpacaClient":
         return cls()
 
-    @_retry_transient()
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        # NOTE: No @_retry_transient — errors are caught and return {}
+        # so the decorator's retry logic would never trigger.
         if not self.key_id or not self.secret_key:
             logger.debug("AlpacaClient: no API keys — skipping %s", path)
             return {}
@@ -1500,8 +1516,9 @@ class AlpacaClient:
         except urllib.error.HTTPError as exc:
             logger.warning("Alpaca HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
-        except Exception as exc:
-            logger.warning("Alpaca request failed for %s: %s", path, type(exc).__name__, exc_info=True)
+        except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError) as exc:
+            # Don't use exc_info=True — tracebacks can leak secret headers
+            logger.warning("Alpaca request failed for %s: %s", path, type(exc).__name__)
             return {}
 
     def available(self) -> bool:

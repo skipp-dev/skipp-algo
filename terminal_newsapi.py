@@ -314,20 +314,21 @@ _cache_write_count = 0
 
 # TTLs — 1 hour each.  With ~6 query types the daily token burn is:
 #   6 types × 24 misses/day × ~3 tokens avg ≈ 432 tokens/day  (≈ 13 000 / month)
-# Well within a 10 000 monthly cap when combined with the real-usage gate below.
+# Well within a 20 000 monthly cap when combined with the real-usage gate below.
 _BREAKING_TTL = 3600       # 1 hour
 _TRENDING_TTL = 3600       # 1 hour
 _SENTIMENT_TTL = 3600      # 1 hour
 _SOCIAL_TTL = 3600         # 1 hour
 _EVENT_CLUSTER_TTL = 3600  # 1 hour
 
-# ── Monthly token cap (real-usage based) ────────────────────────
-# Instead of an in-memory daily counter (which resets on every Streamlit
-# Cloud restart), we query the *actual* usage from the NewsAPI.ai HTTP
-# endpoint and block calls once the real usage exceeds the cap.
-# The usage check itself is FREE (no tokens consumed).
+# ── Budget caps (monthly + daily) ───────────────────────────────
+# Monthly: query real usage from NewsAPI.ai /api/v1/usage (free call).
+# Daily:   enforced locally (in-memory counter, resets at UTC midnight).
+#          20 000 / 31 ≈ 645.  We use 600/day to keep a ~1 400-token
+#          monthly buffer for spikes / restarts.
 
-_MONTHLY_TOKEN_CAP = int(os.environ.get("NEWSAPI_MONTHLY_CAP", "9000"))
+_MONTHLY_TOKEN_CAP = int(os.environ.get("NEWSAPI_MONTHLY_CAP", "20000"))
+_DAILY_TOKEN_CAP = int(os.environ.get("NEWSAPI_DAILY_CAP", "600"))
 _USAGE_CHECK_TTL = 300  # cache the usage HTTP call for 5 minutes
 
 _daily_tokens_used = 0
@@ -336,11 +337,30 @@ _budget_lock = threading.Lock()
 
 
 def _check_budget(estimated_cost: int = 1) -> bool:
-    """Return True if real API usage is still below the monthly cap.
+    """Return True if both daily and monthly budgets allow the call.
 
-    Uses the free ``/api/v1/usage`` endpoint (cached for 5 min) so it
-    survives process restarts — unlike a pure in-memory counter.
+    * **Daily** — enforced via in-memory counter (resets at UTC midnight).
+      Survives within a process lifetime; on restart it conservatively
+      re-allows calls until the counter catches up.
+    * **Monthly** — checked via the free ``/api/v1/usage`` HTTP endpoint
+      (cached for 5 min) so it survives process restarts.
     """
+    # ── Daily gate (fast, no HTTP) ──────────────────────────────
+    global _daily_tokens_used, _daily_reset_date
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    with _budget_lock:
+        if _daily_reset_date != today:
+            _daily_tokens_used = 0
+            _daily_reset_date = today
+        if _daily_tokens_used + estimated_cost > _DAILY_TOKEN_CAP:
+            log.warning(
+                "NewsAPI.ai daily cap reached (%d/%d used today, cap %d). "
+                "Blocking API call. Override via NEWSAPI_DAILY_CAP env var.",
+                _daily_tokens_used, _DAILY_TOKEN_CAP, _DAILY_TOKEN_CAP,
+            )
+            return False
+
+    # ── Monthly gate (HTTP, cached 5 min) ───────────────────────
     cached_ok = _get_cached("_budget_ok", _USAGE_CHECK_TTL)
     if cached_ok is not None:
         return bool(cached_ok)
@@ -381,6 +401,8 @@ def get_daily_token_status() -> dict[str, int]:
     with _budget_lock:
         return {
             "used_today_local": _daily_tokens_used,
+            "daily_cap": _DAILY_TOKEN_CAP,
+            "daily_remaining": max(0, _DAILY_TOKEN_CAP - _daily_tokens_used),
             "used_month_real": real.get("usedTokens", 0),
             "available_month": real.get("availableTokens", 0),
             "monthly_cap": _MONTHLY_TOKEN_CAP,

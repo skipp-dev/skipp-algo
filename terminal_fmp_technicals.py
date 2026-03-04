@@ -4,20 +4,20 @@ When TradingView is rate-limited (429 cooldown), this module fetches
 technical indicators from FMP's REST API and constructs a
 ``TechnicalResult`` compatible with the TradingView-based flow.
 
-FMP endpoints used:
-  - /technical_indicator/{period}?type=rsi  (RSI-14)
-  - /technical_indicator/{period}?type=sma  (SMA with various periods)
-  - /technical_indicator/{period}?type=ema  (EMA with various periods)
-  - /technical_indicator/{period}?type=macd (MACD 12,26,9)
-  - /technical_indicator/{period}?type=adx  (ADX-14)
-  - /technical_indicator/{period}?type=williams (Williams %R)
-  - /technical_indicator/{period}?type=stochastic (Stochastic)
-  - /quote-short (current price for MA comparison)
+FMP stable endpoints used (as of 2025):
+  - /stable/technical-indicators/rsi?symbol=X&periodLength=14&timeframe=1day
+  - /stable/technical-indicators/sma?symbol=X&periodLength=N&timeframe=1day
+  - /stable/technical-indicators/ema?symbol=X&periodLength=N&timeframe=1day
+  - /stable/technical-indicators/adx?symbol=X&periodLength=14&timeframe=1day
+  - /stable/technical-indicators/williams?symbol=X&periodLength=14&timeframe=1day
+  - /stable/quote-short (current price for MA comparison)
+
+Note: MACD and Stochastic are NOT available in the FMP stable API
+and are computed locally from price/EMA data when possible.
 
 Signal classification follows standard thresholds:
   - RSI > 70 → SELL, RSI < 30 → BUY, else NEUTRAL
   - Price > MA → BUY, Price < MA → SELL
-  - MACD signal cross → BUY/SELL
   - ADX > 25 with +DI > -DI → BUY, etc.
 """
 
@@ -36,17 +36,17 @@ log = logging.getLogger(__name__)
 _FMP_BASE = "https://financialmodelingprep.com/stable"
 _FMP_TIMEOUT = 10.0
 
-# Map our interval labels to FMP period strings
-_INTERVAL_TO_PERIOD: dict[str, str] = {
+# Map our interval labels to FMP timeframe strings (stable API format)
+_INTERVAL_TO_TIMEFRAME: dict[str, str] = {
     "1m": "1min",
     "5m": "5min",
     "15m": "15min",
     "30m": "30min",
     "1h": "1hour",
     "4h": "4hour",
-    "1D": "daily",
-    "1W": "daily",   # FMP doesn't have weekly; use daily as approximation
-    "1M": "daily",
+    "1D": "1day",
+    "1W": "1day",    # FMP doesn't have weekly; use daily as approximation
+    "1M": "1day",
 }
 
 # ── Module-level httpx client ───────────────────────────────────────
@@ -99,26 +99,29 @@ def _cache_set(sym: str, interval: str, result: Any) -> None:
 
 def _fetch_indicator(
     symbol: str,
-    period: str,
+    timeframe: str,
     indicator_type: str,
     api_key: str,
     *,
     indicator_period: int | None = None,
 ) -> dict[str, Any] | None:
-    """Fetch latest value of a technical indicator from FMP.
+    """Fetch latest value of a technical indicator from FMP stable API.
+
+    Uses the new endpoint pattern:
+      /stable/technical-indicators/{indicator}?symbol=X&periodLength=N&timeframe=1day
 
     Returns the most recent data point dict, or None on failure.
     """
     params: dict[str, Any] = {
         "apikey": api_key,
         "symbol": symbol.upper(),
+        "timeframe": timeframe,
     }
     if indicator_period is not None:
-        params["period"] = indicator_period
+        params["periodLength"] = indicator_period
 
     try:
-        url = f"{_FMP_BASE}/technical_indicator/{period}"
-        params["type"] = indicator_type
+        url = f"{_FMP_BASE}/technical-indicators/{indicator_type}"
         r = _get_client().get(url, params=params)
         r.raise_for_status()
         data = r.json()
@@ -126,7 +129,7 @@ def _fetch_indicator(
             return data[0]  # most recent
         return None
     except Exception as exc:
-        log.debug("FMP indicator %s/%s(%s) failed: %s", symbol, period, indicator_type, exc)
+        log.debug("FMP indicator %s/%s(%s) failed: %s", symbol, timeframe, indicator_type, exc)
         return None
 
 
@@ -243,18 +246,20 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
     if cached is not None:
         return cached
 
-    period = _INTERVAL_TO_PERIOD.get(interval, "daily")
+    timeframe = _INTERVAL_TO_TIMEFRAME.get(interval, "1day")
     sym = symbol.upper().strip()
 
     # Fetch all indicators in parallel would be ideal, but we keep it simple
     # with sequential calls.  FMP has generous rate limits (3000/min).
     price = _fetch_price(sym, api_key)
 
-    rsi_data = _fetch_indicator(sym, period, "rsi", api_key, indicator_period=14)
-    macd_data = _fetch_indicator(sym, period, "macd", api_key)
-    stoch_data = _fetch_indicator(sym, period, "stochastic", api_key)
-    williams_data = _fetch_indicator(sym, period, "williams", api_key, indicator_period=14)
-    adx_data = _fetch_indicator(sym, period, "adx", api_key, indicator_period=14)
+    rsi_data = _fetch_indicator(sym, timeframe, "rsi", api_key, indicator_period=14)
+    # MACD and Stochastic are NOT available in the FMP stable API (404).
+    # Set to None; these oscillators will be skipped gracefully.
+    macd_data = None
+    stoch_data = None
+    williams_data = _fetch_indicator(sym, timeframe, "williams", api_key, indicator_period=14)
+    adx_data = _fetch_indicator(sym, timeframe, "adx", api_key, indicator_period=14)
 
     # Moving averages — we fetch SMA and EMA for key periods
     ma_periods = [10, 20, 50, 100, 200]
@@ -262,10 +267,10 @@ def fetch_fmp_technicals(symbol: str, interval: str = "1D") -> dict[str, Any] | 
     ema_values: dict[int, float | None] = {}
 
     for p in ma_periods:
-        sma = _fetch_indicator(sym, period, "sma", api_key, indicator_period=p)
+        sma = _fetch_indicator(sym, timeframe, "sma", api_key, indicator_period=p)
         sma_values[p] = float(sma["sma"]) if sma and sma.get("sma") is not None else None
 
-        ema = _fetch_indicator(sym, period, "ema", api_key, indicator_period=p)
+        ema = _fetch_indicator(sym, timeframe, "ema", api_key, indicator_period=p)
         ema_values[p] = float(ema["ema"]) if ema and ema.get("ema") is not None else None
 
     # If we got nothing at all, return None
