@@ -2455,11 +2455,13 @@ else:
                         row["volume"] = _fq_vol
                 if not row.get("name") and _fq.get("name"):
                     row["name"] = str(_fq["name"])[:50]
-                # Update Age timestamp: when FMP provided fresh market data for a
-                # feed-only item, reflect "data freshness" instead of stale
-                # news-article publish time.  Spike events keep their spike ts.
-                if row.get("_ts", 0) == 0 or (row.get("price") and not row.get("_from_spike")):
-                    row["_ts"] = time.time()
+                # Only fill in a timestamp when the row has none at all
+                # (feed items already carry their news-article publish time;
+                # spike items carry their detection time).  Do NOT overwrite
+                # with time.time() — that resets Age to 0:00:00:00 every
+                # render cycle.
+                if row.get("_ts", 0) == 0:
+                    row["_ts"] = _fq.get("timestamp") or _rank_now
 
             # Composite ranking: 50% price move + 20% news + 15% RT technical + 15% RT signal
             # news_score is typically 0-1, scale to comparable range
