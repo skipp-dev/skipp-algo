@@ -340,11 +340,18 @@ st.markdown(
     }
 
     /* 8. Tab labels – larger, bolder text */
+    button[data-baseweb="tab"],
+    button[data-baseweb="tab"] p,
+    button[data-baseweb="tab"] span,
+    div[data-baseweb="tab-list"] button p,
+    .stTabs [data-baseweb="tab-list"] button,
+    .stTabs [data-baseweb="tab-list"] button p {
+        font-size: 1.35rem !important;
+        font-weight: 700 !important;
+    }
     button[data-baseweb="tab"] {
-        font-size: 1.15rem !important;
-        font-weight: 600 !important;
-        padding-top: 0.6rem !important;
-        padding-bottom: 0.6rem !important;
+        padding-top: 0.65rem !important;
+        padding-bottom: 0.65rem !important;
     }
     </style>""",
     unsafe_allow_html=True,
