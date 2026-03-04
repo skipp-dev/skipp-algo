@@ -2915,7 +2915,51 @@ else:
             if _intel_enabled() and newsapi_available() and _act_tickers:
                 _act_nlp = fetch_nlp_sentiment(_act_tickers[:20], hours=24)
 
-            _n_enriched = sum(1 for x in [_act_quotes, _act_social, _act_forecasts, _act_nlp] if x)
+            # FMP RSI batch enrichment for Tech column
+            _ACT_TECH_KEY = "_cached_fmp_technicals"
+            if _ACT_TECH_KEY not in st.session_state:
+                st.session_state[_ACT_TECH_KEY] = {}
+            _act_tech_cache: dict[str, dict[str, Any]] = st.session_state[_ACT_TECH_KEY]
+            _act_tech_ttl = 300.0  # 5-min cache
+            _act_tech_now = time.time()
+            _need_act_tech = [
+                t for t in _act_tickers
+                if t not in _act_tech_cache
+                or (_act_tech_now - _act_tech_cache[t].get("_ts", 0)) > _act_tech_ttl
+            ]
+            if _need_act_tech and _act_fmp_key:
+                def _fetch_act_rsi(_sym: str) -> tuple[str, dict[str, Any] | None]:
+                    try:
+                        from terminal_fmp_technicals import _fetch_indicator
+                        _d = _fetch_indicator(_sym, "1day", "rsi", _act_fmp_key, indicator_period=14)
+                        if _d and _d.get("rsi") is not None:
+                            _rsi = float(_d["rsi"])
+                            _sig = (
+                                "STRONG_BUY" if _rsi < 25 else
+                                "BUY" if _rsi < 40 else
+                                "STRONG_SELL" if _rsi > 75 else
+                                "SELL" if _rsi > 60 else
+                                "NEUTRAL"
+                            )
+                            return _sym, {"summary": _sig, "rsi": _rsi, "_ts": _act_tech_now}
+                        return _sym, None
+                    except Exception:
+                        return _sym, None
+
+                try:
+                    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="act_tech") as _tp:
+                        _futs = {_tp.submit(_fetch_act_rsi, s): s for s in _need_act_tech[:30]}
+                        for _f in as_completed(_futs, timeout=20):
+                            try:
+                                _fs, _fr = _f.result()
+                                if _fr:
+                                    _act_tech_cache[_fs] = _fr
+                            except Exception:
+                                pass
+                except Exception:
+                    logger.debug("Actionable FMP tech enrichment failed", exc_info=True)
+
+            _n_enriched = sum(1 for x in [_act_quotes, _act_social, _act_forecasts, _act_nlp, _act_tech_cache] if x)
             st.caption(
                 f"{len(_act_feed)} actionable items · "
                 f"{_n_enriched} enrichment layers · "
@@ -2938,14 +2982,14 @@ else:
                 _aq = _act_quotes.get(_ai_tk, {})
                 _aq_price = _aq.get("price") or 0
                 _aq_chg = _aq.get("changesPercentage") or _aq.get("change_pct") or 0
-                _aq_pe = _aq.get("pe")
+                _aq_pe = _aq.get("pe") or _aq.get("peRatio")
                 _aq_vol = _aq.get("volume") or 0
 
                 # Social sentiment
                 _as = _act_social.get(_ai_tk, {})
                 _as_label = _as.get("label", "")
                 _as_mentions = _as.get("total_mentions", 0)
-                _social_col = ""
+                _social_col = "⚪ —"
                 if _as_label:
                     _soc_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_as_label, "⚪")
                     _social_col = f"{_soc_icon} {_as_mentions}"
