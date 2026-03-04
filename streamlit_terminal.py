@@ -2696,10 +2696,14 @@ else:
 
                 # Format RSI column
                 _rsi_col = ""
-                if _rt_rsi_val is not None:
-                    _rsi_v = float(_rt_rsi_val)
-                    _rsi_icon = "🔴" if _rsi_v > 70 else ("🟢" if _rsi_v < 30 else "🟡")
-                    _rsi_col = f"{_rsi_icon} {_rsi_v:.0f}"
+                if _rt_rsi_val is not None and _rt_rsi_val != "":
+                    try:
+                        _rsi_v = float(_rt_rsi_val)
+                    except (ValueError, TypeError):
+                        _rsi_v = None
+                    if _rsi_v is not None:
+                        _rsi_icon = "🔴" if _rsi_v > 70 else ("🟢" if _rsi_v < 30 else "🟡")
+                        _rsi_col = f"{_rsi_icon} {_rsi_v:.0f}"
 
                 # Analyst forecast
                 _raf = _rank_forecasts.get(_r_sym, {})
