@@ -1988,13 +1988,14 @@ else:
         _t3_cols = st.columns(3)
         for _t3i, _t3r in enumerate(_top3_ranked):
             _t3_sym = _t3r["symbol"]
-            _t3_chg = _t3r.get("chg_pct", 0)
-            _t3_dir = "🟢" if _t3_chg > 0 else "🔴" if _t3_chg < 0 else "⚪"
+            _t3_sent = (_t3r.get("sentiment") or "").lower()
+            _t3_sent_icon = "🟢" if _t3_sent == "bullish" else "🔴" if _t3_sent == "bearish" else "⚪"
+            _t3_sent_label = _t3_sent.title() if _t3_sent else "Neutral"
             _t3_ns = _t3r.get("news_score", 0)
             _t3_price = _t3r.get("price", 0)
             _t3_name = _t3r.get("name", "")
             _t3_price_str = f"${_t3_price:.2f}" if _t3_price >= 1 else (f"${_t3_price:.4f}" if _t3_price > 0 else "")
-            _t3_sub = f"{_t3_dir} {_t3_chg:+.2f}%"
+            _t3_sub = f"{_t3_sent_icon} {_t3_sent_label}"
             if _t3_price_str:
                 _t3_sub += f" · {_t3_price_str}"
             if _t3_ns > 0:
