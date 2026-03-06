@@ -186,6 +186,10 @@ _tv_cooldown_ended_at: float = 0.0  # when the last cooldown expired
 _tv_consecutive_429s: int = 0
 _TV_COOLDOWN_BASE = 120.0   # base cooldown: 2 minutes
 _TV_COOLDOWN_MAX = 900.0   # max cooldown: 15 minutes
+_TV_429_LOG_WINDOW_S = 45.0
+_tv_last_429_log_ts: float = 0.0
+_tv_last_429_log_key: tuple[int, int] | None = None
+_tv_suppressed_429_logs: int = 0
 
 
 def _tv_is_cooling_down() -> bool:
@@ -205,15 +209,29 @@ def _tv_cooldown_remaining() -> float:
 def _tv_register_429() -> None:
     """Register a 429 response and set a cooldown period."""
     global _tv_cooldown_until, _tv_consecutive_429s
+    global _tv_last_429_log_ts, _tv_last_429_log_key, _tv_suppressed_429_logs
     with _tv_rate_lock:
         _tv_consecutive_429s += 1
         cooldown = min(_TV_COOLDOWN_BASE * (2 ** (_tv_consecutive_429s - 1)), _TV_COOLDOWN_MAX)
         _tv_cooldown_until = time.time() + cooldown
+        now = time.time()
+        log_key = (int(cooldown), _tv_consecutive_429s)
+        if (
+            _tv_last_429_log_key == log_key
+            and (now - _tv_last_429_log_ts) < _TV_429_LOG_WINDOW_S
+        ):
+            _tv_suppressed_429_logs += 1
+            return
+        if _tv_suppressed_429_logs > 0:
+            log.info("TradingView 429 — suppressed %d duplicate log(s)", _tv_suppressed_429_logs)
+            _tv_suppressed_429_logs = 0
         _log_fn = log.warning if _tv_consecutive_429s <= 1 else log.info
         _log_fn(
             "TradingView 429 — cooldown %.0fs (consecutive: %d)",
             cooldown, _tv_consecutive_429s,
         )
+        _tv_last_429_log_ts = now
+        _tv_last_429_log_key = log_key
 
 
 def _tv_register_success() -> None:

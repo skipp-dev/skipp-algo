@@ -32,6 +32,25 @@ _warned_lock = threading.Lock()
 # a transient error.  These are suppressed after the first occurrence.
 _TIER_LIMITED_CODES: frozenset[int] = frozenset({400, 401, 403, 404})
 
+# Repeated transient errors can flood logs during provider/network incidents.
+# Keep one warning per key+window and aggregate the suppressed duplicates.
+_TRANSIENT_LOG_WINDOW_S = 30.0
+_transient_log_state: dict[str, tuple[float, int]] = {}
+_transient_log_lock = threading.Lock()
+
+
+def _log_transient_warning_throttled(key: str, message: str, *args: Any) -> None:
+    now = time.time()
+    with _transient_log_lock:
+        ts, suppressed = _transient_log_state.get(key, (0.0, 0))
+        if now - ts < _TRANSIENT_LOG_WINDOW_S:
+            _transient_log_state[key] = (ts, suppressed + 1)
+            return
+        if suppressed > 0:
+            logger.warning("Benzinga transient errors: suppressed %d duplicate log(s) for %s", suppressed, key)
+        _transient_log_state[key] = (now, 0)
+    logger.warning(message, *args)
+
 
 def _is_tier_limited_error(exc: Exception) -> bool:
     """Return True if *exc* is an httpx.HTTPStatusError with a tier-limited code."""
@@ -103,7 +122,8 @@ def _request_with_retry(
         try:
             r = client.get(url, params=params)
             if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
-                logger.warning(
+                _log_transient_warning_throttled(
+                    f"http_{r.status_code}",
                     "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
                     r.status_code,
                     attempt + 1,
@@ -117,7 +137,8 @@ def _request_with_retry(
         except (httpx.ConnectError, httpx.ReadTimeout) as exc:
             last_exc = exc
             if attempt < _MAX_ATTEMPTS - 1:
-                logger.warning(
+                _log_transient_warning_throttled(
+                    f"network_{exc.__class__.__name__}",
                     "Benzinga network error (attempt %d/%d): %s – retrying in %ds",
                     attempt + 1,
                     _MAX_ATTEMPTS,
