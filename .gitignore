@@ -23,3 +23,10 @@ open_prep/latest_realtime_signals.json
 *.db-wal
 *.db-shm
 artifacts/terminal_feed.jsonl
+artifacts/terminal_vd.jsonl
+
+# Local runtime/backup artifacts
+:memory:
+*.bak
+artifacts/terminal_*.jsonl
+artifacts/open_prep/outcomes/*.json
