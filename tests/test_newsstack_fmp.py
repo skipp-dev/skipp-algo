@@ -812,7 +812,7 @@ class TestSqliteBusyTimeout(unittest.TestCase):
 
         store = SqliteStore(":memory:")
         row = store.conn.execute("PRAGMA busy_timeout;").fetchone()
-        self.assertEqual(row[0], 5000)
+        self.assertEqual(row[0], 15000)
         store.close()
 
 

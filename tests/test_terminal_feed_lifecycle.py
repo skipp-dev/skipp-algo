@@ -220,7 +220,7 @@ class TestFeedLifecycleManager:
     def test_interval_weekend(self, mock_now):
         mock_now.return_value = _make_et(5, 10)  # Saturday 10am
         mgr = FeedLifecycleManager()
-        assert mgr.get_off_hours_poll_interval(5.0) == 120.0
+        assert mgr.get_off_hours_poll_interval(5.0) == 90.0  # max(90, 5*6)
 
     @patch("terminal_feed_lifecycle._now_et")
     def test_interval_off_hours_night(self, mock_now):
@@ -268,11 +268,12 @@ class TestFeedLifecycleManager:
 
     @patch("terminal_feed_lifecycle._now_et")
     def test_manage_stale_recovery_cooldown(self, mock_now):
-        """Stale recovery should not fire again within the 5 min cooldown."""
+        """Stale recovery should not fire again within the grace period."""
         mock_now.return_value = _make_et(1, 10)
         mgr = FeedLifecycleManager()
         mgr._last_lifecycle_check = 0
-        # Simulate recent stale recovery
+        # Simulate recent stale recovery — within the grace period,
+        # the stale check is skipped entirely (no feed_stale flag set).
         mgr._last_stale_recovery_ts = time.time() - 60  # 1 min ago
 
         stale_feed = [{"published_ts": time.time() - 2700}]
@@ -280,25 +281,30 @@ class TestFeedLifecycleManager:
 
         result = mgr.manage(stale_feed, store)
 
-        # Stale detected but no recovery action (cooldown)
-        assert result.get("feed_stale") is True
+        # Grace period: stale check skipped, no recovery action
+        assert result.get("feed_stale") is None
         assert result.get("feed_action") is None
         store.prune_seen.assert_not_called()
 
     @patch("terminal_feed_lifecycle._now_et")
     def test_manage_no_stale_recovery_off_hours(self, mock_now):
-        """Stale recovery should not fire outside market hours."""
+        """Stale recovery fires during off-hours too (with 15-min threshold).
+
+        The implementation runs stale checks during ALL hours (market
+        and off-hours) — weekend/night uses a 15-min threshold instead
+        of 5-min.  A 2-hour-old feed qualifies as stale.
+        """
         mock_now.return_value = _make_et(5, 10)  # Saturday 10am
         mgr = FeedLifecycleManager()
         mgr._last_lifecycle_check = 0
 
-        stale_feed = [{"published_ts": time.time() - 7200}]
+        stale_feed = [{"published_ts": time.time() - 7200}]  # 2h old
         store = MagicMock()
 
         result = mgr.manage(stale_feed, store)
 
-        assert result.get("feed_stale") is None
-        assert result.get("feed_action") is None
+        assert result.get("feed_stale") is True
+        assert result.get("feed_action") == "stale_recovery"
 
     # ── Status display ──────────────────────────────────────
 

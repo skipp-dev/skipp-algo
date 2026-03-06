@@ -245,7 +245,7 @@ class TestFilterFeed:
             _item(ticker="A", news_score=0.7, published_ts=now),
             _item(ticker="C", news_score=0.5, published_ts=now),
         ]
-        result = filter_feed(feed)
+        result = filter_feed(feed, sort_by="score")
         assert [r["ticker"] for r in result] == ["A", "C", "B"]
 
     def test_empty_feed(self):

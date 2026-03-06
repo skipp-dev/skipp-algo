@@ -41,13 +41,32 @@ import streamlit as st
 # ── Suppress harmless Streamlit fragment-scheduler warnings ────
 # When a run_every fragment calls st.rerun(), the full-page rerun
 # destroys the old fragment ID.  Streamlit's scheduler still fires
-# on the dead ID and logs a warning every cycle.  This is expected
-# and harmless — filter it out to keep logs clean.
+# on the dead ID and logs a warning/info every cycle.  This is
+# expected and harmless — filter it out to keep logs clean.
+# We add the filter to BOTH the logger AND all its handlers because
+# Python logging applies logger-filters and handler-filters at
+# different stages; covering both ensures the message never reaches
+# stderr regardless of handler replacement by Streamlit internals.
 class _FragmentWarningFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         return "does not exist anymore" not in record.getMessage()
 
-logging.getLogger("streamlit.runtime.app_session").addFilter(_FragmentWarningFilter())
+_frag_warn_filter = _FragmentWarningFilter()
+# Apply to all Streamlit loggers that may emit fragment-lifecycle warnings
+for _frag_logger_name in (
+    "streamlit.runtime.app_session",
+    "streamlit.runtime.fragment",
+    "streamlit.runtime.scriptrunner",
+    "streamlit.runtime.scriptrunner.script_runner",
+    "streamlit.runtime.scriptrunner_utils",
+    "streamlit",
+):
+    _fl = logging.getLogger(_frag_logger_name)
+    _fl.addFilter(_frag_warn_filter)
+    for _h in _fl.handlers:
+        _h.addFilter(_frag_warn_filter)
+# Also apply to root logger to catch propagated messages
+logging.getLogger().addFilter(_frag_warn_filter)
 
 # ── Patch Streamlit cache-key builder to tolerate TokenError ────
 # inspect.getsource() uses the tokenizer to locate function
@@ -770,7 +789,8 @@ if "feed" not in st.session_state:
         _keep = 0.0 if not _restored else _init_cfg.feed_max_age_s
         _init_store.prune_seen(keep_seconds=_keep)
         _init_store.prune_clusters(keep_seconds=_keep)
-        _init_store.close()
+        # Don't close — SqliteStore is a singleton; closing here would
+        # break the shared connection used by the poller later.
         logger.info("Pruned SQLite dedup tables (keep_seconds=%.0f) on startup", _keep)
     st.session_state.feed = _restored
     if _restored:

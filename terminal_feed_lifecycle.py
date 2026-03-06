@@ -235,7 +235,9 @@ class FeedLifecycleManager:
 
         During market hours: returns base_interval (unchanged)
         During pre-market (04:00-09:30): returns base_interval * 2
-        During off-hours/weekends: returns max(60, base_interval * 10)
+        During after-hours (16:00-20:00): returns base_interval * 3
+        During weekends: returns max(90, base_interval * 6)
+        During night (20:00-04:00): returns max(60, base_interval * 4)
         """
         now = _now_et()
         if is_weekend(now):

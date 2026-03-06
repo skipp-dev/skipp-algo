@@ -2,11 +2,16 @@
 
 Uses WAL mode + NORMAL synchronous for maximum write throughput while
 retaining crash safety.
+
+Implements a **singleton-per-path** pattern so that all callers within
+the same process share a single connection + threading lock, avoiding
+"database is locked" errors from concurrent connections.
 """
 
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import threading
 import time
@@ -36,19 +41,90 @@ CREATE TABLE IF NOT EXISTS clusters (
 CREATE INDEX IF NOT EXISTS idx_clusters_last_ts ON clusters(last_ts);
 """
 
+# ── Retry parameters ───────────────────────────────────────────
+_MAX_RETRIES = 5
+_BASE_BACKOFF_S = 0.1  # 100ms, 200ms, 400ms, 800ms, 1600ms
+
+# ── Singleton registry ─────────────────────────────────────────
+_instances: dict[str, SqliteStore] = {}
+_instances_lock = threading.Lock()
+
+
+def _retry_on_locked(fn):
+    """Decorator: retry on OperationalError / ProgrammingError (closed db).
+
+    On ``ProgrammingError`` the connection is transparently reopened via
+    ``_reconnect()`` before the retry.
+    """
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(self, *args, **kwargs):
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return fn(self, *args, **kwargs)
+            except sqlite3.ProgrammingError:
+                # Connection was closed — reconnect transparently.
+                logger.warning(
+                    "SQLite connection closed — reconnecting (%s, attempt %d/%d)",
+                    fn.__name__, attempt + 1, _MAX_RETRIES,
+                )
+                try:
+                    self._reconnect()
+                except Exception as re_exc:
+                    logger.error("_reconnect failed: %s", re_exc)
+                    if attempt >= _MAX_RETRIES - 1:
+                        raise
+                if attempt < _MAX_RETRIES - 1:
+                    time.sleep(_BASE_BACKOFF_S)
+                    continue
+                raise
+            except sqlite3.OperationalError:
+                if attempt < _MAX_RETRIES - 1:
+                    time.sleep(_BASE_BACKOFF_S * (2 ** attempt))
+                    continue
+                logger.error(
+                    "SQLite OperationalError after %d retries in %s",
+                    _MAX_RETRIES, fn.__name__,
+                )
+                raise
+    return wrapper
+
 
 class SqliteStore:
-    """Key-value + dedup + novelty store backed by SQLite."""
+    """Key-value + dedup + novelty store backed by SQLite.
+
+    Use ``SqliteStore.get_instance(path)`` to obtain a shared singleton.
+    Direct ``SqliteStore(path)`` also works but returns the singleton.
+    """
+
+    def __new__(cls, path: str) -> SqliteStore:
+        """Return the singleton instance for the resolved *path*.
+
+        ``:memory:`` databases are exempt from singleton caching because
+        each SQLite ``:memory:`` connection is independent.
+        """
+        if path == ":memory:":
+            inst = super().__new__(cls)
+            inst._initialized = False  # type: ignore[attr-defined]
+            return inst
+        resolved = os.path.realpath(path)
+        with _instances_lock:
+            inst = _instances.get(resolved)
+            if inst is not None:
+                return inst
+            inst = super().__new__(cls)
+            inst._initialized = False  # type: ignore[attr-defined]
+            _instances[resolved] = inst
+            return inst
 
     def __init__(self, path: str) -> None:
-        self._lock = threading.Lock()
-        self._path = path
-        self.conn = sqlite3.connect(
-            path, isolation_level=None, check_same_thread=False,
-        )
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self.conn.execute("PRAGMA synchronous=NORMAL;")
-        self.conn.execute("PRAGMA busy_timeout=5000;")
+        if self._initialized:  # type: ignore[has-type]
+            return
+        self._initialized = True
+        self._lock = threading.RLock()
+        self._path = path if path == ":memory:" else os.path.realpath(path)
+        self.conn = self._connect(self._path)
 
         # Quick integrity check — if the DB is corrupted, delete and
         # recreate rather than silently dropping every article.
@@ -57,30 +133,59 @@ class SqliteStore:
             if result and result[0] != "ok":
                 raise sqlite3.DatabaseError(f"integrity: {result[0]}")
         except sqlite3.DatabaseError as exc:
-            logger.warning("SQLite DB corrupt (%s) — recreating: %s", path, exc)
+            logger.warning("SQLite DB corrupt (%s) — recreating: %s", self._path, exc)
             self.conn.close()
-            import os
             for suffix in ("", "-wal", "-shm"):
                 try:
-                    os.remove(path + suffix)
+                    os.remove(self._path + suffix)
                 except FileNotFoundError:
                     pass
-            self.conn = sqlite3.connect(
-                path, isolation_level=None, check_same_thread=False,
-            )
-            self.conn.execute("PRAGMA journal_mode=WAL;")
-            self.conn.execute("PRAGMA synchronous=NORMAL;")
-            self.conn.execute("PRAGMA busy_timeout=5000;")
+            self.conn = self._connect(self._path)
 
         self.conn.executescript(SCHEMA)
+        logger.debug("SqliteStore singleton ready: %s", self._path)
+
+    @classmethod
+    def get_instance(cls, path: str) -> SqliteStore:
+        """Explicit singleton accessor (equivalent to ``SqliteStore(path)``)."""
+        return cls(path)
+
+    @staticmethod
+    def _connect(path: str) -> sqlite3.Connection:
+        conn = sqlite3.connect(
+            path, isolation_level=None, check_same_thread=False,
+        )
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=15000;")
+        return conn
+
+    def _reconnect(self) -> None:
+        """Re-open a closed connection and re-apply schema."""
+        with self._lock:
+            # Double-check: another thread may have already reconnected.
+            try:
+                self.conn.execute("SELECT 1")
+                return  # already alive
+            except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                pass
+            try:
+                self.conn.close()
+            except Exception:
+                pass
+            logger.info("Reconnecting SQLite: %s", self._path)
+            self.conn = self._connect(self._path)
+            self.conn.executescript(SCHEMA)
 
     # ── Key-value ───────────────────────────────────────────────
 
+    @_retry_on_locked
     def get_kv(self, k: str) -> str | None:
         with self._lock:
             row = self.conn.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
         return row[0] if row else None
 
+    @_retry_on_locked
     def set_kv(self, k: str, v: str) -> None:
         with self._lock:
             self.conn.execute(
@@ -90,69 +195,65 @@ class SqliteStore:
 
     # ── Dedup ───────────────────────────────────────────────────
 
+    @_retry_on_locked
     def mark_seen(self, provider: str, item_id: str, ts: float) -> bool:
         """Return True if newly inserted; False if already seen."""
-        with self._lock:
-            try:
+        try:
+            with self._lock:
                 self.conn.execute(
                     "INSERT INTO seen(provider,item_id,ts) VALUES(?,?,?)",
                     (provider, item_id, ts),
                 )
                 return True
-            except sqlite3.IntegrityError:
-                return False
+        except sqlite3.IntegrityError:
+            return False
 
     # ── Novelty clustering ──────────────────────────────────────
 
+    @_retry_on_locked
     def cluster_touch(self, h: str, ts: float) -> tuple[int, float]:
-        """Atomically touch a cluster and return ``(count, first_ts)``.
-
-        Uses UPSERT inside a single IMMEDIATE transaction so the
-        returned count is never stale when another process touches
-        the same hash concurrently.  A threading.Lock serialises
-        callers so the explicit transaction cannot deadlock across
-        threads sharing this connection.
-
-        Retries up to 3 times on ``OperationalError`` (database locked)
-        which can occur when multiple Streamlit tabs hit the DB at the
-        same moment, even with ``busy_timeout`` set.
-        """
-        for _attempt in range(3):
+        """Atomically touch a cluster and return ``(count, first_ts)``."""
+        with self._lock:
+            self.conn.execute("BEGIN IMMEDIATE")
             try:
-                with self._lock:
-                    self.conn.execute("BEGIN IMMEDIATE")
-                    try:
-                        self.conn.execute(
-                            "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
-                            "ON CONFLICT(hash) DO UPDATE SET last_ts=MAX(clusters.last_ts, excluded.last_ts), count=count+1",
-                            (h, ts, ts),
-                        )
-                        row = self.conn.execute(
-                            "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
-                        ).fetchone()
-                        self.conn.execute("COMMIT")
-                    except BaseException:
-                        self.conn.execute("ROLLBACK")
-                        raise
-                return (row[0], row[1])
-            except sqlite3.OperationalError:
-                if _attempt < 2:
-                    time.sleep(0.05 * (2 ** _attempt))  # 50ms, 100ms
-                    continue
+                self.conn.execute(
+                    "INSERT INTO clusters(hash, first_ts, last_ts, count) VALUES(?,?,?,1) "
+                    "ON CONFLICT(hash) DO UPDATE SET last_ts=MAX(clusters.last_ts, excluded.last_ts), count=count+1",
+                    (h, ts, ts),
+                )
+                row = self.conn.execute(
+                    "SELECT count, first_ts FROM clusters WHERE hash=?", (h,)
+                ).fetchone()
+                self.conn.execute("COMMIT")
+            except BaseException:
+                self.conn.execute("ROLLBACK")
                 raise
-        return (1, ts)  # unreachable but keeps mypy happy
+        return (row[0], row[1])
 
     # ── Maintenance ─────────────────────────────────────────────
 
+    @_retry_on_locked
     def prune_seen(self, keep_seconds: float) -> None:
         cutoff = time.time() - keep_seconds
         with self._lock:
             self.conn.execute("DELETE FROM seen WHERE ts < ?", (cutoff,))
+            # Checkpoint WAL to keep file size bounded
+            self.conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
 
+    @_retry_on_locked
     def prune_clusters(self, keep_seconds: float) -> None:
         cutoff = time.time() - keep_seconds
         with self._lock:
             self.conn.execute("DELETE FROM clusters WHERE last_ts < ?", (cutoff,))
 
     def close(self) -> None:
-        self.conn.close()
+        """Close the connection and remove from singleton registry.
+
+        The instance stays in the registry so that existing references
+        can auto-reconnect via ``_reconnect()`` rather than hitting a
+        permanently dead connection.
+        """
+        try:
+            self.conn.close()
+        except Exception:
+            pass

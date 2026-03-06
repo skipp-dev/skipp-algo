@@ -585,15 +585,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
         key="fmp_ai_custom_question",
         on_change=_on_custom_q_change,
     )
-    if st.button("▶️ Ask AI", width='stretch', key="fmp_ai_ask_btn"):
-        _q = (st.session_state.get("fmp_ai_custom_question") or "").strip()
-        if _q:
-            st.session_state["fmp_ai_selected_question"] = _q
-            st.session_state["fmp_ai_run_requested"] = True
-        else:
-            st.warning("Please enter a question first.")
-
-    _qa_c1, _qa_c2 = st.columns([1, 2])
+    _qa_c1, _qa_c2 = st.columns([1, 1])
     with _qa_c1:
         if st.button("🔁 Ask Again", key="fmp_ai_regenerate",
                       help="Re-run the last question with fresh data"):
@@ -601,20 +593,20 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
             if _q:
                 st.session_state["fmp_ai_run_requested"] = True
     with _qa_c2:
-        st.toggle(
-            "Pause auto-refresh while reviewing AI result",
-            key="fmp_ai_pause_auto_refresh",
-            help=(
-                "Prevents automatic page jumps while you read AI output. "
-                "Background polling can continue; UI reruns are paused."
-            ),
-        )
+        if st.button("🧹 Clear AI result", key="fmp_ai_clear_result"):
+            st.session_state["fmp_ai_last_result"] = None
+            st.session_state["fmp_ai_last_context_json"] = ""
+            st.session_state["fmp_ai_selected_question"] = ""
+            st.session_state["fmp_ai_run_requested"] = False
 
-    if st.button("🧹 Clear AI result", key="fmp_ai_clear_result"):
-        st.session_state["fmp_ai_last_result"] = None
-        st.session_state["fmp_ai_last_context_json"] = ""
-        st.session_state["fmp_ai_selected_question"] = ""
-        st.session_state["fmp_ai_run_requested"] = False
+    st.toggle(
+        "Pause auto-refresh while reviewing AI result",
+        key="fmp_ai_pause_auto_refresh",
+        help=(
+            "Prevents automatic page jumps while you read AI output. "
+            "Background polling can continue; UI reruns are paused."
+        ),
+    )
 
     # ── Background-thread AI analysis ───────────────────────────
     # The analysis now runs in a daemon thread via ThreadPoolExecutor.
