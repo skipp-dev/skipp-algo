@@ -1109,7 +1109,7 @@ with st.sidebar:
         # Close existing SQLite connection before deleting files
         if st.session_state.store is not None:
             try:
-                st.session_state.store.close()
+                st.session_state.store.close(force=True)
             except Exception:
                 logger.debug("store.close() failed during reset", exc_info=True)
         # Close HTTP adapters to release connection pools

@@ -136,6 +136,7 @@ _LISTINGS_TTL = 3600   # 1h for exchange listings
 _SUPPLY_TTL = 300      # 5 min for market cap/supply
 _NEWS_TTL = 300        # 5 min (was 120s) — BTC news not time-critical
 _OUTLOOK_TTL = 600     # 10 min for tomorrow outlook
+_OHLCV_10M_ERROR_TTL = 90  # throttle repeated failing 10m fetch attempts
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
@@ -487,6 +488,9 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
     cached = _get_cached(cache_key, 60)  # 1 min cache for near-realtime
     if cached is not None:
         return cached  # type: ignore
+    err_key = f"{cache_key}:error"
+    if _get_cached(err_key, _OHLCV_10M_ERROR_TTL) is not None:
+        return []
 
     if not _YF or not _PD:
         return []
@@ -496,6 +500,9 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
         # yfinance max period for 5m is 60d
         period_str = f"{min(hours // 24 + 1, 60)}d"
         hist = t.history(period=period_str, interval="5m")
+        if not hasattr(hist, "empty"):
+            _set_cached(err_key, "invalid_history_payload")
+            return []
         if hist is None or hist.empty:
             return []
 
@@ -530,6 +537,7 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
         _set_cached(cache_key, rows)
         return rows
     except Exception as exc:
+        _set_cached(err_key, str(exc))
         log.warning("BTC 10min OHLCV failed: %s", exc)
         return []
 

@@ -225,7 +225,10 @@ def _tv_register_success() -> None:
     """
     global _tv_consecutive_429s
     with _tv_rate_lock:
-        if _tv_consecutive_429s > 0 and time.time() >= _tv_cooldown_until:
+        # Keep the counter during the post-cooldown cautious window so
+        # repeated 429s can still escalate backoff instead of flapping at 1.
+        reset_after = _tv_cooldown_until + _TV_POST_429_WINDOW
+        if _tv_consecutive_429s > 0 and time.time() >= reset_after:
             _tv_consecutive_429s = 0
             log.info("TradingView 429 counter reset after successful call")
 

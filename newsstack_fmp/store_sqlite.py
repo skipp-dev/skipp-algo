@@ -65,7 +65,8 @@ def _retry_on_locked(fn):
                 return fn(self, *args, **kwargs)
             except sqlite3.ProgrammingError:
                 # Connection was closed — reconnect transparently.
-                logger.warning(
+                _log = logger.info if attempt == 0 else logger.warning
+                _log(
                     "SQLite connection closed — reconnecting (%s, attempt %d/%d)",
                     fn.__name__, attempt + 1, _MAX_RETRIES,
                 )
@@ -246,13 +247,21 @@ class SqliteStore:
         with self._lock:
             self.conn.execute("DELETE FROM clusters WHERE last_ts < ?", (cutoff,))
 
-    def close(self) -> None:
+    def close(self, *, force: bool = False) -> None:
         """Close the connection and remove from singleton registry.
 
         The instance stays in the registry so that existing references
         can auto-reconnect via ``_reconnect()`` rather than hitting a
         permanently dead connection.
+
+        For shared on-disk singleton stores, ``close()`` defaults to a
+        no-op to avoid frequent close/reopen churn in long-running apps.
+        Pass ``force=True`` for explicit shutdown workflows (e.g. deleting
+        the database files during a reset).
         """
+        if self._path != ":memory:" and not force:
+            logger.debug("Ignoring close() on shared SqliteStore: %s", self._path)
+            return
         try:
             self.conn.close()
         except Exception:
