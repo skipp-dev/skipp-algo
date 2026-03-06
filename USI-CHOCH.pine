@@ -1,0 +1,794 @@
+//@version=6
+indicator("USI-CHoCH", overlay=true, max_labels_count=500)
+
+//====================
+// USI Settings (6 lines: L0 slowest → L5 fastest/Red)
+//====================
+grpUsi = "⚡ USI Settings"
+
+usiPreset = input.string("Fast (7/6/4/3/2/1)", "USI Preset",
+    options=["Default (13/11/7/5/4/2)", "Fast (7/6/4/3/2/1)", "Medium (26/22/14/10/8/4)", "Slow (39/33/21/15/12/6)", "Macro (52/44/28/20/16/8)", "Custom"],
+    tooltip="Voreingestellte USI-Linien-Längen (6 Linien) für verschiedene Zeitrahmen.\nDefault = Standard SkippALGO.\nFast = sehr reaktiv, für niedrige TFs.\nMedium/Slow/Macro = skaliert für höhere TFs.\n'Custom' nutzt die manuellen Eingaben unten.",
+    group=grpUsi)
+
+usiLen0_c = input.int(13, "USI Length (L0 — slowest / Blue)", minval=2, maxval=100,
+    tooltip="Längste/langsamste RSI-Linie (Blue). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen1_c = input.int(11, "Length 1 of USI (L1 / Green)",     minval=2, maxval=100,
+    tooltip="Zweitlängste RSI-Linie (Green). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen2_c = input.int(7,  "Length 2 of USI (L2 / Yellow)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Yellow). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen3_c = input.int(5,  "Length 3 of USI (L3 / Orange)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Orange). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen4_c = input.int(4,  "Length 4 of USI (L4)",             minval=1, maxval=100,
+    tooltip="Zweitschnellste RSI-Linie. Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen5_c = input.int(2,  "Length 5 of USI (L5 — fastest / Red)", minval=1, maxval=100,
+    tooltip="Schnellste RSI-Linie (Red). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+
+//====================
+// Signal Filters
+//====================
+grpFilt = "🔒 Signal Filters"
+
+barCloseOnly = input.bool(false, "Bar Close Only",
+    tooltip="Signale nur auf geschlossenen Bars. Verhindert Intra-Bar-Flicker bei Live-Daten.",
+    group=grpFilt)
+useVolFilterUsi = input.bool(true, "Volume Filter (USI Flip)",
+    tooltip="Signale nur wenn das aktuelle Barvolumen über dem Durchschnitt liegt.",
+    group=grpFilt)
+minVolRatio = input.float(1.4, "Min Volume Ratio", minval=0.1, step=0.1,
+    tooltip="Mindest-Verhältnis: Aktuelles Barvolumen / SMA(Volumen). 1.0 = Durchschnitt, 1.4 = 40% über Durchschnitt.",
+    group=grpFilt)
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, maxval=100,
+    tooltip="Lookback für den Volumen-Durchschnitt.",
+    group=grpFilt)
+
+//====================
+// Stability Filters
+//====================
+grpStable = "🧭 Stability Filters"
+
+margin = input.float(1.0, "USI Margin", minval=0.0, step=0.1,
+    tooltip="Mindestabstand (RSI-Punkte) der roten USI-Linie zu den anderen Linien beim Flip. Höher = weniger, aber stabilere Flip-Signale. 0 = nur Kreuzung, keine Hysterese.",
+    group=grpStable)
+
+useFlipCycle = input.bool(false, "Relaxed Flip (visual cycle)",
+    tooltip="Wenn aktiviert, muss der Flip nicht in einer einzelnen Bar passieren. Red darf innerhalb der letzten N Bars auf der Gegenseite gewesen sein.",
+    group=grpStable)
+flipCycleBars = input.int(3, "Flip Cycle Lookback (bars)", minval=1, maxval=20,
+    tooltip="Maximale Anzahl Bars, die der Flip dauern darf. 1 = strenges Single-Bar-Crossing (wie ohne Cycle).",
+    group=grpStable)
+
+useStrongStack = input.bool(false, "Require strong stack confirmation",
+    tooltip="BUY: volle sequenzielle Ordnung L5 > L4 > L3 > L2 > L1 > L0. SHORT gespiegelt. Sehr strikt — kann Signale stark reduzieren.",
+    group=grpStable)
+
+useSlowTrendFilter = input.bool(false, "Require slow trend confirmation",
+    tooltip="BUY nur wenn die langsamsten Linien konstruktiv sind (L1 > L0 oder L0 steigend). SHORT gespiegelt.",
+    group=grpStable)
+
+//====================
+// Early Signal Inputs
+//====================
+grpEarly = "Early Signals (Anticipation)"
+ms_useAnticipation  = input.bool(true, "Enable Anticipation signals", group=grpEarly, tooltip="Frühwarnung wenn Preis sich einem Swing-Level nähert.")
+ms_proxPct          = input.float(0.15, "Proximity %", minval=0.01, maxval=2.0, step=0.05, group=grpEarly, tooltip="Distanz zum Swing-Level in % ab der Anticipation feuert.")
+ms_showAnticipation = input.bool(true, "Show Anticipation markers", group=grpEarly)
+
+grpMom = "Momentum Pre-CHoCH"
+ms_useMomentum   = input.bool(true, "Enable Momentum Pre-CHoCH", group=grpMom, tooltip="RSI-Divergenz + Volume-Spike als Frühindikator vor dem Strukturbruch.")
+ms_rsiLen        = input.int(7, "RSI Length", minval=2, maxval=30, group=grpMom)
+ms_rsiDivBars    = input.int(5, "RSI Divergence lookback", minval=2, maxval=20, group=grpMom, tooltip="Bars zurückschauen für Preis/RSI Divergenz.")
+ms_volMulti      = input.float(1.5, "Volume spike multiplier", minval=1.0, maxval=5.0, step=0.1, group=grpMom, tooltip="Volume > X * SMA(20) = Spike.")
+ms_showMomentum  = input.bool(true, "Show Momentum Pre-CHoCH markers", group=grpMom)
+
+grpObv = "📊 OBV Divergence"
+obv_useObvDiv    = input.bool(true, "Enable OBV Divergence", group=grpObv, tooltip="On-Balance-Volume Divergenz erkennt 'unsichtbare' Akkumulation/Distribution.\nPreis fällt, aber OBV steigt → Smart Money kauft heimlich (bullish).\nPreis steigt, aber OBV fällt → Smart Money verkauft heimlich (bearish).")
+obv_divBars      = input.int(10, "OBV Divergence lookback", minval=3, maxval=30, group=grpObv, tooltip="Bars zurückschauen für Preis vs. OBV Divergenz.")
+obv_smaLen       = input.int(5, "OBV Smoothing (SMA)", minval=1, maxval=20, group=grpObv, tooltip="SMA-Glättung auf OBV um Rauschen zu reduzieren. 1 = kein Smoothing.")
+obv_showMarkers  = input.bool(true, "Show OBV Divergence markers", group=grpObv)
+
+//====================
+// Structure (CHoCH)
+//====================
+grpStruct = "Structure"
+
+showBestBullChoch = input.bool(true, "Show BEST Bullish CHoCH", group=grpStruct)
+showBestBearChoch = input.bool(true, "Show BEST Bearish CHoCH", group=grpStruct)
+showSweepDots     = input.bool(false, "Show Sweep/Reclaim dots", group=grpStruct)
+showRawChoch      = input.bool(false, "Show raw bullish CHoCH", group=grpStruct)
+showDebug         = input.bool(false, "Debug", group=grpStruct)
+
+swingL      = input.int(2, "Swing Left", minval=1, maxval=20, group=grpStruct)
+swingR      = input.int(1, "Swing Right", minval=1, maxval=20, group=grpStruct)
+swingMaxAge = input.int(100, "Swing max age bars", minval=10, maxval=500, group=grpStruct)
+
+breakoutSource = input.string("Wick", "Breakout Source", options=["Close", "Wick"], group=grpStruct)
+chochMode      = input.string("Ping+Verify", "ChoCH Mode", options=["Ping", "Verify", "Ping+Verify"], group=grpStruct)
+
+requireSweepOrReclaim = input.bool(true, "Require sweep/reclaim for CHoCH ping", group=grpStruct)
+
+grpVolChoch = "Volume · CHoCH"
+useVolFilterChoch = input.bool(true, "Require volume for CHoCH", group=grpVolChoch)
+volLenChoch       = input.int(20, "Volume SMA Length", minval=2, maxval=100, group=grpVolChoch)
+volMultChoch      = input.float(1.2, "Volume Multiplier", minval=0.1, step=0.05, group=grpVolChoch)
+
+//====================
+// VWAP Settings
+//====================
+grpVwap = "VWAP Settings"
+
+hideonDWM = input.bool(false, "Hide VWAP on 1D or Above", group=grpVwap)
+var anchor = input.string(defval="Session", title="Anchor Period",
+    options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"],
+    group=grpVwap)
+vwapSrc = input(title="VWAP Source", defval=hlc3, group=grpVwap)
+vwapOffset = input.int(0, "VWAP Offset", group=grpVwap)
+showBand_1 = input.bool(false, "Show StdDev Band", group=grpVwap)
+stdevMult_1 = input.float(0.88, "StdDev Multiplier", group=grpVwap)
+vwapTrendSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, maxval=20,
+    tooltip="Bars für VWAP-Slope. Niedriger = schneller, aber rauschiger.",
+    group=grpVwap)
+vwapTrendEmaLen = input.int(8, "Price Bias EMA Length", minval=3, maxval=50,
+    tooltip="EMA-Länge für Preis-über/unter-VWAP Bias.",
+    group=grpVwap)
+suppressBuyInRedZone = input.bool(true, "Suppress BUY in Red Zone",
+    tooltip="BUY-Signale unterdrücken wenn der Preis (hl2) unter dem unteren VWAP-Band liegt.",
+    group=grpVwap)
+suppressChochInRedZone = input.bool(true, "Suppress CHoCH in Red Zone",
+    tooltip="CHoCH-Signale unterdrücken wenn der Preis (hl2) unter dem unteren VWAP-Band liegt.",
+    group=grpVwap)
+showRedZoneDebug = input.bool(false, "Show Red Zone Debug", group=grpVwap)
+
+showBgTint = input.bool(true, "Background Trend Tint",
+    tooltip="Gesamten Chart-Hintergrund dezent einfärben:\nDunkelgrün = VWAP-Aufwärtstrend\nRötlich = VWAP-Abwärtstrend.",
+    group=grpVwap)
+bgTransparency = input.int(92, "Tint Transparency", minval=50, maxval=98, step=1,
+    tooltip="Transparenz der Hintergrundfarbe. 92 = sehr dezent, 50 = deutlich sichtbar.",
+    group=grpVwap)
+
+//====================
+// Visibility
+//====================
+grpVis = "Visibility"
+
+showBuy   = input.bool(true, "Show BUY labels", group=grpVis)
+showShort = input.bool(true, "Show SHORT labels", group=grpVis)
+showVwap  = input.bool(true, "Show VWAP line", group=grpVis)
+
+//====================
+// Pressure Dots + Bollinger Squeeze
+//====================
+grpDots = "🔴 Pressure Dots + Squeeze"
+
+showPressureDots = input.bool(true, "Show Pressure Dots",
+    tooltip="Druckpunkte nur während Konsolidierungsphasen.\nGelb = ruhige Konsolidierung.\nOrange→Rot = steigender Druck / bevorstehender Ausbruch.\nBei aktivem Squeeze leuchten die Dots heller.",
+    group=grpDots)
+consolAdxThresh = input.float(25.0, "ADX Consolidation Threshold", minval=10.0, maxval=50.0, step=1.0,
+    tooltip="ADX unter diesem Wert = Konsolidierung. Standard: 25.\nNiedriger = striktere Erkennung.",
+    group=grpDots)
+dotsAtrMult = input.float(1.0, "Dots Distance (ATR)", minval=0.1, maxval=3.0, step=0.1,
+    tooltip="Abstand der Punkt-Linie unterhalb der Kerzen in ATR-Einheiten.",
+    group=grpDots)
+dotSize = input.int(2, "Dot Size", minval=1, maxval=4,
+    tooltip="Größe der Druckpunkte (linewidth 1–4).",
+    group=grpDots)
+dotsTransp = input.int(10, "Dots Transparency", minval=0, maxval=80, step=5,
+    tooltip="Transparenz der Druckpunkte. 0 = sichtbar, 80 = fast unsichtbar.",
+    group=grpDots)
+
+// Bollinger Squeeze sub-settings (integrated into Pressure Dots)
+sq_useSqueeze = input.bool(true, "Enable Bollinger Squeeze",
+    tooltip="Bollinger Bands innerhalb Keltner Channel = Squeeze.\nVerbessert Pressure-Score und zeigt SQ-Marker beim Release.",
+    group=grpDots)
+sq_bbLen      = input.int(20, "BB Length", minval=5, maxval=50, group=grpDots,
+    tooltip="Bollinger Band Länge.")
+sq_bbMult     = input.float(2.0, "BB StdDev Mult", minval=0.5, maxval=4.0, step=0.1, group=grpDots,
+    tooltip="Bollinger Band Standardabweichungs-Multiplikator.")
+sq_kcLen      = input.int(20, "KC Length", minval=5, maxval=50, group=grpDots,
+    tooltip="Keltner Channel Länge.")
+sq_kcMult     = input.float(1.5, "KC ATR Mult", minval=0.5, maxval=4.0, step=0.1, group=grpDots,
+    tooltip="Keltner Channel ATR-Multiplikator. 1.5 = Standard.")
+sq_showRelease = input.bool(true, "Show Squeeze Release marker",
+    tooltip="SQ↑/SQ↓ Marker wenn der Squeeze endet = Ausbruch beginnt.",
+    group=grpDots)
+
+//====================
+// CMF (Chaikin Money Flow)
+//====================
+grpCmf = "💰 CMF (Chaikin Money Flow)"
+
+cmf_useCmf      = input.bool(true, "Enable CMF signals", group=grpCmf,
+    tooltip="Chaikin Money Flow misst die Richtung des Volumenflusses.\nPositiv = Kaufdruck, Negativ = Verkaufsdruck.\nC↑ = starker Kaufdruck in bearisher Struktur (bullish).\nC↓ = starker Verkaufsdruck in bullisher Struktur (bearish).")
+cmf_len         = input.int(20, "CMF Length", minval=5, maxval=50, group=grpCmf,
+    tooltip="Lookback-Periode für CMF-Berechnung.")
+cmf_threshold   = input.float(0.10, "CMF Threshold", minval=0.01, maxval=0.50, step=0.01, group=grpCmf,
+    tooltip="Mindest-CMF-Wert für Signal. 0.10 = moderater Druck.\nHöher = weniger aber stärkere Signale.")
+cmf_showMarkers = input.bool(true, "Show CMF markers", group=grpCmf)
+
+//====================
+// Resolve preset → actual lengths (6 values each)
+// Format: L0/L1/L2/L3/L4/L5  (slowest → fastest)
+//====================
+isDefault = usiPreset == "Default (13/11/7/5/4/2)"
+isFast    = usiPreset == "Fast (7/6/4/3/2/1)"
+isMedium  = usiPreset == "Medium (26/22/14/10/8/4)"
+isSlow    = usiPreset == "Slow (39/33/21/15/12/6)"
+isMacro   = usiPreset == "Macro (52/44/28/20/16/8)"
+
+usiLen0 = isFast ? 7  : isMedium ? 26 : isSlow ? 39 : isMacro ? 52 : isDefault ? 13 : usiLen0_c
+usiLen1 = isFast ? 6  : isMedium ? 22 : isSlow ? 33 : isMacro ? 44 : isDefault ? 11 : usiLen1_c
+usiLen2 = isFast ? 4  : isMedium ? 14 : isSlow ? 21 : isMacro ? 28 : isDefault ? 7  : usiLen2_c
+usiLen3 = isFast ? 3  : isMedium ? 10 : isSlow ? 15 : isMacro ? 20 : isDefault ? 5  : usiLen3_c
+usiLen4 = isFast ? 2  : isMedium ? 8  : isSlow ? 12 : isMacro ? 16 : isDefault ? 4  : usiLen4_c
+usiLen5 = isFast ? 1  : isMedium ? 4  : isSlow ? 6  : isMacro ? 8  : isDefault ? 2  : usiLen5_c
+
+//====================
+// Zero-Lag EMA helper
+//====================
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+//====================
+// USI 6-Line Calculation (Zero-Lag RSI stacking)
+// L0 = slowest (Blue), L5 = fastest (Red)
+//====================
+usiSrc0 = f_zl_src(close, usiLen0)
+usiSrc1 = f_zl_src(close, usiLen1)
+usiSrc2 = f_zl_src(close, usiLen2)
+usiSrc3 = f_zl_src(close, usiLen3)
+usiSrc4 = f_zl_src(close, usiLen4)
+usiSrc5 = f_zl_src(close, usiLen5)
+
+usiLine0 = ta.rsi(usiSrc0, usiLen0)  // slowest (Blue)
+usiLine1 = ta.rsi(usiSrc1, usiLen1)  // Green
+usiLine2 = ta.rsi(usiSrc2, usiLen2)  // Yellow
+usiLine3 = ta.rsi(usiSrc3, usiLen3)  // Orange
+usiLine4 = ta.rsi(usiSrc4, usiLen4)
+usiLine5 = ta.rsi(usiSrc5, usiLen5)  // fastest (Red)
+
+//====================
+// Consolidation Detection (ADX + ATR regime + USI spread + BB Squeeze)
+// + Pressure Score within consolidation (0..1)
+//====================
+// USI spread of slow lines
+float _slowMax  = math.max(usiLine0, math.max(usiLine1, math.max(usiLine2, usiLine3)))
+float _slowMin  = math.min(usiLine0, math.min(usiLine1, math.min(usiLine2, usiLine3)))
+float _spread   = math.max(_slowMax - _slowMin, 0.0)
+float _spreadPk = nz(ta.highest(_spread, 200), 1.0)
+float _spreadN  = _spreadPk > 0 ? math.min(_spread / _spreadPk, 1.0) : 0.0
+
+// ADX: low = no trend = consolidation
+[_diPlus, _diMinus, _adxVal] = ta.dmi(14, 14)
+bool _adxLow = _adxVal < consolAdxThresh
+
+// ATR regime: contracting volatility = consolidation
+float _atrFast   = ta.atr(14)
+float _atrSlow   = ta.sma(_atrFast, 50)
+bool _atrContract = not na(_atrSlow) and _atrFast < _atrSlow
+
+// USI lines close together = no directional momentum
+bool _usiTight = _spreadN < 0.35
+
+// Bollinger Squeeze: BB inside Keltner Channel = extreme compression
+float _bbBasis = ta.sma(close, sq_bbLen)
+float _bbDev   = ta.stdev(close, sq_bbLen) * sq_bbMult
+float _bbUpper = _bbBasis + _bbDev
+float _bbLower = _bbBasis - _bbDev
+
+float _kcBasis = ta.ema(close, sq_kcLen)
+float _kcAtr   = ta.atr(sq_kcLen)
+float _kcUpper = _kcBasis + _kcAtr * sq_kcMult
+float _kcLower = _kcBasis - _kcAtr * sq_kcMult
+
+bool _sqOn = sq_useSqueeze and _bbLower > _kcLower and _bbUpper < _kcUpper
+bool _sqOff = sq_useSqueeze and not _sqOn
+bool _sqRelease = _sqOff and _sqOn[1]  // squeeze just ended = release!
+
+// Squeeze release direction: momentum (BB midline slope)
+float _sqMom = _bbBasis - nz(_bbBasis[1])
+bool _sqReleaseBull = _sqRelease and _sqMom > 0
+bool _sqReleaseBear = _sqRelease and _sqMom <= 0
+
+// Consolidation = at least 2 of 4 conditions (squeeze adds as 4th)
+int _consolScore = (_adxLow ? 1 : 0) + (_atrContract ? 1 : 0) + (_usiTight ? 1 : 0) + (_sqOn ? 1 : 0)
+bool isConsolidation = _consolScore >= 2
+
+// Pressure building within consolidation (0..1)
+// ADX rising = directional energy building toward breakout
+float _adxDelta    = math.max(0.0, _adxVal - nz(_adxVal[5]))
+float _adxPressure = math.min(_adxDelta / 8.0, 1.0)
+
+// ATR expanding toward its average = volatility returning
+float _atrRatio    = _atrSlow > 0 ? _atrFast / _atrSlow : 0.5
+float _atrPressure = math.max(0.0, math.min((_atrRatio - 0.5) * 2.0, 1.0))
+
+// USI lines starting to spread
+float _usiPressure = _spreadN
+
+// Squeeze pressure: when squeeze is on, pressure is max (bands compressed)
+float _sqPressure = _sqOn ? 1.0 : 0.0
+
+float consolPressure = math.max(0.0, math.min(
+     0.30 * _adxPressure + 0.25 * _atrPressure + 0.20 * _usiPressure + 0.25 * _sqPressure, 1.0))
+
+//====================
+// CMF Calculation (Chaikin Money Flow)
+// CMF = SMA(MF Volume, N) / SMA(Volume, N)
+// MF Volume = ((close - low) - (high - close)) / (high - low) * volume
+//====================
+float _mfMult   = high != low ? ((close - low) - (high - close)) / (high - low) : 0.0
+float _mfVol    = _mfMult * volume
+float _volSmaCmf = ta.sma(volume, cmf_len)
+float _mfVolSma  = ta.sma(_mfVol, cmf_len)
+float _cmf       = _volSmaCmf > 0 ? _mfVolSma / _volSmaCmf : 0.0
+
+//====================
+// USI Flip Detection (6-line)
+// Bullish: Red was below ALL 5 other lines → now above ALL
+// Bearish: Red was above ALL 5 other lines → now below ALL
+// With Flip Cycle: the cross can develop over N bars
+//====================
+bool usiRedAboveAll = usiLine5 > usiLine4 and usiLine5 > usiLine3 and usiLine5 > usiLine2 and usiLine5 > usiLine1 and usiLine5 > usiLine0
+bool usiRedBelowAll = usiLine5 < usiLine4 and usiLine5 < usiLine3 and usiLine5 < usiLine2 and usiLine5 < usiLine1 and usiLine5 < usiLine0
+
+// Strict: single-bar flip
+bool flipBullStrict = usiRedBelowAll[1] and usiRedAboveAll
+bool flipBearStrict = usiRedAboveAll[1] and usiRedBelowAll
+
+// Relaxed: Red was on opposite side within last N bars
+int barsSinceBelow = ta.barssince(usiRedBelowAll)
+int barsSinceAbove = ta.barssince(usiRedAboveAll)
+bool flipBullCycle = usiRedAboveAll and not usiRedAboveAll[1] and barsSinceBelow <= flipCycleBars
+bool flipBearCycle = usiRedBelowAll and not usiRedBelowAll[1] and barsSinceAbove <= flipCycleBars
+
+bool usiFlipBull = useFlipCycle ? flipBullCycle : flipBullStrict
+bool usiFlipBear = useFlipCycle ? flipBearCycle : flipBearStrict
+
+//====================
+// Hysteresis (margin in RSI points)
+// BUY only if Red is clearly above all
+// SHORT only if Red is clearly below all
+//====================
+bool usiRedClearlyAboveAll = usiLine5 > usiLine4 + margin and usiLine5 > usiLine3 + margin and usiLine5 > usiLine2 + margin and usiLine5 > usiLine1 + margin and usiLine5 > usiLine0 + margin
+
+bool usiRedClearlyBelowAll = usiLine5 < usiLine4 - margin and usiLine5 < usiLine3 - margin and usiLine5 < usiLine2 - margin and usiLine5 < usiLine1 - margin and usiLine5 < usiLine0 - margin
+
+//====================
+// Strong stack confirmation (full sequential order)
+// BUY:  L5 > L4 > L3 > L2 > L1 > L0
+// SHORT: mirrored
+//====================
+bool bullStackStrong = usiLine5 > usiLine4 and usiLine4 > usiLine3 and usiLine3 > usiLine2 and usiLine2 > usiLine1 and usiLine1 > usiLine0
+
+bool bearStackStrong = usiLine5 < usiLine4 and usiLine4 < usiLine3 and usiLine3 < usiLine2 and usiLine2 < usiLine1 and usiLine1 < usiLine0
+
+//====================
+// Slow trend filter
+// BUY only if slowest lines are constructive (L1 > L0 or L0 rising)
+// SHORT mirrored
+//====================
+bool _l0Rising  = ta.rising(usiLine0, 2)
+bool _l0Falling = ta.falling(usiLine0, 2)
+bool slowTrendBull = usiLine1 > usiLine0 or _l0Rising
+bool slowTrendBear = usiLine1 < usiLine0 or _l0Falling
+
+//====================
+// USI Signal Filters
+//====================
+volSma = ta.sma(volume, volSmaLen)
+volRatio = volSma > 0 ? volume / volSma : 0.0
+volGate = useVolFilterUsi ? volRatio >= minVolRatio : true
+barCloseGate = barCloseOnly ? barstate.isconfirmed : true
+
+//====================
+// USI Final Signals
+//====================
+var float vwapValue = na
+var float upperBandValue1 = na
+var float lowerBandValue1 = na
+
+bool buySignalCore  = usiFlipBull and usiRedClearlyAboveAll and (not useStrongStack or bullStackStrong) and (not useSlowTrendFilter or slowTrendBull)
+
+bool shortSignalCore = usiFlipBear and usiRedClearlyBelowAll and (not useStrongStack or bearStackStrong) and (not useSlowTrendFilter or slowTrendBear)
+
+//==================================================
+// VWAP Calculation
+//==================================================
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+isNewPeriod = switch anchor
+    "Earnings"  => not na(new_earnings)
+    "Dividends" => not na(new_dividends)
+    "Splits"    => not na(new_split)
+    "Session"   => timeframe.change("D")
+    "Week"      => timeframe.change("W")
+    "Month"     => timeframe.change("M")
+    "Quarter"   => timeframe.change("3M")
+    "Year"      => timeframe.change("12M")
+    "Decade"    => timeframe.change("12M") and year % 10 == 0
+    "Century"   => timeframe.change("12M") and year % 100 == 0
+    => false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(vwapSrc[1]) and not isEsdAnchor
+    isNewPeriod := true
+
+if not (hideonDWM and timeframe.isdwm)
+    [_vwap, _stdevUpper, _] = ta.vwap(vwapSrc, isNewPeriod, 1)
+    vwapValue := _vwap
+    stdevAbs = _stdevUpper - _vwap
+    upperBandValue1 := _vwap + stdevAbs * stdevMult_1
+    lowerBandValue1 := _vwap - stdevAbs * stdevMult_1
+
+// VWAP trend detection
+vwapSlope = ta.change(vwapValue, vwapTrendSlopeBars)
+vwapEmaClose = ta.ema(close, vwapTrendEmaLen)
+vwapPriceBiasLong  = vwapEmaClose > vwapValue
+vwapIsUpTrend = vwapSlope > 0 or vwapPriceBiasLong
+
+// Final signal gating (after VWAP values/trend are available)
+bool inRedZone = not na(lowerBandValue1) and not vwapIsUpTrend and hl2 < lowerBandValue1
+
+bool buySignal   = buySignalCore and volGate and barCloseGate and (not suppressBuyInRedZone or not inRedZone)
+bool shortSignal = shortSignalCore and volGate and barCloseGate
+
+//==================================================
+// Structure: Swings (with aging)
+//==================================================
+var float lastSwingHigh    = na
+var float lastSwingLow     = na
+var int   lastSwingHighBar = na
+var int   lastSwingLowBar  = na
+
+ph = ta.pivothigh(high, swingL, swingR)
+pl = ta.pivotlow(low,  swingL, swingR)
+
+if not na(ph)
+    lastSwingHigh    := ph
+    lastSwingHighBar := bar_index - swingR
+
+if not na(pl)
+    lastSwingLow     := pl
+    lastSwingLowBar  := bar_index - swingR
+
+swingHighFresh = not na(lastSwingHighBar) and (bar_index - lastSwingHighBar) <= swingMaxAge
+swingLowFresh  = not na(lastSwingLowBar)  and (bar_index - lastSwingLowBar)  <= swingMaxAge
+
+//==================================================
+// Breakouts
+//==================================================
+bool breakoutLong  = false
+bool breakoutShort = false
+
+bool xoWick = swingHighFresh and not na(lastSwingHigh) and high > lastSwingHigh and high[1] <= lastSwingHigh
+bool xuWick = swingLowFresh  and not na(lastSwingLow)  and low  < lastSwingLow  and low[1]  >= lastSwingLow
+
+if breakoutSource == "Close"
+    breakoutLong  := swingHighFresh and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+    breakoutShort := swingLowFresh  and not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+else
+    breakoutLong  := xoWick
+    breakoutShort := xuWick
+
+//==================================================
+// Liquidity sweep / reclaim
+//==================================================
+bullishSweep = swingLowFresh and not na(lastSwingLow) and low < lastSwingLow and close > lastSwingLow
+reclaimLow   = bullishSweep
+
+liqOk = not requireSweepOrReclaim or bullishSweep or reclaimLow
+
+// Bearish sweep: Preis sticht über Swing-High, schließt aber darunter (Liquiditätsgriff oben)
+bearishSweep = swingHighFresh and not na(lastSwingHigh) and high > lastSwingHigh and close < lastSwingHigh
+reclaimHigh  = bearishSweep
+
+liqOkShort = not requireSweepOrReclaim or bearishSweep or reclaimHigh
+
+//==================================================
+// Structure state + events
+//==================================================
+var int structState = 0
+
+var bool chochPingLong  = false
+var bool bosLong        = false
+var bool chochPingShort = false
+var bool bosShort       = false
+
+// Reset events every bar
+chochPingLong  := false
+bosLong        := false
+chochPingShort := false
+bosShort       := false
+
+// Snapshot structState before breakout processing (prevents same-bar race condition)
+int _prevStructState = structState
+
+if breakoutLong
+    chochPingLong := (_prevStructState == -1)
+    bosLong       := not chochPingLong
+    structState   := 1
+
+if breakoutShort
+    chochPingShort := (_prevStructState == 1)
+    bosShort       := not chochPingShort
+    structState    := -1
+
+// Reclaim can create early bullish CHoCH ping if not already bullish
+if liqOk and reclaimLow and structState != 1
+    chochPingLong := true
+
+// Reclaim can create early bearish CHoCH ping if not already bearish
+if liqOkShort and reclaimHigh and structState != -1
+    chochPingShort := true
+
+// ── Same-Bar Verify (schneller als Next-Bar) ──
+// Prüft ob der Ping-Bar SELBST schon über dem Level schließt
+bool chochVerifyLong_samebar = chochPingLong and swingHighFresh and not na(lastSwingHigh) and close > lastSwingHigh
+
+// Legacy next-bar verify (Fallback)
+bool chochVerifyLong_next = chochPingLong[1] and swingHighFresh and not na(lastSwingHigh) and close > lastSwingHigh
+
+// Combined: Same-bar OR next-bar (frühestmöglich)
+chochVerifyLong = chochVerifyLong_samebar or chochVerifyLong_next
+
+isChoCH_Long =
+     chochMode == "Ping"   ? chochPingLong   :
+     chochMode == "Verify" ? chochVerifyLong  :
+     (chochPingLong or chochVerifyLong)
+
+// ── Same-Bar Verify Short (Spiegelbild) ──
+bool chochVerifyShort_samebar = chochPingShort and swingLowFresh and not na(lastSwingLow) and close < lastSwingLow
+
+// Legacy next-bar verify (Fallback)
+bool chochVerifyShort_next = chochPingShort[1] and swingLowFresh and not na(lastSwingLow) and close < lastSwingLow
+
+chochVerifyShort = chochVerifyShort_samebar or chochVerifyShort_next
+
+isChoCH_Short =
+     chochMode == "Ping"   ? chochPingShort   :
+     chochMode == "Verify" ? chochVerifyShort  :
+     (chochPingShort or chochVerifyShort)
+
+//==================================================
+// CHoCH Volume filter
+//==================================================
+volSmaChoch = ta.sma(volume, volLenChoch)
+volOkChoch  = not useVolFilterChoch or (not na(volume) and not na(volSmaChoch) and volume > volSmaChoch * volMultChoch)
+
+//==================================================
+// A) Anticipation: Preis nähert sich Swing-Level
+//==================================================
+float _proxDistHi = not na(lastSwingHigh) ? math.abs(close - lastSwingHigh) / lastSwingHigh * 100 : 999.0
+float _proxDistLo = not na(lastSwingLow)  ? math.abs(close - lastSwingLow)  / lastSwingLow  * 100 : 999.0
+
+// Bullish anticipation: Preis nähert sich lastSwingHigh von unten UND Struktur ist bearish (= potentieller CHoCH)
+bool ms_anticipL = ms_useAnticipation and structState == -1 and not na(lastSwingHigh) and close < lastSwingHigh and _proxDistHi <= ms_proxPct and close > close[1]
+// Bearish anticipation: Preis nähert sich lastSwingLow von oben UND Struktur ist bullish
+bool ms_anticipS = ms_useAnticipation and structState == 1  and not na(lastSwingLow) and close > lastSwingLow and _proxDistLo <= ms_proxPct and close < close[1]
+
+// Suppress anticipation when CHoCH already fired same bar
+ms_anticipL := ms_anticipL and not isChoCH_Long and not bosLong
+ms_anticipS := ms_anticipS and not isChoCH_Short and not bosShort
+
+//==================================================
+// C) Momentum Pre-CHoCH: RSI-Divergenz + Volume-Spike
+//==================================================
+_rsi = ta.rsi(close, ms_rsiLen)
+_volSmaEarly = ta.sma(volume, 20)
+_volSpike = volume > _volSmaEarly * ms_volMulti
+
+// Bullish RSI divergence: Preis macht lower low, RSI macht higher low
+_priceLowerLow = low < ta.lowest(low, ms_rsiDivBars)[1]
+_rsiHigherLow  = _rsi > ta.lowest(_rsi, ms_rsiDivBars)[1]
+bool _bullRsiDiv = _priceLowerLow and _rsiHigherLow
+
+// Bearish RSI divergence: Preis macht higher high, RSI macht lower high
+_priceHigherHigh = high > ta.highest(high, ms_rsiDivBars)[1]
+_rsiLowerHigh    = _rsi < ta.highest(_rsi, ms_rsiDivBars)[1]
+bool _bearRsiDiv = _priceHigherHigh and _rsiLowerHigh
+
+// Pre-CHoCH: Divergenz + Volume-Spike + passende Strukturseite
+bool ms_preCHoCH_L = ms_useMomentum and structState == -1 and _bullRsiDiv and _volSpike and not na(lastSwingHigh)
+bool ms_preCHoCH_S = ms_useMomentum and structState == 1  and _bearRsiDiv and _volSpike and not na(lastSwingLow)
+
+// Suppress when CHoCH or Anticipation already fired
+ms_preCHoCH_L := ms_preCHoCH_L and not isChoCH_Long and not bosLong and not ms_anticipL
+ms_preCHoCH_S := ms_preCHoCH_S and not isChoCH_Short and not bosShort and not ms_anticipS
+
+//==================================================
+// D) OBV Divergence: Smart-Money-Akkumulation/-Distribution
+//==================================================
+// OBV: kumulatives Volumen — steigt bei Up-Bars, fällt bei Down-Bars
+float _obv = ta.obv
+float _obvSmaCalc = ta.sma(_obv, obv_smaLen)
+float _obvSmooth = obv_smaLen > 1 ? _obvSmaCalc : _obv
+
+// Bullish OBV Divergence: Preis macht lower low, OBV macht higher low
+bool _pLL_obv = low < ta.lowest(low, obv_divBars)[1]
+bool _oHL_obv = _obvSmooth > ta.lowest(_obvSmooth, obv_divBars)[1]
+bool _bullObvDiv = _pLL_obv and _oHL_obv
+
+// Bearish OBV Divergence: Preis macht higher high, OBV macht lower high
+bool _pHH_obv = high > ta.highest(high, obv_divBars)[1]
+bool _oLH_obv = _obvSmooth < ta.highest(_obvSmooth, obv_divBars)[1]
+bool _bearObvDiv = _pHH_obv and _oLH_obv
+
+// Signal: passende Strukturseite (wie bei M↑/M↓)
+bool obv_divL = obv_useObvDiv and structState == -1 and _bullObvDiv and not na(lastSwingHigh)
+bool obv_divS = obv_useObvDiv and structState == 1  and _bearObvDiv and not na(lastSwingLow)
+
+// Suppress when higher-priority signals already fired
+obv_divL := obv_divL and not isChoCH_Long and not bosLong and not ms_anticipL and not ms_preCHoCH_L
+obv_divS := obv_divS and not isChoCH_Short and not bosShort and not ms_anticipS and not ms_preCHoCH_S
+
+//==================================================
+// E) CMF Direction: Volumenfluss-Richtung
+//==================================================
+bool cmf_bullish = cmf_useCmf and structState == -1 and _cmf > cmf_threshold
+bool cmf_bearish = cmf_useCmf and structState == 1  and _cmf < -cmf_threshold
+
+// Suppress when higher-priority signals already fired
+cmf_bullish := cmf_bullish and not isChoCH_Long and not bosLong and not ms_anticipL and not ms_preCHoCH_L and not obv_divL
+cmf_bearish := cmf_bearish and not isChoCH_Short and not bosShort and not ms_anticipS and not ms_preCHoCH_S and not obv_divS
+
+//==================================================
+// BEST Bullish CHoCH = CHoCH + Sweep + Volume
+//==================================================
+bestBullChoch = isChoCH_Long and bullishSweep and volOkChoch and (not suppressChochInRedZone or not inRedZone)
+bestBearChoch = isChoCH_Short and bearishSweep and volOkChoch
+
+//==================================================
+// Visuals
+//==================================================
+
+// VWAP line + bands
+plot(showVwap ? vwapValue : na, title="VWAP", color=color.white, linewidth=2, offset=vwapOffset)
+upperBand_1 = plot(showVwap and showBand_1 ? upperBandValue1 : na, title="Upper Band #1", color=color.new(color.gray, 50), offset=vwapOffset, linewidth=1)
+lowerBand_1 = plot(showVwap and showBand_1 ? lowerBandValue1 : na, title="Lower Band #1", color=color.new(color.gray, 50), offset=vwapOffset, linewidth=1)
+hl2_plot = plot(hl2, color=na, title="HL2", display=display.none)
+fill(hl2_plot, upperBand_1, color=hl2 > upperBandValue1 ? color.new(color.green, 50) : na, title="Above Upper Band")
+fill(hl2_plot, lowerBand_1, color=hl2 < lowerBandValue1 ? color.new(color.red, 50) : na, title="Below Lower Band")
+fill(upperBand_1, lowerBand_1, title="Bands Fill", color=vwapIsUpTrend ? color.new(color.lime, 88) : color.new(color.red, 88))
+
+// Full background tinting based on VWAP trend
+bgTintColor = vwapIsUpTrend ? color.new(#006400, bgTransparency) : color.new(color.red, bgTransparency)
+bgcolor(showBgTint and showVwap and not na(vwapValue) ? bgTintColor : na, title="Trend Background Tint")
+
+// Pressure dots: horizontal line during consolidation (yellow → orange → red)
+// During active squeeze: dots glow brighter (lower transparency)
+float _dotsBase = ta.lowest(low, 30)
+float _dotsY    = _dotsBase - _atrFast * dotsAtrMult
+int _dotTranspEff = _sqOn ? math.max(dotsTransp - 30, 0) : dotsTransp
+color _dotClr   = _sqOn
+     ? color.from_gradient(consolPressure, 0.0, 1.0,
+          color.new(#FF8C00, _dotTranspEff), color.new(#FF0000, _dotTranspEff))
+     : color.from_gradient(consolPressure, 0.0, 1.0,
+          color.new(#FFD400, dotsTransp), color.new(#E02020, dotsTransp))
+plot(showPressureDots and isConsolidation ? _dotsY : na, title="Pressure Dots",
+     style=plot.style_circles, color=_dotClr, linewidth=dotSize)
+
+// USI Flip labels
+plotshape(showBuy and buySignal, title="BUY",
+     style=shape.labelup, location=location.belowbar, text="BUY", size=size.tiny,
+     color=color.new(color.lime, 0), textcolor=color.white)
+
+plotshape(showShort and shortSignal, title="SHORT",
+     style=shape.labeldown, location=location.abovebar, text="SHORT", size=size.tiny,
+     color=color.new(color.red, 0), textcolor=color.white)
+
+// Optional raw CHoCH
+plotshape(showRawChoch and isChoCH_Long, title="Raw Bullish CHoCH",
+     style=shape.labelup, location=location.belowbar,
+     text="CHoCH", size=size.tiny,
+     color=color.new(color.purple, 0), textcolor=color.white)
+
+// BEST CHoCH signal
+plotshape(showBestBullChoch and bestBullChoch, title="BEST Bullish CHoCH",
+     style=shape.labelup, location=location.belowbar,
+     text="CHoCH", size=size.small,
+     color=color.new(#006400, 0), textcolor=color.white)
+
+// Green confirmation dot
+plotshape(showBestBullChoch and bestBullChoch, title="BEST Dot",
+     style=shape.circle, location=location.abovebar,
+     size=size.tiny, color=color.new(color.green, 0))
+
+// BEST Bearish CHoCH signal
+plotshape(showBestBearChoch and bestBearChoch, title="BEST Bearish CHoCH",
+     style=shape.labeldown, location=location.abovebar,
+     text="CHoCH", size=size.small,
+     color=color.new(#8B0000, 0), textcolor=color.white)
+
+// Red confirmation dot
+plotshape(showBestBearChoch and bestBearChoch, title="BEST Bear Dot",
+     style=shape.circle, location=location.belowbar,
+     size=size.tiny, color=color.new(color.red, 0))
+
+// Optional raw sweep dot
+plotshape(showSweepDots and bullishSweep, title="Bull Sweep/Reclaim",
+     style=shape.circle, location=location.belowbar,
+     size=size.tiny, color=color.new(color.teal, 0))
+
+// ── Anticipation markers ──
+plotshape(ms_showAnticipation and ms_anticipL, "Anticip L", style=shape.diamond, location=location.belowbar, size=size.tiny, color=color.new(color.aqua, 0), text="A↑", textcolor=color.aqua)
+plotshape(ms_showAnticipation and ms_anticipS, "Anticip S", style=shape.diamond, location=location.abovebar, size=size.tiny, color=color.new(color.orange, 0), text="A↓", textcolor=color.orange)
+
+// ── Momentum Pre-CHoCH markers ──
+plotshape(ms_showMomentum and ms_preCHoCH_L, "Pre-CHoCH L", style=shape.triangleup,   location=location.belowbar, size=size.tiny, color=color.new(color.lime, 0), text="M↑", textcolor=color.lime)
+plotshape(ms_showMomentum and ms_preCHoCH_S, "Pre-CHoCH S", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.fuchsia, 0), text="M↓", textcolor=color.fuchsia)
+
+// ── OBV Divergence markers ──
+plotshape(obv_showMarkers and obv_divL, "OBV Div L", style=shape.square, location=location.belowbar, size=size.tiny, color=color.new(#00BFFF, 0), text="V↑", textcolor=color.new(#00BFFF, 0))
+plotshape(obv_showMarkers and obv_divS, "OBV Div S", style=shape.square, location=location.abovebar, size=size.tiny, color=color.new(#FF6347, 0), text="V↓", textcolor=color.new(#FF6347, 0))
+
+// ── CMF markers ──
+plotshape(cmf_showMarkers and cmf_bullish, "CMF Bull", style=shape.cross, location=location.belowbar, size=size.tiny, color=color.new(#32CD32, 0), text="C↑", textcolor=color.new(#32CD32, 0))
+plotshape(cmf_showMarkers and cmf_bearish, "CMF Bear", style=shape.cross, location=location.abovebar, size=size.tiny, color=color.new(#DC143C, 0), text="C↓", textcolor=color.new(#DC143C, 0))
+
+// ── Squeeze Release markers ──
+plotshape(sq_showRelease and _sqReleaseBull, "SQ Release Bull", style=shape.diamond, location=location.belowbar, size=size.small, color=color.new(#FFD700, 0), text="SQ↑", textcolor=color.new(#FFD700, 0))
+plotshape(sq_showRelease and _sqReleaseBear, "SQ Release Bear", style=shape.diamond, location=location.abovebar, size=size.small, color=color.new(#FFD700, 0), text="SQ↓", textcolor=color.new(#FFD700, 0))
+
+// ── Background highlight for early signals ──
+bgcolor(ms_anticipL ? color.new(color.aqua, 92) : ms_anticipS ? color.new(color.orange, 92) : na, title="Anticipation BG")
+bgcolor(ms_preCHoCH_L ? color.new(color.lime, 92) : ms_preCHoCH_S ? color.new(color.fuchsia, 92) : na, title="Pre-CHoCH BG")
+bgcolor(obv_divL ? color.new(#00BFFF, 94) : obv_divS ? color.new(#FF6347, 94) : na, title="OBV Div BG")
+bgcolor(cmf_bullish ? color.new(#32CD32, 94) : cmf_bearish ? color.new(#DC143C, 94) : na, title="CMF BG")
+
+// Debug
+bgcolor(showRedZoneDebug and inRedZone ? color.new(color.red, 86) : na, title="Red Zone Debug")
+plotchar(showDebug and isChoCH_Long,  title="isChoCH_Long",  char="C", location=location.bottom)
+plotchar(showDebug and bullishSweep,  title="bullishSweep",  char="S", location=location.bottom)
+plotchar(showDebug and bestBullChoch, title="bestBullChoch",  char="X", location=location.top)
+
+//==================================================
+// Alerts
+//==================================================
+vwapBelowCond   = not na(vwapValue) and close < vwapValue
+vwapAboveCond   = not na(vwapValue) and close > vwapValue
+vwapCrossUpRaw  = ta.crossover(close, vwapValue)
+vwapCrossDnRaw  = ta.crossunder(close, vwapValue)
+vwapCrossUpCond = not na(vwapValue) and vwapCrossUpRaw
+vwapCrossDnCond = not na(vwapValue) and vwapCrossDnRaw
+
+// Combined condition (OR): Cross up this bar OR price is above VWAP
+vwapCrossUpOrAboveCond = vwapCrossUpCond or vwapAboveCond
+
+// Combined condition (OR): Cross down this bar OR price is below VWAP
+vwapCrossDnOrBelowCond = vwapCrossDnCond or vwapBelowCond
+
+alertcondition(buySignal, title="USI Flip BUY", message="{{ticker}} — USI Flip BUY on {{interval}}")
+alertcondition(shortSignal, title="USI Flip SHORT", message="{{ticker}} — USI Flip SHORT on {{interval}}")
+alertcondition(bestBullChoch, title="BEST Bullish CHoCH", message="{{ticker}} — BEST Bullish CHoCH (CHoCH + Sweep) on {{interval}}")
+alertcondition(bestBearChoch, title="BEST Bearish CHoCH", message="{{ticker}} — BEST Bearish CHoCH (CHoCH + Sweep) on {{interval}}")
+alertcondition(buySignal or shortSignal or bestBullChoch or bestBearChoch or obv_divL or obv_divS or cmf_bullish or cmf_bearish or _sqRelease, title="Any Signal", message="{{ticker}} — Signal on {{interval}}")
+alertcondition(vwapBelowCond, title="VWAP: Price Below", message="{{ticker}} — Price below VWAP on {{interval}}")
+alertcondition(vwapAboveCond, title="VWAP: Price Above", message="{{ticker}} — Price above VWAP on {{interval}}")
+alertcondition(vwapCrossUpCond, title="VWAP: Cross Up", message="{{ticker}} — Price crossed VWAP up on {{interval}}")
+alertcondition(vwapCrossDnCond, title="VWAP: Cross Down", message="{{ticker}} — Price crossed VWAP down on {{interval}}")
+alertcondition(vwapCrossUpOrAboveCond, title="VWAP: Cross Up or Above", message="{{ticker}} — Price crossed VWAP up OR is above VWAP on {{interval}}")
+alertcondition(vwapCrossDnOrBelowCond, title="VWAP: Cross Down or Below", message="{{ticker}} — Price crossed VWAP down OR is below VWAP on {{interval}}")
+alertcondition(ms_anticipL, title="Anticipation Bullish", message="{{ticker}} — Anticipation ↑ on {{interval}}")
+alertcondition(ms_anticipS, title="Anticipation Bearish", message="{{ticker}} — Anticipation ↓ on {{interval}}")
+alertcondition(ms_preCHoCH_L, title="Momentum Pre-CHoCH Bullish", message="{{ticker}} — Momentum Pre-CHoCH ↑ on {{interval}}")
+alertcondition(ms_preCHoCH_S, title="Momentum Pre-CHoCH Bearish", message="{{ticker}} — Momentum Pre-CHoCH ↓ on {{interval}}")
+alertcondition(obv_divL, title="OBV Divergence Bullish", message="{{ticker}} — OBV Divergence ↑ (Smart Money Akkumulation) on {{interval}}")
+alertcondition(obv_divS, title="OBV Divergence Bearish", message="{{ticker}} — OBV Divergence ↓ (Smart Money Distribution) on {{interval}}")
+alertcondition(cmf_bullish, title="CMF Bullish", message="{{ticker}} — CMF Kaufdruck ↑ on {{interval}}")
+alertcondition(cmf_bearish, title="CMF Bearish", message="{{ticker}} — CMF Verkaufsdruck ↓ on {{interval}}")
+alertcondition(_sqRelease, title="Squeeze Release", message="{{ticker}} — Bollinger Squeeze Release on {{interval}}")
+alertcondition(_sqReleaseBull, title="Squeeze Release Bullish", message="{{ticker}} — Squeeze Release ↑ on {{interval}}")
+alertcondition(_sqReleaseBear, title="Squeeze Release Bearish", message="{{ticker}} — Squeeze Release ↓ on {{interval}}")
+alertcondition(ms_preCHoCH_S or bestBullChoch or bestBearChoch or buySignal or _sqRelease, title="M↓ + CHoCH + BUY + SQ", message="{{ticker}} — M↓/CHoCH/BUY/SQ on {{interval}}")
+alertcondition(ms_anticipL or ms_preCHoCH_L or obv_divL or cmf_bullish or _sqReleaseBull, title="Any Bullish Pre-Marker", message="{{ticker}} — Bullish Pre-Marker (A↑/M↑/V↑/C↑/SQ↑) on {{interval}}")
+alertcondition(ms_anticipS or ms_preCHoCH_S or obv_divS or cmf_bearish or _sqReleaseBear, title="Any Bearish Pre-Marker", message="{{ticker}} — Bearish Pre-Marker (A↓/M↓/V↓/C↓/SQ↓) on {{interval}}")
