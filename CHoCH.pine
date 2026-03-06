@@ -5,8 +5,8 @@ strategy("CHOCH-Strategy (Structure Only)", overlay=true, initial_capital=10000,
 // Market Structure Inputs
 //====================
 grp = "Market Structure (BOS/ChoCH)"
-ms_swingL = input.int(3, "Swing L", minval=1, maxval=30, group=grp)
-ms_swingR = input.int(2, "Swing R", minval=1, maxval=30, group=grp)
+ms_swingL = input.int(2, "Swing L", minval=1, maxval=30, group=grp, tooltip="Linke Pivotbars. Kleiner = schnellere Erkennung, mehr Noise.")
+ms_swingR = input.int(1, "Swing R", minval=1, maxval=30, group=grp, tooltip="Rechte Pivotbars. 1 = schnellste Bestätigung (1 Bar Delay statt 2).")
 ms_maxAge = input.int(0, "Swing max age (bars, 0=off)", minval=0, maxval=5000, group=grp)
 
 ms_breakSrc = input.string("Wick", "Breakout source", options=["Close","Wick"], group=grp)
@@ -17,6 +17,21 @@ ms_mode = input.string("Ping", "ChoCH mode", options=["Ping","Verify","Ping+Veri
 ms_showTags = input.bool(true, "Show BOS/ChoCH tags", group=grp)
 ms_showPing = input.bool(false, "Show Ping markers", group=grp)
 showBearChoch = input.bool(true, "Show BEAR ChoCH (Ping/Verify)", group=grp)
+
+//====================
+// Early Signal Inputs
+//====================
+grpEarly = "Early Signals (Anticipation)"
+ms_useAnticipation = input.bool(true, "Enable Anticipation signals", group=grpEarly, tooltip="Frühwarnung wenn Preis sich einem Swing-Level nähert.")
+ms_proxPct         = input.float(0.15, "Proximity %", minval=0.01, maxval=2.0, step=0.05, group=grpEarly, tooltip="Distanz zum Swing-Level in % ab der Anticipation feuert.")
+ms_showAnticipation = input.bool(true, "Show Anticipation markers", group=grpEarly)
+
+grpMom = "Momentum Pre-CHoCH"
+ms_useMomentum   = input.bool(true, "Enable Momentum Pre-CHoCH", group=grpMom, tooltip="RSI-Divergenz + Volume-Spike als Frühindikator vor dem Strukturbruch.")
+ms_rsiLen        = input.int(7, "RSI Length", minval=2, maxval=30, group=grpMom)
+ms_rsiDivBars    = input.int(5, "RSI Divergence lookback", minval=2, maxval=20, group=grpMom, tooltip="Bars zurückschauen für Preis/RSI Divergenz.")
+ms_volMulti      = input.float(1.5, "Volume spike multiplier", minval=1.0, maxval=5.0, step=0.1, group=grpMom, tooltip="Volume > X * SMA(20) = Spike.")
+ms_showMomentum  = input.bool(true, "Show Momentum Pre-CHoCH markers", group=grpMom)
 
 //====================
 // Swings (stable levels)
@@ -128,16 +143,21 @@ if ms_pingL
 if ms_pingS
     ms_pingLoLevel := ms_lastLo
 
-// Verify variants (Close vs Wick)
+// ── Same-Bar Verify (schneller als Next-Bar) ──
+// Prüft ob der Ping-Bar SELBST schon über/unter dem Level schließt
+bool ms_verifyL_samebar = ms_pingL and not na(ms_pingHiLevel) and close > ms_pingHiLevel
+bool ms_verifyS_samebar = ms_pingS and not na(ms_pingLoLevel) and close < ms_pingLoLevel
+
+// Legacy next-bar verify (Fallback)
 bool ms_verifyL_close = ms_pingL[1] and not na(ms_pingHiLevel[1]) and close > ms_pingHiLevel[1]
 bool ms_verifyS_close = ms_pingS[1] and not na(ms_pingLoLevel[1]) and close < ms_pingLoLevel[1]
 
+// Combined: Same-bar OR next-bar (frühestmöglich)
+bool ms_verifyL = ms_verifyL_samebar or ms_verifyL_close
+bool ms_verifyS = ms_verifyS_samebar or ms_verifyS_close
+
 // Wick-based verify (SkippALGO-like)
 bool bearVerifyWickS = ms_pingS[1] and not na(ms_pingLoLevel[1]) and low < ms_pingLoLevel[1]
-
-// Keep old names for compatibility
-bool ms_verifyL = ms_verifyL_close
-bool ms_verifyS = ms_verifyS_close
 
 bool ms_isChoCH_L = false
 bool ms_isChoCH_S = false
@@ -151,6 +171,46 @@ else if ms_mode == "Verify"
 else
     ms_isChoCH_L := (ms_pingL or ms_verifyL)
     ms_isChoCH_S := (ms_pingS or ms_verifyS)
+
+//====================
+// A) Anticipation: Preis nähert sich Swing-Level
+//====================
+float _proxDistHi = not na(ms_lastHi) ? math.abs(close - ms_lastHi) / ms_lastHi * 100 : 999.0
+float _proxDistLo = not na(ms_lastLo) ? math.abs(close - ms_lastLo) / ms_lastLo * 100 : 999.0
+
+// Bullish anticipation: Preis nähert sich lastHi von unten UND Struktur ist bearish (= potentieller CHoCH)
+bool ms_anticipL = ms_useAnticipation and ms_state == -1 and not na(ms_lastHi) and close < ms_lastHi and _proxDistHi <= ms_proxPct and close > close[1]
+// Bearish anticipation: Preis nähert sich lastLo von oben UND Struktur ist bullish
+bool ms_anticipS = ms_useAnticipation and ms_state == 1  and not na(ms_lastLo) and close > ms_lastLo and _proxDistLo <= ms_proxPct and close < close[1]
+
+// Suppress anticipation when CHoCH already fired same bar
+ms_anticipL := ms_anticipL and not ms_isChoCH_L and not ms_bosL
+ms_anticipS := ms_anticipS and not ms_isChoCH_S and not ms_bosS
+
+//====================
+// C) Momentum Pre-CHoCH: RSI-Divergenz + Volume-Spike
+//====================
+_rsi = ta.rsi(close, ms_rsiLen)
+_volSma = ta.sma(volume, 20)
+_volSpike = volume > _volSma * ms_volMulti
+
+// Bullish RSI divergence: Preis macht lower low, RSI macht higher low
+_priceLowerLow = low < ta.lowest(low, ms_rsiDivBars)[1]
+_rsiHigherLow  = _rsi > ta.lowest(_rsi, ms_rsiDivBars)[1]
+bool _bullRsiDiv = _priceLowerLow and _rsiHigherLow
+
+// Bearish RSI divergence: Preis macht higher high, RSI macht lower high
+_priceHigherHigh = high > ta.highest(high, ms_rsiDivBars)[1]
+_rsiLowerHigh    = _rsi < ta.highest(_rsi, ms_rsiDivBars)[1]
+bool _bearRsiDiv = _priceHigherHigh and _rsiLowerHigh
+
+// Pre-CHoCH: Divergenz + Volume-Spike + passende Strukturseite
+bool ms_preCHoCH_L = ms_useMomentum and ms_state == -1 and _bullRsiDiv and _volSpike and not na(ms_lastHi)
+bool ms_preCHoCH_S = ms_useMomentum and ms_state == 1  and _bearRsiDiv and _volSpike and not na(ms_lastLo)
+
+// Suppress when CHoCH or Anticipation already fired
+ms_preCHoCH_L := ms_preCHoCH_L and not ms_isChoCH_L and not ms_bosL and not ms_anticipL
+ms_preCHoCH_S := ms_preCHoCH_S and not ms_isChoCH_S and not ms_bosS and not ms_anticipS
 
 //====================
 // Visuals
@@ -176,17 +236,33 @@ plotshape(showBearChoch and bearChochPingEvt, title="ChoCH S (Ping)", style=shap
 plotshape(showBearChoch and bearChochVerifyEvt, title="Bearish CHoCH (Verify)", style=shape.labeldown,
     location=location.abovebar, size=size.small, text="ChoCH✓↓", textcolor=color.white, color=color.new(color.red, 0))
 
+// ── Anticipation markers ──
+plotshape(ms_showAnticipation and ms_anticipL, "Anticip L", style=shape.diamond, location=location.belowbar, size=size.tiny, color=color.new(color.aqua, 0), text="A↑", textcolor=color.aqua)
+plotshape(ms_showAnticipation and ms_anticipS, "Anticip S", style=shape.diamond, location=location.abovebar, size=size.tiny, color=color.new(color.orange, 0), text="A↓", textcolor=color.orange)
+
+// ── Momentum Pre-CHoCH markers ──
+plotshape(ms_showMomentum and ms_preCHoCH_L, "Pre-CHoCH L", style=shape.triangleup,   location=location.belowbar, size=size.tiny, color=color.new(color.lime, 0), text="M↑", textcolor=color.lime)
+plotshape(ms_showMomentum and ms_preCHoCH_S, "Pre-CHoCH S", style=shape.triangledown, location=location.abovebar, size=size.tiny, color=color.new(color.fuchsia, 0), text="M↓", textcolor=color.fuchsia)
+
+// ── Background highlight for early signals ──
+bgcolor(ms_anticipL ? color.new(color.aqua, 92) : ms_anticipS ? color.new(color.orange, 92) : na, title="Anticipation BG")
+bgcolor(ms_preCHoCH_L ? color.new(color.lime, 92) : ms_preCHoCH_S ? color.new(color.fuchsia, 92) : na, title="Pre-CHoCH BG")
+
 //====================
-// Strategy: trade on CHoCH + BOS events
+// Strategy: trade on CHoCH + BOS + Early signals
 //====================
 inLong  = strategy.position_size > 0
 inShort = strategy.position_size < 0
 
-// Bullish structure = go long, Bearish structure = go short
+// Full signals: CHoCH/BOS = full entry
 bool bullSignal = ms_isChoCH_L or ms_bosL
 bool bearSignal = ms_isChoCH_S or ms_bosS
 
-// Close opposite + enter
+// Early signals: Anticipation or Momentum Pre-CHoCH = early entry
+bool earlyBull = ms_anticipL or ms_preCHoCH_L
+bool earlyBear = ms_anticipS or ms_preCHoCH_S
+
+// Close opposite + enter (full signals)
 if bullSignal
     if inShort
         strategy.close("SHORT", comment="Bullish CHoCH")
@@ -198,3 +274,10 @@ if bearSignal
         strategy.close("LONG", comment="Bearish CHoCH")
     if not inShort
         strategy.entry("SHORT", strategy.short, comment="Bearish CHoCH")
+
+// Early entries (only when not already positioned)
+if earlyBull and not inLong and not bullSignal
+    strategy.entry("LONG", strategy.long, comment=ms_anticipL ? "Anticipation↑" : "Pre-CHoCH↑")
+
+if earlyBear and not inShort and not bearSignal
+    strategy.entry("SHORT", strategy.short, comment=ms_anticipS ? "Anticipation↓" : "Pre-CHoCH↓")

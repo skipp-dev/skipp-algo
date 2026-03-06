@@ -1,5 +1,47 @@
 # CHOCH Indicator & Strategy — Recent Changes
 
+## USI-CHOCH Early-Signal Upgrade (2026-03-05)
+
+Applied the latest CHoCH fast-entry improvements to **`USI-CHOCH.pine`** to get
+earlier BUY/CHoCH context without removing existing USI/VWAP logic.
+
+### Added
+
+- **Same-Bar Verify for bullish CHoCH**
+  - `chochVerifyLong` now combines:
+    - same-bar verification (`chochVerifyLong_samebar`), and
+    - legacy next-bar verification (`chochVerifyLong_next`).
+  - Effect: CHoCH confirmation can fire at the earliest possible bar.
+
+- **Early Signals block (new inputs)**
+  - `Enable Anticipation signals`
+  - `Proximity %`
+  - `Show Anticipation markers`
+  - `Enable Momentum Pre-CHoCH`
+  - `RSI Length`
+  - `RSI Divergence lookback`
+  - `Volume spike multiplier`
+  - `Show Momentum Pre-CHoCH markers`
+
+- **Anticipation logic (`A↑` / `A↓`)**
+  - Emits early markers when price approaches swing levels with matching structure context.
+
+- **Momentum Pre-CHoCH logic (`M↑` / `M↓`)**
+  - Adds RSI-divergence + volume-spike early markers prior to structure break.
+
+- **Visuals + alerts for early signals**
+  - New marker shapes and optional background tint for anticipation and pre-CHoCH events.
+  - New alertconditions:
+    - `Anticipation Bullish`
+    - `Anticipation Bearish`
+    - `Momentum Pre-CHoCH Bullish`
+    - `Momentum Pre-CHoCH Bearish`
+
+### Notes
+
+- Existing USI Flip BUY/SHORT and BEST Bullish CHoCH logic remain intact.
+- Changes were integrated into `USI-CHOCH.pine` only (no behavior drift in other scripts unless explicitly ported).
+
 ## USI Bull-Momentum Filter (current)
 
 **Problem:** EXIT and SHORT signals fired even when USI Red was above USI Blue,

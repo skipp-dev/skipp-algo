@@ -357,6 +357,8 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 - Forecast block with Pred(N)/Pred(1) plus calibrated P(Up)
 - USI (Ultimate Stacking Indicator) trend state and entry gating
 - ChoCH (Change of Character) structure detection
+- Same-bar ChoCH verification (fast confirmation path)
+- Early CHoCH context signals (Anticipation + Momentum Pre-CHoCH)
 - Dynamic TP expansion and SL profiling
 - Regime Classifier 2.0 with hysteresis (optional)
 - VWT (Volume Weighted Trend) filter (optional)
@@ -372,7 +374,8 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 | `SkippALGO_Mid.pine` / `SkippALGO_Mid_Strategy.pine` | Mid-tier variants |
 | `QuickALGO.pine` | Score+Verify optimized logic |
 | `VWAP_Long_Reclaim_*.pine` | VWAP reclaim strategies (BUY/EXIT/SHORT/COVER alerts) |
-| `CHOCH-*.pine` | Change-of-Character variants (indicator has BUY/SHORT/EXIT/COVER alerts) |
+| `CHOCH-*.pine` | Change-of-Character variants (fast mode with Same-Bar Verify + early context markers) |
+| `USI-CHOCH.pine` | USI + CHoCH hybrid with VWAP context, BEST Bullish CHoCH, Anticipation (A↑/A↓), Momentum Pre-CHoCH (M↑/M↓), and dedicated early-signal alerts |
 | `BTC 3m EV Scalper BALANCED (Harmonized).pine` | BTC scalper |
 
 ---

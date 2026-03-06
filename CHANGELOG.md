@@ -6,6 +6,29 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-03-05)
+
+- **USI-CHOCH early-entry upgrade (`USI-CHOCH.pine`):**
+  - Added **Same-Bar Verify** for bullish CHoCH (`same-bar OR next-bar`), enabling earlier CHoCH confirmation.
+  - Added **Early Signal Inputs** for anticipation and momentum pre-signals:
+    - anticipation proximity (%),
+    - momentum RSI/divergence window,
+    - volume spike multiplier,
+    - marker visibility toggles.
+  - Added **Anticipation markers** (`A↑`/`A↓`) when price approaches swing levels under matching structure context.
+  - Added **Momentum Pre-CHoCH markers** (`M↑`/`M↓`) using RSI divergence + volume spike conditions.
+  - Added early-signal alertconditions:
+    - `Anticipation Bullish/Bearish`,
+    - `Momentum Pre-CHoCH Bullish/Bearish`.
+
+### Changed (2026-03-05)
+
+- **CHoCH fast-signal parity across scripts:**
+  - The three “earlier BUY/CHoCH” improvements now exist in both `CHoCH.pine` and `USI-CHOCH.pine`:
+    1. Same-Bar Verify,
+    2. Anticipation,
+    3. Momentum Pre-CHoCH.
+
 ### Changed (2026-03-04)
 
 - **� RT Engine auto-start across all entry points:**
