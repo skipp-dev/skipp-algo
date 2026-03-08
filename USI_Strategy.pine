@@ -1,0 +1,351 @@
+//@version=6
+strategy("USI Flip Strategy", overlay=true, initial_capital=10000,
+     default_qty_type=strategy.fixed, default_qty_value=1, pyramiding=0,
+     commission_type=strategy.commission.percent, commission_value=0.01,
+     max_labels_count=500)
+
+//====================
+// USI Settings (6 lines: L0 slowest → L5 fastest/Red)
+//====================
+grpUsi = "⚡ USI Settings"
+
+usiPreset = input.string("Fast (7/6/4/3/2/1)", "USI Preset",
+    options=["Default (13/11/7/5/4/2)", "Fast (7/6/4/3/2/1)", "Medium (26/22/14/10/8/4)", "Slow (39/33/21/15/12/6)", "Macro (52/44/28/20/16/8)", "Custom"],
+    tooltip="Voreingestellte USI-Linien-Längen (6 Linien) für verschiedene Zeitrahmen.\nDefault = Standard SkippALGO.\nFast = sehr reaktiv, für niedrige TFs.\nMedium/Slow/Macro = skaliert für höhere TFs.\n'Custom' nutzt die manuellen Eingaben unten.",
+    group=grpUsi)
+
+usiLen0_c = input.int(13, "USI Length (L0 — slowest / Blue)", minval=2, maxval=100,
+    tooltip="Längste/langsamste RSI-Linie (Blue). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen1_c = input.int(11, "Length 1 of USI (L1 / Green)",     minval=2, maxval=100,
+    tooltip="Zweitlängste RSI-Linie (Green). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen2_c = input.int(7,  "Length 2 of USI (L2 / Yellow)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Yellow). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen3_c = input.int(5,  "Length 3 of USI (L3 / Orange)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Orange). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen4_c = input.int(4,  "Length 4 of USI (L4)",             minval=1, maxval=100,
+    tooltip="Zweitschnellste RSI-Linie. Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen5_c = input.int(2,  "Length 5 of USI (L5 — fastest / Red)", minval=1, maxval=100,
+    tooltip="Schnellste RSI-Linie (Red). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+
+//====================
+// Signal Filters
+//====================
+grpFilt = "🔒 Signal Filters"
+
+barCloseOnly = input.bool(false, "Bar Close Only",
+    tooltip="Signale nur auf geschlossenen Bars. Verhindert Intra-Bar-Flicker bei Live-Daten.",
+    group=grpFilt)
+useVolFilter = input.bool(true, "Volume Filter",
+    tooltip="Signale nur wenn das aktuelle Barvolumen über dem Durchschnitt liegt.",
+    group=grpFilt)
+minVolRatio = input.float(1.4, "Min Volume Ratio", minval=0.1, step=0.1,
+    tooltip="Mindest-Verhältnis: Aktuelles Barvolumen / SMA(Volumen). 1.0 = Durchschnitt, 1.4 = 40% über Durchschnitt.",
+    group=grpFilt)
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, maxval=100,
+    tooltip="Lookback für den Volumen-Durchschnitt.",
+    group=grpFilt)
+
+//====================
+// Stability Filters
+//====================
+grpStable = "🧭 Stability Filters"
+
+margin = input.float(1.0, "USI Margin", minval=0.0, step=0.1,
+    tooltip="Mindestabstand (RSI-Punkte) der roten USI-Linie zu den anderen Linien beim Flip. Höher = weniger, aber stabilere Flip-Signale. 0 = nur Kreuzung, keine Hysterese.",
+    group=grpStable)
+
+useStrongStack = input.bool(false, "Require strong stack confirmation",
+    tooltip="BUY: volle sequenzielle Ordnung L5 > L4 > L3 > L2 > L1 > L0. SHORT gespiegelt. Sehr strikt — kann Signale stark reduzieren.",
+    group=grpStable)
+
+useSlowTrendFilter = input.bool(false, "Require slow trend confirmation",
+    tooltip="BUY nur wenn die langsamsten Linien konstruktiv sind (L1 > L0 oder L0 steigend). SHORT gespiegelt.",
+    group=grpStable)
+
+//====================
+// Trade Settings
+//====================
+grpTrade = "💰 Trade Settings"
+
+qty              = input.float(1.0, "Order size (qty)", step=0.1, minval=0.0, group=grpTrade)
+allowSameBarExit = input.bool(false, "Allow EXIT on same bar as entry", group=grpTrade)
+
+//====================
+// Exit Extensions
+//====================
+grpExit = "🚪 Exit Extensions"
+
+useEmaFastExit   = input.bool(true, "Exit: EMA Fast",
+    tooltip="Schließt Long wenn Preis unter EMA fällt, Short wenn Preis über EMA steigt.",
+    group=grpExit)
+emaFastLen       = input.int(21, "EMA Fast Len", minval=1, group=grpExit)
+emaExitOnWick    = input.bool(false, "EMA Exit uses wick (low < EMA)",
+    tooltip="Wick-basiert statt Close-basiert für EMA-Exit.",
+    group=grpExit)
+
+useUsiExit       = input.bool(true, "Exit: USI (Red crosses Blue)",
+    tooltip="Schließt Position wenn die schnellste USI-Linie die langsamste kreuzt.",
+    group=grpExit)
+usiExitOnState   = input.bool(false, "USI Exit on state (Red < Blue), not only cross",
+    tooltip="Exit basiert auf State (L5 < L0) statt nur auf dem Kreuzen.",
+    group=grpExit)
+
+useImpulseExit   = input.bool(true, "Exit: Impulse Down",
+    tooltip="Schließt Position bei starken Impulse-Kerzen gegen die Richtung.",
+    group=grpExit)
+impulseExitMult  = input.float(0.30, "Impulse ATR×", step=0.05, minval=0.05, group=grpExit)
+atrLenExit       = input.int(14, "ATR Len (Exit)", minval=1, group=grpExit)
+
+//====================
+// Visibility
+//====================
+grpVis = "👁 Visibility"
+
+showBuy        = input.bool(true, "Show BUY labels", group=grpVis)
+showShort      = input.bool(true, "Show SHORT labels", group=grpVis)
+showExitLabels = input.bool(true, "Show EXIT/COVER labels", group=grpVis)
+showBgState    = input.bool(true, "Background: position state", group=grpVis)
+
+//====================
+// Resolve preset → actual lengths (6 values each)
+// Format: L0/L1/L2/L3/L4/L5  (slowest → fastest)
+//====================
+isDefault = usiPreset == "Default (13/11/7/5/4/2)"
+isFast    = usiPreset == "Fast (7/6/4/3/2/1)"
+isMedium  = usiPreset == "Medium (26/22/14/10/8/4)"
+isSlow    = usiPreset == "Slow (39/33/21/15/12/6)"
+isMacro   = usiPreset == "Macro (52/44/28/20/16/8)"
+
+usiLen0 = isFast ? 7  : isMedium ? 26 : isSlow ? 39 : isMacro ? 52 : isDefault ? 13 : usiLen0_c
+usiLen1 = isFast ? 6  : isMedium ? 22 : isSlow ? 33 : isMacro ? 44 : isDefault ? 11 : usiLen1_c
+usiLen2 = isFast ? 4  : isMedium ? 14 : isSlow ? 21 : isMacro ? 28 : isDefault ? 7  : usiLen2_c
+usiLen3 = isFast ? 3  : isMedium ? 10 : isSlow ? 15 : isMacro ? 20 : isDefault ? 5  : usiLen3_c
+usiLen4 = isFast ? 2  : isMedium ? 8  : isSlow ? 12 : isMacro ? 16 : isDefault ? 4  : usiLen4_c
+usiLen5 = isFast ? 1  : isMedium ? 4  : isSlow ? 6  : isMacro ? 8  : isDefault ? 2  : usiLen5_c
+
+//====================
+// Zero-Lag EMA helper
+//====================
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+//====================
+// USI 6-Line Calculation (Zero-Lag RSI stacking)
+// L0 = slowest (Blue), L5 = fastest (Red)
+//====================
+usiSrc0 = f_zl_src(close, usiLen0)
+usiSrc1 = f_zl_src(close, usiLen1)
+usiSrc2 = f_zl_src(close, usiLen2)
+usiSrc3 = f_zl_src(close, usiLen3)
+usiSrc4 = f_zl_src(close, usiLen4)
+usiSrc5 = f_zl_src(close, usiLen5)
+
+usiLine0 = ta.rsi(usiSrc0, usiLen0)  // slowest (Blue)
+usiLine1 = ta.rsi(usiSrc1, usiLen1)  // Green
+usiLine2 = ta.rsi(usiSrc2, usiLen2)  // Yellow
+usiLine3 = ta.rsi(usiSrc3, usiLen3)  // Orange
+usiLine4 = ta.rsi(usiSrc4, usiLen4)
+usiLine5 = ta.rsi(usiSrc5, usiLen5)  // fastest (Red)
+
+//====================
+// USI Flip Detection (6-line)
+// Bullish: Red was below ALL 5 other lines → now above ALL
+// Bearish: Red was above ALL 5 other lines → now below ALL
+//====================
+bool usiRedAboveAll = usiLine5 > usiLine4 and usiLine5 > usiLine3 and usiLine5 > usiLine2 and usiLine5 > usiLine1 and usiLine5 > usiLine0
+bool usiRedBelowAll = usiLine5 < usiLine4 and usiLine5 < usiLine3 and usiLine5 < usiLine2 and usiLine5 < usiLine1 and usiLine5 < usiLine0
+
+bool usiFlipBull = usiRedBelowAll[1] and usiRedAboveAll
+bool usiFlipBear = usiRedAboveAll[1] and usiRedBelowAll
+
+//====================
+// Hysteresis (margin in RSI points)
+// BUY only if Red is clearly above all
+// SHORT only if Red is clearly below all
+//====================
+bool usiRedClearlyAboveAll = usiLine5 > usiLine4 + margin and usiLine5 > usiLine3 + margin and usiLine5 > usiLine2 + margin and usiLine5 > usiLine1 + margin and usiLine5 > usiLine0 + margin
+
+bool usiRedClearlyBelowAll = usiLine5 < usiLine4 - margin and usiLine5 < usiLine3 - margin and usiLine5 < usiLine2 - margin and usiLine5 < usiLine1 - margin and usiLine5 < usiLine0 - margin
+
+//====================
+// Strong stack confirmation (full sequential order)
+// BUY:  L5 > L4 > L3 > L2 > L1 > L0
+// SHORT: mirrored
+//====================
+bool bullStackStrong = usiLine5 > usiLine4 and usiLine4 > usiLine3 and usiLine3 > usiLine2 and usiLine2 > usiLine1 and usiLine1 > usiLine0
+
+bool bearStackStrong = usiLine5 < usiLine4 and usiLine4 < usiLine3 and usiLine3 < usiLine2 and usiLine2 < usiLine1 and usiLine1 < usiLine0
+
+//====================
+// Slow trend filter
+// BUY only if slowest lines are constructive (L1 > L0 or L0 rising)
+// SHORT mirrored
+//====================
+bool _l0Rising  = ta.rising(usiLine0, 2)
+bool _l0Falling = ta.falling(usiLine0, 2)
+bool slowTrendBull = usiLine1 > usiLine0 or _l0Rising
+bool slowTrendBear = usiLine1 < usiLine0 or _l0Falling
+
+//====================
+// Signal Filters
+//====================
+volSma = ta.sma(volume, volSmaLen)
+volRatio = volSma > 0 ? volume / volSma : 0.0
+volGate = useVolFilter ? volRatio >= minVolRatio : true
+barCloseGate = barCloseOnly ? barstate.isconfirmed : true
+
+//====================
+// Final Signals
+//====================
+bool buySignalCore  = usiFlipBull and usiRedClearlyAboveAll and (not useStrongStack or bullStackStrong) and (not useSlowTrendFilter or slowTrendBull)
+
+bool shortSignalCore = usiFlipBear and usiRedClearlyBelowAll and (not useStrongStack or bearStackStrong) and (not useSlowTrendFilter or slowTrendBear)
+
+bool buySignal   = buySignalCore  and volGate and barCloseGate
+bool shortSignal = shortSignalCore and volGate and barCloseGate
+
+//====================
+// Exit core series
+//====================
+emaFast = ta.ema(close, emaFastLen)
+atrExit = ta.atr(atrLenExit)
+body    = math.abs(close - open)
+
+// USI exit helpers (Red vs Blue = L5 vs L0)
+usiCrossDown = ta.crossunder(usiLine5, usiLine0)
+usiCrossUp   = ta.crossover(usiLine5, usiLine0)
+usiBullState = usiLine5 > usiLine0
+
+//====================
+// Trade logic
+//====================
+var int entryBar = na
+inLong  = strategy.position_size > 0
+inShort = strategy.position_size < 0
+qtyEff  = math.max(qty, 0.0)
+
+// BUY: flat or short → go long
+bool doBuy   = (not inLong)  and buySignal   and qtyEff > 0
+// SHORT: flat or long → go short
+bool doShort = (not inShort) and shortSignal and qtyEff > 0
+
+//====================
+// EXIT reasons (close LONG)
+//====================
+
+// 1) Opposite signal exit (bearish flip)
+bool exitBearFlip = inLong and shortSignal
+
+// 2) EMA Fast exit
+bool emaExitHit = useEmaFastExit and inLong and (emaExitOnWick ? (low < emaFast) : (close < emaFast))
+
+// 3) USI exit (Red crosses under Blue)
+bool usiExitHit = useUsiExit and inLong and (usiExitOnState ? (usiLine5 < usiLine0) : usiCrossDown)
+
+// 4) Impulse down exit
+bool impulseDown = useImpulseExit and inLong and (close < open) and (body > atrExit * impulseExitMult)
+
+bool doExitCore = exitBearFlip or emaExitHit or usiExitHit or impulseDown
+bool doExit = allowSameBarExit ? doExitCore : (doExitCore and (bar_index != entryBar))
+
+//====================
+// COVER reasons (close SHORT)
+//====================
+
+// 1) Opposite signal cover (bullish flip)
+bool coverBullFlip = inShort and buySignal
+
+// 2) EMA Fast cover
+bool emaCoverHit = useEmaFastExit and inShort and (emaExitOnWick ? (high > emaFast) : (close > emaFast))
+
+// 3) USI cover (Red crosses above Blue)
+bool usiCoverHit = useUsiExit and inShort and (usiExitOnState ? (usiLine5 > usiLine0) : usiCrossUp)
+
+// 4) Impulse up cover
+bool impulseUp = useImpulseExit and inShort and (close > open) and (body > atrExit * impulseExitMult)
+
+bool doCoverCore = coverBullFlip or emaCoverHit or usiCoverHit or impulseUp
+bool doCover = allowSameBarExit ? doCoverCore : (doCoverCore and (bar_index != entryBar))
+
+//====================
+// Position state for background
+//====================
+var int posState = 0
+
+if doBuy
+    posState := 1
+else if doShort
+    posState := -1
+else if doExit or doCover
+    posState := 0
+
+//====================
+// Visuals
+//====================
+plotshape(showBuy and doBuy, title="BUY",
+     style=shape.labelup, location=location.belowbar, text="BUY", size=size.tiny,
+     color=color.new(color.lime, 0), textcolor=color.white)
+
+plotshape(showShort and doShort, title="SHORT",
+     style=shape.labeldown, location=location.abovebar, text="SHORT", size=size.tiny,
+     color=color.new(color.red, 0), textcolor=color.white)
+
+plotshape(showExitLabels and doExit, title="EXIT",
+     style=shape.labeldown, location=location.abovebar, text="EXIT", size=size.tiny,
+     color=color.new(color.orange, 0), textcolor=color.white)
+
+plotshape(showExitLabels and doCover, title="COVER",
+     style=shape.labelup, location=location.belowbar, text="COVER", size=size.tiny,
+     color=color.new(color.teal, 0), textcolor=color.white)
+
+// EMA Fast plot
+plot(useEmaFastExit ? emaFast : na, "EMA Fast (Exit)", color=color.new(color.yellow, 0))
+
+// Background by active state
+bgcolor(showBgState and posState ==  1 ? color.new(color.green, 92) : na, title="Long state")
+bgcolor(showBgState and posState == -1 ? color.new(color.red,   92) : na, title="Short state")
+
+//====================
+// Strategy orders (exits first, then entries — allows same-bar flip)
+//====================
+
+// Reset entryBar when flat
+if strategy.position_size == 0 and strategy.position_size[1] != 0
+    entryBar := na
+
+// Phase 1: Exits
+if doExit
+    string why = exitBearFlip ? "Bear Flip" : emaExitHit ? "EMA Fast" : usiExitHit ? "USI Cross" : impulseDown ? "Impulse Down" : "Exit"
+    strategy.close("LONG", comment=why)
+
+if doCover
+    string why = coverBullFlip ? "Bull Flip" : emaCoverHit ? "EMA Fast" : usiCoverHit ? "USI Cross" : impulseUp ? "Impulse Up" : "Cover"
+    strategy.close("SHORT", comment=why)
+
+// Phase 2: Entries
+if doBuy
+    strategy.entry("LONG", strategy.long, qty=qtyEff)
+    entryBar := bar_index
+
+if doShort
+    strategy.entry("SHORT", strategy.short, qty=qtyEff)
+    entryBar := bar_index
+
+//====================
+// Alerts
+//====================
+alertcondition(buySignal,   title="USI Flip BUY",   message="{{ticker}} — USI Flip BUY on {{interval}}")
+alertcondition(shortSignal, title="USI Flip SHORT",  message="{{ticker}} — USI Flip SHORT on {{interval}}")
+alertcondition(doBuy,       title="BUY Signal",      message="{{ticker}} — BUY on {{interval}}")
+alertcondition(doShort,     title="SHORT Signal",    message="{{ticker}} — SHORT on {{interval}}")
+alertcondition(doExit,      title="EXIT Signal",     message="{{ticker}} — EXIT LONG on {{interval}}")
+alertcondition(doCover,     title="COVER Signal",    message="{{ticker}} — COVER SHORT on {{interval}}")
+alertcondition(buySignal or shortSignal, title="USI Flip Any", message="{{ticker}} — USI Flip on {{interval}}")

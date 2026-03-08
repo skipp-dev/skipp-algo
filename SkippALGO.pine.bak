@@ -4855,12 +4855,20 @@ alertCoverCond = coverEvent
 alertPreBuyCond   = barstate.isconfirmed and (preBuyNow ? true : false) and not (preBuyNow[1] ? true : false)
 alertPreShortCond = barstate.isconfirmed and (preShortNow ? true : false) and not (preShortNow[1] ? true : false)
 
+// VWAP-specific alert conditions (selectable in TradingView Alerts dropdown)
+alertVwapBelowCond   = not na(vwapVal) and close < vwapVal
+alertVwapCrossUpCond = not na(vwapVal) and ta.crossover(close, vwapVal)
+alertVwapAboveCond   = not na(vwapVal) and close > vwapVal
+
 alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertExitCond,  title="EXIT",  message="SkippALGO EXIT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertCoverCond, title="COVER", message="SkippALGO COVER | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertPreBuyCond,   title="PRE-BUY",   message="SkippALGO PRE-BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertPreShortCond, title="PRE-SHORT", message="SkippALGO PRE-SHORT | {{ticker}} @ {{close}} | {{time}}")
+alertcondition(alertVwapBelowCond,   title="VWAP: Price Below",      message="SkippALGO VWAP | {{ticker}} below VWAP on {{interval}}")
+alertcondition(alertVwapCrossUpCond, title="VWAP: Cross Up",         message="SkippALGO VWAP | {{ticker}} crossed VWAP up on {{interval}}")
+alertcondition(alertVwapAboveCond,   title="VWAP: Price Above",      message="SkippALGO VWAP | {{ticker}} above VWAP on {{interval}}")
 
 // v6.1.3: TradersPost JSON Payload Generator
 f_tp_json(action) =>

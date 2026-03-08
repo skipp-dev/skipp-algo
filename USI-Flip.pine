@@ -1,0 +1,210 @@
+//@version=6
+indicator("USI-Flip", overlay=true, max_labels_count=500)
+
+//====================
+// USI Settings (6 lines: L0 slowest → L5 fastest/Red)
+//====================
+grpUsi = "⚡ USI Settings"
+
+usiPreset = input.string("Fast (7/6/4/3/2/1)", "USI Preset",
+    options=["Default (13/11/7/5/4/2)", "Fast (7/6/4/3/2/1)", "Medium (26/22/14/10/8/4)", "Slow (39/33/21/15/12/6)", "Macro (52/44/28/20/16/8)", "Custom"],
+    tooltip="Voreingestellte USI-Linien-Längen (6 Linien) für verschiedene Zeitrahmen.\nDefault = Standard SkippALGO.\nFast = sehr reaktiv, für niedrige TFs.\nMedium/Slow/Macro = skaliert für höhere TFs.\n'Custom' nutzt die manuellen Eingaben unten.",
+    group=grpUsi)
+
+usiLen0_c = input.int(13, "USI Length (L0 — slowest / Blue)", minval=2, maxval=100,
+    tooltip="Längste/langsamste RSI-Linie (Blue). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen1_c = input.int(11, "Length 1 of USI (L1 / Green)",     minval=2, maxval=100,
+    tooltip="Zweitlängste RSI-Linie (Green). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen2_c = input.int(7,  "Length 2 of USI (L2 / Yellow)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Yellow). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen3_c = input.int(5,  "Length 3 of USI (L3 / Orange)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Orange). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen4_c = input.int(4,  "Length 4 of USI (L4)",             minval=1, maxval=100,
+    tooltip="Zweitschnellste RSI-Linie. Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen5_c = input.int(2,  "Length 5 of USI (L5 — fastest / Red)", minval=1, maxval=100,
+    tooltip="Schnellste RSI-Linie (Red). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+
+//====================
+// Signal Filters
+//====================
+grpFilt = "🔒 Signal Filters"
+
+barCloseOnly = input.bool(false, "Bar Close Only",
+    tooltip="Signale nur auf geschlossenen Bars. Verhindert Intra-Bar-Flicker bei Live-Daten.",
+    group=grpFilt)
+useVolFilter = input.bool(true, "Volume Filter",
+    tooltip="Signale nur wenn das aktuelle Barvolumen über dem Durchschnitt liegt.",
+    group=grpFilt)
+minVolRatio = input.float(1.4, "Min Volume Ratio", minval=0.1, step=0.1,
+    tooltip="Mindest-Verhältnis: Aktuelles Barvolumen / SMA(Volumen). 1.0 = Durchschnitt, 1.4 = 40% über Durchschnitt.",
+    group=grpFilt)
+volSmaLen = input.int(20, "Volume SMA Length", minval=5, maxval=100,
+    tooltip="Lookback für den Volumen-Durchschnitt.",
+    group=grpFilt)
+
+//====================
+// Stability Filters
+//====================
+grpStable = "🧭 Stability Filters"
+
+margin = input.float(1.0, "USI Margin", minval=0.0, step=0.1,
+    tooltip="Mindestabstand (RSI-Punkte) der roten USI-Linie zu den anderen Linien beim Flip. Höher = weniger, aber stabilere Flip-Signale. 0 = nur Kreuzung, keine Hysterese.",
+    group=grpStable)
+
+useFlipCycle = input.bool(false, "Relaxed Flip (visual cycle)",
+    tooltip="Wenn aktiviert, muss der Flip nicht in einer einzelnen Bar passieren. Red darf innerhalb der letzten N Bars auf der Gegenseite gewesen sein.",
+    group=grpStable)
+flipCycleBars = input.int(3, "Flip Cycle Lookback (bars)", minval=1, maxval=20,
+    tooltip="Maximale Anzahl Bars, die der Flip dauern darf. 1 = strenges Single-Bar-Crossing (wie ohne Cycle).",
+    group=grpStable)
+
+useStrongStack = input.bool(false, "Require strong stack confirmation",
+    tooltip="BUY: volle sequenzielle Ordnung L5 > L4 > L3 > L2 > L1 > L0. SHORT gespiegelt. Sehr strikt — kann Signale stark reduzieren.",
+    group=grpStable)
+
+useSlowTrendFilter = input.bool(false, "Require slow trend confirmation",
+    tooltip="BUY nur wenn die langsamsten Linien konstruktiv sind (L1 > L0 oder L0 steigend). SHORT gespiegelt.",
+    group=grpStable)
+
+//====================
+// Visibility
+//====================
+grpVis = "Visibility"
+
+showBuy   = input.bool(true, "Show BUY labels", group=grpVis)
+showShort = input.bool(true, "Show SHORT labels", group=grpVis)
+
+//====================
+// Resolve preset → actual lengths (6 values each)
+// Format: L0/L1/L2/L3/L4/L5  (slowest → fastest)
+//====================
+isDefault = usiPreset == "Default (13/11/7/5/4/2)"
+isFast    = usiPreset == "Fast (7/6/4/3/2/1)"
+isMedium  = usiPreset == "Medium (26/22/14/10/8/4)"
+isSlow    = usiPreset == "Slow (39/33/21/15/12/6)"
+isMacro   = usiPreset == "Macro (52/44/28/20/16/8)"
+
+usiLen0 = isFast ? 7  : isMedium ? 26 : isSlow ? 39 : isMacro ? 52 : isDefault ? 13 : usiLen0_c
+usiLen1 = isFast ? 6  : isMedium ? 22 : isSlow ? 33 : isMacro ? 44 : isDefault ? 11 : usiLen1_c
+usiLen2 = isFast ? 4  : isMedium ? 14 : isSlow ? 21 : isMacro ? 28 : isDefault ? 7  : usiLen2_c
+usiLen3 = isFast ? 3  : isMedium ? 10 : isSlow ? 15 : isMacro ? 20 : isDefault ? 5  : usiLen3_c
+usiLen4 = isFast ? 2  : isMedium ? 8  : isSlow ? 12 : isMacro ? 16 : isDefault ? 4  : usiLen4_c
+usiLen5 = isFast ? 1  : isMedium ? 4  : isSlow ? 6  : isMacro ? 8  : isDefault ? 2  : usiLen5_c
+
+//====================
+// Zero-Lag EMA helper
+//====================
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+//====================
+// USI 6-Line Calculation (Zero-Lag RSI stacking)
+// L0 = slowest (Blue), L5 = fastest (Red)
+//====================
+usiSrc0 = f_zl_src(close, usiLen0)
+usiSrc1 = f_zl_src(close, usiLen1)
+usiSrc2 = f_zl_src(close, usiLen2)
+usiSrc3 = f_zl_src(close, usiLen3)
+usiSrc4 = f_zl_src(close, usiLen4)
+usiSrc5 = f_zl_src(close, usiLen5)
+
+usiLine0 = ta.rsi(usiSrc0, usiLen0)  // slowest (Blue)
+usiLine1 = ta.rsi(usiSrc1, usiLen1)  // Green
+usiLine2 = ta.rsi(usiSrc2, usiLen2)  // Yellow
+usiLine3 = ta.rsi(usiSrc3, usiLen3)  // Orange
+usiLine4 = ta.rsi(usiSrc4, usiLen4)
+usiLine5 = ta.rsi(usiSrc5, usiLen5)  // fastest (Red)
+
+//====================
+// USI Flip Detection (6-line)
+// Bullish: Red was below ALL 5 other lines → now above ALL
+// Bearish: Red was above ALL 5 other lines → now below ALL
+// With Flip Cycle: the cross can develop over N bars
+//====================
+bool usiRedAboveAll = usiLine5 > usiLine4 and usiLine5 > usiLine3 and usiLine5 > usiLine2 and usiLine5 > usiLine1 and usiLine5 > usiLine0
+bool usiRedBelowAll = usiLine5 < usiLine4 and usiLine5 < usiLine3 and usiLine5 < usiLine2 and usiLine5 < usiLine1 and usiLine5 < usiLine0
+
+// Strict: single-bar flip
+bool flipBullStrict = usiRedBelowAll[1] and usiRedAboveAll
+bool flipBearStrict = usiRedAboveAll[1] and usiRedBelowAll
+
+// Relaxed: Red was on opposite side within last N bars
+int barsSinceBelow = ta.barssince(usiRedBelowAll)
+int barsSinceAbove = ta.barssince(usiRedAboveAll)
+bool flipBullCycle = usiRedAboveAll and not usiRedAboveAll[1] and barsSinceBelow <= flipCycleBars
+bool flipBearCycle = usiRedBelowAll and not usiRedBelowAll[1] and barsSinceAbove <= flipCycleBars
+
+bool usiFlipBull = useFlipCycle ? flipBullCycle : flipBullStrict
+bool usiFlipBear = useFlipCycle ? flipBearCycle : flipBearStrict
+
+//====================
+// Hysteresis (margin in RSI points)
+// BUY only if Red is clearly above all
+// SHORT only if Red is clearly below all
+//====================
+bool usiRedClearlyAboveAll = usiLine5 > usiLine4 + margin and usiLine5 > usiLine3 + margin and usiLine5 > usiLine2 + margin and usiLine5 > usiLine1 + margin and usiLine5 > usiLine0 + margin
+
+bool usiRedClearlyBelowAll = usiLine5 < usiLine4 - margin and usiLine5 < usiLine3 - margin and usiLine5 < usiLine2 - margin and usiLine5 < usiLine1 - margin and usiLine5 < usiLine0 - margin
+
+//====================
+// Strong stack confirmation (full sequential order)
+// BUY:  L5 > L4 > L3 > L2 > L1 > L0
+// SHORT: mirrored
+//====================
+bool bullStackStrong = usiLine5 > usiLine4 and usiLine4 > usiLine3 and usiLine3 > usiLine2 and usiLine2 > usiLine1 and usiLine1 > usiLine0
+
+bool bearStackStrong = usiLine5 < usiLine4 and usiLine4 < usiLine3 and usiLine3 < usiLine2 and usiLine2 < usiLine1 and usiLine1 < usiLine0
+
+//====================
+// Slow trend filter
+// BUY only if slowest lines are constructive (L1 > L0 or L0 rising)
+// SHORT mirrored
+//====================
+bool _l0Rising  = ta.rising(usiLine0, 2)
+bool _l0Falling = ta.falling(usiLine0, 2)
+bool slowTrendBull = usiLine1 > usiLine0 or _l0Rising
+bool slowTrendBear = usiLine1 < usiLine0 or _l0Falling
+
+//====================
+// Signal Filters
+//====================
+volSma = ta.sma(volume, volSmaLen)
+volRatio = volSma > 0 ? volume / volSma : 0.0
+volGate = useVolFilter ? volRatio >= minVolRatio : true
+barCloseGate = barCloseOnly ? barstate.isconfirmed : true
+
+//====================
+// Final Signals
+//====================
+bool buySignalCore  = usiFlipBull and usiRedClearlyAboveAll and (not useStrongStack or bullStackStrong) and (not useSlowTrendFilter or slowTrendBull)
+
+bool shortSignalCore = usiFlipBear and usiRedClearlyBelowAll and (not useStrongStack or bearStackStrong) and (not useSlowTrendFilter or slowTrendBear)
+
+bool buySignal   = buySignalCore  and volGate and barCloseGate
+bool shortSignal = shortSignalCore and volGate and barCloseGate
+
+//====================
+// Visuals
+//====================
+plotshape(showBuy and buySignal, title="BUY",
+     style=shape.labelup, location=location.belowbar, text="BUY", size=size.tiny,
+     color=color.new(color.lime, 0), textcolor=color.white)
+
+plotshape(showShort and shortSignal, title="SHORT",
+     style=shape.labeldown, location=location.abovebar, text="SHORT", size=size.tiny,
+     color=color.new(color.red, 0), textcolor=color.white)
+
+//====================
+// Alerts
+//====================
+alertcondition(buySignal, title="USI Flip BUY", message="{{ticker}} — USI Flip BUY on {{interval}}")
+alertcondition(shortSignal, title="USI Flip SHORT", message="{{ticker}} — USI Flip SHORT on {{interval}}")
+alertcondition(buySignal or shortSignal, title="USI Flip Any", message="{{ticker}} — USI Flip on {{interval}}")

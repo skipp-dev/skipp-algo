@@ -62,7 +62,7 @@ allowSameBarReversal = input.bool(true, "Same-Bar Reversal (Cover→Buy / Exit�
     group="Strategy")
 
 displaybars = input.bool(true, "Barcolors", group="Display")
-showTradeLabels = input.bool(false, "Show Trade Labels", group="Display")
+showTradeLabels = input.bool(true, "Show Trade Labels", group="Display")
 
 // Trend Detection Settings
 trendSlopeBars = input.int(5, "VWAP Slope Lookback", minval=1, maxval=20,
@@ -83,22 +83,22 @@ pullbackLookback = input.int(5, "Pullback Lookback", minval=2, maxval=30,
     tooltip="Rolling-Fenster für Pullback High (Long) / Pullback Low (Short) — Donchian. Kleiner = schneller. Default 5.",
     group="Reclaim Settings")
 
-// USI Trend Filter Settings (aggressive, early-tuned)
-useUsiFilter = input.bool(true, "USI Trend Filter",
-    tooltip="Trades nur wenn der USI (Universal Strength Index) den passenden Trend zeigt. Long = Bull-Stack, Short = Bear-Stack.",
-    group="⚡ USI Trend Filter")
-usiLen1 = input.int(7, "USI Slow RSI Length", minval=2, maxval=30,
-    tooltip="Längster RSI im Stack. Default 7 (aggressiv). SkippALGO nutzt 13.",
-    group="⚡ USI Trend Filter")
-usiLen2 = input.int(5, "USI Mid RSI Length", minval=2, maxval=30,
-    tooltip="Mittlerer RSI im Stack. Default 5.",
-    group="⚡ USI Trend Filter")
-usiLen3 = input.int(3, "USI Fast RSI Length", minval=2, maxval=30,
-    tooltip="Kürzester/schnellster RSI (Red Line). Default 3 (aggressiv).",
-    group="⚡ USI Trend Filter")
+// USI Bull/Bear Stack Filter Settings (aggressive, early-tuned)
+useUsiFilter = input.bool(true, "USI Bull/Bear Stack",
+    tooltip="Signale nur wenn der USI (Universal Strength Index) den passenden Trend zeigt. Long = Bull-Stack, Short = Bear-Stack.",
+    group="⚡ USI Bull/Bear Stack")
+usiLen1 = input.int(5, "USI Slow RSI Length (Blue)", minval=2, maxval=30,
+    tooltip="Längster RSI im Stack (Blue Line). Default 5 — identisch mit SkippALGO Trend Filter.",
+    group="⚡ USI Bull/Bear Stack")
+usiLen2 = input.int(3, "USI Mid RSI Length", minval=2, maxval=30,
+    tooltip="Mittlerer RSI im Stack. Default 3 — identisch mit SkippALGO Trend Filter.",
+    group="⚡ USI Bull/Bear Stack")
+usiLen3 = input.int(2, "USI Fast RSI Length (Red)", minval=1, maxval=30,
+    tooltip="Kürzester/schnellster RSI (Red Line). Default 2 — identisch mit SkippALGO Trend Filter.",
+    group="⚡ USI Bull/Bear Stack")
 usiMinStack = input.int(2, "Min Stack Count", minval=1, maxval=2,
     tooltip="Mindest-Stacking: Wie viele kürzere RSIs müssen gestapelt sein? 1 = aggressiv, 2 = alle gestapelt.",
-    group="⚡ USI Trend Filter")
+    group="⚡ USI Bull/Bear Stack")
 
 // Signal Filter Settings — bar-close confirmation + volume gate
 barCloseOnly = input.bool(false, "Bar Close Only",
@@ -193,9 +193,9 @@ pullbackLow  = ta.lowest(low, pullbackLookback)
 
 // ==================== USI QUANTUM PULSE (EARLY-TUNED) ====================
 
-usiSrc1 = f_zl_src(close, usiLen1)
-usiSrc2 = f_zl_src(close, usiLen2)
-usiSrc3 = f_zl_src(close, usiLen3)
+usiSrc1 = f_zl_src(close, usiLen1)   // slowest (default 5) — "Blue Line"
+usiSrc2 = f_zl_src(close, usiLen2)   // mid     (default 3)
+usiSrc3 = f_zl_src(close, usiLen3)   // fastest (default 2) — "Red Line"
 
 usiLine1 = ta.rsi(usiSrc1, usiLen1)
 usiLine2 = ta.rsi(usiSrc2, usiLen2)
@@ -257,7 +257,7 @@ if inReclaimSeqL
 goLong = inReclaimSeqL and retestSeenL and close > pullbackHigh[1] and bar_index > reclaimBarL
 
 entryTriggerL = simpleVwapCross ? reclaimUp : (breakoutEntry and goLong)
-longSignal = allowLong and entryTriggerL and matchedTrendsFilter_long and usiGateLong and barCloseGate and volGate and not inPositionL
+longSignal = allowLong and entryTriggerL and matchedTrendsFilter_long and usiGateLong and usiBullState and barCloseGate and volGate and not inPositionL
 
 // ==================== RECLAIM → RETEST → GO  (SHORT — mirror) ====================
 
@@ -300,15 +300,15 @@ if inReclaimSeqS
 goShort = inReclaimSeqS and retestSeenS and close < pullbackLow[1] and bar_index > reclaimBarS
 
 entryTriggerS = simpleVwapCross ? reclaimDown : (breakoutEntry and goShort)
-shortSignal = allowShort and entryTriggerS and matchedTrendsFilter_short and usiGateShort and barCloseGate and volGate and not inPositionS
+shortSignal = allowShort and entryTriggerS and matchedTrendsFilter_short and usiGateShort and usiBearState and barCloseGate and volGate and not inPositionS
 
 // Exit conditions (computed before entries for same-bar reversal logic)
 exitLongCond  = inPositionL and close < vwapValue - tol and barCloseGate
 exitShortCond = inPositionS and close > vwapValue + tol and barCloseGate
 
 // Same-bar reversal: when exiting one side, enter the other if conditions are met
-reversalLong  = allowSameBarReversal and exitShortCond and allowLong  and matchedTrendsFilter_long  and usiGateLong  and volGate
-reversalShort = allowSameBarReversal and exitLongCond  and allowShort and matchedTrendsFilter_short and usiGateShort and volGate
+reversalLong  = allowSameBarReversal and exitShortCond and allowLong  and matchedTrendsFilter_long  and usiGateLong  and usiBullState and volGate
+reversalShort = allowSameBarReversal and exitLongCond  and allowShort and matchedTrendsFilter_short and usiGateShort and usiBearState and volGate
 
 longSignal  := longSignal  or reversalLong
 shortSignal := shortSignal or reversalShort

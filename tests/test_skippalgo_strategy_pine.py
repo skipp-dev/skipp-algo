@@ -678,11 +678,12 @@ class TestSkippAlgoStrategyStrictAlerts(unittest.TestCase):
         self.assertIn("if pos == -1 and allowExitShort", self.text)
 
     def test_entriesonly_not_overridden_in_strategy(self):
-        """Strategy must honor user-selected EntriesOnly directly (no preset override indirection)."""
-        self.assertNotIn("cooldownTriggersEff", self.text)
+        """Strategy must preserve EntriesOnly through preset-override indirection (cooldownTriggersEff passthrough)."""
+        # cooldownTriggersEff passes EntriesOnly through unchanged (preset never overrides it)
+        self.assertIn('cooldownTriggersEff', self.text)
         self.assertIn('entryOnlyExitHoldActive =', self.text)
-        self.assertIn('cooldownTriggers == "EntriesOnly"', self.text)
-        self.assertIn('cooldownMode == "Bars"', self.text)
+        self.assertIn('cooldownTriggersEff == "EntriesOnly"', self.text)
+        self.assertIn('cooldownModeEff == "Bars"', self.text)
         self.assertIn('holdCooldownBars >= 1', self.text)
         self.assertIn('holdCooldownMin  >= 1', self.text)
         self.assertIn('var int   enTime  = na', self.text)

@@ -4,7 +4,8 @@ Features:
 - Multi-source news ingestion
 - Enhanced NLP: 16-category event classifier, relevance scoring, entity analysis
 - Full-text search + date filters on Live Feed
-- Economic Calendar (FMP API)
+- Economic Calendar
+- Databento US-equity pricing (Standard subscription)
 - Sector Heatmap (Plotly treemap)
 - Compound Alert Builder with webhook dispatch
 - Live RT quote integration
@@ -14,7 +15,7 @@ Run with::
     streamlit run streamlit_terminal.py
 
 Requires ``BENZINGA_API_KEY`` in ``.env`` or environment.
-Optional: ``FMP_API_KEY`` for economic calendar + multi-source news.
+Optional: ``DATABENTO_API_KEY`` for real-time quote enrichment.
 """
 
 from __future__ import annotations
@@ -149,9 +150,8 @@ def _load_streamlit_secrets() -> None:
     """
     _SECRET_KEYS = (
         "BENZINGA_API_KEY",
-        "FMP_API_KEY",
+        "DATABENTO_API_KEY",
         "OPENAI_API_KEY",
-        "NEWSAPI_AI_KEY",
         "TERMINAL_WEBHOOK_URL",
         "TERMINAL_WEBHOOK_SECRET",
     )
@@ -240,21 +240,6 @@ from terminal_technicals import (
 from terminal_forecast import (
     fetch_forecast,
 )
-from terminal_newsapi import (
-    NLPSentiment,
-    availability_status as newsapi_availability_status,
-    fetch_breaking_events,
-    fetch_concept_articles,
-    fetch_event_articles,
-    fetch_event_clusters,
-    fetch_nlp_sentiment,
-    fetch_social_ranked_articles,
-    fetch_trending_concepts,
-    get_token_usage,
-    has_tokens,
-    sentiment_badge as newsapi_sentiment_badge,
-    is_available as newsapi_available,
-)
 from terminal_finnhub import (
     fetch_social_sentiment_batch,
     is_available as finnhub_available,
@@ -264,8 +249,11 @@ from terminal_tradingview_news import (
     health_status as tv_health_status,
     is_available as tv_available,
 )
-from terminal_fmp_insights import (
-    fetch_fmp_quotes,
+from terminal_databento import (
+    fetch_databento_quotes,
+    fetch_databento_quote_map,
+    is_available as databento_available,
+    get_dataset_info as databento_dataset_info,
 )
 from terminal_bitcoin import (
     fetch_btc_quote,
@@ -285,15 +273,16 @@ from terminal_bitcoin import (
     is_available as btc_available,
 )
 
+from terminal_newsapi import (
+    NLPSentiment,
+    newsapi_available,
+    fetch_event_clusters,
+    fetch_nlp_sentiment,
+    fetch_trending_concepts,
+    fetch_breaking_events,
+)
+
 logger = logging.getLogger(__name__)
-
-# ── Try to import FMP adapter (optional) ────────────────────────
-
-_FmpAdapter = None
-try:
-    from newsstack_fmp.ingest_fmp import FmpAdapter as _FmpAdapter  # type: ignore[assignment]
-except ImportError:
-    pass
 
 # ── Page config ─────────────────────────────────────────────────
 
@@ -504,70 +493,15 @@ def _render_technicals_expander(symbols: list[str], *, key_prefix: str = "tech")
 
 
 def _render_event_clusters_expander(symbols: list[str], *, key_prefix: str = "ec") -> None:
-    """Render an event-clustered news expander for a list of symbols.
-
-    Groups articles by event (story) using NewsAPI.ai, reducing noise
-    compared to showing individual articles per ticker.
-    """
-    if not symbols or not newsapi_available():
-        return
-
-    with st.expander("📰 Event-Clustered News (NewsAPI.ai)", expanded=False):
-        _ec_sym = st.selectbox(
-            "Symbol",
-            symbols[:50],
-            key=f"{key_prefix}_sym",
-        )
-        if not _ec_sym:
-            return
-
-        clusters = fetch_event_clusters(_ec_sym, count=8, hours=48)
-        if not clusters:
-            st.info(f"No event clusters found for {_ec_sym} in the last 48h.")
-            return
-
-        st.caption(f"**{_ec_sym}** — {len(clusters)} stories grouped by event · Source: NewsAPI.ai")
-
-        for _ci, cluster in enumerate(clusters):
-            _c_title = cluster.title or "(Untitled event)"
-            _c_sources = ", ".join(cluster.sources[:3]) if cluster.sources else ""
-
-            with st.expander(
-                f"{cluster.sentiment_icon} **{_c_title[:100]}** — "
-                f"📰 {cluster.article_count} articles · {cluster.event_date}",
-                expanded=(_ci == 0),
-            ):
-                _ec1, _ec2, _ec3 = st.columns(3)
-                with _ec1:
-                    st.metric("Articles", cluster.article_count)
-                with _ec2:
-                    if cluster.sentiment is not None:
-                        st.metric("NLP Sentiment", f"{cluster.sentiment:+.2f}")
-                    else:
-                        st.metric("NLP Sentiment", "n/a")
-                with _ec3:
-                    st.metric("Sources", len(cluster.sources))
-
-                if cluster.summary:
-                    st.markdown(f"**Summary:** {cluster.summary}")
-
-                if _c_sources:
-                    st.caption(f"Sources: {_c_sources}")
-
-                if cluster.top_articles:
-                    st.markdown("**Top articles:**")
-                    for _ta in cluster.top_articles:
-                        if _ta.get("url"):
-                            st.markdown(f"- [{_ta['title'][:80]}]({_ta['url']}) — *{_ta.get('source', '')}*")
-                        else:
-                            st.markdown(f"- {_ta['title'][:80]} — *{_ta.get('source', '')}*")
+    """Event clusters removed — NewsAPI.ai no longer available."""
+    pass
 
 
 def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> None:
     """Render an analyst forecast expander for a list of symbols.
 
     Shows price targets, analyst ratings, EPS estimates, and recent
-    upgrades/downgrades.  Uses FMP (primary) with yfinance fallback.
+    upgrades/downgrades.  Uses yfinance (+ Databento pricing where available).
     """
     if not symbols:
         return
@@ -607,7 +541,7 @@ def _render_forecast_expander(symbols: list[str], *, key_prefix: str = "fc") -> 
             _pt3.metric("Target High", f"${pt.target_high:.2f}", f"{pt.upside_high_pct:+.1f}%")
             _pt4.metric("Target Low", f"${pt.target_low:.2f}", f"{pt.upside_low_pct:+.1f}%")
 
-            # FMP price-target-summary timeline
+            # Price-target-summary timeline
             if pt.last_month_count or pt.last_quarter_count or pt.last_year_count:
                 _pts_rows = []
                 if pt.last_month_count:
@@ -812,7 +746,6 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "last_resync_ts": 0.0,
     "consecutive_empty_polls": 0,
     "adapter": None,
-    "fmp_adapter": None,
     "store": None,
     "auto_refresh": True,
     "last_poll_status": "—",
@@ -883,18 +816,6 @@ def _get_adapter() -> BenzingaRestAdapter | None:
     return st.session_state.adapter  # type: ignore[no-any-return]
 
 
-def _get_fmp_adapter():
-    """Lazy-init the FMP adapter (returns None if missing key or module)."""
-    if _FmpAdapter is None:
-        return None
-    cfg: TerminalConfig = st.session_state.cfg
-    if not cfg.fmp_api_key or not cfg.fmp_enabled:
-        return None
-    if st.session_state.fmp_adapter is None:
-        st.session_state.fmp_adapter = _FmpAdapter(cfg.fmp_api_key)
-    return st.session_state.fmp_adapter
-
-
 def _get_store() -> SqliteStore:
     """Lazy-init the SQLite store."""
     if st.session_state.store is None:
@@ -922,13 +843,11 @@ with st.sidebar:
         st.error("No BENZINGA_API_KEY found in .env")
         st.info("Set `BENZINGA_API_KEY=your_key` in `.env` and restart.")
 
-    _fmp_key = os.environ.get("FMP_API_KEY", "") or cfg.fmp_api_key
-    if _fmp_key:
-        st.success("FMP: ✅ configured")
-        if not cfg.fmp_api_key:
-            cfg.fmp_api_key = _fmp_key
+    # Databento key status
+    if databento_available():
+        st.success("Databento: ✅ configured")
     else:
-        st.caption("FMP: not configured (optional)")
+        st.caption("Databento: not configured (quote enrichment disabled)")
 
     # Re-read env var directly — the cached TerminalConfig may have been
     # created before the user added the key to .env.
@@ -1033,8 +952,8 @@ with st.sidebar:
     sources = []
     if cfg.benzinga_api_key:
         sources.append("News")
-    if cfg.fmp_api_key and cfg.fmp_enabled and _FmpAdapter:
-        sources.append("FMP")
+    if databento_available():
+        sources.append("Databento")
     if tv_available():
         sources.append("📺 TV")
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
@@ -1113,7 +1032,7 @@ with st.sidebar:
             except Exception:
                 logger.debug("store.close() failed during reset", exc_info=True)
         # Close HTTP adapters to release connection pools
-        for _adapter_key in ("adapter", "fmp_adapter"):
+        for _adapter_key in ("adapter",):
             _adp = st.session_state.get(_adapter_key)
             if _adp is not None:
                 try:
@@ -1128,7 +1047,6 @@ with st.sidebar:
                 p.unlink()
         st.session_state.store = None
         st.session_state.adapter = None
-        st.session_state.fmp_adapter = None
         st.session_state.cursor = None
         st.session_state.feed = []
         st.session_state.poll_count = 0
@@ -1327,7 +1245,7 @@ _MATERIALITY_COLORS = MATERIALITY_COLORS
 _RECENCY_COLORS = RECENCY_COLORS
 
 
-# ── Cached FMP wrappers (avoid re-fetching every Streamlit rerun) ──
+# ── Cached data wrappers (avoid re-fetching every Streamlit rerun) ──
 # NOTE: Each wrapper catches exceptions so Streamlit never caches a raised
 # exception for the full TTL — callers always get a safe fallback.
 
@@ -1624,17 +1542,16 @@ def _process_new_items(
 def _should_poll(poll_interval: float) -> bool:
     """Determine if we should poll this cycle."""
     cfg: TerminalConfig = st.session_state.cfg
-    if not cfg.benzinga_api_key and not cfg.fmp_api_key:
+    if not cfg.benzinga_api_key:
         return False
     elapsed: float = time.time() - st.session_state.last_poll_ts
     return elapsed >= poll_interval  # type: ignore[no-any-return]
 
 
 def _do_poll() -> None:
-    """Execute one poll cycle (multi-source)."""
+    """Execute one poll cycle (Benzinga)."""
     adapter = _get_adapter()
-    fmp = _get_fmp_adapter()
-    if adapter is None and fmp is None:
+    if adapter is None:
         return
 
     store = _get_store()
@@ -1645,7 +1562,7 @@ def _do_poll() -> None:
     try:
         items, new_cursor = poll_and_classify_multi(
             benzinga_adapter=adapter,
-            fmp_adapter=fmp,
+            fmp_adapter=None,
             store=store,
             cursor=st.session_state.cursor,
             page_size=cfg.page_size,
@@ -1669,8 +1586,6 @@ def _do_poll() -> None:
     st.session_state.last_poll_error = ""
 
     src_label = "BZ"
-    if fmp is not None:
-        src_label = "BZ+FMP"
     st.session_state.last_poll_status = f"{len(items)} items [{src_label}] (cursor={new_cursor})"
 
     # Track consecutive empty polls — if the API returns items but
@@ -1778,7 +1693,7 @@ if _effective_interval != float(interval):
 _feed_empty_needs_poll = (
     not st.session_state.feed
     and st.session_state.poll_count == 0
-    and (st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key)
+    and st.session_state.cfg.benzinga_api_key
 )
 
 # ── Background poller mode ──────────────────────────────────────
@@ -1794,7 +1709,7 @@ if st.session_state.use_bg_poller:
         _bp = BackgroundPoller(
             cfg=st.session_state.cfg,
             benzinga_adapter=_get_adapter(),
-            fmp_adapter=_get_fmp_adapter(),
+            fmp_adapter=None,
             store=_get_store(),
         )
         _bp.start(cursor=st.session_state.cursor)
@@ -1908,8 +1823,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if not st.session_state.cfg.benzinga_api_key and not st.session_state.cfg.fmp_api_key:
-    st.warning("Set `BENZINGA_API_KEY` and/or `FMP_API_KEY` in `.env` to start polling.")
+if not st.session_state.cfg.benzinga_api_key:
+    st.warning("Set `BENZINGA_API_KEY` in `.env` to start polling.")
     st.stop()
 
 feed = st.session_state.feed
@@ -1969,20 +1884,11 @@ else:
             _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
             return (-_tier, -_ns, -_chg)
         _top3_ranked = sorted(_top3_all.values(), key=_top3_sort)[:3]
-        # FMP enrichment for fallback top-3 cards
-        _t3_fmp_key = os.environ.get("FMP_API_KEY", "")
-        if _t3_fmp_key and _top3_ranked:
+        # Databento enrichment for fallback top-3 cards
+        if databento_available() and _top3_ranked:
             try:
                 _t3_syms = [r["symbol"] for r in _top3_ranked]
-                _t3_fmp_syms = [s.replace("/", "-") for s in _t3_syms]
-                _t3_fmp_map = {s.replace("/", "-"): s for s in _t3_syms}
-                _t3_quotes = fetch_fmp_quotes(_t3_fmp_key, _t3_fmp_syms)
-                _t3_by_sym: dict[str, dict[str, Any]] = {}
-                for _t3q in _t3_quotes:
-                    _t3qs = (_t3q.get("symbol") or "").upper()
-                    _t3_orig = _t3_fmp_map.get(_t3qs)
-                    if _t3_orig:
-                        _t3_by_sym[_t3_orig] = _t3q
+                _t3_by_sym = fetch_databento_quote_map(_t3_syms)
                 for _t3r in _top3_ranked:
                     _t3fq = _t3_by_sym.get(_t3r["symbol"])
                     if not _t3fq:
@@ -1993,15 +1899,10 @@ else:
                         _cp = _t3fq.get("changesPercentage") or _t3fq.get("changePercentage")
                         if _cp is not None and _cp != 0:
                             _t3r["chg_pct"] = _cp
-                        else:
-                            _c = float(_t3fq.get("change") or 0)
-                            _p = float(_t3fq.get("price") or 0)
-                            if _p > 0 and _c != 0:
-                                _t3r["chg_pct"] = round(_c / _p * 100, 4)
                     if not _t3r.get("name") and _t3fq.get("name"):
                         _t3r["name"] = str(_t3fq["name"])[:30]
             except Exception:
-                logger.debug("Top-3 cards FMP enrichment failed", exc_info=True)
+                logger.debug("Top-3 cards Databento enrichment failed", exc_info=True)
 
     _stats = compute_feed_stats(feed)
 
@@ -2174,16 +2075,8 @@ else:
 
         st.caption(f"Showing {len(filtered)} of {len(feed)} items")
 
-        # ── NLP Sentiment enrichment (NewsAPI.ai validation layer) ──
-        _feed_nlp: dict[str, NLPSentiment] = {}
-        if _intel_enabled() and newsapi_available():
-            _feed_tickers = list({
-                d.get("ticker", "").upper()
-                for d in filtered[:50]
-                if d.get("ticker") and d.get("ticker") != "MARKET"
-            })
-            if _feed_tickers:
-                _feed_nlp = fetch_nlp_sentiment(_feed_tickers[:30], hours=24)
+        # ── Databento quote enrichment for feed tickers ──
+        _feed_nlp: dict[str, Any] = {}
 
         # Show filtered items
         # Column headers with info popovers
@@ -2257,13 +2150,10 @@ else:
                     "The provider icon shows the data source."
                 )
         with _hdr_cols[6]:
-            with st.popover("**NLP** ℹ️"):
+            with st.popover("**Price** ℹ️"):
                 st.markdown(
-                    "**NLP sentiment cross-validation** from NewsAPI.ai — An independent sentiment score "
-                    "computed via natural language processing on recent articles.\n\n"
-                    "Compares against the keyword-based sentiment to spot divergences. "
-                    "A large gap between NLP and keyword sentiment may indicate the article's "
-                    "true tone differs from its headline."
+                    "**Databento daily close price** — The most recent closing price "
+                    "from Databento market data."
                 )
         st.divider()
 
@@ -2314,13 +2204,13 @@ else:
                 with cols[5]:
                     st.markdown(f"{prov_icon} {event_label}")
                 with cols[6]:
-                    # NLP sentiment validation (NewsAPI.ai)
-                    _nlp_data = _feed_nlp.get(ticker.upper())
-                    if _nlp_data and _nlp_data.article_count > 0:
-                        st.markdown(f"{_nlp_data.icon} `NLP {_nlp_data.nlp_score:+.2f}`")
-                    elif _feed_nlp:
-                        st.markdown("⚪ `NLP —`")
-                    # else: no NLP data fetched (NewsAPI.ai unavailable)
+                    # Databento price enrichment
+                    _db_data = _feed_nlp.get(ticker.upper())
+                    if _db_data and _db_data.get("price"):
+                        _db_p = _db_data["price"]
+                        st.markdown(f"💲 `${_db_p:.2f}`" if _db_p >= 1 else f"💲 `${_db_p:.4f}`")
+                    else:
+                        st.markdown("")
 
     # ── TAB: Rankings (feed + spike based — no extra API calls) ─
     with tab_rank, _tab_guard("Rankings"):
@@ -2396,38 +2286,18 @@ else:
                     row["url"] = ""
                     row["sentiment"] = ""
 
-            # ── Pre-sort FMP enrichment: fill price/change/volume for
+            # ── Pre-sort Databento enrichment: fill price/change/volume for
             #    feed-only items (which have price=0) BEFORE sorting so the
             #    bullish/bearish sort and composite score use real data.
-            _rank_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
             _rank_fmp: dict[str, dict[str, Any]] = {}
             _rank_all_syms = list(_rank_all.keys())
-            # Build FMP-compatible symbols (BRK/A → BRK-A for FMP API)
-            _fmp_sym_map: dict[str, str] = {}  # FMP symbol → original symbol
-            _fmp_query_syms: list[str] = []
-            for _orig in _rank_all_syms:
-                _fmp_s = _orig.replace("/", "-")
-                _fmp_sym_map[_fmp_s] = _orig
-                _fmp_query_syms.append(_fmp_s)
-            if _rank_fmp_key and _fmp_query_syms:
+            if databento_available() and _rank_all_syms:
                 try:
-                    for _batch_start in range(0, len(_fmp_query_syms), 20):
-                        _batch = _fmp_query_syms[_batch_start:_batch_start + 20]
-                        _raw_rq = fetch_fmp_quotes(_rank_fmp_key, _batch)
-                        for _rq in _raw_rq:
-                            _rq_s = (_rq.get("symbol") or "").upper()
-                            if _rq_s:
-                                # Map back to original symbol (BRK-A → BRK/A)
-                                # Only accept symbols we explicitly queried — ignore
-                                # stray matches (e.g. FMP returns "BRK" penny stock
-                                # when we asked for "BRK-A").
-                                _orig_sym = _fmp_sym_map.get(_rq_s)
-                                if _orig_sym:
-                                    _rank_fmp[_orig_sym] = _rq
+                    _rank_fmp = fetch_databento_quote_map(_rank_all_syms[:200])
                 except Exception:
-                    logger.debug("Rankings FMP quotes (pre-sort) failed", exc_info=True)
+                    logger.debug("Rankings Databento quotes (pre-sort) failed", exc_info=True)
 
-            # Apply FMP data to all items before sorting
+            # Apply Databento data to all items before sorting
             for sym, row in _rank_all.items():
                 _fq = _rank_fmp.get(sym)
                 if not _fq:
@@ -2436,14 +2306,14 @@ else:
                     row["price"] = _fq["price"]
                 if row.get("change") == 0 and _fq.get("change") is not None:
                     row["change"] = _fq["change"]
-                # changesPercentage from FMP; fallback: compute from change/price
+                # changesPercentage from Databento; fallback: compute from change/price
                 if not row.get("chg_pct"):
-                    # FMP batch-quote uses "changePercentage" (no trailing 's')
+                    # Databento batch-quote uses "changePercentage" (no trailing 's')
                     _fq_chg_pct = _fq.get("changesPercentage") or _fq.get("changePercentage")
                     if _fq_chg_pct is not None and _fq_chg_pct != 0:
                         row["chg_pct"] = _fq_chg_pct
                     else:
-                        # Derive from change / price (handles off-hours when FMP returns 0)
+                        # Derive from change / price (handles off-hours when Databento returns 0)
                         _chg_val = float(row.get("change") or _fq.get("change") or 0)
                         _price_val = float(row.get("price") or _fq.get("price") or 0)
                         if _price_val > 0 and _chg_val != 0:
@@ -2523,13 +2393,10 @@ else:
             # Stash ranked list for top-3 cards (rendered earlier in layout)
             st.session_state["_ranked_list"] = _ranked
 
-            # NLP sentiment enrichment for top ranked symbols
-            _rank_nlp: dict[str, NLPSentiment] = {}
-            if _intel_enabled() and newsapi_available():
-                _rank_syms = [m["symbol"] for m in _ranked[:30]]
-                _rank_nlp = fetch_nlp_sentiment(_rank_syms, hours=24)
+            # NLP sentiment enrichment removed (NewsAPI.ai no longer available)
+            _rank_nlp: dict[str, Any] = {}
 
-            # FMP quotes already fetched pre-sort (in _rank_fmp) — reuse them.
+            # Databento quotes already fetched pre-sort (in _rank_fmp) — reuse them.
             _rank_top_syms = [m["symbol"] for m in _ranked[:50]]
 
             # Social sentiment — merge into shared cache with TTL
@@ -2607,74 +2474,8 @@ else:
                 row["_rt_direction"] = _rt_js.get("direction") or _rt_row.get("direction", "")
                 row["_rt_vol_ratio"] = _rt_js.get("volume_ratio") or _rt_row.get("vol_ratio", 0)
 
-            # ── FMP-based technical enrichment for symbols lacking RT data ──
-            # When the RT engine hasn't covered a symbol, batch-fetch RSI
-            # from FMP (fast, 3000 req/min limit) and compute a basic tech
-            # score so the Tech/RSI columns aren't blank.
-            _RANK_TECH_KEY = "_rank_fmp_tech_cache"
-            if _RANK_TECH_KEY not in st.session_state:
-                st.session_state[_RANK_TECH_KEY] = {}
-            _rank_tech_cache: dict[str, tuple[float, dict[str, Any]]] = st.session_state[_RANK_TECH_KEY]
-            _tech_ttl = 300.0  # 5-min cache
-            _fmp_tech_now = time.time()
-
-            # Apply cached FMP tech first; collect symbols still missing
-            _need_fmp_tech: list[str] = []
-            for sym, row in _rank_all.items():
-                if row.get("_rt_tech_signal"):  # already has RT data
-                    continue
-                _tc = _rank_tech_cache.get(sym)
-                if _tc and (_fmp_tech_now - _tc[0]) < _tech_ttl:
-                    row["_rt_tech_score"] = _tc[1].get("tech_score", 0.5)
-                    row["_rt_tech_signal"] = _tc[1].get("tech_signal", "")
-                    row["_rt_rsi"] = _tc[1].get("rsi")
-                    continue
-                _need_fmp_tech.append(sym)
-
-            if _need_fmp_tech and _rank_fmp_key:
-                def _fetch_rsi_for_rank(_sym: str) -> tuple[str, dict[str, Any] | None]:
-                    try:
-                        from terminal_fmp_technicals import _fetch_indicator
-                        _d = _fetch_indicator(_sym, "1day", "rsi", _rank_fmp_key, indicator_period=14)
-                        if _d and _d.get("rsi") is not None:
-                            _rsi = float(_d["rsi"])
-                            # Map RSI → tech score (0-1)
-                            if _rsi < 30:
-                                _sc = 0.8 + (30 - _rsi) / 150
-                            elif _rsi > 70:
-                                _sc = 0.2 - (_rsi - 70) / 150
-                            else:
-                                _sc = 0.3 + (70 - _rsi) / 100
-                            _sc = max(0.0, min(1.0, _sc))
-                            _sig = (
-                                "BUY" if _rsi < 30 else
-                                "SELL" if _rsi > 70 else
-                                "BUY" if _rsi < 40 else
-                                "SELL" if _rsi > 60 else
-                                "NEUTRAL"
-                            )
-                            return _sym, {"rsi": _rsi, "tech_score": round(_sc, 3), "tech_signal": _sig}
-                        return _sym, None
-                    except Exception:
-                        return _sym, None
-
-                try:
-                    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="rank_tech") as _tp:
-                        _futs = {_tp.submit(_fetch_rsi_for_rank, s): s for s in _need_fmp_tech[:40]}
-                        for _f in as_completed(_futs, timeout=20):
-                            try:
-                                _fs, _fr = _f.result()
-                                if _fr:
-                                    _rank_tech_cache[_fs] = (_fmp_tech_now, _fr)
-                                    _rr = _rank_all.get(_fs)
-                                    if _rr:
-                                        _rr["_rt_tech_score"] = _fr["tech_score"]
-                                        _rr["_rt_tech_signal"] = _fr["tech_signal"]
-                                        _rr["_rt_rsi"] = _fr["rsi"]
-                            except Exception:
-                                pass
-                except Exception:
-                    logger.debug("Rankings FMP tech enrichment failed", exc_info=True)
+            # (FMP-based tech enrichment removed — RT engine is the sole
+            #  source for Tech/RSI when available; Databento covers pricing.)
 
             top_n = min(50, len(_ranked))
             _rank_rows = []
@@ -2685,20 +2486,13 @@ else:
                 )
                 _hl_url = m.get("url", "")
                 _hl_text = m.get("headline", "")
-                _nlp_r = _rank_nlp.get(m["symbol"])
                 _nlp_col = ""
-                if _nlp_r and _nlp_r.article_count > 0:
-                    _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
-                else:
-                    # Fallback: use the feed item's news_score (same value
-                    # the top-3 cards display as "NLP") so the ranking
-                    # table is consistent with the header cards.
-                    _ns_fallback = float(m.get("news_score") or 0)
-                    if _ns_fallback > 0:
-                        _ns_icon = "🟢" if _ns_fallback > 0.6 else ("🟡" if _ns_fallback > 0.3 else "⚪")
-                        _nlp_col = f"{_ns_icon} {_ns_fallback:.2f}"
-                    elif _rank_nlp:
-                        _nlp_col = "⚪ —"
+                # Use the feed item's news_score so the ranking
+                # table is consistent with the header cards.
+                _ns_fallback = float(m.get("news_score") or 0)
+                if _ns_fallback > 0:
+                    _ns_icon = "🟢" if _ns_fallback > 0.6 else ("🟡" if _ns_fallback > 0.3 else "⚪")
+                    _nlp_col = f"{_ns_icon} {_ns_fallback:.2f}"
                 _r_price = m.get("price") or 0
                 _r_sym = m.get("symbol", "?")
 
@@ -2772,7 +2566,7 @@ else:
 
             df_rank = df_rank.set_index("#")
 
-            _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_forecasts, _rank_nlp] if x)
+            _n_rank_enriched = sum(1 for x in [_rank_fmp, _rank_forecasts] if x)
             if _rt_signals:
                 _n_rank_enriched += 1
             if _rt_full:
@@ -2791,10 +2585,9 @@ else:
                     "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%)\n"
                     "- **RSI** — RSI-14 (🟢 <30 oversold, 🔴 >70 overbought, 🟡 neutral)\n"
                     "- **MACD** — MACD signal direction (BUY/SELL/NEUTRAL)\n"
-                    "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
+                    "- **Analyst** — Analyst consensus (upside %, rating)\n"
                     "- **Score** — Composite: 50% price + 20% news + 15% technical + 15% signal\n"
                     "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
-                    "- **NLP Sent.** — NLP sentiment from NewsAPI.ai\n"
                     "- **Volume** — Trading volume from market data source\n"
                     "- **Headline** — Latest matching news headline (clickable when URL is available)\n\n"
                     "Empty columns mean no matching data is available yet for that ticker."
@@ -2860,20 +2653,13 @@ else:
                 if (_ai.get("ticker") or "").upper().strip() not in ("", "?", "MARKET", "N/A")
             })
 
-            # FMP quotes (price, change%, P/E, volume) — batch in chunks of 20
-            _act_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
+            # Databento quotes (price, change%) — batch call
             _act_quotes: dict[str, dict[str, Any]] = {}
-            if _act_fmp_key and _act_tickers:
+            if _act_tickers:
                 try:
-                    for _batch_start in range(0, len(_act_tickers), 20):
-                        _batch = _act_tickers[_batch_start:_batch_start + 20]
-                        _raw_q = fetch_fmp_quotes(_act_fmp_key, _batch)
-                        for q in _raw_q:
-                            _sym = (q.get("symbol") or "").upper()
-                            if _sym:
-                                _act_quotes[_sym] = q
+                    _act_quotes = fetch_databento_quote_map(_act_tickers[:200])
                 except Exception:
-                    logger.debug("Actionable FMP quotes failed", exc_info=True)
+                    logger.debug("Actionable Databento quotes failed", exc_info=True)
 
             # Social sentiment — merge into shared cache (not overwrite)
             _act_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
@@ -2919,12 +2705,10 @@ else:
                 except Exception:
                     logger.debug("Actionable forecasts failed", exc_info=True)
 
-            # NLP sentiment
-            _act_nlp: dict[str, NLPSentiment] = {}
-            if _intel_enabled() and newsapi_available() and _act_tickers:
-                _act_nlp = fetch_nlp_sentiment(_act_tickers[:20], hours=24)
+            # NLP sentiment removed (NewsAPI.ai no longer available)
+            _act_nlp: dict[str, Any] = {}
 
-            # FMP RSI batch enrichment for Tech column
+            # Tech enrichment — rely on RT engine / TradingView only
             _ACT_TECH_KEY = "_cached_fmp_technicals"
             if _ACT_TECH_KEY not in st.session_state:
                 st.session_state[_ACT_TECH_KEY] = {}
@@ -2936,39 +2720,9 @@ else:
                 if t not in _act_tech_cache
                 or (_act_tech_now - _act_tech_cache[t].get("_ts", 0)) > _act_tech_ttl
             ]
-            if _need_act_tech and _act_fmp_key:
-                def _fetch_act_rsi(_sym: str) -> tuple[str, dict[str, Any] | None]:
-                    try:
-                        from terminal_fmp_technicals import _fetch_indicator
-                        _d = _fetch_indicator(_sym, "1day", "rsi", _act_fmp_key, indicator_period=14)
-                        if _d and _d.get("rsi") is not None:
-                            _rsi = float(_d["rsi"])
-                            _sig = (
-                                "STRONG_BUY" if _rsi < 25 else
-                                "BUY" if _rsi < 40 else
-                                "STRONG_SELL" if _rsi > 75 else
-                                "SELL" if _rsi > 60 else
-                                "NEUTRAL"
-                            )
-                            return _sym, {"summary": _sig, "rsi": _rsi, "_ts": _act_tech_now}
-                        return _sym, None
-                    except Exception:
-                        return _sym, None
+            # (FMP RSI enrichment removed — RT engine / TradingView is sole source)
 
-                try:
-                    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="act_tech") as _tp:
-                        _futs = {_tp.submit(_fetch_act_rsi, s): s for s in _need_act_tech[:30]}
-                        for _f in as_completed(_futs, timeout=20):
-                            try:
-                                _fs, _fr = _f.result()
-                                if _fr:
-                                    _act_tech_cache[_fs] = _fr
-                            except Exception:
-                                pass
-                except Exception:
-                    logger.debug("Actionable FMP tech enrichment failed", exc_info=True)
-
-            _n_enriched = sum(1 for x in [_act_quotes, _act_social, _act_forecasts, _act_nlp, _act_tech_cache] if x)
+            _n_enriched = sum(1 for x in [_act_quotes, _act_social, _act_forecasts, _act_tech_cache] if x)
             st.caption(
                 f"{len(_act_feed)} actionable items · "
                 f"{_n_enriched} enrichment layers · "
@@ -2987,7 +2741,7 @@ else:
                 _ai_cat = _ai.get("category") or ""
                 _ai_mat = _ai.get("materiality") or ""
 
-                # FMP quote enrichment
+                # Databento quote enrichment
                 _aq = _act_quotes.get(_ai_tk, {})
                 _aq_price = _aq.get("price") or 0
                 _aq_chg = _aq.get("changesPercentage") or _aq.get("change_pct") or 0
@@ -3016,14 +2770,6 @@ else:
                     if _consensus:
                         _analyst_col += f" {_consensus}"
 
-                # NLP sentiment
-                _nlp_r = _act_nlp.get(_ai_tk)
-                _nlp_col = ""
-                if _nlp_r and _nlp_r.article_count > 0:
-                    _nlp_col = f"{_nlp_r.icon} {_nlp_r.nlp_score:+.2f}"
-                elif _act_nlp:
-                    _nlp_col = "⚪ —"
-
                 _act_rows.append({
                     "#": i,
                     "Symbol": _ai_tk,
@@ -3038,7 +2784,6 @@ else:
                     "Tech": _get_tech_summary(_ai_tk),
                     "Social": _social_col,
                     "Analyst": _analyst_col,
-                    "NLP": _nlp_col,
                     "P/E": f"{_aq_pe:.1f}" if _aq_pe and _aq_pe > 0 else "—",
                     "Vol": f"{_aq_vol:,.0f}" if _aq_vol else "—",
                 })
@@ -3057,7 +2802,6 @@ else:
                 "Tech": st.column_config.TextColumn("Tech", width="small"),
                 "Social": st.column_config.TextColumn("Social", width="small"),
                 "Analyst": st.column_config.TextColumn("Analyst", width="small"),
-                "NLP": st.column_config.TextColumn("NLP", width="small"),
                 "P/E": st.column_config.TextColumn("P/E", width="small"),
                 "Vol": st.column_config.TextColumn("Vol", width="small"),
             }
@@ -3070,13 +2814,12 @@ else:
 
             with st.popover("ℹ️ Column guide"):
                 st.markdown(
-                    "- **Price / Chg%** — Real-time quote from FMP (price, daily change %)\n"
+                    "- **Price / Chg%** — Quote from Databento (price, daily change %)\n"
                     "- **Tech** — TradingView technical signal (BUY/SELL/NEUTRAL)\n"
                     "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
-                    "- **Analyst** — FMP analyst consensus (upside %, rating)\n"
-                    "- **NLP** — NLP sentiment cross-validation from NewsAPI.ai\n"
-                    "- **P/E** — Price-to-Earnings ratio from FMP\n"
-                    "- **Vol** — Trading volume from FMP"
+                    "- **Analyst** — Analyst consensus (upside %, rating)\n"
+                    "- **P/E** — Price-to-Earnings ratio\n"
+                    "- **Vol** — Trading volume"
                 )
 
             st.dataframe(
@@ -3097,21 +2840,7 @@ else:
         _seg_sp_ts = st.session_state.get("_cached_sector_perf_ts", 0)
         if time.time() - _seg_sp_ts < _SECTOR_PERF_TTL:
             _seg_sector_perf = st.session_state.get("_cached_sector_perf") or []
-        if not _seg_sector_perf:
-            _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
-            if _seg_fmp_key:
-                try:
-                    _raw_sp = fetch_sector_performance(_seg_fmp_key)
-                    if _raw_sp:
-                        _seg_sector_perf = [
-                            {"sector": s.get("sector", ""), "change_pct": round(s.get("changesPercentage", 0), 3)}
-                            for s in _raw_sp if s.get("sector")
-                        ]
-                        if _seg_sector_perf:
-                            st.session_state["_cached_sector_perf"] = _seg_sector_perf
-                            st.session_state["_cached_sector_perf_ts"] = time.time()
-                except Exception:
-                    logger.debug("Segments sector performance failed", exc_info=True)
+        # (FMP sector performance removed — no Databento equivalent)
 
         if _seg_sector_perf:
             try:
@@ -3228,26 +2957,19 @@ else:
             # ── Detailed drill-down per segment (top 40 symbols each)
             st.subheader("Top Symbols per Segment")
 
-            # Batch-fetch FMP quotes for all segment tickers (one call)
+            # Batch-fetch Databento quotes for all segment tickers
             _seg_all_tickers = list({
                 (d.get("ticker") or "").upper().strip()
                 for r in seg_rows
                 for d in (r.get("_ticker_map") or {}).values()
                 if (d.get("ticker") or "").upper().strip() not in ("", "?", "MARKET", "N/A")
             })
-            _seg_fmp_key = getattr(cfg, "fmp_api_key", "") or os.environ.get("FMP_API_KEY", "")
             _seg_fmp: dict[str, dict[str, Any]] = {}
-            if _seg_fmp_key and _seg_all_tickers:
+            if _seg_all_tickers:
                 try:
-                    for _batch_start in range(0, len(_seg_all_tickers), 20):
-                        _batch = _seg_all_tickers[_batch_start:_batch_start + 20]
-                        _raw_sfq = fetch_fmp_quotes(_seg_fmp_key, _batch)
-                        for _sq in _raw_sfq:
-                            _sq_s = (_sq.get("symbol") or "").upper()
-                            if _sq_s:
-                                _seg_fmp[_sq_s] = _sq
+                    _seg_fmp = fetch_databento_quote_map(_seg_all_tickers[:200])
                 except Exception:
-                    logger.debug("Segments FMP quotes failed", exc_info=True)
+                    logger.debug("Segments Databento quotes failed", exc_info=True)
 
             # Social sentiment — merge into shared cache (not overwrite)
             _seg_social: dict[str, Any] = st.session_state.get("_cached_social_sent") or {}
@@ -3310,7 +3032,7 @@ else:
                             else raw_headline
                         )
 
-                        # FMP quote enrichment
+                        # Databento quote enrichment
                         _sfq = _seg_fmp.get(_tk_sym, {})
                         _sfq_price = _sfq.get("price") or 0
                         _sfq_chg = _sfq.get("changesPercentage") or _sfq.get("change_pct") or 0
@@ -3377,10 +3099,10 @@ else:
         st.header("🔮 Outlook")
 
         bz_key = cfg.benzinga_api_key
-        fmp_key = cfg.fmp_api_key
+        fmp_key = ""  # FMP removed — outlook uses Benzinga + yfinance fallback
 
-        if not bz_key and not fmp_key:
-            st.warning("Configure at least one API key to compute the outlook.")
+        if not bz_key:
+            st.warning("Configure Benzinga API key to compute the outlook.")
         else:
             _today_iso = datetime.now(UTC).strftime("%Y-%m-%d")
 
@@ -3576,83 +3298,7 @@ else:
             mood_emoji = {"risk-on": "🟢", "risk-off": "🔴", "neutral": "🟡"}.get(sector_mood, "⚪")
             st.caption(f"**Sector Mood:** {mood_emoji} {sector_mood.title()}")
 
-            # ── Trending Themes (NewsAPI.ai market awareness) ──
-            if _intel_enabled() and newsapi_available():
-                _outlook_trending = fetch_trending_concepts(count=10, source="news")
-                if _outlook_trending:
-                    st.divider()
-                    st.subheader("🔥 Trending Themes in Global News")
-                    st.caption("Real-time trending entities — emerging themes that may affect tomorrow's session.")
-                    _show_unmatched_themes = st.toggle(
-                        "Show themes without feed matches",
-                        value=False,
-                        key="outlook_show_unmatched_themes",
-                        help="When off, only themes with at least one related article in the current feed are shown.",
-                    )
-                    _rendered_themes = 0
-
-                    for _tc in _outlook_trending[:8]:
-                        # Find related articles in current feed
-                        _tc_label_lower = _tc.label.lower()
-                        _tc_keywords = [w.lower() for w in _tc.label.split() if len(w) > 3]
-                        _tc_articles: list[dict[str, Any]] = []
-                        if feed and (_tc_keywords or len(_tc_label_lower) > 3):
-                            for _fd in feed:
-                                _fd_hl = str(_fd.get("headline") or "").lower()
-                                if not _fd_hl:
-                                    continue
-                                if _tc_label_lower in _fd_hl or (
-                                    _tc_keywords and any(kw in _fd_hl for kw in _tc_keywords)
-                                ):
-                                    _tc_articles.append(_fd)
-                            _tc_articles = dedup_articles(
-                                sorted(_tc_articles, key=lambda d: d.get("news_score", 0), reverse=True)
-                            )[:20]
-
-                        if not _tc_articles and not _show_unmatched_themes:
-                            continue
-
-                        _rendered_themes += 1
-                        _tc_match_label = f" · {len(_tc_articles)} in feed" if _tc_articles else ""
-                        with st.expander(
-                            f"{_tc.type_icon} **{safe_markdown_text(_tc.label)}** "
-                            f"({_tc.article_count} global){_tc_match_label}"
-                        ):
-                            if _tc_articles:
-                                for _ta in _tc_articles:
-                                    _ta_hl = (str(_ta.get("headline") or "(no headline)"))[:100]
-                                    _ta_url = _ta.get("url", "")
-                                    _ta_tk = _ta.get("ticker", "")
-                                    _ta_sc = _ta.get("news_score", 0)
-                                    if _ta_url:
-                                        st.markdown(f"- [{safe_markdown_text(_ta_hl)}]({_ta_url}) · `{_ta_tk}` · {_ta_sc:.3f}")
-                                    else:
-                                        st.markdown(f"- {safe_markdown_text(_ta_hl)} · `{_ta_tk}` · {_ta_sc:.3f}")
-                            else:
-                                st.caption(
-                                    "No related articles in current feed yet. "
-                                    "Theme is trending globally but not represented in your current feed window."
-                                )
-
-                    if _rendered_themes == 0:
-                        st.info(
-                            "No related feed articles found for current trending themes. "
-                            "Enable 'Show themes without feed matches' to inspect all global themes."
-                        )
-
-                    # Sentiment of trending entities
-                    _trend_labels = [c.label for c in _outlook_trending[:5] if c.concept_type in ("org", "person")]
-                    if _trend_labels:
-                        _trend_nlp = fetch_nlp_sentiment(_trend_labels, hours=12)
-                        if any(v.article_count > 0 for v in _trend_nlp.values()):
-                            st.markdown("**Sentiment of top trending entities:**")
-                            for _tl in _trend_labels:
-                                _tn = _trend_nlp.get(_tl)
-                                if _tn and _tn.article_count > 0:
-                                    st.markdown(
-                                        f"- {_tn.icon} **{_tl}**: NLP {_tn.nlp_score:+.2f} "
-                                        f"({_tn.article_count} articles, {_tn.agreement:.0%} agreement)"
-                                    )
+            # (Trending Themes section removed — NewsAPI.ai no longer available)
 
     # ── TAB: AI Insights (multi-layer enriched) ─────────────────
     with tab_ai:
@@ -3669,7 +3315,7 @@ else:
         st.caption("🟢 Market: 24/7 — always open")
 
         if not btc_available():
-            st.warning("No data sources available. Set FMP_API_KEY or install yfinance / tradingview_ta.")
+            st.warning("No data sources available. Install yfinance / tradingview_ta.")
         else:
             # ── Tomorrow Outlook (on top as requested) ──────
             with st.container():
@@ -3906,7 +3552,7 @@ else:
                     st.progress(min(_fg.value / 100, 1.0), text=f"{_fg.label} ({_fg.value:.0f}/100)")
                     st.caption(f"Updated: {_fg.timestamp}")
             else:
-                st.info("Fear & Greed data not available. Set FMP_API_KEY.")
+                st.info("Fear & Greed data not available.")
 
             st.markdown("---")
 
@@ -3952,23 +3598,7 @@ else:
             else:
                 st.info("No Bitcoin news available.")
 
-            # NewsAPI.ai Bitcoin breaking events (if available)
-            if newsapi_available() and has_tokens():
-                with st.expander("🔴 NewsAPI.ai Bitcoin Headlines"):
-                    _btc_breaking = fetch_breaking_events(count=20)
-                    # Filter to Bitcoin-related events
-                    _btc_breaking = [
-                        ev for ev in _btc_breaking
-                        if any(kw in (ev.title or "").lower() or kw in (ev.summary or "").lower()
-                               for kw in ("bitcoin", "btc", "crypto", "cryptocurrency"))
-                    ][:5]
-                    if _btc_breaking:
-                        for _ev in _btc_breaking:
-                            st.markdown(f"- **{_ev.title}** (📰 {_ev.article_count} articles)")
-                            if _ev.summary:
-                                st.caption(f"  {_ev.summary[:200]}")
-                    else:
-                        st.caption("No Bitcoin breaking events found.")
+            # (NewsAPI.ai Bitcoin breaking events removed)
 
             st.markdown("---")
 
@@ -4017,7 +3647,7 @@ else:
                     } for li in _listings]
                     st.dataframe(_listing_data, width='stretch', hide_index=True, height=400)
                 else:
-                    st.info("No listing data available. Set FMP_API_KEY.")
+                    st.info("No listing data available.")
 
     # ── TAB: Alerts ─────────────────────────────────────────
     with tab_alerts, _tab_guard("Alerts"):
@@ -4150,7 +3780,7 @@ else:
 # ── Auto-refresh trigger ───────────────────────────────────────
 
 if st.session_state.auto_refresh and (
-    st.session_state.cfg.benzinga_api_key or st.session_state.cfg.fmp_api_key
+    st.session_state.cfg.benzinga_api_key
 ):
     # Use st.fragment with run_every for non-blocking auto-refresh.
     # We compare the poller's poll_count against a snapshot we take

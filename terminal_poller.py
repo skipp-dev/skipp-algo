@@ -20,6 +20,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo as _ZoneInfo
+
+_ET = _ZoneInfo("America/New_York")
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp._bz_http import _sanitize_exc, log_fetch_warning
@@ -634,15 +637,18 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
     try:
         client = _get_fmp_client()
         data: list = []
-        # Walk back up to 5 days to find the most recent trading day
-        for offset in range(6):
-            query_date = date.today() - timedelta(days=offset)
+        # Walk back using the formal trading-day calendar to find
+        # the most recent session with data (handles long weekends,
+        # holidays like Thanksgiving correctly).
+        query_date = datetime.now(_ET).date()
+        for _ in range(6):
             r = client.get(url, params={"apikey": api_key, "date": query_date.isoformat()})
             r.raise_for_status()
             candidate = r.json()
             if isinstance(candidate, list) and candidate:
                 data = candidate
                 break
+            query_date = _prev_trading_day(query_date)
 
         if not data:
             return []
@@ -1019,6 +1025,7 @@ def fetch_benzinga_news_by_channel(
 from newsstack_fmp._market_cal import (
     is_us_equity_trading_day as _is_trading_day,
     next_trading_day as _next_trading_day,
+    prev_trading_day as _prev_trading_day,
 )
 
 
@@ -1211,7 +1218,7 @@ def compute_today_outlook(
     If today is not a trading day, returns a dict with
     ``outlook_label = "⚪ MARKET CLOSED"`` and no data.
     """
-    today = date.today()
+    today = datetime.now(_ET).date()
     if not _is_trading_day(today):
         return {
             "target_date": today.isoformat(),
@@ -1243,7 +1250,7 @@ def compute_tomorrow_outlook(
     backward-compatible key aliases (``next_trading_day``,
     ``earnings_tomorrow_count``, etc.).
     """
-    today = date.today()
+    today = datetime.now(_ET).date()
     next_td = _next_trading_day(today)
     result = _compute_outlook_for_date(next_td, bz_api_key, fmp_api_key)
 

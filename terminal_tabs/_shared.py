@@ -20,10 +20,9 @@ import streamlit as st
 from terminal_forecast import (
     fetch_forecast,
 )
-from terminal_newsapi import (
-    fetch_event_clusters,
-    is_available as newsapi_available,
-)
+
+from terminal_newsapi import newsapi_available, fetch_event_clusters
+
 from terminal_poller import (
     fetch_benzinga_delayed_quotes,
     fetch_benzinga_market_movers,

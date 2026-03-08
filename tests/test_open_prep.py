@@ -37,6 +37,7 @@ from open_prep.news import build_news_scores, _parse_article_datetime, classify_
 from open_prep.screen import classify_long_gap, compute_gap_warn_flags, rank_candidates
 from open_prep.macro import (
     FMPClient,
+    _parse_retry_after_seconds,
     filter_us_events,
     filter_us_high_impact_events,
     filter_us_mid_impact_events,
@@ -2342,6 +2343,140 @@ class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
         ):
             result = client.get_eod_bulk(date(2026, 2, 25))
             self.assertEqual(result, [])
+
+
+class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
+    """Validation failures after a 200 response must re-open half-open circuits."""
+
+    def _make_client(self) -> FMPClient:
+        client = FMPClient(api_key="test")
+        client._circuit_breaker._state = "HALF_OPEN"
+        client._circuit_breaker._opened_at = time.time() - 120
+        return client
+
+    def _mock_urlopen_with_payload(self, payload: str) -> MagicMock:
+        response = MagicMock()
+        response.read.return_value = payload.encode("utf-8")
+        cm = MagicMock()
+        cm.__enter__.return_value = response
+        cm.__exit__.return_value = False
+        return cm
+
+    def test_half_open_html_payload_reopens_circuit(self):
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload("<!DOCTYPE html><html>Error</html>")
+
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            with self.assertRaises(RuntimeError):
+                client._get("/stable/some-path", {})
+
+        self.assertEqual(client._circuit_breaker.state, "OPEN")
+
+    def test_half_open_error_payload_reopens_circuit(self):
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload('{"status": "error", "message": "boom"}')
+
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            with self.assertRaises(RuntimeError):
+                client._get("/stable/some-path", {})
+
+        self.assertEqual(client._circuit_breaker.state, "OPEN")
+
+    def test_half_open_valid_payload_closes_circuit(self):
+        """A valid JSON payload after a half-open test must re-close the circuit."""
+        client = self._make_client()
+        cm = self._mock_urlopen_with_payload('[{"symbol": "AAPL", "price": 100}]')
+
+        with patch("open_prep.macro.urlopen", return_value=cm):
+            result = client._get("/stable/some-path", {})
+
+        self.assertEqual(client._circuit_breaker.state, "CLOSED")
+        self.assertIsInstance(result, list)
+
+    def test_429_retries_with_retry_after_header(self):
+        """429 responses should honour the Retry-After header for delay."""
+        client = FMPClient(api_key="test", retry_attempts=2)
+        # First call → 429 with Retry-After header; second call → success
+        mock_resp_ok = self._mock_urlopen_with_payload('[{"ok": true}]')
+
+        exc_429 = urllib.error.HTTPError(
+            "https://example.com", 429, "Too Many Requests", {}, None
+        )
+        # Inject a Retry-After header
+        exc_429.headers = {"Retry-After": "0.01"}
+
+        call_count = {"n": 0}
+        _orig_urlopen = None
+
+        def _side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise exc_429
+            return mock_resp_ok
+
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
+            with patch("time.sleep") as mock_sleep:
+                result = client._get("/stable/some-path", {})
+
+        self.assertEqual(call_count["n"], 2)
+        # Should have slept with the Retry-After value (0.01), not the backoff
+        self.assertTrue(mock_sleep.called)
+        actual_delay = mock_sleep.call_args[0][0]
+        self.assertAlmostEqual(actual_delay, 0.01, places=2)
+
+    def test_429_retries_with_retry_after_http_date_header(self):
+        """Retry-After in HTTP-date format must be parsed to delay seconds."""
+        from datetime import datetime, timezone, timedelta
+
+        client = FMPClient(api_key="test", retry_attempts=2)
+        mock_resp_ok = self._mock_urlopen_with_payload('[{"ok": true}]')
+
+        exc_429 = urllib.error.HTTPError(
+            "https://example.com", 429, "Too Many Requests", {}, None
+        )
+        future = datetime.now(timezone.utc) + timedelta(seconds=5)
+        exc_429.headers = {"Retry-After": future.strftime("%a, %d %b %Y %H:%M:%S GMT")}
+
+        call_count = {"n": 0}
+
+        def _side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise exc_429
+            return mock_resp_ok
+
+        with patch("open_prep.macro.urlopen", side_effect=_side_effect):
+            with patch("time.sleep") as mock_sleep:
+                client._get("/stable/some-path", {})
+
+        self.assertEqual(call_count["n"], 2)
+        self.assertTrue(mock_sleep.called)
+        self.assertGreaterEqual(mock_sleep.call_args[0][0], 0.0)
+
+
+class TestMacroHelpers(unittest.TestCase):
+    def test_parse_retry_after_seconds_numeric(self):
+        self.assertEqual(_parse_retry_after_seconds("2.5"), 2.5)
+
+    def test_parse_retry_after_seconds_invalid(self):
+        self.assertIsNone(_parse_retry_after_seconds("not-a-date"))
+
+    def test_get_sector_performance_uses_prev_trading_day_helper(self):
+        client = FMPClient(api_key="test")
+
+        first_day = date(2026, 3, 9)
+        previous_day = date(2026, 3, 6)
+
+        with patch("open_prep.macro._today_et_date", return_value=first_day), \
+             patch("open_prep.macro._prev_us_equity_trading_day", return_value=previous_day) as mock_prev_day, \
+             patch.object(FMPClient, "_get", side_effect=[[], [{"sector": "Tech", "averageChange": 1.0}]]) as mock_get:
+            rows = client.get_sector_performance()
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["sector"], "Tech")
+        self.assertEqual(mock_get.call_args_list[0].args[1]["date"], first_day.isoformat())
+        self.assertEqual(mock_get.call_args_list[1].args[1]["date"], previous_day.isoformat())
+        mock_prev_day.assert_called_once_with(first_day)
 
 
 class TestCapabilityProbeEodBulkDatatype(unittest.TestCase):

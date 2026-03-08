@@ -1,0 +1,464 @@
+// ────────────────────────────────────────────────────────────────
+//  USI Flip + REV-BUY  ·  Merged Indicator  ·  Pine Script v6
+//  Combines:
+//    USI Flip BUY / SHORT  (6-line Zero-Lag RSI stacking)
+//    PRE-BUY   — price approaches EMA Fast (early warning)
+//    BUY       — confirmed pullback-to-EMA bounce in trend
+//    REV-BUY   — early reversal entry after ChoCH structure shift
+// ────────────────────────────────────────────────────────────────
+//@version=6
+indicator("USI Flip + REV-BUY", overlay=true, max_labels_count=500)
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SECTION 1: USI FLIP                                        ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+//====================
+// USI Settings (6 lines: L0 slowest → L5 fastest/Red)
+//====================
+grpUsi = "⚡ USI Settings"
+
+usiPreset = input.string("Fast (7/6/4/3/2/1)", "USI Preset",
+    options=["Default (13/11/7/5/4/2)", "Fast (7/6/4/3/2/1)", "Medium (26/22/14/10/8/4)", "Slow (39/33/21/15/12/6)", "Macro (52/44/28/20/16/8)", "Custom"],
+    tooltip="Voreingestellte USI-Linien-Längen (6 Linien) für verschiedene Zeitrahmen.\nDefault = Standard SkippALGO.\nFast = sehr reaktiv, für niedrige TFs.\nMedium/Slow/Macro = skaliert für höhere TFs.\n'Custom' nutzt die manuellen Eingaben unten.",
+    group=grpUsi)
+
+usiLen0_c = input.int(13, "USI Length (L0 — slowest / Blue)", minval=2, maxval=100,
+    tooltip="Längste/langsamste RSI-Linie (Blue). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen1_c = input.int(11, "Length 1 of USI (L1 / Green)",     minval=2, maxval=100,
+    tooltip="Zweitlängste RSI-Linie (Green). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen2_c = input.int(7,  "Length 2 of USI (L2 / Yellow)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Yellow). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen3_c = input.int(5,  "Length 3 of USI (L3 / Orange)",    minval=2, maxval=100,
+    tooltip="Mittlere RSI-Linie (Orange). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen4_c = input.int(4,  "Length 4 of USI (L4)",             minval=1, maxval=100,
+    tooltip="Zweitschnellste RSI-Linie. Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+usiLen5_c = input.int(2,  "Length 5 of USI (L5 — fastest / Red)", minval=1, maxval=100,
+    tooltip="Schnellste RSI-Linie (Red). Nur aktiv bei 'Custom' Preset.",
+    group=grpUsi)
+
+//====================
+// USI Signal Filters
+//====================
+grpUsiFilt = "🔒 USI Signal Filters"
+
+usiBarCloseOnly = input.bool(false, "USI Bar Close Only",
+    tooltip="USI-Signale nur auf geschlossenen Bars.",
+    group=grpUsiFilt)
+usiUseVolFilter = input.bool(true, "USI Volume Filter",
+    tooltip="USI-Signale nur wenn Barvolumen über Durchschnitt.",
+    group=grpUsiFilt)
+usiMinVolRatio = input.float(1.4, "USI Min Volume Ratio", minval=0.1, step=0.1,
+    tooltip="Mindest-Verhältnis: Barvolumen / SMA(Volumen).",
+    group=grpUsiFilt)
+usiVolSmaLen = input.int(20, "USI Volume SMA Length", minval=5, maxval=100,
+    group=grpUsiFilt)
+
+//====================
+// USI Stability Filters
+//====================
+grpStable = "🧭 USI Stability Filters"
+
+margin = input.float(1.0, "USI Margin", minval=0.0, step=0.1,
+    tooltip="Mindestabstand (RSI-Punkte) der roten USI-Linie zu den anderen Linien beim Flip.",
+    group=grpStable)
+
+useFlipCycle = input.bool(false, "Relaxed Flip (visual cycle)",
+    tooltip="Flip darf sich über N Bars entwickeln statt in einer einzelnen Bar.",
+    group=grpStable)
+flipCycleBars = input.int(3, "Flip Cycle Lookback (bars)", minval=1, maxval=20,
+    group=grpStable)
+
+useStrongStack = input.bool(false, "Require strong stack confirmation",
+    tooltip="BUY: L5 > L4 > L3 > L2 > L1 > L0. SHORT gespiegelt.",
+    group=grpStable)
+
+useSlowTrendFilter = input.bool(false, "Require slow trend confirmation",
+    tooltip="BUY nur wenn L1 > L0 oder L0 steigend. SHORT gespiegelt.",
+    group=grpStable)
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SECTION 2: REV-BUY / PRE-BUY / BUY                        ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+//====================
+// Trend / EMA
+//====================
+grpTrend = "📈 Trend / EMA"
+emaFastLen = input.int(21, "EMA Fast", minval=1, group=grpTrend)
+emaSlowLen = input.int(55, "EMA Slow", minval=1, group=grpTrend)
+
+//====================
+// Market Structure
+//====================
+grpStruct = "🏗 Market Structure"
+swingL          = input.int(2, "Swing Left",       minval=1, maxval=20, group=grpStruct)
+swingR          = input.int(1, "Swing Right",      minval=1, maxval=20, group=grpStruct)
+breakoutSource  = input.string("Wick", "Breakout Source", options=["Close", "Wick"], group=grpStruct)
+structureLogic  = input.string("SMC+Sweep", "Structure Logic", options=["Standard", "SMC+Sweep"], group=grpStruct)
+chochMode       = input.string("Ping+Verify", "ChoCH Mode", options=["Verify", "Ping+Verify"], group=grpStruct,
+     tooltip="Verify = confirm close > swing high next bar.\nPing+Verify = instant Ping OR verified next bar.")
+revRecencyBars  = input.int(5, "REV-BUY: ChoCH recency bars", minval=1, maxval=20, group=grpStruct)
+
+//====================
+// Pullback / Setup
+//====================
+grpPullback = "🎯 Pullback / Setup"
+atrLen          = input.int(14,   "ATR Length",              minval=1,   group=grpPullback)
+preWarnDistATR  = input.float(0.25, "PRE-BUY proximity ATR", minval=0.0, step=0.05, group=grpPullback,
+     tooltip="PRE-BUY fires when price is within this ATR distance below EMA Fast.")
+touchTolATR     = input.float(0.12, "BUY touch tolerance ATR", minval=0.0, step=0.01, group=grpPullback,
+     tooltip="How close the low must come to EMA Fast for a valid touch.")
+
+//====================
+// REV-BUY Filters
+//====================
+grpRevFilt = "🔒 REV-BUY Filters"
+revUseVolFilter      = input.bool(true,  "REV Volume Filter",  group=grpRevFilt)
+revVolLen            = input.int(20,     "REV Volume SMA Length",   minval=2, group=grpRevFilt)
+revVolMult           = input.float(1.2,  "REV Volume Multiplier",  minval=0.1, step=0.05, group=grpRevFilt)
+revUseRsiFilter      = input.bool(true,  "REV RSI Filter",     group=grpRevFilt)
+revRsiLen            = input.int(14,     "RSI Length",          minval=2, group=grpRevFilt)
+revRsiBuyMin         = input.int(52,     "BUY / PRE-BUY min RSI", minval=1, maxval=99, group=grpRevFilt)
+revRsiRevMin         = input.int(48,     "REV-BUY min RSI",    minval=1, maxval=99, group=grpRevFilt)
+useSweepFilterForRev = input.bool(true,  "REV-BUY: require bullish liquidity sweep", group=grpRevFilt)
+revBarCloseOnly      = input.bool(false, "REV signals only on confirmed bar", group=grpRevFilt)
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  SECTION 3: VISIBILITY                                      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+grpVis = "👁 Visibility"
+showUsiBuy     = input.bool(true,  "Show USI BUY",     group=grpVis)
+showUsiShort   = input.bool(true,  "Show USI SHORT",   group=grpVis)
+showPreBuy     = input.bool(true,  "Show PRE-BUY",     group=grpVis)
+showBuy        = input.bool(true,  "Show BUY",         group=grpVis)
+showRevBuy     = input.bool(true,  "Show REV-BUY",     group=grpVis)
+showStructLabels = input.bool(true,"Show CHoCH / BOS labels", group=grpVis)
+showEma        = input.bool(true,  "Show EMA lines",   group=grpVis)
+showDebug      = input.bool(false, "Show debug plots", group=grpVis)
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CALCULATION: USI FLIP                                      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+//====================
+// Resolve preset → actual lengths
+//====================
+isDefault = usiPreset == "Default (13/11/7/5/4/2)"
+isFast    = usiPreset == "Fast (7/6/4/3/2/1)"
+isMedium  = usiPreset == "Medium (26/22/14/10/8/4)"
+isSlow    = usiPreset == "Slow (39/33/21/15/12/6)"
+isMacro   = usiPreset == "Macro (52/44/28/20/16/8)"
+
+usiLen0 = isFast ? 7  : isMedium ? 26 : isSlow ? 39 : isMacro ? 52 : isDefault ? 13 : usiLen0_c
+usiLen1 = isFast ? 6  : isMedium ? 22 : isSlow ? 33 : isMacro ? 44 : isDefault ? 11 : usiLen1_c
+usiLen2 = isFast ? 4  : isMedium ? 14 : isSlow ? 21 : isMacro ? 28 : isDefault ? 7  : usiLen2_c
+usiLen3 = isFast ? 3  : isMedium ? 10 : isSlow ? 15 : isMacro ? 20 : isDefault ? 5  : usiLen3_c
+usiLen4 = isFast ? 2  : isMedium ? 8  : isSlow ? 12 : isMacro ? 16 : isDefault ? 4  : usiLen4_c
+usiLen5 = isFast ? 1  : isMedium ? 4  : isSlow ? 6  : isMacro ? 8  : isDefault ? 2  : usiLen5_c
+
+//====================
+// Zero-Lag EMA helper
+//====================
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+//====================
+// USI 6-Line Calculation
+//====================
+usiSrc0 = f_zl_src(close, usiLen0)
+usiSrc1 = f_zl_src(close, usiLen1)
+usiSrc2 = f_zl_src(close, usiLen2)
+usiSrc3 = f_zl_src(close, usiLen3)
+usiSrc4 = f_zl_src(close, usiLen4)
+usiSrc5 = f_zl_src(close, usiLen5)
+
+usiLine0 = ta.rsi(usiSrc0, usiLen0)
+usiLine1 = ta.rsi(usiSrc1, usiLen1)
+usiLine2 = ta.rsi(usiSrc2, usiLen2)
+usiLine3 = ta.rsi(usiSrc3, usiLen3)
+usiLine4 = ta.rsi(usiSrc4, usiLen4)
+usiLine5 = ta.rsi(usiSrc5, usiLen5)
+
+//====================
+// USI Flip Detection
+//====================
+bool usiRedAboveAll = usiLine5 > usiLine4 and usiLine5 > usiLine3 and usiLine5 > usiLine2 and usiLine5 > usiLine1 and usiLine5 > usiLine0
+bool usiRedBelowAll = usiLine5 < usiLine4 and usiLine5 < usiLine3 and usiLine5 < usiLine2 and usiLine5 < usiLine1 and usiLine5 < usiLine0
+
+bool flipBullStrict = usiRedBelowAll[1] and usiRedAboveAll
+bool flipBearStrict = usiRedAboveAll[1] and usiRedBelowAll
+
+int barsSinceBelow = ta.barssince(usiRedBelowAll)
+int barsSinceAbove = ta.barssince(usiRedAboveAll)
+bool flipBullCycle = usiRedAboveAll and not usiRedAboveAll[1] and barsSinceBelow <= flipCycleBars
+bool flipBearCycle = usiRedBelowAll and not usiRedBelowAll[1] and barsSinceAbove <= flipCycleBars
+
+bool usiFlipBull = useFlipCycle ? flipBullCycle : flipBullStrict
+bool usiFlipBear = useFlipCycle ? flipBearCycle : flipBearStrict
+
+//====================
+// Hysteresis
+//====================
+bool usiRedClearlyAboveAll = usiLine5 > usiLine4 + margin and usiLine5 > usiLine3 + margin and usiLine5 > usiLine2 + margin and usiLine5 > usiLine1 + margin and usiLine5 > usiLine0 + margin
+
+bool usiRedClearlyBelowAll = usiLine5 < usiLine4 - margin and usiLine5 < usiLine3 - margin and usiLine5 < usiLine2 - margin and usiLine5 < usiLine1 - margin and usiLine5 < usiLine0 - margin
+
+//====================
+// Strong stack / Slow trend
+//====================
+bool bullStackStrong = usiLine5 > usiLine4 and usiLine4 > usiLine3 and usiLine3 > usiLine2 and usiLine2 > usiLine1 and usiLine1 > usiLine0
+bool bearStackStrong = usiLine5 < usiLine4 and usiLine4 < usiLine3 and usiLine3 < usiLine2 and usiLine2 < usiLine1 and usiLine1 < usiLine0
+
+bool _l0Rising  = ta.rising(usiLine0, 2)
+bool _l0Falling = ta.falling(usiLine0, 2)
+bool slowTrendBull = usiLine1 > usiLine0 or _l0Rising
+bool slowTrendBear = usiLine1 < usiLine0 or _l0Falling
+
+//====================
+// USI Signal Filters
+//====================
+usiVolSma = ta.sma(volume, usiVolSmaLen)
+usiVolRatio = usiVolSma > 0 ? volume / usiVolSma : 0.0
+usiVolGate = usiUseVolFilter ? usiVolRatio >= usiMinVolRatio : true
+usiBarCloseGate = usiBarCloseOnly ? barstate.isconfirmed : true
+
+//====================
+// USI Final Signals
+//====================
+bool usiBuyCore  = usiFlipBull and usiRedClearlyAboveAll and (not useStrongStack or bullStackStrong) and (not useSlowTrendFilter or slowTrendBull)
+bool usiShortCore = usiFlipBear and usiRedClearlyBelowAll and (not useStrongStack or bearStackStrong) and (not useSlowTrendFilter or slowTrendBear)
+
+bool usiBuySignal   = usiBuyCore  and usiVolGate and usiBarCloseGate
+bool usiShortSignal = usiShortCore and usiVolGate and usiBarCloseGate
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CALCULATION: REV-BUY / PRE-BUY / BUY                      ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+//====================
+// Core series
+//====================
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+atr     = ta.atr(atrLen)
+rsi     = ta.rsi(close, revRsiLen)
+revVolSma = ta.sma(volume, revVolLen)
+
+revVolOk = not revUseVolFilter or (not na(volume) and not na(revVolSma) and volume > revVolSma * revVolMult)
+revBarOk = not revBarCloseOnly or barstate.isconfirmed
+
+trendBull = emaFast > emaSlow and close > emaSlow
+touchTol  = touchTolATR * atr
+
+//====================
+// Swing Detection
+//====================
+var float lastSwingHigh = na
+var float lastSwingLow  = na
+
+ph = ta.pivothigh(high, swingL, swingR)
+pl = ta.pivotlow(low,  swingL, swingR)
+
+if not na(ph)
+    lastSwingHigh := ph
+if not na(pl)
+    lastSwingLow := pl
+
+//====================
+// Breakout Detection
+//====================
+bool breakHigh = false
+bool breakLow  = false
+
+bool _xoWick = not na(lastSwingHigh) and high > lastSwingHigh and high[1] <= lastSwingHigh
+bool _xuWick = not na(lastSwingLow)  and low  < lastSwingLow  and low[1]  >= lastSwingLow
+
+if breakoutSource == "Close"
+    breakHigh := not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+    breakLow  := not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+else
+    breakHigh := _xoWick
+    breakLow  := _xuWick
+
+bool breakoutLong  = breakHigh
+bool breakoutShort = breakLow
+
+//====================
+// SMC+Sweep (Turtle Soup)
+//====================
+bool sweepHigh  = false
+bool reclaimLow = false
+
+if structureLogic == "SMC+Sweep" and not na(lastSwingHigh) and not na(lastSwingLow)
+    if breakoutSource == "Close"
+        sweepHigh  := high > lastSwingHigh and close < lastSwingHigh and close[1] > lastSwingHigh
+        reclaimLow := low  < lastSwingLow  and close > lastSwingLow  and close[1] < lastSwingLow
+    else
+        sweepHigh  := high > lastSwingHigh and close < lastSwingHigh
+        reclaimLow := low  < lastSwingLow  and close > lastSwingLow
+
+bool bullishSweep = not na(lastSwingLow) and low < lastSwingLow and close > lastSwingLow
+
+//====================
+// Structure State Machine (BOS / ChoCH)
+//====================
+var int structState = 0
+
+bool chochPingLong  = false
+bool chochPingShort = false
+bool bosLong        = false
+bool bosShort       = false
+
+if breakoutLong
+    chochPingLong := (structState == -1)
+    bosLong       := not chochPingLong
+    structState   := 1
+
+if breakoutShort
+    chochPingShort := (structState == 1)
+    bosShort       := not chochPingShort
+    structState    := -1
+
+if structureLogic == "SMC+Sweep"
+    if reclaimLow
+        chochPingLong := true
+    if sweepHigh
+        chochPingShort := true
+
+//====================
+// ChoCH Verification
+//====================
+bool chochVerifyLong = chochPingLong[1] and not na(lastSwingHigh) and close > lastSwingHigh
+
+bool isChoCH_Long =
+     chochMode == "Verify" ? chochVerifyLong :
+     (chochPingLong or chochVerifyLong)
+
+int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
+bool revRecencyOk    = not na(barsSinceChoCH_L) and barsSinceChoCH_L <= revRecencyBars
+
+//====================
+// PRE-BUY
+//====================
+float preDist    = preWarnDistATR * atr
+bool  nearEmaFast = not na(emaFast) and close < emaFast and (emaFast - close) <= preDist
+
+bool preBuyCore =
+     trendBull and
+     nearEmaFast and
+     not (close > emaFast and close[1] <= emaFast)
+
+bool preBuy =
+     preBuyCore and
+     revVolOk and
+     (not revUseRsiFilter or rsi >= revRsiBuyMin) and
+     revBarOk
+
+//====================
+// BUY (EMA pullback bounce)
+//====================
+bool touchEmaFastLong    = low <= (emaFast + touchTol) and close >= emaFast
+bool crossCloseEmaFastUp = close > emaFast and close[1] <= emaFast
+bool bullReversalBar     = close > open and close > emaFast and low <= (emaFast + touchTol)
+
+bool buyCore =
+     trendBull and
+     touchEmaFastLong and
+     (crossCloseEmaFastUp or bullReversalBar)
+
+bool buySignal =
+     buyCore and
+     revVolOk and
+     (not revUseRsiFilter or rsi >= revRsiBuyMin) and
+     revBarOk
+
+//====================
+// REV-BUY
+//====================
+bool revBuyCore =
+     isChoCH_Long and
+     revRecencyOk and
+     (not useSweepFilterForRev or bullishSweep)
+
+bool revBuySignal =
+     revBuyCore and
+     revVolOk and
+     (not revUseRsiFilter or rsi >= revRsiRevMin) and
+     revBarOk
+
+// Priority: avoid duplicate labels on same bar
+bool finalRevBuy  = revBuySignal
+bool finalBuy     = buySignal    and not revBuySignal
+bool finalPreBuy  = preBuy       and not buySignal and not revBuySignal
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  VISUALS                                                    ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// EMA lines
+plot(showEma ? emaFast : na, "EMA Fast", color=color.new(color.yellow, 0), linewidth=1)
+plot(showEma ? emaSlow : na, "EMA Slow", color=color.new(color.purple, 0), linewidth=1)
+
+// USI Flip labels
+plotshape(showUsiBuy and usiBuySignal, title="USI BUY",
+     style=shape.labelup, location=location.belowbar, text="USI BUY", size=size.tiny,
+     color=color.new(color.lime, 0), textcolor=color.white)
+
+plotshape(showUsiShort and usiShortSignal, title="USI SHORT",
+     style=shape.labeldown, location=location.abovebar, text="USI SHORT", size=size.tiny,
+     color=color.new(color.red, 0), textcolor=color.white)
+
+// Structure labels
+plotshape(showStructLabels and isChoCH_Long, title="CHoCH Long",
+     style=shape.labelup, location=location.belowbar, text="CHoCH",
+     size=size.tiny, color=color.new(color.purple, 0), textcolor=color.white)
+
+plotshape(showStructLabels and bosLong, title="BOS Long",
+     style=shape.labelup, location=location.belowbar, text="BOS",
+     size=size.tiny, color=color.new(color.green, 50), textcolor=color.white)
+
+// REV-BUY signal labels
+plotshape(showPreBuy and finalPreBuy, title="PRE-BUY",
+     style=shape.labelup, location=location.belowbar, text="PRE-BUY",
+     size=size.tiny, color=color.new(color.yellow, 0), textcolor=color.black)
+
+plotshape(showBuy and finalBuy, title="BUY",
+     style=shape.labelup, location=location.belowbar, text="BUY",
+     size=size.small, color=color.new(color.green, 0), textcolor=color.white)
+
+plotshape(showRevBuy and finalRevBuy, title="REV-BUY",
+     style=shape.labelup, location=location.belowbar, text="REV-BUY",
+     size=size.small, color=color.new(color.aqua, 0), textcolor=color.black)
+
+// Background coloring
+bgcolor(finalPreBuy ? color.new(color.yellow, 85) : na, title="PRE-BUY Background")
+bgcolor(finalBuy    ? color.new(color.green,  85) : na, title="BUY Background")
+bgcolor(finalRevBuy ? color.new(color.aqua,   85) : na, title="REV-BUY Background")
+
+// Debug
+plot(showDebug ? lastSwingHigh : na, "Last Swing High", color=color.new(color.fuchsia, 0), style=plot.style_stepline_diamond)
+plot(showDebug ? lastSwingLow  : na, "Last Swing Low",  color=color.new(color.aqua,    0), style=plot.style_stepline_diamond)
+plotchar(showDebug and breakoutLong,    title="Breakout Long",     char="↑", location=location.top,    color=color.new(color.green,  0), size=size.tiny)
+plotchar(showDebug and chochPingLong,   title="ChoCH Ping Long",   char="P", location=location.bottom, color=color.new(color.orange, 0), size=size.tiny)
+plotchar(showDebug and chochVerifyLong, title="ChoCH Verify Long", char="V", location=location.bottom, color=color.new(color.lime,   0), size=size.tiny)
+plotchar(showDebug and bullishSweep,    title="Bullish Sweep",     char="S", location=location.bottom, color=color.new(color.teal,   0), size=size.tiny)
+
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ALERTS                                                     ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+alertcondition(usiBuySignal,   title="USI Flip BUY",   message="{{ticker}} — USI Flip BUY on {{interval}}")
+alertcondition(usiShortSignal, title="USI Flip SHORT",  message="{{ticker}} — USI Flip SHORT on {{interval}}")
+alertcondition(finalPreBuy,    title="PRE-BUY",         message="{{ticker}} — PRE-BUY on {{interval}}")
+alertcondition(finalBuy,       title="BUY",             message="{{ticker}} — BUY on {{interval}}")
+alertcondition(finalRevBuy,    title="REV-BUY",         message="{{ticker}} — REV-BUY on {{interval}}")
+alertcondition(usiBuySignal or finalBuy or finalRevBuy, title="Any BUY", message="{{ticker}} — BUY signal on {{interval}}")

@@ -1,0 +1,2366 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import math
+import os
+import re
+import sys
+import warnings
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
+from io import BytesIO
+from pathlib import Path
+from typing import Any, Callable
+from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
+
+import certifi
+
+import numpy as np
+import pandas as pd
+from openpyxl.formatting.rule import ColorScaleRule
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
+from pandas.api.types import is_datetime64_any_dtype
+
+from open_prep.macro import FMPClient
+
+logger = logging.getLogger(__name__)
+
+US_EASTERN_TZ = ZoneInfo("America/New_York")
+DEFAULT_DISPLAY_TZ = "Europe/Berlin"
+CACHE_VERSION = "v1"
+CACHE_VERSION_BY_CATEGORY = {
+    "daily_bars": "v2",
+    "symbol_support": "v2",
+}
+CACHE_ROOT = Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache"
+FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
+    "earnings_date",
+    "earnings_time",
+    "earnings_surprise_pct",
+    "news_score",
+    "news_category",
+    "analyst_rating",
+    "analyst_target_price",
+    "filing_date",
+    "filing_type",
+    "mna_flag",
+    "mna_side",
+    "float_shares",
+    "shares_outstanding",
+    "short_interest",
+    "short_interest_ratio",
+    "short_float_pct",
+)
+SUPPORTED_DISPLAY_TZ = {
+    "Europe/Berlin": ZoneInfo("Europe/Berlin"),
+    "UTC+1": timezone(timedelta(hours=1)),
+}
+PREFERRED_DATABENTO_DATASETS = (
+    "XNAS.ITCH",
+    "XNYS.PILLAR",
+    "DBEQ.BASIC",
+    "XNAS.BASIC",
+)
+# ET-relative defaults for the intraday screening window
+_DEFAULT_INTRADAY_PRE_OPEN_MINUTES = 10
+_DEFAULT_INTRADAY_POST_OPEN_MINUTES = 30
+# ET-relative defaults for the open window detail
+_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES = 1
+_DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS = 5 * 60 + 59  # 5:59 after open
+
+MAX_SYMBOLS_PER_REQUEST = 2000
+SYMBOL_SUPPORT_CHECK_BATCH_SIZE = 250
+SYMBOL_SUPPORT_LOOKBACK_DAYS = 14
+SYMBOL_SUPPORT_CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+DATABENTO_SYMBOL_ALIASES = {
+    "BRK-A": "BRK.A",
+    "BRK-B": "BRK.B",
+    "BF-B": "BF.B",
+    "MKC-V": "MKC.V",
+    "MOG-A": "MOG.A",
+}
+DATABENTO_UNSUPPORTED_SYMBOLS = {
+    "CTA-PA",
+}
+UNIVERSE_COLUMNS = ["symbol", "company_name", "exchange", "sector", "industry", "market_cap"]
+NASDAQ_TRADER_DIRECTORY_SPECS = (
+    (
+        "https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt",
+        "Symbol",
+        "Security Name",
+        "Listing Exchange",
+    ),
+    (
+        "https://www.nasdaqtrader.com/dynamic/SymDir/otherlisted.txt",
+        "ACT Symbol",
+        "Security Name",
+        "Exchange",
+    ),
+)
+NASDAQ_TRADER_EXCHANGE_CODE_MAP = {
+    "NASDAQ": "Q",
+    "NYSE": "N",
+    "AMEX": "A",
+    "NYSEARCA": "P",
+    "NYSE ARCA": "P",
+    "BATS": "Z",
+    "CBOE": "Z",
+}
+NASDAQ_TRADER_EXCHANGE_NAME_MAP = {
+    "Q": "NASDAQ",
+    "N": "NYSE",
+    "A": "AMEX",
+    "P": "NYSE ARCA",
+    "Z": "BATS",
+}
+
+
+@dataclass(frozen=True)
+class WindowDefinition:
+    trade_date: date
+    display_timezone: str
+    window_start_local: datetime
+    window_end_local: datetime
+    fetch_start_utc: datetime
+    fetch_end_utc: datetime
+    regular_open_utc: datetime
+    premarket_anchor_utc: datetime
+
+
+@dataclass
+class SymbolDayState:
+    symbol: str
+    trade_date: date
+    first_window_open: float | None = None
+    last_window_close: float | None = None
+    window_high: float | None = None
+    window_low: float | None = None
+    window_volume: float = 0.0
+    second_count: int = 0
+    premarket_price: float | None = None
+    market_open_price: float | None = None
+    realized_var: float = 0.0
+    _last_window_close_for_rv: float | None = None
+
+
+@dataclass(frozen=True)
+class DataStatusResult:
+    export_generated_at: str | None
+    daily_bars_fetched_at: str | None
+    intraday_fetched_at: str | None
+    premarket_fetched_at: str | None
+    second_detail_fetched_at: str | None
+    dataset: str | None
+    lookback_days: int | None
+    trade_dates_covered: tuple[str, ...]
+    is_stale: bool
+    staleness_reason: str
+    manifest_path: str | None
+
+
+EXACT_EXPORT_STATUS_FILES = {
+    "daily_bars_fetched_at": "daily_symbol_features_full_universe.parquet",
+    "premarket_fetched_at": "premarket_features_full_universe.parquet",
+    "second_detail_fetched_at": "full_universe_second_detail_open.parquet",
+}
+
+
+def get_cache_root(cache_dir: str | Path | None = None) -> Path:
+    root = Path(cache_dir) if cache_dir is not None else CACHE_ROOT
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def build_cache_path(
+    cache_dir: str | Path | None,
+    category: str,
+    *,
+    dataset: str,
+    parts: list[str],
+    suffix: str = ".parquet",
+) -> Path:
+    safe_dataset = dataset.replace(".", "_").replace("/", "_")
+    normalized = [str(part).replace(":", "-").replace("/", "_").replace(" ", "_") for part in parts]
+    cache_version = CACHE_VERSION_BY_CATEGORY.get(category, CACHE_VERSION)
+    digest = hashlib.sha1("|".join([cache_version, category, dataset, *normalized]).encode("utf-8")).hexdigest()[:12]
+    directory = get_cache_root(cache_dir) / category / safe_dataset
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = "__".join(normalized + [digest]) + suffix
+    return directory / filename
+
+
+def _read_cached_frame(path: Path) -> pd.DataFrame | None:
+    if not path.exists():
+        return None
+    try:
+        return pd.read_parquet(path)
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        return None
+
+
+def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.tmp")
+    frame.to_parquet(temp_path, index=False)
+    os.replace(temp_path, path)
+
+
+def normalize_symbol_for_databento(symbol: str) -> str:
+    normalized = str(symbol).strip().upper()
+    if normalized in DATABENTO_UNSUPPORTED_SYMBOLS:
+        return ""
+    return DATABENTO_SYMBOL_ALIASES.get(normalized, normalized)
+
+
+def _normalize_symbols(symbols: set[str] | list[str] | tuple[str, ...]) -> list[str]:
+    normalized = {
+        normalized_symbol
+        for symbol in symbols
+        if (normalized_symbol := normalize_symbol_for_databento(str(symbol)))
+    }
+    return sorted(normalized)
+
+
+def _symbol_scope_token(symbols: set[str] | list[str] | tuple[str, ...]) -> str:
+    normalized = _normalize_symbols(symbols)
+    digest = hashlib.sha1("|".join(normalized).encode("utf-8")).hexdigest()[:12] if normalized else "empty"
+    return f"{len(normalized)}_{digest}"
+
+
+def _iter_symbol_batches(
+    symbols: set[str] | list[str] | tuple[str, ...],
+    *,
+    batch_size: int = MAX_SYMBOLS_PER_REQUEST,
+) -> list[list[str]]:
+    normalized = _normalize_symbols(symbols)
+    return [normalized[index:index + batch_size] for index in range(0, len(normalized), batch_size)]
+
+
+def _empty_intraday_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "trade_date", "symbol", "previous_close", "premarket_price", "market_open_price", "window_start_price",
+            "current_price", "window_high", "window_low", "window_volume", "seconds_in_window", "window_return_pct",
+            "window_range_pct", "realized_vol_pct", "has_premarket_data", "prev_close_to_premarket_abs", "prev_close_to_premarket_pct",
+            "premarket_to_open_abs", "premarket_to_open_pct", "open_to_current_abs", "open_to_current_pct",
+        ]
+    )
+
+
+def _add_transition_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+
+    enriched = frame.copy()
+    previous_close = pd.to_numeric(enriched.get("previous_close"), errors="coerce")
+    premarket_price = pd.to_numeric(enriched.get("premarket_price"), errors="coerce")
+    market_open_price = pd.to_numeric(enriched.get("market_open_price"), errors="coerce")
+    current_price = pd.to_numeric(enriched.get("current_price"), errors="coerce")
+
+    enriched["prev_close_to_premarket_abs"] = premarket_price - previous_close
+    enriched["prev_close_to_premarket_pct"] = np.where(
+        (previous_close > 0) & (premarket_price > 0),
+        ((premarket_price / previous_close) - 1.0) * 100.0,
+        np.nan,
+    )
+
+    enriched["premarket_to_open_abs"] = market_open_price - premarket_price
+    enriched["premarket_to_open_pct"] = np.where(
+        (premarket_price > 0) & (market_open_price > 0),
+        ((market_open_price / premarket_price) - 1.0) * 100.0,
+        np.nan,
+    )
+
+    enriched["open_to_current_abs"] = current_price - market_open_price
+    enriched["open_to_current_pct"] = np.where(
+        (market_open_price > 0) & (current_price > 0),
+        ((current_price / market_open_price) - 1.0) * 100.0,
+        np.nan,
+    )
+
+    return enriched
+
+
+def _symbol_support_cache_path(cache_dir: str | Path | None, dataset: str) -> Path:
+    return build_cache_path(cache_dir, "symbol_support", dataset=dataset, parts=["support"])
+
+
+def _read_symbol_support_cache(path: Path) -> dict[str, bool]:
+    if not path.exists():
+        return {}
+    age_seconds = (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)).total_seconds()
+    if age_seconds > SYMBOL_SUPPORT_CACHE_TTL_SECONDS:
+        logger.info("Symbol support cache expired (%.0f hours old), refreshing.", age_seconds / 3600)
+        return {}
+    cached = _read_cached_frame(path)
+    if cached is None or cached.empty or "symbol" not in cached.columns or "is_supported" not in cached.columns:
+        return {}
+    frame = cached.copy()
+    frame["symbol"] = frame["symbol"].astype(str).str.upper()
+    frame["is_supported"] = frame["is_supported"].astype(bool)
+    return dict(zip(frame["symbol"], frame["is_supported"], strict=False))
+
+
+def _write_symbol_support_cache(path: Path, support_map: dict[str, bool]) -> None:
+    if not support_map:
+        return
+    frame = pd.DataFrame(
+        {
+            "symbol": sorted(support_map),
+            "is_supported": [bool(support_map[symbol]) for symbol in sorted(support_map)],
+        }
+    )
+    _write_cached_frame(path, frame)
+
+
+def _symbols_requiring_support_check(symbols: set[str] | list[str] | tuple[str, ...]) -> list[str]:
+    return _normalize_symbols(symbols)
+
+
+def _extract_unresolved_symbols_from_warning_messages(messages: list[str]) -> set[str]:
+    unresolved: set[str] = set()
+    for message in messages:
+        match = re.search(r"did not resolve:\s*(.+)$", str(message), flags=re.IGNORECASE)
+        if not match:
+            continue
+        for raw_symbol in match.group(1).split(","):
+            cleaned = raw_symbol.replace("...", "").strip().upper()
+            normalized = normalize_symbol_for_databento(cleaned)
+            if normalized:
+                unresolved.add(normalized)
+    return unresolved
+
+
+def _probe_symbol_support(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    symbols: list[str],
+) -> dict[str, bool]:
+    if not symbols:
+        return {}
+    client = _make_databento_client(databento_api_key)
+    current_utc_day = datetime.now(UTC).date()
+    conditions = client.metadata.get_dataset_condition(
+        dataset=dataset,
+        start_date=(current_utc_day - timedelta(days=SYMBOL_SUPPORT_LOOKBACK_DAYS)).isoformat(),
+        end_date=current_utc_day.isoformat(),
+    )
+    available_days = [
+        date.fromisoformat(str(item.get("date")))
+        for item in conditions
+        if isinstance(item, dict) and item.get("condition") == "available" and item.get("date")
+    ]
+    available_days = [day for day in available_days if day < current_utc_day]
+    if not available_days:
+        return {symbol: True for symbol in symbols}
+    probe_day = available_days[-1]
+    probe_start = datetime.combine(probe_day, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC).isoformat()
+    probe_end = _exclusive_ohlcv_1s_end(
+        datetime.combine(probe_day, time(9, 31), tzinfo=US_EASTERN_TZ).astimezone(UTC)
+    ).isoformat()
+    support_map: dict[str, bool] = {}
+
+    for batch in _iter_symbol_batches(symbols, batch_size=SYMBOL_SUPPORT_CHECK_BATCH_SIZE):
+        try:
+            with warnings.catch_warnings(record=True) as caught_warnings:
+                warnings.simplefilter("always")
+                store = client.timeseries.get_range(
+                    dataset=dataset,
+                    symbols=batch,
+                    schema="ohlcv-1s",
+                    start=probe_start,
+                    end=probe_end,
+                )
+                batch_df = store.to_df(count=100_000)
+                if isinstance(batch_df, pd.DataFrame):
+                    batch_frame = _coerce_timestamp_frame(batch_df)
+                else:
+                    chunks = list(batch_df)
+                    batch_frame = _coerce_timestamp_frame(pd.concat(chunks, ignore_index=False)) if chunks else pd.DataFrame()
+        except Exception:
+            logger.warning("Symbol support probe failed for batch of %d symbols, assuming supported.", len(batch), exc_info=True)
+            for symbol in batch:
+                support_map.setdefault(symbol, True)
+            continue
+        resolved = set()
+        if not batch_frame.empty and "symbol" in batch_frame.columns:
+            resolved = {
+                normalize_symbol_for_databento(symbol)
+                for symbol in batch_frame["symbol"].astype(str).tolist()
+                if normalize_symbol_for_databento(symbol)
+            }
+        unresolved = _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+        for symbol in batch:
+            if symbol in resolved:
+                support_map[symbol] = True
+            elif symbol in unresolved:
+                support_map[symbol] = False
+    return support_map
+
+
+def filter_supported_universe_for_databento(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    universe: pd.DataFrame,
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> tuple[pd.DataFrame, list[str]]:
+    if universe.empty or "symbol" not in universe.columns:
+        return universe.copy(), []
+    candidate_symbols = _symbols_requiring_support_check(universe["symbol"].dropna().astype(str).tolist())
+    if not candidate_symbols:
+        return universe.copy(), []
+
+    cache_path = _symbol_support_cache_path(cache_dir, dataset)
+    support_map = _read_symbol_support_cache(cache_path) if use_file_cache and not force_refresh else {}
+    missing = [symbol for symbol in candidate_symbols if symbol not in support_map]
+    if missing:
+        support_map.update(_probe_symbol_support(databento_api_key, dataset=dataset, symbols=missing))
+        if use_file_cache:
+            _write_symbol_support_cache(cache_path, support_map)
+
+    unsupported = sorted(symbol for symbol in candidate_symbols if support_map.get(symbol) is False)
+    if not unsupported:
+        return universe.copy(), []
+    filtered = universe[~universe["symbol"].astype(str).str.upper().isin(unsupported)].copy().reset_index(drop=True)
+    return filtered, unsupported
+
+
+def _import_databento() -> Any:
+    import databento as db
+
+    return db
+
+
+def _make_databento_client(api_key: str | None = None) -> Any:
+    db = _import_databento()
+    return db.Historical(api_key or os.getenv("DATABENTO_API_KEY"))
+
+
+def _get_schema_available_end(client: Any, dataset: str, schema: str) -> pd.Timestamp | None:
+    try:
+        dataset_range = client.metadata.get_dataset_range(dataset=dataset)
+    except Exception:
+        return None
+    if not isinstance(dataset_range, dict):
+        return None
+    schema_ranges = dataset_range.get("schema")
+    if isinstance(schema_ranges, dict):
+        schema_info = schema_ranges.get(schema)
+        if isinstance(schema_info, dict):
+            end_value = schema_info.get("end")
+            if end_value:
+                return pd.Timestamp(end_value, tz=UTC)
+    end_value = dataset_range.get("end")
+    if not end_value:
+        return None
+    return pd.Timestamp(end_value, tz=UTC)
+
+
+def _clamp_request_end(requested_end: pd.Timestamp, available_end: pd.Timestamp | None) -> pd.Timestamp:
+    if available_end is None:
+        return requested_end
+    return min(requested_end, available_end)
+
+
+def _exclusive_ohlcv_1s_end(logical_end: datetime | pd.Timestamp) -> pd.Timestamp:
+    end_timestamp = pd.Timestamp(logical_end)
+    if end_timestamp.tzinfo is None:
+        end_timestamp = end_timestamp.tz_localize(UTC)
+    return end_timestamp + pd.Timedelta(seconds=1)
+
+
+def _daily_request_end_exclusive(last_trading_day: date, available_end: pd.Timestamp | None) -> date:
+    requested_end = pd.Timestamp(last_trading_day + timedelta(days=1), tz=UTC)
+    clamped_end = _clamp_request_end(requested_end, available_end)
+    # The clamped timestamp may fall *within* the last trading day (e.g.
+    # available_end = 2024-03-15 20:00 UTC).  Converting that directly to
+    # a date would give 2024-03-15 as the *exclusive* end, effectively
+    # dropping that day from the request.  When the timestamp has a non-zero
+    # time component (i.e. falls during a day, not at midnight), add +1 day
+    # so that calendar day is still included in the request.
+    clamped_dt = pd.Timestamp(clamped_end).to_pydatetime()
+    end_date = date(clamped_dt.year, clamped_dt.month, clamped_dt.day)
+    if clamped_dt.hour or clamped_dt.minute or clamped_dt.second or clamped_dt.microsecond:
+        end_date += timedelta(days=1)
+    return end_date
+
+
+def list_accessible_datasets(databento_api_key: str | None = None) -> list[str]:
+    client = _make_databento_client(databento_api_key)
+    datasets = client.metadata.list_datasets()
+    return sorted({str(dataset) for dataset in datasets if dataset})
+
+
+def choose_default_dataset(
+    available_datasets: list[str],
+    requested_dataset: str | None = None,
+) -> str:
+    normalized = [str(dataset) for dataset in available_datasets if dataset]
+    if requested_dataset and requested_dataset in normalized:
+        return requested_dataset
+    for dataset in PREFERRED_DATABENTO_DATASETS:
+        if dataset in normalized:
+            return dataset
+    if normalized:
+        return normalized[0]
+    return requested_dataset or PREFERRED_DATABENTO_DATASETS[0]
+
+
+def _safe_float(value: Any, default: float | None = None) -> float | None:
+    try:
+        if value is None or value == "":
+            return default
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    if math.isnan(result) or math.isinf(result):
+        return default
+    return result
+
+
+def _coerce_timestamp_frame(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.copy()
+    frame = df.copy()
+    if isinstance(frame.index, pd.DatetimeIndex):
+        frame = frame.reset_index()
+        idx_name = frame.columns[0]
+        frame = frame.rename(columns={idx_name: "ts"})
+    elif "ts_event" in frame.columns:
+        frame = frame.rename(columns={"ts_event": "ts"})
+    elif "ts_recv" in frame.columns:
+        frame = frame.rename(columns={"ts_recv": "ts"})
+    elif "index" in frame.columns:
+        frame = frame.rename(columns={"index": "ts"})
+    else:
+        raise ValueError("No timestamp column found in Databento frame")
+    frame["ts"] = pd.to_datetime(frame["ts"], utc=True)
+    return frame
+
+
+def resolve_display_timezone(display_timezone: str) -> tzinfo:
+    tz = SUPPORTED_DISPLAY_TZ.get(display_timezone)
+    if tz is None:
+        raise ValueError(f"Unsupported display timezone: {display_timezone}")
+    return tz
+
+
+def compute_market_relative_window(
+    trade_date: date,
+    display_timezone: str,
+    *,
+    pre_open_minutes: int = _DEFAULT_INTRADAY_PRE_OPEN_MINUTES,
+    post_open_minutes: int = _DEFAULT_INTRADAY_POST_OPEN_MINUTES,
+    post_open_seconds: int | None = None,
+) -> tuple[time, time]:
+    tz = resolve_display_timezone(display_timezone)
+    regular_open_local = datetime.combine(trade_date, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(tz)
+    start_local = regular_open_local - timedelta(minutes=pre_open_minutes)
+    if post_open_seconds is not None:
+        end_local = regular_open_local + timedelta(seconds=post_open_seconds)
+    else:
+        end_local = regular_open_local + timedelta(minutes=post_open_minutes)
+    return start_local.time(), end_local.time()
+
+
+def _resolve_window_for_date(
+    trade_date: date,
+    display_timezone: str,
+    window_start: time | None,
+    window_end: time | None,
+    *,
+    default_pre_open_minutes: int = _DEFAULT_INTRADAY_PRE_OPEN_MINUTES,
+    default_post_open_minutes: int = _DEFAULT_INTRADAY_POST_OPEN_MINUTES,
+    default_post_open_seconds: int | None = None,
+) -> tuple[time, time]:
+    if window_start is not None and window_end is not None:
+        return window_start, window_end
+    return compute_market_relative_window(
+        trade_date,
+        display_timezone,
+        pre_open_minutes=default_pre_open_minutes,
+        post_open_minutes=default_post_open_minutes,
+        post_open_seconds=default_post_open_seconds,
+    )
+
+
+def build_window_definition(
+    trade_date: date,
+    *,
+    display_timezone: str,
+    window_start: time,
+    window_end: time,
+    premarket_anchor_et: time,
+) -> WindowDefinition:
+    tz = resolve_display_timezone(display_timezone)
+    local_start = datetime.combine(trade_date, window_start, tzinfo=tz)
+    local_end = datetime.combine(trade_date, window_end, tzinfo=tz)
+    if local_end <= local_start:
+        raise ValueError("Window end must be after window start")
+    regular_open_utc = datetime.combine(trade_date, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC)
+    premarket_anchor_utc = datetime.combine(trade_date, premarket_anchor_et, tzinfo=US_EASTERN_TZ).astimezone(UTC)
+    fetch_start_utc = min(local_start.astimezone(UTC), premarket_anchor_utc)
+    fetch_end_utc = local_end.astimezone(UTC)
+    return WindowDefinition(
+        trade_date=trade_date,
+        display_timezone=display_timezone,
+        window_start_local=local_start,
+        window_end_local=local_end,
+        fetch_start_utc=fetch_start_utc,
+        fetch_end_utc=fetch_end_utc,
+        regular_open_utc=regular_open_utc,
+        premarket_anchor_utc=premarket_anchor_utc,
+    )
+
+
+def fetch_us_equity_universe(
+    fmp_api_key: str = "",
+    *,
+    min_market_cap: float | None = None,
+    exchanges: str = "NASDAQ,NYSE,AMEX",
+) -> pd.DataFrame:
+    if min_market_cap is not None and fmp_api_key:
+        client = FMPClient(fmp_api_key)
+        return _fetch_us_equity_universe_via_screener(
+            client,
+            min_market_cap=min_market_cap,
+            exchanges=exchanges,
+        )
+    if min_market_cap is not None and not fmp_api_key:
+        logger.warning(
+            "min_market_cap=%.0f requested but no FMP API key provided; "
+            "returning unfiltered Nasdaq Trader universe instead.",
+            min_market_cap,
+        )
+
+    official = _fetch_us_equity_universe_via_nasdaq_trader(exchanges=exchanges)
+    if not official.empty:
+        return official
+
+    if fmp_api_key:
+        client = FMPClient(fmp_api_key)
+        return _fetch_us_equity_universe_via_screener(
+            client,
+            min_market_cap=min_market_cap,
+            exchanges=exchanges,
+        )
+
+    logger.warning("Nasdaq Trader directory fetch failed and no FMP API key provided; returning empty universe.")
+    return _empty_universe_frame()
+
+
+def _empty_universe_frame() -> pd.DataFrame:
+    return pd.DataFrame(columns=UNIVERSE_COLUMNS)
+
+
+def _fetch_us_equity_universe_via_screener(
+    client: FMPClient,
+    *,
+    min_market_cap: float | None = None,
+    exchanges: str = "NASDAQ,NYSE,AMEX",
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    page = 0
+    page_size = 1000
+    while True:
+        try:
+            batch = client.get_company_screener(
+                country="US",
+                market_cap_more_than=min_market_cap,
+                exchange=exchanges,
+                is_etf=False,
+                is_fund=False,
+                limit=page_size,
+                page=page,
+            )
+        except Exception:
+            logger.warning("FMP company screener request failed on page %d.", page, exc_info=True)
+            break
+        if not batch:
+            break
+        rows.extend(batch)
+        if len(batch) < page_size:
+            break
+        page += 1
+        if page > 50:
+            break
+    if not rows:
+        return _empty_universe_frame()
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        return _empty_universe_frame()
+    out = pd.DataFrame(
+        {
+            "symbol": frame.get("symbol", "").astype(str).map(normalize_symbol_for_databento),
+            "company_name": frame.get("companyName", frame.get("name", "")),
+            "exchange": frame.get("exchangeShortName", frame.get("exchange", "")),
+            "sector": frame.get("sector", ""),
+            "industry": frame.get("industry", ""),
+            "market_cap": pd.to_numeric(frame.get("marketCap", 0), errors="coerce"),
+        }
+    )
+    out = out[out["symbol"].astype(str).str.len() > 0].copy()
+    out = out[out["symbol"].ne("")].drop_duplicates(subset=["symbol"]).reset_index(drop=True)
+    return out
+
+
+def _normalize_requested_exchange_codes(exchanges: str) -> set[str]:
+    requested: set[str] = set()
+    for item in str(exchanges or "").split(","):
+        token = item.strip().upper()
+        if not token:
+            continue
+        requested.add(NASDAQ_TRADER_EXCHANGE_CODE_MAP.get(token, token))
+    return requested or {"Q", "N", "A"}
+
+
+def _download_nasdaq_trader_text(url: str) -> str:
+    import ssl
+    _ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urlopen(request, timeout=30, context=_ssl_ctx) as response:
+        payload = response.read()
+    return bytes(payload).decode("utf-8", errors="replace")
+
+
+def _parse_nasdaq_trader_directory(
+    text: str,
+    *,
+    symbol_column: str,
+    security_name_column: str,
+    exchange_column: str,
+    allowed_exchange_codes: set[str],
+) -> pd.DataFrame:
+    rows: list[dict[str, Any]] = []
+    for row in pd.read_csv(BytesIO(text.encode("utf-8")), sep="|", dtype=str).fillna("").to_dict(orient="records"):
+        first_value = next(iter(row.values()), "")
+        if isinstance(first_value, str) and first_value.startswith("File Creation Time:"):
+            continue
+        symbol = normalize_symbol_for_databento(str(row.get(symbol_column, "")).strip())
+        exchange_code = str(row.get(exchange_column, "")).strip().upper()
+        if not symbol or exchange_code not in allowed_exchange_codes:
+            continue
+        if str(row.get("ETF", "")).strip().upper() == "Y":
+            continue
+        if str(row.get("Test Issue", "")).strip().upper() == "Y":
+            continue
+        rows.append(
+            {
+                "symbol": symbol,
+                "company_name": str(row.get(security_name_column, "")).strip(),
+                "exchange": NASDAQ_TRADER_EXCHANGE_NAME_MAP.get(exchange_code, exchange_code),
+                "sector": "",
+                "industry": "",
+                "market_cap": np.nan,
+            }
+        )
+    if not rows:
+        return _empty_universe_frame()
+    return pd.DataFrame(rows, columns=UNIVERSE_COLUMNS)
+
+
+def _fetch_us_equity_universe_via_nasdaq_trader(*, exchanges: str = "NASDAQ,NYSE,AMEX") -> pd.DataFrame:
+    allowed_exchange_codes = _normalize_requested_exchange_codes(exchanges)
+    frames: list[pd.DataFrame] = []
+    for url, symbol_column, security_name_column, exchange_column in NASDAQ_TRADER_DIRECTORY_SPECS:
+        try:
+            text = _download_nasdaq_trader_text(url)
+        except Exception:
+            logger.warning("Failed to download Nasdaq Trader directory from %s", url, exc_info=True)
+            continue
+        frame = _parse_nasdaq_trader_directory(
+            text,
+            symbol_column=symbol_column,
+            security_name_column=security_name_column,
+            exchange_column=exchange_column,
+            allowed_exchange_codes=allowed_exchange_codes,
+        )
+        if not frame.empty:
+            frames.append(frame)
+    if not frames:
+        return _empty_universe_frame()
+    universe = pd.concat(frames, ignore_index=True)
+    universe = universe.drop_duplicates(subset=["symbol"]).reset_index(drop=True)
+    return universe
+
+
+def list_recent_trading_days(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    lookback_days: int,
+    end_date: date | None = None,
+) -> list[date]:
+    client = _make_databento_client(databento_api_key)
+    current_market_day = datetime.now(US_EASTERN_TZ).date()
+    anchor = end_date or current_market_day
+    start_date = anchor - timedelta(days=max(lookback_days * 4, 90))
+    conditions = client.metadata.get_dataset_condition(
+        dataset=dataset,
+        start_date=start_date.isoformat(),
+        end_date=anchor.isoformat(),
+    )
+    days = [
+        date.fromisoformat(str(item.get("date")))
+        for item in conditions
+        if isinstance(item, dict) and item.get("condition") == "available"
+    ]
+    if end_date is None:
+        days = [day for day in days if day < current_market_day]
+    return days[-lookback_days:]
+
+
+def load_daily_bars(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    universe_symbols: set[str],
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> pd.DataFrame:
+    if not trading_days:
+        return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
+    symbol_scope = _symbol_scope_token(universe_symbols)
+    start_date = trading_days[0] - timedelta(days=14)
+    end_date = trading_days[-1]
+    cache_path = build_cache_path(
+        cache_dir,
+        "daily_bars",
+        dataset=dataset,
+        parts=[start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d"), symbol_scope],
+    )
+    frame: pd.DataFrame | None = None
+    if use_file_cache and not force_refresh:
+        frame = _read_cached_frame(cache_path)
+    if frame is None:
+        client = _make_databento_client(databento_api_key)
+        schema_end = _get_schema_available_end(client, dataset, "ohlcv-1d")
+        end_date = _daily_request_end_exclusive(end_date, schema_end)
+        if end_date <= start_date:
+            return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
+        frames: list[pd.DataFrame] = []
+        for symbols_batch in _iter_symbol_batches(universe_symbols):
+            try:
+                store = client.timeseries.get_range(
+                    dataset=dataset,
+                    symbols=symbols_batch,
+                    schema="ohlcv-1d",
+                    start=start_date.isoformat(),
+                    end=end_date.isoformat(),
+                )
+                batch_frame = _coerce_timestamp_frame(store.to_df())
+                if not batch_frame.empty:
+                    frames.append(batch_frame)
+            except Exception:
+                logger.warning("Failed to fetch daily bars for batch of %d symbols.", len(symbols_batch), exc_info=True)
+        frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        if use_file_cache and not frame.empty:
+            _write_cached_frame(cache_path, frame)
+    if frame.empty:
+        return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
+    frame["symbol"] = frame.get("symbol", "").astype(str).str.upper()
+    frame = frame[frame["symbol"].isin(universe_symbols)].copy()
+    frame["trade_date"] = frame["ts"].dt.date
+    keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume"] if col in frame.columns]
+    frame = frame[keep_cols].copy()
+    for col in ["open", "high", "low", "close", "volume"]:
+        if col in frame.columns:
+            frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    frame = frame.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
+    frame["previous_close"] = frame.groupby("symbol")["close"].shift(1)
+    frame = frame[frame["trade_date"].isin(trading_days)].reset_index(drop=True)
+    return frame
+
+
+def _update_state_from_chunk(
+    chunk: pd.DataFrame,
+    *,
+    window: WindowDefinition,
+    universe_symbols: set[str] | None,
+    states: dict[str, SymbolDayState],
+) -> None:
+    if chunk.empty:
+        return
+    frame = _coerce_timestamp_frame(chunk)
+    if "symbol" not in frame.columns:
+        return
+    frame["symbol"] = frame["symbol"].astype(str).str.upper()
+    if universe_symbols is not None:
+        frame = frame[frame["symbol"].isin(universe_symbols)].copy()
+    if frame.empty:
+        return
+    frame = frame.sort_values("ts")
+
+    premarket = frame[
+        (frame["ts"] >= pd.Timestamp(window.premarket_anchor_utc))
+        & (frame["ts"] < pd.Timestamp(window.regular_open_utc))
+    ]
+    if not premarket.empty:
+        latest_premarket = premarket.groupby("symbol").tail(1)
+        for row in latest_premarket.itertuples(index=False):
+            close_px = _safe_float(getattr(row, "close", None))
+            if close_px is None or close_px <= 0:
+                continue
+            state = states.setdefault(row.symbol, SymbolDayState(symbol=row.symbol, trade_date=window.trade_date))
+            state.premarket_price = close_px
+
+    regular = frame[
+        (frame["ts"] >= pd.Timestamp(window.regular_open_utc))
+        & (frame["ts"] <= pd.Timestamp(window.fetch_end_utc))
+    ]
+    if not regular.empty:
+        opening_rows = regular.groupby("symbol").head(1)
+        for row in opening_rows.itertuples(index=False):
+            open_px = _safe_float(getattr(row, "open", None)) or _safe_float(getattr(row, "close", None))
+            if open_px is None or open_px <= 0:
+                continue
+            state = states.setdefault(row.symbol, SymbolDayState(symbol=row.symbol, trade_date=window.trade_date))
+            if state.market_open_price is None:
+                state.market_open_price = open_px
+
+    in_window = frame[
+        (frame["ts"] >= pd.Timestamp(window.window_start_local.astimezone(UTC)))
+        & (frame["ts"] <= pd.Timestamp(window.window_end_local.astimezone(UTC)))
+    ].copy()
+    if in_window.empty:
+        return
+
+    grouped = in_window.groupby("symbol", sort=False)
+    summary = grouped.agg(
+        first_window_open=("open", "first"),
+        last_window_close=("close", "last"),
+        window_high=("high", "max"),
+        window_low=("low", "min"),
+        window_volume=("volume", "sum"),
+        second_count=("close", "size"),
+    )
+    returns = grouped["close"].apply(lambda s: float(np.square(np.log(s / s.shift(1))).sum(skipna=True)))
+    first_close = grouped["close"].first()
+    last_close = grouped["close"].last()
+
+    for symbol, row in summary.iterrows():
+        state = states.setdefault(symbol, SymbolDayState(symbol=symbol, trade_date=window.trade_date))
+        first_open = _safe_float(row.get("first_window_open"))
+        if state.first_window_open is None and first_open is not None and first_open > 0:
+            state.first_window_open = first_open
+
+        last_window_close = _safe_float(row.get("last_window_close"))
+        if last_window_close is not None and last_window_close > 0:
+            state.last_window_close = last_window_close
+
+        high_val = _safe_float(row.get("window_high"))
+        low_val = _safe_float(row.get("window_low"))
+        if high_val is not None and high_val > 0:
+            state.window_high = high_val if state.window_high is None else max(state.window_high, high_val)
+        if low_val is not None and low_val > 0:
+            state.window_low = low_val if state.window_low is None else min(state.window_low, low_val)
+
+        state.window_volume += float(row.get("window_volume") or 0.0)
+        state.second_count += int(row.get("second_count") or 0)
+
+        chunk_var = float(returns.get(symbol, 0.0) or 0.0)
+        initial_close = _safe_float(first_close.get(symbol))
+        if state._last_window_close_for_rv is not None and initial_close is not None and initial_close > 0:
+            state.realized_var += math.log(initial_close / state._last_window_close_for_rv) ** 2
+        state.realized_var += chunk_var
+        trailing_close = _safe_float(last_close.get(symbol))
+        if trailing_close is not None and trailing_close > 0:
+            state._last_window_close_for_rv = trailing_close
+
+
+def summarize_symbol_day(
+    state: SymbolDayState,
+    *,
+    previous_close: float | None,
+) -> dict[str, Any]:
+    first_open = _safe_float(state.first_window_open)
+    last_close = _safe_float(state.last_window_close)
+    high_val = _safe_float(state.window_high)
+    low_val = _safe_float(state.window_low)
+    prev_close = _safe_float(previous_close)
+    premarket = _safe_float(state.premarket_price)
+    market_open = _safe_float(state.market_open_price)
+
+    window_return_pct = None
+    window_range_pct = None
+    if first_open and first_open > 0 and last_close and last_close > 0:
+        window_return_pct = ((last_close / first_open) - 1.0) * 100.0
+    if first_open and first_open > 0 and high_val and low_val and high_val > 0 and low_val > 0:
+        window_range_pct = ((high_val - low_val) / first_open) * 100.0
+
+    prev_to_premarket_pct = None
+    prev_to_premarket_abs = None
+    if prev_close and prev_close > 0 and premarket and premarket > 0:
+        prev_to_premarket_abs = premarket - prev_close
+        prev_to_premarket_pct = ((premarket / prev_close) - 1.0) * 100.0
+
+    premarket_to_open_pct = None
+    premarket_to_open_abs = None
+    if premarket and premarket > 0 and market_open and market_open > 0:
+        premarket_to_open_abs = market_open - premarket
+        premarket_to_open_pct = ((market_open / premarket) - 1.0) * 100.0
+
+    open_to_current_pct = None
+    open_to_current_abs = None
+    if market_open and market_open > 0 and last_close and last_close > 0:
+        open_to_current_abs = last_close - market_open
+        open_to_current_pct = ((last_close / market_open) - 1.0) * 100.0
+
+    return {
+        "trade_date": state.trade_date,
+        "symbol": state.symbol,
+        "previous_close": prev_close,
+        "premarket_price": premarket,
+        "has_premarket_data": bool(premarket and premarket > 0),
+        "market_open_price": market_open,
+        "window_start_price": first_open,
+        "current_price": last_close,
+        "window_high": high_val,
+        "window_low": low_val,
+        "window_volume": state.window_volume,
+        "seconds_in_window": state.second_count,
+        "window_return_pct": window_return_pct,
+        "window_range_pct": window_range_pct,
+        "realized_vol_pct": math.sqrt(state.realized_var) * 100.0 if state.realized_var > 0 else None,
+        "prev_close_to_premarket_abs": prev_to_premarket_abs,
+        "prev_close_to_premarket_pct": prev_to_premarket_pct,
+        "premarket_to_open_abs": premarket_to_open_abs,
+        "premarket_to_open_pct": premarket_to_open_pct,
+        "open_to_current_abs": open_to_current_abs,
+        "open_to_current_pct": open_to_current_pct,
+    }
+
+
+def run_intraday_screen(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    universe_symbols: set[str],
+    daily_bars: pd.DataFrame,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    window_start: time | None = None,
+    window_end: time | None = None,
+    premarket_anchor_et: time = time(8, 0),
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> pd.DataFrame:
+    client = _make_databento_client(databento_api_key)
+    symbol_scope = _symbol_scope_token(universe_symbols)
+    runtime_unsupported_symbols: set[str] = set()
+    prev_close_lookup = {
+        (row.trade_date, row.symbol): _safe_float(row.previous_close)
+        for row in daily_bars.itertuples(index=False)
+    }
+    results: list[dict[str, Any]] = []
+
+    for trade_day in trading_days:
+        day_ws, day_we = _resolve_window_for_date(trade_day, display_timezone, window_start, window_end)
+        window = build_window_definition(
+            trade_day,
+            display_timezone=display_timezone,
+            window_start=day_ws,
+            window_end=day_we,
+            premarket_anchor_et=premarket_anchor_et,
+        )
+        cache_path = build_cache_path(
+            cache_dir,
+            "intraday_summary",
+            dataset=dataset,
+            parts=[
+                trade_day.isoformat(),
+                display_timezone,
+                day_ws.strftime("%H%M%S"),
+                day_we.strftime("%H%M%S"),
+                premarket_anchor_et.strftime("%H%M%S"),
+                symbol_scope,
+            ],
+        )
+        day_frame: pd.DataFrame | None = None
+        if use_file_cache and not force_refresh:
+            day_frame = _read_cached_frame(cache_path)
+        if day_frame is None:
+            states: dict[str, SymbolDayState] = {}
+            active_symbols = set(universe_symbols) - runtime_unsupported_symbols
+            for symbols_batch in _iter_symbol_batches(active_symbols):
+                try:
+                    with warnings.catch_warnings(record=True) as caught_warnings:
+                        warnings.simplefilter("always")
+                        store = client.timeseries.get_range(
+                            dataset=dataset,
+                            symbols=symbols_batch,
+                            schema="ohlcv-1s",
+                            start=window.fetch_start_utc.isoformat(),
+                            end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
+                        )
+                        iterator = store.to_df(count=250_000)
+                        if isinstance(iterator, pd.DataFrame):
+                            _update_state_from_chunk(iterator, window=window, universe_symbols=None, states=states)
+                        else:
+                            for chunk in iterator:
+                                _update_state_from_chunk(chunk, window=window, universe_symbols=None, states=states)
+                    runtime_unsupported_symbols.update(
+                        _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+                    )
+                except Exception:
+                    logger.warning("Intraday fetch failed for batch on %s, skipping batch.", trade_day, exc_info=True)
+            day_rows = [summarize_symbol_day(state, previous_close=None) for state in states.values()]
+            day_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
+            if use_file_cache and not day_frame.empty:
+                _write_cached_frame(cache_path, day_frame)
+        if day_frame.empty:
+            continue
+        filtered = day_frame[day_frame["symbol"].isin(universe_symbols)].copy()
+        if filtered.empty:
+            continue
+        filtered["previous_close"] = filtered.apply(
+            lambda row: prev_close_lookup.get((pd.Timestamp(row["trade_date"]).date(), str(row["symbol"]).upper())),
+            axis=1,
+        )
+        filtered = _add_transition_columns(filtered)
+        results.extend(filtered.to_dict(orient="records"))
+
+    if not results:
+        return _empty_intraday_frame()
+    return pd.DataFrame(results)
+
+
+def rank_top_fraction_per_day(
+    frame: pd.DataFrame,
+    *,
+    ranking_metric: str,
+    top_fraction: float,
+) -> pd.DataFrame:
+    if not (0 < top_fraction <= 1):
+        raise ValueError(f"top_fraction must be in (0, 1], got {top_fraction}")
+    if frame.empty:
+        return frame.copy()
+    if ranking_metric not in frame.columns:
+        raise ValueError(f"Ranking metric not found: {ranking_metric}")
+    ranked_groups: list[pd.DataFrame] = []
+    for trade_date, group in frame.groupby("trade_date", sort=False):
+        eligible = group.dropna(subset=[ranking_metric]).sort_values(ranking_metric, ascending=False).copy()
+        if eligible.empty:
+            continue
+        take_n = max(1, math.ceil(len(eligible) * top_fraction))
+        top = eligible.head(take_n).copy()
+        top.insert(0, "rank", range(1, len(top) + 1))
+        top["day_universe_count"] = len(eligible)
+        top["top_cutoff_count"] = take_n
+        top["ranked_metric"] = ranking_metric
+        ranked_groups.append(top)
+    if not ranked_groups:
+        return frame.iloc[0:0].copy()
+    return pd.concat(ranked_groups, ignore_index=True)
+
+
+def build_summary_table(
+    ranked: pd.DataFrame,
+    universe: pd.DataFrame,
+) -> pd.DataFrame:
+    if ranked.empty:
+        return ranked.copy()
+    merged = ranked.merge(universe, on="symbol", how="left")
+    merged = merged.sort_values(["trade_date", "rank", "symbol"], ascending=[False, True, True]).reset_index(drop=True)
+    return _add_transition_columns(merged)
+
+
+def fetch_symbol_day_detail(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    symbol: str,
+    trade_date: date,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    window_start: time | None = None,
+    window_end: time | None = None,
+    premarket_anchor_et: time = time(8, 0),
+    previous_close: float | None = None,
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    normalized_symbol = normalize_symbol_for_databento(symbol)
+    if not normalized_symbol:
+        logger.info("Skipping unsupported or empty symbol: %r", symbol)
+        return pd.DataFrame(), pd.DataFrame()
+    ws, we = _resolve_window_for_date(trade_date, display_timezone, window_start, window_end)
+    window = build_window_definition(
+        trade_date,
+        display_timezone=display_timezone,
+        window_start=ws,
+        window_end=we,
+        premarket_anchor_et=premarket_anchor_et,
+    )
+    second_cache_path = build_cache_path(
+        cache_dir,
+        "symbol_detail_second",
+        dataset=dataset,
+        parts=[trade_date.isoformat(), normalized_symbol, display_timezone, ws.strftime("%H%M%S"), we.strftime("%H%M%S")],
+    )
+    minute_cache_path = build_cache_path(
+        cache_dir,
+        "symbol_detail_minute",
+        dataset=dataset,
+        parts=[trade_date.isoformat(), normalized_symbol, display_timezone, ws.strftime("%H%M%S"), we.strftime("%H%M%S")],
+    )
+    if use_file_cache and not force_refresh:
+        cached_second = _read_cached_frame(second_cache_path)
+        cached_minute = _read_cached_frame(minute_cache_path)
+        if cached_second is not None and cached_minute is not None:
+            return cached_second, cached_minute
+
+    client = _make_databento_client(databento_api_key)
+    try:
+        store = client.timeseries.get_range(
+            dataset=dataset,
+            symbols=[normalized_symbol],
+            schema="ohlcv-1s",
+            start=window.fetch_start_utc.isoformat(),
+            end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
+        )
+        frame = _coerce_timestamp_frame(store.to_df())
+    except Exception:
+        logger.warning("Detail fetch failed for %s on %s.", normalized_symbol, trade_date, exc_info=True)
+        return pd.DataFrame(), pd.DataFrame()
+    if frame.empty:
+        return pd.DataFrame(), pd.DataFrame()
+    frame = frame.copy()
+    frame["symbol"] = frame.get("symbol", normalized_symbol).astype(str).map(normalize_symbol_for_databento)
+    frame = frame[frame["symbol"] == normalized_symbol].copy()
+    if frame.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    tz = resolve_display_timezone(display_timezone)
+    frame["display_ts"] = frame["ts"].dt.tz_convert(tz)
+    frame["session"] = np.where(frame["ts"] < pd.Timestamp(window.regular_open_utc), "premarket", "regular")
+    frame["second_delta_pct"] = np.where(
+        pd.to_numeric(frame.get("close"), errors="coerce").shift(1) > 0,
+        ((pd.to_numeric(frame.get("close"), errors="coerce") / pd.to_numeric(frame.get("close"), errors="coerce").shift(1)) - 1.0) * 100.0,
+        np.nan,
+    )
+    if previous_close and previous_close > 0:
+        frame["from_previous_close_pct"] = ((pd.to_numeric(frame.get("close"), errors="coerce") / previous_close) - 1.0) * 100.0
+    else:
+        frame["from_previous_close_pct"] = np.nan
+
+    detail_window = frame[
+        (frame["ts"] >= pd.Timestamp(window.window_start_local.astimezone(UTC)))
+        & (frame["ts"] <= pd.Timestamp(window.window_end_local.astimezone(UTC)))
+    ].copy()
+    if detail_window.empty:
+        minute_detail = pd.DataFrame()
+    else:
+        detail_window["minute"] = detail_window["display_ts"].dt.floor("min")
+        minute_detail = (
+            detail_window.groupby("minute", as_index=False)
+            .agg(
+                open=("open", "first"),
+                high=("high", "max"),
+                low=("low", "min"),
+                close=("close", "last"),
+                volume=("volume", "sum"),
+                seconds=("close", "size"),
+            )
+            .sort_values("minute")
+        )
+        minute_detail["minute_delta_pct"] = np.where(
+            pd.to_numeric(minute_detail["open"], errors="coerce") > 0,
+            ((pd.to_numeric(minute_detail["close"], errors="coerce") / pd.to_numeric(minute_detail["open"], errors="coerce")) - 1.0) * 100.0,
+            np.nan,
+        )
+        first_open = _safe_float(minute_detail["open"].iloc[0])
+        if first_open and first_open > 0:
+            minute_detail["cumulative_pct"] = ((pd.to_numeric(minute_detail["close"], errors="coerce") / first_open) - 1.0) * 100.0
+        else:
+            minute_detail["cumulative_pct"] = np.nan
+
+    second_detail = frame[
+        [
+            "display_ts", "session", "open", "high", "low", "close", "volume",
+            "second_delta_pct", "from_previous_close_pct",
+        ]
+    ].rename(columns={"display_ts": "timestamp"})
+    second_detail = second_detail.reset_index(drop=True)
+    minute_detail = minute_detail.reset_index(drop=True)
+    if use_file_cache:
+        _write_cached_frame(second_cache_path, second_detail)
+        _write_cached_frame(minute_cache_path, minute_detail)
+    return second_detail, minute_detail
+
+
+def collect_detail_tables_for_summary(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    summary: pd.DataFrame,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    window_start: time | None = None,
+    window_end: time | None = None,
+    premarket_anchor_et: time = time(8, 0),
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    required_columns = {"trade_date", "symbol"}
+    if summary.empty or not required_columns.issubset(summary.columns):
+        return pd.DataFrame(), pd.DataFrame()
+
+    detail_rows = (
+        summary[[column for column in ["trade_date", "symbol", "previous_close"] if column in summary.columns]]
+        .dropna(subset=["trade_date", "symbol"])
+        .drop_duplicates(subset=["trade_date", "symbol"])
+        .reset_index(drop=True)
+    )
+    if detail_rows.empty:
+        return pd.DataFrame(), pd.DataFrame()
+
+    combined_second: list[pd.DataFrame] = []
+    combined_minute: list[pd.DataFrame] = []
+
+    for row in detail_rows.itertuples(index=False):
+        trade_date_value = pd.Timestamp(row.trade_date).date()
+        symbol_value = str(row.symbol)
+        previous_close = _safe_float(getattr(row, "previous_close", None))
+        day_ws, day_we = _resolve_window_for_date(
+            trade_date_value, display_timezone, window_start, window_end,
+            default_pre_open_minutes=_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES,
+            default_post_open_seconds=_DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS,
+        )
+        second_detail, minute_detail = fetch_symbol_day_detail(
+            databento_api_key,
+            dataset=dataset,
+            symbol=symbol_value,
+            trade_date=trade_date_value,
+            display_timezone=display_timezone,
+            window_start=day_ws,
+            window_end=day_we,
+            premarket_anchor_et=premarket_anchor_et,
+            previous_close=previous_close,
+            cache_dir=cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
+        if not second_detail.empty:
+            tagged_second = second_detail.copy()
+            tagged_second.insert(0, "symbol", symbol_value)
+            tagged_second.insert(0, "trade_date", trade_date_value)
+            combined_second.append(tagged_second)
+        if not minute_detail.empty:
+            tagged_minute = minute_detail.copy()
+            tagged_minute.insert(0, "symbol", symbol_value)
+            tagged_minute.insert(0, "trade_date", trade_date_value)
+            combined_minute.append(tagged_minute)
+
+    second_detail_all = pd.concat(combined_second, ignore_index=True) if combined_second else pd.DataFrame()
+    minute_detail_all = pd.concat(combined_minute, ignore_index=True) if combined_minute else pd.DataFrame()
+    return second_detail_all, minute_detail_all
+
+
+def collect_full_universe_open_window_second_detail(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    universe_symbols: set[str],
+    daily_bars: pd.DataFrame,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    window_start: time | None = None,
+    window_end: time | None = None,
+    premarket_anchor_et: time = time(8, 0),
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> pd.DataFrame:
+    if not trading_days or not universe_symbols:
+        return pd.DataFrame(
+            columns=[
+                "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
+                "second_delta_pct", "from_previous_close_pct",
+            ]
+        )
+
+    client = _make_databento_client(databento_api_key)
+    symbol_scope = _symbol_scope_token(universe_symbols)
+    previous_close_lookup = {
+        (row.trade_date, row.symbol): _safe_float(row.previous_close)
+        for row in daily_bars.itertuples(index=False)
+    }
+    all_rows: list[pd.DataFrame] = []
+
+    for trade_day in trading_days:
+        day_ws, day_we = _resolve_window_for_date(
+            trade_day, display_timezone, window_start, window_end,
+            default_pre_open_minutes=_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES,
+            default_post_open_seconds=_DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS,
+        )
+        cache_path = build_cache_path(
+            cache_dir,
+            "full_universe_open_second_detail",
+            dataset=dataset,
+            parts=[
+                trade_day.isoformat(),
+                display_timezone,
+                day_ws.strftime("%H%M%S"),
+                day_we.strftime("%H%M%S"),
+                symbol_scope,
+            ],
+        )
+        day_frame: pd.DataFrame | None = None
+        if use_file_cache and not force_refresh:
+            day_frame = _read_cached_frame(cache_path)
+
+        if day_frame is None:
+            window = build_window_definition(
+                trade_day,
+                display_timezone=display_timezone,
+                window_start=day_ws,
+                window_end=day_we,
+                premarket_anchor_et=premarket_anchor_et,
+            )
+            day_parts: list[pd.DataFrame] = []
+            previous_close_by_symbol = {
+                symbol: previous_close_lookup.get((trade_day, symbol))
+                for symbol in universe_symbols
+            }
+            for symbols_batch in _iter_symbol_batches(universe_symbols):
+                try:
+                    store = client.timeseries.get_range(
+                        dataset=dataset,
+                        symbols=symbols_batch,
+                        schema="ohlcv-1s",
+                        start=window.window_start_local.astimezone(UTC).isoformat(),
+                        end=_exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)).isoformat(),
+                    )
+                    batch_df = store.to_df(count=250_000)
+                    if isinstance(batch_df, pd.DataFrame):
+                        frame = _coerce_timestamp_frame(batch_df)
+                    else:
+                        chunks = list(batch_df)
+                        frame = _coerce_timestamp_frame(pd.concat(chunks, ignore_index=False)) if chunks else pd.DataFrame()
+                except Exception:
+                    logger.warning("Open window detail fetch failed for batch on %s, skipping.", trade_day, exc_info=True)
+                    continue
+                if frame.empty or "symbol" not in frame.columns:
+                    continue
+                frame = frame.copy()
+                frame["symbol"] = frame["symbol"].astype(str).str.upper()
+                frame = frame[frame["symbol"].isin(universe_symbols)].copy()
+                if frame.empty:
+                    continue
+
+                frame = frame.sort_values(["symbol", "ts"]).reset_index(drop=True)
+                display_tz = resolve_display_timezone(display_timezone)
+                frame["timestamp"] = frame["ts"].dt.tz_convert(display_tz)
+                frame["session"] = np.where(frame["ts"] < pd.Timestamp(window.regular_open_utc), "premarket", "regular")
+                frame["second_delta_pct"] = frame.groupby("symbol")["close"].pct_change() * 100.0
+                frame["previous_close"] = frame["symbol"].map(previous_close_by_symbol)
+                frame["from_previous_close_pct"] = np.where(
+                    pd.to_numeric(frame["previous_close"], errors="coerce") > 0,
+                    ((pd.to_numeric(frame["close"], errors="coerce") / pd.to_numeric(frame["previous_close"], errors="coerce")) - 1.0) * 100.0,
+                    np.nan,
+                )
+                frame.insert(0, "trade_date", trade_day)
+                day_parts.append(
+                    frame[
+                        [
+                            "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
+                            "second_delta_pct", "from_previous_close_pct",
+                        ]
+                    ].reset_index(drop=True)
+                )
+
+            day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame()
+            if use_file_cache and not day_frame.empty:
+                _write_cached_frame(cache_path, day_frame)
+
+        if day_frame is not None and not day_frame.empty:
+            all_rows.append(day_frame)
+
+    return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(
+        columns=[
+            "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
+            "second_delta_pct", "from_previous_close_pct",
+        ]
+    )
+
+
+def _build_expected_symbol_day_frame(trading_days: list[date], universe: pd.DataFrame) -> pd.DataFrame:
+    if not trading_days or universe.empty or "symbol" not in universe.columns:
+        return pd.DataFrame(columns=["trade_date", "symbol"])
+    symbols = sorted({str(symbol).upper() for symbol in universe["symbol"].dropna().astype(str) if str(symbol).strip()})
+    if not symbols:
+        return pd.DataFrame(columns=["trade_date", "symbol"])
+    expected = pd.MultiIndex.from_product([trading_days, symbols], names=["trade_date", "symbol"]).to_frame(index=False)
+    return expected.reset_index(drop=True)
+
+
+def _build_open_window_aggregates(
+    second_detail_all: pd.DataFrame,
+    *,
+    trading_days: list[date],
+    display_timezone: str,
+    open_window_start: time | None = None,
+    open_window_end: time | None = None,
+    premarket_anchor_et: time = time(8, 0),
+) -> pd.DataFrame:
+    if second_detail_all.empty:
+        return pd.DataFrame(
+            columns=[
+                "trade_date", "symbol", "open_window_second_rows", "open_1m_volume", "open_5m_volume",
+                "regular_open_second_rows", "regular_open_5m_second_rows",
+            ]
+        )
+
+    detail = second_detail_all.copy()
+    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
+    detail["symbol"] = detail["symbol"].astype(str).str.upper()
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce")
+    detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce").fillna(0.0)
+    detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
+    if detail.empty:
+        return pd.DataFrame(
+            columns=[
+                "trade_date", "symbol", "open_window_second_rows", "open_1m_volume", "open_5m_volume",
+                "regular_open_second_rows", "regular_open_5m_second_rows",
+            ]
+        )
+
+    windows = {}
+    for trade_day in trading_days:
+        day_ws, day_we = _resolve_window_for_date(
+            trade_day, display_timezone, open_window_start, open_window_end,
+            default_pre_open_minutes=_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES,
+            default_post_open_seconds=_DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS,
+        )
+        windows[trade_day] = build_window_definition(
+            trade_day,
+            display_timezone=display_timezone,
+            window_start=day_ws,
+            window_end=day_we,
+            premarket_anchor_et=premarket_anchor_et,
+        )
+    regular_open_by_day = {
+        trade_day: pd.Timestamp(window.regular_open_utc).tz_convert(resolve_display_timezone(display_timezone))
+        for trade_day, window in windows.items()
+    }
+
+    metrics: list[dict[str, Any]] = []
+    for (trade_day, symbol), group in detail.groupby(["trade_date", "symbol"], sort=False):
+        regular_open = regular_open_by_day.get(trade_day)
+        if regular_open is None:
+            continue
+        one_minute_end = regular_open + pd.Timedelta(minutes=1)
+        five_minute_end = regular_open + pd.Timedelta(minutes=5)
+        regular_rows = group[group["timestamp"] >= regular_open]
+        first_minute = regular_rows[regular_rows["timestamp"] < one_minute_end]
+        first_five = regular_rows[regular_rows["timestamp"] < five_minute_end]
+        metrics.append(
+            {
+                "trade_date": trade_day,
+                "symbol": symbol,
+                "open_window_second_rows": int(len(group)),
+                "open_1m_volume": float(first_minute["volume"].sum()),
+                "open_5m_volume": float(first_five["volume"].sum()),
+                "regular_open_second_rows": int(len(first_minute)),
+                "regular_open_5m_second_rows": int(len(first_five)),
+            }
+        )
+    return pd.DataFrame(metrics)
+
+
+def build_daily_features_full_universe(
+    *,
+    trading_days: list[date],
+    universe: pd.DataFrame,
+    daily_bars: pd.DataFrame,
+    intraday: pd.DataFrame,
+    second_detail_all: pd.DataFrame,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    premarket_anchor_et: time = time(8, 0),
+    open_window_start: time | None = None,
+    open_window_end: time | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    expected = _build_expected_symbol_day_frame(trading_days, universe)
+    if expected.empty:
+        empty_features = pd.DataFrame(columns=["trade_date", "symbol"])
+        empty_coverage = pd.DataFrame(columns=["trade_date", "symbol", "has_daily_bar", "has_intraday_summary", "has_open_window_detail", "exclusion_reason"])
+        return empty_features, empty_coverage
+
+    optional_universe_columns = [column for column in FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS if column in universe.columns]
+    universe_columns = [column for column in ["symbol", "company_name", "exchange", "sector", "industry", "market_cap", *optional_universe_columns] if column in universe.columns]
+    universe_frame = universe[universe_columns].copy() if universe_columns else pd.DataFrame(columns=["symbol"])
+    if not universe_frame.empty:
+        universe_frame["symbol"] = universe_frame["symbol"].astype(str).str.upper()
+        universe_frame = universe_frame.drop_duplicates(subset=["symbol"]).reset_index(drop=True)
+
+    daily = daily_bars.copy()
+    if not daily.empty:
+        daily["trade_date"] = pd.to_datetime(daily["trade_date"], errors="coerce").dt.date
+        daily["symbol"] = daily["symbol"].astype(str).str.upper()
+        daily = daily.rename(
+            columns={
+                "open": "day_open",
+                "high": "day_high",
+                "low": "day_low",
+                "close": "day_close",
+                "volume": "day_volume",
+            }
+        )
+        daily = daily[[column for column in ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"] if column in daily.columns]]
+
+    intraday_columns = [
+        "trade_date", "symbol", "previous_close", "premarket_price", "has_premarket_data", "market_open_price",
+        "window_start_price", "current_price", "window_high", "window_low", "window_volume", "seconds_in_window",
+        "window_return_pct", "window_range_pct", "realized_vol_pct", "prev_close_to_premarket_abs",
+        "prev_close_to_premarket_pct", "premarket_to_open_abs", "premarket_to_open_pct", "open_to_current_abs",
+        "open_to_current_pct",
+    ]
+    intraday_frame = intraday[[column for column in intraday_columns if column in intraday.columns]].copy() if not intraday.empty else pd.DataFrame(columns=["trade_date", "symbol"])
+    if not intraday_frame.empty:
+        intraday_frame["trade_date"] = pd.to_datetime(intraday_frame["trade_date"], errors="coerce").dt.date
+        intraday_frame["symbol"] = intraday_frame["symbol"].astype(str).str.upper()
+        intraday_frame = intraday_frame.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+
+    open_window = _build_open_window_aggregates(
+        second_detail_all,
+        trading_days=trading_days,
+        display_timezone=display_timezone,
+        open_window_start=open_window_start,
+        open_window_end=open_window_end,
+        premarket_anchor_et=premarket_anchor_et,
+    )
+    if not open_window.empty:
+        open_window["trade_date"] = pd.to_datetime(open_window["trade_date"], errors="coerce").dt.date
+        open_window["symbol"] = open_window["symbol"].astype(str).str.upper()
+
+    features = expected.merge(universe_frame, on="symbol", how="left")
+    if not daily.empty:
+        features = features.merge(daily, on=["trade_date", "symbol"], how="left")
+    if not intraday_frame.empty:
+        features = features.merge(intraday_frame, on=["trade_date", "symbol"], how="left", suffixes=("", "_intraday"))
+    if not open_window.empty:
+        features = features.merge(open_window, on=["trade_date", "symbol"], how="left")
+
+    if "previous_close_intraday" in features.columns:
+        features["previous_close"] = features["previous_close"].combine_first(features["previous_close_intraday"])
+        features = features.drop(columns=["previous_close_intraday"])
+
+    if "has_premarket_data" in features.columns:
+        features["has_premarket_data"] = features["has_premarket_data"].where(features["has_premarket_data"].notna(), False).astype(bool)
+    else:
+        features["has_premarket_data"] = False
+    if "open_window_second_rows" not in features.columns:
+        features["open_window_second_rows"] = 0
+    features["open_window_second_rows"] = pd.to_numeric(features["open_window_second_rows"], errors="coerce").fillna(0).astype(int)
+    features["has_open_window_detail"] = features["open_window_second_rows"] > 0
+    if "regular_open_second_rows" in features.columns:
+        features["has_open_window_detail"] = features["regular_open_second_rows"] > 0
+    features["premarket_anchor_et"] = premarket_anchor_et.strftime("%H:%M:%S")
+    features["premarket_price_source"] = "last_ohlcv_1s_close_between_anchor_and_regular_open"
+    features["internal_display_timezone"] = display_timezone
+    features = features.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
+
+    if "open_1m_volume" not in features.columns:
+        features["open_1m_volume"] = np.nan
+    if "open_5m_volume" not in features.columns:
+        features["open_5m_volume"] = np.nan
+    if "day_volume" not in features.columns:
+        features["day_volume"] = np.nan
+
+    features["avg_open_1m_volume_20d"] = features.groupby("symbol")["open_1m_volume"].transform(lambda s: s.shift(1).rolling(20, min_periods=1).mean())
+    features["avg_open_5m_volume_20d"] = features.groupby("symbol")["open_5m_volume"].transform(lambda s: s.shift(1).rolling(20, min_periods=1).mean())
+    features["avg_day_volume_20d"] = features.groupby("symbol")["day_volume"].transform(lambda s: s.shift(1).rolling(20, min_periods=1).mean())
+    features["open_1m_rvol_20d"] = np.where(
+        pd.to_numeric(features["avg_open_1m_volume_20d"], errors="coerce") > 0,
+        pd.to_numeric(features["open_1m_volume"], errors="coerce") / pd.to_numeric(features["avg_open_1m_volume_20d"], errors="coerce"),
+        np.nan,
+    )
+    features["open_5m_rvol_20d"] = np.where(
+        pd.to_numeric(features["avg_open_5m_volume_20d"], errors="coerce") > 0,
+        pd.to_numeric(features["open_5m_volume"], errors="coerce") / pd.to_numeric(features["avg_open_5m_volume_20d"], errors="coerce"),
+        np.nan,
+    )
+    features["day_volume_rvol_20d"] = np.where(
+        pd.to_numeric(features["avg_day_volume_20d"], errors="coerce") > 0,
+        pd.to_numeric(features["day_volume"], errors="coerce") / pd.to_numeric(features["avg_day_volume_20d"], errors="coerce"),
+        np.nan,
+    )
+
+    coverage = expected.copy()
+    coverage = coverage.merge(
+        daily[["trade_date", "symbol"]].assign(has_daily_bar=True) if not daily.empty else pd.DataFrame(columns=["trade_date", "symbol", "has_daily_bar"]),
+        on=["trade_date", "symbol"],
+        how="left",
+    )
+    coverage = coverage.merge(
+        intraday_frame[["trade_date", "symbol"]].assign(has_intraday_summary=True) if not intraday_frame.empty else pd.DataFrame(columns=["trade_date", "symbol", "has_intraday_summary"]),
+        on=["trade_date", "symbol"],
+        how="left",
+    )
+    coverage = coverage.merge(
+        open_window[["trade_date", "symbol", "open_window_second_rows"]] if not open_window.empty else pd.DataFrame(columns=["trade_date", "symbol", "open_window_second_rows"]),
+        on=["trade_date", "symbol"],
+        how="left",
+    )
+    coverage["has_daily_bar"] = coverage["has_daily_bar"].where(coverage["has_daily_bar"].notna(), False).astype(bool)
+    coverage["has_intraday_summary"] = coverage["has_intraday_summary"].where(coverage["has_intraday_summary"].notna(), False).astype(bool)
+    if "open_window_second_rows" not in coverage.columns:
+        coverage["open_window_second_rows"] = 0
+    coverage["open_window_second_rows"] = pd.to_numeric(coverage["open_window_second_rows"], errors="coerce").fillna(0).astype(int)
+    coverage["has_open_window_detail"] = coverage["open_window_second_rows"] > 0
+    if "regular_open_second_rows" in coverage.columns:
+        coverage["has_open_window_detail"] = coverage["regular_open_second_rows"] > 0
+    coverage["exclusion_reason"] = np.select(
+        [
+            ~coverage["has_daily_bar"],
+            coverage["has_daily_bar"] & ~coverage["has_intraday_summary"],
+            coverage["has_intraday_summary"] & ~coverage["has_open_window_detail"],
+        ],
+        [
+            "missing_daily_bar",
+            "missing_intraday_summary",
+            "no_open_window_seconds",
+        ],
+        default="",
+    )
+    coverage = coverage.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
+    return features, coverage
+
+
+def _filter_materialized_detail_rows(
+    frame: pd.DataFrame,
+    *,
+    selected_date: str | date | datetime | pd.Timestamp,
+    selected_symbol: str,
+) -> pd.DataFrame:
+    if frame.empty or "trade_date" not in frame.columns or "symbol" not in frame.columns:
+        return pd.DataFrame()
+
+    selected_date_value = pd.Timestamp(selected_date).strftime("%Y-%m-%d")
+    trade_dates = pd.to_datetime(frame["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    selected_symbol_norm = normalize_symbol_for_databento(selected_symbol)
+    frame_symbol_norm = frame["symbol"].astype(str).map(normalize_symbol_for_databento)
+    return frame[(trade_dates == selected_date_value) & (frame_symbol_norm == selected_symbol_norm)].reset_index(drop=True)
+
+
+def resolve_selected_detail_tables(
+    second_detail_all: pd.DataFrame,
+    minute_detail_all: pd.DataFrame,
+    *,
+    selected_date: str | date | datetime | pd.Timestamp,
+    selected_symbol: str,
+    fallback_loader: Callable[[], tuple[pd.DataFrame, pd.DataFrame]] | None = None,
+    allow_explicit_refetch: bool = False,
+) -> tuple[pd.DataFrame, pd.DataFrame, bool]:
+    second_detail = _filter_materialized_detail_rows(
+        second_detail_all,
+        selected_date=selected_date,
+        selected_symbol=selected_symbol,
+    )
+    minute_detail = _filter_materialized_detail_rows(
+        minute_detail_all,
+        selected_date=selected_date,
+        selected_symbol=selected_symbol,
+    )
+
+    if not second_detail.empty and not minute_detail.empty:
+        return second_detail, minute_detail, False
+
+    if not allow_explicit_refetch or fallback_loader is None:
+        return second_detail, minute_detail, False
+
+    fallback_second, fallback_minute = fallback_loader()
+    if second_detail.empty:
+        second_detail = fallback_second.reset_index(drop=True)
+    if minute_detail.empty:
+        minute_detail = fallback_minute.reset_index(drop=True)
+    return second_detail, minute_detail, True
+
+
+def estimate_databento_costs(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    window_start: time | None = None,
+    window_end: time | None = None,
+    premarket_anchor_et: time = time(8, 0),
+) -> pd.DataFrame:
+    if not trading_days:
+        return pd.DataFrame(columns=["scope", "cost_usd", "billable_size_bytes"])
+    client = _make_databento_client(databento_api_key)
+    rows: list[dict[str, Any]] = []
+    daily_start = trading_days[0] - timedelta(days=14)
+    schema_end = _get_schema_available_end(client, dataset, "ohlcv-1d")
+    daily_end_exclusive = _daily_request_end_exclusive(trading_days[-1], schema_end)
+    try:
+        if daily_end_exclusive <= daily_start:
+            rows.append({"scope": "daily_ohlcv_1d", "cost_usd": None, "billable_size_bytes": None})
+        else:
+            rows.append(
+                {
+                    "scope": "daily_ohlcv_1d",
+                    "cost_usd": client.metadata.get_cost(
+                        dataset=dataset,
+                        start=daily_start.isoformat(),
+                        end=daily_end_exclusive.isoformat(),
+                        symbols="ALL_SYMBOLS",
+                        schema="ohlcv-1d",
+                    ),
+                    "billable_size_bytes": client.metadata.get_billable_size(
+                        dataset=dataset,
+                        start=daily_start.isoformat(),
+                        end=daily_end_exclusive.isoformat(),
+                        symbols="ALL_SYMBOLS",
+                        schema="ohlcv-1d",
+                    ),
+                }
+            )
+    except Exception:
+        rows.append({"scope": "daily_ohlcv_1d", "cost_usd": None, "billable_size_bytes": None})
+
+    intraday_cost = 0.0
+    intraday_size = 0
+    try:
+        for trade_day in trading_days:
+            day_ws, day_we = _resolve_window_for_date(trade_day, display_timezone, window_start, window_end)
+            window = build_window_definition(
+                trade_day,
+                display_timezone=display_timezone,
+                window_start=day_ws,
+                window_end=day_we,
+                premarket_anchor_et=premarket_anchor_et,
+            )
+            intraday_cost += float(
+                client.metadata.get_cost(
+                    dataset=dataset,
+                    start=window.fetch_start_utc.isoformat(),
+                    end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
+                    symbols="ALL_SYMBOLS",
+                    schema="ohlcv-1s",
+                )
+            )
+            intraday_size += int(
+                client.metadata.get_billable_size(
+                    dataset=dataset,
+                    start=window.fetch_start_utc.isoformat(),
+                    end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
+                    symbols="ALL_SYMBOLS",
+                    schema="ohlcv-1s",
+                )
+            )
+    except Exception:
+        logger.warning("Intraday cost estimate failed.", exc_info=True)
+        intraday_cost = float("nan")
+        intraday_size = -1
+    rows.append(
+        {
+            "scope": "intraday_ohlcv_1s_total",
+            "cost_usd": None if math.isnan(intraday_cost) else intraday_cost,
+            "billable_size_bytes": None if intraday_size < 0 else intraday_size,
+        }
+    )
+    return pd.DataFrame(rows)
+
+
+def default_export_directory() -> Path:
+    return Path.home() / "Downloads"
+
+
+def _safe_iso_from_file(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat(timespec="seconds")
+
+
+def _latest_manifest_path(export_dir: str | Path | None = None) -> Path | None:
+    target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
+    if not target_dir.exists():
+        return None
+    manifests = sorted(target_dir.glob("databento_volatility_production_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    if not manifests:
+        manifests = sorted(target_dir.glob("*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    return manifests[0] if manifests else None
+
+
+def build_data_status_result(export_dir: str | Path | None = None, *, stale_after_minutes: int = 60) -> DataStatusResult:
+    target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
+    manifest_path = _latest_manifest_path(target_dir)
+    manifest: dict[str, Any] = {}
+    if manifest_path is not None:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = {}
+
+    export_generated_at = manifest.get("export_generated_at") or manifest.get("exported_at")
+    daily_bars_fetched_at = manifest.get("daily_bars_fetched_at") or _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["daily_bars_fetched_at"])
+    intraday_fetched_at = manifest.get("intraday_fetched_at")
+    premarket_fetched_at = manifest.get("premarket_fetched_at") or _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["premarket_fetched_at"])
+    second_detail_fetched_at = manifest.get("second_detail_fetched_at") or _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["second_detail_fetched_at"])
+
+    if not intraday_fetched_at:
+        intraday_fetched_at = second_detail_fetched_at or premarket_fetched_at
+    if not export_generated_at:
+        export_generated_at = premarket_fetched_at or intraday_fetched_at or daily_bars_fetched_at
+
+    if not export_generated_at:
+        return DataStatusResult(
+            export_generated_at=None,
+            daily_bars_fetched_at=daily_bars_fetched_at,
+            intraday_fetched_at=intraday_fetched_at,
+            premarket_fetched_at=premarket_fetched_at,
+            second_detail_fetched_at=second_detail_fetched_at,
+            dataset=manifest.get("dataset"),
+            lookback_days=manifest.get("lookback_days"),
+            trade_dates_covered=tuple(str(item) for item in manifest.get("trade_dates_covered", [])),
+            is_stale=True,
+            staleness_reason="No production export found yet.",
+            manifest_path=str(manifest_path) if manifest_path is not None else None,
+        )
+
+    reference_timestamp = pd.Timestamp(export_generated_at)
+    if reference_timestamp.tzinfo is None:
+        reference_timestamp = reference_timestamp.tz_localize(UTC)
+    else:
+        reference_timestamp = reference_timestamp.tz_convert(UTC)
+    age_minutes = max(0.0, (pd.Timestamp(datetime.now(UTC)) - reference_timestamp).total_seconds() / 60.0)
+    is_stale = age_minutes > stale_after_minutes
+
+    return DataStatusResult(
+        export_generated_at=str(export_generated_at) if export_generated_at else None,
+        daily_bars_fetched_at=str(daily_bars_fetched_at) if daily_bars_fetched_at else None,
+        intraday_fetched_at=str(intraday_fetched_at) if intraday_fetched_at else None,
+        premarket_fetched_at=str(premarket_fetched_at) if premarket_fetched_at else None,
+        second_detail_fetched_at=str(second_detail_fetched_at) if second_detail_fetched_at else None,
+        dataset=str(manifest.get("dataset")) if manifest.get("dataset") else None,
+        lookback_days=int(manifest["lookback_days"]) if manifest.get("lookback_days") is not None else None,
+        trade_dates_covered=tuple(str(item) for item in manifest.get("trade_dates_covered", [])),
+        is_stale=is_stale,
+        staleness_reason="Fresh" if not is_stale else f"Last successful export is {age_minutes:.0f} minutes old.",
+        manifest_path=str(manifest_path) if manifest_path is not None else None,
+    )
+
+
+def build_status_table(status: DataStatusResult) -> pd.DataFrame:
+    rows = [
+        {"field": "Export generated", "value": status.export_generated_at or "n/a"},
+        {"field": "Daily bars fetched", "value": status.daily_bars_fetched_at or "n/a"},
+        {"field": "Intraday fetched", "value": status.intraday_fetched_at or "n/a"},
+        {"field": "Premarket fetched", "value": status.premarket_fetched_at or "n/a"},
+        {"field": "1s open window fetched", "value": status.second_detail_fetched_at or "n/a"},
+        {"field": "Dataset", "value": status.dataset or "n/a"},
+        {"field": "Lookback days", "value": status.lookback_days if status.lookback_days is not None else "n/a"},
+        {"field": "Trade dates covered", "value": ", ".join(status.trade_dates_covered) if status.trade_dates_covered else "n/a"},
+        {"field": "Freshness", "value": "stale" if status.is_stale else "fresh"},
+        {"field": "Reason", "value": status.staleness_reason},
+    ]
+    table = pd.DataFrame(rows)
+    table["value"] = table["value"].map(str)
+    return table
+
+
+def build_config_table(config_snapshot: dict[str, Any]) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "setting": list(config_snapshot.keys()),
+            "value": [json.dumps(value) if isinstance(value, (list, tuple, dict)) else str(value) for value in config_snapshot.values()],
+        }
+    )
+
+
+def build_export_basename(
+    *,
+    prefix: str = "databento_volatility_screener",
+    run_timestamp: datetime | None = None,
+) -> str:
+    stamp = (run_timestamp or datetime.now(UTC)).strftime("%Y%m%d_%H%M%S")
+    return f"{prefix}_{stamp}"
+
+
+def build_run_manifest_frame(manifest: dict[str, Any]) -> pd.DataFrame:
+    rows: list[dict[str, str]] = []
+    for key, value in manifest.items():
+        if isinstance(value, (list, tuple, set)):
+            rendered = json.dumps(list(value), ensure_ascii=True)
+        elif isinstance(value, dict):
+            rendered = json.dumps(value, ensure_ascii=True, sort_keys=True)
+        else:
+            rendered = "" if value is None else str(value)
+        rows.append({"field": str(key), "value": rendered})
+    return pd.DataFrame(rows)
+
+
+def _prepare_frame_for_excel(frame: pd.DataFrame) -> pd.DataFrame:
+    sanitized = frame.copy()
+    for column in sanitized.columns:
+        series = sanitized[column]
+        if isinstance(series.dtype, pd.DatetimeTZDtype):
+            sanitized[column] = series.dt.tz_localize(None)
+        elif is_datetime64_any_dtype(series):
+            continue
+        elif series.dtype == object:
+            sanitized[column] = series.map(
+                lambda value: (
+                    value.tz_localize(None) if isinstance(value, pd.Timestamp) and value.tzinfo is not None
+                    else value.replace(tzinfo=None) if isinstance(value, datetime) and value.tzinfo is not None
+                    else value
+                )
+            )
+    return sanitized
+
+
+def create_excel_workbook(
+    summary: pd.DataFrame,
+    *,
+    minute_detail: pd.DataFrame | None = None,
+    second_detail: pd.DataFrame | None = None,
+    additional_sheets: dict[str, pd.DataFrame] | None = None,
+) -> bytes:
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        _prepare_frame_for_excel(summary).to_excel(writer, sheet_name="summary", index=False)
+        if additional_sheets:
+            for sheet_name, frame in additional_sheets.items():
+                if frame is None or frame.empty:
+                    continue
+                safe_sheet_name = str(sheet_name)[:31]
+                _prepare_frame_for_excel(frame).to_excel(writer, sheet_name=safe_sheet_name, index=False)
+        if minute_detail is not None and not minute_detail.empty:
+            _prepare_frame_for_excel(minute_detail).to_excel(writer, sheet_name="minute_detail", index=False)
+        if second_detail is not None and not second_detail.empty:
+            _prepare_frame_for_excel(second_detail).to_excel(writer, sheet_name="second_detail", index=False)
+
+        workbook = writer.book
+        for worksheet in workbook.worksheets:
+            worksheet.freeze_panes = "A2"
+            worksheet.auto_filter.ref = worksheet.dimensions
+            header_fill = PatternFill(fill_type="solid", fgColor="1F4E78")
+            header_font = Font(color="FFFFFF", bold=True)
+            for cell in worksheet[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center")
+            for column_cells in worksheet.columns:
+                max_length = max(len(str(cell.value or "")) for cell in column_cells)
+                worksheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(max(max_length + 2, 12), 28)
+
+        summary_sheet = workbook["summary"]
+        headers = {cell.value: idx + 1 for idx, cell in enumerate(summary_sheet[1])}
+        heat_columns = [
+            "window_range_pct",
+            "realized_vol_pct",
+            "window_return_pct",
+            "prev_close_to_premarket_pct",
+            "premarket_to_open_pct",
+            "open_to_current_pct",
+        ]
+        for col_name in heat_columns:
+            col_idx = headers.get(col_name)
+            if col_idx is None or summary_sheet.max_row < 2:
+                continue
+            letter = get_column_letter(col_idx)
+            summary_sheet.conditional_formatting.add(
+                f"{letter}2:{letter}{summary_sheet.max_row}",
+                ColorScaleRule(
+                    start_type="num",
+                    start_value=-10,
+                    start_color="C00000",
+                    mid_type="num",
+                    mid_value=0,
+                    mid_color="FFF2CC",
+                    end_type="num",
+                    end_value=10,
+                    end_color="63BE7B",
+                ),
+            )
+    return output.getvalue()
+
+
+def export_run_artifacts(
+    *,
+    export_dir: str | Path | None,
+    basename: str,
+    summary: pd.DataFrame,
+    universe: pd.DataFrame,
+    daily_bars: pd.DataFrame,
+    intraday: pd.DataFrame,
+    ranked: pd.DataFrame,
+    minute_detail: pd.DataFrame | None = None,
+    second_detail: pd.DataFrame | None = None,
+    minute_detail_all: pd.DataFrame | None = None,
+    second_detail_all: pd.DataFrame | None = None,
+    additional_sheets: dict[str, pd.DataFrame] | None = None,
+    additional_parquet_targets: dict[str, pd.DataFrame] | None = None,
+    cost_estimate: pd.DataFrame | None = None,
+    unsupported_symbols: list[str] | None = None,
+    manifest: dict[str, Any] | None = None,
+) -> dict[str, Path]:
+    target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest_payload = dict(manifest or {})
+    manifest_payload.setdefault("basename", basename)
+    manifest_payload.setdefault("exported_at", datetime.now(UTC).isoformat(timespec="seconds"))
+
+    workbook_sheets: dict[str, pd.DataFrame] = {
+        "manifest": build_run_manifest_frame(manifest_payload),
+        "universe": universe,
+        "daily_bars": daily_bars,
+        "intraday_all": intraday,
+        "ranked": ranked,
+    }
+    if additional_sheets:
+        workbook_sheets.update(additional_sheets)
+    if cost_estimate is not None and not cost_estimate.empty:
+        workbook_sheets["cost_estimate"] = cost_estimate
+    if unsupported_symbols:
+        workbook_sheets["unsupported_symbols"] = pd.DataFrame({"symbol": unsupported_symbols})
+
+    excel_path = target_dir / f"{basename}.xlsx"
+    excel_path.write_bytes(
+        create_excel_workbook(
+            summary,
+            minute_detail=minute_detail,
+            second_detail=second_detail,
+            additional_sheets=workbook_sheets,
+        )
+    )
+
+    manifest_path = target_dir / f"{basename}_manifest.json"
+    manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
+
+    parquet_targets: dict[str, pd.DataFrame] = {
+        "summary": summary,
+        "universe": universe,
+        "daily_bars": daily_bars,
+        "intraday": intraday,
+        "ranked": ranked,
+    }
+    if minute_detail is not None and not minute_detail.empty:
+        parquet_targets["minute_detail"] = minute_detail
+    if second_detail is not None and not second_detail.empty:
+        parquet_targets["second_detail"] = second_detail
+    if minute_detail_all is not None and not minute_detail_all.empty:
+        parquet_targets["minute_detail_all"] = minute_detail_all
+    if second_detail_all is not None and not second_detail_all.empty:
+        parquet_targets["second_detail_all"] = second_detail_all
+    if cost_estimate is not None and not cost_estimate.empty:
+        parquet_targets["cost_estimate"] = cost_estimate
+    if unsupported_symbols:
+        parquet_targets["unsupported_symbols"] = pd.DataFrame({"symbol": unsupported_symbols})
+    if additional_parquet_targets:
+        parquet_targets.update(additional_parquet_targets)
+
+    created_paths: dict[str, Path] = {
+        "excel": excel_path,
+        "manifest": manifest_path,
+    }
+    for name, frame in parquet_targets.items():
+        parquet_path = target_dir / f"{basename}__{name}.parquet"
+        frame.to_parquet(parquet_path, index=False)
+        created_paths[f"parquet_{name}"] = parquet_path
+    return created_paths
+
+
+def run_streamlit_app() -> None:
+    import os
+    import streamlit as st
+    from datetime import UTC, datetime
+    from dotenv import load_dotenv
+    from pathlib import Path
+
+    from scripts.databento_production_export import run_production_export_pipeline
+    from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
+    from strategy_config import LONG_DIP_DEFAULTS
+
+    load_dotenv()
+    st.set_page_config(page_title="Databento Volatility Screener", layout="wide")
+    raw_default_top_n = LONG_DIP_DEFAULTS.get("top_n", 5)
+    default_top_n: int = raw_default_top_n if isinstance(raw_default_top_n, int) else 5
+
+    st.title("Databento Volatility Screener")
+    st.caption("Single point of view for data freshness, pipeline actions, top-N watchlist and per-entry strategy details.")
+ 
+    with st.sidebar:
+        databento_api_key = st.text_input("Databento API Key", value=os.getenv("DATABENTO_API_KEY", ""), type="password")
+        fmp_api_key = st.text_input("FMP API Key (optional, free tier fallback)", value=os.getenv("FMP_API_KEY", ""), type="password", help="Optional. Used as fallback universe source when Nasdaq Trader is unavailable. Free tier is sufficient.")
+        export_dir = st.text_input("Export directory", value=str(default_export_directory()))
+        dataset = st.text_input("Databento dataset", value=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
+        lookback_days = st.number_input("Trading days", min_value=1, max_value=90, value=30)
+        top_n = st.number_input("Top N watchlist", min_value=1, max_value=25, value=default_top_n)
+        force_refresh = st.checkbox("Force refresh", value=False)
+
+    if "dvs_run_logs" not in st.session_state:
+        st.session_state["dvs_run_logs"] = []
+
+    def add_log(message: str) -> None:
+        timestamp = datetime.now(UTC).isoformat(timespec="seconds")
+        st.session_state["dvs_run_logs"] = [*st.session_state["dvs_run_logs"], f"{timestamp} {message}"][-50:]
+
+    status = build_data_status_result(export_dir)
+    config_snapshot = dict(LONG_DIP_DEFAULTS)
+    config_snapshot["top_n"] = int(top_n)
+    watchlist_cfg = LongDipConfig(top_n=int(top_n))
+    watchlist_result = st.session_state.get("dvs_watchlist_result")
+
+    today = datetime.now(US_EASTERN_TZ).date()
+    run_start, _ = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=7, post_open_minutes=0)
+    _, run_end = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=4, post_open_minutes=0)
+    ref_start, _ = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=2, post_open_minutes=0)
+    _, ref_end = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=1, post_open_minutes=0)
+    st.info(f"Recommended main run: {run_start.strftime('%H:%M')}-{run_end.strftime('%H:%M')} Europe/Berlin. Optional last refresh: {ref_start.strftime('%H:%M')}-{ref_end.strftime('%H:%M')} Europe/Berlin.")
+
+    status_cols = st.columns(4)
+    status_cols[0].metric("Dataset", status.dataset or dataset)
+    status_cols[1].metric("Freshness", "stale" if status.is_stale else "fresh")
+    status_cols[2].metric("Export generated", status.export_generated_at or "n/a")
+    status_cols[3].metric("Premarket fetched", status.premarket_fetched_at or "n/a")
+
+    action_cols = st.columns(3)
+    refresh_data = action_cols[0].button("Refresh Data Basis", width="stretch")
+    generate_watchlist = action_cols[1].button("Generate Watchlist", width="stretch")
+    run_pipeline = action_cols[2].button("Run Daily Pipeline", type="primary", width="stretch")
+
+    pipeline_refresh_ok = False
+    if refresh_data or run_pipeline:
+        if not databento_api_key:
+            st.error("Databento API key is required for the data pipeline.")
+        else:
+            try:
+                with st.spinner("Refreshing production data basis..."):
+                    run_production_export_pipeline(
+                        databento_api_key=databento_api_key,
+                        fmp_api_key=fmp_api_key,
+                        dataset=dataset,
+                        lookback_days=int(lookback_days),
+                        cache_dir=Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache",
+                        export_dir=Path(export_dir).expanduser(),
+                        use_file_cache=True,
+                        force_refresh=force_refresh,
+                    )
+            except Exception as exc:
+                add_log(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
+                st.error(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
+            else:
+                add_log(f"Data basis refreshed for dataset={dataset}.")
+                status = build_data_status_result(export_dir)
+                pipeline_refresh_ok = True
+                if refresh_data and not run_pipeline:
+                    st.success("Data basis refreshed.")
+
+    if generate_watchlist or (run_pipeline and pipeline_refresh_ok):
+        try:
+            with st.spinner("Generating watchlist from the latest exported data..."):
+                watchlist_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+            st.session_state["dvs_watchlist_result"] = watchlist_result
+            add_log(f"Watchlist generated with top_n={top_n}.")
+            st.success("Watchlist updated.")
+        except Exception as exc:
+            add_log(f"Watchlist generation failed: {type(exc).__name__}: {exc}")
+            st.error(f"Watchlist generation failed: {type(exc).__name__}: {exc}")
+
+    if watchlist_result is None and (Path(export_dir).expanduser() / "daily_symbol_features_full_universe.parquet").exists():
+        try:
+            watchlist_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+            st.session_state["dvs_watchlist_result"] = watchlist_result
+        except Exception as exc:
+            add_log(f"Initial watchlist load failed: {type(exc).__name__}: {exc}")
+            st.warning(f"Existing export data could not be loaded automatically: {type(exc).__name__}: {exc}")
+
+    status_area, config_area = st.columns([1.1, 1.0])
+    with status_area:
+        st.subheader("Data Status")
+        st.dataframe(build_status_table(status), width="stretch", hide_index=True)
+    with config_area:
+        st.subheader("Active Config")
+        st.dataframe(build_config_table(config_snapshot), width="stretch", hide_index=True)
+
+    if not watchlist_result:
+        st.warning("No watchlist available yet. Refresh the data basis or generate the watchlist from existing exports.")
+    else:
+        watchlist_table = watchlist_result["watchlist_table"]
+        st.subheader("Top-N Watchlist")
+        st.caption(
+            f"Watchlist generated at {watchlist_result['generated_at']}. Source data fetched at {watchlist_result.get('source_data_fetched_at') or 'n/a'}."
+        )
+        for warning in watchlist_result.get("warnings", []):
+            st.warning(warning)
+
+        filter_funnel = watchlist_result.get("filter_funnel", [])
+        if filter_funnel:
+            with st.expander("Filter Funnel Diagnostic (latest trade date)", expanded=True):
+                funnel_df = pd.DataFrame(filter_funnel)
+                st.dataframe(funnel_df, width="stretch", hide_index=True)
+                bottleneck = next((s for idx, s in enumerate(filter_funnel) if s["remaining"] == 0 and idx > 0), None)
+                if bottleneck:
+                    st.error(f"Bottleneck: **{bottleneck['filter']}** (threshold {bottleneck['threshold']}) eliminated all remaining candidates.")
+
+        if watchlist_table.empty:
+            st.info("No symbols matched the current filters.")
+        else:
+            preferred_columns = [
+                "trade_date",
+                "watchlist_rank",
+                "symbol",
+                "prev_close_to_premarket_pct",
+                "premarket_last",
+                "premarket_volume",
+                "premarket_trade_count",
+                "l1_limit_buy",
+                "l1_take_profit",
+                "l1_stop_loss",
+                "l2_limit_buy",
+                "l2_take_profit",
+                "l2_stop_loss",
+                "l3_limit_buy",
+                "l3_take_profit",
+                "l3_stop_loss",
+                "position_budget_usd",
+            ]
+            visible_columns = [column for column in preferred_columns if column in watchlist_table.columns]
+            st.dataframe(watchlist_table[visible_columns], width="stretch", hide_index=True, height=420)
+
+            detail_options = [
+                f"{row.trade_date} | #{int(row.watchlist_rank)} | {row.symbol}"
+                for row in watchlist_table.itertuples(index=False)
+            ]
+            selected_label = st.selectbox("Detail entry", options=detail_options)
+            selected_index = detail_options.index(selected_label)
+            selected_row = watchlist_table.iloc[selected_index]
+
+            st.subheader("Detail View")
+            detail_frame = pd.DataFrame(
+                {
+                    "field": selected_row.index.astype(str).tolist(),
+                    "value": [str(value) for value in selected_row.tolist()],
+                }
+            )
+            st.dataframe(detail_frame, width="stretch", hide_index=True, height=420)
+
+    with st.expander("Run Logs", expanded=False):
+        if st.session_state["dvs_run_logs"]:
+            st.text("\n".join(st.session_state["dvs_run_logs"]))
+        else:
+            st.caption("No actions executed in this session yet.")
+
+
+if __name__ == "__main__" and sys.argv and sys.argv[0].endswith("databento_volatility_screener.py"):
+    run_streamlit_app()

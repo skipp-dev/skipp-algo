@@ -14,6 +14,9 @@ import logging
 import os
 import time
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo as _ZoneInfo
+
+_ET = _ZoneInfo("America/New_York")
 from pathlib import Path
 from typing import Any
 
@@ -174,7 +177,7 @@ def _analysis_worker_inner(
         econ_cal: list[dict[str, Any]] | None = None
         if poller_available and fmp_key:
             try:
-                _today = date.today().isoformat()
+                _today = datetime.now(_ET).date().isoformat()
                 _raw_cal = fetch_economic_calendar(fmp_key, _today, _today)
                 if _raw_cal:
                     econ_cal = [
@@ -290,8 +293,8 @@ def _analysis_worker_inner(
         bz_ratings: list[dict[str, Any]] | None = None
         if poller_available and benzinga_key:
             try:
-                _today_str = date.today().isoformat()
-                _week_ago = (date.today() - timedelta(days=7)).isoformat()
+                _today_str = datetime.now(_ET).date().isoformat()
+                _week_ago = (datetime.now(_ET).date() - timedelta(days=7)).isoformat()
                 _raw_ratings = fetch_benzinga_ratings(
                     benzinga_key, date_from=_week_ago, date_to=_today_str, page_size=30,
                 )
@@ -320,9 +323,9 @@ def _analysis_worker_inner(
         bz_earnings: list[dict[str, Any]] | None = None
         if poller_available and benzinga_key:
             try:
-                _today_str = date.today().isoformat()
-                _week_ahead = (date.today() + timedelta(days=7)).isoformat()
-                _week_ago = (date.today() - timedelta(days=3)).isoformat()
+                _today_str = datetime.now(_ET).date().isoformat()
+                _week_ahead = (datetime.now(_ET).date() + timedelta(days=7)).isoformat()
+                _week_ago = (datetime.now(_ET).date() - timedelta(days=3)).isoformat()
                 _raw_earn = fetch_benzinga_earnings(
                     benzinga_key, date_from=_week_ago, date_to=_week_ahead, page_size=30,
                 )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import email.utils
 import functools
 import io
 import json
@@ -25,6 +26,44 @@ logger = logging.getLogger("open_prep.macro")
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 _T = TypeVar("_T")
+
+
+def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
+    """Parse HTTP Retry-After header to seconds.
+
+    Supports both delta-seconds and IMF-fixdate formats.
+    Returns None if parsing fails.
+    """
+    if not raw_value:
+        return None
+    value = str(raw_value).strip()
+    if not value:
+        return None
+    try:
+        delay = float(value)
+        return max(0.0, delay)
+    except (TypeError, ValueError):
+        pass
+    try:
+        retry_dt = email.utils.parsedate_to_datetime(value)
+        if retry_dt.tzinfo is None:
+            retry_dt = retry_dt.replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(timezone.utc)
+        return max(0.0, (retry_dt - now_utc).total_seconds())
+    except Exception:
+        return None
+
+
+def _today_et_date() -> date:
+    from zoneinfo import ZoneInfo as _ZoneInfo
+
+    return datetime.now(_ZoneInfo("America/New_York")).date()
+
+
+def _prev_us_equity_trading_day(ref: date) -> date:
+    from newsstack_fmp._market_cal import prev_trading_day as _prev_trading_day
+
+    return _prev_trading_day(ref)
 
 
 def _handle_fmp_error(exc: RuntimeError, context: str, default: _T = None) -> _T:  # type: ignore[assignment]
@@ -321,6 +360,12 @@ class FMPClient:
         transient_http_codes = {429, 500, 502, 503, 504}
         payload: str | None = None
 
+        def _raise_validation_error(message: str, cause: Exception | None = None) -> Any:
+            self._circuit_breaker.record_failure()
+            if cause is not None:
+                raise RuntimeError(message) from cause
+            raise RuntimeError(message)
+
         for attempt in range(1, attempts + 1):
             try:
                 with urlopen(
@@ -329,12 +374,27 @@ class FMPClient:
                     context=self._ssl_ctx,
                 ) as response:
                     payload = response.read().decode("utf-8")
-                self._circuit_breaker.record_success()
+                # Do NOT record_success() yet — payload may be invalid JSON,
+                # an HTML error page, or an FMP error object.  Success is
+                # recorded after full validation below.
                 break
             except urllib.error.HTTPError as exc:
                 should_retry = exc.code in transient_http_codes and attempt < attempts
                 if should_retry:
-                    time.sleep(self._backoff_delay(attempt))
+                    # Respect Retry-After header on 429 responses
+                    if exc.code == 429:
+                        retry_after = exc.headers.get("Retry-After") if hasattr(exc, "headers") and exc.headers else None
+                        if retry_after:
+                            parsed_delay = _parse_retry_after_seconds(retry_after)
+                            if parsed_delay is None:
+                                delay = self._backoff_delay(attempt)
+                            else:
+                                delay = parsed_delay
+                        else:
+                            delay = self._backoff_delay(attempt)
+                    else:
+                        delay = self._backoff_delay(attempt)
+                    time.sleep(delay)
                     continue
                 try:
                     error_body = exc.read().decode("utf-8")
@@ -374,10 +434,11 @@ class FMPClient:
             # Detect HTML error pages (auth failure, maintenance, Cloudflare)
             _lower = stripped[:200].lower()
             if _lower.startswith("<!doctype") or _lower.startswith("<html") or _lower.startswith("<head"):
-                raise RuntimeError(
+                _raise_validation_error(
                     f"FMP API returned HTML on {path} (likely auth/maintenance): "
-                    f"{stripped[:120]!r}"
-                ) from exc
+                    f"{stripped[:120]!r}",
+                    cause=exc,
+                )
 
             # FMP may return CSV even when JSON is requested (e.g. eod-bulk).
             # Detect CSV header and parse into list[dict] with numeric coercion.
@@ -400,23 +461,25 @@ class FMPClient:
                         rows.append(coerced)
                     data = rows
                 except Exception:
-                    raise RuntimeError(
-                        f"FMP API returned invalid JSON on {path}: {payload[:100]}"
-                    ) from exc
+                    _raise_validation_error(
+                        f"FMP API returned invalid JSON on {path}: {payload[:100]}",
+                        cause=exc,
+                    )
             else:
-                raise RuntimeError(
-                    f"FMP API returned invalid JSON on {path}: {payload[:100]}"
-                ) from exc
+                _raise_validation_error(
+                    f"FMP API returned invalid JSON on {path}: {payload[:100]}",
+                    cause=exc,
+                )
 
         # FMP errors may be returned as dict payloads. Keep detection precise to
         # avoid false positives for successful payloads that include a generic
         # informational "message" field.
         if isinstance(data, dict):
             if "Error Message" in data:
-                raise RuntimeError(f"FMP API error on {path}: {data}")
+                _raise_validation_error(f"FMP API error on {path}: {_APIKEY_RE.sub(r'\1=***', str(data))}")
             status = str(data.get("status") or "").strip().lower()
             if status == "error":
-                raise RuntimeError(f"FMP API error on {path}: {data}")
+                _raise_validation_error(f"FMP API error on {path}: {_APIKEY_RE.sub(r'\1=***', str(data))}")
             if "message" in data and not any(
                 key in data
                 for key in (
@@ -430,7 +493,10 @@ class FMPClient:
                     "quotes",
                 )
             ):
-                raise RuntimeError(f"FMP API error on {path}: {data}")
+                _raise_validation_error(f"FMP API error on {path}: {_APIKEY_RE.sub(r'\1=***', str(data))}")
+        # Payload parsed successfully and is not an error object — now safe
+        # to count this request as a circuit-breaker success.
+        self._circuit_breaker.record_success()
         return data
 
     def get_macro_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
@@ -708,15 +774,15 @@ class FMPClient:
         and holidays we walk back up to 5 calendar days to find the most
         recent session with data.
         """
-        from datetime import date as _date, timedelta as _td
-        for offset in range(6):
-            query_date = _date.today() - _td(days=offset)
+        query_date = _today_et_date()
+        for _ in range(6):
             try:
                 data = self._get("/stable/sector-performance-snapshot", {"date": query_date.isoformat()})
             except RuntimeError as exc:
                 return _handle_fmp_error(exc, "sector performance")
             if isinstance(data, list) and data:
                 return [item for item in data if isinstance(item, dict)]
+            query_date = _prev_us_equity_trading_day(query_date)
         return []
 
     # ------------------------------------------------------------------
@@ -1252,6 +1318,7 @@ class FinnhubClient:
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or os.environ.get("FINNHUB_API_KEY", "")
+        self._ssl_ctx = ssl.create_default_context(cafile=certifi.where())
 
     @classmethod
     def from_env(cls, key_name: str = "FINNHUB_API_KEY") -> "FinnhubClient":
@@ -1271,8 +1338,13 @@ class FinnhubClient:
         url = f"{self.BASE}{path}?{urlencode(query)}"
         request = Request(url, headers={"Accept": "application/json"})
         try:
-            with urlopen(request, timeout=15) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            with urlopen(request, timeout=15, context=self._ssl_ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            # Detect Finnhub error payloads (e.g. {"error": "API limit reached"})
+            if isinstance(data, dict) and "error" in data:
+                logger.warning("Finnhub error payload for %s: %s", path, data["error"])
+                return {}
+            return data
         except urllib.error.HTTPError as exc:
             if exc.code == 429:
                 logger.warning("Finnhub rate-limited (429) for %s — back off", path)
@@ -1492,6 +1564,7 @@ class AlpacaClient:
     ) -> None:
         self.key_id = key_id or os.environ.get("APCA_API_KEY_ID", "")
         self.secret_key = secret_key or os.environ.get("APCA_API_SECRET_KEY", "")
+        self._ssl_ctx = ssl.create_default_context(cafile=certifi.where())
 
     @classmethod
     def from_env(cls) -> "AlpacaClient":
@@ -1511,8 +1584,13 @@ class AlpacaClient:
             "APCA-API-SECRET-KEY": self.secret_key,
         })
         try:
-            with urlopen(request, timeout=15) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            with urlopen(request, timeout=15, context=self._ssl_ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            # Detect Alpaca error payloads (e.g. {"message": "forbidden"})
+            if isinstance(data, dict) and "message" in data and len(data) <= 2:
+                logger.warning("Alpaca error payload for %s: %s", path, data.get("message"))
+                return {}
+            return data
         except urllib.error.HTTPError as exc:
             logger.warning("Alpaca HTTP %s for %s: %s", exc.code, path, exc.reason)
             return {}
@@ -1563,7 +1641,10 @@ class AlpacaClient:
             params["expiration_date"] = expiration_date
         data = self._get(f"/v1beta1/options/snapshots/{underlying.upper()}", params)
         if isinstance(data, dict) and "snapshots" in data:
-            return list(data["snapshots"])
+            snapshots = data["snapshots"]
+            if isinstance(snapshots, dict):
+                return list(snapshots.values())
+            return list(snapshots)
         return data if isinstance(data, list) else []
 
 
@@ -1616,7 +1697,7 @@ def _impact_rank(v: str | None) -> int:
 def get_consensus(event: dict[str, Any]) -> tuple[Any, str | None]:
     for fname in CONSENSUS_FIELD_CANDIDATES:
         value = event.get(fname)
-        if value is not None:
+        if value is not None and value != "":
             return value, fname
     return None, None
 
@@ -1640,7 +1721,7 @@ def _dedupe_quality(e: dict) -> tuple:
     cons, _ = get_consensus(e)
     return (
         _impact_rank(e.get("impact")),
-        1 if actual is not None else 0,
+        1 if actual is not None and actual != "" else 0,
         1 if cons is not None else 0,
         # Fall back to "name" field so events without an "event" key
         # are still disambiguated deterministically.

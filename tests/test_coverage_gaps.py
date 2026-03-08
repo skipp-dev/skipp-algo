@@ -402,6 +402,51 @@ class TestFetchSectorPerformance(unittest.TestCase):
         result = fetch_sector_performance("fake_key")
         self.assertEqual(result, [])
 
+    @patch("terminal_poller._prev_trading_day")
+    @patch("terminal_poller.datetime")
+    @patch("terminal_poller._get_fmp_client")
+    def test_walks_back_via_prev_trading_day(
+        self,
+        mock_get_client: MagicMock,
+        mock_dt: MagicMock,
+        mock_prev_td: MagicMock,
+    ) -> None:
+        """Verify walk-back uses _prev_trading_day, not timedelta(days=1)."""
+        from datetime import date as real_date
+        from terminal_poller import fetch_sector_performance
+
+        # Simulate today = Saturday 2026-02-28
+        mock_dt.now.return_value.date.return_value = real_date(2026, 2, 28)
+        # prev_trading_day(Saturday) -> Friday
+        mock_prev_td.return_value = real_date(2026, 2, 27)
+
+        # First call (Saturday) returns empty, second (Friday) returns data
+        call_count = {"n": 0}
+        mock_resp_empty = MagicMock()
+        mock_resp_empty.json.return_value = []
+        mock_resp_empty.raise_for_status = MagicMock()
+
+        mock_resp_ok = MagicMock()
+        mock_resp_ok.json.return_value = [
+            {"sector": "Tech", "exchange": "NASDAQ", "averageChange": 2.0},
+        ]
+        mock_resp_ok.raise_for_status = MagicMock()
+
+        def _side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return mock_resp_empty
+            return mock_resp_ok
+
+        mock_client = MagicMock()
+        mock_client.get.side_effect = _side_effect
+        mock_get_client.return_value = mock_client
+
+        result = fetch_sector_performance("fake_key")
+        self.assertEqual(len(result), 1)
+        # Verify _prev_trading_day was called (not just timedelta)
+        mock_prev_td.assert_called()
+
 
 # ═════════════════════════════════════════════════════════════════
 # terminal_export: CSV / webhook / JSONL edge cases

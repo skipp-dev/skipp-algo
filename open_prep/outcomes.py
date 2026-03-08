@@ -20,9 +20,12 @@ import math
 import os
 import tempfile
 from collections import deque
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo as _ZoneInfo
+
+_ET = _ZoneInfo("America/New_York")
 
 from .utils import to_float as _safe_float
 
@@ -316,7 +319,7 @@ class FeatureImportanceCollector:
         """Add a single sample to the ring buffer."""
         sample: dict[str, Any] = {
             "symbol": symbol,
-            "date": run_date or date.today().isoformat(),
+            "date": run_date or datetime.now(_ET).date().isoformat(),
             "total_score": total_score,
             "confidence_tier": confidence_tier,
             "profitable_30m": profitable_30m,
@@ -331,7 +334,7 @@ class FeatureImportanceCollector:
         if not self._buffer:
             return None
         FEATURE_IMPORTANCE_DIR.mkdir(parents=True, exist_ok=True)
-        rd = run_date or date.today()
+        rd = run_date or datetime.now(_ET).date()
         path = FEATURE_IMPORTANCE_DIR / f"fi_samples_{rd.isoformat()}.jsonl"
         fd, tmp_path = tempfile.mkstemp(
             dir=FEATURE_IMPORTANCE_DIR, suffix=".tmp",

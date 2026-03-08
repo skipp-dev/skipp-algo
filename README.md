@@ -18,7 +18,8 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 - This project provides market data aggregation, analytics, alerts, and workflow support.
 - It does **not** provide personalized investment recommendations.
-- It does **not** execute orders or place trades on behalf of users.
+- The main dashboard and Pine components do **not** auto-execute trades by default.
+- Optional local scripts may generate or submit user-authorized broker orders only when they are explicitly invoked from the command line.
 - Users remain solely responsible for their own investment decisions, risk management, and regulatory compliance.
 
 ---
@@ -27,6 +28,7 @@ SkippALGO is a modular trading intelligence platform combining three core system
 
 - [Real-Time News Intelligence Dashboard](#real-time-news-intelligence-dashboard)
 - [Open-Prep Pipeline](#open-prep-pipeline)
+- [Databento Volatility Suite](#databento-volatility-suite)
 - [SkippALGO Pine Script](#skippalgo-pine-script)
 - [Developer Guide](#developer-guide)
 - [Documentation Index](#documentation-index)
@@ -323,6 +325,80 @@ Each candidate includes:
 
 ---
 
+## Databento Volatility Suite
+
+The repository now includes a dedicated Databento-driven screening and execution workflow for full-universe US equities.
+
+It is split into four layers:
+
+1. `databento_volatility_screener.py` for the core data model, caching, window logic, export helpers, and Streamlit UI.
+2. `scripts/databento_production_export.py` for the production export pipeline that materializes full-universe feature bundles.
+3. `scripts/generate_databento_watchlist.py` for Long-Dip watchlist generation from export bundles.
+4. `scripts/execute_ibkr_watchlist.py` for IBKR dry-run previews and optional live order submission.
+
+### What It Produces
+
+- Full-universe daily feature tables based on Databento daily and 1-second bars
+- Premarket feature tables for gap and volume-driven filtering
+- Ranked pre-open watchlists with three laddered entry levels, take-profit, stop-loss, and trailing-stop anchors
+- Export bundles with manifest metadata, Parquet artifacts, and formatted Excel workbooks
+- Optional IBKR order previews or live bracket-order execution
+
+### Main Entry Points
+
+```bash
+# Interactive Streamlit app
+streamlit run streamlit_databento_volatility_screener.py
+
+# Production export bundle
+python scripts/databento_production_export.py
+
+# Watchlist generation from latest exact-named exports or a bundle
+python scripts/generate_databento_watchlist.py --export-dir ~/Downloads
+
+# Inspect latest bundle and tables
+python scripts/load_databento_export_bundle.py ~/Downloads --head 3
+
+# IBKR dry run from an existing watchlist
+python scripts/execute_ibkr_watchlist.py --watchlist-csv reports/databento_watchlist_top5_pre1530.csv
+```
+
+### Required / Optional Inputs
+
+- `DATABENTO_API_KEY` is required for the screener and production export pipeline.
+- `FMP_API_KEY` is optional and used for fundamentals enrichment and fallback universe-related flows.
+- `ib_insync` plus a reachable TWS or IB Gateway session are required only for `scripts/execute_ibkr_watchlist.py`.
+
+### Default Operating Model
+
+- Display timezone: `Europe/Berlin`
+- Premarket anchor: `08:00:00 ET`
+- Intraday screening window: ET-relative defaults from `databento_volatility_screener.py`
+- Production open-window detail export: `15:29:00` through `15:35:59` Europe/Berlin
+- Watchlist strategy: `strategy_config.py` Long-Dip defaults (`top_n=5`, laddered entries, fixed TP/SL, trailing stop)
+
+### Output Artifacts
+
+The production export pipeline writes both manifest-backed bundle artifacts and exact-named Parquet files. The most important downstream files are:
+
+- `daily_symbol_features_full_universe.parquet`
+- `premarket_features_full_universe.parquet`
+- `full_universe_second_detail_open.parquet`
+- `symbol_day_diagnostics.parquet`
+- `databento_volatility_production_*_manifest.json`
+- `databento_volatility_production_*.xlsx`
+
+The watchlist layer can load either:
+
+- the exact-named Parquet files in an export directory, or
+- the latest manifest-backed bundle when the exact-named files are missing or corrupt.
+
+### Related Documentation
+
+For the full operational and technical workflow, see `docs/DATABENTO_VOLATILITY_SUITE.md`.
+
+---
+
 ## SkippALGO Pine Script
 
 - **Latest (v6.3.13 — Pine Script v6)**
@@ -461,8 +537,19 @@ skipp-algo/
 │   ├── alerts.py                  # Alert configuration
 │   └── watchlist.py               # Symbol watchlist management
 │
+├── databento_volatility_screener.py      # Core Databento screener engine + exports + Streamlit UI logic
+├── streamlit_databento_volatility_screener.py # Standalone Streamlit launcher for the Databento screener
+├── terminal_databento.py                 # Databento quote helpers for the main terminal and Open-Prep monitor
+├── strategy_config.py                    # Long-Dip watchlist and execution defaults
+│
 ├── tests/                         # 1 681 tests
-├── scripts/                       # VisiData launchers, export scripts
+├── scripts/                       # Automation, export, watchlist, and IBKR execution scripts
+│   ├── databento_production_export.py    # Full-universe export pipeline
+│   ├── databento_smoke_test.py           # Minimal end-to-end Databento smoke run
+│   ├── generate_databento_watchlist.py   # Long-Dip watchlist generator
+│   ├── load_databento_export_bundle.py   # Bundle/manifest loader and inspector
+│   ├── execute_ibkr_watchlist.py         # IBKR dry-run / live execution bridge
+│   └── run_ibkr_open_execution.py        # Higher-level runner for execution workflows
 ├── docs/                          # Technical docs, reviews, runbooks
 ├── *.pine                         # TradingView Pine Script v6
 ├── pyproject.toml                 # Centralized config (pytest/ruff/mypy)
@@ -477,6 +564,7 @@ skipp-algo/
 ### Terminal & Operations
 
 - [Terminal Architecture Plan](docs/BLOOMBERG_TERMINAL_PLAN.md)
+- [Databento Volatility Suite Guide](docs/DATABENTO_VOLATILITY_SUITE.md)
 - [Open Prep Suite — Technical Reference](docs/OPEN_PREP_SUITE_TECHNICAL_REFERENCE.md)
 - [Open Prep Suite — Ops Quick Reference](docs/OPEN_PREP_OPS_QUICK_REFERENCE.md)
 - [Open Prep Suite — Incident Runbook Matrix](docs/OPEN_PREP_INCIDENT_RUNBOOK_MATRIX.md)

@@ -107,7 +107,7 @@ def main() -> None:
             writer.writerow(ranked_headers)
             writer.writerows(ranked_rows)
         os.replace(_tmp_path, str(ranked_csv))
-    except BaseException:
+    except Exception:
         os.unlink(_tmp_path)
         raise
 
@@ -160,7 +160,7 @@ def main() -> None:
             writer.writerow(cards_headers)
             writer.writerows(cards_rows)
         os.replace(_tmp_path, str(cards_csv))
-    except BaseException:
+    except Exception:
         os.unlink(_tmp_path)
         raise
 

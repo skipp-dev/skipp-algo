@@ -1,0 +1,157 @@
+//@version=6
+indicator("REV Ladder (Best Bullish CHoCH = CHoCH + Sweep)", overlay=true, max_labels_count=500)
+
+//==================================================
+// Inputs
+//==================================================
+grpStruct = "Structure"
+
+showBestBullChoch = input.bool(true, "Show BEST Bullish CHoCH", group=grpStruct)
+showSweepDots     = input.bool(false, "Show Sweep/Reclaim dots", group=grpStruct)
+showRawChoch      = input.bool(false, "Show raw bullish CHoCH", group=grpStruct)
+showDebug         = input.bool(false, "Debug", group=grpStruct)
+
+swingL      = input.int(2, "Swing Left", minval=1, maxval=20, group=grpStruct)
+swingR      = input.int(1, "Swing Right", minval=1, maxval=20, group=grpStruct)
+swingMaxAge = input.int(100, "Swing max age bars", minval=10, maxval=500, group=grpStruct)
+
+breakoutSource = input.string("Wick", "Breakout Source", options=["Close", "Wick"], group=grpStruct)
+chochMode      = input.string("Ping+Verify", "ChoCH Mode", options=["Ping", "Verify", "Ping+Verify"], group=grpStruct)
+
+requireSweepOrReclaim = input.bool(true, "Require sweep/reclaim for CHoCH ping", group=grpStruct)
+
+grpVol = "Volume"
+useVolFilter = input.bool(true, "Require volume for CHoCH", group=grpVol)
+volLen       = input.int(20, "Volume SMA Length", minval=2, maxval=100, group=grpVol)
+volMult      = input.float(1.2, "Volume Multiplier", minval=0.1, step=0.05, group=grpVol)
+
+//==================================================
+// Swings (with aging)
+//==================================================
+var float lastSwingHigh    = na
+var float lastSwingLow     = na
+var int   lastSwingHighBar = na
+var int   lastSwingLowBar  = na
+
+ph = ta.pivothigh(high, swingL, swingR)
+pl = ta.pivotlow(low,  swingL, swingR)
+
+if not na(ph)
+    lastSwingHigh    := ph
+    lastSwingHighBar := bar_index - swingR
+
+if not na(pl)
+    lastSwingLow     := pl
+    lastSwingLowBar  := bar_index - swingR
+
+swingHighFresh = not na(lastSwingHighBar) and (bar_index - lastSwingHighBar) <= swingMaxAge
+swingLowFresh  = not na(lastSwingLowBar)  and (bar_index - lastSwingLowBar)  <= swingMaxAge
+
+//==================================================
+// Breakouts
+//==================================================
+bool breakoutLong  = false
+bool breakoutShort = false
+
+bool xoWick = swingHighFresh and not na(lastSwingHigh) and high > lastSwingHigh and high[1] <= lastSwingHigh
+bool xuWick = swingLowFresh  and not na(lastSwingLow)  and low  < lastSwingLow  and low[1]  >= lastSwingLow
+
+if breakoutSource == "Close"
+    breakoutLong  := swingHighFresh and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+    breakoutShort := swingLowFresh  and not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+else
+    breakoutLong  := xoWick
+    breakoutShort := xuWick
+
+//==================================================
+// Liquidity sweep / reclaim
+//==================================================
+bullishSweep = swingLowFresh and not na(lastSwingLow) and low < lastSwingLow and close > lastSwingLow
+reclaimLow   = bullishSweep
+
+liqOk = not requireSweepOrReclaim or bullishSweep or reclaimLow
+
+//==================================================
+// Structure state + events
+//==================================================
+var int structState = 0
+
+var bool chochPingLong = false
+var bool bosLong       = false
+
+// Reset events every bar
+chochPingLong := false
+bosLong       := false
+
+if breakoutLong
+    chochPingLong := (structState == -1)
+    bosLong       := not chochPingLong
+    structState   := 1
+
+if breakoutShort
+    structState := -1
+
+// Reclaim can create early bullish CHoCH ping if not already bullish
+if liqOk and reclaimLow and structState != 1
+    chochPingLong := true
+
+// Verify only if previous ping and now close > swing high
+chochVerifyLong =
+     chochPingLong[1] and
+     swingHighFresh and
+     not na(lastSwingHigh) and
+     close > lastSwingHigh
+
+isChoCH_Long =
+     chochMode == "Ping"   ? chochPingLong   :
+     chochMode == "Verify" ? chochVerifyLong  :
+     (chochPingLong or chochVerifyLong)
+
+//==================================================
+// Volume filter
+//==================================================
+volSma = ta.sma(volume, volLen)
+volOk  = not useVolFilter or (not na(volume) and not na(volSma) and volume > volSma * volMult)
+
+//==================================================
+// BEST Bullish CHoCH = CHoCH + Sweep + Volume
+//==================================================
+bestBullChoch = isChoCH_Long and bullishSweep and volOk
+
+//==================================================
+// Visuals
+//==================================================
+
+// Optional raw CHoCH
+plotshape(showRawChoch and isChoCH_Long, title="Raw Bullish CHoCH",
+     style=shape.labelup, location=location.belowbar,
+     text="CHoCH", size=size.tiny,
+     color=color.new(color.purple, 0), textcolor=color.white)
+
+// BEST signal
+plotshape(showBestBullChoch and bestBullChoch, title="BEST Bullish CHoCH",
+     style=shape.labelup, location=location.belowbar,
+     text="CHoCH", size=size.small,
+     color=color.new(#006400, 0), textcolor=color.white)
+
+// Green confirmation dot
+plotshape(showBestBullChoch and bestBullChoch, title="BEST Dot",
+     style=shape.circle, location=location.abovebar,
+     size=size.tiny, color=color.new(color.green, 0))
+
+// Optional raw sweep dot
+plotshape(showSweepDots and bullishSweep, title="Bull Sweep/Reclaim",
+     style=shape.circle, location=location.belowbar,
+     size=size.tiny, color=color.new(color.teal, 0))
+
+// Debug
+plotchar(showDebug and isChoCH_Long,  title="isChoCH_Long",  char="C", location=location.bottom)
+plotchar(showDebug and bullishSweep,  title="bullishSweep",  char="S", location=location.bottom)
+plotchar(showDebug and bestBullChoch, title="bestBullChoch",  char="X", location=location.top)
+
+//==================================================
+// Alerts
+//==================================================
+alertcondition(bestBullChoch,
+     title="BEST Bullish CHoCH",
+     message="{{ticker}} — BEST Bullish CHoCH (CHoCH + Sweep) on {{interval}}")

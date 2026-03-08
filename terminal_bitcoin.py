@@ -485,11 +485,15 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
     Uses yfinance 5m data aggregated to 10m buckets for the last *hours*.
     """
     cache_key = f"btc_ohlcv_10m:{hours}"
+    last_good_key = f"{cache_key}:last_good"
     cached = _get_cached(cache_key, 60)  # 1 min cache for near-realtime
     if cached is not None:
         return cached  # type: ignore
     err_key = f"{cache_key}:error"
     if _get_cached(err_key, _OHLCV_10M_ERROR_TTL) is not None:
+        stale = _get_cached(last_good_key, 6 * 3600)
+        if stale is not None:
+            return stale  # type: ignore
         return []
 
     if not _YF or not _PD:
@@ -535,10 +539,16 @@ def fetch_btc_ohlcv_10min(hours: int = 48) -> list[dict[str, Any]]:
                 "volume": float(row.get("Volume", 0)),
             })
         _set_cached(cache_key, rows)
+        _set_cached(last_good_key, rows)
         return rows
     except Exception as exc:
-        _set_cached(err_key, str(exc))
-        log.warning("BTC 10min OHLCV failed: %s", exc)
+        sanitized_exc = _APIKEY_RE.sub(r"\1=***", str(exc))
+        _set_cached(err_key, sanitized_exc)
+        log.warning("BTC 10min OHLCV failed: %s", sanitized_exc)
+        stale = _get_cached(last_good_key, 6 * 3600)
+        if stale is not None:
+            log.warning("BTC 10min OHLCV using stale fallback data after fetch failure")
+            return stale  # type: ignore
         return []
 
 

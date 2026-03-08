@@ -1,4 +1,4 @@
-"""Tab: Social — social-media buzz from NewsAPI.ai + Finnhub."""
+"""Tab: Social — social-media buzz from Finnhub."""
 
 from __future__ import annotations
 
@@ -6,10 +6,8 @@ from typing import Any
 
 import streamlit as st
 
-from terminal_newsapi import (
-    fetch_social_ranked_articles,
-    is_available as newsapi_available,
-)
+from terminal_newsapi import newsapi_available, fetch_social_ranked_articles
+
 from terminal_finnhub import (
     fetch_social_sentiment_batch,
     is_available as finnhub_available,
@@ -20,7 +18,7 @@ from terminal_ui_helpers import safe_markdown_text, safe_url
 def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
     """Render the Social Buzz tab."""
     st.subheader("💬 Social Buzz")
-    st.caption("Social-media sentiment — Reddit & Twitter mentions + most-shared news.")
+    st.caption("Social-media sentiment — Reddit & Twitter mentions (Finnhub).")
 
     # ── Section 1: Finnhub Reddit + Twitter Sentiment ────────────
     if finnhub_available():
@@ -81,7 +79,7 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                 st.caption("No social sentiment data available for current tickers.")
             st.markdown("---")
     elif not finnhub_available() and not newsapi_available():
-        st.info("Set `FINNHUB_API_KEY` and/or `NEWSAPI_AI_KEY` in `.env` for social buzz data.")
+        st.info("Set `FINNHUB_API_KEY` in `.env` for social buzz data. (NewsAPI.ai has been decommissioned.)")
         return
 
     # ── Section 2: NewsAPI.ai Most-Shared Articles ───────────────
@@ -113,4 +111,4 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
                         if art.social_score:
                             st.metric("Buzz", f"{art.social_score:,}")
     elif not finnhub_available():
-        st.info("Set `NEWSAPI_AI_KEY` in `.env` for social buzz data.")
+        st.info("Social buzz requires `FINNHUB_API_KEY`. (NewsAPI.ai has been decommissioned.)")

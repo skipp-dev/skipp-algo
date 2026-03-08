@@ -1,0 +1,544 @@
+// ────────────────────────────────────────────────────────────────
+//  PRE-BUY / BUY / REV Ladder MTF+Regime  ·  Pine Script v6
+//  4-stage bullish entry ladder with multi-timeframe regime,
+//  ADX, ATR regime, HTF structure confluence, volume typing.
+//  Reviewed & hardened: swing aging, verify tightened, FVG
+//  invalidation order, regime-gated BUY, cancel signal, etc.
+// ────────────────────────────────────────────────────────────────
+//@version=6
+indicator("PRE-BUY / BUY / REV Ladder MTF+Regime", overlay=true, max_labels_count=500)
+
+//==================================================
+// Inputs
+//==================================================
+grpTrend = "0 · Trend / Setup"
+emaFastLen      = input.int(21, "EMA Fast", minval=1, group=grpTrend)
+emaSlowLen      = input.int(55, "EMA Slow", minval=1, group=grpTrend)
+preWarnDistATR  = input.float(0.25, "PRE-BUY proximity - ATR", minval=0.0, step=0.05, group=grpTrend)
+touchTolATR     = input.float(0.12, "BUY touch tolerance - ATR", minval=0.0, step=0.01, group=grpTrend)
+
+grpStruct = "1 · Structure"
+swingL                = input.int(2,   "Swing Left",       minval=1, maxval=20, group=grpStruct)
+swingR                = input.int(1,   "Swing Right",      minval=1, maxval=20, group=grpStruct)
+swingMaxAge           = input.int(100, "Swing max age bars", minval=10, maxval=500, group=grpStruct)
+breakoutSource        = input.string("Wick", "Breakout Source", options=["Close", "Wick"], group=grpStruct)
+chochMode             = input.string("Ping+Verify", "ChoCH Mode", options=["Ping", "Verify", "Ping+Verify"], group=grpStruct)
+revRecencyBars        = input.int(5, "ChoCH freshness bars", minval=1, maxval=20, group=grpStruct)
+requireSweepOrReclaim = input.bool(true, "Require liquidity sweep or reclaim", group=grpStruct)
+
+grpVol = "2 · Volume"
+useVolFilter        = input.bool(true,  "Use Volume Filter",               group=grpVol)
+volLen              = input.int(20,     "Volume SMA Length",    minval=2,   group=grpVol)
+volMult             = input.float(1.2,  "Volume Multiplier",   minval=0.1, step=0.05, group=grpVol)
+useVolumeTypeFilter = input.bool(true,  "Use volume type filter",          group=grpVol)
+climaxVolMult       = input.float(1.8,  "Climax-down volume multiplier",   minval=1.0, step=0.1, group=grpVol)
+dispVolMult         = input.float(1.4,  "Displacement volume multiplier",  minval=1.0, step=0.1, group=grpVol)
+
+grpDisp = "3 · Displacement"
+atrLen                    = input.int(14,    "ATR Length",                  minval=1, group=grpDisp)
+dispBodyATR               = input.float(0.6, "Displacement body ATR min",  minval=0.1, step=0.05, group=grpDisp)
+closeNearHighFrac         = input.float(0.25,"Close near high fraction",   minval=0.05, maxval=0.50, step=0.05, group=grpDisp)
+useDisplacementForConfirm = input.bool(true, "Use displacement for REV-CONFIRM", group=grpDisp)
+
+grpUsi = "4 · Momentum / USI"
+useUsiFilter = input.bool(true, "Use USI confirmation",  group=grpUsi)
+usiLen1      = input.int(11, "USI Line 1 Slow", minval=2, maxval=50, group=grpUsi)
+usiLen2      = input.int(7,  "USI Line 2",      minval=2, maxval=50, group=grpUsi)
+usiLen3      = input.int(5,  "USI Line 3",      minval=2, maxval=50, group=grpUsi)
+usiLen4      = input.int(4,  "USI Line 4",      minval=2, maxval=50, group=grpUsi)
+usiLen5      = input.int(2,  "USI Line 5 Fast", minval=1, maxval=50, group=grpUsi)
+usiZeroLag   = input.bool(true, "Zero-Lag source", group=grpUsi)
+
+grpRegime = "5 · Trend-Regime Filter"
+useHtfFilter              = input.bool(true,  "Use HTF EMA regime filter",       group=grpRegime)
+htfTf                     = input.timeframe("60", "Primary HTF",                 group=grpRegime)
+htfFastLen                = input.int(21, "HTF EMA Fast", minval=1,              group=grpRegime)
+htfSlowLen                = input.int(55, "HTF EMA Slow", minval=1,              group=grpRegime)
+htfBlockOnlyStrongBear    = input.bool(true, "Block only STRONG bearish HTF",    group=grpRegime)
+
+useAdxFilter              = input.bool(true, "Use ADX filter",                   group=grpRegime)
+adxLen                    = input.int(14, "ADX length", minval=5, maxval=50,     group=grpRegime)
+adxStrongTrend            = input.float(28.0, "ADX strong-trend threshold",      minval=5.0, maxval=60.0, step=1.0, group=grpRegime)
+blockRevWhenStrongBearTrend = input.bool(true, "Block REV in strong bearish trend", group=grpRegime)
+
+useAtrRegimeFilter        = input.bool(true, "Use ATR regime filter",            group=grpRegime)
+atrBaselineLen            = input.int(50, "ATR baseline length",   minval=10, maxval=300, group=grpRegime)
+atrCompressionThr         = input.float(0.75, "ATR compression threshold",       minval=0.3, maxval=1.0, step=0.05, group=grpRegime)
+atrExpansionThr           = input.float(1.15, "ATR expansion threshold",         minval=1.0, maxval=2.5, step=0.05, group=grpRegime)
+atrHighVolThr             = input.float(1.40, "ATR high-vol threshold",          minval=1.1, maxval=3.0, step=0.05, group=grpRegime)
+atrExhaustLookback        = input.int(5, "ATR exhaustion lookback",  minval=3, maxval=30, group=grpRegime)
+blockRevInExpansion       = input.bool(false, "Block REV in ATR expansion",      group=grpRegime)
+blockBuyInCompression     = input.bool(false, "Block BUY in ATR compression",    group=grpRegime)
+
+useMtfScore               = input.bool(true, "Use multi-timeframe score",        group=grpRegime)
+mtfTf1                    = input.timeframe("15",  "MTF 1",                      group=grpRegime)
+mtfTf2                    = input.timeframe("60",  "MTF 2",                      group=grpRegime)
+mtfTf3                    = input.timeframe("240", "MTF 3",                      group=grpRegime)
+mtfWeight1                = input.float(1.0, "MTF 1 weight", minval=0.1, maxval=5.0, step=0.1, group=grpRegime)
+mtfWeight2                = input.float(1.5, "MTF 2 weight", minval=0.1, maxval=5.0, step=0.1, group=grpRegime)
+mtfWeight3                = input.float(2.0, "MTF 3 weight", minval=0.1, maxval=5.0, step=0.1, group=grpRegime)
+mtfScoreMin               = input.float(-0.15, "Min MTF score for REV",          minval=-1.0, maxval=1.0, step=0.05, group=grpRegime)
+
+grpMtfStruct = "6 · HTF Structure"
+useHtfStructure                = input.bool(true, "Use HTF structure confluence",        group=grpMtfStruct)
+htfStructTf                    = input.timeframe("60", "HTF Structure TF",               group=grpMtfStruct)
+htfSwingL                      = input.int(2, "HTF Swing Left",  minval=1, maxval=20,    group=grpMtfStruct)
+htfSwingR                      = input.int(1, "HTF Swing Right", minval=1, maxval=20,    group=grpMtfStruct)
+htfBreakoutSource              = input.string("Wick", "HTF Breakout Source", options=["Close", "Wick"], group=grpMtfStruct)
+requireHtfNotBearishStructure  = input.bool(true, "Require HTF structure not bearish",   group=grpMtfStruct)
+boostIfHtfBullChoch            = input.bool(true, "Boost confirm if HTF bull CHoCH",     group=grpMtfStruct)
+
+grpFvg = "7 · FVG"
+useFvgRetestConfirm = input.bool(true, "Use FVG retest for REV-CONFIRM", group=grpFvg)
+fvgMaxAge           = input.int(10,    "FVG max age bars", minval=1, maxval=50, group=grpFvg)
+
+grpExec = "8 · Execution"
+barCloseOnly       = input.bool(true,  "Signals only on confirmed bars",      group=grpExec)
+cooldownBars       = input.int(1,      "Cooldown bars after REV-EARLY",       minval=0, maxval=20, group=grpExec)
+cooldownConfirmToo = input.bool(false, "Cooldown gates REV-CONFIRM too",      group=grpExec)
+cancelWindow       = input.int(20,     "Cancel window bars after entry",      minval=1, maxval=100, group=grpExec)
+
+grpVis = "Visibility"
+showPreBuy     = input.bool(true,  "Show PRE-BUY",              group=grpVis)
+showBuy        = input.bool(true,  "Show BUY",                  group=grpVis)
+showRevEarly   = input.bool(true,  "Show REV-EARLY",            group=grpVis)
+showRevConfirm = input.bool(true,  "Show REV-CONFIRM",          group=grpVis)
+showCancel     = input.bool(true,  "Show CANCEL",               group=grpVis)
+showStruct     = input.bool(true,  "Show CHoCH / BOS / Sweep",  group=grpVis)
+showFvg        = input.bool(true,  "Show Bull FVG zone",        group=grpVis)
+showUsiPlots   = input.bool(false, "Show USI lines",            group=grpVis)
+showDebug      = input.bool(false, "Show debug",                group=grpVis)
+
+//==================================================
+// Helpers
+//==================================================
+f_zl_src(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    2.0 * e1 - e2
+
+f_tf_score(_close, _emaFast, _emaSlow, _rsi) =>
+    trend = _emaFast > _emaSlow ? 1.0 : _emaFast < _emaSlow ? -1.0 : 0.0
+    mom   = _rsi > 55 ? 1.0 : _rsi < 45 ? -1.0 : 0.0
+    loc   = _close > _emaSlow ? 0.5 : _close < _emaSlow ? -0.5 : 0.0
+    math.max(-1.0, math.min(1.0, (trend + mom + loc) / 2.5))
+
+//==================================================
+// Core series / gates
+//==================================================
+emaFast = ta.ema(close, emaFastLen)
+emaSlow = ta.ema(close, emaSlowLen)
+atrVal  = ta.atr(atrLen)
+
+volSma   = ta.sma(volume, volLen)
+volRatio = (not na(volume) and not na(volSma) and volSma > 0) ? volume / volSma : 1.0
+volOk    = not useVolFilter or (not na(volume) and not na(volSma) and volume > volSma * volMult)
+barOk    = not barCloseOnly or barstate.isconfirmed
+
+trendBull = emaFast > emaSlow and close > emaSlow
+
+//==================================================
+// Structure: swings + breakout + ChoCH
+//==================================================
+var float lastSwingHigh    = na
+var float lastSwingLow     = na
+var int   lastSwingHighBar = na
+var int   lastSwingLowBar  = na
+
+ph = ta.pivothigh(high, swingL, swingR)
+pl = ta.pivotlow(low,  swingL, swingR)
+
+if not na(ph)
+    lastSwingHigh    := ph
+    lastSwingHighBar := bar_index - swingR
+if not na(pl)
+    lastSwingLow     := pl
+    lastSwingLowBar  := bar_index - swingR
+
+// Swing freshness — stale swings do not trigger breakouts or sweeps
+bool swingHighFresh = not na(lastSwingHighBar) and (bar_index - lastSwingHighBar) <= swingMaxAge
+bool swingLowFresh  = not na(lastSwingLowBar)  and (bar_index - lastSwingLowBar)  <= swingMaxAge
+
+bool breakoutLong  = false
+bool breakoutShort = false
+
+// Pre-calc wick crosses at global scope
+bool _xoWick = swingHighFresh and not na(lastSwingHigh) and high > lastSwingHigh and high[1] <= lastSwingHigh
+bool _xuWick = swingLowFresh  and not na(lastSwingLow)  and low  < lastSwingLow  and low[1]  >= lastSwingLow
+
+if breakoutSource == "Close"
+    breakoutLong  := swingHighFresh and not na(lastSwingHigh) and close > lastSwingHigh and close[1] <= lastSwingHigh
+    breakoutShort := swingLowFresh  and not na(lastSwingLow)  and close < lastSwingLow  and close[1] >= lastSwingLow
+else
+    breakoutLong  := _xoWick
+    breakoutShort := _xuWick
+
+// Sweep / reclaim — only fresh swing levels carry liquidity significance
+bool bullishSweep = swingLowFresh and not na(lastSwingLow) and low < lastSwingLow and close > lastSwingLow
+bool reclaimLow   = bullishSweep
+
+var int structState = 0
+bool chochPingLong = false
+bool bosLong       = false
+
+if breakoutLong
+    chochPingLong := (structState == -1)
+    bosLong       := not chochPingLong
+    structState   := 1
+
+if breakoutShort
+    structState := -1
+
+// Reclaim only triggers CHoCH Ping if structure is bearish/neutral — not when already bullish
+if reclaimLow and structState != 1
+    chochPingLong := true
+
+// ChoCH Verify: require close > lastSwingHigh (proving higher-high, not the loose lastSwingLow test)
+bool chochVerifyLong =
+     chochPingLong[1] and
+     not na(lastSwingHigh) and close > lastSwingHigh
+
+bool isChoCH_Long =
+     chochMode == "Ping"   ? chochPingLong   :
+     chochMode == "Verify" ? chochVerifyLong  :
+     (chochPingLong or chochVerifyLong)
+
+int barsSinceChoCH_L = ta.barssince(isChoCH_Long)
+bool freshChoch      = not na(barsSinceChoCH_L) and barsSinceChoCH_L <= revRecencyBars
+
+bool liqOk = not requireSweepOrReclaim or bullishSweep or reclaimLow
+
+//==================================================
+// Displacement
+//==================================================
+float body = math.abs(close - open)
+float rng  = math.max(high - low, syminfo.mintick)
+
+bool bullDisplacement = close > open and body >= atrVal * dispBodyATR
+bool closeNearHigh    = (high - close) <= rng * closeNearHighFrac
+bool dispOk           = bullDisplacement and closeNearHigh
+
+//==================================================
+// Volume type filter (na-safe volRatio defaults to 1.0)
+//==================================================
+bool climaxDown          = close < open and volRatio >= climaxVolMult
+bool climaxDownReclaim   = climaxDown[1] and bullishSweep
+bool dispVolumeOk        = bullDisplacement and volRatio >= dispVolMult
+bool bullStructVolumeOk  = close > open and closeNearHigh and volRatio >= volMult
+
+bool volumeTypeOk =
+     not useVolumeTypeFilter or
+     climaxDownReclaim or
+     dispVolumeOk or
+     bullStructVolumeOk
+
+//==================================================
+// USI / Momentum confirmation
+//==================================================
+usiSrc1 = usiZeroLag ? f_zl_src(close, usiLen1) : close
+usiSrc2 = usiZeroLag ? f_zl_src(close, usiLen2) : close
+usiSrc3 = usiZeroLag ? f_zl_src(close, usiLen3) : close
+usiSrc4 = usiZeroLag ? f_zl_src(close, usiLen4) : close
+usiSrc5 = usiZeroLag ? f_zl_src(close, usiLen5) : close
+
+usi1 = ta.rsi(usiSrc1, usiLen1)
+usi2 = ta.rsi(usiSrc2, usiLen2)
+usi3 = ta.rsi(usiSrc3, usiLen3)
+usi4 = ta.rsi(usiSrc4, usiLen4)
+usi5 = ta.rsi(usiSrc5, usiLen5)
+
+// Early: fast flip
+bool fastFlipBull = usi5 > usi4 and usi5[1] <= usi4[1]
+
+// Confirm: midline stacking (ta.rising extracted to global scope)
+bool _usi3Rising = ta.rising(usi3, 2)
+bool midlineBullOk =
+     usi5 > usi4 and
+     usi4 > usi3 and
+     (usi3 > usi2 or _usi3Rising)
+
+bool usiOkEarly   = not useUsiFilter or fastFlipBull
+bool usiOkConfirm = not useUsiFilter or midlineBullOk
+
+//==================================================
+// Trend-regime filters
+// Note: htfTf, htfStructTf, and mtfTf2 all default to "60".
+// This produces separate request.security calls for the same TF.
+// Consolidation is complex in Pine; keep separate for clarity.
+// Total: 7 request.security calls (within TV limit of 40).
+//==================================================
+
+// Primary HTF EMA regime
+htfFast  = request.security(syminfo.tickerid, htfTf, ta.ema(close, htfFastLen), barmerge.gaps_off, barmerge.lookahead_off)
+htfSlow  = request.security(syminfo.tickerid, htfTf, ta.ema(close, htfSlowLen), barmerge.gaps_off, barmerge.lookahead_off)
+htfClose = request.security(syminfo.tickerid, htfTf, close,                     barmerge.gaps_off, barmerge.lookahead_off)
+
+bool htfBear       = htfFast < htfSlow
+bool htfStrongBear = htfBear and htfClose < htfFast and htfClose < htfSlow
+
+bool htfEmaOk = not useHtfFilter or (htfBlockOnlyStrongBear ? not htfStrongBear : not htfBear)
+
+// ADX filter
+[diPlus, diMinus, adxValue] = ta.dmi(adxLen, adxLen)
+bool strongBearTrend = adxValue >= adxStrongTrend and diMinus > diPlus and emaFast < emaSlow
+bool adxOk = not useAdxFilter or not (blockRevWhenStrongBearTrend and strongBearTrend)
+
+// ATR regime
+atrBaseline        = ta.sma(atrVal, atrBaselineLen)
+atrRatio           = atrBaseline > 0 ? atrVal / atrBaseline : 1.0
+atrWasRecentlyHigh = ta.highest(atrRatio[1], atrExhaustLookback) >= atrHighVolThr
+bool _atrFalling   = ta.falling(atrVal, atrExhaustLookback)
+
+atrCompression = atrRatio < atrCompressionThr
+atrExpansion   = atrRatio >= atrExpansionThr
+atrHighVol     = atrRatio >= atrHighVolThr
+atrExhaustion  = atrWasRecentlyHigh and _atrFalling and atrRatio < atrHighVolThr
+
+bool atrRegimeOk      = not useAtrRegimeFilter or (blockRevInExpansion ? not atrExpansion : true)
+bool atrCompressionOk = not useAtrRegimeFilter or not (blockBuyInCompression and atrCompression)
+
+// MTF score (configurable weights)
+mtfScore_tf1 = request.security(syminfo.tickerid, mtfTf1, f_tf_score(close, ta.ema(close, emaFastLen), ta.ema(close, emaSlowLen), ta.rsi(close, 14)), barmerge.gaps_off, barmerge.lookahead_off)
+mtfScore_tf2 = request.security(syminfo.tickerid, mtfTf2, f_tf_score(close, ta.ema(close, emaFastLen), ta.ema(close, emaSlowLen), ta.rsi(close, 14)), barmerge.gaps_off, barmerge.lookahead_off)
+mtfScore_tf3 = request.security(syminfo.tickerid, mtfTf3, f_tf_score(close, ta.ema(close, emaFastLen), ta.ema(close, emaSlowLen), ta.rsi(close, 14)), barmerge.gaps_off, barmerge.lookahead_off)
+
+mtfWeightSum = mtfWeight1 + mtfWeight2 + mtfWeight3
+mtfScore     = mtfWeightSum > 0 ? (mtfScore_tf1 * mtfWeight1 + mtfScore_tf2 * mtfWeight2 + mtfScore_tf3 * mtfWeight3) / mtfWeightSum : 0.0
+mtfScoreOk   = not useMtfScore or mtfScore >= mtfScoreMin
+
+bool regimeOk = htfEmaOk and adxOk and atrRegimeOk and mtfScoreOk
+
+//==================================================
+// HTF structure confluence
+// Uses separate htfBreakoutSource so LTF and HTF can
+// independently choose Wick vs Close breakout detection.
+//==================================================
+f_htf_struct(_sL, _sR, _brkSrc) =>
+    var float htfLastHi = na
+    var float htfLastLo = na
+    var int htfState = 0
+
+    _ph = ta.pivothigh(high, _sL, _sR)
+    _pl = ta.pivotlow(low, _sL, _sR)
+
+    if not na(_ph)
+        htfLastHi := _ph
+    if not na(_pl)
+        htfLastLo := _pl
+
+    bool _breakLong = false
+    bool _breakShort = false
+
+    _breakLong := not na(htfLastHi) and (
+         _brkSrc == "Wick"
+            ? high > htfLastHi and high[1] <= htfLastHi
+            : close > htfLastHi and close[1] <= htfLastHi)
+
+    _breakShort := not na(htfLastLo) and (
+         _brkSrc == "Wick"
+            ? low < htfLastLo and low[1] >= htfLastLo
+            : close < htfLastLo and close[1] >= htfLastLo)
+
+    bool _bullSweep = not na(htfLastLo) and low < htfLastLo and close > htfLastLo
+    bool _chochPing = false
+    bool _chochVerify = false
+    bool _bosLong = false
+
+    if _breakLong
+        _chochPing := htfState == -1
+        _bosLong := not _chochPing
+        htfState := 1
+
+    if _breakShort
+        htfState := -1
+
+    // Guard: only fire CHoCH Ping via sweep if HTF structure is not already bullish
+    if _bullSweep and htfState != 1
+        _chochPing := true
+
+    // Verify: require close > lastSwingHigh (higher-high proof)
+    _chochVerify := _chochPing[1] and
+         not na(htfLastHi) and close > htfLastHi
+
+    bool _isChochLong = chochMode == "Ping" ? _chochPing : chochMode == "Verify" ? _chochVerify : (_chochPing or _chochVerify)
+    [_isChochLong ? 1.0 : 0.0, _bosLong ? 1.0 : 0.0, _bullSweep ? 1.0 : 0.0, htfState * 1.0]
+
+[htfBullChochNum, htfBosLongNum, htfBullSweepNum, htfStructStateNum] = request.security(syminfo.tickerid, htfStructTf, f_htf_struct(htfSwingL, htfSwingR, htfBreakoutSource), barmerge.gaps_off, barmerge.lookahead_off)
+
+bool htfBullChoch        = htfBullChochNum > 0
+bool htfBosLong          = htfBosLongNum > 0
+bool htfBullSweep        = htfBullSweepNum > 0
+bool htfStructNotBearish = htfStructStateNum >= 0
+
+bool htfStructureOk    = not useHtfStructure or (requireHtfNotBearishStructure ? htfStructNotBearish : true)
+bool htfStructureBoost = not useHtfStructure or (boostIfHtfBullChoch ? (htfBullChoch or htfBosLong or htfBullSweep) : true)
+
+//==================================================
+// Bullish FVG + retest
+// Only the latest FVG is tracked (intentional single-zone design).
+// Invalidation runs BEFORE retest to prevent race condition where
+// a bar that closes below the zone still counts as a retest.
+//==================================================
+bool newBullFvg = low > high[2]
+
+var float bullFvgTop = na
+var float bullFvgBot = na
+var int   bullFvgBar = na
+
+if newBullFvg
+    bullFvgTop := low
+    bullFvgBot := high[2]
+    bullFvgBar := bar_index
+
+// Step 1: Invalidate FIRST if close broke below zone
+bool _fvgStillAlive = not na(bullFvgBar) and (bar_index - bullFvgBar <= fvgMaxAge)
+if _fvgStillAlive and close < bullFvgBot
+    bullFvgTop := na
+    bullFvgBot := na
+    bullFvgBar := na
+
+// Step 2: Compute active / retest AFTER invalidation
+bool fvgActive = not na(bullFvgBar) and (bar_index - bullFvgBar <= fvgMaxAge)
+bool fvgRetest = fvgActive and not na(bullFvgTop) and not na(bullFvgBot) and low <= bullFvgTop and low >= bullFvgBot
+
+bool fvgConfirmOk = not useFvgRetestConfirm or fvgRetest
+
+//==================================================
+// Signals: PRE-BUY / BUY / REV-EARLY / REV-CONFIRM
+//==================================================
+
+// PRE-BUY (gated by htfEmaOk — skip in strong bearish HTF)
+float preDist     = preWarnDistATR * atrVal
+bool  nearEmaFast = not na(emaFast) and close < emaFast and (emaFast - close) <= preDist
+bool  preBuyCore  = trendBull and nearEmaFast
+bool  preBuySignal = preBuyCore and volOk and htfEmaOk and barOk
+
+// BUY (gated by htfEmaOk + atrCompressionOk)
+float touchTol           = touchTolATR * atrVal
+bool  touchEmaFastLong   = low <= (emaFast + touchTol) and close >= emaFast
+bool  crossCloseEmaFastUp = close > emaFast and close[1] <= emaFast
+// bullReversalBar catches bullish reversal candles; crossover catches dojis/bearish bars that still closed above EMA
+bool  bullReversalBar    = close > open and close > emaFast and low <= (emaFast + touchTol)
+
+bool buyCore   = trendBull and touchEmaFastLong and (crossCloseEmaFastUp or bullReversalBar)
+bool buySignal = buyCore and volOk and htfEmaOk and atrCompressionOk and barOk
+
+// REV ladder
+var int lastRevEarlyBar = na
+bool cooldownOk = na(lastRevEarlyBar) or (bar_index - lastRevEarlyBar > cooldownBars)
+
+// Stage-1 core (fast)
+bool revEarlyCore =
+     isChoCH_Long and
+     freshChoch and
+     liqOk and
+     volOk and
+     regimeOk and
+     htfStructureOk
+
+// Confirm layer — atrExhaustion can substitute displacement (vol dying after climax = ideal reversal setup)
+bool revConfirmCore =
+     revEarlyCore and
+     volumeTypeOk and
+     (not useDisplacementForConfirm or dispOk or (useAtrRegimeFilter and atrExhaustion)) and
+     usiOkConfirm and
+     fvgConfirmOk and
+     htfStructureBoost
+
+bool revEarlySignal =
+     revEarlyCore and
+     usiOkEarly and
+     cooldownOk and
+     barOk
+
+bool revConfirmSignal =
+     revConfirmCore and
+     (not cooldownConfirmToo or cooldownOk) and
+     barOk
+
+//==================================================
+// Priority / de-duplication
+//==================================================
+bool finalRevConfirm = revConfirmSignal
+bool finalRevEarly   = revEarlySignal and not finalRevConfirm
+bool finalBuy        = buySignal      and not finalRevConfirm and not finalRevEarly
+bool finalPreBuy     = preBuySignal   and not finalRevConfirm and not finalRevEarly and not finalBuy
+
+//==================================================
+// Cancel / exit signal
+// Fires once per entry when setup fails within cancelWindow bars.
+// Cancels on: trend break (close < emaSlow) or bearish structure flip.
+//==================================================
+var int lastEntryBar  = na
+var int lastCancelBar = na
+
+// Compute cancel BEFORE updating lastEntryBar (reads previous bar's value)
+bool hadRecentEntry = not na(lastEntryBar) and (bar_index - lastEntryBar) >= 1 and (bar_index - lastEntryBar) <= cancelWindow
+bool trendBroken    = close < emaSlow
+bool structBroken   = structState == -1
+bool cancelRaw      = hadRecentEntry and (trendBroken or structBroken) and barOk
+// Only fire once per entry — do not repeat every bar while condition holds
+bool cancelFresh    = na(lastCancelBar) or (not na(lastEntryBar) and lastCancelBar < lastEntryBar)
+bool finalCancel    = cancelRaw and cancelFresh
+
+// Now update state for next bar
+if finalRevEarly
+    lastRevEarlyBar := bar_index
+if finalBuy or finalRevEarly or finalRevConfirm
+    lastEntryBar := bar_index
+if finalCancel
+    lastCancelBar := bar_index
+
+//==================================================
+// Visuals
+//==================================================
+plot(emaFast, "EMA Fast", color=color.new(color.yellow, 0))
+plot(emaSlow, "EMA Slow", color=color.new(color.purple, 0))
+
+// Structure labels (global scope — cannot be inside if block)
+plotshape(showStruct and isChoCH_Long,  title="CHoCH Long",          style=shape.labelup, location=location.belowbar, text="CHoCH", size=size.tiny, color=color.new(color.purple, 0), textcolor=color.white)
+plotshape(showStruct and bosLong,       title="BOS Long",            style=shape.labelup, location=location.belowbar, text="BOS",   size=size.tiny, color=color.new(color.green,  0), textcolor=color.white)
+plotshape(showStruct and bullishSweep,  title="Bull Sweep/Reclaim",  style=shape.circle,  location=location.belowbar, size=size.tiny, color=color.new(color.teal, 0))
+
+// Signal labels
+plotshape(showRevConfirm and finalRevConfirm, title="REV-CONFIRM", style=shape.labelup,   location=location.belowbar, text="REV-CONFIRM", size=size.small, color=color.new(color.lime,   0), textcolor=color.white)
+plotshape(showRevEarly   and finalRevEarly,   title="REV-EARLY",   style=shape.labelup,   location=location.belowbar, text="REV-EARLY",   size=size.small, color=color.new(color.yellow, 0), textcolor=color.black)
+plotshape(showBuy        and finalBuy,        title="BUY",         style=shape.labelup,   location=location.belowbar, text="BUY",         size=size.small, color=color.new(color.green,  0), textcolor=color.white)
+plotshape(showPreBuy     and finalPreBuy,     title="PRE-BUY",     style=shape.labelup,   location=location.belowbar, text="PRE",         size=size.tiny,  color=color.new(color.orange, 0), textcolor=color.black)
+
+// Cancel label
+plotshape(showCancel and finalCancel, title="CANCEL", style=shape.labeldown, location=location.abovebar, text="CANCEL", size=size.small, color=color.new(color.red, 0), textcolor=color.white)
+
+// FVG zone
+pTop = plot(showFvg and fvgActive ? bullFvgTop : na, "Bull FVG Top",    color=color.new(color.green, 35))
+pBot = plot(showFvg and fvgActive ? bullFvgBot : na, "Bull FVG Bottom", color=color.new(color.green, 35))
+fill(pTop, pBot, color=color.new(color.green, 90))
+
+// Optional USI plots
+plot(showUsiPlots ? usi1 : na, "USI 1", color=color.new(color.blue,   0))
+plot(showUsiPlots ? usi2 : na, "USI 2", color=color.new(color.aqua,   0))
+plot(showUsiPlots ? usi3 : na, "USI 3", color=color.new(color.gray,   0))
+plot(showUsiPlots ? usi4 : na, "USI 4", color=color.new(color.orange, 0))
+plot(showUsiPlots ? usi5 : na, "USI 5", color=color.new(color.red,    0))
+
+// Debug
+plotchar(showDebug and fastFlipBull,       title="USI FastFlip",         char="F", location=location.bottom, color=color.new(color.lime,    0), size=size.tiny)
+plotchar(showDebug and midlineBullOk,      title="USI MidlineOK",       char="M", location=location.bottom, color=color.new(color.aqua,    0), size=size.tiny)
+plotchar(showDebug and dispOk,             title="DisplacementOK",      char="D", location=location.bottom, color=color.new(color.yellow,  0), size=size.tiny)
+plotchar(showDebug and fvgRetest,          title="FVG Retest",          char="R", location=location.bottom, color=color.new(color.green,   0), size=size.tiny)
+plotchar(showDebug and regimeOk,           title="Regime OK",           char="G", location=location.bottom, color=color.new(color.blue,    0), size=size.tiny)
+plotchar(showDebug and htfBullChoch,       title="HTF Bull CHoCH",      char="H", location=location.bottom, color=color.new(color.purple,  0), size=size.tiny)
+plotchar(showDebug and climaxDownReclaim,  title="ClimaxDown+Reclaim",  char="C", location=location.bottom, color=color.new(color.teal,    0), size=size.tiny)
+plotchar(showDebug and atrExhaustion,      title="ATR Exhaustion",      char="X", location=location.bottom, color=color.new(color.red,     0), size=size.tiny)
+plotchar(showDebug and atrCompression,     title="ATR Compression",     char="Z", location=location.bottom, color=color.new(color.silver,  0), size=size.tiny)
+plotchar(showDebug and atrHighVol,         title="ATR HighVol",         char="V", location=location.bottom, color=color.new(color.fuchsia, 0), size=size.tiny)
+
+//==================================================
+// Alerts
+//==================================================
+alertcondition(finalPreBuy,     title="PRE-BUY",     message="{{ticker}} — PRE-BUY on {{interval}}")
+alertcondition(finalBuy,        title="BUY",         message="{{ticker}} — BUY on {{interval}}")
+alertcondition(finalRevEarly,   title="REV-EARLY",   message="{{ticker}} — REV-EARLY on {{interval}}")
+alertcondition(finalRevConfirm, title="REV-CONFIRM", message="{{ticker}} — REV-CONFIRM on {{interval}}")
+alertcondition(finalCancel,     title="CANCEL",      message="{{ticker}} — CANCEL on {{interval}}")
+alertcondition(finalBuy or finalRevEarly or finalRevConfirm, title="Any Entry", message="{{ticker}} — Entry signal on {{interval}}")

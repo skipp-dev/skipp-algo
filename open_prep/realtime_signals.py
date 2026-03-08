@@ -1404,8 +1404,9 @@ class RealtimeEngine:
 
         # ── Earnings calendar for today ──
         try:
-            from datetime import date as _date
-            today = _date.today()
+            from datetime import datetime as _datetime
+            from zoneinfo import ZoneInfo as _ZoneInfo
+            today = _datetime.now(_ZoneInfo("America/New_York")).date()
             earnings = client.get_earnings_calendar(today, today)
             for item in earnings:
                 sym = str(item.get("symbol") or "").strip().upper()

@@ -57,9 +57,8 @@ def _load_streamlit_secrets() -> None:
     """
     _SECRET_KEYS = (
         "BENZINGA_API_KEY",
-        "FMP_API_KEY",
+        "DATABENTO_API_KEY",
         "OPENAI_API_KEY",
-        "NEWSAPI_AI_KEY",
     )
     try:
         secrets = st.secrets
@@ -844,14 +843,14 @@ def main() -> None:
         auto_universe = st.toggle(
             "🌐 Auto-Universum verwenden",
             value=bool(st.session_state.get("auto_universe", True)),
-            help="Wenn aktiv, wird das FMP-Universum (US Mid/Large + Movers) genutzt.",
+            help="Wenn aktiv, wird das Auto-Universum (US Mid/Large + Movers) genutzt.",
             key="auto_universe",
         )
         symbols_raw = st.text_area(
             "Symbole (comma-separated)",
             value=str(st.session_state.get("symbols_raw", "")),
             height=120,
-            help="Leer lassen = Auto-Universum (FMP US Mid/Large + Movers).",
+            help="Leer lassen = Auto-Universum (US Mid/Large + Movers).",
             disabled=auto_universe,
             key="symbols_raw",
         )
@@ -1058,7 +1057,7 @@ def main() -> None:
             st.session_state["force_live_fetch"] = False
 
         if use_auto_universe:
-            st.info("Auto-Universum aktiv (FMP US Mid/Large + Movers).")
+            st.info("Auto-Universum aktiv (US Mid/Large + Movers).")
 
         updated_at = result.get("run_datetime_utc")
         updated_utc_label, updated_berlin_label = _format_utc_berlin(str(updated_at) if updated_at is not None else None)
@@ -1109,7 +1108,7 @@ def main() -> None:
             row["N"] = "🆕" if str(row.get("symbol", "")).upper() in _new_entrant_set else ""
             row["data_age_label"] = _age_label(_data_age_minutes)
             # Composite rank: 70% absolute price change + 30% pipeline score
-            # Use changesPercentage from FMP quote as fallback when gap_pct is 0
+            # Use changesPercentage as fallback when gap_pct is 0
             _chg = abs(float(
                 row.get("gap_pct")
                 or row.get("bz_chg_pct")
@@ -1169,12 +1168,12 @@ def main() -> None:
                 ranked_gap_go_earn.append(entry)
                 earnings_symbols_set.add(sym)
 
-        # ── Market session indicator (applies to all FMP-sourced data) ──
+        # ── Market session indicator ──
         _session = _market_session() if callable(_market_session) else "regular"
         _session_label = _SESSION_ICONS.get(_session, _session)
         if _session in ("pre-market", "after-hours"):
             st.info(
-                f"**{_session_label}** — FMP price/sector data shows previous close. "
+                f"**{_session_label}** — Price/sector data shows previous close. "
                 "Benzinga delayed quotes are overlaid where available for fresher prices."
             )
         elif _session == "closed":
@@ -1646,7 +1645,7 @@ def main() -> None:
             st.subheader(f"Sector Performance  ({len(sector_performance)} Sektoren)")
             if _session in ("pre-market", "after-hours"):
                 st.caption(
-                    f"**{_session_label}** — FMP Sektordaten zeigen vorherige Sitzung."
+                    f"**{_session_label}** — Sektordaten zeigen vorherige Sitzung."
                 )
             elif _session == "closed":
                 st.caption("**⚫ Markt geschlossen** — Letzte Sitzungsdaten.")
@@ -1735,7 +1734,7 @@ def main() -> None:
             st.info("Keine News-Katalysatoren erkannt.")
 
         # ===================================================================
-        # 8b. News Stack (FMP + Benzinga — realtime polling)
+        # 8b. News Stack (Benzinga — realtime polling)
         # ===================================================================
         try:
             from newsstack_fmp.config import Config as _NSConfig
@@ -1749,8 +1748,7 @@ def main() -> None:
                 "guidance": "📊", "earnings": "📈", "fda": "💊",
                 "analyst": "🏦", "lawsuit": "⚖️", "other": "📰",
             }
-            _src_badge = {"fmp_stock_latest": "FMP", "fmp_press_latest": "FMP-PR",
-                          "benzinga_rest": "BZ-REST", "benzinga_ws": "BZ-WS"}
+            _src_badge = {"benzinga_rest": "BZ-REST", "benzinga_ws": "BZ-WS"}
             sources_str = ", ".join(_ns_cfg.active_sources) or "none"
             st.subheader(f"📰 News Stack  ({len(ns_candidates)} Kandidaten · {sources_str})")
             if ns_candidates:
@@ -1795,7 +1793,7 @@ def main() -> None:
         if _session in ("pre-market", "after-hours") and _bz_map:
             st.caption(
                 f"**{_session_label}** — `bz_price` / `bz_chg_pct` Spalten zeigen "
-                "aktuelle Benzinga Delayed Quotes (frischer als FMP-Daten)."
+                "aktuelle Benzinga Delayed Quotes (frischer als historische Kursdaten)."
             )
         if gap_scanner_results:
             st.dataframe(gap_scanner_results, width="stretch", height=320)
@@ -2269,46 +2267,7 @@ def main() -> None:
         # ===================================================================
         # 11c. Defense & Aerospace Watchlist
         # ===================================================================
-        fmp_key_op = os.environ.get("FMP_API_KEY", "")
-        if fmp_key_op:
-            with st.expander("🛡️ Defense & Aerospace", expanded=False):
-                def_wl_op = _cached_defense_wl_op(fmp_key_op)
-                if def_wl_op:
-                    df_dop = pd.DataFrame(def_wl_op)
-
-                    # Summary
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("A&D Stocks", len(df_dop))
-                    if "changesPercentage" in df_dop.columns:
-                        avg_c = pd.to_numeric(df_dop["changesPercentage"], errors="coerce").mean()
-                        gn = len(df_dop[pd.to_numeric(df_dop["changesPercentage"], errors="coerce") > 0])
-                        m2.metric("Avg Change", f"{avg_c:+.2f}%")
-                        m3.metric("Gainers / Losers", f"{gn} / {len(df_dop) - gn}")
-
-                    _cols = [c for c in [
-                        "symbol", "name", "price", "change",
-                        "changesPercentage", "volume", "marketCap", "pe",
-                    ] if c in df_dop.columns]
-                    st.dataframe(
-                        df_dop[_cols] if _cols else df_dop,
-                        width="stretch",
-                        height=min(400, 40 + 35 * len(df_dop)),
-                    )
-
-                    # Top movers
-                    if "changesPercentage" in df_dop.columns:
-                        df_dop["_chg"] = pd.to_numeric(df_dop["changesPercentage"], errors="coerce")
-                        cu, cd = st.columns(2)
-                        with cu:
-                            st.markdown("**🟢 Top A&D Gainers**")
-                            for _, r in df_dop.nlargest(5, "_chg").iterrows():
-                                st.markdown(f"**{_safe_md(str(r.get('symbol', '?')))}** — ${r.get('price', 0)} ({r.get('_chg', 0):+.2f}%)")
-                        with cd:
-                            st.markdown("**🔴 Top A&D Losers**")
-                            for _, r in df_dop.nsmallest(5, "_chg").iterrows():
-                                st.markdown(f"**{_safe_md(str(r.get('symbol', '?')))}** — ${r.get('price', 0)} ({r.get('_chg', 0):+.2f}%)")
-                else:
-                    st.info("No Defense & Aerospace data available.")
+        # (Defense & Aerospace watchlist removed — was FMP-dependent)
 
         # ===================================================================
         # 12. Tomorrow Outlook
@@ -2437,7 +2396,7 @@ def main() -> None:
         # --- Endpoint Capability Probing ---
         data_capabilities = result.get("data_capabilities") or {}
         if data_capabilities:
-            st.subheader("FMP Endpoint Capabilities")
+            st.subheader("Endpoint Capabilities")
             rows: list[dict[str, Any]] = []
             status_emoji = {
                 "available": "🟢",
