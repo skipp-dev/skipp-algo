@@ -2446,6 +2446,10 @@ def run_streamlit_app() -> None:
 
     if "dvs_run_logs" not in st.session_state:
         st.session_state["dvs_run_logs"] = []
+    if "dvs_last_refresh_seconds" not in st.session_state:
+        st.session_state["dvs_last_refresh_seconds"] = None
+    if "dvs_last_watchlist_seconds" not in st.session_state:
+        st.session_state["dvs_last_watchlist_seconds"] = None
 
     def add_log(message: str) -> None:
         timestamp = datetime.now(UTC).isoformat(timespec="seconds")
@@ -2462,13 +2466,27 @@ def run_streamlit_app() -> None:
     _, run_end = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=4, post_open_minutes=0)
     ref_start, _ = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=2, post_open_minutes=0)
     _, ref_end = compute_market_relative_window(today, "Europe/Berlin", pre_open_minutes=1, post_open_minutes=0)
-    st.info(f"Recommended main run: {run_start.strftime('%H:%M')}-{run_end.strftime('%H:%M')} Europe/Berlin. Optional last refresh: {ref_start.strftime('%H:%M')}-{ref_end.strftime('%H:%M')} Europe/Berlin.")
+    st.info(
+        "Recommended start window (not runtime): "
+        f"main run {run_start.strftime('%H:%M')}-{run_end.strftime('%H:%M')} Europe/Berlin, "
+        f"optional last refresh {ref_start.strftime('%H:%M')}-{ref_end.strftime('%H:%M')} Europe/Berlin."
+    )
 
     status_cols = st.columns(4)
     status_cols[0].metric("Dataset", status.dataset or dataset)
     status_cols[1].metric("Freshness", "stale" if status.is_stale else "fresh")
     status_cols[2].metric("Export generated", status.export_generated_at or "n/a")
     status_cols[3].metric("Premarket fetched", status.premarket_fetched_at or "n/a")
+
+    runtime_cols = st.columns(2)
+    runtime_cols[0].metric(
+        "Last Refresh Runtime",
+        f"{st.session_state['dvs_last_refresh_seconds']:.1f}s" if st.session_state["dvs_last_refresh_seconds"] is not None else "n/a",
+    )
+    runtime_cols[1].metric(
+        "Last Watchlist Runtime",
+        f"{st.session_state['dvs_last_watchlist_seconds']:.1f}s" if st.session_state["dvs_last_watchlist_seconds"] is not None else "n/a",
+    )
 
     action_cols = st.columns(3)
     refresh_data = action_cols[0].button("Refresh Data Basis", width="stretch")
@@ -2481,6 +2499,7 @@ def run_streamlit_app() -> None:
             st.error("Databento API key is required for the data pipeline.")
         else:
             try:
+                refresh_started = time_module.perf_counter()
                 with st.spinner("Refreshing production data basis..."):
                     run_production_export_pipeline(
                         databento_api_key=databento_api_key,
@@ -2496,19 +2515,24 @@ def run_streamlit_app() -> None:
                 add_log(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
                 st.error(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
             else:
-                add_log(f"Data basis refreshed for dataset={dataset}.")
+                refresh_seconds = time_module.perf_counter() - refresh_started
+                st.session_state["dvs_last_refresh_seconds"] = refresh_seconds
+                add_log(f"Data basis refreshed for dataset={dataset} in {refresh_seconds:.1f}s.")
                 status = build_data_status_result(export_dir)
                 pipeline_refresh_ok = True
                 if refresh_data and not run_pipeline:
-                    st.success("Data basis refreshed.")
+                    st.success(f"Data basis refreshed in {refresh_seconds:.1f}s.")
 
     if generate_watchlist or (run_pipeline and pipeline_refresh_ok):
         try:
+            watchlist_started = time_module.perf_counter()
             with st.spinner("Generating watchlist from the latest exported data..."):
                 watchlist_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+            watchlist_seconds = time_module.perf_counter() - watchlist_started
+            st.session_state["dvs_last_watchlist_seconds"] = watchlist_seconds
             st.session_state["dvs_watchlist_result"] = watchlist_result
-            add_log(f"Watchlist generated with top_n={top_n}.")
-            st.success("Watchlist updated.")
+            add_log(f"Watchlist generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
+            st.success(f"Watchlist updated in {watchlist_seconds:.1f}s.")
         except Exception as exc:
             add_log(f"Watchlist generation failed: {type(exc).__name__}: {exc}")
             st.error(f"Watchlist generation failed: {type(exc).__name__}: {exc}")

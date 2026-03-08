@@ -2,6 +2,9 @@
 
 Kurz-Checkliste fuer den US-Open-Workflow mit `databento_volatility_screener`.
 
+Hinweis zu Uhrzeiten: Empfohlene Zeitfenster (z. B. `15:23-15:26`) sind Startfenster, keine Laufzeitgarantie.
+Die tatsaechliche Laufzeit fuer `Refresh Data Basis` haengt von Cache-Status, API-Latenz, Datensatzgroesse und Lookback ab.
+
 ## 10-Zeilen Execution Sheet
 
 1. Status check: Daten `fresh`, kein `stale`-Hinweis, Export heute.
