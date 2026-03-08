@@ -2076,6 +2076,152 @@ def build_config_table(config_snapshot: dict[str, Any]) -> pd.DataFrame:
     )
 
 
+def _safe_timestamp(value: Any) -> pd.Timestamp | None:
+    try:
+        ts = pd.Timestamp(value)
+    except Exception:
+        return None
+    if pd.isna(ts):
+        return None
+    if ts.tzinfo is None:
+        return ts.tz_localize(UTC)
+    return ts.tz_convert(UTC)
+
+
+def _safe_number(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def build_entry_checklist_table(
+    *,
+    status: DataStatusResult,
+    selected_row: pd.Series,
+    watchlist_table: pd.DataFrame,
+) -> tuple[pd.DataFrame, str, int]:
+    borderline_factor = 0.95
+
+    def _check_level(is_ok: bool, is_borderline: bool) -> str:
+        if is_ok:
+            return "erfuellt"
+        if is_borderline:
+            return "grenzwertig"
+        return "nicht_erfuellt"
+
+    export_ts = _safe_timestamp(status.export_generated_at)
+    export_today_et = bool(
+        export_ts is not None
+        and export_ts.tz_convert(US_EASTERN_TZ).date() == datetime.now(US_EASTERN_TZ).date()
+    )
+    status_ok = (not status.is_stale) and export_today_et
+    status_borderline = (not status.is_stale) and (not export_today_et)
+
+    rank_value = _safe_number(selected_row.get("watchlist_rank"))
+    candidate_ok = bool(rank_value is not None and 1 <= int(rank_value) <= 3)
+    candidate_borderline = False
+
+    gap_value = _safe_number(selected_row.get("prev_close_to_premarket_pct"))
+    gap_threshold = 1.5
+    gap_ok = bool(gap_value is not None and gap_value >= gap_threshold)
+    gap_borderline = bool(gap_value is not None and (gap_threshold * borderline_factor) <= gap_value < gap_threshold)
+
+    positive_premarket_volume = pd.to_numeric(watchlist_table.get("premarket_volume"), errors="coerce")
+    positive_premarket_volume = positive_premarket_volume[positive_premarket_volume > 0]
+    positive_premarket_trades = pd.to_numeric(watchlist_table.get("premarket_trade_count"), errors="coerce")
+    positive_premarket_trades = positive_premarket_trades[positive_premarket_trades > 0]
+
+    liquidity_volume_threshold = float(positive_premarket_volume.median()) if not positive_premarket_volume.empty else None
+    liquidity_trades_threshold = float(positive_premarket_trades.median()) if not positive_premarket_trades.empty else None
+    volume_value = _safe_number(selected_row.get("premarket_volume"))
+    trades_value = _safe_number(selected_row.get("premarket_trade_count"))
+    liquidity_ok = bool(
+        liquidity_volume_threshold is not None
+        and liquidity_trades_threshold is not None
+        and volume_value is not None
+        and trades_value is not None
+        and volume_value >= liquidity_volume_threshold
+        and trades_value >= liquidity_trades_threshold
+    )
+    liquidity_borderline = bool(
+        liquidity_volume_threshold is not None
+        and liquidity_trades_threshold is not None
+        and volume_value is not None
+        and trades_value is not None
+        and volume_value >= (liquidity_volume_threshold * borderline_factor)
+        and trades_value >= (liquidity_trades_threshold * borderline_factor)
+        and not liquidity_ok
+    )
+
+    open_1m_rvol = _safe_number(selected_row.get("open_1m_rvol_20d"))
+    open_5m_rvol = _safe_number(selected_row.get("open_5m_rvol_20d"))
+    open_power_threshold = 1.2
+    open_power_ok = bool(
+        (open_1m_rvol is not None and open_1m_rvol >= open_power_threshold)
+        or (open_5m_rvol is not None and open_5m_rvol >= open_power_threshold)
+    )
+    open_power_borderline = bool(
+        (
+            open_1m_rvol is not None
+            and (open_power_threshold * borderline_factor) <= open_1m_rvol < open_power_threshold
+        )
+        or (
+            open_5m_rvol is not None
+            and (open_power_threshold * borderline_factor) <= open_5m_rvol < open_power_threshold
+        )
+    )
+
+    rows = [
+        {
+            "check": "1. Status check",
+            "erfuellt": status_ok,
+            "status": _check_level(status_ok, status_borderline),
+            "details": f"fresh={not status.is_stale}, export_heute_et={export_today_et}",
+        },
+        {
+            "check": "2. Kandidat",
+            "erfuellt": candidate_ok,
+            "status": _check_level(candidate_ok, candidate_borderline),
+            "details": f"watchlist_rank={int(rank_value) if rank_value is not None else 'n/a'} (erlaubt: 1-3)",
+        },
+        {
+            "check": "3. Gap-Qualitaet",
+            "erfuellt": gap_ok,
+            "status": _check_level(gap_ok, gap_borderline),
+            "details": f"prev_close_to_premarket_pct={gap_value if gap_value is not None else 'n/a'} (>= {gap_threshold})",
+        },
+        {
+            "check": "4. Liquiditaet",
+            "erfuellt": liquidity_ok,
+            "status": _check_level(liquidity_ok, liquidity_borderline),
+            "details": (
+                "premarket_volume="
+                f"{volume_value if volume_value is not None else 'n/a'} (>= {liquidity_volume_threshold if liquidity_volume_threshold is not None else 'n/a'}), "
+                "premarket_trade_count="
+                f"{trades_value if trades_value is not None else 'n/a'} (>= {liquidity_trades_threshold if liquidity_trades_threshold is not None else 'n/a'})"
+            ),
+        },
+        {
+            "check": "5. Open-Power",
+            "erfuellt": open_power_ok,
+            "status": _check_level(open_power_ok, open_power_borderline),
+            "details": (
+                f"open_1m_rvol_20d={open_1m_rvol if open_1m_rvol is not None else 'n/a'}, "
+                f"open_5m_rvol_20d={open_5m_rvol if open_5m_rvol is not None else 'n/a'} (mind. eine >= {open_power_threshold})"
+            ),
+        },
+    ]
+
+    checklist = pd.DataFrame(rows)
+    score = int(checklist["erfuellt"].sum())
+    rule_note = "Liquiditaet gilt als 'solide', wenn Premarket-Volumen und Trade-Count mindestens am Median der aktuellen Watchlist liegen."
+    return checklist, rule_note, score
+
+
 def build_export_basename(
     *,
     prefix: str = "databento_volatility_screener",
@@ -2444,6 +2590,39 @@ def run_streamlit_app() -> None:
                 }
             )
             st.dataframe(detail_frame, width="stretch", hide_index=True, height=420)
+
+            checklist_frame, checklist_note, checklist_score = build_entry_checklist_table(
+                status=status,
+                selected_row=selected_row,
+                watchlist_table=watchlist_table,
+            )
+
+            def _style_checklist_row(row: pd.Series) -> list[str]:
+                status_label = str(row.get("status") or "")
+                if status_label == "erfuellt":
+                    bg = "#dcfce7"
+                elif status_label == "grenzwertig":
+                    bg = "#fef3c7"
+                else:
+                    bg = "#fee2e2"
+                return [f"background-color: {bg}" for _ in row.index]
+
+            checklist_styler = checklist_frame.style.apply(_style_checklist_row, axis=1)
+            checklist_styler = checklist_styler.format(
+                {
+                    "erfuellt": lambda value: "Ja" if bool(value) else "Nein",
+                    "status": lambda value: {
+                        "erfuellt": "Gruen",
+                        "grenzwertig": "Gelb",
+                        "nicht_erfuellt": "Rot",
+                    }.get(str(value), str(value)),
+                }
+            )
+
+            st.subheader("Go/No-Go Checklist")
+            st.metric("Checklist Score", f"{checklist_score}/5")
+            st.caption(checklist_note)
+            st.dataframe(checklist_styler, width="stretch", hide_index=True)
 
     with st.expander("Run Logs", expanded=False):
         if st.session_state["dvs_run_logs"]:
