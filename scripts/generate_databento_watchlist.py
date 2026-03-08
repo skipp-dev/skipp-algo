@@ -101,6 +101,21 @@ class EntryLevelPlan:
     trailing_stop_anchor_price: float
 
 
+def _validate_watchlist_config(cfg: LongDipConfig) -> None:
+    if cfg.top_n <= 0:
+        raise ValueError(f"top_n must be > 0, got {cfg.top_n}")
+    if cfg.position_budget_usd <= 0:
+        raise ValueError(f"position_budget_usd must be > 0, got {cfg.position_budget_usd}")
+    if cfg.min_premarket_volume < 0:
+        raise ValueError(f"min_premarket_volume must be >= 0, got {cfg.min_premarket_volume}")
+    if cfg.min_premarket_trade_count < 0:
+        raise ValueError(f"min_premarket_trade_count must be >= 0, got {cfg.min_premarket_trade_count}")
+    if len(cfg.ladder_pcts) != 3 or len(cfg.ladder_weights) != 3:
+        raise ValueError("ladder_pcts and ladder_weights must both have exactly 3 entries")
+    if not np.isclose(sum(cfg.ladder_weights), 1.0, atol=1e-6):
+        raise ValueError(f"ladder_weights must sum to 1.0, got {sum(cfg.ladder_weights)}")
+
+
 def _normalize_trade_date(frame: pd.DataFrame) -> pd.DataFrame:
     normalized = frame.copy()
     normalized["trade_date"] = pd.to_datetime(normalized["trade_date"], errors="coerce").dt.date
@@ -164,6 +179,7 @@ def generate_watchlist_result(
     cfg: LongDipConfig | None = None,
 ) -> dict[str, Any]:
     resolved_cfg = cfg or LongDipConfig()
+    _validate_watchlist_config(resolved_cfg)
     daily, prem, diagnostics, metadata = load_watchlist_inputs(bundle=bundle, export_dir=export_dir)
     watchlists = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=resolved_cfg)
 

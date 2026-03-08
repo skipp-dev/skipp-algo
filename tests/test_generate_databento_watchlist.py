@@ -11,6 +11,7 @@ from scripts.generate_databento_watchlist import (
     build_daily_watchlists,
     build_preopen_long_candidates,
     compute_entry_ladder,
+    generate_watchlist_result,
 )
 from scripts.execute_ibkr_watchlist import build_parser as build_execute_parser
 
@@ -147,3 +148,33 @@ def test_legacy_position_budget_alias_is_still_accepted() -> None:
 
     assert watchlist_args.position_budget_usd == 12_000.0
     assert execute_args.position_budget_usd == 12_000.0
+
+
+def test_generate_watchlist_result_rejects_invalid_top_n(tmp_path) -> None:
+    trade_day = date(2026, 3, 6)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "previous_close": [10.0],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.5],
+            "premarket_volume": [100_000],
+            "premarket_trade_count": [500],
+            "prev_close_to_premarket_pct": [5.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    try:
+        generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=0))
+        raise AssertionError("Expected ValueError for invalid top_n")
+    except ValueError as exc:
+        assert "top_n must be > 0" in str(exc)

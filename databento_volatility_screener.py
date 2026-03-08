@@ -7,6 +7,7 @@ import math
 import os
 import re
 import sys
+import time as time_module
 import warnings
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
@@ -28,6 +29,12 @@ from pandas.api.types import is_datetime64_any_dtype
 from open_prep.macro import FMPClient
 
 logger = logging.getLogger(__name__)
+
+_API_KEY_REDACTION_PATTERNS = (
+    re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
+    re.compile(r"(token=)([^&\s]+)", flags=re.IGNORECASE),
+    re.compile(r"(Authorization:\s*Bearer\s+)([^\s]+)", flags=re.IGNORECASE),
+)
 
 US_EASTERN_TZ = ZoneInfo("America/New_York")
 DEFAULT_DISPLAY_TZ = "Europe/Berlin"
@@ -550,6 +557,35 @@ def _coerce_timestamp_frame(df: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
+def _redact_sensitive_error_text(text: str) -> str:
+    redacted = str(text)
+    for pattern in _API_KEY_REDACTION_PATTERNS:
+        redacted = pattern.sub(r"\1***", redacted)
+    return redacted
+
+
+def _warn_with_redacted_exception(message: str, exc: BaseException, *, include_traceback: bool = False) -> None:
+    logger.warning("%s: %s", message, _redact_sensitive_error_text(str(exc)), exc_info=include_traceback)
+
+
+def _validate_frame_columns(frame: pd.DataFrame, *, required: set[str], context: str) -> pd.DataFrame:
+    missing = sorted(required - set(frame.columns))
+    if missing:
+        raise ValueError(f"{context} missing required columns: {', '.join(missing)}")
+    return frame
+
+
+def _store_to_frame(store: Any, *, count: int | None = None, context: str) -> pd.DataFrame:
+    payload = store.to_df(count=count) if count is not None else store.to_df()
+    if isinstance(payload, pd.DataFrame):
+        return _coerce_timestamp_frame(payload)
+    chunks = list(payload)
+    if not chunks:
+        return pd.DataFrame()
+    concatenated = pd.concat(chunks, ignore_index=False)
+    return _coerce_timestamp_frame(concatenated)
+
+
 def resolve_display_timezone(display_timezone: str) -> tzinfo:
     tz = SUPPORTED_DISPLAY_TZ.get(display_timezone)
     if tz is None:
@@ -565,6 +601,12 @@ def compute_market_relative_window(
     post_open_minutes: int = _DEFAULT_INTRADAY_POST_OPEN_MINUTES,
     post_open_seconds: int | None = None,
 ) -> tuple[time, time]:
+    if pre_open_minutes < 0:
+        raise ValueError(f"pre_open_minutes must be >= 0, got {pre_open_minutes}")
+    if post_open_minutes < 0:
+        raise ValueError(f"post_open_minutes must be >= 0, got {post_open_minutes}")
+    if post_open_seconds is not None and post_open_seconds < 0:
+        raise ValueError(f"post_open_seconds must be >= 0, got {post_open_seconds}")
     tz = resolve_display_timezone(display_timezone)
     regular_open_local = datetime.combine(trade_date, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(tz)
     start_local = regular_open_local - timedelta(minutes=pre_open_minutes)
@@ -730,9 +772,18 @@ def _download_nasdaq_trader_text(url: str) -> str:
     import ssl
     _ssl_ctx = ssl.create_default_context(cafile=certifi.where())
     request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urlopen(request, timeout=30, context=_ssl_ctx) as response:
-        payload = response.read()
-    return bytes(payload).decode("utf-8", errors="replace")
+    last_error: Exception | None = None
+    for attempt in range(3):
+        try:
+            with urlopen(request, timeout=30, context=_ssl_ctx) as response:
+                payload = response.read()
+            return bytes(payload).decode("utf-8", errors="replace")
+        except Exception as exc:  # pragma: no cover - deterministic in tests via monkeypatch
+            last_error = exc
+            if attempt < 2:
+                time_module.sleep(0.5 * (2 ** attempt))
+    assert last_error is not None
+    raise last_error
 
 
 def _parse_nasdaq_trader_directory(
@@ -862,11 +913,17 @@ def load_daily_bars(
                     start=start_date.isoformat(),
                     end=end_date.isoformat(),
                 )
-                batch_frame = _coerce_timestamp_frame(store.to_df())
+                batch_frame = _store_to_frame(store, context="load_daily_bars")
+                if not batch_frame.empty:
+                    _validate_frame_columns(batch_frame, required={"symbol", "open", "high", "low", "close", "volume"}, context="load_daily_bars")
                 if not batch_frame.empty:
                     frames.append(batch_frame)
-            except Exception:
-                logger.warning("Failed to fetch daily bars for batch of %d symbols.", len(symbols_batch), exc_info=True)
+            except Exception as exc:
+                _warn_with_redacted_exception(
+                    f"Failed to fetch daily bars for batch of {len(symbols_batch)} symbols",
+                    exc,
+                    include_traceback=True,
+                )
         frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
         if use_file_cache and not frame.empty:
             _write_cached_frame(cache_path, frame)
@@ -1117,8 +1174,12 @@ def run_intraday_screen(
                     runtime_unsupported_symbols.update(
                         _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
                     )
-                except Exception:
-                    logger.warning("Intraday fetch failed for batch on %s, skipping batch.", trade_day, exc_info=True)
+                except Exception as exc:
+                    _warn_with_redacted_exception(
+                        f"Intraday fetch failed for batch on {trade_day}, skipping batch",
+                        exc,
+                        include_traceback=True,
+                    )
             day_rows = [summarize_symbol_day(state, previous_close=None) for state in states.values()]
             day_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
             if use_file_cache and not day_frame.empty:
@@ -1234,9 +1295,15 @@ def fetch_symbol_day_detail(
             start=window.fetch_start_utc.isoformat(),
             end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
         )
-        frame = _coerce_timestamp_frame(store.to_df())
-    except Exception:
-        logger.warning("Detail fetch failed for %s on %s.", normalized_symbol, trade_date, exc_info=True)
+        frame = _store_to_frame(store, context="fetch_symbol_day_detail")
+        if not frame.empty:
+            _validate_frame_columns(frame, required={"symbol", "open", "high", "low", "close", "volume"}, context="fetch_symbol_day_detail")
+    except Exception as exc:
+        _warn_with_redacted_exception(
+            f"Detail fetch failed for {normalized_symbol} on {trade_date}",
+            exc,
+            include_traceback=True,
+        )
         return pd.DataFrame(), pd.DataFrame()
     if frame.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -1447,14 +1514,19 @@ def collect_full_universe_open_window_second_detail(
                         start=window.window_start_local.astimezone(UTC).isoformat(),
                         end=_exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)).isoformat(),
                     )
-                    batch_df = store.to_df(count=250_000)
-                    if isinstance(batch_df, pd.DataFrame):
-                        frame = _coerce_timestamp_frame(batch_df)
-                    else:
-                        chunks = list(batch_df)
-                        frame = _coerce_timestamp_frame(pd.concat(chunks, ignore_index=False)) if chunks else pd.DataFrame()
-                except Exception:
-                    logger.warning("Open window detail fetch failed for batch on %s, skipping.", trade_day, exc_info=True)
+                    frame = _store_to_frame(store, count=250_000, context="collect_full_universe_open_window_second_detail")
+                    if not frame.empty:
+                        _validate_frame_columns(
+                            frame,
+                            required={"symbol", "open", "high", "low", "close", "volume"},
+                            context="collect_full_universe_open_window_second_detail",
+                        )
+                except Exception as exc:
+                    _warn_with_redacted_exception(
+                        f"Open window detail fetch failed for batch on {trade_day}, skipping",
+                        exc,
+                        include_traceback=True,
+                    )
                     continue
                 if frame.empty or "symbol" not in frame.columns:
                     continue
@@ -1530,7 +1602,8 @@ def _build_open_window_aggregates(
     detail = second_detail_all.copy()
     detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
     detail["symbol"] = detail["symbol"].astype(str).str.upper()
-    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce")
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
+    detail["timestamp"] = detail["timestamp"].dt.tz_convert(resolve_display_timezone(display_timezone))
     detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce").fillna(0.0)
     detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
     if detail.empty:
@@ -1755,6 +1828,8 @@ def _filter_materialized_detail_rows(
     selected_date_value = pd.Timestamp(selected_date).strftime("%Y-%m-%d")
     trade_dates = pd.to_datetime(frame["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
     selected_symbol_norm = normalize_symbol_for_databento(selected_symbol)
+    if not selected_symbol_norm:
+        return pd.DataFrame()
     frame_symbol_norm = frame["symbol"].astype(str).map(normalize_symbol_for_databento)
     return frame[(trade_dates == selected_date_value) & (frame_symbol_norm == selected_symbol_norm)].reset_index(drop=True)
 
@@ -1786,9 +1861,9 @@ def resolve_selected_detail_tables(
         return second_detail, minute_detail, False
 
     fallback_second, fallback_minute = fallback_loader()
-    if second_detail.empty:
+    if second_detail.empty and isinstance(fallback_second, pd.DataFrame):
         second_detail = fallback_second.reset_index(drop=True)
-    if minute_detail.empty:
+    if minute_detail.empty and isinstance(fallback_minute, pd.DataFrame):
         minute_detail = fallback_minute.reset_index(drop=True)
     return second_detail, minute_detail, True
 
@@ -1936,11 +2011,26 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
             manifest_path=str(manifest_path) if manifest_path is not None else None,
         )
 
-    reference_timestamp = pd.Timestamp(export_generated_at)
-    if reference_timestamp.tzinfo is None:
-        reference_timestamp = reference_timestamp.tz_localize(UTC)
-    else:
-        reference_timestamp = reference_timestamp.tz_convert(UTC)
+    try:
+        reference_timestamp = pd.Timestamp(export_generated_at)
+        if reference_timestamp.tzinfo is None:
+            reference_timestamp = reference_timestamp.tz_localize(UTC)
+        else:
+            reference_timestamp = reference_timestamp.tz_convert(UTC)
+    except Exception:
+        return DataStatusResult(
+            export_generated_at=str(export_generated_at) if export_generated_at else None,
+            daily_bars_fetched_at=str(daily_bars_fetched_at) if daily_bars_fetched_at else None,
+            intraday_fetched_at=str(intraday_fetched_at) if intraday_fetched_at else None,
+            premarket_fetched_at=str(premarket_fetched_at) if premarket_fetched_at else None,
+            second_detail_fetched_at=str(second_detail_fetched_at) if second_detail_fetched_at else None,
+            dataset=str(manifest.get("dataset")) if manifest.get("dataset") else None,
+            lookback_days=int(manifest["lookback_days"]) if manifest.get("lookback_days") is not None and str(manifest.get("lookback_days")).isdigit() else None,
+            trade_dates_covered=tuple(str(item) for item in manifest.get("trade_dates_covered", [])),
+            is_stale=True,
+            staleness_reason="Invalid export timestamp in manifest.",
+            manifest_path=str(manifest_path) if manifest_path is not None else None,
+        )
     age_minutes = max(0.0, (pd.Timestamp(datetime.now(UTC)) - reference_timestamp).total_seconds() / 60.0)
     is_stale = age_minutes > stale_after_minutes
 
@@ -1951,7 +2041,7 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
         premarket_fetched_at=str(premarket_fetched_at) if premarket_fetched_at else None,
         second_detail_fetched_at=str(second_detail_fetched_at) if second_detail_fetched_at else None,
         dataset=str(manifest.get("dataset")) if manifest.get("dataset") else None,
-        lookback_days=int(manifest["lookback_days"]) if manifest.get("lookback_days") is not None else None,
+        lookback_days=int(manifest["lookback_days"]) if manifest.get("lookback_days") is not None and str(manifest.get("lookback_days")).isdigit() else None,
         trade_dates_covered=tuple(str(item) for item in manifest.get("trade_dates_covered", [])),
         is_stale=is_stale,
         staleness_reason="Fresh" if not is_stale else f"Last successful export is {age_minutes:.0f} minutes old.",

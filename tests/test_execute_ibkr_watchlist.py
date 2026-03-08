@@ -74,6 +74,17 @@ def test_build_order_intents_creates_three_level_orders() -> None:
     assert intents[2].take_profit == 11.9729
 
 
+def test_build_order_intents_rejects_invalid_price_values() -> None:
+    watchlist = filter_watchlist(_sample_watchlist(), trade_date=date(2026, 3, 8)).copy()
+    watchlist.loc[watchlist.index[0], "l2_limit_buy"] = float("nan")
+
+    try:
+        build_order_intents(watchlist, IBKRExecutionConfig(exit_mode="tp-stop"))
+        raise AssertionError("Expected ValueError for NaN order price")
+    except ValueError as exc:
+        assert "l2_limit_buy" in str(exc)
+
+
 def test_build_preview_payload_is_json_ready() -> None:
     watchlist = filter_watchlist(_sample_watchlist(), trade_date=date(2026, 3, 8))
     intents = build_order_intents(watchlist, IBKRExecutionConfig(exit_mode="tp-trail"))

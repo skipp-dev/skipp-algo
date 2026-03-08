@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import re
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
@@ -28,6 +30,11 @@ DEFAULT_SCHEDULE_TIMEZONE = "Europe/Berlin"
 DEFAULT_RECONNECT_MAX_ATTEMPTS = 3
 DEFAULT_RECONNECT_WAIT_SECONDS = 2.0
 TERMINAL_ORDER_STATUSES = {"Filled", "Cancelled", "ApiCancelled", "Inactive"}
+_SENSITIVE_TEXT_PATTERNS = (
+    re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
+    re.compile(r"(token=)([^&\s]+)", flags=re.IGNORECASE),
+    re.compile(r"(Authorization:\s*Bearer\s+)([^\s]+)", flags=re.IGNORECASE),
+)
 
 
 @dataclass(frozen=True)
@@ -157,6 +164,27 @@ def _looks_like_connection_error(exc: Exception) -> bool:
     )
 
 
+def _sanitize_error_text(text: str) -> str:
+    redacted = str(text)
+    for pattern in _SENSITIVE_TEXT_PATTERNS:
+        redacted = pattern.sub(r"\1***", redacted)
+    return redacted
+
+
+def _as_valid_price(value: Any, *, field_name: str) -> float:
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric <= 0:
+        raise ValueError(f"{field_name} must be a finite number > 0, got {value!r}")
+    return numeric
+
+
+def _as_valid_nonnegative_fraction(value: Any, *, field_name: str) -> float:
+    numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0:
+        raise ValueError(f"{field_name} must be a finite number >= 0, got {value!r}")
+    return numeric
+
+
 def _attempt_ibkr_reconnect(
     ib: Any,
     *,
@@ -208,7 +236,7 @@ def _attempt_ibkr_reconnect(
                     "attempt": attempt,
                     "captured_at": attempt_started_at.isoformat(),
                     "connected": False,
-                    "error": str(exc),
+                    "error": _sanitize_error_text(str(exc)),
                 }
             )
 
@@ -335,6 +363,18 @@ def build_order_intents(watchlist: pd.DataFrame, execution_cfg: IBKRExecutionCon
             trade_date = _normalize_trade_date(row["trade_date"])
             rank = int(row["watchlist_rank"])
             order_ref = f"skipp-{trade_date.isoformat()}-{symbol}-{level_tag.upper()}"
+
+            entry_limit = round(_as_valid_price(row[f"{level_tag}_limit_buy"], field_name=f"{level_tag}_limit_buy"), 4)
+            take_profit = round(_as_valid_price(row[f"{level_tag}_take_profit"], field_name=f"{level_tag}_take_profit"), 4)
+            stop_loss = round(_as_valid_price(row[f"{level_tag}_stop_loss"], field_name=f"{level_tag}_stop_loss"), 4)
+            trailing_stop_pct = _as_valid_nonnegative_fraction(
+                row[f"{level_tag}_trailing_stop_pct"],
+                field_name=f"{level_tag}_trailing_stop_pct",
+            )
+            trailing_stop_anchor = round(
+                _as_valid_price(row[f"{level_tag}_trailing_stop_anchor"], field_name=f"{level_tag}_trailing_stop_anchor"),
+                4,
+            )
             intents.append(
                 IBKROrderIntent(
                     trade_date=trade_date,
@@ -342,12 +382,12 @@ def build_order_intents(watchlist: pd.DataFrame, execution_cfg: IBKRExecutionCon
                     watchlist_rank=rank,
                     level_tag=level_tag.upper(),
                     quantity=quantity,
-                    entry_limit=round(float(row[f"{level_tag}_limit_buy"]), 4),
-                    take_profit=round(float(row[f"{level_tag}_take_profit"]), 4),
-                    stop_loss=round(float(row[f"{level_tag}_stop_loss"]), 4),
-                    trailing_stop_pct=float(row[f"{level_tag}_trailing_stop_pct"]),
-                    trailing_stop_anchor=round(float(row[f"{level_tag}_trailing_stop_anchor"]), 4),
-                    premarket_last=round(float(row["premarket_last"]), 4),
+                    entry_limit=entry_limit,
+                    take_profit=take_profit,
+                    stop_loss=stop_loss,
+                    trailing_stop_pct=trailing_stop_pct,
+                    trailing_stop_anchor=trailing_stop_anchor,
+                    premarket_last=round(_as_valid_price(row["premarket_last"], field_name="premarket_last"), 4),
                     gap_pct=float(row["prev_close_to_premarket_pct"]),
                     tif=execution_cfg.tif,
                     outside_rth=execution_cfg.outside_rth,
@@ -781,7 +821,11 @@ def supervise_open_execution(
 
     symbols = sorted(trade_dates_by_symbol)
     schedule_timezone = execution_cfg.clock_timezone
-    now_reference = datetime.now(ZoneInfo(schedule_timezone))
+    try:
+        tz = ZoneInfo(schedule_timezone)
+    except ZoneInfoNotFoundError as exc:
+        raise ValueError(f"Unknown timezone: {schedule_timezone}") from exc
+    now_reference = datetime.now(tz)
     deadline = now_reference + timedelta(seconds=timeout_seconds)
 
     cancel_done: set[str] = set()
@@ -799,7 +843,7 @@ def supervise_open_execution(
     }
 
     while True:
-        now = datetime.now(ZoneInfo(schedule_timezone))
+        now = datetime.now(tz)
         snapshot = _call_with_reconnect(
             ib,
             operation_name="reconcile_snapshot",

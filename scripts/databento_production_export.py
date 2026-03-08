@@ -538,6 +538,10 @@ def _write_exact_named_exports(export_dir: Path, named_frames: dict[str, pd.Data
     return created
 
 
+def _format_optional_time(value: time | None) -> str:
+    return value.strftime("%H:%M:%S") if isinstance(value, time) else "market_relative_default"
+
+
 def _filter_ranked_symbol_day_scope(frame: pd.DataFrame, ranked_scope: pd.DataFrame) -> pd.DataFrame:
     if frame.empty or ranked_scope.empty:
         return frame.iloc[0:0].copy()
@@ -721,8 +725,8 @@ def run_production_export_pipeline(
         "top_fraction": top_fraction,
         "ranking_metric": ranking_metric,
         "display_timezone": display_timezone,
-        "window_start": window_start.strftime("%H:%M:%S"),
-        "window_end": window_end.strftime("%H:%M:%S"),
+        "window_start": _format_optional_time(window_start),
+        "window_end": _format_optional_time(window_end),
         "premarket_anchor_et": premarket_anchor_et.strftime("%H:%M:%S"),
         "daily_bars_fetched_at": daily_bars_fetched_at,
         "intraday_fetched_at": intraday_fetched_at,
@@ -749,7 +753,7 @@ def run_production_export_pipeline(
         "premarket_price_anchor_rule": "last_ohlcv_1s_close in [08:00:00 ET, regular_open) for the trade date",
         "open_1m_volume_boundary": "[regular_open, regular_open + 1 minute)",
         "open_5m_volume_boundary": "[regular_open, regular_open + 5 minutes)",
-        "full_universe_open_detail_window": f"[{window_start.strftime('%H:%M:%S')}, {window_end.strftime('%H:%M:%S')}] {display_timezone}",
+        "full_universe_open_detail_window": f"[{_format_optional_time(window_start)}, {_format_optional_time(window_end)}] {display_timezone}",
         "min_market_cap": min_market_cap,
         "cache_dir": str(resolved_cache_dir),
         "export_dir": str(resolved_export_dir),

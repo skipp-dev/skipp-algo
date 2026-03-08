@@ -12,11 +12,13 @@ from scripts.load_databento_export_bundle import build_bundle_summary, load_expo
 from scripts.databento_production_export import (
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
+    _format_optional_time,
     _build_premarket_features_full_universe_export,
     _prepare_full_universe_second_detail_export,
 )
 
 from databento_volatility_screener import (
+    _download_nasdaq_trader_text,
     _clamp_request_end,
     _coerce_timestamp_frame,
     _daily_request_end_exclusive,
@@ -426,6 +428,11 @@ def test_prepare_second_detail_and_premarket_feature_exports() -> None:
     assert bool(bbb["has_premarket_data"]) is False
 
 
+def test_format_optional_time_handles_none() -> None:
+    assert _format_optional_time(None) == "market_relative_default"
+    assert _format_optional_time(time(15, 30, 20)) == "15:30:20"
+
+
 def test_build_batl_debug_payload_prefers_feature_row_and_falls_back_to_diagnostics() -> None:
     features = pd.DataFrame(
         {
@@ -543,6 +550,27 @@ def test_build_data_status_result_uses_manifest_timestamps(tmp_path: Path) -> No
     assert status.premarket_fetched_at == "2026-03-08T14:24:10+00:00"
     assert status.trade_dates_covered == ("2026-03-05", "2026-03-06")
     assert status.is_stale is False
+
+
+def test_build_data_status_result_marks_invalid_manifest_timestamp_as_stale(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "databento_volatility_production_20260308_152400_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "dataset": "DBEQ.BASIC",
+                "lookback_days": "30",
+                "export_generated_at": "not-a-timestamp",
+                "trade_dates_covered": ["2026-03-05", "2026-03-06"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = build_data_status_result(tmp_path)
+
+    assert status.is_stale is True
+    assert status.staleness_reason == "Invalid export timestamp in manifest."
+    assert status.lookback_days == 30
 
 
 def test_resolve_manifest_path_accepts_directory_and_basename(tmp_path: Path) -> None:
@@ -882,6 +910,110 @@ def test_resolve_selected_detail_tables_uses_fallback_with_explicit_opt_in() -> 
     assert fallback_calls == ["called"]
     assert len(second_detail) == 1
     assert len(minute_detail) == 1
+
+
+def test_resolve_selected_detail_tables_does_not_match_unsupported_symbols() -> None:
+    second_detail_all = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)],
+            "symbol": ["CTA-PA"],
+            "timestamp": [pd.Timestamp("2026-03-05T15:20:00", tz="Europe/Berlin")],
+        }
+    )
+    minute_detail_all = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)],
+            "symbol": ["CTA-PA"],
+            "minute": [pd.Timestamp("2026-03-05T15:20:00", tz="Europe/Berlin")],
+        }
+    )
+
+    second_detail, minute_detail, used_fallback = resolve_selected_detail_tables(
+        second_detail_all,
+        minute_detail_all,
+        selected_date="2026-03-05",
+        selected_symbol="CTA-PA",
+        fallback_loader=None,
+        allow_explicit_refetch=False,
+    )
+
+    assert used_fallback is False
+    assert second_detail.empty
+    assert minute_detail.empty
+
+
+def test_load_daily_bars_accepts_iterator_payload_from_databento(monkeypatch) -> None:
+    trading_days = [date(2026, 3, 5)]
+    universe_symbols = {"AAPL"}
+
+    class FakeStore:
+        def to_df(self, count=None):
+            frame = pd.DataFrame(
+                {
+                    "ts_event": [pd.Timestamp("2026-03-05T00:00:00Z")],
+                    "symbol": ["AAPL"],
+                    "open": [100.0],
+                    "high": [101.0],
+                    "low": [99.0],
+                    "close": [100.5],
+                    "volume": [1000.0],
+                }
+            )
+            return iter([frame])
+
+    class FakeTimeseries:
+        def get_range(self, **kwargs):
+            return FakeStore()
+
+    class FakeMetadata:
+        def get_dataset_range(self, **kwargs):
+            return {"schema": {"ohlcv-1d": {"end": "2026-03-06T00:00:00Z"}}}
+
+    class FakeClient:
+        timeseries = FakeTimeseries()
+        metadata = FakeMetadata()
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda api_key: FakeClient())
+
+    frame = load_daily_bars(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=trading_days,
+        universe_symbols=universe_symbols,
+        use_file_cache=False,
+    )
+
+    assert len(frame) == 1
+    assert frame.iloc[0]["symbol"] == "AAPL"
+    assert frame.iloc[0]["trade_date"] == date(2026, 3, 5)
+
+
+def test_download_nasdaq_trader_text_retries_then_succeeds(monkeypatch) -> None:
+    calls = {"count": 0}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b"Symbol|Security Name|Listing Exchange\n"
+
+    def fake_urlopen(request, timeout, context):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise TimeoutError("temporary network issue")
+        return FakeResponse()
+
+    monkeypatch.setattr("databento_volatility_screener.urlopen", fake_urlopen)
+    monkeypatch.setattr("databento_volatility_screener.time_module.sleep", lambda _: None)
+
+    payload = _download_nasdaq_trader_text("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt")
+
+    assert "Symbol|Security Name|Listing Exchange" in payload
+    assert calls["count"] == 3
 
 
 def test_build_daily_features_full_universe_materializes_expected_symbol_days() -> None:
