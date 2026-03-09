@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -14,11 +15,6 @@ from dotenv import load_dotenv
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-
-from databento_volatility_screener import build_data_status_result
-from scripts.databento_preopen_fast import run_preopen_fast_refresh
-from scripts.databento_production_export import run_production_export_pipeline
-from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
 
 
 def _iso_now() -> str:
@@ -54,7 +50,162 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0,
         help="Use symbols selected_top20pct in the last N completed trade days for the reduced preopen scope. Use 0 for adaptive auto mode.",
     )
+    parser.add_argument(
+        "--full-history-with-watchlist",
+        action="store_true",
+        default=False,
+        help="After a full_history refresh, also build the watchlist immediately. Disabled by default because loading the full-history exact named exports is memory-intensive and not needed for the outside-pre-open baseline run.",
+    )
     return parser
+
+
+def _safe_iso_from_file(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat(timespec="seconds")
+
+
+def _latest_manifest_path(export_dir: Path) -> Path | None:
+    if not export_dir.exists():
+        return None
+    manifests = sorted(export_dir.glob("databento_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    if not manifests:
+        manifests = sorted(export_dir.glob("*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    return manifests[0] if manifests else None
+
+
+def _build_status_after_run(export_dir: Path, *, stale_after_minutes: int = 60) -> dict[str, Any]:
+    manifest_path = _latest_manifest_path(export_dir)
+    manifest: dict[str, Any] = {}
+    if manifest_path is not None:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = {}
+
+    export_generated_at = manifest.get("export_generated_at") or manifest.get("exported_at")
+    daily_bars_fetched_at = manifest.get("daily_bars_fetched_at")
+    intraday_fetched_at = manifest.get("intraday_fetched_at")
+    premarket_fetched_at = manifest.get("premarket_fetched_at") or _safe_iso_from_file(export_dir / "premarket_features_full_universe.parquet")
+    second_detail_fetched_at = manifest.get("second_detail_fetched_at") or _safe_iso_from_file(export_dir / "full_universe_second_detail_open.parquet")
+
+    if not intraday_fetched_at:
+        intraday_fetched_at = second_detail_fetched_at or premarket_fetched_at
+    if not export_generated_at:
+        export_generated_at = premarket_fetched_at or intraday_fetched_at or daily_bars_fetched_at
+
+    if not export_generated_at:
+        return {
+            "is_stale": True,
+            "staleness_reason": "No production export found yet.",
+            "export_generated_at": None,
+            "premarket_fetched_at": premarket_fetched_at,
+            "intraday_fetched_at": intraday_fetched_at,
+            "second_detail_fetched_at": second_detail_fetched_at,
+            "manifest_path": str(manifest_path) if manifest_path is not None else None,
+        }
+
+    try:
+        reference_timestamp = datetime.fromisoformat(str(export_generated_at).replace("Z", "+00:00"))
+        if reference_timestamp.tzinfo is None:
+            reference_timestamp = reference_timestamp.replace(tzinfo=UTC)
+        else:
+            reference_timestamp = reference_timestamp.astimezone(UTC)
+    except Exception:
+        return {
+            "is_stale": True,
+            "staleness_reason": "Invalid export timestamp in manifest.",
+            "export_generated_at": str(export_generated_at),
+            "premarket_fetched_at": str(premarket_fetched_at) if premarket_fetched_at else None,
+            "intraday_fetched_at": str(intraday_fetched_at) if intraday_fetched_at else None,
+            "second_detail_fetched_at": str(second_detail_fetched_at) if second_detail_fetched_at else None,
+            "manifest_path": str(manifest_path) if manifest_path is not None else None,
+        }
+
+    age_minutes = max(0.0, (datetime.now(UTC) - reference_timestamp).total_seconds() / 60.0)
+    is_stale = age_minutes > stale_after_minutes
+    return {
+        "is_stale": is_stale,
+        "staleness_reason": "Fresh" if not is_stale else f"Last successful export is {age_minutes:.0f} minutes old.",
+        "export_generated_at": str(export_generated_at),
+        "premarket_fetched_at": str(premarket_fetched_at) if premarket_fetched_at else None,
+        "intraday_fetched_at": str(intraday_fetched_at) if intraday_fetched_at else None,
+        "second_detail_fetched_at": str(second_detail_fetched_at) if second_detail_fetched_at else None,
+        "manifest_path": str(manifest_path) if manifest_path is not None else None,
+    }
+
+
+def _run_full_history_refresh_subprocess(
+    *,
+    databento_api_key: str,
+    fmp_api_key: str,
+    dataset: str,
+    lookback_days: int,
+    cache_dir: Path,
+    export_dir: Path,
+    force_refresh: bool,
+) -> dict[str, Any]:
+    payload = {
+        "databento_api_key": databento_api_key,
+        "fmp_api_key": fmp_api_key,
+        "dataset": dataset,
+        "lookback_days": int(lookback_days),
+        "cache_dir": str(cache_dir),
+        "export_dir": str(export_dir),
+        "force_refresh": bool(force_refresh),
+    }
+    runner = """
+import json
+import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+REPO_ROOT = Path(sys.argv[1])
+payload = json.loads(sys.argv[2])
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+load_dotenv(REPO_ROOT / '.env')
+
+from scripts.databento_production_export import run_production_export_pipeline
+
+result = run_production_export_pipeline(
+    databento_api_key=payload['databento_api_key'],
+    fmp_api_key=payload['fmp_api_key'],
+    dataset=payload['dataset'],
+    lookback_days=int(payload['lookback_days']),
+    cache_dir=Path(payload['cache_dir']),
+    export_dir=Path(payload['export_dir']),
+    use_file_cache=True,
+    force_refresh=bool(payload['force_refresh']),
+    second_detail_scope='full_universe',
+)
+
+print(json.dumps({
+    'manifest_path': str(result['exported_paths']['manifest']),
+    'output_checks': result['output_checks'],
+}, ensure_ascii=True, default=str))
+""".strip()
+    completed = subprocess.run(
+        [sys.executable, "-c", runner, str(REPO_ROOT), json.dumps(payload, ensure_ascii=True)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        stderr = (completed.stderr or "").strip()
+        stdout = (completed.stdout or "").strip()
+        error_text = stderr or stdout or f"subprocess exited with code {completed.returncode}"
+        raise RuntimeError(error_text)
+    stdout = (completed.stdout or "").strip()
+    if not stdout:
+        return {}
+    try:
+        parsed = json.loads(stdout.splitlines()[-1])
+    except Exception:
+        return {"stdout": stdout}
+    return parsed if isinstance(parsed, dict) else {"stdout": stdout}
 
 
 def main() -> int:
@@ -94,18 +245,18 @@ def main() -> int:
     t0 = time.perf_counter()
     try:
         if args.run_profile == "full_history":
-            run_production_export_pipeline(
+            refresh_metadata = _run_full_history_refresh_subprocess(
                 databento_api_key=databento_api_key,
                 fmp_api_key=fmp_api_key,
                 dataset=args.dataset,
                 lookback_days=int(args.lookback_days),
                 cache_dir=cache_dir,
                 export_dir=export_dir,
-                use_file_cache=True,
                 force_refresh=effective_force_refresh,
-                second_detail_scope="full_universe",
             )
         else:
+            from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
             run_preopen_fast_refresh(
                 databento_api_key=databento_api_key,
                 dataset=args.dataset,
@@ -113,8 +264,11 @@ def main() -> int:
                 bundle=export_dir,
                 scope_days=None if int(args.preopen_scope_days) <= 0 else int(args.preopen_scope_days),
             )
+            refresh_metadata = {}
         refresh_seconds = time.perf_counter() - t0
         report["steps"]["refresh_data_basis"] = {"ok": True, "duration_seconds": round(refresh_seconds, 3)}
+        if refresh_metadata:
+            report["steps"]["refresh_data_basis"]["details"] = refresh_metadata
     except Exception as exc:
         refresh_seconds = time.perf_counter() - t0
         report["steps"]["refresh_data_basis"] = {
@@ -128,41 +282,56 @@ def main() -> int:
         print(json.dumps(report, indent=2, ensure_ascii=True))
         return 1
 
-    t1 = time.perf_counter()
-    try:
-        watch = generate_watchlist_result(export_dir=export_dir, cfg=LongDipConfig(top_n=int(args.top_n)))
-        watch_seconds = time.perf_counter() - t1
+    should_generate_watchlist = args.run_profile != "full_history" or bool(args.full_history_with_watchlist)
+    if should_generate_watchlist:
+        t1 = time.perf_counter()
+        try:
+            from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
+
+            watch = generate_watchlist_result(export_dir=export_dir, cfg=LongDipConfig(top_n=int(args.top_n)))
+            watch_seconds = time.perf_counter() - t1
+            report["steps"]["generate_watchlist"] = {
+                "ok": True,
+                "duration_seconds": round(watch_seconds, 3),
+                "rows": int(len(watch.get("watchlist_table", []))) if isinstance(watch, dict) else 0,
+                "warnings": watch.get("warnings", []) if isinstance(watch, dict) else [],
+                "trade_date": watch.get("trade_date") if isinstance(watch, dict) else None,
+                "source_data_fetched_at": watch.get("source_data_fetched_at") if isinstance(watch, dict) else None,
+            }
+        except Exception as exc:
+            watch_seconds = time.perf_counter() - t1
+            report["steps"]["generate_watchlist"] = {
+                "ok": False,
+                "duration_seconds": round(watch_seconds, 3),
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            report["findings"].append("Generate Watchlist failed.")
+            report["finished_at"] = _iso_now()
+            report_path.write_text(json.dumps(report, indent=2, ensure_ascii=True), encoding="utf-8")
+            print(json.dumps(report, indent=2, ensure_ascii=True))
+            return 1
+    else:
         report["steps"]["generate_watchlist"] = {
             "ok": True,
-            "duration_seconds": round(watch_seconds, 3),
-            "rows": int(len(watch.get("watchlist_table", []))) if isinstance(watch, dict) else 0,
-            "warnings": watch.get("warnings", []) if isinstance(watch, dict) else [],
-            "trade_date": watch.get("trade_date") if isinstance(watch, dict) else None,
-            "source_data_fetched_at": watch.get("source_data_fetched_at") if isinstance(watch, dict) else None,
+            "duration_seconds": 0.0,
+            "skipped": True,
+            "reason": "Skipped after full_history refresh; baseline generation outside the pre-open window does not require an immediate watchlist and loading the full-history exact named exports is memory-intensive.",
+            "rows": 0,
+            "warnings": [],
+            "trade_date": None,
+            "source_data_fetched_at": None,
         }
-    except Exception as exc:
-        watch_seconds = time.perf_counter() - t1
-        report["steps"]["generate_watchlist"] = {
-            "ok": False,
-            "duration_seconds": round(watch_seconds, 3),
-            "error": f"{type(exc).__name__}: {exc}",
-        }
-        report["findings"].append("Generate Watchlist failed.")
-        report["finished_at"] = _iso_now()
-        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=True), encoding="utf-8")
-        print(json.dumps(report, indent=2, ensure_ascii=True))
-        return 1
 
-    status = build_data_status_result(export_dir)
+    status = _build_status_after_run(export_dir)
     report["status_after_run"] = {
-        "is_stale": status.is_stale,
-        "staleness_reason": status.staleness_reason,
-        "export_generated_at": status.export_generated_at,
-        "premarket_fetched_at": status.premarket_fetched_at,
-        "intraday_fetched_at": status.intraday_fetched_at,
-        "second_detail_fetched_at": status.second_detail_fetched_at,
+        "is_stale": status["is_stale"],
+        "staleness_reason": status["staleness_reason"],
+        "export_generated_at": status["export_generated_at"],
+        "premarket_fetched_at": status["premarket_fetched_at"],
+        "intraday_fetched_at": status["intraday_fetched_at"],
+        "second_detail_fetched_at": status["second_detail_fetched_at"],
     }
-    if status.is_stale:
+    if status["is_stale"]:
         report["findings"].append("Post-run status is stale.")
 
     warnings_list = report["steps"]["generate_watchlist"].get("warnings", [])
