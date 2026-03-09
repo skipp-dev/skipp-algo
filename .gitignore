@@ -30,3 +30,9 @@ artifacts/terminal_vd.jsonl
 *.bak
 artifacts/terminal_*.jsonl
 artifacts/open_prep/outcomes/*.json
+
+# Databento generated cache/runtime artifacts
+artifacts/databento_volatility_cache/
+artifacts/ops_run_report.json
+artifacts/tmp_*.py
+artifacts/ops_run_measure.py
