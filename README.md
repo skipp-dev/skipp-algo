@@ -350,6 +350,12 @@ It is split into four layers:
 # Interactive Streamlit app
 streamlit run streamlit_databento_volatility_screener.py
 
+# Measured ops wrapper: full-history baseline outside pre-open
+python scripts/measure_databento_ops_run.py --run-profile full_history --top-n 10
+
+# Measured ops wrapper: fast reduced-scope refresh near the open
+python scripts/measure_databento_ops_run.py --run-profile preopen_fast --top-n 10
+
 # Production export bundle
 python scripts/databento_production_export.py
 
@@ -376,6 +382,19 @@ python scripts/execute_ibkr_watchlist.py --watchlist-csv reports/databento_watch
 - Intraday screening window: ET-relative defaults from `databento_volatility_screener.py`
 - Production open-window detail export: `15:29:00` through `15:35:59` Europe/Berlin
 - Watchlist strategy: `strategy_config.py` Long-Dip defaults (`top_n=5`, laddered entries, fixed TP/SL, trailing stop)
+
+### Recommended Ops Sequence
+
+1. Run `full_history` outside the US pre-open window to rebuild the full-universe 30-day baseline bundle.
+2. Let that baseline define the historical `selected_top20pct` symbol-day set per trade date.
+3. Run `preopen_fast` near the open to reuse the latest full-history baseline and refresh only the reduced current premarket scope.
+4. Generate the watchlist from the latest exports after the fast refresh, or use the Streamlit `Fast Pre-Open Pipeline` button.
+
+Important behavior of `scripts/measure_databento_ops_run.py`:
+
+- `--run-profile full_history` now skips immediate watchlist generation by default.
+- This is intentional: the outside-pre-open baseline run is about rebuilding the heavy full-universe export, not loading the exact-named full-history Parquets back into the same process.
+- If you explicitly want the wrapper to build the watchlist right after `full_history`, pass `--full-history-with-watchlist`.
 
 ### Output Artifacts
 

@@ -2569,6 +2569,10 @@ def run_streamlit_app() -> None:
     full_refresh = action_cols[1].button("Full History Refresh", width="stretch")
     generate_watchlist = action_cols[2].button("Generate Watchlist", width="stretch")
     fast_pipeline = action_cols[3].button("Fast Pre-Open Pipeline", type="primary", width="stretch")
+    st.caption(
+        "Operational model: run Full History outside the pre-open window to rebuild the 30-day full-universe baseline and historical selected_top20pct symbol-days. "
+        "Run Fast Pre-Open Refresh near the open to reuse that baseline with a reduced current premarket scope. Full History refresh does not require an immediate watchlist rebuild."
+    )
 
     pipeline_refresh_ok = False
     if fast_refresh or fast_pipeline or full_refresh:
