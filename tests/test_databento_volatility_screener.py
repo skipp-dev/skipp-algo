@@ -207,6 +207,8 @@ def test_normalize_symbol_for_databento_filters_non_common_issue_patterns() -> N
     assert normalize_symbol_for_databento("ACP$A") == ""
     assert normalize_symbol_for_databento("ACHR.W") == ""
     assert normalize_symbol_for_databento("SOUL.U") == ""
+    assert normalize_symbol_for_databento("SOUL.R") == ""
+    assert normalize_symbol_for_databento("TSI.RT") == ""
 
 
 def test_symbols_requiring_support_check_returns_normalized_symbol_universe() -> None:

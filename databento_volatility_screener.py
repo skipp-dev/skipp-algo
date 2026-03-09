@@ -98,6 +98,8 @@ _DATABENTO_UNIT_OR_WARRANT_SUFFIXES = (
     ".U",
     ".W",
     ".WS",
+    ".R",
+    ".RT",
 )
 UNIVERSE_COLUMNS = ["symbol", "company_name", "exchange", "sector", "industry", "market_cap"]
 NASDAQ_TRADER_DIRECTORY_SPECS = (
