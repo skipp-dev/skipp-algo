@@ -261,6 +261,52 @@ By default this uses:
 python scripts/load_databento_export_bundle.py ~/Downloads --head 5
 ```
 
+## Verified Operations Notes (9 Mar 2026)
+
+The Databento ops workflow was verified end-to-end on 9 Mar 2026 with the following operational split:
+
+1. `full_history` outside the US pre-open window to rebuild the heavy full-universe 30-day baseline.
+2. `preopen_fast` near the open to reuse that baseline and fetch only the reduced current premarket scope.
+
+Verified successful `full_history` wrapper run:
+
+- command: `python scripts/measure_databento_ops_run.py --run-profile full_history --top-n 10`
+- wall clock: about `16.0` minutes
+- measured total duration: `961.346` seconds
+- generated manifest example: `databento_volatility_production_20260309_094209_manifest.json`
+
+Verified successful direct production export run:
+
+- command: `python scripts/databento_production_export.py`
+- wall clock: about `14.5` minutes
+- measured wall clock: `871.33` seconds
+
+Verified successful follow-up `preopen_fast` run on the fresh baseline:
+
+- command: `python scripts/measure_databento_ops_run.py --run-profile preopen_fast --top-n 10`
+- measured total duration: about `58.1` seconds
+
+Important wrapper behavior:
+
+- `scripts/measure_databento_ops_run.py --run-profile full_history` now skips immediate watchlist generation by default.
+- This is intentional for outside-pre-open baseline runs: rebuilding the full-history exact named exports is the objective, and immediately loading those large Parquet files back into the same process is unnecessarily memory-intensive.
+- If an immediate post-refresh watchlist is explicitly needed, pass `--full-history-with-watchlist`.
+
+Readable export helper for the full-universe 1-second Parquet:
+
+```bash
+# full export as gzip-compressed CSV
+python scripts/export_parquet_csv_streaming.py \
+  ~/Downloads/full_universe_second_detail_open.parquet \
+  ~/Downloads/full_universe_second_detail_open.csv.gz
+
+# small plain CSV preview
+python scripts/export_parquet_csv_streaming.py \
+  ~/Downloads/full_universe_second_detail_open.parquet \
+  artifacts/full_universe_second_detail_open_preview.csv \
+  --max-rows 1000
+```
+
 Use this to verify:
 
 - manifest metadata,
