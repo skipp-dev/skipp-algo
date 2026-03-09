@@ -12,6 +12,7 @@ from scripts.load_databento_export_bundle import build_bundle_summary, load_expo
 from scripts.databento_production_export import (
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
+    _load_fundamental_reference,
     _format_optional_time,
     _build_premarket_features_full_universe_export,
     _prepare_full_universe_second_detail_export,
@@ -202,8 +203,45 @@ def test_normalize_symbol_for_databento_maps_additional_share_classes_and_skips_
     assert normalize_symbol_for_databento("CTA-PA") == ""
 
 
+def test_normalize_symbol_for_databento_filters_non_common_issue_patterns() -> None:
+    assert normalize_symbol_for_databento("ACP$A") == ""
+    assert normalize_symbol_for_databento("ACHR.W") == ""
+    assert normalize_symbol_for_databento("SOUL.U") == ""
+
+
 def test_symbols_requiring_support_check_returns_normalized_symbol_universe() -> None:
     assert _symbols_requiring_support_check(["AAPL", "BRK.B", "BF-B", "MSFT", "CTA-PA", "   "]) == ["AAPL", "BF.B", "BRK.B", "MSFT"]
+
+
+def test_load_fundamental_reference_caches_empty_results(monkeypatch, tmp_path) -> None:
+    call_count = {"n": 0}
+
+    class FakeFMPClient:
+        def __init__(self, api_key):
+            self.api_key = api_key
+
+        def get_profile_bulk(self):
+            call_count["n"] += 1
+            return []
+
+    monkeypatch.setattr("scripts.databento_production_export.FMPClient", FakeFMPClient)
+
+    first = _load_fundamental_reference(
+        "key",
+        cache_dir=tmp_path,
+        use_file_cache=True,
+        force_refresh=False,
+    )
+    second = _load_fundamental_reference(
+        "key",
+        cache_dir=tmp_path,
+        use_file_cache=True,
+        force_refresh=False,
+    )
+
+    assert first.empty
+    assert second.empty
+    assert call_count["n"] == 1
 
 
 def test_probe_symbol_support_only_marks_explicit_unresolved_symbols_unsupported(monkeypatch) -> None:

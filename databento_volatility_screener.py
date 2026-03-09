@@ -93,6 +93,12 @@ DATABENTO_SYMBOL_ALIASES = {
 DATABENTO_UNSUPPORTED_SYMBOLS = {
     "CTA-PA",
 }
+_DATABENTO_INVALID_CHAR_RE = re.compile(r"[^A-Z0-9.]")
+_DATABENTO_UNIT_OR_WARRANT_SUFFIXES = (
+    ".U",
+    ".W",
+    ".WS",
+)
 UNIVERSE_COLUMNS = ["symbol", "company_name", "exchange", "sector", "industry", "market_cap"]
 NASDAQ_TRADER_DIRECTORY_SPECS = (
     (
@@ -222,9 +228,18 @@ def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
 
 def normalize_symbol_for_databento(symbol: str) -> str:
     normalized = str(symbol).strip().upper()
+    if not normalized:
+        return ""
+    normalized = DATABENTO_SYMBOL_ALIASES.get(normalized, normalized)
+    # Databento equity symbology does not resolve many preferred/unit/warrant
+    # encodings coming from broad exchange directories; filter these upfront.
+    if _DATABENTO_INVALID_CHAR_RE.search(normalized):
+        return ""
+    if normalized.endswith(_DATABENTO_UNIT_OR_WARRANT_SUFFIXES):
+        return ""
     if normalized in DATABENTO_UNSUPPORTED_SYMBOLS:
         return ""
-    return DATABENTO_SYMBOL_ALIASES.get(normalized, normalized)
+    return normalized
 
 
 def _normalize_symbols(symbols: set[str] | list[str] | tuple[str, ...]) -> list[str]:

@@ -125,6 +125,17 @@ SYMBOL_DAY_DIAGNOSTIC_COLUMNS = [
     "is_supported_by_databento",
 ]
 
+FUNDAMENTAL_REFERENCE_COLUMNS = [
+    "symbol",
+    "company_name_profile",
+    "exchange_profile",
+    "sector_profile",
+    "industry_profile",
+    "market_cap_profile",
+    "asset_type_profile",
+    "has_fundamental_row",
+]
+
 
 def _bool_series(frame: pd.DataFrame, column: str, default: bool = False) -> pd.Series:
     if column not in frame.columns:
@@ -146,6 +157,10 @@ def _fundamental_reference_cache_path(cache_dir: Path) -> Path:
     )
 
 
+def _empty_fundamental_reference_frame() -> pd.DataFrame:
+    return pd.DataFrame(columns=FUNDAMENTAL_REFERENCE_COLUMNS)
+
+
 def _load_fundamental_reference(
     fmp_api_key: str,
     *,
@@ -159,38 +174,28 @@ def _load_fundamental_reference(
         if cached is not None:
             return cached
 
+    if not str(fmp_api_key or "").strip():
+        empty = _empty_fundamental_reference_frame()
+        if use_file_cache:
+            _write_cached_frame(cache_path, empty)
+        return empty
+
     try:
         rows = FMPClient(fmp_api_key).get_profile_bulk()
     except Exception:
         rows = []
     if not rows:
-        return pd.DataFrame(
-            columns=[
-                "symbol",
-                "company_name_profile",
-                "exchange_profile",
-                "sector_profile",
-                "industry_profile",
-                "market_cap_profile",
-                "asset_type_profile",
-                "has_fundamental_row",
-            ]
-        )
+        empty = _empty_fundamental_reference_frame()
+        if use_file_cache:
+            _write_cached_frame(cache_path, empty)
+        return empty
 
     frame = pd.DataFrame(rows)
     if frame.empty:
-        return pd.DataFrame(
-            columns=[
-                "symbol",
-                "company_name_profile",
-                "exchange_profile",
-                "sector_profile",
-                "industry_profile",
-                "market_cap_profile",
-                "asset_type_profile",
-                "has_fundamental_row",
-            ]
-        )
+        empty = _empty_fundamental_reference_frame()
+        if use_file_cache:
+            _write_cached_frame(cache_path, empty)
+        return empty
 
     out = pd.DataFrame(
         {
@@ -205,7 +210,7 @@ def _load_fundamental_reference(
         }
     )
     out = out[out["symbol"].ne("")].drop_duplicates(subset=["symbol"]).reset_index(drop=True)
-    if use_file_cache and not out.empty:
+    if use_file_cache:
         _write_cached_frame(cache_path, out)
     return out
 
