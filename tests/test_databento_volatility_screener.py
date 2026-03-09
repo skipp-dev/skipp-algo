@@ -25,6 +25,7 @@ from databento_volatility_screener import (
     _daily_request_end_exclusive,
     _extract_unresolved_symbols_from_warning_messages,
     _iter_symbol_batches,
+    _normalize_symbol_day_scope,
     _parse_nasdaq_trader_directory,
     _prepare_frame_for_excel,
     _probe_symbol_support,
@@ -552,6 +553,28 @@ def test_extract_unresolved_symbols_from_warning_messages_normalizes_aliases() -
         "No data found for the request you submitted.",
     ]
     assert _extract_unresolved_symbols_from_warning_messages(messages) == {"BF.B", "MKC.V"}
+
+
+def test_extract_unresolved_symbols_from_warning_messages_strips_trailing_punctuation() -> None:
+    messages = [
+        "The streaming request had one or more symbols which did not resolve: BMGL, BUI.V, DMAAR.",
+    ]
+    assert _extract_unresolved_symbols_from_warning_messages(messages) == {"BMGL", "BUI.V", "DMAAR"}
+
+
+def test_normalize_symbol_day_scope_drops_invalid_symbols_and_deduplicates() -> None:
+    scope = pd.DataFrame(
+        {
+            "trade_date": ["2026-03-07", "2026-03-07", "2026-03-07", "bad-date"],
+            "symbol": ["SOUL.R", "BRK-B", "BRK-B", "AAPL"],
+        }
+    )
+
+    normalized = _normalize_symbol_day_scope(scope)
+
+    assert normalized.to_dict(orient="records") == [
+        {"trade_date": date(2026, 3, 7), "symbol": "BRK.B"},
+    ]
 
 
 def test_prepare_frame_for_excel_removes_timezone_information() -> None:

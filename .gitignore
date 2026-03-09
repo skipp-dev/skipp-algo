@@ -34,5 +34,7 @@ artifacts/open_prep/outcomes/*.json
 # Databento generated cache/runtime artifacts
 artifacts/databento_volatility_cache/
 artifacts/ops_run_report.json
+artifacts/ops_run_stdout*.txt
+artifacts/ops_run_time*.txt
 artifacts/tmp_*.py
 artifacts/ops_run_measure.py

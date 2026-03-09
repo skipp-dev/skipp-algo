@@ -259,6 +259,32 @@ def _symbol_scope_token(symbols: set[str] | list[str] | tuple[str, ...]) -> str:
     return f"{len(normalized)}_{digest}"
 
 
+def _symbol_day_scope_token(symbol_day_scope: pd.DataFrame | None) -> str:
+    if symbol_day_scope is None or symbol_day_scope.empty:
+        return "all"
+    scope = symbol_day_scope.copy()
+    scope["trade_date"] = pd.to_datetime(scope["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    scope["symbol"] = scope["symbol"].astype(str).map(normalize_symbol_for_databento)
+    scope = scope.dropna(subset=["trade_date", "symbol"])
+    if scope.empty:
+        return "empty"
+    scope = scope.drop_duplicates(subset=["trade_date", "symbol"]).sort_values(["trade_date", "symbol"])
+    payload = "|".join(f"{row.trade_date}:{row.symbol}" for row in scope.itertuples(index=False))
+    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+    return f"{len(scope)}_{digest}"
+
+
+def _normalize_symbol_day_scope(symbol_day_scope: pd.DataFrame | None) -> pd.DataFrame:
+    if symbol_day_scope is None or symbol_day_scope.empty:
+        return pd.DataFrame(columns=["trade_date", "symbol"])
+    scope = symbol_day_scope.copy()
+    scope["trade_date"] = pd.to_datetime(scope["trade_date"], errors="coerce").dt.date
+    scope["symbol"] = scope["symbol"].astype(str).map(normalize_symbol_for_databento)
+    scope = scope.dropna(subset=["trade_date", "symbol"])
+    scope = scope[scope["symbol"].astype(str).ne("")]
+    return scope[["trade_date", "symbol"]].drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+
+
 def _iter_symbol_batches(
     symbols: set[str] | list[str] | tuple[str, ...],
     *,
@@ -357,6 +383,7 @@ def _extract_unresolved_symbols_from_warning_messages(messages: list[str]) -> se
             continue
         for raw_symbol in match.group(1).split(","):
             cleaned = raw_symbol.replace("...", "").strip().upper()
+            cleaned = cleaned.strip(" .;:\t\n\r\"'")
             normalized = normalize_symbol_for_databento(cleaned)
             if normalized:
                 unresolved.add(normalized)
@@ -1463,6 +1490,7 @@ def collect_full_universe_open_window_second_detail(
     trading_days: list[date],
     universe_symbols: set[str],
     daily_bars: pd.DataFrame,
+    symbol_day_scope: pd.DataFrame | None = None,
     display_timezone: str = DEFAULT_DISPLAY_TZ,
     window_start: time | None = None,
     window_end: time | None = None,
@@ -1480,14 +1508,23 @@ def collect_full_universe_open_window_second_detail(
         )
 
     client = _make_databento_client(databento_api_key)
-    symbol_scope = _symbol_scope_token(universe_symbols)
+    normalized_scope = _normalize_symbol_day_scope(symbol_day_scope)
+    scope_by_day = {
+        trade_day: set(group["symbol"].astype(str).tolist())
+        for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
+    } if not normalized_scope.empty else {}
+    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
     previous_close_lookup = {
         (row.trade_date, row.symbol): _safe_float(row.previous_close)
         for row in daily_bars.itertuples(index=False)
     }
     all_rows: list[pd.DataFrame] = []
+    runtime_unsupported_symbols: set[str] = set()
 
     for trade_day in trading_days:
+        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        if not day_universe_symbols:
+            continue
         day_ws, day_we = _resolve_window_for_date(
             trade_day, display_timezone, window_start, window_end,
             default_pre_open_minutes=_DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES,
@@ -1520,18 +1557,24 @@ def collect_full_universe_open_window_second_detail(
             day_parts: list[pd.DataFrame] = []
             previous_close_by_symbol = {
                 symbol: previous_close_lookup.get((trade_day, symbol))
-                for symbol in universe_symbols
+                for symbol in day_universe_symbols
             }
-            for symbols_batch in _iter_symbol_batches(universe_symbols):
+            active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            for symbols_batch in _iter_symbol_batches(active_symbols):
                 try:
-                    store = client.timeseries.get_range(
-                        dataset=dataset,
-                        symbols=symbols_batch,
-                        schema="ohlcv-1s",
-                        start=window.window_start_local.astimezone(UTC).isoformat(),
-                        end=_exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)).isoformat(),
-                    )
+                    with warnings.catch_warnings(record=True) as caught_warnings:
+                        warnings.simplefilter("always")
+                        store = client.timeseries.get_range(
+                            dataset=dataset,
+                            symbols=symbols_batch,
+                            schema="ohlcv-1s",
+                            start=window.window_start_local.astimezone(UTC).isoformat(),
+                            end=_exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)).isoformat(),
+                        )
                     frame = _store_to_frame(store, count=250_000, context="collect_full_universe_open_window_second_detail")
+                    runtime_unsupported_symbols.update(
+                        _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+                    )
                     if not frame.empty:
                         _validate_frame_columns(
                             frame,
@@ -1549,7 +1592,7 @@ def collect_full_universe_open_window_second_detail(
                     continue
                 frame = frame.copy()
                 frame["symbol"] = frame["symbol"].astype(str).str.upper()
-                frame = frame[frame["symbol"].isin(universe_symbols)].copy()
+                frame = frame[frame["symbol"].isin(day_universe_symbols)].copy()
                 if frame.empty:
                     continue
 
@@ -1986,7 +2029,7 @@ def _latest_manifest_path(export_dir: str | Path | None = None) -> Path | None:
     target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
     if not target_dir.exists():
         return None
-    manifests = sorted(target_dir.glob("databento_volatility_production_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    manifests = sorted(target_dir.glob("databento_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
     if not manifests:
         manifests = sorted(target_dir.glob("*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
     return manifests[0] if manifests else None
@@ -2440,6 +2483,7 @@ def run_streamlit_app() -> None:
     from dotenv import load_dotenv
     from pathlib import Path
 
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
     from scripts.databento_production_export import run_production_export_pipeline
     from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
     from strategy_config import LONG_DIP_DEFAULTS
@@ -2459,6 +2503,8 @@ def run_streamlit_app() -> None:
         dataset = st.text_input("Databento dataset", value=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
         lookback_days = st.number_input("Trading days", min_value=1, max_value=90, value=30)
         top_n = st.number_input("Top N watchlist", min_value=1, max_value=25, value=default_top_n)
+        refresh_mode = st.radio("Refresh mode", options=["Fast pre-open", "Full history"], index=0)
+        fast_scope_days = st.number_input("Fast scope days override (0 = auto)", min_value=0, max_value=30, value=0)
         force_refresh = st.checkbox("Force refresh", value=False)
 
     if "dvs_run_logs" not in st.session_state:
@@ -2475,6 +2521,8 @@ def run_streamlit_app() -> None:
     status = build_data_status_result(export_dir)
     config_snapshot = dict(LONG_DIP_DEFAULTS)
     config_snapshot["top_n"] = int(top_n)
+    config_snapshot["refresh_mode"] = refresh_mode
+    config_snapshot["fast_scope_days_override"] = int(fast_scope_days)
     watchlist_cfg = LongDipConfig(top_n=int(top_n))
     watchlist_result = st.session_state.get("dvs_watchlist_result")
 
@@ -2505,6 +2553,19 @@ def run_streamlit_app() -> None:
         f"{st.session_state['dvs_last_watchlist_seconds']:.1f}s" if st.session_state["dvs_last_watchlist_seconds"] is not None else "n/a",
     )
 
+    latest_fast_manifest = None
+    if status.manifest_path:
+        try:
+            latest_fast_manifest = json.loads(Path(status.manifest_path).read_text(encoding="utf-8"))
+        except Exception:
+            latest_fast_manifest = None
+
+    if latest_fast_manifest and latest_fast_manifest.get("mode") == "preopen_fast_reduced_scope":
+        fast_scope_cols = st.columns(3)
+        fast_scope_cols[0].metric("Fast Scope Days", latest_fast_manifest.get("scope_days", "n/a"))
+        fast_scope_cols[1].metric("Fast Scope Symbols", latest_fast_manifest.get("scope_symbol_count", "n/a"))
+        fast_scope_cols[2].metric("Fast Scope Mode", latest_fast_manifest.get("scope_days_mode", "n/a"))
+
     action_cols = st.columns(3)
     refresh_data = action_cols[0].button("Refresh Data Basis", width="stretch")
     generate_watchlist = action_cols[1].button("Generate Watchlist", width="stretch")
@@ -2518,27 +2579,37 @@ def run_streamlit_app() -> None:
             try:
                 refresh_started = time_module.perf_counter()
                 with st.spinner("Refreshing production data basis..."):
-                    run_production_export_pipeline(
-                        databento_api_key=databento_api_key,
-                        fmp_api_key=fmp_api_key,
-                        dataset=dataset,
-                        lookback_days=int(lookback_days),
-                        cache_dir=Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache",
-                        export_dir=Path(export_dir).expanduser(),
-                        use_file_cache=True,
-                        force_refresh=force_refresh,
-                    )
+                    if refresh_mode == "Fast pre-open":
+                        run_preopen_fast_refresh(
+                            databento_api_key=databento_api_key,
+                            dataset=dataset,
+                            export_dir=Path(export_dir).expanduser(),
+                            bundle=Path(export_dir).expanduser(),
+                            scope_days=None if int(fast_scope_days) <= 0 else int(fast_scope_days),
+                        )
+                    else:
+                        run_production_export_pipeline(
+                            databento_api_key=databento_api_key,
+                            fmp_api_key=fmp_api_key,
+                            dataset=dataset,
+                            lookback_days=int(lookback_days),
+                            cache_dir=Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache",
+                            export_dir=Path(export_dir).expanduser(),
+                            use_file_cache=True,
+                            force_refresh=force_refresh,
+                            second_detail_scope="full_universe",
+                        )
             except Exception as exc:
                 add_log(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
                 st.error(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
             else:
                 refresh_seconds = time_module.perf_counter() - refresh_started
                 st.session_state["dvs_last_refresh_seconds"] = refresh_seconds
-                add_log(f"Data basis refreshed for dataset={dataset} in {refresh_seconds:.1f}s.")
+                add_log(f"Data basis refreshed in mode={refresh_mode} for dataset={dataset} in {refresh_seconds:.1f}s.")
                 status = build_data_status_result(export_dir)
                 pipeline_refresh_ok = True
                 if refresh_data and not run_pipeline:
-                    st.success(f"Data basis refreshed in {refresh_seconds:.1f}s.")
+                    st.success(f"Data basis refreshed in {refresh_mode} mode in {refresh_seconds:.1f}s.")
 
     if generate_watchlist or (run_pipeline and pipeline_refresh_ok):
         try:

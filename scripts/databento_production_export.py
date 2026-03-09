@@ -573,11 +573,14 @@ def run_production_export_pipeline(
     export_dir: Path | None = None,
     use_file_cache: bool = True,
     force_refresh: bool = False,
+    second_detail_scope: str = "full_universe",
 ) -> dict[str, Any]:
     if not databento_api_key:
         raise ValueError("Databento API key is required.")
     if not 0 < top_fraction <= 1:
         raise ValueError("top_fraction must be between 0 and 1")
+    if second_detail_scope not in {"full_universe", "ranked_only", "none"}:
+        raise ValueError("second_detail_scope must be one of: full_universe, ranked_only, none")
 
     resolved_cache_dir = cache_dir or (REPO_ROOT / "artifacts" / "databento_volatility_cache")
     resolved_export_dir = export_dir or default_export_directory()
@@ -648,20 +651,26 @@ def run_production_export_pipeline(
     if summary.empty:
         raise RuntimeError("No ranked results were returned for the production export run")
 
-    full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
-        databento_api_key,
-        dataset=dataset,
-        trading_days=trading_days,
-        universe_symbols=universe_symbols,
-        daily_bars=daily_bars,
-        display_timezone=display_timezone,
-        window_start=window_start,
-        window_end=window_end,
-        premarket_anchor_et=premarket_anchor_et,
-        cache_dir=resolved_cache_dir,
-        use_file_cache=use_file_cache,
-        force_refresh=force_refresh,
-    )
+    ranked_scope = ranked[["trade_date", "symbol"]].drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+
+    if second_detail_scope == "none":
+        full_universe_second_detail_raw = pd.DataFrame()
+    else:
+        full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            universe_symbols=universe_symbols,
+            daily_bars=daily_bars,
+            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+            display_timezone=display_timezone,
+            window_start=window_start,
+            window_end=window_end,
+            premarket_anchor_et=premarket_anchor_et,
+            cache_dir=resolved_cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
     daily_symbol_features_full_universe, symbol_day_diagnostics = _build_daily_symbol_features_full_universe_export(
         trading_days=trading_days,
         raw_universe=raw_universe,
@@ -741,9 +750,10 @@ def run_production_export_pipeline(
         "export_generated_at": export_generated_at,
         "trade_dates_covered": [trade_day.isoformat() for trade_day in trading_days],
         "detail_scope": "full_supported_universe_symbol_days",
+        "second_detail_scope": second_detail_scope,
         "selected_symbol_detail_scope": "selected_top_ranked_symbol_day_only",
         "internal_timezone": display_timezone,
-        "session_documentation": "full_universe_second_detail_open spans from the premarket anchor (08:00:00 ET) through 15:35:59 Europe/Berlin; session is labeled as premarket before 09:30 ET and regular from 09:30 ET onward",
+        "session_documentation": "second_detail export spans from the premarket anchor (08:00:00 ET) through 15:35:59 Europe/Berlin; session is labeled as premarket before 09:30 ET and regular from 09:30 ET onward",
         "second_delta_pct_formula": "((close_t / close_t_minus_1) - 1) * 100 within each symbol-day open-window second series",
         "window_range_pct_formula": "((window_high - window_low) / window_start_price) * 100",
         "window_return_pct_formula": "((window_end_price / window_start_price) - 1) * 100",

@@ -16,6 +16,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from databento_volatility_screener import build_data_status_result
+from scripts.databento_preopen_fast import run_preopen_fast_refresh
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
 
@@ -26,10 +27,17 @@ def _iso_now() -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Measure end-to-end Databento ops run (refresh + watchlist).")
+    parser.add_argument(
+        "--run-profile",
+        choices=["full_history", "preopen_fast"],
+        default="preopen_fast",
+        help="full_history runs the historical full-universe export; preopen_fast builds a reduced current premarket refresh from the latest full-history bundle.",
+    )
     parser.add_argument("--dataset", default=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
     parser.add_argument("--lookback-days", type=int, default=int(os.getenv("DATABENTO_LOOKBACK_DAYS", "30")))
     parser.add_argument("--top-n", type=int, default=5)
-    parser.add_argument("--force-refresh", action="store_true", default=True)
+    parser.add_argument("--force-refresh", action="store_true", default=False)
+    parser.add_argument("--no-force-refresh", action="store_true", default=False)
     parser.add_argument(
         "--export-dir",
         default=str(Path.home() / "Downloads"),
@@ -40,6 +48,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=str(REPO_ROOT / "artifacts" / "ops_run_report.json"),
         help="JSON report path.",
     )
+    parser.add_argument(
+        "--preopen-scope-days",
+        type=int,
+        default=0,
+        help="Use symbols selected_top20pct in the last N completed trade days for the reduced preopen scope. Use 0 for adaptive auto mode.",
+    )
     return parser
 
 
@@ -47,6 +61,7 @@ def main() -> int:
     load_dotenv()
     parser = _build_parser()
     args = parser.parse_args()
+    effective_force_refresh = bool(args.force_refresh and not args.no_force_refresh)
 
     databento_api_key = os.getenv("DATABENTO_API_KEY")
     fmp_api_key = os.getenv("FMP_API_KEY", "")
@@ -58,10 +73,11 @@ def main() -> int:
 
     report: dict[str, Any] = {
         "started_at": _iso_now(),
+        "run_profile": args.run_profile,
         "dataset": args.dataset,
         "lookback_days": int(args.lookback_days),
         "top_n": int(args.top_n),
-        "force_refresh": bool(args.force_refresh),
+        "force_refresh": effective_force_refresh,
         "has_databento_key": bool(databento_api_key),
         "has_fmp_key": bool(fmp_api_key),
         "steps": {},
@@ -77,16 +93,26 @@ def main() -> int:
 
     t0 = time.perf_counter()
     try:
-        run_production_export_pipeline(
-            databento_api_key=databento_api_key,
-            fmp_api_key=fmp_api_key,
-            dataset=args.dataset,
-            lookback_days=int(args.lookback_days),
-            cache_dir=cache_dir,
-            export_dir=export_dir,
-            use_file_cache=True,
-            force_refresh=bool(args.force_refresh),
-        )
+        if args.run_profile == "full_history":
+            run_production_export_pipeline(
+                databento_api_key=databento_api_key,
+                fmp_api_key=fmp_api_key,
+                dataset=args.dataset,
+                lookback_days=int(args.lookback_days),
+                cache_dir=cache_dir,
+                export_dir=export_dir,
+                use_file_cache=True,
+                force_refresh=effective_force_refresh,
+                second_detail_scope="full_universe",
+            )
+        else:
+            run_preopen_fast_refresh(
+                databento_api_key=databento_api_key,
+                dataset=args.dataset,
+                export_dir=export_dir,
+                bundle=export_dir,
+                scope_days=None if int(args.preopen_scope_days) <= 0 else int(args.preopen_scope_days),
+            )
         refresh_seconds = time.perf_counter() - t0
         report["steps"]["refresh_data_basis"] = {"ok": True, "duration_seconds": round(refresh_seconds, 3)}
     except Exception as exc:
