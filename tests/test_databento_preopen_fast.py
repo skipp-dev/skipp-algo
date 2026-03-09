@@ -40,8 +40,8 @@ def test_select_recent_scope_symbols_uses_recent_selected_days() -> None:
 
 
 def test_target_scope_symbol_count_varies_by_time() -> None:
-    assert _target_scope_symbol_count(now_utc=datetime(2026, 3, 9, 12, 0, tzinfo=UTC)) == 3000
-    assert _target_scope_symbol_count(now_utc=datetime(2026, 3, 9, 13, 5, tzinfo=UTC)) == 2200
+    assert _target_scope_symbol_count(now_utc=datetime(2026, 3, 9, 12, 0, tzinfo=UTC)) == 3200
+    assert _target_scope_symbol_count(now_utc=datetime(2026, 3, 9, 13, 5, tzinfo=UTC)) == 2400
 
 
 def test_choose_scope_days_expands_until_target_symbol_count() -> None:

@@ -38,6 +38,7 @@ from scripts.load_databento_export_bundle import load_export_bundle
 DEFAULT_EXPORT_DIR = Path.home() / "Downloads"
 DEFAULT_FAST_SCOPE_MIN_DAYS = 5
 DEFAULT_FAST_SCOPE_MAX_DAYS = 15
+FAST_SCOPE_CALIBRATION_DAYS = (5, 7, 10, 12, 15)
 
 
 def _normalize_trade_date(frame: pd.DataFrame) -> pd.DataFrame:
@@ -75,12 +76,29 @@ def _target_scope_symbol_count(*, now_utc: datetime | None = None) -> int:
     now_et = (now_utc or datetime.now(UTC)).astimezone(US_EASTERN_TZ)
     current_time = now_et.time()
     if current_time < time(8, 30):
-        return 3000
+        return 3200
     if current_time < time(9, 0):
-        return 2500
+        return 2800
     if current_time < time(9, 20):
-        return 2200
-    return 2000
+        return 2400
+    return 2100
+
+
+def _recent_scope_symbol_counts(daily_features: pd.DataFrame) -> dict[int, int]:
+    normalized = _normalize_trade_date(daily_features)
+    normalized = normalized[normalized["symbol"].astype(str).ne("")].copy()
+    selected = normalized[normalized["selected_top20pct"] == True].copy()
+    if selected.empty:
+        return {int(days): 0 for days in FAST_SCOPE_CALIBRATION_DAYS}
+    completed_days = sorted(selected["trade_date"].dropna().unique().tolist())
+    counts: dict[int, int] = {}
+    for days in FAST_SCOPE_CALIBRATION_DAYS:
+        if not completed_days:
+            counts[int(days)] = 0
+            continue
+        scope_trade_days = set(completed_days[-min(int(days), len(completed_days)):])
+        counts[int(days)] = int(selected[selected["trade_date"].isin(scope_trade_days)]["symbol"].nunique())
+    return counts
 
 
 def _choose_scope_days(
@@ -346,6 +364,7 @@ def run_preopen_fast_refresh(
     frames = payload["frames"]
 
     daily_features = _normalize_trade_date(frames["daily_symbol_features_full_universe"])
+    scope_calibration = _recent_scope_symbol_counts(daily_features)
     daily_bars = _normalize_trade_date(frames["daily_bars"])
     completed_trade_days = sorted(daily_bars["trade_date"].dropna().unique().tolist())
     if not completed_trade_days:
@@ -421,6 +440,7 @@ def run_preopen_fast_refresh(
         "scope_symbol_count": int(len(symbols)),
         "scope_symbol_count_target": int(_target_scope_symbol_count()),
         "scope_symbol_count_resolved": int(resolved_scope_symbol_count),
+        "scope_symbol_count_calibration": scope_calibration,
         "target_trade_date": target_trade_date.isoformat(),
         "trade_dates_covered": [target_trade_date.isoformat()],
         "baseline_manifest_path": str(payload["manifest_path"]),

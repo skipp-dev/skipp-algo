@@ -2503,7 +2503,6 @@ def run_streamlit_app() -> None:
         dataset = st.text_input("Databento dataset", value=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
         lookback_days = st.number_input("Trading days", min_value=1, max_value=90, value=30)
         top_n = st.number_input("Top N watchlist", min_value=1, max_value=25, value=default_top_n)
-        refresh_mode = st.radio("Refresh mode", options=["Fast pre-open", "Full history"], index=0)
         fast_scope_days = st.number_input("Fast scope days override (0 = auto)", min_value=0, max_value=30, value=0)
         force_refresh = st.checkbox("Force refresh", value=False)
 
@@ -2521,7 +2520,6 @@ def run_streamlit_app() -> None:
     status = build_data_status_result(export_dir)
     config_snapshot = dict(LONG_DIP_DEFAULTS)
     config_snapshot["top_n"] = int(top_n)
-    config_snapshot["refresh_mode"] = refresh_mode
     config_snapshot["fast_scope_days_override"] = int(fast_scope_days)
     watchlist_cfg = LongDipConfig(top_n=int(top_n))
     watchlist_result = st.session_state.get("dvs_watchlist_result")
@@ -2566,20 +2564,21 @@ def run_streamlit_app() -> None:
         fast_scope_cols[1].metric("Fast Scope Symbols", latest_fast_manifest.get("scope_symbol_count", "n/a"))
         fast_scope_cols[2].metric("Fast Scope Mode", latest_fast_manifest.get("scope_days_mode", "n/a"))
 
-    action_cols = st.columns(3)
-    refresh_data = action_cols[0].button("Refresh Data Basis", width="stretch")
-    generate_watchlist = action_cols[1].button("Generate Watchlist", width="stretch")
-    run_pipeline = action_cols[2].button("Run Daily Pipeline", type="primary", width="stretch")
+    action_cols = st.columns(4)
+    fast_refresh = action_cols[0].button("Fast Pre-Open Refresh", width="stretch")
+    full_refresh = action_cols[1].button("Full History Refresh", width="stretch")
+    generate_watchlist = action_cols[2].button("Generate Watchlist", width="stretch")
+    fast_pipeline = action_cols[3].button("Fast Pre-Open Pipeline", type="primary", width="stretch")
 
     pipeline_refresh_ok = False
-    if refresh_data or run_pipeline:
+    if fast_refresh or fast_pipeline or full_refresh:
         if not databento_api_key:
             st.error("Databento API key is required for the data pipeline.")
         else:
             try:
                 refresh_started = time_module.perf_counter()
                 with st.spinner("Refreshing production data basis..."):
-                    if refresh_mode == "Fast pre-open":
+                    if fast_refresh or fast_pipeline:
                         run_preopen_fast_refresh(
                             databento_api_key=databento_api_key,
                             dataset=dataset,
@@ -2587,6 +2586,7 @@ def run_streamlit_app() -> None:
                             bundle=Path(export_dir).expanduser(),
                             scope_days=None if int(fast_scope_days) <= 0 else int(fast_scope_days),
                         )
+                        refresh_label = "Fast pre-open"
                     else:
                         run_production_export_pipeline(
                             databento_api_key=databento_api_key,
@@ -2599,19 +2599,20 @@ def run_streamlit_app() -> None:
                             force_refresh=force_refresh,
                             second_detail_scope="full_universe",
                         )
+                        refresh_label = "Full history"
             except Exception as exc:
                 add_log(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
                 st.error(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
             else:
                 refresh_seconds = time_module.perf_counter() - refresh_started
                 st.session_state["dvs_last_refresh_seconds"] = refresh_seconds
-                add_log(f"Data basis refreshed in mode={refresh_mode} for dataset={dataset} in {refresh_seconds:.1f}s.")
+                add_log(f"Data basis refreshed in mode={refresh_label} for dataset={dataset} in {refresh_seconds:.1f}s.")
                 status = build_data_status_result(export_dir)
                 pipeline_refresh_ok = True
-                if refresh_data and not run_pipeline:
-                    st.success(f"Data basis refreshed in {refresh_mode} mode in {refresh_seconds:.1f}s.")
+                if (fast_refresh or full_refresh) and not fast_pipeline:
+                    st.success(f"Data basis refreshed in {refresh_label} mode in {refresh_seconds:.1f}s.")
 
-    if generate_watchlist or (run_pipeline and pipeline_refresh_ok):
+    if generate_watchlist or (fast_pipeline and pipeline_refresh_ok):
         try:
             watchlist_started = time_module.perf_counter()
             with st.spinner("Generating watchlist from the latest exported data..."):
@@ -2649,6 +2650,14 @@ def run_streamlit_app() -> None:
         st.caption(
             f"Watchlist generated at {watchlist_result['generated_at']}. Source data fetched at {watchlist_result.get('source_data_fetched_at') or 'n/a'}."
         )
+        filter_profile = watchlist_result.get("filter_profile") or {}
+        if filter_profile:
+            st.info(
+                "Active filter profile: "
+                f"{filter_profile.get('profile_name', 'standard')} | "
+                f"reason={filter_profile.get('profile_reason', 'n/a')} | "
+                f"premarket_symbols={filter_profile.get('premarket_symbols', 'n/a')}"
+            )
         for warning in watchlist_result.get("warnings", []):
             st.warning(warning)
 

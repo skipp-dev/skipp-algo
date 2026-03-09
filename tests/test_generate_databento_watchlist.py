@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pandas as pd
 
@@ -178,3 +178,91 @@ def test_generate_watchlist_result_rejects_invalid_top_n(tmp_path) -> None:
         raise AssertionError("Expected ValueError for invalid top_n")
     except ValueError as exc:
         assert "top_n must be > 0" in str(exc)
+
+
+def test_generate_watchlist_result_uses_early_premarket_profile_from_manifest_timestamp(tmp_path) -> None:
+    trade_day = date(2026, 3, 6)
+    manifest = {
+        "export_generated_at": "2026-03-06T12:10:00+00:00",
+        "source_data_fetched_at": "2026-03-06T12:10:00+00:00",
+    }
+    (tmp_path / "databento_preopen_fast_20260306_121000_manifest.json").write_text(
+        __import__("json").dumps(manifest),
+        encoding="utf-8",
+    )
+
+    symbols = [f"S{i:02d}" for i in range(30)]
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * len(symbols),
+            "symbol": symbols,
+            "exchange": ["NYSE"] * len(symbols),
+            "asset_type": ["listed_equity_issue"] * len(symbols),
+            "previous_close": [10.0] * len(symbols),
+            "window_range_pct": [2.0] * len(symbols),
+            "window_return_pct": [1.0] * len(symbols),
+            "realized_vol_pct": [1.0] * len(symbols),
+            "selected_top20pct": [True] * len(symbols),
+            "is_eligible": [True] * len(symbols),
+            "eligibility_reason": ["eligible"] * len(symbols),
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * len(symbols),
+            "symbol": symbols,
+            "has_premarket_data": [True] * len(symbols),
+            "premarket_last": [10.3] + [9.9] * (len(symbols) - 1),
+            "premarket_volume": [12_000] + [500] * (len(symbols) - 1),
+            "premarket_trade_count": [30] + [2] * (len(symbols) - 1),
+            "prev_close_to_premarket_pct": [3.0] + [-1.0] * (len(symbols) - 1),
+            "previous_close": [10.0] * len(symbols),
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert len(result["watchlist_table"]) == 1
+    assert result["filter_profile"]["profile_name"] == "early_premarket"
+    assert result["config_snapshot"]["min_gap_pct"] == 2.0
+
+
+def test_generate_watchlist_result_uses_sparse_profile_when_premarket_universe_is_thin(tmp_path) -> None:
+    trade_day = date(2026, 3, 6)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [10.0],
+            "window_range_pct": [2.0],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.12],
+            "premarket_volume": [2_000],
+            "premarket_trade_count": [0],
+            "prev_close_to_premarket_pct": [1.2],
+            "previous_close": [10.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert len(result["watchlist_table"]) == 1
+    assert result["filter_profile"]["profile_name"] == "sparse_premarket"
+    assert result["config_snapshot"]["min_premarket_volume"] == 1000

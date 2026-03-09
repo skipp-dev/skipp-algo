@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 import sys
 from typing import Any
@@ -18,6 +19,12 @@ from strategy_config import (
     LONG_DIP_AS_OF_LABEL,
     LONG_DIP_DEFAULTS,
     LONG_DIP_DISPLAY_TIMEZONE,
+    LONG_DIP_BUILDING_MIN_GAP_PCT,
+    LONG_DIP_BUILDING_MIN_PREMARKET_TRADE_COUNT,
+    LONG_DIP_BUILDING_MIN_PREMARKET_VOLUME,
+    LONG_DIP_EARLY_MIN_GAP_PCT,
+    LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT,
+    LONG_DIP_EARLY_MIN_PREMARKET_VOLUME,
     LONG_DIP_HARD_STOP_PCT,
     LONG_DIP_LADDER_PCTS,
     LONG_DIP_LADDER_WEIGHTS,
@@ -27,11 +34,14 @@ from strategy_config import (
     LONG_DIP_MIN_PREMARKET_VOLUME,
     LONG_DIP_MIN_PREVIOUS_CLOSE,
     LONG_DIP_POSITION_BUDGET_USD,
+    LONG_DIP_SPARSE_MIN_GAP_PCT,
+    LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT,
+    LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME,
     LONG_DIP_TAKE_PROFIT_1_PCT,
     LONG_DIP_TRAILING_STOP_PCT,
     LONG_DIP_TOP_N,
 )
-from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.load_databento_export_bundle import load_export_bundle, resolve_manifest_path
 
 
 DEFAULT_EXPORT_DIR = Path.home() / "Downloads"
@@ -68,6 +78,23 @@ def _load_exact_named_watchlist_inputs(base_dir: Path) -> tuple[pd.DataFrame, pd
         "source": "exact_named_exports",
         "export_dir": str(base_dir),
     }
+    try:
+        manifest_path = resolve_manifest_path(base_dir)
+    except FileNotFoundError:
+        manifest_path = None
+    if manifest_path is not None:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = None
+        if isinstance(manifest, dict):
+            metadata.update(
+                {
+                    "manifest_path": str(manifest_path),
+                    "export_generated_at": manifest.get("export_generated_at", manifest.get("exported_at")),
+                    "source_data_fetched_at": manifest.get("source_data_fetched_at", manifest.get("premarket_fetched_at")),
+                }
+            )
     return _normalize_trade_date(daily), _normalize_trade_date(premarket), None if diagnostics is None else _normalize_trade_date(diagnostics), metadata
 
 
@@ -99,6 +126,73 @@ class EntryLevelPlan:
     stop_loss_price: float
     trailing_stop_pct: float
     trailing_stop_anchor_price: float
+
+
+def _safe_timestamp(value: Any) -> pd.Timestamp | None:
+    if value in (None, ""):
+        return None
+    try:
+        ts = pd.Timestamp(value)
+    except Exception:
+        return None
+    if pd.isna(ts):
+        return None
+    return ts.tz_localize(UTC) if ts.tzinfo is None else ts.tz_convert(UTC)
+
+
+def _resolve_profile_timestamp(metadata: dict[str, Any]) -> pd.Timestamp | None:
+    return _safe_timestamp(metadata.get("source_data_fetched_at") or metadata.get("export_generated_at"))
+
+
+def _resolve_effective_watchlist_config(
+    cfg: LongDipConfig,
+    *,
+    prem: pd.DataFrame,
+    trade_date,
+    profile_timestamp: pd.Timestamp | None,
+) -> tuple[LongDipConfig, dict[str, Any]]:
+    latest_prem = prem[prem["trade_date"] == trade_date].copy()
+    premarket_symbols = int((latest_prem.get("has_premarket_data") == True).sum()) if not latest_prem.empty else 0
+    profile_name = "standard"
+    profile_reason = "default long-dip filters"
+    effective_cfg = cfg
+
+    if premarket_symbols < 25:
+        effective_cfg = replace(
+            cfg,
+            min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_SPARSE_MIN_GAP_PCT),
+            min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME),
+            min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT),
+        )
+        profile_name = "sparse_premarket"
+        profile_reason = f"only {premarket_symbols} symbols have premarket data"
+    elif profile_timestamp is not None:
+        profile_et = profile_timestamp.tz_convert("America/New_York")
+        if profile_et.time() < datetime.strptime("08:30:00", "%H:%M:%S").time():
+            effective_cfg = replace(
+                cfg,
+                min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_EARLY_MIN_GAP_PCT),
+                min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_EARLY_MIN_PREMARKET_VOLUME),
+                min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT),
+            )
+            profile_name = "early_premarket"
+            profile_reason = f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET"
+        elif profile_et.time() < datetime.strptime("09:00:00", "%H:%M:%S").time():
+            effective_cfg = replace(
+                cfg,
+                min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_BUILDING_MIN_GAP_PCT),
+                min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_BUILDING_MIN_PREMARKET_VOLUME),
+                min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_BUILDING_MIN_PREMARKET_TRADE_COUNT),
+            )
+            profile_name = "building_premarket"
+            profile_reason = f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET"
+
+    return effective_cfg, {
+        "profile_name": profile_name,
+        "profile_reason": profile_reason,
+        "premarket_symbols": premarket_symbols,
+        "profile_timestamp": profile_timestamp.isoformat() if profile_timestamp is not None else None,
+    }
 
 
 def _validate_watchlist_config(cfg: LongDipConfig) -> None:
@@ -181,19 +275,32 @@ def generate_watchlist_result(
     resolved_cfg = cfg or LongDipConfig()
     _validate_watchlist_config(resolved_cfg)
     daily, prem, diagnostics, metadata = load_watchlist_inputs(bundle=bundle, export_dir=export_dir)
-    watchlists = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=resolved_cfg)
+    trade_dates = sorted(set(daily["trade_date"].dropna().tolist()) & set(prem["trade_date"].dropna().tolist()))
+    latest_td = trade_dates[-1] if trade_dates else None
+    effective_cfg = resolved_cfg
+    filter_profile = {
+        "profile_name": "standard",
+        "profile_reason": "default long-dip filters",
+        "premarket_symbols": 0,
+        "profile_timestamp": None,
+    }
+    if latest_td is not None:
+        effective_cfg, filter_profile = _resolve_effective_watchlist_config(
+            resolved_cfg,
+            prem=prem,
+            trade_date=latest_td,
+            profile_timestamp=_resolve_profile_timestamp(metadata),
+        )
+    watchlists = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=effective_cfg)
 
     warnings: list[str] = []
     if daily.empty or prem.empty:
         warnings.append("The watchlist inputs are incomplete. Run the data pipeline first.")
     if watchlists.empty:
         warnings.append("No symbols matched the current long-dip filters.")
-
-    trade_dates = sorted(set(daily["trade_date"].dropna().tolist()) & set(prem["trade_date"].dropna().tolist()))
-    latest_td = trade_dates[-1] if trade_dates else None
     filter_funnel: list[dict[str, Any]] = []
     if latest_td is not None and watchlists.empty:
-        filter_funnel = build_filter_funnel(daily=daily, prem=prem, cfg=resolved_cfg, trade_date=latest_td)
+        filter_funnel = build_filter_funnel(daily=daily, prem=prem, cfg=effective_cfg, trade_date=latest_td)
 
     trade_date = None if watchlists.empty else max(pd.to_datetime(watchlists["trade_date"], errors="coerce").dt.date.dropna())
     generated_at = datetime.now(UTC).isoformat(timespec="seconds")
@@ -203,16 +310,19 @@ def generate_watchlist_result(
         "source_data_fetched_at": _resolve_source_data_fetched_at(metadata),
         "trade_date": trade_date.isoformat() if trade_date else None,
         "as_of_label": resolved_cfg.as_of_label,
-        "config_snapshot": asdict(resolved_cfg),
+        "config_snapshot": asdict(effective_cfg),
+        "requested_config_snapshot": asdict(resolved_cfg),
         "watchlist_table": watchlists,
         "run_notes": [
             f"source={metadata.get('source', 'unknown')}",
             f"rows={len(watchlists)}",
             f"display_timezone={resolved_cfg.display_timezone}",
+            f"filter_profile={filter_profile['profile_name']}",
         ],
         "warnings": warnings,
         "source_metadata": metadata,
         "filter_funnel": filter_funnel,
+        "filter_profile": filter_profile,
     }
 
 
