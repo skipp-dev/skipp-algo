@@ -14,7 +14,7 @@ import threading
 import time
 import urllib.error
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, TypeVar
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -24,6 +24,8 @@ import certifi
 logger = logging.getLogger("open_prep.macro")
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
+_FMP_FEATURE_UNAVAILABLE_LOCK = threading.Lock()
+_FMP_FEATURE_UNAVAILABLE_LOGGED: set[str] = set()
 
 _T = TypeVar("_T")
 
@@ -69,11 +71,21 @@ def _prev_us_equity_trading_day(ref: date) -> date:
 def _handle_fmp_error(exc: RuntimeError, context: str, default: _T = None) -> _T:  # type: ignore[assignment]
     """Handle a RuntimeError from FMP API calls with sanitized logging."""
     msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-    if "429" in msg or "403" in msg:
-        logger.warning("FMP rate-limited/forbidden for %s: %s", context, msg, exc_info=True)
+    # Keep stack traces for transient/auth issues, but avoid noisy tracebacks
+    # for expected client-side feature availability errors (e.g. HTTP 400).
+    if any(code in msg for code in ("429", "403", "500", "502", "503", "504", "timeout", "timed out")):
+        logger.warning("FMP rate-limited/transient failure for %s: %s", context, msg, exc_info=True)
     else:
-        logger.warning("FMP fetch failed for %s: %s", context, msg, exc_info=True)
+        logger.warning("FMP fetch failed for %s: %s", context, msg)
     return default if default is not None else []  # type: ignore[return-value]
+
+
+def _log_feature_unavailable_once(feature_key: str, message: str) -> None:
+    with _FMP_FEATURE_UNAVAILABLE_LOCK:
+        if feature_key in _FMP_FEATURE_UNAVAILABLE_LOGGED:
+            return
+        _FMP_FEATURE_UNAVAILABLE_LOGGED.add(feature_key)
+    logger.info("FMP feature unavailable (%s): %s", feature_key, message)
 
 
 def _retry_transient(max_attempts: int = 3, backoff_base: float = 2.0):
@@ -880,6 +892,13 @@ class FMPClient:
         try:
             data = self._get("/stable/profile-bulk", {"datatype": "json"})
         except RuntimeError as exc:
+            msg = _APIKEY_RE.sub(r"\1=***", str(exc))
+            if "HTTP 400" in msg and "/stable/profile-bulk" in msg:
+                _log_feature_unavailable_once(
+                    "stable/profile-bulk",
+                    "endpoint not available for current FMP plan; using empty fundamentals fallback",
+                )
+                return []
             return _handle_fmp_error(exc, "profile bulk")
         if not isinstance(data, list):
             return []

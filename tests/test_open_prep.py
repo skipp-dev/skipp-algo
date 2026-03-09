@@ -2345,6 +2345,32 @@ class TestGetEodBulkInvalidJsonFallback(unittest.TestCase):
             self.assertEqual(result, [])
 
 
+class TestFMPProfileBulkFallback(unittest.TestCase):
+    """Profile-bulk HTTP 400 should degrade gracefully without traceback noise."""
+
+    def test_profile_bulk_http_400_logs_once_and_returns_empty(self):
+        from open_prep import macro
+        from open_prep.macro import FMPClient
+
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+        client = FMPClient(api_key="test")
+
+        with patch.object(
+            FMPClient,
+            "_get",
+            side_effect=RuntimeError("FMP API HTTP 400 on /stable/profile-bulk: Bad Request"),
+        ):
+            with self.assertLogs("open_prep.macro", level="INFO") as logs:
+                first = client.get_profile_bulk()
+                second = client.get_profile_bulk()
+
+        self.assertEqual(first, [])
+        self.assertEqual(second, [])
+        profile_unavailable_msgs = [line for line in logs.output if "FMP feature unavailable (stable/profile-bulk)" in line]
+        self.assertEqual(len(profile_unavailable_msgs), 1)
+        self.assertFalse(any("Traceback" in line for line in logs.output))
+
+
 class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
     """Validation failures after a 200 response must re-open half-open circuits."""
 
