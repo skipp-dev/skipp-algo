@@ -266,3 +266,53 @@ def test_generate_watchlist_result_uses_sparse_profile_when_premarket_universe_i
     assert len(result["watchlist_table"]) == 1
     assert result["filter_profile"]["profile_name"] == "sparse_premarket"
     assert result["config_snapshot"]["min_premarket_volume"] == 1000
+
+
+def test_generate_watchlist_result_flags_premarket_not_started_before_4am_et(tmp_path) -> None:
+    trade_day = date(2026, 3, 9)
+    manifest = {
+        "export_generated_at": "2026-03-09T07:18:16+00:00",
+        "source_data_fetched_at": "2026-03-09T07:18:16+00:00",
+    }
+    (tmp_path / "databento_preopen_fast_20260309_071816_manifest.json").write_text(
+        __import__("json").dumps(manifest),
+        encoding="utf-8",
+    )
+
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [10.0],
+            "window_range_pct": [2.0],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [False],
+            "premarket_last": [None],
+            "premarket_volume": [0],
+            "premarket_trade_count": [0],
+            "prev_close_to_premarket_pct": [None],
+            "previous_close": [10.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert len(result["watchlist_table"]) == 0
+    assert result["filter_profile"]["profile_name"] == "premarket_not_started"
+    assert result["warnings"] == [
+        "No premarket data available yet. The latest refresh completed before the US premarket session opened."
+    ]

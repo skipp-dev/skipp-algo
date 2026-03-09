@@ -157,6 +157,16 @@ def _resolve_effective_watchlist_config(
     profile_reason = "default long-dip filters"
     effective_cfg = cfg
 
+    if profile_timestamp is not None:
+        profile_et = profile_timestamp.tz_convert("America/New_York")
+        if premarket_symbols == 0 and profile_et.time() < datetime.strptime("04:00:00", "%H:%M:%S").time():
+            return effective_cfg, {
+                "profile_name": "premarket_not_started",
+                "profile_reason": f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET before premarket open",
+                "premarket_symbols": premarket_symbols,
+                "profile_timestamp": profile_timestamp.isoformat() if profile_timestamp is not None else None,
+            }
+
     if premarket_symbols < 25:
         effective_cfg = replace(
             cfg,
@@ -297,7 +307,12 @@ def generate_watchlist_result(
     if daily.empty or prem.empty:
         warnings.append("The watchlist inputs are incomplete. Run the data pipeline first.")
     if watchlists.empty:
-        warnings.append("No symbols matched the current long-dip filters.")
+        if filter_profile["profile_name"] == "premarket_not_started":
+            warnings.append(
+                "No premarket data available yet. The latest refresh completed before the US premarket session opened."
+            )
+        else:
+            warnings.append("No symbols matched the current long-dip filters.")
     filter_funnel: list[dict[str, Any]] = []
     if latest_td is not None and watchlists.empty:
         filter_funnel = build_filter_funnel(daily=daily, prem=prem, cfg=effective_cfg, trade_date=latest_td)
