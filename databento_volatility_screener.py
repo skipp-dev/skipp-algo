@@ -2830,13 +2830,16 @@ def run_streamlit_app() -> None:
                 refresh_started = time_module.perf_counter()
                 with st.spinner("Refreshing production data basis..."):
                     if fast_refresh or fast_pipeline:
-                        run_preopen_fast_refresh(
+                        _fast_result = run_preopen_fast_refresh(
                             databento_api_key=databento_api_key,
                             dataset=dataset,
                             export_dir=Path(export_dir).expanduser(),
                             bundle=Path(export_dir).expanduser(),
                             scope_days=None if int(fast_scope_days) <= 0 else int(fast_scope_days),
                         )
+                        for _uw in _fast_result.get("user_warnings") or []:
+                            st.warning(_uw)
+                            add_log(f"WARNING: {_uw}")
                         refresh_label = "Fast pre-open"
                     else:
                         run_production_export_pipeline(
