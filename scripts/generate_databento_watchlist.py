@@ -79,6 +79,7 @@ def _load_open_signal_metrics(
     try:
         from databento_volatility_screener import _build_open_window_aggregates
     except Exception:
+        logger.warning("Failed to import _build_open_window_aggregates; open-signal metrics will be absent", exc_info=True)
         return pd.DataFrame()
 
     second_detail: pd.DataFrame | None = None
@@ -87,6 +88,7 @@ def _load_open_signal_metrics(
             payload = load_export_bundle(Path(bundle).expanduser())
             second_detail = payload.get("frames", {}).get("full_universe_second_detail_open")
         except Exception:
+            logger.warning("Failed to load open-signal detail from bundle %s", bundle, exc_info=True)
             second_detail = None
     else:
         base_dir = Path(export_dir).expanduser() if export_dir is not None else DEFAULT_EXPORT_DIR
@@ -95,6 +97,7 @@ def _load_open_signal_metrics(
             try:
                 second_detail = pd.read_parquet(second_detail_path)
             except Exception:
+                logger.warning("Failed to read parquet %s", second_detail_path, exc_info=True)
                 second_detail = None
 
     if second_detail is None or second_detail.empty:

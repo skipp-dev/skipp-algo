@@ -32,13 +32,7 @@ _quote_cache_ts: float = 0.0
 _QUOTE_CACHE_TTL = 120.0  # 2 minutes
 _cache_lock = threading.Lock()
 
-# ── Dataset preference (same as databento_volatility_screener) ──
-_PREFERRED_DATASETS = (
-    "XNAS.ITCH",
-    "XNYS.PILLAR",
-    "DBEQ.BASIC",
-    "XNAS.BASIC",
-)
+from databento_volatility_screener import PREFERRED_DATABENTO_DATASETS as _PREFERRED_DATASETS
 
 _SYMBOL_ALIASES = {
     "BRK-A": "BRK.A",

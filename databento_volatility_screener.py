@@ -226,6 +226,7 @@ def _read_cached_frame(path: Path) -> pd.DataFrame | None:
     try:
         return pd.read_parquet(path)
     except Exception:
+        logger.warning("Corrupt cache file removed: %s", path, exc_info=True)
         try:
             path.unlink()
         except OSError:
@@ -529,6 +530,7 @@ def _get_schema_available_end(client: Any, dataset: str, schema: str) -> pd.Time
     try:
         dataset_range = client.metadata.get_dataset_range(dataset=dataset)
     except Exception:
+        logger.debug("metadata.get_dataset_range failed for %s/%s; clamping disabled", dataset, schema, exc_info=True)
         return None
     if not isinstance(dataset_range, dict):
         return None

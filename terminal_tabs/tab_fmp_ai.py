@@ -73,8 +73,6 @@ _ai_pool = concurrent.futures.ThreadPoolExecutor(
 )
 
 
-_WORKER_SOCKET_TIMEOUT = 15  # seconds — hard cap for any socket op inside worker
-
 
 def _analysis_worker(
     *,
@@ -91,19 +89,13 @@ def _analysis_worker(
     poller_available: bool,
 ) -> dict[str, Any]:
     """Run AI analysis in a background thread.  **Thread-safe**: no Streamlit API calls."""
-    import socket as _socket
-    _prev_timeout = _socket.getdefaulttimeout()
-    _socket.setdefaulttimeout(_WORKER_SOCKET_TIMEOUT)
-    try:
-        return _analysis_worker_inner(
-            feed=feed, question=question, fmp_key=fmp_key,
-            openai_key=openai_key, benzinga_key=benzinga_key,
-            macro=macro, cached=cached,
-            tv_available=tv_available, finnhub_available=finnhub_available,
-            forecast_available=forecast_available, poller_available=poller_available,
-        )
-    finally:
-        _socket.setdefaulttimeout(_prev_timeout)
+    return _analysis_worker_inner(
+        feed=feed, question=question, fmp_key=fmp_key,
+        openai_key=openai_key, benzinga_key=benzinga_key,
+        macro=macro, cached=cached,
+        tv_available=tv_available, finnhub_available=finnhub_available,
+        forecast_available=forecast_available, poller_available=poller_available,
+    )
 
 
 def _analysis_worker_inner(

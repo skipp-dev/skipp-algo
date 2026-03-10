@@ -250,6 +250,7 @@ def _load_fundamental_reference(
     try:
         rows = FMPClient(fmp_api_key).get_profile_bulk()
     except Exception:
+        logger.warning("FMP bulk profile fetch failed; fundamentals will be empty for this run", exc_info=True)
         rows = []
     if not rows:
         empty = _empty_fundamental_reference_frame()

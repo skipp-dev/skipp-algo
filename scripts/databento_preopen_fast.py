@@ -291,7 +291,7 @@ def _aggregate_current_premarket_features(
         volume = pd.to_numeric(ordered["volume"], errors="coerce").fillna(0.0)
         close = pd.to_numeric(ordered["close"], errors="coerce")
         total_volume = float(volume.sum())
-        dollar_volume = float((close.fillna(0.0) * volume).sum())
+        dollar_volume = float((close * volume).sum())
         metrics.append(
             {
                 "trade_date": target_trade_date,

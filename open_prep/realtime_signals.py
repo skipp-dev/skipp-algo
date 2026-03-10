@@ -426,12 +426,12 @@ def _is_within_market_hours() -> bool:
             from dateutil.tz import gettz
             now_et = datetime.now(gettz("America/New_York"))
         except Exception:
-            # Last resort: UTC − 4 (EDT) — accepts the full 04:00–20:00
-            # ET window during both EST and EDT.  During EST (Nov–Mar) the
-            # gate opens/closes ~1 h early, which is acceptable.
-            logger.debug("zoneinfo + dateutil unavailable, using UTC-4 fallback", exc_info=True)
+            # Last resort: UTC − 5 (EST) is more conservative than UTC − 4 (EDT).
+            # During EDT (Mar–Nov) the gate opens at 05:00 ET / closes at 21:00 ET
+            # (1 h late), which is safe.  During EST (Nov–Mar) it is exact.
+            logger.debug("zoneinfo + dateutil unavailable, using UTC-5 fallback", exc_info=True)
             from datetime import timedelta
-            now_et = datetime.now(UTC) - timedelta(hours=4)
+            now_et = datetime.now(UTC) - timedelta(hours=5)
 
     # Monday=0, Sunday=6
     if now_et.weekday() >= 5:
