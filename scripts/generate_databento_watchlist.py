@@ -20,10 +20,12 @@ from strategy_config import (
     LONG_DIP_DEFAULTS,
     LONG_DIP_DISPLAY_TIMEZONE,
     LONG_DIP_BUILDING_MIN_GAP_PCT,
+    LONG_DIP_BUILDING_MIN_PREMARKET_ACTIVE_SECONDS,
     LONG_DIP_BUILDING_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_BUILDING_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_BUILDING_MIN_PREMARKET_VOLUME,
     LONG_DIP_EARLY_MIN_GAP_PCT,
+    LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS,
     LONG_DIP_EARLY_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_EARLY_MIN_PREMARKET_VOLUME,
@@ -33,11 +35,13 @@ from strategy_config import (
     LONG_DIP_MAX_GAP_PCT,
     LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_MIN_GAP_PCT,
+    LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS,
     LONG_DIP_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_MIN_PREMARKET_VOLUME,
     LONG_DIP_MIN_PREVIOUS_CLOSE,
     LONG_DIP_POSITION_BUDGET_USD,
     LONG_DIP_SPARSE_MIN_GAP_PCT,
+    LONG_DIP_SPARSE_MIN_PREMARKET_ACTIVE_SECONDS,
     LONG_DIP_SPARSE_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME,
@@ -61,6 +65,31 @@ def _ensure_premarket_liquidity_columns(frame: pd.DataFrame) -> pd.DataFrame:
     out["premarket_last"] = pd.to_numeric(out.get("premarket_last"), errors="coerce")
     out["premarket_volume"] = pd.to_numeric(out.get("premarket_volume"), errors="coerce")
     out["premarket_trade_count"] = pd.to_numeric(out.get("premarket_trade_count"), errors="coerce")
+    out["premarket_trade_count_actual"] = pd.to_numeric(out.get("premarket_trade_count_actual"), errors="coerce")
+    out["premarket_active_seconds"] = pd.to_numeric(out.get("premarket_active_seconds"), errors="coerce")
+    if "premarket_trade_count_source" not in out.columns:
+        inferred_source = np.where(
+            out["premarket_trade_count_actual"].notna(),
+            "actual",
+            np.where(out["premarket_trade_count"].notna(), "proxy_active_seconds", "missing"),
+        )
+        out["premarket_trade_count_source"] = inferred_source
+    else:
+        out["premarket_trade_count_source"] = out["premarket_trade_count_source"].astype(str).str.strip().str.lower()
+        out.loc[~out["premarket_trade_count_source"].isin(["actual", "proxy_active_seconds", "missing"]), "premarket_trade_count_source"] = "missing"
+
+    # Backfill compatibility for legacy exports that only had premarket_trade_count.
+    out["premarket_trade_count_actual"] = np.where(
+        out["premarket_trade_count_source"].eq("actual") & out["premarket_trade_count_actual"].isna(),
+        out["premarket_trade_count"],
+        out["premarket_trade_count_actual"],
+    )
+    out["premarket_active_seconds"] = np.where(
+        out["premarket_trade_count_source"].eq("proxy_active_seconds") & out["premarket_active_seconds"].isna(),
+        out["premarket_trade_count"],
+        out["premarket_active_seconds"],
+    )
+    out["premarket_trade_count_usable"] = out["premarket_trade_count_source"].isin(["actual", "proxy_active_seconds"])
     if "premarket_dollar_volume" in out.columns:
         out["premarket_dollar_volume"] = pd.to_numeric(out.get("premarket_dollar_volume"), errors="coerce")
     else:
@@ -185,6 +214,7 @@ class LongDipConfig:
     min_premarket_dollar_volume: float = LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME
     min_premarket_volume: int = LONG_DIP_MIN_PREMARKET_VOLUME
     min_premarket_trade_count: int = LONG_DIP_MIN_PREMARKET_TRADE_COUNT
+    min_premarket_active_seconds: int = LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS
     ladder_pcts: tuple[float, float, float] = LONG_DIP_LADDER_PCTS
     ladder_weights: tuple[float, float, float] = LONG_DIP_LADDER_WEIGHTS
     take_profit_1_pct: float = LONG_DIP_TAKE_PROFIT_1_PCT
@@ -258,6 +288,7 @@ def _resolve_effective_watchlist_config(
             min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_SPARSE_MIN_PREMARKET_DOLLAR_VOLUME),
             min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME),
             min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT),
+            min_premarket_active_seconds=min(cfg.min_premarket_active_seconds, LONG_DIP_SPARSE_MIN_PREMARKET_ACTIVE_SECONDS),
         )
         profile_name = "sparse_premarket"
         profile_reason = f"only {premarket_symbols} symbols have premarket data"
@@ -270,6 +301,7 @@ def _resolve_effective_watchlist_config(
                 min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_EARLY_MIN_PREMARKET_DOLLAR_VOLUME),
                 min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_EARLY_MIN_PREMARKET_VOLUME),
                 min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT),
+                min_premarket_active_seconds=min(cfg.min_premarket_active_seconds, LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS),
             )
             profile_name = "early_premarket"
             profile_reason = f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET"
@@ -280,6 +312,7 @@ def _resolve_effective_watchlist_config(
                 min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_BUILDING_MIN_PREMARKET_DOLLAR_VOLUME),
                 min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_BUILDING_MIN_PREMARKET_VOLUME),
                 min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_BUILDING_MIN_PREMARKET_TRADE_COUNT),
+                min_premarket_active_seconds=min(cfg.min_premarket_active_seconds, LONG_DIP_BUILDING_MIN_PREMARKET_ACTIVE_SECONDS),
             )
             profile_name = "building_premarket"
             profile_reason = f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET"
@@ -303,6 +336,8 @@ def _validate_watchlist_config(cfg: LongDipConfig) -> None:
         raise ValueError(f"min_premarket_volume must be >= 0, got {cfg.min_premarket_volume}")
     if cfg.min_premarket_trade_count < 0:
         raise ValueError(f"min_premarket_trade_count must be >= 0, got {cfg.min_premarket_trade_count}")
+    if cfg.min_premarket_active_seconds < 0:
+        raise ValueError(f"min_premarket_active_seconds must be >= 0, got {cfg.min_premarket_active_seconds}")
     if len(cfg.ladder_pcts) != 3 or len(cfg.ladder_weights) != 3:
         raise ValueError("ladder_pcts and ladder_weights must both have exactly 3 entries")
     if not np.isclose(sum(cfg.ladder_weights), 1.0, atol=1e-6):
@@ -376,7 +411,7 @@ def _build_liquidity_relaxed_config(
     filter_profile: dict[str, Any],
 ) -> tuple[LongDipConfig, dict[str, Any]] | None:
     bottleneck = _find_filter_bottleneck(filter_funnel)
-    if bottleneck is None or bottleneck.get("filter") not in {"premarket_dollar_volume", "premarket_volume", "premarket_trade_count"}:
+    if bottleneck is None or bottleneck.get("filter") not in {"premarket_dollar_volume", "premarket_volume", "premarket_trade_count", "premarket_activity_proxy"}:
         return None
 
     relaxed_cfg = replace(
@@ -384,6 +419,7 @@ def _build_liquidity_relaxed_config(
         min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_SPARSE_MIN_PREMARKET_DOLLAR_VOLUME),
         min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME),
         min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT),
+        min_premarket_active_seconds=min(cfg.min_premarket_active_seconds, LONG_DIP_SPARSE_MIN_PREMARKET_ACTIVE_SECONDS),
     )
     if relaxed_cfg == cfg:
         return None
@@ -402,6 +438,7 @@ def _build_liquidity_relaxed_config(
             "relaxed_from_dollar_volume": cfg.min_premarket_dollar_volume,
             "relaxed_from_volume": cfg.min_premarket_volume,
             "relaxed_from_trade_count": cfg.min_premarket_trade_count,
+            "relaxed_from_active_seconds": cfg.min_premarket_active_seconds,
         }
     )
     return relaxed_cfg, relaxed_profile
@@ -530,10 +567,14 @@ def build_filter_funnel(
     steps.append({"filter": "premarket_dollar_volume", "remaining": int(mask.sum()), "threshold": f">= {cfg.min_premarket_dollar_volume:,.0f}"})
     mask = mask & (merged["premarket_volume"].fillna(0) >= cfg.min_premarket_volume)
     steps.append({"filter": "premarket_volume", "remaining": int(mask.sum()), "threshold": f">= {cfg.min_premarket_volume:,}"})
-    tc = pd.to_numeric(merged["premarket_trade_count"], errors="coerce")
-    if tc.notna().any():
-        mask = mask & (tc.fillna(0) >= cfg.min_premarket_trade_count)
-        steps.append({"filter": "premarket_trade_count", "remaining": int(mask.sum()), "threshold": f">= {cfg.min_premarket_trade_count:,}"})
+    tc_actual = pd.to_numeric(merged["premarket_trade_count_actual"], errors="coerce")
+    tc_proxy = pd.to_numeric(merged["premarket_active_seconds"], errors="coerce")
+    if tc_actual.notna().any():
+        mask = mask & (tc_actual.fillna(0) >= cfg.min_premarket_trade_count)
+        steps.append({"filter": "premarket_trade_count", "remaining": int(mask.sum()), "threshold": f"actual >= {cfg.min_premarket_trade_count:,}"})
+    elif tc_proxy.notna().any():
+        mask = mask & (tc_proxy.fillna(0) >= cfg.min_premarket_active_seconds)
+        steps.append({"filter": "premarket_activity_proxy", "remaining": int(mask.sum()), "threshold": f"active_seconds >= {cfg.min_premarket_active_seconds:,}"})
     else:
         steps.append({"filter": "premarket_trade_count", "remaining": int(mask.sum()), "threshold": "skipped (no data)"})
     return steps
@@ -597,8 +638,10 @@ def build_preopen_long_candidates(
 
     merged = _ensure_premarket_liquidity_columns(merged)
 
-    trade_count_series = pd.to_numeric(merged["premarket_trade_count"], errors="coerce")
-    trade_count_available = trade_count_series.notna().any()
+    trade_count_actual_series = pd.to_numeric(merged["premarket_trade_count_actual"], errors="coerce")
+    trade_count_proxy_series = pd.to_numeric(merged["premarket_active_seconds"], errors="coerce")
+    trade_count_actual_available = trade_count_actual_series.notna().any()
+    trade_count_proxy_available = trade_count_proxy_series.notna().any()
 
     candidates = merged[
         (merged["has_premarket_data"] == True)
@@ -612,19 +655,27 @@ def build_preopen_long_candidates(
         & (merged["premarket_volume"].fillna(0) >= cfg.min_premarket_volume)
     ].copy()
 
-    if trade_count_available:
-        candidates = candidates[trade_count_series.loc[candidates.index].fillna(0) >= cfg.min_premarket_trade_count].copy()
+    if trade_count_actual_available:
+        candidates = candidates[trade_count_actual_series.loc[candidates.index].fillna(0) >= cfg.min_premarket_trade_count].copy()
+    elif trade_count_proxy_available:
+        candidates = candidates[trade_count_proxy_series.loc[candidates.index].fillna(0) >= cfg.min_premarket_active_seconds].copy()
 
     if cfg.max_gap_pct is not None:
         candidates = candidates[pd.to_numeric(candidates["prev_close_to_premarket_pct"], errors="coerce") <= cfg.max_gap_pct].copy()
 
     candidates["gap_component"] = pd.to_numeric(candidates["prev_close_to_premarket_pct"], errors="coerce").clip(lower=0)
     candidates["volume_component"] = np.log10(candidates["premarket_dollar_volume"].fillna(0).clip(lower=0) + 1.0)
-    if trade_count_available:
-        candidates["trade_component"] = np.log10(pd.to_numeric(candidates["premarket_trade_count"], errors="coerce").fillna(0).clip(lower=0) + 1.0)
+    if trade_count_actual_available:
+        trade_metric_for_score = pd.to_numeric(candidates["premarket_trade_count_actual"], errors="coerce")
+        candidates["trade_count_source_used"] = "actual"
+    elif trade_count_proxy_available:
+        trade_metric_for_score = pd.to_numeric(candidates["premarket_active_seconds"], errors="coerce")
+        candidates["trade_count_source_used"] = "proxy_active_seconds"
     else:
-        candidates["trade_component"] = 0.0
-    candidates["trade_count_available"] = trade_count_available
+        trade_metric_for_score = pd.Series(0.0, index=candidates.index, dtype=float)
+        candidates["trade_count_source_used"] = "missing"
+    candidates["trade_component"] = np.log10(trade_metric_for_score.fillna(0).clip(lower=0) + 1.0)
+    candidates["trade_count_available"] = trade_count_actual_available or trade_count_proxy_available
     candidates["watchlist_score"] = (
         candidates["gap_component"]
         + 0.75 * candidates["volume_component"]

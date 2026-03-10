@@ -114,6 +114,10 @@ PREMARKET_FEATURE_COLUMNS = [
     "premarket_volume",
     "premarket_dollar_volume",
     "premarket_trade_count",
+    "premarket_trade_count_actual",
+    "premarket_active_seconds",
+    "premarket_trade_count_source",
+    "premarket_trade_count_usable",
     "premarket_seconds",
 ]
 
@@ -1186,11 +1190,14 @@ def _build_premarket_features_full_universe_export(second_detail_all: pd.DataFra
         close = pd.to_numeric(ordered["close"], errors="coerce")
         dollar_volume = float((close * volume).sum())
         total_volume = float(volume.sum())
-        premarket_trade_count = (
+        premarket_trade_count_actual = (
             float(pd.to_numeric(ordered["trade_count"], errors="coerce").sum())
             if trade_count_available
-            else float((volume > 0).sum())
+            else np.nan
         )
+        premarket_active_seconds = float((volume > 0).sum())
+        premarket_trade_count = premarket_trade_count_actual if math.isfinite(premarket_trade_count_actual) else premarket_active_seconds
+        premarket_trade_count_source = "actual" if math.isfinite(premarket_trade_count_actual) else "proxy_active_seconds"
         metrics.append(
             {
                 "trade_date": trade_day,
@@ -1203,6 +1210,10 @@ def _build_premarket_features_full_universe_export(second_detail_all: pd.DataFra
                 "premarket_volume": total_volume,
                 "premarket_dollar_volume": dollar_volume,
                 "premarket_trade_count": premarket_trade_count,
+                "premarket_trade_count_actual": premarket_trade_count_actual,
+                "premarket_active_seconds": premarket_active_seconds,
+                "premarket_trade_count_source": premarket_trade_count_source,
+                "premarket_trade_count_usable": True,
                 "premarket_seconds": int(len(ordered)),
             }
         )

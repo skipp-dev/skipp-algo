@@ -2955,18 +2955,22 @@ def run_streamlit_app() -> None:
                 relaxed_from_dollar_volume = float(filter_profile.get("relaxed_from_dollar_volume", 0.0) or 0.0)
                 relaxed_from_volume_value = _safe_number(filter_profile.get("relaxed_from_volume"))
                 relaxed_from_trade_count_value = _safe_number(filter_profile.get("relaxed_from_trade_count"))
+                relaxed_from_active_seconds_value = _safe_number(filter_profile.get("relaxed_from_active_seconds"))
                 relaxed_from_volume = f"{int(relaxed_from_volume_value):,}" if relaxed_from_volume_value is not None else "n/a"
                 relaxed_from_trade_count = f"{int(relaxed_from_trade_count_value):,}" if relaxed_from_trade_count_value is not None else "n/a"
+                relaxed_from_active_seconds = f"{int(relaxed_from_active_seconds_value):,}" if relaxed_from_active_seconds_value is not None else "n/a"
                 relaxed_dollar_volume_to = float(watchlist_result["config_snapshot"].get("min_premarket_dollar_volume", 0.0) or 0.0)
                 relaxed_volume_to = int(watchlist_result["config_snapshot"].get("min_premarket_volume", 0))
                 relaxed_trade_count_to = int(watchlist_result["config_snapshot"].get("min_premarket_trade_count", 0))
+                relaxed_active_seconds_to = int(watchlist_result["config_snapshot"].get("min_premarket_active_seconds", 0))
                 st.warning(
                     "Liquidity fallback active: "
                     f"base_profile={filter_profile.get('base_profile_name', 'n/a')} | "
                     f"bottleneck={filter_profile.get('relaxed_bottleneck', 'n/a')} | "
                     f"premarket_dollar_volume {relaxed_from_dollar_volume:,.0f} -> {relaxed_dollar_volume_to:,.0f} | "
                     f"premarket_volume {relaxed_from_volume} -> {relaxed_volume_to:,} | "
-                    f"premarket_trade_count {relaxed_from_trade_count} -> {relaxed_trade_count_to:,}"
+                    f"premarket_trade_count {relaxed_from_trade_count} -> {relaxed_trade_count_to:,} | "
+                    f"premarket_active_seconds {relaxed_from_active_seconds} -> {relaxed_active_seconds_to:,}"
                 )
         for warning in watchlist_result.get("warnings", []):
             st.warning(warning)
