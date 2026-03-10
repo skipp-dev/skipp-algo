@@ -859,6 +859,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-premarket-dollar-volume", type=float, default=LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME, help="Minimum premarket dollar volume.")
     parser.add_argument("--min-premarket-volume", type=int, default=LONG_DIP_MIN_PREMARKET_VOLUME, help="Minimum premarket share volume.")
     parser.add_argument("--min-premarket-trade-count", type=int, default=LONG_DIP_MIN_PREMARKET_TRADE_COUNT, help="Minimum premarket trade count.")
+    parser.add_argument(
+        "--min-premarket-active-seconds",
+        type=int,
+        default=LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS,
+        help="Minimum proxy activity seconds in premarket (used when actual trade count is unavailable).",
+    )
     parser.add_argument("--output-csv", default=str(DEFAULT_EXPORT_DIR / "databento_watchlist_top5_pre1530.csv"), help="CSV output path.")
     parser.add_argument("--output-md", default=str(DEFAULT_EXPORT_DIR / "databento_watchlist_top5_pre1530.md"), help="Markdown output path.")
     return parser
@@ -876,6 +882,7 @@ def main() -> None:
         min_premarket_dollar_volume=args.min_premarket_dollar_volume,
         min_premarket_volume=args.min_premarket_volume,
         min_premarket_trade_count=args.min_premarket_trade_count,
+        min_premarket_active_seconds=args.min_premarket_active_seconds,
         position_budget_usd=args.position_budget_usd,
         top_n=args.top_n,
     )

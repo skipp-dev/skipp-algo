@@ -4,10 +4,17 @@ from datetime import UTC, date, datetime
 
 import pandas as pd
 
-from strategy_config import LONG_DIP_DEFAULTS
+from strategy_config import (
+    LONG_DIP_BUILDING_MIN_PREMARKET_ACTIVE_SECONDS,
+    LONG_DIP_DEFAULTS,
+    LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS,
+    LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS,
+    LONG_DIP_SPARSE_MIN_PREMARKET_ACTIVE_SECONDS,
+)
 from scripts.generate_databento_watchlist import (
     LongDipConfig,
     _merge_open_signal_metrics,
+    build_filter_funnel,
     build_parser as build_watchlist_parser,
     build_daily_watchlists,
     build_preopen_long_candidates,
@@ -264,6 +271,8 @@ def test_watchlist_and_executor_share_long_dip_defaults() -> None:
     assert execute_args.min_premarket_volume == LONG_DIP_DEFAULTS["min_premarket_volume"]
     assert watchlist_args.min_premarket_trade_count == LONG_DIP_DEFAULTS["min_premarket_trade_count"]
     assert execute_args.min_premarket_trade_count == LONG_DIP_DEFAULTS["min_premarket_trade_count"]
+    assert watchlist_args.min_premarket_active_seconds == LONG_DIP_DEFAULTS["min_premarket_active_seconds"]
+    assert execute_args.min_premarket_active_seconds == LONG_DIP_DEFAULTS["min_premarket_active_seconds"]
     assert watchlist_args.position_budget_usd == LONG_DIP_DEFAULTS["position_budget_usd"]
     assert execute_args.position_budget_usd == LONG_DIP_DEFAULTS["position_budget_usd"]
     assert watchlist_args.top_n == LONG_DIP_DEFAULTS["top_n"]
@@ -342,7 +351,7 @@ def test_generate_watchlist_result_uses_early_premarket_profile_from_manifest_ti
             "has_premarket_data": [True] * len(symbols),
             "premarket_last": [10.3] + [9.9] * (len(symbols) - 1),
             "premarket_volume": [60_000] + [500] * (len(symbols) - 1),
-            "premarket_trade_count": [30] + [2] * (len(symbols) - 1),
+            "premarket_trade_count": [180] + [2] * (len(symbols) - 1),
             "prev_close_to_premarket_pct": [3.0] + [-1.0] * (len(symbols) - 1),
             "previous_close": [10.0] * len(symbols),
         }
@@ -381,7 +390,7 @@ def test_generate_watchlist_result_uses_sparse_profile_when_premarket_universe_i
             "has_premarket_data": [True],
             "premarket_last": [10.12],
             "premarket_volume": [50_000],
-            "premarket_trade_count": [0],
+            "premarket_trade_count": [90],
             "prev_close_to_premarket_pct": [1.2],
             "previous_close": [10.0],
         }
@@ -431,7 +440,7 @@ def test_generate_watchlist_result_relaxes_liquidity_when_early_profile_volume_b
             "has_premarket_data": [True] * len(symbols),
             "premarket_last": [130.0] + [9.9] * (len(symbols) - 1),
             "premarket_volume": [4_000] + [500] * (len(symbols) - 1),
-            "premarket_trade_count": [3] + [1] * (len(symbols) - 1),
+            "premarket_trade_count": [90] + [1] * (len(symbols) - 1),
             "prev_close_to_premarket_pct": [2.6] + [-1.0] * (len(symbols) - 1),
         }
     )
@@ -442,10 +451,11 @@ def test_generate_watchlist_result_relaxes_liquidity_when_early_profile_volume_b
 
     assert len(result["watchlist_table"]) == 1
     assert result["watchlist_table"].iloc[0]["symbol"] == "S00"
-    assert result["filter_profile"]["profile_name"] == "early_premarket"
+    assert result["filter_profile"]["profile_name"] == "liquidity_relaxed"
     assert result["config_snapshot"]["min_premarket_dollar_volume"] == 1000.0
     assert result["config_snapshot"]["min_premarket_volume"] == 100
     assert result["config_snapshot"]["min_premarket_trade_count"] == 0
+    assert result["config_snapshot"]["min_premarket_active_seconds"] == 60
     assert result["filter_funnel"] == []
 
 
@@ -599,3 +609,97 @@ def test_build_preopen_long_candidates_passes_open_window_fields_through() -> No
     assert float(expanded.iloc[0]["early_dip_pct_10s"]) == -2.5
     assert bool(expanded.iloc[0]["reclaimed_start_price_within_30s"]) is True
     assert float(expanded.iloc[0]["reclaim_second_30s"]) == 12.0
+
+
+def test_active_seconds_threshold_filters_proxy_activity_when_source_is_not_actual() -> None:
+    trade_day = date(2026, 3, 10)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "BBB"],
+            "exchange": ["NYSE", "NYSE"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [10.0, 10.0],
+            "window_range_pct": [2.0, 2.0],
+            "window_return_pct": [1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0],
+            "selected_top20pct": [True, True],
+            "is_eligible": [True, True],
+            "eligibility_reason": ["eligible", "eligible"],
+        }
+    )
+    # Legacy/proxy shape: no actual count column in source, premarket_trade_count acts as active_seconds proxy.
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "BBB"],
+            "has_premarket_data": [True, True],
+            "premarket_last": [10.2, 10.3],
+            "premarket_volume": [10_000, 10_000],
+            "premarket_trade_count": [30, 90],
+            "prev_close_to_premarket_pct": [2.0, 3.0],
+        }
+    )
+
+    loose_cfg = LongDipConfig(
+        min_gap_pct=1.0,
+        min_premarket_dollar_volume=0.0,
+        min_premarket_volume=0,
+        min_premarket_trade_count=0,
+        min_premarket_active_seconds=0,
+    )
+    strict_cfg = LongDipConfig(
+        min_gap_pct=1.0,
+        min_premarket_dollar_volume=0.0,
+        min_premarket_volume=0,
+        min_premarket_trade_count=0,
+        min_premarket_active_seconds=60,
+    )
+
+    loose = build_preopen_long_candidates(daily=daily, prem=prem, cfg=loose_cfg, trade_date=trade_day)
+    strict = build_preopen_long_candidates(daily=daily, prem=prem, cfg=strict_cfg, trade_date=trade_day)
+
+    assert set(loose["symbol"].tolist()) == {"AAA", "BBB"}
+    assert strict["symbol"].tolist() == ["BBB"]
+    assert strict["trade_count_source_used"].eq("proxy_active_seconds").all()
+
+
+def test_active_seconds_profile_threshold_values_are_monotonic_by_strictness() -> None:
+    # Threshold values: sparse <= early <= building <= standard.
+    # Note: survivor counts move in the opposite direction.
+    assert LONG_DIP_SPARSE_MIN_PREMARKET_ACTIVE_SECONDS <= LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS
+    assert LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS <= LONG_DIP_BUILDING_MIN_PREMARKET_ACTIVE_SECONDS
+    assert LONG_DIP_BUILDING_MIN_PREMARKET_ACTIVE_SECONDS <= LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS
+
+
+def test_filter_funnel_marks_trade_count_step_skipped_when_liquidity_data_missing() -> None:
+    trade_day = date(2026, 3, 10)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "previous_close": [10.0],
+        }
+    )
+    # No premarket_trade_count provided -> source should be treated as missing.
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.2],
+            "premarket_volume": [10_000],
+            "premarket_dollar_volume": [102_000],
+            "premarket_trade_count": [None],
+            "prev_close_to_premarket_pct": [2.0],
+        }
+    )
+
+    funnel = build_filter_funnel(
+        daily=daily,
+        prem=prem,
+        cfg=LongDipConfig(min_gap_pct=1.0, min_premarket_dollar_volume=0.0, min_premarket_volume=0),
+        trade_date=trade_day,
+    )
+    assert funnel[-1]["filter"] == "premarket_trade_count"
+    assert funnel[-1]["threshold"] == "skipped (no data)"
