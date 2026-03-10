@@ -440,11 +440,13 @@ def run_preopen_fast_refresh(
     attempted_batches = 0
     failed_batch_errors: list[str] = []
     if fetch_end_utc < premarket_start_utc:
+        fetch_end_et = fetch_end_utc.astimezone(US_EASTERN_TZ)
         logger.warning(
-            "Premarket window has not started yet (now=%s < anchor=%s ET). "
+            "Premarket window has not started yet: dataset availability "
+            "clamped fetch_end to %s ET which is before anchor %s ET. "
             "All symbols will have has_premarket_data=False. "
             "Re-run after %s ET for premarket data.",
-            datetime.now(US_EASTERN_TZ).strftime("%H:%M:%S"),
+            fetch_end_et.strftime("%H:%M:%S"),
             premarket_anchor_et.strftime("%H:%M"),
             premarket_anchor_et.strftime("%H:%M"),
         )
