@@ -294,6 +294,11 @@ def _aggregate_current_premarket_features(
         close = pd.to_numeric(ordered["close"], errors="coerce")
         total_volume = float(volume.sum())
         dollar_volume = float((close * volume).sum())
+        if trade_count_source:
+            premarket_trade_count = float(pd.to_numeric(ordered[trade_count_source], errors="coerce").sum())
+        else:
+            # ohlcv-1s often has no explicit trade_count; use active-seconds proxy.
+            premarket_trade_count = float((volume > 0).sum())
         metrics.append(
             {
                 "trade_date": target_trade_date,
@@ -305,7 +310,7 @@ def _aggregate_current_premarket_features(
                 "premarket_vwap": (dollar_volume / total_volume) if total_volume > 0 else np.nan,
                 "premarket_volume": total_volume,
                 "premarket_dollar_volume": dollar_volume,
-                "premarket_trade_count": float(pd.to_numeric(ordered[trade_count_source], errors="coerce").sum()) if trade_count_source else np.nan,
+                "premarket_trade_count": premarket_trade_count,
                 "premarket_seconds": int(len(ordered)),
             }
         )
