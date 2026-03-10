@@ -22,6 +22,7 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 _ET = _ZoneInfo("America/New_York")
 
 import pandas as pd
+from databento_volatility_screener import _make_databento_client
 
 logger = logging.getLogger(__name__)
 
@@ -100,9 +101,7 @@ def fetch_databento_daily_bars(
                 return cached
 
     try:
-        import databento as db
-
-        client = db.Historical(api_key)
+        client = _make_databento_client(api_key)
         ds = dataset or _pick_dataset(client)
         end_date = datetime.now(_ET).date()
         start_date = end_date - timedelta(days=lookback_days + 3)  # padding for weekends
@@ -236,8 +235,7 @@ def get_dataset_info(api_key: str | None = None) -> dict[str, Any]:
     if not key:
         return {"error": "No API key"}
     try:
-        import databento as db
-        client = db.Historical(key)
+        client = _make_databento_client(key)
         ds = _pick_dataset(client)
         ds_range = client.metadata.get_dataset_range(dataset=ds)
         return {

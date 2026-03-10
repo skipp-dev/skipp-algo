@@ -49,6 +49,8 @@ The UI is intended as a single place for:
 - top-N review,
 - per-entry detail inspection.
 
+Operationally, the UI is a control surface over the latest export directory. The heavy calculations happen in the batch pipeline; the UI triggers those runs, reads their artifacts, and renders the results in a way that is easier to operate near the open.
+
 ### Production export pipeline
 
 `scripts/databento_production_export.py` is the main materialization pipeline.
@@ -80,6 +82,174 @@ Optional environment:
 - `FMP_API_KEY`
 - `DATABENTO_DATASET`
 - `DATABENTO_TOP_FRACTION`
+
+## What The Pipeline Calculates
+
+The suite builds a symbol-day feature model for a broad US equity universe.
+
+At a high level, each run does the following:
+
+1. determines the recent trading days,
+2. builds the raw listed-equity universe,
+3. removes symbols unsupported by the chosen Databento dataset,
+4. loads daily bars for previous-close context,
+5. loads `ohlcv-1s` data for the active screening window,
+6. aggregates those 1-second bars into per-symbol symbol-day features,
+7. optionally materializes per-second detail tables for open-window and premarket inspection,
+8. ranks symbol-days and marks the top fraction.
+
+### Core symbol-day metrics
+
+For each `(trade_date, symbol)` the core engine computes:
+
+- `window_start_price`: first open inside the configured window
+- `window_end_price`: last close inside the configured window
+- `window_high` and `window_low`: extrema within the window
+- `window_volume`: total 1-second volume inside the window
+- `seconds_in_window`: number of 1-second rows observed
+- `market_open_price`: first regular-session open at or after 09:30 ET
+- `premarket_price`: last premarket 1-second close between the configured anchor and the regular open
+
+Derived percentage metrics:
+
+- `window_return_pct = ((window_end_price / window_start_price) - 1) * 100`
+- `window_range_pct = ((window_high - window_low) / window_start_price) * 100`
+- `realized_vol_pct = sqrt(sum(log(close_t / close_t_minus_1)^2)) * 100`
+- `prev_close_to_premarket_pct = ((premarket_last / previous_close) - 1) * 100`
+- `premarket_to_open_pct = ((market_open_price / premarket_last) - 1) * 100`
+- `open_to_current_pct = ((window_end_price / market_open_price) - 1) * 100`
+
+### Open-window behavior metrics
+
+When second-detail rows are available, the suite also derives behavior-specific fields used by the watchlist and operator diagnostics:
+
+- `open_30s_volume`, `open_1m_volume`, `open_5m_volume`
+- `early_dip_low_10s`
+- `early_dip_pct_10s`
+- `early_dip_second`
+- `reclaimed_start_price_within_30s`
+- `reclaim_second_30s`
+- rolling relative volume fields including `open_1m_rvol_20d`, `open_5m_rvol_20d`, and `day_volume_rvol_20d`
+
+### Eligibility, ranking, and selection
+
+Not every symbol-day is considered rankable.
+
+A symbol-day is only `is_eligible` when the pipeline has the required reference data, daily bar context, intraday summary, and price fields needed for the ranking metric.
+
+The default ranking rule is:
+
+- sort eligible rows within each `trade_date` by `window_range_pct` descending,
+- break ties by `symbol` ascending,
+- compute `take_n_for_trade_date = ceil(eligible_count_for_trade_date * top_fraction)`,
+- mark `selected_top20pct = rank_within_trade_date <= take_n_for_trade_date`.
+
+These `selected_top20pct` rows are important operationally because they define the historical reduced scope reused by the fast pre-open refresh path.
+
+## What The UI Does
+
+The Streamlit UI is not a separate analytics engine. It is an operator console for the exported data basis and the watchlist layer.
+
+Main controls:
+
+- Databento API key
+- optional FMP API key
+- export directory
+- dataset
+- lookback days
+- Top-N watchlist size
+- fast-scope-days override
+- force-refresh toggle
+
+Main buttons:
+
+- `Fast Pre-Open Refresh`: rebuild only the reduced current pre-open scope from the latest baseline
+- `Full History Refresh`: rebuild the full-history baseline bundle
+- `Generate Watchlist`: create the ranked Long-Dip watchlist from the latest exports
+- `Fast Pre-Open Pipeline`: run fast refresh and watchlist generation back-to-back
+
+Main UI outputs:
+
+- data freshness and manifest status
+- latest runtime durations
+- active configuration snapshot
+- latest-trade-date or full-history watchlist table
+- filter-profile diagnostics when the candidate set is thin
+- per-entry plan fields for each watchlist symbol
+
+## Watchlist Layer
+
+`scripts/generate_databento_watchlist.py` reads the daily and premarket feature tables and builds a Long-Dip watchlist.
+
+### Candidate filter inputs
+
+The watchlist candidate set is filtered using:
+
+- positive and sufficiently large gap from previous close to premarket last
+- minimum previous close
+- minimum premarket dollar volume
+- minimum premarket share volume
+- optional minimum premarket trade count
+- optional max-gap cap
+
+### Candidate scores
+
+The primary candidate ranking score is:
+
+- `watchlist_score = gap_component + 0.75 * volume_component + 0.50 * trade_component`
+
+The secondary research-oriented score is:
+
+- `research_score = watchlist_score + 0.25 * window_range_pct + 0.10 * realized_vol_pct`
+
+These scores do not place orders by themselves. They are used to prioritize which symbols become part of the Top-N watchlist.
+
+### Trade-plan outputs
+
+For each selected symbol, the watchlist layer computes three laddered buy levels from the premarket last price plus:
+
+- share quantity per ladder level
+- take-profit price per level
+- hard stop-loss price per level
+- trailing-stop percentage and trailing anchor price per level
+
+This produces a structured plan that can be reviewed in the UI, exported as CSV/Markdown, or passed into the IBKR bridge.
+
+## Output Tables And Files
+
+The most important output artifacts are:
+
+- `daily_symbol_features_full_universe.parquet`
+  Contains one row per symbol-day with the feature set, eligibility state, rank, and `selected_top20pct` flag.
+- `premarket_features_full_universe.parquet`
+  Contains one row per symbol-day with premarket OHLCV-style summary values such as `premarket_last`, `premarket_vwap`, volume, dollar volume, and trade count.
+- `full_universe_second_detail_open.parquet`
+  Contains per-second open-window detail with session labels and incremental return fields like `second_delta_pct`, `from_previous_close_pct`, and `from_open_pct`.
+- `symbol_day_diagnostics.parquet`
+  Contains row-level diagnostics explaining inclusion, exclusion, and filter stage outcomes.
+- `databento_volatility_production_*_manifest.json`
+  Contains provenance, formulas, timestamps, row counts, datasets, and export metadata.
+- `databento_volatility_production_*.xlsx`
+  Contains a human-readable review workbook.
+
+Additional downstream outputs may include:
+
+- watchlist CSV files
+- Markdown watchlist reports
+- TradingView watchlist text exports
+- IBKR dry-run preview JSON
+
+## How To Use The Suite In Practice
+
+Recommended day-to-day usage:
+
+1. Outside the US pre-open window, run the full-history baseline refresh.
+2. Near the open, run the fast pre-open refresh to update the reduced current scope.
+3. Generate the watchlist from the latest exports.
+4. Review the Top-N symbols and ladder plans in the Streamlit UI.
+5. If needed, create an IBKR preview before any manual live placement.
+
+This split keeps the heavy historical rebuild separate from the near-open operational refresh.
 
 ### Bundle loader
 

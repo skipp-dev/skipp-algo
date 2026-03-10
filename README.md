@@ -344,6 +344,114 @@ It is split into four layers:
 - Export bundles with manifest metadata, Parquet artifacts, and formatted Excel workbooks
 - Optional IBKR order previews or live bracket-order execution
 
+### What The Script And UI Actually Do
+
+The Databento workflow has two distinct roles:
+
+- `scripts/databento_production_export.py` is the batch pipeline. It fetches the universe, daily bars, and 1-second data, computes symbol-day features, ranks the universe, and writes the reusable export bundle.
+- `streamlit_databento_volatility_screener.py` launches the operator UI. The UI does not invent a separate model; it orchestrates refresh runs, reads the latest exported bundle, generates the watchlist, and explains the current state of the data basis.
+
+In practical terms:
+
+- the batch script is what creates the data foundation,
+- the UI is what lets you inspect freshness, trigger the right pipeline mode, generate the watchlist, and review per-symbol trade-plan outputs.
+
+### What Gets Calculated
+
+For each `(trade_date, symbol)` the pipeline builds a symbol-day feature row from Databento daily and `ohlcv-1s` data.
+
+Core open-window metrics:
+
+- `window_return_pct = ((window_end_price / window_start_price) - 1) * 100`
+- `window_range_pct = ((window_high - window_low) / window_start_price) * 100`
+- `realized_vol_pct = sqrt(sum(log-return^2)) * 100` across the 1-second series inside the screening window
+- `prev_close_to_premarket_pct = ((premarket_last / previous_close) - 1) * 100`
+- `premarket_to_open_pct = ((market_open_price / premarket_last) - 1) * 100`
+- `open_to_current_pct = ((window_end_price / market_open_price) - 1) * 100`
+
+Additional open-drive and early-behavior metrics:
+
+- `open_30s_volume`, `open_1m_volume`, `open_5m_volume`
+- `early_dip_low_10s`, `early_dip_pct_10s`, `early_dip_second`
+- `reclaimed_start_price_within_30s`, `reclaim_second_30s`
+- rolling relative-volume features such as `open_1m_rvol_20d`, `open_5m_rvol_20d`, and `day_volume_rvol_20d`
+
+Selection and ranking logic:
+
+- each symbol-day is marked `is_eligible` only if required reference, daily, and intraday inputs exist and the row is supported by Databento
+- eligible rows are ranked within each trade date by `window_range_pct` descending, ties by symbol ascending
+- `take_n_for_trade_date = ceil(eligible_count_for_trade_date * top_fraction)`
+- `selected_top20pct = rank_within_trade_date <= take_n_for_trade_date`
+
+This means the exported bundle contains both the raw feature values and the selection state that later drives the reduced-scope fast refresh and the watchlist layer.
+
+### Watchlist Logic
+
+The watchlist generator is downstream of the export bundle. It filters the latest symbol-day rows using premarket liquidity and gap rules, then assigns a ranking and builds a Long-Dip entry plan.
+
+Candidate filtering focuses on:
+
+- `has_premarket_data == True`
+- positive and sufficiently large `prev_close_to_premarket_pct`
+- minimum previous close
+- minimum premarket dollar volume, share volume, and optionally trade count
+
+Candidate ranking is then based on:
+
+- `watchlist_score = gap_component + 0.75 * volume_component + 0.50 * trade_component`
+- `research_score = watchlist_score + 0.25 * window_range_pct + 0.10 * realized_vol_pct`
+
+For each selected symbol, the watchlist layer calculates three laddered entry levels and the corresponding take-profit, stop-loss, and trailing-stop anchor prices.
+
+### UI Workflow
+
+The standalone Streamlit UI is an operations console for this workflow.
+
+Main sidebar inputs:
+
+- Databento API key
+- optional FMP API key
+- export directory
+- dataset
+- lookback days
+- Top-N watchlist size
+- fast-scope-days override
+- force refresh toggle
+
+Main actions:
+
+- `Fast Pre-Open Refresh`: refreshes the reduced near-open scope from the latest full-history baseline
+- `Full History Refresh`: rebuilds the broad baseline bundle across the configured lookback window
+- `Generate Watchlist`: reads the latest exports and rebuilds the ranked Long-Dip watchlist
+- `Fast Pre-Open Pipeline`: runs fast refresh and watchlist generation in one step
+
+What the UI shows:
+
+- data freshness and manifest-derived status
+- latest runtime durations
+- active config snapshot
+- Top-N watchlist in latest-date or full-history mode
+- filter-profile diagnostics when liquidity rules are relaxed or when no candidates survive
+- per-entry plan fields such as ladder prices, stop-losses, take-profit targets, and trailing-stop anchors
+
+### Output Artifacts And Meaning
+
+The production export pipeline writes both manifest-backed bundle artifacts and exact-named Parquet files. The most important downstream files are:
+
+- `daily_symbol_features_full_universe.parquet`: one row per symbol-day with reference data, open-window metrics, eligibility, ranking, and `selected_top20pct`
+- `premarket_features_full_universe.parquet`: one row per symbol-day with premarket OHLCV-style summary fields such as `premarket_last`, `premarket_vwap`, volume, dollar volume, and trade count
+- `full_universe_second_detail_open.parquet`: per-second open-window detail with `session`, OHLCV, `second_delta_pct`, `from_previous_close_pct`, and `from_open_pct`
+- `symbol_day_diagnostics.parquet`: row-level inclusion and exclusion diagnostics explaining where a symbol-day dropped out of the pipeline
+- `databento_volatility_production_*_manifest.json`: machine-readable provenance, formulas, timestamps, row counts, datasets, and selection rules
+- `databento_volatility_production_*.xlsx`: human-readable workbook for review and sharing
+
+The watchlist layer can additionally emit:
+
+- ranked watchlist CSV files
+- Markdown reports
+- TradingView watchlist text exports
+- optional IBKR preview JSON or live-order execution inputs
+
 ### Main Entry Points
 
 ```bash

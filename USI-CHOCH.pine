@@ -793,3 +793,4 @@ alertcondition(ms_preCHoCH_L or bestBullChoch or buySignal or _sqReleaseBull, ti
 alertcondition(ms_preCHoCH_S or bestBullChoch or bestBearChoch or buySignal or _sqRelease, title="M↓ + CHoCH + BUY + SQ", message="{{ticker}} — M↓/CHoCH/BUY/SQ on {{interval}}")
 alertcondition(ms_anticipL or ms_preCHoCH_L or obv_divL or cmf_bullish or _sqReleaseBull, title="Any Bullish Pre-Marker", message="{{ticker}} — Bullish Pre-Marker (A↑/M↑/V↑/C↑/SQ↑) on {{interval}}")
 alertcondition(ms_anticipS or ms_preCHoCH_S or obv_divS or cmf_bearish or _sqReleaseBear, title="Any Bearish Pre-Marker", message="{{ticker}} — Bearish Pre-Marker (A↓/M↓/V↓/C↓/SQ↓) on {{interval}}")
+alertcondition(buySignal or ms_preCHoCH_L or bestBullChoch or _sqReleaseBull, title="Bullish Combo (BUY|M↑|CHoCH|SQ↑)", message="{{ticker}} — Bullish Combo: USI Flip BUY / M↑ / Best CHoCH / SQ↑ on {{interval}}")

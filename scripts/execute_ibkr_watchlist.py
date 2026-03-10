@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from strategy_config import LONG_DIP_MAX_GAP_PCT, LONG_DIP_MIN_GAP_PCT, LONG_DIP_MIN_PREMARKET_TRADE_COUNT, LONG_DIP_MIN_PREMARKET_VOLUME, LONG_DIP_MIN_PREVIOUS_CLOSE, LONG_DIP_POSITION_BUDGET_USD, LONG_DIP_TOP_N
+from strategy_config import LONG_DIP_MAX_GAP_PCT, LONG_DIP_MIN_GAP_PCT, LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME, LONG_DIP_MIN_PREMARKET_TRADE_COUNT, LONG_DIP_MIN_PREMARKET_VOLUME, LONG_DIP_MIN_PREVIOUS_CLOSE, LONG_DIP_POSITION_BUDGET_USD, LONG_DIP_TOP_N
 from scripts.generate_databento_watchlist import LongDipConfig, build_daily_watchlists, load_watchlist_inputs
 
 
@@ -970,6 +970,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-gap-pct", type=float, default=LONG_DIP_MIN_GAP_PCT)
     parser.add_argument("--max-gap-pct", type=float, default=LONG_DIP_MAX_GAP_PCT)
     parser.add_argument("--min-previous-close", type=float, default=LONG_DIP_MIN_PREVIOUS_CLOSE)
+    parser.add_argument("--min-premarket-dollar-volume", type=float, default=LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME)
     parser.add_argument("--min-premarket-volume", type=int, default=LONG_DIP_MIN_PREMARKET_VOLUME)
     parser.add_argument("--min-premarket-trade-count", type=int, default=LONG_DIP_MIN_PREMARKET_TRADE_COUNT)
     parser.add_argument(
@@ -1008,6 +1009,7 @@ def main() -> None:
         min_gap_pct=args.min_gap_pct,
         max_gap_pct=max_gap_pct,
         min_previous_close=args.min_previous_close,
+        min_premarket_dollar_volume=args.min_premarket_dollar_volume,
         min_premarket_volume=args.min_premarket_volume,
         min_premarket_trade_count=args.min_premarket_trade_count,
         position_budget_usd=args.position_budget_usd,

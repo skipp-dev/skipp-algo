@@ -34,6 +34,7 @@ Usage::
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import logging
@@ -97,6 +98,7 @@ THIN_VOLUME_RATIO = 0.5             # symbol is "thin" if vol < 50% avg
 
 # PID file for the background engine process
 _RT_ENGINE_PID_FILE = _ARTIFACTS_LATEST / "realtime_engine.pid"
+_RT_ENGINE_LOCK_FILE = _ARTIFACTS_LATEST / "realtime_engine.lock"
 _RT_ENGINE_LOG_FILE = _ARTIFACTS_LATEST / "realtime_signals.log"
 
 
@@ -119,6 +121,35 @@ def ensure_rt_engine_running(
     if project_root is None:
         project_root = Path(__file__).resolve().parents[1]
     project_root = Path(project_root)
+
+    # Use a file lock to prevent TOCTOU race between concurrent callers
+    _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        # Another process holds the lock — engine launch already in progress
+        lock_fd.close()
+        logger.debug("RT engine lock held by another process, assuming start in progress")
+        return True
+
+    try:
+        return _ensure_rt_engine_running_locked(
+            poll_interval=poll_interval,
+            project_root=project_root,
+        )
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
+
+
+def _ensure_rt_engine_running_locked(
+    *,
+    poll_interval: int,
+    project_root: Path,
+) -> bool:
+    """Inner helper — called while holding the engine lock file."""
+    import subprocess
 
     # Check if already running via PID file
     if _RT_ENGINE_PID_FILE.exists():

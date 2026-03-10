@@ -9,8 +9,10 @@ import re
 import sys
 import time as time_module
 import warnings
+import asyncio
+import gc
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta, timezone, tzinfo
+from datetime import UTC, date, datetime, time, timedelta, tzinfo
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable
@@ -27,6 +29,14 @@ from openpyxl.utils import get_column_letter
 from pandas.api.types import is_datetime64_any_dtype
 
 from open_prep.macro import FMPClient
+from strategy_config import (
+    LONG_DIP_ENTRY_EARLY_DIP_MAX_SECONDS,
+    LONG_DIP_ENTRY_EARLY_DIP_MIN_PCT,
+    LONG_DIP_ENTRY_OPEN30_VOLUME_MIN,
+    LONG_DIP_ENTRY_RECLAIM_MAX_SECONDS,
+    LONG_DIP_MIN_GAP_PCT,
+    LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +52,7 @@ CACHE_VERSION = "v1"
 CACHE_VERSION_BY_CATEGORY = {
     "daily_bars": "v2",
     "symbol_support": "v2",
+    "full_universe_open_second_detail": "v2",
 }
 CACHE_ROOT = Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache"
 FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
@@ -64,7 +75,6 @@ FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
 )
 SUPPORTED_DISPLAY_TZ = {
     "Europe/Berlin": ZoneInfo("Europe/Berlin"),
-    "UTC+1": timezone(timedelta(hours=1)),
 }
 PREFERRED_DATABENTO_DATASETS = (
     "XNAS.ITCH",
@@ -86,6 +96,8 @@ SYMBOL_SUPPORT_CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
 DATABENTO_SYMBOL_ALIASES = {
     "BRK-A": "BRK.A",
     "BRK-B": "BRK.B",
+    "BRK/A": "BRK.A",
+    "BRK/B": "BRK.B",
     "BF-B": "BF.B",
     "MKC-V": "MKC.V",
     "MOG-A": "MOG.A",
@@ -489,7 +501,21 @@ def filter_supported_universe_for_databento(
 
 
 def _import_databento() -> Any:
+    existing_loop_ids = {
+        id(obj)
+        for obj in gc.get_objects()
+        if isinstance(obj, asyncio.AbstractEventLoop)
+    }
     import databento as db
+
+    for obj in gc.get_objects():
+        if not isinstance(obj, asyncio.AbstractEventLoop):
+            continue
+        if id(obj) in existing_loop_ids:
+            continue
+        if obj.is_closed() or obj.is_running():
+            continue
+        obj.close()
 
     return db
 
@@ -794,7 +820,7 @@ def _fetch_us_equity_universe_via_screener(
             "exchange": frame.get("exchangeShortName", frame.get("exchange", "")),
             "sector": frame.get("sector", ""),
             "industry": frame.get("industry", ""),
-            "market_cap": pd.to_numeric(frame.get("marketCap", 0), errors="coerce"),
+            "market_cap": pd.to_numeric(frame.get("marketCap"), errors="coerce"),
         }
     )
     out = out[out["symbol"].astype(str).str.len() > 0].copy()
@@ -917,6 +943,62 @@ def list_recent_trading_days(
     return days[-lookback_days:]
 
 
+def _deduplicate_daily_symbol_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or not {"trade_date", "symbol"}.issubset(frame.columns):
+        return frame
+
+    duplicate_mask = frame.duplicated(subset=["trade_date", "symbol"], keep=False)
+    if not duplicate_mask.any():
+        return frame
+
+    duplicate_keys = int(frame.loc[duplicate_mask, ["trade_date", "symbol"]].drop_duplicates().shape[0])
+    logger.warning(
+        "load_daily_bars: deduplicating %d duplicate trade_date-symbol rows by keeping the highest-volume bar.",
+        duplicate_keys,
+    )
+
+    return (
+        frame.sort_values(["trade_date", "symbol", "volume", "close"], ascending=[True, True, False, False])
+        .drop_duplicates(subset=["trade_date", "symbol"], keep="first")
+        .reset_index(drop=True)
+    )
+
+
+def _collapse_duplicate_symbol_seconds(frame: pd.DataFrame, *, context: str) -> pd.DataFrame:
+    if frame.empty or not {"symbol", "ts"}.issubset(frame.columns):
+        return frame
+
+    duplicate_mask = frame.duplicated(subset=["symbol", "ts"], keep=False)
+    if not duplicate_mask.any():
+        return frame
+
+    duplicate_keys = int(frame.loc[duplicate_mask, ["symbol", "ts"]].drop_duplicates().shape[0])
+    logger.warning(
+        "%s: consolidating %d duplicate symbol-second rows by aggregating OHLCV.",
+        context,
+        duplicate_keys,
+    )
+
+    ordered = frame.sort_values(["symbol", "ts"]).reset_index(drop=True)
+    aggregations: dict[str, str] = {}
+    if "open" in ordered.columns:
+        aggregations["open"] = "first"
+    if "high" in ordered.columns:
+        aggregations["high"] = "max"
+    if "low" in ordered.columns:
+        aggregations["low"] = "min"
+    if "close" in ordered.columns:
+        aggregations["close"] = "last"
+    if "volume" in ordered.columns:
+        aggregations["volume"] = "sum"
+    for column in ["trade_count", "count", "n_trades", "num_trades"]:
+        if column in ordered.columns:
+            aggregations[column] = "sum"
+
+    collapsed = ordered.groupby(["symbol", "ts"], sort=False, as_index=False).agg(aggregations)
+    return collapsed.reset_index(drop=True)
+
+
 def load_daily_bars(
     databento_api_key: str,
     *,
@@ -981,6 +1063,7 @@ def load_daily_bars(
     for col in ["open", "high", "low", "close", "volume"]:
         if col in frame.columns:
             frame[col] = pd.to_numeric(frame[col], errors="coerce")
+    frame = _deduplicate_daily_symbol_rows(frame)
     frame = frame.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
     frame["previous_close"] = frame.groupby("symbol")["close"].shift(1)
     frame = frame[frame["trade_date"].isin(trading_days)].reset_index(drop=True)
@@ -1356,6 +1439,7 @@ def fetch_symbol_day_detail(
     frame = frame[frame["symbol"] == normalized_symbol].copy()
     if frame.empty:
         return pd.DataFrame(), pd.DataFrame()
+    frame = _collapse_duplicate_symbol_seconds(frame, context="fetch_symbol_day_detail")
 
     tz = resolve_display_timezone(display_timezone)
     frame["display_ts"] = frame["ts"].dt.tz_convert(tz)
@@ -1539,6 +1623,7 @@ def collect_full_universe_open_window_second_detail(
                 display_timezone,
                 day_ws.strftime("%H%M%S"),
                 day_we.strftime("%H%M%S"),
+                premarket_anchor_et.strftime("%H%M%S"),
                 symbol_scope,
             ],
         )
@@ -1568,7 +1653,7 @@ def collect_full_universe_open_window_second_detail(
                             dataset=dataset,
                             symbols=symbols_batch,
                             schema="ohlcv-1s",
-                            start=window.window_start_local.astimezone(UTC).isoformat(),
+                            start=window.fetch_start_utc.isoformat(),
                             end=_exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)).isoformat(),
                         )
                     frame = _store_to_frame(store, count=250_000, context="collect_full_universe_open_window_second_detail")
@@ -1595,6 +1680,7 @@ def collect_full_universe_open_window_second_detail(
                 frame = frame[frame["symbol"].isin(day_universe_symbols)].copy()
                 if frame.empty:
                     continue
+                frame = _collapse_duplicate_symbol_seconds(frame, context="collect_full_universe_open_window_second_detail")
 
                 frame = frame.sort_values(["symbol", "ts"]).reset_index(drop=True)
                 display_tz = resolve_display_timezone(display_timezone)
@@ -1651,13 +1737,14 @@ def _build_open_window_aggregates(
     open_window_end: time | None = None,
     premarket_anchor_et: time = time(8, 0),
 ) -> pd.DataFrame:
+    metric_columns = [
+        "trade_date", "symbol", "open_window_second_rows", "open_1m_volume", "open_5m_volume", "open_30s_volume",
+        "regular_open_second_rows", "regular_open_5m_second_rows", "regular_open_30s_second_rows",
+        "regular_open_reference_price", "early_dip_low_10s", "early_dip_pct_10s", "early_dip_second",
+        "reclaimed_start_price_within_30s", "reclaim_second_30s",
+    ]
     if second_detail_all.empty:
-        return pd.DataFrame(
-            columns=[
-                "trade_date", "symbol", "open_window_second_rows", "open_1m_volume", "open_5m_volume",
-                "regular_open_second_rows", "regular_open_5m_second_rows",
-            ]
-        )
+        return pd.DataFrame(columns=metric_columns)
 
     detail = second_detail_all.copy()
     detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
@@ -1667,12 +1754,7 @@ def _build_open_window_aggregates(
     detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce").fillna(0.0)
     detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
     if detail.empty:
-        return pd.DataFrame(
-            columns=[
-                "trade_date", "symbol", "open_window_second_rows", "open_1m_volume", "open_5m_volume",
-                "regular_open_second_rows", "regular_open_5m_second_rows",
-            ]
-        )
+        return pd.DataFrame(columns=metric_columns)
 
     windows = {}
     for trade_day in trading_days:
@@ -1700,9 +1782,39 @@ def _build_open_window_aggregates(
             continue
         one_minute_end = regular_open + pd.Timedelta(minutes=1)
         five_minute_end = regular_open + pd.Timedelta(minutes=5)
+        thirty_second_end = regular_open + pd.Timedelta(seconds=LONG_DIP_ENTRY_RECLAIM_MAX_SECONDS)
         regular_rows = group[group["timestamp"] >= regular_open]
         first_minute = regular_rows[regular_rows["timestamp"] < one_minute_end]
         first_five = regular_rows[regular_rows["timestamp"] < five_minute_end]
+        first_thirty = regular_rows[regular_rows["timestamp"] < thirty_second_end]
+
+        reference_price = np.nan
+        early_dip_low = np.nan
+        early_dip_pct = np.nan
+        early_dip_second = np.nan
+        reclaimed_start_price_within_30s = False
+        reclaim_second = np.nan
+        if not regular_rows.empty:
+            ordered = regular_rows.sort_values("timestamp").copy()
+            ordered["offset_seconds"] = (ordered["timestamp"] - regular_open).dt.total_seconds().round().astype(int)
+            reference_price = float(pd.to_numeric(ordered.iloc[0].get("open"), errors="coerce"))
+            if math.isfinite(reference_price) and reference_price > 0:
+                first_ten = ordered[ordered["offset_seconds"] <= LONG_DIP_ENTRY_EARLY_DIP_MAX_SECONDS].copy()
+                if not first_ten.empty:
+                    early_dip_low = float(pd.to_numeric(first_ten.get("low"), errors="coerce").min())
+                    if math.isfinite(early_dip_low):
+                        low_rows = first_ten[pd.to_numeric(first_ten.get("low"), errors="coerce") == early_dip_low].sort_values("timestamp")
+                        if not low_rows.empty:
+                            early_dip_second = float(low_rows.iloc[0]["offset_seconds"])
+                            early_dip_pct = ((early_dip_low / reference_price) - 1.0) * 100.0
+                            reclaim_rows = ordered[
+                                (ordered["offset_seconds"] > int(early_dip_second))
+                                & (ordered["offset_seconds"] < LONG_DIP_ENTRY_RECLAIM_MAX_SECONDS)
+                                & (pd.to_numeric(ordered.get("high"), errors="coerce") >= reference_price)
+                            ].sort_values("timestamp")
+                            if not reclaim_rows.empty:
+                                reclaimed_start_price_within_30s = True
+                                reclaim_second = float(reclaim_rows.iloc[0]["offset_seconds"])
         metrics.append(
             {
                 "trade_date": trade_day,
@@ -1710,8 +1822,16 @@ def _build_open_window_aggregates(
                 "open_window_second_rows": int(len(group)),
                 "open_1m_volume": float(first_minute["volume"].sum()),
                 "open_5m_volume": float(first_five["volume"].sum()),
+                "open_30s_volume": float(first_thirty["volume"].sum()),
                 "regular_open_second_rows": int(len(first_minute)),
                 "regular_open_5m_second_rows": int(len(first_five)),
+                "regular_open_30s_second_rows": int(len(first_thirty)),
+                "regular_open_reference_price": reference_price,
+                "early_dip_low_10s": early_dip_low,
+                "early_dip_pct_10s": early_dip_pct,
+                "early_dip_second": early_dip_second,
+                "reclaimed_start_price_within_30s": reclaimed_start_price_within_30s,
+                "reclaim_second_30s": reclaim_second,
             }
         )
     return pd.DataFrame(metrics)
@@ -1813,8 +1933,14 @@ def build_daily_features_full_universe(
         features["open_1m_volume"] = np.nan
     if "open_5m_volume" not in features.columns:
         features["open_5m_volume"] = np.nan
+    if "open_30s_volume" not in features.columns:
+        features["open_30s_volume"] = np.nan
     if "day_volume" not in features.columns:
         features["day_volume"] = np.nan
+    if "reclaimed_start_price_within_30s" not in features.columns:
+        features["reclaimed_start_price_within_30s"] = False
+    reclaimed_flag = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean")
+    features["reclaimed_start_price_within_30s"] = reclaimed_flag.fillna(False).astype(bool)
 
     features["avg_open_1m_volume_20d"] = features.groupby("symbol")["open_1m_volume"].transform(lambda s: s.shift(1).rolling(20, min_periods=1).mean())
     features["avg_open_5m_volume_20d"] = features.groupby("symbol")["open_5m_volume"].transform(lambda s: s.shift(1).rolling(20, min_periods=1).mean())
@@ -2163,9 +2289,8 @@ def build_entry_checklist_table(
     status: DataStatusResult,
     selected_row: pd.Series,
     watchlist_table: pd.DataFrame,
+    watchlist_config: dict[str, Any] | None = None,
 ) -> tuple[pd.DataFrame, str, int]:
-    borderline_factor = 0.95
-
     def _check_level(is_ok: bool, is_borderline: bool) -> str:
         if is_ok:
             return "erfuellt"
@@ -2181,59 +2306,41 @@ def build_entry_checklist_table(
     status_ok = (not status.is_stale) and export_today_et
     status_borderline = (not status.is_stale) and (not export_today_et)
 
-    rank_value = _safe_number(selected_row.get("watchlist_rank"))
-    candidate_ok = bool(rank_value is not None and 1 <= int(rank_value) <= 3)
-    candidate_borderline = False
+    config = watchlist_config or {}
+    gap_threshold = float(config.get("min_gap_pct", LONG_DIP_MIN_GAP_PCT))
+    pmdv_threshold = float(config.get("min_premarket_dollar_volume", LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME))
 
     gap_value = _safe_number(selected_row.get("prev_close_to_premarket_pct"))
-    gap_threshold = 1.5
     gap_ok = bool(gap_value is not None and gap_value >= gap_threshold)
-    gap_borderline = bool(gap_value is not None and (gap_threshold * borderline_factor) <= gap_value < gap_threshold)
+    gap_borderline = False
 
-    positive_premarket_volume = pd.to_numeric(watchlist_table.get("premarket_volume"), errors="coerce")
-    positive_premarket_volume = positive_premarket_volume[positive_premarket_volume > 0]
-    positive_premarket_trades = pd.to_numeric(watchlist_table.get("premarket_trade_count"), errors="coerce")
-    positive_premarket_trades = positive_premarket_trades[positive_premarket_trades > 0]
+    pmdv_value = _safe_number(selected_row.get("premarket_dollar_volume"))
+    pmdv_ok = bool(pmdv_value is not None and pmdv_value >= pmdv_threshold)
+    pmdv_borderline = False
 
-    liquidity_volume_threshold = float(positive_premarket_volume.median()) if not positive_premarket_volume.empty else None
-    liquidity_trades_threshold = float(positive_premarket_trades.median()) if not positive_premarket_trades.empty else None
-    volume_value = _safe_number(selected_row.get("premarket_volume"))
-    trades_value = _safe_number(selected_row.get("premarket_trade_count"))
-    liquidity_ok = bool(
-        liquidity_volume_threshold is not None
-        and liquidity_trades_threshold is not None
-        and volume_value is not None
-        and trades_value is not None
-        and volume_value >= liquidity_volume_threshold
-        and trades_value >= liquidity_trades_threshold
+    early_dip_pct = _safe_number(selected_row.get("early_dip_pct_10s"))
+    early_dip_second = _safe_number(selected_row.get("early_dip_second"))
+    early_dip_ok = bool(
+        early_dip_pct is not None
+        and early_dip_second is not None
+        and early_dip_pct <= LONG_DIP_ENTRY_EARLY_DIP_MIN_PCT
+        and early_dip_second <= LONG_DIP_ENTRY_EARLY_DIP_MAX_SECONDS
     )
-    liquidity_borderline = bool(
-        liquidity_volume_threshold is not None
-        and liquidity_trades_threshold is not None
-        and volume_value is not None
-        and trades_value is not None
-        and volume_value >= (liquidity_volume_threshold * borderline_factor)
-        and trades_value >= (liquidity_trades_threshold * borderline_factor)
-        and not liquidity_ok
-    )
+    early_dip_borderline = False
 
-    open_1m_rvol = _safe_number(selected_row.get("open_1m_rvol_20d"))
-    open_5m_rvol = _safe_number(selected_row.get("open_5m_rvol_20d"))
-    open_power_threshold = 1.2
-    open_power_ok = bool(
-        (open_1m_rvol is not None and open_1m_rvol >= open_power_threshold)
-        or (open_5m_rvol is not None and open_5m_rvol >= open_power_threshold)
+    open30_volume = _safe_number(selected_row.get("open_30s_volume"))
+    open30_ok = bool(open30_volume is not None and open30_volume >= LONG_DIP_ENTRY_OPEN30_VOLUME_MIN)
+    open30_borderline = False
+
+    reclaim_flag_raw = selected_row.get("reclaimed_start_price_within_30s")
+    reclaim_flag = bool(reclaim_flag_raw) if reclaim_flag_raw is not None and not pd.isna(reclaim_flag_raw) else False
+    reclaim_second = _safe_number(selected_row.get("reclaim_second_30s"))
+    reclaim_ok = bool(
+        reclaim_flag
+        and reclaim_second is not None
+        and reclaim_second < LONG_DIP_ENTRY_RECLAIM_MAX_SECONDS
     )
-    open_power_borderline = bool(
-        (
-            open_1m_rvol is not None
-            and (open_power_threshold * borderline_factor) <= open_1m_rvol < open_power_threshold
-        )
-        or (
-            open_5m_rvol is not None
-            and (open_power_threshold * borderline_factor) <= open_5m_rvol < open_power_threshold
-        )
-    )
+    reclaim_borderline = False
 
     rows = [
         {
@@ -2243,43 +2350,86 @@ def build_entry_checklist_table(
             "details": f"fresh={not status.is_stale}, export_heute_et={export_today_et}",
         },
         {
-            "check": "2. Kandidat",
-            "erfuellt": candidate_ok,
-            "status": _check_level(candidate_ok, candidate_borderline),
-            "details": f"watchlist_rank={int(rank_value) if rank_value is not None else 'n/a'} (erlaubt: 1-3)",
-        },
-        {
-            "check": "3. Gap-Qualitaet",
+            "check": "2. Gap filter",
             "erfuellt": gap_ok,
             "status": _check_level(gap_ok, gap_borderline),
-            "details": f"prev_close_to_premarket_pct={gap_value if gap_value is not None else 'n/a'} (>= {gap_threshold})",
+            "details": f"prev_close_to_premarket_pct={gap_value if gap_value is not None else 'n/a'} (>= {gap_threshold:.1f})",
         },
         {
-            "check": "4. Liquiditaet",
-            "erfuellt": liquidity_ok,
-            "status": _check_level(liquidity_ok, liquidity_borderline),
+            "check": "3. Premarket $ volume",
+            "erfuellt": pmdv_ok,
+            "status": _check_level(pmdv_ok, pmdv_borderline),
+            "details": f"premarket_dollar_volume={pmdv_value if pmdv_value is not None else 'n/a'} (>= {pmdv_threshold:,.0f})",
+        },
+        {
+            "check": "4. Early dip <= -0.5%",
+            "erfuellt": early_dip_ok,
+            "status": _check_level(early_dip_ok, early_dip_borderline),
             "details": (
-                "premarket_volume="
-                f"{volume_value if volume_value is not None else 'n/a'} (>= {liquidity_volume_threshold if liquidity_volume_threshold is not None else 'n/a'}), "
-                "premarket_trade_count="
-                f"{trades_value if trades_value is not None else 'n/a'} (>= {liquidity_trades_threshold if liquidity_trades_threshold is not None else 'n/a'})"
+                f"early_dip_pct_10s={early_dip_pct if early_dip_pct is not None else 'n/a'} | "
+                f"early_dip_second={int(early_dip_second) if early_dip_second is not None else 'n/a'} "
+                f"(<= {LONG_DIP_ENTRY_EARLY_DIP_MAX_SECONDS}s)"
             ),
         },
         {
-            "check": "5. Open-Power",
-            "erfuellt": open_power_ok,
-            "status": _check_level(open_power_ok, open_power_borderline),
+            "check": "5. Open30 vol + reclaim",
+            "erfuellt": open30_ok and reclaim_ok,
+            "status": _check_level(open30_ok and reclaim_ok, open30_borderline or reclaim_borderline),
             "details": (
-                f"open_1m_rvol_20d={open_1m_rvol if open_1m_rvol is not None else 'n/a'}, "
-                f"open_5m_rvol_20d={open_5m_rvol if open_5m_rvol is not None else 'n/a'} (mind. eine >= {open_power_threshold})"
+                f"open_30s_volume={open30_volume if open30_volume is not None else 'n/a'} "
+                f"(>= {LONG_DIP_ENTRY_OPEN30_VOLUME_MIN:,.0f}) | "
+                f"reclaim={reclaim_flag} @ {int(reclaim_second) if reclaim_second is not None else 'n/a'}s "
+                f"(< {LONG_DIP_ENTRY_RECLAIM_MAX_SECONDS}s)"
             ),
         },
     ]
 
     checklist = pd.DataFrame(rows)
     score = int(checklist["erfuellt"].sum())
-    rule_note = "Liquiditaet gilt als 'solide', wenn Premarket-Volumen und Trade-Count mindestens am Median der aktuellen Watchlist liegen."
+    rule_note = (
+        f"Regelwerk: Gap >= {gap_threshold:.1f}%, "
+        f"Premarket-Dollar-Volumen >= {pmdv_threshold:,.0f}, "
+        f"frueher Dip <= {LONG_DIP_ENTRY_EARLY_DIP_MIN_PCT:.1f}% in den ersten {LONG_DIP_ENTRY_EARLY_DIP_MAX_SECONDS}s, "
+        f"Open30-Volumen >= {LONG_DIP_ENTRY_OPEN30_VOLUME_MIN:,.0f} und "
+        f"Reclaim des Startpreises innerhalb von {LONG_DIP_ENTRY_RECLAIM_MAX_SECONDS}s."
+    )
     return checklist, rule_note, score
+
+
+def resolve_watchlist_display_table(
+    *,
+    watchlist_result: dict[str, Any],
+    view_mode: str,
+) -> tuple[pd.DataFrame, str]:
+    historical_watchlist_table = watchlist_result["watchlist_table"]
+    active_watchlist_table = watchlist_result.get("active_watchlist_table")
+    if not isinstance(active_watchlist_table, pd.DataFrame) or (active_watchlist_table.empty and not historical_watchlist_table.empty):
+        active_watchlist_table = historical_watchlist_table
+
+    use_full_history = view_mode == "Full history"
+    display_watchlist_table = historical_watchlist_table if use_full_history else active_watchlist_table
+    active_trade_date = watchlist_result.get("trade_date") or "n/a"
+    base_caption = (
+        f"Watchlist generated at {watchlist_result['generated_at']}. "
+        f"Source data fetched at {watchlist_result.get('source_data_fetched_at') or 'n/a'}."
+    )
+
+    if use_full_history and len(historical_watchlist_table) != len(active_watchlist_table):
+        trade_dates = pd.to_datetime(historical_watchlist_table.get("trade_date"), errors="coerce").dt.date.dropna()
+        trade_date_count = int(trade_dates.nunique()) if len(trade_dates) else 0
+        caption = (
+            f"{base_caption} Showing full history ({len(historical_watchlist_table)} rows across {trade_date_count} trade dates). "
+            f"Latest trade date is {active_trade_date}."
+        )
+    elif len(historical_watchlist_table) != len(active_watchlist_table):
+        caption = (
+            f"{base_caption} Showing latest trade date {active_trade_date} "
+            f"({len(active_watchlist_table)} rows, {len(historical_watchlist_table)} historical rows total)."
+        )
+    else:
+        caption = f"{base_caption} Active trade date: {active_trade_date}."
+
+    return display_watchlist_table, caption
 
 
 def build_export_basename(
@@ -2390,6 +2540,77 @@ def create_excel_workbook(
     return output.getvalue()
 
 
+def _normalize_tradingview_exchange_prefix(value: object) -> str:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"NYSE ARCA", "NYSEARCA", "ARCA", "NYSE AMERICAN", "NYSEAMERICAN"}:
+        return "AMEX"
+    return normalized.replace(" ", "")
+
+
+def _build_tradingview_watchlist_text(frame: pd.DataFrame) -> str:
+    if frame.empty or "symbol" not in frame.columns:
+        return ""
+
+    exchange_series = frame.get("exchange")
+    if exchange_series is None:
+        exchange_series = pd.Series("", index=frame.index, dtype=str)
+
+    entries: list[str] = []
+    seen: set[str] = set()
+    for exchange, symbol in zip(exchange_series, frame["symbol"], strict=False):
+        symbol_text = str(symbol or "").strip().upper()
+        exchange_text = _normalize_tradingview_exchange_prefix(exchange)
+        if not symbol_text or not exchange_text:
+            continue
+        entry = f"{exchange_text}:{symbol_text}"
+        if entry in seen:
+            continue
+        seen.add(entry)
+        entries.append(entry)
+    if not entries:
+        return ""
+    return ",".join(entries) + ","
+
+
+def _write_tradingview_watchlist_exports(
+    export_dir: Path,
+    basename: str,
+    named_frames: dict[str, pd.DataFrame],
+) -> dict[str, Path]:
+    created: dict[str, Path] = {}
+    export_dir.mkdir(parents=True, exist_ok=True)
+    for name, frame in named_frames.items():
+        if frame is None or frame.empty:
+            continue
+        if "symbol" not in frame.columns or "exchange" not in frame.columns:
+            continue
+        text = _build_tradingview_watchlist_text(frame)
+        if not text:
+            continue
+        path = export_dir / f"{basename}__{name}.txt"
+        path.write_text(text, encoding="utf-8")
+        created[name] = path
+    return created
+
+
+def _numeric_series_or_nan(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column in frame.columns:
+        return pd.to_numeric(frame[column], errors="coerce")
+    return pd.Series(np.nan, index=frame.index, dtype=float)
+
+
+def _format_reclaim_status_series(frame: pd.DataFrame, column: str = "reclaimed_start_price_within_30s") -> pd.Series:
+    if column not in frame.columns:
+        return pd.Series("n/a", index=frame.index, dtype=object)
+    values = frame[column]
+    bool_values = pd.Series(values, dtype="boolean").fillna(False).astype(bool)
+    return pd.Series(
+        np.where(values.isna(), "n/a", np.where(bool_values, "yes", "no")),
+        index=frame.index,
+        dtype=object,
+    )
+
+
 def export_run_artifacts(
     *,
     export_dir: str | Path | None,
@@ -2473,6 +2694,9 @@ def export_run_artifacts(
         parquet_path = target_dir / f"{basename}__{name}.parquet"
         frame.to_parquet(parquet_path, index=False)
         created_paths[f"parquet_{name}"] = parquet_path
+    txt_paths = _write_tradingview_watchlist_exports(target_dir, basename, parquet_targets)
+    for name, path in txt_paths.items():
+        created_paths[f"txt_{name}"] = path
     return created_paths
 
 
@@ -2649,11 +2873,19 @@ def run_streamlit_app() -> None:
     if not watchlist_result:
         st.warning("No watchlist available yet. Refresh the data basis or generate the watchlist from existing exports.")
     else:
-        watchlist_table = watchlist_result["watchlist_table"]
         st.subheader("Top-N Watchlist")
-        st.caption(
-            f"Watchlist generated at {watchlist_result['generated_at']}. Source data fetched at {watchlist_result.get('source_data_fetched_at') or 'n/a'}."
+        view_mode = st.radio(
+            "Watchlist view",
+            options=["Latest trade date", "Full history"],
+            index=0,
+            horizontal=True,
+            key="dvs_watchlist_view_mode",
         )
+        watchlist_table, watchlist_caption = resolve_watchlist_display_table(
+            watchlist_result=watchlist_result,
+            view_mode=view_mode,
+        )
+        st.caption(watchlist_caption)
         filter_profile = watchlist_result.get("filter_profile") or {}
         if filter_profile:
             st.info(
@@ -2662,6 +2894,23 @@ def run_streamlit_app() -> None:
                 f"reason={filter_profile.get('profile_reason', 'n/a')} | "
                 f"premarket_symbols={filter_profile.get('premarket_symbols', 'n/a')}"
             )
+            if filter_profile.get("profile_name") == "liquidity_relaxed":
+                relaxed_from_dollar_volume = float(filter_profile.get("relaxed_from_dollar_volume", 0.0) or 0.0)
+                relaxed_from_volume_value = _safe_number(filter_profile.get("relaxed_from_volume"))
+                relaxed_from_trade_count_value = _safe_number(filter_profile.get("relaxed_from_trade_count"))
+                relaxed_from_volume = f"{int(relaxed_from_volume_value):,}" if relaxed_from_volume_value is not None else "n/a"
+                relaxed_from_trade_count = f"{int(relaxed_from_trade_count_value):,}" if relaxed_from_trade_count_value is not None else "n/a"
+                relaxed_dollar_volume_to = float(watchlist_result["config_snapshot"].get("min_premarket_dollar_volume", 0.0) or 0.0)
+                relaxed_volume_to = int(watchlist_result["config_snapshot"].get("min_premarket_volume", 0))
+                relaxed_trade_count_to = int(watchlist_result["config_snapshot"].get("min_premarket_trade_count", 0))
+                st.warning(
+                    "Liquidity fallback active: "
+                    f"base_profile={filter_profile.get('base_profile_name', 'n/a')} | "
+                    f"bottleneck={filter_profile.get('relaxed_bottleneck', 'n/a')} | "
+                    f"premarket_dollar_volume {relaxed_from_dollar_volume:,.0f} -> {relaxed_dollar_volume_to:,.0f} | "
+                    f"premarket_volume {relaxed_from_volume} -> {relaxed_volume_to:,} | "
+                    f"premarket_trade_count {relaxed_from_trade_count} -> {relaxed_trade_count_to:,}"
+                )
         for warning in watchlist_result.get("warnings", []):
             st.warning(warning)
 
@@ -2681,10 +2930,17 @@ def run_streamlit_app() -> None:
                 "trade_date",
                 "watchlist_rank",
                 "symbol",
+                "open_pattern_status",
                 "prev_close_to_premarket_pct",
                 "premarket_last",
+                "premarket_dollar_volume",
                 "premarket_volume",
                 "premarket_trade_count",
+                "early_dip_pct_10s",
+                "early_dip_second",
+                "open_30s_volume",
+                "reclaimed_start_price_within_30s",
+                "reclaim_second_30s",
                 "l1_limit_buy",
                 "l1_take_profit",
                 "l1_stop_loss",
@@ -2696,8 +2952,28 @@ def run_streamlit_app() -> None:
                 "l3_stop_loss",
                 "position_budget_usd",
             ]
+            display_watchlist_table = watchlist_table.copy()
+            open_pattern_missing = (
+                _numeric_series_or_nan(display_watchlist_table, "open_30s_volume").isna()
+                & _numeric_series_or_nan(display_watchlist_table, "early_dip_pct_10s").isna()
+                & _numeric_series_or_nan(display_watchlist_table, "reclaim_second_30s").isna()
+            )
+            display_watchlist_table["open_pattern_status"] = np.where(
+                open_pattern_missing,
+                "missing open-window detail",
+                "available",
+            )
             visible_columns = [column for column in preferred_columns if column in watchlist_table.columns]
-            st.dataframe(watchlist_table[visible_columns], width="stretch", hide_index=True, height=420)
+            if "open_pattern_status" not in visible_columns and "open_pattern_status" in display_watchlist_table.columns:
+                visible_columns = ["open_pattern_status", *visible_columns]
+            table_frame = display_watchlist_table[visible_columns].copy()
+            for column in ["early_dip_pct_10s", "early_dip_second", "open_30s_volume", "reclaim_second_30s"]:
+                if column in table_frame.columns:
+                    table_frame[column] = table_frame[column].where(table_frame[column].notna(), "n/a")
+            if "reclaimed_start_price_within_30s" in table_frame.columns:
+                table_frame["reclaimed_start_price_within_30s"] = _format_reclaim_status_series(display_watchlist_table)
+            st.caption("`n/a` or `missing open-window detail` means the symbol-day has no usable regular-open second-detail slice for the dip/reclaim checks.")
+            st.dataframe(table_frame, width="stretch", hide_index=True, height=420)
 
             detail_options = [
                 f"{row.trade_date} | #{int(row.watchlist_rank)} | {row.symbol}"
@@ -2720,6 +2996,7 @@ def run_streamlit_app() -> None:
                 status=status,
                 selected_row=selected_row,
                 watchlist_table=watchlist_table,
+                watchlist_config=watchlist_result.get("requested_config_snapshot") or watchlist_result.get("config_snapshot"),
             )
 
             def _style_checklist_row(row: pd.Series) -> list[str]:
@@ -2745,7 +3022,15 @@ def run_streamlit_app() -> None:
             )
 
             st.subheader("Go/No-Go Checklist")
-            st.metric("Checklist Score", f"{checklist_score}/5")
+            st.markdown(
+                (
+                    "<div style='margin-bottom: 0.25rem;'>"
+                    "<div style='font-size: 0.875rem; font-weight: 600; color: #111827;'>Checklist Score</div>"
+                    f"<div style='font-size: 2rem; line-height: 1.1; font-weight: 700; color: #000000;'>{checklist_score}/5</div>"
+                    "</div>"
+                ),
+                unsafe_allow_html=True,
+            )
             st.caption(checklist_note)
             st.dataframe(checklist_styler, width="stretch", hide_index=True)
 

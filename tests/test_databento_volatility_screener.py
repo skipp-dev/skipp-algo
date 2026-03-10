@@ -12,13 +12,23 @@ from scripts.load_databento_export_bundle import build_bundle_summary, load_expo
 from scripts.databento_production_export import (
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
+    _collect_quality_window_source_frames,
+    _compute_quality_window_signal,
+    _enrich_universe_with_quality_window_status,
+    _filter_premarket_rows,
     _load_fundamental_reference,
+    _select_top_candidates_per_day,
     _format_optional_time,
     _build_premarket_features_full_universe_export,
     _prepare_full_universe_second_detail_export,
 )
 
 from databento_volatility_screener import (
+    _build_tradingview_watchlist_text,
+    _collapse_duplicate_symbol_seconds,
+    _deduplicate_daily_symbol_rows,
+    _format_reclaim_status_series,
+    _numeric_series_or_nan,
     _download_nasdaq_trader_text,
     _clamp_request_end,
     _coerce_timestamp_frame,
@@ -48,11 +58,14 @@ from databento_volatility_screener import (
     SymbolDayState,
     WindowDefinition,
     build_cache_path,
+    build_entry_checklist_table,
     build_data_status_result,
     build_window_definition,
     build_summary_table,
     choose_default_dataset,
+    DataStatusResult,
     rank_top_fraction_per_day,
+    resolve_watchlist_display_table,
     resolve_selected_detail_tables,
     summarize_symbol_day,
 )
@@ -70,6 +83,20 @@ def test_build_window_definition_berlin_local_to_utc() -> None:
     assert window.fetch_start_utc == pd.Timestamp("2025-01-06T13:00:00Z").to_pydatetime()
     assert window.fetch_end_utc == pd.Timestamp("2025-01-06T15:00:00Z").to_pydatetime()
     assert window.regular_open_utc == pd.Timestamp("2025-01-06T14:30:00Z").to_pydatetime()
+
+
+def test_build_window_definition_handles_us_dst_start_transition() -> None:
+    window = build_window_definition(
+        date(2026, 3, 9),
+        display_timezone="Europe/Berlin",
+        window_start=time(14, 20),
+        window_end=time(15, 0),
+        premarket_anchor_et=time(8, 0),
+    )
+
+    assert window.fetch_start_utc == pd.Timestamp("2026-03-09T12:00:00Z").to_pydatetime()
+    assert window.fetch_end_utc == pd.Timestamp("2026-03-09T14:00:00Z").to_pydatetime()
+    assert window.regular_open_utc == pd.Timestamp("2026-03-09T13:30:00Z").to_pydatetime()
 
 
 def test_summarize_symbol_day_computes_requested_percentages() -> None:
@@ -160,6 +187,40 @@ def test_choose_default_dataset_prefers_requested_then_priority_order() -> None:
     assert choose_default_dataset(["XNAS.ITCH", "XNYS.PILLAR"], requested_dataset=None) == "XNAS.ITCH"
 
 
+def test_import_databento_closes_new_idle_event_loops(monkeypatch) -> None:
+    import asyncio
+    import sys
+    import types
+
+    import databento_volatility_screener as dvs
+
+    loop = asyncio.new_event_loop()
+    fake_module = types.SimpleNamespace(Historical=object)
+    original_import = __import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "databento":
+            sys.modules[name] = fake_module
+            return fake_module
+        return original_import(name, globals, locals, fromlist, level)
+
+    snapshots = [[], [loop]]
+
+    def fake_get_objects():
+        if snapshots:
+            return snapshots.pop(0)
+        return [loop]
+
+    monkeypatch.setattr("builtins.__import__", fake_import)
+    monkeypatch.delitem(sys.modules, "databento", raising=False)
+    monkeypatch.setattr(dvs.gc, "get_objects", fake_get_objects)
+
+    result = dvs._import_databento()
+
+    assert result is fake_module
+    assert loop.is_closed()
+
+
 def test_clamp_request_end_caps_to_available_end() -> None:
     requested = pd.Timestamp("2026-03-07T00:00:00Z")
     available = pd.Timestamp("2026-03-06T00:00:00Z")
@@ -194,6 +255,8 @@ def test_symbol_scope_token_and_batches_are_stable() -> None:
 def test_normalize_symbol_for_databento_maps_berkshire_share_classes() -> None:
     assert normalize_symbol_for_databento("brk-b") == "BRK.B"
     assert normalize_symbol_for_databento("BRK-A") == "BRK.A"
+    assert normalize_symbol_for_databento("BRK/B") == "BRK.B"
+    assert normalize_symbol_for_databento("BRK/A") == "BRK.A"
     assert normalize_symbol_for_databento("MSFT") == "MSFT"
 
 
@@ -469,6 +532,575 @@ def test_prepare_second_detail_and_premarket_feature_exports() -> None:
     assert bool(bbb["has_premarket_data"]) is False
 
 
+def test_enrich_universe_with_quality_window_status_marks_latest_trade_date_windows() -> None:
+    trade_day = date(2026, 3, 6)
+    universe = pd.DataFrame(
+        {
+            "symbol": ["AAA", "BBB", "CCC"],
+            "company_name": ["AAA Corp", "BBB Corp", "CCC Corp"],
+        }
+    )
+    daily_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "previous_close": [10.0, 12.0, 1.0],
+        }
+    )
+    premarket_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "prev_close_to_premarket_pct": [1.2, 0.8, 2.0],
+            "premarket_to_open_pct": [0.4, 0.2, -1.0],
+        }
+    )
+    second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * 8,
+            "symbol": ["AAA", "AAA", "BBB", "BBB", "BBB", "BBB", "CCC", "CCC"],
+            "timestamp": [
+                pd.Timestamp("2026-03-06T09:00:00Z"),
+                pd.Timestamp("2026-03-06T09:29:00Z"),
+                pd.Timestamp("2026-03-06T14:00:00Z"),
+                pd.Timestamp("2026-03-06T14:29:00Z"),
+                pd.Timestamp("2026-03-06T09:00:00Z"),
+                pd.Timestamp("2026-03-06T09:29:00Z"),
+                pd.Timestamp("2026-03-06T09:00:00Z"),
+                pd.Timestamp("2026-03-06T09:29:00Z"),
+            ],
+            "close": [10.2, 10.5, 12.1, 12.3, 12.0, 12.2, 3.1, 3.2],
+            "high": [10.2, 10.55, 12.2, 12.35, 12.05, 12.25, 3.15, 3.2],
+            "open": [10.1, 10.2, 12.0, 12.1, 11.95, 12.0, 3.0, 3.1],
+            "low": [10.1, 10.2, 12.0, 12.1, 11.95, 12.0, 3.0, 3.1],
+            "volume": [30_000.0, 30_000.0, 30_000.0, 30_000.0, 25_000.0, 25_000.0, 30_000.0, 30_000.0],
+        }
+    )
+
+    status, candidate_exports = _compute_quality_window_signal(
+        second_detail,
+        daily_features,
+        premarket_features,
+        display_timezone="Europe/Berlin",
+        latest_trade_date=trade_day,
+    )
+
+    enriched = _enrich_universe_with_quality_window_status(
+        universe,
+        daily_features,
+        premarket_features,
+        second_detail,
+        display_timezone="Europe/Berlin",
+    )
+
+    statuses = dict(zip(enriched["symbol"], enriched["quality_open_drive_window_latest_berlin"], strict=False))
+    coverage = dict(zip(enriched["symbol"], enriched["quality_open_drive_window_coverage_latest_berlin"], strict=False))
+    scores = dict(zip(enriched["symbol"], enriched["quality_open_drive_window_score_latest_berlin"], strict=False))
+    assert statuses["AAA"] == "10:00-10:30"
+    assert statuses["BBB"] == "10:00-10:30+15:00-15:30"
+    assert statuses["CCC"] == "none"
+    assert coverage["AAA"] == "10:00-10:30"
+    assert coverage["BBB"] == "10:00-10:30+15:00-15:30"
+    assert coverage["CCC"] == "10:00-10:30"
+    assert round(float(scores["AAA"]), 4) == 11.5
+    assert round(float(scores["BBB"]), 4) == 11.5
+    assert pd.isna(scores["CCC"])
+    assert set(enriched["quality_open_drive_window_trade_date"].astype(str)) == {"2026-03-06"}
+    assert set(status["symbol"]) == {"AAA", "BBB", "CCC"}
+
+    early_candidates = candidate_exports["quality_candidates_0400_0430_et_all"]
+    late_candidates = candidate_exports["quality_candidates_0900_0930_et_all"]
+    assert list(early_candidates["symbol"]) == ["AAA", "BBB"]
+    assert list(late_candidates["symbol"]) == ["BBB"]
+    assert set(early_candidates.columns) >= {
+        "trade_date",
+        "symbol",
+        "previous_close",
+        "prev_close_to_premarket_pct",
+        "premarket_to_open_pct",
+        "window_return_pct",
+        "window_range_pct",
+        "window_close_vs_high_pct",
+        "window_dollar_volume",
+        "quality_score",
+    }
+    assert list(candidate_exports["quality_candidates_0400_0430_et_top20_per_day"]["symbol"]) == ["AAA", "BBB"]
+    assert list(candidate_exports["quality_candidates_0900_0930_et_top50_per_day"]["symbol"]) == ["BBB"]
+
+
+def test_collect_quality_window_source_frames_prefers_exchange_specific_early_and_premarket_sources(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame(
+        {
+            "symbol": ["AAA", "BBB", "CCC"],
+            "exchange": ["NASDAQ", "NYSE", "AMEX"],
+        }
+    )
+    supported_universe = raw_universe.copy()
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "previous_close": [10.0, 20.0, 30.0],
+        }
+    )
+
+    def _frame(rows: list[tuple[str, str, float]]) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day] * len(rows),
+                "symbol": [symbol for symbol, _, _ in rows],
+                "timestamp": [pd.Timestamp(ts) for _, ts, _ in rows],
+                "session": ["premarket" if pd.Timestamp(ts) < pd.Timestamp("2026-03-06T14:30:00Z") else "regular" for _, ts, _ in rows],
+                "open": [value for _, _, value in rows],
+                "high": [value for _, _, value in rows],
+                "low": [value for _, _, value in rows],
+                "close": [value for _, _, value in rows],
+                "volume": [100.0] * len(rows),
+                "second_delta_pct": [np.nan] * len(rows),
+                "from_previous_close_pct": [np.nan] * len(rows),
+            }
+        )
+
+    frames = {
+        "DBEQ.BASIC": _frame(
+            [
+                ("AAA", "2026-03-06T09:00:00Z", 10.0),
+                ("AAA", "2026-03-06T14:00:00Z", 11.0),
+                ("AAA", "2026-03-06T14:29:59Z", 12.0),
+                ("AAA", "2026-03-06T14:30:10Z", 13.0),
+                ("BBB", "2026-03-06T09:00:00Z", 20.0),
+                ("BBB", "2026-03-06T14:00:00Z", 21.0),
+                ("BBB", "2026-03-06T14:29:59Z", 22.0),
+                ("BBB", "2026-03-06T14:30:10Z", 23.0),
+                ("CCC", "2026-03-06T09:00:00Z", 30.0),
+                ("CCC", "2026-03-06T14:00:00Z", 31.0),
+                ("CCC", "2026-03-06T14:29:59Z", 32.0),
+                ("CCC", "2026-03-06T14:30:10Z", 33.0),
+            ]
+        ),
+        "XNAS.BASIC": _frame(
+            [
+                ("AAA", "2026-03-06T09:00:00Z", 100.0),
+                ("AAA", "2026-03-06T14:00:00Z", 110.0),
+                ("AAA", "2026-03-06T14:29:59Z", 120.0),
+                ("AAA", "2026-03-06T14:30:10Z", 130.0),
+            ]
+        ),
+        "XNYS.PILLAR": _frame(
+            [
+                ("BBB", "2026-03-06T09:00:00Z", 200.0),
+                ("BBB", "2026-03-06T14:00:00Z", 210.0),
+                ("BBB", "2026-03-06T14:29:59Z", 220.0),
+                ("BBB", "2026-03-06T14:30:10Z", 230.0),
+            ]
+        ),
+        "XASE.PILLAR": _frame(
+            [
+                ("CCC", "2026-03-06T09:00:00Z", 300.0),
+                ("CCC", "2026-03-06T14:00:00Z", 310.0),
+                ("CCC", "2026-03-06T14:29:59Z", 320.0),
+                ("CCC", "2026-03-06T14:30:10Z", 330.0),
+            ]
+        ),
+    }
+
+    def fake_collect(*args, dataset: str, universe_symbols: set[str], **kwargs):
+        frame = frames[dataset].copy()
+        return frame.loc[frame["symbol"].isin(universe_symbols)].reset_index(drop=True)
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    quality_detail, premarket_detail, metadata = _collect_quality_window_source_frames(
+        databento_api_key="test-key",
+        base_dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=daily_bars,
+        symbol_day_scope=None,
+        display_timezone="Europe/Berlin",
+        window_start=None,
+        window_end=None,
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=False,
+        early_exchange_datasets={"NASDAQ": "XNAS.BASIC", "NYSE": "XNYS.PILLAR", "AMEX": "XASE.PILLAR"},
+    )
+
+    aaa_quality = quality_detail.loc[quality_detail["symbol"] == "AAA"].sort_values("timestamp")
+    bbb_quality = quality_detail.loc[quality_detail["symbol"] == "BBB"].sort_values("timestamp")
+    ccc_quality = quality_detail.loc[quality_detail["symbol"] == "CCC"].sort_values("timestamp")
+    aaa_premarket = premarket_detail.loc[premarket_detail["symbol"] == "AAA"].sort_values("timestamp")
+    bbb_premarket = premarket_detail.loc[premarket_detail["symbol"] == "BBB"].sort_values("timestamp")
+    ccc_premarket = premarket_detail.loc[premarket_detail["symbol"] == "CCC"].sort_values("timestamp")
+
+    assert list(aaa_quality["close"]) == [100.0, 11.0, 12.0, 130.0]
+    assert list(bbb_quality["close"]) == [200.0, 21.0, 22.0, 230.0]
+    assert list(ccc_quality["close"]) == [300.0, 31.0, 32.0, 330.0]
+    assert list(aaa_premarket["close"]) == [100.0, 110.0, 120.0]
+    assert list(bbb_premarket["close"]) == [200.0, 210.0, 220.0]
+    assert list(ccc_premarket["close"]) == [300.0, 310.0, 320.0]
+    assert metadata["applied_early_exchange_datasets"] == {"NASDAQ": "XNAS.BASIC", "NYSE": "XNYS.PILLAR", "AMEX": "XASE.PILLAR"}
+    assert metadata["early_exchange_symbol_counts"] == {"NASDAQ": 1, "NYSE": 1, "AMEX": 1}
+
+
+def test_collect_quality_window_source_frames_uses_alternate_on_timestamp_collisions(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame({"symbol": ["AAA"], "exchange": ["NASDAQ"]})
+    supported_universe = raw_universe.copy()
+    daily_bars = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"], "previous_close": [10.0]})
+
+    def _frame(close_value: float) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAA"],
+                "timestamp": [pd.Timestamp("2026-03-06T09:00:00Z")],
+                "session": ["premarket"],
+                "open": [close_value],
+                "high": [close_value],
+                "low": [close_value],
+                "close": [close_value],
+                "volume": [100.0],
+                "second_delta_pct": [np.nan],
+                "from_previous_close_pct": [np.nan],
+            }
+        )
+
+    frames = {
+        "DBEQ.BASIC": _frame(10.0),
+        "XNAS.BASIC": _frame(100.0),
+    }
+
+    def fake_collect(*args, dataset: str, universe_symbols: set[str], **kwargs):
+        frame = frames[dataset].copy()
+        return frame.loc[frame["symbol"].isin(universe_symbols)].reset_index(drop=True)
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    quality_detail, premarket_detail, _ = _collect_quality_window_source_frames(
+        databento_api_key="test-key",
+        base_dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=daily_bars,
+        symbol_day_scope=None,
+        display_timezone="Europe/Berlin",
+        window_start=None,
+        window_end=None,
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=False,
+        early_exchange_datasets={"NASDAQ": "XNAS.BASIC"},
+    )
+
+    assert len(quality_detail) == 1
+    assert len(premarket_detail) == 1
+    assert float(quality_detail.iloc[0]["close"]) == 100.0
+    assert float(premarket_detail.iloc[0]["close"]) == 100.0
+
+
+def test_collect_quality_window_source_frames_keeps_base_for_exchange_symbols_missing_in_alternate(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame({"symbol": ["AAA", "AAB"], "exchange": ["NASDAQ", "NASDAQ"]})
+    supported_universe = raw_universe.copy()
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "AAB"],
+            "previous_close": [10.0, 11.0],
+        }
+    )
+
+    def _frame(rows: list[tuple[str, str, float]]) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day] * len(rows),
+                "symbol": [symbol for symbol, _, _ in rows],
+                "timestamp": [pd.Timestamp(ts) for _, ts, _ in rows],
+                "session": ["premarket"] * len(rows),
+                "open": [value for _, _, value in rows],
+                "high": [value for _, _, value in rows],
+                "low": [value for _, _, value in rows],
+                "close": [value for _, _, value in rows],
+                "volume": [100.0] * len(rows),
+                "second_delta_pct": [np.nan] * len(rows),
+                "from_previous_close_pct": [np.nan] * len(rows),
+            }
+        )
+
+    frames = {
+        "DBEQ.BASIC": _frame(
+            [
+                ("AAA", "2026-03-06T09:00:00Z", 10.0),
+                ("AAB", "2026-03-06T09:00:00Z", 20.0),
+            ]
+        ),
+        "XNAS.BASIC": _frame(
+            [
+                ("AAA", "2026-03-06T09:00:00Z", 100.0),
+            ]
+        ),
+    }
+
+    def fake_collect(*args, dataset: str, universe_symbols: set[str], **kwargs):
+        frame = frames[dataset].copy()
+        return frame.loc[frame["symbol"].isin(universe_symbols)].reset_index(drop=True)
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    quality_detail, premarket_detail, _ = _collect_quality_window_source_frames(
+        databento_api_key="test-key",
+        base_dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=daily_bars,
+        symbol_day_scope=None,
+        display_timezone="Europe/Berlin",
+        window_start=None,
+        window_end=None,
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=False,
+        early_exchange_datasets={"NASDAQ": "XNAS.BASIC"},
+    )
+
+    aaa_pm = premarket_detail.loc[premarket_detail["symbol"] == "AAA", "close"].tolist()
+    aab_pm = premarket_detail.loc[premarket_detail["symbol"] == "AAB", "close"].tolist()
+    assert aaa_pm == [100.0]
+    assert aab_pm == [20.0]
+    assert set(quality_detail["symbol"].tolist()) == {"AAA", "AAB"}
+
+
+def test_collect_quality_window_source_frames_normalizes_symbol_aliases_for_exchange_routing(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame({"symbol": ["BRK/B"], "exchange": ["NYSE"]})
+    supported_universe = pd.DataFrame({"symbol": ["BRK.B"], "exchange": ["NYSE"]})
+    daily_bars = pd.DataFrame({"trade_date": [trade_day], "symbol": ["BRK.B"], "previous_close": [10.0]})
+
+    def _frame(close_value: float, session: str = "premarket") -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["BRK.B"],
+                "timestamp": [pd.Timestamp("2026-03-06T09:00:00Z")],
+                "session": [session],
+                "open": [close_value],
+                "high": [close_value],
+                "low": [close_value],
+                "close": [close_value],
+                "volume": [100.0],
+                "second_delta_pct": [np.nan],
+                "from_previous_close_pct": [np.nan],
+            }
+        )
+
+    frames = {
+        "DBEQ.BASIC": _frame(10.0),
+        "XNYS.PILLAR": _frame(100.0),
+    }
+
+    def fake_collect(*args, dataset: str, universe_symbols: set[str], **kwargs):
+        frame = frames[dataset].copy()
+        return frame.loc[frame["symbol"].isin(universe_symbols)].reset_index(drop=True)
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    quality_detail, premarket_detail, metadata = _collect_quality_window_source_frames(
+        databento_api_key="test-key",
+        base_dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=daily_bars,
+        symbol_day_scope=None,
+        display_timezone="Europe/Berlin",
+        window_start=None,
+        window_end=None,
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=False,
+        early_exchange_datasets={"NYSE": "XNYS.PILLAR"},
+    )
+
+    assert len(quality_detail) == 1
+    assert len(premarket_detail) == 1
+    assert float(quality_detail.iloc[0]["close"]) == 100.0
+    assert float(premarket_detail.iloc[0]["close"]) == 100.0
+    assert metadata["applied_early_exchange_datasets"] == {"NYSE": "XNYS.PILLAR"}
+
+
+def test_collect_quality_window_source_frames_normalizes_exchange_aliases_for_amex(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame({"symbol": ["EQX"], "exchange": ["NYSE American"]})
+    supported_universe = pd.DataFrame({"symbol": ["EQX"], "exchange": ["NYSE American"]})
+    daily_bars = pd.DataFrame({"trade_date": [trade_day], "symbol": ["EQX"], "previous_close": [5.0]})
+
+    def _frame(close_value: float) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["EQX"],
+                "timestamp": [pd.Timestamp("2026-03-06T09:00:00Z")],
+                "session": ["premarket"],
+                "open": [close_value],
+                "high": [close_value],
+                "low": [close_value],
+                "close": [close_value],
+                "volume": [100.0],
+                "second_delta_pct": [np.nan],
+                "from_previous_close_pct": [np.nan],
+            }
+        )
+
+    frames = {
+        "DBEQ.BASIC": _frame(10.0),
+        "XASE.PILLAR": _frame(100.0),
+    }
+
+    def fake_collect(*args, dataset: str, universe_symbols: set[str], **kwargs):
+        frame = frames[dataset].copy()
+        return frame.loc[frame["symbol"].isin(universe_symbols)].reset_index(drop=True)
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    quality_detail, premarket_detail, metadata = _collect_quality_window_source_frames(
+        databento_api_key="test-key",
+        base_dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=daily_bars,
+        symbol_day_scope=None,
+        display_timezone="Europe/Berlin",
+        window_start=None,
+        window_end=None,
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=False,
+        early_exchange_datasets={"AMEX": "XASE.PILLAR"},
+    )
+
+    assert len(quality_detail) == 1
+    assert len(premarket_detail) == 1
+    assert float(quality_detail.iloc[0]["close"]) == 100.0
+    assert float(premarket_detail.iloc[0]["close"]) == 100.0
+    assert metadata["applied_early_exchange_datasets"] == {"AMEX": "XASE.PILLAR"}
+
+
+def test_filter_premarket_rows_strips_session_whitespace() -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA"],
+            "session": [" Premarket ", "regular"],
+            "timestamp": [pd.Timestamp("2026-03-06T09:00:00Z"), pd.Timestamp("2026-03-06T14:30:00Z")],
+        }
+    )
+
+    filtered = _filter_premarket_rows(frame)
+
+    assert len(filtered) == 1
+    assert str(filtered.iloc[0]["session"]).strip().lower() == "premarket"
+
+
+def test_select_top_candidates_per_day_returns_empty_for_non_positive_top_n() -> None:
+    frame = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 6), date(2026, 3, 6)],
+            "symbol": ["AAA", "BBB"],
+            "quality_score": [5.0, 4.0],
+            "window_dollar_volume": [1000.0, 900.0],
+            "window_return_pct": [1.0, 0.8],
+        }
+    )
+
+    result_zero = _select_top_candidates_per_day(frame, 0)
+    result_negative = _select_top_candidates_per_day(frame, -1)
+
+    assert result_zero.empty
+    assert result_negative.empty
+
+
+def test_build_tradingview_watchlist_text_uses_exchange_prefixed_symbols() -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["EQX", "GBR", "EQX", "SPY", "", None],
+            "exchange": ["AMEX", "AMEX", "AMEX", "NYSE ARCA", "AMEX", "NASDAQ"],
+        }
+    )
+
+    assert _build_tradingview_watchlist_text(frame) == "AMEX:EQX,AMEX:GBR,AMEX:SPY,"
+
+
+def test_numeric_series_or_nan_returns_nan_series_for_missing_columns() -> None:
+    frame = pd.DataFrame({"symbol": ["AAA", "BBB"]})
+    series = _numeric_series_or_nan(frame, "open_30s_volume")
+
+    assert len(series) == len(frame)
+    assert series.isna().all()
+
+
+def test_format_reclaim_status_series_handles_missing_and_boolean_values() -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["AAA", "BBB", "CCC", "DDD"],
+            "reclaimed_start_price_within_30s": [True, False, np.nan, pd.NA],
+        }
+    )
+
+    formatted = _format_reclaim_status_series(frame)
+
+    assert formatted.tolist() == ["yes", "no", "n/a", "n/a"]
+
+
+def test_format_reclaim_status_series_returns_na_for_missing_column() -> None:
+    frame = pd.DataFrame({"symbol": ["AAA", "BBB"]})
+
+    formatted = _format_reclaim_status_series(frame)
+
+    assert formatted.tolist() == ["n/a", "n/a"]
+
+
+def test_prepare_full_universe_second_detail_export_deduplicates_daily_feature_lookup() -> None:
+    trade_day = date(2026, 3, 6)
+    daily_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "AAA"],
+            "previous_close": [10.0, 10.0],
+            "market_open_price": [10.5, 10.5],
+        }
+    )
+    second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "timestamp": [pd.Timestamp("2026-03-06T14:30:00Z")],
+            "session": ["regular"],
+            "open": [10.5],
+            "high": [10.7],
+            "low": [10.4],
+            "close": [10.6],
+            "volume": [300.0],
+            "second_delta_pct": [2.4155],
+            "from_previous_close_pct": [6.0],
+        }
+    )
+
+    prepared = _prepare_full_universe_second_detail_export(second_detail, daily_features)
+
+    assert len(prepared) == 1
+    assert prepared.iloc[0]["symbol"] == "AAA"
+
+
 def test_format_optional_time_handles_none() -> None:
     assert _format_optional_time(None) == "market_relative_default"
     assert _format_optional_time(time(15, 30, 20)) == "15:30:20"
@@ -693,6 +1325,45 @@ def test_generate_watchlist_result_returns_generated_and_source_timestamps(tmp_p
     assert result["watchlist_table"].iloc[0]["symbol"] == "BBB"
 
 
+def test_resolve_watchlist_display_table_switches_between_latest_and_full_history() -> None:
+    historical = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 6), date(2026, 3, 7), date(2026, 3, 7)],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "watchlist_rank": [1, 1, 2],
+        }
+    )
+    active = historical.loc[historical["trade_date"] == date(2026, 3, 7)].reset_index(drop=True)
+    watchlist_result = {
+        "generated_at": "2026-03-09T17:00:00+00:00",
+        "source_data_fetched_at": "2026-03-09T16:55:00+00:00",
+        "trade_date": "2026-03-07",
+        "watchlist_table": historical,
+        "active_watchlist_table": active,
+    }
+
+    latest_table, latest_caption = resolve_watchlist_display_table(
+        watchlist_result=watchlist_result,
+        view_mode="Latest trade date",
+    )
+    full_table, full_caption = resolve_watchlist_display_table(
+        watchlist_result=watchlist_result,
+        view_mode="Full history",
+    )
+
+    assert latest_table[["trade_date", "symbol"]].to_dict(orient="records") == [
+        {"trade_date": date(2026, 3, 7), "symbol": "BBB"},
+        {"trade_date": date(2026, 3, 7), "symbol": "CCC"},
+    ]
+    assert "Showing latest trade date 2026-03-07 (2 rows, 3 historical rows total)." in latest_caption
+    assert full_table[["trade_date", "symbol"]].to_dict(orient="records") == [
+        {"trade_date": date(2026, 3, 6), "symbol": "AAA"},
+        {"trade_date": date(2026, 3, 7), "symbol": "BBB"},
+        {"trade_date": date(2026, 3, 7), "symbol": "CCC"},
+    ]
+    assert "Showing full history (3 rows across 2 trade dates). Latest trade date is 2026-03-07." in full_caption
+
+
 def test_generate_watchlist_result_falls_back_to_latest_bundle_when_exact_named_exports_are_corrupt(tmp_path: Path) -> None:
     trade_day = date(2026, 3, 6)
     (tmp_path / "daily_symbol_features_full_universe.parquet").write_text("corrupt", encoding="utf-8")
@@ -785,14 +1456,24 @@ def test_filter_funnel_returned_when_watchlist_empty(tmp_path: Path) -> None:
     daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
     prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
 
-    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=5))
+    result = generate_watchlist_result(
+        export_dir=tmp_path,
+        cfg=LongDipConfig(
+            top_n=5,
+            min_premarket_dollar_volume=5_000.0,
+            min_premarket_volume=1_000,
+            min_premarket_trade_count=0,
+        ),
+    )
 
     assert result["watchlist_table"].empty
     funnel = result["filter_funnel"]
     assert len(funnel) >= 5
     assert funnel[0]["filter"] == "Total symbols"
     assert funnel[0]["remaining"] == 2
-    # premarket_volume >= 50,000 should be the bottleneck
+    # premarket_dollar_volume >= 5,000 leaves AAA alive, and the stricter share-volume cut then eliminates it.
+    pmdv_step = next(s for s in funnel if s["filter"] == "premarket_dollar_volume")
+    assert pmdv_step["remaining"] == 1
     vol_step = next(s for s in funnel if s["filter"] == "premarket_volume")
     assert vol_step["remaining"] == 0
 
@@ -1079,6 +1760,59 @@ def test_download_nasdaq_trader_text_retries_then_succeeds(monkeypatch) -> None:
     assert calls["count"] == 3
 
 
+def test_download_nasdaq_trader_text_retries_on_http_429_then_succeeds(monkeypatch) -> None:
+    from urllib.error import HTTPError
+
+    calls = {"count": 0}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b"Symbol|Security Name|Listing Exchange\n"
+
+    def fake_urlopen(request, timeout, context):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise HTTPError(request.full_url, 429, "too many requests", hdrs=None, fp=None)
+        return FakeResponse()
+
+    monkeypatch.setattr("databento_volatility_screener.urlopen", fake_urlopen)
+    monkeypatch.setattr("databento_volatility_screener.time_module.sleep", lambda _: None)
+
+    payload = _download_nasdaq_trader_text("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt")
+
+    assert "Symbol|Security Name|Listing Exchange" in payload
+    assert calls["count"] == 3
+
+
+def test_download_nasdaq_trader_text_raises_after_retries_for_http_error_statuses(monkeypatch) -> None:
+    from urllib.error import HTTPError
+
+    status_codes = [401, 403, 500]
+    for status_code in status_codes:
+        calls = {"count": 0}
+
+        def fake_urlopen(request, timeout, context, *, _status_code=status_code):
+            calls["count"] += 1
+            raise HTTPError(request.full_url, _status_code, "failure", hdrs=None, fp=None)
+
+        monkeypatch.setattr("databento_volatility_screener.urlopen", fake_urlopen)
+        monkeypatch.setattr("databento_volatility_screener.time_module.sleep", lambda _: None)
+
+        try:
+            _download_nasdaq_trader_text("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt")
+        except HTTPError as exc:
+            assert exc.code == status_code
+        else:
+            raise AssertionError(f"Expected HTTPError for status code {status_code}")
+        assert calls["count"] == 3
+
+
 def test_build_daily_features_full_universe_materializes_expected_symbol_days() -> None:
     trading_days = [date(2026, 3, 5), date(2026, 3, 6)]
     universe = pd.DataFrame(
@@ -1160,11 +1894,55 @@ def test_build_daily_features_full_universe_materializes_expected_symbol_days() 
     aapl_day = features[(features["trade_date"] == date(2026, 3, 5)) & (features["symbol"] == "AAPL")].iloc[0]
     assert bool(aapl_day["has_premarket_data"]) is True
     assert float(aapl_day["open_1m_volume"]) == 30.0
+    assert float(aapl_day["open_30s_volume"]) == 10.0
+    assert float(aapl_day["regular_open_reference_price"]) == 101.0
+    assert round(float(aapl_day["early_dip_pct_10s"]), 4) == -0.0990
+    assert float(aapl_day["early_dip_second"]) == 0.0
+    assert bool(aapl_day["reclaimed_start_price_within_30s"]) is False
+    assert pd.isna(aapl_day["reclaim_second_30s"])
     assert aapl_day["premarket_price_source"] == "last_ohlcv_1s_close_between_anchor_and_regular_open"
     missing_row = coverage[(coverage["trade_date"] == date(2026, 3, 6)) & (coverage["symbol"] == "AAPL")].iloc[0]
     assert bool(missing_row["has_daily_bar"]) is True
     assert bool(missing_row["has_open_window_detail"]) is False
     assert missing_row["exclusion_reason"] == "missing_intraday_summary"
+
+
+def test_build_entry_checklist_table_applies_exact_long_setup_rules() -> None:
+    status = DataStatusResult(
+        export_generated_at=datetime.now(UTC).isoformat(),
+        daily_bars_fetched_at=None,
+        intraday_fetched_at=None,
+        premarket_fetched_at=None,
+        second_detail_fetched_at=None,
+        dataset="XNAS.BASIC",
+        lookback_days=5,
+        trade_dates_covered=("2026-03-05",),
+        is_stale=False,
+        staleness_reason="",
+        manifest_path=None,
+    )
+    selected_row = pd.Series(
+        {
+            "prev_close_to_premarket_pct": 6.2,
+            "premarket_dollar_volume": 750_000.0,
+            "early_dip_pct_10s": -0.7,
+            "early_dip_second": 4.0,
+            "open_30s_volume": 12_000.0,
+            "reclaimed_start_price_within_30s": True,
+            "reclaim_second_30s": 14.0,
+        }
+    )
+
+    checklist, rule_note, score = build_entry_checklist_table(
+        status=status,
+        selected_row=selected_row,
+        watchlist_table=pd.DataFrame(),
+        watchlist_config=None,
+    )
+
+    assert score == 5
+    assert checklist["erfuellt"].tolist() == [True, True, True, True, True]
+    assert "Gap >= 5.0%" in rule_note
 
 
 def test_build_daily_features_full_universe_handles_missing_open_window_rows_column() -> None:
@@ -1236,6 +2014,94 @@ def test_fetch_symbol_day_detail_uses_exclusive_intraday_end(monkeypatch) -> Non
     assert captured["end"] == "2026-03-05T15:00:01+00:00"
 
 
+def test_fetch_symbol_day_detail_collapses_duplicate_symbol_seconds(monkeypatch) -> None:
+    duplicate_ts = pd.Timestamp("2026-03-05T14:30:00Z")
+    next_ts = pd.Timestamp("2026-03-05T14:30:01Z")
+
+    class FakeStore:
+        def to_df(self):
+            return pd.DataFrame(
+                {
+                    "symbol": ["AAPL", "AAPL", "AAPL"],
+                    "open": [10.0, 10.2, 12.5],
+                    "high": [11.0, 13.0, 12.7],
+                    "low": [9.5, 10.1, 12.4],
+                    "close": [10.5, 12.5, 12.6],
+                    "volume": [100, 250, 50],
+                },
+                index=pd.DatetimeIndex([duplicate_ts, duplicate_ts, next_ts], name="ts_event"),
+            )
+
+    class FakeTimeseries:
+        def get_range(self, **kwargs):
+            return FakeStore()
+
+    class FakeClient:
+        timeseries = FakeTimeseries()
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda api_key: FakeClient())
+
+    second_detail, minute_detail = fetch_symbol_day_detail(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        symbol="AAPL",
+        trade_date=date(2026, 3, 5),
+        previous_close=10.0,
+    )
+
+    assert len(second_detail) == 2
+    first = second_detail.sort_values("timestamp").iloc[0]
+    assert first["open"] == 10.0
+    assert first["high"] == 13.0
+    assert first["low"] == 9.5
+    assert first["close"] == 12.5
+    assert first["volume"] == 350
+    assert len(minute_detail) == 1
+    assert minute_detail.iloc[0]["volume"] == 400
+
+
+def test_collapse_duplicate_symbol_seconds_sums_trade_count_alias_columns() -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA"],
+            "ts": [pd.Timestamp("2026-03-05T14:30:00Z"), pd.Timestamp("2026-03-05T14:30:00Z")],
+            "open": [10.0, 10.2],
+            "high": [10.5, 10.6],
+            "low": [9.9, 10.1],
+            "close": [10.1, 10.4],
+            "volume": [100, 200],
+            "trade_count": [3, 7],
+            "n_trades": [11, 13],
+        }
+    )
+
+    collapsed = _collapse_duplicate_symbol_seconds(frame, context="unit-test")
+
+    assert len(collapsed) == 1
+    assert int(collapsed.iloc[0]["trade_count"]) == 10
+    assert int(collapsed.iloc[0]["n_trades"]) == 24
+
+
+def test_deduplicate_daily_symbol_rows_uses_close_as_tie_breaker_when_volume_matches() -> None:
+    trade_day = date(2026, 3, 6)
+    frame = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "AAA"],
+            "open": [10.0, 10.0],
+            "high": [10.4, 10.5],
+            "low": [9.8, 9.9],
+            "close": [10.2, 10.3],
+            "volume": [1_000.0, 1_000.0],
+        }
+    )
+
+    deduped = _deduplicate_daily_symbol_rows(frame)
+
+    assert len(deduped) == 1
+    assert float(deduped.iloc[0]["close"]) == 10.3
+
+
 def test_estimate_databento_costs_uses_exclusive_daily_and_intraday_ends(monkeypatch) -> None:
     cost_calls: list[dict[str, str]] = []
     size_calls: list[dict[str, str]] = []
@@ -1282,6 +2148,51 @@ def test_export_run_artifacts_defaults_exported_at_to_utc(tmp_path) -> None:
     manifest = json.loads(created["manifest"].read_text(encoding="utf-8"))
 
     assert manifest["exported_at"].endswith("+00:00")
+
+
+def test_export_run_artifacts_writes_tradingview_txt_for_exchange_symbol_frames(tmp_path) -> None:
+    created = export_run_artifacts(
+        export_dir=tmp_path,
+        basename="bundle_20260308_120000",
+        summary=pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}),
+        universe=pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}),
+        daily_bars=pd.DataFrame({"symbol": ["AAPL"]}),
+        intraday=pd.DataFrame({"symbol": ["AAPL"]}),
+        ranked=pd.DataFrame({"symbol": ["MSFT"], "exchange": ["NASDAQ"]}),
+        additional_parquet_targets={
+            "watch_candidates": pd.DataFrame(
+                {
+                    "symbol": ["EQX", "GBR"],
+                    "exchange": ["AMEX", "AMEX"],
+                }
+            )
+        },
+    )
+
+    assert created["txt_summary"].name == "bundle_20260308_120000__summary.txt"
+    assert created["txt_universe"].name == "bundle_20260308_120000__universe.txt"
+    assert created["txt_ranked"].name == "bundle_20260308_120000__ranked.txt"
+    assert created["txt_watch_candidates"].name == "bundle_20260308_120000__watch_candidates.txt"
+    assert created["txt_summary"].read_text(encoding="utf-8") == "NASDAQ:AAPL,"
+    assert created["txt_universe"].read_text(encoding="utf-8") == "NASDAQ:AAPL,"
+    assert created["txt_ranked"].read_text(encoding="utf-8") == "NASDAQ:MSFT,"
+    assert created["txt_watch_candidates"].read_text(encoding="utf-8") == "AMEX:EQX,AMEX:GBR,"
+
+
+def test_export_run_artifacts_skips_tradingview_txt_when_symbol_or_exchange_missing(tmp_path) -> None:
+    created = export_run_artifacts(
+        export_dir=tmp_path,
+        basename="bundle_20260308_120001",
+        summary=pd.DataFrame({"value": [1]}),
+        universe=pd.DataFrame({"symbol": ["AAPL"]}),
+        daily_bars=pd.DataFrame({"symbol": ["AAPL"]}),
+        intraday=pd.DataFrame({"symbol": ["AAPL"]}),
+        ranked=pd.DataFrame({"exchange": ["NASDAQ"]}),
+    )
+
+    assert "txt_summary" not in created
+    assert "txt_universe" not in created
+    assert "txt_ranked" not in created
 
 
 # ── P2: Mocked tests for previously untested critical functions ──────────
@@ -1394,6 +2305,60 @@ def test_load_daily_bars_transforms_and_filters_correctly(monkeypatch) -> None:
     # previous_close for Mar 5 should be Mar 4's close
     mar5 = result[result["trade_date"] == date(2026, 3, 5)].iloc[0]
     assert mar5["previous_close"] == 102.5
+
+
+def test_load_daily_bars_deduplicates_symbol_day_using_highest_volume(monkeypatch) -> None:
+    raw_df = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "AAPL", "AAPL", "AAPL"],
+            "open": [100, 102, 103, 104],
+            "high": [101, 103, 104, 105],
+            "low": [99, 101, 102, 103],
+            "close": [100.5, 102.5, 103.5, 104.5],
+            "volume": [1000, 1100, 5000, 1200],
+        },
+        index=pd.DatetimeIndex(
+            [
+                pd.Timestamp("2026-02-25T00:00Z"),
+                pd.Timestamp("2026-03-04T00:00Z"),
+                pd.Timestamp("2026-03-04T00:00Z"),
+                pd.Timestamp("2026-03-05T00:00Z"),
+            ],
+            name="ts_event",
+        ),
+    )
+
+    class FakeStore:
+        def to_df(self):
+            return raw_df
+
+    class FakeTimeseries:
+        def get_range(self, **kwargs):
+            return FakeStore()
+
+    class FakeClient:
+        timeseries = FakeTimeseries()
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda api_key: FakeClient())
+    monkeypatch.setattr(
+        "databento_volatility_screener._get_schema_available_end",
+        lambda client, dataset, schema: None,
+    )
+
+    result = load_daily_bars(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 3, 4), date(2026, 3, 5)],
+        universe_symbols={"AAPL"},
+    )
+
+    assert len(result) == 2
+    mar4 = result[result["trade_date"] == date(2026, 3, 4)].iloc[0]
+    mar5 = result[result["trade_date"] == date(2026, 3, 5)].iloc[0]
+    assert mar4["close"] == 103.5
+    assert mar4["volume"] == 5000
+    assert mar4["previous_close"] == 100.5
+    assert mar5["previous_close"] == 103.5
 
 
 def test_load_daily_bars_returns_empty_for_no_trading_days() -> None:

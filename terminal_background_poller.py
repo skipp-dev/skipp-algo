@@ -57,6 +57,7 @@ class BackgroundPoller:
         self._queue: queue.Queue[list[Any]] = queue.Queue(maxsize=500)
         self._cursor: str | None = None
         self._lock = threading.Lock()
+        self._stats_lock = threading.Lock()  # protects observable counters
         self._stop_event = threading.Event()
         self._wake_event = threading.Event()  # signal to interrupt sleep
         self._thread: threading.Thread | None = None
@@ -212,7 +213,8 @@ class BackgroundPoller:
             if bz is None and fmp is None:
                 continue
 
-            self.poll_attempts += 1
+            with self._stats_lock:
+                self.poll_attempts += 1
             _t0 = time.monotonic()
             # Snapshot cursor under lock so a concurrent reset is
             # not overwritten by the new_cursor assignment below.
@@ -234,13 +236,12 @@ class BackgroundPoller:
                     str(exc), flags=_re.IGNORECASE,
                 )
                 logger.exception("Background poll failed: %s", _safe)
-                self.last_poll_error = _safe
-                self.last_poll_status = "ERROR"
-                self.last_poll_ts = time.time()
-                self.last_poll_duration_s = time.monotonic() - _t0
-                # Count exceptions toward the empty-poll auto-prune so
-                # persistent failures don't freeze the cursor forever.
-                self.consecutive_empty_polls += 1
+                with self._stats_lock:
+                    self.last_poll_error = _safe
+                    self.last_poll_status = "ERROR"
+                    self.last_poll_ts = time.time()
+                    self.last_poll_duration_s = time.monotonic() - _t0
+                    self.consecutive_empty_polls += 1
                 continue
 
             with self._lock:
@@ -248,21 +249,26 @@ class BackgroundPoller:
                 if self._cursor == _use_cursor:
                     self._cursor = new_cursor
 
-            self.last_poll_duration_s = time.monotonic() - _t0
-            self.poll_count += 1
-            self.last_poll_ts = time.time()
-            self.total_items_ingested += len(items)
-            self.last_poll_error = ""
+            with self._stats_lock:
+                self.last_poll_duration_s = time.monotonic() - _t0
+                self.poll_count += 1
+                self.last_poll_ts = time.time()
+                self.total_items_ingested += len(items)
+                self.last_poll_error = ""
 
             src = "BZ"
             if fmp is not None:
                 src = "BZ+FMP"
-            self.last_poll_status = f"{len(items)} items [{src}]"
+
+            with self._stats_lock:
+                self.last_poll_status = f"{len(items)} items [{src}]"
 
             # Track consecutive empties → auto-prune dedup
             if not items:
-                self.consecutive_empty_polls += 1
-                if self.consecutive_empty_polls >= 3:
+                with self._stats_lock:
+                    self.consecutive_empty_polls += 1
+                    _empties = self.consecutive_empty_polls
+                if _empties >= 3:
                     # Full clear: partial keeps (feed_max_age_s) re-block
                     # items that the API returns on cursor reset, causing
                     # a 3-poll oscillation cycle.  Always clear everything.
@@ -281,11 +287,13 @@ class BackgroundPoller:
                         self._cursor = None
                     logger.info(
                         "BG poller: reset cursor + pruned SQLite after %d empty polls",
-                        self.consecutive_empty_polls,
+                        _empties,
                     )
-                    self.consecutive_empty_polls = 0
+                    with self._stats_lock:
+                        self.consecutive_empty_polls = 0
             else:
-                self.consecutive_empty_polls = 0
+                with self._stats_lock:
+                    self.consecutive_empty_polls = 0
 
             # Enqueue items for the main thread (ring-buffer: evict oldest
             # batches when full so the newest data always gets through)
@@ -303,7 +311,8 @@ class BackgroundPoller:
                             # Shouldn't happen, but guard anyway
                             break
                 if evicted:
-                    self.total_items_dropped += evicted
+                    with self._stats_lock:
+                        self.total_items_dropped += evicted
                     logger.info(
                         "BG poller evicted %d stale items to make room (total dropped: %d)",
                         evicted, self.total_items_dropped,

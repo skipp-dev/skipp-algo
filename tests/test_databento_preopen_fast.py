@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 
 import pandas as pd
 
@@ -8,6 +8,8 @@ from scripts.databento_preopen_fast import (
     _choose_scope_days,
     _aggregate_current_premarket_features,
     _build_current_daily_features,
+    _resolve_effective_dataset,
+    _resolve_premarket_anchor_et,
     _resolve_target_trade_date,
     _select_recent_scope_symbols,
     _target_scope_symbol_count,
@@ -125,3 +127,95 @@ def test_aggregate_current_premarket_features_computes_gap_metrics() -> None:
     assert bool(result.iloc[0]["has_premarket_data"])
     assert result.iloc[0]["premarket_last"] == 10.5
     assert round(float(result.iloc[0]["prev_close_to_premarket_pct"]), 4) == 5.0
+
+
+def test_resolve_effective_dataset_uses_available_fallback(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "scripts.databento_preopen_fast.list_accessible_datasets",
+        lambda api_key: ["XNAS.BASIC", "DBEQ.BASIC"],
+    )
+
+    resolved, available = _resolve_effective_dataset("test-key", "unknown.dataset")
+
+    assert resolved == "DBEQ.BASIC"
+    assert available == ["XNAS.BASIC", "DBEQ.BASIC"]
+
+
+def test_resolve_effective_dataset_gracefully_handles_dataset_listing_errors(monkeypatch) -> None:
+    def fail_list(api_key):
+        raise RuntimeError("401 unauthorized")
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", fail_list)
+
+    resolved, available = _resolve_effective_dataset("test-key", "xnas.basic")
+
+    assert resolved == "XNAS.BASIC"
+    assert available == []
+
+
+def test_resolve_premarket_anchor_et_parses_manifest_or_defaults() -> None:
+    assert _resolve_premarket_anchor_et({"premarket_anchor_et": "04:00:00"}) == time(4, 0)
+    assert _resolve_premarket_anchor_et({"premarket_anchor_et": "04:15"}) == time(4, 15)
+    assert _resolve_premarket_anchor_et({"premarket_anchor_et": "invalid"}) == time(4, 0)
+    assert _resolve_premarket_anchor_et({}) == time(4, 0)
+
+
+def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_path) -> None:
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
+    trade_day = date(2026, 3, 6)
+    payload = {
+        "manifest": {"premarket_anchor_et": "04:00:00"},
+        "manifest_path": tmp_path / "baseline_manifest.json",
+        "base_prefix": "baseline",
+        "frames": {
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                {
+                    "trade_date": [trade_day],
+                    "symbol": ["AAA"],
+                    "selected_top20pct": [True],
+                    "exchange": ["NYSE"],
+                    "asset_type": ["listed_equity_issue"],
+                    "is_eligible": [True],
+                    "eligibility_reason": ["eligible"],
+                    "has_fundamentals": [False],
+                    "has_reference_data": [True],
+                    "has_market_cap": [False],
+                    "window_range_pct": [1.0],
+                    "window_return_pct": [1.0],
+                    "realized_vol_pct": [1.0],
+                }
+            ),
+            "daily_bars": pd.DataFrame(
+                {
+                    "trade_date": [trade_day],
+                    "symbol": ["AAA"],
+                    "close": [10.0],
+                }
+            ),
+        },
+    }
+
+    class _FailingTimeseries:
+        def get_range(self, **kwargs):
+            raise RuntimeError("simulated fetch failure")
+
+    class _FailingClient:
+        timeseries = _FailingTimeseries()
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _FailingClient())
+
+    try:
+        run_preopen_fast_refresh(
+            databento_api_key="test-key",
+            dataset="DBEQ.BASIC",
+            export_dir=tmp_path,
+            bundle=tmp_path,
+            scope_days=1,
+        )
+    except RuntimeError as exc:
+        assert "Premarket fetch failed for all symbol batches" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError when all premarket fetch batches fail")

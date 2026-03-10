@@ -7,6 +7,7 @@ import pandas as pd
 from strategy_config import LONG_DIP_DEFAULTS
 from scripts.generate_databento_watchlist import (
     LongDipConfig,
+    _merge_open_signal_metrics,
     build_parser as build_watchlist_parser,
     build_daily_watchlists,
     build_preopen_long_candidates,
@@ -53,7 +54,7 @@ def test_build_preopen_long_candidates_filters_and_ranks_with_preopen_data() -> 
         }
     )
 
-    cfg = LongDipConfig(min_premarket_volume=50_000, min_premarket_trade_count=200, max_gap_pct=40.0)
+    cfg = LongDipConfig(min_premarket_dollar_volume=0.0, min_premarket_volume=50_000, min_premarket_trade_count=200, max_gap_pct=40.0)
     candidates = build_preopen_long_candidates(
         daily=daily,
         prem=prem,
@@ -72,11 +73,11 @@ def test_compute_entry_ladder_builds_three_levels_with_tp_and_stops() -> None:
     levels = compute_entry_ladder(10.0, cfg)
 
     assert [level.tag for level in levels] == ["L1", "L2", "L3"]
-    assert [level.limit_price for level in levels] == [9.96, 9.91, 9.83]
+    assert [level.limit_price for level in levels] == [9.95, 9.9, 9.85]
     assert [level.quantity for level in levels] == [251, 353, 406]
-    assert levels[0].take_profit_price == 10.1094
-    assert levels[0].stop_loss_price == 9.8006
-    assert levels[0].trailing_stop_anchor_price == 9.8604
+    assert levels[0].take_profit_price == 10.149
+    assert levels[0].stop_loss_price == 9.7908
+    assert levels[0].trailing_stop_anchor_price == 9.8505
 
 
 def test_build_daily_watchlists_limits_output_to_top_n_per_day() -> None:
@@ -122,6 +123,131 @@ def test_build_daily_watchlists_limits_output_to_top_n_per_day() -> None:
     ]
 
 
+def test_generate_watchlist_result_exposes_latest_trade_date_subset(tmp_path) -> None:
+    day_one = date(2026, 3, 6)
+    day_two = date(2026, 3, 7)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [day_one, day_one, day_two],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "exchange": ["NASDAQ", "NYSE", "AMEX"],
+            "asset_type": ["listed_equity_issue"] * 3,
+            "previous_close": [5.0, 6.0, 7.0],
+            "window_range_pct": [1.0, 2.0, 3.0],
+            "window_return_pct": [1.0, 1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0, 1.0],
+            "selected_top20pct": [False, False, True],
+            "is_eligible": [True, True, True],
+            "eligibility_reason": ["eligible", "eligible", "eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [day_one, day_one, day_two],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "has_premarket_data": [True, True, True],
+            "premarket_last": [5.4, 6.8, 8.0],
+            "premarket_volume": [90_000, 95_000, 100_000],
+            "premarket_trade_count": [350, 320, 400],
+            "prev_close_to_premarket_pct": [8.0, 12.0, 14.0],
+        }
+    )
+
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["trade_date"] == "2026-03-07"
+    assert result["watchlist_table"][["trade_date", "symbol"]].to_dict(orient="records") == [
+        {"trade_date": day_one, "symbol": "BBB"},
+        {"trade_date": day_two, "symbol": "CCC"},
+    ]
+    assert result["active_watchlist_table"][["trade_date", "symbol"]].to_dict(orient="records") == [
+        {"trade_date": day_two, "symbol": "CCC"},
+    ]
+
+
+def test_generate_watchlist_result_uses_manifest_exported_at_and_premarket_fallback_timestamps(tmp_path) -> None:
+    trade_day = date(2026, 3, 7)
+    manifest = {
+        "exported_at": "2026-03-07T12:15:00+00:00",
+        "premarket_fetched_at": "2026-03-07T12:10:00+00:00",
+    }
+    (tmp_path / "databento_volatility_production_20260307_121500_manifest.json").write_text(
+        __import__("json").dumps(manifest),
+        encoding="utf-8",
+    )
+
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [10.0],
+            "window_range_pct": [2.0],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.5],
+            "premarket_volume": [100_000],
+            "premarket_trade_count": [500],
+            "prev_close_to_premarket_pct": [5.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["source_metadata"]["export_generated_at"] == "2026-03-07T12:15:00+00:00"
+    assert result["source_data_fetched_at"] == "2026-03-07T12:10:00+00:00"
+
+
+def test_merge_open_signal_metrics_preserves_existing_values_when_metrics_are_partial() -> None:
+    trade_day = date(2026, 3, 7)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "BBB"],
+            "exchange": ["NYSE", "NYSE"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [10.0, 10.0],
+            "window_range_pct": [2.0, 2.0],
+            "window_return_pct": [1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0],
+            "selected_top20pct": [True, True],
+            "is_eligible": [True, True],
+            "eligibility_reason": ["eligible", "eligible"],
+            "open_30s_volume": [111.0, 222.0],
+        }
+    )
+    metrics = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "open_30s_volume": [333.0],
+        }
+    )
+
+    merged = _merge_open_signal_metrics(daily, metrics)
+
+    aaa = merged.loc[merged["symbol"] == "AAA"].iloc[0]
+    bbb = merged.loc[merged["symbol"] == "BBB"].iloc[0]
+    assert float(aaa["open_30s_volume"]) == 333.0
+    assert float(bbb["open_30s_volume"]) == 222.0
+
+
 def test_watchlist_and_executor_share_long_dip_defaults() -> None:
     watchlist_args = build_watchlist_parser().parse_args([])
     execute_args = build_execute_parser().parse_args([])
@@ -132,6 +258,8 @@ def test_watchlist_and_executor_share_long_dip_defaults() -> None:
     assert execute_args.max_gap_pct == LONG_DIP_DEFAULTS["max_gap_pct"]
     assert watchlist_args.min_previous_close == LONG_DIP_DEFAULTS["min_previous_close"]
     assert execute_args.min_previous_close == LONG_DIP_DEFAULTS["min_previous_close"]
+    assert watchlist_args.min_premarket_dollar_volume == LONG_DIP_DEFAULTS["min_premarket_dollar_volume"]
+    assert execute_args.min_premarket_dollar_volume == LONG_DIP_DEFAULTS["min_premarket_dollar_volume"]
     assert watchlist_args.min_premarket_volume == LONG_DIP_DEFAULTS["min_premarket_volume"]
     assert execute_args.min_premarket_volume == LONG_DIP_DEFAULTS["min_premarket_volume"]
     assert watchlist_args.min_premarket_trade_count == LONG_DIP_DEFAULTS["min_premarket_trade_count"]
@@ -213,7 +341,7 @@ def test_generate_watchlist_result_uses_early_premarket_profile_from_manifest_ti
             "symbol": symbols,
             "has_premarket_data": [True] * len(symbols),
             "premarket_last": [10.3] + [9.9] * (len(symbols) - 1),
-            "premarket_volume": [12_000] + [500] * (len(symbols) - 1),
+            "premarket_volume": [60_000] + [500] * (len(symbols) - 1),
             "premarket_trade_count": [30] + [2] * (len(symbols) - 1),
             "prev_close_to_premarket_pct": [3.0] + [-1.0] * (len(symbols) - 1),
             "previous_close": [10.0] * len(symbols),
@@ -252,7 +380,7 @@ def test_generate_watchlist_result_uses_sparse_profile_when_premarket_universe_i
             "symbol": ["AAA"],
             "has_premarket_data": [True],
             "premarket_last": [10.12],
-            "premarket_volume": [2_000],
+            "premarket_volume": [50_000],
             "premarket_trade_count": [0],
             "prev_close_to_premarket_pct": [1.2],
             "previous_close": [10.0],
@@ -265,7 +393,60 @@ def test_generate_watchlist_result_uses_sparse_profile_when_premarket_universe_i
 
     assert len(result["watchlist_table"]) == 1
     assert result["filter_profile"]["profile_name"] == "sparse_premarket"
-    assert result["config_snapshot"]["min_premarket_volume"] == 1000
+    assert result["config_snapshot"]["min_premarket_dollar_volume"] == 1000.0
+    assert result["config_snapshot"]["min_premarket_volume"] == 100
+
+
+def test_generate_watchlist_result_relaxes_liquidity_when_early_profile_volume_blocks_all(tmp_path) -> None:
+    trade_day = date(2026, 3, 6)
+    manifest = {
+        "export_generated_at": "2026-03-06T12:10:00+00:00",
+        "source_data_fetched_at": "2026-03-06T12:10:00+00:00",
+    }
+    (tmp_path / "databento_preopen_fast_20260306_121000_manifest.json").write_text(
+        __import__("json").dumps(manifest),
+        encoding="utf-8",
+    )
+
+    symbols = [f"S{i:02d}" for i in range(30)]
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * len(symbols),
+            "symbol": symbols,
+            "exchange": ["NYSE"] * len(symbols),
+            "asset_type": ["listed_equity_issue"] * len(symbols),
+            "previous_close": [10.0] * len(symbols),
+            "window_range_pct": [2.0] * len(symbols),
+            "window_return_pct": [1.0] * len(symbols),
+            "realized_vol_pct": [1.0] * len(symbols),
+            "selected_top20pct": [True] * len(symbols),
+            "is_eligible": [True] * len(symbols),
+            "eligibility_reason": ["eligible"] * len(symbols),
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * len(symbols),
+            "symbol": symbols,
+            "has_premarket_data": [True] * len(symbols),
+            "premarket_last": [130.0] + [9.9] * (len(symbols) - 1),
+            "premarket_volume": [4_000] + [500] * (len(symbols) - 1),
+            "premarket_trade_count": [3] + [1] * (len(symbols) - 1),
+            "prev_close_to_premarket_pct": [2.6] + [-1.0] * (len(symbols) - 1),
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert len(result["watchlist_table"]) == 1
+    assert result["watchlist_table"].iloc[0]["symbol"] == "S00"
+    assert result["filter_profile"]["profile_name"] == "early_premarket"
+    assert result["config_snapshot"]["min_premarket_dollar_volume"] == 1000.0
+    assert result["config_snapshot"]["min_premarket_volume"] == 100
+    assert result["config_snapshot"]["min_premarket_trade_count"] == 0
+    assert result["filter_funnel"] == []
 
 
 def test_generate_watchlist_result_flags_premarket_not_started_before_4am_et(tmp_path) -> None:
@@ -316,3 +497,55 @@ def test_generate_watchlist_result_flags_premarket_not_started_before_4am_et(tmp
     assert result["warnings"] == [
         "No premarket data available yet. The latest refresh completed before the US premarket session opened."
     ]
+
+
+def test_build_preopen_long_candidates_passes_open_window_fields_through() -> None:
+    """Regression: open-window fields must survive the daily column selection in build_preopen_long_candidates."""
+    from scripts.generate_databento_watchlist import expand_candidate_trade_plan
+
+    trade_date = date(2026, 3, 9)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_date],
+            "symbol": ["XYZ"],
+            "exchange": ["NASDAQ"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [5.0],
+            "window_range_pct": [4.0],
+            "window_return_pct": [2.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [False],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+            "open_30s_volume": [1234.0],
+            "early_dip_pct_10s": [-2.5],
+            "early_dip_second": [6.0],
+            "reclaimed_start_price_within_30s": [True],
+            "reclaim_second_30s": [12.0],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_date],
+            "symbol": ["XYZ"],
+            "has_premarket_data": [True],
+            "premarket_last": [6.0],
+            "premarket_volume": [100_000],
+            "premarket_trade_count": [500],
+            "prev_close_to_premarket_pct": [20.0],
+        }
+    )
+    cfg = LongDipConfig(min_premarket_dollar_volume=0.0, min_premarket_volume=0, min_premarket_trade_count=0)
+
+    candidates = build_preopen_long_candidates(daily=daily, prem=prem, cfg=cfg, trade_date=trade_date)
+    assert len(candidates) == 1
+    assert float(candidates.iloc[0]["open_30s_volume"]) == 1234.0
+    assert float(candidates.iloc[0]["early_dip_pct_10s"]) == -2.5
+    assert float(candidates.iloc[0]["reclaim_second_30s"]) == 12.0
+
+    expanded = expand_candidate_trade_plan(candidates, cfg)
+    assert len(expanded) == 1
+    assert float(expanded.iloc[0]["open_30s_volume"]) == 1234.0
+    assert float(expanded.iloc[0]["early_dip_pct_10s"]) == -2.5
+    assert bool(expanded.iloc[0]["reclaimed_start_price_within_30s"]) is True
+    assert float(expanded.iloc[0]["reclaim_second_30s"]) == 12.0

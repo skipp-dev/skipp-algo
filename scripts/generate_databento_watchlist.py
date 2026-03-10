@@ -20,21 +20,25 @@ from strategy_config import (
     LONG_DIP_DEFAULTS,
     LONG_DIP_DISPLAY_TIMEZONE,
     LONG_DIP_BUILDING_MIN_GAP_PCT,
+    LONG_DIP_BUILDING_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_BUILDING_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_BUILDING_MIN_PREMARKET_VOLUME,
     LONG_DIP_EARLY_MIN_GAP_PCT,
+    LONG_DIP_EARLY_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_EARLY_MIN_PREMARKET_VOLUME,
     LONG_DIP_HARD_STOP_PCT,
     LONG_DIP_LADDER_PCTS,
     LONG_DIP_LADDER_WEIGHTS,
     LONG_DIP_MAX_GAP_PCT,
+    LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_MIN_GAP_PCT,
     LONG_DIP_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_MIN_PREMARKET_VOLUME,
     LONG_DIP_MIN_PREVIOUS_CLOSE,
     LONG_DIP_POSITION_BUDGET_USD,
     LONG_DIP_SPARSE_MIN_GAP_PCT,
+    LONG_DIP_SPARSE_MIN_PREMARKET_DOLLAR_VOLUME,
     LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT,
     LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME,
     LONG_DIP_TAKE_PROFIT_1_PCT,
@@ -50,6 +54,78 @@ WATCHLIST_SOURCE_FILES = (
     "premarket_features_full_universe.parquet",
     "symbol_day_diagnostics.parquet",
 )
+
+
+def _ensure_premarket_liquidity_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    out["premarket_last"] = pd.to_numeric(out.get("premarket_last"), errors="coerce")
+    out["premarket_volume"] = pd.to_numeric(out.get("premarket_volume"), errors="coerce")
+    out["premarket_trade_count"] = pd.to_numeric(out.get("premarket_trade_count"), errors="coerce")
+    if "premarket_dollar_volume" in out.columns:
+        out["premarket_dollar_volume"] = pd.to_numeric(out.get("premarket_dollar_volume"), errors="coerce")
+    else:
+        out["premarket_dollar_volume"] = np.nan
+    computed_dollar_volume = out["premarket_last"] * out["premarket_volume"]
+    out["premarket_dollar_volume"] = out["premarket_dollar_volume"].combine_first(computed_dollar_volume)
+    return out
+
+
+def _load_open_signal_metrics(
+    *,
+    bundle: str | Path | None,
+    export_dir: str | Path | None,
+    trading_days: list,
+) -> pd.DataFrame:
+    try:
+        from databento_volatility_screener import _build_open_window_aggregates
+    except Exception:
+        return pd.DataFrame()
+
+    second_detail: pd.DataFrame | None = None
+    if bundle is not None:
+        try:
+            payload = load_export_bundle(Path(bundle).expanduser())
+            second_detail = payload.get("frames", {}).get("full_universe_second_detail_open")
+        except Exception:
+            second_detail = None
+    else:
+        base_dir = Path(export_dir).expanduser() if export_dir is not None else DEFAULT_EXPORT_DIR
+        second_detail_path = base_dir / "full_universe_second_detail_open.parquet"
+        if second_detail_path.exists():
+            try:
+                second_detail = pd.read_parquet(second_detail_path)
+            except Exception:
+                second_detail = None
+
+    if second_detail is None or second_detail.empty:
+        return pd.DataFrame()
+
+    return _build_open_window_aggregates(
+        second_detail,
+        trading_days=trading_days,
+        display_timezone=LONG_DIP_DISPLAY_TIMEZONE,
+    )
+
+
+def _merge_open_signal_metrics(daily: pd.DataFrame, metrics: pd.DataFrame) -> pd.DataFrame:
+    if daily.empty or metrics.empty:
+        return daily
+    enriched = daily.copy()
+    metrics = metrics.copy()
+    metrics["trade_date"] = pd.to_datetime(metrics["trade_date"], errors="coerce").dt.date
+    metrics["symbol"] = metrics["symbol"].astype(str).str.upper()
+    join_cols = [column for column in metrics.columns if column not in {"trade_date", "symbol"}]
+    merged = enriched.merge(metrics, on=["trade_date", "symbol"], how="left", suffixes=("", "__metrics"))
+    for column in join_cols:
+        metric_column = f"{column}__metrics"
+        if metric_column not in merged.columns:
+            continue
+        if column in merged.columns:
+            merged[column] = merged[metric_column].combine_first(merged[column])
+        else:
+            merged[column] = merged[metric_column]
+        merged = merged.drop(columns=[metric_column])
+    return merged
 
 
 def _load_bundle_watchlist_inputs(base_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None, dict[str, Any]]:
@@ -103,6 +179,7 @@ class LongDipConfig:
     min_gap_pct: float = LONG_DIP_MIN_GAP_PCT
     max_gap_pct: float | None = LONG_DIP_MAX_GAP_PCT
     min_previous_close: float = LONG_DIP_MIN_PREVIOUS_CLOSE
+    min_premarket_dollar_volume: float = LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME
     min_premarket_volume: int = LONG_DIP_MIN_PREMARKET_VOLUME
     min_premarket_trade_count: int = LONG_DIP_MIN_PREMARKET_TRADE_COUNT
     ladder_pcts: tuple[float, float, float] = LONG_DIP_LADDER_PCTS
@@ -171,6 +248,7 @@ def _resolve_effective_watchlist_config(
         effective_cfg = replace(
             cfg,
             min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_SPARSE_MIN_GAP_PCT),
+            min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_SPARSE_MIN_PREMARKET_DOLLAR_VOLUME),
             min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME),
             min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT),
         )
@@ -182,6 +260,7 @@ def _resolve_effective_watchlist_config(
             effective_cfg = replace(
                 cfg,
                 min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_EARLY_MIN_GAP_PCT),
+                min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_EARLY_MIN_PREMARKET_DOLLAR_VOLUME),
                 min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_EARLY_MIN_PREMARKET_VOLUME),
                 min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT),
             )
@@ -191,6 +270,7 @@ def _resolve_effective_watchlist_config(
             effective_cfg = replace(
                 cfg,
                 min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_BUILDING_MIN_GAP_PCT),
+                min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_BUILDING_MIN_PREMARKET_DOLLAR_VOLUME),
                 min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_BUILDING_MIN_PREMARKET_VOLUME),
                 min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_BUILDING_MIN_PREMARKET_TRADE_COUNT),
             )
@@ -210,6 +290,8 @@ def _validate_watchlist_config(cfg: LongDipConfig) -> None:
         raise ValueError(f"top_n must be > 0, got {cfg.top_n}")
     if cfg.position_budget_usd <= 0:
         raise ValueError(f"position_budget_usd must be > 0, got {cfg.position_budget_usd}")
+    if cfg.min_premarket_dollar_volume < 0:
+        raise ValueError(f"min_premarket_dollar_volume must be >= 0, got {cfg.min_premarket_dollar_volume}")
     if cfg.min_premarket_volume < 0:
         raise ValueError(f"min_premarket_volume must be >= 0, got {cfg.min_premarket_volume}")
     if cfg.min_premarket_trade_count < 0:
@@ -276,6 +358,48 @@ def _resolve_source_data_fetched_at(metadata: dict[str, Any]) -> str | None:
     return max(available) if available else None
 
 
+def _find_filter_bottleneck(filter_funnel: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return next((step for index, step in enumerate(filter_funnel) if index > 0 and step.get("remaining") == 0), None)
+
+
+def _build_liquidity_relaxed_config(
+    cfg: LongDipConfig,
+    *,
+    filter_funnel: list[dict[str, Any]],
+    filter_profile: dict[str, Any],
+) -> tuple[LongDipConfig, dict[str, Any]] | None:
+    bottleneck = _find_filter_bottleneck(filter_funnel)
+    if bottleneck is None or bottleneck.get("filter") not in {"premarket_dollar_volume", "premarket_volume", "premarket_trade_count"}:
+        return None
+
+    relaxed_cfg = replace(
+        cfg,
+        min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_SPARSE_MIN_PREMARKET_DOLLAR_VOLUME),
+        min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_SPARSE_MIN_PREMARKET_VOLUME),
+        min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_SPARSE_MIN_PREMARKET_TRADE_COUNT),
+    )
+    if relaxed_cfg == cfg:
+        return None
+
+    relaxed_profile = dict(filter_profile)
+    relaxed_profile.update(
+        {
+            "profile_name": "liquidity_relaxed",
+            "profile_reason": (
+                f"{bottleneck['filter']} bottleneck under {filter_profile.get('profile_name', 'standard')} "
+                f"profile; retry with sparse liquidity thresholds"
+            ),
+            "base_profile_name": filter_profile.get("profile_name", "standard"),
+            "base_profile_reason": filter_profile.get("profile_reason", "default long-dip filters"),
+            "relaxed_bottleneck": bottleneck.get("filter"),
+            "relaxed_from_dollar_volume": cfg.min_premarket_dollar_volume,
+            "relaxed_from_volume": cfg.min_premarket_volume,
+            "relaxed_from_trade_count": cfg.min_premarket_trade_count,
+        }
+    )
+    return relaxed_cfg, relaxed_profile
+
+
 def generate_watchlist_result(
     *,
     bundle: str | Path | None = None,
@@ -285,6 +409,10 @@ def generate_watchlist_result(
     resolved_cfg = cfg or LongDipConfig()
     _validate_watchlist_config(resolved_cfg)
     daily, prem, diagnostics, metadata = load_watchlist_inputs(bundle=bundle, export_dir=export_dir)
+    prem = _ensure_premarket_liquidity_columns(prem)
+    trading_days = sorted(set(daily.get("trade_date", pd.Series(dtype=object)).dropna().tolist()))
+    open_signal_metrics = _load_open_signal_metrics(bundle=bundle, export_dir=export_dir, trading_days=trading_days)
+    daily = _merge_open_signal_metrics(daily, open_signal_metrics)
     trade_dates = sorted(set(daily["trade_date"].dropna().tolist()) & set(prem["trade_date"].dropna().tolist()))
     latest_td = trade_dates[-1] if trade_dates else None
     effective_cfg = resolved_cfg
@@ -306,6 +434,23 @@ def generate_watchlist_result(
     warnings: list[str] = []
     if daily.empty or prem.empty:
         warnings.append("The watchlist inputs are incomplete. Run the data pipeline first.")
+    filter_funnel: list[dict[str, Any]] = []
+    if latest_td is not None and watchlists.empty:
+        filter_funnel = build_filter_funnel(daily=daily, prem=prem, cfg=effective_cfg, trade_date=latest_td)
+        relaxed = _build_liquidity_relaxed_config(
+            effective_cfg,
+            filter_funnel=filter_funnel,
+            filter_profile=filter_profile,
+        )
+        if relaxed is not None:
+            relaxed_cfg, relaxed_profile = relaxed
+            relaxed_watchlists = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=relaxed_cfg)
+            if not relaxed_watchlists.empty:
+                effective_cfg = relaxed_cfg
+                filter_profile = relaxed_profile
+                watchlists = relaxed_watchlists
+                filter_funnel = []
+
     if watchlists.empty:
         if filter_profile["profile_name"] == "premarket_not_started":
             warnings.append(
@@ -313,11 +458,12 @@ def generate_watchlist_result(
             )
         else:
             warnings.append("No symbols matched the current long-dip filters.")
-    filter_funnel: list[dict[str, Any]] = []
-    if latest_td is not None and watchlists.empty:
-        filter_funnel = build_filter_funnel(daily=daily, prem=prem, cfg=effective_cfg, trade_date=latest_td)
 
     trade_date = None if watchlists.empty else max(pd.to_datetime(watchlists["trade_date"], errors="coerce").dt.date.dropna())
+    active_watchlist_table = watchlists
+    if trade_date is not None and not watchlists.empty:
+        active_mask = pd.to_datetime(watchlists["trade_date"], errors="coerce").dt.date == trade_date
+        active_watchlist_table = watchlists.loc[active_mask].reset_index(drop=True)
     generated_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     return {
@@ -328,6 +474,7 @@ def generate_watchlist_result(
         "config_snapshot": asdict(effective_cfg),
         "requested_config_snapshot": asdict(resolved_cfg),
         "watchlist_table": watchlists,
+        "active_watchlist_table": active_watchlist_table,
         "run_notes": [
             f"source={metadata.get('source', 'unknown')}",
             f"rows={len(watchlists)}",
@@ -352,12 +499,13 @@ def build_filter_funnel(
     cols_daily = ["trade_date", "symbol", "previous_close"]
     cols_prem = [
         "trade_date", "symbol", "has_premarket_data", "premarket_last",
-        "premarket_volume", "premarket_trade_count", "prev_close_to_premarket_pct",
+        "premarket_volume", "premarket_dollar_volume", "premarket_trade_count", "prev_close_to_premarket_pct",
     ]
     merged = daily.loc[daily["trade_date"] == trade_date, cols_daily].merge(
         prem.loc[prem["trade_date"] == trade_date, cols_prem],
         on=["trade_date", "symbol"], how="inner",
     )
+    merged = _ensure_premarket_liquidity_columns(merged)
     total = len(merged)
     steps: list[dict[str, Any]] = [{"filter": "Total symbols", "remaining": total, "threshold": ""}]
     mask = merged["has_premarket_data"] == True
@@ -371,6 +519,8 @@ def build_filter_funnel(
     if cfg.max_gap_pct is not None:
         mask = mask & (pd.to_numeric(merged["prev_close_to_premarket_pct"], errors="coerce") <= cfg.max_gap_pct)
         steps.append({"filter": "gap % cap", "remaining": int(mask.sum()), "threshold": f"<= {cfg.max_gap_pct:.1f}%"})
+    mask = mask & (merged["premarket_dollar_volume"].fillna(0) >= cfg.min_premarket_dollar_volume)
+    steps.append({"filter": "premarket_dollar_volume", "remaining": int(mask.sum()), "threshold": f">= {cfg.min_premarket_dollar_volume:,.0f}"})
     mask = mask & (merged["premarket_volume"].fillna(0) >= cfg.min_premarket_volume)
     steps.append({"filter": "premarket_volume", "remaining": int(mask.sum()), "threshold": f">= {cfg.min_premarket_volume:,}"})
     tc = pd.to_numeric(merged["premarket_trade_count"], errors="coerce")
@@ -390,6 +540,8 @@ def build_preopen_long_candidates(
     trade_date,
     diagnostics: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
+    prem = _ensure_premarket_liquidity_columns(prem)
+
     cols_daily = [
         "trade_date",
         "symbol",
@@ -402,6 +554,11 @@ def build_preopen_long_candidates(
         "selected_top20pct",
         "is_eligible",
         "eligibility_reason",
+        "open_30s_volume",
+        "early_dip_pct_10s",
+        "early_dip_second",
+        "reclaimed_start_price_within_30s",
+        "reclaim_second_30s",
     ]
     cols_prem = [
         "trade_date",
@@ -409,10 +566,12 @@ def build_preopen_long_candidates(
         "has_premarket_data",
         "premarket_last",
         "premarket_volume",
+        "premarket_dollar_volume",
         "premarket_trade_count",
         "prev_close_to_premarket_pct",
     ]
-    merged = daily.loc[daily["trade_date"] == trade_date, cols_daily].merge(
+    available_daily_cols = [c for c in cols_daily if c in daily.columns]
+    merged = daily.loc[daily["trade_date"] == trade_date, available_daily_cols].merge(
         prem.loc[prem["trade_date"] == trade_date, cols_prem],
         on=["trade_date", "symbol"],
         how="inner",
@@ -429,6 +588,8 @@ def build_preopen_long_candidates(
         merged["present_in_eligible"] = pd.NA
         merged["excluded_reason"] = ""
 
+    merged = _ensure_premarket_liquidity_columns(merged)
+
     trade_count_series = pd.to_numeric(merged["premarket_trade_count"], errors="coerce")
     trade_count_available = trade_count_series.notna().any()
 
@@ -440,6 +601,7 @@ def build_preopen_long_candidates(
         & (pd.to_numeric(merged["previous_close"], errors="coerce") >= cfg.min_previous_close)
         & merged["prev_close_to_premarket_pct"].notna()
         & (pd.to_numeric(merged["prev_close_to_premarket_pct"], errors="coerce") >= cfg.min_gap_pct)
+        & (merged["premarket_dollar_volume"].fillna(0) >= cfg.min_premarket_dollar_volume)
         & (merged["premarket_volume"].fillna(0) >= cfg.min_premarket_volume)
     ].copy()
 
@@ -450,7 +612,7 @@ def build_preopen_long_candidates(
         candidates = candidates[pd.to_numeric(candidates["prev_close_to_premarket_pct"], errors="coerce") <= cfg.max_gap_pct].copy()
 
     candidates["gap_component"] = pd.to_numeric(candidates["prev_close_to_premarket_pct"], errors="coerce").clip(lower=0)
-    candidates["volume_component"] = np.log10(candidates["premarket_volume"].fillna(0).clip(lower=0) + 1.0)
+    candidates["volume_component"] = np.log10(candidates["premarket_dollar_volume"].fillna(0).clip(lower=0) + 1.0)
     if trade_count_available:
         candidates["trade_component"] = np.log10(pd.to_numeric(candidates["premarket_trade_count"], errors="coerce").fillna(0).clip(lower=0) + 1.0)
     else:
@@ -468,8 +630,8 @@ def build_preopen_long_candidates(
     )
 
     candidates = candidates.sort_values(
-        ["watchlist_score", "premarket_volume", "premarket_trade_count", "symbol"],
-        ascending=[False, False, False, True],
+        ["watchlist_score", "premarket_dollar_volume", "premarket_volume", "premarket_trade_count", "symbol"],
+        ascending=[False, False, False, False, True],
     ).reset_index(drop=True)
     candidates["watchlist_rank"] = np.arange(1, len(candidates) + 1)
     return candidates
@@ -516,7 +678,13 @@ def expand_candidate_trade_plan(candidates: pd.DataFrame, cfg: LongDipConfig) ->
             "premarket_last": row.get("premarket_last"),
             "prev_close_to_premarket_pct": row.get("prev_close_to_premarket_pct"),
             "premarket_volume": row.get("premarket_volume"),
+            "premarket_dollar_volume": row.get("premarket_dollar_volume"),
             "premarket_trade_count": row.get("premarket_trade_count"),
+            "open_30s_volume": row.get("open_30s_volume"),
+            "early_dip_pct_10s": row.get("early_dip_pct_10s"),
+            "early_dip_second": row.get("early_dip_second"),
+            "reclaimed_start_price_within_30s": row.get("reclaimed_start_price_within_30s"),
+            "reclaim_second_30s": row.get("reclaim_second_30s"),
             "selected_top20pct": bool(row.get("selected_top20pct", False)),
             "is_eligible_label": bool(row.get("is_eligible", False)),
             "eligibility_reason": row.get("eligibility_reason", ""),
@@ -571,7 +739,7 @@ def render_markdown_report(watchlists: pd.DataFrame, cfg: LongDipConfig, metadat
         "",
         f"Source: {metadata.get('source', 'unknown')}",
         f"As of: {cfg.as_of_label}",
-        f"Filters: gap >= {cfg.min_gap_pct:.1f}%, previous_close >= {cfg.min_previous_close:.2f}, premarket_volume >= {cfg.min_premarket_volume}, premarket_trade_count >= {cfg.min_premarket_trade_count}",
+        f"Filters: gap >= {cfg.min_gap_pct:.1f}%, previous_close >= {cfg.min_previous_close:.2f}, premarket_dollar_volume >= {cfg.min_premarket_dollar_volume:,.0f}, premarket_volume >= {cfg.min_premarket_volume}, premarket_trade_count >= {cfg.min_premarket_trade_count}",
         f"Position budget: USD {cfg.position_budget_usd:,.0f}",
         f"Trailing stop distance: {cfg.trailing_stop_pct * 100.0:.2f}% below the filled level",
         "",
@@ -583,17 +751,19 @@ def render_markdown_report(watchlists: pd.DataFrame, cfg: LongDipConfig, metadat
     for trade_date, frame in watchlists.groupby("trade_date", sort=True):
         lines.append(f"## {trade_date}")
         lines.append("")
-        lines.append("| Rank | Symbol | Gap % | PM Last | PM Vol | PM Trades | L1 Buy | L1 TP | L1 SL | L1 Trail | L2 Buy | L2 TP | L2 SL | L2 Trail | L3 Buy | L3 TP | L3 SL | L3 Trail |")
-        lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+        lines.append("| Rank | Symbol | Gap % | PM Last | PM $ Vol | PM Vol | PM Trades | L1 Buy | L1 TP | L1 SL | L1 Trail | L2 Buy | L2 TP | L2 SL | L2 Trail | L3 Buy | L3 TP | L3 SL | L3 Trail |")
+        lines.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
         for _, row in frame.iterrows():
+            pm_trades_value = pd.to_numeric(pd.Series([row.get("premarket_trade_count")]), errors="coerce").iloc[0]
             lines.append(
-                "| {rank} | {symbol} | {gap:.2f} | {pm_last:.4f} | {pm_vol:.0f} | {pm_trades:.0f} | {l1_buy:.4f} | {l1_tp:.4f} | {l1_sl:.4f} | {l1_trail:.4f} | {l2_buy:.4f} | {l2_tp:.4f} | {l2_sl:.4f} | {l2_trail:.4f} | {l3_buy:.4f} | {l3_tp:.4f} | {l3_sl:.4f} | {l3_trail:.4f} |".format(
+                "| {rank} | {symbol} | {gap:.2f} | {pm_last:.4f} | {pm_dollar_vol:.0f} | {pm_vol:.0f} | {pm_trades} | {l1_buy:.4f} | {l1_tp:.4f} | {l1_sl:.4f} | {l1_trail:.4f} | {l2_buy:.4f} | {l2_tp:.4f} | {l2_sl:.4f} | {l2_trail:.4f} | {l3_buy:.4f} | {l3_tp:.4f} | {l3_sl:.4f} | {l3_trail:.4f} |".format(
                     rank=int(row["watchlist_rank"]),
                     symbol=row["symbol"],
                     gap=float(row["prev_close_to_premarket_pct"]),
                     pm_last=float(row["premarket_last"]),
+                    pm_dollar_vol=float(row.get("premarket_dollar_volume", 0.0) or 0.0),
                     pm_vol=float(row["premarket_volume"]),
-                    pm_trades=float(row["premarket_trade_count"]),
+                    pm_trades=("n/a" if pd.isna(pm_trades_value) else f"{float(pm_trades_value):.0f}"),
                     l1_buy=float(row["l1_limit_buy"]),
                     l1_tp=float(row["l1_take_profit"]),
                     l1_sl=float(row["l1_stop_loss"]),
@@ -628,6 +798,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-gap-pct", type=float, default=LONG_DIP_MIN_GAP_PCT, help="Minimum previous-close to premarket gap in percent.")
     parser.add_argument("--max-gap-pct", type=float, default=LONG_DIP_MAX_GAP_PCT, help="Optional maximum gap in percent; use a negative value to disable.")
     parser.add_argument("--min-previous-close", type=float, default=LONG_DIP_MIN_PREVIOUS_CLOSE, help="Minimum previous close price.")
+    parser.add_argument("--min-premarket-dollar-volume", type=float, default=LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME, help="Minimum premarket dollar volume.")
     parser.add_argument("--min-premarket-volume", type=int, default=LONG_DIP_MIN_PREMARKET_VOLUME, help="Minimum premarket share volume.")
     parser.add_argument("--min-premarket-trade-count", type=int, default=LONG_DIP_MIN_PREMARKET_TRADE_COUNT, help="Minimum premarket trade count.")
     parser.add_argument("--output-csv", default=str(DEFAULT_EXPORT_DIR / "databento_watchlist_top5_pre1530.csv"), help="CSV output path.")
@@ -644,6 +815,7 @@ def main() -> None:
         min_gap_pct=args.min_gap_pct,
         max_gap_pct=max_gap_pct,
         min_previous_close=args.min_previous_close,
+        min_premarket_dollar_volume=args.min_premarket_dollar_volume,
         min_premarket_volume=args.min_premarket_volume,
         min_premarket_trade_count=args.min_premarket_trade_count,
         position_budget_usd=args.position_budget_usd,
@@ -678,6 +850,7 @@ def main() -> None:
         "symbol",
         "prev_close_to_premarket_pct",
         "premarket_last",
+        "premarket_dollar_volume",
         "premarket_volume",
         "premarket_trade_count",
         "l1_limit_buy",

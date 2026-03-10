@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import os
 import sys
@@ -11,11 +12,15 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from databento_volatility_screener import (
+    US_EASTERN_TZ,
+    _write_tradingview_watchlist_exports,
     _read_cached_frame,
     _write_cached_frame,
     build_cache_path,
@@ -33,7 +38,9 @@ from databento_volatility_screener import (
     list_accessible_datasets,
     list_recent_trading_days,
     load_daily_bars,
+    normalize_symbol_for_databento,
     rank_top_fraction_per_day,
+    resolve_display_timezone,
     run_intraday_screen,
 )
 from open_prep.macro import FMPClient
@@ -55,6 +62,13 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
     "realized_vol_pct",
     "previous_close",
     "market_open_price",
+    "open_30s_volume",
+    "regular_open_reference_price",
+    "early_dip_low_10s",
+    "early_dip_pct_10s",
+    "early_dip_second",
+    "reclaimed_start_price_within_30s",
+    "reclaim_second_30s",
     "sector",
     "industry",
     "market_cap",
@@ -134,6 +148,59 @@ FUNDAMENTAL_REFERENCE_COLUMNS = [
     "market_cap_profile",
     "asset_type_profile",
     "has_fundamental_row",
+]
+
+QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN = "quality_open_drive_window_latest_berlin"
+QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN = "quality_open_drive_window_coverage_latest_berlin"
+QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN = "quality_open_drive_window_trade_date"
+QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN = "quality_open_drive_window_score_latest_berlin"
+QUALITY_OPEN_DRIVE_ET_WINDOWS = (
+    ("early", time(4, 0), time(4, 30)),
+    ("late", time(9, 0), time(9, 30)),
+)
+QUALITY_OPEN_DRIVE_OPEN_CONFIRM_ET_WINDOW = (time(9, 30), time(9, 31))
+QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS = {
+    "NASDAQ": "XNAS.BASIC",
+    "NYSE": "XNYS.PILLAR",
+    "AMEX": "XASE.PILLAR",
+}
+QUALITY_OPEN_DRIVE_HARD_FILTERS = {
+    "min_previous_close": 5.0,
+    "min_prev_close_to_premarket_pct": 0.0,
+    "min_window_dollar_volume": 500_000.0,
+}
+QUALITY_OPEN_DRIVE_QUALITY_THRESHOLDS = {
+    "min_window_return_pct": 0.0,
+    "max_window_range_pct": 12.0,
+    "min_close_vs_high_pct": -2.0,
+}
+QUALITY_OPEN_DRIVE_SCORE_WEIGHTS = {
+    "prev_close_ok": 1.0,
+    "gap_ok": 1.0,
+    "dollar_vol_ok": 2.0,
+    "window_return_ok": 1.5,
+    "close_near_high_ok": 2.0,
+    "range_ok": 1.0,
+    "above_vwap_ok": 1.0,
+    "open_confirm_ok": 2.0,
+}
+QUALITY_OPEN_DRIVE_CANDIDATE_EXPORT_COLUMNS = [
+    "trade_date",
+    "symbol",
+    "exchange",
+    "window_key",
+    "window_label_local",
+    "previous_close",
+    "prev_close_to_premarket_pct",
+    "premarket_to_open_pct",
+    "window_return_pct",
+    "window_range_pct",
+    "window_close_vs_high_pct",
+    "window_dollar_volume",
+    "quality_score",
+    "passes_quality",
+    "window_vwap_trend_ok",
+    "open_confirm_ok",
 ]
 
 
@@ -256,6 +323,646 @@ def _enrich_universe_with_fundamentals(universe: pd.DataFrame, fundamentals: pd.
     return enriched
 
 
+def _format_quality_window_label(
+    trade_date,
+    *,
+    start_et: time,
+    end_et: time,
+    display_timezone: str,
+) -> str:
+    display_tz = resolve_display_timezone(display_timezone)
+    start_local = datetime.combine(trade_date, start_et, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+    end_local = datetime.combine(trade_date, end_et, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+    return f"{start_local.strftime('%H:%M')}-{end_local.strftime('%H:%M')}"
+
+
+def _quality_window_export_tag(start_et: time, end_et: time) -> str:
+    return f"{start_et.strftime('%H%M')}_{end_et.strftime('%H%M')}_et"
+
+
+def _empty_quality_window_candidate_frame() -> pd.DataFrame:
+    return pd.DataFrame(columns=QUALITY_OPEN_DRIVE_CANDIDATE_EXPORT_COLUMNS)
+
+
+def _select_top_candidates_per_day(frame: pd.DataFrame, top_n: int) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    if top_n <= 0:
+        return frame.iloc[0:0].copy()
+    ordered = frame.sort_values(
+        ["trade_date", "quality_score", "window_dollar_volume", "window_return_pct", "symbol"],
+        ascending=[True, False, False, False, True],
+    )
+    return ordered.groupby("trade_date", group_keys=False).head(top_n).reset_index(drop=True)
+
+
+def _compute_open_confirm_flags(detail: pd.DataFrame) -> pd.DataFrame:
+    columns = ["trade_date", "symbol", "open_confirm_ok"]
+    if detail.empty:
+        return pd.DataFrame(columns=columns)
+
+    open_frame = detail.copy()
+    open_frame["trade_date"] = pd.to_datetime(open_frame["trade_date"], errors="coerce").dt.date
+    open_frame["symbol"] = open_frame["symbol"].astype(str).str.upper()
+    open_frame["timestamp"] = pd.to_datetime(open_frame["timestamp"], errors="coerce", utc=True)
+    _n_before = len(open_frame)
+    open_frame = open_frame.dropna(subset=["trade_date", "symbol", "timestamp"]).copy()
+    _n_dropped = _n_before - len(open_frame)
+    if _n_dropped:
+        logger.debug("open_confirm_flags: dropped %d/%d rows with null trade_date/symbol/timestamp", _n_dropped, _n_before)
+    if open_frame.empty:
+        return pd.DataFrame(columns=columns)
+
+    open_frame["et_timestamp"] = open_frame["timestamp"].dt.tz_convert(US_EASTERN_TZ)
+    open_frame["et_time"] = open_frame["et_timestamp"].dt.time
+    for column in ["open", "high", "low", "close"]:
+        open_frame[column] = pd.to_numeric(open_frame.get(column), errors="coerce")
+    open_frame = open_frame.loc[
+        open_frame["et_time"].ge(time(9, 30)) & open_frame["et_time"].lt(time(9, 31)),
+        ["trade_date", "symbol", "timestamp", "open", "high", "low", "close"],
+    ].copy()
+    if open_frame.empty:
+        return pd.DataFrame(columns=columns)
+
+    open_frame = open_frame.sort_values(["trade_date", "symbol", "timestamp"]).reset_index(drop=True)
+    grouped = open_frame.groupby(["trade_date", "symbol"], sort=False).agg(
+        open_start=("open", "first"),
+        open_high_60s=("high", "max"),
+        open_low_60s=("low", "min"),
+        open_end_60s=("close", "last"),
+    ).reset_index()
+    midpoint = (grouped["open_high_60s"] + grouped["open_low_60s"]) / 2.0
+    no_hard_break = grouped["open_low_60s"] >= (grouped["open_start"] * 0.99)
+    quick_reclaim = (grouped["open_high_60s"] >= grouped["open_start"]) & (grouped["open_end_60s"] >= midpoint)
+    closes_green = grouped["open_end_60s"] >= grouped["open_start"]
+    grouped["open_confirm_ok"] = (closes_green | no_hard_break | quick_reclaim).fillna(False)
+    return grouped[columns]
+
+
+def _compute_quality_window_signal(
+    detail: pd.DataFrame,
+    daily_features: pd.DataFrame,
+    premarket_features: pd.DataFrame,
+    *,
+    display_timezone: str,
+    latest_trade_date,
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    if detail.empty:
+        return pd.DataFrame(
+            columns=[
+                "symbol",
+                QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN,
+                QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN,
+                QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN,
+                QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN,
+            ]
+        ), {}
+
+    feature_columns = [column for column in ["trade_date", "symbol", "exchange", "previous_close"] if column in daily_features.columns]
+    all_features = daily_features.copy()
+    all_features["trade_date"] = pd.to_datetime(all_features["trade_date"], errors="coerce").dt.date
+    all_features["symbol"] = all_features["symbol"].astype(str).str.upper()
+    all_features = all_features.loc[:, feature_columns].drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    latest_features = all_features.loc[all_features["trade_date"] == latest_trade_date].copy()
+    if latest_features.empty:
+        return pd.DataFrame(
+            columns=[
+                "symbol",
+                QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN,
+                QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN,
+                QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN,
+                QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN,
+            ]
+        ), {}
+
+    premarket_columns = [
+        column
+        for column in ["trade_date", "symbol", "prev_close_to_premarket_pct", "premarket_to_open_pct"]
+        if column in premarket_features.columns
+    ]
+    premarket_small = premarket_features.copy()
+    if premarket_columns:
+        premarket_small["trade_date"] = pd.to_datetime(premarket_small["trade_date"], errors="coerce").dt.date
+        premarket_small["symbol"] = premarket_small["symbol"].astype(str).str.upper()
+        premarket_small = premarket_small.loc[:, premarket_columns].drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    else:
+        premarket_small = pd.DataFrame(columns=["trade_date", "symbol", "prev_close_to_premarket_pct", "premarket_to_open_pct"])
+
+    detail = detail.copy()
+    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
+    detail["symbol"] = detail["symbol"].astype(str).str.upper()
+    if detail.empty:
+        return latest_features.assign(
+            **{
+                QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN: latest_trade_date,
+                QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN: "none",
+                QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN: "none",
+                QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN: np.nan,
+            }
+        )[["symbol", QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN]], {}
+
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
+    _n_before = len(detail)
+    detail = detail.dropna(subset=["timestamp"]).copy()
+    _n_dropped = _n_before - len(detail)
+    if _n_dropped:
+        logger.debug("quality_window_signal: dropped %d/%d rows with null timestamp", _n_dropped, _n_before)
+    if detail.empty:
+        return latest_features.assign(
+            **{
+                QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN: latest_trade_date,
+                QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN: "none",
+                QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN: "none",
+                QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN: np.nan,
+            }
+        )[["symbol", QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN]], {}
+
+    detail["et_timestamp"] = detail["timestamp"].dt.tz_convert(US_EASTERN_TZ)
+    detail["et_time"] = detail["et_timestamp"].dt.time
+    detail["open"] = pd.to_numeric(detail.get("open"), errors="coerce")
+    detail["close"] = pd.to_numeric(detail.get("close"), errors="coerce")
+    detail["high"] = pd.to_numeric(detail.get("high"), errors="coerce")
+    detail["low"] = pd.to_numeric(detail.get("low"), errors="coerce")
+    detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce")
+    detail["dollar_volume"] = detail["close"] * detail["volume"]
+    open_confirm = _compute_open_confirm_flags(detail)
+
+    def _metrics_between(key: str, start_time: time, end_time: time) -> tuple[pd.DataFrame, pd.DataFrame]:
+        window_frame = detail.loc[
+            detail["et_time"].ge(start_time) & detail["et_time"].lt(end_time),
+            ["trade_date", "symbol", "timestamp", "open", "close", "high", "low", "volume", "dollar_volume"],
+        ].copy()
+        if window_frame.empty:
+            return pd.DataFrame(columns=["symbol", f"has_data_{key}", f"passes_quality_{key}", f"quality_score_{key}"]), _empty_quality_window_candidate_frame()
+        window_frame = window_frame.sort_values(["trade_date", "symbol", "timestamp"]).reset_index(drop=True)
+        grouped = window_frame.groupby(["trade_date", "symbol"], sort=False).agg(
+            start_price=("open", "first"),
+            last_close=("close", "last"),
+            window_high=("high", "max"),
+            window_low=("low", "min"),
+            window_volume=("volume", "sum"),
+            window_dollar_volume=("dollar_volume", "sum"),
+            window_close_value=("dollar_volume", "sum"),
+        ).reset_index()
+        grouped = grouped.merge(all_features, on=["trade_date", "symbol"], how="left")
+        grouped = grouped.merge(premarket_small, on=["trade_date", "symbol"], how="left")
+        grouped = grouped.merge(open_confirm, on=["trade_date", "symbol"], how="left")
+        grouped["window_vwap"] = np.where(
+            grouped["window_volume"] > 0,
+            grouped["window_close_value"] / grouped["window_volume"],
+            np.nan,
+        )
+        grouped["window_return_pct"] = np.where(
+            grouped["start_price"] > 0,
+            ((grouped["last_close"] / grouped["start_price"]) - 1.0) * 100.0,
+            np.nan,
+        )
+        grouped["window_range_pct"] = np.where(
+            grouped["start_price"] > 0,
+            ((grouped["window_high"] - grouped["window_low"]) / grouped["start_price"]) * 100.0,
+            np.nan,
+        )
+        grouped["window_close_vs_high_pct"] = np.where(
+            grouped["window_high"] > 0,
+            ((grouped["last_close"] / grouped["window_high"]) - 1.0) * 100.0,
+            np.nan,
+        )
+        grouped["window_vwap_trend_ok"] = (grouped["last_close"] >= grouped["window_vwap"]).fillna(False)
+        grouped["prev_close_ok"] = pd.to_numeric(grouped.get("previous_close"), errors="coerce") >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_previous_close"]
+        grouped["gap_ok"] = pd.to_numeric(grouped.get("prev_close_to_premarket_pct"), errors="coerce") >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_prev_close_to_premarket_pct"]
+        grouped["dollar_vol_ok"] = grouped["window_dollar_volume"] >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_window_dollar_volume"]
+        grouped["window_return_ok"] = grouped["window_return_pct"] > QUALITY_OPEN_DRIVE_QUALITY_THRESHOLDS["min_window_return_pct"]
+        grouped["close_near_high_ok"] = grouped["window_close_vs_high_pct"] >= QUALITY_OPEN_DRIVE_QUALITY_THRESHOLDS["min_close_vs_high_pct"]
+        grouped["range_ok"] = grouped["window_range_pct"] <= QUALITY_OPEN_DRIVE_QUALITY_THRESHOLDS["max_window_range_pct"]
+        grouped["above_vwap_ok"] = grouped["window_vwap_trend_ok"].fillna(False)
+        open_confirm_series = grouped.get("open_confirm_ok")
+        if open_confirm_series is None:
+            open_confirm_series = pd.Series(False, index=grouped.index, dtype=bool)
+        else:
+            open_confirm_series = open_confirm_series.astype("boolean").fillna(False).astype(bool)
+        grouped["open_confirm_ok"] = (
+            (pd.to_numeric(grouped.get("premarket_to_open_pct"), errors="coerce") >= 0.0)
+            | open_confirm_series
+        )
+        grouped["base_candidate"] = grouped["prev_close_ok"] & grouped["gap_ok"] & grouped["dollar_vol_ok"]
+        grouped["quality_score"] = sum(
+            grouped[column].fillna(False).astype(float) * weight
+            for column, weight in QUALITY_OPEN_DRIVE_SCORE_WEIGHTS.items()
+        )
+        grouped["has_data"] = True
+        grouped["passes_quality"] = (
+            grouped["base_candidate"]
+            & grouped["window_return_ok"]
+            & grouped["close_near_high_ok"]
+            & grouped["range_ok"]
+            & grouped["above_vwap_ok"]
+        )
+        grouped["window_key"] = key
+        grouped["window_label_local"] = grouped["trade_date"].map(
+            lambda trade_day: _format_quality_window_label(
+                trade_day,
+                start_et=start_time,
+                end_et=end_time,
+                display_timezone=display_timezone,
+            )
+        )
+        if "exchange" not in grouped.columns:
+            grouped["exchange"] = ""
+        else:
+            grouped["exchange"] = grouped["exchange"].fillna("")
+        candidate = grouped.loc[grouped["base_candidate"]].copy()
+        candidate = candidate.sort_values(
+            ["trade_date", "quality_score", "window_dollar_volume", "window_return_pct", "symbol"],
+            ascending=[True, False, False, False, True],
+        ).reset_index(drop=True)
+        candidate = candidate.reindex(columns=QUALITY_OPEN_DRIVE_CANDIDATE_EXPORT_COLUMNS)
+        latest_metrics = grouped.loc[
+            grouped["trade_date"] == latest_trade_date,
+            ["symbol", "has_data", "passes_quality", "quality_score", "base_candidate"],
+        ].copy()
+        latest_metrics = latest_metrics.rename(
+            columns={
+                "has_data": f"has_data_{key}",
+                "passes_quality": f"passes_quality_{key}",
+                "quality_score": f"quality_score_{key}",
+                "base_candidate": f"base_candidate_{key}",
+            }
+        )
+        return latest_metrics, candidate
+
+    window_labels = {
+        key: _format_quality_window_label(
+            latest_trade_date,
+            start_et=start_time,
+            end_et=end_time,
+            display_timezone=display_timezone,
+        )
+        for key, start_time, end_time in QUALITY_OPEN_DRIVE_ET_WINDOWS
+    }
+    candidate_exports: dict[str, pd.DataFrame] = {}
+    status = latest_features[["symbol"]].drop_duplicates(subset=["symbol"]).reset_index(drop=True)
+    for key, start_time, end_time in QUALITY_OPEN_DRIVE_ET_WINDOWS:
+        latest_metrics, candidate = _metrics_between(key, start_time, end_time)
+        status = status.merge(latest_metrics, on="symbol", how="left")
+        export_tag = _quality_window_export_tag(start_time, end_time)
+        candidate_exports[f"quality_candidates_{export_tag}_all"] = candidate
+        candidate_exports[f"quality_candidates_{export_tag}_top20_per_day"] = _select_top_candidates_per_day(candidate, 20)
+        candidate_exports[f"quality_candidates_{export_tag}_top50_per_day"] = _select_top_candidates_per_day(candidate, 50)
+    for column in [
+        "has_data_early",
+        "has_data_late",
+        "passes_quality_early",
+        "passes_quality_late",
+        "base_candidate_early",
+        "base_candidate_late",
+    ]:
+        if column not in status.columns:
+            status[column] = pd.Series(False, index=status.index, dtype=bool)
+            continue
+        status[column] = status[column].astype("boolean").fillna(False).astype(bool)
+    for column in ["quality_score_early", "quality_score_late"]:
+        if column not in status.columns:
+            status[column] = pd.Series(np.nan, index=status.index, dtype=float)
+            continue
+        status[column] = pd.to_numeric(status[column], errors="coerce")
+    status.loc[~status["base_candidate_early"], "quality_score_early"] = np.nan
+    status.loc[~status["base_candidate_late"], "quality_score_late"] = np.nan
+    status[QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN] = latest_trade_date
+    status[QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN] = np.select(
+        [
+            status["has_data_early"] & status["has_data_late"],
+            status["has_data_early"],
+            status["has_data_late"],
+        ],
+        [
+            f"{window_labels['early']}+{window_labels['late']}",
+            window_labels["early"],
+            window_labels["late"],
+        ],
+        default="none",
+    )
+    status[QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN] = np.select(
+        [
+            status["passes_quality_early"] & status["passes_quality_late"],
+            status["passes_quality_early"],
+            status["passes_quality_late"],
+        ],
+        [
+            f"{window_labels['early']}+{window_labels['late']}",
+            window_labels["early"],
+            window_labels["late"],
+        ],
+        default="none",
+    )
+    status[QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN] = status[["quality_score_early", "quality_score_late"]].max(axis=1, skipna=True)
+    return status[["symbol", QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN, QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN]], candidate_exports
+
+
+def _enrich_universe_with_quality_window_status(
+    universe: pd.DataFrame,
+    daily_features: pd.DataFrame,
+    premarket_features: pd.DataFrame,
+    second_detail_all: pd.DataFrame,
+    *,
+    display_timezone: str,
+) -> pd.DataFrame:
+    enriched = universe.copy()
+    enriched["symbol"] = enriched["symbol"].astype(str).str.upper().str.strip()
+    latest_trade_date = pd.to_datetime(daily_features.get("trade_date"), errors="coerce").dt.date.dropna().max()
+    if latest_trade_date is None:
+        enriched[QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN] = pd.NA
+        enriched[QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN] = "none"
+        enriched[QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN] = "none"
+        enriched[QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN] = np.nan
+        return enriched
+
+    status, _ = _compute_quality_window_signal(
+        second_detail_all,
+        daily_features,
+        premarket_features,
+        display_timezone=display_timezone,
+        latest_trade_date=latest_trade_date,
+    )
+    enriched = enriched.merge(status, on="symbol", how="left")
+    enriched[QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN] = enriched[QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN].fillna(latest_trade_date)
+    enriched[QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN] = enriched[QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN].fillna("none")
+    enriched[QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN] = enriched[QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN].fillna("none")
+    enriched[QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN] = pd.to_numeric(enriched[QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN], errors="coerce")
+    return enriched
+
+
+def _write_csv_exports(export_dir: Path, named_frames: dict[str, pd.DataFrame]) -> dict[str, Path]:
+    created: dict[str, Path] = {}
+    export_dir.mkdir(parents=True, exist_ok=True)
+    for name, frame in named_frames.items():
+        path = export_dir / f"{name}.csv"
+        frame.to_csv(path, index=False)
+        created[name] = path
+    return created
+
+
+def _normalize_exchange_key(value: object) -> str:
+    normalized = str(value or "").strip().upper()
+    compact = normalized.replace(" ", "").replace("-", "")
+    if compact in {"NASDAQ", "XNAS"}:
+        return "NASDAQ"
+    if compact in {"NYSE", "XNYS"}:
+        return "NYSE"
+    if compact in {"AMEX", "XASE", "NYSEAMERICAN", "NYSEMKT"}:
+        return "AMEX"
+    return normalized
+
+
+def _normalize_quality_window_exchange_dataset_map(exchange_dataset_map: dict[str, str] | None) -> dict[str, str]:
+    if not exchange_dataset_map:
+        return {}
+    normalized: dict[str, str] = {}
+    for exchange, dataset_name in exchange_dataset_map.items():
+        exchange_key = _normalize_exchange_key(exchange)
+        dataset_key = str(dataset_name or "").strip().upper()
+        if exchange_key and dataset_key:
+            normalized[exchange_key] = dataset_key
+    return normalized
+
+
+def _attach_exchange_lookup(detail: pd.DataFrame, exchange_lookup: pd.DataFrame) -> pd.DataFrame:
+    if detail.empty:
+        return detail.copy()
+    enriched = detail.copy()
+    enriched["symbol"] = enriched["symbol"].astype(str).str.upper()
+    if "exchange_key" not in exchange_lookup.columns:
+        return enriched
+    return enriched.merge(exchange_lookup, on="symbol", how="left")
+
+
+def _with_source_priority(frame: pd.DataFrame, *, source_priority: int) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    enriched = frame.copy()
+    enriched["_source_priority"] = int(source_priority)
+    return enriched
+
+
+def _filter_quality_window_intervals(
+    detail: pd.DataFrame,
+    *,
+    include_early: bool,
+    include_late: bool,
+    include_open_confirm: bool,
+) -> pd.DataFrame:
+    if detail.empty:
+        return detail.copy()
+
+    filtered = detail.copy()
+    filtered["timestamp"] = pd.to_datetime(filtered["timestamp"], errors="coerce", utc=True)
+    _n_before = len(filtered)
+    filtered = filtered.dropna(subset=["timestamp"]).copy()
+    _n_dropped = _n_before - len(filtered)
+    if _n_dropped:
+        logger.debug("filter_quality_window_intervals: dropped %d/%d rows with null timestamp", _n_dropped, _n_before)
+    if filtered.empty:
+        return filtered
+
+    filtered["et_time"] = filtered["timestamp"].dt.tz_convert(US_EASTERN_TZ).dt.time
+    mask = pd.Series(False, index=filtered.index, dtype=bool)
+    if include_early:
+        mask = mask | (filtered["et_time"].ge(QUALITY_OPEN_DRIVE_ET_WINDOWS[0][1]) & filtered["et_time"].lt(QUALITY_OPEN_DRIVE_ET_WINDOWS[0][2]))
+    if include_late:
+        mask = mask | (filtered["et_time"].ge(QUALITY_OPEN_DRIVE_ET_WINDOWS[1][1]) & filtered["et_time"].lt(QUALITY_OPEN_DRIVE_ET_WINDOWS[1][2]))
+    if include_open_confirm:
+        mask = mask | (
+            filtered["et_time"].ge(QUALITY_OPEN_DRIVE_OPEN_CONFIRM_ET_WINDOW[0])
+            & filtered["et_time"].lt(QUALITY_OPEN_DRIVE_OPEN_CONFIRM_ET_WINDOW[1])
+        )
+    filtered = filtered.loc[mask].copy()
+    return filtered.drop(columns=["et_time"], errors="ignore")
+
+
+def _filter_premarket_rows(detail: pd.DataFrame) -> pd.DataFrame:
+    if detail.empty:
+        return detail.copy()
+    filtered = detail.copy()
+    if "session" in filtered.columns:
+        return filtered.loc[filtered["session"].astype(str).str.strip().str.lower().eq("premarket")].copy()
+    filtered["timestamp"] = pd.to_datetime(filtered["timestamp"], errors="coerce", utc=True)
+    _n_before = len(filtered)
+    filtered = filtered.dropna(subset=["timestamp"]).copy()
+    _n_dropped = _n_before - len(filtered)
+    if _n_dropped:
+        logger.debug("filter_premarket_rows: dropped %d/%d rows with null timestamp", _n_dropped, _n_before)
+    if filtered.empty:
+        return filtered
+    filtered["et_time"] = filtered["timestamp"].dt.tz_convert(US_EASTERN_TZ).dt.time
+    filtered = filtered.loc[filtered["et_time"].lt(QUALITY_OPEN_DRIVE_OPEN_CONFIRM_ET_WINDOW[0])].copy()
+    return filtered.drop(columns=["et_time"], errors="ignore")
+
+
+def _collect_quality_window_source_frames(
+    *,
+    databento_api_key: str,
+    base_dataset: str,
+    trading_days: list,
+    raw_universe: pd.DataFrame,
+    supported_universe: pd.DataFrame,
+    daily_bars: pd.DataFrame,
+    symbol_day_scope: pd.DataFrame | None,
+    display_timezone: str,
+    window_start: time | None,
+    window_end: time | None,
+    premarket_anchor_et: time,
+    cache_dir: Path,
+    use_file_cache: bool,
+    force_refresh: bool,
+    early_exchange_datasets: dict[str, str] | None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    empty = pd.DataFrame(
+        columns=[
+            "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
+            "second_delta_pct", "from_previous_close_pct",
+        ]
+    )
+    if supported_universe.empty:
+        return empty.copy(), empty.copy(), {
+            "base_dataset": base_dataset,
+            "early_exchange_datasets": {},
+            "applied_early_exchange_datasets": {},
+        }
+
+    exchange_lookup = raw_universe[["symbol", "exchange"]].copy() if "exchange" in raw_universe.columns else raw_universe[["symbol"]].copy()
+    exchange_lookup["symbol"] = exchange_lookup["symbol"].map(lambda value: normalize_symbol_for_databento(str(value)))
+    exchange_lookup = exchange_lookup.loc[exchange_lookup["symbol"] != ""].copy()
+    exchange_lookup["exchange_key"] = exchange_lookup.get("exchange", "").map(_normalize_exchange_key)
+    exchange_lookup = exchange_lookup[["symbol", "exchange_key"]].drop_duplicates(subset=["symbol"]).reset_index(drop=True)
+
+    supported_symbols = {
+        normalized
+        for value in supported_universe["symbol"].dropna().astype(str).tolist()
+        if (normalized := normalize_symbol_for_databento(value))
+    }
+    normalized_map = _normalize_quality_window_exchange_dataset_map(early_exchange_datasets)
+
+    base_detail = collect_full_universe_open_window_second_detail(
+        databento_api_key,
+        dataset=base_dataset,
+        trading_days=trading_days,
+        universe_symbols=supported_symbols,
+        daily_bars=daily_bars,
+        symbol_day_scope=symbol_day_scope,
+        display_timezone=display_timezone,
+        window_start=window_start,
+        window_end=window_end,
+        premarket_anchor_et=premarket_anchor_et,
+        cache_dir=cache_dir,
+        use_file_cache=use_file_cache,
+        force_refresh=force_refresh,
+    )
+    base_detail = _attach_exchange_lookup(base_detail, exchange_lookup)
+
+    applied_datasets: dict[str, str] = {}
+    alternate_quality_parts: list[pd.DataFrame] = []
+    alternate_premarket_parts: list[pd.DataFrame] = []
+    alternate_symbols: set[str] = set()
+    early_symbol_counts: dict[str, int] = {}
+
+    for exchange_key, dataset_name in normalized_map.items():
+        exchange_symbols = supported_symbols.intersection(
+            set(exchange_lookup.loc[exchange_lookup["exchange_key"] == exchange_key, "symbol"])
+        )
+        if not exchange_symbols:
+            continue
+        early_symbol_counts[exchange_key] = len(exchange_symbols)
+        if dataset_name == str(base_dataset).strip().upper():
+            continue
+        alt_detail = collect_full_universe_open_window_second_detail(
+            databento_api_key,
+            dataset=dataset_name,
+            trading_days=trading_days,
+            universe_symbols=exchange_symbols,
+            daily_bars=daily_bars,
+            symbol_day_scope=symbol_day_scope,
+            display_timezone=display_timezone,
+            window_start=window_start,
+            window_end=window_end,
+            premarket_anchor_et=premarket_anchor_et,
+            cache_dir=cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
+        if alt_detail.empty:
+            continue
+        alt_detail = _attach_exchange_lookup(alt_detail, exchange_lookup)
+        alt_detail = alt_detail.loc[alt_detail["exchange_key"] == exchange_key].copy()
+        if alt_detail.empty:
+            continue
+        applied_datasets[exchange_key] = dataset_name
+        alternate_symbols.update({
+            str(symbol).upper()
+            for symbol in alt_detail["symbol"].dropna().astype(str).tolist()
+            if str(symbol).strip()
+        })
+        alternate_quality_parts.append(
+            _filter_quality_window_intervals(
+                alt_detail,
+                include_early=True,
+                include_late=False,
+                include_open_confirm=True,
+            )
+        )
+        alternate_premarket_parts.append(_filter_premarket_rows(alt_detail))
+
+    if base_detail.empty:
+        base_quality = empty.copy()
+        base_premarket = empty.copy()
+    else:
+        if alternate_symbols:
+            alt_symbol_mask = base_detail["symbol"].astype(str).str.upper().isin(alternate_symbols)
+            base_for_alternate = base_detail.loc[alt_symbol_mask].copy()
+            base_for_other = base_detail.loc[~alt_symbol_mask].copy()
+            base_quality = pd.concat(
+                [
+                    _filter_quality_window_intervals(base_for_other, include_early=True, include_late=True, include_open_confirm=True),
+                    _filter_quality_window_intervals(base_for_alternate, include_early=False, include_late=True, include_open_confirm=False),
+                ],
+                ignore_index=True,
+            )
+            base_premarket = _filter_premarket_rows(base_for_other)
+        else:
+            base_quality = _filter_quality_window_intervals(base_detail, include_early=True, include_late=True, include_open_confirm=True)
+            base_premarket = _filter_premarket_rows(base_detail)
+
+    base_quality = _with_source_priority(base_quality, source_priority=0)
+    base_premarket = _with_source_priority(base_premarket, source_priority=0)
+    alternate_quality_parts = [_with_source_priority(part, source_priority=1) for part in alternate_quality_parts]
+    alternate_premarket_parts = [_with_source_priority(part, source_priority=1) for part in alternate_premarket_parts]
+
+    quality_detail = pd.concat([base_quality, *alternate_quality_parts], ignore_index=True) if alternate_quality_parts else base_quality.copy()
+    premarket_detail = pd.concat([base_premarket, *alternate_premarket_parts], ignore_index=True) if alternate_premarket_parts else base_premarket.copy()
+
+    for frame in (quality_detail, premarket_detail):
+        if not frame.empty:
+            frame["symbol"] = frame["symbol"].astype(str).str.upper()
+            frame["timestamp"] = pd.to_datetime(frame["timestamp"], errors="coerce", utc=True)
+            _n_before = len(frame)
+            frame.dropna(subset=["timestamp"], inplace=True)
+            _n_dropped = _n_before - len(frame)
+            if _n_dropped:
+                logger.debug("collect_quality_window_source_frames: dropped %d/%d rows with null timestamp", _n_dropped, _n_before)
+            frame.sort_values(["trade_date", "symbol", "timestamp", "_source_priority"], inplace=True, kind="stable")
+            frame.drop_duplicates(subset=["trade_date", "symbol", "timestamp"], keep="last", inplace=True)
+            frame.drop(columns=["_source_priority"], errors="ignore", inplace=True)
+            frame.reset_index(drop=True, inplace=True)
+
+    metadata = {
+        "base_dataset": str(base_dataset).strip().upper(),
+        "early_exchange_datasets": normalized_map,
+        "applied_early_exchange_datasets": applied_datasets,
+        "early_exchange_symbol_counts": early_symbol_counts,
+        "quality_window_detail_rows": int(len(quality_detail)),
+        "premarket_detail_rows": int(len(premarket_detail)),
+    }
+    return quality_detail, premarket_detail, metadata
+
+
 def _build_daily_symbol_features_full_universe_export(
     *,
     trading_days: list,
@@ -295,6 +1002,7 @@ def _build_daily_symbol_features_full_universe_export(
             "has_intraday_summary": "has_intraday",
         }
     )
+    coverage_flags = coverage_flags.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
     features = features.merge(coverage_flags, on=["trade_date", "symbol"], how="left")
 
     features["exchange"] = features.get("exchange", "").fillna("")
@@ -414,6 +1122,7 @@ def _prepare_full_universe_second_detail_export(second_detail_all: pd.DataFrame,
     lookup = daily_features[["trade_date", "symbol", "previous_close", "market_open_price"]].copy()
     lookup["trade_date"] = pd.to_datetime(lookup["trade_date"], errors="coerce").dt.date
     lookup["symbol"] = lookup["symbol"].astype(str).str.upper()
+    lookup = lookup.drop_duplicates(subset=["trade_date", "symbol"], keep="first").reset_index(drop=True)
     detail = detail.merge(lookup, on=["trade_date", "symbol"], how="left")
     detail["second_delta_pct"] = pd.to_numeric(detail.get("second_delta_pct"), errors="coerce")
     detail["from_previous_close_pct"] = np.where(
@@ -470,7 +1179,7 @@ def _build_premarket_features_full_universe_export(second_detail_all: pd.DataFra
         ordered = group.sort_values("timestamp")
         volume = pd.to_numeric(ordered["volume"], errors="coerce").fillna(0.0)
         close = pd.to_numeric(ordered["close"], errors="coerce")
-        dollar_volume = float((close.fillna(0.0) * volume).sum())
+        dollar_volume = float((close * volume).sum())
         total_volume = float(volume.sum())
         metrics.append(
             {
@@ -561,13 +1270,14 @@ def run_production_export_pipeline(
     databento_api_key: str,
     fmp_api_key: str = "",
     dataset: str,
+    quality_window_early_exchange_datasets: dict[str, str] | None = None,
     lookback_days: int = 30,
     top_fraction: float = 0.20,
     ranking_metric: str = "window_range_pct",
     display_timezone: str = "Europe/Berlin",
     window_start: time | None = None,
     window_end: time | None = None,
-    premarket_anchor_et: time = time(8, 0),
+    premarket_anchor_et: time = time(4, 0),
     min_market_cap: float = 0.0,
     cache_dir: Path | None = None,
     export_dir: Path | None = None,
@@ -647,14 +1357,23 @@ def run_production_export_pipeline(
     intraday_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     ranked = rank_top_fraction_per_day(intraday, ranking_metric=ranking_metric, top_fraction=top_fraction)
-    summary = build_summary_table(ranked, raw_universe)
-    if summary.empty:
+    if ranked.empty:
         raise RuntimeError("No ranked results were returned for the production export run")
 
     ranked_scope = ranked[["trade_date", "symbol"]].drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
 
     if second_detail_scope == "none":
         full_universe_second_detail_raw = pd.DataFrame()
+        quality_window_second_detail = pd.DataFrame()
+        premarket_source_detail = pd.DataFrame()
+        quality_window_source_metadata = {
+            "base_dataset": str(dataset).strip().upper(),
+            "early_exchange_datasets": _normalize_quality_window_exchange_dataset_map(quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS),
+            "applied_early_exchange_datasets": {},
+            "early_exchange_symbol_counts": {},
+            "quality_window_detail_rows": 0,
+            "premarket_detail_rows": 0,
+        }
     else:
         full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
             databento_api_key,
@@ -670,6 +1389,23 @@ def run_production_export_pipeline(
             cache_dir=resolved_cache_dir,
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
+        )
+        quality_window_second_detail, premarket_source_detail, quality_window_source_metadata = _collect_quality_window_source_frames(
+            databento_api_key=databento_api_key,
+            base_dataset=dataset,
+            trading_days=trading_days,
+            raw_universe=raw_universe,
+            supported_universe=supported_universe,
+            daily_bars=daily_bars,
+            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+            display_timezone=display_timezone,
+            window_start=window_start,
+            window_end=window_end,
+            premarket_anchor_et=premarket_anchor_et,
+            cache_dir=resolved_cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+            early_exchange_datasets=quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS,
         )
     daily_symbol_features_full_universe, symbol_day_diagnostics = _build_daily_symbol_features_full_universe_export(
         trading_days=trading_days,
@@ -687,12 +1423,51 @@ def run_production_export_pipeline(
         full_universe_second_detail_raw,
         daily_symbol_features_full_universe,
     )
+    quality_window_second_detail_prepared = _prepare_full_universe_second_detail_export(
+        quality_window_second_detail,
+        daily_symbol_features_full_universe,
+    )
+    premarket_source_detail_prepared = _prepare_full_universe_second_detail_export(
+        premarket_source_detail,
+        daily_symbol_features_full_universe,
+    )
     second_detail_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
     premarket_features_full_universe = _build_premarket_features_full_universe_export(
-        full_universe_second_detail_open,
+        premarket_source_detail_prepared,
         daily_symbol_features_full_universe,
     )
     premarket_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
+
+    latest_trade_date = pd.to_datetime(daily_symbol_features_full_universe.get("trade_date"), errors="coerce").dt.date.dropna().max()
+    quality_window_status = pd.DataFrame(
+        columns=[
+            "symbol",
+            QUALITY_OPEN_DRIVE_WINDOW_TRADE_DATE_COLUMN,
+            QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN,
+            QUALITY_OPEN_DRIVE_WINDOW_STATUS_COLUMN,
+            QUALITY_OPEN_DRIVE_WINDOW_SCORE_COLUMN,
+        ]
+    )
+    quality_candidate_exports: dict[str, pd.DataFrame] = {}
+    if latest_trade_date is not None:
+        quality_window_status, quality_candidate_exports = _compute_quality_window_signal(
+            quality_window_second_detail_prepared,
+            daily_symbol_features_full_universe,
+            premarket_features_full_universe,
+            display_timezone=display_timezone,
+            latest_trade_date=latest_trade_date,
+        )
+
+    raw_universe = _enrich_universe_with_quality_window_status(
+        raw_universe,
+        daily_symbol_features_full_universe,
+        premarket_features_full_universe,
+        quality_window_second_detail_prepared,
+        display_timezone=display_timezone,
+    )
+    summary = build_summary_table(ranked, raw_universe)
+    if summary.empty:
+        raise RuntimeError("No ranked results were returned for the production export run")
 
     selected_row = summary.iloc[0]
     selected_trade_date = pd.Timestamp(selected_row["trade_date"]).date()
@@ -753,7 +1528,7 @@ def run_production_export_pipeline(
         "second_detail_scope": second_detail_scope,
         "selected_symbol_detail_scope": "selected_top_ranked_symbol_day_only",
         "internal_timezone": display_timezone,
-        "session_documentation": "second_detail export spans from the premarket anchor (08:00:00 ET) through 15:35:59 Europe/Berlin; session is labeled as premarket before 09:30 ET and regular from 09:30 ET onward",
+        "session_documentation": f"second_detail export spans from the configured premarket anchor ({premarket_anchor_et.strftime('%H:%M:%S')} ET) through the configured open-window local end in {display_timezone}; session is labeled as premarket before 09:30 ET and regular from 09:30 ET onward",
         "second_delta_pct_formula": "((close_t / close_t_minus_1) - 1) * 100 within each symbol-day open-window second series",
         "window_range_pct_formula": "((window_high - window_low) / window_start_price) * 100",
         "window_return_pct_formula": "((window_end_price / window_start_price) - 1) * 100",
@@ -765,7 +1540,20 @@ def run_production_export_pipeline(
         "premarket_last_rule": "last 1-second close in the premarket session before 09:30 ET",
         "premarket_vwap_rule": "sum(close * volume) / sum(volume) across premarket 1-second bars",
         "has_premarket_data_rule": "True when at least one premarket 1-second bar exists and premarket_last is not null",
-        "premarket_price_anchor_rule": "last_ohlcv_1s_close in [08:00:00 ET, regular_open) for the trade date",
+        "premarket_price_anchor_rule": f"last_ohlcv_1s_close in [{premarket_anchor_et.strftime('%H:%M:%S')} ET, regular_open) for the trade date",
+        "quality_window_source_base_dataset": quality_window_source_metadata["base_dataset"],
+        "quality_window_source_early_exchange_datasets": quality_window_source_metadata["early_exchange_datasets"],
+        "quality_window_source_applied_early_exchange_datasets": quality_window_source_metadata["applied_early_exchange_datasets"],
+        "quality_window_source_early_exchange_symbol_counts": quality_window_source_metadata["early_exchange_symbol_counts"],
+        "quality_window_source_strategy": "Use exchange-specific early/premarket sources where configured, use the base dataset for the late 09:00-09:30 ET window, and derive open-confirm from the same source used for the early path.",
+        "quality_open_drive_window_trade_date_rule": "latest trade_date covered by daily_symbol_features_full_universe",
+        "quality_open_drive_window_coverage_latest_berlin_rule": "categorical latest-trade-date data-presence status derived from ET windows [04:00, 04:30) and [09:00, 09:30), rendered in the configured display_timezone local time, or none",
+        "quality_open_drive_window_latest_berlin_rule": "categorical latest-trade-date high-confidence pass status derived from ET windows [04:00, 04:30) and [09:00, 09:30), rendered in the configured display_timezone local time, or none",
+        "quality_open_drive_window_score_latest_berlin_rule": "latest-trade-date best window quality score across the ET windows [04:00, 04:30) and [09:00, 09:30), based on weighted hard filters, trend stability, VWAP position, and optional open confirmation",
+        "quality_open_drive_window_base_filters": "previous_close >= 5, prev_close_to_premarket_pct >= 0, and 30m window_dollar_volume >= 500000",
+        "quality_open_drive_window_latest_berlin_criteria": "window_return_pct > 0, window_close_vs_high_pct >= -2.0, window_range_pct <= 12.0, and window_close >= window_vwap; open confirmation contributes to score but is not required for the categorical pass label",
+        "quality_open_drive_window_score_weights": QUALITY_OPEN_DRIVE_SCORE_WEIGHTS,
+        "quality_window_candidate_exports": sorted(quality_candidate_exports.keys()),
         "open_1m_volume_boundary": "[regular_open, regular_open + 1 minute)",
         "open_5m_volume_boundary": "[regular_open, regular_open + 5 minutes)",
         "full_universe_open_detail_window": f"[{_format_optional_time(window_start)}, {_format_optional_time(window_end)}] {display_timezone}",
@@ -783,6 +1571,7 @@ def run_production_export_pipeline(
         "minute_detail_all_rows": len(minute_detail_all),
         "second_detail_all_rows": len(second_detail_all),
         "full_universe_second_detail_open_rows": len(full_universe_second_detail_open),
+        "quality_window_second_detail_rows": len(quality_window_second_detail_prepared),
         "daily_symbol_features_full_universe_rows": len(daily_symbol_features_full_universe),
         "premarket_features_full_universe_rows": len(premarket_features_full_universe),
         "symbol_day_diagnostics_rows": len(symbol_day_diagnostics),
@@ -810,17 +1599,24 @@ def run_production_export_pipeline(
         additional_sheets={
             "batl_debug": pd.DataFrame([batl_debug]),
             "output_checks": pd.DataFrame([output_summary]),
+            **quality_candidate_exports,
         },
         additional_parquet_targets={
             "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
             "full_universe_second_detail_open": full_universe_second_detail_open,
             "premarket_features_full_universe": premarket_features_full_universe,
             "symbol_day_diagnostics": symbol_day_diagnostics,
+            "quality_window_status_latest": quality_window_status,
+            **quality_candidate_exports,
         },
         cost_estimate=cost_estimate,
         unsupported_symbols=unsupported,
         manifest=manifest,
     )
+
+    csv_export_paths = _write_csv_exports(resolved_export_dir, quality_candidate_exports)
+    for name, path in csv_export_paths.items():
+        paths[f"csv_{name}"] = path
 
     exact_named_paths = _write_exact_named_exports(
         resolved_export_dir,
@@ -829,6 +1625,8 @@ def run_production_export_pipeline(
             "full_universe_second_detail_open": full_universe_second_detail_open,
             "premarket_features_full_universe": premarket_features_full_universe,
             "symbol_day_diagnostics": symbol_day_diagnostics,
+            "quality_window_status_latest": quality_window_status,
+            **quality_candidate_exports,
         },
     )
     for name, path in exact_named_paths.items():
@@ -862,7 +1660,14 @@ def main() -> None:
         print("INFO: FMP_API_KEY not set — running without FMP enrichment (Nasdaq Trader primary universe only).")
 
     available = list_accessible_datasets(databento_api_key)
-    dataset = choose_default_dataset(available, requested_dataset=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
+    requested_dataset = (os.getenv("DATABENTO_DATASET") or "").strip()
+    if requested_dataset:
+        dataset = choose_default_dataset(available, requested_dataset=requested_dataset)
+    elif "DBEQ.BASIC" in available:
+        dataset = "DBEQ.BASIC"
+    else:
+        dataset = choose_default_dataset(available, requested_dataset="DBEQ.BASIC")
+        print(f"INFO: DBEQ.BASIC is not accessible; falling back to {dataset}.")
     result = run_production_export_pipeline(
         databento_api_key=databento_api_key,
         fmp_api_key=fmp_api_key,
@@ -873,7 +1678,7 @@ def main() -> None:
         display_timezone="Europe/Berlin",
         window_start=None,
         window_end=None,
-        premarket_anchor_et=time(8, 0),
+        premarket_anchor_et=time(4, 0),
         min_market_cap=0.0,
         cache_dir=REPO_ROOT / "artifacts" / "databento_volatility_cache",
         export_dir=default_export_directory(),

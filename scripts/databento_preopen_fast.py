@@ -25,6 +25,8 @@ from databento_volatility_screener import (
     _make_databento_client,
     _safe_float,
     _store_to_frame,
+    choose_default_dataset,
+    list_accessible_datasets,
     normalize_symbol_for_databento,
 )
 from scripts.databento_production_export import (
@@ -39,6 +41,29 @@ DEFAULT_EXPORT_DIR = Path.home() / "Downloads"
 DEFAULT_FAST_SCOPE_MIN_DAYS = 5
 DEFAULT_FAST_SCOPE_MAX_DAYS = 15
 FAST_SCOPE_CALIBRATION_DAYS = (5, 7, 10, 12, 15)
+
+
+def _resolve_effective_dataset(databento_api_key: str, requested_dataset: str) -> tuple[str, list[str]]:
+    requested = str(requested_dataset or "").strip().upper()
+    try:
+        available = [str(item).strip().upper() for item in list_accessible_datasets(databento_api_key) if str(item).strip()]
+    except Exception:
+        return requested or "DBEQ.BASIC", []
+    if not available:
+        return requested or "DBEQ.BASIC", []
+    return choose_default_dataset(available, requested_dataset=requested or None), available
+
+
+def _resolve_premarket_anchor_et(manifest: dict[str, Any]) -> time:
+    raw = str(manifest.get("premarket_anchor_et") or "").strip()
+    if not raw:
+        return time(4, 0)
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).time()
+        except ValueError:
+            continue
+    return time(4, 0)
 
 
 def _normalize_trade_date(frame: pd.DataFrame) -> pd.DataFrame:
@@ -362,6 +387,11 @@ def run_preopen_fast_refresh(
     bundle_input = _resolve_full_history_bundle_input(bundle, resolved_export_dir)
     payload = load_export_bundle(bundle_input)
     frames = payload["frames"]
+    baseline_manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
+
+    requested_dataset = str(dataset or "").strip().upper()
+    effective_dataset, available_datasets = _resolve_effective_dataset(databento_api_key, requested_dataset)
+    premarket_anchor_et = _resolve_premarket_anchor_et(baseline_manifest)
 
     daily_features = _normalize_trade_date(frames["daily_symbol_features_full_universe"])
     scope_calibration = _recent_scope_symbol_counts(daily_features)
@@ -389,20 +419,23 @@ def run_preopen_fast_refresh(
         for row in daily_current[["symbol", "previous_close"]].drop_duplicates(subset=["symbol"]).itertuples(index=False)
     }
 
-    premarket_start_utc = datetime.combine(target_trade_date, time(8, 0), tzinfo=US_EASTERN_TZ).astimezone(UTC)
+    premarket_start_utc = datetime.combine(target_trade_date, premarket_anchor_et, tzinfo=US_EASTERN_TZ).astimezone(UTC)
     regular_open_utc = datetime.combine(target_trade_date, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC)
     fetch_end_utc = min(datetime.now(UTC), regular_open_utc - pd.Timedelta(seconds=1).to_pytimedelta())
 
     client = _make_databento_client(databento_api_key)
     batch_frames: list[pd.DataFrame] = []
     unresolved_symbols: set[str] = set()
+    attempted_batches = 0
+    failed_batch_errors: list[str] = []
     if fetch_end_utc >= premarket_start_utc:
         for symbols_batch in _iter_symbol_batches(symbols):
+            attempted_batches += 1
             try:
                 with warnings.catch_warnings(record=True) as caught_warnings:
                     warnings.simplefilter("always")
                     store = client.timeseries.get_range(
-                        dataset=dataset,
+                        dataset=effective_dataset,
                         symbols=symbols_batch,
                         schema="ohlcv-1s",
                         start=premarket_start_utc.isoformat(),
@@ -412,11 +445,18 @@ def run_preopen_fast_refresh(
                 unresolved_symbols.update(
                     _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
                 )
-            except Exception:
+            except Exception as exc:
+                failed_batch_errors.append(f"batch_size={len(symbols_batch)} error={type(exc).__name__}: {exc}")
                 continue
             if frame.empty:
                 continue
             batch_frames.append(frame)
+
+    if attempted_batches > 0 and not batch_frames and failed_batch_errors:
+        raise RuntimeError(
+            "Premarket fetch failed for all symbol batches "
+            f"(dataset={effective_dataset}, batches={attempted_batches}). First error: {failed_batch_errors[0]}"
+        )
 
     premarket_raw = pd.concat(batch_frames, ignore_index=True) if batch_frames else pd.DataFrame()
     premarket_current = _aggregate_current_premarket_features(
@@ -432,8 +472,12 @@ def run_preopen_fast_refresh(
         "basename": basename,
         "export_generated_at": exported_at,
         "exported_at": exported_at,
+        "source_data_fetched_at": exported_at,
         "premarket_fetched_at": exported_at,
-        "dataset": dataset,
+        "dataset": effective_dataset,
+        "dataset_requested": requested_dataset or effective_dataset,
+        "dataset_available": available_datasets,
+        "premarket_anchor_et": premarket_anchor_et.strftime("%H:%M:%S"),
         "mode": "preopen_fast_reduced_scope",
         "scope_days": int(resolved_scope_days),
         "scope_days_mode": "auto" if scope_days is None or int(scope_days) <= 0 else "manual",
@@ -446,6 +490,7 @@ def run_preopen_fast_refresh(
         "baseline_manifest_path": str(payload["manifest_path"]),
         "baseline_bundle_prefix": payload["base_prefix"],
         "unresolved_symbols": sorted(unresolved_symbols),
+        "failed_fetch_batches": failed_batch_errors,
     }
     outputs = _write_fast_outputs(
         resolved_export_dir,
