@@ -494,12 +494,62 @@ def run_preopen_fast_refresh(
 
     if attempted_batches > 0 and not batch_frames and failed_batch_errors:
         if clamp_bypassed:
-            logger.warning(
-                "All premarket fetch batches failed after availability-clamp bypass "
-                "(dataset=%s, batches=%d). First error: %s. "
-                "Dataset may not serve live data yet; proceeding with empty premarket.",
-                effective_dataset, attempted_batches, failed_batch_errors[0],
-            )
+            # The selected dataset (e.g. DBEQ.BASIC) does not serve same-day
+            # data.  Try falling back to a real-time capable dataset from the
+            # user's accessible list.
+            _REALTIME_DATASET_PREFERENCE = ("XNAS.ITCH", "XNYS.PILLAR", "DBEQ.PLUS")
+            fallback_dataset = None
+            for candidate in _REALTIME_DATASET_PREFERENCE:
+                if candidate in available_datasets and candidate != effective_dataset:
+                    fallback_dataset = candidate
+                    break
+            if fallback_dataset is None:
+                # No suitable real-time fallback found
+                logger.warning(
+                    "All premarket fetch batches failed after availability-clamp bypass "
+                    "(dataset=%s, batches=%d). No real-time fallback dataset available. "
+                    "First error: %s. Proceeding with empty premarket.",
+                    effective_dataset, attempted_batches, failed_batch_errors[0],
+                )
+            else:
+                logger.info(
+                    "Dataset %s does not serve same-day data. "
+                    "Falling back to real-time dataset %s for premarket fetch.",
+                    effective_dataset, fallback_dataset,
+                )
+                batch_frames.clear()
+                failed_batch_errors.clear()
+                unresolved_symbols.clear()
+                attempted_batches = 0
+                effective_dataset = fallback_dataset
+                for symbols_batch in _iter_symbol_batches(symbols):
+                    attempted_batches += 1
+                    try:
+                        with warnings.catch_warnings(record=True) as caught_warnings:
+                            warnings.simplefilter("always")
+                            store = client.timeseries.get_range(
+                                dataset=fallback_dataset,
+                                symbols=symbols_batch,
+                                schema="ohlcv-1s",
+                                start=premarket_start_utc.isoformat(),
+                                end=_exclusive_ohlcv_1s_end(fetch_end_utc).isoformat(),
+                            )
+                        frame = _store_to_frame(store, context="run_preopen_fast_refresh_fallback")
+                        unresolved_symbols.update(
+                            _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+                        )
+                    except Exception as exc:
+                        failed_batch_errors.append(f"fallback={fallback_dataset} batch_size={len(symbols_batch)} error={type(exc).__name__}: {exc}")
+                        continue
+                    if frame.empty:
+                        continue
+                    batch_frames.append(frame)
+                if attempted_batches > 0 and not batch_frames and failed_batch_errors:
+                    logger.warning(
+                        "Real-time fallback %s also failed for all batches (%d). "
+                        "First error: %s. Proceeding with empty premarket.",
+                        fallback_dataset, attempted_batches, failed_batch_errors[0],
+                    )
         else:
             raise RuntimeError(
                 "Premarket fetch failed for all symbol batches "
