@@ -3024,9 +3024,6 @@ def run_streamlit_app() -> None:
             if "open_pattern_status" not in visible_columns and "open_pattern_status" in display_watchlist_table.columns:
                 visible_columns = ["open_pattern_status", *visible_columns]
             table_frame = display_watchlist_table[visible_columns].copy()
-            for column in ["early_dip_pct_10s", "early_dip_second", "open_30s_volume", "reclaim_second_30s"]:
-                if column in table_frame.columns:
-                    table_frame[column] = table_frame[column].where(table_frame[column].notna(), "n/a")
             if "reclaimed_start_price_within_30s" in table_frame.columns:
                 table_frame["reclaimed_start_price_within_30s"] = _format_reclaim_status_series(display_watchlist_table)
             st.caption("`n/a` or `missing open-window detail` means the symbol-day has no usable regular-open second-detail slice for the dip/reclaim checks.")
