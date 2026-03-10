@@ -2984,20 +2984,20 @@ def run_streamlit_app() -> None:
             st.info("No symbols matched the current filters.")
         else:
             preferred_columns = [
-                "trade_date",
                 "watchlist_rank",
                 "symbol",
-                "open_pattern_status",
+                "reclaimed_start_price_within_30s",
+                "reclaim_second_30s",
+                "open_30s_volume",
                 "prev_close_to_premarket_pct",
-                "premarket_last",
                 "premarket_dollar_volume",
                 "premarket_volume",
+                "open_pattern_status",
+                "trade_date",
+                "premarket_last",
                 "premarket_trade_count",
                 "early_dip_pct_10s",
                 "early_dip_second",
-                "open_30s_volume",
-                "reclaimed_start_price_within_30s",
-                "reclaim_second_30s",
                 "l1_limit_buy",
                 "l1_take_profit",
                 "l1_stop_loss",
@@ -3030,7 +3030,27 @@ def run_streamlit_app() -> None:
             if "reclaimed_start_price_within_30s" in table_frame.columns:
                 table_frame["reclaimed_start_price_within_30s"] = _format_reclaim_status_series(display_watchlist_table)
             st.caption("`n/a` or `missing open-window detail` means the symbol-day has no usable regular-open second-detail slice for the dip/reclaim checks.")
-            st.dataframe(table_frame, width="stretch", hide_index=True, height=420)
+            column_config: dict[str, Any] = {}
+            if "watchlist_rank" in table_frame.columns:
+                column_config["watchlist_rank"] = st.column_config.NumberColumn("Rank", width="small")
+            if "symbol" in table_frame.columns:
+                column_config["symbol"] = st.column_config.TextColumn("Symbol", width="small")
+            if "reclaimed_start_price_within_30s" in table_frame.columns:
+                column_config["reclaimed_start_price_within_30s"] = st.column_config.TextColumn("Reclaimed\nStart Price\n30s", width="small")
+            if "reclaim_second_30s" in table_frame.columns:
+                column_config["reclaim_second_30s"] = st.column_config.TextColumn("Reclaim\nSecond\n30s", width="small")
+            if "open_30s_volume" in table_frame.columns:
+                column_config["open_30s_volume"] = st.column_config.TextColumn("Open\n30s\nVolume", width="small")
+            if "prev_close_to_premarket_pct" in table_frame.columns:
+                column_config["prev_close_to_premarket_pct"] = st.column_config.NumberColumn("Prev Close ->\nPremarket %", width="small", format="%.2f")
+            if "premarket_dollar_volume" in table_frame.columns:
+                column_config["premarket_dollar_volume"] = st.column_config.NumberColumn("Premarket\n$ Volume", width="small", format="%.0f")
+            if "premarket_volume" in table_frame.columns:
+                column_config["premarket_volume"] = st.column_config.NumberColumn("Premarket\nVolume", width="small", format="%.0f")
+            if "open_pattern_status" in table_frame.columns:
+                column_config["open_pattern_status"] = st.column_config.TextColumn("Open Pattern\nStatus", width="small")
+
+            st.dataframe(table_frame, width="stretch", hide_index=True, height=420, column_config=column_config)
 
             st.subheader("Detail View (all Top-N entries)")
             detail_slice = watchlist_table.head(int(top_n)).reset_index(drop=True)
