@@ -433,7 +433,25 @@ def run_preopen_fast_refresh(
     # when the dataset hasn't ingested today's data yet.
     available_end = _get_schema_available_end(client, effective_dataset, "ohlcv-1s")
     clamped_end = _clamp_request_end(pd.Timestamp(fetch_end_utc), available_end)
-    fetch_end_utc = clamped_end.to_pydatetime()
+
+    # metadata.get_dataset_range() reports the historical ingestion frontier
+    # which can lag hours behind live data.  get_range() serves real-time data
+    # for the current day even when the metadata hasn't caught up.  When the
+    # clamp would suppress the fetch entirely but we're already past premarket
+    # start, bypass the clamp and attempt the fetch anyway.
+    clamp_bypassed = False
+    now_utc = datetime.now(UTC)
+    if clamped_end.to_pydatetime() < premarket_start_utc and now_utc >= premarket_start_utc:
+        clamp_bypassed = True
+        logger.info(
+            "Dataset available_end (%s) lags behind premarket start (%s ET). "
+            "Bypassing clamp for current-day live data fetch (fetch_end=%s).",
+            available_end,
+            premarket_anchor_et.strftime("%H:%M"),
+            fetch_end_utc,
+        )
+    else:
+        fetch_end_utc = clamped_end.to_pydatetime()
 
     batch_frames: list[pd.DataFrame] = []
     unresolved_symbols: set[str] = set()
@@ -442,8 +460,8 @@ def run_preopen_fast_refresh(
     if fetch_end_utc < premarket_start_utc:
         fetch_end_et = fetch_end_utc.astimezone(US_EASTERN_TZ)
         logger.warning(
-            "Premarket window has not started yet: dataset availability "
-            "clamped fetch_end to %s ET which is before anchor %s ET. "
+            "Premarket window has not started yet: "
+            "fetch_end %s ET is before anchor %s ET. "
             "All symbols will have has_premarket_data=False. "
             "Re-run after %s ET for premarket data.",
             fetch_end_et.strftime("%H:%M:%S"),
@@ -475,9 +493,17 @@ def run_preopen_fast_refresh(
             batch_frames.append(frame)
 
     if attempted_batches > 0 and not batch_frames and failed_batch_errors:
-        raise RuntimeError(
-            "Premarket fetch failed for all symbol batches "
-            f"(dataset={effective_dataset}, batches={attempted_batches}). First error: {failed_batch_errors[0]}"
+        if clamp_bypassed:
+            logger.warning(
+                "All premarket fetch batches failed after availability-clamp bypass "
+                "(dataset=%s, batches=%d). First error: %s. "
+                "Dataset may not serve live data yet; proceeding with empty premarket.",
+                effective_dataset, attempted_batches, failed_batch_errors[0],
+            )
+        else:
+            raise RuntimeError(
+                "Premarket fetch failed for all symbol batches "
+                f"(dataset={effective_dataset}, batches={attempted_batches}). First error: {failed_batch_errors[0]}"
         )
 
     premarket_raw = pd.concat(batch_frames, ignore_index=True) if batch_frames else pd.DataFrame()
@@ -513,6 +539,8 @@ def run_preopen_fast_refresh(
         "baseline_bundle_prefix": payload["base_prefix"],
         "unresolved_symbols": sorted(unresolved_symbols),
         "failed_fetch_batches": failed_batch_errors,
+        "availability_clamp_bypassed": clamp_bypassed,
+        "dataset_available_end": str(available_end) if available_end is not None else None,
     }
     outputs = _write_fast_outputs(
         resolved_export_dir,
