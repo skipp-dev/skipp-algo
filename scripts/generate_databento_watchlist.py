@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 import json
 from pathlib import Path
 import sys
@@ -239,10 +239,14 @@ def _resolve_effective_watchlist_config(
 
     if profile_timestamp is not None:
         profile_et = profile_timestamp.tz_convert("America/New_York")
-        if premarket_symbols == 0 and profile_et.time() < datetime.strptime("04:00:00", "%H:%M:%S").time():
+        premarket_anchor = cfg.premarket_anchor_et if hasattr(cfg, "premarket_anchor_et") else time(8, 0)
+        if premarket_symbols == 0 and profile_et.time() < premarket_anchor:
             return effective_cfg, {
                 "profile_name": "premarket_not_started",
-                "profile_reason": f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET before premarket open",
+                "profile_reason": (
+                    f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET "
+                    f"before premarket anchor ({premarket_anchor.strftime('%H:%M')} ET)"
+                ),
                 "premarket_symbols": premarket_symbols,
                 "profile_timestamp": profile_timestamp.isoformat() if profile_timestamp is not None else None,
             }

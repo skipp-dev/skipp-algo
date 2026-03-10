@@ -499,6 +499,56 @@ def test_generate_watchlist_result_flags_premarket_not_started_before_4am_et(tmp
     ]
 
 
+def test_generate_watchlist_result_flags_premarket_not_started_before_8am_et(tmp_path) -> None:
+    """Regression: export at 07:49 ET (11:49 UTC) — between 04:00 and 08:00 ET —
+    should still trigger premarket_not_started when zero symbols have premarket data."""
+    trade_day = date(2026, 3, 10)
+    manifest = {
+        "export_generated_at": "2026-03-10T11:49:00+00:00",
+        "source_data_fetched_at": "2026-03-10T11:49:00+00:00",
+    }
+    (tmp_path / "databento_preopen_fast_20260310_114900_manifest.json").write_text(
+        __import__("json").dumps(manifest),
+        encoding="utf-8",
+    )
+
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["BBB"],
+            "exchange": ["NASDAQ"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [25.0],
+            "window_range_pct": [3.0],
+            "window_return_pct": [2.0],
+            "realized_vol_pct": [1.5],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["BBB"],
+            "has_premarket_data": [False],
+            "premarket_last": [None],
+            "premarket_volume": [0],
+            "premarket_trade_count": [0],
+            "prev_close_to_premarket_pct": [None],
+            "previous_close": [25.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert len(result["watchlist_table"]) == 0
+    assert result["filter_profile"]["profile_name"] == "premarket_not_started"
+    assert "before the US premarket session opened" in result["warnings"][0]
+
+
 def test_build_preopen_long_candidates_passes_open_window_fields_through() -> None:
     """Regression: open-window fields must survive the daily column selection in build_preopen_long_candidates."""
     from scripts.generate_databento_watchlist import expand_candidate_trade_plan

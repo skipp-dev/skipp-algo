@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 import warnings
@@ -38,6 +39,7 @@ from scripts.databento_production_export import (
 )
 from scripts.load_databento_export_bundle import load_export_bundle
 
+logger = logging.getLogger(__name__)
 
 DEFAULT_EXPORT_DIR = Path.home() / "Downloads"
 DEFAULT_FAST_SCOPE_MIN_DAYS = 5
@@ -437,6 +439,15 @@ def run_preopen_fast_refresh(
     unresolved_symbols: set[str] = set()
     attempted_batches = 0
     failed_batch_errors: list[str] = []
+    if fetch_end_utc < premarket_start_utc:
+        logger.warning(
+            "Premarket window has not started yet (now=%s < anchor=%s ET). "
+            "All symbols will have has_premarket_data=False. "
+            "Re-run after %s ET for premarket data.",
+            datetime.now(US_EASTERN_TZ).strftime("%H:%M:%S"),
+            premarket_anchor_et.strftime("%H:%M"),
+            premarket_anchor_et.strftime("%H:%M"),
+        )
     if fetch_end_utc >= premarket_start_utc:
         for symbols_batch in _iter_symbol_batches(symbols):
             attempted_batches += 1
