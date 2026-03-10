@@ -2584,3 +2584,35 @@ def test_fetch_symbol_day_detail_survives_api_error(monkeypatch) -> None:
     )
     assert second.empty
     assert minute.empty
+
+def test_build_summary_table_no_suffix_leak_on_overlapping_columns() -> None:
+    """When ranked already contains columns from the universe (e.g. exchange,
+    sector), the merge must NOT create _x/_y suffixed duplicates."""
+    ranked = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 4, 1)],
+            "rank": [1],
+            "symbol": ["TSLA"],
+            "exchange": ["NASDAQ"],
+            "sector": ["Tech"],
+            "market_cap": [800e9],
+            "previous_close": [200.0],
+            "premarket_price": [202.0],
+            "market_open_price": [204.0],
+            "current_price": [210.0],
+        }
+    )
+    universe = pd.DataFrame(
+        {
+            "symbol": ["TSLA"],
+            "exchange": ["NASDAQ"],
+            "sector": ["Tech"],
+            "market_cap": [800e9],
+            "company_name": ["Tesla Inc"],
+        }
+    )
+    summary = build_summary_table(ranked, universe)
+    suffix_cols = [c for c in summary.columns if c.endswith("_x") or c.endswith("_y")]
+    assert suffix_cols == [], f"Unexpected suffix columns: {suffix_cols}"
+    assert "company_name" in summary.columns, "Universe-only column should be merged in"
+    assert summary.iloc[0]["exchange"] == "NASDAQ"

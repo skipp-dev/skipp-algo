@@ -1003,6 +1003,10 @@ def _build_daily_symbol_features_full_universe_export(
         }
     )
     coverage_flags = coverage_flags.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    # Drop columns already present in features to avoid _x/_y suffix pollution.
+    overlap_cols = (set(coverage_flags.columns) & set(features.columns)) - {"trade_date", "symbol"}
+    if overlap_cols:
+        features = features.drop(columns=list(overlap_cols))
     features = features.merge(coverage_flags, on=["trade_date", "symbol"], how="left")
 
     features["exchange"] = features.get("exchange", "").fillna("")

@@ -22,7 +22,7 @@ from zoneinfo import ZoneInfo as _ZoneInfo
 _ET = _ZoneInfo("America/New_York")
 
 import pandas as pd
-from databento_volatility_screener import _make_databento_client
+from databento_volatility_screener import _make_databento_client, _get_schema_available_end, _clamp_request_end
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +110,16 @@ def fetch_databento_daily_bars(
         # Limit batch size to avoid API limits
         db_symbols = db_symbols[:200]
 
+        available_end_1d = _get_schema_available_end(client, ds, "ohlcv-1d")
+        requested_end = pd.Timestamp(str(end_date + timedelta(days=1)), tz=UTC)
+        clamped_end = _clamp_request_end(requested_end, available_end_1d)
+
         store = client.timeseries.get_range(
             dataset=ds,
             symbols=db_symbols,
             schema="ohlcv-1d",
             start=start_date.isoformat(),
-            end=(end_date + timedelta(days=1)).isoformat(),
+            end=clamped_end.isoformat(),
         )
         df = store.to_df()
 

@@ -1245,6 +1245,7 @@ def run_intraday_screen(
     force_refresh: bool = False,
 ) -> pd.DataFrame:
     client = _make_databento_client(databento_api_key)
+    available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
     symbol_scope = _symbol_scope_token(universe_symbols)
     runtime_unsupported_symbols: set[str] = set()
     prev_close_lookup = {
@@ -1285,12 +1286,17 @@ def run_intraday_screen(
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")
+                        clamped_end_1s = _clamp_request_end(
+                            _exclusive_ohlcv_1s_end(window.fetch_end_utc), available_end_1s,
+                        )
+                        if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
+                            continue
                         store = client.timeseries.get_range(
                             dataset=dataset,
                             symbols=symbols_batch,
                             schema="ohlcv-1s",
                             start=window.fetch_start_utc.isoformat(),
-                            end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
+                            end=clamped_end_1s.isoformat(),
                         )
                         iterator = store.to_df(count=250_000)
                         if isinstance(iterator, pd.DataFrame):
@@ -1363,7 +1369,10 @@ def build_summary_table(
 ) -> pd.DataFrame:
     if ranked.empty:
         return ranked.copy()
-    merged = ranked.merge(universe, on="symbol", how="left")
+    # Only bring in columns from universe that are not already in ranked
+    # to avoid silent _x/_y suffix pollution.
+    extra_cols = ["symbol"] + [c for c in universe.columns if c not in ranked.columns]
+    merged = ranked.merge(universe[extra_cols], on="symbol", how="left") if len(extra_cols) > 1 else ranked.copy()
     merged = merged.sort_values(["trade_date", "rank", "symbol"], ascending=[False, True, True]).reset_index(drop=True)
     return _add_transition_columns(merged)
 
@@ -1414,13 +1423,19 @@ def fetch_symbol_day_detail(
             return cached_second, cached_minute
 
     client = _make_databento_client(databento_api_key)
+    available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
+    clamped_end_1s = _clamp_request_end(
+        _exclusive_ohlcv_1s_end(window.fetch_end_utc), available_end_1s,
+    )
+    if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
+        return pd.DataFrame(), pd.DataFrame()
     try:
         store = client.timeseries.get_range(
             dataset=dataset,
             symbols=[normalized_symbol],
             schema="ohlcv-1s",
             start=window.fetch_start_utc.isoformat(),
-            end=_exclusive_ohlcv_1s_end(window.fetch_end_utc).isoformat(),
+            end=clamped_end_1s.isoformat(),
         )
         frame = _store_to_frame(store, context="fetch_symbol_day_detail")
         if not frame.empty:
@@ -1592,6 +1607,7 @@ def collect_full_universe_open_window_second_detail(
         )
 
     client = _make_databento_client(databento_api_key)
+    available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
     normalized_scope = _normalize_symbol_day_scope(symbol_day_scope)
     scope_by_day = {
         trade_day: set(group["symbol"].astype(str).tolist())
@@ -1645,6 +1661,11 @@ def collect_full_universe_open_window_second_detail(
                 for symbol in day_universe_symbols
             }
             active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            clamped_end_1s = _clamp_request_end(
+                _exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)), available_end_1s,
+            )
+            if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
+                continue
             for symbols_batch in _iter_symbol_batches(active_symbols):
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -1654,7 +1675,7 @@ def collect_full_universe_open_window_second_detail(
                             symbols=symbols_batch,
                             schema="ohlcv-1s",
                             start=window.fetch_start_utc.isoformat(),
-                            end=_exclusive_ohlcv_1s_end(window.window_end_local.astimezone(UTC)).isoformat(),
+                            end=clamped_end_1s.isoformat(),
                         )
                     frame = _store_to_frame(store, count=250_000, context="collect_full_universe_open_window_second_detail")
                     runtime_unsupported_symbols.update(
