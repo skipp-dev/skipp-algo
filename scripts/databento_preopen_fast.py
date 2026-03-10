@@ -516,17 +516,45 @@ def run_preopen_fast_refresh(
             else:
                 fallback_succeeded = False
                 for fallback_dataset in fallback_candidates:
+                    dataset_upper = str(fallback_dataset).upper()
+                    symbol_exchange = {
+                        str(row.symbol).upper(): str(row.exchange).upper()
+                        for row in daily_current[["symbol", "exchange"]].drop_duplicates(subset=["symbol"]).itertuples(index=False)
+                    }
+                    allowed_exchanges: set[str] | None = None
+                    if dataset_upper.startswith("XNAS"):
+                        allowed_exchanges = {"NASDAQ"}
+                    elif dataset_upper.startswith("XNYS"):
+                        allowed_exchanges = {"NYSE"}
+                    elif dataset_upper.startswith("XASE") or dataset_upper.startswith("ARCX"):
+                        allowed_exchanges = {"AMEX"}
+
+                    fallback_symbols = symbols
+                    if allowed_exchanges is not None:
+                        fallback_symbols = [
+                            symbol
+                            for symbol in symbols
+                            if symbol_exchange.get(str(symbol).upper(), "") in allowed_exchanges
+                        ]
+                    if not fallback_symbols:
+                        logger.info(
+                            "Skipping fallback dataset %s: no compatible symbols in current scope.",
+                            fallback_dataset,
+                        )
+                        continue
+
                     logger.info(
-                        "Dataset %s does not serve same-day data. "
-                        "Trying fallback dataset %s for premarket fetch.",
-                        effective_dataset, fallback_dataset,
+                        "Dataset %s does not serve same-day data. Trying fallback dataset %s "
+                        "for premarket fetch (%d compatible symbols).",
+                        effective_dataset, fallback_dataset, len(fallback_symbols),
                     )
                     batch_frames.clear()
                     failed_batch_errors.clear()
                     unresolved_symbols.clear()
                     attempted_batches = 0
                     # Only test with one small batch first to check license/availability
-                    test_batch = list(_iter_symbol_batches(symbols))[0]
+                    fallback_batches = list(_iter_symbol_batches(fallback_symbols))
+                    test_batch = fallback_batches[0]
                     try:
                         with warnings.catch_warnings(record=True):
                             warnings.simplefilter("always")
@@ -549,7 +577,7 @@ def run_preopen_fast_refresh(
                     effective_dataset = fallback_dataset
                     if not test_frame.empty:
                         batch_frames.append(test_frame)
-                    for symbols_batch in list(_iter_symbol_batches(symbols))[1:]:
+                    for symbols_batch in fallback_batches[1:]:
                         attempted_batches += 1
                         try:
                             with warnings.catch_warnings(record=True) as caught_warnings:
