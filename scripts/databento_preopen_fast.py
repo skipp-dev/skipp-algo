@@ -19,8 +19,10 @@ if str(REPO_ROOT) not in sys.path:
 
 from databento_volatility_screener import (
     US_EASTERN_TZ,
+    _clamp_request_end,
     _exclusive_ohlcv_1s_end,
     _extract_unresolved_symbols_from_warning_messages,
+    _get_schema_available_end,
     _iter_symbol_batches,
     _make_databento_client,
     _safe_float,
@@ -424,6 +426,13 @@ def run_preopen_fast_refresh(
     fetch_end_utc = min(datetime.now(UTC), regular_open_utc - pd.Timedelta(seconds=1).to_pytimedelta())
 
     client = _make_databento_client(databento_api_key)
+
+    # Clamp request window against dataset availability to avoid 422 errors
+    # when the dataset hasn't ingested today's data yet.
+    available_end = _get_schema_available_end(client, effective_dataset, "ohlcv-1s")
+    clamped_end = _clamp_request_end(pd.Timestamp(fetch_end_utc), available_end)
+    fetch_end_utc = clamped_end.to_pydatetime()
+
     batch_frames: list[pd.DataFrame] = []
     unresolved_symbols: set[str] = set()
     attempted_batches = 0

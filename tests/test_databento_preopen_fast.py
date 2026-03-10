@@ -200,8 +200,13 @@ def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_
         def get_range(self, **kwargs):
             raise RuntimeError("simulated fetch failure")
 
+    class _FailingMetadata:
+        def get_dataset_range(self, **kwargs):
+            return None
+
     class _FailingClient:
         timeseries = _FailingTimeseries()
+        metadata = _FailingMetadata()
 
     monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle: payload)
     monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
@@ -219,3 +224,70 @@ def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_
         assert "Premarket fetch failed for all symbol batches" in str(exc)
     else:
         raise AssertionError("Expected RuntimeError when all premarket fetch batches fail")
+
+
+def test_run_preopen_fast_refresh_skips_fetch_when_dataset_not_available(monkeypatch, tmp_path) -> None:
+    """When the dataset available_end is before premarket start, no fetch is
+    attempted and no RuntimeError is raised (graceful empty result)."""
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
+    trade_day = date(2026, 3, 10)
+    payload = {
+        "manifest": {"premarket_anchor_et": "08:00:00"},
+        "manifest_path": tmp_path / "baseline_manifest.json",
+        "base_prefix": "baseline",
+        "frames": {
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "selected_top20pct": [True],
+                    "exchange": ["NYSE"],
+                    "asset_type": ["listed_equity_issue"],
+                    "is_eligible": [True],
+                    "eligibility_reason": ["eligible"],
+                    "has_fundamentals": [False],
+                    "has_reference_data": [True],
+                    "has_market_cap": [False],
+                    "window_range_pct": [1.0],
+                    "window_return_pct": [1.0],
+                    "realized_vol_pct": [1.0],
+                }
+            ),
+            "daily_bars": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "close": [10.0],
+                }
+            ),
+        },
+    }
+
+    class _NeverCalledTimeseries:
+        def get_range(self, **kwargs):
+            raise AssertionError("get_range should not be called when dataset is unavailable")
+
+    class _EarlyEndMetadata:
+        def get_dataset_range(self, **kwargs):
+            # available_end is midnight of trade_day — earlier than premarket start
+            return {"end": f"{trade_day.isoformat()}T00:00:00+00:00"}
+
+    class _MockClient:
+        timeseries = _NeverCalledTimeseries()
+        metadata = _EarlyEndMetadata()
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
+
+    result = run_preopen_fast_refresh(
+        databento_api_key="test-key",
+        dataset="DBEQ.BASIC",
+        export_dir=tmp_path,
+        bundle=tmp_path,
+        scope_days=1,
+    )
+    # Should succeed without error — the fetch is skipped because the
+    # clamped end is before the premarket start.
+    assert result is not None
