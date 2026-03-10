@@ -2616,6 +2616,31 @@ def _write_tradingview_watchlist_exports(
     return created
 
 
+def _write_streamlit_watchlist_txt_exports(export_dir: Path, watchlist_result: dict[str, Any]) -> dict[str, Path]:
+    created: dict[str, Path] = {}
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_table = watchlist_result.get("active_watchlist_table")
+    if not isinstance(latest_table, pd.DataFrame) or latest_table.empty:
+        latest_table = watchlist_result.get("watchlist_table")
+    if isinstance(latest_table, pd.DataFrame) and not latest_table.empty:
+        latest_text = _build_tradingview_watchlist_text(latest_table)
+        if latest_text:
+            latest_path = export_dir / "tradingview_watchlist_topn_latest.txt"
+            latest_path.write_text(latest_text, encoding="utf-8")
+            created["txt_topn_latest"] = latest_path
+
+    history_table = watchlist_result.get("watchlist_table")
+    if isinstance(history_table, pd.DataFrame) and not history_table.empty:
+        history_text = _build_tradingview_watchlist_text(history_table)
+        if history_text:
+            history_path = export_dir / "tradingview_watchlist_topn_full_history.txt"
+            history_path.write_text(history_text, encoding="utf-8")
+            created["txt_topn_full_history"] = history_path
+
+    return created
+
+
 def _numeric_series_or_nan(frame: pd.DataFrame, column: str) -> pd.Series:
     if column in frame.columns:
         return pd.to_numeric(frame[column], errors="coerce")
@@ -2874,6 +2899,9 @@ def run_streamlit_app() -> None:
             watchlist_seconds = time_module.perf_counter() - watchlist_started
             st.session_state["dvs_last_watchlist_seconds"] = watchlist_seconds
             st.session_state["dvs_watchlist_result"] = watchlist_result
+            txt_exports = _write_streamlit_watchlist_txt_exports(Path(export_dir).expanduser(), watchlist_result)
+            if txt_exports:
+                add_log("TradingView watchlist TXT exported: " + ", ".join(str(path) for path in txt_exports.values()))
             add_log(f"Watchlist generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
             st.success(f"Watchlist updated in {watchlist_seconds:.1f}s.")
         except Exception as exc:
@@ -2884,6 +2912,9 @@ def run_streamlit_app() -> None:
         try:
             watchlist_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
             st.session_state["dvs_watchlist_result"] = watchlist_result
+            txt_exports = _write_streamlit_watchlist_txt_exports(Path(export_dir).expanduser(), watchlist_result)
+            if txt_exports:
+                add_log("TradingView watchlist TXT exported: " + ", ".join(str(path) for path in txt_exports.values()))
         except Exception as exc:
             add_log(f"Initial watchlist load failed: {type(exc).__name__}: {exc}")
             st.warning(f"Existing export data could not be loaded automatically: {type(exc).__name__}: {exc}")
@@ -3001,29 +3032,8 @@ def run_streamlit_app() -> None:
             st.caption("`n/a` or `missing open-window detail` means the symbol-day has no usable regular-open second-detail slice for the dip/reclaim checks.")
             st.dataframe(table_frame, width="stretch", hide_index=True, height=420)
 
-            detail_options = [
-                f"{row.trade_date} | #{int(row.watchlist_rank)} | {row.symbol}"
-                for row in watchlist_table.itertuples(index=False)
-            ]
-            selected_label = st.selectbox("Detail entry", options=detail_options)
-            selected_index = detail_options.index(selected_label)
-            selected_row = watchlist_table.iloc[selected_index]
-
-            st.subheader("Detail View")
-            detail_frame = pd.DataFrame(
-                {
-                    "field": selected_row.index.astype(str).tolist(),
-                    "value": [str(value) for value in selected_row.tolist()],
-                }
-            )
-            st.dataframe(detail_frame, width="stretch", hide_index=True, height=420)
-
-            checklist_frame, checklist_note, checklist_score = build_entry_checklist_table(
-                status=status,
-                selected_row=selected_row,
-                watchlist_table=watchlist_table,
-                watchlist_config=watchlist_result.get("requested_config_snapshot") or watchlist_result.get("config_snapshot"),
-            )
+            st.subheader("Detail View (all Top-N entries)")
+            detail_slice = watchlist_table.head(int(top_n)).reset_index(drop=True)
 
             def _style_checklist_row(row: pd.Series) -> list[str]:
                 status_label = str(row.get("status") or "")
@@ -3033,32 +3043,51 @@ def run_streamlit_app() -> None:
                     bg = "#fef3c7"
                 else:
                     bg = "#fee2e2"
-                return [f"background-color: {bg}" for _ in row.index]
+                return [f"background-color: {bg}; color: #000000" for _ in row.index]
 
-            checklist_styler = checklist_frame.style.apply(_style_checklist_row, axis=1)
-            checklist_styler = checklist_styler.format(
-                {
-                    "erfuellt": lambda value: "Ja" if bool(value) else "Nein",
-                    "status": lambda value: {
-                        "erfuellt": "Gruen",
-                        "grenzwertig": "Gelb",
-                        "nicht_erfuellt": "Rot",
-                    }.get(str(value), str(value)),
-                }
-            )
+            for detail_idx, selected_row in detail_slice.iterrows():
+                rank_value = selected_row.get("watchlist_rank")
+                rank_label = int(rank_value) if pd.notna(rank_value) else detail_idx + 1
+                symbol_label = str(selected_row.get("symbol") or "n/a")
+                trade_date_label = str(selected_row.get("trade_date") or "n/a")
+                with st.expander(f"{trade_date_label} | #{rank_label} | {symbol_label}", expanded=(detail_idx == 0)):
+                    detail_frame = pd.DataFrame(
+                        {
+                            "field": selected_row.index.astype(str).tolist(),
+                            "value": [str(value) for value in selected_row.tolist()],
+                        }
+                    )
+                    st.dataframe(detail_frame, width="stretch", hide_index=True, height=260)
 
-            st.subheader("Go/No-Go Checklist")
-            st.markdown(
-                (
-                    "<div style='margin-bottom: 0.25rem;'>"
-                    "<div style='font-size: 0.875rem; font-weight: 600; color: #111827;'>Checklist Score</div>"
-                    f"<div style='font-size: 2rem; line-height: 1.1; font-weight: 700; color: #000000;'>{checklist_score}/5</div>"
-                    "</div>"
-                ),
-                unsafe_allow_html=True,
-            )
-            st.caption(checklist_note)
-            st.dataframe(checklist_styler, width="stretch", hide_index=True)
+                    checklist_frame, checklist_note, checklist_score = build_entry_checklist_table(
+                        status=status,
+                        selected_row=selected_row,
+                        watchlist_table=watchlist_table,
+                        watchlist_config=watchlist_result.get("requested_config_snapshot") or watchlist_result.get("config_snapshot"),
+                    )
+                    checklist_styler = checklist_frame.style.apply(_style_checklist_row, axis=1)
+                    checklist_styler = checklist_styler.format(
+                        {
+                            "erfuellt": lambda value: "TRUE" if bool(value) else "FALSE",
+                            "status": lambda value: {
+                                "erfuellt": "Gruen",
+                                "grenzwertig": "Gelb",
+                                "nicht_erfuellt": "Rot",
+                            }.get(str(value), str(value)),
+                        }
+                    )
+
+                    st.markdown(
+                        (
+                            "<div style='margin-bottom: 0.25rem;'>"
+                            "<div style='font-size: 0.875rem; font-weight: 600; color: #000000;'>Checklist Score</div>"
+                            f"<div style='font-size: 2rem; line-height: 1.1; font-weight: 700; color: #000000;'>{checklist_score}/5</div>"
+                            "</div>"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                    st.caption(checklist_note)
+                    st.dataframe(checklist_styler, width="stretch", hide_index=True)
 
     with st.expander("Run Logs", expanded=False):
         if st.session_state["dvs_run_logs"]:
