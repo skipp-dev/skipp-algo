@@ -509,9 +509,9 @@ def test_generate_watchlist_result_flags_premarket_not_started_before_4am_et(tmp
     ]
 
 
-def test_generate_watchlist_result_flags_premarket_not_started_before_8am_et(tmp_path) -> None:
-    """Regression: export at 07:49 ET (11:49 UTC) — between 04:00 and 08:00 ET —
-    should still trigger premarket_not_started when zero symbols have premarket data."""
+def test_generate_watchlist_result_does_not_flag_premarket_not_started_after_4am_et(tmp_path) -> None:
+    """Regression: export at 07:49 ET (11:49 UTC) is after standard 04:00 ET premarket start,
+    so profile should not be premarket_not_started even if zero symbols have premarket data."""
     trade_day = date(2026, 3, 10)
     manifest = {
         "export_generated_at": "2026-03-10T11:49:00+00:00",
@@ -555,8 +555,7 @@ def test_generate_watchlist_result_flags_premarket_not_started_before_8am_et(tmp
     result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
 
     assert len(result["watchlist_table"]) == 0
-    assert result["filter_profile"]["profile_name"] == "premarket_not_started"
-    assert "before the US premarket session opened" in result["warnings"][0]
+    assert result["filter_profile"]["profile_name"] != "premarket_not_started"
 
 
 def test_build_preopen_long_candidates_passes_open_window_fields_through() -> None:

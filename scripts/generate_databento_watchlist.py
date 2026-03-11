@@ -4,6 +4,7 @@ import argparse
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, time
 import json
+import logging
 from pathlib import Path
 import sys
 from typing import Any
@@ -50,6 +51,9 @@ from strategy_config import (
     LONG_DIP_TOP_N,
 )
 from scripts.load_databento_export_bundle import load_export_bundle, resolve_manifest_path
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_EXPORT_DIR = Path.home() / "Downloads"
@@ -173,6 +177,7 @@ def _load_bundle_watchlist_inputs(base_dir: Path) -> tuple[pd.DataFrame, pd.Data
         "base_prefix": payload["base_prefix"],
         "export_generated_at": payload["manifest"].get("export_generated_at", payload["manifest"].get("exported_at")),
         "source_data_fetched_at": payload["manifest"].get("source_data_fetched_at", payload["manifest"].get("premarket_fetched_at")),
+        "premarket_anchor_et": payload["manifest"].get("premarket_anchor_et"),
     }
     return _normalize_trade_date(daily), _normalize_trade_date(premarket), None if diagnostics is None else _normalize_trade_date(diagnostics), metadata
 
@@ -201,6 +206,7 @@ def _load_exact_named_watchlist_inputs(base_dir: Path) -> tuple[pd.DataFrame, pd
                     "manifest_path": str(manifest_path),
                     "export_generated_at": manifest.get("export_generated_at", manifest.get("exported_at")),
                     "source_data_fetched_at": manifest.get("source_data_fetched_at", manifest.get("premarket_fetched_at")),
+                    "premarket_anchor_et": manifest.get("premarket_anchor_et"),
                 }
             )
     return _normalize_trade_date(daily), _normalize_trade_date(premarket), None if diagnostics is None else _normalize_trade_date(diagnostics), metadata
@@ -254,12 +260,25 @@ def _resolve_profile_timestamp(metadata: dict[str, Any]) -> pd.Timestamp | None:
     return _safe_timestamp(metadata.get("source_data_fetched_at") or metadata.get("export_generated_at"))
 
 
+def _resolve_premarket_anchor_from_metadata(metadata: dict[str, Any]) -> time:
+    raw = str(metadata.get("premarket_anchor_et") or "").strip()
+    if not raw:
+        return time(4, 0)
+    for fmt in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(raw, fmt).time()
+        except ValueError:
+            continue
+    return time(4, 0)
+
+
 def _resolve_effective_watchlist_config(
     cfg: LongDipConfig,
     *,
     prem: pd.DataFrame,
     trade_date,
     profile_timestamp: pd.Timestamp | None,
+    premarket_anchor_et: time,
 ) -> tuple[LongDipConfig, dict[str, Any]]:
     latest_prem = prem[prem["trade_date"] == trade_date].copy()
     premarket_symbols = int((latest_prem.get("has_premarket_data") == True).sum()) if not latest_prem.empty else 0
@@ -269,7 +288,7 @@ def _resolve_effective_watchlist_config(
 
     if profile_timestamp is not None:
         profile_et = profile_timestamp.tz_convert("America/New_York")
-        premarket_anchor = cfg.premarket_anchor_et if hasattr(cfg, "premarket_anchor_et") else time(8, 0)
+        premarket_anchor = premarket_anchor_et
         if premarket_symbols == 0 and profile_et.time() < premarket_anchor:
             return effective_cfg, {
                 "profile_name": "premarket_not_started",
@@ -472,6 +491,7 @@ def generate_watchlist_result(
             prem=prem,
             trade_date=latest_td,
             profile_timestamp=_resolve_profile_timestamp(metadata),
+            premarket_anchor_et=_resolve_premarket_anchor_from_metadata(metadata),
         )
     watchlists = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=effective_cfg)
 
