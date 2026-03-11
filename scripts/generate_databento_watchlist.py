@@ -633,6 +633,9 @@ def build_preopen_long_candidates(
         "focus_0800_open_30s_volume",
         "focus_0800_early_dip_pct_10s",
         "focus_0800_reclaim_second_30s",
+        "focus_0400_open_30s_volume",
+        "focus_0400_early_dip_pct_10s",
+        "focus_0400_reclaim_second_30s",
     ]
     cols_prem = [
         "trade_date",
@@ -775,6 +778,9 @@ def expand_candidate_trade_plan(candidates: pd.DataFrame, cfg: LongDipConfig) ->
             "focus_0800_open_30s_volume": row.get("focus_0800_open_30s_volume"),
             "focus_0800_early_dip_pct_10s": row.get("focus_0800_early_dip_pct_10s"),
             "focus_0800_reclaim_second_30s": row.get("focus_0800_reclaim_second_30s"),
+            "focus_0400_open_30s_volume": row.get("focus_0400_open_30s_volume"),
+            "focus_0400_early_dip_pct_10s": row.get("focus_0400_early_dip_pct_10s"),
+            "focus_0400_reclaim_second_30s": row.get("focus_0400_reclaim_second_30s"),
             "selected_top20pct": bool(row.get("selected_top20pct", False)),
             "is_eligible_label": bool(row.get("is_eligible", False)),
             "eligibility_reason": row.get("eligibility_reason", ""),
