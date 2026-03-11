@@ -1759,12 +1759,17 @@ def _build_open_window_aggregates(
     open_window_start: time | None = None,
     open_window_end: time | None = None,
     premarket_anchor_et: time = time(8, 0),
+    reference_open_et: time = time(9, 30),
+    metric_prefix: str = "",
 ) -> pd.DataFrame:
+    def _m(name: str) -> str:
+        return f"{metric_prefix}{name}" if metric_prefix else name
+
     metric_columns = [
-        "trade_date", "symbol", "open_window_second_rows", "open_1m_volume", "open_5m_volume", "open_30s_volume",
-        "regular_open_second_rows", "regular_open_5m_second_rows", "regular_open_30s_second_rows",
-        "regular_open_reference_price", "early_dip_low_10s", "early_dip_pct_10s", "early_dip_second",
-        "reclaimed_start_price_within_30s", "reclaim_second_30s",
+        "trade_date", "symbol", _m("open_window_second_rows"), _m("open_1m_volume"), _m("open_5m_volume"), _m("open_30s_volume"),
+        _m("regular_open_second_rows"), _m("regular_open_5m_second_rows"), _m("regular_open_30s_second_rows"),
+        _m("regular_open_reference_price"), _m("early_dip_low_10s"), _m("early_dip_pct_10s"), _m("early_dip_second"),
+        _m("reclaimed_start_price_within_30s"), _m("reclaim_second_30s"),
     ]
     if second_detail_all.empty:
         return pd.DataFrame(columns=metric_columns)
@@ -1793,9 +1798,10 @@ def _build_open_window_aggregates(
             window_end=day_we,
             premarket_anchor_et=premarket_anchor_et,
         )
+    tz = resolve_display_timezone(display_timezone)
     regular_open_by_day = {
-        trade_day: pd.Timestamp(window.regular_open_utc).tz_convert(resolve_display_timezone(display_timezone))
-        for trade_day, window in windows.items()
+        trade_day: pd.Timestamp(datetime.combine(trade_day, reference_open_et, tzinfo=US_EASTERN_TZ).astimezone(tz))
+        for trade_day in windows.keys()
     }
 
     metrics: list[dict[str, Any]] = []
@@ -1842,19 +1848,19 @@ def _build_open_window_aggregates(
             {
                 "trade_date": trade_day,
                 "symbol": symbol,
-                "open_window_second_rows": int(len(group)),
-                "open_1m_volume": float(first_minute["volume"].sum()),
-                "open_5m_volume": float(first_five["volume"].sum()),
-                "open_30s_volume": float(first_thirty["volume"].sum()),
-                "regular_open_second_rows": int(len(first_minute)),
-                "regular_open_5m_second_rows": int(len(first_five)),
-                "regular_open_30s_second_rows": int(len(first_thirty)),
-                "regular_open_reference_price": reference_price,
-                "early_dip_low_10s": early_dip_low,
-                "early_dip_pct_10s": early_dip_pct,
-                "early_dip_second": early_dip_second,
-                "reclaimed_start_price_within_30s": reclaimed_start_price_within_30s,
-                "reclaim_second_30s": reclaim_second,
+                _m("open_window_second_rows"): int(len(group)),
+                _m("open_1m_volume"): float(first_minute["volume"].sum()),
+                _m("open_5m_volume"): float(first_five["volume"].sum()),
+                _m("open_30s_volume"): float(first_thirty["volume"].sum()),
+                _m("regular_open_second_rows"): int(len(first_minute)),
+                _m("regular_open_5m_second_rows"): int(len(first_five)),
+                _m("regular_open_30s_second_rows"): int(len(first_thirty)),
+                _m("regular_open_reference_price"): reference_price,
+                _m("early_dip_low_10s"): early_dip_low,
+                _m("early_dip_pct_10s"): early_dip_pct,
+                _m("early_dip_second"): early_dip_second,
+                _m("reclaimed_start_price_within_30s"): reclaimed_start_price_within_30s,
+                _m("reclaim_second_30s"): reclaim_second,
             }
         )
     return pd.DataFrame(metrics)
@@ -1920,10 +1926,25 @@ def build_daily_features_full_universe(
         open_window_start=open_window_start,
         open_window_end=open_window_end,
         premarket_anchor_et=premarket_anchor_et,
+        reference_open_et=time(9, 30),
+        metric_prefix="",
+    )
+    open_window_0800 = _build_open_window_aggregates(
+        second_detail_all,
+        trading_days=trading_days,
+        display_timezone=display_timezone,
+        open_window_start=open_window_start,
+        open_window_end=open_window_end,
+        premarket_anchor_et=premarket_anchor_et,
+        reference_open_et=time(8, 0),
+        metric_prefix="focus_0800_",
     )
     if not open_window.empty:
         open_window["trade_date"] = pd.to_datetime(open_window["trade_date"], errors="coerce").dt.date
         open_window["symbol"] = open_window["symbol"].astype(str).str.upper()
+    if not open_window_0800.empty:
+        open_window_0800["trade_date"] = pd.to_datetime(open_window_0800["trade_date"], errors="coerce").dt.date
+        open_window_0800["symbol"] = open_window_0800["symbol"].astype(str).str.upper()
 
     features = expected.merge(universe_frame, on="symbol", how="left")
     if not daily.empty:
@@ -1932,6 +1953,8 @@ def build_daily_features_full_universe(
         features = features.merge(intraday_frame, on=["trade_date", "symbol"], how="left", suffixes=("", "_intraday"))
     if not open_window.empty:
         features = features.merge(open_window, on=["trade_date", "symbol"], how="left")
+    if not open_window_0800.empty:
+        features = features.merge(open_window_0800, on=["trade_date", "symbol"], how="left")
 
     if "previous_close_intraday" in features.columns:
         features["previous_close"] = features["previous_close"].combine_first(features["previous_close_intraday"])
@@ -1944,9 +1967,14 @@ def build_daily_features_full_universe(
     if "open_window_second_rows" not in features.columns:
         features["open_window_second_rows"] = 0
     features["open_window_second_rows"] = pd.to_numeric(features["open_window_second_rows"], errors="coerce").fillna(0).astype(int)
+    if "focus_0800_open_window_second_rows" not in features.columns:
+        features["focus_0800_open_window_second_rows"] = 0
+    features["focus_0800_open_window_second_rows"] = pd.to_numeric(features["focus_0800_open_window_second_rows"], errors="coerce").fillna(0).astype(int)
     features["has_open_window_detail"] = features["open_window_second_rows"] > 0
     if "regular_open_second_rows" in features.columns:
         features["has_open_window_detail"] = features["regular_open_second_rows"] > 0
+    if "focus_0800_regular_open_second_rows" in features.columns:
+        features["has_open_window_detail"] = features["has_open_window_detail"] | (pd.to_numeric(features["focus_0800_regular_open_second_rows"], errors="coerce").fillna(0).astype(int) > 0)
     features["premarket_anchor_et"] = premarket_anchor_et.strftime("%H:%M:%S")
     features["premarket_price_source"] = "last_ohlcv_1s_close_between_anchor_and_regular_open"
     features["internal_display_timezone"] = display_timezone
@@ -1962,6 +1990,41 @@ def build_daily_features_full_universe(
         features["day_volume"] = np.nan
     if "reclaimed_start_price_within_30s" not in features.columns:
         features["reclaimed_start_price_within_30s"] = False
+
+    focus_dual_cols = [
+        "open_window_second_rows",
+        "open_30s_volume",
+        "early_dip_pct_10s",
+        "early_dip_second",
+        "reclaimed_start_price_within_30s",
+        "reclaim_second_30s",
+    ]
+    for col in focus_dual_cols:
+        if col in features.columns:
+            features[f"focus_0930_{col}"] = features[col]
+
+    coalesce_pairs = [
+        ("open_window_second_rows", "focus_0800_open_window_second_rows"),
+        ("open_1m_volume", "focus_0800_open_1m_volume"),
+        ("open_5m_volume", "focus_0800_open_5m_volume"),
+        ("open_30s_volume", "focus_0800_open_30s_volume"),
+        ("regular_open_second_rows", "focus_0800_regular_open_second_rows"),
+        ("regular_open_5m_second_rows", "focus_0800_regular_open_5m_second_rows"),
+        ("regular_open_30s_second_rows", "focus_0800_regular_open_30s_second_rows"),
+        ("regular_open_reference_price", "focus_0800_regular_open_reference_price"),
+        ("early_dip_low_10s", "focus_0800_early_dip_low_10s"),
+        ("early_dip_pct_10s", "focus_0800_early_dip_pct_10s"),
+        ("early_dip_second", "focus_0800_early_dip_second"),
+        ("reclaim_second_30s", "focus_0800_reclaim_second_30s"),
+    ]
+    for primary, secondary in coalesce_pairs:
+        if primary in features.columns and secondary in features.columns:
+            features[primary] = features[primary].combine_first(features[secondary])
+    if "reclaimed_start_price_within_30s" in features.columns and "focus_0800_reclaimed_start_price_within_30s" in features.columns:
+        primary_bool = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
+        secondary_bool = pd.Series(features["focus_0800_reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
+        features["reclaimed_start_price_within_30s"] = (primary_bool | secondary_bool).astype(bool)
+
     reclaimed_flag = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean")
     features["reclaimed_start_price_within_30s"] = reclaimed_flag.fillna(False).astype(bool)
 
@@ -2000,14 +2063,23 @@ def build_daily_features_full_universe(
         on=["trade_date", "symbol"],
         how="left",
     )
+    coverage = coverage.merge(
+        open_window_0800[["trade_date", "symbol", "focus_0800_open_window_second_rows"]] if not open_window_0800.empty else pd.DataFrame(columns=["trade_date", "symbol", "focus_0800_open_window_second_rows"]),
+        on=["trade_date", "symbol"],
+        how="left",
+    )
     coverage["has_daily_bar"] = coverage["has_daily_bar"].where(coverage["has_daily_bar"].notna(), False).astype(bool)
     coverage["has_intraday_summary"] = coverage["has_intraday_summary"].where(coverage["has_intraday_summary"].notna(), False).astype(bool)
     if "open_window_second_rows" not in coverage.columns:
         coverage["open_window_second_rows"] = 0
+    if "focus_0800_open_window_second_rows" not in coverage.columns:
+        coverage["focus_0800_open_window_second_rows"] = 0
     coverage["open_window_second_rows"] = pd.to_numeric(coverage["open_window_second_rows"], errors="coerce").fillna(0).astype(int)
+    coverage["focus_0800_open_window_second_rows"] = pd.to_numeric(coverage["focus_0800_open_window_second_rows"], errors="coerce").fillna(0).astype(int)
     coverage["has_open_window_detail"] = coverage["open_window_second_rows"] > 0
     if "regular_open_second_rows" in coverage.columns:
         coverage["has_open_window_detail"] = coverage["regular_open_second_rows"] > 0
+    coverage["has_open_window_detail"] = coverage["has_open_window_detail"] | (coverage["focus_0800_open_window_second_rows"] > 0)
     coverage["exclusion_reason"] = np.select(
         [
             ~coverage["has_daily_bar"],
@@ -2987,6 +3059,13 @@ def run_streamlit_app() -> None:
         if watchlist_table.empty:
             st.info("No symbols matched the current filters.")
         else:
+            focus_view = st.radio(
+                "Open-window focus view",
+                options=["Both", "09:30 only", "08:00 only"],
+                horizontal=True,
+                key="open_window_focus_view",
+            )
+
             preferred_columns = [
                 "watchlist_rank",
                 "symbol",
@@ -2997,10 +3076,16 @@ def run_streamlit_app() -> None:
                 "reclaimed_start_price_within_30s",
                 "reclaim_second_30s",
                 "open_30s_volume",
+                "focus_0930_open_30s_volume",
+                "focus_0800_open_30s_volume",
                 "early_dip_second",
                 "trade_date",
                 "premarket_last",
                 "early_dip_pct_10s",
+                "focus_0930_early_dip_pct_10s",
+                "focus_0800_early_dip_pct_10s",
+                "focus_0930_reclaim_second_30s",
+                "focus_0800_reclaim_second_30s",
                 "open_pattern_status",
                 "l1_limit_buy",
                 "l1_take_profit",
@@ -3014,6 +3099,21 @@ def run_streamlit_app() -> None:
                 "position_budget_usd",
             ]
             display_watchlist_table = watchlist_table.copy()
+            if focus_view == "09:30 only":
+                if "focus_0930_open_30s_volume" in display_watchlist_table.columns:
+                    display_watchlist_table["open_30s_volume"] = display_watchlist_table["focus_0930_open_30s_volume"]
+                if "focus_0930_early_dip_pct_10s" in display_watchlist_table.columns:
+                    display_watchlist_table["early_dip_pct_10s"] = display_watchlist_table["focus_0930_early_dip_pct_10s"]
+                if "focus_0930_reclaim_second_30s" in display_watchlist_table.columns:
+                    display_watchlist_table["reclaim_second_30s"] = display_watchlist_table["focus_0930_reclaim_second_30s"]
+            elif focus_view == "08:00 only":
+                if "focus_0800_open_30s_volume" in display_watchlist_table.columns:
+                    display_watchlist_table["open_30s_volume"] = display_watchlist_table["focus_0800_open_30s_volume"]
+                if "focus_0800_early_dip_pct_10s" in display_watchlist_table.columns:
+                    display_watchlist_table["early_dip_pct_10s"] = display_watchlist_table["focus_0800_early_dip_pct_10s"]
+                if "focus_0800_reclaim_second_30s" in display_watchlist_table.columns:
+                    display_watchlist_table["reclaim_second_30s"] = display_watchlist_table["focus_0800_reclaim_second_30s"]
+
             open_pattern_missing = (
                 _numeric_series_or_nan(display_watchlist_table, "open_30s_volume").isna()
                 & _numeric_series_or_nan(display_watchlist_table, "early_dip_pct_10s").isna()
@@ -3025,6 +3125,12 @@ def run_streamlit_app() -> None:
                 "available",
             )
             visible_columns = [column for column in preferred_columns if column in watchlist_table.columns]
+            focus_0930_cols = ["focus_0930_open_30s_volume", "focus_0930_early_dip_pct_10s", "focus_0930_reclaim_second_30s"]
+            focus_0800_cols = ["focus_0800_open_30s_volume", "focus_0800_early_dip_pct_10s", "focus_0800_reclaim_second_30s"]
+            if focus_view == "09:30 only":
+                visible_columns = [col for col in visible_columns if col not in focus_0800_cols and col not in focus_0930_cols]
+            elif focus_view == "08:00 only":
+                visible_columns = [col for col in visible_columns if col not in focus_0800_cols and col not in focus_0930_cols]
             if "open_pattern_status" not in visible_columns and "open_pattern_status" in display_watchlist_table.columns:
                 visible_columns = ["open_pattern_status", *visible_columns]
             table_frame = display_watchlist_table[visible_columns].copy()
@@ -3042,6 +3148,18 @@ def run_streamlit_app() -> None:
                 column_config["reclaim_second_30s"] = st.column_config.TextColumn("Reclaim\nSecond\n30s", width="small")
             if "open_30s_volume" in table_frame.columns:
                 column_config["open_30s_volume"] = st.column_config.TextColumn("Open\n30s\nVolume", width="small")
+            if "focus_0930_open_30s_volume" in table_frame.columns:
+                column_config["focus_0930_open_30s_volume"] = st.column_config.TextColumn("09:30\nOpen 30s\nVolume", width="small")
+            if "focus_0800_open_30s_volume" in table_frame.columns:
+                column_config["focus_0800_open_30s_volume"] = st.column_config.TextColumn("08:00\nOpen 30s\nVolume", width="small")
+            if "focus_0930_early_dip_pct_10s" in table_frame.columns:
+                column_config["focus_0930_early_dip_pct_10s"] = st.column_config.NumberColumn("09:30\nEarly Dip %\n10s", width="small", format="%.2f")
+            if "focus_0800_early_dip_pct_10s" in table_frame.columns:
+                column_config["focus_0800_early_dip_pct_10s"] = st.column_config.NumberColumn("08:00\nEarly Dip %\n10s", width="small", format="%.2f")
+            if "focus_0930_reclaim_second_30s" in table_frame.columns:
+                column_config["focus_0930_reclaim_second_30s"] = st.column_config.TextColumn("09:30\nReclaim Sec\n30s", width="small")
+            if "focus_0800_reclaim_second_30s" in table_frame.columns:
+                column_config["focus_0800_reclaim_second_30s"] = st.column_config.TextColumn("08:00\nReclaim Sec\n30s", width="small")
             if "prev_close_to_premarket_pct" in table_frame.columns:
                 column_config["prev_close_to_premarket_pct"] = st.column_config.NumberColumn("Prev Close ->\nPremarket %", width="small", format="%.2f")
             if "premarket_dollar_volume" in table_frame.columns:
