@@ -2910,10 +2910,11 @@ def run_streamlit_app() -> None:
     focus_0800_berlin = datetime.combine(today, time(8, 0), tzinfo=US_EASTERN_TZ).astimezone(berlin_tz)
     focus_0400_berlin = datetime.combine(today, time(4, 0), tzinfo=US_EASTERN_TZ).astimezone(berlin_tz)
 
-    run0400_start = (focus_0400_berlin - timedelta(minutes=7)).time()
-    run0400_end = (focus_0400_berlin - timedelta(minutes=4)).time()
-    ref0400_start = (focus_0400_berlin - timedelta(minutes=2)).time()
-    ref0400_end = (focus_0400_berlin - timedelta(minutes=1)).time()
+    # For the 04:00 ET premarket anchor, recommend windows after anchor so data is expected to exist.
+    run0400_start = (focus_0400_berlin + timedelta(minutes=1)).time()
+    run0400_end = (focus_0400_berlin + timedelta(minutes=4)).time()
+    ref0400_start = (focus_0400_berlin + timedelta(minutes=6)).time()
+    ref0400_end = (focus_0400_berlin + timedelta(minutes=8)).time()
     run0800_start = (focus_0800_berlin - timedelta(minutes=7)).time()
     run0800_end = (focus_0800_berlin - timedelta(minutes=4)).time()
     ref0800_start = (focus_0800_berlin - timedelta(minutes=2)).time()
