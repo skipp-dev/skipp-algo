@@ -17,6 +17,7 @@ from scripts.generate_databento_watchlist import (
     build_filter_funnel,
     build_parser as build_watchlist_parser,
     build_daily_watchlists,
+    build_preanchor_seed_candidates,
     build_preopen_long_candidates,
     compute_entry_ladder,
     generate_watchlist_result,
@@ -366,6 +367,61 @@ def test_generate_watchlist_result_uses_early_premarket_profile_from_manifest_ti
     assert result["config_snapshot"]["min_gap_pct"] == 2.0
 
 
+def test_generate_watchlist_result_adapts_early_activity_threshold_shortly_after_anchor(tmp_path) -> None:
+    trade_day = date(2026, 3, 12)
+    # 08:15:43 UTC = 04:15:43 ET
+    manifest = {
+        "export_generated_at": "2026-03-12T08:15:43+00:00",
+        "source_data_fetched_at": "2026-03-12T08:15:43+00:00",
+        "premarket_anchor_et": "04:00:00",
+    }
+    (tmp_path / "databento_preopen_fast_20260312_081543_manifest.json").write_text(
+        __import__("json").dumps(manifest),
+        encoding="utf-8",
+    )
+
+    symbols = [f"S{i:03d}" for i in range(96)]
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * len(symbols),
+            "symbol": symbols,
+            "exchange": ["NASDAQ"] * len(symbols),
+            "asset_type": ["listed_equity_issue"] * len(symbols),
+            "previous_close": [10.0] * len(symbols),
+            "window_range_pct": [2.0] * len(symbols),
+            "window_return_pct": [1.0] * len(symbols),
+            "realized_vol_pct": [1.0] * len(symbols),
+            "selected_top20pct": [True] * len(symbols),
+            "is_eligible": [True] * len(symbols),
+            "eligibility_reason": ["eligible"] * len(symbols),
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * len(symbols),
+            "symbol": symbols,
+            "has_premarket_data": [True] * len(symbols),
+            "premarket_last": [10.4] + [9.9] * (len(symbols) - 1),
+            "premarket_volume": [2_000] + [900] * (len(symbols) - 1),
+            "premarket_dollar_volume": [20_800.0] + [8_910.0] * (len(symbols) - 1),
+            "premarket_trade_count": [40] + [5] * (len(symbols) - 1),
+            "premarket_trade_count_source": ["proxy_active_seconds"] * len(symbols),
+            "premarket_active_seconds": [40] + [5] * (len(symbols) - 1),
+            "prev_close_to_premarket_pct": [4.0] + [-1.0] * (len(symbols) - 1),
+            "previous_close": [10.0] * len(symbols),
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["filter_profile"]["profile_name"] == "early_premarket"
+    assert result["config_snapshot"]["min_premarket_active_seconds"] == 30
+    assert len(result["watchlist_table"]) == 1
+    assert result["watchlist_table"].iloc[0]["symbol"] == "S000"
+
+
 def test_generate_watchlist_result_uses_sparse_profile_when_premarket_universe_is_thin(tmp_path) -> None:
     trade_day = date(2026, 3, 6)
     daily = pd.DataFrame(
@@ -502,10 +558,12 @@ def test_generate_watchlist_result_flags_premarket_not_started_before_4am_et(tmp
 
     result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
 
-    assert len(result["watchlist_table"]) == 0
-    assert result["filter_profile"]["profile_name"] == "premarket_not_started"
+    assert len(result["watchlist_table"]) == 1
+    assert result["watchlist_table"].iloc[0]["symbol"] == "AAA"
+    assert result["watchlist_table"].iloc[0]["premarket_last"] == 10.0
+    assert result["filter_profile"]["profile_name"] == "pre_anchor_seeded"
     assert result["warnings"] == [
-        "No premarket data available yet. The latest refresh completed before the US premarket session opened."
+        "Live premarket data is not available yet. Showing provisional pre-anchor candidates from the historical selected_top20pct_0400 scope."
     ]
 
 
@@ -556,6 +614,38 @@ def test_generate_watchlist_result_does_not_flag_premarket_not_started_after_4am
 
     assert len(result["watchlist_table"]) == 0
     assert result["filter_profile"]["profile_name"] != "premarket_not_started"
+
+
+def test_build_preanchor_seed_candidates_prefers_0400_scope_over_legacy_scope() -> None:
+    trade_day = date(2026, 3, 10)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "BBB"],
+            "exchange": ["NASDAQ", "NASDAQ"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [12.0, 11.0],
+            "window_range_pct": [3.0, 2.0],
+            "window_return_pct": [1.0, 0.5],
+            "realized_vol_pct": [1.5, 1.2],
+            "selected_top20pct": [False, True],
+            "selected_top20pct_0400": [True, False],
+            "is_eligible": [True, True],
+            "eligibility_reason": ["eligible", "eligible"],
+            "focus_0400_open_30s_volume": [20000.0, 1000.0],
+            "focus_0400_reclaim_second_30s": [12.0, pd.NA],
+        }
+    )
+
+    seeded = build_preanchor_seed_candidates(
+        daily=daily,
+        diagnostics=None,
+        cfg=LongDipConfig(top_n=5),
+        trade_date=trade_day,
+    )
+
+    assert seeded["symbol"].tolist() == ["AAA"]
+    assert seeded.iloc[0]["candidate_basis"] == "pre_anchor_historical_seed"
 
 
 def test_build_preopen_long_candidates_passes_open_window_fields_through() -> None:

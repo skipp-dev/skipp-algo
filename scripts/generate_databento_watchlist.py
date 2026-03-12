@@ -314,16 +314,28 @@ def _resolve_effective_watchlist_config(
     elif profile_timestamp is not None:
         profile_et = profile_timestamp.tz_convert("America/New_York")
         if profile_et.time() < datetime.strptime("08:30:00", "%H:%M:%S").time():
+            anchor_dt = datetime.combine(profile_et.date(), premarket_anchor_et, tzinfo=profile_et.tzinfo)
+            minutes_since_anchor = max(0, int((profile_et - anchor_dt).total_seconds() // 60))
+            early_active_seconds = min(cfg.min_premarket_active_seconds, LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS)
+            if minutes_since_anchor < 20:
+                early_active_seconds = min(early_active_seconds, 30)
+            elif minutes_since_anchor < 45:
+                early_active_seconds = min(early_active_seconds, 60)
+            elif minutes_since_anchor < 90:
+                early_active_seconds = min(early_active_seconds, 90)
             effective_cfg = replace(
                 cfg,
                 min_gap_pct=min(cfg.min_gap_pct, LONG_DIP_EARLY_MIN_GAP_PCT),
                 min_premarket_dollar_volume=min(cfg.min_premarket_dollar_volume, LONG_DIP_EARLY_MIN_PREMARKET_DOLLAR_VOLUME),
                 min_premarket_volume=min(cfg.min_premarket_volume, LONG_DIP_EARLY_MIN_PREMARKET_VOLUME),
                 min_premarket_trade_count=min(cfg.min_premarket_trade_count, LONG_DIP_EARLY_MIN_PREMARKET_TRADE_COUNT),
-                min_premarket_active_seconds=min(cfg.min_premarket_active_seconds, LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS),
+                min_premarket_active_seconds=early_active_seconds,
             )
             profile_name = "early_premarket"
-            profile_reason = f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET"
+            profile_reason = (
+                f"source_data_fetched_at={profile_et.strftime('%H:%M:%S')} ET "
+                f"(active_seconds_threshold={early_active_seconds}, minutes_since_anchor={minutes_since_anchor})"
+            )
         elif profile_et.time() < datetime.strptime("09:00:00", "%H:%M:%S").time():
             effective_cfg = replace(
                 cfg,
@@ -495,6 +507,26 @@ def generate_watchlist_result(
         )
     watchlists = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=effective_cfg)
 
+    if latest_td is not None and watchlists.empty and filter_profile["profile_name"] == "premarket_not_started":
+        seeded_candidates = build_preanchor_seed_candidates(
+            daily=daily,
+            cfg=effective_cfg,
+            trade_date=latest_td,
+            diagnostics=diagnostics,
+        )
+        seeded_top = seeded_candidates.head(effective_cfg.top_n).copy()
+        if not seeded_top.empty:
+            watchlists = expand_candidate_trade_plan(seeded_top, effective_cfg)
+            filter_profile = {
+                **filter_profile,
+                "profile_name": "pre_anchor_seeded",
+                "profile_reason": (
+                    f"{filter_profile.get('profile_reason', '')}; showing provisional candidates from historical "
+                    "selected_top20pct_0400 scope before live premarket prints"
+                ).strip("; "),
+                "base_profile_name": "premarket_not_started",
+            }
+
     warnings: list[str] = []
     if daily.empty or prem.empty:
         warnings.append("The watchlist inputs are incomplete. Run the data pipeline first.")
@@ -522,6 +554,10 @@ def generate_watchlist_result(
             )
         else:
             warnings.append("No symbols matched the current long-dip filters.")
+    elif filter_profile["profile_name"] == "pre_anchor_seeded":
+        warnings.append(
+            "Live premarket data is not available yet. Showing provisional pre-anchor candidates from the historical selected_top20pct_0400 scope."
+        )
 
     trade_date = None if watchlists.empty else max(pd.to_datetime(watchlists["trade_date"], errors="coerce").dt.date.dropna())
     active_watchlist_table = watchlists
@@ -620,6 +656,7 @@ def build_preopen_long_candidates(
         "window_return_pct",
         "realized_vol_pct",
         "selected_top20pct",
+        "selected_top20pct_0400",
         "is_eligible",
         "eligibility_reason",
         "open_30s_volume",
@@ -719,6 +756,113 @@ def build_preopen_long_candidates(
     candidates = candidates.sort_values(
         ["watchlist_score", "premarket_dollar_volume", "premarket_volume", "premarket_trade_count", "symbol"],
         ascending=[False, False, False, False, True],
+    ).reset_index(drop=True)
+    candidates["watchlist_rank"] = np.arange(1, len(candidates) + 1)
+    return candidates
+
+
+def build_preanchor_seed_candidates(
+    *,
+    daily: pd.DataFrame,
+    cfg: LongDipConfig,
+    trade_date,
+    diagnostics: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    cols_daily = [
+        "trade_date",
+        "symbol",
+        "exchange",
+        "asset_type",
+        "previous_close",
+        "window_range_pct",
+        "window_return_pct",
+        "realized_vol_pct",
+        "selected_top20pct",
+        "selected_top20pct_0400",
+        "is_eligible",
+        "eligibility_reason",
+        "open_30s_volume",
+        "early_dip_pct_10s",
+        "early_dip_second",
+        "reclaimed_start_price_within_30s",
+        "reclaim_second_30s",
+        "focus_0930_open_30s_volume",
+        "focus_0930_early_dip_pct_10s",
+        "focus_0930_reclaim_second_30s",
+        "focus_0800_open_30s_volume",
+        "focus_0800_early_dip_pct_10s",
+        "focus_0800_reclaim_second_30s",
+        "focus_0400_open_30s_volume",
+        "focus_0400_early_dip_pct_10s",
+        "focus_0400_reclaim_second_30s",
+    ]
+    available_daily_cols = [c for c in cols_daily if c in daily.columns]
+    candidates = daily.loc[daily["trade_date"] == trade_date, available_daily_cols].copy()
+
+    if diagnostics is not None and not diagnostics.empty:
+        diag_cols = ["trade_date", "symbol", "present_in_eligible", "excluded_reason"]
+        candidates = candidates.merge(
+            diagnostics.loc[diagnostics["trade_date"] == trade_date, diag_cols],
+            on=["trade_date", "symbol"],
+            how="left",
+        )
+    else:
+        candidates["present_in_eligible"] = pd.NA
+        candidates["excluded_reason"] = ""
+
+    if candidates.empty:
+        return candidates
+
+    selection_column = "selected_top20pct"
+    if "selected_top20pct_0400" in candidates.columns:
+        early_scope_selected = candidates["selected_top20pct_0400"].fillna(False).astype(bool)
+        if bool(early_scope_selected.any()):
+            selection_column = "selected_top20pct_0400"
+            candidates = candidates[early_scope_selected].copy()
+
+    candidates = candidates[
+        pd.to_numeric(candidates["previous_close"], errors="coerce") >= cfg.min_previous_close
+    ].copy()
+    if selection_column in candidates.columns:
+        candidates = candidates[candidates[selection_column].fillna(False).astype(bool)].copy()
+    if "is_eligible" in candidates.columns:
+        candidates = candidates[candidates["is_eligible"].fillna(False).astype(bool)].copy()
+    if candidates.empty:
+        return candidates
+
+    range_component = pd.to_numeric(candidates.get("window_range_pct"), errors="coerce").fillna(0.0)
+    vol_component = pd.to_numeric(candidates.get("realized_vol_pct"), errors="coerce").fillna(0.0)
+    focus_0400_volume = pd.to_numeric(
+        candidates["focus_0400_open_30s_volume"] if "focus_0400_open_30s_volume" in candidates.columns else pd.Series(np.nan, index=candidates.index),
+        errors="coerce",
+    ).fillna(0.0)
+    focus_0400_reclaim = pd.to_numeric(
+        candidates["focus_0400_reclaim_second_30s"] if "focus_0400_reclaim_second_30s" in candidates.columns else pd.Series(np.nan, index=candidates.index),
+        errors="coerce",
+    )
+    reclaim_bonus = np.where(focus_0400_reclaim.notna(), 1.0, 0.0)
+
+    candidates["premarket_last"] = pd.to_numeric(candidates["previous_close"], errors="coerce")
+    candidates["prev_close_to_premarket_pct"] = 0.0
+    candidates["premarket_volume"] = 0.0
+    candidates["premarket_dollar_volume"] = 0.0
+    candidates["premarket_trade_count"] = 0.0
+    candidates["has_premarket_data"] = False
+    candidates["candidate_basis"] = "pre_anchor_historical_seed"
+    candidates["watchlist_score"] = (
+        0.80 * range_component
+        + 0.60 * vol_component
+        + 0.40 * np.log10(focus_0400_volume.clip(lower=0.0) + 1.0)
+        + reclaim_bonus
+    )
+    candidates["research_score"] = (
+        candidates["watchlist_score"]
+        + 0.15 * pd.to_numeric(candidates.get("window_return_pct"), errors="coerce").fillna(0.0)
+    )
+
+    candidates = candidates.sort_values(
+        ["watchlist_score", "research_score", "previous_close", "symbol"],
+        ascending=[False, False, False, True],
     ).reset_index(drop=True)
     candidates["watchlist_rank"] = np.arange(1, len(candidates) + 1)
     return candidates

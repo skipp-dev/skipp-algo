@@ -76,6 +76,7 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
     "eligible_count_for_trade_date",
     "take_n_for_trade_date",
     "selected_top20pct",
+    "selected_top20pct_0400",
     "has_reference_data",
     "has_fundamentals",
     "has_daily_bars",
@@ -131,6 +132,7 @@ SYMBOL_DAY_DIAGNOSTIC_COLUMNS = [
     "present_after_intraday_filter",
     "present_in_eligible",
     "selected_top20pct",
+    "selected_top20pct_0400",
     "excluded_step",
     "excluded_reason",
     "exchange",
@@ -1073,6 +1075,45 @@ def _build_daily_symbol_features_full_universe_export(
         & (features["rank_within_trade_date"].astype("Int64") <= features["take_n_for_trade_date"])
     )
 
+    early_ranking_metric = "focus_0400_open_30s_volume"
+    early_has_rows = pd.to_numeric(features.get("focus_0400_open_window_second_rows"), errors="coerce").fillna(0).astype(int) > 0
+    early_prev_close_mask = pd.to_numeric(features.get("previous_close"), errors="coerce").notna()
+    early_metric_series = pd.to_numeric(features.get(early_ranking_metric), errors="coerce")
+    early_eligible_mask = (
+        features["is_supported_by_databento"]
+        & features["has_reference_data"]
+        & features["has_daily_bars"]
+        & early_prev_close_mask
+        & early_has_rows
+        & early_metric_series.notna()
+    )
+    early_eligible_count_map = early_eligible_mask.groupby(features["trade_date"]).sum().astype(int).to_dict()
+    early_take_n_map = {
+        trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0
+        for trade_day, count in early_eligible_count_map.items()
+    }
+    features["selected_top20pct_0400"] = False
+    early_candidates = features.loc[early_eligible_mask].copy()
+    if not early_candidates.empty:
+        early_candidates[early_ranking_metric] = pd.to_numeric(early_candidates[early_ranking_metric], errors="coerce")
+        early_candidates = early_candidates.sort_values(
+            ["trade_date", early_ranking_metric, "symbol"],
+            ascending=[True, False, True],
+        ).reset_index(drop=True)
+        early_candidates["rank_within_trade_date_0400"] = early_candidates.groupby("trade_date").cumcount() + 1
+        early_candidates["take_n_for_trade_date_0400"] = early_candidates["trade_date"].map(early_take_n_map).fillna(0).astype(int)
+        early_selected = early_candidates[
+            early_candidates["rank_within_trade_date_0400"] <= early_candidates["take_n_for_trade_date_0400"]
+        ][["trade_date", "symbol"]].copy()
+        early_selected["selected_top20pct_0400"] = True
+        features = features.drop(columns=["selected_top20pct_0400"]).merge(
+            early_selected,
+            on=["trade_date", "symbol"],
+            how="left",
+        )
+        features["selected_top20pct_0400"] = pd.Series(features["selected_top20pct_0400"], dtype="boolean").fillna(False)
+        features["selected_top20pct_0400"] = features["selected_top20pct_0400"].astype(bool)
+
     diagnostics = features[
         [
             "trade_date",
@@ -1087,6 +1128,7 @@ def _build_daily_symbol_features_full_universe_export(
             "is_supported_by_databento",
             "is_eligible",
             "selected_top20pct",
+            "selected_top20pct_0400",
             "eligibility_reason",
         ]
     ].copy()

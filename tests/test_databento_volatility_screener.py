@@ -472,6 +472,9 @@ def test_build_daily_symbol_features_full_universe_export_ranks_and_selects_top_
     assert bool(aaa["is_eligible"]) is True
     assert bool(bbb["is_eligible"]) is True
     assert bool(bbb["selected_top20pct"]) is True
+    assert "selected_top20pct_0400" in features.columns
+    assert int(features["selected_top20pct_0400"].fillna(False).astype(bool).sum()) <= 1
+    assert bool(batl["selected_top20pct_0400"]) is False
     assert int(bbb["rank_within_trade_date"]) == 1
     assert int(aaa["rank_within_trade_date"]) == 2
     assert int(aaa["eligible_count_for_trade_date"]) == 2

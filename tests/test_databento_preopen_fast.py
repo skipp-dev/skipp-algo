@@ -10,6 +10,7 @@ from scripts.databento_preopen_fast import (
     _build_current_daily_features,
     _resolve_effective_dataset,
     _resolve_premarket_anchor_et,
+    _resolve_scope_selection_column,
     _resolve_target_trade_date,
     _select_recent_scope_symbols,
     _target_scope_symbol_count,
@@ -39,6 +40,23 @@ def test_select_recent_scope_symbols_uses_recent_selected_days() -> None:
 
     assert sorted(result["symbol"].tolist()) == ["AAA"]
     assert bool(result.iloc[0]["selected_top20pct"])
+
+
+def test_resolve_scope_selection_column_prefers_0400_scope_before_anchor() -> None:
+    frame = pd.DataFrame(
+        {
+            "selected_top20pct": [True, False],
+            "selected_top20pct_0400": [False, True],
+        }
+    )
+
+    result = _resolve_scope_selection_column(
+        frame,
+        premarket_anchor_et=time(4, 0),
+        now_utc=datetime(2026, 3, 9, 7, 30, tzinfo=UTC),
+    )
+
+    assert result == "selected_top20pct_0400"
 
 
 def test_target_scope_symbol_count_varies_by_time() -> None:
@@ -102,6 +120,43 @@ def test_build_current_daily_features_uses_latest_close_as_previous_close() -> N
     assert bool(result.iloc[0]["selected_top20pct"])
 
 
+def test_build_current_daily_features_preserves_0400_scope_metadata() -> None:
+    scope_rows = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 6)],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "is_eligible": [True],
+            "eligibility_reason": ["historical_selected_top20pct_0400_scope"],
+            "window_range_pct": [4.2],
+            "window_return_pct": [2.1],
+            "realized_vol_pct": [1.3],
+            "selected_top20pct": [False],
+            "selected_top20pct_0400": [True],
+            "has_reference_data": [True],
+            "has_fundamentals": [False],
+            "has_daily_bars": [True],
+            "has_intraday": [True],
+            "has_market_cap": [False],
+        }
+    )
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAA", "AAA"],
+            "close": [10.0, 11.0],
+        }
+    )
+
+    result = _build_current_daily_features(scope_rows, daily_bars, target_trade_date=date(2026, 3, 9))
+
+    assert result.iloc[0]["previous_close"] == 11.0
+    assert bool(result.iloc[0]["selected_top20pct"]) is False
+    assert bool(result.iloc[0]["selected_top20pct_0400"]) is True
+    assert result.iloc[0]["eligibility_reason"] == "historical_selected_top20pct_0400_scope"
+
+
 def test_aggregate_current_premarket_features_computes_gap_metrics() -> None:
     frame = pd.DataFrame(
         {
@@ -122,6 +177,7 @@ def test_aggregate_current_premarket_features_computes_gap_metrics() -> None:
         frame,
         {"AAA": 10.0},
         target_trade_date=date(2026, 3, 9),
+        premarket_start_utc=datetime(2026, 3, 9, 13, 0, tzinfo=UTC),
     )
 
     assert bool(result.iloc[0]["has_premarket_data"])

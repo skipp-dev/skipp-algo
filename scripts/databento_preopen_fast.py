@@ -46,6 +46,8 @@ DEFAULT_EXPORT_DIR = Path.home() / "Downloads"
 DEFAULT_FAST_SCOPE_MIN_DAYS = 5
 DEFAULT_FAST_SCOPE_MAX_DAYS = 15
 FAST_SCOPE_CALIBRATION_DAYS = (5, 7, 10, 12, 15)
+DEFAULT_SCOPE_SELECTION_COLUMN = "selected_top20pct"
+EARLY_SCOPE_SELECTION_COLUMN = "selected_top20pct_0400"
 
 _EXCHANGE_ALIASES: dict[str, str] = {
     "NASDAQ": "NASDAQ",
@@ -158,10 +160,14 @@ def _target_scope_symbol_count(*, now_utc: datetime | None = None) -> int:
     return 2100
 
 
-def _recent_scope_symbol_counts(daily_features: pd.DataFrame) -> dict[int, int]:
+def _recent_scope_symbol_counts(
+    daily_features: pd.DataFrame,
+    *,
+    selection_column: str = DEFAULT_SCOPE_SELECTION_COLUMN,
+) -> dict[int, int]:
     normalized = _normalize_trade_date(daily_features)
     normalized = normalized[normalized["symbol"].astype(str).ne("")].copy()
-    selected = normalized[normalized["selected_top20pct"] == True].copy()
+    selected = normalized[normalized[selection_column] == True].copy()
     if selected.empty:
         return {int(days): 0 for days in FAST_SCOPE_CALIBRATION_DAYS}
     completed_days = sorted(selected["trade_date"].dropna().unique().tolist())
@@ -175,6 +181,20 @@ def _recent_scope_symbol_counts(daily_features: pd.DataFrame) -> dict[int, int]:
     return counts
 
 
+def _resolve_scope_selection_column(
+    daily_features: pd.DataFrame,
+    *,
+    premarket_anchor_et: time,
+    now_utc: datetime | None = None,
+) -> str:
+    now_et = (now_utc or datetime.now(UTC)).astimezone(US_EASTERN_TZ)
+    if now_et.time() < premarket_anchor_et and EARLY_SCOPE_SELECTION_COLUMN in daily_features.columns:
+        selected_early = pd.Series(daily_features[EARLY_SCOPE_SELECTION_COLUMN], dtype="boolean").fillna(False)
+        if bool(selected_early.any()):
+            return EARLY_SCOPE_SELECTION_COLUMN
+    return DEFAULT_SCOPE_SELECTION_COLUMN
+
+
 def _choose_scope_days(
     daily_features: pd.DataFrame,
     *,
@@ -182,6 +202,7 @@ def _choose_scope_days(
     max_scope_days: int = DEFAULT_FAST_SCOPE_MAX_DAYS,
     target_symbol_count: int | None = None,
     now_utc: datetime | None = None,
+    selection_column: str = DEFAULT_SCOPE_SELECTION_COLUMN,
 ) -> tuple[int, int]:
     if min_scope_days <= 0:
         raise ValueError(f"min_scope_days must be > 0, got {min_scope_days}")
@@ -190,7 +211,7 @@ def _choose_scope_days(
 
     normalized = _normalize_trade_date(daily_features)
     normalized = normalized[normalized["symbol"].astype(str).ne("")].copy()
-    selected = normalized[normalized["selected_top20pct"] == True].copy()
+    selected = normalized[normalized[selection_column] == True].copy()
     if selected.empty:
         return min_scope_days, 0
 
@@ -211,7 +232,12 @@ def _choose_scope_days(
     return chosen_days, chosen_symbols
 
 
-def _select_recent_scope_symbols(daily_features: pd.DataFrame, *, scope_days: int) -> pd.DataFrame:
+def _select_recent_scope_symbols(
+    daily_features: pd.DataFrame,
+    *,
+    scope_days: int,
+    selection_column: str = DEFAULT_SCOPE_SELECTION_COLUMN,
+) -> pd.DataFrame:
     if scope_days <= 0:
         raise ValueError(f"scope_days must be > 0, got {scope_days}")
     normalized = _normalize_trade_date(daily_features)
@@ -219,7 +245,7 @@ def _select_recent_scope_symbols(daily_features: pd.DataFrame, *, scope_days: in
     if normalized.empty:
         return normalized.iloc[0:0].copy()
 
-    selected = normalized[normalized["selected_top20pct"] == True].copy()
+    selected = normalized[normalized[selection_column] == True].copy()
     if selected.empty:
         return normalized.iloc[0:0].copy()
 
@@ -236,9 +262,11 @@ def _select_recent_scope_symbols(daily_features: pd.DataFrame, *, scope_days: in
         .tail(1)
         .reset_index(drop=True)
     )
-    latest_rows["selected_top20pct"] = True
+    latest_rows[DEFAULT_SCOPE_SELECTION_COLUMN] = selection_column == DEFAULT_SCOPE_SELECTION_COLUMN
+    if EARLY_SCOPE_SELECTION_COLUMN in normalized.columns or selection_column == EARLY_SCOPE_SELECTION_COLUMN:
+        latest_rows[EARLY_SCOPE_SELECTION_COLUMN] = selection_column == EARLY_SCOPE_SELECTION_COLUMN
     latest_rows["is_eligible"] = True
-    latest_rows["eligibility_reason"] = "historical_selected_top20pct_scope"
+    latest_rows["eligibility_reason"] = f"historical_{selection_column}_scope"
     return latest_rows
 
 
@@ -265,13 +293,15 @@ def _build_current_daily_features(
     current = current.merge(latest_closes, on="symbol", how="left")
     current["has_daily_bars"] = current["previous_close"].notna()
     current["has_intraday"] = False
-    current["selected_top20pct"] = True
     current["is_eligible"] = current["previous_close"].notna()
-    current["eligibility_reason"] = np.where(
-        current["previous_close"].notna(),
-        "historical_selected_top20pct_scope",
-        "missing_latest_close",
+    current["selected_top20pct"] = pd.Series(current.get("selected_top20pct", False), dtype="boolean").fillna(False)
+    current["selected_top20pct_0400"] = pd.Series(current.get("selected_top20pct_0400", False), dtype="boolean").fillna(
+        False
     )
+    active_scope_reason = pd.Series(current.get("eligibility_reason", "historical_selected_top20pct_scope"), dtype="string").fillna(
+        "historical_selected_top20pct_scope"
+    )
+    current["eligibility_reason"] = np.where(current["previous_close"].notna(), active_scope_reason, "missing_latest_close")
 
     for column in DAILY_SYMBOL_FEATURE_COLUMNS:
         if column not in current.columns:
@@ -280,6 +310,7 @@ def _build_current_daily_features(
             elif column in {
                 "is_eligible",
                 "selected_top20pct",
+                "selected_top20pct_0400",
                 "has_reference_data",
                 "has_fundamentals",
                 "has_daily_bars",
@@ -301,6 +332,7 @@ def _aggregate_current_premarket_features(
     previous_close_by_symbol: dict[str, float | None],
     *,
     target_trade_date: date,
+    premarket_start_utc: datetime,
 ) -> pd.DataFrame:
     expected = pd.DataFrame(
         {
@@ -322,9 +354,22 @@ def _aggregate_current_premarket_features(
     detail["symbol"] = detail["symbol"].astype(str).map(normalize_symbol_for_databento)
     detail = detail[detail["symbol"].astype(str).isin(expected["symbol"])].copy()
     if detail.empty:
-        return _aggregate_current_premarket_features(pd.DataFrame(), previous_close_by_symbol, target_trade_date=target_trade_date)
+        return _aggregate_current_premarket_features(
+            pd.DataFrame(),
+            previous_close_by_symbol,
+            target_trade_date=target_trade_date,
+            premarket_start_utc=premarket_start_utc,
+        )
 
     detail["ts"] = pd.to_datetime(detail["ts"], errors="coerce", utc=True)
+    detail = detail[detail["ts"] >= pd.Timestamp(premarket_start_utc)].copy()
+    if detail.empty:
+        return _aggregate_current_premarket_features(
+            pd.DataFrame(),
+            previous_close_by_symbol,
+            target_trade_date=target_trade_date,
+            premarket_start_utc=premarket_start_utc,
+        )
     detail = detail.dropna(subset=["ts", "symbol"]).sort_values(["symbol", "ts"]).reset_index(drop=True)
     trade_count_source = None
     for column in ["trade_count", "count", "n_trades", "num_trades"]:
@@ -395,9 +440,10 @@ def _build_current_diagnostics(daily_current: pd.DataFrame) -> pd.DataFrame:
             "present_after_daily_filter": daily_current["has_daily_bars"].fillna(False).astype(bool),
             "present_after_intraday_filter": False,
             "present_in_eligible": daily_current["is_eligible"].fillna(False).astype(bool),
-            "selected_top20pct": True,
+            "selected_top20pct": daily_current.get("selected_top20pct", False),
+            "selected_top20pct_0400": daily_current.get("selected_top20pct_0400", False),
             "excluded_step": "preopen_fast_scope",
-            "excluded_reason": "historical_selected_top20pct_scope",
+            "excluded_reason": daily_current["eligibility_reason"],
             "exchange": daily_current["exchange"],
             "asset_type": daily_current["asset_type"],
             "has_reference_data": daily_current["has_reference_data"].fillna(False).astype(bool),
@@ -455,7 +501,14 @@ def run_preopen_fast_refresh(
     premarket_anchor_et = _resolve_premarket_anchor_et(baseline_manifest)
 
     daily_features = _normalize_trade_date(frames["daily_symbol_features_full_universe"])
-    scope_calibration = _recent_scope_symbol_counts(daily_features)
+    scope_selection_column = _resolve_scope_selection_column(
+        daily_features,
+        premarket_anchor_et=premarket_anchor_et,
+    )
+    scope_calibration = _recent_scope_symbol_counts(
+        daily_features,
+        selection_column=scope_selection_column,
+    )
     daily_bars = _normalize_trade_date(frames["daily_bars"])
     completed_trade_days = sorted(daily_bars["trade_date"].dropna().unique().tolist())
     if not completed_trade_days:
@@ -463,11 +516,18 @@ def run_preopen_fast_refresh(
 
     target_trade_date = _resolve_target_trade_date(completed_trade_days)
     if scope_days is None or int(scope_days) <= 0:
-        resolved_scope_days, resolved_scope_symbol_count = _choose_scope_days(daily_features)
+        resolved_scope_days, resolved_scope_symbol_count = _choose_scope_days(
+            daily_features,
+            selection_column=scope_selection_column,
+        )
     else:
         resolved_scope_days = int(scope_days)
         resolved_scope_symbol_count = 0
-    scope_rows = _select_recent_scope_symbols(daily_features, scope_days=resolved_scope_days)
+    scope_rows = _select_recent_scope_symbols(
+        daily_features,
+        scope_days=resolved_scope_days,
+        selection_column=scope_selection_column,
+    )
     if scope_rows.empty:
         raise ValueError("No reduced scope symbols found from selected_top20pct history")
 
@@ -481,6 +541,7 @@ def run_preopen_fast_refresh(
     }
 
     premarket_start_utc = datetime.combine(target_trade_date, premarket_anchor_et, tzinfo=US_EASTERN_TZ).astimezone(UTC)
+    premarket_query_start_utc = premarket_start_utc - pd.Timedelta(seconds=1).to_pytimedelta()
     regular_open_utc = datetime.combine(target_trade_date, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC)
     fetch_end_utc = min(datetime.now(UTC), regular_open_utc - pd.Timedelta(seconds=1).to_pytimedelta())
 
@@ -536,7 +597,7 @@ def run_preopen_fast_refresh(
                         dataset=effective_dataset,
                         symbols=symbols_batch,
                         schema="ohlcv-1s",
-                        start=premarket_start_utc.isoformat(),
+                        start=premarket_query_start_utc.isoformat(),
                         end=_exclusive_ohlcv_1s_end(fetch_end_utc).isoformat(),
                     )
                 frame = _store_to_frame(store, context="run_preopen_fast_refresh")
@@ -574,6 +635,7 @@ def run_preopen_fast_refresh(
                 fallback_succeeded = False
                 fallback_batch_errors: list[str] = []
                 skipped_for_exchange: list[str] = []
+                now_utc_fallback = datetime.now(UTC)
                 for fallback_dataset in fallback_candidates:
                     dataset_upper = str(fallback_dataset).upper()
                     symbol_exchange = {
@@ -583,14 +645,25 @@ def run_preopen_fast_refresh(
                     fallback_available_end = _get_schema_available_end(client, fallback_dataset, "ohlcv-1s")
                     fallback_fetch_end = _clamp_request_end(pd.Timestamp(fetch_end_utc), fallback_available_end).to_pydatetime()
                     if fallback_fetch_end < premarket_start_utc:
-                        skipped_for_exchange.append(f"{fallback_dataset} (no premarket window)")
-                        logger.info(
-                            "Skipping fallback dataset %s: clamped end %s is before premarket start %s.",
-                            fallback_dataset,
-                            fallback_fetch_end,
-                            premarket_start_utc,
-                        )
-                        continue
+                        if now_utc_fallback >= premarket_start_utc:
+                            logger.info(
+                                "Fallback dataset %s clamped end %s is before premarket start %s; "
+                                "bypassing clamp for live premarket probe (fetch_end=%s).",
+                                fallback_dataset,
+                                fallback_fetch_end,
+                                premarket_start_utc,
+                                fetch_end_utc,
+                            )
+                            fallback_fetch_end = fetch_end_utc
+                        else:
+                            skipped_for_exchange.append(f"{fallback_dataset} (no premarket window)")
+                            logger.info(
+                                "Skipping fallback dataset %s: clamped end %s is before premarket start %s.",
+                                fallback_dataset,
+                                fallback_fetch_end,
+                                premarket_start_utc,
+                            )
+                            continue
 
                     allowed_exchanges: set[str] | None = None
                     if dataset_upper.startswith("XNAS"):
@@ -634,11 +707,24 @@ def run_preopen_fast_refresh(
                                 dataset=fallback_dataset,
                                 symbols=test_batch,
                                 schema="ohlcv-1s",
-                                start=premarket_start_utc.isoformat(),
+                                start=premarket_query_start_utc.isoformat(),
                                 end=_exclusive_ohlcv_1s_end(fallback_fetch_end).isoformat(),
                             )
                         test_frame = _store_to_frame(store, context="run_preopen_fast_refresh_probe")
                     except Exception as probe_exc:
+                        probe_text = str(probe_exc).lower()
+                        no_window_yet = (
+                            "data_start_after_available_end" in probe_text
+                            or "after the available end" in probe_text
+                        )
+                        if no_window_yet:
+                            skipped_for_exchange.append(f"{fallback_dataset} (no premarket window yet)")
+                            logger.info(
+                                "Fallback %s probe indicates no premarket window yet: %s. Trying next dataset.",
+                                fallback_dataset,
+                                probe_exc,
+                            )
+                            continue
                         retry_end = _extract_live_license_cutoff_utc(str(probe_exc))
                         if retry_end is not None and retry_end >= premarket_start_utc:
                             adjusted_end = min(fallback_fetch_end, retry_end)
@@ -649,7 +735,7 @@ def run_preopen_fast_refresh(
                                         dataset=fallback_dataset,
                                         symbols=test_batch,
                                         schema="ohlcv-1s",
-                                        start=premarket_start_utc.isoformat(),
+                                        start=premarket_query_start_utc.isoformat(),
                                         end=_exclusive_ohlcv_1s_end(adjusted_end).isoformat(),
                                     )
                                 test_frame = _store_to_frame(store, context="run_preopen_fast_refresh_probe_retry")
@@ -690,7 +776,7 @@ def run_preopen_fast_refresh(
                                     dataset=fallback_dataset,
                                     symbols=symbols_batch,
                                     schema="ohlcv-1s",
-                                    start=premarket_start_utc.isoformat(),
+                                    start=premarket_query_start_utc.isoformat(),
                                     end=_exclusive_ohlcv_1s_end(fallback_fetch_end).isoformat(),
                                 )
                             frame = _store_to_frame(store, context="run_preopen_fast_refresh_fallback")
@@ -714,13 +800,55 @@ def run_preopen_fast_refresh(
 
                 if not fallback_succeeded:
                     fallback_detail = f" First fallback error: {fallback_batch_errors[0]}" if fallback_batch_errors else ""
-                    skip_detail = f" Skipped (no compatible symbols): {', '.join(skipped_for_exchange)}." if skipped_for_exchange else ""
                     error_text = "\n".join(fallback_batch_errors).lower()
+                    skipped_no_window_only = bool(skipped_for_exchange) and all(
+                        "(no premarket window" in item for item in skipped_for_exchange
+                    )
+                    skipped_no_compatible_only = bool(skipped_for_exchange) and all(
+                        "(no premarket window" not in item for item in skipped_for_exchange
+                    )
+                    if skipped_for_exchange:
+                        if skipped_no_window_only:
+                            skip_detail = f" Skipped (no premarket window): {', '.join(skipped_for_exchange)}."
+                        elif skipped_no_compatible_only:
+                            skip_detail = f" Skipped (no compatible symbols): {', '.join(skipped_for_exchange)}."
+                        else:
+                            skip_detail = f" Skipped: {', '.join(skipped_for_exchange)}."
+                    else:
+                        skip_detail = ""
                     availability_lag = (
                         "data_end_after_available_end" in error_text
+                        or "data_start_after_available_end" in error_text
+                        or "after the available end" in error_text
                         or "available up to" in error_text
                     )
-                    if availability_lag:
+                    if skipped_no_window_only and not fallback_batch_errors:
+                        now_et = now_utc_fallback.astimezone(US_EASTERN_TZ)
+                        anchor_dt_et = datetime.combine(now_et.date(), premarket_anchor_et, tzinfo=US_EASTERN_TZ)
+                        minutes_after_anchor = int((now_et - anchor_dt_et).total_seconds() // 60)
+                        if now_utc_fallback < premarket_start_utc:
+                            _timing_hint = (
+                                f"Current ET time {now_et.strftime('%H:%M:%S')} is before the "
+                                f"{premarket_anchor_et.strftime('%H:%M')} ET anchor. "
+                                "Retry shortly after premarket starts."
+                            )
+                        elif minutes_after_anchor < 15:
+                            _timing_hint = (
+                                f"Current ET time is {now_et.strftime('%H:%M:%S')} ({minutes_after_anchor} min after anchor). "
+                                "This is often a short availability lag right after premarket open; retry shortly."
+                            )
+                        else:
+                            _timing_hint = (
+                                f"Current ET time is {now_et.strftime('%H:%M:%S')} ({minutes_after_anchor} min after anchor) "
+                                "and no premarket window is reported yet. This can indicate delayed dataset updates or "
+                                "missing same-day premarket entitlement for the available feeds."
+                            )
+                        _warn_msg = (
+                            "All fallback datasets were skipped because each dataset currently reports no premarket window. "
+                            f"Checked: {', '.join(fallback_candidates)}.{skip_detail} "
+                            f"{_timing_hint}"
+                        )
+                    elif availability_lag:
                         _warn_msg = (
                             "All fallback datasets failed due to dataset availability lag (not a confirmed license issue). "
                             f"Tried: {', '.join(fallback_candidates)}. "
@@ -747,6 +875,7 @@ def run_preopen_fast_refresh(
         premarket_raw,
         previous_close_by_symbol,
         target_trade_date=target_trade_date,
+        premarket_start_utc=premarket_start_utc,
     )
     diagnostics_current = _build_current_diagnostics(daily_current)
 
@@ -769,6 +898,7 @@ def run_preopen_fast_refresh(
         "scope_symbol_count_target": int(_target_scope_symbol_count()),
         "scope_symbol_count_resolved": int(resolved_scope_symbol_count),
         "scope_symbol_count_calibration": scope_calibration,
+        "scope_selection_column": scope_selection_column,
         "target_trade_date": target_trade_date.isoformat(),
         "trade_dates_covered": [target_trade_date.isoformat()],
         "baseline_manifest_path": str(payload["manifest_path"]),
