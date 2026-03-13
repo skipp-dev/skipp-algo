@@ -465,6 +465,7 @@ def _write_fast_outputs(
     *,
     daily_current: pd.DataFrame,
     premarket_current: pd.DataFrame,
+    current_second_detail: pd.DataFrame,
     diagnostics_current: pd.DataFrame,
     premarket_window_current: pd.DataFrame,
     quality_window_status_latest: pd.DataFrame,
@@ -501,6 +502,8 @@ def _write_fast_outputs(
         historical_dates = pd.to_datetime(historical["trade_date"], errors="coerce").dt.date
         current_dates = set(pd.to_datetime(current_frame["trade_date"], errors="coerce").dt.date.dropna().tolist())
         merged = historical.loc[~historical_dates.isin(current_dates)].copy()
+        if merged.empty:
+            return current_frame.copy()
         return pd.concat([merged, current_frame], ignore_index=True)
 
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -511,12 +514,17 @@ def _write_fast_outputs(
         "manifest": manifest_path,
         "daily": export_dir / "daily_symbol_features_full_universe.parquet",
         "premarket": export_dir / "premarket_features_full_universe.parquet",
+        "full_universe_second_detail_open": export_dir / "full_universe_second_detail_open.parquet",
         "diagnostics": export_dir / "symbol_day_diagnostics.parquet",
         "premarket_window_features": export_dir / "premarket_window_features_full_universe.parquet",
         "quality_window_status_latest": export_dir / "quality_window_status_latest.parquet",
     }
     _write_parquet_atomic(outputs["daily"], _merge_by_trade_date(outputs["daily"], daily_current))
     _write_parquet_atomic(outputs["premarket"], _merge_by_trade_date(outputs["premarket"], premarket_current))
+    _write_parquet_atomic(
+        outputs["full_universe_second_detail_open"],
+        _merge_by_trade_date(outputs["full_universe_second_detail_open"], current_second_detail),
+    )
     _write_parquet_atomic(outputs["diagnostics"], _merge_by_trade_date(outputs["diagnostics"], diagnostics_current))
     _write_parquet_atomic(
         outputs["premarket_window_features"],
@@ -959,7 +967,7 @@ def run_preopen_fast_refresh(
             raise RuntimeError(
                 "Premarket fetch failed for all symbol batches "
                 f"(dataset={effective_dataset}, batches={attempted_batches}). First error: {failed_batch_errors[0]}"
-        )
+            )
 
     premarket_raw = pd.concat(batch_frames, ignore_index=True) if batch_frames else pd.DataFrame()
     _progress("Fast refresh 4/5: Aggregating current premarket features...")
@@ -975,13 +983,20 @@ def run_preopen_fast_refresh(
         target_trade_date=target_trade_date,
     )
 
+    source_data_fetched_at: str | None = None
+    if not current_second_detail.empty:
+        event_ts = pd.to_datetime(current_second_detail.get("timestamp"), errors="coerce", utc=True)
+        if event_ts.notna().any():
+            source_data_fetched_at = event_ts.max().isoformat(timespec="seconds")
+
     exported_at = datetime.now(UTC).isoformat(timespec="seconds")
     basename = f"databento_preopen_fast_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
     manifest = {
         "basename": basename,
         "export_generated_at": exported_at,
         "exported_at": exported_at,
-        "source_data_fetched_at": exported_at,
+        "source_data_fetched_at": source_data_fetched_at,
+        "source_data_fetched_at_semantics": "Latest observed source-data event timestamp (UTC) in full_universe_second_detail_open for this run; null when no source ticks were returned.",
         "premarket_fetched_at": exported_at,
         "dataset": effective_dataset,
         "dataset_requested": requested_dataset or effective_dataset,
@@ -1003,13 +1018,14 @@ def run_preopen_fast_refresh(
         "failed_fetch_batches": failed_batch_errors,
         "availability_clamp_bypassed": clamp_bypassed,
         "dataset_available_end": str(available_end) if available_end is not None else None,
+        "full_universe_second_detail_open_rows": int(len(current_second_detail)),
     }
     bullish_cfg = build_default_bullish_quality_config()
     premarket_window_current = build_premarket_window_features_full_universe_export(
         current_second_detail,
         daily_current,
         window_definitions=bullish_cfg.window_definitions,
-        source_data_fetched_at=exported_at,
+        source_data_fetched_at=source_data_fetched_at,
         dataset=effective_dataset,
     )
     if not premarket_window_current.empty and "trade_date" not in premarket_window_current.columns:
@@ -1038,6 +1054,7 @@ def run_preopen_fast_refresh(
         resolved_export_dir,
         daily_current=daily_current,
         premarket_current=premarket_current,
+        current_second_detail=current_second_detail,
         diagnostics_current=diagnostics_current,
         premarket_window_current=premarket_window_current,
         quality_window_status_latest=quality_window_status_latest,

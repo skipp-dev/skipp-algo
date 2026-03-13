@@ -311,6 +311,16 @@ def _bool_series(frame: pd.DataFrame, column: str, default: bool = False) -> pd.
     return mapped.fillna(default).astype(bool)
 
 
+def _numeric_series(frame: pd.DataFrame, column: str, *, fill_value: float = np.nan) -> pd.Series:
+    value = frame[column] if column in frame.columns else pd.Series(fill_value, index=frame.index)
+    if isinstance(value, pd.Series):
+        return pd.to_numeric(value, errors="coerce")
+    if isinstance(value, pd.DataFrame):
+        collapsed = value.apply(lambda col: pd.to_numeric(col, errors="coerce")).bfill(axis=1).iloc[:, 0]
+        return pd.to_numeric(collapsed, errors="coerce")
+    return pd.Series(fill_value, index=frame.index, dtype="float64")
+
+
 def _parse_window_time_et(value: str) -> time:
     return time.fromisoformat(str(value))
 
@@ -1635,9 +1645,9 @@ def _build_daily_symbol_features_full_universe_export(
     )
 
     early_ranking_metric = "focus_0400_open_30s_volume"
-    early_has_rows = pd.to_numeric(features.get("focus_0400_open_window_second_rows"), errors="coerce").fillna(0).astype(int) > 0
+    early_has_rows = _numeric_series(features, "focus_0400_open_window_second_rows", fill_value=0.0).fillna(0).astype(int) > 0
     early_prev_close_mask = pd.to_numeric(features.get("previous_close"), errors="coerce").notna()
-    early_metric_series = pd.to_numeric(features.get(early_ranking_metric), errors="coerce")
+    early_metric_series = _numeric_series(features, early_ranking_metric)
     early_eligible_mask = (
         features["is_supported_by_databento"]
         & features["has_reference_data"]
@@ -1718,7 +1728,9 @@ def _build_daily_symbol_features_full_universe_export(
 
     features = features.sort_values(["trade_date", "symbol"]).reset_index(drop=True)
     diagnostics = diagnostics.sort_values(["trade_date", "symbol"]).reset_index(drop=True)
-    return features[DAILY_SYMBOL_FEATURE_COLUMNS], diagnostics[SYMBOL_DAY_DIAGNOSTIC_COLUMNS]
+    features = features.reindex(columns=DAILY_SYMBOL_FEATURE_COLUMNS)
+    diagnostics = diagnostics.reindex(columns=SYMBOL_DAY_DIAGNOSTIC_COLUMNS)
+    return features, diagnostics
 
 
 def _prepare_full_universe_second_detail_export(second_detail_all: pd.DataFrame, daily_features: pd.DataFrame) -> pd.DataFrame:
@@ -1728,7 +1740,7 @@ def _prepare_full_universe_second_detail_export(second_detail_all: pd.DataFrame,
     detail = second_detail_all.copy()
     detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
     detail["symbol"] = detail["symbol"].astype(str).str.upper()
-    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce")
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
     lookup = daily_features[["trade_date", "symbol", "previous_close", "market_open_price"]].copy()
     lookup["trade_date"] = pd.to_datetime(lookup["trade_date"], errors="coerce").dt.date
     lookup["symbol"] = lookup["symbol"].astype(str).str.upper()
@@ -1771,7 +1783,7 @@ def _build_premarket_features_full_universe_export(second_detail_all: pd.DataFra
     detail = second_detail_all.copy()
     detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
     detail["symbol"] = detail["symbol"].astype(str).str.upper()
-    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce")
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
     detail = detail[detail["session"].astype(str).str.lower().eq("premarket")].copy()
 
     if detail.empty:
@@ -1877,6 +1889,22 @@ def _write_exact_named_exports(export_dir: Path, named_frames: dict[str, pd.Data
 
 def _format_optional_time(value: time | None) -> str:
     return value.strftime("%H:%M:%S") if isinstance(value, time) else "market_relative_default"
+
+
+def _resolve_latest_iso_timestamp(frame: pd.DataFrame, *, candidates: tuple[str, ...]) -> str | None:
+    if frame.empty:
+        return None
+    for column in candidates:
+        if column not in frame.columns:
+            continue
+        parsed = pd.to_datetime(frame[column], errors="coerce", utc=True)
+        if parsed.isna().all():
+            continue
+        latest = parsed.max()
+        if pd.isna(latest):
+            continue
+        return latest.isoformat(timespec="seconds")
+    return None
 
 
 def _filter_ranked_symbol_day_scope(frame: pd.DataFrame, ranked_scope: pd.DataFrame) -> pd.DataFrame:
@@ -2069,8 +2097,15 @@ def run_production_export_pipeline(
         premarket_source_detail,
         daily_symbol_features_full_universe,
     )
-    second_detail_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
+    second_detail_fetched_at = _resolve_latest_iso_timestamp(
+        full_universe_second_detail_open,
+        candidates=("timestamp", "ts", "source_data_fetched_at", "fetched_at"),
+    )
     premarket_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
+    source_data_fetched_at = _resolve_latest_iso_timestamp(
+        premarket_source_detail_prepared,
+        candidates=("timestamp", "ts", "source_data_fetched_at", "fetched_at"),
+    )
     premarket_features_full_universe = _build_premarket_features_full_universe_export(
         premarket_source_detail_prepared,
         daily_symbol_features_full_universe,
@@ -2079,7 +2114,7 @@ def run_production_export_pipeline(
         premarket_source_detail_prepared,
         daily_symbol_features_full_universe,
         window_definitions=_DEFAULT_BULLISH_QUALITY_CFG.window_definitions,
-        source_data_fetched_at=premarket_fetched_at,
+        source_data_fetched_at=source_data_fetched_at,
         dataset=dataset,
     )
 
@@ -2152,7 +2187,8 @@ def run_production_export_pipeline(
         "intraday_fetched_at": intraday_fetched_at,
         "second_detail_fetched_at": second_detail_fetched_at,
         "premarket_fetched_at": premarket_fetched_at,
-        "source_data_fetched_at": f"{premarket_fetched_at} (alias for premarket_fetched_at)",
+        "source_data_fetched_at": source_data_fetched_at,
+        "source_data_fetched_at_semantics": "Latest source-data event timestamp (UTC) observed in premarket source detail used to build window features; null when no source rows were available.",
         "export_generated_at": export_generated_at,
         "trade_dates_covered": [trade_day.isoformat() for trade_day in trading_days],
         "detail_scope": {"none": "no_second_detail", "ranked_only": "ranked_symbol_day_only", "full_universe": "full_supported_universe_symbol_days"}[second_detail_scope],
