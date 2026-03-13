@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+import scripts.generate_bullish_quality_scanner as bullish_scanner_module
 from scripts.bullish_quality_config import build_default_bullish_quality_config
 from scripts.generate_bullish_quality_scanner import generate_bullish_quality_scanner_result
 
@@ -113,3 +114,25 @@ def test_generate_bullish_quality_scanner_result_falls_back_to_valid_production_
     assert result.trade_date.isoformat() == "2026-03-10"
     assert result.latest_window_table["symbol"].tolist() == ["AAA"]
     assert any("Fell back to the latest manifest-backed production bundle" in warning for warning in result.warnings)
+
+
+def test_generate_bullish_quality_scanner_result_uses_manifest_timestamp_when_windows_empty(monkeypatch, tmp_path: Path) -> None:
+    cfg = build_default_bullish_quality_config()
+    trade_date = pd.Timestamp("2026-03-11").date()
+
+    def _fake_loader(export_dir: Path):
+        _ = export_dir
+        return (
+            pd.DataFrame(columns=["trade_date", "symbol"]),
+            pd.DataFrame({"trade_date": [trade_date], "symbol": ["AAA"]}),
+            [],
+            {"premarket_fetched_at": "2026-03-11T09:25:00+00:00"},
+        )
+
+    monkeypatch.setattr(bullish_scanner_module, "load_bullish_quality_inputs", _fake_loader)
+
+    result = bullish_scanner_module.generate_bullish_quality_scanner_result(export_dir=tmp_path, cfg=cfg)
+
+    assert result.trade_date == trade_date
+    assert result.source_data_fetched_at == "2026-03-11T09:25:00+00:00"
+    assert "No premarket window feature rows were available." in result.warnings

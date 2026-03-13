@@ -45,6 +45,8 @@ from databento_volatility_screener import (
     _format_intraday_reference_time,
     _highlight_rank_change_label,
     _format_reclaim_status_series,
+    _resolve_watchlist_snapshot_trigger,
+    _run_full_history_refresh_with_status,
     _numeric_series_or_nan,
     _persist_watchlist_snapshot,
     _download_nasdaq_trader_text,
@@ -1255,6 +1257,44 @@ def test_format_reclaim_status_series_returns_na_for_missing_column() -> None:
     formatted = _format_reclaim_status_series(frame)
 
     assert formatted.tolist() == ["n/a", "n/a"]
+
+
+def test_resolve_watchlist_snapshot_trigger_labels_fast_refresh_auto_generation() -> None:
+    assert _resolve_watchlist_snapshot_trigger(generate_watchlist=False, fast_pipeline=False, fast_refresh=True) == "fast_refresh_auto_generate"
+    assert _resolve_watchlist_snapshot_trigger(generate_watchlist=False, fast_pipeline=True, fast_refresh=False) == "fast_pipeline"
+    assert _resolve_watchlist_snapshot_trigger(generate_watchlist=True, fast_pipeline=True, fast_refresh=True) == "generate_watchlist"
+
+
+def test_run_full_history_refresh_with_status_marks_complete_on_success() -> None:
+    calls: list[dict[str, Any]] = []
+
+    class _StatusContainer:
+        def update(self, **kwargs: Any) -> None:
+            calls.append(kwargs)
+
+    _run_full_history_refresh_with_status(status_container=_StatusContainer(), run_pipeline=lambda: None)
+
+    assert calls == [{"label": "Full history refresh: complete.", "state": "complete", "expanded": False}]
+
+
+def test_run_full_history_refresh_with_status_marks_error_on_failure() -> None:
+    calls: list[dict[str, Any]] = []
+
+    class _StatusContainer:
+        def update(self, **kwargs: Any) -> None:
+            calls.append(kwargs)
+
+    try:
+        _run_full_history_refresh_with_status(
+            status_container=_StatusContainer(),
+            run_pipeline=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "boom"
+    else:
+        raise AssertionError("Expected RuntimeError")
+
+    assert calls == [{"label": "Full history refresh: failed.", "state": "error", "expanded": True}]
 
 
 def test_prepare_full_universe_second_detail_export_deduplicates_daily_feature_lookup() -> None:

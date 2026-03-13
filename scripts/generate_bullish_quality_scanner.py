@@ -157,14 +157,34 @@ def generate_bullish_quality_scanner_result(
     warnings: list[str] = []
     window_features, daily_features, load_warnings, manifest = load_bullish_quality_inputs(export_dir)
     warnings.extend(load_warnings)
+    daily_features = _normalize_trade_date(daily_features)
+    latest_daily_trade_date = daily_features["trade_date"].dropna().max() if not daily_features.empty else None
     window_features = _normalize_trade_date(window_features)
+
+    # Avoid showing stale rankings when daily context is already on a newer trade date.
+    if latest_daily_trade_date is not None and not window_features.empty:
+        latest_window_trade_date = window_features["trade_date"].dropna().max()
+        if latest_window_trade_date is not None and latest_window_trade_date < latest_daily_trade_date:
+            warnings.append(
+                "Window features are older than the latest daily trade date; suppressing stale rankings until current-day premarket rows are available."
+            )
+            window_features = window_features.loc[window_features["trade_date"] == latest_daily_trade_date].copy()
+
+    source_data_fetched_at = _resolve_source_data_fetched_at(window_features)
+    if source_data_fetched_at is None and manifest:
+        for key in ("source_data_fetched_at", "premarket_fetched_at", "export_generated_at", "exported_at"):
+            value = manifest.get(key)
+            if value:
+                source_data_fetched_at = str(value)
+                break
+
     if window_features.empty:
         warnings.append("No premarket window feature rows were available.")
         empty = _empty_window_feature_table()
         return BullishQualityScannerResult(
             generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
-            trade_date=None,
-            source_data_fetched_at=None,
+            trade_date=latest_daily_trade_date,
+            source_data_fetched_at=source_data_fetched_at,
             config_snapshot={**asdict(resolved_cfg), "window_definitions": [asdict(item) for item in resolved_cfg.window_definitions]},
             rankings_table=empty,
             latest_window_table=empty,
@@ -179,13 +199,6 @@ def generate_bullish_quality_scanner_result(
         warnings.append("No bullish-quality candidates matched the configured filters.")
 
     latest_trade_date = window_features["trade_date"].dropna().max() if not window_features.empty else None
-    source_data_fetched_at = _resolve_source_data_fetched_at(window_features)
-    if source_data_fetched_at is None and manifest:
-        for key in ("source_data_fetched_at", "premarket_fetched_at", "export_generated_at", "exported_at"):
-            value = manifest.get(key)
-            if value:
-                source_data_fetched_at = str(value)
-                break
     diagnostics = _build_filter_diagnostics(window_features, ranked)
     latest_window = _latest_window_table(ranked, resolved_cfg)
 

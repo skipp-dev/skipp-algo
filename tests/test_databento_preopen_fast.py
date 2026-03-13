@@ -350,6 +350,162 @@ def test_run_preopen_fast_refresh_skips_fetch_when_dataset_not_available(monkeyp
     assert result is not None
 
 
+def test_run_preopen_fast_refresh_raises_on_window_features_missing_trade_date(monkeypatch, tmp_path) -> None:
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
+    trade_day = date(2026, 3, 10)
+    payload = {
+        "manifest": {"premarket_anchor_et": "08:00:00"},
+        "manifest_path": tmp_path / "baseline_manifest.json",
+        "base_prefix": "baseline",
+        "frames": {
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "selected_top20pct": [True],
+                    "exchange": ["NYSE"],
+                    "asset_type": ["listed_equity_issue"],
+                    "is_eligible": [True],
+                    "eligibility_reason": ["eligible"],
+                    "has_fundamentals": [False],
+                    "has_reference_data": [True],
+                    "has_market_cap": [False],
+                    "window_range_pct": [1.0],
+                    "window_return_pct": [1.0],
+                    "realized_vol_pct": [1.0],
+                }
+            ),
+            "daily_bars": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "close": [10.0],
+                }
+            ),
+        },
+    }
+
+    class _NeverCalledTimeseries:
+        def get_range(self, **kwargs):
+            raise AssertionError("get_range should not be called when dataset is unavailable")
+
+    class _EarlyEndMetadata:
+        def get_dataset_range(self, **kwargs):
+            return {"end": f"{trade_day.isoformat()}T00:00:00+00:00"}
+
+    class _MockClient:
+        timeseries = _NeverCalledTimeseries()
+        metadata = _EarlyEndMetadata()
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
+    monkeypatch.setattr(
+        "scripts.databento_preopen_fast.build_premarket_window_features_full_universe_export",
+        lambda *args, **kwargs: pd.DataFrame({"symbol": ["AAA"]}),
+    )
+
+    try:
+        run_preopen_fast_refresh(
+            databento_api_key="test-key",
+            dataset="DBEQ.BASIC",
+            export_dir=tmp_path,
+            bundle=tmp_path,
+            scope_days=1,
+        )
+    except RuntimeError as exc:
+        assert "missing required 'trade_date' column" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError for malformed window-feature schema")
+
+
+def test_run_preopen_fast_refresh_warns_when_target_trade_date_rows_are_missing(monkeypatch, tmp_path) -> None:
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
+    trade_day = date(2026, 3, 10)
+    payload = {
+        "manifest": {"premarket_anchor_et": "08:00:00"},
+        "manifest_path": tmp_path / "baseline_manifest.json",
+        "base_prefix": "baseline",
+        "frames": {
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "selected_top20pct": [True],
+                    "exchange": ["NYSE"],
+                    "asset_type": ["listed_equity_issue"],
+                    "is_eligible": [True],
+                    "eligibility_reason": ["eligible"],
+                    "has_fundamentals": [False],
+                    "has_reference_data": [True],
+                    "has_market_cap": [False],
+                    "window_range_pct": [1.0],
+                    "window_return_pct": [1.0],
+                    "realized_vol_pct": [1.0],
+                }
+            ),
+            "daily_bars": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "close": [10.0],
+                }
+            ),
+        },
+    }
+
+    class _NeverCalledTimeseries:
+        def get_range(self, **kwargs):
+            raise AssertionError("get_range should not be called when dataset is unavailable")
+
+    class _EarlyEndMetadata:
+        def get_dataset_range(self, **kwargs):
+            return {"end": f"{trade_day.isoformat()}T00:00:00+00:00"}
+
+    class _MockClient:
+        timeseries = _NeverCalledTimeseries()
+        metadata = _EarlyEndMetadata()
+
+    call_count = {"value": 0}
+
+    def _mock_window_builder(*args, **kwargs):
+        call_count["value"] += 1
+        if call_count["value"] == 1:
+            return pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "window_tag": ["pm_0800_0900"],
+                }
+            )
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAA"],
+                "window_tag": ["pm_0800_0900"],
+            }
+        )
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
+    monkeypatch.setattr("scripts.databento_preopen_fast.build_premarket_window_features_full_universe_export", _mock_window_builder)
+    monkeypatch.setattr("scripts.databento_preopen_fast._build_quality_window_status_latest", lambda *args, **kwargs: pd.DataFrame())
+
+    result = run_preopen_fast_refresh(
+        databento_api_key="test-key",
+        dataset="DBEQ.BASIC",
+        export_dir=tmp_path,
+        bundle=tmp_path,
+        scope_days=1,
+    )
+
+    assert call_count["value"] == 2
+    assert any("writing empty current-day window placeholders" in warning for warning in result["user_warnings"])
+
+
 def test_write_fast_outputs_preserves_existing_when_current_frame_empty(tmp_path) -> None:
     trade_day = date(2026, 3, 10)
     existing_daily = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"]})

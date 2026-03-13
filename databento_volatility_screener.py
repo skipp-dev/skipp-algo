@@ -3265,6 +3265,26 @@ def _streamlit_dataframe_compat(dataframe_callable, data: Any, **kwargs: Any):
         return dataframe_callable(data, use_container_width=True, **kwargs)
 
 
+def _resolve_watchlist_snapshot_trigger(*, generate_watchlist: bool, fast_pipeline: bool, fast_refresh: bool) -> str:
+    if generate_watchlist:
+        return "generate_watchlist"
+    if fast_pipeline:
+        return "fast_pipeline"
+    if fast_refresh:
+        return "fast_refresh_auto_generate"
+    return "auto_load"
+
+
+def _run_full_history_refresh_with_status(*, status_container: Any, run_pipeline: Callable[[], None]) -> None:
+    try:
+        run_pipeline()
+    except Exception:
+        status_container.update(label="Full history refresh: failed.", state="error", expanded=True)
+        raise
+    else:
+        status_container.update(label="Full history refresh: complete.", state="complete", expanded=False)
+
+
 def _format_reclaim_status_series(frame: pd.DataFrame, column: str = "reclaimed_start_price_within_30s") -> pd.Series:
     if column not in frame.columns:
         return pd.Series("n/a", index=frame.index, dtype=object)
@@ -3449,6 +3469,33 @@ def run_streamlit_app() -> None:
         timestamp = datetime.now(UTC).isoformat(timespec="seconds")
         st.session_state["dvs_run_logs"] = [*st.session_state["dvs_run_logs"], f"{timestamp} {message}"][-50:]
 
+    def _truncate_table_for_ui(
+        frame: pd.DataFrame,
+        *,
+        label: str,
+        max_rows: int = 1200,
+        max_cols: int = 80,
+    ) -> pd.DataFrame:
+        if not isinstance(frame, pd.DataFrame):
+            return frame
+        out = frame
+        clipped_cols = False
+        clipped_rows = False
+        if out.shape[1] > max_cols:
+            out = out.iloc[:, :max_cols].copy()
+            clipped_cols = True
+        if len(out) > max_rows:
+            out = out.head(max_rows).copy()
+            clipped_rows = True
+        if clipped_rows or clipped_cols:
+            details = []
+            if clipped_rows:
+                details.append(f"rows {len(frame):,}->{len(out):,}")
+            if clipped_cols:
+                details.append(f"cols {frame.shape[1]:,}->{out.shape[1]:,}")
+            st.info(f"{label}: showing truncated table ({', '.join(details)}) to keep UI responsive.")
+        return out
+
     status = build_data_status_result(export_dir)
     is_long_dip_mode = scanner_mode == "Long-Dip Watchlist"
     if is_long_dip_mode:
@@ -3552,7 +3599,39 @@ def run_streamlit_app() -> None:
                 refresh_started = time_module.perf_counter()
                 if fast_refresh or fast_pipeline:
                     _fast_status_container = st.status("Fast pre-open refresh: starting...", expanded=True)
+                    _fast_progress_bar = st.progress(0, text="Fast refresh 0/5: waiting...")
+                    _fast_progress_pct = 0
+                    _fast_progress_step = 0
+                    _fast_progress_total = 5
+                    _fast_eta_smooth_seconds = None
                     def _fast_pipeline_progress(msg: str) -> None:
+                        nonlocal _fast_progress_pct
+                        nonlocal _fast_progress_step
+                        nonlocal _fast_progress_total
+                        nonlocal _fast_eta_smooth_seconds
+                        _msg = str(msg)
+                        _step_match = re.search(r"Fast refresh\s+(\d+)\s*/\s*(\d+)", _msg, flags=re.IGNORECASE)
+                        if _step_match:
+                            _step = max(0, int(_step_match.group(1)))
+                            _step_total = max(1, int(_step_match.group(2)))
+                            _fast_progress_step = _step
+                            _fast_progress_total = _step_total
+                            _fast_progress_pct = max(_fast_progress_pct, min(100, int(round((_step / _step_total) * 100))))
+                        if "done" in _msg.lower():
+                            _fast_progress_pct = 100
+                        _elapsed = max(0.0, time_module.perf_counter() - refresh_started)
+                        _eta_text = ""
+                        if 0 < _fast_progress_step < _fast_progress_total:
+                            _remaining_steps = _fast_progress_total - _fast_progress_step
+                            _raw_eta_seconds = (_elapsed / max(1, _fast_progress_step)) * _remaining_steps
+                            if _fast_eta_smooth_seconds is None:
+                                _fast_eta_smooth_seconds = _raw_eta_seconds
+                            else:
+                                _fast_eta_smooth_seconds = (_fast_eta_smooth_seconds * 0.75) + (_raw_eta_seconds * 0.25)
+                            _eta_seconds = int(round(max(0.0, _fast_eta_smooth_seconds)))
+                            _eta_text = f" | ETA ~{_eta_seconds}s"
+                        _progress_text = f"Step {_fast_progress_step}/{_fast_progress_total} ({_fast_progress_pct}%)" + _eta_text
+                        _fast_progress_bar.progress(_fast_progress_pct, text=f"{_progress_text} - {_msg}")
                         _fast_status_container.update(label=msg)
                         _fast_status_container.write(msg)
                     _fast_result = None
@@ -3565,8 +3644,12 @@ def run_streamlit_app() -> None:
                             scope_days=None if int(fast_scope_days) <= 0 else int(fast_scope_days),
                             progress_callback=_fast_pipeline_progress,
                         )
-                    finally:
-                        _fast_status_container.update(state="complete", expanded=False)
+                    except Exception:
+                        _fast_status_container.update(label="Fast pre-open refresh: failed.", state="error", expanded=True)
+                        raise
+                    else:
+                        _fast_progress_bar.progress(100, text="Step 5/5 (100%) - Fast refresh complete.")
+                        _fast_status_container.update(label="Fast pre-open refresh: complete.", state="complete", expanded=True)
                     for _uw in (_fast_result or {}).get("user_warnings") or []:
                         st.warning(_uw)
                         add_log(f"WARNING: {_uw}")
@@ -3576,7 +3659,7 @@ def run_streamlit_app() -> None:
                     def _pipeline_progress(msg: str) -> None:
                         _status_container.update(label=msg)
                         _status_container.write(msg)
-                    try:
+                    def _run_full_pipeline() -> None:
                         run_production_export_pipeline(
                             databento_api_key=databento_api_key,
                             fmp_api_key=fmp_api_key,
@@ -3589,8 +3672,7 @@ def run_streamlit_app() -> None:
                             second_detail_scope="full_universe",
                             progress_callback=_pipeline_progress,
                         )
-                    finally:
-                        _status_container.update(state="complete", expanded=False)
+                    _run_full_history_refresh_with_status(status_container=_status_container, run_pipeline=_run_full_pipeline)
                     refresh_label = "Full history"
             except Exception as exc:
                 add_log(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
@@ -3607,7 +3689,7 @@ def run_streamlit_app() -> None:
                     st.success(f"Data basis refreshed in {refresh_label} mode in {refresh_seconds:.1f}s.")
                     st.rerun()
 
-    if generate_watchlist or (fast_pipeline and pipeline_refresh_ok):
+    if generate_watchlist or ((fast_pipeline or fast_refresh) and pipeline_refresh_ok):
         try:
             watchlist_started = time_module.perf_counter()
             if is_long_dip_mode:
@@ -3617,10 +3699,15 @@ def run_streamlit_app() -> None:
             with st.spinner("Generating watchlist from the latest exported data..." if is_long_dip_mode else "Generating bullish-quality rankings from the latest exported data..."):
                 if is_long_dip_mode:
                     screen_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+                    trigger = _resolve_watchlist_snapshot_trigger(
+                        generate_watchlist=generate_watchlist,
+                        fast_pipeline=fast_pipeline,
+                        fast_refresh=fast_refresh,
+                    )
                     snapshot_history = _persist_watchlist_snapshot(
                         Path(export_dir).expanduser(),
                         screen_result,
-                        trigger="generate_watchlist" if generate_watchlist else "fast_pipeline",
+                        trigger=trigger,
                     )
                     screen_result = _augment_watchlist_result_with_intraday_context(screen_result, snapshot_history)
                 else:
@@ -3703,6 +3790,14 @@ def run_streamlit_app() -> None:
         trade_date_label = screen_result.get("trade_date") or "n/a"
         fetched_at_label = screen_result.get("source_data_fetched_at") or "n/a"
         st.caption(f"Trade date: {trade_date_label} | Source data fetched at: {fetched_at_label}")
+        trade_date_ts = pd.to_datetime(trade_date_label, errors="coerce")
+        if pd.notna(trade_date_ts):
+            today_et = datetime.now(US_EASTERN_TZ).date()
+            if trade_date_ts.date() < today_et:
+                st.warning(
+                    "Bullish ranking uses previous trade date. Run Fast Pre-Open Refresh to update today's premarket windows, "
+                    "or use Fast Pre-Open Pipeline to refresh + regenerate in one click."
+                )
 
         for warning in screen_result.get("warnings", []):
             st.warning(warning)
@@ -3736,11 +3831,23 @@ def run_streamlit_app() -> None:
 
         if isinstance(rankings_table, pd.DataFrame) and not rankings_table.empty:
             with st.expander("All Window Rankings", expanded=False):
-                _streamlit_dataframe_compat(st.dataframe, rankings_table, hide_index=True, height=420)
+                rankings_table_display = _truncate_table_for_ui(
+                    rankings_table,
+                    label="All Window Rankings",
+                    max_rows=1500,
+                    max_cols=70,
+                )
+                _streamlit_dataframe_compat(st.dataframe, rankings_table_display, hide_index=True, height=420)
 
         if isinstance(window_feature_table, pd.DataFrame) and not window_feature_table.empty:
             with st.expander("Window Feature Detail", expanded=False):
-                _streamlit_dataframe_compat(st.dataframe, window_feature_table, hide_index=True, height=420)
+                window_feature_table_display = _truncate_table_for_ui(
+                    window_feature_table,
+                    label="Window Feature Detail",
+                    max_rows=1500,
+                    max_cols=70,
+                )
+                _streamlit_dataframe_compat(st.dataframe, window_feature_table_display, hide_index=True, height=420)
     else:
         st.subheader("Top-N Watchlist")
         view_mode = st.radio(
@@ -3917,6 +4024,12 @@ def run_streamlit_app() -> None:
             table_frame = display_watchlist_table[visible_columns].copy()
             if "reclaimed_start_price_within_30s" in table_frame.columns:
                 table_frame["reclaimed_start_price_within_30s"] = _format_reclaim_status_series(display_watchlist_table)
+            table_frame = _truncate_table_for_ui(
+                table_frame,
+                label="Top-N Watchlist",
+                max_rows=1200,
+                max_cols=70,
+            )
             st.caption(
                 "`All` means at least one focus window has usable detail. "
                 "Single-window views check only that exact 04:00 / 08:00 / 09:30 slice for the dip/reclaim metrics. "
@@ -3976,15 +4089,25 @@ def run_streamlit_app() -> None:
             if "open_pattern_status" in table_frame.columns:
                 column_config["open_pattern_status"] = st.column_config.TextColumn("Open Pattern\nStatus", width="small")
 
-            table_styles = _build_watchlist_table_style_frame(table_frame)
-            styled_table_frame = table_frame.style.apply(lambda _: table_styles, axis=None)
-            _streamlit_dataframe_compat(
-                st.dataframe,
-                styled_table_frame,
-                hide_index=True,
-                height=420,
-                column_config=column_config,
-            )
+            if len(table_frame) <= 400 and table_frame.shape[1] <= 60:
+                table_styles = _build_watchlist_table_style_frame(table_frame)
+                styled_table_frame = table_frame.style.apply(lambda _: table_styles, axis=None)
+                _streamlit_dataframe_compat(
+                    st.dataframe,
+                    styled_table_frame,
+                    hide_index=True,
+                    height=420,
+                    column_config=column_config,
+                )
+            else:
+                st.info("Styling disabled for large watchlist table to avoid browser payload limits.")
+                _streamlit_dataframe_compat(
+                    st.dataframe,
+                    table_frame,
+                    hide_index=True,
+                    height=420,
+                    column_config=column_config,
+                )
 
             active_symbols_source = screen_result.get("active_watchlist_table")
             if not isinstance(active_symbols_source, pd.DataFrame) or active_symbols_source.empty:

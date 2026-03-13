@@ -1012,6 +1012,24 @@ def run_preopen_fast_refresh(
         source_data_fetched_at=exported_at,
         dataset=effective_dataset,
     )
+    if not premarket_window_current.empty and "trade_date" not in premarket_window_current.columns:
+        raise RuntimeError("Fast refresh window-feature output is missing required 'trade_date' column.")
+    target_rows = pd.DataFrame()
+    if not premarket_window_current.empty and "trade_date" in premarket_window_current.columns:
+        target_rows = premarket_window_current.loc[
+            pd.to_datetime(premarket_window_current["trade_date"], errors="coerce").dt.date.eq(target_trade_date)
+        ]
+    if target_rows.empty and not daily_current.empty:
+        user_warnings.append(
+            "Fast refresh produced no current-day window-feature rows from fetched premarket ticks; writing empty current-day window placeholders."
+        )
+        premarket_window_current = build_premarket_window_features_full_universe_export(
+            pd.DataFrame(columns=["trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume", "trade_count"]),
+            daily_current,
+            window_definitions=bullish_cfg.window_definitions,
+            source_data_fetched_at=exported_at,
+            dataset=effective_dataset,
+        )
     quality_window_status_latest = _build_quality_window_status_latest(
         premarket_window_current,
         display_timezone="Europe/Berlin",
