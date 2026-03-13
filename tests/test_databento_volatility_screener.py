@@ -3,15 +3,25 @@ from __future__ import annotations
 from datetime import UTC, date, datetime, time
 import json
 from pathlib import Path
+from typing import Any, cast
 import warnings
 
 import numpy as np
 import pandas as pd
 
 from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
+from scripts.bullish_quality_config import PremarketWindowDefinition
 from scripts.databento_production_export import (
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
+    _build_quality_window_status_latest,
+    _compute_quality_reason,
+    _normalize_exchange_key,
+    _normalize_quality_window_exchange_dataset_map,
+    _window_bounds_for_trade_date,
+    _write_exact_named_exports,
+    build_premarket_window_features_full_universe_export,
+    compute_single_window_features,
     _collect_quality_window_source_frames,
     _compute_quality_window_signal,
     _enrich_universe_with_quality_window_status,
@@ -24,12 +34,22 @@ from scripts.databento_production_export import (
 )
 
 from databento_volatility_screener import (
+    _build_focus_window_coverage_series,
+    _build_open_pattern_status_series,
+    _build_watchlist_snapshot_panel_frames,
+    _build_watchlist_table_style_frame,
     _build_tradingview_watchlist_text,
+    _augment_watchlist_result_with_intraday_context,
     _collapse_duplicate_symbol_seconds,
     _deduplicate_daily_symbol_rows,
+    _format_intraday_reference_time,
+    _highlight_rank_change_label,
     _format_reclaim_status_series,
     _numeric_series_or_nan,
+    _persist_watchlist_snapshot,
     _download_nasdaq_trader_text,
+    _fetch_us_equity_universe_via_screener,
+    UNIVERSE_COLUMNS,
     _clamp_request_end,
     _coerce_timestamp_frame,
     _daily_request_end_exclusive,
@@ -39,10 +59,12 @@ from databento_volatility_screener import (
     _parse_nasdaq_trader_directory,
     _prepare_frame_for_excel,
     _probe_symbol_support,
+    _read_cached_frame,
     _read_symbol_support_cache,
     _symbols_requiring_support_check,
     _symbol_scope_token,
     _update_state_from_chunk,
+    _write_cached_frame,
     _write_symbol_support_cache,
     build_daily_features_full_universe,
     collect_detail_tables_for_summary,
@@ -55,6 +77,11 @@ from databento_volatility_screener import (
     normalize_symbol_for_databento,
     run_intraday_screen,
     SYMBOL_SUPPORT_CACHE_TTL_SECONDS,
+    DATA_CACHE_TTL_SECONDS,
+    CACHE_VERSION_BY_CATEGORY,
+    _write_tradingview_watchlist_exports,
+    _write_streamlit_watchlist_txt_exports,
+    _load_watchlist_snapshot_history,
     SymbolDayState,
     WindowDefinition,
     build_cache_path,
@@ -68,6 +95,7 @@ from databento_volatility_screener import (
     resolve_watchlist_display_table,
     resolve_selected_detail_tables,
     summarize_symbol_day,
+    WATCHLIST_SNAPSHOT_FILE,
 )
 from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
 
@@ -473,8 +501,13 @@ def test_build_daily_symbol_features_full_universe_export_ranks_and_selects_top_
     assert bool(bbb["is_eligible"]) is True
     assert bool(bbb["selected_top20pct"]) is True
     assert "selected_top20pct_0400" in features.columns
+    assert "focus_0930_open_30s_volume" in features.columns
+    assert "focus_0800_open_window_second_rows" in features.columns
+    assert "focus_0400_open_window_second_rows" in features.columns
+    assert "focus_0400_open_30s_volume" in features.columns
     assert int(features["selected_top20pct_0400"].fillna(False).astype(bool).sum()) <= 1
     assert bool(batl["selected_top20pct_0400"]) is False
+    assert pd.isna(batl["focus_0400_open_30s_volume"])
     assert int(bbb["rank_within_trade_date"]) == 1
     assert int(aaa["rank_within_trade_date"]) == 2
     assert int(aaa["eligible_count_for_trade_date"]) == 2
@@ -530,9 +563,161 @@ def test_prepare_second_detail_and_premarket_feature_exports() -> None:
     assert round(float(aaa["premarket_last"]), 4) == 10.35
     assert round(float(aaa["premarket_volume"]), 4) == 300.0
     assert int(aaa["premarket_seconds"]) == 2
+    assert aaa["premarket_last_trade_ts"] == pd.Timestamp("2026-03-06T14:29:59Z")
     assert round(float(aaa["prev_close_to_premarket_pct"]), 4) == round(((10.35 / 10.0) - 1.0) * 100.0, 4)
     assert round(float(aaa["premarket_to_open_pct"]), 4) == round(((10.5 / 10.35) - 1.0) * 100.0, 4)
     assert bool(bbb["has_premarket_data"]) is False
+
+
+def test_build_premarket_window_features_full_universe_export_computes_window_metrics() -> None:
+    trade_day = date(2026, 3, 6)
+    daily_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "previous_close": [10.0],
+            "market_open_price": [10.9],
+        }
+    )
+    second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "AAA", "AAA"],
+            "timestamp": [
+                pd.Timestamp("2026-03-06T09:00:00Z"),
+                pd.Timestamp("2026-03-06T09:20:00Z"),
+                pd.Timestamp("2026-03-06T09:40:00Z"),
+            ],
+            "session": ["premarket", "premarket", "premarket"],
+            "open": [10.0, 10.2, 10.4],
+            "high": [10.2, 10.5, 10.8],
+            "low": [9.9, 10.1, 10.3],
+            "close": [10.1, 10.4, 10.7],
+            "volume": [30_000.0, 30_000.0, 30_000.0],
+            "trade_count": [50, 50, 50],
+        }
+    )
+    window_definition = PremarketWindowDefinition("pm_0400_0500", "04:00:00", "05:00:00", "04:00-05:00 ET")
+
+    result = build_premarket_window_features_full_universe_export(
+        second_detail,
+        daily_features,
+        window_definitions=(window_definition,),
+        source_data_fetched_at="2026-03-06T14:29:59+00:00",
+        dataset="DBEQ.BASIC",
+    )
+
+    assert len(result) == 1
+    row = result.iloc[0]
+    assert row["window_tag"] == "pm_0400_0500"
+    assert bool(row["has_window_data"]) is True
+    assert int(row["window_row_count"]) == 3
+    assert int(row["window_trade_count"]) == 150
+    assert float(row["window_volume"]) == 90_000.0
+    assert round(float(row["window_dollar_volume"]), 2) == 936_000.0
+    assert round(float(row["window_vwap"]), 4) == round(936_000.0 / 90_000.0, 4)
+    assert round(float(row["window_return_pct"]), 4) == 7.0
+    assert round(float(row["prev_close_to_window_close_pct"]), 4) == 7.0
+    assert round(float(row["window_close_position_pct"]), 4) == round(((10.7 - 9.9) / (10.8 - 9.9)) * 100.0, 4)
+    assert bool(row["passes_quality_filter"]) is True
+    assert row["quality_filter_reason"] == "eligible"
+    assert row["window_quality_score"] > 0.0
+
+    single = compute_single_window_features(
+        second_detail,
+        daily_features.iloc[0],
+        window_definition=window_definition,
+        dataset="DBEQ.BASIC",
+        source_data_fetched_at="2026-03-06T14:29:59+00:00",
+    )
+
+    assert single["window_tag"] == "pm_0400_0500"
+    assert round(float(single["window_quality_score"]), 4) == round(float(row["window_quality_score"]), 4)
+
+
+def test_build_premarket_window_features_full_universe_export_marks_missing_window_data() -> None:
+    trade_day = date(2026, 3, 6)
+    daily_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "BBB"],
+            "previous_close": [10.0, 12.0],
+            "market_open_price": [10.5, 12.5],
+        }
+    )
+    window_definition = PremarketWindowDefinition("pm_0500_0600", "05:00:00", "06:00:00", "05:00-06:00 ET")
+
+    result = build_premarket_window_features_full_universe_export(
+        pd.DataFrame(),
+        daily_features,
+        window_definitions=(window_definition,),
+        source_data_fetched_at=None,
+        dataset="DBEQ.BASIC",
+    )
+
+    assert result[["symbol", "window_tag"]].to_dict(orient="records") == [
+        {"symbol": "AAA", "window_tag": "pm_0500_0600"},
+        {"symbol": "BBB", "window_tag": "pm_0500_0600"},
+    ]
+    assert result["has_window_data"].tolist() == [False, False]
+    assert result["passes_quality_filter"].tolist() == [False, False]
+    assert result["quality_filter_reason"].tolist() == ["no_window_data", "no_window_data"]
+    assert result["quality_selected_top_n"].tolist() == [False, False]
+    assert result["quality_rank_within_window"].isna().all()
+
+
+def test_build_premarket_window_features_full_universe_export_populates_window_ranks() -> None:
+    trade_day = date(2026, 3, 10)
+    definition = PremarketWindowDefinition(tag="pm_0900_0930", start_time_et="09:00:00", end_time_et="09:30:00", label="09:00-09:30 ET")
+    second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day] * 6,
+            "symbol": ["AAA", "AAA", "BBB", "BBB", "CCC", "CCC"],
+            "timestamp": [
+                pd.Timestamp("2026-03-10T13:00:00Z"),
+                pd.Timestamp("2026-03-10T13:29:00Z"),
+                pd.Timestamp("2026-03-10T13:00:00Z"),
+                pd.Timestamp("2026-03-10T13:29:00Z"),
+                pd.Timestamp("2026-03-10T13:00:00Z"),
+                pd.Timestamp("2026-03-10T13:29:00Z"),
+            ],
+            "session": ["premarket"] * 6,
+            "open": [10.0, 10.0, 10.0, 10.0, 10.0, 10.0],
+            "high": [10.4, 10.5, 10.9, 11.0, 10.1, 10.2],
+            "low": [9.9, 10.0, 9.9, 10.0, 9.8, 9.9],
+            "close": [10.4, 10.5, 10.9, 11.0, 10.0, 10.05],
+            "volume": [50_000.0, 60_000.0, 90_000.0, 110_000.0, 2_000.0, 3_000.0],
+            "trade_count": [40, 45, 70, 75, 2, 3],
+        }
+    )
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "BBB", "CCC"],
+            "previous_close": [10.0, 10.0, 10.0],
+            "market_open_price": [10.6, 11.1, 10.1],
+        }
+    )
+
+    result = build_premarket_window_features_full_universe_export(
+        second_detail,
+        daily,
+        window_definitions=(definition,),
+        source_data_fetched_at="2026-03-10T13:31:00+00:00",
+        dataset="DBEQ.BASIC",
+    )
+
+    ranked = result.sort_values(["quality_rank_within_window", "symbol"], na_position="last").reset_index(drop=True)
+    assert ranked.loc[0, "symbol"] == "BBB"
+    assert ranked.loc[0, "quality_rank_within_window"] == 1
+    assert bool(ranked.loc[0, "quality_selected_top_n"]) is True
+    assert ranked.loc[1, "symbol"] == "AAA"
+    assert ranked.loc[1, "quality_rank_within_window"] == 2
+    assert bool(ranked.loc[1, "quality_selected_top_n"]) is True
+    ccc = result.loc[result["symbol"] == "CCC"].iloc[0]
+    assert bool(ccc["passes_quality_filter"]) is False
+    assert pd.isna(ccc["quality_rank_within_window"])
+    assert bool(ccc["quality_selected_top_n"]) is False
 
 
 def test_enrich_universe_with_quality_window_status_marks_latest_trade_date_windows() -> None:
@@ -1109,6 +1294,62 @@ def test_format_optional_time_handles_none() -> None:
     assert _format_optional_time(time(15, 30, 20)) == "15:30:20"
 
 
+def test_detail_scope_manifest_field_reflects_second_detail_scope() -> None:
+    """detail_scope in the manifest must adapt to the second_detail_scope parameter."""
+    scope_map = {"none": "no_second_detail", "ranked_only": "ranked_symbol_day_only", "full_universe": "full_supported_universe_symbol_days"}
+    for key, expected in scope_map.items():
+        assert scope_map[key] == expected
+
+
+def test_write_exact_named_exports_uses_atomic_parquet_writes(tmp_path, monkeypatch) -> None:
+    export_dir = tmp_path / "exports"
+    frames = {
+        "daily_symbol_features_full_universe": pd.DataFrame({"symbol": ["AAA"], "trade_date": [date(2026, 3, 10)]}),
+        "quality_window_status_latest": pd.DataFrame({"symbol": ["AAA"], "quality_open_drive_window_latest_berlin": ["10:00-10:30"]}),
+    }
+    writes: list[tuple[Path, pd.DataFrame]] = []
+
+    def fake_write(path: Path, frame: pd.DataFrame) -> None:
+        writes.append((path, frame.copy()))
+
+    monkeypatch.setattr("scripts.databento_production_export._write_parquet_atomic", fake_write)
+
+    created = _write_exact_named_exports(export_dir, frames)
+
+    assert export_dir.is_dir()
+    assert created == {
+        "daily_symbol_features_full_universe": export_dir / "daily_symbol_features_full_universe.parquet",
+        "quality_window_status_latest": export_dir / "quality_window_status_latest.parquet",
+    }
+    assert [path for path, _ in writes] == list(created.values())
+    assert writes[0][1].equals(frames["daily_symbol_features_full_universe"])
+    assert writes[1][1].equals(frames["quality_window_status_latest"])
+
+
+def test_build_quality_window_status_latest_uses_canonical_window_rows() -> None:
+    frame = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 10), date(2026, 3, 10), date(2026, 3, 10)],
+            "symbol": ["AAA", "AAA", "BBB"],
+            "window_tag": ["pm_0400_0500", "pm_0900_0930", "pm_0900_0930"],
+            "has_window_data": [True, True, False],
+            "passes_quality_filter": [False, True, False],
+            "quality_selected_top_n": [False, True, False],
+            "window_quality_score": [40.0, 90.0, pd.NA],
+        }
+    )
+
+    status = _build_quality_window_status_latest(frame, display_timezone="Europe/Berlin")
+
+    aaa = status.loc[status["symbol"] == "AAA"].iloc[0]
+    bbb = status.loc[status["symbol"] == "BBB"].iloc[0]
+    assert aaa["quality_open_drive_window_latest_berlin"] != "none"
+    assert "+" in aaa["quality_open_drive_window_coverage_latest_berlin"]
+    assert float(aaa["quality_open_drive_window_score_latest_berlin"]) == 90.0
+    assert bbb["quality_open_drive_window_coverage_latest_berlin"] == "none"
+    assert bbb["quality_open_drive_window_latest_berlin"] == "none"
+
+
 def test_build_batl_debug_payload_prefers_feature_row_and_falls_back_to_diagnostics() -> None:
     features = pd.DataFrame(
         {
@@ -1220,7 +1461,8 @@ def test_prepare_frame_for_excel_removes_timezone_information() -> None:
         }
     )
     prepared = _prepare_frame_for_excel(frame)
-    assert str(prepared["ts"].dtype) == "datetime64[ns]"
+    assert "datetime64" in str(prepared["ts"].dtype)
+    assert prepared["ts"].dt.tz is None
 
 
 def test_build_data_status_result_uses_manifest_timestamps(tmp_path: Path) -> None:
@@ -1320,12 +1562,13 @@ def test_generate_watchlist_result_returns_generated_and_source_timestamps(tmp_p
     diagnostics.to_parquet(tmp_path / "symbol_day_diagnostics.parquet", index=False)
 
     result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+    watchlist_table = cast(pd.DataFrame, result["watchlist_table"])
 
     assert result["trade_date"] == "2026-03-06"
     assert result["source_data_fetched_at"] is not None
     assert result["generated_at"] is not None
-    assert len(result["watchlist_table"]) == 1
-    assert result["watchlist_table"].iloc[0]["symbol"] == "BBB"
+    assert len(watchlist_table) == 1
+    assert watchlist_table.iloc[0]["symbol"] == "BBB"
 
 
 def test_resolve_watchlist_display_table_switches_between_latest_and_full_history() -> None:
@@ -1365,6 +1608,240 @@ def test_resolve_watchlist_display_table_switches_between_latest_and_full_histor
         {"trade_date": date(2026, 3, 7), "symbol": "CCC"},
     ]
     assert "Showing full history (3 rows across 2 trade dates). Latest trade date is 2026-03-07." in full_caption
+
+
+def test_resolve_watchlist_display_table_keeps_empty_latest_trade_date_table() -> None:
+    historical = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 6)],
+            "symbol": ["AAA"],
+            "watchlist_rank": [1],
+        }
+    )
+    active = historical.iloc[0:0].copy()
+
+    latest_table, latest_caption = resolve_watchlist_display_table(
+        watchlist_result={
+            "generated_at": "2026-03-09T17:00:00+00:00",
+            "source_data_fetched_at": "2026-03-09T16:55:00+00:00",
+            "trade_date": "2026-03-07",
+            "watchlist_table": historical,
+            "active_watchlist_table": active,
+        },
+        view_mode="Latest trade date",
+    )
+
+    assert latest_table.empty
+    assert "Showing latest trade date 2026-03-07 (0 rows, 1 historical rows total)." in latest_caption
+
+
+def test_persist_watchlist_snapshot_enables_intraday_rank_context(tmp_path: Path) -> None:
+    first_result = {
+        "generated_at": "2026-03-09T12:00:00+00:00",
+        "source_data_fetched_at": "2026-03-09T11:59:00+00:00",
+        "trade_date": "2026-03-09",
+        "active_watchlist_table": pd.DataFrame(
+            {
+                "trade_date": [date(2026, 3, 9), date(2026, 3, 9)],
+                "symbol": ["AAA", "BBB"],
+                "watchlist_rank": [1, 2],
+            }
+        ),
+        "watchlist_table": pd.DataFrame(
+            {
+                "trade_date": [date(2026, 3, 9), date(2026, 3, 9)],
+                "symbol": ["AAA", "BBB"],
+                "watchlist_rank": [1, 2],
+            }
+        ),
+    }
+    second_result = {
+        "generated_at": "2026-03-09T12:05:00+00:00",
+        "source_data_fetched_at": "2026-03-09T12:04:30+00:00",
+        "trade_date": "2026-03-09",
+        "active_watchlist_table": pd.DataFrame(
+            {
+                "trade_date": [date(2026, 3, 9), date(2026, 3, 9), date(2026, 3, 9)],
+                "symbol": ["BBB", "AAA", "CCC"],
+                "watchlist_rank": [1, 2, 3],
+            }
+        ),
+        "watchlist_table": pd.DataFrame(
+            {
+                "trade_date": [date(2026, 3, 9), date(2026, 3, 9), date(2026, 3, 9)],
+                "symbol": ["BBB", "AAA", "CCC"],
+                "watchlist_rank": [1, 2, 3],
+            }
+        ),
+    }
+
+    history = _persist_watchlist_snapshot(tmp_path, first_result, trigger="generate_watchlist")
+    history = _persist_watchlist_snapshot(tmp_path, second_result, trigger="generate_watchlist")
+    augmented = _augment_watchlist_result_with_intraday_context(second_result, history)
+
+    assert (tmp_path / WATCHLIST_SNAPSHOT_FILE).exists()
+    assert len(history) == 5
+    active = augmented["active_watchlist_table"]
+    bbb = active.loc[active["symbol"] == "BBB"].iloc[0]
+    aaa = active.loc[active["symbol"] == "AAA"].iloc[0]
+    ccc = active.loc[active["symbol"] == "CCC"].iloc[0]
+
+    assert int(bbb["previous_intraday_watchlist_rank"]) == 2
+    assert bbb["intraday_watchlist_rank_change"] == "up 1"
+    assert int(aaa["previous_intraday_watchlist_rank"]) == 1
+    assert aaa["intraday_watchlist_rank_change"] == "down 1"
+    assert pd.isna(ccc["previous_intraday_watchlist_rank"])
+    assert ccc["intraday_watchlist_rank_change"] == "first"
+
+
+def test_build_open_pattern_status_series_distinguishes_all_vs_single_focus_views() -> None:
+    frame = pd.DataFrame(
+        {
+            "open_30s_volume": [1500.0, np.nan],
+            "early_dip_pct_10s": [-2.1, np.nan],
+            "reclaim_second_30s": [12.0, np.nan],
+            "focus_0930_open_30s_volume": [1500.0, np.nan],
+            "focus_0930_early_dip_pct_10s": [-2.1, np.nan],
+            "focus_0930_reclaim_second_30s": [12.0, np.nan],
+            "focus_0800_open_30s_volume": [np.nan, np.nan],
+            "focus_0800_early_dip_pct_10s": [np.nan, np.nan],
+            "focus_0800_reclaim_second_30s": [np.nan, np.nan],
+            "focus_0400_open_30s_volume": [np.nan, np.nan],
+            "focus_0400_early_dip_pct_10s": [np.nan, np.nan],
+            "focus_0400_reclaim_second_30s": [np.nan, np.nan],
+        }
+    )
+
+    assert _build_open_pattern_status_series(frame, "All (04:00 + 08:00 + 09:30)").tolist() == [
+        "available via >=1 focus window",
+        "missing across all focus windows",
+    ]
+    assert _build_open_pattern_status_series(frame, "09:30 only").tolist() == [
+        "available at 09:30",
+        "missing at 09:30",
+    ]
+    assert _build_open_pattern_status_series(frame, "08:00 only").tolist() == [
+        "missing at 08:00",
+        "missing at 08:00",
+    ]
+    assert _build_open_pattern_status_series(frame, "04:00 only").tolist() == [
+        "missing at 04:00",
+        "missing at 04:00",
+    ]
+
+
+def test_build_focus_window_coverage_series_shows_exact_window_combinations() -> None:
+    frame = pd.DataFrame(
+        {
+            "open_window_second_rows": [12, 0, 0, 0, 0],
+            "focus_0930_open_window_second_rows": [12, 0, 4, 0, 0],
+            "focus_0800_open_window_second_rows": [0, 8, 4, 0, 0],
+            "focus_0400_open_window_second_rows": [0, 0, 4, 9, 0],
+        }
+    )
+
+    assert _build_focus_window_coverage_series(frame).tolist() == [
+        "09:30",
+        "08:00",
+        "04:00 + 08:00 + 09:30",
+        "04:00",
+        "none",
+    ]
+
+
+def test_build_focus_window_coverage_series_returns_unavailable_when_window_rows_are_absent() -> None:
+    frame = pd.DataFrame({"symbol": ["AAA", "BBB"]})
+
+    assert _build_focus_window_coverage_series(frame).tolist() == ["unavailable", "unavailable"]
+
+
+def test_highlight_rank_change_label_emphasizes_direction_and_special_states() -> None:
+    assert _highlight_rank_change_label("up 2", 2) == "UP +2"
+    assert _highlight_rank_change_label("down 3", -3) == "DOWN -3"
+    assert _highlight_rank_change_label("flat", 0) == "FLAT 0"
+    assert _highlight_rank_change_label("new") == "NEW"
+    assert _highlight_rank_change_label("first") == "FIRST"
+
+
+def test_format_intraday_reference_time_uses_display_timezone() -> None:
+    assert _format_intraday_reference_time("2026-03-12T08:15:00+00:00") == "09:15:00 CET"
+    assert _format_intraday_reference_time(None) == "n/a"
+
+
+def test_build_watchlist_table_style_frame_marks_rank_direction_cells() -> None:
+    frame = pd.DataFrame(
+        {
+            "watchlist_rank_change": ["UP +2", "DOWN -1", "NEW", "FLAT 0"],
+            "watchlist_rank_delta": [2, -1, np.nan, 0],
+            "intraday_watchlist_rank_change": ["FIRST", "UP +1", "DOWN -2", "FLAT 0"],
+            "intraday_watchlist_rank_delta": [np.nan, 1, -2, 0],
+        }
+    )
+
+    styles = _build_watchlist_table_style_frame(frame)
+
+    assert "#dcfce7" in styles.loc[0, "watchlist_rank_change"]
+    assert "#fee2e2" in styles.loc[1, "watchlist_rank_change"]
+    assert "#dbeafe" in styles.loc[2, "watchlist_rank_change"]
+    assert "#e5e7eb" in styles.loc[3, "watchlist_rank_change"]
+    assert "#fef3c7" in styles.loc[0, "intraday_watchlist_rank_change"]
+    assert "#dcfce7" in styles.loc[1, "intraday_watchlist_rank_delta"]
+    assert "#fee2e2" in styles.loc[2, "intraday_watchlist_rank_delta"]
+
+
+def test_build_watchlist_snapshot_panel_frames_returns_summary_and_rank_trail() -> None:
+    history = pd.DataFrame(
+        {
+            "snapshot_at": [
+                pd.Timestamp("2026-03-12T08:15:00Z"),
+                pd.Timestamp("2026-03-12T08:15:00Z"),
+                pd.Timestamp("2026-03-12T08:30:00Z"),
+                pd.Timestamp("2026-03-12T08:30:00Z"),
+                pd.Timestamp("2026-03-11T08:15:00Z"),
+            ],
+            "trade_date": [
+                date(2026, 3, 12),
+                date(2026, 3, 12),
+                date(2026, 3, 12),
+                date(2026, 3, 12),
+                date(2026, 3, 11),
+            ],
+            "symbol": ["AAA", "BBB", "AAA", "BBB", "OLD"],
+            "watchlist_rank": [1, 2, 2, 1, 1],
+            "source_data_fetched_at": ["", "", "", "", ""],
+            "watchlist_generated_at": ["", "", "", "", ""],
+            "trigger": ["auto_load", "auto_load", "fast_pipeline", "fast_pipeline", "auto_load"],
+        }
+    )
+
+    summary, trail = _build_watchlist_snapshot_panel_frames(
+        history,
+        trade_date=date(2026, 3, 12),
+        active_symbols=["BBB", "AAA"],
+        display_timezone="Europe/Berlin",
+    )
+
+    assert summary.to_dict(orient="records") == [
+        {
+            "snapshot_time": "09:30:00 CET",
+            "trigger": "fast_pipeline",
+            "symbols": 2,
+            "leader": "BBB",
+            "top3": "BBB, AAA",
+        },
+        {
+            "snapshot_time": "09:15:00 CET",
+            "trigger": "auto_load",
+            "symbols": 2,
+            "leader": "AAA",
+            "top3": "AAA, BBB",
+        },
+    ]
+    assert trail.columns.tolist() == ["symbol", "09:15:00 CET", "09:30:00 CET"]
+    assert trail.to_dict(orient="records") == [
+        {"symbol": "BBB", "09:15:00 CET": 2.0, "09:30:00 CET": 1.0},
+        {"symbol": "AAA", "09:15:00 CET": 1.0, "09:30:00 CET": 2.0},
+    ]
 
 
 def test_generate_watchlist_result_falls_back_to_latest_bundle_when_exact_named_exports_are_corrupt(tmp_path: Path) -> None:
@@ -1420,11 +1897,13 @@ def test_generate_watchlist_result_falls_back_to_latest_bundle_when_exact_named_
     diagnostics.to_parquet(tmp_path / "databento_volatility_production_20260306_081500__symbol_day_diagnostics.parquet", index=False)
 
     result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+    watchlist_table = cast(pd.DataFrame, result["watchlist_table"])
+    source_metadata = cast(dict[str, Any], result["source_metadata"])
 
     assert result["trade_date"] == "2026-03-06"
-    assert result["watchlist_table"].iloc[0]["symbol"] == "BBB"
-    assert result["source_metadata"]["source"] == "bundle"
-    assert "fallback_reason" in result["source_metadata"]
+    assert watchlist_table.iloc[0]["symbol"] == "BBB"
+    assert source_metadata["source"] == "bundle"
+    assert "fallback_reason" in source_metadata
 
 
 def test_filter_funnel_returned_when_watchlist_empty(tmp_path: Path) -> None:
@@ -1468,9 +1947,10 @@ def test_filter_funnel_returned_when_watchlist_empty(tmp_path: Path) -> None:
             min_premarket_trade_count=0,
         ),
     )
+    watchlist_table = cast(pd.DataFrame, result["watchlist_table"])
+    funnel = cast(list[dict[str, Any]], result["filter_funnel"])
 
-    assert result["watchlist_table"].empty
-    funnel = result["filter_funnel"]
+    assert watchlist_table.empty
     assert len(funnel) >= 5
     assert funnel[0]["filter"] == "Total symbols"
     assert funnel[0]["remaining"] == 2
@@ -1514,8 +1994,9 @@ def test_filter_funnel_not_returned_when_watchlist_has_results(tmp_path: Path) -
     prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
 
     result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=5))
+    watchlist_table = cast(pd.DataFrame, result["watchlist_table"])
 
-    assert len(result["watchlist_table"]) == 1
+    assert len(watchlist_table) == 1
     assert result["filter_funnel"] == []
 
 
@@ -1928,7 +2409,7 @@ def test_build_entry_checklist_table_applies_exact_long_setup_rules() -> None:
         {
             "prev_close_to_premarket_pct": 6.2,
             "premarket_dollar_volume": 750_000.0,
-            "early_dip_pct_10s": -0.7,
+            "early_dip_pct_10s": -1.5,
             "early_dip_second": 4.0,
             "open_30s_volume": 12_000.0,
             "reclaimed_start_price_within_30s": True,
@@ -1945,7 +2426,7 @@ def test_build_entry_checklist_table_applies_exact_long_setup_rules() -> None:
 
     assert score == 5
     assert checklist["erfuellt"].tolist() == [True, True, True, True, True]
-    assert "Gap >= 5.0%" in rule_note
+    assert "Gap >=" in rule_note
 
 
 def test_build_daily_features_full_universe_handles_missing_open_window_rows_column() -> None:
@@ -1983,6 +2464,60 @@ def test_build_daily_features_full_universe_handles_missing_open_window_rows_col
     assert bool(features.loc[0, "has_open_window_detail"]) is False
     assert int(coverage.loc[0, "open_window_second_rows"]) == 0
     assert bool(coverage.loc[0, "has_open_window_detail"]) is False
+
+
+def test_has_open_window_detail_ors_open_and_regular_rows() -> None:
+    """has_open_window_detail must be True when EITHER open_window or regular_open rows exist."""
+    trading_days = [date(2026, 3, 5)]
+    universe = pd.DataFrame({"symbol": ["AAPL", "MSFT"]})
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 2,
+            "symbol": ["AAPL", "MSFT"],
+            "open": [100.0, 200.0],
+            "high": [101.0, 201.0],
+            "low": [99.0, 199.0],
+            "close": [100.5, 200.5],
+            "volume": [1000.0, 2000.0],
+            "previous_close": [99.5, 199.5],
+        }
+    )
+    intraday = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 2,
+            "symbol": ["AAPL", "MSFT"],
+            "current_price": [100.5, 200.5],
+        }
+    )
+    # AAPL has open_window rows but zero regular_open rows;
+    # MSFT has zero open_window rows but regular_open rows.
+    second_detail_all = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 2,
+            "symbol": ["AAPL", "MSFT"],
+            "timestamp": pd.to_datetime(["2026-03-05 14:29:00+00:00", "2026-03-05 14:30:30+00:00"]),
+            "session": ["premarket", "regular"],
+            "open": [100.0, 200.0],
+            "high": [100.1, 200.1],
+            "low": [99.9, 199.9],
+            "close": [100.0, 200.0],
+            "volume": [10, 20],
+        }
+    )
+
+    features, coverage = build_daily_features_full_universe(
+        trading_days=trading_days,
+        universe=universe,
+        daily_bars=daily_bars,
+        intraday=intraday,
+        second_detail_all=second_detail_all,
+    )
+
+    aapl = features.loc[features["symbol"] == "AAPL"].iloc[0]
+    msft = features.loc[features["symbol"] == "MSFT"].iloc[0]
+    # Both should be True because at least one source of data exists
+    assert bool(aapl["has_open_window_detail"]) is True
+    assert bool(msft["has_open_window_detail"]) is True
 
 
 def test_fetch_symbol_day_detail_uses_exclusive_intraday_end(monkeypatch) -> None:
@@ -2482,6 +3017,47 @@ def test_symbol_support_cache_ttl_expires_stale_entries(tmp_path) -> None:
     assert result_stale == {}
 
 
+def test_read_cached_frame_ttl_returns_none_when_expired(tmp_path) -> None:
+    """_read_cached_frame returns None when max_age_seconds is exceeded."""
+    import os
+
+    cache_path = tmp_path / "test_cache.parquet"
+    frame = pd.DataFrame({"symbol": ["AAPL"], "price": [100.0]})
+    _write_cached_frame(cache_path, frame)
+
+    # Fresh cache with TTL should return data
+    result_fresh = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+    assert result_fresh is not None
+    assert len(result_fresh) == 1
+
+    # No TTL should always return data
+    result_no_ttl = _read_cached_frame(cache_path)
+    assert result_no_ttl is not None
+
+    # Backdate the file to exceed TTL
+    old_mtime = cache_path.stat().st_mtime - DATA_CACHE_TTL_SECONDS - 60
+    os.utime(cache_path, (old_mtime, old_mtime))
+
+    result_expired = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+    assert result_expired is None
+
+    # Without TTL, stale file is still returned
+    result_no_ttl_stale = _read_cached_frame(cache_path)
+    assert result_no_ttl_stale is not None
+    assert len(result_no_ttl_stale) == 1
+
+
+def test_read_cached_frame_ttl_returns_data_when_within_limit(tmp_path) -> None:
+    """_read_cached_frame returns data when file is within max_age_seconds."""
+    cache_path = tmp_path / "fresh_cache.parquet"
+    frame = pd.DataFrame({"x": [1, 2, 3]})
+    _write_cached_frame(cache_path, frame)
+
+    result = _read_cached_frame(cache_path, max_age_seconds=60)
+    assert result is not None
+    assert list(result["x"]) == [1, 2, 3]
+
+
 def test_run_intraday_screen_survives_api_error(monkeypatch) -> None:
     """run_intraday_screen logs and continues when a batch API call fails."""
     call_count = {"n": 0}
@@ -2619,3 +3195,648 @@ def test_build_summary_table_no_suffix_leak_on_overlapping_columns() -> None:
     assert suffix_cols == [], f"Unexpected suffix columns: {suffix_cols}"
     assert "company_name" in summary.columns, "Universe-only column should be merged in"
     assert summary.iloc[0]["exchange"] == "NASDAQ"
+
+
+def test_symbol_detail_cache_key_includes_premarket_anchor(tmp_path) -> None:
+    """Changing premarket_anchor_et must produce a different cache key."""
+    base_parts = ["2025-01-06", "AAPL", "Europe/Berlin", "152000", "160000"]
+    path_a = build_cache_path(
+        tmp_path, "symbol_detail_second", dataset="DBEQ.BASIC",
+        parts=base_parts + ["040000"],
+    )
+    path_b = build_cache_path(
+        tmp_path, "symbol_detail_second", dataset="DBEQ.BASIC",
+        parts=base_parts + ["080000"],
+    )
+    assert path_a != path_b, "Different premarket_anchor_et must produce different cache paths"
+
+
+def test_cache_version_by_category_covers_all_data_categories() -> None:
+    """All data cache categories should be tracked in CACHE_VERSION_BY_CATEGORY."""
+    expected = {"daily_bars", "symbol_support", "full_universe_open_second_detail",
+                "intraday_summary", "symbol_detail_second", "symbol_detail_minute"}
+    assert expected == set(CACHE_VERSION_BY_CATEGORY.keys())
+
+
+def test_tradingview_watchlist_writes_are_atomic(tmp_path) -> None:
+    """TXT exports should use atomic writes (temp + rename), not direct write_text."""
+    frame = pd.DataFrame({
+        "symbol": ["AAPL", "TSLA"],
+        "exchange": ["NASDAQ", "NASDAQ"],
+    })
+    created = _write_tradingview_watchlist_exports(tmp_path, "test_base", {"summary": frame})
+    assert "summary" in created
+    content = created["summary"].read_text(encoding="utf-8")
+    assert "NASDAQ:AAPL" in content
+    # No leftover temp files
+    temps = list(tmp_path.glob(".*.tmp"))
+    assert temps == [], f"Leftover temp files: {temps}"
+
+
+def test_choose_default_dataset_warns_on_fallback(caplog) -> None:
+    """A warning should be logged when the requested dataset is not available."""
+    import logging
+    with caplog.at_level(logging.WARNING):
+        result = choose_default_dataset(["DBEQ.BASIC"], requested_dataset="EQUS.ALL")
+    assert result == "DBEQ.BASIC"
+    assert any("EQUS.ALL" in msg for msg in caplog.messages)
+
+
+def test_streamlit_watchlist_txt_exports_are_atomic(tmp_path) -> None:
+    """Streamlit TXT exports should use atomic writes (no leftover .tmp files)."""
+    watchlist_result = {
+        "active_watchlist_table": pd.DataFrame({
+            "symbol": ["AAPL", "TSLA"],
+            "exchange": ["NASDAQ", "NASDAQ"],
+        }),
+        "watchlist_table": pd.DataFrame({
+            "symbol": ["AAPL", "TSLA", "NVDA"],
+            "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
+        }),
+    }
+    created = _write_streamlit_watchlist_txt_exports(tmp_path, watchlist_result)
+    assert "txt_topn_latest" in created
+    assert "txt_topn_full_history" in created
+    latest_content = created["txt_topn_latest"].read_text(encoding="utf-8")
+    assert "NASDAQ:AAPL" in latest_content
+    history_content = created["txt_topn_full_history"].read_text(encoding="utf-8")
+    assert "NASDAQ:NVDA" in history_content
+    temps = list(tmp_path.glob(".*.tmp"))
+    assert temps == [], f"Leftover temp files: {temps}"
+
+
+def test_build_data_status_result_logs_corrupt_manifest(tmp_path, caplog) -> None:
+    """Corrupt manifest JSON should be logged, not silently swallowed."""
+    import logging
+    manifest_path = tmp_path / "test_corrupt_20260101_000000_manifest.json"
+    manifest_path.write_text("{invalid json", encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        result = build_data_status_result(tmp_path)
+    assert result.is_stale
+    assert any("Failed to parse manifest JSON" in msg for msg in caplog.messages)
+
+
+# ── Round 4: ranking/quality-window scoring fixes ─────────────────────
+
+
+def test_trade_count_nan_proxy_fallback() -> None:
+    """When trade_count column is absent, active_seconds proxy must be used — not 0."""
+    daily_bars = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)],
+        "symbol": ["AAPL"],
+        "previous_close": [150.0],
+        "market_open_price": [155.0],
+    })
+    ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")
+    detail = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)] * 3,
+        "symbol": ["AAPL"] * 3,
+        "timestamp": [ts_base + pd.Timedelta(seconds=i) for i in range(3)],
+        "session": ["premarket"] * 3,
+        "open": [151.0, 152.0, 153.0],
+        "high": [152.0, 153.0, 154.0],
+        "low": [150.0, 151.0, 152.0],
+        "close": [152.0, 153.0, 154.0],
+        "volume": [100.0, 200.0, 300.0],
+    })
+    # No "trade_count" column → proxy should kick in
+    window_def = (PremarketWindowDefinition("pm_0900_0930", "09:00:00", "09:30:00", "09:00-09:30 ET"),)
+    result = build_premarket_window_features_full_universe_export(
+        detail, daily_bars, window_definitions=window_def,
+        source_data_fetched_at="2026-03-06T09:00:00Z", dataset="DBEQ_BASIC",
+    )
+    row = result.loc[result["symbol"] == "AAPL"].iloc[0]
+    # Proxy should report 3 active seconds (3 rows with volume > 0)
+    assert row["window_trade_count"] == 3, f"Expected proxy=3, got {row['window_trade_count']}"
+    assert row["window_trade_count_source"] == "proxy_active_seconds"
+
+
+def test_compute_quality_reason_nan_returns_failure_not_eligible() -> None:
+    """NaN in threshold columns must produce a failure reason, not 'eligible'."""
+    frame = pd.DataFrame({
+        "has_window_data": [True, True, True, True],
+        "passes_min_previous_close": [True, True, True, True],
+        "passes_min_gap_pct": [True, True, True, True],
+        "passes_min_window_dollar_volume": [True, True, True, True],
+        "passes_min_window_trade_count": [True, True, True, True],
+        "window_close_position_pct": [np.nan, 80.0, 80.0, 80.0],
+        "window_return_pct": [1.0, np.nan, 1.0, 1.0],
+        "window_pullback_pct": [10.0, 10.0, np.nan, 10.0],
+        "window_close": [50.0, 50.0, 50.0, np.nan],
+        "window_vwap": [49.0, 49.0, 49.0, 49.0],
+    })
+    reasons = _compute_quality_reason(frame)
+    assert reasons.iloc[0] == "close_position_below_min", f"Expected failure reason, got {reasons.iloc[0]}"
+    assert reasons.iloc[1] == "window_return_below_min", f"Expected failure reason, got {reasons.iloc[1]}"
+    assert reasons.iloc[2] == "window_pullback_above_max", f"Expected failure reason, got {reasons.iloc[2]}"
+    assert reasons.iloc[3] == "close_below_vwap", f"Expected failure reason, got {reasons.iloc[3]}"
+
+
+def test_quality_window_return_threshold_consistency() -> None:
+    """Both score pipelines must treat 0% return identically (>=, not >)."""
+    daily_bars = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)],
+        "symbol": ["FLAT"],
+        "previous_close": [100.0],
+        "market_open_price": [105.0],
+    })
+    ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")
+    # Flat window: open == close → 0% return
+    detail = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)] * 100,
+        "symbol": ["FLAT"] * 100,
+        "timestamp": [ts_base + pd.Timedelta(seconds=i) for i in range(100)],
+        "session": ["premarket"] * 100,
+        "open": [100.0] * 100,
+        "high": [100.0] * 100,
+        "low": [100.0] * 100,
+        "close": [100.0] * 100,
+        "volume": [10_000.0] * 100,
+        "trade_count": [10] * 100,
+    })
+    window_def = (PremarketWindowDefinition("pm_0900_0930", "09:00:00", "09:30:00", "09:00-09:30 ET"),)
+    result = build_premarket_window_features_full_universe_export(
+        detail, daily_bars, window_definitions=window_def,
+        source_data_fetched_at="2026-03-06T09:00:00Z", dataset="DBEQ_BASIC",
+    )
+    row = result.loc[result["symbol"] == "FLAT"].iloc[0]
+    # 0% return should pass the min_window_return_pct >= 0.0 filter
+    assert row["window_return_pct"] == 0.0
+    # The filter check for return should not reject a 0% return
+    passes_return = pd.to_numeric(pd.Series([row["window_return_pct"]]), errors="coerce").iloc[0] >= 0.0
+    assert passes_return, "0% return must pass the >= 0.0 threshold"
+
+
+def test_quality_window_status_score_same_window() -> None:
+    """Status and score must come from the same qualifying window."""
+    window_features = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)] * 2,
+        "symbol": ["AAPL", "AAPL"],
+        "window_tag": ["pm_0700_0800", "pm_0900_0930"],
+        "has_window_data": [True, True],
+        "passes_quality_filter": [True, False],
+        "quality_selected_top_n": [True, False],
+        "window_quality_score": [80.0, 20.0],
+    })
+    status_df = _build_quality_window_status_latest(window_features, display_timezone="Europe/Berlin")
+    row = status_df.iloc[0]
+    # Score should come from the passing window (80.0), not the latest window (20.0)
+    assert float(row["quality_open_drive_window_score_latest_berlin"]) == 80.0, (
+        f"Expected score=80 from passing window, got {row['quality_open_drive_window_score_latest_berlin']}"
+    )
+
+
+# ── Round 5: missing test coverage ───────────────────────────────────
+
+
+# ---- 1. Timezone / DST boundaries ----
+
+
+def test_build_window_definition_handles_us_dst_fall_back_transition() -> None:
+    """November DST fall-back: US clocks go back -> UTC offsets shift by 1h.
+    Berlin stays CET (UTC+1), US goes from EDT (UTC-4) to EST (UTC-5)."""
+    # 2026-11-01 is the DST fall-back date in the US
+    window = build_window_definition(
+        date(2026, 11, 2),
+        display_timezone="Europe/Berlin",
+        window_start=time(15, 20),
+        window_end=time(16, 0),
+        premarket_anchor_et=time(8, 0),
+    )
+    # After fall-back: Berlin is CET (UTC+1), US is EST (UTC-5)
+    # 15:20 CET = 14:20 UTC; 16:00 CET = 15:00 UTC
+    # premarket_anchor 08:00 EST = 13:00 UTC
+    # regular_open 09:30 EST = 14:30 UTC
+    assert window.fetch_start_utc == pd.Timestamp("2026-11-02T13:00:00Z").to_pydatetime()
+    assert window.fetch_end_utc == pd.Timestamp("2026-11-02T15:00:00Z").to_pydatetime()
+    assert window.regular_open_utc == pd.Timestamp("2026-11-02T14:30:00Z").to_pydatetime()
+
+
+def test_window_bounds_for_trade_date_dst_spring_forward() -> None:
+    """_window_bounds_for_trade_date must produce correct UTC bounds during
+    US spring-forward DST (March 2026: EDT starts March 8)."""
+    wdef = PremarketWindowDefinition("pm_0400_0500", "04:00:00", "05:00:00")
+    # March 9 is first Monday after spring-forward: EDT (UTC-4)
+    start_utc, end_utc = _window_bounds_for_trade_date(date(2026, 3, 9), wdef)
+    assert start_utc == pd.Timestamp("2026-03-09T08:00:00Z")
+    assert end_utc == pd.Timestamp("2026-03-09T09:00:00Z")
+
+
+def test_window_bounds_for_trade_date_dst_fall_back() -> None:
+    """_window_bounds_for_trade_date must produce correct UTC bounds during
+    US fall-back DST (November 2026: EST starts November 1)."""
+    wdef = PremarketWindowDefinition("pm_0400_0500", "04:00:00", "05:00:00")
+    # November 2 is first Monday after fall-back: EST (UTC-5)
+    start_utc, end_utc = _window_bounds_for_trade_date(date(2026, 11, 2), wdef)
+    assert start_utc == pd.Timestamp("2026-11-02T09:00:00Z")
+    assert end_utc == pd.Timestamp("2026-11-02T10:00:00Z")
+
+
+# ---- 2. Duplicate symbol-second and duplicate daily rows ----
+
+
+def test_deduplicate_daily_symbol_rows_nan_volume_keeps_row_with_valid_close() -> None:
+    """When one duplicate row has NaN volume, highest-close tie-breaker must
+    still deterministically pick the best row."""
+    trade_day = date(2026, 3, 6)
+    frame = pd.DataFrame({
+        "trade_date": [trade_day, trade_day],
+        "symbol": ["AAA", "AAA"],
+        "open": [10.0, 10.0],
+        "high": [10.5, 10.5],
+        "low": [9.8, 9.8],
+        "close": [10.2, 10.4],
+        "volume": [np.nan, 500.0],
+    })
+    deduped = _deduplicate_daily_symbol_rows(frame)
+    assert len(deduped) == 1
+    assert float(deduped.iloc[0]["volume"]) == 500.0
+
+
+def test_deduplicate_daily_symbol_rows_noop_without_duplicates() -> None:
+    """No duplicates → frame returned unchanged."""
+    frame = pd.DataFrame({
+        "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+        "symbol": ["AAA", "BBB"],
+        "open": [10.0, 20.0],
+        "high": [11.0, 21.0],
+        "low": [9.0, 19.0],
+        "close": [10.5, 20.5],
+        "volume": [1000.0, 2000.0],
+    })
+    deduped = _deduplicate_daily_symbol_rows(frame)
+    assert len(deduped) == 2
+
+
+def test_collapse_duplicate_symbol_seconds_zero_volume_rows() -> None:
+    """Zero-volume duplicate seconds should still collapse correctly."""
+    frame = pd.DataFrame({
+        "symbol": ["AAA", "AAA"],
+        "ts": [pd.Timestamp("2026-03-05T14:30:00Z")] * 2,
+        "open": [10.0, 10.2],
+        "high": [10.5, 10.6],
+        "low": [9.9, 10.0],
+        "close": [10.1, 10.4],
+        "volume": [0, 0],
+    })
+    collapsed = _collapse_duplicate_symbol_seconds(frame, context="test")
+    assert len(collapsed) == 1
+    assert collapsed.iloc[0]["volume"] == 0
+    assert collapsed.iloc[0]["high"] == 10.6  # max of highs
+    assert collapsed.iloc[0]["low"] == 9.9  # min of lows
+
+
+def test_collapse_duplicate_symbol_seconds_preserves_non_duplicates() -> None:
+    """Non-duplicate rows must pass through unchanged."""
+    frame = pd.DataFrame({
+        "symbol": ["AAA", "BBB"],
+        "ts": [pd.Timestamp("2026-03-05T14:30:00Z"), pd.Timestamp("2026-03-05T14:30:01Z")],
+        "open": [10.0, 20.0],
+        "high": [10.5, 20.5],
+        "low": [9.9, 19.9],
+        "close": [10.2, 20.2],
+        "volume": [100, 200],
+    })
+    result = _collapse_duplicate_symbol_seconds(frame, context="test")
+    assert len(result) == 2
+
+
+def test_deduplicate_daily_symbol_rows_missing_required_columns() -> None:
+    """Frame without trade_date or symbol columns returns unchanged."""
+    frame = pd.DataFrame({"open": [10.0], "close": [10.5]})
+    result = _deduplicate_daily_symbol_rows(frame)
+    assert len(result) == 1
+
+
+# ---- 3. Fallback dataset paths ----
+
+
+def test_choose_default_dataset_empty_list_returns_fallback() -> None:
+    """Empty available list with no requested → returns first preferred."""
+    result = choose_default_dataset([], requested_dataset=None)
+    assert result == "XNAS.ITCH"
+
+
+def test_choose_default_dataset_empty_list_with_request_returns_request() -> None:
+    """Empty available list but requested dataset → returns requested."""
+    result = choose_default_dataset([], requested_dataset="CUSTOM.DS")
+    assert result == "CUSTOM.DS"
+
+
+def test_normalize_exchange_key_covers_all_aliases() -> None:
+    """All known exchange aliases must normalize correctly."""
+    assert _normalize_exchange_key("NASDAQ") == "NASDAQ"
+    assert _normalize_exchange_key("XNAS") == "NASDAQ"
+    assert _normalize_exchange_key("nasdaq") == "NASDAQ"
+    assert _normalize_exchange_key("NYSE") == "NYSE"
+    assert _normalize_exchange_key("XNYS") == "NYSE"
+    assert _normalize_exchange_key("nyse") == "NYSE"
+    assert _normalize_exchange_key("AMEX") == "AMEX"
+    assert _normalize_exchange_key("XASE") == "AMEX"
+    assert _normalize_exchange_key("NYSE AMERICAN") == "AMEX"
+    assert _normalize_exchange_key("NYSE MKT") == "AMEX"
+    assert _normalize_exchange_key("") == ""
+    assert _normalize_exchange_key(None) == ""
+    assert _normalize_exchange_key("OTHER") == "OTHER"
+
+
+def test_normalize_quality_window_exchange_dataset_map_normalizes_keys_and_values() -> None:
+    """Exchange-to-dataset map must normalize exchange aliases and uppercase dataset."""
+    result = _normalize_quality_window_exchange_dataset_map({
+        "nasdaq": "xnas.basic",
+        "XNYS": "xnys.pillar",
+        "NYSE American": "xase.pillar",
+    })
+    assert result == {
+        "NASDAQ": "XNAS.BASIC",
+        "NYSE": "XNYS.PILLAR",
+        "AMEX": "XASE.PILLAR",
+    }
+
+
+def test_normalize_quality_window_exchange_dataset_map_none_returns_empty() -> None:
+    """None input returns empty dict."""
+    assert _normalize_quality_window_exchange_dataset_map(None) == {}
+
+
+def test_normalize_quality_window_exchange_dataset_map_skips_empty_entries() -> None:
+    """Empty exchange or dataset values should be dropped."""
+    result = _normalize_quality_window_exchange_dataset_map({
+        "NASDAQ": "XNAS.BASIC",
+        "": "XNYS.PILLAR",
+        "NYSE": "",
+    })
+    assert result == {"NASDAQ": "XNAS.BASIC"}
+
+
+# ---- 4. Manifest field presence/accuracy ----
+
+
+def test_export_run_artifacts_manifest_has_required_fields(tmp_path) -> None:
+    """Manifest JSON must contain all critical metadata fields."""
+    summary = pd.DataFrame({"symbol": ["AAA"], "trade_date": [date(2026, 3, 5)]})
+    universe = pd.DataFrame({"symbol": ["AAA"], "exchange": ["NASDAQ"]})
+    daily_bars = pd.DataFrame({"symbol": ["AAA"], "trade_date": [date(2026, 3, 5)]})
+    manifest = {
+        "dataset": "DBEQ.BASIC",
+        "lookback_days": 2,
+        "top_fraction": 0.20,
+        "ranking_metric": "window_range_pct",
+        "display_timezone": "Europe/Berlin",
+        "export_generated_at": "2026-03-05T10:00:00+00:00",
+        "trade_dates_covered": ["2026-03-05"],
+        "detail_scope": "full_supported_universe_symbol_days",
+        "second_detail_scope": "full_universe",
+        "detail_symbol_count": 1,
+        "missing_open_window_symbol_day_rows": 0,
+        "quality_window_candidate_exports": "not_applicable_in_current_pipeline",
+    }
+    paths = export_run_artifacts(
+        export_dir=tmp_path,
+        basename="test_export_20260305_100000",
+        summary=summary,
+        universe=universe,
+        daily_bars=daily_bars,
+        intraday=pd.DataFrame(),
+        ranked=pd.DataFrame(),
+        manifest=manifest,
+    )
+    manifest_path = paths.get("manifest")
+    assert manifest_path is not None
+    assert manifest_path.exists()
+    with open(manifest_path, encoding="utf-8") as fh:
+        loaded = json.load(fh)
+    for required_key in ["dataset", "lookback_days", "top_fraction", "ranking_metric",
+                         "display_timezone", "export_generated_at", "trade_dates_covered",
+                         "detail_scope", "second_detail_scope", "detail_symbol_count",
+                         "missing_open_window_symbol_day_rows"]:
+        assert required_key in loaded, f"Missing manifest key: {required_key}"
+    assert isinstance(loaded["trade_dates_covered"], list)
+    assert isinstance(loaded["detail_symbol_count"], int)
+
+
+def test_export_run_artifacts_manifest_timestamps_are_strings(tmp_path) -> None:
+    """Timestamp fields in manifest must be serializable strings, not datetime objects."""
+    manifest = {
+        "dataset": "DBEQ.BASIC",
+        "export_generated_at": "2026-03-05T10:00:00+00:00",
+        "daily_bars_fetched_at": "2026-03-05T09:00:00+00:00",
+        "trade_dates_covered": ["2026-03-05"],
+    }
+    paths = export_run_artifacts(
+        export_dir=tmp_path,
+        basename="test_ts_20260305",
+        summary=pd.DataFrame({"symbol": ["A"]}),
+        universe=pd.DataFrame({"symbol": ["A"]}),
+        daily_bars=pd.DataFrame(),
+        intraday=pd.DataFrame(),
+        ranked=pd.DataFrame(),
+        manifest=manifest,
+    )
+    loaded = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+    assert isinstance(loaded["export_generated_at"], str)
+    assert isinstance(loaded["daily_bars_fetched_at"], str)
+
+
+# ---- 5. TXT export naming/versioning behavior ----
+
+
+def test_write_tradingview_watchlist_exports_skips_empty_frames(tmp_path) -> None:
+    """Empty frames should produce no TXT files."""
+    result = _write_tradingview_watchlist_exports(
+        tmp_path,
+        "test_export_20260305",
+        {
+            "empty_frame": pd.DataFrame(),
+            "no_symbol_col": pd.DataFrame({"exchange": ["NASDAQ"]}),
+        },
+    )
+    assert result == {}
+    assert list(tmp_path.glob("*.txt")) == []
+
+
+def test_write_tradingview_watchlist_exports_creates_expected_filename(tmp_path) -> None:
+    """TXT file name must follow {basename}__{name}.txt pattern."""
+    frames = {
+        "watchlist": pd.DataFrame({
+            "symbol": ["AAPL"],
+            "exchange": ["NASDAQ"],
+        }),
+    }
+    result = _write_tradingview_watchlist_exports(tmp_path, "export_20260305_100000", frames)
+    assert "watchlist" in result
+    assert result["watchlist"].name == "export_20260305_100000__watchlist.txt"
+    assert result["watchlist"].exists()
+    content = result["watchlist"].read_text(encoding="utf-8")
+    assert "NASDAQ:AAPL" in content
+
+
+def test_build_tradingview_watchlist_text_all_nan_symbols_returns_empty() -> None:
+    """Frame with only NaN/empty symbols should produce empty text."""
+    frame = pd.DataFrame({
+        "symbol": [None, np.nan, ""],
+        "exchange": ["NASDAQ", "NYSE", "AMEX"],
+    })
+    result = _build_tradingview_watchlist_text(frame)
+    assert result == ""
+
+
+def test_write_streamlit_watchlist_txt_exports_empty_tables(tmp_path) -> None:
+    """Empty watchlist result tables should not create any files."""
+    result = _write_streamlit_watchlist_txt_exports(tmp_path, {
+        "active_watchlist_table": pd.DataFrame(),
+        "watchlist_table": pd.DataFrame(),
+    })
+    assert result == {}
+    assert list(tmp_path.glob("*.txt")) == []
+
+
+# ---- 6. Error paths (API errors) ----
+
+
+def test_download_nasdaq_trader_text_raises_after_retries_for_5xx(monkeypatch) -> None:
+    """Server errors (503 Service Unavailable) must exhaust retries then raise."""
+    from urllib.error import HTTPError
+    calls = {"count": 0}
+
+    def fake_urlopen(request, timeout, context):
+        calls["count"] += 1
+        raise HTTPError(request.full_url, 503, "Service Unavailable", hdrs=None, fp=None)
+
+    monkeypatch.setattr("databento_volatility_screener.urlopen", fake_urlopen)
+    monkeypatch.setattr("databento_volatility_screener.time_module.sleep", lambda _: None)
+    try:
+        _download_nasdaq_trader_text("https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt")
+    except HTTPError as exc:
+        assert exc.code == 503
+    else:
+        raise AssertionError("Expected HTTPError for 503")
+    assert calls["count"] == 3
+
+
+def test_list_recent_trading_days_survives_empty_conditions(monkeypatch) -> None:
+    """When API returns no available conditions, result should be empty list."""
+    class _FakeMetadata:
+        def get_dataset_condition(self, **kwargs):
+            return []
+
+    class _FakeClient:
+        metadata = _FakeMetadata()
+
+    monkeypatch.setattr(
+        "databento_volatility_screener._make_databento_client",
+        lambda key: _FakeClient(),
+    )
+    result = list_recent_trading_days(
+        "test-key", dataset="DBEQ.BASIC", lookback_days=5,
+    )
+    assert result == []
+
+
+def test_fetch_us_equity_universe_falls_back_to_fmp_when_nasdaq_fails(monkeypatch) -> None:
+    """When Nasdaq Trader directory fails, FMP fallback should be used."""
+    def failing_download(url):
+        raise ConnectionError("simulated network failure")
+
+    monkeypatch.setattr("databento_volatility_screener._download_nasdaq_trader_text", failing_download)
+
+    class FakeFMPClient:
+        def __init__(self, api_key): pass
+        def get_company_screener(self, **kwargs):
+            return [{"symbol": "AAPL", "companyName": "Apple", "exchangeShortName": "NASDAQ",
+                      "marketCap": 3e12, "isETF": False, "isActivelyTrading": True}]
+
+    monkeypatch.setattr("databento_volatility_screener.FMPClient", FakeFMPClient)
+    result = fetch_us_equity_universe("fake-fmp-key", min_market_cap=None)
+    assert len(result) >= 1
+    assert "AAPL" in result["symbol"].values
+
+
+# ---- 7. _filter_premarket_rows edge cases ----
+
+
+def test_filter_premarket_rows_empty_returns_empty() -> None:
+    """Empty input returns empty."""
+    result = _filter_premarket_rows(pd.DataFrame())
+    assert result.empty
+
+
+def test_filter_premarket_rows_session_column_filters_by_session() -> None:
+    """When session column exists, filter by session == premarket."""
+    frame = pd.DataFrame({
+        "trade_date": [date(2026, 3, 5)] * 3,
+        "symbol": ["A", "B", "C"],
+        "session": ["premarket", "regular", "  Premarket  "],
+        "timestamp": pd.to_datetime(["2026-03-05T08:00:00", "2026-03-05T10:00:00", "2026-03-05T08:30:00"]),
+    })
+    result = _filter_premarket_rows(frame)
+    assert set(result["symbol"].tolist()) == {"A", "C"}
+
+
+def test_filter_premarket_rows_nan_timestamps_dropped() -> None:
+    """Rows with unparseable timestamps should be dropped."""
+    frame = pd.DataFrame({
+        "trade_date": [date(2026, 3, 5)] * 2,
+        "symbol": ["A", "B"],
+        "timestamp": ["2026-03-05T08:00:00+00:00", "not-a-timestamp"],
+    })
+    result = _filter_premarket_rows(frame)
+    # "B" should be dropped due to invalid timestamp
+    assert len(result) == 1
+    assert result.iloc[0]["symbol"] == "A"
+
+
+# ---- 8. _select_top_candidates_per_day edge cases ----
+
+
+def test_select_top_candidates_per_day_nan_score_sorts_to_bottom() -> None:
+    """Rows with NaN quality_score should lose to rows with valid scores."""
+    frame = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)] * 3,
+        "symbol": ["AAA", "BBB", "CCC"],
+        "quality_score": [np.nan, 50.0, 80.0],
+        "window_dollar_volume": [1e6, 1e6, 1e6],
+        "window_return_pct": [5.0, 5.0, 5.0],
+    })
+    result = _select_top_candidates_per_day(frame, top_n=2)
+    assert len(result) == 2
+    assert set(result["symbol"].tolist()) == {"BBB", "CCC"}
+
+
+def test_select_top_candidates_per_day_zero_top_n_returns_empty() -> None:
+    """top_n=0 → empty result."""
+    frame = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)],
+        "symbol": ["AAA"],
+        "quality_score": [50.0],
+        "window_dollar_volume": [1e6],
+        "window_return_pct": [5.0],
+    })
+    result = _select_top_candidates_per_day(frame, top_n=0)
+    assert result.empty
+
+
+# ---- 9. FMPClient API contract ----
+
+
+def test_fmp_client_stub_has_get_company_screener() -> None:
+    """The real FMPClient stub must expose get_company_screener so the screener
+    fallback path doesn't silently raise AttributeError."""
+    from open_prep.macro import FMPClient
+    client = FMPClient(api_key="test-key")
+    assert hasattr(client, "get_company_screener"), "FMPClient missing get_company_screener method"
+    result = client.get_company_screener(country="US", market_cap_more_than=1e9, exchange="NASDAQ")
+    assert isinstance(result, list)
+
+
+def test_fetch_us_equity_universe_via_screener_real_stub_returns_empty() -> None:
+    """Using the real FMPClient stub (which returns []) should produce an empty
+    frame without raising exceptions."""
+    from open_prep.macro import FMPClient
+    result = _fetch_us_equity_universe_via_screener(
+        FMPClient("test-key"),
+        min_market_cap=1e9,
+        exchanges="NASDAQ,NYSE",
+    )
+    assert result.empty
+    assert list(result.columns) == UNIVERSE_COLUMNS

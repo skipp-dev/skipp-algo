@@ -53,8 +53,12 @@ CACHE_VERSION_BY_CATEGORY = {
     "daily_bars": "v2",
     "symbol_support": "v2",
     "full_universe_open_second_detail": "v2",
+    "intraday_summary": "v2",
+    "symbol_detail_second": "v2",
+    "symbol_detail_minute": "v2",
 }
 CACHE_ROOT = Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache"
+WATCHLIST_SNAPSHOT_FILE = "watchlist_rank_history.parquet"
 FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
     "earnings_date",
     "earnings_time",
@@ -93,6 +97,7 @@ MAX_SYMBOLS_PER_REQUEST = 2000
 SYMBOL_SUPPORT_CHECK_BATCH_SIZE = 250
 SYMBOL_SUPPORT_LOOKBACK_DAYS = 14
 SYMBOL_SUPPORT_CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
+DATA_CACHE_TTL_SECONDS = 4 * 3600  # 4 hours – guards against stale intra-day caches
 DATABENTO_SYMBOL_ALIASES = {
     "BRK-A": "BRK.A",
     "BRK-B": "BRK.B",
@@ -220,9 +225,14 @@ def build_cache_path(
     return directory / filename
 
 
-def _read_cached_frame(path: Path) -> pd.DataFrame | None:
+def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.DataFrame | None:
     if not path.exists():
         return None
+    if max_age_seconds is not None:
+        age = (datetime.now(UTC) - datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)).total_seconds()
+        if age > max_age_seconds:
+            logger.info("Cache expired (%.1f h old, TTL %.1f h): %s", age / 3600, max_age_seconds / 3600, path.name)
+            return None
     try:
         return pd.read_parquet(path)
     except Exception:
@@ -235,6 +245,27 @@ def _read_cached_frame(path: Path) -> pd.DataFrame | None:
 
 
 def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.tmp")
+    frame.to_parquet(temp_path, index=False)
+    os.replace(temp_path, path)
+
+
+def _write_text_atomic(path: Path, content: str, *, encoding: str = "utf-8") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.tmp")
+    temp_path.write_text(content, encoding=encoding)
+    os.replace(temp_path, path)
+
+
+def _write_bytes_atomic(path: Path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = path.with_name(f".{path.name}.tmp")
+    temp_path.write_bytes(content)
+    os.replace(temp_path, path)
+
+
+def _write_parquet_atomic(path: Path, frame: pd.DataFrame) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_name(f".{path.name}.tmp")
     frame.to_parquet(temp_path, index=False)
@@ -589,6 +620,8 @@ def choose_default_dataset(
     normalized = [str(dataset) for dataset in available_datasets if dataset]
     if requested_dataset and requested_dataset in normalized:
         return requested_dataset
+    if requested_dataset:
+        logger.warning("Requested dataset %r not in available datasets %r, falling back.", requested_dataset, normalized)
     for dataset in PREFERRED_DATABENTO_DATASETS:
         if dataset in normalized:
             return dataset
@@ -1024,7 +1057,7 @@ def load_daily_bars(
     )
     frame: pd.DataFrame | None = None
     if use_file_cache and not force_refresh:
-        frame = _read_cached_frame(cache_path)
+        frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
     if frame is None:
         client = _make_databento_client(databento_api_key)
         schema_end = _get_schema_available_end(client, dataset, "ohlcv-1d")
@@ -1280,7 +1313,7 @@ def run_intraday_screen(
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(cache_path)
+            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
         if day_frame is None:
             states: dict[str, SymbolDayState] = {}
             active_symbols = set(universe_symbols) - runtime_unsupported_symbols
@@ -1410,17 +1443,17 @@ def fetch_symbol_day_detail(
         cache_dir,
         "symbol_detail_second",
         dataset=dataset,
-        parts=[trade_date.isoformat(), normalized_symbol, display_timezone, ws.strftime("%H%M%S"), we.strftime("%H%M%S")],
+        parts=[trade_date.isoformat(), normalized_symbol, display_timezone, ws.strftime("%H%M%S"), we.strftime("%H%M%S"), premarket_anchor_et.strftime("%H%M%S")],
     )
     minute_cache_path = build_cache_path(
         cache_dir,
         "symbol_detail_minute",
         dataset=dataset,
-        parts=[trade_date.isoformat(), normalized_symbol, display_timezone, ws.strftime("%H%M%S"), we.strftime("%H%M%S")],
+        parts=[trade_date.isoformat(), normalized_symbol, display_timezone, ws.strftime("%H%M%S"), we.strftime("%H%M%S"), premarket_anchor_et.strftime("%H%M%S")],
     )
     if use_file_cache and not force_refresh:
-        cached_second = _read_cached_frame(second_cache_path)
-        cached_minute = _read_cached_frame(minute_cache_path)
+        cached_second = _read_cached_frame(second_cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+        cached_minute = _read_cached_frame(minute_cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
         if cached_second is not None and cached_minute is not None:
             return cached_second, cached_minute
 
@@ -1647,7 +1680,7 @@ def collect_full_universe_open_window_second_detail(
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(cache_path)
+            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
 
         if day_frame is None:
             window = build_window_definition(
@@ -1990,7 +2023,7 @@ def build_daily_features_full_universe(
     features["focus_0400_open_window_second_rows"] = pd.to_numeric(features["focus_0400_open_window_second_rows"], errors="coerce").fillna(0).astype(int)
     features["has_open_window_detail"] = features["open_window_second_rows"] > 0
     if "regular_open_second_rows" in features.columns:
-        features["has_open_window_detail"] = features["regular_open_second_rows"] > 0
+        features["has_open_window_detail"] = features["has_open_window_detail"] | (features["regular_open_second_rows"] > 0)
     if "focus_0800_regular_open_second_rows" in features.columns:
         features["has_open_window_detail"] = features["has_open_window_detail"] | (pd.to_numeric(features["focus_0800_regular_open_second_rows"], errors="coerce").fillna(0).astype(int) > 0)
     if "focus_0400_regular_open_second_rows" in features.columns:
@@ -2114,7 +2147,7 @@ def build_daily_features_full_universe(
     coverage["focus_0800_open_window_second_rows"] = pd.to_numeric(coverage["focus_0800_open_window_second_rows"], errors="coerce").fillna(0).astype(int)
     coverage["has_open_window_detail"] = coverage["open_window_second_rows"] > 0
     if "regular_open_second_rows" in coverage.columns:
-        coverage["has_open_window_detail"] = coverage["regular_open_second_rows"] > 0
+        coverage["has_open_window_detail"] = coverage["has_open_window_detail"] | (coverage["regular_open_second_rows"] > 0)
     coverage["has_open_window_detail"] = coverage["has_open_window_detail"] | (coverage["focus_0800_open_window_second_rows"] > 0)
     coverage["exclusion_reason"] = np.select(
         [
@@ -2300,6 +2333,7 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception:
+            logger.warning("Failed to parse manifest JSON: %s", manifest_path, exc_info=True)
             manifest = {}
 
     export_generated_at = manifest.get("export_generated_at") or manifest.get("exported_at")
@@ -2534,7 +2568,7 @@ def resolve_watchlist_display_table(
 ) -> tuple[pd.DataFrame, str]:
     historical_watchlist_table = watchlist_result["watchlist_table"]
     active_watchlist_table = watchlist_result.get("active_watchlist_table")
-    if not isinstance(active_watchlist_table, pd.DataFrame) or (active_watchlist_table.empty and not historical_watchlist_table.empty):
+    if not isinstance(active_watchlist_table, pd.DataFrame):
         active_watchlist_table = historical_watchlist_table
 
     use_full_history = view_mode == "Full history"
@@ -2689,7 +2723,7 @@ def _build_tradingview_watchlist_text(frame: pd.DataFrame) -> str:
     entries: list[str] = []
     seen: set[str] = set()
     for exchange, symbol in zip(exchange_series, frame["symbol"], strict=False):
-        symbol_text = str(symbol or "").strip().upper()
+        symbol_text = str(symbol).strip().upper() if pd.notna(symbol) else ""
         exchange_text = _normalize_tradingview_exchange_prefix(exchange)
         if not symbol_text or not exchange_text:
             continue
@@ -2719,7 +2753,7 @@ def _write_tradingview_watchlist_exports(
         if not text:
             continue
         path = export_dir / f"{basename}__{name}.txt"
-        path.write_text(text, encoding="utf-8")
+        _write_text_atomic(path, text, encoding="utf-8")
         created[name] = path
     return created
 
@@ -2735,7 +2769,7 @@ def _write_streamlit_watchlist_txt_exports(export_dir: Path, watchlist_result: d
         latest_text = _build_tradingview_watchlist_text(latest_table)
         if latest_text:
             latest_path = export_dir / "tradingview_watchlist_topn_latest.txt"
-            latest_path.write_text(latest_text, encoding="utf-8")
+            _write_text_atomic(latest_path, latest_text, encoding="utf-8")
             created["txt_topn_latest"] = latest_path
 
     history_table = watchlist_result.get("watchlist_table")
@@ -2743,16 +2777,472 @@ def _write_streamlit_watchlist_txt_exports(export_dir: Path, watchlist_result: d
         history_text = _build_tradingview_watchlist_text(history_table)
         if history_text:
             history_path = export_dir / "tradingview_watchlist_topn_full_history.txt"
-            history_path.write_text(history_text, encoding="utf-8")
+            _write_text_atomic(history_path, history_text, encoding="utf-8")
             created["txt_topn_full_history"] = history_path
 
     return created
+
+
+def _watchlist_snapshot_path(export_dir: Path) -> Path:
+    return export_dir / WATCHLIST_SNAPSHOT_FILE
+
+
+def _empty_watchlist_snapshot_history() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "snapshot_at",
+            "trade_date",
+            "symbol",
+            "watchlist_rank",
+            "source_data_fetched_at",
+            "watchlist_generated_at",
+            "trigger",
+        ]
+    )
+
+
+def _coerce_watchlist_snapshot_history(frame: pd.DataFrame | None) -> pd.DataFrame:
+    if frame is None or frame.empty:
+        return _empty_watchlist_snapshot_history()
+    history = frame.copy()
+    for column in _empty_watchlist_snapshot_history().columns:
+        if column not in history.columns:
+            history[column] = pd.NA
+    history["snapshot_at"] = pd.to_datetime(history["snapshot_at"], errors="coerce", utc=True)
+    history["trade_date"] = pd.to_datetime(history["trade_date"], errors="coerce").dt.date
+    history["symbol"] = history["symbol"].astype(str).str.strip().str.upper()
+    history["watchlist_rank"] = pd.to_numeric(history["watchlist_rank"], errors="coerce")
+    history["source_data_fetched_at"] = history["source_data_fetched_at"].astype(str)
+    history["watchlist_generated_at"] = history["watchlist_generated_at"].astype(str)
+    history["trigger"] = history["trigger"].astype(str)
+    history = history.dropna(subset=["snapshot_at", "trade_date", "symbol", "watchlist_rank"])
+    if history.empty:
+        return _empty_watchlist_snapshot_history()
+    return history.sort_values(["snapshot_at", "trade_date", "watchlist_rank", "symbol"]).reset_index(drop=True)
+
+
+def _format_rank_change_label(previous_rank: Any, current_rank: Any, *, missing_label: str = "new") -> str:
+    previous = pd.to_numeric(pd.Series([previous_rank]), errors="coerce").iloc[0]
+    current = pd.to_numeric(pd.Series([current_rank]), errors="coerce").iloc[0]
+    if pd.isna(current):
+        return "n/a"
+    if pd.isna(previous):
+        return missing_label
+    delta = int(previous) - int(current)
+    if delta == 0:
+        return "flat"
+    if delta > 0:
+        return f"up {delta}"
+    return f"down {abs(delta)}"
+
+
+def _highlight_rank_change_label(label: Any, delta: Any = None) -> str:
+    normalized = str(label or "").strip().lower()
+    numeric_delta = pd.to_numeric(pd.Series([delta]), errors="coerce").iloc[0]
+    if normalized in {"new", "first"}:
+        return normalized.upper()
+    if normalized == "flat":
+        return "FLAT 0"
+    if normalized.startswith("up "):
+        amount = normalized.removeprefix("up ").strip()
+        return f"UP +{amount}"
+    if normalized.startswith("down "):
+        amount = normalized.removeprefix("down ").strip()
+        return f"DOWN -{amount}"
+    if pd.notna(numeric_delta):
+        numeric_delta_int = int(numeric_delta)
+        if numeric_delta_int > 0:
+            return f"UP +{numeric_delta_int}"
+        if numeric_delta_int < 0:
+            return f"DOWN {numeric_delta_int}"
+        return "FLAT 0"
+    return str(label or "n/a").upper() or "N/A"
+
+
+def _format_intraday_reference_time(value: Any, *, display_timezone: str = DEFAULT_DISPLAY_TZ) -> str:
+    reference_ts = _safe_timestamp(value)
+    if reference_ts is None:
+        return "n/a"
+    return str(reference_ts.tz_convert(resolve_display_timezone(display_timezone)).strftime("%H:%M:%S %Z"))
+
+
+def _rank_change_cell_style(label: Any, delta: Any = None) -> str:
+    emphasized = _highlight_rank_change_label(label, delta)
+    if emphasized.startswith("UP "):
+        return "background-color: #dcfce7; color: #166534; font-weight: 700"
+    if emphasized.startswith("DOWN "):
+        return "background-color: #fee2e2; color: #991b1b; font-weight: 700"
+    if emphasized.startswith("FLAT "):
+        return "background-color: #e5e7eb; color: #374151; font-weight: 700"
+    if emphasized == "NEW":
+        return "background-color: #dbeafe; color: #1d4ed8; font-weight: 700"
+    if emphasized == "FIRST":
+        return "background-color: #fef3c7; color: #92400e; font-weight: 700"
+    if emphasized == "N/A":
+        return "color: #6b7280"
+    return ""
+
+
+def _rank_delta_cell_style(value: Any) -> str:
+    numeric_value = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(numeric_value):
+        return "color: #6b7280"
+    numeric_value = int(numeric_value)
+    if numeric_value > 0:
+        return "background-color: #dcfce7; color: #166534; font-weight: 700"
+    if numeric_value < 0:
+        return "background-color: #fee2e2; color: #991b1b; font-weight: 700"
+    return "background-color: #e5e7eb; color: #374151; font-weight: 700"
+
+
+def _build_watchlist_table_style_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    styles = pd.DataFrame("", index=frame.index, columns=frame.columns, dtype=object)
+    if frame.empty:
+        return styles
+
+    if "watchlist_rank_change" in frame.columns:
+        watchlist_deltas = frame.get("watchlist_rank_delta", pd.Series(index=frame.index, dtype=float))
+        styles["watchlist_rank_change"] = [
+            _rank_change_cell_style(label, delta)
+            for label, delta in zip(frame["watchlist_rank_change"], watchlist_deltas, strict=False)
+        ]
+    if "intraday_watchlist_rank_change" in frame.columns:
+        intraday_deltas = frame.get("intraday_watchlist_rank_delta", pd.Series(index=frame.index, dtype=float))
+        styles["intraday_watchlist_rank_change"] = [
+            _rank_change_cell_style(label, delta)
+            for label, delta in zip(frame["intraday_watchlist_rank_change"], intraday_deltas, strict=False)
+        ]
+    if "watchlist_rank_delta" in frame.columns:
+        styles["watchlist_rank_delta"] = frame["watchlist_rank_delta"].map(_rank_delta_cell_style)
+    if "intraday_watchlist_rank_delta" in frame.columns:
+        styles["intraday_watchlist_rank_delta"] = frame["intraday_watchlist_rank_delta"].map(_rank_delta_cell_style)
+    return styles
+
+
+def _build_watchlist_snapshot_panel_frames(
+    snapshot_history: pd.DataFrame | None,
+    *,
+    trade_date: Any,
+    active_symbols: list[str] | tuple[str, ...] | None = None,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    max_snapshots: int = 8,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    summary_columns = ["snapshot_time", "trigger", "symbols", "leader", "top3"]
+    history = _coerce_watchlist_snapshot_history(snapshot_history)
+    trade_day = pd.to_datetime(trade_date, errors="coerce")
+    if pd.isna(trade_day):
+        return pd.DataFrame(columns=summary_columns), pd.DataFrame(columns=["symbol"])
+
+    day_history = history.loc[history["trade_date"] == trade_day.date()].copy()
+    if day_history.empty:
+        return pd.DataFrame(columns=summary_columns), pd.DataFrame(columns=["symbol"])
+
+    unique_snapshots = (
+        day_history.loc[:, ["snapshot_at", "trigger"]]
+        .drop_duplicates()
+        .sort_values("snapshot_at", ascending=False)
+        .head(max_snapshots)
+        .reset_index(drop=True)
+    )
+    day_history = day_history.loc[day_history["snapshot_at"].isin(unique_snapshots["snapshot_at"])]
+
+    summary_rows: list[dict[str, Any]] = []
+    for snapshot_row in unique_snapshots.itertuples(index=False):
+        snapshot_rows = day_history.loc[day_history["snapshot_at"] == snapshot_row.snapshot_at].sort_values(
+            ["watchlist_rank", "symbol"]
+        )
+        symbols = snapshot_rows["symbol"].astype(str).tolist()
+        summary_rows.append(
+            {
+                "snapshot_time": _format_intraday_reference_time(
+                    snapshot_row.snapshot_at,
+                    display_timezone=display_timezone,
+                ),
+                "trigger": str(snapshot_row.trigger or "n/a"),
+                "symbols": int(snapshot_rows["symbol"].nunique()),
+                "leader": symbols[0] if symbols else "n/a",
+                "top3": ", ".join(symbols[:3]) if symbols else "n/a",
+            }
+        )
+    summary_frame = pd.DataFrame(summary_rows, columns=summary_columns)
+
+    normalized_symbols = [str(symbol).strip().upper() for symbol in (active_symbols or []) if str(symbol).strip()]
+    if not normalized_symbols:
+        latest_snapshot_at = unique_snapshots["snapshot_at"].iloc[0]
+        normalized_symbols = (
+            day_history.loc[day_history["snapshot_at"] == latest_snapshot_at]
+            .sort_values(["watchlist_rank", "symbol"])["symbol"]
+            .astype(str)
+            .head(5)
+            .tolist()
+        )
+    if not normalized_symbols:
+        return summary_frame, pd.DataFrame(columns=["symbol"])
+
+    trail_source = day_history.loc[day_history["symbol"].isin(normalized_symbols)].copy()
+    if trail_source.empty:
+        return summary_frame, pd.DataFrame(columns=["symbol"])
+
+    snapshot_labels = [
+        _format_intraday_reference_time(snapshot_at, display_timezone=display_timezone)
+        for snapshot_at in unique_snapshots.sort_values("snapshot_at")["snapshot_at"].tolist()
+    ]
+    trail_source["snapshot_time"] = trail_source["snapshot_at"].map(
+        lambda value: _format_intraday_reference_time(value, display_timezone=display_timezone)
+    )
+    trail_frame = (
+        trail_source.pivot_table(index="symbol", columns="snapshot_time", values="watchlist_rank", aggfunc="last")
+        .reindex(index=normalized_symbols)
+        .reindex(columns=snapshot_labels)
+        .reset_index()
+    )
+    return summary_frame, trail_frame
+
+
+def _build_watchlist_snapshot_frame(watchlist_result: dict[str, Any]) -> pd.DataFrame:
+    active_table = watchlist_result.get("active_watchlist_table")
+    if not isinstance(active_table, pd.DataFrame) or active_table.empty:
+        active_table = watchlist_result.get("watchlist_table")
+    if not isinstance(active_table, pd.DataFrame) or active_table.empty:
+        return _empty_watchlist_snapshot_history()
+    if not {"trade_date", "symbol", "watchlist_rank"}.issubset(active_table.columns):
+        return _empty_watchlist_snapshot_history()
+
+    snapshot_at = pd.to_datetime(watchlist_result.get("generated_at"), errors="coerce", utc=True)
+    if pd.isna(snapshot_at):
+        snapshot_at = pd.Timestamp(datetime.now(UTC))
+
+    snapshot = active_table.loc[:, ["trade_date", "symbol", "watchlist_rank"]].copy()
+    snapshot["trade_date"] = pd.to_datetime(snapshot["trade_date"], errors="coerce").dt.date
+    snapshot["symbol"] = snapshot["symbol"].astype(str).str.strip().str.upper()
+    snapshot["watchlist_rank"] = pd.to_numeric(snapshot["watchlist_rank"], errors="coerce")
+    snapshot = snapshot.dropna(subset=["trade_date", "symbol", "watchlist_rank"])
+    if snapshot.empty:
+        return _empty_watchlist_snapshot_history()
+
+    snapshot["snapshot_at"] = snapshot_at
+    snapshot["source_data_fetched_at"] = str(watchlist_result.get("source_data_fetched_at") or "")
+    snapshot["watchlist_generated_at"] = str(watchlist_result.get("generated_at") or snapshot_at.isoformat())
+    snapshot["trigger"] = ""
+    return snapshot[
+        [
+            "snapshot_at",
+            "trade_date",
+            "symbol",
+            "watchlist_rank",
+            "source_data_fetched_at",
+            "watchlist_generated_at",
+            "trigger",
+        ]
+    ].sort_values(["trade_date", "watchlist_rank", "symbol"]).reset_index(drop=True)
+
+
+def _load_watchlist_snapshot_history(export_dir: Path) -> pd.DataFrame:
+    history = _read_cached_frame(_watchlist_snapshot_path(export_dir))
+    return _coerce_watchlist_snapshot_history(history)
+
+
+def _persist_watchlist_snapshot(
+    export_dir: Path,
+    watchlist_result: dict[str, Any],
+    *,
+    trigger: str,
+) -> pd.DataFrame:
+    snapshot = _build_watchlist_snapshot_frame(watchlist_result)
+    history_path = _watchlist_snapshot_path(export_dir)
+    history = _load_watchlist_snapshot_history(export_dir)
+    if snapshot.empty:
+        return history
+    snapshot["trigger"] = str(trigger)
+    if history.empty:
+        history = snapshot.copy()
+    else:
+        history = pd.concat([history, snapshot], ignore_index=True)
+    history = history.drop_duplicates(subset=["snapshot_at", "trade_date", "symbol"], keep="last")
+    history = history.sort_values(["snapshot_at", "trade_date", "watchlist_rank", "symbol"]).reset_index(drop=True)
+    _write_cached_frame(history_path, history)
+    return history
+
+
+def _augment_watchlist_result_with_intraday_context(
+    watchlist_result: dict[str, Any],
+    snapshot_history: pd.DataFrame | None,
+) -> dict[str, Any]:
+    current_snapshot = _build_watchlist_snapshot_frame(watchlist_result)
+    if current_snapshot.empty:
+        return watchlist_result
+
+    history = _coerce_watchlist_snapshot_history(snapshot_history)
+    current_snapshot_at = current_snapshot["snapshot_at"].iloc[0]
+    current_trade_date = current_snapshot["trade_date"].iloc[0]
+    previous_rows = history.loc[
+        (history["trade_date"] == current_trade_date) & (history["snapshot_at"] < current_snapshot_at)
+    ].copy()
+    if previous_rows.empty:
+        previous_by_symbol = pd.DataFrame(columns=["symbol", "previous_intraday_watchlist_rank", "intraday_rank_reference_at"])
+    else:
+        previous_by_symbol = previous_rows.sort_values(["symbol", "snapshot_at"]).drop_duplicates(subset=["symbol"], keep="last")
+        previous_by_symbol = previous_by_symbol.rename(
+            columns={
+                "watchlist_rank": "previous_intraday_watchlist_rank",
+                "snapshot_at": "intraday_rank_reference_at",
+            }
+        )[["symbol", "previous_intraday_watchlist_rank", "intraday_rank_reference_at"]]
+
+    current_context = current_snapshot.merge(previous_by_symbol, on="symbol", how="left")
+    current_context["intraday_watchlist_rank_delta"] = (
+        pd.to_numeric(current_context["previous_intraday_watchlist_rank"], errors="coerce")
+        - pd.to_numeric(current_context["watchlist_rank"], errors="coerce")
+    )
+    current_context["intraday_watchlist_rank_change"] = [
+        _format_rank_change_label(previous_rank, current_rank, missing_label="first")
+        for previous_rank, current_rank in zip(
+            current_context["previous_intraday_watchlist_rank"],
+            current_context["watchlist_rank"],
+            strict=False,
+        )
+    ]
+    current_context["intraday_rank_reference_at"] = current_context["intraday_rank_reference_at"].map(
+        lambda value: value.isoformat() if isinstance(value, pd.Timestamp) and pd.notna(value) else None
+    )
+    current_context = current_context[
+        [
+            "trade_date",
+            "symbol",
+            "previous_intraday_watchlist_rank",
+            "intraday_watchlist_rank_delta",
+            "intraday_watchlist_rank_change",
+            "intraday_rank_reference_at",
+        ]
+    ]
+
+    augmented = dict(watchlist_result)
+    context_columns = [
+        "previous_intraday_watchlist_rank",
+        "intraday_watchlist_rank_delta",
+        "intraday_watchlist_rank_change",
+        "intraday_rank_reference_at",
+    ]
+    for table_key in ("active_watchlist_table", "watchlist_table"):
+        table = augmented.get(table_key)
+        if not isinstance(table, pd.DataFrame) or table.empty:
+            continue
+        merge_table = table.copy()
+        if "trade_date" in merge_table.columns:
+            merge_table["trade_date"] = pd.to_datetime(merge_table["trade_date"], errors="coerce").dt.date
+        for column in context_columns:
+            if column in merge_table.columns:
+                merge_table = merge_table.drop(columns=column)
+        augmented[table_key] = merge_table.merge(current_context, on=["trade_date", "symbol"], how="left")
+    return augmented
 
 
 def _numeric_series_or_nan(frame: pd.DataFrame, column: str) -> pd.Series:
     if column in frame.columns:
         return pd.to_numeric(frame[column], errors="coerce")
     return pd.Series(np.nan, index=frame.index, dtype=float)
+
+
+def _open_pattern_metric_columns_for_view(focus_view: str) -> tuple[str, str, str]:
+    if focus_view == "09:30 only":
+        return (
+            "focus_0930_open_30s_volume",
+            "focus_0930_early_dip_pct_10s",
+            "focus_0930_reclaim_second_30s",
+        )
+    if focus_view == "08:00 only":
+        return (
+            "focus_0800_open_30s_volume",
+            "focus_0800_early_dip_pct_10s",
+            "focus_0800_reclaim_second_30s",
+        )
+    if focus_view == "04:00 only":
+        return (
+            "focus_0400_open_30s_volume",
+            "focus_0400_early_dip_pct_10s",
+            "focus_0400_reclaim_second_30s",
+        )
+    return ("open_30s_volume", "early_dip_pct_10s", "reclaim_second_30s")
+
+
+def _build_open_pattern_status_series(frame: pd.DataFrame, focus_view: str) -> pd.Series:
+    open_30s_col, early_dip_col, reclaim_col = _open_pattern_metric_columns_for_view(focus_view)
+    open_pattern_missing = (
+        _numeric_series_or_nan(frame, open_30s_col).isna()
+        & _numeric_series_or_nan(frame, early_dip_col).isna()
+        & _numeric_series_or_nan(frame, reclaim_col).isna()
+    )
+    if focus_view == "All (04:00 + 08:00 + 09:30)":
+        available_label = "available via >=1 focus window"
+        missing_label = "missing across all focus windows"
+    else:
+        focus_label = focus_view.replace(" only", "")
+        available_label = f"available at {focus_label}"
+        missing_label = f"missing at {focus_label}"
+    return pd.Series(
+        np.where(open_pattern_missing, missing_label, available_label),
+        index=frame.index,
+        dtype=object,
+    )
+
+
+def _build_focus_window_coverage_series(frame: pd.DataFrame) -> pd.Series:
+    has_any_window_rows = any(
+        column in frame.columns
+        for column in (
+            "focus_0400_open_window_second_rows",
+            "focus_0800_open_window_second_rows",
+            "focus_0930_open_window_second_rows",
+            "open_window_second_rows",
+        )
+    )
+    if not has_any_window_rows:
+        return pd.Series("unavailable", index=frame.index, dtype=object)
+    has_0400 = _numeric_series_or_nan(frame, "focus_0400_open_window_second_rows").fillna(0) > 0
+    has_0800 = _numeric_series_or_nan(frame, "focus_0800_open_window_second_rows").fillna(0) > 0
+    if "focus_0930_open_window_second_rows" in frame.columns:
+        has_0930 = _numeric_series_or_nan(frame, "focus_0930_open_window_second_rows").fillna(0) > 0
+    else:
+        has_0930 = _numeric_series_or_nan(frame, "open_window_second_rows").fillna(0) > 0
+    return pd.Series(
+        np.select(
+            [
+                has_0400 & has_0800 & has_0930,
+                has_0400 & has_0800,
+                has_0400 & has_0930,
+                has_0800 & has_0930,
+                has_0400,
+                has_0800,
+                has_0930,
+            ],
+            [
+                "04:00 + 08:00 + 09:30",
+                "04:00 + 08:00",
+                "04:00 + 09:30",
+                "08:00 + 09:30",
+                "04:00",
+                "08:00",
+                "09:30",
+            ],
+            default="none",
+        ),
+        index=frame.index,
+        dtype=object,
+    )
+
+
+def _streamlit_button_compat(button_callable, label: str, **kwargs: Any):
+    try:
+        return button_callable(label, width="stretch", **kwargs)
+    except TypeError:
+        return button_callable(label, use_container_width=True, **kwargs)
+
+
+def _streamlit_dataframe_compat(dataframe_callable, data: Any, **kwargs: Any):
+    try:
+        return dataframe_callable(data, width="stretch", **kwargs)
+    except TypeError:
+        return dataframe_callable(data, use_container_width=True, **kwargs)
 
 
 def _format_reclaim_status_series(frame: pd.DataFrame, column: str = "reclaimed_start_price_within_30s") -> pd.Series:
@@ -2808,17 +3298,18 @@ def export_run_artifacts(
         workbook_sheets["unsupported_symbols"] = pd.DataFrame({"symbol": unsupported_symbols})
 
     excel_path = target_dir / f"{basename}.xlsx"
-    excel_path.write_bytes(
+    _write_bytes_atomic(
+        excel_path,
         create_excel_workbook(
             summary,
             minute_detail=minute_detail,
             second_detail=second_detail,
             additional_sheets=workbook_sheets,
-        )
+        ),
     )
 
     manifest_path = target_dir / f"{basename}_manifest.json"
-    manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    _write_text_atomic(manifest_path, json.dumps(manifest_payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
 
     parquet_targets: dict[str, pd.DataFrame] = {
         "summary": summary,
@@ -2848,7 +3339,7 @@ def export_run_artifacts(
     }
     for name, frame in parquet_targets.items():
         parquet_path = target_dir / f"{basename}__{name}.parquet"
-        frame.to_parquet(parquet_path, index=False)
+        _write_parquet_atomic(parquet_path, frame)
         created_paths[f"parquet_{name}"] = parquet_path
     txt_paths = _write_tradingview_watchlist_exports(target_dir, basename, parquet_targets)
     for name, path in txt_paths.items():
@@ -2857,14 +3348,17 @@ def export_run_artifacts(
 
 
 def run_streamlit_app() -> None:
+    from dataclasses import replace
     import os
     import streamlit as st
     from datetime import UTC, datetime
     from dotenv import load_dotenv
     from pathlib import Path
 
+    from scripts.bullish_quality_config import build_default_bullish_quality_config
     from scripts.databento_preopen_fast import run_preopen_fast_refresh
     from scripts.databento_production_export import run_production_export_pipeline
+    from scripts.generate_bullish_quality_scanner import generate_bullish_quality_scanner_result
     from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
     from strategy_config import LONG_DIP_DEFAULTS
 
@@ -2877,6 +3371,7 @@ def run_streamlit_app() -> None:
     st.caption("Single point of view for data freshness, pipeline actions, top-N watchlist and per-entry strategy details.")
  
     with st.sidebar:
+        scanner_mode = st.radio("Scanner mode", options=["Long-Dip Watchlist", "Bullish-Quality Scanner"], index=0)
         databento_api_key = st.text_input("Databento API Key", value=os.getenv("DATABENTO_API_KEY", ""), type="password")
         fmp_api_key = st.text_input("FMP API Key (optional, free tier fallback)", value=os.getenv("FMP_API_KEY", ""), type="password", help="Optional. Used as fallback universe source when Nasdaq Trader is unavailable. Free tier is sufficient.")
         export_dir = st.text_input("Export directory", value=str(default_export_directory()))
@@ -2898,11 +3393,22 @@ def run_streamlit_app() -> None:
         st.session_state["dvs_run_logs"] = [*st.session_state["dvs_run_logs"], f"{timestamp} {message}"][-50:]
 
     status = build_data_status_result(export_dir)
-    config_snapshot = dict(LONG_DIP_DEFAULTS)
-    config_snapshot["top_n"] = int(top_n)
-    config_snapshot["fast_scope_days_override"] = int(fast_scope_days)
-    watchlist_cfg = LongDipConfig(top_n=int(top_n))
-    watchlist_result = st.session_state.get("dvs_watchlist_result")
+    is_long_dip_mode = scanner_mode == "Long-Dip Watchlist"
+    if is_long_dip_mode:
+        config_snapshot = dict(LONG_DIP_DEFAULTS)
+        config_snapshot["top_n"] = int(top_n)
+        config_snapshot["fast_scope_days_override"] = int(fast_scope_days)
+        watchlist_cfg = LongDipConfig(top_n=int(top_n))
+        screen_result = st.session_state.get("dvs_watchlist_result")
+        snapshot_history = _load_watchlist_snapshot_history(Path(export_dir).expanduser())
+        if isinstance(screen_result, dict):
+            screen_result = _augment_watchlist_result_with_intraday_context(screen_result, snapshot_history)
+            st.session_state["dvs_watchlist_result"] = screen_result
+    else:
+        bullish_cfg = replace(build_default_bullish_quality_config(), top_n=int(top_n))
+        config_snapshot = {**bullish_cfg.__dict__, "fast_scope_days_override": int(fast_scope_days)}
+        screen_result = st.session_state.get("dvs_bullish_quality_result")
+        snapshot_history = pd.DataFrame()
 
     today = datetime.now(US_EASTERN_TZ).date()
     berlin_tz = resolve_display_timezone("Europe/Berlin")
@@ -2946,7 +3452,7 @@ def run_streamlit_app() -> None:
         f"{st.session_state['dvs_last_refresh_seconds']:.1f}s" if st.session_state["dvs_last_refresh_seconds"] is not None else "n/a",
     )
     runtime_cols[1].metric(
-        "Last Watchlist Runtime",
+        "Last Ranking Runtime",
         f"{st.session_state['dvs_last_watchlist_seconds']:.1f}s" if st.session_state["dvs_last_watchlist_seconds"] is not None else "n/a",
     )
 
@@ -2955,6 +3461,7 @@ def run_streamlit_app() -> None:
         try:
             latest_fast_manifest = json.loads(Path(status.manifest_path).read_text(encoding="utf-8"))
         except Exception:
+            logger.warning("Failed to parse manifest JSON: %s", status.manifest_path, exc_info=True)
             latest_fast_manifest = None
 
     if latest_fast_manifest and latest_fast_manifest.get("mode") == "preopen_fast_reduced_scope":
@@ -2964,10 +3471,10 @@ def run_streamlit_app() -> None:
         fast_scope_cols[2].metric("Fast Scope Mode", latest_fast_manifest.get("scope_days_mode", "n/a"))
 
     action_cols = st.columns(4)
-    fast_refresh = action_cols[0].button("Fast Pre-Open Refresh", width="stretch")
-    full_refresh = action_cols[1].button("Full History Refresh", width="stretch")
-    generate_watchlist = action_cols[2].button("Generate Watchlist", width="stretch")
-    fast_pipeline = action_cols[3].button("Fast Pre-Open Pipeline", type="primary", width="stretch")
+    fast_refresh = _streamlit_button_compat(action_cols[0].button, "Fast Pre-Open Refresh")
+    full_refresh = _streamlit_button_compat(action_cols[1].button, "Full History Refresh")
+    generate_watchlist = _streamlit_button_compat(action_cols[2].button, "Generate Watchlist" if is_long_dip_mode else "Generate Scanner")
+    fast_pipeline = _streamlit_button_compat(action_cols[3].button, "Fast Pre-Open Pipeline", type="primary")
     st.caption(
         "Operational model: run Full History outside the pre-open window to rebuild the 30-day full-universe baseline and historical selected_top20pct symbol-days. "
         "Run Fast Pre-Open Refresh near the open to reuse that baseline with a reduced current premarket scope. Full History refresh does not require an immediate watchlist rebuild."
@@ -3017,45 +3524,133 @@ def run_streamlit_app() -> None:
                 pipeline_refresh_ok = True
                 if (fast_refresh or full_refresh) and not fast_pipeline:
                     st.success(f"Data basis refreshed in {refresh_label} mode in {refresh_seconds:.1f}s.")
+                    st.rerun()
 
     if generate_watchlist or (fast_pipeline and pipeline_refresh_ok):
         try:
             watchlist_started = time_module.perf_counter()
-            with st.spinner("Generating watchlist from the latest exported data..."):
-                watchlist_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+            with st.spinner("Generating watchlist from the latest exported data..." if is_long_dip_mode else "Generating bullish-quality rankings from the latest exported data..."):
+                if is_long_dip_mode:
+                    screen_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+                    snapshot_history = _persist_watchlist_snapshot(
+                        Path(export_dir).expanduser(),
+                        screen_result,
+                        trigger="generate_watchlist" if generate_watchlist else "fast_pipeline",
+                    )
+                    screen_result = _augment_watchlist_result_with_intraday_context(screen_result, snapshot_history)
+                else:
+                    bullish_result = generate_bullish_quality_scanner_result(export_dir=Path(export_dir).expanduser(), cfg=bullish_cfg)
+                    screen_result = {
+                        "generated_at": bullish_result.generated_at,
+                        "trade_date": bullish_result.trade_date.isoformat() if bullish_result.trade_date else None,
+                        "source_data_fetched_at": bullish_result.source_data_fetched_at,
+                        "config_snapshot": bullish_result.config_snapshot,
+                        "rankings_table": bullish_result.rankings_table,
+                        "latest_window_table": bullish_result.latest_window_table,
+                        "filter_diagnostics_table": bullish_result.filter_diagnostics_table,
+                        "window_feature_table": bullish_result.window_feature_table,
+                        "warnings": bullish_result.warnings,
+                    }
             watchlist_seconds = time_module.perf_counter() - watchlist_started
             st.session_state["dvs_last_watchlist_seconds"] = watchlist_seconds
-            st.session_state["dvs_watchlist_result"] = watchlist_result
-            txt_exports = _write_streamlit_watchlist_txt_exports(Path(export_dir).expanduser(), watchlist_result)
-            if txt_exports:
-                add_log("TradingView watchlist TXT exported: " + ", ".join(str(path) for path in txt_exports.values()))
-            add_log(f"Watchlist generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
-            st.success(f"Watchlist updated in {watchlist_seconds:.1f}s.")
+            if is_long_dip_mode:
+                st.session_state["dvs_watchlist_result"] = screen_result
+                txt_exports = _write_streamlit_watchlist_txt_exports(Path(export_dir).expanduser(), screen_result)
+                if txt_exports:
+                    add_log("TradingView watchlist TXT exported: " + ", ".join(str(path) for path in txt_exports.values()))
+                if snapshot_history is not None and not snapshot_history.empty:
+                    add_log(f"Watchlist snapshot updated: {_watchlist_snapshot_path(Path(export_dir).expanduser())}")
+                add_log(f"Watchlist generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
+                st.success(f"Watchlist updated in {watchlist_seconds:.1f}s.")
+            else:
+                st.session_state["dvs_bullish_quality_result"] = screen_result
+                add_log(f"Bullish-quality scanner generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
+                st.success(f"Bullish-quality scanner updated in {watchlist_seconds:.1f}s.")
         except Exception as exc:
-            add_log(f"Watchlist generation failed: {type(exc).__name__}: {exc}")
-            st.error(f"Watchlist generation failed: {type(exc).__name__}: {exc}")
+            add_log(f"Ranking generation failed: {type(exc).__name__}: {exc}")
+            st.error(f"Ranking generation failed: {type(exc).__name__}: {exc}")
 
-    if watchlist_result is None and (Path(export_dir).expanduser() / "daily_symbol_features_full_universe.parquet").exists():
+    autoload_ready = (Path(export_dir).expanduser() / "daily_symbol_features_full_universe.parquet").exists()
+    if not is_long_dip_mode:
+        autoload_ready = autoload_ready and (Path(export_dir).expanduser() / "premarket_window_features_full_universe.parquet").exists()
+    if screen_result is None and autoload_ready:
         try:
-            watchlist_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
-            st.session_state["dvs_watchlist_result"] = watchlist_result
-            txt_exports = _write_streamlit_watchlist_txt_exports(Path(export_dir).expanduser(), watchlist_result)
-            if txt_exports:
-                add_log("TradingView watchlist TXT exported: " + ", ".join(str(path) for path in txt_exports.values()))
+            if is_long_dip_mode:
+                screen_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
+                snapshot_history = _load_watchlist_snapshot_history(Path(export_dir).expanduser())
+                screen_result = _augment_watchlist_result_with_intraday_context(screen_result, snapshot_history)
+                st.session_state["dvs_watchlist_result"] = screen_result
+            else:
+                bullish_result = generate_bullish_quality_scanner_result(export_dir=Path(export_dir).expanduser(), cfg=bullish_cfg)
+                screen_result = {
+                    "generated_at": bullish_result.generated_at,
+                    "trade_date": bullish_result.trade_date.isoformat() if bullish_result.trade_date else None,
+                    "source_data_fetched_at": bullish_result.source_data_fetched_at,
+                    "config_snapshot": bullish_result.config_snapshot,
+                    "rankings_table": bullish_result.rankings_table,
+                    "latest_window_table": bullish_result.latest_window_table,
+                    "filter_diagnostics_table": bullish_result.filter_diagnostics_table,
+                    "window_feature_table": bullish_result.window_feature_table,
+                    "warnings": bullish_result.warnings,
+                }
+                st.session_state["dvs_bullish_quality_result"] = screen_result
         except Exception as exc:
-            add_log(f"Initial watchlist load failed: {type(exc).__name__}: {exc}")
+            add_log(f"Initial ranking load failed: {type(exc).__name__}: {exc}")
             st.warning(f"Existing export data could not be loaded automatically: {type(exc).__name__}: {exc}")
 
     status_area, config_area = st.columns([1.1, 1.0])
     with status_area:
         st.subheader("Data Status")
-        st.dataframe(build_status_table(status), width="stretch", hide_index=True)
+        _streamlit_dataframe_compat(st.dataframe, build_status_table(status), hide_index=True)
     with config_area:
         st.subheader("Active Config")
-        st.dataframe(build_config_table(config_snapshot), width="stretch", hide_index=True)
+        _streamlit_dataframe_compat(st.dataframe, build_config_table(config_snapshot), hide_index=True)
 
-    if not watchlist_result:
-        st.warning("No watchlist available yet. Refresh the data basis or generate the watchlist from existing exports.")
+    if not screen_result:
+        st.warning("No ranking available yet. Refresh the data basis or generate rankings from existing exports.")
+    elif not is_long_dip_mode:
+        st.subheader("Bullish-Quality Rankings")
+        trade_date_label = screen_result.get("trade_date") or "n/a"
+        fetched_at_label = screen_result.get("source_data_fetched_at") or "n/a"
+        st.caption(f"Trade date: {trade_date_label} | Source data fetched at: {fetched_at_label}")
+
+        for warning in screen_result.get("warnings", []):
+            st.warning(warning)
+
+        latest_window_table = screen_result.get("latest_window_table")
+        rankings_table = screen_result.get("rankings_table")
+        diagnostics_table = screen_result.get("filter_diagnostics_table")
+        window_feature_table = screen_result.get("window_feature_table")
+
+        if isinstance(latest_window_table, pd.DataFrame) and not latest_window_table.empty:
+            st.markdown("**Latest Window Top-N**")
+            _streamlit_dataframe_compat(
+                st.dataframe,
+                latest_window_table,
+                hide_index=True,
+                height=360,
+                column_config={
+                    "quality_rank_within_window": st.column_config.NumberColumn("Rank", width="small", format="%.0f"),
+                    "symbol": st.column_config.TextColumn("Symbol", width="small"),
+                    "window_tag": st.column_config.TextColumn("Window", width="small"),
+                    "window_quality_score": st.column_config.NumberColumn("Score", width="small", format="%.2f"),
+                    "quality_reason": st.column_config.TextColumn("Reason", width="medium"),
+                },
+            )
+        else:
+            st.info("No bullish-quality candidates matched the configured filters for the latest window.")
+
+        if isinstance(diagnostics_table, pd.DataFrame) and not diagnostics_table.empty:
+            with st.expander("Window Filter Diagnostics", expanded=True):
+                _streamlit_dataframe_compat(st.dataframe, diagnostics_table, hide_index=True, height=260)
+
+        if isinstance(rankings_table, pd.DataFrame) and not rankings_table.empty:
+            with st.expander("All Window Rankings", expanded=False):
+                _streamlit_dataframe_compat(st.dataframe, rankings_table, hide_index=True, height=420)
+
+        if isinstance(window_feature_table, pd.DataFrame) and not window_feature_table.empty:
+            with st.expander("Window Feature Detail", expanded=False):
+                _streamlit_dataframe_compat(st.dataframe, window_feature_table, hide_index=True, height=420)
     else:
         st.subheader("Top-N Watchlist")
         view_mode = st.radio(
@@ -3066,11 +3661,11 @@ def run_streamlit_app() -> None:
             key="dvs_watchlist_view_mode",
         )
         watchlist_table, watchlist_caption = resolve_watchlist_display_table(
-            watchlist_result=watchlist_result,
+            watchlist_result=screen_result,
             view_mode=view_mode,
         )
         st.caption(watchlist_caption)
-        filter_profile = watchlist_result.get("filter_profile") or {}
+        filter_profile = screen_result.get("filter_profile") or {}
         if filter_profile:
             st.info(
                 "Active filter profile: "
@@ -3086,10 +3681,10 @@ def run_streamlit_app() -> None:
                 relaxed_from_volume = f"{int(relaxed_from_volume_value):,}" if relaxed_from_volume_value is not None else "n/a"
                 relaxed_from_trade_count = f"{int(relaxed_from_trade_count_value):,}" if relaxed_from_trade_count_value is not None else "n/a"
                 relaxed_from_active_seconds = f"{int(relaxed_from_active_seconds_value):,}" if relaxed_from_active_seconds_value is not None else "n/a"
-                relaxed_dollar_volume_to = float(watchlist_result["config_snapshot"].get("min_premarket_dollar_volume", 0.0) or 0.0)
-                relaxed_volume_to = int(watchlist_result["config_snapshot"].get("min_premarket_volume", 0))
-                relaxed_trade_count_to = int(watchlist_result["config_snapshot"].get("min_premarket_trade_count", 0))
-                relaxed_active_seconds_to = int(watchlist_result["config_snapshot"].get("min_premarket_active_seconds", 0))
+                relaxed_dollar_volume_to = float(screen_result["config_snapshot"].get("min_premarket_dollar_volume", 0.0) or 0.0)
+                relaxed_volume_to = int(screen_result["config_snapshot"].get("min_premarket_volume", 0))
+                relaxed_trade_count_to = int(screen_result["config_snapshot"].get("min_premarket_trade_count", 0))
+                relaxed_active_seconds_to = int(screen_result["config_snapshot"].get("min_premarket_active_seconds", 0))
                 st.warning(
                     "Liquidity fallback active: "
                     f"base_profile={filter_profile.get('base_profile_name', 'n/a')} | "
@@ -3099,14 +3694,14 @@ def run_streamlit_app() -> None:
                     f"premarket_trade_count {relaxed_from_trade_count} -> {relaxed_trade_count_to:,} | "
                     f"premarket_active_seconds {relaxed_from_active_seconds} -> {relaxed_active_seconds_to:,}"
                 )
-        for warning in watchlist_result.get("warnings", []):
+        for warning in screen_result.get("warnings", []):
             st.warning(warning)
 
-        filter_funnel = watchlist_result.get("filter_funnel", [])
+        filter_funnel = screen_result.get("filter_funnel", [])
         if filter_funnel:
             with st.expander("Filter Funnel Diagnostic (latest trade date)", expanded=True):
                 funnel_df = pd.DataFrame(filter_funnel)
-                st.dataframe(funnel_df, width="stretch", hide_index=True)
+                _streamlit_dataframe_compat(st.dataframe, funnel_df, hide_index=True)
                 bottleneck = next((s for idx, s in enumerate(filter_funnel) if s["remaining"] == 0 and idx > 0), None)
                 if bottleneck:
                     st.error(f"Bottleneck: **{bottleneck['filter']}** (threshold {bottleneck['threshold']}) eliminated all remaining candidates.")
@@ -3123,8 +3718,17 @@ def run_streamlit_app() -> None:
 
             preferred_columns = [
                 "watchlist_rank",
+                "watchlist_rank_change",
+                "watchlist_rank_delta",
+                "intraday_watchlist_rank_change",
+                "intraday_watchlist_rank_delta",
+                "previous_watchlist_rank",
+                "previous_intraday_watchlist_rank",
+                "intraday_rank_reference_display",
                 "symbol",
+                "focus_window_coverage",
                 "premarket_trade_count",
+                "premarket_trade_count_age",
                 "prev_close_to_premarket_pct",
                 "premarket_dollar_volume",
                 "premarket_volume",
@@ -3179,17 +3783,34 @@ def run_streamlit_app() -> None:
                 if "focus_0400_reclaim_second_30s" in display_watchlist_table.columns:
                     display_watchlist_table["reclaim_second_30s"] = display_watchlist_table["focus_0400_reclaim_second_30s"]
 
-            open_pattern_missing = (
-                _numeric_series_or_nan(display_watchlist_table, "open_30s_volume").isna()
-                & _numeric_series_or_nan(display_watchlist_table, "early_dip_pct_10s").isna()
-                & _numeric_series_or_nan(display_watchlist_table, "reclaim_second_30s").isna()
+            display_watchlist_table["open_pattern_status"] = _build_open_pattern_status_series(
+                watchlist_table,
+                focus_view,
             )
-            display_watchlist_table["open_pattern_status"] = np.where(
-                open_pattern_missing,
-                "missing open-window detail",
-                "available",
-            )
-            visible_columns = [column for column in preferred_columns if column in watchlist_table.columns]
+            display_watchlist_table["focus_window_coverage"] = _build_focus_window_coverage_series(watchlist_table)
+            if "watchlist_rank_change" in display_watchlist_table.columns:
+                display_watchlist_table["watchlist_rank_change"] = [
+                    _highlight_rank_change_label(label, delta)
+                    for label, delta in zip(
+                        display_watchlist_table["watchlist_rank_change"],
+                        display_watchlist_table.get("watchlist_rank_delta", pd.Series(index=display_watchlist_table.index, dtype=float)),
+                        strict=False,
+                    )
+                ]
+            if "intraday_watchlist_rank_change" in display_watchlist_table.columns:
+                display_watchlist_table["intraday_watchlist_rank_change"] = [
+                    _highlight_rank_change_label(label, delta)
+                    for label, delta in zip(
+                        display_watchlist_table["intraday_watchlist_rank_change"],
+                        display_watchlist_table.get("intraday_watchlist_rank_delta", pd.Series(index=display_watchlist_table.index, dtype=float)),
+                        strict=False,
+                    )
+                ]
+            if "intraday_rank_reference_at" in display_watchlist_table.columns:
+                display_watchlist_table["intraday_rank_reference_display"] = display_watchlist_table[
+                    "intraday_rank_reference_at"
+                ].map(lambda value: _format_intraday_reference_time(value, display_timezone=DEFAULT_DISPLAY_TZ))
+            visible_columns = [column for column in preferred_columns if column in display_watchlist_table.columns]
             focus_0930_cols = ["focus_0930_open_30s_volume", "focus_0930_early_dip_pct_10s", "focus_0930_reclaim_second_30s"]
             focus_0800_cols = ["focus_0800_open_30s_volume", "focus_0800_early_dip_pct_10s", "focus_0800_reclaim_second_30s"]
             focus_0400_cols = ["focus_0400_open_30s_volume", "focus_0400_early_dip_pct_10s", "focus_0400_reclaim_second_30s"]
@@ -3201,15 +3822,43 @@ def run_streamlit_app() -> None:
                 visible_columns = [col for col in visible_columns if col not in focus_0800_cols and col not in focus_0930_cols and col not in focus_0400_cols]
             if "open_pattern_status" not in visible_columns and "open_pattern_status" in display_watchlist_table.columns:
                 visible_columns = ["open_pattern_status", *visible_columns]
+            if "focus_window_coverage" not in visible_columns and "focus_window_coverage" in display_watchlist_table.columns:
+                visible_columns = ["focus_window_coverage", *visible_columns]
             table_frame = display_watchlist_table[visible_columns].copy()
             if "reclaimed_start_price_within_30s" in table_frame.columns:
                 table_frame["reclaimed_start_price_within_30s"] = _format_reclaim_status_series(display_watchlist_table)
-            st.caption("`n/a` or `missing open-window detail` means the symbol-day has no usable regular-open second-detail slice for the dip/reclaim checks.")
+            st.caption(
+                "`All` means at least one focus window has usable detail. "
+                "Single-window views check only that exact 04:00 / 08:00 / 09:30 slice for the dip/reclaim metrics. "
+                "`Focus Window Coverage` lists the windows that actually have usable second-detail rows for that symbol-day. "
+                "`Rank Change` compares against the last available watchlist day for the same symbol, and positive deltas mean the symbol moved up the list. "
+                "`Intraday Rank Change` compares against the previous saved watchlist snapshot on the same trade date; `Intraday Ref Time` shows that earlier snapshot in Europe/Berlin, and `FIRST` means no earlier snapshot has been captured yet. "
+                "`PM Trade Count Age` measures the lag between the latest premarket trade used in the count and the source-data timestamp. "
+                "`n/a` means the selected slice has no usable regular-open second-detail rows."
+            )
             column_config: dict[str, Any] = {}
             if "watchlist_rank" in table_frame.columns:
                 column_config["watchlist_rank"] = st.column_config.NumberColumn("Rank", width="small")
+            if "watchlist_rank_change" in table_frame.columns:
+                column_config["watchlist_rank_change"] = st.column_config.TextColumn("Day Rank\nChange", width="small")
+            if "watchlist_rank_delta" in table_frame.columns:
+                column_config["watchlist_rank_delta"] = st.column_config.NumberColumn("Day Δ", width="small", format="%+.0f")
+            if "intraday_watchlist_rank_change" in table_frame.columns:
+                column_config["intraday_watchlist_rank_change"] = st.column_config.TextColumn("Intraday Rank\nChange", width="small")
+            if "intraday_watchlist_rank_delta" in table_frame.columns:
+                column_config["intraday_watchlist_rank_delta"] = st.column_config.NumberColumn("Intraday Δ", width="small", format="%+.0f")
+            if "previous_watchlist_rank" in table_frame.columns:
+                column_config["previous_watchlist_rank"] = st.column_config.NumberColumn("Prev Day\nRank", width="small")
+            if "previous_intraday_watchlist_rank" in table_frame.columns:
+                column_config["previous_intraday_watchlist_rank"] = st.column_config.NumberColumn("Prev Intraday\nRank", width="small")
+            if "intraday_rank_reference_display" in table_frame.columns:
+                column_config["intraday_rank_reference_display"] = st.column_config.TextColumn("Intraday Ref\nTime", width="medium")
             if "symbol" in table_frame.columns:
                 column_config["symbol"] = st.column_config.TextColumn("Symbol", width="small")
+            if "focus_window_coverage" in table_frame.columns:
+                column_config["focus_window_coverage"] = st.column_config.TextColumn("Focus Window\nCoverage", width="medium")
+            if "premarket_trade_count_age" in table_frame.columns:
+                column_config["premarket_trade_count_age"] = st.column_config.TextColumn("PM Trade\nCount Age", width="small")
             if "reclaimed_start_price_within_30s" in table_frame.columns:
                 column_config["reclaimed_start_price_within_30s"] = st.column_config.TextColumn("Reclaimed\nStart Price\n30s", width="small")
             if "reclaim_second_30s" in table_frame.columns:
@@ -3237,7 +3886,61 @@ def run_streamlit_app() -> None:
             if "open_pattern_status" in table_frame.columns:
                 column_config["open_pattern_status"] = st.column_config.TextColumn("Open Pattern\nStatus", width="small")
 
-            st.dataframe(table_frame, width="stretch", hide_index=True, height=420, column_config=column_config)
+            table_styles = _build_watchlist_table_style_frame(table_frame)
+            styled_table_frame = table_frame.style.apply(lambda _: table_styles, axis=None)
+            _streamlit_dataframe_compat(
+                st.dataframe,
+                styled_table_frame,
+                hide_index=True,
+                height=420,
+                column_config=column_config,
+            )
+
+            active_symbols_source = screen_result.get("active_watchlist_table")
+            if not isinstance(active_symbols_source, pd.DataFrame) or active_symbols_source.empty:
+                active_symbols_source = watchlist_table
+            active_symbols = []
+            if isinstance(active_symbols_source, pd.DataFrame) and "symbol" in active_symbols_source.columns:
+                active_symbols = active_symbols_source["symbol"].astype(str).head(int(top_n)).tolist()
+            snapshot_summary_frame, snapshot_trail_frame = _build_watchlist_snapshot_panel_frames(
+                snapshot_history,
+                trade_date=screen_result.get("trade_date"),
+                active_symbols=active_symbols,
+                display_timezone=DEFAULT_DISPLAY_TZ,
+            )
+            with st.expander("Intraday Snapshot History", expanded=False):
+                st.caption(
+                    "Saved same-day watchlist snapshots from "
+                    f"{screen_result.get('trade_date') or 'n/a'} in {DEFAULT_DISPLAY_TZ}. "
+                    f"Source file: {WATCHLIST_SNAPSHOT_FILE}."
+                )
+                if snapshot_summary_frame.empty:
+                    st.info("No intraday snapshots have been captured for the active trade date yet.")
+                else:
+                    snapshot_cols = st.columns([1.0, 1.4])
+                    with snapshot_cols[0]:
+                        st.markdown("**Snapshot Summary**")
+                        _streamlit_dataframe_compat(
+                            st.dataframe,
+                            snapshot_summary_frame,
+                            hide_index=True,
+                            height=240,
+                            column_config={
+                                "snapshot_time": st.column_config.TextColumn("Snapshot Time", width="medium"),
+                                "trigger": st.column_config.TextColumn("Trigger", width="small"),
+                                "symbols": st.column_config.NumberColumn("Symbols", width="small", format="%.0f"),
+                                "leader": st.column_config.TextColumn("Leader", width="small"),
+                                "top3": st.column_config.TextColumn("Top 3", width="medium"),
+                            },
+                        )
+                    with snapshot_cols[1]:
+                        st.markdown("**Rank Trail (Current Top-N Symbols)**")
+                        _streamlit_dataframe_compat(
+                            st.dataframe,
+                            snapshot_trail_frame,
+                            hide_index=True,
+                            height=240,
+                        )
 
             st.subheader("Detail View (all Top-N entries)")
             detail_slice = watchlist_table.head(int(top_n)).reset_index(drop=True)
@@ -3264,13 +3967,13 @@ def run_streamlit_app() -> None:
                             "value": [str(value) for value in selected_row.tolist()],
                         }
                     )
-                    st.dataframe(detail_frame, width="stretch", hide_index=True, height=260)
+                    _streamlit_dataframe_compat(st.dataframe, detail_frame, hide_index=True, height=260)
 
                     checklist_frame, checklist_note, checklist_score = build_entry_checklist_table(
                         status=status,
                         selected_row=selected_row,
                         watchlist_table=watchlist_table,
-                        watchlist_config=watchlist_result.get("requested_config_snapshot") or watchlist_result.get("config_snapshot"),
+                        watchlist_config=screen_result.get("requested_config_snapshot") or screen_result.get("config_snapshot"),
                     )
                     checklist_styler = checklist_frame.style.apply(_style_checklist_row, axis=1)
                     checklist_styler = checklist_styler.format(
@@ -3294,7 +3997,7 @@ def run_streamlit_app() -> None:
                         unsafe_allow_html=True,
                     )
                     st.caption(checklist_note)
-                    st.dataframe(checklist_styler, width="stretch", hide_index=True)
+                    _streamlit_dataframe_compat(st.dataframe, checklist_styler, hide_index=True)
 
     with st.expander("Run Logs", expanded=False):
         if st.session_state["dvs_run_logs"]:

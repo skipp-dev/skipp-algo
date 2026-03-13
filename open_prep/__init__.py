@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Utilities for US-open breakout candidate preparation.
 
 This package combines macro-event awareness, candidate ranking,
