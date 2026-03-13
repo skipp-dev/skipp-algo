@@ -2419,10 +2419,18 @@ def build_status_table(status: DataStatusResult) -> pd.DataFrame:
 
 
 def build_config_table(config_snapshot: dict[str, Any]) -> pd.DataFrame:
+    def _format_config_value(value: Any) -> str:
+        if isinstance(value, (list, tuple, dict)):
+            try:
+                return json.dumps(value, ensure_ascii=True, default=str)
+            except Exception:
+                return str(value)
+        return str(value)
+
     return pd.DataFrame(
         {
             "setting": list(config_snapshot.keys()),
-            "value": [json.dumps(value) if isinstance(value, (list, tuple, dict)) else str(value) for value in config_snapshot.values()],
+            "value": [_format_config_value(value) for value in config_snapshot.values()],
         }
     )
 
@@ -3352,7 +3360,7 @@ def run_streamlit_app() -> None:
     import os
     import streamlit as st
     from datetime import UTC, datetime
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv, set_key, unset_key
     from pathlib import Path
 
     from scripts.bullish_quality_config import build_default_bullish_quality_config
@@ -3362,7 +3370,8 @@ def run_streamlit_app() -> None:
     from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
     from strategy_config import LONG_DIP_DEFAULTS
 
-    load_dotenv()
+    repo_env_path = Path(__file__).resolve().parent / ".env"
+    load_dotenv(repo_env_path, override=True)
     st.set_page_config(page_title="Databento Volatility Screener", layout="wide")
     raw_default_top_n = LONG_DIP_DEFAULTS.get("top_n", 5)
     default_top_n: int = raw_default_top_n if isinstance(raw_default_top_n, int) else 5
@@ -3370,10 +3379,44 @@ def run_streamlit_app() -> None:
     st.title("Databento Volatility Screener")
     st.caption("Single point of view for data freshness, pipeline actions, top-N watchlist and per-entry strategy details.")
  
+    def _persist_sidebar_secret(env_name: str, session_key: str) -> None:
+        value = str(st.session_state.get(session_key, "")).strip()
+        if value:
+            os.environ[env_name] = value
+        else:
+            os.environ.pop(env_name, None)
+        try:
+            if value:
+                set_key(str(repo_env_path), env_name, value)
+            elif repo_env_path.exists():
+                unset_key(str(repo_env_path), env_name)
+        except Exception:
+            logger.warning("Failed to persist %s to %s", env_name, repo_env_path, exc_info=True)
+
+    if "dvs_databento_api_key" not in st.session_state:
+        st.session_state["dvs_databento_api_key"] = os.getenv("DATABENTO_API_KEY", "")
+    if "dvs_fmp_api_key" not in st.session_state:
+        st.session_state["dvs_fmp_api_key"] = os.getenv("FMP_API_KEY", "")
+
     with st.sidebar:
         scanner_mode = st.radio("Scanner mode", options=["Long-Dip Watchlist", "Bullish-Quality Scanner"], index=0)
-        databento_api_key = st.text_input("Databento API Key", value=os.getenv("DATABENTO_API_KEY", ""), type="password")
-        fmp_api_key = st.text_input("FMP API Key (optional, free tier fallback)", value=os.getenv("FMP_API_KEY", ""), type="password", help="Optional. Used as fallback universe source when Nasdaq Trader is unavailable. Free tier is sufficient.")
+        st.text_input(
+            "Databento API Key",
+            type="password",
+            key="dvs_databento_api_key",
+            on_change=_persist_sidebar_secret,
+            args=("DATABENTO_API_KEY", "dvs_databento_api_key"),
+        )
+        st.text_input(
+            "FMP API Key (optional, free tier fallback)",
+            type="password",
+            key="dvs_fmp_api_key",
+            on_change=_persist_sidebar_secret,
+            args=("FMP_API_KEY", "dvs_fmp_api_key"),
+            help="Optional. Used as fallback universe source when Nasdaq Trader is unavailable. Free tier is sufficient.",
+        )
+        databento_api_key = str(st.session_state.get("dvs_databento_api_key", "")).strip()
+        fmp_api_key = str(st.session_state.get("dvs_fmp_api_key", "")).strip()
         export_dir = st.text_input("Export directory", value=str(default_export_directory()))
         dataset = st.text_input("Databento dataset", value=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
         lookback_days = st.number_input("Trading days", min_value=1, max_value=90, value=30)
@@ -3387,6 +3430,8 @@ def run_streamlit_app() -> None:
         st.session_state["dvs_last_refresh_seconds"] = None
     if "dvs_last_watchlist_seconds" not in st.session_state:
         st.session_state["dvs_last_watchlist_seconds"] = None
+    if "dvs_last_action_message" not in st.session_state:
+        st.session_state["dvs_last_action_message"] = ""
 
     def add_log(message: str) -> None:
         timestamp = datetime.now(UTC).isoformat(timespec="seconds")
@@ -3475,6 +3520,8 @@ def run_streamlit_app() -> None:
     full_refresh = _streamlit_button_compat(action_cols[1].button, "Full History Refresh")
     generate_watchlist = _streamlit_button_compat(action_cols[2].button, "Generate Watchlist" if is_long_dip_mode else "Generate Scanner")
     fast_pipeline = _streamlit_button_compat(action_cols[3].button, "Fast Pre-Open Pipeline", type="primary")
+    if st.session_state["dvs_last_action_message"]:
+        st.info(st.session_state["dvs_last_action_message"])
     st.caption(
         "Operational model: run Full History outside the pre-open window to rebuild the 30-day full-universe baseline and historical selected_top20pct symbol-days. "
         "Run Fast Pre-Open Refresh near the open to reuse that baseline with a reduced current premarket scope. Full History refresh does not require an immediate watchlist rebuild."
@@ -3482,25 +3529,42 @@ def run_streamlit_app() -> None:
 
     pipeline_refresh_ok = False
     if fast_refresh or fast_pipeline or full_refresh:
+        selected_action = "Fast pre-open refresh" if fast_refresh else "Fast pre-open pipeline" if fast_pipeline else "Full history refresh"
+        add_log(f"Action triggered: {selected_action}.")
+        st.session_state["dvs_last_action_message"] = f"Running: {selected_action}..."
         if not databento_api_key:
             st.error("Databento API key is required for the data pipeline.")
+            st.session_state["dvs_last_action_message"] = "Blocked: Databento API key missing."
         else:
             try:
                 refresh_started = time_module.perf_counter()
-                with st.spinner("Refreshing production data basis..."):
-                    if fast_refresh or fast_pipeline:
+                if fast_refresh or fast_pipeline:
+                    _fast_status_container = st.status("Fast pre-open refresh: starting...", expanded=True)
+                    def _fast_pipeline_progress(msg: str) -> None:
+                        _fast_status_container.update(label=msg)
+                        _fast_status_container.write(msg)
+                    _fast_result = None
+                    try:
                         _fast_result = run_preopen_fast_refresh(
                             databento_api_key=databento_api_key,
                             dataset=dataset,
                             export_dir=Path(export_dir).expanduser(),
                             bundle=Path(export_dir).expanduser(),
                             scope_days=None if int(fast_scope_days) <= 0 else int(fast_scope_days),
+                            progress_callback=_fast_pipeline_progress,
                         )
-                        for _uw in _fast_result.get("user_warnings") or []:
-                            st.warning(_uw)
-                            add_log(f"WARNING: {_uw}")
-                        refresh_label = "Fast pre-open"
-                    else:
+                    finally:
+                        _fast_status_container.update(state="complete", expanded=False)
+                    for _uw in (_fast_result or {}).get("user_warnings") or []:
+                        st.warning(_uw)
+                        add_log(f"WARNING: {_uw}")
+                    refresh_label = "Fast pre-open"
+                else:
+                    _status_container = st.status("Full history refresh: starting pipeline...", expanded=True)
+                    def _pipeline_progress(msg: str) -> None:
+                        _status_container.update(label=msg)
+                        _status_container.write(msg)
+                    try:
                         run_production_export_pipeline(
                             databento_api_key=databento_api_key,
                             fmp_api_key=fmp_api_key,
@@ -3511,18 +3575,23 @@ def run_streamlit_app() -> None:
                             use_file_cache=True,
                             force_refresh=force_refresh,
                             second_detail_scope="full_universe",
+                            progress_callback=_pipeline_progress,
                         )
-                        refresh_label = "Full history"
+                    finally:
+                        _status_container.update(state="complete", expanded=False)
+                    refresh_label = "Full history"
             except Exception as exc:
                 add_log(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
                 st.error(f"Pipeline refresh failed: {type(exc).__name__}: {exc}")
+                st.session_state["dvs_last_action_message"] = f"Failed: {selected_action} ({type(exc).__name__})"
             else:
                 refresh_seconds = time_module.perf_counter() - refresh_started
                 st.session_state["dvs_last_refresh_seconds"] = refresh_seconds
                 add_log(f"Data basis refreshed in mode={refresh_label} for dataset={dataset} in {refresh_seconds:.1f}s.")
+                st.session_state["dvs_last_action_message"] = f"Completed: {refresh_label} refresh in {refresh_seconds:.1f}s for {dataset}."
                 status = build_data_status_result(export_dir)
                 pipeline_refresh_ok = True
-                if (fast_refresh or full_refresh) and not fast_pipeline:
+                if full_refresh and not fast_pipeline:
                     st.success(f"Data basis refreshed in {refresh_label} mode in {refresh_seconds:.1f}s.")
                     st.rerun()
 

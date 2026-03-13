@@ -13,6 +13,7 @@ from scripts.databento_preopen_fast import (
     _resolve_scope_selection_column,
     _resolve_target_trade_date,
     _select_recent_scope_symbols,
+    _write_fast_outputs,
     _target_scope_symbol_count,
 )
 
@@ -347,3 +348,38 @@ def test_run_preopen_fast_refresh_skips_fetch_when_dataset_not_available(monkeyp
     # Should succeed without error — the fetch is skipped because the
     # clamped end is before the premarket start.
     assert result is not None
+
+
+def test_write_fast_outputs_preserves_existing_when_current_frame_empty(tmp_path) -> None:
+    trade_day = date(2026, 3, 10)
+    existing_daily = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"]})
+    existing_daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+
+    existing_premarket = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"], "has_premarket_data": [True]})
+    existing_premarket.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    existing_diag = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"]})
+    existing_diag.to_parquet(tmp_path / "symbol_day_diagnostics.parquet", index=False)
+
+    existing_window = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"], "window_tag": ["pm_0800_0900"]})
+    existing_window.to_parquet(tmp_path / "premarket_window_features_full_universe.parquet", index=False)
+
+    existing_status = pd.DataFrame({"symbol": ["AAA"], "quality_open_drive_window_latest_berlin": ["14:00-15:00"]})
+    existing_status.to_parquet(tmp_path / "quality_window_status_latest.parquet", index=False)
+
+    manifest = {"basename": "databento_preopen_fast_test"}
+    _write_fast_outputs(
+        tmp_path,
+        daily_current=pd.DataFrame(),
+        premarket_current=pd.DataFrame(),
+        diagnostics_current=pd.DataFrame(),
+        premarket_window_current=pd.DataFrame(),
+        quality_window_status_latest=pd.DataFrame(),
+        manifest=manifest,
+    )
+
+    assert pd.read_parquet(tmp_path / "daily_symbol_features_full_universe.parquet").equals(existing_daily)
+    assert pd.read_parquet(tmp_path / "premarket_features_full_universe.parquet").equals(existing_premarket)
+    assert pd.read_parquet(tmp_path / "symbol_day_diagnostics.parquet").equals(existing_diag)
+    assert pd.read_parquet(tmp_path / "premarket_window_features_full_universe.parquet").equals(existing_window)
+    assert pd.read_parquet(tmp_path / "quality_window_status_latest.parquet").equals(existing_status)

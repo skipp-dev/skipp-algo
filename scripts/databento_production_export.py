@@ -639,6 +639,11 @@ def build_premarket_window_features_full_universe_export(
     out["passes_min_gap_pct"] = pd.to_numeric(out["prev_close_to_window_close_pct"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_gap_pct
     out["passes_min_window_dollar_volume"] = pd.to_numeric(out["window_dollar_volume"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_dollar_volume
     out["passes_min_window_trade_count"] = pd.to_numeric(out["window_trade_count"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_trade_count
+    _vwap_ok = (
+        pd.Series(True, index=out.index, dtype=bool)
+        if not _DEFAULT_BULLISH_QUALITY_CFG.require_close_above_vwap
+        else (pd.to_numeric(out["window_close"], errors="coerce") >= pd.to_numeric(out["window_vwap"], errors="coerce"))
+    )
     out["passes_quality_filter"] = (
         out["has_window_data"].fillna(False).astype(bool)
         & out["passes_min_previous_close"].fillna(False)
@@ -648,7 +653,7 @@ def build_premarket_window_features_full_universe_export(
         & (pd.to_numeric(out["window_close_position_pct"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_close_position_pct)
         & (pd.to_numeric(out["window_return_pct"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_return_pct)
         & (pd.to_numeric(out["window_pullback_pct"], errors="coerce") <= _DEFAULT_BULLISH_QUALITY_CFG.max_window_pullback_pct)
-        & (pd.to_numeric(out["window_close"], errors="coerce") >= pd.to_numeric(out["window_vwap"], errors="coerce"))
+        & _vwap_ok
     )
     out["quality_filter_reason"] = _compute_quality_reason(out)
     out = _populate_quality_window_ranks(out, top_n=_DEFAULT_BULLISH_QUALITY_CFG.top_n)
@@ -1064,14 +1069,13 @@ def _compute_quality_window_signal(
             window_low=("low", "min"),
             window_volume=("volume", "sum"),
             window_dollar_volume=("dollar_volume", "sum"),
-            window_close_value=("dollar_volume", "sum"),
         ).reset_index()
         grouped = grouped.merge(all_features, on=["trade_date", "symbol"], how="left")
         grouped = grouped.merge(premarket_small, on=["trade_date", "symbol"], how="left")
         grouped = grouped.merge(open_confirm, on=["trade_date", "symbol"], how="left")
         grouped["window_vwap"] = np.where(
             grouped["window_volume"] > 0,
-            grouped["window_close_value"] / grouped["window_volume"],
+            grouped["window_dollar_volume"] / grouped["window_volume"],
             np.nan,
         )
         grouped["window_return_pct"] = np.where(
@@ -1903,6 +1907,7 @@ def run_production_export_pipeline(
     use_file_cache: bool = True,
     force_refresh: bool = False,
     second_detail_scope: str = "full_universe",
+    progress_callback: Any = None,
 ) -> dict[str, Any]:
     if not databento_api_key:
         raise ValueError("Databento API key is required.")
@@ -1911,10 +1916,17 @@ def run_production_export_pipeline(
     if second_detail_scope not in {"full_universe", "ranked_only", "none"}:
         raise ValueError("second_detail_scope must be one of: full_universe, ranked_only, none")
 
+    def _progress(msg: str) -> None:
+        logger.info(msg)
+        if progress_callback is not None:
+            progress_callback(msg)
+
     resolved_cache_dir = cache_dir or (REPO_ROOT / "artifacts" / "databento_volatility_cache")
     resolved_export_dir = export_dir or default_export_directory()
 
+    _progress("Step 1/10: Listing recent trading days...")
     trading_days = list_recent_trading_days(databento_api_key, dataset=dataset, lookback_days=lookback_days)
+    _progress(f"Step 2/10: Estimating costs ({len(trading_days)} trading days)...")
     cost_estimate = estimate_databento_costs(
         databento_api_key,
         dataset=dataset,
@@ -1925,6 +1937,7 @@ def run_production_export_pipeline(
         premarket_anchor_et=premarket_anchor_et,
     )
 
+    _progress("Step 3/10: Fetching equity universe...")
     raw_universe = fetch_us_equity_universe(fmp_api_key, min_market_cap=min_market_cap or None)
     if fmp_api_key:
         raw_universe = _enrich_universe_with_fundamentals(
@@ -1938,6 +1951,7 @@ def run_production_export_pipeline(
         )
     else:
         raw_universe = _enrich_universe_with_fundamentals(raw_universe, pd.DataFrame())
+    _progress("Step 4/10: Filtering supported universe...")
     supported_universe, unsupported = filter_supported_universe_for_databento(
         databento_api_key,
         dataset=dataset,
@@ -1948,6 +1962,7 @@ def run_production_export_pipeline(
     )
     universe_symbols = set(supported_universe["symbol"].dropna().astype(str).str.upper())
 
+    _progress(f"Step 5/10: Loading daily bars ({len(universe_symbols)} symbols, {len(trading_days)} days)...")
     daily_bars = load_daily_bars(
         databento_api_key,
         dataset=dataset,
@@ -1959,6 +1974,7 @@ def run_production_export_pipeline(
     )
     daily_bars_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
+    _progress(f"Step 6/10: Running intraday screen ({len(trading_days)} days)...")
     intraday = run_intraday_screen(
         databento_api_key,
         dataset=dataset,
@@ -1975,6 +1991,7 @@ def run_production_export_pipeline(
     )
     intraday_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
+    _progress("Step 7/10: Ranking top fraction per day...")
     ranked = rank_top_fraction_per_day(intraday, ranking_metric=ranking_metric, top_fraction=top_fraction)
     if ranked.empty:
         raise RuntimeError("No ranked results were returned for the production export run")
@@ -1994,6 +2011,7 @@ def run_production_export_pipeline(
             "premarket_detail_rows": 0,
         }
     else:
+        _progress(f"Step 8/10: Collecting open-window second detail ({second_detail_scope})...")
         full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
             databento_api_key,
             dataset=dataset,
@@ -2026,6 +2044,7 @@ def run_production_export_pipeline(
             force_refresh=force_refresh,
             early_exchange_datasets=quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS,
         )
+    _progress("Step 9/10: Building features and exports...")
     daily_symbol_features_full_universe, symbol_day_diagnostics = _build_daily_symbol_features_full_universe_export(
         trading_days=trading_days,
         raw_universe=raw_universe,
@@ -2114,6 +2133,7 @@ def run_production_export_pipeline(
         "batl": batl_debug,
     }
 
+    _progress("Step 10/10: Writing export artifacts...")
     export_generated_at = datetime.now(UTC).isoformat(timespec="seconds")
     basename = build_export_basename(prefix="databento_volatility_production")
     manifest = {

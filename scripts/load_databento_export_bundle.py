@@ -37,6 +37,7 @@ def load_export_bundle(export_dir: str | Path) -> dict[str, Any]:
     return {
         "manifest_path": manifest_path,
         "manifest": manifest,
+        "base_prefix": basename,
         "frames": frames,
     }
 
