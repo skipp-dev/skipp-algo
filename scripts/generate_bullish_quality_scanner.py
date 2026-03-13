@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -11,6 +12,7 @@ from scripts.bullish_quality_config import (
     BullishQualityScannerResult,
     build_default_bullish_quality_config,
 )
+from scripts.load_databento_export_bundle import load_export_bundle
 
 
 def _empty_window_feature_table() -> pd.DataFrame:
@@ -35,11 +37,29 @@ def _read_exact_named_frame(export_dir: Path, name: str) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def load_bullish_quality_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    return (
-        _read_exact_named_frame(export_dir, "premarket_window_features_full_universe"),
-        _read_exact_named_frame(export_dir, "daily_symbol_features_full_universe"),
-    )
+def load_bullish_quality_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, list[str], dict[str, Any] | None]:
+    warnings: list[str] = []
+    try:
+        return (
+            _read_exact_named_frame(export_dir, "premarket_window_features_full_universe"),
+            _read_exact_named_frame(export_dir, "daily_symbol_features_full_universe"),
+            warnings,
+            None,
+        )
+    except Exception:
+        payload = load_export_bundle(
+            export_dir,
+            required_frames=("premarket_window_features_full_universe", "daily_symbol_features_full_universe"),
+            manifest_prefix="databento_volatility_production_",
+        )
+        frames = payload["frames"]
+        warnings.append("Fell back to the latest manifest-backed production bundle because exact-named bullish-quality inputs were unavailable.")
+        return (
+            frames["premarket_window_features_full_universe"],
+            frames["daily_symbol_features_full_universe"],
+            warnings,
+            payload.get("manifest") if isinstance(payload.get("manifest"), dict) else None,
+        )
 
 
 def _normalize_trade_date(frame: pd.DataFrame) -> pd.DataFrame:
@@ -135,7 +155,8 @@ def generate_bullish_quality_scanner_result(
 ) -> BullishQualityScannerResult:
     resolved_cfg = cfg or build_default_bullish_quality_config()
     warnings: list[str] = []
-    window_features, daily_features = load_bullish_quality_inputs(export_dir)
+    window_features, daily_features, load_warnings, manifest = load_bullish_quality_inputs(export_dir)
+    warnings.extend(load_warnings)
     window_features = _normalize_trade_date(window_features)
     if window_features.empty:
         warnings.append("No premarket window feature rows were available.")
@@ -159,6 +180,12 @@ def generate_bullish_quality_scanner_result(
 
     latest_trade_date = window_features["trade_date"].dropna().max() if not window_features.empty else None
     source_data_fetched_at = _resolve_source_data_fetched_at(window_features)
+    if source_data_fetched_at is None and manifest:
+        for key in ("source_data_fetched_at", "premarket_fetched_at", "export_generated_at", "exported_at"):
+            value = manifest.get(key)
+            if value:
+                source_data_fetched_at = str(value)
+                break
     diagnostics = _build_filter_diagnostics(window_features, ranked)
     latest_window = _latest_window_table(ranked, resolved_cfg)
 

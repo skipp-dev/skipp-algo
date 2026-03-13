@@ -62,7 +62,7 @@ def _resolve_source_data_fetched_at(frames: list[pd.DataFrame], manifest: dict[s
             if column in frame.columns:
                 values = frame[column].dropna().astype(str)
                 if not values.empty:
-                    return values.iloc[-1]
+                    return str(values.iloc[-1])
     if manifest:
         for key in ("source_data_fetched_at", "premarket_fetched_at", "export_generated_at"):
             value = manifest.get(key)
@@ -105,7 +105,11 @@ def _load_watchlist_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
     if premarket is None:
         fallback_reason_parts.append("premarket_features_full_universe missing_or_corrupt")
 
-    payload = load_export_bundle(export_dir)
+    payload = load_export_bundle(
+        export_dir,
+        required_frames=("daily_symbol_features_full_universe", "premarket_features_full_universe"),
+        manifest_prefix="databento_volatility_production_",
+    )
     frames = payload["frames"]
     bundle_daily = frames.get("daily_symbol_features_full_universe")
     bundle_premarket = frames.get("premarket_features_full_universe")

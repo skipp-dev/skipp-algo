@@ -1637,7 +1637,7 @@ def collect_full_universe_open_window_second_detail(
         return pd.DataFrame(
             columns=[
                 "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
-                "second_delta_pct", "from_previous_close_pct",
+                "trade_count", "second_delta_pct", "from_previous_close_pct",
             ]
         )
 
@@ -1742,6 +1742,15 @@ def collect_full_universe_open_window_second_detail(
                 display_tz = resolve_display_timezone(display_timezone)
                 frame["timestamp"] = frame["ts"].dt.tz_convert(display_tz)
                 frame["session"] = np.where(frame["ts"] < pd.Timestamp(window.regular_open_utc), "premarket", "regular")
+                trade_count_source: str | None = None
+                for candidate in ("trade_count", "count", "n_trades", "num_trades"):
+                    if candidate in frame.columns:
+                        trade_count_source = candidate
+                        break
+                if trade_count_source is not None:
+                    frame["trade_count"] = pd.to_numeric(frame[trade_count_source], errors="coerce")
+                else:
+                    frame["trade_count"] = np.nan
                 frame["second_delta_pct"] = frame.groupby("symbol")["close"].pct_change() * 100.0
                 frame["previous_close"] = frame["symbol"].map(previous_close_by_symbol)
                 frame["from_previous_close_pct"] = np.where(
@@ -1754,7 +1763,7 @@ def collect_full_universe_open_window_second_detail(
                     frame[
                         [
                             "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
-                            "second_delta_pct", "from_previous_close_pct",
+                            "trade_count", "second_delta_pct", "from_previous_close_pct",
                         ]
                     ].reset_index(drop=True)
                 )
@@ -1769,7 +1778,7 @@ def collect_full_universe_open_window_second_detail(
     return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(
         columns=[
             "trade_date", "symbol", "timestamp", "session", "open", "high", "low", "close", "volume",
-            "second_delta_pct", "from_previous_close_pct",
+            "trade_count", "second_delta_pct", "from_previous_close_pct",
         ]
     )
 
@@ -2337,10 +2346,13 @@ def build_data_status_result(export_dir: str | Path | None = None, *, stale_afte
             manifest = {}
 
     export_generated_at = manifest.get("export_generated_at") or manifest.get("exported_at")
+    is_fast_manifest = str(manifest.get("mode") or "") == "preopen_fast_reduced_scope"
     daily_bars_fetched_at = manifest.get("daily_bars_fetched_at") or _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["daily_bars_fetched_at"])
     intraday_fetched_at = manifest.get("intraday_fetched_at")
     premarket_fetched_at = manifest.get("premarket_fetched_at") or _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["premarket_fetched_at"])
-    second_detail_fetched_at = manifest.get("second_detail_fetched_at") or _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["second_detail_fetched_at"])
+    second_detail_fetched_at = manifest.get("second_detail_fetched_at")
+    if second_detail_fetched_at is None and not is_fast_manifest:
+        second_detail_fetched_at = _safe_iso_from_file(target_dir / EXACT_EXPORT_STATUS_FILES["second_detail_fetched_at"])
 
     if not intraday_fetched_at:
         intraday_fetched_at = second_detail_fetched_at or premarket_fetched_at
@@ -3316,9 +3328,6 @@ def export_run_artifacts(
         ),
     )
 
-    manifest_path = target_dir / f"{basename}_manifest.json"
-    _write_text_atomic(manifest_path, json.dumps(manifest_payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
-
     parquet_targets: dict[str, pd.DataFrame] = {
         "summary": summary,
         "universe": universe,
@@ -3343,7 +3352,6 @@ def export_run_artifacts(
 
     created_paths: dict[str, Path] = {
         "excel": excel_path,
-        "manifest": manifest_path,
     }
     for name, frame in parquet_targets.items():
         parquet_path = target_dir / f"{basename}__{name}.parquet"
@@ -3352,6 +3360,10 @@ def export_run_artifacts(
     txt_paths = _write_tradingview_watchlist_exports(target_dir, basename, parquet_targets)
     for name, path in txt_paths.items():
         created_paths[f"txt_{name}"] = path
+
+    manifest_path = target_dir / f"{basename}_manifest.json"
+    _write_text_atomic(manifest_path, json.dumps(manifest_payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    created_paths["manifest"] = manifest_path
     return created_paths
 
 
@@ -3598,6 +3610,10 @@ def run_streamlit_app() -> None:
     if generate_watchlist or (fast_pipeline and pipeline_refresh_ok):
         try:
             watchlist_started = time_module.perf_counter()
+            if is_long_dip_mode:
+                st.session_state["dvs_watchlist_result"] = None
+            else:
+                st.session_state["dvs_bullish_quality_result"] = None
             with st.spinner("Generating watchlist from the latest exported data..." if is_long_dip_mode else "Generating bullish-quality rankings from the latest exported data..."):
                 if is_long_dip_mode:
                     screen_result = generate_watchlist_result(export_dir=Path(export_dir).expanduser(), cfg=watchlist_cfg)
@@ -3636,6 +3652,11 @@ def run_streamlit_app() -> None:
                 add_log(f"Bullish-quality scanner generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
                 st.success(f"Bullish-quality scanner updated in {watchlist_seconds:.1f}s.")
         except Exception as exc:
+            if is_long_dip_mode:
+                st.session_state["dvs_watchlist_result"] = None
+            else:
+                st.session_state["dvs_bullish_quality_result"] = None
+            screen_result = None
             add_log(f"Ranking generation failed: {type(exc).__name__}: {exc}")
             st.error(f"Ranking generation failed: {type(exc).__name__}: {exc}")
 

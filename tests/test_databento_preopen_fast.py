@@ -265,7 +265,7 @@ def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_
         timeseries = _FailingTimeseries()
         metadata = _FailingMetadata()
 
-    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
     monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _FailingClient())
 
@@ -334,7 +334,7 @@ def test_run_preopen_fast_refresh_skips_fetch_when_dataset_not_available(monkeyp
         timeseries = _NeverCalledTimeseries()
         metadata = _EarlyEndMetadata()
 
-    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
     monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
     monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
 

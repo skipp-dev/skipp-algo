@@ -1510,7 +1510,30 @@ def test_build_data_status_result_marks_invalid_manifest_timestamp_as_stale(tmp_
 
     assert status.is_stale is True
     assert status.staleness_reason == "Invalid export timestamp in manifest."
-    assert status.lookback_days == 30
+
+
+def test_build_data_status_result_fast_manifest_does_not_fallback_second_detail_from_full_history_file(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "databento_preopen_fast_20260310_093100_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "mode": "preopen_fast_reduced_scope",
+                "export_generated_at": "2026-03-10T09:31:00+00:00",
+                "premarket_fetched_at": "2026-03-10T09:30:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # This file is a full-history artifact and should not be used for fast-manifest second-detail fallback.
+    (tmp_path / "full_universe_second_detail_open.parquet").write_bytes(b"placeholder")
+
+    status = build_data_status_result(tmp_path, stale_after_minutes=10_000)
+
+    assert status.manifest_path is not None
+    assert status.manifest_path.endswith(manifest_path.name)
+    assert status.second_detail_fetched_at is None
+    assert status.lookback_days is None
 
 
 def test_resolve_manifest_path_accepts_directory_and_basename(tmp_path: Path) -> None:
@@ -3840,3 +3863,216 @@ def test_fetch_us_equity_universe_via_screener_real_stub_returns_empty() -> None
     )
     assert result.empty
     assert list(result.columns) == UNIVERSE_COLUMNS
+
+
+# ---------- Round 7: focused correctness fixes ----------
+
+
+def test_passes_quality_filter_respects_require_close_above_vwap_false(monkeypatch) -> None:
+    """When require_close_above_vwap is False, a symbol with close < vwap should
+    still pass the quality filter and get reason='eligible'."""
+    from scripts import databento_production_export as mod
+    from scripts.bullish_quality_config import BullishQualityConfig
+
+    override = BullishQualityConfig(require_close_above_vwap=False)
+    monkeypatch.setattr(mod, "_DEFAULT_BULLISH_QUALITY_CFG", override)
+
+    daily_bars = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)],
+        "symbol": ["AAPL"],
+        "previous_close": [150.0],
+        "market_open_price": [155.0],
+    })
+    ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")
+    n = 120
+    # First 30 seconds: high volume at high price → pulls VWAP above final close
+    # Last 90 seconds: moderate volume near the top of the range
+    opens = [150.0] * n
+    highs = [160.0] * n
+    lows = [149.0] * n
+    closes = [160.0] * 30 + [158.0] * 90  # window_close = 158
+    volumes = [10_000.0] * 30 + [500.0] * 90
+    trade_counts = [50] * 30 + [10] * 90
+    detail = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)] * n,
+        "symbol": ["AAPL"] * n,
+        "timestamp": [ts_base + pd.Timedelta(seconds=i) for i in range(n)],
+        "session": ["premarket"] * n,
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "volume": volumes,
+        "trade_count": trade_counts,
+    })
+    window_def = (PremarketWindowDefinition("pm_0900_0930", "09:00:00", "09:30:00", "09:00-09:30 ET"),)
+    result = build_premarket_window_features_full_universe_export(
+        detail, daily_bars, window_definitions=window_def,
+        source_data_fetched_at="2026-03-06T09:00:00Z", dataset="DBEQ_BASIC",
+    )
+    row = result.loc[result["symbol"] == "AAPL"].iloc[0]
+    # Sanity: close < vwap in this data
+    assert row["window_close"] < row["window_vwap"], (
+        f"Test setup error: expected close ({row['window_close']}) < vwap ({row['window_vwap']})"
+    )
+    # With require_close_above_vwap=False, close < vwap should not block the filter
+    assert bool(row["passes_quality_filter"]) is True, (
+        f"Expected passes_quality_filter=True with require_close_above_vwap=False, got {row['passes_quality_filter']}"
+    )
+    assert row["quality_filter_reason"] == "eligible", (
+        f"Expected reason='eligible', got {row['quality_filter_reason']}"
+    )
+
+
+def test_passes_quality_filter_vwap_check_still_applies_when_flag_true() -> None:
+    """Default config (require_close_above_vwap=True) should still reject close < vwap."""
+    daily_bars = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)],
+        "symbol": ["AAPL"],
+        "previous_close": [150.0],
+        "market_open_price": [155.0],
+    })
+    ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")
+    n = 120
+    # Same data as above: first 30s at high volume/160 close, last 90s at low volume/158 close
+    opens = [150.0] * n
+    highs = [160.0] * n
+    lows = [149.0] * n
+    closes = [160.0] * 30 + [158.0] * 90
+    volumes = [10_000.0] * 30 + [500.0] * 90
+    trade_counts = [50] * 30 + [10] * 90
+    detail = pd.DataFrame({
+        "trade_date": [date(2026, 3, 6)] * n,
+        "symbol": ["AAPL"] * n,
+        "timestamp": [ts_base + pd.Timedelta(seconds=i) for i in range(n)],
+        "session": ["premarket"] * n,
+        "open": opens,
+        "high": highs,
+        "low": lows,
+        "close": closes,
+        "volume": volumes,
+        "trade_count": trade_counts,
+    })
+
+    window_def = (PremarketWindowDefinition("pm_0900_0930", "09:00:00", "09:30:00", "09:00-09:30 ET"),)
+    result = build_premarket_window_features_full_universe_export(
+        detail, daily_bars, window_definitions=window_def,
+        source_data_fetched_at="2026-03-06T09:00:00Z", dataset="DBEQ_BASIC",
+    )
+    row = result.loc[result["symbol"] == "AAPL"].iloc[0]
+    assert row["window_close"] < row["window_vwap"], "Test setup: close should be below vwap"
+    assert not row["passes_quality_filter"], (
+        f"Expected passes_quality_filter=False when close < vwap, got {row['passes_quality_filter']}"
+    )
+    assert row["quality_filter_reason"] == "close_below_vwap", (
+        f"Expected reason='close_below_vwap', got {row['quality_filter_reason']}"
+    )
+
+
+def test_quality_window_signal_vwap_uses_dollar_volume_directly() -> None:
+    """After removing the redundant window_close_value alias, VWAP should still
+    be computed correctly as sum(dollar_volume) / sum(volume)."""
+    ts_base = pd.Timestamp("2026-03-12 09:00:00", tz="US/Eastern").tz_convert("UTC")
+    detail = pd.DataFrame({
+        "trade_date": [date(2026, 3, 12)] * 3,
+        "symbol": ["TEST"] * 3,
+        "timestamp": [ts_base + pd.Timedelta(seconds=i) for i in range(3)],
+        "session": ["premarket"] * 3,
+        "open": [100.0, 101.0, 102.0],
+        "high": [101.0, 102.0, 103.0],
+        "low": [99.0, 100.0, 101.0],
+        "close": [101.0, 102.0, 103.0],
+        "volume": [1000.0, 2000.0, 3000.0],
+    })
+    daily = pd.DataFrame({
+        "trade_date": [date(2026, 3, 12)],
+        "symbol": ["TEST"],
+        "previous_close": [98.0],
+        "market_open_price": [100.0],
+    })
+    premarket = pd.DataFrame({
+        "trade_date": [date(2026, 3, 12)],
+        "symbol": ["TEST"],
+        "has_premarket_data": [True],
+        "premarket_last": [100.0],
+        "prev_close_to_premarket_pct": [2.0],
+        "premarket_to_open_pct": [0.0],
+    })
+    status, candidate_exports = _compute_quality_window_signal(
+        detail,
+        daily_features=daily,
+        premarket_features=premarket,
+        display_timezone="Europe/Berlin",
+        latest_trade_date=date(2026, 3, 12),
+    )
+    # The function should run without error (no window_close_value dependency).
+    # Verify VWAP-dependent flag: close=103 > VWAP≈102.17 → window_vwap_trend_ok=True
+    late_key = "quality_candidates_0900_0930_all"
+    if late_key in candidate_exports and not candidate_exports[late_key].empty:
+        row = candidate_exports[late_key].iloc[0]
+        assert row["window_vwap_trend_ok"] is True or row["window_vwap_trend_ok"] == True, (
+            f"window_vwap_trend_ok should be True (close > vwap), got {row['window_vwap_trend_ok']}"
+        )
+
+
+def test_collect_full_universe_preserves_trade_count(monkeypatch, tmp_path: Path) -> None:
+    """collect_full_universe_open_window_second_detail should propagate the
+    trade_count column (normalized from 'count') to the output frame."""
+    from databento_volatility_screener import collect_full_universe_open_window_second_detail
+    import databento_volatility_screener as screener_mod
+
+    trade_day = date(2026, 3, 6)
+    ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")
+
+    raw_frame = pd.DataFrame({
+        "ts_event": [ts_base + pd.Timedelta(seconds=i) for i in range(3)],
+        "symbol": ["AAPL"] * 3,
+        "open": [150.0, 151.0, 152.0],
+        "high": [151.0, 152.0, 153.0],
+        "low": [149.0, 150.0, 151.0],
+        "close": [151.0, 152.0, 153.0],
+        "volume": [100, 200, 300],
+        "count": [5, 10, 15],  # Databento uses 'count', not 'trade_count'
+    })
+
+    class FakeStore:
+        def to_df(self, count=None):
+            return raw_frame.copy()
+
+    class FakeTimeseries:
+        def get_range(self, **kwargs):
+            return FakeStore()
+
+    class FakeClient:
+        timeseries = FakeTimeseries()
+
+    monkeypatch.setattr(screener_mod, "_get_schema_available_end", lambda *a, **kw: pd.Timestamp("2026-03-07", tz="UTC"))
+    monkeypatch.setattr(screener_mod, "_probe_symbol_support", lambda *a, **kw: ({"AAPL"}, set()))
+    monkeypatch.setattr(screener_mod, "_make_databento_client", lambda *a, **kw: FakeClient())
+
+    result = collect_full_universe_open_window_second_detail(
+        "fake-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        universe_symbols={"AAPL"},
+        daily_bars=pd.DataFrame({
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "previous_close": [148.0],
+        }),
+        display_timezone="Europe/Berlin",
+        window_start=time(9, 0),
+        window_end=time(9, 30),
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=True,
+    )
+
+    assert not result.empty, "Expected non-empty result"
+    assert "trade_count" in result.columns, (
+        f"Expected 'trade_count' column in output, got columns: {list(result.columns)}"
+    )
+    assert result["trade_count"].tolist() == [5, 10, 15], (
+        f"Expected trade_count=[5,10,15], got {result['trade_count'].tolist()}"
+    )

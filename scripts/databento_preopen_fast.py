@@ -470,6 +470,18 @@ def _write_fast_outputs(
     quality_window_status_latest: pd.DataFrame,
     manifest: dict[str, Any],
 ) -> dict[str, Path]:
+    def _write_parquet_atomic(path: Path, frame: pd.DataFrame) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f".{path.name}.tmp")
+        frame.to_parquet(tmp_path, index=False)
+        tmp_path.replace(path)
+
+    def _write_text_atomic(path: Path, text: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_name(f".{path.name}.tmp")
+        tmp_path.write_text(text, encoding="utf-8")
+        tmp_path.replace(path)
+
     def _merge_by_trade_date(existing_path: Path, current_frame: pd.DataFrame) -> pd.DataFrame:
         if current_frame.empty:
             if existing_path.exists():
@@ -494,7 +506,6 @@ def _write_fast_outputs(
     export_dir.mkdir(parents=True, exist_ok=True)
     basename = manifest["basename"]
     manifest_path = export_dir / f"{basename}_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=True, default=str), encoding="utf-8")
 
     outputs = {
         "manifest": manifest_path,
@@ -504,16 +515,23 @@ def _write_fast_outputs(
         "premarket_window_features": export_dir / "premarket_window_features_full_universe.parquet",
         "quality_window_status_latest": export_dir / "quality_window_status_latest.parquet",
     }
-    _merge_by_trade_date(outputs["daily"], daily_current).to_parquet(outputs["daily"], index=False)
-    _merge_by_trade_date(outputs["premarket"], premarket_current).to_parquet(outputs["premarket"], index=False)
-    _merge_by_trade_date(outputs["diagnostics"], diagnostics_current).to_parquet(outputs["diagnostics"], index=False)
-    _merge_by_trade_date(outputs["premarket_window_features"], premarket_window_current).to_parquet(outputs["premarket_window_features"], index=False)
+    _write_parquet_atomic(outputs["daily"], _merge_by_trade_date(outputs["daily"], daily_current))
+    _write_parquet_atomic(outputs["premarket"], _merge_by_trade_date(outputs["premarket"], premarket_current))
+    _write_parquet_atomic(outputs["diagnostics"], _merge_by_trade_date(outputs["diagnostics"], diagnostics_current))
+    _write_parquet_atomic(
+        outputs["premarket_window_features"],
+        _merge_by_trade_date(outputs["premarket_window_features"], premarket_window_current),
+    )
     if quality_window_status_latest.empty and outputs["quality_window_status_latest"].exists():
         try:
             quality_window_status_latest = pd.read_parquet(outputs["quality_window_status_latest"])
         except Exception:
             pass
-    quality_window_status_latest.to_parquet(outputs["quality_window_status_latest"], index=False)
+    _write_parquet_atomic(outputs["quality_window_status_latest"], quality_window_status_latest)
+    _write_text_atomic(
+        manifest_path,
+        json.dumps(manifest, indent=2, ensure_ascii=True, default=str),
+    )
     return outputs
 
 
@@ -556,7 +574,11 @@ def run_preopen_fast_refresh(
     _progress("Fast refresh 1/5: Loading baseline bundle...")
     resolved_export_dir = Path(export_dir).expanduser() if export_dir is not None else DEFAULT_EXPORT_DIR
     bundle_input = _resolve_full_history_bundle_input(bundle, resolved_export_dir)
-    payload = load_export_bundle(bundle_input)
+    payload = load_export_bundle(
+        bundle_input,
+        required_frames=("daily_symbol_features_full_universe", "daily_bars"),
+        manifest_prefix="databento_volatility_production_",
+    )
     frames = payload["frames"]
     baseline_manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
 

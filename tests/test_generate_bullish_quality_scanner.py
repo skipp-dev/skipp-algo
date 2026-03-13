@@ -77,3 +77,39 @@ def test_generate_bullish_quality_scanner_result_warns_when_no_candidates_pass(t
     assert result.latest_window_table.empty
     assert result.filter_diagnostics_table.loc[0, "pass_rows"] == 0
     assert result.warnings == ["No bullish-quality candidates matched the configured filters."]
+
+
+def test_generate_bullish_quality_scanner_result_falls_back_to_valid_production_bundle(tmp_path: Path) -> None:
+    cfg = build_default_bullish_quality_config()
+
+    # Deliberately create a fast manifest that should be ignored by production-prefixed fallback.
+    (tmp_path / "databento_preopen_fast_20260310_093100_manifest.json").write_text("{}", encoding="utf-8")
+
+    prod_base = "databento_volatility_production_20260310_093100"
+    (tmp_path / f"{prod_base}_manifest.json").write_text(
+        '{"export_generated_at": "2026-03-10T09:31:00+00:00", "premarket_fetched_at": "2026-03-10T09:30:00+00:00"}',
+        encoding="utf-8",
+    )
+    window_features = pd.DataFrame(
+        {
+            "trade_date": ["2026-03-10"],
+            "symbol": ["AAA"],
+            "window_tag": [cfg.window_definitions[-1].tag],
+            "passes_quality_filter": [True],
+            "window_quality_score": [91.0],
+            "window_dollar_volume": [1_500_000.0],
+            "window_return_pct": [1.5],
+            "window_close_position_pct": [96.0],
+            "quality_filter_reason": ["eligible"],
+        }
+    )
+    daily_features = pd.DataFrame({"trade_date": ["2026-03-10"], "symbol": ["AAA"]})
+    window_features.to_parquet(tmp_path / f"{prod_base}__premarket_window_features_full_universe.parquet", index=False)
+    daily_features.to_parquet(tmp_path / f"{prod_base}__daily_symbol_features_full_universe.parquet", index=False)
+
+    result = generate_bullish_quality_scanner_result(export_dir=tmp_path, cfg=cfg)
+
+    assert result.trade_date is not None
+    assert result.trade_date.isoformat() == "2026-03-10"
+    assert result.latest_window_table["symbol"].tolist() == ["AAA"]
+    assert any("Fell back to the latest manifest-backed production bundle" in warning for warning in result.warnings)
