@@ -102,7 +102,10 @@ try:
 
     _cu._make_function_key = _patched_make_function_key  # type: ignore[assignment]
 except Exception:
-    pass  # If Streamlit internals change, silently skip the patch.
+    logging.getLogger(__name__).debug(
+        "Streamlit cache-key monkey patch not applied; falling back to native behavior",
+        exc_info=True,
+    )
 
 # ── Path setup ──────────────────────────────────────────────────
 
@@ -162,7 +165,10 @@ def _load_streamlit_secrets() -> None:
                 os.environ[key] = str(secrets[key])
     except Exception:
         # st.secrets unavailable (no secrets.toml / not on Cloud) — fine.
-        pass
+        logging.getLogger(__name__).debug(
+            "Streamlit secrets unavailable or unreadable; continuing with environment variables only",
+            exc_info=True,
+        )
 
 
 _load_env_file(PROJECT_ROOT / ".env")
@@ -1647,6 +1653,24 @@ def _do_poll() -> None:
             logger.warning("SQLite prune failed: %s", exc, exc_info=True)
 
 
+def _stop_bg_poller_if_running(*, reason: str) -> None:
+    """Stop and detach the background poller if it exists.
+
+    Centralized helper to keep lifecycle transitions consistent when
+    switching between BG and foreground polling modes.
+    """
+    _bp_existing = st.session_state.get("bg_poller")
+    if _bp_existing is None:
+        return
+    try:
+        _bp_existing.stop_and_join(timeout=5.0)
+        logger.info("Background poller stopped (%s)", reason)
+    except Exception:
+        logger.warning("Background poller stop failed (%s)", reason, exc_info=True)
+    finally:
+        st.session_state.bg_poller = None
+
+
 # ── Execute poll if needed ──────────────────────────────────────
 
 # Feed lifecycle management (weekend clear, pre-seed, off-hours throttle)
@@ -1754,6 +1778,7 @@ if st.session_state.use_bg_poller:
     st.session_state.cursor = _bp.cursor
 
 else:
+    _stop_bg_poller_if_running(reason="bg_mode_disabled")
     # ── Foreground (legacy) polling ─────────────────────────
     if _feed_empty_needs_poll:
         with st.spinner("Loading latest news…"):
@@ -1824,6 +1849,7 @@ st.markdown(
 )
 
 if not st.session_state.cfg.benzinga_api_key:
+    _stop_bg_poller_if_running(reason="missing_benzinga_api_key")
     st.warning("Set `BENZINGA_API_KEY` in `.env` to start polling.")
     st.stop()
 
@@ -2077,6 +2103,16 @@ else:
 
         # ── Databento quote enrichment for feed tickers ──
         _feed_nlp: dict[str, Any] = {}
+        _feed_tickers = sorted({
+            str(item.get("ticker") or "").upper().strip()
+            for item in filtered[:50]
+            if str(item.get("ticker") or "").upper().strip() not in {"", "MARKET"}
+        })
+        if databento_available() and _feed_tickers:
+            try:
+                _feed_nlp = fetch_databento_quote_map(_feed_tickers[:200])
+            except Exception:
+                logger.debug("Live Feed Databento quotes failed", exc_info=True)
 
         # Show filtered items
         # Column headers with info popovers
@@ -3797,6 +3833,25 @@ if st.session_state.auto_refresh and (
         # can harvest the result from the Future.
         _ai_future = st.session_state.get("_fmp_ai_future")
         if _ai_future is not None and _ai_future.done():
+            try:
+                st.session_state["fmp_ai_last_result"] = _ai_future.result()
+            except Exception as _ai_exc:
+                logger.warning("AI background task failed", exc_info=True)
+                st.session_state["fmp_ai_last_result"] = {
+                    "error": f"Background analysis failed: {_ai_exc}",
+                    "question": st.session_state.get("fmp_ai_selected_question", ""),
+                    "answer": "",
+                    "model": "",
+                    "cached": False,
+                    "context_articles": 0,
+                    "context_tickers": 0,
+                    "fmp_tickers": 0,
+                    "enrichment_layers": 0,
+                }
+            finally:
+                st.session_state["_fmp_ai_executing"] = False
+                st.session_state.pop("_fmp_ai_future", None)
+                st.session_state.pop("_fmp_ai_submit_ts", None)
             st.session_state["_last_fragment_rerun_ts"] = time.time()
             st.rerun()
 

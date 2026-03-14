@@ -465,7 +465,7 @@ def _write_fast_outputs(
     *,
     daily_current: pd.DataFrame,
     premarket_current: pd.DataFrame,
-    current_second_detail: pd.DataFrame,
+    current_second_detail: pd.DataFrame | None = None,
     diagnostics_current: pd.DataFrame,
     premarket_window_current: pd.DataFrame,
     quality_window_status_latest: pd.DataFrame,
@@ -509,6 +509,8 @@ def _write_fast_outputs(
     export_dir.mkdir(parents=True, exist_ok=True)
     basename = manifest["basename"]
     manifest_path = export_dir / f"{basename}_manifest.json"
+    if current_second_detail is None:
+        current_second_detail = pd.DataFrame()
 
     outputs = {
         "manifest": manifest_path,
