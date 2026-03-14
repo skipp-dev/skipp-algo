@@ -222,6 +222,46 @@ def test_generate_watchlist_result_uses_manifest_exported_at_and_premarket_fallb
     assert result["source_data_fetched_at"] == "2026-03-07T12:10:00+00:00"
 
 
+def test_generate_watchlist_result_falls_back_from_non_trading_day_to_latest_populated_trade_date(tmp_path) -> None:
+    friday = date(2026, 3, 13)
+    saturday = date(2026, 3, 14)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [friday, saturday],
+            "symbol": ["AAA", "AAA"],
+            "exchange": ["NYSE", "NYSE"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [10.0, 10.0],
+            "window_range_pct": [2.0, 2.0],
+            "window_return_pct": [1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0],
+            "selected_top20pct": [True, False],
+            "is_eligible": [True, True],
+            "eligibility_reason": ["eligible", "eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [friday, saturday],
+            "symbol": ["AAA", "AAA"],
+            "has_premarket_data": [True, False],
+            "premarket_last": [10.5, pd.NA],
+            "premarket_volume": [100_000, 0],
+            "premarket_trade_count": [500, 0],
+            "prev_close_to_premarket_pct": [5.0, 0.0],
+        }
+    )
+
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["trade_date"] == "2026-03-13"
+    assert result["active_watchlist_table"]["trade_date"].tolist() == [friday]
+    assert any("non-trading day without qualifying rows" in warning for warning in result["warnings"])
+
+
 def test_merge_open_signal_metrics_preserves_existing_values_when_metrics_are_partial() -> None:
     trade_day = date(2026, 3, 7)
     daily = pd.DataFrame(

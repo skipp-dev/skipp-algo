@@ -26,6 +26,7 @@ from strategy_config import (
     LONG_DIP_POSITION_BUDGET_USD,
     LONG_DIP_TOP_N,
 )
+from newsstack_fmp._market_cal import is_us_equity_trading_day
 from scripts.load_databento_export_bundle import load_export_bundle
 
 
@@ -188,6 +189,28 @@ def load_watchlist_inputs(*, bundle: str | Path | None, export_dir: str | Path |
         raise ValueError("Either bundle or export_dir must be provided.")
     daily, premarket, diagnostics, metadata, _warnings = _load_watchlist_inputs(Path(export_dir).expanduser())
     return daily, premarket, diagnostics, metadata
+
+
+def _resolve_active_trade_date(
+    *,
+    preferred_trade_date: date | None,
+    watchlist_table: pd.DataFrame,
+) -> tuple[date | None, bool]:
+    if preferred_trade_date is None:
+        return None, False
+    if watchlist_table.empty or "trade_date" not in watchlist_table.columns:
+        return preferred_trade_date, False
+
+    available_trade_dates = pd.to_datetime(watchlist_table["trade_date"], errors="coerce").dt.date.dropna()
+    if available_trade_dates.eq(preferred_trade_date).any():
+        return preferred_trade_date, False
+    if is_us_equity_trading_day(preferred_trade_date):
+        return preferred_trade_date, False
+
+    prior_trade_dates = available_trade_dates.loc[available_trade_dates < preferred_trade_date]
+    if prior_trade_dates.empty:
+        return preferred_trade_date, False
+    return cast(date, prior_trade_dates.max()), True
 
 
 def _merge_open_signal_metrics(base: pd.DataFrame, metrics: pd.DataFrame | None) -> pd.DataFrame:
@@ -510,14 +533,24 @@ def generate_watchlist_result(*, export_dir: Path, cfg: LongDipConfig) -> Watchl
                 filter_funnel = []
 
     active_watchlist_table = pd.DataFrame()
-    if not watchlist_table.empty and latest_trade_date is not None and "trade_date" in watchlist_table.columns:
-        active_watchlist_table = watchlist_table.loc[pd.to_datetime(watchlist_table["trade_date"], errors="coerce").dt.date.eq(latest_trade_date)].copy()
+    active_trade_date, used_non_trading_fallback = _resolve_active_trade_date(
+        preferred_trade_date=latest_trade_date,
+        watchlist_table=watchlist_table,
+    )
+    if not watchlist_table.empty and active_trade_date is not None and "trade_date" in watchlist_table.columns:
+        active_watchlist_table = watchlist_table.loc[pd.to_datetime(watchlist_table["trade_date"], errors="coerce").dt.date.eq(active_trade_date)].copy()
 
     source_data_fetched_at = _resolve_source_data_fetched_at([daily, premarket, diagnostics], manifest if isinstance(manifest, dict) else None)
     if source_data_fetched_at is None and isinstance(source_metadata, dict):
         source_data_fetched_at = source_metadata.get("source_data_fetched_at")
 
-    if active_watchlist_table.empty and not use_pre_anchor_seed:
+    if used_non_trading_fallback and latest_trade_date is not None and active_trade_date is not None:
+        warnings.append(
+            "Latest export trade date "
+            f"{latest_trade_date.isoformat()} is a non-trading day without qualifying rows; showing the latest populated trade date "
+            f"{active_trade_date.isoformat()}."
+        )
+    elif active_watchlist_table.empty and not use_pre_anchor_seed:
         warnings.append("No symbols matched the configured Long-Dip filters for the latest trade date.")
 
     if not watchlist_table.empty:
@@ -526,7 +559,7 @@ def generate_watchlist_result(*, export_dir: Path, cfg: LongDipConfig) -> Watchl
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "source_data_fetched_at": source_data_fetched_at,
-        "trade_date": latest_trade_date.isoformat() if latest_trade_date else None,
+        "trade_date": active_trade_date.isoformat() if active_trade_date else None,
         "watchlist_table": watchlist_table,
         "active_watchlist_table": active_watchlist_table,
         "summary_table": active_watchlist_table.copy(),

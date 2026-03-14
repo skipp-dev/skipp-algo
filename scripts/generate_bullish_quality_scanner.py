@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from newsstack_fmp._market_cal import is_us_equity_trading_day
 from scripts.bullish_quality_config import (
     BullishQualityConfig,
     BullishQualityScannerResult,
@@ -133,10 +134,28 @@ def _build_filter_diagnostics(window_features: pd.DataFrame, ranked: pd.DataFram
     return diagnostics.sort_values(["trade_date", "window_tag"]).reset_index(drop=True)
 
 
-def _latest_window_table(ranked: pd.DataFrame, cfg: BullishQualityConfig) -> pd.DataFrame:
+def _resolve_active_trade_date(preferred_trade_date: date | None, ranked: pd.DataFrame) -> tuple[date | None, bool]:
+    if preferred_trade_date is None:
+        return None, False
+    if ranked.empty or "trade_date" not in ranked.columns:
+        return preferred_trade_date, False
+
+    available_trade_dates = ranked["trade_date"].dropna()
+    if available_trade_dates.eq(preferred_trade_date).any():
+        return preferred_trade_date, False
+    if is_us_equity_trading_day(preferred_trade_date):
+        return preferred_trade_date, False
+
+    prior_trade_dates = available_trade_dates.loc[available_trade_dates < preferred_trade_date]
+    if prior_trade_dates.empty:
+        return preferred_trade_date, False
+    return prior_trade_dates.max(), True
+
+
+def _latest_window_table(ranked: pd.DataFrame, cfg: BullishQualityConfig, active_trade_date: date | None = None) -> pd.DataFrame:
     if ranked.empty:
         return ranked.copy()
-    latest_trade_date = ranked["trade_date"].dropna().max()
+    latest_trade_date = active_trade_date or ranked["trade_date"].dropna().max()
     preferred_tag = cfg.window_definitions[-1].tag if cfg.window_definitions else None
     latest = ranked.loc[ranked["trade_date"] == latest_trade_date].copy()
     if preferred_tag is not None and latest["window_tag"].eq(preferred_tag).any():
@@ -200,7 +219,14 @@ def generate_bullish_quality_scanner_result(
 
     latest_trade_date = window_features["trade_date"].dropna().max() if not window_features.empty else None
     diagnostics = _build_filter_diagnostics(window_features, ranked)
-    latest_window = _latest_window_table(ranked, resolved_cfg)
+    active_trade_date, used_non_trading_fallback = _resolve_active_trade_date(latest_trade_date, ranked)
+    latest_window = _latest_window_table(ranked, resolved_cfg, active_trade_date=active_trade_date)
+    if used_non_trading_fallback and latest_trade_date is not None and active_trade_date is not None:
+        warnings.append(
+            "Latest export trade date "
+            f"{latest_trade_date.isoformat()} is a non-trading day without bullish-quality candidates; showing the latest populated trade date "
+            f"{active_trade_date.isoformat()}."
+        )
 
     display_columns = [
         "trade_date",
@@ -220,7 +246,7 @@ def generate_bullish_quality_scanner_result(
     _ = daily_features
     return BullishQualityScannerResult(
         generated_at=datetime.now(UTC).isoformat(timespec="seconds"),
-        trade_date=latest_trade_date,
+        trade_date=active_trade_date,
         source_data_fetched_at=source_data_fetched_at,
         config_snapshot={**asdict(resolved_cfg), "window_definitions": [asdict(item) for item in resolved_cfg.window_definitions]},
         rankings_table=rankings_table,
