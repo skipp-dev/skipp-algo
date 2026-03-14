@@ -1,0 +1,437 @@
+//@version=6
+indicator("BFI Reversal", "BFI-R", overlay=true, max_bars_back=500, max_labels_count=300)
+
+// =====================
+// Presets and base inputs
+// =====================
+groupPreset = "Reversal Mode"
+modePreset = input.string("Early Reversal Balanced", "Signal Mode", options=["Early Reversal Balanced", "Early Reversal Aggressive", "Continuation Breakout"], group=groupPreset)
+
+groupBase = "Structure"
+prdInput = input.int(5, "Pivot Period", minval=2, group=groupBase)
+boLenInput = input.int(200, "Max Structure Length", minval=30, maxval=300, group=groupBase)
+zoneWidthPctInput = input.float(3.0, "Zone Width %", minval=0.5, maxval=10.0, step=0.1, group=groupBase)
+mintestInput = input.int(2, "Minimum Number of Tests", minval=1, group=groupBase)
+confirmLookbackInput = input.int(3, "Reclaim Confirm Lookback", minval=1, maxval=20, group=groupBase)
+setupExpiryBarsInput = input.int(6, "Setup Expiry Bars", minval=1, maxval=20, group=groupBase)
+
+groupFlow = "Flow and Score"
+lowerTf = input.timeframe("1", "Lower Timeframe", group=groupFlow)
+lookback = input.int(20, "Relative Lookback", minval=2, group=groupFlow)
+minRelVolInput = input.float(1.50, "Min Relative Volume", minval=0.1, step=0.05, group=groupFlow)
+minRelActInput = input.float(1.20, "Min Relative Activity", minval=0.1, step=0.05, group=groupFlow)
+minRelSizeInput = input.float(0.80, "Min Relative AvgSize", minval=0.1, step=0.05, group=groupFlow)
+minDeltaAbsPctInput = input.float(0.05, "Min Absolute Delta %", minval=0.0, maxval=1.0, step=0.01, group=groupFlow)
+setupScoreThresholdInput = input.int(4, "Setup Score Threshold", minval=1, maxval=10, group=groupFlow)
+confirmScoreThresholdInput = input.int(3, "Confirm Score Threshold", minval=1, maxval=10, group=groupFlow)
+
+groupAts = "ATS"
+smoothLen = input.int(5, "ATS Smoothing Length", minval=1, group=groupAts)
+baselineLen = input.int(20, "ATS Baseline Length", minval=5, group=groupAts)
+changePctThreshInput = input.float(5.0, "ATS Change Threshold %", minval=0.1, step=0.1, group=groupAts)
+spikeZThreshInput = input.float(1.5, "ATS Spike Z Threshold", minval=0.1, step=0.1, group=groupAts)
+atsSpikeSequenceLength = input.int(2, "ATS Spike Sequence Length", minval=2, maxval=10, group=groupAts)
+
+groupViz = "Visuals"
+showSetupMarkers = input.bool(true, "Show Setup Markers", group=groupViz)
+showConfirmedMarkers = input.bool(true, "Show Confirmed Markers", group=groupViz)
+colorBars = input.bool(true, "Color Bars", group=groupViz)
+bullColor = input.color(color.lime, "Bullish Color", group=groupViz)
+bearColor = input.color(color.red, "Bearish Color", group=groupViz)
+neutralColor = input.color(color.gray, "Neutral Color", group=groupViz)
+int prd = prdInput
+int boLen = boLenInput
+float zoneWidthPct = zoneWidthPctInput
+int mintest = mintestInput
+int confirmLookback = confirmLookbackInput
+int setupExpiryBars = setupExpiryBarsInput
+float minRelVol = minRelVolInput
+float minRelAct = minRelActInput
+float minRelSize = minRelSizeInput
+float minDeltaAbsPct = minDeltaAbsPctInput
+int setupScoreThreshold = setupScoreThresholdInput
+int confirmScoreThreshold = confirmScoreThresholdInput
+float changePctThresh = changePctThreshInput
+float spikeZThresh = spikeZThreshInput
+float zoneWidth = zoneWidthPct / 100.0
+
+if modePreset == "Early Reversal Balanced"
+    prd := math.min(prd, 4)
+    boLen := math.min(boLen, 140)
+    minRelVol := math.min(minRelVol, 1.25)
+    minRelAct := math.min(minRelAct, 1.05)
+    minRelSize := math.min(minRelSize, 0.75)
+    minDeltaAbsPct := math.min(minDeltaAbsPct, 0.03)
+    changePctThresh := math.min(changePctThresh, 3.5)
+    spikeZThresh := math.min(spikeZThresh, 1.2)
+    setupScoreThreshold := math.min(setupScoreThreshold, 4)
+    confirmScoreThreshold := math.min(confirmScoreThreshold, 3)
+    confirmLookback := math.min(confirmLookback, 3)
+    setupExpiryBars := math.min(setupExpiryBars, 6)
+else if modePreset == "Early Reversal Aggressive"
+    prd := math.min(prd, 3)
+    boLen := math.min(boLen, 100)
+    minRelVol := math.min(minRelVol, 1.10)
+    minRelAct := math.min(minRelAct, 1.00)
+    minRelSize := math.min(minRelSize, 0.65)
+    minDeltaAbsPct := math.min(minDeltaAbsPct, 0.01)
+    changePctThresh := math.min(changePctThresh, 2.5)
+    spikeZThresh := math.min(spikeZThresh, 1.0)
+    setupScoreThreshold := math.min(setupScoreThreshold, 3)
+    confirmScoreThreshold := math.min(confirmScoreThreshold, 2)
+    confirmLookback := math.min(confirmLookback, 2)
+    setupExpiryBars := math.min(setupExpiryBars, 5)
+else
+    prd := math.max(prd, 5)
+    boLen := math.max(boLen, 180)
+    minRelVol := math.max(minRelVol, 1.50)
+    minRelAct := math.max(minRelAct, 1.20)
+    minRelSize := math.max(minRelSize, 0.80)
+    minDeltaAbsPct := math.max(minDeltaAbsPct, 0.05)
+    changePctThresh := math.max(changePctThresh, 5.0)
+    spikeZThresh := math.max(spikeZThresh, 1.5)
+    setupScoreThreshold := math.max(setupScoreThreshold, 5)
+    confirmScoreThreshold := math.max(confirmScoreThreshold, 4)
+    confirmLookback := math.max(confirmLookback, 3)
+    setupExpiryBars := math.max(setupExpiryBars, 6)
+
+// =====================
+// Dynamic width
+// =====================
+lll = math.max(math.min(bar_index, 300), 1)
+h_ = ta.highest(high, lll)
+l_ = ta.lowest(low, lll)
+chwidth = (h_ - l_) * zoneWidth
+
+// =====================
+// Pivot storage
+// =====================
+ph = ta.pivothigh(high, prd, prd)
+pl = ta.pivotlow(low, prd, prd)
+
+var phval = array.new_float(0)
+var phloc = array.new_int(0)
+var plval = array.new_float(0)
+var plloc = array.new_int(0)
+
+if not na(ph)
+    array.unshift(phval, ph)
+    array.unshift(phloc, bar_index - prd)
+    if array.size(phval) > 1
+        for x = array.size(phloc) - 1 to 1
+            if bar_index - array.get(phloc, x) > boLen
+                array.pop(phloc)
+                array.pop(phval)
+
+if not na(pl)
+    array.unshift(plval, pl)
+    array.unshift(plloc, bar_index - prd)
+    if array.size(plval) > 1
+        for x = array.size(plloc) - 1 to 1
+            if bar_index - array.get(plloc, x) > boLen
+                array.pop(plloc)
+                array.pop(plval)
+
+// =====================
+// Build support / resistance zones from clustered pivots
+// =====================
+float resistanceLevel = na
+int resistanceStart = bar_index
+int resistanceTests = 0
+if array.size(phval) >= mintest
+    float clusterTop = array.get(phval, 0)
+    for x = 1 to array.size(phval) - 1
+        clusterTop := math.max(clusterTop, array.get(phval, x))
+    int clusterCount = 0
+    int earliestLoc = bar_index
+    for x = 0 to array.size(phval) - 1
+        float pivotHigh = array.get(phval, x)
+        int pivotLoc = array.get(phloc, x)
+        if pivotHigh <= clusterTop and pivotHigh >= clusterTop - chwidth
+            clusterCount += 1
+            earliestLoc := math.min(earliestLoc, pivotLoc)
+    if clusterCount >= mintest
+        resistanceLevel := clusterTop
+        resistanceStart := earliestLoc
+        resistanceTests := clusterCount
+
+float supportLevel = na
+int supportStart = bar_index
+int supportTests = 0
+if array.size(plval) >= mintest
+    float clusterBottom = array.get(plval, 0)
+    for x = 1 to array.size(plval) - 1
+        clusterBottom := math.min(clusterBottom, array.get(plval, x))
+    int clusterCount = 0
+    int earliestLoc = bar_index
+    for x = 0 to array.size(plval) - 1
+        float pivotLow = array.get(plval, x)
+        int pivotLoc = array.get(plloc, x)
+        if pivotLow >= clusterBottom and pivotLow <= clusterBottom + chwidth
+            clusterCount += 1
+            earliestLoc := math.min(earliestLoc, pivotLoc)
+    if clusterCount >= mintest
+        supportLevel := clusterBottom
+        supportStart := earliestLoc
+        supportTests := clusterCount
+
+// =====================
+// Original breakout context retained as a score component
+// =====================
+float bomax = na
+int bullBreakStart = bar_index
+int bullBreakTests = 0
+hgst = ta.highest(high, prd)[1]
+
+if array.size(phval) >= mintest and close > open and close > hgst
+    bomax := array.get(phval, 0)
+    int xx = 0
+    for x = 0 to array.size(phval) - 1
+        if array.get(phval, x) >= close
+            break
+        xx := x
+        bomax := math.max(bomax, array.get(phval, x))
+    if xx >= mintest and open <= bomax
+        for x = 0 to xx
+            if array.get(phval, x) <= bomax and array.get(phval, x) >= bomax - chwidth
+                bullBreakTests += 1
+                bullBreakStart := array.get(phloc, x)
+        if bullBreakTests < mintest or hgst >= bomax
+            bomax := na
+
+bullRaw = not na(bomax) and bullBreakTests >= mintest
+
+float bomin = na
+int bearBreakStart = bar_index
+int bearBreakTests = 0
+lwst = ta.lowest(low, prd)[1]
+
+if array.size(plval) >= mintest and close < open and close < lwst
+    bomin := array.get(plval, 0)
+    int xx1 = 0
+    for x = 0 to array.size(plval) - 1
+        if array.get(plval, x) <= close
+            break
+        xx1 := x
+        bomin := math.min(bomin, array.get(plval, x))
+    if xx1 >= mintest and open >= bomin
+        for x = 0 to xx1
+            if array.get(plval, x) >= bomin and array.get(plval, x) <= bomin + chwidth
+                bearBreakTests += 1
+                bearBreakStart := array.get(plloc, x)
+        if bearBreakTests < mintest or lwst <= bomin
+            bomin := na
+
+bearRaw = not na(bomin) and bearBreakTests >= mintest
+
+// =====================
+// Lower timeframe flow proxy
+// =====================
+array<float> ltfVols = request.security_lower_tf(syminfo.tickerid, lowerTf, volume)
+array<float> ltfOpens = request.security_lower_tf(syminfo.tickerid, lowerTf, open)
+array<float> ltfCloses = request.security_lower_tf(syminfo.tickerid, lowerTf, close)
+
+int activeBars = 0
+float deltaProxy = 0.0
+
+if array.size(ltfVols) > 0
+    for i = 0 to array.size(ltfVols) - 1
+        float v = array.get(ltfVols, i)
+        float o = array.get(ltfOpens, i)
+        float c = array.get(ltfCloses, i)
+        if v > 0
+            activeBars += 1
+        if c > o
+            deltaProxy += v
+        else if c < o
+            deltaProxy -= v
+
+activeBarsF = float(activeBars)
+avgSizeProxyRaw = activeBars > 0 ? volume / activeBarsF : na
+
+volAvg = ta.sma(volume, lookback)
+actAvg = ta.sma(activeBarsF, lookback)
+sizeAvg = ta.sma(avgSizeProxyRaw, lookback)
+
+relVol = volAvg > 0 ? volume / volAvg : na
+relAct = actAvg > 0 ? activeBarsF / actAvg : na
+relSize = sizeAvg > 0 ? avgSizeProxyRaw / sizeAvg : na
+barDeltaPct = volume > 0 ? deltaProxy / volume : na
+
+// =====================
+// ATS and flow conditions
+// =====================
+avgSizeProxy = ta.ema(avgSizeProxyRaw, smoothLen)
+baselineMean = ta.sma(avgSizeProxy, baselineLen)
+baselineStd = ta.stdev(avgSizeProxy, baselineLen)
+changePct = not na(avgSizeProxy[1]) and avgSizeProxy[1] > 0 ? ((avgSizeProxy / avgSizeProxy[1]) - 1.0) * 100.0 : na
+zScore = baselineStd > 0 ? (avgSizeProxy - baselineMean) / baselineStd : na
+
+rising = not na(changePct) and changePct >= changePctThresh
+falling = not na(changePct) and changePct <= -changePctThresh
+spikeUp = not na(zScore) and zScore >= spikeZThresh and rising
+spikeDown = not na(zScore) and zScore <= -spikeZThresh and falling
+
+var int consecutiveSpikeUp = 0
+var int consecutiveSpikeDown = 0
+consecutiveSpikeUp := spikeUp ? nz(consecutiveSpikeUp[1]) + 1 : 0
+consecutiveSpikeDown := spikeDown ? nz(consecutiveSpikeDown[1]) + 1 : 0
+
+bullishAtsSpikeUpSignal = spikeUp
+bearishAtsSpikeDownSignal = spikeDown
+bullishAtsSpikeSequenceSignal = consecutiveSpikeUp >= atsSpikeSequenceLength and nz(consecutiveSpikeUp[1]) < atsSpikeSequenceLength
+bearishAtsSpikeSequenceSignal = consecutiveSpikeDown >= atsSpikeSequenceLength and nz(consecutiveSpikeDown[1]) < atsSpikeSequenceLength
+
+atsTurnUp = rising or spikeUp or (not na(changePct) and not na(changePct[1]) and changePct > changePct[1] and changePct > 0)
+atsTurnDown = falling or spikeDown or (not na(changePct) and not na(changePct[1]) and changePct < changePct[1] and changePct < 0)
+
+relVolOk = not na(relVol) and relVol >= minRelVol
+relActOk = not na(relAct) and relAct >= minRelAct
+relSizeOk = not na(relSize) and relSize >= minRelSize
+positiveDeltaOk = not na(barDeltaPct) and barDeltaPct >= minDeltaAbsPct
+negativeDeltaOk = not na(barDeltaPct) and barDeltaPct <= -minDeltaAbsPct
+
+// =====================
+// Reversal structure and score model
+// =====================
+barRange = math.max(high - low, syminfo.mintick)
+bullishWickReject = close >= low + barRange * 0.60
+bearishWickReject = close <= low + barRange * 0.40
+
+bullishSweepReclaim = not na(supportLevel) and low < supportLevel and close > supportLevel and close > open
+bearishSweepReclaim = not na(resistanceLevel) and high > resistanceLevel and close < resistanceLevel and close < open
+
+bullishDeltaDivergence = bullishSweepReclaim and not na(barDeltaPct) and not na(barDeltaPct[1]) and barDeltaPct > barDeltaPct[1]
+bearishDeltaDivergence = bearishSweepReclaim and not na(barDeltaPct) and not na(barDeltaPct[1]) and barDeltaPct < barDeltaPct[1]
+
+bullStructureOk = modePreset == "Continuation Breakout" ? bullRaw : bullishSweepReclaim
+bearStructureOk = modePreset == "Continuation Breakout" ? bearRaw : bearishSweepReclaim
+
+int bullScore = 0
+int bearScore = 0
+
+if bullStructureOk
+    bullScore += 2
+if bearStructureOk
+    bearScore += 2
+if bullRaw
+    bullScore += 1
+if bearRaw
+    bearScore += 1
+if relVolOk
+    bullScore += 1
+    bearScore += 1
+if relActOk
+    bullScore += 1
+    bearScore += 1
+if relSizeOk
+    bullScore += 1
+    bearScore += 1
+if positiveDeltaOk or bullishDeltaDivergence
+    bullScore += 1
+if negativeDeltaOk or bearishDeltaDivergence
+    bearScore += 1
+if bullishWickReject
+    bullScore += 1
+if bearishWickReject
+    bearScore += 1
+if atsTurnUp
+    bullScore += 1
+if atsTurnDown
+    bearScore += 1
+if spikeUp
+    bullScore += 1
+if spikeDown
+    bearScore += 1
+
+bullSetupCondition = bullStructureOk and bullScore >= setupScoreThreshold
+bearSetupCondition = bearStructureOk and bearScore >= setupScoreThreshold
+
+// =====================
+// Two-stage setup / confirmation state
+// =====================
+var bool bullSetupArmed = false
+var bool bearSetupArmed = false
+var int bullSetupAge = 0
+var int bearSetupAge = 0
+var float bullTrigger = na
+var float bearTrigger = na
+var float bullStoredLevel = na
+var float bearStoredLevel = na
+var float bullStoredWidth = na
+var float bearStoredWidth = na
+
+bullSetupSignal = false
+bearSetupSignal = false
+bullConfirmedSignal = false
+bearConfirmedSignal = false
+
+if bullSetupArmed
+    bullSetupAge += 1
+    if bullSetupAge > setupExpiryBars or (not na(bullStoredLevel) and close < bullStoredLevel - bullStoredWidth)
+        bullSetupArmed := false
+        bullSetupAge := 0
+        bullTrigger := na
+        bullStoredLevel := na
+        bullStoredWidth := na
+
+if bearSetupArmed
+    bearSetupAge += 1
+    if bearSetupAge > setupExpiryBars or (not na(bearStoredLevel) and close > bearStoredLevel + bearStoredWidth)
+        bearSetupArmed := false
+        bearSetupAge := 0
+        bearTrigger := na
+        bearStoredLevel := na
+        bearStoredWidth := na
+
+if bullSetupCondition and not bullSetupArmed
+    bullSetupSignal := true
+    bullSetupArmed := true
+    bullSetupAge := 0
+    bullStoredLevel := supportLevel
+    bullStoredWidth := chwidth
+    bullTrigger := math.max(high, nz(ta.highest(high, confirmLookback)[1], high))
+
+if bearSetupCondition and not bearSetupArmed
+    bearSetupSignal := true
+    bearSetupArmed := true
+    bearSetupAge := 0
+    bearStoredLevel := resistanceLevel
+    bearStoredWidth := chwidth
+    bearTrigger := math.min(low, nz(ta.lowest(low, confirmLookback)[1], low))
+
+if bullSetupArmed and bullSetupAge > 0 and not na(bullTrigger) and close > bullTrigger and bullScore >= confirmScoreThreshold
+    bullConfirmedSignal := true
+    bullSetupArmed := false
+    bullSetupAge := 0
+    bullTrigger := na
+
+if bearSetupArmed and bearSetupAge > 0 and not na(bearTrigger) and close < bearTrigger and bearScore >= confirmScoreThreshold
+    bearConfirmedSignal := true
+    bearSetupArmed := false
+    bearSetupAge := 0
+    bearTrigger := na
+
+// =====================
+// Visuals
+// =====================
+setupBarColor = bullConfirmedSignal ? color.new(bullColor, 0) : bearConfirmedSignal ? color.new(bearColor, 0) : bullSetupArmed ? color.new(bullColor, 55) : bearSetupArmed ? color.new(bearColor, 55) : na
+barcolor(colorBars ? setupBarColor : na)
+
+plotshape(showSetupMarkers and bullSetupSignal, title="Bullish Reversal Setup", location=location.belowbar, style=shape.circle, size=size.tiny, color=color.new(bullColor, 0), text="SET")
+plotshape(showSetupMarkers and bearSetupSignal, title="Bearish Reversal Setup", location=location.abovebar, style=shape.circle, size=size.tiny, color=color.new(bearColor, 0), text="SET")
+plotshape(showConfirmedMarkers and bullConfirmedSignal, title="Bullish Reversal Confirmed", location=location.belowbar, style=shape.triangleup, size=size.small, color=bullColor, text="REV")
+plotshape(showConfirmedMarkers and bearConfirmedSignal, title="Bearish Reversal Confirmed", location=location.abovebar, style=shape.triangledown, size=size.small, color=bearColor, text="REV")
+
+plotshape(spikeUp, title="ATS Spike Up", style=shape.labelup, location=location.top, color=bullColor, text="ATS")
+plotshape(spikeDown, title="ATS Spike Down", style=shape.labeldown, location=location.bottom, color=bearColor, text="ATS")
+
+alertcondition(bullishAtsSpikeUpSignal, title="Bullish ATS Spike Up", message="{{ticker}} bullish ATS spike up on {{interval}}")
+alertcondition(bearishAtsSpikeDownSignal, title="Bearish ATS Spike Down", message="{{ticker}} bearish ATS spike down on {{interval}}")
+alertcondition(bullishAtsSpikeSequenceSignal, title="Bullish ATS Spike Sequence", message="{{ticker}} bullish ATS spike sequence reached on {{interval}}")
+alertcondition(bearishAtsSpikeSequenceSignal, title="Bearish ATS Spike Sequence", message="{{ticker}} bearish ATS spike sequence reached on {{interval}}")
+alertcondition(bullSetupSignal, title="Bullish Reversal Setup", message="{{ticker}} bullish reversal setup armed on {{interval}}")
+alertcondition(bearSetupSignal, title="Bearish Reversal Setup", message="{{ticker}} bearish reversal setup armed on {{interval}}")
+alertcondition(bullConfirmedSignal, title="Bullish Reversal Confirmed", message="{{ticker}} bullish reversal confirmed on {{interval}}")
+alertcondition(bearConfirmedSignal, title="Bearish Reversal Confirmed", message="{{ticker}} bearish reversal confirmed on {{interval}}")
+alertcondition(bullConfirmedSignal or bearConfirmedSignal, title="Reversal Confirmed", message="{{ticker}} reversal confirmed on {{interval}}")
