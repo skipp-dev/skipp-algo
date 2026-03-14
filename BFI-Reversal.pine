@@ -35,6 +35,7 @@ atsSpikeSequenceLength = input.int(2, "ATS Spike Sequence Length", minval=2, max
 groupViz = "Visuals"
 showSetupMarkers = input.bool(true, "Show Setup Markers", group=groupViz)
 showConfirmedMarkers = input.bool(true, "Show Confirmed Markers", group=groupViz)
+showDashboard = input.bool(true, "Show Status Table", group=groupViz)
 colorBars = input.bool(true, "Color Bars", group=groupViz)
 bullColor = input.color(color.lime, "Bullish Color", group=groupViz)
 bearColor = input.color(color.red, "Bearish Color", group=groupViz)
@@ -347,6 +348,9 @@ if spikeDown
 bullSetupCondition = bullStructureOk and bullScore >= setupScoreThreshold
 bearSetupCondition = bearStructureOk and bearScore >= setupScoreThreshold
 
+priorBullConfirmLevel = nz(ta.highest(high, confirmLookback)[1], high)
+priorBearConfirmLevel = nz(ta.lowest(low, confirmLookback)[1], low)
+
 // =====================
 // Two-stage setup / confirmation state
 // =====================
@@ -390,7 +394,7 @@ if bullSetupCondition and not bullSetupArmed
     bullSetupAge := 0
     bullStoredLevel := supportLevel
     bullStoredWidth := chwidth
-    bullTrigger := math.max(high, nz(ta.highest(high, confirmLookback)[1], high))
+    bullTrigger := math.max(high, priorBullConfirmLevel)
 
 if bearSetupCondition and not bearSetupArmed
     bearSetupSignal := true
@@ -398,7 +402,7 @@ if bearSetupCondition and not bearSetupArmed
     bearSetupAge := 0
     bearStoredLevel := resistanceLevel
     bearStoredWidth := chwidth
-    bearTrigger := math.min(low, nz(ta.lowest(low, confirmLookback)[1], low))
+    bearTrigger := math.min(low, priorBearConfirmLevel)
 
 if bullSetupArmed and bullSetupAge > 0 and not na(bullTrigger) and close > bullTrigger and bullScore >= confirmScoreThreshold
     bullConfirmedSignal := true
@@ -426,10 +430,43 @@ plotshape(showConfirmedMarkers and bearConfirmedSignal, title="Bearish Reversal 
 plotshape(spikeUp, title="ATS Spike Up", style=shape.labelup, location=location.top, color=bullColor, text="ATS")
 plotshape(spikeDown, title="ATS Spike Down", style=shape.labeldown, location=location.bottom, color=bearColor, text="ATS")
 
+// =====================
+// Compact status table
+// =====================
+var table dash = table.new(position.top_right, 2, 8, border_width=1)
+if showDashboard and barstate.islast
+    table.clear(dash, 0, 0, 1, 7)
+    color atsColor = spikeUp ? bullColor : spikeDown ? bearColor : rising ? color.new(bullColor, 0) : falling ? color.new(bearColor, 0) : neutralColor
+    string signalText = bullConfirmedSignal ? "BULL CONFIRMED" : bearConfirmedSignal ? "BEAR CONFIRMED" : bullSetupArmed ? "BULL ARMED" : bearSetupArmed ? "BEAR ARMED" : bullSetupSignal ? "BULL SETUP" : bearSetupSignal ? "BEAR SETUP" : "NONE"
+    color signalColor = bullConfirmedSignal or bullSetupArmed or bullSetupSignal ? bullColor : bearConfirmedSignal or bearSetupArmed or bearSetupSignal ? bearColor : neutralColor
+    string spikeStreakText = consecutiveSpikeUp > 0 ? "UP " + str.tostring(consecutiveSpikeUp) : consecutiveSpikeDown > 0 ? "DOWN " + str.tostring(consecutiveSpikeDown) : "0"
+    string reversalSetupText = bullSetupSignal ? "BULL" : bearSetupSignal ? "BEAR" : bullSetupArmed ? "BULL ARMED" : bearSetupArmed ? "BEAR ARMED" : "NONE"
+    color reversalSetupColor = bullSetupSignal or bullSetupArmed ? bullColor : bearSetupSignal or bearSetupArmed ? bearColor : neutralColor
+    string reversalConfirmedText = bullConfirmedSignal ? "BULL" : bearConfirmedSignal ? "BEAR" : "NONE"
+    color reversalConfirmedColor = bullConfirmedSignal ? bullColor : bearConfirmedSignal ? bearColor : neutralColor
+
+    table.cell(dash, 0, 0, "Metric", text_color=color.white, bgcolor=color.rgb(45, 45, 45))
+    table.cell(dash, 1, 0, "Value", text_color=color.white, bgcolor=color.rgb(45, 45, 45))
+    table.cell(dash, 0, 1, "ATS")
+    table.cell(dash, 1, 1, str.tostring(avgSizeProxy, "#.00"), text_color=atsColor)
+    table.cell(dash, 0, 2, "ATS Change %")
+    table.cell(dash, 1, 2, str.tostring(changePct, "#.0"), text_color=atsColor)
+    table.cell(dash, 0, 3, "ATS State")
+    table.cell(dash, 1, 3, spikeUp ? "SPIKE UP" : spikeDown ? "SPIKE DOWN" : rising ? "RISING" : falling ? "FALLING" : "NEUTRAL", text_color=atsColor)
+    table.cell(dash, 0, 4, "Signal")
+    table.cell(dash, 1, 4, signalText, text_color=signalColor)
+    table.cell(dash, 0, 5, "ATS Spike Streak")
+    table.cell(dash, 1, 5, spikeStreakText, text_color=consecutiveSpikeUp > 0 ? bullColor : consecutiveSpikeDown > 0 ? bearColor : neutralColor)
+    table.cell(dash, 0, 6, "Reversal Setup")
+    table.cell(dash, 1, 6, reversalSetupText, text_color=reversalSetupColor)
+    table.cell(dash, 0, 7, "Reversal Confirmed")
+    table.cell(dash, 1, 7, reversalConfirmedText, text_color=reversalConfirmedColor)
+
 alertcondition(bullishAtsSpikeUpSignal, title="Bullish ATS Spike Up", message="{{ticker}} bullish ATS spike up on {{interval}}")
 alertcondition(bearishAtsSpikeDownSignal, title="Bearish ATS Spike Down", message="{{ticker}} bearish ATS spike down on {{interval}}")
 alertcondition(bullishAtsSpikeSequenceSignal, title="Bullish ATS Spike Sequence", message="{{ticker}} bullish ATS spike sequence reached on {{interval}}")
 alertcondition(bearishAtsSpikeSequenceSignal, title="Bearish ATS Spike Sequence", message="{{ticker}} bearish ATS spike sequence reached on {{interval}}")
+alertcondition(bullSetupSignal or bullishAtsSpikeSequenceSignal, title="Bullish Reversal Setup Or ATS Spike Sequence", message="{{ticker}} bullish reversal setup or bullish ATS spike sequence on {{interval}}")
 alertcondition(bullSetupSignal, title="Bullish Reversal Setup", message="{{ticker}} bullish reversal setup armed on {{interval}}")
 alertcondition(bearSetupSignal, title="Bearish Reversal Setup", message="{{ticker}} bearish reversal setup armed on {{interval}}")
 alertcondition(bullConfirmedSignal, title="Bullish Reversal Confirmed", message="{{ticker}} bullish reversal confirmed on {{interval}}")
