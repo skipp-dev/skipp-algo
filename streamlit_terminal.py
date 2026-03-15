@@ -188,7 +188,12 @@ from terminal_export import (
     save_vd_snapshot,
 )
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
-from open_prep.realtime_signals import RealtimeEngine, ensure_rt_engine_running
+from open_prep.realtime_signals import (
+    RealtimeEngine,
+    ensure_rt_engine_running,
+    get_rt_engine_status,
+    get_rt_engine_telemetry_status,
+)
 from open_prep.log_redaction import apply_global_log_redaction
 apply_global_log_redaction()
 from terminal_notifications import NotifyConfig, notify_high_score_items
@@ -759,8 +764,12 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "last_poll_duration_s": 0.0,
     "alert_log": [],
     "bg_poller": None,
+    "bg_poller_last_failure": None,
+    "bg_poller_restart_count": 0,
+    "bg_poller_total_dropped": 0,
     "notify_log": [],
     "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "1") != "0",
+    "rt_engine_last_check_ts": 0.0,
     "tv_health_prev_status": "healthy",
     "tv_health_log": [],
 }
@@ -803,13 +812,18 @@ if "spike_detector" not in st.session_state:
     )
 
 # ── Auto-start RT signal engine (background process) ───────────
-# Runs once per session — the engine persists across Streamlit reruns.
+# Re-check periodically so transient startup failures and dead processes
+# don't get stuck behind a one-shot session flag.
 _is_cloud_rt = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
-if not _is_cloud_rt and "rt_engine_started" not in st.session_state:
-    _rt_started = ensure_rt_engine_running(project_root=PROJECT_ROOT)
-    st.session_state.rt_engine_started = _rt_started
-    if _rt_started:
-        logger.info("RT signal engine auto-started from streamlit_terminal")
+if not _is_cloud_rt:
+    _rt_now = time.time()
+    _rt_last_check = float(st.session_state.get("rt_engine_last_check_ts", 0.0) or 0.0)
+    if "rt_engine_started" not in st.session_state or (_rt_now - _rt_last_check) >= 60.0:
+        _rt_started = ensure_rt_engine_running(project_root=PROJECT_ROOT)
+        st.session_state.rt_engine_started = _rt_started
+        st.session_state.rt_engine_last_check_ts = _rt_now
+        if _rt_started:
+            logger.info("RT signal engine ensure() completed from streamlit_terminal")
 
 
 def _get_adapter() -> BenzingaRestAdapter | None:
@@ -829,6 +843,29 @@ def _get_store() -> SqliteStore:
         os.makedirs(os.path.dirname(cfg.sqlite_path) or ".", exist_ok=True)
         st.session_state.store = SqliteStore(cfg.sqlite_path)
     return st.session_state.store  # type: ignore[no-any-return]
+
+
+def _snapshot_bg_poller_state(poller: BackgroundPoller, *, reason: str, restarting: bool = False) -> None:
+    dropped_count = int(getattr(poller, "total_items_dropped", 0) or 0)
+    snapshot = {
+        "reason": reason,
+        "observed_at": time.time(),
+        "poll_count": int(getattr(poller, "poll_count", 0) or 0),
+        "poll_attempts": int(getattr(poller, "poll_attempts", 0) or 0),
+        "last_poll_status": str(getattr(poller, "last_poll_status", "—") or "—"),
+        "last_poll_error": str(getattr(poller, "last_poll_error", "") or ""),
+        "last_poll_ts": float(getattr(poller, "last_poll_ts", 0.0) or 0.0),
+        "total_items_dropped": dropped_count,
+    }
+    st.session_state["bg_poller_total_dropped"] = max(
+        int(st.session_state.get("bg_poller_total_dropped", 0) or 0),
+        dropped_count,
+    )
+    had_problem = bool(snapshot["last_poll_error"]) or snapshot["last_poll_status"] == "ERROR" or reason == "unexpected_exit"
+    if had_problem:
+        st.session_state["bg_poller_last_failure"] = snapshot
+    if restarting:
+        st.session_state["bg_poller_restart_count"] = int(st.session_state.get("bg_poller_restart_count", 0) or 0) + 1
 
 
 # ── Sidebar ─────────────────────────────────────────────────────
@@ -1218,6 +1255,17 @@ with st.sidebar:
             st.success("BG Poller: running")
         else:
             st.error("BG Poller: stopped (will restart)")
+        _drop_count = max(
+            int(st.session_state.get("bg_poller_total_dropped", 0) or 0),
+            int(getattr(st.session_state.bg_poller, "total_items_dropped", 0) or 0),
+        )
+        if _drop_count:
+            st.warning(f"BG Poller backlog dropped {_drop_count} queued item(s).")
+    _last_bg_failure = st.session_state.get("bg_poller_last_failure")
+    if isinstance(_last_bg_failure, dict):
+        _failure_text = str(_last_bg_failure.get("last_poll_error") or _last_bg_failure.get("last_poll_status") or _last_bg_failure.get("reason") or "unknown")
+        _restart_count = int(st.session_state.get("bg_poller_restart_count", 0) or 0)
+        st.caption(f"Last BG restart cause: {_failure_text} | restarts: {_restart_count}")
 
     st.divider()
 
@@ -1226,10 +1274,25 @@ with st.sidebar:
     if _is_cloud:
         st.caption("RT Engine: ☁️ Cloud mode (local-only feature)")
     else:
+        _rt_status = get_rt_engine_status()
+        _telemetry_status = get_rt_engine_telemetry_status()
         _rt_path = str(PROJECT_ROOT / "artifacts" / "open_prep" / "latest" / "latest_vd_signals.jsonl")
         _rt_quotes = load_rt_quotes(_rt_path)
-        if _rt_quotes:
+        if _rt_status.get("running") and _rt_quotes:
             st.success(f"RT Engine: {len(_rt_quotes)} symbols live")
+        elif _rt_status.get("running"):
+            st.warning("RT Engine: process running, but no fresh signal snapshot is visible yet")
+        else:
+            _rt_error = str(_rt_status.get("error") or "not running")
+            st.error(f"RT Engine: {_rt_error}")
+        _telemetry_url = str(_telemetry_status.get("url") or "")
+        _telemetry_error = str(_telemetry_status.get("error") or "")
+        if _telemetry_url and _telemetry_error:
+            st.caption(f"Telemetry: {_telemetry_url} ({_telemetry_error})")
+        elif _telemetry_url:
+            st.caption(f"Telemetry: {_telemetry_url}")
+        elif _telemetry_error:
+            st.warning(f"Telemetry: {_telemetry_error}")
         else:
             if os.path.isfile(_rt_path):
                 _rt_age = time.time() - os.path.getmtime(_rt_path)
@@ -1668,6 +1731,7 @@ def _stop_bg_poller_if_running(*, reason: str) -> None:
     except Exception:
         logger.warning("Background poller stop failed (%s)", reason, exc_info=True)
     finally:
+        _snapshot_bg_poller_state(_bp_existing, reason=reason)
         st.session_state.bg_poller = None
 
 
@@ -1728,6 +1792,15 @@ if st.session_state.use_bg_poller:
         with st.spinner("Loading latest news…"):
             _do_poll()
 
+    _existing_bp = st.session_state.get("bg_poller")
+    if _existing_bp is not None and not _existing_bp.is_alive:
+        _snapshot_bg_poller_state(_existing_bp, reason="unexpected_exit", restarting=True)
+        logger.warning(
+            "Background poller died unexpectedly; restarting (last_status=%s)",
+            getattr(_existing_bp, "last_poll_status", "—"),
+        )
+        st.session_state.bg_poller = None
+
     # Start background poller if not running
     if st.session_state.bg_poller is None or not st.session_state.bg_poller.is_alive:
         _bp = BackgroundPoller(
@@ -1775,6 +1848,10 @@ if st.session_state.use_bg_poller:
     st.session_state.last_poll_duration_s = getattr(_bp, "last_poll_duration_s", 0.0)
     st.session_state.total_items_ingested = max(
         st.session_state.total_items_ingested, _bp.total_items_ingested)
+    st.session_state["bg_poller_total_dropped"] = max(
+        int(st.session_state.get("bg_poller_total_dropped", 0) or 0),
+        int(getattr(_bp, "total_items_dropped", 0) or 0),
+    )
     st.session_state.cursor = _bp.cursor
 
 else:

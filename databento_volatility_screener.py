@@ -4061,7 +4061,7 @@ def run_streamlit_app() -> None:
     import os
     import streamlit as st
     from datetime import UTC, datetime
-    from dotenv import load_dotenv, set_key, unset_key
+    from dotenv import load_dotenv
     from pathlib import Path
 
     from scripts.bullish_quality_config import build_default_bullish_quality_config
@@ -4079,20 +4079,6 @@ def run_streamlit_app() -> None:
 
     st.title("Databento Volatility Screener")
     st.caption("Single point of view for data freshness, pipeline actions, top-N watchlist and per-entry strategy details.")
- 
-    def _persist_sidebar_secret(env_name: str, session_key: str) -> None:
-        value = str(st.session_state.get(session_key, "")).strip()
-        if value:
-            os.environ[env_name] = value
-        else:
-            os.environ.pop(env_name, None)
-        try:
-            if value:
-                set_key(str(repo_env_path), env_name, value)
-            elif repo_env_path.exists():
-                unset_key(str(repo_env_path), env_name)
-        except Exception:
-            logger.warning("Failed to persist %s to %s", env_name, repo_env_path, exc_info=True)
 
     if "dvs_databento_api_key" not in st.session_state:
         st.session_state["dvs_databento_api_key"] = os.getenv("DATABENTO_API_KEY", "")
@@ -4105,17 +4091,14 @@ def run_streamlit_app() -> None:
             "Databento API Key",
             type="password",
             key="dvs_databento_api_key",
-            on_change=_persist_sidebar_secret,
-            args=("DATABENTO_API_KEY", "dvs_databento_api_key"),
         )
         st.text_input(
             "FMP API Key (optional, free tier fallback)",
             type="password",
             key="dvs_fmp_api_key",
-            on_change=_persist_sidebar_secret,
-            args=("FMP_API_KEY", "dvs_fmp_api_key"),
             help="Optional. Used as fallback universe source when Nasdaq Trader is unavailable. Free tier is sufficient.",
         )
+        st.caption("API keys entered here stay in the current Streamlit session and are not written back to .env.")
         databento_api_key = str(st.session_state.get("dvs_databento_api_key", "")).strip()
         fmp_api_key = str(st.session_state.get("dvs_fmp_api_key", "")).strip()
         export_dir = st.text_input("Export directory", value=str(default_export_directory()))

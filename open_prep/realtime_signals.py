@@ -100,6 +100,127 @@ THIN_VOLUME_RATIO = 0.5             # symbol is "thin" if vol < 50% avg
 _RT_ENGINE_PID_FILE = _ARTIFACTS_LATEST / "realtime_engine.pid"
 _RT_ENGINE_LOCK_FILE = _ARTIFACTS_LATEST / "realtime_engine.lock"
 _RT_ENGINE_LOG_FILE = _ARTIFACTS_LATEST / "realtime_signals.log"
+_RT_ENGINE_STATUS_FILE = _ARTIFACTS_LATEST / "realtime_engine_status.json"
+_RT_ENGINE_TELEMETRY_FILE = _ARTIFACTS_LATEST / "realtime_telemetry.json"
+
+
+def _write_json_atomically(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, sort_keys=True)
+        os.replace(tmp_path, path)
+    finally:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+
+
+def _read_json_file(path: Path) -> dict[str, Any] | None:
+    try:
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return raw if isinstance(raw, dict) else None
+    except Exception:
+        logger.debug("Failed to read JSON file: %s", path, exc_info=True)
+        return None
+
+
+def _update_rt_engine_status(*, running: bool, pid: int | None, error: str | None = None) -> None:
+    _write_json_atomically(
+        _RT_ENGINE_STATUS_FILE,
+        {
+            "running": bool(running),
+            "pid": int(pid) if pid is not None else None,
+            "error": str(error) if error else "",
+            "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+            "log_path": str(_RT_ENGINE_LOG_FILE),
+        },
+    )
+
+
+def _update_telemetry_status(
+    *,
+    enabled: bool,
+    requested_port: int,
+    active_port: int | None,
+    error: str | None = None,
+) -> None:
+    _write_json_atomically(
+        _RT_ENGINE_TELEMETRY_FILE,
+        {
+            "enabled": bool(enabled),
+            "requested_port": int(requested_port),
+            "active_port": int(active_port) if active_port is not None else None,
+            "url": f"http://127.0.0.1:{active_port}" if active_port is not None else "",
+            "error": str(error) if error else "",
+            "updated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        },
+    )
+
+
+def _detect_rt_engine_pid() -> int | None:
+    import subprocess
+
+    if _RT_ENGINE_PID_FILE.exists():
+        try:
+            pid = int(_RT_ENGINE_PID_FILE.read_text().strip())
+            os.kill(pid, 0)
+            return pid
+        except (ValueError, OSError):
+            try:
+                _RT_ENGINE_PID_FILE.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "python.*-m open_prep.realtime_signals"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception:
+        return None
+    if result.returncode != 0 or not result.stdout.strip():
+        return None
+    for raw_pid in result.stdout.splitlines():
+        try:
+            pid = int(raw_pid.strip())
+        except ValueError:
+            continue
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            continue
+        try:
+            _RT_ENGINE_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _RT_ENGINE_PID_FILE.write_text(str(pid))
+        except OSError:
+            pass
+        return pid
+    return None
+
+
+def get_rt_engine_status() -> dict[str, Any]:
+    payload = _read_json_file(_RT_ENGINE_STATUS_FILE) or {}
+    if "running" not in payload:
+        pid = _detect_rt_engine_pid()
+        payload = {
+            "running": pid is not None,
+            "pid": pid,
+            "error": "",
+            "log_path": str(_RT_ENGINE_LOG_FILE),
+        }
+    return payload
+
+
+def get_rt_engine_telemetry_status() -> dict[str, Any]:
+    return _read_json_file(_RT_ENGINE_TELEMETRY_FILE) or {}
 
 
 def ensure_rt_engine_running(
@@ -116,11 +237,14 @@ def ensure_rt_engine_running(
     Returns ``True`` if the engine was started (or is already running),
     ``False`` on failure.
     """
-    import subprocess
-
     if project_root is None:
         project_root = Path(__file__).resolve().parents[1]
     project_root = Path(project_root)
+
+    pid = _detect_rt_engine_pid()
+    if pid is not None:
+        _update_rt_engine_status(running=True, pid=pid, error=None)
+        return True
 
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -128,10 +252,23 @@ def ensure_rt_engine_running(
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        # Another process holds the lock — engine launch already in progress
+        # Another process holds the lock — wait briefly and verify that a
+        # running engine actually becomes visible before claiming success.
         lock_fd.close()
-        logger.debug("RT engine lock held by another process, assuming start in progress")
-        return True
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            pid = _detect_rt_engine_pid()
+            if pid is not None:
+                _update_rt_engine_status(running=True, pid=pid, error=None)
+                return True
+            time.sleep(0.2)
+        _update_rt_engine_status(
+            running=False,
+            pid=None,
+            error="RT engine startup lock held, but no running process became visible.",
+        )
+        logger.warning("RT engine lock held but no running process became visible within the wait window")
+        return False
 
     try:
         return _ensure_rt_engine_running_locked(
@@ -151,38 +288,11 @@ def _ensure_rt_engine_running_locked(
     """Inner helper — called while holding the engine lock file."""
     import subprocess
 
-    # Check if already running via PID file
-    if _RT_ENGINE_PID_FILE.exists():
-        try:
-            pid = int(_RT_ENGINE_PID_FILE.read_text().strip())
-            os.kill(pid, 0)  # signal 0 = check existence
-            logger.debug("RT engine already running (PID %d)", pid)
-            return True
-        except (ValueError, OSError):
-            # PID file stale or process gone — remove and re-launch
-            try:
-                _RT_ENGINE_PID_FILE.unlink(missing_ok=True)
-            except OSError:
-                pass
-
-    # Also check via pgrep as fallback (covers cases where PID file is missing)
-    try:
-        result = subprocess.run(
-            ["pgrep", "-f", "python.*-m open_prep.realtime_signals"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            pids = result.stdout.strip().split("\n")
-            logger.debug("RT engine detected via pgrep (PIDs: %s)", ", ".join(pids))
-            # Write PID file for next check
-            try:
-                _RT_ENGINE_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-                _RT_ENGINE_PID_FILE.write_text(pids[0].strip())
-            except OSError:
-                pass
-            return True
-    except Exception:
-        pass
+    pid = _detect_rt_engine_pid()
+    if pid is not None:
+        logger.debug("RT engine already running (PID %d)", pid)
+        _update_rt_engine_status(running=True, pid=pid, error=None)
+        return True
 
     # Not running — start it
     logger.info("Starting RT engine as background process (interval=%ds)…", poll_interval)
@@ -224,10 +334,22 @@ def _ensure_rt_engine_running_locked(
             )
         finally:
             log_fh.close()  # parent doesn't need the fd — child inherited it
+        time.sleep(0.5)
+        if proc.poll() is not None:
+            _RT_ENGINE_PID_FILE.unlink(missing_ok=True)
+            _update_rt_engine_status(
+                running=False,
+                pid=None,
+                error=f"RT engine exited immediately with code {proc.returncode}.",
+            )
+            logger.warning("RT engine exited immediately after launch (code=%s)", proc.returncode)
+            return False
         _RT_ENGINE_PID_FILE.write_text(str(proc.pid))
+        _update_rt_engine_status(running=True, pid=proc.pid, error=None)
         logger.info("RT engine started (PID %d, log: %s)", proc.pid, _RT_ENGINE_LOG_FILE)
         return True
     except Exception as exc:
+        _update_rt_engine_status(running=False, pid=None, error=f"Failed to start RT engine: {type(exc).__name__}")
         logger.warning("Failed to start RT engine: %s", exc, exc_info=True)
         return False
 
@@ -546,11 +668,33 @@ def _start_telemetry_server(
         server = HTTPServer(("127.0.0.1", port), _Handler)
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
+        _update_telemetry_status(enabled=True, requested_port=port, active_port=int(server.server_port), error=None)
         logger.info("Telemetry HTTP server listening on http://127.0.0.1:%d", port)
         return server
     except OSError as exc:
         logger.warning("Could not start telemetry server on port %d: %s", port, type(exc).__name__, exc_info=True)
-        return None
+        try:
+            fallback_server = HTTPServer(("127.0.0.1", 0), _Handler)
+            t = threading.Thread(target=fallback_server.serve_forever, daemon=True)
+            t.start()
+            fallback_port = int(fallback_server.server_port)
+            error = f"Requested port {port} unavailable ({type(exc).__name__}); using fallback port {fallback_port}."
+            _update_telemetry_status(
+                enabled=True,
+                requested_port=port,
+                active_port=fallback_port,
+                error=error,
+            )
+            logger.warning("Telemetry server fell back to port %d after port %d failed", fallback_port, port)
+            return fallback_server
+        except OSError as fallback_exc:
+            error = (
+                f"Requested port {port} unavailable ({type(exc).__name__}); "
+                f"fallback bind failed ({type(fallback_exc).__name__})."
+            )
+            _update_telemetry_status(enabled=False, requested_port=port, active_port=None, error=error)
+            logger.warning("Could not start telemetry server fallback after port %d failed", port, exc_info=True)
+            return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
