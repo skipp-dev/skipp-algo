@@ -9,6 +9,7 @@ from typing import Any, TypedDict, cast
 
 import pandas as pd
 
+from databento_volatility_screener import EXACT_NAMED_EXPORT_STATE_FILE
 from strategy_config import (
     LONG_DIP_DEFAULTS,
     LONG_DIP_EARLY_MIN_PREMARKET_ACTIVE_SECONDS,
@@ -105,6 +106,17 @@ def _load_latest_manifest(export_dir: Path) -> tuple[dict[str, Any] | None, Path
     return None, manifest_path
 
 
+def _load_exact_named_state(export_dir: Path) -> tuple[dict[str, Any] | None, Path | None]:
+    state_path = export_dir / EXACT_NAMED_EXPORT_STATE_FILE
+    if not state_path.exists():
+        return None, None
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None, state_path
+    return payload if isinstance(payload, dict) else None, state_path
+
+
 def _resolve_source_data_fetched_at(frames: list[pd.DataFrame], manifest: dict[str, Any] | None) -> str | None:
     for frame in frames:
         for column in ("source_data_fetched_at", "premarket_fetched_at", "daily_bars_fetched_at"):
@@ -129,7 +141,9 @@ def _load_watchlist_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
     daily = _safe_read_parquet(daily_path)
     premarket = _safe_read_parquet(premarket_path)
     diagnostics = _safe_read_parquet(diagnostics_path)
-    manifest, manifest_path = _load_latest_manifest(export_dir)
+    exact_state, exact_state_path = _load_exact_named_state(export_dir)
+    exact_manifest = exact_state.get("manifest") if isinstance(exact_state, dict) and isinstance(exact_state.get("manifest"), dict) else None
+    manifest, manifest_path = (exact_manifest, exact_state_path) if exact_manifest is not None else _load_latest_manifest(export_dir)
 
     if daily is not None and premarket is not None:
         exact_paths = [path for path in (daily_path, premarket_path, diagnostics_path) if path.exists()]
@@ -146,6 +160,10 @@ def _load_watchlist_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
         }
         if manifest_path is not None:
             metadata["manifest_path"] = str(manifest_path)
+        if isinstance(exact_state, dict):
+            source_manifest_path = exact_state.get("source_manifest_path")
+            if source_manifest_path:
+                metadata["source_manifest_path"] = str(source_manifest_path)
         return _normalize_frame(daily), _normalize_frame(premarket), _normalize_frame(diagnostics if diagnostics is not None else pd.DataFrame()), metadata, warnings
 
     payload = load_export_bundle(

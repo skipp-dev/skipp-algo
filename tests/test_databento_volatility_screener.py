@@ -38,6 +38,7 @@ from scripts.databento_production_export import (
 )
 
 from databento_volatility_screener import (
+    EXACT_NAMED_EXPORT_STATE_FILE,
     _build_focus_window_coverage_series,
     _build_open_pattern_status_series,
     _build_watchlist_snapshot_panel_frames,
@@ -71,6 +72,7 @@ from databento_volatility_screener import (
     _symbol_scope_token,
     _update_state_from_chunk,
     _write_cached_frame,
+    _write_exact_named_export_state,
     _write_symbol_support_cache,
     build_daily_features_full_universe,
     collect_detail_tables_for_summary,
@@ -78,6 +80,7 @@ from databento_volatility_screener import (
     export_run_artifacts,
     fetch_symbol_day_detail,
     fetch_us_equity_universe,
+    fetch_us_equity_universe_with_metadata,
     list_recent_trading_days,
     load_daily_bars,
     normalize_symbol_for_databento,
@@ -1609,6 +1612,50 @@ def test_fetch_us_equity_universe_uses_screener_for_market_cap_filtered_calls(mo
     result = fetch_us_equity_universe("fake-key", min_market_cap=1000.0)
 
     assert result.equals(screener)
+
+
+def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_applied(monkeypatch) -> None:
+    screener = pd.DataFrame(
+        {
+            "symbol": ["AAPL"],
+            "company_name": ["Apple Inc."],
+            "exchange": ["NASDAQ"],
+            "sector": ["Technology"],
+            "industry": ["Consumer Electronics"],
+            "market_cap": [1.0],
+        }
+    )
+
+    monkeypatch.setattr("databento_volatility_screener._fetch_us_equity_universe_via_screener", lambda *args, **kwargs: screener)
+
+    result, metadata = fetch_us_equity_universe_with_metadata("fake-key", min_market_cap=1000.0)
+
+    assert result.equals(screener)
+    assert metadata["source"] == "fmp_company_screener"
+    assert metadata["min_market_cap_applied"] is True
+    assert metadata["min_market_cap_effective"] == 1000.0
+
+
+def test_fetch_us_equity_universe_with_metadata_marks_market_cap_filter_as_not_applied_without_fmp(monkeypatch) -> None:
+    official = pd.DataFrame(
+        {
+            "symbol": ["BATL"],
+            "company_name": ["Battalion Oil"],
+            "exchange": ["AMEX"],
+            "sector": [""],
+            "industry": [""],
+            "market_cap": [pd.NA],
+        }
+    )
+
+    monkeypatch.setattr("databento_volatility_screener._fetch_us_equity_universe_via_nasdaq_trader", lambda **_: official)
+
+    result, metadata = fetch_us_equity_universe_with_metadata("", min_market_cap=1000.0)
+
+    assert result.equals(official)
+    assert metadata["source"] == "nasdaq_trader_symbol_directory"
+    assert metadata["min_market_cap_applied"] is False
+    assert metadata["min_market_cap_effective"] is None
 
 
 def test_extract_unresolved_symbols_from_warning_messages_normalizes_aliases() -> None:
@@ -4299,6 +4346,26 @@ def test_write_streamlit_watchlist_txt_exports_prefers_active_table_and_fixed_fi
     assert result["txt_topn_full_history"].name == "tradingview_watchlist_topn_full_history.txt"
     assert result["txt_topn_latest"].read_text(encoding="utf-8") == "NASDAQ:AAPL,"
     assert result["txt_topn_full_history"].read_text(encoding="utf-8") == "NASDAQ:AAPL,NASDAQ:MSFT,"
+
+
+def test_write_exact_named_export_state_persists_manifest_and_paths(tmp_path) -> None:
+    manifest = {"export_generated_at": "2026-03-15T08:00:00+00:00", "dataset": "DBEQ.BASIC"}
+    artifacts = {
+        "daily_symbol_features_full_universe": tmp_path / "daily_symbol_features_full_universe.parquet",
+        "premarket_features_full_universe": tmp_path / "premarket_features_full_universe.parquet",
+    }
+
+    state_path = _write_exact_named_export_state(
+        tmp_path,
+        manifest=manifest,
+        artifact_paths=artifacts,
+        source_manifest_path=tmp_path / "databento_volatility_production_20260315_080000_manifest.json",
+    )
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state_path.name == EXACT_NAMED_EXPORT_STATE_FILE
+    assert payload["manifest"] == manifest
+    assert payload["artifact_paths"]["daily_symbol_features_full_universe"].endswith("daily_symbol_features_full_universe.parquet")
 
 
 # ---- 6. Error paths (API errors) ----

@@ -61,6 +61,7 @@ CACHE_VERSION_BY_CATEGORY = {
 }
 CACHE_ROOT = Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache"
 WATCHLIST_SNAPSHOT_FILE = "watchlist_rank_history.parquet"
+EXACT_NAMED_EXPORT_STATE_FILE = "databento_exact_named_state.json"
 FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
     "earnings_date",
     "earnings_time",
@@ -795,12 +796,38 @@ def fetch_us_equity_universe(
     min_market_cap: float | None = None,
     exchanges: str = "NASDAQ,NYSE,AMEX",
 ) -> pd.DataFrame:
+    frame, _metadata = fetch_us_equity_universe_with_metadata(
+        fmp_api_key,
+        min_market_cap=min_market_cap,
+        exchanges=exchanges,
+    )
+    return frame
+
+
+def fetch_us_equity_universe_with_metadata(
+    fmp_api_key: str = "",
+    *,
+    min_market_cap: float | None = None,
+    exchanges: str = "NASDAQ,NYSE,AMEX",
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    requested_min_market_cap = float(min_market_cap) if min_market_cap is not None else None
     if min_market_cap is not None and fmp_api_key:
         client = FMPClient(fmp_api_key)
-        return _fetch_us_equity_universe_via_screener(
-            client,
-            min_market_cap=min_market_cap,
-            exchanges=exchanges,
+        return (
+            _fetch_us_equity_universe_via_screener(
+                client,
+                min_market_cap=min_market_cap,
+                exchanges=exchanges,
+            ),
+            {
+                "source": "fmp_company_screener",
+                "fallback_source": "nasdaq_trader_symbol_directory",
+                "scope_definition": "US equity universe returned by the FMP company screener for the requested exchanges, filtered by the requested market-cap floor before Databento symbol support is applied.",
+                "min_market_cap_requested": requested_min_market_cap,
+                "min_market_cap_effective": requested_min_market_cap,
+                "min_market_cap_applied": True,
+                "selection_reason": "market_cap_filter_requested",
+            },
         )
     if min_market_cap is not None and not fmp_api_key:
         logger.warning(
@@ -811,18 +838,51 @@ def fetch_us_equity_universe(
 
     official = _fetch_us_equity_universe_via_nasdaq_trader(exchanges=exchanges)
     if not official.empty:
-        return official
+        return (
+            official,
+            {
+                "source": "nasdaq_trader_symbol_directory",
+                "fallback_source": "fmp_company_screener" if fmp_api_key else None,
+                "scope_definition": "Listed non-ETF, non-test issues from Nasdaq Trader symbol directories for the requested US exchanges; Databento support is applied afterward.",
+                "min_market_cap_requested": requested_min_market_cap,
+                "min_market_cap_effective": None,
+                "min_market_cap_applied": False,
+                "selection_reason": "official_directory",
+            },
+        )
 
     if fmp_api_key:
         client = FMPClient(fmp_api_key)
-        return _fetch_us_equity_universe_via_screener(
-            client,
-            min_market_cap=min_market_cap,
-            exchanges=exchanges,
+        return (
+            _fetch_us_equity_universe_via_screener(
+                client,
+                min_market_cap=min_market_cap,
+                exchanges=exchanges,
+            ),
+            {
+                "source": "fmp_company_screener",
+                "fallback_source": "nasdaq_trader_symbol_directory",
+                "scope_definition": "US equity universe returned by the FMP company screener after the Nasdaq Trader directory fetch failed; Databento support is applied afterward.",
+                "min_market_cap_requested": requested_min_market_cap,
+                "min_market_cap_effective": requested_min_market_cap,
+                "min_market_cap_applied": requested_min_market_cap is not None,
+                "selection_reason": "official_directory_failed",
+            },
         )
 
     logger.warning("Nasdaq Trader directory fetch failed and no FMP API key provided; returning empty universe.")
-    return _empty_universe_frame()
+    return (
+        _empty_universe_frame(),
+        {
+            "source": "empty",
+            "fallback_source": None,
+            "scope_definition": "No universe rows available because the Nasdaq Trader directory fetch failed and no FMP API key was provided for fallback.",
+            "min_market_cap_requested": requested_min_market_cap,
+            "min_market_cap_effective": None,
+            "min_market_cap_applied": False,
+            "selection_reason": "no_available_source",
+        },
+    )
 
 
 def _empty_universe_frame() -> pd.DataFrame:
@@ -3470,6 +3530,24 @@ def _write_streamlit_watchlist_txt_exports(export_dir: Path, watchlist_result: d
             created["txt_topn_full_history"] = history_path
 
     return created
+
+
+def _write_exact_named_export_state(
+    export_dir: Path,
+    *,
+    manifest: dict[str, Any],
+    artifact_paths: dict[str, Path],
+    source_manifest_path: Path | None = None,
+) -> Path:
+    export_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "manifest": manifest,
+        "source_manifest_path": str(source_manifest_path) if source_manifest_path is not None else None,
+        "artifact_paths": {name: str(path) for name, path in artifact_paths.items()},
+    }
+    state_path = export_dir / EXACT_NAMED_EXPORT_STATE_FILE
+    _write_text_atomic(state_path, json.dumps(payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    return state_path
 
 
 def _watchlist_snapshot_path(export_dir: Path) -> Path:

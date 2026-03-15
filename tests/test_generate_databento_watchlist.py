@@ -222,6 +222,62 @@ def test_generate_watchlist_result_uses_manifest_exported_at_and_premarket_fallb
     assert result["source_data_fetched_at"] == "2026-03-07T12:10:00+00:00"
 
 
+def test_generate_watchlist_result_exact_named_prefers_exact_named_state_over_newer_unrelated_manifest(tmp_path) -> None:
+    trade_day = date(2026, 3, 7)
+    exact_state = {
+        "manifest": {
+            "export_generated_at": "2026-03-07T12:15:00+00:00",
+            "premarket_fetched_at": "2026-03-07T12:10:00+00:00",
+            "premarket_anchor_et": "04:00:00",
+        },
+        "source_manifest_path": str(tmp_path / "databento_volatility_production_20260307_121500_manifest.json"),
+        "artifact_paths": {
+            "daily_symbol_features_full_universe": str(tmp_path / "daily_symbol_features_full_universe.parquet"),
+            "premarket_features_full_universe": str(tmp_path / "premarket_features_full_universe.parquet"),
+        },
+    }
+    (tmp_path / "databento_exact_named_state.json").write_text(__import__("json").dumps(exact_state), encoding="utf-8")
+    (tmp_path / "databento_preopen_fast_20260307_130000_manifest.json").write_text(
+        __import__("json").dumps({"export_generated_at": "2026-03-07T13:00:00+00:00"}),
+        encoding="utf-8",
+    )
+
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [10.0],
+            "window_range_pct": [2.0],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.5],
+            "premarket_volume": [100_000],
+            "premarket_trade_count": [500],
+            "prev_close_to_premarket_pct": [5.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["source_metadata"]["export_generated_at"] == "2026-03-07T12:15:00+00:00"
+    assert result["source_metadata"]["manifest_path"].endswith("databento_exact_named_state.json")
+    assert result["source_metadata"]["source_manifest_path"].endswith("databento_volatility_production_20260307_121500_manifest.json")
+
+
 def test_generate_watchlist_result_falls_back_from_non_trading_day_to_latest_populated_trade_date(tmp_path) -> None:
     friday = date(2026, 3, 13)
     saturday = date(2026, 3, 14)

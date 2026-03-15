@@ -539,3 +539,4 @@ def test_write_fast_outputs_preserves_existing_when_current_frame_empty(tmp_path
     assert pd.read_parquet(tmp_path / "symbol_day_diagnostics.parquet").equals(existing_diag)
     assert pd.read_parquet(tmp_path / "premarket_window_features_full_universe.parquet").equals(existing_window)
     assert pd.read_parquet(tmp_path / "quality_window_status_latest.parquet").equals(existing_status)
+    assert (tmp_path / "databento_exact_named_state.json").exists()

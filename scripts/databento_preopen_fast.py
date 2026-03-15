@@ -29,6 +29,7 @@ from databento_volatility_screener import (
     _make_databento_client,
     _safe_float,
     _store_to_frame,
+    _write_exact_named_export_state,
     choose_default_dataset,
     list_accessible_datasets,
     normalize_symbol_for_databento,
@@ -541,6 +542,12 @@ def _write_fast_outputs(
     _write_text_atomic(
         manifest_path,
         json.dumps(manifest, indent=2, ensure_ascii=True, default=str),
+    )
+    outputs["exact_named_state"] = _write_exact_named_export_state(
+        export_dir,
+        manifest=manifest,
+        artifact_paths={key: value for key, value in outputs.items() if key != "manifest"},
+        source_manifest_path=manifest_path,
     )
     return outputs
 

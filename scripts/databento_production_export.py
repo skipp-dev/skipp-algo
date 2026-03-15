@@ -27,6 +27,7 @@ from databento_volatility_screener import (
     DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
     DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
     US_EASTERN_TZ,
+    _write_exact_named_export_state,
     _write_parquet_atomic,
     _write_tradingview_watchlist_exports,
     _read_cached_frame,
@@ -43,7 +44,7 @@ from databento_volatility_screener import (
     estimate_databento_costs,
     export_run_artifacts,
     fetch_symbol_day_detail,
-    fetch_us_equity_universe,
+    fetch_us_equity_universe_with_metadata,
     filter_supported_universe_for_databento,
     list_accessible_datasets,
     list_recent_trading_days,
@@ -2184,7 +2185,10 @@ def run_production_export_pipeline(
     )
 
     _progress("Step 3/10: Fetching equity universe...")
-    raw_universe = fetch_us_equity_universe(fmp_api_key, min_market_cap=min_market_cap or None)
+    raw_universe, universe_metadata = fetch_us_equity_universe_with_metadata(
+        fmp_api_key,
+        min_market_cap=min_market_cap or None,
+    )
     if fmp_api_key:
         raw_universe = _enrich_universe_with_fundamentals(
             raw_universe,
@@ -2482,9 +2486,13 @@ def run_production_export_pipeline(
     basename = build_export_basename(prefix="databento_volatility_production")
     manifest = {
         "dataset": dataset,
-        "universe_source": "nasdaq_trader_symbol_directory",
-        "universe_source_fallback": "fmp_company_screener_when_min_market_cap_is_set_or_directory_fetch_fails",
-        "universe_scope_definition": "Listed non-ETF, non-test issues from Nasdaq Trader symbol directories for the requested US exchanges; Databento support is applied afterward.",
+        "universe_source": universe_metadata.get("source"),
+        "universe_source_fallback": universe_metadata.get("fallback_source"),
+        "universe_scope_definition": universe_metadata.get("scope_definition"),
+        "universe_selection_reason": universe_metadata.get("selection_reason"),
+        "universe_min_market_cap_requested": universe_metadata.get("min_market_cap_requested"),
+        "universe_min_market_cap_effective": universe_metadata.get("min_market_cap_effective"),
+        "universe_min_market_cap_applied": universe_metadata.get("min_market_cap_applied"),
         "lookback_days": lookback_days,
         "top_fraction": top_fraction,
         "ranking_metric": ranking_metric,
@@ -2663,8 +2671,15 @@ def run_production_export_pipeline(
             "quality_window_status_latest": quality_window_status,
         },
     )
+    exact_named_state_path = _write_exact_named_export_state(
+        resolved_export_dir,
+        manifest=manifest,
+        artifact_paths=exact_named_paths,
+        source_manifest_path=paths.get("manifest"),
+    )
     for name, path in exact_named_paths.items():
         paths[f"exact_{name}"] = path
+    paths["exact_named_state"] = exact_named_state_path
 
     return {
         "manifest": manifest,
