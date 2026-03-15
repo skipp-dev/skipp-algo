@@ -143,7 +143,12 @@ def _load_watchlist_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
     diagnostics = _safe_read_parquet(diagnostics_path)
     exact_state, exact_state_path = _load_exact_named_state(export_dir)
     exact_manifest = exact_state.get("manifest") if isinstance(exact_state, dict) and isinstance(exact_state.get("manifest"), dict) else None
-    manifest, manifest_path = (exact_manifest, exact_state_path) if exact_manifest is not None else _load_latest_manifest(export_dir)
+    source_manifest_path = None
+    if isinstance(exact_state, dict):
+        raw_source_manifest_path = exact_state.get("source_manifest_path")
+        if raw_source_manifest_path:
+            source_manifest_path = Path(raw_source_manifest_path)
+    manifest, manifest_path = (exact_manifest, source_manifest_path) if exact_manifest is not None else _load_latest_manifest(export_dir)
 
     if daily is not None and premarket is not None:
         exact_paths = [path for path in (daily_path, premarket_path, diagnostics_path) if path.exists()]
@@ -161,8 +166,8 @@ def _load_watchlist_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
         if manifest_path is not None:
             metadata["manifest_path"] = str(manifest_path)
         if isinstance(exact_state, dict):
-            source_manifest_path = exact_state.get("source_manifest_path")
-            if source_manifest_path:
+            metadata["exact_named_state_path"] = str(exact_state_path)
+            if source_manifest_path is not None:
                 metadata["source_manifest_path"] = str(source_manifest_path)
         return _normalize_frame(daily), _normalize_frame(premarket), _normalize_frame(diagnostics if diagnostics is not None else pd.DataFrame()), metadata, warnings
 

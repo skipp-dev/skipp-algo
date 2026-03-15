@@ -2715,13 +2715,7 @@ def main() -> None:
 
     available = list_accessible_datasets(databento_api_key)
     requested_dataset = (os.getenv("DATABENTO_DATASET") or "").strip()
-    if requested_dataset:
-        dataset = choose_default_dataset(available, requested_dataset=requested_dataset)
-    elif "DBEQ.BASIC" in available:
-        dataset = "DBEQ.BASIC"
-    else:
-        dataset = choose_default_dataset(available, requested_dataset="DBEQ.BASIC")
-        print(f"INFO: DBEQ.BASIC is not accessible; falling back to {dataset}.")
+    dataset = choose_default_dataset(available, requested_dataset=requested_dataset or None)
     result = run_production_export_pipeline(
         databento_api_key=databento_api_key,
         fmp_api_key=fmp_api_key,

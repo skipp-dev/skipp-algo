@@ -274,7 +274,8 @@ def test_generate_watchlist_result_exact_named_prefers_exact_named_state_over_ne
     result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
 
     assert result["source_metadata"]["export_generated_at"] == "2026-03-07T12:15:00+00:00"
-    assert result["source_metadata"]["manifest_path"].endswith("databento_exact_named_state.json")
+    assert result["source_metadata"]["manifest_path"].endswith("databento_volatility_production_20260307_121500_manifest.json")
+    assert result["source_metadata"]["exact_named_state_path"].endswith("databento_exact_named_state.json")
     assert result["source_metadata"]["source_manifest_path"].endswith("databento_volatility_production_20260307_121500_manifest.json")
 
 

@@ -1065,15 +1065,35 @@ def _deduplicate_daily_symbol_rows(frame: pd.DataFrame) -> pd.DataFrame:
 
     duplicate_keys = int(frame.loc[duplicate_mask, ["trade_date", "symbol"]].drop_duplicates().shape[0])
     logger.warning(
-        "load_daily_bars: deduplicating %d duplicate trade_date-symbol rows by keeping the highest-volume bar.",
+        "load_daily_bars: consolidating %d duplicate trade_date-symbol rows by aggregating OHLCV.",
         duplicate_keys,
     )
 
-    return (
-        frame.sort_values(["trade_date", "symbol", "volume", "close"], ascending=[True, True, False, False])
-        .drop_duplicates(subset=["trade_date", "symbol"], keep="first")
-        .reset_index(drop=True)
-    )
+    ordered = frame.reset_index(drop=True).copy()
+    ordered["_row_order"] = np.arange(len(ordered))
+    ordered = ordered.sort_values(["trade_date", "symbol", "_row_order"]).reset_index(drop=True)
+
+    aggregations: dict[str, str] = {}
+    if "open" in ordered.columns:
+        aggregations["open"] = "first"
+    if "high" in ordered.columns:
+        aggregations["high"] = "max"
+    if "low" in ordered.columns:
+        aggregations["low"] = "min"
+    if "close" in ordered.columns:
+        aggregations["close"] = "last"
+    if "volume" in ordered.columns:
+        aggregations["volume"] = "sum"
+
+    passthrough_columns = [
+        column
+        for column in ordered.columns
+        if column not in {"trade_date", "symbol", "_row_order", *aggregations.keys()}
+    ]
+    for column in passthrough_columns:
+        aggregations[column] = "last"
+
+    return ordered.groupby(["trade_date", "symbol"], as_index=False, sort=True).agg(aggregations).reset_index(drop=True)
 
 
 def _collapse_duplicate_symbol_seconds(frame: pd.DataFrame, *, context: str) -> pd.DataFrame:
@@ -1167,8 +1187,13 @@ def load_daily_bars(
             _write_cached_frame(cache_path, frame)
     if frame.empty:
         return pd.DataFrame(columns=["trade_date", "symbol", "open", "high", "low", "close", "volume", "previous_close"])
-    frame["symbol"] = frame.get("symbol", "").astype(str).str.upper()
-    frame = frame[frame["symbol"].isin(universe_symbols)].copy()
+    normalized_universe_symbols = {
+        normalized
+        for symbol in universe_symbols
+        if (normalized := normalize_symbol_for_databento(symbol)) is not None
+    }
+    frame["symbol"] = frame.get("symbol", "").map(normalize_symbol_for_databento)
+    frame = frame[frame["symbol"].isin(normalized_universe_symbols)].copy()
     frame["trade_date"] = frame["ts"].dt.date
     keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume"] if col in frame.columns]
     frame = frame[keep_cols].copy()

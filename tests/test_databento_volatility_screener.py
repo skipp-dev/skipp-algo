@@ -3245,24 +3245,28 @@ def test_collapse_duplicate_symbol_seconds_sums_trade_count_alias_columns() -> N
     assert int(collapsed.iloc[0]["n_trades"]) == 24
 
 
-def test_deduplicate_daily_symbol_rows_uses_close_as_tie_breaker_when_volume_matches() -> None:
+def test_deduplicate_daily_symbol_rows_aggregates_ohlcv() -> None:
     trade_day = date(2026, 3, 6)
     frame = pd.DataFrame(
         {
             "trade_date": [trade_day, trade_day],
             "symbol": ["AAA", "AAA"],
-            "open": [10.0, 10.0],
+            "open": [10.0, 10.1],
             "high": [10.4, 10.5],
-            "low": [9.8, 9.9],
+            "low": [9.8, 9.7],
             "close": [10.2, 10.3],
-            "volume": [1_000.0, 1_000.0],
+            "volume": [1_000.0, 1_500.0],
         }
     )
 
     deduped = _deduplicate_daily_symbol_rows(frame)
 
     assert len(deduped) == 1
+    assert float(deduped.iloc[0]["open"]) == 10.0
+    assert float(deduped.iloc[0]["high"]) == 10.5
+    assert float(deduped.iloc[0]["low"]) == 9.7
     assert float(deduped.iloc[0]["close"]) == 10.3
+    assert float(deduped.iloc[0]["volume"]) == 2_500.0
 
 
 def test_estimate_databento_costs_uses_exclusive_daily_and_intraday_ends(monkeypatch) -> None:
@@ -3470,7 +3474,7 @@ def test_load_daily_bars_transforms_and_filters_correctly(monkeypatch) -> None:
     assert mar5["previous_close"] == 102.5
 
 
-def test_load_daily_bars_deduplicates_symbol_day_using_highest_volume(monkeypatch) -> None:
+def test_load_daily_bars_aggregates_duplicate_symbol_day_rows(monkeypatch) -> None:
     raw_df = pd.DataFrame(
         {
             "symbol": ["AAPL", "AAPL", "AAPL", "AAPL"],
@@ -3518,10 +3522,60 @@ def test_load_daily_bars_deduplicates_symbol_day_using_highest_volume(monkeypatc
     assert len(result) == 2
     mar4 = result[result["trade_date"] == date(2026, 3, 4)].iloc[0]
     mar5 = result[result["trade_date"] == date(2026, 3, 5)].iloc[0]
+    assert mar4["open"] == 102
+    assert mar4["high"] == 104
+    assert mar4["low"] == 101
     assert mar4["close"] == 103.5
-    assert mar4["volume"] == 5000
+    assert mar4["volume"] == 6100
     assert mar4["previous_close"] == 100.5
     assert mar5["previous_close"] == 103.5
+
+
+def test_load_daily_bars_normalizes_symbol_aliases_before_filtering(monkeypatch) -> None:
+    raw_df = pd.DataFrame(
+        {
+            "symbol": ["BRK-B", "BRK-B"],
+            "open": [300.0, 305.0],
+            "high": [301.0, 306.0],
+            "low": [299.0, 304.0],
+            "close": [300.5, 305.5],
+            "volume": [1_000, 1_200],
+        },
+        index=pd.DatetimeIndex(
+            [
+                pd.Timestamp("2026-03-04T00:00Z"),
+                pd.Timestamp("2026-03-05T00:00Z"),
+            ],
+            name="ts_event",
+        ),
+    )
+
+    class FakeStore:
+        def to_df(self):
+            return raw_df
+
+    class FakeTimeseries:
+        def get_range(self, **kwargs):
+            return FakeStore()
+
+    class FakeClient:
+        timeseries = FakeTimeseries()
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda api_key: FakeClient())
+    monkeypatch.setattr(
+        "databento_volatility_screener._get_schema_available_end",
+        lambda client, dataset, schema: None,
+    )
+
+    result = load_daily_bars(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 3, 4), date(2026, 3, 5)],
+        universe_symbols={"BRK.B"},
+    )
+
+    assert list(result["symbol"]) == ["BRK.B", "BRK.B"]
+    assert list(result["trade_date"]) == [date(2026, 3, 4), date(2026, 3, 5)]
 
 
 def test_load_daily_bars_returns_empty_for_no_trading_days() -> None:
@@ -4069,8 +4123,8 @@ def test_window_bounds_for_trade_date_dst_fall_back() -> None:
 
 
 def test_deduplicate_daily_symbol_rows_nan_volume_keeps_row_with_valid_close() -> None:
-    """When one duplicate row has NaN volume, highest-close tie-breaker must
-    still deterministically pick the best row."""
+    """When one duplicate row has NaN volume, consolidation should still
+    produce stable OHLCV output."""
     trade_day = date(2026, 3, 6)
     frame = pd.DataFrame({
         "trade_date": [trade_day, trade_day],
@@ -4083,7 +4137,35 @@ def test_deduplicate_daily_symbol_rows_nan_volume_keeps_row_with_valid_close() -
     })
     deduped = _deduplicate_daily_symbol_rows(frame)
     assert len(deduped) == 1
+    assert float(deduped.iloc[0]["close"]) == 10.4
     assert float(deduped.iloc[0]["volume"]) == 500.0
+
+
+def test_databento_production_export_main_uses_preferred_dataset_fallback(monkeypatch) -> None:
+    from scripts import databento_production_export as mod
+
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(mod, "load_dotenv", lambda *args, **kwargs: None)
+    monkeypatch.setattr(mod, "list_accessible_datasets", lambda api_key: ["XNAS.ITCH", "DBEQ.BASIC"])
+
+    def fake_run_production_export_pipeline(**kwargs):
+        captured.update(kwargs)
+        return {
+            "manifest": {"export_dir": "/tmp/export"},
+            "output_checks": {},
+            "batl_debug": {},
+            "exported_paths": {},
+        }
+
+    monkeypatch.setattr(mod, "run_production_export_pipeline", fake_run_production_export_pipeline)
+    monkeypatch.setenv("DATABENTO_API_KEY", "test-key")
+    monkeypatch.delenv("FMP_API_KEY", raising=False)
+    monkeypatch.delenv("DATABENTO_DATASET", raising=False)
+
+    mod.main()
+
+    assert captured["dataset"] == "XNAS.ITCH"
 
 
 def test_deduplicate_daily_symbol_rows_noop_without_duplicates() -> None:
