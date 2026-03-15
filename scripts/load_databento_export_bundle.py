@@ -21,6 +21,14 @@ def _manifest_candidates(directory: Path, *, manifest_prefix: str | None = None)
     return sorted(directory.glob(pattern), key=lambda path: path.stat().st_mtime, reverse=True)
 
 
+def _manifest_json_is_parseable(manifest_path: Path) -> bool:
+    try:
+        json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    return True
+
+
 def _resolve_manifest_from_directory(
     directory: Path,
     *,
@@ -29,7 +37,7 @@ def _resolve_manifest_from_directory(
 ) -> Path | None:
     required = set(required_frames or ())
     for manifest_path in _manifest_candidates(directory, manifest_prefix=manifest_prefix):
-        if not required or required.issubset(_manifest_frame_names(manifest_path)):
+        if (not required or required.issubset(_manifest_frame_names(manifest_path))) and _manifest_json_is_parseable(manifest_path):
             return manifest_path
     return None
 

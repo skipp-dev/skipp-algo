@@ -31,6 +31,51 @@ def test_build_status_after_run_reads_latest_manifest(tmp_path: Path) -> None:
     assert status["manifest_path"] == str(manifest_path)
 
 
+def test_build_status_after_run_fast_manifest_does_not_use_full_history_second_detail_fallback(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "databento_preopen_fast_20260310_093100_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "mode": "preopen_fast_reduced_scope",
+                "export_generated_at": "2026-03-10T09:31:00+00:00",
+                "premarket_fetched_at": "2026-03-10T09:30:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "full_universe_second_detail_open.parquet").write_bytes(b"placeholder")
+
+    status = _build_status_after_run(tmp_path, stale_after_minutes=10_000)
+
+    assert status["manifest_path"] == str(manifest_path)
+    assert status["second_detail_fetched_at"] is None
+
+
+def test_build_status_after_run_prefers_older_parseable_manifest(tmp_path: Path) -> None:
+    older_manifest = tmp_path / "databento_volatility_production_20260309_081243_manifest.json"
+    older_manifest.write_text(
+        json.dumps(
+            {
+                "dataset": "DBEQ.BASIC",
+                "lookback_days": 30,
+                "export_generated_at": "2026-03-09T08:12:43+00:00",
+                "premarket_fetched_at": "2026-03-09T08:12:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_manifest = tmp_path / "databento_volatility_production_20260309_081500_manifest.json"
+    newer_manifest.write_text("{invalid json", encoding="utf-8")
+    older_manifest.touch()
+    newer_manifest.touch()
+
+    status = _build_status_after_run(tmp_path, stale_after_minutes=10_000)
+
+    assert status["manifest_path"] == str(older_manifest)
+    assert status["export_generated_at"] == "2026-03-09T08:12:43+00:00"
+    assert status["premarket_fetched_at"] == "2026-03-09T08:12:00+00:00"
+
+
 def test_run_full_history_refresh_subprocess_returns_last_json_line(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
 

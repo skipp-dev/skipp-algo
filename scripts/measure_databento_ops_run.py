@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 import os
 import subprocess
@@ -75,64 +76,9 @@ def _latest_manifest_path(export_dir: Path) -> Path | None:
 
 
 def _build_status_after_run(export_dir: Path, *, stale_after_minutes: int = 60) -> dict[str, Any]:
-    manifest_path = _latest_manifest_path(export_dir)
-    manifest: dict[str, Any] = {}
-    if manifest_path is not None:
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
-            manifest = {}
+    from databento_volatility_screener import build_data_status_result
 
-    export_generated_at = manifest.get("export_generated_at") or manifest.get("exported_at")
-    daily_bars_fetched_at = manifest.get("daily_bars_fetched_at")
-    intraday_fetched_at = manifest.get("intraday_fetched_at")
-    premarket_fetched_at = manifest.get("premarket_fetched_at") or _safe_iso_from_file(export_dir / "premarket_features_full_universe.parquet")
-    second_detail_fetched_at = manifest.get("second_detail_fetched_at") or _safe_iso_from_file(export_dir / "full_universe_second_detail_open.parquet")
-
-    if not intraday_fetched_at:
-        intraday_fetched_at = second_detail_fetched_at or premarket_fetched_at
-    if not export_generated_at:
-        export_generated_at = premarket_fetched_at or intraday_fetched_at or daily_bars_fetched_at
-
-    if not export_generated_at:
-        return {
-            "is_stale": True,
-            "staleness_reason": "No production export found yet.",
-            "export_generated_at": None,
-            "premarket_fetched_at": premarket_fetched_at,
-            "intraday_fetched_at": intraday_fetched_at,
-            "second_detail_fetched_at": second_detail_fetched_at,
-            "manifest_path": str(manifest_path) if manifest_path is not None else None,
-        }
-
-    try:
-        reference_timestamp = datetime.fromisoformat(str(export_generated_at).replace("Z", "+00:00"))
-        if reference_timestamp.tzinfo is None:
-            reference_timestamp = reference_timestamp.replace(tzinfo=UTC)
-        else:
-            reference_timestamp = reference_timestamp.astimezone(UTC)
-    except Exception:
-        return {
-            "is_stale": True,
-            "staleness_reason": "Invalid export timestamp in manifest.",
-            "export_generated_at": str(export_generated_at),
-            "premarket_fetched_at": str(premarket_fetched_at) if premarket_fetched_at else None,
-            "intraday_fetched_at": str(intraday_fetched_at) if intraday_fetched_at else None,
-            "second_detail_fetched_at": str(second_detail_fetched_at) if second_detail_fetched_at else None,
-            "manifest_path": str(manifest_path) if manifest_path is not None else None,
-        }
-
-    age_minutes = max(0.0, (datetime.now(UTC) - reference_timestamp).total_seconds() / 60.0)
-    is_stale = age_minutes > stale_after_minutes
-    return {
-        "is_stale": is_stale,
-        "staleness_reason": "Fresh" if not is_stale else f"Last successful export is {age_minutes:.0f} minutes old.",
-        "export_generated_at": str(export_generated_at),
-        "premarket_fetched_at": str(premarket_fetched_at) if premarket_fetched_at else None,
-        "intraday_fetched_at": str(intraday_fetched_at) if intraday_fetched_at else None,
-        "second_detail_fetched_at": str(second_detail_fetched_at) if second_detail_fetched_at else None,
-        "manifest_path": str(manifest_path) if manifest_path is not None else None,
-    }
+    return asdict(build_data_status_result(export_dir, stale_after_minutes=stale_after_minutes))
 
 
 def _run_full_history_refresh_subprocess(

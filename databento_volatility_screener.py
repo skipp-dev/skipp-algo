@@ -2983,26 +2983,36 @@ def _safe_iso_from_file(path: Path) -> str | None:
     return datetime.fromtimestamp(path.stat().st_mtime, tz=UTC).isoformat(timespec="seconds")
 
 
+def _manifest_candidates(export_dir: Path) -> list[Path]:
+    manifests = sorted(export_dir.glob("databento_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    if not manifests:
+        manifests = sorted(export_dir.glob("*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    return manifests
+
+
+def _load_latest_parseable_manifest(export_dir: Path) -> tuple[Path | None, dict[str, Any]]:
+    fallback_path: Path | None = None
+    for candidate in _manifest_candidates(export_dir):
+        if fallback_path is None:
+            fallback_path = candidate
+        try:
+            return candidate, json.loads(candidate.read_text(encoding="utf-8"))
+        except Exception:
+            logger.warning("Failed to parse manifest JSON: %s", candidate, exc_info=True)
+    return fallback_path, {}
+
+
 def _latest_manifest_path(export_dir: str | Path | None = None) -> Path | None:
     target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
     if not target_dir.exists():
         return None
-    manifests = sorted(target_dir.glob("databento_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
-    if not manifests:
-        manifests = sorted(target_dir.glob("*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
+    manifests = _manifest_candidates(target_dir)
     return manifests[0] if manifests else None
 
 
 def build_data_status_result(export_dir: str | Path | None = None, *, stale_after_minutes: int = 60) -> DataStatusResult:
     target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
-    manifest_path = _latest_manifest_path(target_dir)
-    manifest: dict[str, Any] = {}
-    if manifest_path is not None:
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception:
-            logger.warning("Failed to parse manifest JSON: %s", manifest_path, exc_info=True)
-            manifest = {}
+    manifest_path, manifest = _load_latest_parseable_manifest(target_dir)
 
     export_generated_at = manifest.get("export_generated_at") or manifest.get("exported_at")
     is_fast_manifest = str(manifest.get("mode") or "") == "preopen_fast_reduced_scope"

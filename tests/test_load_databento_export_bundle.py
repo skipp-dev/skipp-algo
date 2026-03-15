@@ -94,3 +94,33 @@ def test_load_export_bundle_manifest_prefix_excludes_fast_manifests(tmp_path: Pa
 
     assert payload["manifest_path"].name == prod_manifest.name
     assert payload["frames"]["daily_symbol_features_full_universe"].iloc[0]["symbol"] == "PROD"
+
+
+def test_load_export_bundle_skips_newer_corrupt_manifest_by_mtime(tmp_path: Path) -> None:
+    required = ("daily_symbol_features_full_universe", "premarket_features_full_universe")
+
+    older = _write_bundle(
+        tmp_path,
+        "databento_volatility_production_20260310_094000",
+        {
+            "daily_symbol_features_full_universe": pd.DataFrame({"symbol": ["AAA"]}),
+            "premarket_features_full_universe": pd.DataFrame({"symbol": ["AAA"]}),
+        },
+    )
+    newer_base = "databento_volatility_production_20260310_094500"
+    newer_manifest = tmp_path / f"{newer_base}_manifest.json"
+    newer_manifest.write_text("{invalid json", encoding="utf-8")
+    pd.DataFrame({"symbol": ["BROKEN"]}).to_parquet(tmp_path / f"{newer_base}__daily_symbol_features_full_universe.parquet", index=False)
+    pd.DataFrame({"symbol": ["BROKEN"]}).to_parquet(tmp_path / f"{newer_base}__premarket_features_full_universe.parquet", index=False)
+
+    older.touch()
+    newer_manifest.touch()
+
+    payload = load_export_bundle(
+        tmp_path,
+        required_frames=required,
+        manifest_prefix="databento_volatility_production_",
+    )
+
+    assert payload["manifest_path"].name == older.name
+    assert payload["frames"]["daily_symbol_features_full_universe"].iloc[0]["symbol"] == "AAA"

@@ -133,6 +133,20 @@ def test_build_window_definition_handles_us_dst_start_transition() -> None:
     assert window.regular_open_utc == pd.Timestamp("2026-03-09T13:30:00Z").to_pydatetime()
 
 
+def test_build_window_definition_handles_us_dst_fall_transition() -> None:
+    window = build_window_definition(
+        date(2026, 11, 2),
+        display_timezone="Europe/Berlin",
+        window_start=time(15, 20),
+        window_end=time(16, 0),
+        premarket_anchor_et=time(8, 0),
+    )
+
+    assert window.fetch_start_utc == pd.Timestamp("2026-11-02T13:00:00Z").to_pydatetime()
+    assert window.fetch_end_utc == pd.Timestamp("2026-11-02T15:00:00Z").to_pydatetime()
+    assert window.regular_open_utc == pd.Timestamp("2026-11-02T14:30:00Z").to_pydatetime()
+
+
 def test_summarize_symbol_day_computes_requested_percentages() -> None:
     state = SymbolDayState(
         symbol="AAPL",
@@ -1708,6 +1722,33 @@ def test_build_data_status_result_fast_manifest_does_not_fallback_second_detail_
     assert status.manifest_path.endswith(manifest_path.name)
     assert status.second_detail_fetched_at is None
     assert status.lookback_days is None
+
+
+def test_build_data_status_result_prefers_older_parseable_manifest(tmp_path: Path) -> None:
+    older_manifest = tmp_path / "databento_volatility_production_20260308_152400_manifest.json"
+    older_manifest.write_text(
+        json.dumps(
+            {
+                "dataset": "DBEQ.BASIC",
+                "lookback_days": 30,
+                "export_generated_at": "2026-03-08T14:24:19+00:00",
+                "premarket_fetched_at": "2026-03-08T14:24:10+00:00",
+                "trade_dates_covered": ["2026-03-05", "2026-03-06"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_manifest = tmp_path / "databento_volatility_production_20260308_152500_manifest.json"
+    newer_manifest.write_text("{invalid json", encoding="utf-8")
+    older_manifest.touch()
+    newer_manifest.touch()
+
+    status = build_data_status_result(tmp_path, stale_after_minutes=11_000)
+
+    assert status.manifest_path is not None
+    assert status.manifest_path.endswith(older_manifest.name)
+    assert status.dataset == "DBEQ.BASIC"
+    assert status.export_generated_at == "2026-03-08T14:24:19+00:00"
 
 
 def test_resolve_manifest_path_accepts_directory_and_basename(tmp_path: Path) -> None:
@@ -4234,6 +4275,30 @@ def test_write_streamlit_watchlist_txt_exports_empty_tables(tmp_path) -> None:
     })
     assert result == {}
     assert list(tmp_path.glob("*.txt")) == []
+
+
+def test_write_streamlit_watchlist_txt_exports_prefers_active_table_and_fixed_filenames(tmp_path) -> None:
+    watchlist_result = {
+        "active_watchlist_table": pd.DataFrame(
+            {
+                "symbol": ["AAPL"],
+                "exchange": ["NASDAQ"],
+            }
+        ),
+        "watchlist_table": pd.DataFrame(
+            {
+                "symbol": ["AAPL", "MSFT"],
+                "exchange": ["NASDAQ", "NASDAQ"],
+            }
+        ),
+    }
+
+    result = _write_streamlit_watchlist_txt_exports(tmp_path, watchlist_result)
+
+    assert result["txt_topn_latest"].name == "tradingview_watchlist_topn_latest.txt"
+    assert result["txt_topn_full_history"].name == "tradingview_watchlist_topn_full_history.txt"
+    assert result["txt_topn_latest"].read_text(encoding="utf-8") == "NASDAQ:AAPL,"
+    assert result["txt_topn_full_history"].read_text(encoding="utf-8") == "NASDAQ:AAPL,NASDAQ:MSFT,"
 
 
 # ---- 6. Error paths (API errors) ----
