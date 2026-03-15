@@ -1081,6 +1081,77 @@ def test_collect_quality_window_source_frames_keeps_base_for_exchange_symbols_mi
     assert set(quality_detail["symbol"].tolist()) == {"AAA", "AAB"}
 
 
+def test_collect_quality_window_source_frames_keeps_base_rows_for_partial_alternate_coverage(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame({"symbol": ["AAA"], "exchange": ["NASDAQ"]})
+    supported_universe = raw_universe.copy()
+    daily_bars = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"], "previous_close": [10.0]})
+
+    def _frame(rows: list[tuple[str, float]]) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day] * len(rows),
+                "symbol": ["AAA"] * len(rows),
+                "timestamp": [pd.Timestamp(ts) for ts, _ in rows],
+                "session": ["premarket" if pd.Timestamp(ts) < pd.Timestamp("2026-03-06T14:30:00Z") else "regular" for ts, _ in rows],
+                "open": [value for _, value in rows],
+                "high": [value for _, value in rows],
+                "low": [value for _, value in rows],
+                "close": [value for _, value in rows],
+                "volume": [100.0] * len(rows),
+                "second_delta_pct": [np.nan] * len(rows),
+                "from_previous_close_pct": [np.nan] * len(rows),
+            }
+        )
+
+    frames = {
+        "DBEQ.BASIC": _frame(
+            [
+                ("2026-03-06T09:00:00Z", 10.0),
+                ("2026-03-06T09:10:00Z", 11.0),
+                ("2026-03-06T14:00:00Z", 12.0),
+                ("2026-03-06T14:10:00Z", 13.0),
+                ("2026-03-06T14:30:10Z", 14.0),
+            ]
+        ),
+        "XNAS.BASIC": _frame(
+            [
+                ("2026-03-06T09:00:00Z", 100.0),
+                ("2026-03-06T14:30:10Z", 140.0),
+            ]
+        ),
+    }
+
+    def fake_collect(*args, dataset: str, universe_symbols: set[str], **kwargs):
+        frame = frames[dataset].copy()
+        return frame.loc[frame["symbol"].isin(universe_symbols)].reset_index(drop=True)
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    quality_detail, premarket_detail, _ = _collect_quality_window_source_frames(
+        databento_api_key="test-key",
+        base_dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=daily_bars,
+        symbol_day_scope=None,
+        display_timezone="Europe/Berlin",
+        window_start=None,
+        window_end=None,
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=False,
+        early_exchange_datasets={"NASDAQ": "XNAS.BASIC"},
+    )
+
+    assert premarket_detail["timestamp"].dt.strftime("%H:%M:%S").tolist() == ["09:00:00", "09:10:00", "14:00:00", "14:10:00"]
+    assert premarket_detail["close"].tolist() == [100.0, 11.0, 12.0, 13.0]
+    assert quality_detail["timestamp"].dt.strftime("%H:%M:%S").tolist() == ["09:00:00", "09:10:00", "14:00:00", "14:10:00", "14:30:10"]
+    assert quality_detail["close"].tolist() == [100.0, 11.0, 12.0, 13.0, 140.0]
+
+
 def test_collect_quality_window_source_frames_normalizes_symbol_aliases_for_exchange_routing(monkeypatch, tmp_path: Path) -> None:
     trade_day = date(2026, 3, 6)
     raw_universe = pd.DataFrame({"symbol": ["BRK/B"], "exchange": ["NYSE"]})
@@ -1431,6 +1502,26 @@ def test_build_quality_window_status_latest_uses_canonical_window_rows() -> None
     assert float(aaa["quality_open_drive_window_score_latest_berlin"]) == 90.0
     assert bbb["quality_open_drive_window_coverage_latest_berlin"] == "none"
     assert bbb["quality_open_drive_window_latest_berlin"] == "none"
+
+
+def test_build_quality_window_status_latest_prefers_best_score_over_later_window() -> None:
+    frame = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 10), date(2026, 3, 10)],
+            "symbol": ["AAA", "AAA"],
+            "window_tag": ["pm_0400_0500", "pm_0900_0930"],
+            "has_window_data": [True, True],
+            "passes_quality_filter": [True, True],
+            "quality_selected_top_n": [True, True],
+            "window_quality_score": [95.0, 10.0],
+        }
+    )
+
+    status = _build_quality_window_status_latest(frame, display_timezone="Europe/Berlin")
+
+    aaa = status.loc[status["symbol"] == "AAA"].iloc[0]
+    assert aaa["quality_open_drive_window_latest_berlin"] == "09:00-10:00"
+    assert float(aaa["quality_open_drive_window_score_latest_berlin"]) == 95.0
 
 
 def test_build_batl_debug_payload_prefers_feature_row_and_falls_back_to_diagnostics() -> None:
@@ -4444,6 +4535,54 @@ def test_quality_window_signal_vwap_uses_dollar_volume_directly() -> None:
         assert row["window_vwap_trend_ok"] is True or row["window_vwap_trend_ok"] == True, (
             f"window_vwap_trend_ok should be True (close > vwap), got {row['window_vwap_trend_ok']}"
         )
+
+
+def test_quality_window_signal_gap_filter_uses_window_close_basis_consistently() -> None:
+    trade_day = date(2026, 3, 12)
+    ts_base = pd.Timestamp("2026-03-12 09:00:00", tz="US/Eastern").tz_convert("UTC")
+    detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["TEST", "TEST"],
+            "timestamp": [ts_base, ts_base + pd.Timedelta(minutes=1)],
+            "session": ["premarket", "premarket"],
+            "open": [100.0, 100.0],
+            "high": [101.0, 103.0],
+            "low": [99.0, 100.0],
+            "close": [100.0, 103.0],
+            "volume": [400_000.0, 400_000.0],
+            "trade_count": [40, 40],
+        }
+    )
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["TEST"],
+            "previous_close": [100.0],
+            "market_open_price": [101.0],
+        }
+    )
+    premarket = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["TEST"],
+            "prev_close_to_premarket_pct": [-5.0],
+            "premarket_to_open_pct": [0.0],
+        }
+    )
+
+    status, candidate_exports = _compute_quality_window_signal(
+        detail,
+        daily_features=daily,
+        premarket_features=premarket,
+        display_timezone="Europe/Berlin",
+        latest_trade_date=trade_day,
+    )
+
+    row = status.iloc[0]
+    assert row["quality_open_drive_window_latest_berlin"] == "14:00-14:30"
+    assert not pd.isna(row["quality_open_drive_window_score_latest_berlin"])
+    assert list(candidate_exports["quality_candidates_0900_0930_et_all"]["symbol"]) == ["TEST"]
 
 
 def test_collect_full_universe_preserves_trade_count(monkeypatch, tmp_path: Path) -> None:

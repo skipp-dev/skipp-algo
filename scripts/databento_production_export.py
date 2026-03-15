@@ -1067,7 +1067,7 @@ def _build_quality_window_status_latest(
         else pd.DataFrame(columns=["symbol", QUALITY_OPEN_DRIVE_WINDOW_COVERAGE_COLUMN])
     )
     status_sorted = (
-        status_rows.sort_values(["symbol", "window_order", "window_quality_score"], ascending=[True, False, False])
+        status_rows.sort_values(["symbol", "window_quality_score", "window_order"], ascending=[True, False, False])
         .drop_duplicates(subset=["symbol"], keep="first")
         if not status_rows.empty
         else pd.DataFrame(columns=["symbol", "window_label_local", "window_quality_score"])
@@ -1306,7 +1306,12 @@ def _compute_quality_window_signal(
         )
         grouped["window_vwap_trend_ok"] = (grouped["last_close"] >= grouped["window_vwap"]).fillna(False)
         grouped["prev_close_ok"] = pd.to_numeric(grouped.get("previous_close"), errors="coerce") >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_previous_close"]
-        grouped["gap_ok"] = pd.to_numeric(grouped.get("prev_close_to_premarket_pct"), errors="coerce") >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_prev_close_to_premarket_pct"]
+        grouped["prev_close_to_window_close_pct"] = np.where(
+            pd.to_numeric(grouped.get("previous_close"), errors="coerce") > 0,
+            ((pd.to_numeric(grouped["last_close"], errors="coerce") / pd.to_numeric(grouped.get("previous_close"), errors="coerce")) - 1.0) * 100.0,
+            np.nan,
+        )
+        grouped["gap_ok"] = pd.to_numeric(grouped["prev_close_to_window_close_pct"], errors="coerce") >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_prev_close_to_premarket_pct"]
         grouped["dollar_vol_ok"] = grouped["window_dollar_volume"] >= QUALITY_OPEN_DRIVE_HARD_FILTERS["min_window_dollar_volume"]
         grouped["window_return_ok"] = grouped["window_return_pct"] >= QUALITY_OPEN_DRIVE_QUALITY_THRESHOLDS["min_window_return_pct"]
         grouped["close_near_high_ok"] = grouped["window_close_vs_high_pct"] >= QUALITY_OPEN_DRIVE_QUALITY_THRESHOLDS["min_close_vs_high_pct"]
@@ -1638,7 +1643,6 @@ def _collect_quality_window_source_frames(
     applied_datasets: dict[str, str] = {}
     alternate_quality_parts: list[pd.DataFrame] = []
     alternate_premarket_parts: list[pd.DataFrame] = []
-    alternate_symbols: set[str] = set()
     early_symbol_counts: dict[str, int] = {}
 
     for exchange_key, dataset_name in normalized_map.items():
@@ -1672,11 +1676,6 @@ def _collect_quality_window_source_frames(
         if alt_detail.empty:
             continue
         applied_datasets[exchange_key] = dataset_name
-        alternate_symbols.update({
-            str(symbol).upper()
-            for symbol in alt_detail["symbol"].dropna().astype(str).tolist()
-            if str(symbol).strip()
-        })
         alternate_quality_parts.append(
             _filter_quality_window_intervals(
                 alt_detail,
@@ -1691,21 +1690,8 @@ def _collect_quality_window_source_frames(
         base_quality = empty.copy()
         base_premarket = empty.copy()
     else:
-        if alternate_symbols:
-            alt_symbol_mask = base_detail["symbol"].astype(str).str.upper().isin(alternate_symbols)
-            base_for_alternate = base_detail.loc[alt_symbol_mask].copy()
-            base_for_other = base_detail.loc[~alt_symbol_mask].copy()
-            base_quality = pd.concat(
-                [
-                    _filter_quality_window_intervals(base_for_other, include_early=True, include_late=True, include_open_confirm=True),
-                    _filter_quality_window_intervals(base_for_alternate, include_early=False, include_late=True, include_open_confirm=False),
-                ],
-                ignore_index=True,
-            )
-            base_premarket = _filter_premarket_rows(base_for_other)
-        else:
-            base_quality = _filter_quality_window_intervals(base_detail, include_early=True, include_late=True, include_open_confirm=True)
-            base_premarket = _filter_premarket_rows(base_detail)
+        base_quality = _filter_quality_window_intervals(base_detail, include_early=True, include_late=True, include_open_confirm=True)
+        base_premarket = _filter_premarket_rows(base_detail)
 
     base_quality = _with_source_priority(base_quality, source_priority=0)
     base_premarket = _with_source_priority(base_premarket, source_priority=0)
@@ -2547,11 +2533,11 @@ def run_production_export_pipeline(
         "quality_window_source_early_exchange_datasets": quality_window_source_metadata["early_exchange_datasets"],
         "quality_window_source_applied_early_exchange_datasets": quality_window_source_metadata["applied_early_exchange_datasets"],
         "quality_window_source_early_exchange_symbol_counts": quality_window_source_metadata["early_exchange_symbol_counts"],
-        "quality_window_source_strategy": "Use exchange-specific early/premarket sources where configured, use the base dataset for the late 09:00-09:30 ET window, and derive open-confirm from the same source used for the early path.",
+        "quality_window_source_strategy": "Use exchange-specific early/premarket sources where configured with row-level fallback to the base dataset for missing timestamps, use the base dataset for the late 09:00-09:30 ET window, and derive open-confirm from the same merged early-path source.",
         "quality_open_drive_window_trade_date_rule": "latest trade_date covered by daily_symbol_features_full_universe",
         "quality_open_drive_window_coverage_latest_berlin_rule": "categorical latest-trade-date data-presence status derived from canonical premarket_window_features_full_universe rows across bullish_quality_window_tags, rendered as display_timezone-local window labels joined by '+', or none",
-        "quality_open_drive_window_latest_berlin_rule": "categorical latest-trade-date bullish-quality status derived from the highest-priority passing canonical window row on the latest trade date, rendered as a display_timezone-local window label, or none",
-        "quality_open_drive_window_score_latest_berlin_rule": "latest-trade-date best canonical window_quality_score from premarket_window_features_full_universe across bullish_quality_window_tags for each symbol",
+        "quality_open_drive_window_latest_berlin_rule": "categorical latest-trade-date bullish-quality status derived from the best-scoring passing canonical window row on the latest trade date, ties broken by later configured window order, rendered as a display_timezone-local window label, or none",
+        "quality_open_drive_window_score_latest_berlin_rule": "latest-trade-date best canonical window_quality_score from premarket_window_features_full_universe across bullish_quality_window_tags for each symbol, ties broken by later configured window order",
         "quality_open_drive_window_base_filters": {
             "min_previous_close": _DEFAULT_BULLISH_QUALITY_CFG.min_previous_close,
             "min_gap_pct": _DEFAULT_BULLISH_QUALITY_CFG.min_gap_pct,
