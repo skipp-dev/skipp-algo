@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
+FIXED_ET_DISPLAY_TIMEZONE = "America/New_York"
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -347,6 +349,14 @@ def _build_exact_window_end_lookup(
 
     lookup = lookup.rename(columns={"current_price": "exact_1000_price"})
     return lookup[columns].drop_duplicates(subset=["trade_date", "symbol"], keep="last").reset_index(drop=True)
+
+
+def _run_fixed_et_intraday_screen(*args: Any, **kwargs: Any) -> pd.DataFrame:
+    return run_intraday_screen(*args, display_timezone=FIXED_ET_DISPLAY_TIMEZONE, **kwargs)
+
+
+def _collect_fixed_et_second_detail(*args: Any, **kwargs: Any) -> pd.DataFrame:
+    return collect_full_universe_open_window_second_detail(*args, display_timezone=FIXED_ET_DISPLAY_TIMEZONE, **kwargs)
 
 PREMARKET_WINDOW_FEATURE_COLUMNS = [
     "trade_date",
@@ -2239,13 +2249,12 @@ def run_production_export_pipeline(
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
     )
-    intraday_close_outcome_anchor = run_intraday_screen(
+    intraday_close_outcome_anchor = _run_fixed_et_intraday_screen(
         databento_api_key,
         dataset=dataset,
         trading_days=trading_days,
         universe_symbols=universe_symbols,
         daily_bars=daily_bars,
-        display_timezone=display_timezone,
         window_start=time(9, 30),
         window_end=DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
         premarket_anchor_et=time(9, 30),
@@ -2256,7 +2265,7 @@ def run_production_export_pipeline(
     if not intraday_close_outcome_anchor.empty:
         exact_1000_lookup = _build_exact_window_end_lookup(
             intraday_close_outcome_anchor,
-            display_timezone=display_timezone,
+            display_timezone=FIXED_ET_DISPLAY_TIMEZONE,
         )
         intraday = intraday.copy()
         intraday["trade_date"] = pd.to_datetime(intraday["trade_date"], errors="coerce").dt.date
@@ -2303,14 +2312,13 @@ def run_production_export_pipeline(
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
         )
-        full_universe_close_detail_raw = collect_full_universe_open_window_second_detail(
+        full_universe_close_detail_raw = _collect_fixed_et_second_detail(
             databento_api_key,
             dataset=dataset,
             trading_days=trading_days,
             universe_symbols=universe_symbols,
             daily_bars=daily_bars,
             symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
-            display_timezone=display_timezone,
             window_start=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
             window_end=DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
             premarket_anchor_et=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,

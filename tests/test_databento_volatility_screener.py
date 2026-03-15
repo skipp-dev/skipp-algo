@@ -12,6 +12,7 @@ import pandas as pd
 from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
 from scripts.bullish_quality_config import PremarketWindowDefinition
 from scripts.databento_production_export import (
+    FIXED_ET_DISPLAY_TIMEZONE,
     _build_exact_window_end_lookup,
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
@@ -31,7 +32,9 @@ from scripts.databento_production_export import (
     _select_top_candidates_per_day,
     _format_optional_time,
     _build_premarket_features_full_universe_export,
+    _collect_fixed_et_second_detail,
     _prepare_full_universe_second_detail_export,
+    _run_fixed_et_intraday_screen,
 )
 
 from databento_volatility_screener import (
@@ -216,6 +219,12 @@ def test_choose_default_dataset_prefers_requested_then_priority_order() -> None:
     assert choose_default_dataset(available, requested_dataset="XNAS.BASIC") == "XNAS.BASIC"
     assert choose_default_dataset(available, requested_dataset="EQUS.ALL") == "XNAS.ITCH"
     assert choose_default_dataset(["XNAS.ITCH", "XNYS.PILLAR"], requested_dataset=None) == "XNAS.ITCH"
+
+
+def test_choose_default_dataset_matches_requested_case_insensitively() -> None:
+    available = ["DBEQ.BASIC", "XNAS.ITCH"]
+
+    assert choose_default_dataset(available, requested_dataset=" xnas.itch ") == "XNAS.ITCH"
 
 
 def test_import_databento_closes_new_idle_event_loops(monkeypatch) -> None:
@@ -1368,6 +1377,36 @@ def test_write_exact_named_exports_uses_atomic_parquet_writes(tmp_path, monkeypa
     assert [path for path, _ in writes] == list(created.values())
     assert writes[0][1].equals(frames["daily_symbol_features_full_universe"])
     assert writes[1][1].equals(frames["quality_window_status_latest"])
+
+
+def test_run_fixed_et_intraday_screen_forces_new_york_timezone(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_run_intraday_screen(*args, **kwargs):
+        captured["display_timezone"] = kwargs.get("display_timezone")
+        return pd.DataFrame()
+
+    monkeypatch.setattr("scripts.databento_production_export.run_intraday_screen", fake_run_intraday_screen)
+
+    result = _run_fixed_et_intraday_screen("fake-key", dataset="DBEQ.BASIC")
+
+    assert result.empty
+    assert captured["display_timezone"] == FIXED_ET_DISPLAY_TIMEZONE
+
+
+def test_collect_fixed_et_second_detail_forces_new_york_timezone(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_collect(*args, **kwargs):
+        captured["display_timezone"] = kwargs.get("display_timezone")
+        return pd.DataFrame()
+
+    monkeypatch.setattr("scripts.databento_production_export.collect_full_universe_open_window_second_detail", fake_collect)
+
+    result = _collect_fixed_et_second_detail("fake-key", dataset="DBEQ.BASIC")
+
+    assert result.empty
+    assert captured["display_timezone"] == FIXED_ET_DISPLAY_TIMEZONE
 
 
 def test_build_quality_window_status_latest_uses_canonical_window_rows() -> None:

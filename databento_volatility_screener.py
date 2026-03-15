@@ -80,6 +80,7 @@ FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
     "short_float_pct",
 )
 SUPPORTED_DISPLAY_TZ = {
+    "America/New_York": ZoneInfo("America/New_York"),
     "Europe/Berlin": ZoneInfo("Europe/Berlin"),
 }
 PREFERRED_DATABENTO_DATASETS = (
@@ -629,17 +630,21 @@ def choose_default_dataset(
     available_datasets: list[str],
     requested_dataset: str | None = None,
 ) -> str:
-    normalized = [str(dataset) for dataset in available_datasets if dataset]
-    if requested_dataset and requested_dataset in normalized:
-        return requested_dataset
-    if requested_dataset:
+    normalized = [str(dataset).strip() for dataset in available_datasets if str(dataset).strip()]
+    available_lookup = {dataset.upper(): dataset for dataset in normalized}
+    requested_normalized = str(requested_dataset).strip() if requested_dataset else None
+    if requested_normalized:
+        matched_requested = available_lookup.get(requested_normalized.upper())
+        if matched_requested:
+            return matched_requested
         logger.warning("Requested dataset %r not in available datasets %r, falling back.", requested_dataset, normalized)
     for dataset in PREFERRED_DATABENTO_DATASETS:
-        if dataset in normalized:
-            return dataset
+        matched_preferred = available_lookup.get(dataset.upper())
+        if matched_preferred:
+            return matched_preferred
     if normalized:
         return normalized[0]
-    return requested_dataset or PREFERRED_DATABENTO_DATASETS[0]
+    return requested_normalized or PREFERRED_DATABENTO_DATASETS[0]
 
 
 def _safe_float(value: Any, default: float | None = None) -> float | None:
