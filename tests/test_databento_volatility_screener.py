@@ -12,6 +12,7 @@ import pandas as pd
 from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
 from scripts.bullish_quality_config import PremarketWindowDefinition
 from scripts.databento_production_export import (
+    _build_exact_window_end_lookup,
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
     _build_quality_window_status_latest,
@@ -490,6 +491,9 @@ def test_build_daily_symbol_features_full_universe_export_ranks_and_selects_top_
         daily_bars=daily_bars,
         intraday=intraday,
         second_detail_all=second_detail,
+        close_detail_all=pd.DataFrame(),
+        close_trade_detail_all=pd.DataFrame(),
+        close_outcome_minute_detail_all=pd.DataFrame(),
         display_timezone="Europe/Berlin",
         premarket_anchor_et=time(8, 0),
         ranking_metric="window_range_pct",
@@ -1523,7 +1527,7 @@ def test_build_data_status_result_uses_manifest_timestamps(tmp_path: Path) -> No
         encoding="utf-8",
     )
 
-    status = build_data_status_result(tmp_path, stale_after_minutes=10_000)
+    status = build_data_status_result(tmp_path, stale_after_minutes=11_000)
 
     assert status.dataset == "DBEQ.BASIC"
     assert status.export_generated_at == "2026-03-08T14:24:19+00:00"
@@ -2525,8 +2529,348 @@ def test_build_daily_features_full_universe_handles_missing_open_window_rows_col
     )
 
     assert bool(features.loc[0, "has_open_window_detail"]) is False
+    assert bool(features.loc[0, "has_close_window_detail"]) is False
     assert int(coverage.loc[0, "open_window_second_rows"]) == 0
     assert bool(coverage.loc[0, "has_open_window_detail"]) is False
+    assert int(coverage.loc[0, "close_window_second_rows"]) == 0
+    assert bool(coverage.loc[0, "has_close_window_detail"]) is False
+
+
+def test_build_daily_features_full_universe_builds_close_imbalance_metrics() -> None:
+    trading_days = [date(2026, 3, 5)]
+    universe = pd.DataFrame(
+        {
+            "symbol": ["AAPL"],
+            "news_score": [0.8],
+            "float_shares": [15_000_000.0],
+        }
+    )
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)],
+            "symbol": ["AAPL"],
+            "open": [100.0],
+            "high": [103.0],
+            "low": [99.0],
+            "close": [102.0],
+            "volume": [1000.0],
+            "previous_close": [99.5],
+        }
+    )
+    intraday = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)],
+            "symbol": ["AAPL"],
+            "current_price": [102.0],
+        }
+    )
+    open_detail = pd.DataFrame(columns=["trade_date", "symbol", "timestamp", "volume"])
+    close_detail = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 4,
+            "symbol": ["AAPL"] * 4,
+            "timestamp": pd.to_datetime(
+                [
+                    "2026-03-05 20:50:00+00:00",
+                    "2026-03-05 20:59:30+00:00",
+                    "2026-03-05 21:00:00+00:00",
+                    "2026-03-05 21:04:00+00:00",
+                ]
+            ),
+            "session": ["regular", "regular", "postmarket", "postmarket"],
+            "open": [100.0, 101.0, 101.5, 101.7],
+            "high": [100.2, 101.5, 101.8, 102.0],
+            "low": [99.9, 100.8, 101.2, 101.4],
+            "close": [100.1, 101.4, 101.7, 101.9],
+            "volume": [100.0, 300.0, 200.0, 50.0],
+        }
+    )
+
+    features, coverage = build_daily_features_full_universe(
+        trading_days=trading_days,
+        universe=universe,
+        daily_bars=daily_bars,
+        intraday=intraday,
+        second_detail_all=open_detail,
+        close_detail_all=close_detail,
+    )
+
+    row = features.iloc[0]
+    assert bool(row["has_close_window_detail"]) is True
+    assert int(row["close_window_second_rows"]) == 4
+    assert int(row["close_preclose_second_rows"]) == 2
+    assert int(row["close_last_minute_second_rows"]) == 1
+    assert int(row["close_postclose_second_rows"]) == 2
+    assert float(row["close_10m_volume"]) == 400.0
+    assert float(row["close_last_1m_volume"]) == 300.0
+    assert float(row["close_postclose_5m_volume"]) == 250.0
+    assert round(float(row["close_last_1m_volume_share"]), 4) == 0.75
+    assert round(float(row["close_postclose_volume_share"]), 4) == round(250.0 / 650.0, 4)
+    assert round(float(row["close_preclose_return_pct"]), 4) == 1.4
+    assert round(float(row["close_postclose_return_pct"]), 4) == round(((101.9 / 101.4) - 1.0) * 100.0, 4)
+    assert bool(coverage.loc[0, "has_close_window_detail"]) is True
+
+
+def test_build_daily_features_full_universe_builds_close_hygiene_venue_mix_and_forward_outcomes() -> None:
+    trading_days = [date(2026, 3, 5), date(2026, 3, 6)]
+    universe = pd.DataFrame({"symbol": ["AAPL"]})
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAPL", "AAPL"],
+            "open": [100.0, 103.0],
+            "high": [103.0, 105.0],
+            "low": [99.0, 102.0],
+            "close": [102.0, 104.0],
+            "volume": [1000.0, 1100.0],
+            "previous_close": [99.5, 102.0],
+        }
+    )
+    intraday = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAPL", "AAPL"],
+            "market_open_price": [100.8, 103.0],
+            "window_start_price": [100.9, 103.2],
+            "current_price": [101.9, 104.0],
+            "exact_1000_price": [101.85, 103.6],
+        }
+    )
+    close_detail = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 4,
+            "symbol": ["AAPL"] * 4,
+            "timestamp": pd.to_datetime(
+                [
+                    "2026-03-05 20:50:00+00:00",
+                    "2026-03-05 20:59:30+00:00",
+                    "2026-03-05 21:00:00+00:00",
+                    "2026-03-05 21:04:00+00:00",
+                ]
+            ),
+            "session": ["regular", "regular", "postmarket", "postmarket"],
+            "open": [100.0, 101.0, 101.5, 101.7],
+            "high": [100.2, 101.5, 101.8, 102.0],
+            "low": [99.9, 100.8, 101.2, 101.4],
+            "close": [100.1, 101.4, 101.7, 101.9],
+            "volume": [100.0, 300.0, 200.0, 50.0],
+        }
+    )
+    close_trade_detail = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 3,
+            "symbol": ["AAPL"] * 3,
+            "timestamp": pd.to_datetime(
+                [
+                    "2026-03-05 20:59:05+00:00",
+                    "2026-03-05 20:59:20+00:00",
+                    "2026-03-05 20:59:40+00:00",
+                ]
+            ),
+            "ts_event": pd.to_datetime(
+                [
+                    "2026-03-05 20:59:05+00:00",
+                    "2026-03-05 20:59:20+00:00",
+                    "2026-03-05 20:59:39+00:00",
+                ]
+            ),
+            "ts_recv": pd.to_datetime(
+                [
+                    "2026-03-05 20:59:05+00:00",
+                    "2026-03-05 20:59:20+00:00",
+                    "2026-03-05 20:59:40+00:00",
+                ]
+            ),
+            "publisher_id": [11, 12, 12],
+            "publisher": ["FINRA/Nasdaq TRF Carteret", "Nasdaq", "Nasdaq"],
+            "venue_class": ["off_exchange_trf", "lit_exchange", "lit_exchange"],
+            "side": ["N", "B", "N"],
+            "price": [101.35, 101.40, 101.45],
+            "size": [100.0, 50.0, 20.0],
+            "flags": [0, 0, 8],
+            "sequence": [1, 2, 3],
+            "ts_in_delta": [0, 0, 0],
+        }
+    )
+    close_outcome_minute = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 5)],
+            "symbol": ["AAPL", "AAPL"],
+            "timestamp": pd.to_datetime([
+                "2026-03-05 21:00:00+00:00",
+                "2026-03-06 00:59:00+00:00",
+            ]),
+            "open": [101.5, 102.8],
+            "high": [102.0, 103.0],
+            "low": [101.3, 102.7],
+            "close": [101.8, 103.0],
+            "volume": [300.0, 700.0],
+        }
+    )
+
+    features, _ = build_daily_features_full_universe(
+        trading_days=trading_days,
+        universe=universe,
+        daily_bars=daily_bars,
+        intraday=intraday,
+        second_detail_all=pd.DataFrame(),
+        close_detail_all=close_detail,
+        close_trade_detail_all=close_trade_detail,
+        close_outcome_minute_detail_all=close_outcome_minute,
+    )
+
+    day1 = features.loc[features["trade_date"] == date(2026, 3, 5)].iloc[0]
+    day2 = features.loc[features["trade_date"] == date(2026, 3, 6)].iloc[0]
+    assert int(day1["close_trade_print_count"]) == 3
+    assert float(day1["close_trade_share_volume"]) == 170.0
+    assert int(day1["close_trade_clean_print_count"]) == 2
+    assert float(day1["close_trade_clean_share_volume"]) == 150.0
+    assert int(day1["close_trade_bad_ts_recv_count"]) == 1
+    assert int(day1["close_trade_trf_print_count"]) == 1
+    assert int(day1["close_trade_lit_print_count"]) == 2
+    assert round(float(day1["close_trade_trf_volume_share"]), 4) == round(100.0 / 170.0, 4)
+    assert bool(day1["close_trade_has_trf_activity"]) is True
+    assert bool(day1["close_trade_has_lit_activity"]) is True
+    assert bool(day1["close_trade_has_lit_followthrough"]) is True
+    assert round(float(day1["close_to_2000_return_pct"]), 4) == round(((103.0 / 101.4) - 1.0) * 100.0, 4)
+    assert round(float(day1["close_to_next_open_return_pct"]), 4) == round(((103.0 / 101.4) - 1.0) * 100.0, 4)
+    assert float(day1["next_day_window_end_price"]) == 103.6
+    assert round(float(day1["next_open_to_window_end_return_pct"]), 4) == round(((103.6 / 103.0) - 1.0) * 100.0, 4)
+    assert round(float(day1["close_to_next_window_end_return_pct"]), 4) == round(((103.6 / 101.4) - 1.0) * 100.0, 4)
+    assert bool(day1["has_next_day_outcome"]) is True
+    assert pd.isna(day2["next_trade_date"])
+    assert bool(day2["has_next_day_outcome"]) is False
+
+
+def test_build_daily_features_full_universe_falls_back_to_next_day_current_price_when_exact_1000_missing() -> None:
+    trading_days = [date(2026, 3, 5), date(2026, 3, 6)]
+    universe = pd.DataFrame({"symbol": ["AAPL"]})
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAPL", "AAPL"],
+            "open": [100.0, 103.0],
+            "high": [103.0, 105.0],
+            "low": [99.0, 102.0],
+            "close": [102.0, 104.0],
+            "volume": [1000.0, 1100.0],
+            "previous_close": [99.5, 102.0],
+        }
+    )
+    intraday = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAPL", "AAPL"],
+            "market_open_price": [100.8, 103.0],
+            "current_price": [101.9, 104.0],
+            "exact_1000_price": [101.85, np.nan],
+        }
+    )
+    close_detail = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 2,
+            "symbol": ["AAPL"] * 2,
+            "timestamp": pd.to_datetime([
+                "2026-03-05 20:50:00+00:00",
+                "2026-03-05 20:59:30+00:00",
+            ]),
+            "open": [100.0, 101.0],
+            "high": [100.2, 101.5],
+            "low": [99.9, 100.8],
+            "close": [100.1, 101.4],
+            "volume": [100.0, 300.0],
+        }
+    )
+
+    features, _ = build_daily_features_full_universe(
+        trading_days=trading_days,
+        universe=universe,
+        daily_bars=daily_bars,
+        intraday=intraday,
+        second_detail_all=pd.DataFrame(),
+        close_detail_all=close_detail,
+    )
+
+    day1 = features.loc[features["trade_date"] == date(2026, 3, 5)].iloc[0]
+    assert float(day1["next_day_window_end_price"]) == 104.0
+    assert round(float(day1["close_to_next_window_end_return_pct"]), 4) == round(((104.0 / 101.4) - 1.0) * 100.0, 4)
+    assert bool(day1["has_next_day_outcome"]) is True
+
+
+def test_build_daily_features_full_universe_requires_next_day_window_end_for_outcome_flag() -> None:
+    trading_days = [date(2026, 3, 5), date(2026, 3, 6)]
+    universe = pd.DataFrame({"symbol": ["AAPL"]})
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAPL", "AAPL"],
+            "open": [100.0, 103.0],
+            "high": [103.0, 105.0],
+            "low": [99.0, 102.0],
+            "close": [102.0, 104.0],
+            "volume": [1000.0, 1100.0],
+            "previous_close": [99.5, 102.0],
+        }
+    )
+    intraday = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 6)],
+            "symbol": ["AAPL", "AAPL"],
+            "market_open_price": [100.8, 103.0],
+            "current_price": [101.9, np.nan],
+            "exact_1000_price": [101.85, np.nan],
+        }
+    )
+    close_detail = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5)] * 2,
+            "symbol": ["AAPL"] * 2,
+            "timestamp": pd.to_datetime([
+                "2026-03-05 20:50:00+00:00",
+                "2026-03-05 20:59:30+00:00",
+            ]),
+            "open": [100.0, 101.0],
+            "high": [100.2, 101.5],
+            "low": [99.9, 100.8],
+            "close": [100.1, 101.4],
+            "volume": [100.0, 300.0],
+        }
+    )
+
+    features, _ = build_daily_features_full_universe(
+        trading_days=trading_days,
+        universe=universe,
+        daily_bars=daily_bars,
+        intraday=intraday,
+        second_detail_all=pd.DataFrame(),
+        close_detail_all=close_detail,
+    )
+
+    day1 = features.loc[features["trade_date"] == date(2026, 3, 5)].iloc[0]
+    assert pd.isna(day1["next_day_window_end_price"])
+    assert pd.isna(day1["close_to_next_window_end_return_pct"])
+    assert bool(day1["has_next_day_outcome"]) is False
+
+
+def test_build_exact_window_end_lookup_only_keeps_true_boundary_rows() -> None:
+    anchor = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 6), date(2026, 3, 6)],
+            "symbol": ["AAPL", "MSFT"],
+            "current_price": [103.6, 210.4],
+            "current_price_timestamp": pd.to_datetime(
+                [
+                    "2026-03-06 15:00:00+00:00",
+                    "2026-03-06 14:59:59+00:00",
+                ]
+            ),
+        }
+    )
+
+    out = _build_exact_window_end_lookup(anchor, display_timezone="Europe/Berlin")
+
+    assert list(out["symbol"]) == ["AAPL"]
+    assert float(out.iloc[0]["exact_1000_price"]) == 103.6
 
 
 def test_has_open_window_detail_ors_open_and_regular_rows() -> None:
@@ -3276,8 +3620,16 @@ def test_symbol_detail_cache_key_includes_premarket_anchor(tmp_path) -> None:
 
 def test_cache_version_by_category_covers_all_data_categories() -> None:
     """All data cache categories should be tracked in CACHE_VERSION_BY_CATEGORY."""
-    expected = {"daily_bars", "symbol_support", "full_universe_open_second_detail",
-                "intraday_summary", "symbol_detail_second", "symbol_detail_minute"}
+    expected = {
+        "daily_bars",
+        "symbol_support",
+        "full_universe_open_second_detail",
+        "full_universe_close_trade_detail",
+        "full_universe_close_outcome_minute_detail",
+        "intraday_summary",
+        "symbol_detail_second",
+        "symbol_detail_minute",
+    }
     assert expected == set(CACHE_VERSION_BY_CATEGORY.keys())
 
 

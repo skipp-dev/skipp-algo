@@ -53,6 +53,8 @@ CACHE_VERSION_BY_CATEGORY = {
     "daily_bars": "v2",
     "symbol_support": "v2",
     "full_universe_open_second_detail": "v2",
+    "full_universe_close_trade_detail": "v1",
+    "full_universe_close_outcome_minute_detail": "v1",
     "intraday_summary": "v2",
     "symbol_detail_second": "v2",
     "symbol_detail_minute": "v2",
@@ -92,6 +94,15 @@ _DEFAULT_INTRADAY_POST_OPEN_MINUTES = 30
 # ET-relative defaults for the open window detail
 _DEFAULT_OPEN_WINDOW_PRE_OPEN_MINUTES = 1
 _DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS = 5 * 60 + 59  # 5:59 after open
+# ET-relative defaults for close-imbalance detail
+DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET = time(15, 50)
+DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET = time(16, 0)
+DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET = time(16, 5)
+DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET = time(20, 0)
+DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET = time(10, 0)
+_DATABENTO_FLAG_BAD_TS_RECV = 1 << 3
+_DATABENTO_FLAG_MAYBE_BAD_BOOK = 1 << 2
+_DATABENTO_FLAG_PUBLISHER_SPECIFIC = 1 << 1
 
 MAX_SYMBOLS_PER_REQUEST = 2000
 SYMBOL_SUPPORT_CHECK_BATCH_SIZE = 250
@@ -169,6 +180,7 @@ class SymbolDayState:
     trade_date: date
     first_window_open: float | None = None
     last_window_close: float | None = None
+    last_window_timestamp: pd.Timestamp | None = None
     window_high: float | None = None
     window_low: float | None = None
     window_volume: float = 0.0
@@ -342,7 +354,7 @@ def _empty_intraday_frame() -> pd.DataFrame:
     return pd.DataFrame(
         columns=[
             "trade_date", "symbol", "previous_close", "premarket_price", "market_open_price", "window_start_price",
-            "current_price", "window_high", "window_low", "window_volume", "seconds_in_window", "window_return_pct",
+            "current_price", "current_price_timestamp", "window_high", "window_low", "window_volume", "seconds_in_window", "window_return_pct",
             "window_range_pct", "realized_vol_pct", "has_premarket_data", "prev_close_to_premarket_abs", "prev_close_to_premarket_pct",
             "premarket_to_open_abs", "premarket_to_open_pct", "open_to_current_abs", "open_to_current_pct",
         ]
@@ -1162,6 +1174,7 @@ def _update_state_from_chunk(
     summary = grouped.agg(
         first_window_open=("open", "first"),
         last_window_close=("close", "last"),
+        last_window_timestamp=("ts", "last"),
         window_high=("high", "max"),
         window_low=("low", "min"),
         window_volume=("volume", "sum"),
@@ -1180,6 +1193,9 @@ def _update_state_from_chunk(
         last_window_close = _safe_float(row.get("last_window_close"))
         if last_window_close is not None and last_window_close > 0:
             state.last_window_close = last_window_close
+        last_window_timestamp = pd.to_datetime(row.get("last_window_timestamp"), errors="coerce", utc=True)
+        if pd.notna(last_window_timestamp):
+            state.last_window_timestamp = last_window_timestamp
 
         high_val = _safe_float(row.get("window_high"))
         low_val = _safe_float(row.get("window_low"))
@@ -1248,6 +1264,7 @@ def summarize_symbol_day(
         "market_open_price": market_open,
         "window_start_price": first_open,
         "current_price": last_close,
+        "current_price_timestamp": state.last_window_timestamp,
         "window_high": high_val,
         "window_low": low_val,
         "window_volume": state.window_volume,
@@ -1908,6 +1925,531 @@ def _build_open_window_aggregates(
     return pd.DataFrame(metrics)
 
 
+def _build_close_imbalance_aggregates(
+    second_detail_all: pd.DataFrame,
+    *,
+    trading_days: list[date],
+    display_timezone: str,
+    close_window_start: time = DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
+    close_auction_time: time = DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET,
+    close_window_end: time = DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
+) -> pd.DataFrame:
+    metric_columns = [
+        "trade_date",
+        "symbol",
+        "close_window_second_rows",
+        "close_preclose_second_rows",
+        "close_last_minute_second_rows",
+        "close_postclose_second_rows",
+        "close_10m_volume",
+        "close_last_1m_volume",
+        "close_postclose_5m_volume",
+        "close_last_1m_volume_share",
+        "close_postclose_volume_share",
+        "close_reference_price",
+        "close_auction_reference_price",
+        "close_preclose_return_pct",
+        "close_postclose_return_pct",
+        "close_postclose_high_pct",
+        "close_postclose_low_pct",
+    ]
+    if second_detail_all.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    detail = second_detail_all.copy()
+    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
+    detail["symbol"] = detail["symbol"].astype(str).str.upper()
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
+    detail["timestamp"] = detail["timestamp"].dt.tz_convert(resolve_display_timezone(display_timezone))
+    detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce").fillna(0.0)
+    detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
+    if detail.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    tz = resolve_display_timezone(display_timezone)
+    windows = {
+        trade_day: {
+            "start": pd.Timestamp(datetime.combine(trade_day, close_window_start, tzinfo=US_EASTERN_TZ).astimezone(tz)),
+            "auction": pd.Timestamp(datetime.combine(trade_day, close_auction_time, tzinfo=US_EASTERN_TZ).astimezone(tz)),
+            "end": pd.Timestamp(datetime.combine(trade_day, close_window_end, tzinfo=US_EASTERN_TZ).astimezone(tz)),
+        }
+        for trade_day in trading_days
+    }
+
+    metrics: list[dict[str, Any]] = []
+    for (trade_day, symbol), group in detail.groupby(["trade_date", "symbol"], sort=False):
+        window = windows.get(trade_day)
+        if window is None:
+            continue
+        ordered = group.sort_values("timestamp").copy()
+        window_rows = ordered[(ordered["timestamp"] >= window["start"]) & (ordered["timestamp"] < window["end"])]
+        if window_rows.empty:
+            continue
+
+        preclose_rows = window_rows[window_rows["timestamp"] < window["auction"]]
+        last_minute_start = window["auction"] - pd.Timedelta(minutes=1)
+        last_minute_rows = preclose_rows[preclose_rows["timestamp"] >= last_minute_start]
+        postclose_rows = window_rows[window_rows["timestamp"] >= window["auction"]]
+
+        close_reference_price = np.nan
+        close_auction_reference_price = np.nan
+        close_preclose_return_pct = np.nan
+        close_postclose_return_pct = np.nan
+        close_postclose_high_pct = np.nan
+        close_postclose_low_pct = np.nan
+
+        if not preclose_rows.empty:
+            close_reference_price = float(pd.to_numeric(preclose_rows.iloc[0].get("open"), errors="coerce"))
+            close_auction_reference_price = float(pd.to_numeric(preclose_rows.iloc[-1].get("close"), errors="coerce"))
+            if math.isfinite(close_reference_price) and close_reference_price > 0 and math.isfinite(close_auction_reference_price):
+                close_preclose_return_pct = ((close_auction_reference_price / close_reference_price) - 1.0) * 100.0
+
+        if not postclose_rows.empty and math.isfinite(close_auction_reference_price) and close_auction_reference_price > 0:
+            postclose_last_close = float(pd.to_numeric(postclose_rows.iloc[-1].get("close"), errors="coerce"))
+            postclose_high = float(pd.to_numeric(postclose_rows.get("high"), errors="coerce").max())
+            postclose_low = float(pd.to_numeric(postclose_rows.get("low"), errors="coerce").min())
+            if math.isfinite(postclose_last_close):
+                close_postclose_return_pct = ((postclose_last_close / close_auction_reference_price) - 1.0) * 100.0
+            if math.isfinite(postclose_high):
+                close_postclose_high_pct = ((postclose_high / close_auction_reference_price) - 1.0) * 100.0
+            if math.isfinite(postclose_low):
+                close_postclose_low_pct = ((postclose_low / close_auction_reference_price) - 1.0) * 100.0
+
+        close_10m_volume = float(preclose_rows["volume"].sum())
+        close_last_1m_volume = float(last_minute_rows["volume"].sum())
+        close_postclose_5m_volume = float(postclose_rows["volume"].sum())
+        close_window_total_volume = float(window_rows["volume"].sum())
+        close_last_1m_volume_share = (close_last_1m_volume / close_10m_volume) if close_10m_volume > 0 else np.nan
+        close_postclose_volume_share = (close_postclose_5m_volume / close_window_total_volume) if close_window_total_volume > 0 else np.nan
+
+        metrics.append(
+            {
+                "trade_date": trade_day,
+                "symbol": symbol,
+                "close_window_second_rows": int(len(window_rows)),
+                "close_preclose_second_rows": int(len(preclose_rows)),
+                "close_last_minute_second_rows": int(len(last_minute_rows)),
+                "close_postclose_second_rows": int(len(postclose_rows)),
+                "close_10m_volume": close_10m_volume,
+                "close_last_1m_volume": close_last_1m_volume,
+                "close_postclose_5m_volume": close_postclose_5m_volume,
+                "close_last_1m_volume_share": close_last_1m_volume_share,
+                "close_postclose_volume_share": close_postclose_volume_share,
+                "close_reference_price": close_reference_price,
+                "close_auction_reference_price": close_auction_reference_price,
+                "close_preclose_return_pct": close_preclose_return_pct,
+                "close_postclose_return_pct": close_postclose_return_pct,
+                "close_postclose_high_pct": close_postclose_high_pct,
+                "close_postclose_low_pct": close_postclose_low_pct,
+            }
+        )
+    return pd.DataFrame(metrics)
+
+
+def _normalize_trade_price_series(series: pd.Series | Any) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce")
+    if numeric.empty:
+        return numeric
+    numeric = numeric.where(numeric.abs() < 9e18, np.nan)
+    finite = numeric[np.isfinite(numeric)]
+    if finite.empty:
+        return numeric
+    median_abs = float(finite.abs().median())
+    if median_abs >= 1_000_000.0:
+        return numeric / 1_000_000_000.0
+    return numeric
+
+
+def _load_databento_publisher_lookup(client: Any) -> dict[int, dict[str, str]]:
+    try:
+        publishers = client.metadata.list_publishers()
+    except Exception:
+        logger.debug("metadata.list_publishers failed; close venue metadata unavailable", exc_info=True)
+        return {}
+    if not isinstance(publishers, list):
+        return {}
+
+    lookup: dict[int, dict[str, str]] = {}
+    for item in publishers:
+        if not isinstance(item, dict):
+            continue
+        publisher_id = item.get("publisher_id")
+        if publisher_id in (None, ""):
+            continue
+        try:
+            publisher_id_int = int(str(publisher_id))
+        except (TypeError, ValueError):
+            continue
+        description = str(item.get("description") or item.get("publisher") or item.get("venue") or "").strip()
+        description_lower = description.lower()
+        venue_label = description.partition("-")[2].strip() if "-" in description else description
+        if not venue_label:
+            venue_label = description or f"publisher_{publisher_id_int}"
+        is_trf = "trf" in description_lower
+        lookup[publisher_id_int] = {
+            "description": description or venue_label,
+            "venue_label": venue_label,
+            "venue_class": "off_exchange_trf" if is_trf else "lit_exchange",
+        }
+    return lookup
+
+
+def collect_full_universe_close_trade_detail(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    universe_symbols: set[str],
+    symbol_day_scope: pd.DataFrame | None = None,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> pd.DataFrame:
+    output_columns = [
+        "trade_date", "symbol", "timestamp", "ts_event", "ts_recv", "publisher_id", "publisher", "venue_class",
+        "side", "price", "size", "flags", "sequence", "ts_in_delta",
+    ]
+    if not trading_days or not universe_symbols:
+        return pd.DataFrame(columns=output_columns)
+
+    client = _make_databento_client(databento_api_key)
+    available_end = _get_schema_available_end(client, dataset, "trades")
+    publisher_lookup = _load_databento_publisher_lookup(client)
+    normalized_scope = _normalize_symbol_day_scope(symbol_day_scope)
+    scope_by_day = {
+        trade_day: set(group["symbol"].astype(str).tolist())
+        for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
+    } if not normalized_scope.empty else {}
+    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+
+    display_tz = resolve_display_timezone(display_timezone)
+    all_rows: list[pd.DataFrame] = []
+    runtime_unsupported_symbols: set[str] = set()
+    for trade_day in trading_days:
+        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        if not day_universe_symbols:
+            continue
+        local_start = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+        local_end = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+        fetch_start_utc = pd.Timestamp(local_start.astimezone(UTC))
+        fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
+        if fetch_end_utc <= fetch_start_utc:
+            continue
+        cache_path = build_cache_path(
+            cache_dir,
+            "full_universe_close_trade_detail",
+            dataset=dataset,
+            parts=[trade_day.isoformat(), display_timezone, symbol_scope],
+        )
+        day_frame: pd.DataFrame | None = None
+        if use_file_cache and not force_refresh:
+            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+
+        if day_frame is None:
+            day_parts: list[pd.DataFrame] = []
+            active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            for symbols_batch in _iter_symbol_batches(active_symbols):
+                try:
+                    with warnings.catch_warnings(record=True) as caught_warnings:
+                        warnings.simplefilter("always")
+                        store = client.timeseries.get_range(
+                            dataset=dataset,
+                            symbols=symbols_batch,
+                            schema="trades",
+                            start=fetch_start_utc.isoformat(),
+                            end=fetch_end_utc.isoformat(),
+                        )
+                    frame = _store_to_frame(store, count=250_000, context="collect_full_universe_close_trade_detail")
+                    runtime_unsupported_symbols.update(
+                        _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+                    )
+                    if not frame.empty:
+                        _validate_frame_columns(
+                            frame,
+                            required={"symbol", "publisher_id", "size", "price", "flags", "sequence"},
+                            context="collect_full_universe_close_trade_detail",
+                        )
+                except Exception as exc:
+                    _warn_with_redacted_exception(
+                        f"Close trade detail fetch failed for batch on {trade_day}, skipping",
+                        exc,
+                        include_traceback=True,
+                    )
+                    continue
+                if frame.empty or "symbol" not in frame.columns:
+                    continue
+                frame = frame.copy()
+                frame["symbol"] = frame["symbol"].astype(str).str.upper()
+                frame = frame[frame["symbol"].isin(day_universe_symbols)].copy()
+                if frame.empty:
+                    continue
+                frame["timestamp"] = frame["ts"].dt.tz_convert(display_tz)
+                frame["ts_recv"] = pd.to_datetime(frame["ts"], errors="coerce", utc=True)
+                frame["ts_event"] = pd.to_datetime(frame.get("ts_event"), errors="coerce", utc=True)
+                frame["publisher_id"] = pd.to_numeric(frame.get("publisher_id"), errors="coerce").astype("Int64")
+                frame["publisher"] = frame["publisher_id"].map(lambda value: publisher_lookup.get(int(value), {}).get("venue_label") if pd.notna(value) else None)
+                frame["venue_class"] = frame["publisher_id"].map(lambda value: publisher_lookup.get(int(value), {}).get("venue_class") if pd.notna(value) else None)
+                frame["side"] = frame.get("side", "N").astype(str).str.upper().replace("", "N")
+                frame["price"] = _normalize_trade_price_series(frame.get("price"))
+                frame["size"] = pd.to_numeric(frame.get("size"), errors="coerce")
+                frame["flags"] = pd.to_numeric(frame.get("flags"), errors="coerce").fillna(0).astype(int)
+                frame["sequence"] = pd.to_numeric(frame.get("sequence"), errors="coerce")
+                frame["ts_in_delta"] = pd.to_numeric(frame.get("ts_in_delta"), errors="coerce")
+                frame.insert(0, "trade_date", trade_day)
+                day_parts.append(frame[output_columns].reset_index(drop=True))
+
+            day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
+            if use_file_cache and not day_frame.empty:
+                _write_cached_frame(cache_path, day_frame)
+
+        if day_frame is not None and not day_frame.empty:
+            all_rows.append(day_frame)
+
+    return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(columns=output_columns)
+
+
+def collect_full_universe_close_outcome_minute_detail(
+    databento_api_key: str,
+    *,
+    dataset: str,
+    trading_days: list[date],
+    universe_symbols: set[str],
+    symbol_day_scope: pd.DataFrame | None = None,
+    display_timezone: str = DEFAULT_DISPLAY_TZ,
+    cache_dir: str | Path | None = None,
+    use_file_cache: bool = False,
+    force_refresh: bool = False,
+) -> pd.DataFrame:
+    output_columns = ["trade_date", "symbol", "timestamp", "open", "high", "low", "close", "volume"]
+    if not trading_days or not universe_symbols:
+        return pd.DataFrame(columns=output_columns)
+
+    client = _make_databento_client(databento_api_key)
+    available_end = _get_schema_available_end(client, dataset, "ohlcv-1m")
+    normalized_scope = _normalize_symbol_day_scope(symbol_day_scope)
+    scope_by_day = {
+        trade_day: set(group["symbol"].astype(str).tolist())
+        for trade_day, group in normalized_scope.groupby("trade_date", sort=False)
+    } if not normalized_scope.empty else {}
+    symbol_scope = _symbol_day_scope_token(normalized_scope) if scope_by_day else _symbol_scope_token(universe_symbols)
+    display_tz = resolve_display_timezone(display_timezone)
+    all_rows: list[pd.DataFrame] = []
+    runtime_unsupported_symbols: set[str] = set()
+
+    for trade_day in trading_days:
+        day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
+        if not day_universe_symbols:
+            continue
+        local_start = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+        local_end = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+        fetch_start_utc = pd.Timestamp(local_start.astimezone(UTC))
+        fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
+        if fetch_end_utc <= fetch_start_utc:
+            continue
+        cache_path = build_cache_path(
+            cache_dir,
+            "full_universe_close_outcome_minute_detail",
+            dataset=dataset,
+            parts=[trade_day.isoformat(), display_timezone, symbol_scope],
+        )
+        day_frame: pd.DataFrame | None = None
+        if use_file_cache and not force_refresh:
+            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+
+        if day_frame is None:
+            day_parts: list[pd.DataFrame] = []
+            active_symbols = set(day_universe_symbols) - runtime_unsupported_symbols
+            for symbols_batch in _iter_symbol_batches(active_symbols):
+                try:
+                    with warnings.catch_warnings(record=True) as caught_warnings:
+                        warnings.simplefilter("always")
+                        store = client.timeseries.get_range(
+                            dataset=dataset,
+                            symbols=symbols_batch,
+                            schema="ohlcv-1m",
+                            start=fetch_start_utc.isoformat(),
+                            end=fetch_end_utc.isoformat(),
+                        )
+                    frame = _store_to_frame(store, count=250_000, context="collect_full_universe_close_outcome_minute_detail")
+                    runtime_unsupported_symbols.update(
+                        _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+                    )
+                    if not frame.empty:
+                        _validate_frame_columns(
+                            frame,
+                            required={"symbol", "open", "high", "low", "close", "volume"},
+                            context="collect_full_universe_close_outcome_minute_detail",
+                        )
+                except Exception as exc:
+                    _warn_with_redacted_exception(
+                        f"Close outcome minute detail fetch failed for batch on {trade_day}, skipping",
+                        exc,
+                        include_traceback=True,
+                    )
+                    continue
+                if frame.empty or "symbol" not in frame.columns:
+                    continue
+                frame = frame.copy()
+                frame["symbol"] = frame["symbol"].astype(str).str.upper()
+                frame = frame[frame["symbol"].isin(day_universe_symbols)].copy()
+                if frame.empty:
+                    continue
+                frame["timestamp"] = frame["ts"].dt.tz_convert(display_tz)
+                frame.insert(0, "trade_date", trade_day)
+                day_parts.append(frame[output_columns].reset_index(drop=True))
+            day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
+            if use_file_cache and not day_frame.empty:
+                _write_cached_frame(cache_path, day_frame)
+
+        if day_frame is not None and not day_frame.empty:
+            all_rows.append(day_frame)
+
+    return pd.concat(all_rows, ignore_index=True) if all_rows else pd.DataFrame(columns=output_columns)
+
+
+def _build_close_trade_aggregates(
+    close_trade_detail_all: pd.DataFrame,
+    *,
+    trading_days: list[date],
+    display_timezone: str,
+    close_auction_time: time = DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET,
+) -> pd.DataFrame:
+    metric_columns = [
+        "trade_date", "symbol", "close_trade_print_count", "close_trade_share_volume", "close_trade_clean_print_count",
+        "close_trade_clean_share_volume", "close_trade_bad_ts_recv_count", "close_trade_maybe_bad_book_count",
+        "close_trade_publisher_specific_flag_count", "close_trade_sequence_break_count", "close_trade_event_time_regression_count",
+        "close_trade_unknown_side_count", "close_trade_unknown_side_share", "close_trade_hygiene_score",
+        "close_trade_unique_publishers", "close_trade_trf_print_count", "close_trade_trf_share_volume",
+        "close_trade_lit_print_count", "close_trade_lit_share_volume", "close_trade_trf_volume_share",
+        "close_trade_lit_volume_share", "close_trade_has_trf_activity", "close_trade_has_lit_activity",
+        "close_trade_has_lit_followthrough",
+    ]
+    if close_trade_detail_all.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    detail = close_trade_detail_all.copy()
+    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
+    detail["symbol"] = detail["symbol"].astype(str).str.upper()
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True).dt.tz_convert(resolve_display_timezone(display_timezone))
+    detail["ts_recv"] = pd.to_datetime(detail.get("ts_recv"), errors="coerce", utc=True)
+    detail["ts_event"] = pd.to_datetime(detail.get("ts_event"), errors="coerce", utc=True)
+    detail["size"] = pd.to_numeric(detail.get("size"), errors="coerce").fillna(0.0)
+    detail["price"] = _normalize_trade_price_series(detail.get("price"))
+    detail["flags"] = pd.to_numeric(detail.get("flags"), errors="coerce").fillna(0).astype(int)
+    detail["sequence"] = pd.to_numeric(detail.get("sequence"), errors="coerce")
+    detail["publisher_id"] = pd.to_numeric(detail.get("publisher_id"), errors="coerce").astype("Int64")
+    detail["side"] = detail.get("side", "N").astype(str).str.upper().replace("", "N")
+    detail["venue_class"] = detail.get("venue_class", "").astype(str)
+    detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
+    if detail.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    tz = resolve_display_timezone(display_timezone)
+    auction_by_day = {
+        trade_day: pd.Timestamp(datetime.combine(trade_day, close_auction_time, tzinfo=US_EASTERN_TZ).astimezone(tz))
+        for trade_day in trading_days
+    }
+
+    metrics: list[dict[str, Any]] = []
+    for (trade_day, symbol), group in detail.groupby(["trade_date", "symbol"], sort=False):
+        auction_ts = auction_by_day.get(trade_day)
+        if auction_ts is None:
+            continue
+        ordered = group.sort_values(["timestamp", "sequence"], na_position="last").copy()
+        trade_count = int(len(ordered))
+        if trade_count == 0:
+            continue
+        volume_total = float(ordered["size"].sum())
+        bad_ts_mask = (ordered["flags"] & _DATABENTO_FLAG_BAD_TS_RECV) != 0
+        maybe_bad_book_mask = (ordered["flags"] & _DATABENTO_FLAG_MAYBE_BAD_BOOK) != 0
+        publisher_specific_mask = (ordered["flags"] & _DATABENTO_FLAG_PUBLISHER_SPECIFIC) != 0
+        clean_mask = (~bad_ts_mask) & (~maybe_bad_book_mask) & (ordered["size"] > 0) & (ordered["price"] > 0)
+        seq_break_count = 0
+        for _, publisher_group in ordered.groupby("publisher_id", dropna=False, sort=False):
+            diffs = pd.to_numeric(publisher_group["sequence"], errors="coerce").diff()
+            seq_break_count += int((diffs < 0).fillna(False).sum())
+        event_regression_count = int((ordered["ts_event"].diff() < pd.Timedelta(0)).fillna(False).sum()) if ordered["ts_event"].notna().any() else 0
+        unknown_side_count = int(ordered["side"].eq("N").sum())
+        trf_mask = ordered["venue_class"].eq("off_exchange_trf")
+        lit_mask = ordered["venue_class"].eq("lit_exchange")
+        last_minute = ordered[(ordered["timestamp"] >= (auction_ts - pd.Timedelta(minutes=1))) & (ordered["timestamp"] < auction_ts)]
+        trf_last_minute = last_minute[last_minute["venue_class"].eq("off_exchange_trf")]
+        lit_followthrough = False
+        if not trf_last_minute.empty:
+            first_trf_ts = trf_last_minute["timestamp"].min()
+            lit_followthrough = bool(last_minute[last_minute["venue_class"].eq("lit_exchange")]["timestamp"].ge(first_trf_ts).any())
+        hygiene_penalty = (
+            int(bad_ts_mask.sum())
+            + int(maybe_bad_book_mask.sum())
+            + seq_break_count
+            + event_regression_count
+        ) / max(trade_count, 1)
+        metrics.append(
+            {
+                "trade_date": trade_day,
+                "symbol": symbol,
+                "close_trade_print_count": trade_count,
+                "close_trade_share_volume": volume_total,
+                "close_trade_clean_print_count": int(clean_mask.sum()),
+                "close_trade_clean_share_volume": float(ordered.loc[clean_mask, "size"].sum()),
+                "close_trade_bad_ts_recv_count": int(bad_ts_mask.sum()),
+                "close_trade_maybe_bad_book_count": int(maybe_bad_book_mask.sum()),
+                "close_trade_publisher_specific_flag_count": int(publisher_specific_mask.sum()),
+                "close_trade_sequence_break_count": seq_break_count,
+                "close_trade_event_time_regression_count": event_regression_count,
+                "close_trade_unknown_side_count": unknown_side_count,
+                "close_trade_unknown_side_share": (unknown_side_count / trade_count) if trade_count > 0 else np.nan,
+                "close_trade_hygiene_score": max(0.0, 1.0 - hygiene_penalty),
+                "close_trade_unique_publishers": int(ordered["publisher_id"].dropna().nunique()),
+                "close_trade_trf_print_count": int(trf_mask.sum()),
+                "close_trade_trf_share_volume": float(ordered.loc[trf_mask, "size"].sum()),
+                "close_trade_lit_print_count": int(lit_mask.sum()),
+                "close_trade_lit_share_volume": float(ordered.loc[lit_mask, "size"].sum()),
+                "close_trade_trf_volume_share": (float(ordered.loc[trf_mask, "size"].sum()) / volume_total) if volume_total > 0 else np.nan,
+                "close_trade_lit_volume_share": (float(ordered.loc[lit_mask, "size"].sum()) / volume_total) if volume_total > 0 else np.nan,
+                "close_trade_has_trf_activity": bool(trf_mask.any()),
+                "close_trade_has_lit_activity": bool(lit_mask.any()),
+                "close_trade_has_lit_followthrough": lit_followthrough,
+            }
+        )
+    return pd.DataFrame(metrics)
+
+
+def _build_close_outcome_aggregates(close_outcome_minute_detail_all: pd.DataFrame) -> pd.DataFrame:
+    metric_columns = [
+        "trade_date", "symbol", "close_afterhours_minute_rows", "close_afterhours_volume",
+        "close_last_price_2000", "close_high_price_1600_2000", "close_low_price_1600_2000",
+    ]
+    if close_outcome_minute_detail_all.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    detail = close_outcome_minute_detail_all.copy()
+    detail["trade_date"] = pd.to_datetime(detail["trade_date"], errors="coerce").dt.date
+    detail["symbol"] = detail["symbol"].astype(str).str.upper()
+    detail["timestamp"] = pd.to_datetime(detail["timestamp"], errors="coerce", utc=True)
+    detail["volume"] = pd.to_numeric(detail.get("volume"), errors="coerce").fillna(0.0)
+    detail = detail.dropna(subset=["trade_date", "symbol", "timestamp"])
+    if detail.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    metrics: list[dict[str, Any]] = []
+    for (trade_day, symbol), group in detail.groupby(["trade_date", "symbol"], sort=False):
+        ordered = group.sort_values("timestamp")
+        metrics.append(
+            {
+                "trade_date": trade_day,
+                "symbol": symbol,
+                "close_afterhours_minute_rows": int(len(ordered)),
+                "close_afterhours_volume": float(ordered["volume"].sum()),
+                "close_last_price_2000": float(pd.to_numeric(ordered.iloc[-1].get("close"), errors="coerce")),
+                "close_high_price_1600_2000": float(pd.to_numeric(ordered.get("high"), errors="coerce").max()),
+                "close_low_price_1600_2000": float(pd.to_numeric(ordered.get("low"), errors="coerce").min()),
+            }
+        )
+    return pd.DataFrame(metrics)
+
+
 def build_daily_features_full_universe(
     *,
     trading_days: list[date],
@@ -1915,6 +2457,9 @@ def build_daily_features_full_universe(
     daily_bars: pd.DataFrame,
     intraday: pd.DataFrame,
     second_detail_all: pd.DataFrame,
+    close_detail_all: pd.DataFrame | None = None,
+    close_trade_detail_all: pd.DataFrame | None = None,
+    close_outcome_minute_detail_all: pd.DataFrame | None = None,
     display_timezone: str = DEFAULT_DISPLAY_TZ,
     premarket_anchor_et: time = time(8, 0),
     open_window_start: time | None = None,
@@ -1923,8 +2468,15 @@ def build_daily_features_full_universe(
     expected = _build_expected_symbol_day_frame(trading_days, universe)
     if expected.empty:
         empty_features = pd.DataFrame(columns=["trade_date", "symbol"])
-        empty_coverage = pd.DataFrame(columns=["trade_date", "symbol", "has_daily_bar", "has_intraday_summary", "has_open_window_detail", "exclusion_reason"])
+        empty_coverage = pd.DataFrame(columns=["trade_date", "symbol", "has_daily_bar", "has_intraday_summary", "has_open_window_detail", "has_close_window_detail", "exclusion_reason"])
         return empty_features, empty_coverage
+
+    if close_detail_all is None:
+        close_detail_all = pd.DataFrame()
+    if close_trade_detail_all is None:
+        close_trade_detail_all = pd.DataFrame()
+    if close_outcome_minute_detail_all is None:
+        close_outcome_minute_detail_all = pd.DataFrame()
 
     optional_universe_columns = [column for column in FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS if column in universe.columns]
     universe_columns = [column for column in ["symbol", "company_name", "exchange", "sector", "industry", "market_cap", *optional_universe_columns] if column in universe.columns]
@@ -1950,7 +2502,7 @@ def build_daily_features_full_universe(
 
     intraday_columns = [
         "trade_date", "symbol", "previous_close", "premarket_price", "has_premarket_data", "market_open_price",
-        "window_start_price", "current_price", "window_high", "window_low", "window_volume", "seconds_in_window",
+        "window_start_price", "current_price", "exact_1000_price", "window_high", "window_low", "window_volume", "seconds_in_window",
         "window_return_pct", "window_range_pct", "realized_vol_pct", "prev_close_to_premarket_abs",
         "prev_close_to_premarket_pct", "premarket_to_open_abs", "premarket_to_open_pct", "open_to_current_abs",
         "open_to_current_pct",
@@ -2000,6 +2552,26 @@ def build_daily_features_full_universe(
     if not open_window_0400.empty:
         open_window_0400["trade_date"] = pd.to_datetime(open_window_0400["trade_date"], errors="coerce").dt.date
         open_window_0400["symbol"] = open_window_0400["symbol"].astype(str).str.upper()
+    close_window = _build_close_imbalance_aggregates(
+        close_detail_all,
+        trading_days=trading_days,
+        display_timezone=display_timezone,
+    )
+    close_trade_window = _build_close_trade_aggregates(
+        close_trade_detail_all,
+        trading_days=trading_days,
+        display_timezone=display_timezone,
+    )
+    close_outcome_window = _build_close_outcome_aggregates(close_outcome_minute_detail_all)
+    if not close_window.empty:
+        close_window["trade_date"] = pd.to_datetime(close_window["trade_date"], errors="coerce").dt.date
+        close_window["symbol"] = close_window["symbol"].astype(str).str.upper()
+    if not close_trade_window.empty:
+        close_trade_window["trade_date"] = pd.to_datetime(close_trade_window["trade_date"], errors="coerce").dt.date
+        close_trade_window["symbol"] = close_trade_window["symbol"].astype(str).str.upper()
+    if not close_outcome_window.empty:
+        close_outcome_window["trade_date"] = pd.to_datetime(close_outcome_window["trade_date"], errors="coerce").dt.date
+        close_outcome_window["symbol"] = close_outcome_window["symbol"].astype(str).str.upper()
 
     features = expected.merge(universe_frame, on="symbol", how="left")
     if not daily.empty:
@@ -2012,6 +2584,12 @@ def build_daily_features_full_universe(
         features = features.merge(open_window_0800, on=["trade_date", "symbol"], how="left")
     if not open_window_0400.empty:
         features = features.merge(open_window_0400, on=["trade_date", "symbol"], how="left")
+    if not close_window.empty:
+        features = features.merge(close_window, on=["trade_date", "symbol"], how="left")
+    if not close_trade_window.empty:
+        features = features.merge(close_trade_window, on=["trade_date", "symbol"], how="left")
+    if not close_outcome_window.empty:
+        features = features.merge(close_outcome_window, on=["trade_date", "symbol"], how="left")
 
     if "previous_close_intraday" in features.columns:
         features["previous_close"] = features["previous_close"].combine_first(features["previous_close_intraday"])
@@ -2037,10 +2615,77 @@ def build_daily_features_full_universe(
         features["has_open_window_detail"] = features["has_open_window_detail"] | (pd.to_numeric(features["focus_0800_regular_open_second_rows"], errors="coerce").fillna(0).astype(int) > 0)
     if "focus_0400_regular_open_second_rows" in features.columns:
         features["has_open_window_detail"] = features["has_open_window_detail"] | (pd.to_numeric(features["focus_0400_regular_open_second_rows"], errors="coerce").fillna(0).astype(int) > 0)
+    if "close_window_second_rows" not in features.columns:
+        features["close_window_second_rows"] = 0
+    features["close_window_second_rows"] = pd.to_numeric(features["close_window_second_rows"], errors="coerce").fillna(0).astype(int)
+    features["has_close_window_detail"] = features["close_window_second_rows"] > 0
     features["premarket_anchor_et"] = premarket_anchor_et.strftime("%H:%M:%S")
     features["premarket_price_source"] = "last_ohlcv_1s_close_between_anchor_and_regular_open"
     features["internal_display_timezone"] = display_timezone
     features = features.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
+
+    if "close_trade_has_lit_followthrough" in features.columns:
+        features["close_trade_has_lit_followthrough"] = pd.Series(features["close_trade_has_lit_followthrough"], dtype="boolean").fillna(False).astype(bool)
+    if "close_trade_has_trf_activity" in features.columns:
+        features["close_trade_has_trf_activity"] = pd.Series(features["close_trade_has_trf_activity"], dtype="boolean").fillna(False).astype(bool)
+    if "close_trade_has_lit_activity" in features.columns:
+        features["close_trade_has_lit_activity"] = pd.Series(features["close_trade_has_lit_activity"], dtype="boolean").fillna(False).astype(bool)
+    close_ref = pd.to_numeric(features.get("close_auction_reference_price"), errors="coerce")
+    close_last_2000 = pd.to_numeric(features.get("close_last_price_2000"), errors="coerce")
+    close_high_2000 = pd.to_numeric(features.get("close_high_price_1600_2000"), errors="coerce")
+    close_low_2000 = pd.to_numeric(features.get("close_low_price_1600_2000"), errors="coerce")
+    features["close_to_2000_return_pct"] = np.where(
+        close_ref > 0,
+        ((close_last_2000 / close_ref) - 1.0) * 100.0,
+        np.nan,
+    )
+    features["close_to_2000_high_pct"] = np.where(
+        close_ref > 0,
+        ((close_high_2000 / close_ref) - 1.0) * 100.0,
+        np.nan,
+    )
+    features["close_to_2000_low_pct"] = np.where(
+        close_ref > 0,
+        ((close_low_2000 / close_ref) - 1.0) * 100.0,
+        np.nan,
+    )
+    features["next_trade_date"] = features.groupby("symbol")["trade_date"].shift(-1)
+    if "market_open_price" in features.columns:
+        next_day_open_from_intraday = pd.to_numeric(features.groupby("symbol")["market_open_price"].shift(-1), errors="coerce")
+    else:
+        next_day_open_from_intraday = pd.Series(np.nan, index=features.index, dtype=float)
+    if "day_open" in features.columns:
+        next_day_open_from_daily = pd.to_numeric(features.groupby("symbol")["day_open"].shift(-1), errors="coerce")
+    else:
+        next_day_open_from_daily = pd.Series(np.nan, index=features.index, dtype=float)
+    features["next_day_open_price"] = pd.Series(next_day_open_from_intraday).combine_first(next_day_open_from_daily)
+    if "exact_1000_price" in features.columns:
+        next_day_window_end_from_exact = pd.to_numeric(features.groupby("symbol")["exact_1000_price"].shift(-1), errors="coerce")
+    else:
+        next_day_window_end_from_exact = pd.Series(np.nan, index=features.index, dtype=float)
+    if "current_price" in features.columns:
+        next_day_window_end_from_current = pd.to_numeric(features.groupby("symbol")["current_price"].shift(-1), errors="coerce")
+    else:
+        next_day_window_end_from_current = pd.Series(np.nan, index=features.index, dtype=float)
+    features["next_day_window_end_price"] = pd.Series(next_day_window_end_from_exact).combine_first(next_day_window_end_from_current)
+    next_open = pd.to_numeric(features.get("next_day_open_price"), errors="coerce")
+    next_window_end = pd.to_numeric(features.get("next_day_window_end_price"), errors="coerce")
+    features["close_to_next_open_return_pct"] = np.where(
+        close_ref > 0,
+        ((next_open / close_ref) - 1.0) * 100.0,
+        np.nan,
+    )
+    features["next_open_to_window_end_return_pct"] = np.where(
+        next_open > 0,
+        ((next_window_end / next_open) - 1.0) * 100.0,
+        np.nan,
+    )
+    features["close_to_next_window_end_return_pct"] = np.where(
+        close_ref > 0,
+        ((next_window_end / close_ref) - 1.0) * 100.0,
+        np.nan,
+    )
+    features["has_next_day_outcome"] = features["next_trade_date"].notna() & next_open.gt(0) & next_window_end.gt(0)
 
     if "open_1m_volume" not in features.columns:
         features["open_1m_volume"] = np.nan
@@ -2146,18 +2791,27 @@ def build_daily_features_full_universe(
         on=["trade_date", "symbol"],
         how="left",
     )
+    coverage = coverage.merge(
+        close_window[["trade_date", "symbol", "close_window_second_rows"]] if not close_window.empty else pd.DataFrame(columns=["trade_date", "symbol", "close_window_second_rows"]),
+        on=["trade_date", "symbol"],
+        how="left",
+    )
     coverage["has_daily_bar"] = coverage["has_daily_bar"].where(coverage["has_daily_bar"].notna(), False).astype(bool)
     coverage["has_intraday_summary"] = coverage["has_intraday_summary"].where(coverage["has_intraday_summary"].notna(), False).astype(bool)
     if "open_window_second_rows" not in coverage.columns:
         coverage["open_window_second_rows"] = 0
     if "focus_0800_open_window_second_rows" not in coverage.columns:
         coverage["focus_0800_open_window_second_rows"] = 0
+    if "close_window_second_rows" not in coverage.columns:
+        coverage["close_window_second_rows"] = 0
     coverage["open_window_second_rows"] = pd.to_numeric(coverage["open_window_second_rows"], errors="coerce").fillna(0).astype(int)
     coverage["focus_0800_open_window_second_rows"] = pd.to_numeric(coverage["focus_0800_open_window_second_rows"], errors="coerce").fillna(0).astype(int)
+    coverage["close_window_second_rows"] = pd.to_numeric(coverage["close_window_second_rows"], errors="coerce").fillna(0).astype(int)
     coverage["has_open_window_detail"] = coverage["open_window_second_rows"] > 0
     if "regular_open_second_rows" in coverage.columns:
         coverage["has_open_window_detail"] = coverage["has_open_window_detail"] | (coverage["regular_open_second_rows"] > 0)
     coverage["has_open_window_detail"] = coverage["has_open_window_detail"] | (coverage["focus_0800_open_window_second_rows"] > 0)
+    coverage["has_close_window_detail"] = coverage["close_window_second_rows"] > 0
     coverage["exclusion_reason"] = np.select(
         [
             ~coverage["has_daily_bar"],

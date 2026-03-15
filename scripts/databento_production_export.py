@@ -19,6 +19,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from databento_volatility_screener import (
+    DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET,
+    DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET,
+    DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
+    DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
+    DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
     US_EASTERN_TZ,
     _write_parquet_atomic,
     _write_tradingview_watchlist_exports,
@@ -29,6 +34,8 @@ from databento_volatility_screener import (
     build_daily_features_full_universe,
     build_summary_table,
     choose_default_dataset,
+    collect_full_universe_close_outcome_minute_detail,
+    collect_full_universe_close_trade_detail,
     collect_full_universe_open_window_second_detail,
     default_export_directory,
     estimate_databento_costs,
@@ -97,6 +104,58 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
     "focus_0400_early_dip_second",
     "focus_0400_reclaimed_start_price_within_30s",
     "focus_0400_reclaim_second_30s",
+    "close_window_second_rows",
+    "close_preclose_second_rows",
+    "close_last_minute_second_rows",
+    "close_postclose_second_rows",
+    "close_10m_volume",
+    "close_last_1m_volume",
+    "close_postclose_5m_volume",
+    "close_last_1m_volume_share",
+    "close_postclose_volume_share",
+    "close_reference_price",
+    "close_auction_reference_price",
+    "close_preclose_return_pct",
+    "close_postclose_return_pct",
+    "close_postclose_high_pct",
+    "close_postclose_low_pct",
+    "close_trade_print_count",
+    "close_trade_share_volume",
+    "close_trade_clean_print_count",
+    "close_trade_clean_share_volume",
+    "close_trade_bad_ts_recv_count",
+    "close_trade_maybe_bad_book_count",
+    "close_trade_publisher_specific_flag_count",
+    "close_trade_sequence_break_count",
+    "close_trade_event_time_regression_count",
+    "close_trade_unknown_side_count",
+    "close_trade_unknown_side_share",
+    "close_trade_hygiene_score",
+    "close_trade_unique_publishers",
+    "close_trade_trf_print_count",
+    "close_trade_trf_share_volume",
+    "close_trade_lit_print_count",
+    "close_trade_lit_share_volume",
+    "close_trade_trf_volume_share",
+    "close_trade_lit_volume_share",
+    "close_trade_has_trf_activity",
+    "close_trade_has_lit_activity",
+    "close_trade_has_lit_followthrough",
+    "close_afterhours_minute_rows",
+    "close_afterhours_volume",
+    "close_last_price_2000",
+    "close_high_price_1600_2000",
+    "close_low_price_1600_2000",
+    "close_to_2000_return_pct",
+    "close_to_2000_high_pct",
+    "close_to_2000_low_pct",
+    "next_trade_date",
+    "next_day_open_price",
+    "next_day_window_end_price",
+    "close_to_next_open_return_pct",
+    "next_open_to_window_end_return_pct",
+    "close_to_next_window_end_return_pct",
+    "has_next_day_outcome",
     "regular_open_reference_price",
     "early_dip_low_10s",
     "early_dip_pct_10s",
@@ -116,6 +175,7 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
     "has_daily_bars",
     "has_intraday",
     "has_market_cap",
+    "has_close_window_detail",
 ]
 
 SECOND_DETAIL_EXPORT_COLUMNS = [
@@ -156,6 +216,137 @@ PREMARKET_FEATURE_COLUMNS = [
     "premarket_trade_count_usable",
     "premarket_seconds",
 ]
+
+CLOSE_IMBALANCE_FEATURE_COLUMNS = [
+    "trade_date",
+    "symbol",
+    "company_name",
+    "exchange",
+    "sector",
+    "industry",
+    "market_cap",
+    "float_shares",
+    "shares_outstanding",
+    "news_score",
+    "news_category",
+    "earnings_date",
+    "earnings_time",
+    "filing_date",
+    "filing_type",
+    "mna_flag",
+    "mna_side",
+    "previous_close",
+    "window_end_price",
+    "day_close",
+    "has_close_window_detail",
+    "close_window_second_rows",
+    "close_preclose_second_rows",
+    "close_last_minute_second_rows",
+    "close_postclose_second_rows",
+    "close_10m_volume",
+    "close_last_1m_volume",
+    "close_postclose_5m_volume",
+    "close_last_1m_volume_share",
+    "close_postclose_volume_share",
+    "close_reference_price",
+    "close_auction_reference_price",
+    "close_preclose_return_pct",
+    "close_postclose_return_pct",
+    "close_postclose_high_pct",
+    "close_postclose_low_pct",
+    "close_trade_print_count",
+    "close_trade_share_volume",
+    "close_trade_clean_print_count",
+    "close_trade_clean_share_volume",
+    "close_trade_bad_ts_recv_count",
+    "close_trade_maybe_bad_book_count",
+    "close_trade_publisher_specific_flag_count",
+    "close_trade_sequence_break_count",
+    "close_trade_event_time_regression_count",
+    "close_trade_unknown_side_count",
+    "close_trade_unknown_side_share",
+    "close_trade_hygiene_score",
+    "close_trade_unique_publishers",
+    "close_trade_trf_print_count",
+    "close_trade_trf_share_volume",
+    "close_trade_lit_print_count",
+    "close_trade_lit_share_volume",
+    "close_trade_trf_volume_share",
+    "close_trade_lit_volume_share",
+    "close_trade_has_trf_activity",
+    "close_trade_has_lit_activity",
+    "close_trade_has_lit_followthrough",
+    "close_afterhours_minute_rows",
+    "close_afterhours_volume",
+    "close_last_price_2000",
+    "close_high_price_1600_2000",
+    "close_low_price_1600_2000",
+    "close_to_2000_return_pct",
+    "close_to_2000_high_pct",
+    "close_to_2000_low_pct",
+    "next_trade_date",
+    "next_day_open_price",
+    "next_day_window_end_price",
+    "close_to_next_open_return_pct",
+    "next_open_to_window_end_return_pct",
+    "close_to_next_window_end_return_pct",
+    "has_next_day_outcome",
+]
+
+CLOSE_IMBALANCE_OUTCOME_COLUMNS = [
+    "trade_date",
+    "symbol",
+    "close_auction_reference_price",
+    "close_last_price_2000",
+    "close_high_price_1600_2000",
+    "close_low_price_1600_2000",
+    "close_afterhours_volume",
+    "close_to_2000_return_pct",
+    "close_to_2000_high_pct",
+    "close_to_2000_low_pct",
+    "next_trade_date",
+    "next_day_open_price",
+    "next_day_window_end_price",
+    "close_to_next_open_return_pct",
+    "next_open_to_window_end_return_pct",
+    "close_to_next_window_end_return_pct",
+    "has_next_day_outcome",
+]
+
+
+def _build_exact_window_end_lookup(
+    intraday_close_outcome_anchor: pd.DataFrame,
+    *,
+    display_timezone: str,
+    window_end_et: time = DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
+) -> pd.DataFrame:
+    columns = ["trade_date", "symbol", "exact_1000_price"]
+    if intraday_close_outcome_anchor.empty:
+        return pd.DataFrame(columns=columns)
+
+    lookup = intraday_close_outcome_anchor.copy()
+    lookup["trade_date"] = pd.to_datetime(lookup["trade_date"], errors="coerce").dt.date
+    lookup["symbol"] = lookup["symbol"].astype(str).str.upper()
+    lookup["current_price"] = pd.to_numeric(lookup.get("current_price"), errors="coerce")
+    lookup["current_price_timestamp"] = pd.to_datetime(lookup.get("current_price_timestamp"), errors="coerce", utc=True)
+    lookup = lookup.dropna(subset=["trade_date", "symbol", "current_price_timestamp"]).copy()
+    if lookup.empty:
+        return pd.DataFrame(columns=columns)
+
+    display_tz = resolve_display_timezone(display_timezone)
+    lookup["current_price_timestamp"] = lookup["current_price_timestamp"].dt.tz_convert(display_tz)
+    lookup["expected_window_end"] = lookup["trade_date"].map(
+        lambda trade_day: pd.Timestamp(datetime.combine(trade_day, window_end_et, tzinfo=US_EASTERN_TZ).astimezone(display_tz))
+    )
+    lookup = lookup[
+        lookup["current_price"].gt(0)
+        & lookup["current_price_timestamp"].eq(lookup["expected_window_end"])
+    ].copy()
+    if lookup.empty:
+        return pd.DataFrame(columns=columns)
+
+    lookup = lookup.rename(columns={"current_price": "exact_1000_price"})
+    return lookup[columns].drop_duplicates(subset=["trade_date", "symbol"], keep="last").reset_index(drop=True)
 
 PREMARKET_WINDOW_FEATURE_COLUMNS = [
     "trade_date",
@@ -481,7 +672,7 @@ def compute_single_window_features(
     )
     if result.empty:
         return {}
-    return result.iloc[0].to_dict()
+    return dict(result.iloc[0].to_dict())
 
 
 def build_premarket_window_features_full_universe_export(
@@ -1547,6 +1738,9 @@ def _build_daily_symbol_features_full_universe_export(
     daily_bars: pd.DataFrame,
     intraday: pd.DataFrame,
     second_detail_all: pd.DataFrame,
+    close_detail_all: pd.DataFrame,
+    close_trade_detail_all: pd.DataFrame,
+    close_outcome_minute_detail_all: pd.DataFrame,
     display_timezone: str,
     premarket_anchor_et: time,
     ranking_metric: str,
@@ -1558,6 +1752,9 @@ def _build_daily_symbol_features_full_universe_export(
         daily_bars=daily_bars,
         intraday=intraday,
         second_detail_all=second_detail_all,
+        close_detail_all=close_detail_all,
+        close_trade_detail_all=close_trade_detail_all,
+        close_outcome_minute_detail_all=close_outcome_minute_detail_all,
         display_timezone=display_timezone,
         premarket_anchor_et=premarket_anchor_et,
     )
@@ -1571,7 +1768,7 @@ def _build_daily_symbol_features_full_universe_export(
     coverage["trade_date"] = pd.to_datetime(coverage["trade_date"], errors="coerce").dt.date
     coverage["symbol"] = coverage["symbol"].astype(str).str.upper()
 
-    coverage_flags = coverage[["trade_date", "symbol", "has_daily_bar", "has_intraday_summary", "has_open_window_detail", "exclusion_reason"]].copy()
+    coverage_flags = coverage[["trade_date", "symbol", "has_daily_bar", "has_intraday_summary", "has_open_window_detail", "has_close_window_detail", "exclusion_reason"]].copy()
     coverage_flags = coverage_flags.rename(
         columns={
             "has_daily_bar": "has_daily_bars",
@@ -1847,6 +2044,31 @@ def _build_premarket_features_full_universe_export(second_detail_all: pd.DataFra
     return out[PREMARKET_FEATURE_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True)
 
 
+def _build_close_imbalance_features_full_universe_export(daily_features: pd.DataFrame) -> pd.DataFrame:
+    if daily_features.empty:
+        return pd.DataFrame(columns=CLOSE_IMBALANCE_FEATURE_COLUMNS)
+
+    out = daily_features.copy()
+    for column in CLOSE_IMBALANCE_FEATURE_COLUMNS:
+        if column not in out.columns:
+            out[column] = np.nan
+    out["has_close_window_detail"] = out["has_close_window_detail"].fillna(False).astype(bool)
+    return out[CLOSE_IMBALANCE_FEATURE_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True)
+
+
+def _build_close_imbalance_outcomes_full_universe_export(daily_features: pd.DataFrame) -> pd.DataFrame:
+    if daily_features.empty:
+        return pd.DataFrame(columns=CLOSE_IMBALANCE_OUTCOME_COLUMNS)
+
+    out = daily_features.copy()
+    for column in CLOSE_IMBALANCE_OUTCOME_COLUMNS:
+        if column not in out.columns:
+            out[column] = np.nan
+    if "has_next_day_outcome" in out.columns:
+        out["has_next_day_outcome"] = out["has_next_day_outcome"].fillna(False).astype(bool)
+    return out[CLOSE_IMBALANCE_OUTCOME_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True)
+
+
 def _build_batl_debug_payload(daily_features: pd.DataFrame, diagnostics: pd.DataFrame) -> dict[str, object]:
     batl_rows = daily_features[daily_features["symbol"].astype(str).str.upper().eq("BATL")].copy()
     if not batl_rows.empty:
@@ -1903,7 +2125,7 @@ def _resolve_latest_iso_timestamp(frame: pd.DataFrame, *, candidates: tuple[str,
         latest = parsed.max()
         if pd.isna(latest):
             continue
-        return latest.isoformat(timespec="seconds")
+        return str(latest.isoformat(timespec="seconds"))
     return None
 
 
@@ -2002,7 +2224,7 @@ def run_production_export_pipeline(
     )
     daily_bars_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
-    _progress(f"Step 6/10: Running intraday screen ({len(trading_days)} days)...")
+    _progress(f"Step 6/10: Running intraday screens ({len(trading_days)} days, including fixed 10:00 ET outcome snapshot)...")
     intraday = run_intraday_screen(
         databento_api_key,
         dataset=dataset,
@@ -2017,6 +2239,29 @@ def run_production_export_pipeline(
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
     )
+    intraday_close_outcome_anchor = run_intraday_screen(
+        databento_api_key,
+        dataset=dataset,
+        trading_days=trading_days,
+        universe_symbols=universe_symbols,
+        daily_bars=daily_bars,
+        display_timezone=display_timezone,
+        window_start=time(9, 30),
+        window_end=DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
+        premarket_anchor_et=time(9, 30),
+        cache_dir=resolved_cache_dir,
+        use_file_cache=use_file_cache,
+        force_refresh=force_refresh,
+    )
+    if not intraday_close_outcome_anchor.empty:
+        exact_1000_lookup = _build_exact_window_end_lookup(
+            intraday_close_outcome_anchor,
+            display_timezone=display_timezone,
+        )
+        intraday = intraday.copy()
+        intraday["trade_date"] = pd.to_datetime(intraday["trade_date"], errors="coerce").dt.date
+        intraday["symbol"] = intraday["symbol"].astype(str).str.upper()
+        intraday = intraday.merge(exact_1000_lookup, on=["trade_date", "symbol"], how="left")
     intraday_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
     _progress("Step 7/10: Ranking top fraction per day...")
@@ -2028,6 +2273,9 @@ def run_production_export_pipeline(
 
     if second_detail_scope == "none":
         full_universe_second_detail_raw = pd.DataFrame()
+        full_universe_close_detail_raw = pd.DataFrame()
+        full_universe_close_trade_detail_raw = pd.DataFrame()
+        full_universe_close_outcome_minute_raw = pd.DataFrame()
         quality_window_second_detail = pd.DataFrame()
         premarket_source_detail = pd.DataFrame()
         quality_window_source_metadata = {
@@ -2039,7 +2287,7 @@ def run_production_export_pipeline(
             "premarket_detail_rows": 0,
         }
     else:
-        _progress(f"Step 8/10: Collecting open-window second detail ({second_detail_scope})...")
+        _progress(f"Step 8/10: Collecting open-window detail, close-window detail, and close trade metadata ({second_detail_scope})...")
         full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
             databento_api_key,
             dataset=dataset,
@@ -2051,6 +2299,43 @@ def run_production_export_pipeline(
             window_start=window_start,
             window_end=window_end,
             premarket_anchor_et=premarket_anchor_et,
+            cache_dir=resolved_cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
+        full_universe_close_detail_raw = collect_full_universe_open_window_second_detail(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            universe_symbols=universe_symbols,
+            daily_bars=daily_bars,
+            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+            display_timezone=display_timezone,
+            window_start=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
+            window_end=DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
+            premarket_anchor_et=DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
+            cache_dir=resolved_cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
+        full_universe_close_trade_detail_raw = collect_full_universe_close_trade_detail(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            universe_symbols=universe_symbols,
+            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+            display_timezone=display_timezone,
+            cache_dir=resolved_cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
+        full_universe_close_outcome_minute_raw = collect_full_universe_close_outcome_minute_detail(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            universe_symbols=universe_symbols,
+            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+            display_timezone=display_timezone,
             cache_dir=resolved_cache_dir,
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
@@ -2080,6 +2365,9 @@ def run_production_export_pipeline(
         daily_bars=daily_bars,
         intraday=intraday,
         second_detail_all=full_universe_second_detail_raw,
+        close_detail_all=full_universe_close_detail_raw,
+        close_trade_detail_all=full_universe_close_trade_detail_raw,
+        close_outcome_minute_detail_all=full_universe_close_outcome_minute_raw,
         display_timezone=display_timezone,
         premarket_anchor_et=premarket_anchor_et,
         ranking_metric=ranking_metric,
@@ -2089,6 +2377,22 @@ def run_production_export_pipeline(
         full_universe_second_detail_raw,
         daily_symbol_features_full_universe,
     )
+    full_universe_second_detail_close = _prepare_full_universe_second_detail_export(
+        full_universe_close_detail_raw,
+        daily_symbol_features_full_universe,
+    )
+    full_universe_close_trade_detail = full_universe_close_trade_detail_raw.copy()
+    if not full_universe_close_trade_detail.empty:
+        full_universe_close_trade_detail["trade_date"] = pd.to_datetime(full_universe_close_trade_detail["trade_date"], errors="coerce").dt.date
+        full_universe_close_trade_detail["symbol"] = full_universe_close_trade_detail["symbol"].astype(str).str.upper()
+        full_universe_close_trade_detail["timestamp"] = pd.to_datetime(full_universe_close_trade_detail["timestamp"], errors="coerce", utc=True)
+        full_universe_close_trade_detail = full_universe_close_trade_detail.sort_values(["trade_date", "symbol", "timestamp"]).reset_index(drop=True)
+    full_universe_close_outcome_minute = full_universe_close_outcome_minute_raw.copy()
+    if not full_universe_close_outcome_minute.empty:
+        full_universe_close_outcome_minute["trade_date"] = pd.to_datetime(full_universe_close_outcome_minute["trade_date"], errors="coerce").dt.date
+        full_universe_close_outcome_minute["symbol"] = full_universe_close_outcome_minute["symbol"].astype(str).str.upper()
+        full_universe_close_outcome_minute["timestamp"] = pd.to_datetime(full_universe_close_outcome_minute["timestamp"], errors="coerce", utc=True)
+        full_universe_close_outcome_minute = full_universe_close_outcome_minute.sort_values(["trade_date", "symbol", "timestamp"]).reset_index(drop=True)
     quality_window_second_detail_prepared = _prepare_full_universe_second_detail_export(
         quality_window_second_detail,
         daily_symbol_features_full_universe,
@@ -2116,6 +2420,12 @@ def run_production_export_pipeline(
         window_definitions=_DEFAULT_BULLISH_QUALITY_CFG.window_definitions,
         source_data_fetched_at=source_data_fetched_at,
         dataset=dataset,
+    )
+    close_imbalance_features_full_universe = _build_close_imbalance_features_full_universe_export(
+        daily_symbol_features_full_universe,
+    )
+    close_imbalance_outcomes_full_universe = _build_close_imbalance_outcomes_full_universe_export(
+        daily_symbol_features_full_universe,
     )
 
     latest_trade_date = pd.to_datetime(daily_symbol_features_full_universe.get("trade_date"), errors="coerce").dt.date.dropna().max()
@@ -2163,8 +2473,13 @@ def run_production_export_pipeline(
         "eligible_symbol_day_rows": int(daily_symbol_features_full_universe["is_eligible"].sum()),
         "selected_top20pct_symbol_day_rows": int(daily_symbol_features_full_universe["selected_top20pct"].sum()),
         "full_universe_second_detail_open_rows": int(len(full_universe_second_detail_open)),
+        "full_universe_second_detail_close_rows": int(len(full_universe_second_detail_close)),
+        "full_universe_close_trade_detail_rows": int(len(full_universe_close_trade_detail)),
+        "full_universe_close_outcome_minute_rows": int(len(full_universe_close_outcome_minute)),
         "premarket_symbol_day_rows": int(premarket_features_full_universe["has_premarket_data"].sum()),
         "premarket_window_feature_rows": int(len(premarket_window_features_full_universe)),
+        "close_imbalance_symbol_day_rows": int(close_imbalance_features_full_universe["has_close_window_detail"].sum()) if not close_imbalance_features_full_universe.empty else 0,
+        "close_imbalance_outcome_rows": int(len(close_imbalance_outcomes_full_universe)),
         "batl": batl_debug,
     }
 
@@ -2186,6 +2501,18 @@ def run_production_export_pipeline(
         "daily_bars_fetched_at": daily_bars_fetched_at,
         "intraday_fetched_at": intraday_fetched_at,
         "second_detail_fetched_at": second_detail_fetched_at,
+        "close_second_detail_fetched_at": _resolve_latest_iso_timestamp(
+            full_universe_second_detail_close,
+            candidates=("timestamp", "ts", "source_data_fetched_at", "fetched_at"),
+        ),
+        "close_trade_detail_fetched_at": _resolve_latest_iso_timestamp(
+            full_universe_close_trade_detail,
+            candidates=("timestamp", "ts_recv", "ts_event"),
+        ),
+        "close_outcome_minute_fetched_at": _resolve_latest_iso_timestamp(
+            full_universe_close_outcome_minute,
+            candidates=("timestamp",),
+        ),
         "premarket_fetched_at": premarket_fetched_at,
         "source_data_fetched_at": source_data_fetched_at,
         "source_data_fetched_at_semantics": "Latest source-data event timestamp (UTC) observed in premarket source detail used to build window features; null when no source rows were available.",
@@ -2237,6 +2564,29 @@ def run_production_export_pipeline(
         "open_1m_volume_boundary": "[regular_open, regular_open + 1 minute)",
         "open_5m_volume_boundary": "[regular_open, regular_open + 5 minutes)",
         "full_universe_open_detail_window": f"[{_format_optional_time(window_start)}, {_format_optional_time(window_end)}] {display_timezone}",
+        "close_imbalance_mode": "v1_close_window_features",
+        "close_imbalance_window_et": f"[{DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET.strftime('%H:%M:%S')}) ET",
+        "close_imbalance_auction_time_et": DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET.strftime("%H:%M:%S"),
+        "close_10m_volume_rule": "sum(volume) across 1-second bars in [15:50:00, 16:00:00) ET",
+        "close_last_1m_volume_rule": "sum(volume) across 1-second bars in [15:59:00, 16:00:00) ET",
+        "close_postclose_5m_volume_rule": "sum(volume) across 1-second bars in [16:00:00, 16:05:00) ET",
+        "close_auction_reference_price_rule": "last 1-second close observed before 16:00:00 ET within the close-imbalance window",
+        "close_preclose_return_pct_formula": "((close_auction_reference_price / close_reference_price) - 1) * 100",
+        "close_postclose_return_pct_formula": "((last_postclose_close / close_auction_reference_price) - 1) * 100",
+        "close_last_1m_volume_share_formula": "close_last_1m_volume / close_10m_volume",
+        "close_postclose_volume_share_formula": "close_postclose_5m_volume / (close_10m_volume + close_postclose_5m_volume)",
+        "full_universe_close_detail_window": f"[{DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET.strftime('%H:%M:%S')}) ET",
+        "full_universe_close_trade_detail_window": f"[{DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET.strftime('%H:%M:%S')}) ET trades schema",
+        "full_universe_close_outcome_window": f"[{DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET.strftime('%H:%M:%S')}) ET ohlcv-1m",
+        "close_trade_hygiene_rule": "clean prints exclude rows with F_BAD_TS_RECV or F_MAYBE_BAD_BOOK and require positive size and price",
+        "close_trade_venue_rule": "publisher descriptions containing 'TRF' are classified as off_exchange_trf; all other mapped publishers are treated as lit_exchange",
+        "close_trade_lit_followthrough_rule": "True when at least one lit_exchange trade occurs in the final pre-close minute at or after the first off_exchange_trf trade in that minute",
+        "close_to_2000_return_pct_formula": "((close_last_price_2000 / close_auction_reference_price) - 1) * 100",
+        "close_to_next_open_return_pct_formula": "((next_day_open_price / close_auction_reference_price) - 1) * 100",
+        "next_open_to_window_end_return_pct_formula": "((next_day_window_end_price / next_day_open_price) - 1) * 100",
+        "close_to_next_window_end_return_pct_formula": "((next_day_window_end_price / close_auction_reference_price) - 1) * 100",
+        "next_day_window_end_semantics": f"Derived from a dedicated next-trade-date intraday snapshot with fixed window_end={DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET.strftime('%H:%M:%S')} ET; exact_1000_price is only populated when the 1-second intraday summary contains a bar exactly at that boundary, and next_day_window_end_price prefers that exact label before falling back row-wise to the latest in-window current_price",
+        "next_day_window_end_time_et": DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET.strftime("%H:%M:%S"),
         "min_market_cap": min_market_cap,
         "cache_dir": str(resolved_cache_dir),
         "export_dir": str(resolved_export_dir),
@@ -2251,8 +2601,13 @@ def run_production_export_pipeline(
         "minute_detail_all_rows": len(minute_detail_all),
         "second_detail_all_rows": len(second_detail_all),
         "full_universe_second_detail_open_rows": len(full_universe_second_detail_open),
+        "full_universe_second_detail_close_rows": len(full_universe_second_detail_close),
+        "full_universe_close_trade_detail_rows": len(full_universe_close_trade_detail),
+        "full_universe_close_outcome_minute_rows": len(full_universe_close_outcome_minute),
         "quality_window_second_detail_rows": len(quality_window_second_detail_prepared),
         "daily_symbol_features_full_universe_rows": len(daily_symbol_features_full_universe),
+        "close_imbalance_features_full_universe_rows": len(close_imbalance_features_full_universe),
+        "close_imbalance_outcomes_full_universe_rows": len(close_imbalance_outcomes_full_universe),
         "premarket_features_full_universe_rows": len(premarket_features_full_universe),
         "premarket_window_features_full_universe_rows": len(premarket_window_features_full_universe),
         "symbol_day_diagnostics_rows": len(symbol_day_diagnostics),
@@ -2284,6 +2639,11 @@ def run_production_export_pipeline(
         additional_parquet_targets={
             "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
             "full_universe_second_detail_open": full_universe_second_detail_open,
+            "full_universe_second_detail_close": full_universe_second_detail_close,
+            "full_universe_close_trade_detail": full_universe_close_trade_detail,
+            "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+            "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+            "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
             "premarket_features_full_universe": premarket_features_full_universe,
             "premarket_window_features_full_universe": premarket_window_features_full_universe,
             "symbol_day_diagnostics": symbol_day_diagnostics,
@@ -2298,6 +2658,11 @@ def run_production_export_pipeline(
         {
             "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
             "full_universe_second_detail_open": full_universe_second_detail_open,
+            "full_universe_second_detail_close": full_universe_second_detail_close,
+            "full_universe_close_trade_detail": full_universe_close_trade_detail,
+            "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+            "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+            "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
             "premarket_features_full_universe": premarket_features_full_universe,
             "premarket_window_features_full_universe": premarket_window_features_full_universe,
             "symbol_day_diagnostics": symbol_day_diagnostics,
@@ -2316,6 +2681,10 @@ def run_production_export_pipeline(
         "intraday": intraday,
         "daily_bars": daily_bars,
         "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+        "full_universe_close_trade_detail": full_universe_close_trade_detail,
+        "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+        "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+        "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
         "premarket_features_full_universe": premarket_features_full_universe,
         "premarket_window_features_full_universe": premarket_window_features_full_universe,
         "symbol_day_diagnostics": symbol_day_diagnostics,

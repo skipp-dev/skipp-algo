@@ -6,6 +6,7 @@ indicator("BFI Reversal", "BFI-R", overlay=true, max_bars_back=500, max_labels_c
 // =====================
 groupPreset = "Reversal Mode"
 modePreset = input.string("Early Reversal Balanced", "Signal Mode", options=["Early Reversal Balanced", "Early Reversal Aggressive", "Continuation Breakout"], group=groupPreset)
+assetProfileInput = input.string("Auto", "Asset Profile", options=["Auto", "Stocks", "Crypto"], group=groupPreset)
 
 groupBase = "Structure"
 prdInput = input.int(5, "Pivot Period", minval=2, group=groupBase)
@@ -24,6 +25,32 @@ minRelSizeInput = input.float(0.80, "Min Relative AvgSize", minval=0.1, step=0.0
 minDeltaAbsPctInput = input.float(0.05, "Min Absolute Delta %", minval=0.0, maxval=1.0, step=0.01, group=groupFlow)
 setupScoreThresholdInput = input.int(4, "Setup Score Threshold", minval=1, maxval=10, group=groupFlow)
 confirmScoreThresholdInput = input.int(3, "Confirm Score Threshold", minval=1, maxval=10, group=groupFlow)
+
+groupFollowThrough = "Follow-Through"
+followThroughWindowBarsInput = input.int(3, "Follow-Through Window Bars", minval=1, maxval=10, group=groupFollowThrough)
+followThroughScoreThresholdInput = input.int(3, "Follow-Through Score Threshold", minval=1, maxval=6, group=groupFollowThrough)
+minCloseInRangePctInput = input.float(0.65, "Min Close In Range %", minval=0.5, maxval=1.0, step=0.05, group=groupFollowThrough)
+requireVwapHoldInput = input.bool(true, "Require VWAP Hold", group=groupFollowThrough)
+eventVwapStartInput = input.string("Setup Bar", "Event VWAP Start", options=["Setup Bar", "First Confirm Bar"], group=groupFollowThrough)
+requireRetraceFilterInput = input.bool(true, "Require Retrace Filter", group=groupFollowThrough)
+bullMaxRetracePctInput = input.float(0.30, "Bull Max Retrace %", minval=0.0, maxval=1.0, step=0.05, group=groupFollowThrough)
+bearMaxRetracePctInput = input.float(0.40, "Bear Max Retrace %", minval=0.0, maxval=1.0, step=0.05, group=groupFollowThrough)
+
+groupFootprint = "Footprint"
+requireFootprintConfirmInput = input.bool(false, "Require Footprint Confirm", group=groupFootprint)
+requireFootprintSetupInput = input.bool(false, "Require Footprint Setup", group=groupFootprint)
+requireFootprintAbsorptionInput = input.bool(false, "Require Footprint Absorption", group=groupFootprint)
+useFootprintDivergenceInput = input.bool(true, "Use Footprint Divergence", group=groupFootprint)
+requireImbalanceStackConfirmInput = input.bool(false, "Require Imbalance Stack Confirm", group=groupFootprint)
+requireFootprintStructureConfirmInput = input.bool(false, "Require POC/VA Confirm", group=groupFootprint)
+footprintTriggerModeInput = input.string("POC + VAH/VAL", "Footprint Trigger Mode", options=["Price Only", "POC", "VAH/VAL", "POC + VAH/VAL"], group=groupFootprint)
+footprintTicksPerRowInput = input.int(25, "Footprint Ticks Per Row", minval=1, group=groupFootprint)
+footprintValueAreaPctInput = input.int(70, "Footprint Value Area %", minval=1, maxval=100, group=groupFootprint)
+footprintImbalancePctInput = input.int(300, "Footprint Imbalance %", minval=1, group=groupFootprint)
+minImbalanceStackInput = input.int(2, "Min Imbalance Stack", minval=1, maxval=10, group=groupFootprint)
+footprintSetupMinDeltaPctInput = input.float(0.02, "Setup Min Footprint Delta %", minval=0.0, maxval=1.0, step=0.01, group=groupFootprint)
+minFootprintDeltaPctInput = input.float(0.05, "Min Footprint Delta %", minval=0.0, maxval=1.0, step=0.01, group=groupFootprint)
+absorptionCounterDeltaLimitPctInput = input.float(0.10, "Absorption Counter Delta Limit %", minval=0.0, maxval=1.0, step=0.01, group=groupFootprint)
 
 groupAts = "ATS"
 smoothLen = input.int(5, "ATS Smoothing Length", minval=1, group=groupAts)
@@ -52,9 +79,29 @@ float minRelSize = minRelSizeInput
 float minDeltaAbsPct = minDeltaAbsPctInput
 int setupScoreThreshold = setupScoreThresholdInput
 int confirmScoreThreshold = confirmScoreThresholdInput
+int followThroughWindowBars = followThroughWindowBarsInput
+int followThroughScoreThreshold = followThroughScoreThresholdInput
+float minCloseInRangePct = minCloseInRangePctInput
+bool requireVwapHold = requireVwapHoldInput
+string eventVwapStartMode = eventVwapStartInput
+bool requireRetraceFilter = requireRetraceFilterInput
+float bullMaxRetracePct = bullMaxRetracePctInput
+float bearMaxRetracePct = bearMaxRetracePctInput
+bool requireFootprintConfirm = requireFootprintConfirmInput
+bool requireFootprintSetup = requireFootprintSetupInput
+bool requireFootprintAbsorption = requireFootprintAbsorptionInput
+bool useFootprintDivergence = useFootprintDivergenceInput
+bool requireImbalanceStackConfirm = requireImbalanceStackConfirmInput
+bool requireFootprintStructureConfirm = requireFootprintStructureConfirmInput
+string footprintTriggerMode = footprintTriggerModeInput
+int minImbalanceStack = minImbalanceStackInput
+float footprintSetupMinDeltaPct = footprintSetupMinDeltaPctInput
+float minFootprintDeltaPct = minFootprintDeltaPctInput
+float absorptionCounterDeltaLimitPct = absorptionCounterDeltaLimitPctInput
 float changePctThresh = changePctThreshInput
 float spikeZThresh = spikeZThreshInput
 float zoneWidth = zoneWidthPct / 100.0
+string assetProfile = assetProfileInput == "Auto" ? (syminfo.type == "crypto" ? "Crypto" : "Stocks") : assetProfileInput
 
 if modePreset == "Early Reversal Balanced"
     prd := math.min(prd, 4)
@@ -67,6 +114,14 @@ if modePreset == "Early Reversal Balanced"
     spikeZThresh := math.min(spikeZThresh, 1.2)
     setupScoreThreshold := math.min(setupScoreThreshold, 4)
     confirmScoreThreshold := math.min(confirmScoreThreshold, 3)
+    followThroughWindowBars := math.min(followThroughWindowBars, 3)
+    followThroughScoreThreshold := math.min(followThroughScoreThreshold, 3)
+    minCloseInRangePct := math.max(minCloseInRangePct, 0.60)
+    bullMaxRetracePct := math.min(bullMaxRetracePct, 0.35)
+    bearMaxRetracePct := math.min(bearMaxRetracePct, 0.40)
+    footprintSetupMinDeltaPct := math.min(footprintSetupMinDeltaPct, 0.03)
+    minFootprintDeltaPct := math.min(minFootprintDeltaPct, 0.04)
+    absorptionCounterDeltaLimitPct := math.min(absorptionCounterDeltaLimitPct, 0.12)
     confirmLookback := math.min(confirmLookback, 3)
     setupExpiryBars := math.min(setupExpiryBars, 6)
 else if modePreset == "Early Reversal Aggressive"
@@ -80,6 +135,14 @@ else if modePreset == "Early Reversal Aggressive"
     spikeZThresh := math.min(spikeZThresh, 1.0)
     setupScoreThreshold := math.min(setupScoreThreshold, 3)
     confirmScoreThreshold := math.min(confirmScoreThreshold, 2)
+    followThroughWindowBars := math.min(followThroughWindowBars, 2)
+    followThroughScoreThreshold := math.min(followThroughScoreThreshold, 2)
+    minCloseInRangePct := math.max(minCloseInRangePct, 0.55)
+    bullMaxRetracePct := math.min(bullMaxRetracePct, 0.45)
+    bearMaxRetracePct := math.min(bearMaxRetracePct, 0.50)
+    footprintSetupMinDeltaPct := math.min(footprintSetupMinDeltaPct, 0.02)
+    minFootprintDeltaPct := math.min(minFootprintDeltaPct, 0.02)
+    absorptionCounterDeltaLimitPct := math.min(absorptionCounterDeltaLimitPct, 0.15)
     confirmLookback := math.min(confirmLookback, 2)
     setupExpiryBars := math.min(setupExpiryBars, 5)
 else
@@ -93,8 +156,35 @@ else
     spikeZThresh := math.max(spikeZThresh, 1.5)
     setupScoreThreshold := math.max(setupScoreThreshold, 5)
     confirmScoreThreshold := math.max(confirmScoreThreshold, 4)
+    followThroughWindowBars := math.max(followThroughWindowBars, 3)
+    followThroughScoreThreshold := math.max(followThroughScoreThreshold, 4)
+    minCloseInRangePct := math.max(minCloseInRangePct, 0.70)
+    bullMaxRetracePct := math.min(bullMaxRetracePct, 0.25)
+    bearMaxRetracePct := math.min(bearMaxRetracePct, 0.30)
+    footprintSetupMinDeltaPct := math.max(footprintSetupMinDeltaPct, 0.03)
+    minFootprintDeltaPct := math.max(minFootprintDeltaPct, 0.05)
+    absorptionCounterDeltaLimitPct := math.min(absorptionCounterDeltaLimitPct, 0.10)
     confirmLookback := math.max(confirmLookback, 3)
     setupExpiryBars := math.max(setupExpiryBars, 6)
+
+if assetProfile == "Stocks"
+    minRelVol := math.max(minRelVol, 1.20)
+    minRelAct := math.max(minRelAct, 1.05)
+    minCloseInRangePct := math.max(minCloseInRangePct, 0.65)
+    bullMaxRetracePct := math.min(bullMaxRetracePct, 0.30)
+    bearMaxRetracePct := math.min(bearMaxRetracePct, 0.35)
+    followThroughScoreThreshold := math.max(followThroughScoreThreshold, 3)
+    footprintSetupMinDeltaPct := math.max(footprintSetupMinDeltaPct, 0.02)
+    minFootprintDeltaPct := math.max(minFootprintDeltaPct, 0.04)
+else
+    minRelVol := math.max(minRelVol, 1.10)
+    minRelAct := math.max(minRelAct, 1.00)
+    minCloseInRangePct := math.max(minCloseInRangePct, 0.55)
+    bullMaxRetracePct := math.max(bullMaxRetracePct, 0.35)
+    bearMaxRetracePct := math.max(bearMaxRetracePct, 0.45)
+    followThroughWindowBars := math.max(followThroughWindowBars, 3)
+    footprintSetupMinDeltaPct := math.min(footprintSetupMinDeltaPct, 0.02)
+    minFootprintDeltaPct := math.min(minFootprintDeltaPct, 0.03)
 
 // =====================
 // Dynamic width
@@ -259,6 +349,69 @@ relAct = actAvg > 0 ? activeBarsF / actAvg : na
 relSize = sizeAvg > 0 ? avgSizeProxyRaw / sizeAvg : na
 barDeltaPct = volume > 0 ? deltaProxy / volume : na
 
+sessionVwap = ta.vwap(hlc3)
+
+footprint reqFootprint = request.footprint(footprintTicksPerRowInput, footprintValueAreaPctInput, footprintImbalancePctInput)
+hasFootprint = not na(reqFootprint)
+footprintTotalVolume = hasFootprint ? footprint.total_volume(reqFootprint) : na
+footprintBuyVolume = hasFootprint ? footprint.buy_volume(reqFootprint) : na
+footprintSellVolume = hasFootprint ? footprint.sell_volume(reqFootprint) : na
+footprintDeltaVolume = hasFootprint ? footprint.delta(reqFootprint) : na
+footprintDeltaPct = hasFootprint and footprintTotalVolume > 0 ? footprintDeltaVolume / footprintTotalVolume : na
+positiveFootprintOk = not na(footprintDeltaPct) and footprintDeltaPct >= minFootprintDeltaPct
+negativeFootprintOk = not na(footprintDeltaPct) and footprintDeltaPct <= -minFootprintDeltaPct
+footprintSetupBullBias = not na(footprintDeltaPct) and footprintDeltaPct >= footprintSetupMinDeltaPct
+footprintSetupBearBias = not na(footprintDeltaPct) and footprintDeltaPct <= -footprintSetupMinDeltaPct
+
+volume_row footprintPocRow = hasFootprint ? reqFootprint.poc() : na
+volume_row footprintVahRow = hasFootprint ? reqFootprint.vah() : na
+volume_row footprintValRow = hasFootprint ? reqFootprint.val() : na
+float footprintPocUpper = hasFootprint ? footprintPocRow.up_price() : na
+float footprintPocLower = hasFootprint ? footprintPocRow.down_price() : na
+float footprintVahUpper = hasFootprint ? footprintVahRow.up_price() : na
+float footprintValLower = hasFootprint ? footprintValRow.down_price() : na
+array<volume_row> footprintRows = hasFootprint ? reqFootprint.rows() : array.new<volume_row>()
+
+int buyImbalanceRows = 0
+int sellImbalanceRows = 0
+int buyImbalanceStack = 0
+int sellImbalanceStack = 0
+int currentBuyStack = 0
+int currentSellStack = 0
+int lowerHalfBuyImbalances = 0
+int upperHalfSellImbalances = 0
+float footprintMidPrice = (high + low) * 0.5
+
+if array.size(footprintRows) > 0
+    for row in footprintRows
+        bool buyImbalance = row.has_buy_imbalance()
+        bool sellImbalance = row.has_sell_imbalance()
+        float rowMidPrice = (row.up_price() + row.down_price()) * 0.5
+
+        if buyImbalance
+            buyImbalanceRows += 1
+            currentBuyStack += 1
+            currentSellStack := 0
+            buyImbalanceStack := math.max(buyImbalanceStack, currentBuyStack)
+            if rowMidPrice <= footprintMidPrice
+                lowerHalfBuyImbalances += 1
+        else
+            currentBuyStack := 0
+
+        if sellImbalance
+            sellImbalanceRows += 1
+            currentSellStack += 1
+            currentBuyStack := 0
+            sellImbalanceStack := math.max(sellImbalanceStack, currentSellStack)
+            if rowMidPrice >= footprintMidPrice
+                upperHalfSellImbalances += 1
+        else
+            currentSellStack := 0
+
+bullImbalanceStackOk = buyImbalanceStack >= minImbalanceStack
+bearImbalanceStackOk = sellImbalanceStack >= minImbalanceStack
+footprintBiasText = positiveFootprintOk ? "BULL" : negativeFootprintOk ? "BEAR" : buyImbalanceRows > sellImbalanceRows ? "BULL LEAN" : sellImbalanceRows > buyImbalanceRows ? "BEAR LEAN" : "MIXED"
+
 // =====================
 // ATS and flow conditions
 // =====================
@@ -304,6 +457,14 @@ bearishSweepReclaim = not na(resistanceLevel) and high > resistanceLevel and clo
 
 bullishDeltaDivergence = bullishSweepReclaim and not na(barDeltaPct) and not na(barDeltaPct[1]) and barDeltaPct > barDeltaPct[1]
 bearishDeltaDivergence = bearishSweepReclaim and not na(barDeltaPct) and not na(barDeltaPct[1]) and barDeltaPct < barDeltaPct[1]
+bullishFootprintDivergence = useFootprintDivergence and bullishSweepReclaim and not na(footprintDeltaPct) and not na(footprintDeltaPct[1]) and footprintDeltaPct > footprintDeltaPct[1]
+bearishFootprintDivergence = useFootprintDivergence and bearishSweepReclaim and not na(footprintDeltaPct) and not na(footprintDeltaPct[1]) and footprintDeltaPct < footprintDeltaPct[1]
+bullishFootprintAbsorption = bullishSweepReclaim and hasFootprint and lowerHalfBuyImbalances >= minImbalanceStack and footprintDeltaPct >= -absorptionCounterDeltaLimitPct and (na(footprintPocUpper) or footprintPocUpper >= low + barRange * 0.5)
+bearishFootprintAbsorption = bearishSweepReclaim and hasFootprint and upperHalfSellImbalances >= minImbalanceStack and footprintDeltaPct <= absorptionCounterDeltaLimitPct and (na(footprintPocLower) or footprintPocLower <= low + barRange * 0.5)
+bullFootprintSignalOk = footprintSetupBullBias or bullishFootprintDivergence or bullishFootprintAbsorption
+bearFootprintSignalOk = footprintSetupBearBias or bearishFootprintDivergence or bearishFootprintAbsorption
+bullFootprintSetupOk = (not requireFootprintSetup or bullFootprintSignalOk) and (not requireFootprintAbsorption or bullishFootprintAbsorption)
+bearFootprintSetupOk = (not requireFootprintSetup or bearFootprintSignalOk) and (not requireFootprintAbsorption or bearishFootprintAbsorption)
 
 bullStructureOk = modePreset == "Continuation Breakout" ? bullRaw : bullishSweepReclaim
 bearStructureOk = modePreset == "Continuation Breakout" ? bearRaw : bearishSweepReclaim
@@ -332,6 +493,10 @@ if positiveDeltaOk or bullishDeltaDivergence
     bullScore += 1
 if negativeDeltaOk or bearishDeltaDivergence
     bearScore += 1
+if footprintSetupBullBias or bullishFootprintDivergence or bullishFootprintAbsorption
+    bullScore += 1
+if footprintSetupBearBias or bearishFootprintDivergence or bearishFootprintAbsorption
+    bearScore += 1
 if bullishWickReject
     bullScore += 1
 if bearishWickReject
@@ -345,8 +510,8 @@ if spikeUp
 if spikeDown
     bearScore += 1
 
-bullSetupCondition = bullStructureOk and bullScore >= setupScoreThreshold
-bearSetupCondition = bearStructureOk and bearScore >= setupScoreThreshold
+bullSetupCondition = bullStructureOk and bullScore >= setupScoreThreshold and bullFootprintSetupOk
+bearSetupCondition = bearStructureOk and bearScore >= setupScoreThreshold and bearFootprintSetupOk
 
 priorBullConfirmLevel = nz(ta.highest(high, confirmLookback)[1], high)
 priorBearConfirmLevel = nz(ta.lowest(low, confirmLookback)[1], low)
@@ -364,6 +529,24 @@ var float bullStoredLevel = na
 var float bearStoredLevel = na
 var float bullStoredWidth = na
 var float bearStoredWidth = na
+var float bullEventHigh = na
+var float bullEventLow = na
+var float bearEventHigh = na
+var float bearEventLow = na
+var float bullEventCumPv = na
+var float bullEventCumVol = na
+var float bearEventCumPv = na
+var float bearEventCumVol = na
+var float bullEventPocUpper = na
+var float bullEventPocLower = na
+var float bullEventVahUpper = na
+var float bullEventValLower = na
+var float bearEventPocUpper = na
+var float bearEventPocLower = na
+var float bearEventVahUpper = na
+var float bearEventValLower = na
+var float bullFootprintTriggerLevel = na
+var float bearFootprintTriggerLevel = na
 
 bullSetupSignal = false
 bearSetupSignal = false
@@ -378,6 +561,15 @@ if bullSetupArmed
         bullTrigger := na
         bullStoredLevel := na
         bullStoredWidth := na
+        bullEventHigh := na
+        bullEventLow := na
+        bullEventCumPv := na
+        bullEventCumVol := na
+        bullEventPocUpper := na
+        bullEventPocLower := na
+        bullEventVahUpper := na
+        bullEventValLower := na
+        bullFootprintTriggerLevel := na
 
 if bearSetupArmed
     bearSetupAge += 1
@@ -387,6 +579,15 @@ if bearSetupArmed
         bearTrigger := na
         bearStoredLevel := na
         bearStoredWidth := na
+        bearEventHigh := na
+        bearEventLow := na
+        bearEventCumPv := na
+        bearEventCumVol := na
+        bearEventPocUpper := na
+        bearEventPocLower := na
+        bearEventVahUpper := na
+        bearEventValLower := na
+        bearFootprintTriggerLevel := na
 
 if bullSetupCondition and not bullSetupArmed
     bullSetupSignal := true
@@ -394,7 +595,16 @@ if bullSetupCondition and not bullSetupArmed
     bullSetupAge := 0
     bullStoredLevel := supportLevel
     bullStoredWidth := chwidth
-    bullTrigger := math.max(high, priorBullConfirmLevel)
+    bullEventPocUpper := footprintPocUpper
+    bullEventPocLower := footprintPocLower
+    bullEventVahUpper := footprintVahUpper
+    bullEventValLower := footprintValLower
+    bullFootprintTriggerLevel := footprintTriggerMode == "Price Only" ? na : footprintTriggerMode == "POC" ? footprintPocUpper : footprintTriggerMode == "VAH/VAL" ? footprintVahUpper : math.max(nz(footprintPocUpper, high), nz(footprintVahUpper, high))
+    bullTrigger := na(bullFootprintTriggerLevel) ? math.max(high, priorBullConfirmLevel) : math.max(math.max(high, priorBullConfirmLevel), bullFootprintTriggerLevel)
+    bullEventHigh := high
+    bullEventLow := low
+    bullEventCumPv := eventVwapStartMode == "Setup Bar" ? hlc3 * volume : na
+    bullEventCumVol := eventVwapStartMode == "Setup Bar" ? volume : na
 
 if bearSetupCondition and not bearSetupArmed
     bearSetupSignal := true
@@ -402,19 +612,128 @@ if bearSetupCondition and not bearSetupArmed
     bearSetupAge := 0
     bearStoredLevel := resistanceLevel
     bearStoredWidth := chwidth
-    bearTrigger := math.min(low, priorBearConfirmLevel)
+    bearEventPocUpper := footprintPocUpper
+    bearEventPocLower := footprintPocLower
+    bearEventVahUpper := footprintVahUpper
+    bearEventValLower := footprintValLower
+    bearFootprintTriggerLevel := footprintTriggerMode == "Price Only" ? na : footprintTriggerMode == "POC" ? footprintPocLower : footprintTriggerMode == "VAH/VAL" ? footprintValLower : math.min(nz(footprintPocLower, low), nz(footprintValLower, low))
+    bearTrigger := na(bearFootprintTriggerLevel) ? math.min(low, priorBearConfirmLevel) : math.min(math.min(low, priorBearConfirmLevel), bearFootprintTriggerLevel)
+    bearEventHigh := high
+    bearEventLow := low
+    bearEventCumPv := eventVwapStartMode == "Setup Bar" ? hlc3 * volume : na
+    bearEventCumVol := eventVwapStartMode == "Setup Bar" ? volume : na
 
-if bullSetupArmed and bullSetupAge > 0 and not na(bullTrigger) and close > bullTrigger and bullScore >= confirmScoreThreshold
+bool bullAccumulateEventVwap = bullSetupArmed and not bullSetupSignal and (eventVwapStartMode == "Setup Bar" or bullSetupAge > 0)
+bool bearAccumulateEventVwap = bearSetupArmed and not bearSetupSignal and (eventVwapStartMode == "Setup Bar" or bearSetupAge > 0)
+
+if bullSetupArmed and not bullSetupSignal
+    bullEventHigh := na(bullEventHigh) ? high : math.max(bullEventHigh, high)
+    bullEventLow := na(bullEventLow) ? low : math.min(bullEventLow, low)
+    if bullAccumulateEventVwap
+        bullEventCumPv := nz(bullEventCumPv) + hlc3 * volume
+        bullEventCumVol := nz(bullEventCumVol) + volume
+
+if bearSetupArmed and not bearSetupSignal
+    bearEventHigh := na(bearEventHigh) ? high : math.max(bearEventHigh, high)
+    bearEventLow := na(bearEventLow) ? low : math.min(bearEventLow, low)
+    if bearAccumulateEventVwap
+        bearEventCumPv := nz(bearEventCumPv) + hlc3 * volume
+        bearEventCumVol := nz(bearEventCumVol) + volume
+
+bullCloseInRange = barRange > 0 ? (close - low) / barRange >= minCloseInRangePct : false
+bearCloseInRange = barRange > 0 ? (high - close) / barRange >= minCloseInRangePct : false
+bullEventVwap = not na(bullEventCumVol) and bullEventCumVol > 0 ? bullEventCumPv / bullEventCumVol : na
+bearEventVwap = not na(bearEventCumVol) and bearEventCumVol > 0 ? bearEventCumPv / bearEventCumVol : na
+bullAboveVwap = not na(bullEventVwap) and close >= bullEventVwap
+bearBelowVwap = not na(bearEventVwap) and close <= bearEventVwap
+bullRetraceSpan = not na(bullEventHigh) and not na(bullStoredLevel) ? math.max(bullEventHigh - bullStoredLevel, syminfo.mintick) : na
+bearRetraceSpan = not na(bearStoredLevel) and not na(bearEventLow) ? math.max(bearStoredLevel - bearEventLow, syminfo.mintick) : na
+bullRetracePct = not na(bullRetraceSpan) ? math.max(bullEventHigh - low, 0.0) / bullRetraceSpan : na
+bearRetracePct = not na(bearRetraceSpan) ? math.max(high - bearEventLow, 0.0) / bearRetraceSpan : na
+bullRetraceOk = not na(bullRetracePct) and bullRetracePct <= bullMaxRetracePct
+bearRetraceOk = not na(bearRetracePct) and bearRetracePct <= bearMaxRetracePct
+bullFootprintStructureOk = footprintTriggerMode == "Price Only" ? true : footprintTriggerMode == "POC" ? (not na(bullEventPocUpper) and close > bullEventPocUpper) : footprintTriggerMode == "VAH/VAL" ? (not na(bullEventVahUpper) and close > bullEventVahUpper) : (not na(bullEventPocUpper) and not na(bullEventVahUpper) and close > math.max(bullEventPocUpper, bullEventVahUpper))
+bearFootprintStructureOk = footprintTriggerMode == "Price Only" ? true : footprintTriggerMode == "POC" ? (not na(bearEventPocLower) and close < bearEventPocLower) : footprintTriggerMode == "VAH/VAL" ? (not na(bearEventValLower) and close < bearEventValLower) : (not na(bearEventPocLower) and not na(bearEventValLower) and close < math.min(bearEventPocLower, bearEventValLower))
+
+int bullFollowThroughScore = 0
+int bearFollowThroughScore = 0
+
+if not na(bullTrigger) and close > bullTrigger
+    bullFollowThroughScore += 1
+if not na(bearTrigger) and close < bearTrigger
+    bearFollowThroughScore += 1
+if bullCloseInRange
+    bullFollowThroughScore += 1
+if bearCloseInRange
+    bearFollowThroughScore += 1
+if relVolOk
+    bullFollowThroughScore += 1
+    bearFollowThroughScore += 1
+if positiveDeltaOk
+    bullFollowThroughScore += 1
+if negativeDeltaOk
+    bearFollowThroughScore += 1
+if bullRetraceOk
+    bullFollowThroughScore += 1
+if bearRetraceOk
+    bearFollowThroughScore += 1
+if not requireVwapHold or bullAboveVwap
+    bullFollowThroughScore += 1
+if not requireVwapHold or bearBelowVwap
+    bearFollowThroughScore += 1
+if positiveFootprintOk
+    bullFollowThroughScore += 1
+if negativeFootprintOk
+    bearFollowThroughScore += 1
+if bullImbalanceStackOk
+    bullFollowThroughScore += 1
+if bearImbalanceStackOk
+    bearFollowThroughScore += 1
+if bullFootprintStructureOk
+    bullFollowThroughScore += 1
+if bearFootprintStructureOk
+    bearFollowThroughScore += 1
+if bullishFootprintDivergence or bullishFootprintAbsorption
+    bullFollowThroughScore += 1
+if bearishFootprintDivergence or bearishFootprintAbsorption
+    bearFollowThroughScore += 1
+
+bullFollowThroughOk = bullSetupArmed and bullSetupAge > 0 and bullSetupAge <= followThroughWindowBars and bullFollowThroughScore >= followThroughScoreThreshold and (not requireVwapHold or bullAboveVwap) and (not requireRetraceFilter or bullRetraceOk) and (not requireFootprintConfirm or positiveFootprintOk) and (not requireImbalanceStackConfirm or bullImbalanceStackOk) and (not requireFootprintStructureConfirm or bullFootprintStructureOk)
+bearFollowThroughOk = bearSetupArmed and bearSetupAge > 0 and bearSetupAge <= followThroughWindowBars and bearFollowThroughScore >= followThroughScoreThreshold and (not requireVwapHold or bearBelowVwap) and (not requireRetraceFilter or bearRetraceOk) and (not requireFootprintConfirm or negativeFootprintOk) and (not requireImbalanceStackConfirm or bearImbalanceStackOk) and (not requireFootprintStructureConfirm or bearFootprintStructureOk)
+
+if bullSetupArmed and not na(bullTrigger) and close > bullTrigger and bullScore >= confirmScoreThreshold and bullFollowThroughOk
     bullConfirmedSignal := true
     bullSetupArmed := false
     bullSetupAge := 0
     bullTrigger := na
+    bullStoredLevel := na
+    bullStoredWidth := na
+    bullEventHigh := na
+    bullEventLow := na
+    bullEventCumPv := na
+    bullEventCumVol := na
+    bullEventPocUpper := na
+    bullEventPocLower := na
+    bullEventVahUpper := na
+    bullEventValLower := na
+    bullFootprintTriggerLevel := na
 
-if bearSetupArmed and bearSetupAge > 0 and not na(bearTrigger) and close < bearTrigger and bearScore >= confirmScoreThreshold
+if bearSetupArmed and not na(bearTrigger) and close < bearTrigger and bearScore >= confirmScoreThreshold and bearFollowThroughOk
     bearConfirmedSignal := true
     bearSetupArmed := false
     bearSetupAge := 0
     bearTrigger := na
+    bearStoredLevel := na
+    bearStoredWidth := na
+    bearEventHigh := na
+    bearEventLow := na
+    bearEventCumPv := na
+    bearEventCumVol := na
+    bearEventPocUpper := na
+    bearEventPocLower := na
+    bearEventVahUpper := na
+    bearEventValLower := na
+    bearFootprintTriggerLevel := na
 
 // =====================
 // Visuals
@@ -422,20 +741,20 @@ if bearSetupArmed and bearSetupAge > 0 and not na(bearTrigger) and close < bearT
 setupBarColor = bullConfirmedSignal ? color.new(bullColor, 0) : bearConfirmedSignal ? color.new(bearColor, 0) : bullSetupArmed ? color.new(bullColor, 55) : bearSetupArmed ? color.new(bearColor, 55) : na
 barcolor(colorBars ? setupBarColor : na)
 
-plotshape(showSetupMarkers and bullSetupSignal, title="Bullish Reversal Setup", location=location.belowbar, style=shape.circle, size=size.tiny, color=color.new(bullColor, 0), text="SET")
-plotshape(showSetupMarkers and bearSetupSignal, title="Bearish Reversal Setup", location=location.abovebar, style=shape.circle, size=size.tiny, color=color.new(bearColor, 0), text="SET")
-plotshape(showConfirmedMarkers and bullConfirmedSignal, title="Bullish Reversal Confirmed", location=location.belowbar, style=shape.triangleup, size=size.small, color=bullColor, text="REV")
-plotshape(showConfirmedMarkers and bearConfirmedSignal, title="Bearish Reversal Confirmed", location=location.abovebar, style=shape.triangledown, size=size.small, color=bearColor, text="REV")
+plotshape(showSetupMarkers and bullSetupSignal, title="Bullish Reversal Setup", location=location.belowbar, style=shape.arrowup, size=size.tiny, color=color.new(bullColor, 0), text="SET")
+plotshape(showSetupMarkers and bearSetupSignal, title="Bearish Reversal Setup", location=location.abovebar, style=shape.arrowdown, size=size.tiny, color=color.new(bearColor, 0), text="SET")
+plotshape(showConfirmedMarkers and bullConfirmedSignal, title="Bullish Reversal Confirmed", location=location.belowbar, style=shape.flag, size=size.small, color=bullColor, text="REV")
+plotshape(showConfirmedMarkers and bearConfirmedSignal, title="Bearish Reversal Confirmed", location=location.abovebar, style=shape.flag, size=size.small, color=bearColor, text="REV")
 
-plotshape(spikeUp, title="ATS Spike Up", style=shape.labelup, location=location.top, color=bullColor, text="ATS")
-plotshape(spikeDown, title="ATS Spike Down", style=shape.labeldown, location=location.bottom, color=bearColor, text="ATS")
+plotshape(spikeUp, title="ATS Spike Up", style=shape.triangleup, location=location.belowbar, color=bullColor, text="ATS")
+plotshape(spikeDown, title="ATS Spike Down", style=shape.triangledown, location=location.abovebar, color=bearColor, text="ATS")
 
 // =====================
 // Compact status table
 // =====================
-var table dash = table.new(position.top_right, 2, 8, border_width=1)
+var table dash = table.new(position.top_right, 2, 18, border_width=1)
 if showDashboard and barstate.islast
-    table.clear(dash, 0, 0, 1, 7)
+    table.clear(dash, 0, 0, 1, 17)
     color atsColor = spikeUp ? bullColor : spikeDown ? bearColor : rising ? color.new(bullColor, 0) : falling ? color.new(bearColor, 0) : neutralColor
     string signalText = bullConfirmedSignal ? "BULL CONFIRMED" : bearConfirmedSignal ? "BEAR CONFIRMED" : bullSetupArmed ? "BULL ARMED" : bearSetupArmed ? "BEAR ARMED" : bullSetupSignal ? "BULL SETUP" : bearSetupSignal ? "BEAR SETUP" : "NONE"
     color signalColor = bullConfirmedSignal or bullSetupArmed or bullSetupSignal ? bullColor : bearConfirmedSignal or bearSetupArmed or bearSetupSignal ? bearColor : neutralColor
@@ -444,23 +763,63 @@ if showDashboard and barstate.islast
     color reversalSetupColor = bullSetupSignal or bullSetupArmed ? bullColor : bearSetupSignal or bearSetupArmed ? bearColor : neutralColor
     string reversalConfirmedText = bullConfirmedSignal ? "BULL" : bearConfirmedSignal ? "BEAR" : "NONE"
     color reversalConfirmedColor = bullConfirmedSignal ? bullColor : bearConfirmedSignal ? bearColor : neutralColor
+    string followThroughText = bullFollowThroughOk ? "BULL OK" : bearFollowThroughOk ? "BEAR OK" : bullSetupArmed ? str.tostring(bullFollowThroughScore) : bearSetupArmed ? str.tostring(bearFollowThroughScore) : "NONE"
+    color followThroughColor = bullFollowThroughOk ? bullColor : bearFollowThroughOk ? bearColor : neutralColor
+    string footprintText = hasFootprint ? str.tostring(footprintDeltaPct * 100.0, "#.0") + "%" : "NA"
+    color footprintColor = positiveFootprintOk ? bullColor : negativeFootprintOk ? bearColor : neutralColor
+    string vwapText = bullSetupArmed ? (bullAboveVwap ? "BULL HOLD" : "FAIL") : bearSetupArmed ? (bearBelowVwap ? "BEAR HOLD" : "FAIL") : "NONE"
+    color vwapColor = bullSetupArmed and bullAboveVwap ? bullColor : bearSetupArmed and bearBelowVwap ? bearColor : bullSetupArmed or bearSetupArmed ? color.orange : neutralColor
+    string retraceText = bullSetupArmed ? (bullRetraceOk ? str.tostring(bullRetracePct * 100.0, "#.0") + "% / " + str.tostring(bullMaxRetracePct * 100.0, "#.0") + "%" : "FAIL") : bearSetupArmed ? (bearRetraceOk ? str.tostring(bearRetracePct * 100.0, "#.0") + "% / " + str.tostring(bearMaxRetracePct * 100.0, "#.0") + "%" : "FAIL") : "NONE"
+    color retraceColor = bullSetupArmed and bullRetraceOk ? bullColor : bearSetupArmed and bearRetraceOk ? bearColor : bullSetupArmed or bearSetupArmed ? color.orange : neutralColor
+    string assetProfileText = assetProfile + " / " + eventVwapStartMode
+    string imbalanceText = "B " + str.tostring(buyImbalanceStack) + " / S " + str.tostring(sellImbalanceStack)
+    color imbalanceColor = bullImbalanceStackOk ? bullColor : bearImbalanceStackOk ? bearColor : neutralColor
+    string absorptionText = bullishFootprintAbsorption ? "BULL" : bearishFootprintAbsorption ? "BEAR" : "NONE"
+    color absorptionColor = bullishFootprintAbsorption ? bullColor : bearishFootprintAbsorption ? bearColor : neutralColor
+    string divergenceText = bullishFootprintDivergence ? "BULL" : bearishFootprintDivergence ? "BEAR" : "NONE"
+    color divergenceColor = bullishFootprintDivergence ? bullColor : bearishFootprintDivergence ? bearColor : neutralColor
+    string triggerText = bullSetupArmed ? (na(bullFootprintTriggerLevel) ? "PRICE" : str.tostring(bullFootprintTriggerLevel, format.mintick)) : bearSetupArmed ? (na(bearFootprintTriggerLevel) ? "PRICE" : str.tostring(bearFootprintTriggerLevel, format.mintick)) : "NONE"
+    color triggerColor = bullSetupArmed ? bullColor : bearSetupArmed ? bearColor : neutralColor
+    string structureText = bullFootprintStructureOk and bullSetupArmed ? "BULL OK" : bearFootprintStructureOk and bearSetupArmed ? "BEAR OK" : bullSetupArmed or bearSetupArmed ? "FAIL" : "NONE"
+    color structureColor = bullFootprintStructureOk and bullSetupArmed ? bullColor : bearFootprintStructureOk and bearSetupArmed ? bearColor : bullSetupArmed or bearSetupArmed ? color.orange : neutralColor
+    color biasColor = footprintBiasText == "BULL" or footprintBiasText == "BULL LEAN" ? bullColor : footprintBiasText == "BEAR" or footprintBiasText == "BEAR LEAN" ? bearColor : neutralColor
 
     table.cell(dash, 0, 0, "Metric", text_color=color.white, bgcolor=color.rgb(45, 45, 45))
     table.cell(dash, 1, 0, "Value", text_color=color.white, bgcolor=color.rgb(45, 45, 45))
-    table.cell(dash, 0, 1, "ATS")
-    table.cell(dash, 1, 1, str.tostring(avgSizeProxy, "#.00"), text_color=atsColor)
-    table.cell(dash, 0, 2, "ATS Change %")
-    table.cell(dash, 1, 2, str.tostring(changePct, "#.0"), text_color=atsColor)
-    table.cell(dash, 0, 3, "ATS State")
-    table.cell(dash, 1, 3, spikeUp ? "SPIKE UP" : spikeDown ? "SPIKE DOWN" : rising ? "RISING" : falling ? "FALLING" : "NEUTRAL", text_color=atsColor)
-    table.cell(dash, 0, 4, "Signal")
-    table.cell(dash, 1, 4, signalText, text_color=signalColor)
-    table.cell(dash, 0, 5, "ATS Spike Streak")
-    table.cell(dash, 1, 5, spikeStreakText, text_color=consecutiveSpikeUp > 0 ? bullColor : consecutiveSpikeDown > 0 ? bearColor : neutralColor)
-    table.cell(dash, 0, 6, "Reversal Setup")
-    table.cell(dash, 1, 6, reversalSetupText, text_color=reversalSetupColor)
-    table.cell(dash, 0, 7, "Reversal Confirmed")
-    table.cell(dash, 1, 7, reversalConfirmedText, text_color=reversalConfirmedColor)
+    table.cell(dash, 0, 1, "Profile")
+    table.cell(dash, 1, 1, assetProfileText, text_color=color.white)
+    table.cell(dash, 0, 2, "ATS")
+    table.cell(dash, 1, 2, str.tostring(avgSizeProxy, "#.00"), text_color=atsColor)
+    table.cell(dash, 0, 3, "ATS Change %")
+    table.cell(dash, 1, 3, str.tostring(changePct, "#.0"), text_color=atsColor)
+    table.cell(dash, 0, 4, "ATS State")
+    table.cell(dash, 1, 4, spikeUp ? "SPIKE UP" : spikeDown ? "SPIKE DOWN" : rising ? "RISING" : falling ? "FALLING" : "NEUTRAL", text_color=atsColor)
+    table.cell(dash, 0, 5, "Signal")
+    table.cell(dash, 1, 5, signalText, text_color=signalColor)
+    table.cell(dash, 0, 6, "ATS Spike Streak")
+    table.cell(dash, 1, 6, spikeStreakText, text_color=consecutiveSpikeUp > 0 ? bullColor : consecutiveSpikeDown > 0 ? bearColor : neutralColor)
+    table.cell(dash, 0, 7, "Reversal Setup")
+    table.cell(dash, 1, 7, reversalSetupText, text_color=reversalSetupColor)
+    table.cell(dash, 0, 8, "Reversal Confirmed")
+    table.cell(dash, 1, 8, reversalConfirmedText, text_color=reversalConfirmedColor)
+    table.cell(dash, 0, 9, "Follow-Through")
+    table.cell(dash, 1, 9, followThroughText, text_color=followThroughColor)
+    table.cell(dash, 0, 10, "Footprint Bias")
+    table.cell(dash, 1, 10, footprintBiasText, text_color=biasColor)
+    table.cell(dash, 0, 11, "Imbalance Stack")
+    table.cell(dash, 1, 11, imbalanceText, text_color=imbalanceColor)
+    table.cell(dash, 0, 12, "Absorption")
+    table.cell(dash, 1, 12, absorptionText, text_color=absorptionColor)
+    table.cell(dash, 0, 13, "Divergence")
+    table.cell(dash, 1, 13, divergenceText, text_color=divergenceColor)
+    table.cell(dash, 0, 14, "Trigger")
+    table.cell(dash, 1, 14, triggerText, text_color=triggerColor)
+    table.cell(dash, 0, 15, "POC/VA Confirm")
+    table.cell(dash, 1, 15, structureText, text_color=structureColor)
+    table.cell(dash, 0, 16, "Footprint Delta")
+    table.cell(dash, 1, 16, footprintText, text_color=footprintColor)
+    table.cell(dash, 0, 17, "Event VWAP / Retrace")
+    table.cell(dash, 1, 17, vwapText + " | " + retraceText, text_color=bullSetupArmed and bullAboveVwap and bullRetraceOk ? bullColor : bearSetupArmed and bearBelowVwap and bearRetraceOk ? bearColor : neutralColor)
 
 alertcondition(bullishAtsSpikeUpSignal, title="Bullish ATS Spike Up", message="{{ticker}} bullish ATS spike up on {{interval}}")
 alertcondition(bearishAtsSpikeDownSignal, title="Bearish ATS Spike Down", message="{{ticker}} bearish ATS spike down on {{interval}}")
@@ -469,6 +828,12 @@ alertcondition(bearishAtsSpikeSequenceSignal, title="Bearish ATS Spike Sequence"
 alertcondition(bullSetupSignal or bullishAtsSpikeSequenceSignal, title="Bullish Reversal Setup Or ATS Spike Sequence", message="{{ticker}} bullish reversal setup or bullish ATS spike sequence on {{interval}}")
 alertcondition(bullSetupSignal, title="Bullish Reversal Setup", message="{{ticker}} bullish reversal setup armed on {{interval}}")
 alertcondition(bearSetupSignal, title="Bearish Reversal Setup", message="{{ticker}} bearish reversal setup armed on {{interval}}")
+alertcondition(bullishFootprintAbsorption, title="Bullish Footprint Absorption", message="{{ticker}} bullish footprint absorption on {{interval}}")
+alertcondition(bearishFootprintAbsorption, title="Bearish Footprint Absorption", message="{{ticker}} bearish footprint absorption on {{interval}}")
+alertcondition(bullishFootprintDivergence, title="Bullish Footprint Divergence", message="{{ticker}} bullish footprint divergence on {{interval}}")
+alertcondition(bearishFootprintDivergence, title="Bearish Footprint Divergence", message="{{ticker}} bearish footprint divergence on {{interval}}")
+alertcondition(bullConfirmedSignal and positiveFootprintOk and bullImbalanceStackOk, title="Bullish Reversal Confirmed With Footprint", message="{{ticker}} bullish reversal confirmed with footprint support on {{interval}}")
+alertcondition(bearConfirmedSignal and negativeFootprintOk and bearImbalanceStackOk, title="Bearish Reversal Confirmed With Footprint", message="{{ticker}} bearish reversal confirmed with footprint support on {{interval}}")
 alertcondition(bullConfirmedSignal, title="Bullish Reversal Confirmed", message="{{ticker}} bullish reversal confirmed on {{interval}}")
 alertcondition(bearConfirmedSignal, title="Bearish Reversal Confirmed", message="{{ticker}} bearish reversal confirmed on {{interval}}")
 alertcondition(bullConfirmedSignal or bearConfirmedSignal, title="Reversal Confirmed", message="{{ticker}} reversal confirmed on {{interval}}")
