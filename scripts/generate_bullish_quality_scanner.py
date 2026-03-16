@@ -222,12 +222,26 @@ def generate_bullish_quality_scanner_result(
     latest_trade_date = window_features["trade_date"].dropna().max() if not window_features.empty else None
     diagnostics = _build_filter_diagnostics(window_features, ranked)
     active_trade_date, used_non_trading_fallback = _resolve_active_trade_date(latest_trade_date, ranked)
+    used_trading_day_stale_fallback = False
+    if latest_trade_date is not None and active_trade_date == latest_trade_date and not ranked.empty:
+        ranked_trade_dates = ranked["trade_date"].dropna()
+        if not ranked_trade_dates.eq(latest_trade_date).any():
+            prior_ranked_trade_dates = ranked_trade_dates.loc[ranked_trade_dates < latest_trade_date]
+            if not prior_ranked_trade_dates.empty:
+                active_trade_date = prior_ranked_trade_dates.max()
+                used_trading_day_stale_fallback = True
     latest_window = _latest_window_table(ranked, resolved_cfg, active_trade_date=active_trade_date)
     if used_non_trading_fallback and latest_trade_date is not None and active_trade_date is not None:
         warnings.append(
             "Latest export trade date "
             f"{latest_trade_date.isoformat()} is a non-trading day without bullish-quality candidates; showing the latest populated trade date "
             f"{active_trade_date.isoformat()}."
+        )
+    elif used_trading_day_stale_fallback and latest_trade_date is not None and active_trade_date is not None:
+        warnings.append(
+            "Latest export trade date "
+            f"{latest_trade_date.isoformat()} has no bullish-quality candidates yet; showing the latest populated trade date "
+            f"{active_trade_date.isoformat()} as a stale previous-session fallback."
         )
 
     display_columns = [

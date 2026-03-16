@@ -174,7 +174,7 @@ def test_generate_bullish_quality_scanner_result_falls_back_from_non_trading_day
     assert any("non-trading day without bullish-quality candidates" in warning for warning in result.warnings)
 
 
-def test_generate_bullish_quality_scanner_result_keeps_empty_latest_window_on_trading_day_without_crashing(tmp_path: Path) -> None:
+def test_generate_bullish_quality_scanner_result_falls_back_from_trading_day_without_candidates_to_latest_ranked_trade_date(tmp_path: Path) -> None:
     cfg = build_default_bullish_quality_config()
     friday = "2026-03-13"
     monday = "2026-03-16"
@@ -205,6 +205,7 @@ def test_generate_bullish_quality_scanner_result_keeps_empty_latest_window_on_tr
     result = generate_bullish_quality_scanner_result(export_dir=tmp_path, cfg=cfg)
 
     assert result.trade_date is not None
-    assert result.trade_date.isoformat() == monday
-    assert result.latest_window_table.empty
+    assert result.trade_date.isoformat() == friday
+    assert result.latest_window_table["symbol"].tolist() == ["AAA"]
     assert result.rankings_table["symbol"].tolist() == ["AAA"]
+    assert any("stale previous-session fallback" in warning for warning in result.warnings)
