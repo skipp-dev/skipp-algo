@@ -172,3 +172,39 @@ def test_generate_bullish_quality_scanner_result_falls_back_from_non_trading_day
     assert result.trade_date.isoformat() == friday
     assert result.latest_window_table["symbol"].tolist() == ["AAA"]
     assert any("non-trading day without bullish-quality candidates" in warning for warning in result.warnings)
+
+
+def test_generate_bullish_quality_scanner_result_keeps_empty_latest_window_on_trading_day_without_crashing(tmp_path: Path) -> None:
+    cfg = build_default_bullish_quality_config()
+    friday = "2026-03-13"
+    monday = "2026-03-16"
+    preferred_tag = cfg.window_definitions[-1].tag
+    window_features = pd.DataFrame(
+        {
+            "trade_date": [friday, monday],
+            "symbol": ["AAA", "AAA"],
+            "window_tag": [preferred_tag, preferred_tag],
+            "source_data_fetched_at": ["2026-03-13T09:31:00+00:00", "2026-03-16T09:31:00+00:00"],
+            "passes_quality_filter": [True, False],
+            "window_quality_score": [88.0, 12.0],
+            "window_dollar_volume": [1_000_000.0, 10_000.0],
+            "window_return_pct": [1.0, -0.5],
+            "window_close_position_pct": [95.0, 10.0],
+            "quality_filter_reason": ["eligible", "window_return_below_min"],
+        }
+    )
+    daily_features = pd.DataFrame(
+        {
+            "trade_date": [friday, monday],
+            "symbol": ["AAA", "AAA"],
+        }
+    )
+    _write_exact_named_frame(tmp_path, "premarket_window_features_full_universe", window_features)
+    _write_exact_named_frame(tmp_path, "daily_symbol_features_full_universe", daily_features)
+
+    result = generate_bullish_quality_scanner_result(export_dir=tmp_path, cfg=cfg)
+
+    assert result.trade_date is not None
+    assert result.trade_date.isoformat() == monday
+    assert result.latest_window_table.empty
+    assert result.rankings_table["symbol"].tolist() == ["AAA"]

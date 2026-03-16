@@ -158,6 +158,8 @@ def _latest_window_table(ranked: pd.DataFrame, cfg: BullishQualityConfig, active
     latest_trade_date = active_trade_date or ranked["trade_date"].dropna().max()
     preferred_tag = cfg.window_definitions[-1].tag if cfg.window_definitions else None
     latest = ranked.loc[ranked["trade_date"] == latest_trade_date].copy()
+    if latest.empty:
+        return ranked.iloc[0:0].copy()
     if preferred_tag is not None and latest["window_tag"].eq(preferred_tag).any():
         latest = latest.loc[latest["window_tag"] == preferred_tag].copy()
     else:
