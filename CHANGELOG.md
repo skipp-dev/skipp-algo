@@ -9,6 +9,8 @@ All notable changes to this project are documented in this file.
 ### Fixed (2026-03-19)
 
 - **SMC++ long-dip and object lifecycle hardening:**
+  - Fixed swing OB break handling so older blocks are no longer skipped just because the newest tracked block was not broken yet.
+  - Fixed bullish and bearish FVG maintenance loops so older filled gaps are still updated and migrated even when newer gaps remain open.
   - Fixed `update(FVG this)` so the close-vs-live fill mode is recalculated per gap instead of leaking through a static `var`, which could silently mis-handle later FVG fills.
   - Fixed OB/FVG reclaim detection so a reclaim can complete on a later bar after the initial zone touch, as long as it stays within the configured long signal window.
   - Fixed a follow-up reclaim regression so OB/FVG reclaims fire only once on the actual crossover bar instead of staying latched true across later bars above the reclaimed zone.
@@ -23,6 +25,10 @@ All notable changes to this project are documented in this file.
   - Removed leftover dead code from earlier alert/dashboard iterations, including unused compact trend text, unused HTF state locals, unused intrabar event counting, and unused legacy FVG plotting wrappers.
   - Removed redundant per-bar OB/FVG registry rebuilds from the dashboard count path and switched those counts to direct array sizes.
   - Hardened the premium/discount warning helper to reuse a single warning label instead of creating a new one every bar.
+  - Added lower-timeframe guardrails that automatically disable `request.security_lower_tf()` sampling when the chart-to-LTF ratio or estimated intrabar array size exceeds configured safety thresholds.
+  - Hardened volume-data quality checks so relative volume, OB profiles, and volume-driven confirmations degrade gracefully on symbols with missing or effectively empty volume.
+  - Added optional intraday VWAP/session alignment as an extra long filter for users who want session-aware intraday confirmation.
+  - Added a practical risk/exit overlay that exposes trigger, invalidation, ATR-buffered stop, and 1R/2R targets directly on the chart and dashboard.
 
 - **SMC++ live alert and timeframe hardening:**
   - Fixed intrabar OB/FVG live alerts in `SMC++.pine` to prefer exact engine event buffers (`ob_broken_new_*`, `filled_fvgs_new_*`) before scanning active objects, preventing silent misses on the event bar.

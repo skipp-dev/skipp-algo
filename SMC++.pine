@@ -164,13 +164,12 @@ update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks
                     broken_blocks_new.push(block)
                     tracking_blocks.remove(i)
 
-                    while broken_blocks.size() > keep_broken_max
-                        if not na(discarded_buffer)
-                            discarded_buffer.push(broken_blocks.shift())
-                        else
-                            broken_blocks.shift()
+        if keep_broken_max >= 0
+            while broken_blocks.size() > keep_broken_max
+                if not na(discarded_buffer)
+                    discarded_buffer.push(broken_blocks.shift())
                 else
-                    break
+                    broken_blocks.shift()
 
     true
 
@@ -895,10 +894,9 @@ method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, in
         for i = fvgs.size() - 1 to 0
             fvg = fvgs.get(i)
             if fvg.filled
-                filled_buffer.push(fvgs.remove(i))
-                filled_new_buffer.push(filled_buffer.last())
-            else
-                break
+                moved = fvgs.remove(i)
+                filled_buffer.push(moved)
+                filled_new_buffer.push(moved)
 
     if keep_history > 0
         while filled_buffer.size() > keep_history
@@ -943,8 +941,7 @@ method update(FVG[] fvgs) =>
     if fvgs.size() > 0
         for i = fvgs.size() - 1 to 0
             fvg = fvgs.get(i)
-            if not fvg.update()
-                break
+            fvg.update()
     fvgs
 
 method hide(FVG this) =>
@@ -1294,15 +1291,6 @@ fire_dynamic_alert(bool enabled, bool condition, string event_name, string detai
         message = str.format('SMC++ | {0} | {1} | {2} | dir={3} | level={4} | tf={5} | mode={6} | ltf_bull_share={7} | ltf_volume_delta={8}', syminfo.ticker, event_name, detail, direction_text, format_level(level), timeframe.period, mode_text, share_text, delta_text)
         alert(message, alert.freq_once_per_bar)
 
-float sma_no_volume = ta.sma(close, ATR_LEN_PROFILE)
-
-var label no_volume_data = na
-if na(volume)
-    if barstate.isfirst
-        no_volume_data := label.new(chart.point.from_index(bar_index + 20, sma_no_volume), 'Volume-limited instrument\nThis instrument has no volume data.\nVolume-based features and profiling may be limited.', color = color.red, style = label.style_label_left, size = size.normal)
-    else
-        no_volume_data.set_point(chart.point.from_index(bar_index + 20, sma_no_volume))
-
 string SHOW_SWING = 'Display market structure.'
 string SHOW_SWING_POINTS = 'Display swing points as labels on the chart.'
 string SHOW_SWHL_POINTS = 'Highlight the most recent strong and weak highs/lows on the chart.'
@@ -1347,6 +1335,23 @@ var bool enable_live_break_alerts = input.bool(true, 'Enable intrabar live break
 var g_perf = 'Performance'
 var bool render_visible_only = input.bool(true, 'Render visible range only', group = g_perf, tooltip = PERFORMANCE_TOOLTIP)
 var int object_gc_cycle = input.int(250, 'Object GC Cycle', minval = 0, group = g_perf, display = display.none, tooltip = 'Runs periodic cleanup of insignificant OB/FVG objects. Set to 0 to disable GC.')
+var int max_ltf_ratio = input.int(60, 'Max LTF Ratio', minval = 2, maxval = 500, group = g_perf, display = display.none, tooltip = 'Disables lower timeframe sampling if chart_tf / ltf_tf exceeds this ratio.')
+var int max_ltf_samples_per_bar = input.int(300, 'Max LTF Samples / Bar', minval = 10, maxval = 1000, group = g_perf, display = display.none, tooltip = 'Additional guardrail for lower timeframe array size per chart bar.')
+
+var g_data = 'Data Quality'
+var int volume_quality_lookback = input.int(50, 'Volume Quality Lookback', minval = 5, group = g_data, display = display.none)
+var int min_nonzero_volume_bars = input.int(10, 'Min Non-Zero Volume Bars', minval = 1, group = g_data, display = display.none)
+
+var g_risk = 'Risk / Exits'
+var bool show_risk_levels = input.bool(true, 'Show Risk Levels', group = g_risk)
+var float stop_buffer_atr_mult = input.float(0.25, 'Stop Buffer ATR x', minval = 0.0, step = 0.05, group = g_risk)
+var float target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_risk)
+var float target2_r = input.float(2.0, 'Target 2 (R)', minval = 0.5, step = 0.25, group = g_risk)
+
+var g_session = 'Session / VWAP'
+var bool use_vwap_filter = input.bool(false, 'Use VWAP Filter', group = g_session, inline = 'vwap')
+var bool show_session_vwap = input.bool(false, 'Show VWAP', group = g_session, inline = 'vwap')
+var string vwap_session = input.session('0930-1600', 'Session', group = g_session, inline = 'session', display = display.none)
 
 var g_long = 'Long Dip Tools'
 // Visuals
@@ -1446,6 +1451,25 @@ ob_threshold_atr = ND.atr(ATR_LEN_MAIN)
 ob_threshold_min = ob_threshold_atr * ob_filter_min_mult
 ob_threshold_max = ob_threshold_atr * ob_filter_max_mult
 
+float nonzero_volume_cum = ta.cum((not na(volume) and volume > 0) ? 1.0 : 0.0)
+float nonzero_volume_bars = nonzero_volume_cum - nz(nonzero_volume_cum[volume_quality_lookback], 0.0)
+float summed_volume_cum = ta.cum(nz(volume, 0))
+float summed_volume = summed_volume_cum - nz(summed_volume_cum[volume_quality_lookback], 0.0)
+bool volume_data_ok = not na(volume) and summed_volume > 0 and nonzero_volume_bars >= min_nonzero_volume_bars
+bool use_ob_profile_effective = use_ob_profile and volume_data_ok
+bool use_rel_volume_effective = use_rel_volume and volume_data_ok
+
+var label volume_quality_warning = na
+if barstate.islast
+    if not volume_data_ok
+        if na(volume_quality_warning)
+            volume_quality_warning := label.new(bar_index, close, 'Volume data quality is limited\nRelVol / profiles / volume-confirmation may be weak', color = color.orange, textcolor = color.white, style = label.style_label_left, size = size.small)
+        else
+            label.set_xy(volume_quality_warning, bar_index, close)
+    else if not na(volume_quality_warning)
+        label.delete(volume_quality_warning)
+        volume_quality_warning := na
+
 var PF.ProfileConfig profile_config_bull = PF.ProfileConfig.new(poc_label_text = 'OB - POC ⬈', extend = ob_extend_until_broken, show_labels = true, args_poc_line = D.LineArgs.new(bull_ob_css_line, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(bull_ob_css_line, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal))
 var PF.ProfileConfig profile_config_bear = PF.ProfileConfig.new(poc_label_text = 'OB - POC ⬊', extend = ob_extend_until_broken, show_labels = true, args_poc_line = D.LineArgs.new(bear_ob_css_line, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(bear_ob_css_line, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal))
 var OrderBlockConfig ob_config_bull = OrderBlockConfig.new(show_ob, ob_showlast, show_id = show_ob_id, show_profile = use_ob_profile, args = D.BoxArgs.new(bg_color = bull_ob_css, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(color.green, size.normal, text_halign = text.align_right), show_text = false, extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull)
@@ -1454,13 +1478,24 @@ var PF.ProfileConfig profile_config_bull_broken = PF.ProfileConfig.new(extend = 
 var PF.ProfileConfig profile_config_bear_broken = PF.ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = D.LineArgs.new(bear_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(#00000000))
 var OrderBlockConfig ob_config_bull_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bull_ob_css_broken, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(bull_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull_broken)
 var OrderBlockConfig ob_config_bear_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bear_ob_css_broken, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(bear_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bear_broken)
+ob_config_bull.show_profile := use_ob_profile_effective
+ob_config_bear.show_profile := use_ob_profile_effective
+ob_config_bull_broken.show_profile := use_ob_profile_effective
+ob_config_bear_broken.show_profile := use_ob_profile_effective
 
 int chart_tf_sec = nz(timeframe.in_seconds(), 0)
+bool intraday_time_chart = chart_tf_sec > 0 and chart_tf_sec < 86400
 auto_selected_ltf = auto_ltf_timeframe(chart_tf_sec)
 effective_ltf_timeframe = ltf_auto_select ? auto_selected_ltf : ltf_timeframe
 int effective_ltf_tf_sec = nz(timeframe.in_seconds(effective_ltf_timeframe), 0)
 ltf_timeframe_valid = chart_tf_sec > 0 and str.length(effective_ltf_timeframe) > 0 and effective_ltf_tf_sec > 0 and effective_ltf_tf_sec < chart_tf_sec
-ltf_sampling_active = enable_ltf_sampling and ltf_timeframe_valid
+ltf_ratio = effective_ltf_tf_sec > 0 ? int(math.floor(chart_tf_sec / effective_ltf_tf_sec)) : na
+bool ltf_needed = show_dashboard_ltf or enable_dynamic_alerts or use_rel_volume
+bool ltf_ratio_ok = not na(ltf_ratio) and ltf_ratio > 0 and ltf_ratio <= max_ltf_ratio
+bool ltf_sample_count_ok = not na(ltf_ratio) and ltf_ratio <= max_ltf_samples_per_bar
+ltf_sampling_active = enable_ltf_sampling and ltf_timeframe_valid and ltf_needed and ltf_ratio_ok and ltf_sample_count_ok
+if barstate.isfirst and enable_ltf_sampling and ltf_timeframe_valid and (not ltf_ratio_ok or not ltf_sample_count_ok)
+    log.warning(str.format('LTF sampling disabled: ratio chart/ltf = {0} exceeds configured limits. Chart TF={1}s, LTF={2}s, max_ratio={3}, max_samples={4}', ltf_ratio, chart_tf_sec, effective_ltf_tf_sec, max_ltf_ratio, max_ltf_samples_per_bar))
 int marker_gap_reference_seconds = marker_gap_reference_minutes * 60
 int effective_reclaim_marker_gap = scaled_marker_gap(reclaim_marker_spacing_bars, auto_scale_marker_gaps, chart_tf_sec, marker_gap_reference_seconds, marker_gap_max_scale)
 int effective_confirm_marker_gap = scaled_marker_gap(confirm_marker_spacing_bars, auto_scale_marker_gaps, chart_tf_sec, marker_gap_reference_seconds, marker_gap_max_scale)
@@ -1468,19 +1503,25 @@ int effective_ready_marker_gap = scaled_marker_gap(ready_marker_spacing_bars, au
 
 float[] ltf_opens = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, open) : array.new<float>(0)
 float[] ltf_closes = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, close) : array.new<float>(0)
-float[] ltf_volumes = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, volume) : array.new<float>(0)
+float[] ltf_volumes = ltf_sampling_active and volume_data_ok ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, volume) : array.new<float>(0)
 [ltf_sample_count, ltf_bull_share, ltf_volume_delta] = ltf_stats(ltf_opens, ltf_closes, ltf_volumes)
 
 ema_fast = ta.ema(close, ema_fast_len)
 ema_slow = ta.ema(close, ema_slow_len)
+float session_vwap = intraday_time_chart ? ta.vwap(hlc3) : na
+bool vwap_session_active = intraday_time_chart and not na(time(timeframe.period, vwap_session))
+bool vwap_filter_ok = not use_vwap_filter ? true : not intraday_time_chart ? true : not vwap_session_active ? true : not na(session_vwap) and close >= session_vwap
+
+plot(show_session_vwap and intraday_time_chart ? session_vwap : na, 'Session VWAP', color = color.new(color.blue, 0), linewidth = 2)
 
 plot(show_ema_support ? ema_fast : na, 'EMA Fast', color = color.new(color.lime, 0), linewidth = 2)
 plot(show_ema_support ? ema_slow : na, 'EMA Slow', color = color.new(color.teal, 0), linewidth = 2)
 
 [plus_di, minus_di, adx_value] = ta.dmi(adx_len, adx_len)
 bool adx_data_ok = not na(adx_value) and not na(plus_di) and not na(minus_di)
-float rel_volume_ma = ta.sma(volume, relvol_len)
-float rel_volume = na(volume) or na(rel_volume_ma) or rel_volume_ma <= 0 ? na : volume / rel_volume_ma
+float rel_volume_ma_raw = ta.sma(volume, relvol_len)
+float rel_volume_ma = use_rel_volume_effective ? rel_volume_ma_raw : na
+float rel_volume = not use_rel_volume_effective or na(rel_volume_ma) or rel_volume_ma <= 0 ? float(na) : volume / rel_volume_ma
 
 bar_range = math.max(high - low, syminfo.mintick)
 bull_close_in_range = (close - low) / bar_range
@@ -1490,12 +1531,14 @@ string close_state_text = not use_strong_close_filter ? 'off' : bull_close_stron
 
 bool ema_support_ok = not show_ema_support ? true : close >= ema_fast and ema_fast >= ema_slow and ema_fast > ema_fast[1]
 string ema_state_text = not show_ema_support ? 'off' : ema_support_ok ? 'OK' : 'No'
+string vwap_state_text = not use_vwap_filter ? 'off' : not intraday_time_chart ? 'n/a' : not vwap_session_active ? 'off session' : na(session_vwap) ? 'n/a' : close >= session_vwap ? 'Above VWAP' : 'Below VWAP'
 
 bool adx_strong = not use_adx ? true : adx_data_ok and adx_value >= adx_strong_min and plus_di >= minus_di
 string adx_state_text = not use_adx ? 'off' : not adx_data_ok ? 'n/a' : plus_di < minus_di ? 'Bearish pressure' : adx_value < adx_trend_min ? 'Sideways' : adx_value < adx_strong_min ? 'Trend building' : 'Trend'
 
-bool relvol_ok = not use_rel_volume ? true : not na(rel_volume) and rel_volume >= relvol_good
-string relvol_text = not use_rel_volume ? 'off' : na(rel_volume) ? 'n/a' : str.format('{0,number,#.##}x', rel_volume)
+bool relvol_ok = not use_rel_volume_effective ? true : not na(rel_volume) and rel_volume >= relvol_good
+string relvol_value_text = na(rel_volume) ? 'n/a' : str.tostring(rel_volume, '#.##') + 'x'
+string relvol_text = not use_rel_volume ? 'off' : not volume_data_ok ? 'limited' : relvol_value_text
 
 mtf_trend_1 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf1, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
 mtf_trend_2 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf2, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
@@ -1878,9 +1921,13 @@ float long_reclaim_fvg_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? h
 float long_reclaim_internal_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
 float long_reclaim_swing_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
 bool long_reclaim_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
+float touched_bull_ob_top_prev = nz(touched_bull_ob_top[1], touched_bull_ob_top)
+float touched_bull_fvg_top_prev = nz(touched_bull_fvg_top[1], touched_bull_fvg_top)
+bool bull_reclaim_ob_cross = not na(touched_bull_ob_top) and not na(touched_bull_ob_top_prev) and long_reclaim_ob_break_src > touched_bull_ob_top and long_reclaim_ob_break_src[1] <= touched_bull_ob_top_prev
+bool bull_reclaim_fvg_cross = not na(touched_bull_fvg_top) and not na(touched_bull_fvg_top_prev) and long_reclaim_fvg_break_src > touched_bull_fvg_top and long_reclaim_fvg_break_src[1] <= touched_bull_fvg_top_prev
 
-bool bull_reclaim_ob = long_reclaim_bar_ok and touched_bull_ob_recent and not na(touched_bull_ob_top) and ta.crossover(long_reclaim_ob_break_src, touched_bull_ob_top)
-bool bull_reclaim_fvg = long_reclaim_bar_ok and touched_bull_fvg_recent and not na(touched_bull_fvg_top) and ta.crossover(long_reclaim_fvg_break_src, touched_bull_fvg_top)
+bool bull_reclaim_ob = long_reclaim_bar_ok and touched_bull_ob_recent and not na(touched_bull_ob_top) and bull_reclaim_ob_cross
+bool bull_reclaim_fvg = long_reclaim_bar_ok and touched_bull_fvg_recent and not na(touched_bull_fvg_top) and bull_reclaim_fvg_cross
 bool bull_reclaim_internal_low = long_reclaim_bar_ok and not na(internal_trail_dn) and low < internal_trail_dn and long_reclaim_internal_break_src > internal_trail_dn
 bool bull_reclaim_swing_low = long_reclaim_bar_ok and not na(trail_dn) and low < trail_dn and long_reclaim_swing_break_src > trail_dn
 bool bull_reclaim_any = bull_reclaim_ob or bull_reclaim_fvg or bull_reclaim_internal_low or bull_reclaim_swing_low
@@ -1965,6 +2012,11 @@ bool internal_bos_since_arm = false
 bool long_confirm_structure_ok = false
 bool long_internal_structure_ok = false
 bool long_building_state = false
+bool long_plan_active = false
+float long_stop_level = na
+float long_risk_r = na
+float long_target_1 = na
+float long_target_2 = na
 
 if bull_reclaim_ob
     arm_source_text := 'OB'
@@ -2032,9 +2084,15 @@ if long_confirm_break and long_confirm_structure_ok
     long_confirm_signal := true
 
 // 5) Ready state + visuals
-bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong
+bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok
 bool long_ready_state = long_setup_confirmed and long_filters_ok and (not require_main_break_for_ready or bull_bos_alert or main_bos_recent)
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
+long_plan_active := (long_setup_armed or long_setup_confirmed) and not na(long_setup_trigger) and not na(long_invalidation_level)
+if long_plan_active
+    long_stop_level := long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult
+    long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
+    long_target_1 := long_setup_trigger + long_risk_r * target1_r
+    long_target_2 := long_setup_trigger + long_risk_r * target2_r
 
 bool long_ready_signal = long_ready_state and not long_ready_state[1]
 
@@ -2226,10 +2284,13 @@ int reclaim_state = bull_reclaim_any ? 4 : reclaim_recent ? 2 : 0
 int close_state = not use_strong_close_filter ? 0 : bull_close_strong ? 5 : 2
 int ema_state = not show_ema_support ? 0 : ema_support_ok ? 5 : -1
 int adx_state = not use_adx ? 0 : not adx_data_ok ? 0 : plus_di < minus_di ? -1 : adx_value < adx_trend_min ? 0 : adx_value < adx_strong_min ? 3 : 5
-int relvol_state = not use_rel_volume ? 0 : na(rel_volume) ? 0 : rel_volume >= relvol_good ? 5 : rel_volume >= 1.0 ? 2 : -1
-int ltf_bias_state = not show_dashboard_ltf ? 0 : na(ltf_bull_share) ? 0 : ltf_bull_share >= 0.60 ? 5 : ltf_bull_share >= ltf_bias_hint ? 4 : ltf_bull_share >= 0.50 ? 2 : -1
-int ltf_delta_state = not show_dashboard_ltf ? 0 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0.15 ? 5 : ltf_volume_delta >= 0 ? 4 : -1
+int relvol_state = not use_rel_volume ? 0 : not volume_data_ok ? -1 : na(rel_volume) ? 0 : rel_volume >= relvol_good ? 5 : rel_volume >= 1.0 ? 2 : -1
+int vwap_state = not use_vwap_filter ? 0 : not intraday_time_chart ? 0 : not vwap_session_active ? 0 : vwap_filter_ok ? 5 : -1
+int volume_quality_state = volume_data_ok ? 5 : -1
+int ltf_bias_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 : not ltf_timeframe_valid ? 0 : not ltf_ratio_ok or not ltf_sample_count_ok ? -1 : na(ltf_bull_share) ? 0 : ltf_bull_share >= 0.60 ? 5 : ltf_bull_share >= ltf_bias_hint ? 4 : ltf_bull_share >= 0.50 ? 2 : -1
+int ltf_delta_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 : not ltf_timeframe_valid ? 0 : not ltf_ratio_ok or not ltf_sample_count_ok ? -1 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0.15 ? 5 : ltf_volume_delta >= 0 ? 4 : -1
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
+int risk_state = long_plan_active ? 4 : 0
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
 string zone_display = long_zone_text
@@ -2240,13 +2301,16 @@ string close_display = close_state_text
 string ema_display = ema_state_text
 string adx_display = not use_adx ? 'Off' : str.format('{0,number,#.#} | {1}', adx_value, adx_state_text)
 string relvol_display = relvol_text
-string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
-string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
+string vwap_display = vwap_state_text
+string volume_quality_display = volume_data_ok ? 'OK' : 'Limited'
+string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
+string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
 string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
-string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level))
+string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}\nInvalid {2}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level), format_level(long_invalidation_level))
+string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\nStop {1}\nT1 {2}\nT2 {3}', format_level(long_setup_trigger), format_level(long_stop_level), format_level(long_target_1), format_level(long_target_2))
 int ob_zone_state = not na(active_bull_ob_top) ? 4 : not na(last_bull_ob_top) ? 2 : 0
 int fvg_zone_state = not na(active_bull_fvg_top) ? 4 : not na(last_bull_fvg_top) ? 2 : 0
 int long_zones_state = math.max(ob_zone_state, fvg_zone_state)
@@ -2256,9 +2320,10 @@ color dashboard_text = chart.fg_color
 color dashboard_long_text = long_visual_state == 3 ? long_dashboard_building_text : dashboard_text
 color dashboard_swing_bg = color.new(color.silver, 88)
 color dashboard_trigger_bg = color.new(color.black, 100)
+color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
-var table smc_dashboard = table.new(position.bottom_right, 2, 19, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 22, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -2273,18 +2338,26 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 9, 'EMA Support', ema_display, status_bg(ema_state), dashboard_text)
     dashboard_row(smc_dashboard, 10, 'ADX', adx_display, status_bg(adx_state), dashboard_text)
     dashboard_row(smc_dashboard, 11, 'Rel Volume', relvol_display, status_bg(relvol_state), dashboard_text)
-    dashboard_row(smc_dashboard, 12, 'LTF Bias', ltf_bias_display, status_bg(ltf_bias_state), dashboard_text)
-    dashboard_row(smc_dashboard, 13, 'LTF Delta', ltf_delta_display, status_bg(ltf_delta_state), dashboard_text)
-    dashboard_row(smc_dashboard, 14, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
-    dashboard_row(smc_dashboard, 15, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 16, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
-    dashboard_row(smc_dashboard, 17, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 18, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 12, 'VWAP Filter', vwap_display, status_bg(vwap_state), dashboard_text)
+    dashboard_row(smc_dashboard, 13, 'Volume Data', volume_quality_display, status_bg(volume_quality_state), dashboard_text)
+    dashboard_row(smc_dashboard, 14, 'LTF Bias', ltf_bias_display, status_bg(ltf_bias_state), dashboard_text)
+    dashboard_row(smc_dashboard, 15, 'LTF Delta', ltf_delta_display, status_bg(ltf_delta_state), dashboard_text)
+    dashboard_row(smc_dashboard, 16, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
+    dashboard_row(smc_dashboard, 17, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 18, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
+    dashboard_row(smc_dashboard, 19, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 20, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 21, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 18)
+    table.clear(smc_dashboard, 0, 0, 1, 21)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
+plot(show_risk_levels and long_plan_active ? long_setup_trigger : na, 'Long Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active ? long_invalidation_level : na, 'Long Invalidation', color = color.new(color.orange, 0), linewidth = 1, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active ? long_stop_level : na, 'Long Stop', color = color.new(color.red, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active ? long_target_1 : na, 'Long Target 1', color = color.new(color.lime, 0), linewidth = 1, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2', color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
 
 // --------------------------------------------------
 // Long-dip alert presets
@@ -2292,9 +2365,9 @@ barcolor(color_long_bars ? long_bar_color : na)
 alert_long_watchlist = bullish_trend_condition and long_zone_active
 alert_long_armed = bullish_trend_condition and zone_recent and reclaim_recent and long_setup_armed
 alert_long_early = bullish_trend_condition and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
-alert_long_clean = barstate.isconfirmed and bullish_trend_condition and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok
-alert_long_entry_best = barstate.isconfirmed and bullish_trend_condition and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok
-alert_long_entry_strict = barstate.isconfirmed and bullish_trend_condition and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and (na(ltf_volume_delta) or ltf_volume_delta >= 0)
+alert_long_clean = barstate.isconfirmed and bullish_trend_condition and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
+alert_long_entry_best = barstate.isconfirmed and bullish_trend_condition and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok
+alert_long_entry_strict = barstate.isconfirmed and bullish_trend_condition and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and (na(ltf_volume_delta) or ltf_volume_delta >= 0)
 alert_long_fail = long_invalidate_signal
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
