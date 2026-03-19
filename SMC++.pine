@@ -2256,9 +2256,7 @@ int ltf_bias_state = not show_dashboard_ltf ? 0 : na(ltf_bull_share) ? 0 : ltf_b
 int ltf_delta_state = not show_dashboard_ltf ? 0 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0.15 ? 5 : ltf_volume_delta >= 0 ? 4 : -1
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
-string htf1_display = not show_mtf_trend ? 'Off' : compact_trend_text(mtf_trend_1)
-string htf2_display = not show_mtf_trend ? 'Off' : compact_trend_text(mtf_trend_2)
-string htf3_display = not show_mtf_trend ? 'Off' : compact_trend_text(mtf_trend_3)
+string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
 string zone_display = long_zone_text
 string reclaim_display = reclaim_text
 string long_setup_display = long_setup_text
@@ -2269,21 +2267,15 @@ string adx_display = not use_adx ? 'Off' : str.format('{0,number,#.#} | {1}', ad
 string relvol_display = relvol_text
 string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
 string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
-string objects_ob_display = not show_dashboard_counts ? 'Hidden' : str.format('{0}/{1}', visible_bull_obs, visible_bear_obs)
-string objects_fvg_display = not show_dashboard_counts ? 'Hidden' : str.format('{0}/{1}', visible_bull_fvgs, visible_bear_fvgs)
-string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('C {0}', long_confirm_age) : long_setup_armed ? str.format('A {0}', long_setup_age) : 'n/a'
-string dashboard_swing_high_display = str.format('S {0}', format_level(trail_up))
-string dashboard_swing_low_display = str.format('S {0}', format_level(trail_dn))
-string dashboard_internal_high_display = show_internals ? str.format('I {0}', format_level(internal_trail_up)) : 'Off'
-string dashboard_internal_low_display = show_internals ? str.format('I {0}', format_level(internal_trail_dn)) : 'Off'
-string dashboard_ob_zone_display = str.format('{0}/{1}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom))
-string dashboard_fvg_zone_display = str.format('{0}/{1}', format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
-string dashboard_ob_trigger_display = format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)
-string dashboard_fvg_trigger_display = format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)
+string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
+string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
+string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
+string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
+string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level))
 int ob_zone_state = not na(active_bull_ob_top) ? 4 : not na(last_bull_ob_top) ? 2 : 0
 int fvg_zone_state = not na(active_bull_fvg_top) ? 4 : not na(last_bull_fvg_top) ? 2 : 0
-string dashboard_legend_text_top = 'Aq Zone | Or Arm | Gd Build'
-string dashboard_legend_text_bottom = 'Lm Cfm | Gr Ready | Rd Fail'
+int long_zones_state = math.max(ob_zone_state, fvg_zone_state)
+string dashboard_legend_display = 'Zone: Aqua\nArmed: Orange\nBuilding: Gold\nConfirm: Lime\nReady: Green\nFail: Red'
 color dashboard_header_bg = color.new(color.black, 100)
 color dashboard_text = chart.fg_color
 color dashboard_long_text = long_visual_state == 3 ? long_dashboard_building_text : dashboard_text
@@ -2291,39 +2283,30 @@ color dashboard_swing_bg = color.new(color.silver, 88)
 color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
-var table smc_dashboard = table.new(position.bottom_right, 2, 28, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 19, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
     dashboard_row(smc_dashboard, 1, 'Trend', trend_display, status_bg(trend_state), dashboard_text)
-    dashboard_row(smc_dashboard, 2, str.format('HTF {0}', mtf_trend_tf1), htf1_display, status_bg(htf1_state), dashboard_text)
-    dashboard_row(smc_dashboard, 3, str.format('HTF {0}', mtf_trend_tf2), htf2_display, status_bg(htf2_state), dashboard_text)
-    dashboard_row(smc_dashboard, 4, str.format('HTF {0}', mtf_trend_tf3), htf3_display, status_bg(htf3_state), dashboard_text)
-    dashboard_row(smc_dashboard, 5, 'Zone', zone_display, status_bg(zone_state), dashboard_text)
-    dashboard_row(smc_dashboard, 6, 'Reclaim', reclaim_display, status_bg(reclaim_state), dashboard_text)
-    dashboard_row(smc_dashboard, 7, 'Setup', long_setup_display, status_bg(long_setup_dashboard_state), dashboard_long_text)
-    dashboard_row(smc_dashboard, 8, 'Age', setup_age_display, dashboard_setup_age_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 9, 'Visual', long_visual_display, status_bg(long_visual_state), dashboard_long_text)
-    dashboard_row(smc_dashboard, 10, 'Close', close_display, status_bg(close_state), dashboard_text)
-    dashboard_row(smc_dashboard, 11, 'EMA', ema_display, status_bg(ema_state), dashboard_text)
-    dashboard_row(smc_dashboard, 12, 'ADX', adx_display, status_bg(adx_state), dashboard_text)
-    dashboard_row(smc_dashboard, 13, 'RelVol', relvol_display, status_bg(relvol_state), dashboard_text)
-    dashboard_row(smc_dashboard, 14, 'LTF Bias', ltf_bias_display, status_bg(ltf_bias_state), dashboard_text)
-    dashboard_row(smc_dashboard, 15, 'LTF Delta', ltf_delta_display, status_bg(ltf_delta_state), dashboard_text)
-    dashboard_row(smc_dashboard, 16, 'OB Cnt', objects_ob_display, status_bg(objects_state), dashboard_text)
-    dashboard_row(smc_dashboard, 17, 'FVG Cnt', objects_fvg_display, status_bg(objects_state), dashboard_text)
-    dashboard_row(smc_dashboard, 18, 'Swing H', dashboard_swing_high_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 19, 'Swing L', dashboard_swing_low_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 20, 'Int H', dashboard_internal_high_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 21, 'Int L', dashboard_internal_low_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 22, 'OB Zone', dashboard_ob_zone_display, status_bg(ob_zone_state), dashboard_text)
-    dashboard_row(smc_dashboard, 23, 'FVG Zone', dashboard_fvg_zone_display, status_bg(fvg_zone_state), dashboard_text)
-    dashboard_row(smc_dashboard, 24, 'OB Mid', dashboard_ob_trigger_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 25, 'FVG Fill', dashboard_fvg_trigger_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 26, 'Colors', dashboard_legend_text_top, dashboard_legend_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 27, '', dashboard_legend_text_bottom, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 2, 'HTF Trend', htf_display, status_bg(htf_state), dashboard_text)
+    dashboard_row(smc_dashboard, 3, 'Pullback Zone', zone_display, status_bg(zone_state), dashboard_text)
+    dashboard_row(smc_dashboard, 4, 'Reclaim', reclaim_display, status_bg(reclaim_state), dashboard_text)
+    dashboard_row(smc_dashboard, 5, 'Long Setup', long_setup_display, status_bg(long_setup_dashboard_state), dashboard_long_text)
+    dashboard_row(smc_dashboard, 6, 'Setup Age', setup_age_display, dashboard_setup_age_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 7, 'Long Visual', long_visual_display, status_bg(long_visual_state), dashboard_long_text)
+    dashboard_row(smc_dashboard, 8, 'Close Strength', close_display, status_bg(close_state), dashboard_text)
+    dashboard_row(smc_dashboard, 9, 'EMA Support', ema_display, status_bg(ema_state), dashboard_text)
+    dashboard_row(smc_dashboard, 10, 'ADX', adx_display, status_bg(adx_state), dashboard_text)
+    dashboard_row(smc_dashboard, 11, 'Rel Volume', relvol_display, status_bg(relvol_state), dashboard_text)
+    dashboard_row(smc_dashboard, 12, 'LTF Bias', ltf_bias_display, status_bg(ltf_bias_state), dashboard_text)
+    dashboard_row(smc_dashboard, 13, 'LTF Delta', ltf_delta_display, status_bg(ltf_delta_state), dashboard_text)
+    dashboard_row(smc_dashboard, 14, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
+    dashboard_row(smc_dashboard, 15, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 16, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
+    dashboard_row(smc_dashboard, 17, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 18, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 27)
+    table.clear(smc_dashboard, 0, 0, 1, 18)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
