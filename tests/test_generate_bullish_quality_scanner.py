@@ -5,12 +5,35 @@ from pathlib import Path
 import pandas as pd
 
 import scripts.generate_bullish_quality_scanner as bullish_scanner_module
-from scripts.bullish_quality_config import build_default_bullish_quality_config
+from scripts.bullish_quality_config import (
+    build_bullish_quality_weights,
+    build_default_bullish_quality_config,
+    normalize_bullish_quality_score_profile,
+)
 from scripts.generate_bullish_quality_scanner import generate_bullish_quality_scanner_result
 
 
 def _write_exact_named_frame(export_dir: Path, name: str, frame: pd.DataFrame) -> None:
     frame.to_parquet(export_dir / f"{name}.parquet", index=False)
+
+
+def test_build_default_bullish_quality_config_supports_score_presets() -> None:
+    conservative = build_default_bullish_quality_config(score_profile="conservative")
+    balanced = build_default_bullish_quality_config(score_profile="balanced")
+    aggressive = build_default_bullish_quality_config(score_profile="aggressive")
+
+    assert conservative.score_profile == "conservative"
+    assert balanced.score_profile == "balanced"
+    assert aggressive.score_profile == "aggressive"
+    assert conservative.weights == build_bullish_quality_weights("conservative")
+    assert balanced.weights == build_bullish_quality_weights("balanced")
+    assert aggressive.weights == build_bullish_quality_weights("aggressive")
+    assert conservative.weights["structure"] < balanced.weights["structure"] < aggressive.weights["structure"]
+
+
+def test_normalize_bullish_quality_score_profile_falls_back_for_unknown_values() -> None:
+    assert normalize_bullish_quality_score_profile(" aggressive ") == "aggressive"
+    assert normalize_bullish_quality_score_profile("invalid-profile") == "balanced"
 
 
 def test_generate_bullish_quality_scanner_result_ranks_top_n_per_window(tmp_path: Path) -> None:
@@ -24,6 +47,8 @@ def test_generate_bullish_quality_scanner_result_ranks_top_n_per_window(tmp_path
             "passes_quality_filter": [True, True, True],
             "window_quality_score": [88.0, 95.0, 70.0],
             "window_dollar_volume": [1_000_000.0, 2_000_000.0, 500_000.0],
+            "window_structure_bias_score": [82.0, 95.0, 40.0],
+            "window_structure_alignment_score": [100.0, 100.0, 0.0],
             "window_return_pct": [1.0, 2.0, 0.5],
             "window_close_position_pct": [95.0, 98.0, 80.0],
             "quality_filter_reason": ["eligible", "eligible", "eligible"],
@@ -45,6 +70,25 @@ def test_generate_bullish_quality_scanner_result_ranks_top_n_per_window(tmp_path
     assert result.latest_window_table["symbol"].tolist()[:3] == ["BBB", "AAA", "CCC"][: len(result.latest_window_table)]
     assert result.rankings_table["quality_rank_within_window"].tolist() == [1, 2, 3]
     assert result.warnings == []
+
+
+def test_rank_bullish_quality_candidates_uses_structure_bias_as_tiebreaker() -> None:
+    ranked = bullish_scanner_module.rank_bullish_quality_candidates(
+        pd.DataFrame(
+            {
+                "trade_date": ["2026-03-10", "2026-03-10"],
+                "symbol": ["AAA", "BBB"],
+                "window_tag": ["pm_0900_0930", "pm_0900_0930"],
+                "window_quality_score": [90.0, 90.0],
+                "window_structure_bias_score": [95.0, 40.0],
+                "window_structure_alignment_score": [100.0, 100.0],
+                "window_dollar_volume": [1_000_000.0, 1_000_000.0],
+            }
+        ),
+        cfg=build_default_bullish_quality_config(),
+    )
+
+    assert ranked["symbol"].tolist() == ["AAA", "BBB"]
 
 
 def test_generate_bullish_quality_scanner_result_warns_when_no_candidates_pass(tmp_path: Path) -> None:

@@ -6,6 +6,51 @@ from datetime import date
 import pandas as pd
 
 
+DEFAULT_BULLISH_QUALITY_SCORE_PROFILE = "balanced"
+BULLISH_QUALITY_SCORE_PROFILES: tuple[str, ...] = ("conservative", "balanced", "aggressive")
+
+
+def normalize_bullish_quality_score_profile(
+    score_profile: str | None,
+    *,
+    fallback: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
+) -> str:
+    normalized_fallback = str(fallback or DEFAULT_BULLISH_QUALITY_SCORE_PROFILE).strip().lower()
+    if normalized_fallback not in BULLISH_QUALITY_SCORE_PROFILES:
+        normalized_fallback = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE
+    normalized = str(score_profile or normalized_fallback).strip().lower()
+    if normalized in BULLISH_QUALITY_SCORE_PROFILES:
+        return normalized
+    return normalized_fallback
+
+
+def build_bullish_quality_weights(score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE) -> dict[str, float]:
+    normalized = normalize_bullish_quality_score_profile(score_profile)
+    profiles: dict[str, dict[str, float]] = {
+        "conservative": {
+            "structure": 0.35,
+            "stability": 0.25,
+            "liquidity": 0.25,
+            "extension": 0.15,
+        },
+        "balanced": {
+            "structure": 0.45,
+            "stability": 0.20,
+            "liquidity": 0.20,
+            "extension": 0.15,
+        },
+        "aggressive": {
+            "structure": 0.55,
+            "stability": 0.15,
+            "liquidity": 0.15,
+            "extension": 0.15,
+        },
+    }
+    if normalized not in profiles or normalized != str(score_profile or DEFAULT_BULLISH_QUALITY_SCORE_PROFILE).strip().lower():
+        raise ValueError(f"Unsupported bullish-quality score profile: {score_profile}")
+    return dict(profiles[normalized])
+
+
 @dataclass(frozen=True)
 class PremarketWindowDefinition:
     tag: str
@@ -17,6 +62,7 @@ class PremarketWindowDefinition:
 @dataclass(frozen=True)
 class BullishQualityConfig:
     top_n: int = 5
+    score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE
     min_previous_close: float = 5.0
     min_gap_pct: float = 0.0
     min_window_dollar_volume: float = 500_000.0
@@ -26,12 +72,7 @@ class BullishQualityConfig:
     max_window_pullback_pct: float = 35.0
     require_close_above_vwap: bool = True
     weights: dict[str, float] = field(
-        default_factory=lambda: {
-            "structure": 0.35,
-            "stability": 0.25,
-            "liquidity": 0.25,
-            "extension": 0.15,
-        }
+        default_factory=lambda: build_bullish_quality_weights(DEFAULT_BULLISH_QUALITY_SCORE_PROFILE)
     )
     window_definitions: tuple[PremarketWindowDefinition, ...] = field(
         default_factory=lambda: build_default_premarket_window_definitions()
@@ -62,5 +103,11 @@ def build_default_premarket_window_definitions() -> tuple[PremarketWindowDefinit
     )
 
 
-def build_default_bullish_quality_config() -> BullishQualityConfig:
-    return BullishQualityConfig()
+def build_default_bullish_quality_config(*, score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE) -> BullishQualityConfig:
+    normalized = normalize_bullish_quality_score_profile(score_profile)
+    if normalized != str(score_profile or DEFAULT_BULLISH_QUALITY_SCORE_PROFILE).strip().lower():
+        raise ValueError(f"Unsupported bullish-quality score profile: {score_profile}")
+    return BullishQualityConfig(
+        score_profile=normalized,
+        weights=build_bullish_quality_weights(normalized),
+    )

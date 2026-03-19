@@ -94,9 +94,19 @@ def rank_bullish_quality_candidates(frame: pd.DataFrame, *, cfg: BullishQualityC
 
     ranked["window_quality_score"] = pd.to_numeric(ranked["window_quality_score"], errors="coerce")
     ranked["window_dollar_volume"] = pd.to_numeric(ranked.get("window_dollar_volume"), errors="coerce")
+    ranked["window_structure_bias_score"] = pd.to_numeric(ranked.get("window_structure_bias_score"), errors="coerce")
+    ranked["window_structure_alignment_score"] = pd.to_numeric(ranked.get("window_structure_alignment_score"), errors="coerce")
     ranked = ranked.sort_values(
-        ["trade_date", "window_tag", "window_quality_score", "window_dollar_volume", "symbol"],
-        ascending=[True, True, False, False, True],
+        [
+            "trade_date",
+            "window_tag",
+            "window_quality_score",
+            "window_structure_bias_score",
+            "window_structure_alignment_score",
+            "window_dollar_volume",
+            "symbol",
+        ],
+        ascending=[True, True, False, False, False, False, True],
     ).reset_index(drop=True)
     ranked["quality_rank_within_window"] = ranked.groupby(["trade_date", "window_tag"]).cumcount() + 1
     ranked["quality_rank_within_window"] = ranked["quality_rank_within_window"].astype("Int64")

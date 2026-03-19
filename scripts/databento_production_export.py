@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import argparse
 import logging
 import math
 import os
 import sys
 from datetime import UTC, datetime, time
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
@@ -55,7 +56,20 @@ from databento_volatility_screener import (
     run_intraday_screen,
 )
 from open_prep.macro import FMPClient
-from scripts.bullish_quality_config import PremarketWindowDefinition, build_default_bullish_quality_config
+from scripts.bullish_quality_config import (
+    BullishQualityConfig,
+    DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
+    PremarketWindowDefinition,
+    build_default_bullish_quality_config,
+)
+from scripts.market_structure_features import build_market_structure_feature_frame
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw_value = str(os.getenv(name, "")).strip().lower()
+    if not raw_value:
+        return default
+    return raw_value in {"1", "true", "yes", "on"}
 
 
 DAILY_SYMBOL_FEATURE_COLUMNS = [
@@ -177,6 +191,17 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
     "has_fundamentals",
     "has_daily_bars",
     "has_intraday",
+    "structure_trend_state",
+    "structure_last_event",
+    "structure_break_quality_score",
+    "structure_pressure_score",
+    "structure_compression_score",
+    "structure_distance_to_swing_high_pct",
+    "structure_distance_to_swing_low_pct",
+    "structure_reclaim_flag",
+    "structure_failed_break_flag",
+    "structure_alignment_score",
+    "structure_bias_score",
     "has_market_cap",
     "has_close_window_detail",
 ]
@@ -400,8 +425,30 @@ PREMARKET_WINDOW_FEATURE_COLUMNS = [
     "window_stability_score",
     "window_liquidity_score",
     "window_structure_score",
+        "window_structure_trend_state",
+        "window_structure_last_event",
+        "window_structure_break_quality_score",
+        "window_structure_pressure_score",
+        "window_structure_compression_score",
+        "window_structure_distance_to_swing_high_pct",
+        "window_structure_distance_to_swing_low_pct",
+        "window_structure_reclaim_flag",
+        "window_structure_failed_break_flag",
+        "window_structure_alignment_score",
+        "window_structure_bias_score",
     "extension_score",
     "window_quality_score",
+        "structure_trend_state",
+        "structure_last_event",
+        "structure_break_quality_score",
+        "structure_pressure_score",
+        "structure_compression_score",
+        "structure_distance_to_swing_high_pct",
+        "structure_distance_to_swing_low_pct",
+        "structure_reclaim_flag",
+        "structure_failed_break_flag",
+        "structure_alignment_score",
+        "structure_bias_score",
     "passes_min_previous_close",
     "passes_min_gap_pct",
     "passes_min_window_dollar_volume",
@@ -482,6 +529,11 @@ QUALITY_OPEN_DRIVE_SCORE_WEIGHTS = {
 }
 
 _DEFAULT_BULLISH_QUALITY_CFG = build_default_bullish_quality_config()
+
+
+def configure_bullish_quality_score_profile(*, score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE) -> None:
+    global _DEFAULT_BULLISH_QUALITY_CFG
+    _DEFAULT_BULLISH_QUALITY_CFG = build_default_bullish_quality_config(score_profile=score_profile)
 QUALITY_OPEN_DRIVE_CANDIDATE_EXPORT_COLUMNS = [
     "trade_date",
     "symbol",
@@ -597,9 +649,21 @@ def _populate_quality_window_ranks(frame: pd.DataFrame, *, top_n: int) -> pd.Dat
         ranked["quality_selected_top_n"] = ranked["quality_selected_top_n"].astype(bool)
         return ranked
 
+    ranked["window_quality_score"] = pd.to_numeric(ranked.get("window_quality_score"), errors="coerce")
+    ranked["window_structure_bias_score"] = pd.to_numeric(ranked.get("window_structure_bias_score"), errors="coerce")
+    ranked["window_structure_alignment_score"] = pd.to_numeric(ranked.get("window_structure_alignment_score"), errors="coerce")
+    ranked["window_dollar_volume"] = pd.to_numeric(ranked.get("window_dollar_volume"), errors="coerce")
     ordered = ranked.loc[eligible].sort_values(
-        ["trade_date", "window_tag", "window_quality_score", "window_dollar_volume", "symbol"],
-        ascending=[True, True, False, False, True],
+        [
+            "trade_date",
+            "window_tag",
+            "window_quality_score",
+            "window_structure_bias_score",
+            "window_structure_alignment_score",
+            "window_dollar_volume",
+            "symbol",
+        ],
+        ascending=[True, True, False, False, False, False, True],
     )
     ranks = ordered.groupby(["trade_date", "window_tag"]).cumcount() + 1
     ranked.loc[ordered.index, "quality_rank_within_window"] = pd.array(ranks.tolist(), dtype="Int64")
@@ -609,7 +673,8 @@ def _populate_quality_window_ranks(frame: pd.DataFrame, *, top_n: int) -> pd.Dat
     return ranked
 
 
-def _compute_quality_reason(frame: pd.DataFrame) -> pd.Series:
+def _compute_quality_reason(frame: pd.DataFrame, *, cfg: BullishQualityConfig | None = None) -> pd.Series:
+    resolved_cfg = cfg or _DEFAULT_BULLISH_QUALITY_CFG
     reason = pd.Series("eligible", index=frame.index, dtype=object)
     reason = pd.Series(np.where(~frame["has_window_data"].fillna(False).astype(bool), "no_window_data", reason), index=frame.index, dtype=object)
     reason = pd.Series(np.where((reason == "eligible") & ~frame["passes_min_previous_close"].fillna(False), "previous_close_below_min", reason), index=frame.index, dtype=object)
@@ -620,7 +685,7 @@ def _compute_quality_reason(frame: pd.DataFrame) -> pd.Series:
     reason = pd.Series(
         np.where(
             (reason == "eligible")
-            & (~(_close_pos >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_close_position_pct)),
+            & (~(_close_pos >= resolved_cfg.min_window_close_position_pct)),
             "close_position_below_min",
             reason,
         ),
@@ -631,7 +696,7 @@ def _compute_quality_reason(frame: pd.DataFrame) -> pd.Series:
     reason = pd.Series(
         np.where(
             (reason == "eligible")
-            & (~(_return_pct >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_return_pct)),
+            & (~(_return_pct >= resolved_cfg.min_window_return_pct)),
             "window_return_below_min",
             reason,
         ),
@@ -642,7 +707,7 @@ def _compute_quality_reason(frame: pd.DataFrame) -> pd.Series:
     reason = pd.Series(
         np.where(
             (reason == "eligible")
-            & (~(_pullback <= _DEFAULT_BULLISH_QUALITY_CFG.max_window_pullback_pct)),
+            & (~(_pullback <= resolved_cfg.max_window_pullback_pct)),
             "window_pullback_above_max",
             reason,
         ),
@@ -654,7 +719,7 @@ def _compute_quality_reason(frame: pd.DataFrame) -> pd.Series:
     reason = pd.Series(
         np.where(
             (reason == "eligible")
-            & _DEFAULT_BULLISH_QUALITY_CFG.require_close_above_vwap
+            & resolved_cfg.require_close_above_vwap
             & (~(_wclose >= _wvwap)),
             "close_below_vwap",
             reason,
@@ -672,6 +737,7 @@ def compute_single_window_features(
     window_definition: PremarketWindowDefinition,
     dataset: str,
     source_data_fetched_at: str | None,
+    cfg: BullishQualityConfig | None = None,
 ) -> dict[str, Any]:
     daily_context = pd.DataFrame([dict(daily_context_row)])
     result = build_premarket_window_features_full_universe_export(
@@ -680,6 +746,7 @@ def compute_single_window_features(
         window_definitions=(window_definition,),
         source_data_fetched_at=source_data_fetched_at,
         dataset=dataset,
+        cfg=cfg,
     )
     if result.empty:
         return {}
@@ -693,7 +760,9 @@ def build_premarket_window_features_full_universe_export(
     window_definitions: tuple[PremarketWindowDefinition, ...],
     source_data_fetched_at: str | None,
     dataset: str,
+    cfg: BullishQualityConfig | None = None,
 ) -> pd.DataFrame:
+    resolved_cfg = cfg or _DEFAULT_BULLISH_QUALITY_CFG
     daily_context = daily_bars.copy()
     if daily_context.empty:
         return pd.DataFrame(columns=PREMARKET_WINDOW_FEATURE_COLUMNS)
@@ -755,6 +824,12 @@ def build_premarket_window_features_full_universe_export(
     if detail.empty:
         return _build_empty_premarket_window_features_export(expected)
 
+    window_structure = build_market_structure_feature_frame(
+        detail,
+        group_keys=["trade_date", "symbol", "window_tag"],
+        prefix="window_structure",
+    )
+
     detail = detail.sort_values(["trade_date", "symbol", "window_tag", "timestamp"]).reset_index(drop=True)
     grouped = detail.groupby(["trade_date", "symbol", "window_tag"], sort=False).agg(
         window_row_count=("timestamp", "size"),
@@ -774,6 +849,27 @@ def build_premarket_window_features_full_universe_export(
     grouped["window_trade_count"] = np.where(grouped["window_trade_count_actual"].notna(), grouped["window_trade_count_actual"], grouped["window_active_seconds"])
 
     out = expected.merge(grouped, on=["trade_date", "symbol", "window_tag"], how="left")
+    if not window_structure.empty:
+        out = out.merge(window_structure, on=["trade_date", "symbol", "window_tag"], how="left")
+    if {"trade_date", "symbol", "structure_trend_state"}.issubset(daily_bars.columns):
+        daily_structure = daily_bars[
+            [column for column in ["trade_date", "symbol", "structure_trend_state", "structure_bias_score"] if column in daily_bars.columns]
+        ].copy()
+        daily_structure["trade_date"] = pd.to_datetime(daily_structure["trade_date"], errors="coerce").dt.date
+        daily_structure["symbol"] = daily_structure["symbol"].astype(str).str.upper()
+        daily_structure = daily_structure.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+        out = out.merge(daily_structure, on=["trade_date", "symbol"], how="left", suffixes=("", "_daily"))
+        current_window_trend = _numeric_series(out, "window_structure_trend_state", fill_value=0.0).fillna(0.0)
+        parent_trend = _numeric_series(out, "structure_trend_state", fill_value=0.0).fillna(0.0)
+        out["window_structure_alignment_score"] = np.where(
+            current_window_trend.eq(0.0) | parent_trend.eq(0.0),
+            _numeric_series(out, "window_structure_alignment_score", fill_value=50.0).fillna(50.0),
+            np.where(current_window_trend.eq(parent_trend), 100.0, 0.0),
+        )
+        out["window_structure_bias_score"] = (
+            _numeric_series(out, "window_structure_bias_score", fill_value=0.0).fillna(0.0) * 0.7
+            + _numeric_series(out, "structure_bias_score", fill_value=0.0).fillna(0.0) * 0.3
+        )
     out["has_window_data"] = out["window_row_count"].fillna(0).astype(int) > 0
     out["window_return_pct"] = np.where(
         pd.to_numeric(out["window_open"], errors="coerce") > 0,
@@ -828,7 +924,11 @@ def build_premarket_window_features_full_universe_export(
         + pd.to_numeric(out["window_close_position_pct"], errors="coerce").fillna(0.0)
         + pd.Series([_score_pct(value, floor=-5.0, ceiling=0.0) for value in out["window_close_vs_high_pct"]], index=out.index)
         + (100.0 - pd.to_numeric(out["window_pullback_pct"], errors="coerce").fillna(100.0))
-    ) / 4.0
+        + _numeric_series(out, "window_structure_break_quality_score", fill_value=0.0).fillna(0.0)
+        + _numeric_series(out, "window_structure_pressure_score", fill_value=0.0).fillna(0.0)
+        + _numeric_series(out, "window_structure_alignment_score", fill_value=50.0).fillna(50.0)
+        + _numeric_series(out, "window_structure_bias_score", fill_value=0.0).fillna(0.0)
+    ) / 8.0
     out["window_stability_score"] = (
         pd.to_numeric(out["window_trend_efficiency_pct"], errors="coerce").fillna(0.0)
         + (100.0 - pd.to_numeric(out["window_upper_wick_pct"], errors="coerce").fillna(100.0))
@@ -836,24 +936,24 @@ def build_premarket_window_features_full_universe_export(
         + np.where(pd.to_numeric(out["window_close"], errors="coerce") >= pd.to_numeric(out["window_vwap"], errors="coerce"), 100.0, 0.0)
     ) / 4.0
     out["window_liquidity_score"] = (
-        pd.Series([_score_log_ratio(value, _DEFAULT_BULLISH_QUALITY_CFG.min_window_dollar_volume) for value in out["window_dollar_volume"]], index=out.index)
-        + pd.Series([_score_log_ratio(value, _DEFAULT_BULLISH_QUALITY_CFG.min_window_trade_count) for value in out["window_trade_count"]], index=out.index)
+        pd.Series([_score_log_ratio(value, resolved_cfg.min_window_dollar_volume) for value in out["window_dollar_volume"]], index=out.index)
+        + pd.Series([_score_log_ratio(value, resolved_cfg.min_window_trade_count) for value in out["window_trade_count"]], index=out.index)
         + pd.Series([_score_log_ratio(value, 60.0) for value in out["window_active_seconds"]], index=out.index)
     ) / 3.0
     out["extension_score"] = [_score_extension(value) for value in out["prev_close_to_window_close_pct"]]
     out["window_quality_score"] = (
-        pd.to_numeric(out["window_structure_score"], errors="coerce").fillna(0.0) * float(_DEFAULT_BULLISH_QUALITY_CFG.weights["structure"])
-        + pd.to_numeric(out["window_stability_score"], errors="coerce").fillna(0.0) * float(_DEFAULT_BULLISH_QUALITY_CFG.weights["stability"])
-        + pd.to_numeric(out["window_liquidity_score"], errors="coerce").fillna(0.0) * float(_DEFAULT_BULLISH_QUALITY_CFG.weights["liquidity"])
-        + pd.to_numeric(out["extension_score"], errors="coerce").fillna(0.0) * float(_DEFAULT_BULLISH_QUALITY_CFG.weights["extension"])
+        pd.to_numeric(out["window_structure_score"], errors="coerce").fillna(0.0) * float(resolved_cfg.weights["structure"])
+        + pd.to_numeric(out["window_stability_score"], errors="coerce").fillna(0.0) * float(resolved_cfg.weights["stability"])
+        + pd.to_numeric(out["window_liquidity_score"], errors="coerce").fillna(0.0) * float(resolved_cfg.weights["liquidity"])
+        + pd.to_numeric(out["extension_score"], errors="coerce").fillna(0.0) * float(resolved_cfg.weights["extension"])
     )
-    out["passes_min_previous_close"] = pd.to_numeric(out["previous_close"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_previous_close
-    out["passes_min_gap_pct"] = pd.to_numeric(out["prev_close_to_window_close_pct"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_gap_pct
-    out["passes_min_window_dollar_volume"] = pd.to_numeric(out["window_dollar_volume"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_dollar_volume
-    out["passes_min_window_trade_count"] = pd.to_numeric(out["window_trade_count"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_trade_count
+    out["passes_min_previous_close"] = pd.to_numeric(out["previous_close"], errors="coerce") >= resolved_cfg.min_previous_close
+    out["passes_min_gap_pct"] = pd.to_numeric(out["prev_close_to_window_close_pct"], errors="coerce") >= resolved_cfg.min_gap_pct
+    out["passes_min_window_dollar_volume"] = pd.to_numeric(out["window_dollar_volume"], errors="coerce") >= resolved_cfg.min_window_dollar_volume
+    out["passes_min_window_trade_count"] = pd.to_numeric(out["window_trade_count"], errors="coerce") >= resolved_cfg.min_window_trade_count
     _vwap_ok = (
         pd.Series(True, index=out.index, dtype=bool)
-        if not _DEFAULT_BULLISH_QUALITY_CFG.require_close_above_vwap
+        if not resolved_cfg.require_close_above_vwap
         else (pd.to_numeric(out["window_close"], errors="coerce") >= pd.to_numeric(out["window_vwap"], errors="coerce"))
     )
     out["passes_quality_filter"] = (
@@ -862,13 +962,13 @@ def build_premarket_window_features_full_universe_export(
         & out["passes_min_gap_pct"].fillna(False)
         & out["passes_min_window_dollar_volume"].fillna(False)
         & out["passes_min_window_trade_count"].fillna(False)
-        & (pd.to_numeric(out["window_close_position_pct"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_close_position_pct)
-        & (pd.to_numeric(out["window_return_pct"], errors="coerce") >= _DEFAULT_BULLISH_QUALITY_CFG.min_window_return_pct)
-        & (pd.to_numeric(out["window_pullback_pct"], errors="coerce") <= _DEFAULT_BULLISH_QUALITY_CFG.max_window_pullback_pct)
+        & (pd.to_numeric(out["window_close_position_pct"], errors="coerce") >= resolved_cfg.min_window_close_position_pct)
+        & (pd.to_numeric(out["window_return_pct"], errors="coerce") >= resolved_cfg.min_window_return_pct)
+        & (pd.to_numeric(out["window_pullback_pct"], errors="coerce") <= resolved_cfg.max_window_pullback_pct)
         & _vwap_ok
     )
-    out["quality_filter_reason"] = _compute_quality_reason(out)
-    out = _populate_quality_window_ranks(out, top_n=_DEFAULT_BULLISH_QUALITY_CFG.top_n)
+    out["quality_filter_reason"] = _compute_quality_reason(out, cfg=resolved_cfg)
+    out = _populate_quality_window_ranks(out, top_n=resolved_cfg.top_n)
     for column in PREMARKET_WINDOW_FEATURE_COLUMNS:
         if column not in out.columns:
             out[column] = False if column == "quality_selected_top_n" else np.nan
@@ -1778,6 +1878,13 @@ def _build_daily_symbol_features_full_universe_export(
     if overlap_cols:
         features = features.drop(columns=list(overlap_cols))
     features = features.merge(coverage_flags, on=["trade_date", "symbol"], how="left")
+    structure_features = build_market_structure_feature_frame(
+        second_detail_all,
+        group_keys=["trade_date", "symbol"],
+        prefix="structure",
+    )
+    if not structure_features.empty:
+        features = features.merge(structure_features, on=["trade_date", "symbol"], how="left")
 
     features["exchange"] = features.get("exchange", "").fillna("")
     asset_type = features.get("asset_type")
@@ -2154,6 +2261,8 @@ def run_production_export_pipeline(
     use_file_cache: bool = True,
     force_refresh: bool = False,
     second_detail_scope: str = "full_universe",
+    bullish_score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
+    skip_cost_estimate: bool | None = None,
     progress_callback: Any = None,
 ) -> dict[str, Any]:
     if not databento_api_key:
@@ -2162,6 +2271,8 @@ def run_production_export_pipeline(
         raise ValueError("top_fraction must be between 0 and 1")
     if second_detail_scope not in {"full_universe", "ranked_only", "none"}:
         raise ValueError("second_detail_scope must be one of: full_universe, ranked_only, none")
+    resolved_bullish_cfg = build_default_bullish_quality_config(score_profile=bullish_score_profile)
+    resolved_skip_cost_estimate = True if skip_cost_estimate is None else bool(skip_cost_estimate)
 
     def _progress(msg: str) -> None:
         logger.info(msg)
@@ -2173,16 +2284,20 @@ def run_production_export_pipeline(
 
     _progress("Step 1/10: Listing recent trading days...")
     trading_days = list_recent_trading_days(databento_api_key, dataset=dataset, lookback_days=lookback_days)
-    _progress(f"Step 2/10: Estimating costs ({len(trading_days)} trading days)...")
-    cost_estimate = estimate_databento_costs(
-        databento_api_key,
-        dataset=dataset,
-        trading_days=trading_days,
-        display_timezone=display_timezone,
-        window_start=window_start,
-        window_end=window_end,
-        premarket_anchor_et=premarket_anchor_et,
-    )
+    if resolved_skip_cost_estimate:
+        _progress("Step 2/10: Skipping cost estimate (default operational mode)...")
+        cost_estimate = pd.DataFrame(columns=["scope", "cost_usd", "billable_size_bytes"])
+    else:
+        _progress(f"Step 2/10: Estimating costs ({len(trading_days)} trading days)...")
+        cost_estimate = estimate_databento_costs(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            display_timezone=display_timezone,
+            window_start=window_start,
+            window_end=window_end,
+            premarket_anchor_et=premarket_anchor_et,
+        )
 
     _progress("Step 3/10: Fetching equity universe...")
     raw_universe, universe_metadata = fetch_us_equity_universe_with_metadata(
@@ -2415,9 +2530,10 @@ def run_production_export_pipeline(
     premarket_window_features_full_universe = build_premarket_window_features_full_universe_export(
         premarket_source_detail_prepared,
         daily_symbol_features_full_universe,
-        window_definitions=_DEFAULT_BULLISH_QUALITY_CFG.window_definitions,
+        window_definitions=resolved_bullish_cfg.window_definitions,
         source_data_fetched_at=source_data_fetched_at,
         dataset=dataset,
+        cfg=resolved_bullish_cfg,
     )
     close_imbalance_features_full_universe = _build_close_imbalance_features_full_universe_export(
         daily_symbol_features_full_universe,
@@ -2547,21 +2663,22 @@ def run_production_export_pipeline(
         "quality_open_drive_window_latest_berlin_rule": "categorical latest-trade-date bullish-quality status derived from the best-scoring passing canonical window row on the latest trade date, ties broken by later configured window order, rendered as a display_timezone-local window label, or none",
         "quality_open_drive_window_score_latest_berlin_rule": "latest-trade-date best canonical window_quality_score from premarket_window_features_full_universe across bullish_quality_window_tags for each symbol, ties broken by later configured window order",
         "quality_open_drive_window_base_filters": {
-            "min_previous_close": _DEFAULT_BULLISH_QUALITY_CFG.min_previous_close,
-            "min_gap_pct": _DEFAULT_BULLISH_QUALITY_CFG.min_gap_pct,
-            "min_window_dollar_volume": _DEFAULT_BULLISH_QUALITY_CFG.min_window_dollar_volume,
-            "min_window_trade_count": _DEFAULT_BULLISH_QUALITY_CFG.min_window_trade_count,
+            "min_previous_close": resolved_bullish_cfg.min_previous_close,
+            "min_gap_pct": resolved_bullish_cfg.min_gap_pct,
+            "min_window_dollar_volume": resolved_bullish_cfg.min_window_dollar_volume,
+            "min_window_trade_count": resolved_bullish_cfg.min_window_trade_count,
         },
         "quality_open_drive_window_latest_berlin_criteria": {
-            "min_window_close_position_pct": _DEFAULT_BULLISH_QUALITY_CFG.min_window_close_position_pct,
-            "min_window_return_pct": _DEFAULT_BULLISH_QUALITY_CFG.min_window_return_pct,
-            "max_window_pullback_pct": _DEFAULT_BULLISH_QUALITY_CFG.max_window_pullback_pct,
-            "require_close_above_vwap": _DEFAULT_BULLISH_QUALITY_CFG.require_close_above_vwap,
-            "top_n_per_trade_date_window": _DEFAULT_BULLISH_QUALITY_CFG.top_n,
+            "min_window_close_position_pct": resolved_bullish_cfg.min_window_close_position_pct,
+            "min_window_return_pct": resolved_bullish_cfg.min_window_return_pct,
+            "max_window_pullback_pct": resolved_bullish_cfg.max_window_pullback_pct,
+            "require_close_above_vwap": resolved_bullish_cfg.require_close_above_vwap,
+            "top_n_per_trade_date_window": resolved_bullish_cfg.top_n,
         },
-        "quality_open_drive_window_score_weights": _DEFAULT_BULLISH_QUALITY_CFG.weights,
+        "quality_open_drive_window_score_profile": resolved_bullish_cfg.score_profile,
+        "quality_open_drive_window_score_weights": resolved_bullish_cfg.weights,
         "quality_window_candidate_exports": "not_applicable_in_current_pipeline",
-        "bullish_quality_window_tags": [definition.tag for definition in _DEFAULT_BULLISH_QUALITY_CFG.window_definitions],
+        "bullish_quality_window_tags": [definition.tag for definition in resolved_bullish_cfg.window_definitions],
         "bullish_quality_status_source": "premarket_window_features_full_universe_latest_trade_date",
         "open_1m_volume_boundary": "[regular_open, regular_open + 1 minute)",
         "open_5m_volume_boundary": "[regular_open, regular_open + 5 minutes)",
@@ -2703,8 +2820,26 @@ def run_production_export_pipeline(
     }
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
     load_dotenv(REPO_ROOT / ".env")
+
+    parser = argparse.ArgumentParser(description="Run the Databento production export pipeline.")
+    parser.add_argument("--dataset", default=(os.getenv("DATABENTO_DATASET") or "").strip() or None)
+    parser.add_argument("--lookback-days", type=int, default=30)
+    parser.add_argument("--top-fraction", type=float, default=float(os.getenv("DATABENTO_TOP_FRACTION", "0.20")))
+    parser.add_argument(
+        "--bullish-score-profile",
+        choices=["conservative", "balanced", "aggressive"],
+        default=os.getenv("DATABENTO_BULLISH_SCORE_PROFILE", DEFAULT_BULLISH_QUALITY_SCORE_PROFILE),
+        help="Bullish-quality score weighting profile used for premarket window exports.",
+    )
+    parser.add_argument(
+        "--estimate-costs",
+        action="store_true",
+        help="Opt in to the Databento cost-estimate step before the export pipeline runs.",
+    )
+    parser.add_argument("--force-refresh", action="store_true")
+    args = parser.parse_args(list(argv) if argv is not None else [])
 
     databento_api_key = os.getenv("DATABENTO_API_KEY", "")
     fmp_api_key = os.getenv("FMP_API_KEY", "")
@@ -2714,14 +2849,14 @@ def main() -> None:
         print("INFO: FMP_API_KEY not set — running without FMP enrichment (Nasdaq Trader primary universe only).")
 
     available = list_accessible_datasets(databento_api_key)
-    requested_dataset = (os.getenv("DATABENTO_DATASET") or "").strip()
+    requested_dataset = str(args.dataset or "").strip()
     dataset = choose_default_dataset(available, requested_dataset=requested_dataset or None)
     result = run_production_export_pipeline(
         databento_api_key=databento_api_key,
         fmp_api_key=fmp_api_key,
         dataset=dataset,
-        lookback_days=30,
-        top_fraction=float(os.getenv("DATABENTO_TOP_FRACTION", "0.20")),
+        lookback_days=int(args.lookback_days),
+        top_fraction=float(args.top_fraction),
         ranking_metric="window_range_pct",
         display_timezone="Europe/Berlin",
         window_start=None,
@@ -2731,7 +2866,9 @@ def main() -> None:
         cache_dir=REPO_ROOT / "artifacts" / "databento_volatility_cache",
         export_dir=default_export_directory(),
         use_file_cache=True,
-        force_refresh=False,
+        force_refresh=bool(args.force_refresh),
+        bullish_score_profile=str(args.bullish_score_profile),
+        skip_cost_estimate=not bool(args.estimate_costs),
     )
 
     print("EXPORT_DIR", result["manifest"]["export_dir"])
@@ -2742,4 +2879,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

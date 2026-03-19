@@ -22,11 +22,18 @@ Each row represents one symbol-day-window and includes:
 - raw window OHLCV metrics
 - previous-close and market-open context
 - stability, liquidity, structure, and extension subscores
+- structure-derived window state fields such as trend, last event, break quality, pressure, alignment, bias, reclaim, and failed-break flags
 - window_quality_score
 - passes_quality_filter
 - quality_filter_reason
 - quality_rank_within_window
 - quality_selected_top_n
+
+Supported score profiles are:
+
+- `conservative`: structure = 0.35, stability = 0.25, liquidity = 0.25, extension = 0.15
+- `balanced` (default): structure = 0.45, stability = 0.20, liquidity = 0.20, extension = 0.15
+- `aggressive`: structure = 0.55, stability = 0.15, liquidity = 0.15, extension = 0.15
 
 quality_window_status_latest.parquet is a latest-trade-date compatibility/status view derived from the canonical window feature export.
 
@@ -45,6 +52,7 @@ Bullish-Quality mode must load the canonical export artifacts and render:
 - all-window rankings
 - filter diagnostics
 - full window-feature detail
+- key structure columns for inspection of why a symbol ranked highly
 
 ## Compatibility Rules
 

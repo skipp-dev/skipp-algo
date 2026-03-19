@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+import warnings
 
 import pandas as pd
 
@@ -13,6 +14,7 @@ from strategy_config import (
 )
 from scripts.generate_databento_watchlist import (
     LongDipConfig,
+    _coerce_structure_columns,
     _merge_open_signal_metrics,
     build_filter_funnel,
     build_parser as build_watchlist_parser,
@@ -37,6 +39,9 @@ def test_build_preopen_long_candidates_filters_and_ranks_with_preopen_data() -> 
             "window_range_pct": [4.0, 2.0, 3.0],
             "window_return_pct": [2.0, 1.0, 1.5],
             "realized_vol_pct": [1.0, 1.0, 1.0],
+            "structure_bias_score": [60.0, 80.0, 20.0],
+            "structure_alignment_score": [70.0, 90.0, 40.0],
+            "structure_reclaim_flag": [False, True, False],
             "selected_top20pct": [False, True, False],
             "is_eligible": [True, True, True],
             "eligibility_reason": ["eligible", "eligible", "eligible"],
@@ -74,6 +79,109 @@ def test_build_preopen_long_candidates_filters_and_ranks_with_preopen_data() -> 
     assert candidates["symbol"].tolist() == ["BBB", "AAA"]
     assert candidates.iloc[0]["watchlist_rank"] == 1
     assert candidates.iloc[1]["watchlist_rank"] == 2
+
+
+def test_build_preopen_long_candidates_prefers_stronger_structure_on_gap_tie() -> None:
+    trade_date = date(2026, 3, 6)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_date, trade_date],
+            "symbol": ["AAA", "BBB"],
+            "exchange": ["NASDAQ", "NASDAQ"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [10.0, 10.0],
+            "window_range_pct": [2.0, 2.0],
+            "window_return_pct": [1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0],
+            "structure_bias_score": [85.0, 45.0],
+            "structure_alignment_score": [100.0, 50.0],
+            "structure_reclaim_flag": [True, False],
+            "selected_top20pct": [True, True],
+            "is_eligible": [True, True],
+            "eligibility_reason": ["eligible", "eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_date, trade_date],
+            "symbol": ["AAA", "BBB"],
+            "has_premarket_data": [True, True],
+            "premarket_last": [10.6, 10.6],
+            "premarket_volume": [100_000, 100_000],
+            "premarket_trade_count": [400, 400],
+            "prev_close_to_premarket_pct": [6.0, 6.0],
+            "premarket_dollar_volume": [1_060_000.0, 1_060_000.0],
+        }
+    )
+
+    candidates = build_preopen_long_candidates(
+        daily=daily,
+        prem=prem,
+        cfg=LongDipConfig(min_premarket_dollar_volume=0.0, min_premarket_volume=50_000, min_premarket_trade_count=200, max_gap_pct=20.0),
+        trade_date=trade_date,
+    )
+
+    assert candidates["symbol"].tolist() == ["AAA", "BBB"]
+
+
+def test_build_preopen_long_candidates_parses_string_structure_flags() -> None:
+    trade_date = date(2026, 3, 6)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_date, trade_date],
+            "symbol": ["AAA", "BBB"],
+            "exchange": ["NASDAQ", "NASDAQ"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [10.0, 10.0],
+            "window_range_pct": [2.0, 2.0],
+            "window_return_pct": [1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0],
+            "structure_bias_score": [75.0, 75.0],
+            "structure_alignment_score": [80.0, 80.0],
+            "structure_reclaim_flag": ["false", "true"],
+            "selected_top20pct": [True, True],
+            "is_eligible": [True, True],
+            "eligibility_reason": ["eligible", "eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_date, trade_date],
+            "symbol": ["AAA", "BBB"],
+            "has_premarket_data": [True, True],
+            "premarket_last": [10.6, 10.6],
+            "premarket_volume": [100_000, 100_000],
+            "premarket_trade_count": [400, 400],
+            "prev_close_to_premarket_pct": [6.0, 6.0],
+            "premarket_dollar_volume": [1_060_000.0, 1_060_000.0],
+        }
+    )
+
+    candidates = build_preopen_long_candidates(
+        daily=daily,
+        prem=prem,
+        cfg=LongDipConfig(min_premarket_dollar_volume=0.0, min_premarket_volume=50_000, min_premarket_trade_count=200, max_gap_pct=20.0),
+        trade_date=trade_date,
+    )
+
+    assert candidates["symbol"].tolist() == ["BBB", "AAA"]
+
+
+def test_coerce_structure_columns_avoids_fillna_downcast_futurewarning() -> None:
+    frame = pd.DataFrame(
+        {
+            "structure_reclaim_flag": ["false", "true", None, "1", "0"],
+            "structure_failed_break_flag": [None, "false", "true", "0", "1"],
+        }
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = _coerce_structure_columns(frame)
+
+    assert result["structure_reclaim_flag"].tolist() == [False, True, False, True, False]
+    assert result["structure_failed_break_flag"].tolist() == [False, False, True, False, True]
+    assert not any("Downcasting object dtype arrays on .fillna" in str(item.message) for item in caught)
 
 
 def test_compute_entry_ladder_builds_three_levels_with_tp_and_stops() -> None:
@@ -277,6 +385,123 @@ def test_generate_watchlist_result_exact_named_prefers_exact_named_state_over_ne
     assert result["source_metadata"]["manifest_path"].endswith("databento_volatility_production_20260307_121500_manifest.json")
     assert result["source_metadata"]["exact_named_state_path"].endswith("databento_exact_named_state.json")
     assert result["source_metadata"]["source_manifest_path"].endswith("databento_volatility_production_20260307_121500_manifest.json")
+
+
+def test_generate_watchlist_result_exact_named_tolerates_runtime_only_state_file(tmp_path) -> None:
+    trade_day = date(2026, 3, 7)
+    manifest_path = tmp_path / "databento_volatility_production_20260307_121500_manifest.json"
+    manifest_path.write_text(
+        __import__("json").dumps(
+            {
+                "export_generated_at": "2026-03-07T12:15:00+00:00",
+                "premarket_fetched_at": "2026-03-07T12:10:00+00:00",
+                "premarket_anchor_et": "04:00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "databento_exact_named_state.json").write_text(
+        __import__("json").dumps(
+            {
+                "ui_runtime": {
+                    "last_refresh_seconds": 12.5,
+                    "last_watchlist_seconds": 3.2,
+                    "last_action_message": "Completed: watchlist generation in 3.2s.",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [10.0],
+            "window_range_pct": [2.0],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.5],
+            "premarket_volume": [100_000],
+            "premarket_trade_count": [500],
+            "prev_close_to_premarket_pct": [5.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["source_metadata"]["source"] == "exact_named"
+    assert result["source_metadata"]["manifest_path"].endswith(manifest_path.name)
+    assert result["source_metadata"]["exact_named_state_path"].endswith("databento_exact_named_state.json")
+    assert "source_manifest_path" not in result["source_metadata"]
+    assert result["source_metadata"]["export_generated_at"] == "2026-03-07T12:15:00+00:00"
+
+
+def test_generate_watchlist_result_exact_named_skips_newer_corrupt_manifest_for_metadata(tmp_path) -> None:
+    trade_day = date(2026, 3, 7)
+    older_manifest_path = tmp_path / "databento_volatility_production_20260307_121500_manifest.json"
+    older_manifest_path.write_text(
+        __import__("json").dumps(
+            {
+                "export_generated_at": "2026-03-07T12:15:00+00:00",
+                "premarket_fetched_at": "2026-03-07T12:10:00+00:00",
+                "premarket_anchor_et": "04:00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+    newer_manifest_path = tmp_path / "databento_preopen_fast_20260307_130000_manifest.json"
+    newer_manifest_path.write_text("{invalid json", encoding="utf-8")
+    older_manifest_path.touch()
+    newer_manifest_path.touch()
+
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "exchange": ["NYSE"],
+            "asset_type": ["listed_equity_issue"],
+            "previous_close": [10.0],
+            "window_range_pct": [2.0],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [1.0],
+            "selected_top20pct": [True],
+            "is_eligible": [True],
+            "eligibility_reason": ["eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "has_premarket_data": [True],
+            "premarket_last": [10.5],
+            "premarket_volume": [100_000],
+            "premarket_trade_count": [500],
+            "prev_close_to_premarket_pct": [5.0],
+        }
+    )
+    daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+    prem.to_parquet(tmp_path / "premarket_features_full_universe.parquet", index=False)
+
+    result = generate_watchlist_result(export_dir=tmp_path, cfg=LongDipConfig(top_n=1))
+
+    assert result["source_metadata"]["export_generated_at"] == "2026-03-07T12:15:00+00:00"
+    assert result["source_metadata"]["manifest_path"].endswith("databento_volatility_production_20260307_121500_manifest.json")
 
 
 def test_generate_watchlist_result_falls_back_from_non_trading_day_to_latest_populated_trade_date(tmp_path) -> None:

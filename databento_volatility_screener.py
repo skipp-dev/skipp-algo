@@ -7,6 +7,7 @@ import math
 import os
 import re
 import sys
+import tempfile
 import time as time_module
 import warnings
 import asyncio
@@ -62,6 +63,7 @@ CACHE_VERSION_BY_CATEGORY = {
 CACHE_ROOT = Path(__file__).resolve().parent / "artifacts" / "databento_volatility_cache"
 WATCHLIST_SNAPSHOT_FILE = "watchlist_rank_history.parquet"
 EXACT_NAMED_EXPORT_STATE_FILE = "databento_exact_named_state.json"
+UI_RUNTIME_STATE_KEY = "ui_runtime"
 FULL_UNIVERSE_OPTIONAL_FEATURE_COLUMNS = (
     "earnings_date",
     "earnings_time",
@@ -111,6 +113,8 @@ SYMBOL_SUPPORT_CHECK_BATCH_SIZE = 250
 SYMBOL_SUPPORT_LOOKBACK_DAYS = 14
 SYMBOL_SUPPORT_CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
 DATA_CACHE_TTL_SECONDS = 4 * 3600  # 4 hours – guards against stale intra-day caches
+RECENT_INTRADAY_CACHE_TTL_SECONDS = DATA_CACHE_TTL_SECONDS
+DATABENTO_GET_RANGE_MAX_ATTEMPTS = 3
 DATABENTO_SYMBOL_ALIASES = {
     "BRK-A": "BRK.A",
     "BRK-B": "BRK.B",
@@ -258,32 +262,59 @@ def _read_cached_frame(path: Path, *, max_age_seconds: int | None = None) -> pd.
         return None
 
 
+def _trade_day_cache_max_age_seconds(trade_day: date, latest_trade_day: date | None) -> int | None:
+    if latest_trade_day is None:
+        return DATA_CACHE_TTL_SECONDS
+    if trade_day >= latest_trade_day:
+        return 0
+    if trade_day >= latest_trade_day - timedelta(days=1):
+        return RECENT_INTRADAY_CACHE_TTL_SECONDS
+    return None
+
+
 def _write_cached_frame(path: Path, frame: pd.DataFrame) -> None:
+    _write_parquet_atomic(path, frame)
+
+
+def _make_atomic_temp_path(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
-    frame.to_parquet(temp_path, index=False)
-    os.replace(temp_path, path)
+    fd, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    os.close(fd)
+    return Path(temp_name)
+
+
+def _replace_atomic(path: Path, write_temp: Callable[[Path], None]) -> None:
+    temp_path = _make_atomic_temp_path(path)
+    try:
+        write_temp(temp_path)
+        os.replace(temp_path, path)
+    except Exception:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def _write_text_atomic(path: Path, content: str, *, encoding: str = "utf-8") -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
-    temp_path.write_text(content, encoding=encoding)
-    os.replace(temp_path, path)
+    def write_temp(temp_path: Path) -> None:
+        temp_path.write_text(content, encoding=encoding)
+
+    _replace_atomic(path, write_temp)
 
 
 def _write_bytes_atomic(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
-    temp_path.write_bytes(content)
-    os.replace(temp_path, path)
+    def write_temp(temp_path: Path) -> None:
+        temp_path.write_bytes(content)
+
+    _replace_atomic(path, write_temp)
 
 
 def _write_parquet_atomic(path: Path, frame: pd.DataFrame) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
-    frame.to_parquet(temp_path, index=False)
-    os.replace(temp_path, path)
+    def write_temp(temp_path: Path) -> None:
+        frame.to_parquet(temp_path, index=False)
+
+    _replace_atomic(path, write_temp)
 
 
 def normalize_symbol_for_databento(symbol: str) -> str:
@@ -482,7 +513,9 @@ def _probe_symbol_support(
         try:
             with warnings.catch_warnings(record=True) as caught_warnings:
                 warnings.simplefilter("always")
-                store = client.timeseries.get_range(
+                store = _databento_get_range_with_retry(
+                    client,
+                    context="_probe_symbol_support",
                     dataset=dataset,
                     symbols=batch,
                     schema="ohlcv-1s",
@@ -689,6 +722,49 @@ def _redact_sensitive_error_text(text: str) -> str:
 
 def _warn_with_redacted_exception(message: str, exc: BaseException, *, include_traceback: bool = False) -> None:
     logger.warning("%s: %s", message, _redact_sensitive_error_text(str(exc)), exc_info=include_traceback)
+
+
+def _is_retryable_databento_get_range_error(exc: BaseException) -> bool:
+    message = _redact_sensitive_error_text(str(exc)).lower()
+    if not message:
+        return False
+    retryable_fragments = (
+        "read timed out",
+        "timed out",
+        "too many requests",
+        "429",
+        "503",
+        "504",
+        "service unavailable",
+        "gateway timeout",
+        "connection reset",
+        "temporarily unavailable",
+    )
+    return any(fragment in message for fragment in retryable_fragments)
+
+
+def _databento_get_range_with_retry(client: Any, *, context: str, **kwargs: Any) -> Any:
+    last_exc: BaseException | None = None
+    for attempt in range(1, DATABENTO_GET_RANGE_MAX_ATTEMPTS + 1):
+        try:
+            return client.timeseries.get_range(**kwargs)
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= DATABENTO_GET_RANGE_MAX_ATTEMPTS or not _is_retryable_databento_get_range_error(exc):
+                raise
+            wait_seconds = float(2 ** (attempt - 1))
+            logger.warning(
+                "%s: transient Databento get_range failure (%s). Retrying in %.0fs (%d/%d).",
+                context,
+                _redact_sensitive_error_text(str(exc)),
+                wait_seconds,
+                attempt,
+                DATABENTO_GET_RANGE_MAX_ATTEMPTS,
+            )
+            time_module.sleep(wait_seconds)
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError(f"{context}: Databento get_range retry loop exited unexpectedly")
 
 
 def _validate_frame_columns(frame: pd.DataFrame, *, required: set[str], context: str) -> pd.DataFrame:
@@ -1164,7 +1240,9 @@ def load_daily_bars(
         frames: list[pd.DataFrame] = []
         for symbols_batch in _iter_symbol_batches(universe_symbols):
             try:
-                store = client.timeseries.get_range(
+                store = _databento_get_range_with_retry(
+                    client,
+                    context="load_daily_bars",
                     dataset=dataset,
                     symbols=symbols_batch,
                     schema="ohlcv-1d",
@@ -1395,6 +1473,7 @@ def run_intraday_screen(
         for row in daily_bars.itertuples(index=False)
     }
     results: list[dict[str, Any]] = []
+    latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
         day_ws, day_we = _resolve_window_for_date(trade_day, display_timezone, window_start, window_end)
@@ -1420,7 +1499,10 @@ def run_intraday_screen(
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+            day_frame = _read_cached_frame(
+                cache_path,
+                max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+            )
         if day_frame is None:
             states: dict[str, SymbolDayState] = {}
             active_symbols = set(universe_symbols) - runtime_unsupported_symbols
@@ -1433,7 +1515,9 @@ def run_intraday_screen(
                         )
                         if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
                             continue
-                        store = client.timeseries.get_range(
+                        store = _databento_get_range_with_retry(
+                            client,
+                            context="run_intraday_screen",
                             dataset=dataset,
                             symbols=symbols_batch,
                             schema="ohlcv-1s",
@@ -1572,7 +1656,9 @@ def fetch_symbol_day_detail(
     if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
         return pd.DataFrame(), pd.DataFrame()
     try:
-        store = client.timeseries.get_range(
+        store = _databento_get_range_with_retry(
+            client,
+            context="fetch_symbol_day_detail",
             dataset=dataset,
             symbols=[normalized_symbol],
             schema="ohlcv-1s",
@@ -1762,6 +1848,7 @@ def collect_full_universe_open_window_second_detail(
     }
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols: set[str] = set()
+    latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
         day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
@@ -1787,7 +1874,10 @@ def collect_full_universe_open_window_second_detail(
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+            day_frame = _read_cached_frame(
+                cache_path,
+                max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+            )
 
         if day_frame is None:
             window = build_window_definition(
@@ -1812,7 +1902,9 @@ def collect_full_universe_open_window_second_detail(
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")
-                        store = client.timeseries.get_range(
+                        store = _databento_get_range_with_retry(
+                            client,
+                            context="collect_full_universe_open_window_second_detail",
                             dataset=dataset,
                             symbols=symbols_batch,
                             schema="ohlcv-1s",
@@ -2216,6 +2308,7 @@ def collect_full_universe_close_trade_detail(
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols: set[str] = set()
+    latest_trade_day = max(trading_days) if trading_days else None
     for trade_day in trading_days:
         day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
         if not day_universe_symbols:
@@ -2234,7 +2327,10 @@ def collect_full_universe_close_trade_detail(
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+            day_frame = _read_cached_frame(
+                cache_path,
+                max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+            )
 
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
@@ -2243,7 +2339,9 @@ def collect_full_universe_close_trade_detail(
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")
-                        store = client.timeseries.get_range(
+                        store = _databento_get_range_with_retry(
+                            client,
+                            context="collect_full_universe_close_trade_detail",
                             dataset=dataset,
                             symbols=symbols_batch,
                             schema="trades",
@@ -2326,6 +2424,7 @@ def collect_full_universe_close_outcome_minute_detail(
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols: set[str] = set()
+    latest_trade_day = max(trading_days) if trading_days else None
 
     for trade_day in trading_days:
         day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
@@ -2345,7 +2444,10 @@ def collect_full_universe_close_outcome_minute_detail(
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(cache_path, max_age_seconds=DATA_CACHE_TTL_SECONDS)
+            day_frame = _read_cached_frame(
+                cache_path,
+                max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+            )
 
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
@@ -2354,7 +2456,9 @@ def collect_full_universe_close_outcome_minute_detail(
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")
-                        store = client.timeseries.get_range(
+                        store = _databento_get_range_with_retry(
+                            client,
+                            context="collect_full_universe_close_outcome_minute_detail",
                             dataset=dataset,
                             symbols=symbols_batch,
                             schema="ohlcv-1m",
@@ -3575,6 +3679,50 @@ def _write_exact_named_export_state(
     return state_path
 
 
+def _read_exact_named_export_state(export_dir: Path) -> dict[str, Any]:
+    state_path = export_dir / EXACT_NAMED_EXPORT_STATE_FILE
+    if not state_path.exists():
+        return {}
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.warning("Failed to parse exact-named export state: %s", state_path, exc_info=True)
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _load_ui_runtime_state(export_dir: Path) -> dict[str, Any]:
+    payload = _read_exact_named_export_state(export_dir)
+    runtime_state = payload.get(UI_RUNTIME_STATE_KEY)
+    return runtime_state if isinstance(runtime_state, dict) else {}
+
+
+def _persist_ui_runtime_state(
+    export_dir: Path,
+    *,
+    refresh_seconds: float | None = None,
+    watchlist_seconds: float | None = None,
+    action_message: str | None = None,
+) -> Path:
+    export_dir.mkdir(parents=True, exist_ok=True)
+    payload = _read_exact_named_export_state(export_dir)
+    runtime_state = payload.get(UI_RUNTIME_STATE_KEY)
+    if not isinstance(runtime_state, dict):
+        runtime_state = {}
+    if refresh_seconds is not None:
+        runtime_state["last_refresh_seconds"] = float(refresh_seconds)
+        runtime_state["last_refresh_recorded_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+    if watchlist_seconds is not None:
+        runtime_state["last_watchlist_seconds"] = float(watchlist_seconds)
+        runtime_state["last_watchlist_recorded_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+    if action_message is not None:
+        runtime_state["last_action_message"] = str(action_message)
+    payload[UI_RUNTIME_STATE_KEY] = runtime_state
+    state_path = export_dir / EXACT_NAMED_EXPORT_STATE_FILE
+    _write_text_atomic(state_path, json.dumps(payload, indent=2, sort_keys=True, default=str), encoding="utf-8")
+    return state_path
+
+
 def _watchlist_snapshot_path(export_dir: Path) -> Path:
     return export_dir / WATCHLIST_SNAPSHOT_FILE
 
@@ -4167,7 +4315,12 @@ def run_streamlit_app() -> None:
     from dotenv import load_dotenv
     from pathlib import Path
 
-    from scripts.bullish_quality_config import build_default_bullish_quality_config
+    from scripts.bullish_quality_config import (
+        BULLISH_QUALITY_SCORE_PROFILES,
+        DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
+        build_default_bullish_quality_config,
+        normalize_bullish_quality_score_profile,
+    )
     from scripts.databento_preopen_fast import run_preopen_fast_refresh
     from scripts.databento_production_export import run_production_export_pipeline
     from scripts.generate_bullish_quality_scanner import generate_bullish_quality_scanner_result
@@ -4187,6 +4340,8 @@ def run_streamlit_app() -> None:
         st.session_state["dvs_databento_api_key"] = os.getenv("DATABENTO_API_KEY", "")
     if "dvs_fmp_api_key" not in st.session_state:
         st.session_state["dvs_fmp_api_key"] = os.getenv("FMP_API_KEY", "")
+    if "dvs_bullish_score_profile" not in st.session_state:
+        st.session_state["dvs_bullish_score_profile"] = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE
 
     with st.sidebar:
         scanner_mode = st.radio("Scanner mode", options=["Long-Dip Watchlist", "Bullish-Quality Scanner"], index=0)
@@ -4208,17 +4363,26 @@ def run_streamlit_app() -> None:
         dataset = st.text_input("Databento dataset", value=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"))
         lookback_days = st.number_input("Trading days", min_value=1, max_value=90, value=30)
         top_n = st.number_input("Top N watchlist", min_value=1, max_value=25, value=default_top_n)
+        bullish_score_profile = st.selectbox(
+            "Bullish score profile",
+            options=list(BULLISH_QUALITY_SCORE_PROFILES),
+            key="dvs_bullish_score_profile",
+            help="Controls how strongly structure influences Bullish-Quality window scoring and exported premarket window artifacts.",
+        )
         fast_scope_days = st.number_input("Fast scope days override (0 = auto)", min_value=0, max_value=30, value=0)
         force_refresh = st.checkbox("Force refresh", value=False)
 
     if "dvs_run_logs" not in st.session_state:
         st.session_state["dvs_run_logs"] = []
+    persisted_runtime_state = _load_ui_runtime_state(Path(export_dir).expanduser())
     if "dvs_last_refresh_seconds" not in st.session_state:
-        st.session_state["dvs_last_refresh_seconds"] = None
+        persisted_refresh_seconds = persisted_runtime_state.get("last_refresh_seconds")
+        st.session_state["dvs_last_refresh_seconds"] = float(persisted_refresh_seconds) if persisted_refresh_seconds is not None else None
     if "dvs_last_watchlist_seconds" not in st.session_state:
-        st.session_state["dvs_last_watchlist_seconds"] = None
+        persisted_watchlist_seconds = persisted_runtime_state.get("last_watchlist_seconds")
+        st.session_state["dvs_last_watchlist_seconds"] = float(persisted_watchlist_seconds) if persisted_watchlist_seconds is not None else None
     if "dvs_last_action_message" not in st.session_state:
-        st.session_state["dvs_last_action_message"] = ""
+        st.session_state["dvs_last_action_message"] = str(persisted_runtime_state.get("last_action_message") or "")
 
     def add_log(message: str) -> None:
         timestamp = datetime.now(UTC).isoformat(timespec="seconds")
@@ -4254,9 +4418,10 @@ def run_streamlit_app() -> None:
     status = build_data_status_result(export_dir)
     is_long_dip_mode = scanner_mode == "Long-Dip Watchlist"
     if is_long_dip_mode:
-        config_snapshot = dict(LONG_DIP_DEFAULTS)
+        config_snapshot: dict[str, Any] = dict(LONG_DIP_DEFAULTS)
         config_snapshot["top_n"] = int(top_n)
         config_snapshot["fast_scope_days_override"] = int(fast_scope_days)
+        config_snapshot["bullish_score_profile"] = str(bullish_score_profile)
         watchlist_cfg = LongDipConfig(top_n=int(top_n))
         screen_result = st.session_state.get("dvs_watchlist_result")
         snapshot_history = _load_watchlist_snapshot_history(Path(export_dir).expanduser())
@@ -4264,7 +4429,7 @@ def run_streamlit_app() -> None:
             screen_result = _augment_watchlist_result_with_intraday_context(screen_result, snapshot_history)
             st.session_state["dvs_watchlist_result"] = screen_result
     else:
-        bullish_cfg = replace(build_default_bullish_quality_config(), top_n=int(top_n))
+        bullish_cfg = replace(build_default_bullish_quality_config(score_profile=str(bullish_score_profile)), top_n=int(top_n))
         config_snapshot = {**bullish_cfg.__dict__, "fast_scope_days_override": int(fast_scope_days)}
         screen_result = st.session_state.get("dvs_bullish_quality_result")
         snapshot_history = pd.DataFrame()
@@ -4397,6 +4562,7 @@ def run_streamlit_app() -> None:
                             export_dir=Path(export_dir).expanduser(),
                             bundle=Path(export_dir).expanduser(),
                             scope_days=None if int(fast_scope_days) <= 0 else int(fast_scope_days),
+                            bullish_score_profile=str(bullish_score_profile),
                             progress_callback=_fast_pipeline_progress,
                         )
                     except Exception:
@@ -4425,6 +4591,7 @@ def run_streamlit_app() -> None:
                             use_file_cache=True,
                             force_refresh=force_refresh,
                             second_detail_scope="full_universe",
+                            bullish_score_profile=str(bullish_score_profile),
                             progress_callback=_pipeline_progress,
                         )
                     _run_full_history_refresh_with_status(status_container=_status_container, run_pipeline=_run_full_pipeline)
@@ -4436,8 +4603,13 @@ def run_streamlit_app() -> None:
             else:
                 refresh_seconds = time_module.perf_counter() - refresh_started
                 st.session_state["dvs_last_refresh_seconds"] = refresh_seconds
-                add_log(f"Data basis refreshed in mode={refresh_label} for dataset={dataset} in {refresh_seconds:.1f}s.")
-                st.session_state["dvs_last_action_message"] = f"Completed: {refresh_label} refresh in {refresh_seconds:.1f}s for {dataset}."
+                add_log(f"Data basis refreshed in mode={refresh_label} for dataset={dataset}, score_profile={bullish_score_profile} in {refresh_seconds:.1f}s.")
+                st.session_state["dvs_last_action_message"] = f"Completed: {refresh_label} refresh in {refresh_seconds:.1f}s for {dataset} with profile {bullish_score_profile}."
+                _persist_ui_runtime_state(
+                    Path(export_dir).expanduser(),
+                    refresh_seconds=refresh_seconds,
+                    action_message=st.session_state["dvs_last_action_message"],
+                )
                 status = build_data_status_result(export_dir)
                 pipeline_refresh_ok = True
                 if full_refresh and not fast_pipeline:
@@ -4488,11 +4660,18 @@ def run_streamlit_app() -> None:
                 if snapshot_history is not None and not snapshot_history.empty:
                     add_log(f"Watchlist snapshot updated: {_watchlist_snapshot_path(Path(export_dir).expanduser())}")
                 add_log(f"Watchlist generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
+                st.session_state["dvs_last_action_message"] = f"Completed: watchlist generation in {watchlist_seconds:.1f}s."
                 st.success(f"Watchlist updated in {watchlist_seconds:.1f}s.")
             else:
                 st.session_state["dvs_bullish_quality_result"] = screen_result
-                add_log(f"Bullish-quality scanner generated with top_n={top_n} in {watchlist_seconds:.1f}s.")
-                st.success(f"Bullish-quality scanner updated in {watchlist_seconds:.1f}s.")
+                add_log(f"Bullish-quality scanner generated with top_n={top_n}, score_profile={bullish_score_profile} in {watchlist_seconds:.1f}s.")
+                st.session_state["dvs_last_action_message"] = f"Completed: bullish-quality ranking in {watchlist_seconds:.1f}s."
+                st.success(f"Bullish-quality scanner updated in {watchlist_seconds:.1f}s using profile {bullish_score_profile}.")
+            _persist_ui_runtime_state(
+                Path(export_dir).expanduser(),
+                watchlist_seconds=watchlist_seconds,
+                action_message=st.session_state["dvs_last_action_message"],
+            )
         except Exception as exc:
             if is_long_dip_mode:
                 st.session_state["dvs_watchlist_result"] = None
@@ -4574,6 +4753,9 @@ def run_streamlit_app() -> None:
                     "symbol": st.column_config.TextColumn("Symbol", width="small"),
                     "window_tag": st.column_config.TextColumn("Window", width="small"),
                     "window_quality_score": st.column_config.NumberColumn("Score", width="small", format="%.2f"),
+                    "window_structure_bias_score": st.column_config.NumberColumn("Structure Bias", width="small", format="%.1f"),
+                    "window_structure_alignment_score": st.column_config.NumberColumn("Alignment", width="small", format="%.1f"),
+                    "window_structure_last_event": st.column_config.TextColumn("Last Event", width="small"),
                     "quality_reason": st.column_config.TextColumn("Reason", width="medium"),
                 },
             )
@@ -4679,6 +4861,14 @@ def run_streamlit_app() -> None:
                 "intraday_rank_reference_display",
                 "symbol",
                 "focus_window_coverage",
+                "structure_trend_state",
+                "structure_last_event",
+                "structure_bias_score",
+                "structure_alignment_score",
+                "structure_break_quality_score",
+                "structure_pressure_score",
+                "structure_reclaim_flag",
+                "structure_failed_break_flag",
                 "premarket_trade_count",
                 "premarket_trade_count_age",
                 "prev_close_to_premarket_pct",
@@ -4815,6 +5005,22 @@ def run_streamlit_app() -> None:
                 column_config["symbol"] = st.column_config.TextColumn("Symbol", width="small")
             if "focus_window_coverage" in table_frame.columns:
                 column_config["focus_window_coverage"] = st.column_config.TextColumn("Focus Window\nCoverage", width="medium")
+            if "structure_trend_state" in table_frame.columns:
+                column_config["structure_trend_state"] = st.column_config.NumberColumn("Trend", width="small", format="%.0f")
+            if "structure_last_event" in table_frame.columns:
+                column_config["structure_last_event"] = st.column_config.TextColumn("Last Event", width="small")
+            if "structure_bias_score" in table_frame.columns:
+                column_config["structure_bias_score"] = st.column_config.NumberColumn("Structure Bias", width="small", format="%.1f")
+            if "structure_alignment_score" in table_frame.columns:
+                column_config["structure_alignment_score"] = st.column_config.NumberColumn("Alignment", width="small", format="%.1f")
+            if "structure_break_quality_score" in table_frame.columns:
+                column_config["structure_break_quality_score"] = st.column_config.NumberColumn("Break Quality", width="small", format="%.1f")
+            if "structure_pressure_score" in table_frame.columns:
+                column_config["structure_pressure_score"] = st.column_config.NumberColumn("Pressure", width="small", format="%.1f")
+            if "structure_reclaim_flag" in table_frame.columns:
+                column_config["structure_reclaim_flag"] = st.column_config.CheckboxColumn("Reclaim", width="small")
+            if "structure_failed_break_flag" in table_frame.columns:
+                column_config["structure_failed_break_flag"] = st.column_config.CheckboxColumn("Failed Break", width="small")
             if "premarket_trade_count_age" in table_frame.columns:
                 column_config["premarket_trade_count_age"] = st.column_config.TextColumn("PM Trade\nCount Age", width="small")
             if "reclaimed_start_price_within_30s" in table_frame.columns:

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
+import warnings
 
 import pandas as pd
 
+from scripts.bullish_quality_config import build_default_bullish_quality_config
 from scripts.databento_preopen_fast import (
     _choose_scope_days,
     _aggregate_current_premarket_features,
     _build_current_daily_features,
+    _merge_current_structure_features,
     _resolve_effective_dataset,
     _resolve_premarket_anchor_et,
     _resolve_scope_selection_column,
@@ -156,6 +159,40 @@ def test_build_current_daily_features_preserves_0400_scope_metadata() -> None:
     assert bool(result.iloc[0]["selected_top20pct"]) is False
     assert bool(result.iloc[0]["selected_top20pct_0400"]) is True
     assert result.iloc[0]["eligibility_reason"] == "historical_selected_top20pct_0400_scope"
+
+
+def test_merge_current_structure_features_populates_structure_columns() -> None:
+    trade_day = date(2026, 3, 9)
+    daily_current = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAA"],
+            "previous_close": [10.0],
+        }
+    )
+    current_second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "AAA", "AAA"],
+            "timestamp": [
+                pd.Timestamp("2026-03-09T13:00:00Z"),
+                pd.Timestamp("2026-03-09T13:00:01Z"),
+                pd.Timestamp("2026-03-09T13:00:02Z"),
+            ],
+            "open": [10.0, 10.2, 10.4],
+            "high": [10.3, 10.5, 10.8],
+            "low": [9.9, 10.1, 10.3],
+            "close": [10.2, 10.4, 10.7],
+            "volume": [100.0, 120.0, 150.0],
+        }
+    )
+
+    result = _merge_current_structure_features(daily_current, current_second_detail)
+
+    assert "structure_trend_state" in result.columns
+    assert "structure_pressure_score" in result.columns
+    assert int(result.iloc[0]["structure_trend_state"]) != 0
+    assert float(result.iloc[0]["structure_pressure_score"]) != 50.0
 
 
 def test_aggregate_current_premarket_features_computes_gap_metrics() -> None:
@@ -506,6 +543,113 @@ def test_run_preopen_fast_refresh_warns_when_target_trade_date_rows_are_missing(
     assert any("writing empty current-day window placeholders" in warning for warning in result["user_warnings"])
 
 
+def test_run_preopen_fast_refresh_passes_selected_score_profile_to_window_builder(monkeypatch, tmp_path) -> None:
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
+    trade_day = date(2026, 3, 10)
+    payload = {
+        "manifest": {"premarket_anchor_et": "08:00:00"},
+        "manifest_path": tmp_path / "baseline_manifest.json",
+        "base_prefix": "baseline",
+        "frames": {
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "selected_top20pct": [True],
+                    "exchange": ["NYSE"],
+                    "asset_type": ["listed_equity_issue"],
+                    "is_eligible": [True],
+                    "eligibility_reason": ["eligible"],
+                    "has_fundamentals": [False],
+                    "has_reference_data": [True],
+                    "has_market_cap": [False],
+                    "window_range_pct": [1.0],
+                    "window_return_pct": [1.0],
+                    "realized_vol_pct": [1.0],
+                }
+            ),
+            "daily_bars": pd.DataFrame(
+                {
+                    "trade_date": [trade_day - pd.Timedelta(days=1)],
+                    "symbol": ["AAA"],
+                    "close": [10.0],
+                }
+            ),
+        },
+    }
+
+    class _NeverCalledTimeseries:
+        def get_range(self, **kwargs):
+            raise AssertionError("get_range should not be called when dataset is unavailable")
+
+    class _EarlyEndMetadata:
+        def get_dataset_range(self, **kwargs):
+            return {"end": f"{trade_day.isoformat()}T00:00:00+00:00"}
+
+    class _MockClient:
+        timeseries = _NeverCalledTimeseries()
+        metadata = _EarlyEndMetadata()
+
+    captured: dict[str, object] = {}
+
+    def _mock_window_builder(*args, **kwargs):
+        cfg = kwargs.get("cfg")
+        captured["score_profile"] = getattr(cfg, "score_profile", None)
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAA"],
+                "window_tag": ["pm_0800_0900"],
+            }
+        )
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", lambda bundle, **kwargs: payload)
+    monkeypatch.setattr("scripts.databento_preopen_fast.list_accessible_datasets", lambda api_key: ["DBEQ.BASIC"])
+    monkeypatch.setattr("scripts.databento_preopen_fast._make_databento_client", lambda api_key: _MockClient())
+    monkeypatch.setattr("scripts.databento_preopen_fast.build_premarket_window_features_full_universe_export", _mock_window_builder)
+    monkeypatch.setattr("scripts.databento_preopen_fast._build_quality_window_status_latest", lambda *args, **kwargs: pd.DataFrame())
+
+    run_preopen_fast_refresh(
+        databento_api_key="test-key",
+        dataset="DBEQ.BASIC",
+        export_dir=tmp_path,
+        bundle=tmp_path,
+        scope_days=1,
+        bullish_score_profile="aggressive",
+    )
+
+    assert captured["score_profile"] == "aggressive"
+
+
+def test_run_preopen_fast_refresh_rejects_invalid_score_profile_before_loading_bundle(monkeypatch, tmp_path) -> None:
+    from scripts.databento_preopen_fast import run_preopen_fast_refresh
+
+    load_called = {"value": False}
+
+    def _unexpected_load(*args, **kwargs):
+        load_called["value"] = True
+        raise AssertionError("load_export_bundle should not be reached for an invalid score profile")
+
+    monkeypatch.setattr("scripts.databento_preopen_fast.load_export_bundle", _unexpected_load)
+
+    try:
+        run_preopen_fast_refresh(
+            databento_api_key="test-key",
+            dataset="DBEQ.BASIC",
+            export_dir=tmp_path,
+            bundle=tmp_path,
+            scope_days=1,
+            bullish_score_profile="invalid-profile",
+        )
+    except ValueError as exc:
+        assert "Unsupported bullish-quality score profile" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid bullish score profile")
+
+    assert load_called["value"] is False
+
+
 def test_write_fast_outputs_preserves_existing_when_current_frame_empty(tmp_path) -> None:
     trade_day = date(2026, 3, 10)
     existing_daily = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"]})
@@ -540,3 +684,28 @@ def test_write_fast_outputs_preserves_existing_when_current_frame_empty(tmp_path
     assert pd.read_parquet(tmp_path / "premarket_window_features_full_universe.parquet").equals(existing_window)
     assert pd.read_parquet(tmp_path / "quality_window_status_latest.parquet").equals(existing_status)
     assert (tmp_path / "databento_exact_named_state.json").exists()
+
+
+def test_write_fast_outputs_avoids_concat_futurewarning_for_all_na_current_frame(tmp_path) -> None:
+    trade_day = date(2026, 3, 10)
+    historical_daily = pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAA"], "value": [1.0]})
+    historical_daily.to_parquet(tmp_path / "daily_symbol_features_full_universe.parquet", index=False)
+
+    manifest = {"basename": "databento_preopen_fast_test"}
+    current_daily = pd.DataFrame({"trade_date": [pd.NaT], "symbol": [None], "value": [None]})
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        _write_fast_outputs(
+            tmp_path,
+            daily_current=current_daily,
+            premarket_current=pd.DataFrame(),
+            diagnostics_current=pd.DataFrame(),
+            premarket_window_current=pd.DataFrame(),
+            quality_window_status_latest=pd.DataFrame(),
+            manifest=manifest,
+        )
+
+    assert not any("DataFrame concatenation with empty or all-NA entries is deprecated" in str(item.message) for item in caught)
+    written = pd.read_parquet(tmp_path / "daily_symbol_features_full_universe.parquet")
+    assert written.equals(historical_daily)

@@ -2,21 +2,25 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
 import json
+import os
 from pathlib import Path
+import threading
 from typing import Any, cast
 import warnings
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
-from scripts.bullish_quality_config import PremarketWindowDefinition
+from scripts.bullish_quality_config import PremarketWindowDefinition, build_default_bullish_quality_config
 from scripts.databento_production_export import (
     FIXED_ET_DISPLAY_TIMEZONE,
     _build_exact_window_end_lookup,
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
     _build_quality_window_status_latest,
+    _populate_quality_window_ranks,
     _compute_quality_reason,
     _normalize_exchange_key,
     _normalize_quality_window_exchange_dataset_map,
@@ -35,10 +39,12 @@ from scripts.databento_production_export import (
     _collect_fixed_et_second_detail,
     _prepare_full_universe_second_detail_export,
     _run_fixed_et_intraday_screen,
+    run_production_export_pipeline,
 )
 
 from databento_volatility_screener import (
     EXACT_NAMED_EXPORT_STATE_FILE,
+    UI_RUNTIME_STATE_KEY,
     _build_focus_window_coverage_series,
     _build_open_pattern_status_series,
     _build_watchlist_snapshot_panel_frames,
@@ -67,15 +73,20 @@ from databento_volatility_screener import (
     _prepare_frame_for_excel,
     _probe_symbol_support,
     _read_cached_frame,
+    _read_exact_named_export_state,
     _read_symbol_support_cache,
     _symbols_requiring_support_check,
     _symbol_scope_token,
     _update_state_from_chunk,
+    _load_ui_runtime_state,
+    _persist_ui_runtime_state,
     _write_cached_frame,
     _write_exact_named_export_state,
     _write_symbol_support_cache,
     build_daily_features_full_universe,
     collect_detail_tables_for_summary,
+    collect_full_universe_close_trade_detail,
+    collect_full_universe_open_window_second_detail,
     estimate_databento_costs,
     export_run_artifacts,
     fetch_symbol_day_detail,
@@ -537,6 +548,10 @@ def test_build_daily_symbol_features_full_universe_export_ranks_and_selects_top_
     assert "focus_0800_open_window_second_rows" in features.columns
     assert "focus_0400_open_window_second_rows" in features.columns
     assert "focus_0400_open_30s_volume" in features.columns
+    assert "structure_trend_state" in features.columns
+    assert "structure_pressure_score" in features.columns
+    assert pd.notna(aaa["structure_trend_state"])
+    assert pd.notna(aaa["structure_pressure_score"])
     assert int(features["selected_top20pct_0400"].fillna(False).astype(bool).sum()) <= 1
     assert bool(batl["selected_top20pct_0400"]) is False
     assert pd.isna(batl["focus_0400_open_30s_volume"])
@@ -654,6 +669,9 @@ def test_build_premarket_window_features_full_universe_export_computes_window_me
     assert bool(row["passes_quality_filter"]) is True
     assert row["quality_filter_reason"] == "eligible"
     assert row["window_quality_score"] > 0.0
+    assert "window_structure_bias_score" in result.columns
+    assert "window_structure_alignment_score" in result.columns
+    assert pd.notna(row["window_structure_bias_score"])
 
     single = compute_single_window_features(
         second_detail,
@@ -665,6 +683,116 @@ def test_build_premarket_window_features_full_universe_export_computes_window_me
 
     assert single["window_tag"] == "pm_0400_0500"
     assert round(float(single["window_quality_score"]), 4) == round(float(row["window_quality_score"]), 4)
+
+
+def test_compute_single_window_features_tolerates_partial_daily_structure_context() -> None:
+    trade_day = date(2026, 3, 6)
+    second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "AAA"],
+            "timestamp": [
+                pd.Timestamp("2026-03-06T09:00:00Z"),
+                pd.Timestamp("2026-03-06T09:20:00Z"),
+            ],
+            "session": ["premarket", "premarket"],
+            "open": [10.0, 10.2],
+            "high": [10.2, 10.5],
+            "low": [9.9, 10.1],
+            "close": [10.1, 10.4],
+            "volume": [30_000.0, 30_000.0],
+            "trade_count": [50, 50],
+        }
+    )
+    window_definition = PremarketWindowDefinition("pm_0400_0500", "04:00:00", "05:00:00", "04:00-05:00 ET")
+
+    single = compute_single_window_features(
+        second_detail,
+        {
+            "trade_date": trade_day,
+            "symbol": "AAA",
+            "previous_close": 10.0,
+            "market_open_price": 10.9,
+            "structure_trend_state": 1,
+        },
+        window_definition=window_definition,
+        dataset="DBEQ.BASIC",
+        source_data_fetched_at="2026-03-06T14:29:59+00:00",
+    )
+
+    assert single["window_tag"] == "pm_0400_0500"
+    assert float(single["window_structure_bias_score"]) >= 0.0
+    assert float(single["window_structure_alignment_score"]) >= 0.0
+
+
+def test_compute_single_window_features_uses_explicit_score_profile_without_global_state() -> None:
+    trade_day = date(2026, 3, 6)
+    second_detail = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "AAA", "AAA"],
+            "timestamp": [
+                pd.Timestamp("2026-03-06T09:00:00Z"),
+                pd.Timestamp("2026-03-06T09:10:00Z"),
+                pd.Timestamp("2026-03-06T09:20:00Z"),
+            ],
+            "session": ["premarket", "premarket", "premarket"],
+            "open": [10.0, 10.1, 10.2],
+            "high": [10.2, 10.4, 10.7],
+            "low": [9.9, 10.0, 10.1],
+            "close": [10.1, 10.3, 10.6],
+            "volume": [30_000.0, 40_000.0, 50_000.0],
+            "trade_count": [50, 60, 70],
+        }
+    )
+    context = {
+        "trade_date": trade_day,
+        "symbol": "AAA",
+        "previous_close": 10.0,
+        "market_open_price": 10.9,
+    }
+    window_definition = PremarketWindowDefinition("pm_0400_0500", "04:00:00", "05:00:00", "04:00-05:00 ET")
+
+    balanced = compute_single_window_features(
+        second_detail,
+        context,
+        window_definition=window_definition,
+        dataset="DBEQ.BASIC",
+        source_data_fetched_at="2026-03-06T14:29:59+00:00",
+        cfg=build_default_bullish_quality_config(score_profile="balanced"),
+    )
+    aggressive = compute_single_window_features(
+        second_detail,
+        context,
+        window_definition=window_definition,
+        dataset="DBEQ.BASIC",
+        source_data_fetched_at="2026-03-06T14:29:59+00:00",
+        cfg=build_default_bullish_quality_config(score_profile="aggressive"),
+    )
+
+    assert float(aggressive["window_quality_score"]) > float(balanced["window_quality_score"])
+
+
+def test_populate_quality_window_ranks_uses_structure_tiebreakers() -> None:
+    ranked = _populate_quality_window_ranks(
+        pd.DataFrame(
+            {
+                "trade_date": [date(2026, 3, 10), date(2026, 3, 10)],
+                "window_tag": ["pm_0900_0930", "pm_0900_0930"],
+                "symbol": ["AAA", "BBB"],
+                "passes_quality_filter": [True, True],
+                "window_quality_score": [90.0, 90.0],
+                "window_structure_bias_score": [40.0, 95.0],
+                "window_structure_alignment_score": [100.0, 100.0],
+                "window_dollar_volume": [1_000_000.0, 1_000_000.0],
+            }
+        ),
+        top_n=1,
+    )
+
+    assert ranked.sort_values("quality_rank_within_window")["symbol"].tolist() == ["BBB", "AAA"]
+    selected = ranked.loc[ranked["quality_selected_top_n"]]
+    assert selected["symbol"].tolist() == ["BBB"]
 
 
 def test_build_premarket_window_features_full_universe_export_marks_missing_window_data() -> None:
@@ -1701,17 +1829,21 @@ def test_prepare_frame_for_excel_removes_timezone_information() -> None:
 
 
 def test_build_data_status_result_uses_manifest_timestamps(tmp_path: Path) -> None:
+    export_generated_at = (pd.Timestamp.now(tz=UTC) - pd.Timedelta(minutes=5)).isoformat()
+    daily_bars_fetched_at = (pd.Timestamp(export_generated_at) - pd.Timedelta(minutes=1)).isoformat()
+    intraday_fetched_at = (pd.Timestamp(export_generated_at) - pd.Timedelta(seconds=30)).isoformat()
+    premarket_fetched_at = (pd.Timestamp(export_generated_at) - pd.Timedelta(seconds=15)).isoformat()
     manifest_path = tmp_path / "databento_volatility_production_20260308_152400_manifest.json"
     manifest_path.write_text(
         json.dumps(
             {
                 "dataset": "DBEQ.BASIC",
                 "lookback_days": 30,
-                "export_generated_at": "2026-03-08T14:24:19+00:00",
-                "daily_bars_fetched_at": "2026-03-08T14:23:41+00:00",
-                "intraday_fetched_at": "2026-03-08T14:24:02+00:00",
-                "premarket_fetched_at": "2026-03-08T14:24:10+00:00",
-                "second_detail_fetched_at": "2026-03-08T14:24:10+00:00",
+                "export_generated_at": export_generated_at,
+                "daily_bars_fetched_at": daily_bars_fetched_at,
+                "intraday_fetched_at": intraday_fetched_at,
+                "premarket_fetched_at": premarket_fetched_at,
+                "second_detail_fetched_at": premarket_fetched_at,
                 "trade_dates_covered": ["2026-03-05", "2026-03-06"],
             }
         ),
@@ -1721,8 +1853,8 @@ def test_build_data_status_result_uses_manifest_timestamps(tmp_path: Path) -> No
     status = build_data_status_result(tmp_path, stale_after_minutes=11_000)
 
     assert status.dataset == "DBEQ.BASIC"
-    assert status.export_generated_at == "2026-03-08T14:24:19+00:00"
-    assert status.premarket_fetched_at == "2026-03-08T14:24:10+00:00"
+    assert status.export_generated_at == export_generated_at
+    assert status.premarket_fetched_at == premarket_fetched_at
     assert status.trade_dates_covered == ("2026-03-05", "2026-03-06")
     assert status.is_stale is False
 
@@ -3737,6 +3869,38 @@ def test_read_cached_frame_ttl_returns_data_when_within_limit(tmp_path) -> None:
     assert list(result["x"]) == [1, 2, 3]
 
 
+def test_write_cached_frame_uses_unique_temp_paths_for_concurrent_writers(tmp_path, monkeypatch) -> None:
+    """Concurrent writes to the same cache key should not race on a shared temp file."""
+    cache_path = tmp_path / "shared_cache.parquet"
+    barrier = threading.Barrier(2)
+    original_replace = os.replace
+    errors: list[Exception] = []
+
+    def blocking_replace(src, dst) -> None:
+        barrier.wait(timeout=2)
+        original_replace(src, dst)
+
+    def writer(value: int) -> None:
+        try:
+            _write_cached_frame(cache_path, pd.DataFrame({"x": [value]}))
+        except Exception as exc:
+            errors.append(exc)
+
+    monkeypatch.setattr("databento_volatility_screener.os.replace", blocking_replace)
+
+    first = threading.Thread(target=writer, args=(1,))
+    second = threading.Thread(target=writer, args=(2,))
+    first.start()
+    second.start()
+    first.join()
+    second.join()
+
+    assert errors == []
+
+    result = pd.read_parquet(cache_path)
+    assert result.iloc[0]["x"] in {1, 2}
+
+
 def test_run_intraday_screen_survives_api_error(monkeypatch) -> None:
     """run_intraday_screen logs and continues when a batch API call fails."""
     call_count = {"n": 0}
@@ -3771,6 +3935,158 @@ def test_run_intraday_screen_survives_api_error(monkeypatch) -> None:
     )
     assert result.empty or isinstance(result, pd.DataFrame)
     assert call_count["n"] >= 1
+
+
+def test_run_intraday_screen_uses_incremental_cache_policy(monkeypatch, tmp_path) -> None:
+    """Latest day refreshes, previous day uses short TTL, older days reuse cache indefinitely."""
+    observed_ttls: list[int | None] = []
+    trading_days = [date(2026, 3, 3), date(2026, 3, 4), date(2026, 3, 5)]
+    daily_bars = pd.DataFrame({
+        "trade_date": trading_days,
+        "symbol": ["AAPL", "AAPL", "AAPL"],
+        "previous_close": [150.0, 151.0, 152.0],
+    })
+
+    class _FakeClient:
+        class metadata:
+            @staticmethod
+            def get_dataset_range(dataset):
+                return {"start": "2026-01-01", "end": "2026-03-06", "schema": {"ohlcv-1s": {"end": "2026-03-06T00:00:00Z"}}}
+
+    def fake_read_cached_frame(path: Path, *, max_age_seconds: int | None = None):
+        observed_ttls.append(max_age_seconds)
+        trade_day = date.fromisoformat(path.name.split("__", 1)[0])
+        return pd.DataFrame({
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "current_price": [100.0],
+            "window_start_price": [99.0],
+            "window_end_price": [100.0],
+            "window_high": [101.0],
+            "window_low": [98.5],
+            "window_range_pct": [2.5],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [0.5],
+            "market_open_price": [99.5],
+            "open_30s_volume": [1000.0],
+            "current_price_timestamp": [pd.Timestamp(f"{trade_day.isoformat()}T14:31:00Z")],
+            "has_intraday": [True],
+        })
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda key: _FakeClient())
+    monkeypatch.setattr("databento_volatility_screener._read_cached_frame", fake_read_cached_frame)
+
+    result = run_intraday_screen(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=trading_days,
+        universe_symbols={"AAPL"},
+        daily_bars=daily_bars,
+        cache_dir=tmp_path,
+        use_file_cache=True,
+    )
+
+    assert len(result) == 3
+    assert observed_ttls == [None, DATA_CACHE_TTL_SECONDS, 0]
+
+
+def test_open_window_detail_uses_incremental_cache_policy(monkeypatch, tmp_path) -> None:
+    """Open-window detail should reuse old caches indefinitely while refreshing the latest day."""
+    observed_ttls: list[int | None] = []
+    trading_days = [date(2026, 3, 3), date(2026, 3, 4), date(2026, 3, 5)]
+    daily_bars = pd.DataFrame({
+        "trade_date": trading_days,
+        "symbol": ["AAPL", "AAPL", "AAPL"],
+        "previous_close": [150.0, 151.0, 152.0],
+    })
+
+    class _FakeClient:
+        class metadata:
+            @staticmethod
+            def get_dataset_range(dataset):
+                return {"start": "2026-01-01", "end": "2026-03-06", "schema": {"ohlcv-1s": {"end": "2026-03-06T00:00:00Z"}}}
+
+    def fake_read_cached_frame(path: Path, *, max_age_seconds: int | None = None):
+        observed_ttls.append(max_age_seconds)
+        trade_day = date.fromisoformat(path.name.split("__", 1)[0])
+        return pd.DataFrame({
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "timestamp": [pd.Timestamp(f"{trade_day.isoformat()}T14:30:00Z")],
+            "session": ["regular"],
+            "open": [100.0],
+            "high": [101.0],
+            "low": [99.0],
+            "close": [100.5],
+            "volume": [1000.0],
+            "trade_count": [10.0],
+            "second_delta_pct": [0.5],
+            "from_previous_close_pct": [1.0],
+        })
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda key: _FakeClient())
+    monkeypatch.setattr("databento_volatility_screener._read_cached_frame", fake_read_cached_frame)
+
+    result = collect_full_universe_open_window_second_detail(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=trading_days,
+        universe_symbols={"AAPL"},
+        daily_bars=daily_bars,
+        cache_dir=tmp_path,
+        use_file_cache=True,
+    )
+
+    assert len(result) == 3
+    assert observed_ttls == [None, DATA_CACHE_TTL_SECONDS, 0]
+
+
+def test_close_trade_detail_uses_incremental_cache_policy(monkeypatch, tmp_path) -> None:
+    """Close-trade detail should use the same incremental cache rules as other trade-day detail fetchers."""
+    observed_ttls: list[int | None] = []
+    trading_days = [date(2026, 3, 3), date(2026, 3, 4), date(2026, 3, 5)]
+
+    class _FakeClient:
+        class metadata:
+            @staticmethod
+            def get_dataset_range(dataset):
+                return {"start": "2026-01-01", "end": "2026-03-06", "schema": {"trades": {"end": "2026-03-06T00:00:00Z"}}}
+
+    def fake_read_cached_frame(path: Path, *, max_age_seconds: int | None = None):
+        observed_ttls.append(max_age_seconds)
+        trade_day = date.fromisoformat(path.name.split("__", 1)[0])
+        return pd.DataFrame({
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "timestamp": [pd.Timestamp(f"{trade_day.isoformat()}T20:59:00Z")],
+            "ts_event": [pd.Timestamp(f"{trade_day.isoformat()}T20:59:00Z")],
+            "ts_recv": [pd.Timestamp(f"{trade_day.isoformat()}T20:59:00Z")],
+            "publisher_id": [1],
+            "publisher": ["NYSE"],
+            "venue_class": ["lit_exchange"],
+            "side": ["B"],
+            "price": [100.0],
+            "size": [10.0],
+            "flags": [0],
+            "sequence": [1.0],
+            "ts_in_delta": [0.0],
+        })
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda key: _FakeClient())
+    monkeypatch.setattr("databento_volatility_screener._load_databento_publisher_lookup", lambda client: {1: {"venue_label": "NYSE", "venue_class": "lit_exchange"}})
+    monkeypatch.setattr("databento_volatility_screener._read_cached_frame", fake_read_cached_frame)
+
+    result = collect_full_universe_close_trade_detail(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=trading_days,
+        universe_symbols={"AAPL"},
+        cache_dir=tmp_path,
+        use_file_cache=True,
+    )
+
+    assert len(result) == 3
+    assert observed_ttls == [None, DATA_CACHE_TTL_SECONDS, 0]
 
 
 def test_load_daily_bars_survives_batch_api_error(monkeypatch) -> None:
@@ -3842,6 +4158,70 @@ def test_fetch_symbol_day_detail_survives_api_error(monkeypatch) -> None:
     )
     assert second.empty
     assert minute.empty
+
+
+def test_open_window_detail_retries_transient_get_range_timeout(monkeypatch, tmp_path: Path) -> None:
+    trade_day = date(2026, 3, 6)
+    attempts = {"count": 0}
+    sleep_calls: list[float] = []
+    ts_base = pd.Timestamp("2026-03-06 09:00:00", tz="US/Eastern").tz_convert("UTC")
+
+    raw_frame = pd.DataFrame(
+        {
+            "ts_event": [ts_base],
+            "symbol": ["AAPL"],
+            "open": [150.0],
+            "high": [151.0],
+            "low": [149.0],
+            "close": [150.5],
+            "volume": [100],
+            "count": [5],
+        }
+    )
+
+    class FakeStore:
+        def to_df(self, count=None):
+            return raw_frame.copy()
+
+    class FakeTimeseries:
+        def get_range(self, **kwargs):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise RuntimeError("Error streaming response: Read timed out")
+            return FakeStore()
+
+    class FakeClient:
+        timeseries = FakeTimeseries()
+
+    monkeypatch.setattr("databento_volatility_screener._get_schema_available_end", lambda *a, **kw: pd.Timestamp("2026-03-07", tz="UTC"))
+    monkeypatch.setattr("databento_volatility_screener._probe_symbol_support", lambda *a, **kw: ({"AAPL"}, set()))
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda *a, **kw: FakeClient())
+    monkeypatch.setattr("databento_volatility_screener.time_module.sleep", sleep_calls.append)
+
+    result = collect_full_universe_open_window_second_detail(
+        "fake-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[trade_day],
+        universe_symbols={"AAPL"},
+        daily_bars=pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAPL"],
+                "previous_close": [148.0],
+            }
+        ),
+        display_timezone="Europe/Berlin",
+        window_start=time(9, 0),
+        window_end=time(9, 30),
+        premarket_anchor_et=time(4, 0),
+        cache_dir=tmp_path,
+        use_file_cache=False,
+        force_refresh=True,
+    )
+
+    assert not result.empty
+    assert attempts["count"] == 2
+    assert sleep_calls == [1.0]
 
 def test_build_summary_table_no_suffix_leak_on_overlapping_columns() -> None:
     """When ranked already contains columns from the universe (e.g. exchange,
@@ -4168,6 +4548,96 @@ def test_databento_production_export_main_uses_preferred_dataset_fallback(monkey
     assert captured["dataset"] == "XNAS.ITCH"
 
 
+def test_run_production_export_pipeline_skips_cost_estimate_for_unlimited_plan(monkeypatch, tmp_path) -> None:
+    from scripts import databento_production_export as mod
+
+    progress_messages: list[str] = []
+    cost_called = {"value": False}
+
+    monkeypatch.setenv("DATABENTO_UNLIMITED", "true")
+    monkeypatch.setattr(mod, "list_recent_trading_days", lambda *args, **kwargs: [date(2026, 3, 5)])
+
+    def fail_cost_estimate(*args, **kwargs):
+        cost_called["value"] = True
+        raise AssertionError("estimate_databento_costs should be skipped for unlimited plans")
+
+    monkeypatch.setattr(mod, "estimate_databento_costs", fail_cost_estimate)
+    monkeypatch.setattr(
+        mod,
+        "fetch_us_equity_universe_with_metadata",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"]}), {}),
+    )
+    monkeypatch.setattr(mod, "_enrich_universe_with_fundamentals", lambda universe, reference: universe)
+    monkeypatch.setattr(
+        mod,
+        "filter_supported_universe_for_databento",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"]}), []),
+    )
+    monkeypatch.setattr(
+        mod,
+        "load_daily_bars",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("stop after step 2")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop after step 2"):
+        run_production_export_pipeline(
+            databento_api_key="test-key",
+            fmp_api_key="",
+            dataset="DBEQ.BASIC",
+            cache_dir=tmp_path,
+            export_dir=tmp_path,
+            progress_callback=progress_messages.append,
+        )
+
+    assert cost_called["value"] is False
+    assert any("Skipping cost estimate" in message for message in progress_messages)
+
+
+def test_run_production_export_pipeline_estimates_costs_only_when_explicitly_enabled(monkeypatch, tmp_path) -> None:
+    from scripts import databento_production_export as mod
+
+    progress_messages: list[str] = []
+    cost_called = {"value": False}
+
+    monkeypatch.setattr(mod, "list_recent_trading_days", lambda *args, **kwargs: [date(2026, 3, 5)])
+
+    def fake_cost_estimate(*args, **kwargs):
+        cost_called["value"] = True
+        return pd.DataFrame({"scope": ["all"], "cost_usd": [1.23], "billable_size_bytes": [123]})
+
+    monkeypatch.setattr(mod, "estimate_databento_costs", fake_cost_estimate)
+    monkeypatch.setattr(
+        mod,
+        "fetch_us_equity_universe_with_metadata",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"]}), {}),
+    )
+    monkeypatch.setattr(mod, "_enrich_universe_with_fundamentals", lambda universe, reference: universe)
+    monkeypatch.setattr(
+        mod,
+        "filter_supported_universe_for_databento",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"]}), []),
+    )
+    monkeypatch.setattr(
+        mod,
+        "load_daily_bars",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("stop after step 2")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop after step 2"):
+        run_production_export_pipeline(
+            databento_api_key="test-key",
+            fmp_api_key="",
+            dataset="DBEQ.BASIC",
+            cache_dir=tmp_path,
+            export_dir=tmp_path,
+            skip_cost_estimate=False,
+            progress_callback=progress_messages.append,
+        )
+
+    assert cost_called["value"] is True
+    assert any("Estimating costs" in message for message in progress_messages)
+
+
 def test_deduplicate_daily_symbol_rows_noop_without_duplicates() -> None:
     """No duplicates → frame returned unchanged."""
     frame = pd.DataFrame({
@@ -4448,6 +4918,36 @@ def test_write_exact_named_export_state_persists_manifest_and_paths(tmp_path) ->
     assert state_path.name == EXACT_NAMED_EXPORT_STATE_FILE
     assert payload["manifest"] == manifest
     assert payload["artifact_paths"]["daily_symbol_features_full_universe"].endswith("daily_symbol_features_full_universe.parquet")
+
+
+def test_persist_ui_runtime_state_merges_into_exact_named_export_state(tmp_path) -> None:
+    _write_exact_named_export_state(
+        tmp_path,
+        manifest={"export_generated_at": "2026-03-15T08:00:00+00:00", "dataset": "DBEQ.BASIC"},
+        artifact_paths={"daily_symbol_features_full_universe": tmp_path / "daily_symbol_features_full_universe.parquet"},
+        source_manifest_path=tmp_path / "databento_volatility_production_20260315_080000_manifest.json",
+    )
+
+    _persist_ui_runtime_state(
+        tmp_path,
+        refresh_seconds=12.5,
+        watchlist_seconds=3.2,
+        action_message="Completed: watchlist generation in 3.2s.",
+    )
+
+    payload = _read_exact_named_export_state(tmp_path)
+    assert payload["manifest"]["dataset"] == "DBEQ.BASIC"
+    assert payload[UI_RUNTIME_STATE_KEY]["last_refresh_seconds"] == 12.5
+    assert payload[UI_RUNTIME_STATE_KEY]["last_watchlist_seconds"] == 3.2
+    assert payload[UI_RUNTIME_STATE_KEY]["last_action_message"] == "Completed: watchlist generation in 3.2s."
+
+
+def test_load_ui_runtime_state_returns_empty_dict_for_invalid_payload(tmp_path) -> None:
+    (tmp_path / EXACT_NAMED_EXPORT_STATE_FILE).write_text(json.dumps({UI_RUNTIME_STATE_KEY: []}), encoding="utf-8")
+
+    runtime_state = _load_ui_runtime_state(tmp_path)
+
+    assert runtime_state == {}
 
 
 # ---- 6. Error paths (API errors) ----

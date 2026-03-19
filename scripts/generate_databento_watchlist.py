@@ -28,7 +28,7 @@ from strategy_config import (
     LONG_DIP_TOP_N,
 )
 from newsstack_fmp._market_cal import is_us_equity_trading_day
-from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.load_databento_export_bundle import load_export_bundle, resolve_manifest_path
 
 
 US_EASTERN_TZ = __import__("zoneinfo").ZoneInfo("America/New_York")
@@ -45,6 +45,29 @@ class LongDipConfig:
     min_premarket_trade_count: int = LONG_DIP_MIN_PREMARKET_TRADE_COUNT
     min_premarket_active_seconds: int = LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS
     position_budget_usd: float = LONG_DIP_POSITION_BUDGET_USD
+
+
+def _coerce_structure_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    out = frame.copy()
+    numeric_defaults = {
+        "structure_bias_score": 0.0,
+        "structure_alignment_score": 50.0,
+        "structure_break_quality_score": 0.0,
+        "structure_pressure_score": 50.0,
+        "structure_trend_state": 0.0,
+    }
+    for column, default in numeric_defaults.items():
+        source = out.get(column, pd.Series(default, index=out.index, dtype=float))
+        out[column] = pd.to_numeric(source, errors="coerce").fillna(default)
+    for column in ["structure_reclaim_flag", "structure_failed_break_flag"]:
+        source = out.get(column, pd.Series(False, index=out.index, dtype=bool))
+        if pd.api.types.is_bool_dtype(source):
+            out[column] = source.fillna(False).astype(bool)
+            continue
+        normalized = source.astype(str).str.strip().str.lower()
+        mapped = normalized.map({"true": True, "false": False, "1": True, "0": False}).astype("boolean")
+        out[column] = mapped.fillna(False).astype(bool)
+    return out
 
 
 @dataclass(frozen=True)
@@ -93,10 +116,9 @@ def _normalize_frame(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _load_latest_manifest(export_dir: Path) -> tuple[dict[str, Any] | None, Path | None]:
-    manifests = sorted(export_dir.glob("*_manifest.json"), key=lambda item: item.stat().st_mtime)
-    if not manifests:
+    manifest_path = resolve_manifest_path(export_dir)
+    if manifest_path is None:
         return None, None
-    manifest_path = manifests[-1]
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
         if isinstance(payload, dict):
@@ -317,6 +339,7 @@ def build_preopen_long_candidates(*, daily: pd.DataFrame, prem: pd.DataFrame, cf
     frame = _build_candidate_frame(daily, prem, diagnostics, trade_date)
     if frame.empty:
         return frame
+    frame = _coerce_structure_columns(frame)
     current = frame.loc[frame["is_eligible"]].copy()
     current = current.loc[pd.to_numeric(current["previous_close"], errors="coerce") >= float(cfg.min_previous_close)].copy()
     current = current.loc[pd.to_numeric(current["prev_close_to_premarket_pct"], errors="coerce") >= float(cfg.min_gap_pct)].copy()
@@ -328,9 +351,18 @@ def build_preopen_long_candidates(*, daily: pd.DataFrame, prem: pd.DataFrame, cf
 
     if current.empty:
         return current
-    sort_cols = [col for col in ["trade_date", "prev_close_to_premarket_pct", "premarket_dollar_volume", "symbol"] if col in current.columns]
-    ascending = [True, False, False, True][: len(sort_cols)]
-    ranked = current.sort_values(sort_cols, ascending=ascending).reset_index(drop=True)
+    ranked = current.sort_values(
+        [
+            "trade_date",
+            "structure_bias_score",
+            "structure_alignment_score",
+            "structure_reclaim_flag",
+            "prev_close_to_premarket_pct",
+            "premarket_dollar_volume",
+            "symbol",
+        ],
+        ascending=[True, False, False, False, False, False, True],
+    ).reset_index(drop=True)
     ranked["watchlist_rank"] = ranked.groupby("trade_date").cumcount() + 1
     ranked = ranked.loc[ranked["watchlist_rank"] <= int(cfg.top_n)].copy()
     ranked["watchlist_rank"] = ranked["watchlist_rank"].astype(int)
@@ -341,6 +373,7 @@ def build_preanchor_seed_candidates(*, daily: pd.DataFrame, diagnostics: pd.Data
     frame = _normalize_frame(daily)
     if frame.empty:
         return frame
+    frame = _coerce_structure_columns(frame)
     current = frame.loc[frame.get("trade_date").eq(trade_date)].copy() if "trade_date" in frame.columns else pd.DataFrame()
     if current.empty:
         return current
@@ -352,8 +385,8 @@ def build_preanchor_seed_candidates(*, daily: pd.DataFrame, diagnostics: pd.Data
     seeded["candidate_basis"] = "pre_anchor_historical_seed"
     seeded["premarket_last"] = pd.to_numeric(seeded.get("premarket_last"), errors="coerce")
     seeded["premarket_last"] = seeded["premarket_last"].where(seeded["premarket_last"].notna(), pd.to_numeric(seeded.get("previous_close"), errors="coerce"))
-    sort_cols = [col for col in ["focus_0400_open_30s_volume", "window_range_pct", "symbol"] if col in seeded.columns]
-    ascending = [False, False, True][: len(sort_cols)]
+    sort_cols = [col for col in ["structure_bias_score", "focus_0400_open_30s_volume", "window_range_pct", "symbol"] if col in seeded.columns]
+    ascending = [False, False, False, True][: len(sort_cols)]
     if sort_cols:
         seeded = seeded.sort_values(sort_cols, ascending=ascending)
     seeded = seeded.reset_index(drop=True)

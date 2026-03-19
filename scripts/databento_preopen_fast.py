@@ -41,7 +41,11 @@ from scripts.databento_production_export import (
     _build_quality_window_status_latest,
     build_premarket_window_features_full_universe_export,
 )
-from scripts.bullish_quality_config import build_default_bullish_quality_config
+from scripts.bullish_quality_config import (
+    DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
+    build_default_bullish_quality_config,
+)
+from scripts.market_structure_features import build_market_structure_feature_frame
 from scripts.load_databento_export_bundle import load_export_bundle
 
 logger = logging.getLogger(__name__)
@@ -307,23 +311,30 @@ def _build_current_daily_features(
     )
     current["eligibility_reason"] = np.where(current["previous_close"].notna(), active_scope_reason, "missing_latest_close")
 
+    missing_columns: dict[str, object] = {}
     for column in DAILY_SYMBOL_FEATURE_COLUMNS:
-        if column not in current.columns:
-            if column in {"trade_date", "symbol", "exchange", "asset_type", "eligibility_reason"}:
-                current[column] = ""
-            elif column in {
-                "is_eligible",
-                "selected_top20pct",
-                "selected_top20pct_0400",
-                "has_reference_data",
-                "has_fundamentals",
-                "has_daily_bars",
-                "has_intraday",
-                "has_market_cap",
-            }:
-                current[column] = False
-            else:
-                current[column] = np.nan
+        if column in current.columns:
+            continue
+        if column in {"trade_date", "symbol", "exchange", "asset_type", "eligibility_reason"}:
+            missing_columns[column] = ""
+        elif column in {
+            "is_eligible",
+            "selected_top20pct",
+            "selected_top20pct_0400",
+            "has_reference_data",
+            "has_fundamentals",
+            "has_daily_bars",
+            "has_intraday",
+            "has_market_cap",
+        }:
+            missing_columns[column] = False
+        else:
+            missing_columns[column] = np.nan
+    if missing_columns:
+        current = pd.concat(
+            [current, pd.DataFrame({column: [value] * len(current) for column, value in missing_columns.items()}, index=current.index)],
+            axis=1,
+        )
 
     current["symbol"] = current["symbol"].astype(str).map(normalize_symbol_for_databento)
     current = current[current["symbol"].astype(str).ne("")].copy()
@@ -485,6 +496,11 @@ def _write_fast_outputs(
         tmp_path.replace(path)
 
     def _merge_by_trade_date(existing_path: Path, current_frame: pd.DataFrame) -> pd.DataFrame:
+        def _is_effectively_empty(frame: pd.DataFrame) -> bool:
+            if frame.empty:
+                return True
+            return frame.dropna(axis=1, how="all").empty
+
         if current_frame.empty:
             if existing_path.exists():
                 try:
@@ -503,8 +519,10 @@ def _write_fast_outputs(
         historical_dates = pd.to_datetime(historical["trade_date"], errors="coerce").dt.date
         current_dates = set(pd.to_datetime(current_frame["trade_date"], errors="coerce").dt.date.dropna().tolist())
         merged = historical.loc[~historical_dates.isin(current_dates)].copy()
-        if merged.empty:
+        if _is_effectively_empty(merged):
             return current_frame.copy()
+        if _is_effectively_empty(current_frame):
+            return merged.reset_index(drop=True)
         return pd.concat([merged, current_frame], ignore_index=True)
 
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -574,6 +592,27 @@ def _build_current_second_detail_from_premarket_raw(
     return detail[[column for column in columns if column in detail.columns]].reset_index(drop=True)
 
 
+def _merge_current_structure_features(daily_current: pd.DataFrame, current_second_detail: pd.DataFrame) -> pd.DataFrame:
+    if daily_current.empty:
+        return daily_current.copy()
+    if current_second_detail.empty:
+        return daily_current.copy()
+
+    structure_features = build_market_structure_feature_frame(
+        current_second_detail,
+        group_keys=["trade_date", "symbol"],
+        prefix="structure",
+    )
+    if structure_features.empty:
+        return daily_current.copy()
+
+    merged = daily_current.copy()
+    overlap = (set(merged.columns) & set(structure_features.columns)) - {"trade_date", "symbol"}
+    if overlap:
+        merged = merged.drop(columns=sorted(overlap))
+    return merged.merge(structure_features, on=["trade_date", "symbol"], how="left")
+
+
 def run_preopen_fast_refresh(
     *,
     databento_api_key: str,
@@ -581,12 +620,15 @@ def run_preopen_fast_refresh(
     export_dir: str | Path | None = None,
     bundle: str | Path | None = None,
     scope_days: int | None = None,
+    bullish_score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     progress_callback: Any = None,
 ) -> dict[str, Any]:
     def _progress(message: str) -> None:
         logger.info(message)
         if progress_callback is not None:
             progress_callback(message)
+
+    bullish_cfg = build_default_bullish_quality_config(score_profile=bullish_score_profile)
 
     _progress("Fast refresh 1/5: Loading baseline bundle...")
     resolved_export_dir = Path(export_dir).expanduser() if export_dir is not None else DEFAULT_EXPORT_DIR
@@ -986,11 +1028,12 @@ def run_preopen_fast_refresh(
         target_trade_date=target_trade_date,
         premarket_start_utc=premarket_start_utc,
     )
-    diagnostics_current = _build_current_diagnostics(daily_current)
     current_second_detail = _build_current_second_detail_from_premarket_raw(
         premarket_raw,
         target_trade_date=target_trade_date,
     )
+    daily_current = _merge_current_structure_features(daily_current, current_second_detail)
+    diagnostics_current = _build_current_diagnostics(daily_current)
 
     source_data_fetched_at: str | None = None
     if not current_second_detail.empty:
@@ -1028,14 +1071,15 @@ def run_preopen_fast_refresh(
         "availability_clamp_bypassed": clamp_bypassed,
         "dataset_available_end": str(available_end) if available_end is not None else None,
         "full_universe_second_detail_open_rows": int(len(current_second_detail)),
+        "quality_open_drive_window_score_profile": bullish_cfg.score_profile,
     }
-    bullish_cfg = build_default_bullish_quality_config()
     premarket_window_current = build_premarket_window_features_full_universe_export(
         current_second_detail,
         daily_current,
         window_definitions=bullish_cfg.window_definitions,
         source_data_fetched_at=source_data_fetched_at,
         dataset=effective_dataset,
+        cfg=bullish_cfg,
     )
     if not premarket_window_current.empty and "trade_date" not in premarket_window_current.columns:
         raise RuntimeError("Fast refresh window-feature output is missing required 'trade_date' column.")
@@ -1054,6 +1098,7 @@ def run_preopen_fast_refresh(
             window_definitions=bullish_cfg.window_definitions,
             source_data_fetched_at=exported_at,
             dataset=effective_dataset,
+            cfg=bullish_cfg,
         )
     quality_window_status_latest = _build_quality_window_status_latest(
         premarket_window_current,
