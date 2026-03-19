@@ -2193,7 +2193,7 @@ int effective_confirm_marker_gap = scaled_marker_gap(confirm_marker_spacing_bars
 int effective_ready_marker_gap = scaled_marker_gap(ready_marker_spacing_bars, auto_scale_marker_gaps, chart_tf_sec, marker_gap_reference_seconds, marker_gap_max_scale)
 
 [ltf_opens_raw, ltf_closes_raw, ltf_volumes_raw] = if ltf_sampling_active
-    request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, [open, close, volume])
+    request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, [open, close, volume], calc_bars_count = 1)
 else
     [array.new<float>(0), array.new<float>(0), array.new<float>(0)]
 int ltf_open_count = ltf_opens_raw.size()
@@ -2208,6 +2208,7 @@ float[] ltf_volumes = ltf_volume_ok ? ltf_volumes_raw : array.new<float>(0)
 ltf_sample_count = ltf_price_ok ? ltf_sample_count_raw : 0
 ltf_bull_share = ltf_price_ok ? ltf_bull_share_raw : na
 ltf_volume_delta = ltf_volume_ok ? ltf_volume_delta_raw : na
+bool strict_ltf_available = ltf_sampling_active and ltf_volume_ok
 
 ema_fast = ta.ema(close, ema_fast_len)
 ema_slow = ta.ema(close, ema_slow_len)
@@ -2359,12 +2360,8 @@ if barstate.islast
     ob_blocks_bear.draw(ob_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
 
     if show_ob and ob_keep_broken and ob_keep_broken_max > 0
-        if barstate.islastconfirmedhistory[1]
-            ob_broken_bull.draw(ob_config_bull_broken, visible_left = visible_left_time, visible_right = visible_right_time)
-            ob_broken_bear.draw(ob_config_bear_broken, visible_left = visible_left_time, visible_right = visible_right_time)
-        else
-            ob_broken_new_bull.draw(ob_config_bull_broken, visible_left = visible_left_time, visible_right = visible_right_time)
-            ob_broken_new_bear.draw(ob_config_bear_broken, visible_left = visible_left_time, visible_right = visible_right_time)
+        ob_broken_bull.draw(ob_config_bull_broken, visible_left = visible_left_time, visible_right = visible_right_time)
+        ob_broken_bear.draw(ob_config_bear_broken, visible_left = visible_left_time, visible_right = visible_right_time)
     else
         ob_broken_bull.delete()
         ob_broken_bear.delete()
@@ -2414,12 +2411,8 @@ if barstate.islast
     fvgs_bear.draw(fvg_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
 
     if show_fvg_filled
-        if barstate.islastconfirmedhistory[1]
-            filled_fvgs_bull.draw(fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
-            filled_fvgs_bear.draw(fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
-        else
-            filled_fvgs_new_bull.draw(fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
-            filled_fvgs_new_bear.draw(fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
+        filled_fvgs_bull.draw(fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
+        filled_fvgs_bear.draw(fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
     else
         filled_fvgs_bull.delete()
         filled_fvgs_bear.delete()
@@ -2525,49 +2518,59 @@ var float touched_bull_fvg_bottom = na
 var int touched_bull_fvg_bar_index = na
 var int touched_bull_fvg_id = na
 
+int best_bull_ob_idx = na
 if ob_blocks_bull.size() > 0
     for i = ob_blocks_bull.size() - 1 to 0
         bull_ob_candidate = ob_blocks_bull.get(i)
         bool ob_candidate_active = low <= bull_ob_candidate.left_top.price and high >= bull_ob_candidate.right_bottom.price
-        if ob_candidate_active
-            active_bull_ob_top := bull_ob_candidate.left_top.price
-            active_bull_ob_bottom := bull_ob_candidate.right_bottom.price
-            active_bull_ob_break_level := bull_ob_candidate.break_price
-            touched_bull_ob_top := active_bull_ob_top
-            touched_bull_ob_bottom := active_bull_ob_bottom
-            touched_bull_ob_bar_index := bar_index
-            touched_bull_ob_id := bull_ob_candidate.id
-            break
+        if ob_candidate_active and (na(best_bull_ob_idx) or bull_ob_candidate.right_bottom.price < ob_blocks_bull.get(best_bull_ob_idx).right_bottom.price)
+            best_bull_ob_idx := i
+if not na(best_bull_ob_idx)
+    best_bull_ob = ob_blocks_bull.get(best_bull_ob_idx)
+    active_bull_ob_top := best_bull_ob.left_top.price
+    active_bull_ob_bottom := best_bull_ob.right_bottom.price
+    active_bull_ob_break_level := best_bull_ob.break_price
+    touched_bull_ob_top := active_bull_ob_top
+    touched_bull_ob_bottom := active_bull_ob_bottom
+    touched_bull_ob_bar_index := bar_index
+    touched_bull_ob_id := best_bull_ob.id
 
+int best_bull_fvg_idx = na
 if fvgs_bull.size() > 0
     for i = fvgs_bull.size() - 1 to 0
         bull_fvg_candidate = fvgs_bull.get(i)
         bool fvg_candidate_active = low <= bull_fvg_candidate.left_top.price and high >= bull_fvg_candidate.right_bottom.price
-        if fvg_candidate_active
-            active_bull_fvg_top := bull_fvg_candidate.left_top.price
-            active_bull_fvg_bottom := bull_fvg_candidate.right_bottom.price
-            active_bull_fvg_fill_level := bull_fvg_candidate.fill_target_level
-            touched_bull_fvg_top := active_bull_fvg_top
-            touched_bull_fvg_bottom := active_bull_fvg_bottom
-            touched_bull_fvg_bar_index := bar_index
-            touched_bull_fvg_id := bull_fvg_candidate.id
-            break
+        if fvg_candidate_active and (na(best_bull_fvg_idx) or bull_fvg_candidate.right_bottom.price < fvgs_bull.get(best_bull_fvg_idx).right_bottom.price)
+            best_bull_fvg_idx := i
+if not na(best_bull_fvg_idx)
+    best_bull_fvg = fvgs_bull.get(best_bull_fvg_idx)
+    active_bull_fvg_top := best_bull_fvg.left_top.price
+    active_bull_fvg_bottom := best_bull_fvg.right_bottom.price
+    active_bull_fvg_fill_level := best_bull_fvg.fill_target_level
+    touched_bull_fvg_top := active_bull_fvg_top
+    touched_bull_fvg_bottom := active_bull_fvg_bottom
+    touched_bull_fvg_bar_index := bar_index
+    touched_bull_fvg_id := best_bull_fvg.id
 
+int best_bear_ob_idx = na
 if ob_blocks_bear.size() > 0
     for i = ob_blocks_bear.size() - 1 to 0
         bear_ob_candidate = ob_blocks_bear.get(i)
         bool bear_ob_candidate_active = low <= bear_ob_candidate.left_top.price and high >= bear_ob_candidate.right_bottom.price
-        if bear_ob_candidate_active
-            active_bear_ob_break_level := bear_ob_candidate.break_price
-            break
+        if bear_ob_candidate_active and (na(best_bear_ob_idx) or bear_ob_candidate.left_top.price > ob_blocks_bear.get(best_bear_ob_idx).left_top.price)
+            best_bear_ob_idx := i
+if not na(best_bear_ob_idx)
+    active_bear_ob_break_level := ob_blocks_bear.get(best_bear_ob_idx).break_price
 
+int best_bear_fvg_idx = na
 if fvgs_bear.size() > 0
     for i = fvgs_bear.size() - 1 to 0
         bear_fvg_candidate = fvgs_bear.get(i)
         bool bear_fvg_candidate_active = low <= bear_fvg_candidate.left_top.price and high >= bear_fvg_candidate.right_bottom.price
-        if bear_fvg_candidate_active
-            active_bear_fvg_fill_level := bear_fvg_candidate.fill_target_level
-            break
+        if bear_fvg_candidate_active and (na(best_bear_fvg_idx) or bear_fvg_candidate.left_top.price > fvgs_bear.get(best_bear_fvg_idx).left_top.price)
+            best_bear_fvg_idx := i
+if not na(best_bear_fvg_idx)
+    active_bear_fvg_fill_level := fvgs_bear.get(best_bear_fvg_idx).fill_target_level
 
 bool in_bull_ob_zone = not na(active_bull_ob_top) and not na(active_bull_ob_bottom)
 bool in_bull_fvg_zone = not na(active_bull_fvg_top) and not na(active_bull_fvg_bottom)
@@ -2628,8 +2631,10 @@ float long_reclaim_swing_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ?
 bool long_reclaim_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
 float touched_bull_ob_top_prev = nz(touched_bull_ob_top[1], touched_bull_ob_top)
 float touched_bull_fvg_top_prev = nz(touched_bull_fvg_top[1], touched_bull_fvg_top)
-bool bull_reclaim_ob_cross = touched_bull_ob_still_active and not na(touched_bull_ob_top) and long_reclaim_ob_break_src > touched_bull_ob_top and nz(long_reclaim_ob_break_src[1], long_reclaim_ob_break_src) <= touched_bull_ob_top_prev
-bool bull_reclaim_fvg_cross = touched_bull_fvg_still_active and not na(touched_bull_fvg_top) and long_reclaim_fvg_break_src > touched_bull_fvg_top and nz(long_reclaim_fvg_break_src[1], long_reclaim_fvg_break_src) <= touched_bull_fvg_top_prev
+bool new_touched_ob_source = touched_bull_ob_id != touched_bull_ob_id[1]
+bool new_touched_fvg_source = touched_bull_fvg_id != touched_bull_fvg_id[1]
+bool bull_reclaim_ob_cross = touched_bull_ob_still_active and not na(touched_bull_ob_top) and long_reclaim_ob_break_src > touched_bull_ob_top and (new_touched_ob_source ? low <= touched_bull_ob_top : nz(long_reclaim_ob_break_src[1], long_reclaim_ob_break_src) <= touched_bull_ob_top_prev)
+bool bull_reclaim_fvg_cross = touched_bull_fvg_still_active and not na(touched_bull_fvg_top) and long_reclaim_fvg_break_src > touched_bull_fvg_top and (new_touched_fvg_source ? low <= touched_bull_fvg_top : nz(long_reclaim_fvg_break_src[1], long_reclaim_fvg_break_src) <= touched_bull_fvg_top_prev)
 bool bull_reclaim_ob_wick_reclaim = touched_bull_ob_still_active and not na(touched_bull_ob_top) and low <= touched_bull_ob_top and open <= touched_bull_ob_top and long_reclaim_ob_break_src > touched_bull_ob_top
 bool bull_reclaim_fvg_wick_reclaim = touched_bull_fvg_still_active and not na(touched_bull_fvg_top) and low <= touched_bull_fvg_top and open <= touched_bull_fvg_top and long_reclaim_fvg_break_src > touched_bull_fvg_top
 
@@ -2638,6 +2643,7 @@ bool bull_reclaim_fvg = long_reclaim_bar_ok and touched_bull_fvg_recent and not 
 bool bull_reclaim_internal_low = long_reclaim_bar_ok and not na(internal_trail_dn) and low < internal_trail_dn and long_reclaim_internal_break_src > internal_trail_dn
 bool bull_reclaim_swing_low = long_reclaim_bar_ok and not na(trail_dn) and low < trail_dn and long_reclaim_swing_break_src > trail_dn
 bool bull_reclaim_any = bull_reclaim_ob or bull_reclaim_fvg or bull_reclaim_internal_low or bull_reclaim_swing_low
+bool bull_reclaim_any_for_arm = bull_reclaim_ob or bull_reclaim_fvg or ((bull_reclaim_internal_low or bull_reclaim_swing_low) and long_zone_active)
 
 int zone_since_bars = ta.barssince(long_zone_active)
 int reclaim_since_bars = ta.barssince(bull_reclaim_any)
@@ -2692,9 +2698,8 @@ float prior_long_trigger_level = nz(ta.highest(high, long_confirm_lookback)[1], 
 // 1) Stored state
 var bool long_setup_armed = false
 var bool long_setup_confirmed = false
-var int long_setup_age = 0
-var int long_confirm_age = 0
 var int long_setup_arm_bar_index = na
+var int long_confirm_bar_index = na
 var float long_setup_trigger = na
 var float long_invalidation_level = na
 var string long_setup_source = 'None'
@@ -2739,15 +2744,10 @@ else if bull_reclaim_internal_low
     arm_invalidation_candidate := internal_trail_dn
 
 // 2) Invalidation
-if barstate.isnew
-    if long_setup_armed and not long_setup_confirmed
-        long_setup_age += 1
-
-    if long_setup_confirmed
-        long_confirm_age += 1
-
-bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age >= long_setup_expiry_bars
-bool long_confirm_expired = long_setup_confirmed and long_confirm_age >= long_confirm_expiry_bars
+int long_setup_age = long_setup_armed and not na(long_setup_arm_bar_index) ? bar_index - long_setup_arm_bar_index : 0
+int long_confirm_age = long_setup_confirmed and not na(long_confirm_bar_index) ? bar_index - long_confirm_bar_index : 0
+bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age > long_setup_expiry_bars
+bool long_confirm_expired = long_setup_confirmed and long_confirm_age > long_confirm_expiry_bars
 float long_invalidation_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE and use_live_invalidation_break ? low : close
 bool long_broken_down = not na(long_invalidation_level) and long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
 bool long_invalidated_now = bearish_abort_signal or long_broken_down or long_setup_expired or long_confirm_expired
@@ -2758,21 +2758,19 @@ if long_invalidated_now
     long_invalidate_signal := long_setup_armed or long_setup_confirmed
     long_setup_armed := false
     long_setup_confirmed := false
-    long_setup_age := 0
-    long_confirm_age := 0
     long_setup_arm_bar_index := na
+    long_confirm_bar_index := na
     long_setup_trigger := na
     long_invalidation_level := na
     long_setup_source := 'None'
 
 // 3) Arm setup
-if not long_invalidated_now and not long_invalidate_signal and bull_reclaim_any and zone_recent and not long_setup_armed and not bearish_abort_recent
+if not long_invalidated_now and not long_invalidate_signal and bull_reclaim_any_for_arm and zone_recent and not long_setup_armed and not bearish_abort_recent
     long_arm_signal := true
     long_setup_armed := true
     long_setup_confirmed := false
-    long_setup_age := 0
-    long_confirm_age := 0
     long_setup_arm_bar_index := bar_index
+    long_confirm_bar_index := na
     long_setup_trigger := arm_trigger_candidate
     long_invalidation_level := arm_invalidation_candidate
     long_setup_source := arm_source_text
@@ -2789,12 +2787,13 @@ if not long_confirm_structure_ok
 
 if long_confirm_break and long_confirm_structure_ok
     long_setup_confirmed := true
-    long_confirm_age := 0
+    long_confirm_bar_index := bar_index
     long_confirm_signal := true
 
 // 5) Ready state + visuals
 bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok
 bool long_ready_state = long_setup_confirmed and not long_confirm_expired and long_filters_ok and (not require_main_break_for_ready or bull_bos_alert or main_bos_recent)
+bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
 long_plan_active := (long_setup_armed or long_setup_confirmed) and not na(long_setup_trigger) and not na(long_invalidation_level)
 if long_plan_active
@@ -2995,7 +2994,7 @@ int ema_state = not show_ema_support ? 0 : ema_support_ok ? 5 : -1
 int adx_state = not use_adx ? 0 : not adx_data_ok ? 0 : plus_di < minus_di ? -1 : adx_value < adx_trend_min ? 0 : adx_value < adx_strong_min ? 3 : 5
 int relvol_state = not use_rel_volume ? 0 : not volume_data_ok ? -1 : na(rel_volume) ? 0 : rel_volume >= relvol_good ? 5 : rel_volume >= 1.0 ? 2 : -1
 int vwap_state = not use_vwap_filter ? 0 : not intraday_time_chart ? 0 : not vwap_session_active ? 0 : vwap_filter_ok ? 5 : -1
-int volume_quality_state = volume_data_ok ? 5 : -1
+int volume_quality_state = use_ltf_for_strict_entry ? strict_ltf_available ? 5 : -1 : volume_data_ok ? 5 : -1
 int ltf_bias_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 : not ltf_timeframe_valid ? 0 : not ltf_ratio_ok or not ltf_sample_count_ok ? -1 : na(ltf_bull_share) ? 0 : ltf_bull_share >= 0.60 ? 5 : ltf_bull_share >= ltf_bias_hint ? 4 : ltf_bull_share >= 0.50 ? 2 : -1
 int ltf_delta_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 : not ltf_timeframe_valid ? 0 : not ltf_ratio_ok or not ltf_sample_count_ok ? -1 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0.15 ? 5 : ltf_volume_delta >= 0 ? 4 : -1
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
@@ -3011,7 +3010,8 @@ string ema_display = ema_state_text
 string adx_display = not use_adx ? 'Off' : str.format('{0,number,#.#} | {1}', adx_value, adx_state_text)
 string relvol_display = relvol_text
 string vwap_display = vwap_state_text
-string volume_quality_display = volume_data_ok ? 'OK' : 'Limited'
+string strict_ltf_display = not use_ltf_for_strict_entry ? 'Off' : strict_ltf_available ? 'OK' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : not volume_data_ok ? 'No Vol' : 'Blocked'
+string volume_quality_display = str.format('{0}\nStrict {1}', volume_data_ok ? 'OK' : 'Limited', strict_ltf_display)
 string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
 string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
@@ -3072,11 +3072,17 @@ plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2'
 // Long-dip alert presets
 // --------------------------------------------------
 alert_long_watchlist = bullish_trend_condition and long_zone_active
-alert_long_armed = bullish_trend_condition and zone_recent and reclaim_recent and long_setup_armed
+alert_long_armed = bullish_trend_condition and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_condition and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
 alert_long_clean = barstate.isconfirmed and bullish_trend_condition and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
 alert_long_entry_best = barstate.isconfirmed and bullish_trend_condition and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok
-alert_long_entry_strict = barstate.isconfirmed and bullish_trend_condition and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and ltf_volume_ok and ltf_volume_delta >= 0
+bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or strict_ltf_available and ltf_volume_delta >= 0
+float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
+float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
+float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
+float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
+float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
+alert_long_entry_strict = barstate.isconfirmed and bullish_trend_condition and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok
 alert_long_fail = long_invalidate_signal
 alert_long_watchlist_event = edge(alert_long_watchlist)
 alert_long_armed_event = edge(alert_long_armed)
@@ -3238,25 +3244,22 @@ if enable_dynamic_alerts and long_ready_signal and not str.contains(dynamic_aler
     alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and alert_long_watchlist_event and not str.contains(dynamic_alert_seen_keys, '|long_watchlist|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_watchlist|'
-    alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
     alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed', long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
-    alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting', long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-    alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup', long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and alert_long_entry_best_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_best|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
-    alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met', long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and alert_long_entry_strict_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_strict|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_strict|'
-    alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Strict long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
-if enable_dynamic_alerts and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_failed|')
-    dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_failed|'
-    alert(build_dynamic_alert_message(true, true, 'Long Dip Failed', 'Setup invalidated', long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Strict long entry condition met', long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_invalidated|'
     alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}', long_last_invalid_source), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
