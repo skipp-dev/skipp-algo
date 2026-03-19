@@ -11,11 +11,16 @@ All notable changes to this project are documented in this file.
 - **SMC++ long-dip and object lifecycle hardening:**
   - Fixed `update(FVG this)` so the close-vs-live fill mode is recalculated per gap instead of leaking through a static `var`, which could silently mis-handle later FVG fills.
   - Fixed OB/FVG reclaim detection so a reclaim can complete on a later bar after the initial zone touch, as long as it stays within the configured long signal window.
+  - Fixed a follow-up reclaim regression so OB/FVG reclaims fire only once on the actual crossover bar instead of staying latched true across later bars above the reclaimed zone.
   - Replaced fixed-millisecond OB/FVG projection with exact event timestamps for time-based overlays and index-based drawing for chart-timeframe OB/FVG objects, removing weekend/holiday/DST drift.
   - Wired the existing OB/FVG garbage-collection cycle through the main indicator so insignificant objects can actually be cleaned up on schedule.
   - Fixed HTF FVG retention to respect `Keep filled` history settings instead of using a hardcoded history depth of `2`.
   - Stopped HTF FVG `request.security()` calls from running while the HTF overlay is hidden.
   - Tightened long setup expiry semantics so setups now expire exactly when they reach the configured bar limit.
+  - Aligned long-dip preset alerts with the multi-bar setup model by using recent-zone context instead of requiring the current bar to still overlap the pullback zone.
+  - De-spammed dynamic long-dip state alerts so watchlist, armed, early, clean, and entry presets now emit only on state transitions.
+  - Restored the pre-break OB cutoff semantics for index-based rendering so broken order blocks no longer extend one bar too far to the right.
+  - Removed leftover dead code from earlier alert/dashboard iterations, including unused compact trend text, unused HTF state locals, unused intrabar event counting, and unused legacy FVG plotting wrappers.
   - Removed redundant per-bar OB/FVG registry rebuilds from the dashboard count path and switched those counts to direct array sizes.
   - Hardened the premium/discount warning helper to reuse a single warning label instead of creating a new one every bar.
 
