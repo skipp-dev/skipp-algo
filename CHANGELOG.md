@@ -8,6 +8,17 @@ All notable changes to this project are documented in this file.
 
 ### Fixed (2026-03-19)
 
+- **SMC++ long-dip and object lifecycle hardening:**
+  - Fixed `update(FVG this)` so the close-vs-live fill mode is recalculated per gap instead of leaking through a static `var`, which could silently mis-handle later FVG fills.
+  - Fixed OB/FVG reclaim detection so a reclaim can complete on a later bar after the initial zone touch, as long as it stays within the configured long signal window.
+  - Replaced fixed-millisecond OB/FVG projection with exact event timestamps for time-based overlays and index-based drawing for chart-timeframe OB/FVG objects, removing weekend/holiday/DST drift.
+  - Wired the existing OB/FVG garbage-collection cycle through the main indicator so insignificant objects can actually be cleaned up on schedule.
+  - Fixed HTF FVG retention to respect `Keep filled` history settings instead of using a hardcoded history depth of `2`.
+  - Stopped HTF FVG `request.security()` calls from running while the HTF overlay is hidden.
+  - Tightened long setup expiry semantics so setups now expire exactly when they reach the configured bar limit.
+  - Removed redundant per-bar OB/FVG registry rebuilds from the dashboard count path and switched those counts to direct array sizes.
+  - Hardened the premium/discount warning helper to reuse a single warning label instead of creating a new one every bar.
+
 - **SMC++ live alert and timeframe hardening:**
   - Fixed intrabar OB/FVG live alerts in `SMC++.pine` to prefer exact engine event buffers (`ob_broken_new_*`, `filled_fvgs_new_*`) before scanning active objects, preventing silent misses on the event bar.
   - Fixed FVG fill alert levels to report the correct newest filled gap level by using the engine's event ordering instead of `.last()`.

@@ -546,9 +546,6 @@ track_obs(
     [tracking_blocks_bull, tracking_blocks_bear, bull_ob_confirmed, bear_ob_confirmed, broken_blocks_bull, broken_blocks_bear, broken_blocks_new_bull, broken_blocks_new_bear, discarded_blocks_bull, discarded_blocks_bear]
 
 method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
-    int tf_sec = timeframe.in_seconds()
-    int tf_ms = na(tf_sec) ? 0 : tf_sec * 1000
-
     visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right)
 
     if not visible_match
@@ -567,7 +564,7 @@ method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, s
             txt = config.show_text ? config.show_profile and config.profile_config.show_poc and config.profile_config.show_labels ? str.format('{0}{1}{2}', config.txt, txt_fvg, txt_id) : str.format('{0}{1}{2}{3}', config.txt, txt_fvg, txt_probability, txt_id) : ''
 
             xloc_bartime = config.args.xloc == xloc.bar_time
-            int broken_right_time = tf_ms > 0 ? this.broken_time - tf_ms : this.broken_time
+            int broken_right_time = this.broken_time
 
             int left = not na(left_override) ? left_override : xloc_bartime ? this.left_top.time : this.left_top.index
             int right = not na(right_override) ? right_override : config.extend_until_broken ? this.broken ? xloc_bartime ? broken_right_time : this.broken_index - 1 : xloc_bartime ? time : bar_index : xloc_bartime ? this.right_bottom.time : this.right_bottom.index
@@ -924,7 +921,7 @@ method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, in
     fvgs
 
 method update(FVG this) =>
-    var filled_by_close = this.fill_mode == LevelBreakMode.CLOSE
+    bool filled_by_close = this.fill_mode == LevelBreakMode.CLOSE
     if not this.filled and (not filled_by_close or barstate.isconfirmed)
         if this.dir == 1
             fill_src = filled_by_close ? close : low
@@ -1038,9 +1035,6 @@ fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_
     [bullish_fvg_alert, bearish_fvg_alert, buffer_bull, buffer_bear, new_bull, new_bear, buffer_bull_filled, buffer_bear_filled, buffer_bull_filled_new, buffer_bear_filled_new, buffer_bull_discarded, buffer_bear_discarded]
 
 method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
-    int tf_sec = timeframe.in_seconds()
-    int tf_ms = na(tf_sec) ? 0 : tf_sec * 1000
-
     visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right)
 
     if not visible_match
@@ -1054,20 +1048,20 @@ method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool for
             txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_probability)
 
             xloc_bartime = config.box_args.xloc == xloc.bar_time
-            int fill_right_time = tf_ms > 0 ? this.fill_time - tf_ms : this.fill_time
-            int extended_left_time = tf_ms > 0 ? this.left_top.time + config.extend_bars * tf_ms : this.left_top.time
+            int fill_right_time = this.fill_time
+            int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
             int left = not na(left_override) ? left_override : xloc_bartime ? this.left_top.time : this.left_top.index
             int right = not na(right_override) ? right_override :
              config.extend_until_filled ?
                  this.filled ?
                      xloc_bartime ? fill_right_time : this.fill_index - 1
                  :
-                     xloc_bartime ? math.max(extended_left_time, time) : math.max(this.left_top.index + config.extend_bars, bar_index)
+                     xloc_bartime ? time : math.max(this.left_top.index + config.extend_bars, bar_index)
              :
                  this.filled ?
-                     xloc_bartime ? math.min(fill_right_time, math.max(extended_left_time, this.right_bottom.time)) : math.min(this.fill_index - 1, math.max(this.left_top.index + config.extend_bars, this.right_bottom.index))
+                     xloc_bartime ? math.min(fill_right_time, base_right_time) : math.min(this.fill_index - 1, math.max(this.left_top.index + config.extend_bars, this.right_bottom.index))
                  :
-                     xloc_bartime ? math.max(extended_left_time, this.right_bottom.time) : math.max(this.left_top.index + config.extend_bars, this.right_bottom.index)
+                     xloc_bartime ? base_right_time : math.max(this.left_top.index + config.extend_bars, this.right_bottom.index)
 
             chart.point plot_left_top = D.create_point(left, this.left_top.price, config.box_args.xloc)
             chart.point plot_right_bottom = D.create_point(right, this.right_bottom.price, config.box_args.xloc)
@@ -1156,11 +1150,18 @@ premium_discount_zones_plot(bool show, int pd_start, float premium_top, float pr
     var eq_lbl = label.new(na, na, text = 'Equilibrium', color = #00000000, textcolor = color_equilibrium, style = label.style_label_left, size = size.small)
     var discount = box.new(na, na, na, na, bgcolor = color.new(color_discount, 80), border_color = na)
     var discount_lbl = label.new(na, na, text = 'Discount', color = #00000000, textcolor = color_discount, style = label.style_label_up, size = size.small)
+    var label pd_warning_lbl = na
 
     if show and barstate.isnew
         if bar_index - pd_start > 244
-            label.new(bar_index, close, 'premium zone starts too far back')
+            if na(pd_warning_lbl)
+                pd_warning_lbl := label.new(bar_index, close, 'premium zone starts too far back')
+            else
+                label.set_xy(pd_warning_lbl, bar_index, close)
         else
+            if not na(pd_warning_lbl)
+                label.delete(pd_warning_lbl)
+                pd_warning_lbl := na
             box.set_lefttop(premium, pd_start, premium_top)
             box.set_rightbottom(premium, bar_index, premium_btm)
             label.set_xy(premium_lbl, int(math.avg(pd_start, bar_index)), premium_top)
@@ -1366,6 +1367,7 @@ var bool enable_live_break_alerts = input.bool(true, 'Enable intrabar live break
 
 var g_perf = 'Performance'
 var bool render_visible_only = input.bool(true, 'Render visible range only', group = g_perf, tooltip = PERFORMANCE_TOOLTIP)
+var int object_gc_cycle = input.int(250, 'Object GC Cycle', minval = 0, group = g_perf, display = display.none, tooltip = 'Runs periodic cleanup of insignificant OB/FVG objects. Set to 0 to disable GC.')
 
 var g_long = 'Long Dip Tools'
 // Visuals
@@ -1465,14 +1467,14 @@ ob_threshold_atr = ND.atr(ATR_LEN_MAIN)
 ob_threshold_min = ob_threshold_atr * ob_filter_min_mult
 ob_threshold_max = ob_threshold_atr * ob_filter_max_mult
 
-var PF.ProfileConfig profile_config_bull = PF.ProfileConfig.new(poc_label_text = 'OB - POC ⬈', extend = ob_extend_until_broken, show_labels = true, args_poc_line = D.LineArgs.new(bull_ob_css_line, line.style_dashed, xloc = xloc.bar_time), args_poc_label = D.LabelArgs.new(bull_ob_css_line, xloc = xloc.bar_time, style = label.style_label_left, size = size.normal))
-var PF.ProfileConfig profile_config_bear = PF.ProfileConfig.new(poc_label_text = 'OB - POC ⬊', extend = ob_extend_until_broken, show_labels = true, args_poc_line = D.LineArgs.new(bear_ob_css_line, line.style_dashed, xloc = xloc.bar_time), args_poc_label = D.LabelArgs.new(bear_ob_css_line, xloc = xloc.bar_time, style = label.style_label_left, size = size.normal))
-var OrderBlockConfig ob_config_bull = OrderBlockConfig.new(show_ob, ob_showlast, show_id = show_ob_id, show_profile = use_ob_profile, args = D.BoxArgs.new(bg_color = bull_ob_css, border_color = #00000000, xloc = xloc.bar_time), txt_args = D.BoxTextArgs.new(color.green, size.normal, text_halign = text.align_right), show_text = false, extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull)
-var OrderBlockConfig ob_config_bear = OrderBlockConfig.new(show_ob, ob_showlast, show_id = show_ob_id, show_profile = use_ob_profile, args = D.BoxArgs.new(bg_color = bear_ob_css, border_color = #00000000, xloc = xloc.bar_time), txt_args = D.BoxTextArgs.new(color.red, size.normal, text_halign = text.align_right), show_text = false, extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bear)
-var PF.ProfileConfig profile_config_bull_broken = PF.ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = D.LineArgs.new(bull_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_time), args_poc_label = D.LabelArgs.new(#00000000))
-var PF.ProfileConfig profile_config_bear_broken = PF.ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = D.LineArgs.new(bear_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_time), args_poc_label = D.LabelArgs.new(#00000000))
-var OrderBlockConfig ob_config_bull_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bull_ob_css_broken, border_color = #00000000, xloc = xloc.bar_time), txt_args = D.BoxTextArgs.new(bull_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull_broken)
-var OrderBlockConfig ob_config_bear_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bear_ob_css_broken, border_color = #00000000, xloc = xloc.bar_time), txt_args = D.BoxTextArgs.new(bear_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bear_broken)
+var PF.ProfileConfig profile_config_bull = PF.ProfileConfig.new(poc_label_text = 'OB - POC ⬈', extend = ob_extend_until_broken, show_labels = true, args_poc_line = D.LineArgs.new(bull_ob_css_line, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(bull_ob_css_line, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal))
+var PF.ProfileConfig profile_config_bear = PF.ProfileConfig.new(poc_label_text = 'OB - POC ⬊', extend = ob_extend_until_broken, show_labels = true, args_poc_line = D.LineArgs.new(bear_ob_css_line, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(bear_ob_css_line, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal))
+var OrderBlockConfig ob_config_bull = OrderBlockConfig.new(show_ob, ob_showlast, show_id = show_ob_id, show_profile = use_ob_profile, args = D.BoxArgs.new(bg_color = bull_ob_css, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(color.green, size.normal, text_halign = text.align_right), show_text = false, extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull)
+var OrderBlockConfig ob_config_bear = OrderBlockConfig.new(show_ob, ob_showlast, show_id = show_ob_id, show_profile = use_ob_profile, args = D.BoxArgs.new(bg_color = bear_ob_css, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(color.red, size.normal, text_halign = text.align_right), show_text = false, extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bear)
+var PF.ProfileConfig profile_config_bull_broken = PF.ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = D.LineArgs.new(bull_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(#00000000))
+var PF.ProfileConfig profile_config_bear_broken = PF.ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = D.LineArgs.new(bear_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_index), args_poc_label = D.LabelArgs.new(#00000000))
+var OrderBlockConfig ob_config_bull_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bull_ob_css_broken, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(bull_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull_broken)
+var OrderBlockConfig ob_config_bear_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bear_ob_css_broken, border_color = #00000000, xloc = xloc.bar_index), txt_args = D.BoxTextArgs.new(bear_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bear_broken)
 
 int chart_tf_sec = nz(timeframe.in_seconds(), 0)
 auto_selected_ltf = auto_ltf_timeframe(chart_tf_sec)
@@ -1608,16 +1610,7 @@ if show_internal_bear_bos or show_internal_bear_choch
     plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_alert, show_internal_bear_choch and internal_bear_choch_alert, structure_label_args_internal_bear, structure_line_args_internal_bear, keep_history = true, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
 bool enable_ob_engine = use_ob_engine
-[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = use_ob_profile, align_edge_to_value_area = use_ob_profile, align_break_price_to_poc = use_ob_profile, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode)
-
-var map<int, OrderBlock> ob_registry_bull = map.new<int, OrderBlock>()
-var map<int, OrderBlock> ob_registry_bear = map.new<int, OrderBlock>()
-ob_registry_bull.clear()
-ob_registry_bear.clear()
-for block in ob_blocks_bull
-    ob_registry_bull.put(block.id, block)
-for block in ob_blocks_bear
-    ob_registry_bear.put(block.id, block)
+[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = use_ob_profile, align_edge_to_value_area = use_ob_profile, align_break_price_to_poc = use_ob_profile, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle)
 
 varip bool live_bull_ob_break = false
 varip bool live_bear_ob_break = false
@@ -1680,26 +1673,13 @@ float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 
 var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display = display.none, tooltip = 'Keeps FVG-based long-dip logic and alerts running even if chart rendering is hidden.')
 
 bool enable_fvg_engine = use_fvg_engine
-[bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max)
+[bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max, object_gc_cycle)
 
-var map<int, FVG> fvg_registry_bull = map.new<int, FVG>()
-var map<int, FVG> fvg_registry_bear = map.new<int, FVG>()
-fvg_registry_bull.clear()
-fvg_registry_bear.clear()
-fvg_slot = 0
-for fvg in fvgs_bull
-    fvg_registry_bull.put(fvg_slot, fvg)
-    fvg_slot += 1
-fvg_slot := 0
-for fvg in fvgs_bear
-    fvg_registry_bear.put(fvg_slot, fvg)
-    fvg_slot += 1
-
-var fvg_config_bull = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬈', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc.bar_time), box_text_args = D.BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc.bar_time), label_args = D.LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.normal, text_align = text.align_left))
-var fvg_config_bear = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬊', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_fvg_line_css, 0, line.style_solid, bear_fvg_css, xloc.bar_time), box_text_args = D.BoxTextArgs.new(bear_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_fvg_line_css, line.style_solid, 1, xloc.bar_time), label_args = D.LabelArgs.new(bear_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bull = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬈', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc.bar_index), box_text_args = D.BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = D.LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bear = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬊', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_fvg_line_css, 0, line.style_solid, bear_fvg_css, xloc.bar_index), box_text_args = D.BoxTextArgs.new(bear_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = D.LabelArgs.new(bear_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 var show_fvg_filled = show_fvg and fvg_keep_filled and fvg_keep_filled_max > 0
-var fvg_config_bull_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_probability = false, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc.bar_time), box_text_args = D.BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc.bar_time), label_args = D.LabelArgs.new(#00000000, xloc = xloc.bar_time, style = label.style_label_left, size = size.normal, text_align = text.align_left))
-var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_probability = false, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc.bar_time), box_text_args = D.BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc.bar_time), label_args = D.LabelArgs.new(#00000000, xloc = xloc.bar_time, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bull_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_probability = false, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc.bar_index), box_text_args = D.BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = D.LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_probability = false, extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc.bar_index), box_text_args = D.BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = D.LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 
 bool bullish_fvg_filled_alert = filled_fvgs_new_bull.size() > 0
 bool bearish_fvg_filled_alert = filled_fvgs_new_bear.size() > 0
@@ -1784,11 +1764,16 @@ var htf_fvg_config_bear = FVGConfig.new(show_box = show_htf_fvg, show_target = s
 var htf_fvg_config_bull_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_htf_fvg_line_css_filled, 0, line.style_solid, bull_htf_fvg_css_filled, xloc = xloc.bar_time), box_text_args = D.BoxTextArgs.new(bull_htf_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_htf_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = D.LabelArgs.new(bull_htf_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 var htf_fvg_config_bear_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_htf_fvg_line_css_filled, 0, line.style_solid, bear_htf_fvg_css_filled, xloc = xloc.bar_time), box_text_args = D.BoxTextArgs.new(bear_htf_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_htf_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = D.LabelArgs.new(bear_htf_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 
-[_, htf_new_fvg_bull] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(1, show_htf_fvg, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
-[_, htf_new_fvg_bear] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(-1, show_htf_fvg, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+FVG htf_new_fvg_bull = na
+FVG htf_new_fvg_bear = na
+if show_htf_fvg
+    [_, htf_new_fvg_bull_tmp] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(1, true, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+    [_, htf_new_fvg_bear_tmp] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(-1, true, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+    htf_new_fvg_bull := htf_new_fvg_bull_tmp
+    htf_new_fvg_bear := htf_new_fvg_bear_tmp
 htf_bar_changed = timeframe.change(fvg_htf)
 htf_fvg_confirmed = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed and (htf_bar_changed or htf_fvg_tf_sec == chart_tf_sec)
-[htf_fvg_buffer_bull, htf_fvg_buffer_bear, htf_fvg_buffer_bull_filled, htf_fvg_buffer_bear_filled, htf_fvg_buffer_bull_filled_new, htf_fvg_buffer_bear_filled_new, htf_fvg_buffer_bull_discarded, htf_fvg_buffer_bear_discarded] = fvgs_objects_htf(htf_new_fvg_bull, htf_new_fvg_bear, htf_fvg_confirmed, fvg_size_threshold, active_break_mode, fvg_fill_target_ratio, 2)
+[htf_fvg_buffer_bull, htf_fvg_buffer_bear, htf_fvg_buffer_bull_filled, htf_fvg_buffer_bear_filled, htf_fvg_buffer_bull_filled_new, htf_fvg_buffer_bear_filled_new, htf_fvg_buffer_bull_discarded, htf_fvg_buffer_bear_discarded] = fvgs_objects_htf(htf_new_fvg_bull, htf_new_fvg_bear, htf_fvg_confirmed, fvg_size_threshold, active_break_mode, fvg_fill_target_ratio, htf_fvg_keep_filled_max, object_gc_cycle)
 
 last_bull_ob_break_level = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().break_price : na
 last_bear_ob_break_level = ob_blocks_bear.size() > 0 ? ob_blocks_bear.last().break_price : na
@@ -1808,6 +1793,12 @@ float active_bull_fvg_bottom = na
 float active_bull_fvg_fill_level = na
 float active_bear_ob_break_level = na
 float active_bear_fvg_fill_level = na
+var float touched_bull_ob_top = na
+var float touched_bull_ob_bottom = na
+var int touched_bull_ob_bar_index = na
+var float touched_bull_fvg_top = na
+var float touched_bull_fvg_bottom = na
+var int touched_bull_fvg_bar_index = na
 
 int bull_ob_scan_start = math.max(ob_blocks_bull.size() - long_zone_scan_limit, 0)
 if ob_blocks_bull.size() > 0
@@ -1818,6 +1809,9 @@ if ob_blocks_bull.size() > 0
             active_bull_ob_top := bull_ob_candidate.left_top.price
             active_bull_ob_bottom := bull_ob_candidate.right_bottom.price
             active_bull_ob_break_level := bull_ob_candidate.break_price
+            touched_bull_ob_top := active_bull_ob_top
+            touched_bull_ob_bottom := active_bull_ob_bottom
+            touched_bull_ob_bar_index := bar_index
             break
 
 int bull_fvg_scan_start = math.max(fvgs_bull.size() - long_zone_scan_limit, 0)
@@ -1829,6 +1823,9 @@ if fvgs_bull.size() > 0
             active_bull_fvg_top := bull_fvg_candidate.left_top.price
             active_bull_fvg_bottom := bull_fvg_candidate.right_bottom.price
             active_bull_fvg_fill_level := bull_fvg_candidate.fill_target_level
+            touched_bull_fvg_top := active_bull_fvg_top
+            touched_bull_fvg_bottom := active_bull_fvg_bottom
+            touched_bull_fvg_bar_index := bar_index
             break
 
 int bear_ob_scan_start = math.max(ob_blocks_bear.size() - long_zone_scan_limit, 0)
@@ -1851,6 +1848,8 @@ if fvgs_bear.size() > 0
 
 bool in_bull_ob_zone = not na(active_bull_ob_top) and not na(active_bull_ob_bottom)
 bool in_bull_fvg_zone = not na(active_bull_fvg_top) and not na(active_bull_fvg_bottom)
+bool touched_bull_ob_recent = not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
+bool touched_bull_fvg_recent = not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
 bool long_zone_active = in_bull_ob_zone or in_bull_fvg_zone
 float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level
 float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
@@ -1903,8 +1902,8 @@ float long_reclaim_internal_break_src = signal_mode == SignalMode.AGGRESSIVE_LIV
 float long_reclaim_swing_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
 bool long_reclaim_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
 
-bool bull_reclaim_ob = long_reclaim_bar_ok and in_bull_ob_zone and long_reclaim_ob_break_src > active_bull_ob_top
-bool bull_reclaim_fvg = long_reclaim_bar_ok and in_bull_fvg_zone and long_reclaim_fvg_break_src > active_bull_fvg_top
+bool bull_reclaim_ob = long_reclaim_bar_ok and touched_bull_ob_recent and long_reclaim_ob_break_src > touched_bull_ob_top
+bool bull_reclaim_fvg = long_reclaim_bar_ok and touched_bull_fvg_recent and long_reclaim_fvg_break_src > touched_bull_fvg_top
 bool bull_reclaim_internal_low = long_reclaim_bar_ok and not na(internal_trail_dn) and low < internal_trail_dn and long_reclaim_internal_break_src > internal_trail_dn
 bool bull_reclaim_swing_low = long_reclaim_bar_ok and not na(trail_dn) and low < trail_dn and long_reclaim_swing_break_src > trail_dn
 bool bull_reclaim_any = bull_reclaim_ob or bull_reclaim_fvg or bull_reclaim_internal_low or bull_reclaim_swing_low
@@ -1992,10 +1991,10 @@ bool long_building_state = false
 
 if bull_reclaim_ob
     arm_source_text := 'OB'
-    arm_invalidation_candidate := active_bull_ob_bottom
+    arm_invalidation_candidate := touched_bull_ob_bottom
 else if bull_reclaim_fvg
     arm_source_text := 'FVG'
-    arm_invalidation_candidate := active_bull_fvg_bottom
+    arm_invalidation_candidate := touched_bull_fvg_bottom
 else if bull_reclaim_swing_low
     arm_source_text := 'Swing Low'
     arm_invalidation_candidate := trail_dn
@@ -2010,7 +2009,7 @@ if long_setup_armed and not long_setup_confirmed
 if long_setup_confirmed
     long_confirm_age += 1
 
-bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age > long_setup_expiry_bars
+bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age >= long_setup_expiry_bars
 float long_invalidation_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE and use_live_invalidation_break ? low : close
 bool long_broken_down = not na(long_invalidation_level) and long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
 bool long_invalidated_now = bearish_abort_signal or long_broken_down or long_setup_expired
@@ -2241,10 +2240,10 @@ int visible_bear_obs = 0
 int visible_bull_fvgs = 0
 int visible_bear_fvgs = 0
 if dashboard_counts_active
-    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time) : ob_registry_bull.size()
-    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time) : ob_registry_bear.size()
-    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time) : fvg_registry_bull.size()
-    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time) : fvg_registry_bear.size()
+    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time) : ob_blocks_bull.size()
+    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time) : ob_blocks_bear.size()
+    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time) : fvgs_bull.size()
+    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time) : fvgs_bear.size()
 htf_bull_count = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0)
 htf_bear_count = (mtf_trend_1 < 0 ? 1 : 0) + (mtf_trend_2 < 0 ? 1 : 0) + (mtf_trend_3 < 0 ? 1 : 0)
 int trend_state = structure_display_trend > 0 ? 5 : structure_display_trend < 0 ? -1 : 0
