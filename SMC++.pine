@@ -1133,7 +1133,10 @@ track_obs(
             if bull_should_confirm
                 if align_edge_to_value_area and not na(bull_ob.profile) ? in_range(math.round_to_mintick(bull_ob.profile.vah - bull_ob.profile.val), ob_size_max_bull, ob_size_min_bull) : in_range(math.round_to_mintick(bull_ob.left_top.price - bull_ob.right_bottom.price), ob_size_max_bull, ob_size_min_bull)
                     bull_ob.trailing := false
+                    next_id += 1
+                    bull_ob.id := next_id
                     bull_ob_confirmed := bull_ob.copy()
+                    bull_ob_confirmed.id := bull_ob.id
                     bull_ob_confirmed.left_top := bull_ob.left_top.copy()
                     bull_ob_confirmed.right_bottom := bull_ob.right_bottom.copy()
 
@@ -1153,9 +1156,6 @@ track_obs(
 
                     if barstate.isconfirmed
                         bull_ob.reset_tracking()
-
-                    next_id += 1
-                    bull_ob.id := next_id
                 else
                     bull_ob.reset_tracking()
 
@@ -1177,7 +1177,10 @@ track_obs(
             if bear_should_confirm
                 if align_edge_to_value_area and not na(bear_ob.profile) ? in_range(math.round_to_mintick(bear_ob.profile.vah - bear_ob.profile.val), ob_size_max_bear, ob_size_min_bear) : in_range(math.round_to_mintick(bear_ob.left_top.price - bear_ob.right_bottom.price), ob_size_max_bear, ob_size_min_bear)
                     bear_ob.trailing := false
+                    next_id += 1
+                    bear_ob.id := next_id
                     bear_ob_confirmed := bear_ob.copy()
+                    bear_ob_confirmed.id := bear_ob.id
                     bear_ob_confirmed.left_top := bear_ob.left_top.copy()
                     bear_ob_confirmed.right_bottom := bear_ob.right_bottom.copy()
 
@@ -1197,9 +1200,6 @@ track_obs(
 
                     if barstate.isconfirmed
                         bear_ob.reset_tracking()
-
-                    next_id += 1
-                    bear_ob.id := next_id
                 else
                     bear_ob.reset_tracking()
 
@@ -1993,6 +1993,15 @@ push_capped_label(label[] buffer, label new_label, int max_keep) =>
             while buffer.size() > max_keep
                 label.delete(buffer.shift())
 
+trim_label_history(label[] history, int max_keep) =>
+    if max_keep <= 0
+        for i = history.size() - 1 to 0
+            label.delete(history.get(i))
+        history.clear()
+    else
+        while history.size() > max_keep
+            label.delete(history.shift())
+
 string SHOW_SWING = 'Display market structure.'
 string SHOW_SWING_POINTS = 'Display swing points as labels on the chart.'
 string SHOW_SWHL_POINTS = 'Highlight the most recent strong and weak highs/lows on the chart.'
@@ -2697,8 +2706,8 @@ float long_reclaim_swing_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ?
 bool long_reclaim_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
 float touched_bull_ob_top_prev = nz(touched_bull_ob_top[1], touched_bull_ob_top)
 float touched_bull_fvg_top_prev = nz(touched_bull_fvg_top[1], touched_bull_fvg_top)
-bool new_touched_ob_source = touched_bull_ob_id != touched_bull_ob_id[1]
-bool new_touched_fvg_source = touched_bull_fvg_id != touched_bull_fvg_id[1]
+bool new_touched_ob_source = not na(touched_bull_ob_id) and (na(touched_bull_ob_id[1]) or touched_bull_ob_id != touched_bull_ob_id[1])
+bool new_touched_fvg_source = not na(touched_bull_fvg_id) and (na(touched_bull_fvg_id[1]) or touched_bull_fvg_id != touched_bull_fvg_id[1])
 bool bull_reclaim_ob_cross = touched_bull_ob_still_active and not na(touched_bull_ob_top) and long_reclaim_ob_break_src > touched_bull_ob_top and (new_touched_ob_source ? low <= touched_bull_ob_top : nz(long_reclaim_ob_break_src[1], long_reclaim_ob_break_src) <= touched_bull_ob_top_prev)
 bool bull_reclaim_fvg_cross = touched_bull_fvg_still_active and not na(touched_bull_fvg_top) and long_reclaim_fvg_break_src > touched_bull_fvg_top and (new_touched_fvg_source ? low <= touched_bull_fvg_top : nz(long_reclaim_fvg_break_src[1], long_reclaim_fvg_break_src) <= touched_bull_fvg_top_prev)
 bool bull_reclaim_ob_wick_reclaim = touched_bull_ob_still_active and not na(touched_bull_ob_top) and low <= touched_bull_ob_top and open <= touched_bull_ob_top and long_reclaim_ob_break_src > touched_bull_ob_top
@@ -2957,6 +2966,10 @@ var int last_long_ready_marker_bar = na
 var label[] reclaim_marker_history = array.new<label>(0)
 var label[] long_state_marker_history = array.new<label>(0)
 var label[] long_ready_marker_history = array.new<label>(0)
+if barstate.islast
+    trim_label_history(reclaim_marker_history, show_reclaim_markers ? long_marker_history_limit : 0)
+    trim_label_history(long_state_marker_history, show_long_confirmation_markers ? long_marker_history_limit : 0)
+    trim_label_history(long_ready_marker_history, show_long_confirmation_markers ? long_marker_history_limit : 0)
 bool can_draw_reclaim_marker = na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap
 bool can_draw_long_state_marker = na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap
 bool can_draw_long_ready_marker = na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap
