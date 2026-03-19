@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-03-19)
+
+- **SMC++ live alert and timeframe hardening:**
+  - Fixed intrabar OB/FVG live alerts in `SMC++.pine` to prefer exact engine event buffers (`ob_broken_new_*`, `filled_fvgs_new_*`) before scanning active objects, preventing silent misses on the event bar.
+  - Fixed FVG fill alert levels to report the correct newest filled gap level by using the engine's event ordering instead of `.last()`.
+  - Hardened lower-timeframe and HTF-FVG timeframe validation for non-time-based charts by normalizing timeframe seconds and rejecting unsupported chart/HTF combinations explicitly.
+  - Tightened HTF FVG validation so the selected HTF must again be strictly higher than the chart timeframe.
+  - Upgraded realtime marker dedupe guards to `varip` so reclaim and long-state markers stay stable on open realtime bars.
+  - Made OB/FVG engine execution explicit via hidden `Use OB engine` and `Use FVG engine` inputs, preserving the intended visual-only meaning of `Show` toggles while removing silent ambiguity.
+
 ### Added (2026-03-19)
 
 - **SMC++ long-dip alert presets:**

@@ -1453,6 +1453,7 @@ var use_ob_soft_confirm = input.bool(true, 'Use soft confirm', inline = 'soft co
 var soft_confirm_offset_atr_len = ATR_LEN_MAIN
 var soft_confirm_offset_atr_mult = 1.0
 var use_retracements_with_FVG_out = input.bool(true, 'Use retracements with FVG-out as trend-supporting OB', group = g_ob, display = display.none, tooltip = 'Allows certain failed extensions with FVG confirmation to become valid continuation order blocks.')
+var use_ob_engine = input.bool(true, 'Use OB engine', group = g_ob, display = display.none, tooltip = 'Keeps OB-based long-dip logic and alerts running even if chart rendering is hidden.')
 
 active_break_mode = signal_mode == SignalMode.CONFIRMED_ONLY ? LevelBreakMode.CLOSE : LevelBreakMode.HIGHLOW
 signal_mode_text = signal_mode == SignalMode.CONFIRMED_ONLY ? 'confirmed' : 'live'
@@ -1473,15 +1474,16 @@ var PF.ProfileConfig profile_config_bear_broken = PF.ProfileConfig.new(extend = 
 var OrderBlockConfig ob_config_bull_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bull_ob_css_broken, border_color = #00000000, xloc = xloc.bar_time), txt_args = D.BoxTextArgs.new(bull_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull_broken)
 var OrderBlockConfig ob_config_bear_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = D.BoxArgs.new(bg_color = bear_ob_css_broken, border_color = #00000000, xloc = xloc.bar_time), txt_args = D.BoxTextArgs.new(bear_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bear_broken)
 
-chart_timeframe_seconds = timeframe.in_seconds()
-auto_selected_ltf = auto_ltf_timeframe(chart_timeframe_seconds)
+int chart_tf_sec = nz(timeframe.in_seconds(), 0)
+auto_selected_ltf = auto_ltf_timeframe(chart_tf_sec)
 effective_ltf_timeframe = ltf_auto_select ? auto_selected_ltf : ltf_timeframe
-ltf_timeframe_valid = str.length(effective_ltf_timeframe) > 0 and timeframe.in_seconds(effective_ltf_timeframe) < chart_timeframe_seconds
+int effective_ltf_tf_sec = nz(timeframe.in_seconds(effective_ltf_timeframe), 0)
+ltf_timeframe_valid = chart_tf_sec > 0 and str.length(effective_ltf_timeframe) > 0 and effective_ltf_tf_sec > 0 and effective_ltf_tf_sec < chart_tf_sec
 ltf_sampling_active = enable_ltf_sampling and ltf_timeframe_valid
 int marker_gap_reference_seconds = marker_gap_reference_minutes * 60
-int effective_reclaim_marker_gap = scaled_marker_gap(reclaim_marker_spacing_bars, auto_scale_marker_gaps, chart_timeframe_seconds, marker_gap_reference_seconds, marker_gap_max_scale)
-int effective_confirm_marker_gap = scaled_marker_gap(confirm_marker_spacing_bars, auto_scale_marker_gaps, chart_timeframe_seconds, marker_gap_reference_seconds, marker_gap_max_scale)
-int effective_ready_marker_gap = scaled_marker_gap(ready_marker_spacing_bars, auto_scale_marker_gaps, chart_timeframe_seconds, marker_gap_reference_seconds, marker_gap_max_scale)
+int effective_reclaim_marker_gap = scaled_marker_gap(reclaim_marker_spacing_bars, auto_scale_marker_gaps, chart_tf_sec, marker_gap_reference_seconds, marker_gap_max_scale)
+int effective_confirm_marker_gap = scaled_marker_gap(confirm_marker_spacing_bars, auto_scale_marker_gaps, chart_tf_sec, marker_gap_reference_seconds, marker_gap_max_scale)
+int effective_ready_marker_gap = scaled_marker_gap(ready_marker_spacing_bars, auto_scale_marker_gaps, chart_tf_sec, marker_gap_reference_seconds, marker_gap_max_scale)
 
 float[] ltf_opens = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, open) : array.new<float>(0)
 float[] ltf_closes = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, close) : array.new<float>(0)
@@ -1605,7 +1607,7 @@ if show_internal_bull_bos or show_internal_bull_choch
 if show_internal_bear_bos or show_internal_bear_choch
     plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_alert, show_internal_bear_choch and internal_bear_choch_alert, structure_label_args_internal_bear, structure_line_args_internal_bear, keep_history = true, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
-bool enable_ob_engine = true
+bool enable_ob_engine = use_ob_engine
 [ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = use_ob_profile, align_edge_to_value_area = use_ob_profile, align_break_price_to_poc = use_ob_profile, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode)
 
 var map<int, OrderBlock> ob_registry_bull = map.new<int, OrderBlock>()
@@ -1622,9 +1624,9 @@ varip bool live_bear_ob_break = false
 varip bool live_bull_fvg_fill = false
 varip bool live_bear_fvg_fill = false
 varip int intrabar_event_count = 0
-var int reclaim_marker_drawn_bar_index = na
-var int long_state_marker_drawn_bar_index = na
-var int long_ready_marker_drawn_bar_index = na
+varip int reclaim_marker_drawn_bar_index = na
+varip int long_state_marker_drawn_bar_index = na
+varip int long_ready_marker_drawn_bar_index = na
 
 if barstate.isnew
     live_bull_ob_break := false
@@ -1675,8 +1677,9 @@ var min_fvg_size_atr_mult = input.float(DEFAULT_FVG_MIN_SIZE_MULT, 'x', minval =
 float fvg_size_threshold = filter_insignificant_fvgs ? ND.atr(min_fvg_size_atr_len) * min_fvg_size_atr_mult : 0
 var float fvg_fill_target_pct = input.float(DEFAULT_FVG_FILL_TARGET_PCT, 'Filled at %', minval = 0, maxval = 100, step = 5, group = g_fvg)
 float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 100.0))
+var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display = display.none, tooltip = 'Keeps FVG-based long-dip logic and alerts running even if chart rendering is hidden.')
 
-bool enable_fvg_engine = true
+bool enable_fvg_engine = use_fvg_engine
 [bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max)
 
 var map<int, FVG> fvg_registry_bull = map.new<int, FVG>()
@@ -1700,8 +1703,8 @@ var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_targ
 
 bool bullish_fvg_filled_alert = filled_fvgs_new_bull.size() > 0
 bool bearish_fvg_filled_alert = filled_fvgs_new_bear.size() > 0
-float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.last().fill_target_level : na
-float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.last().fill_target_level : na
+float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.first().fill_target_level : na
+float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.first().fill_target_level : na
 
 if barstate.islast
     fvgs_bull.draw(fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -1768,10 +1771,13 @@ var bull_htf_fvg_css_filled = bull_fvg_css_filled
 var bear_htf_fvg_css_filled = bear_fvg_css_filled
 var bull_htf_fvg_line_css_filled = bull_fvg_line_css_filled
 var bear_htf_fvg_line_css_filled = bear_fvg_line_css_filled
+int htf_fvg_tf_sec = nz(timeframe.in_seconds(fvg_htf), 0)
 
 if barstate.isfirst and show_htf_fvg
-    if timeframe.in_seconds(fvg_htf) < timeframe.in_seconds()
-        runtime.error(str.format('Show FVG (Timeframe): select a timeframe not lower than the chart timeframe {0}, currently selected: {1}', timeframe.period, fvg_htf))
+    if chart_tf_sec == 0 or htf_fvg_tf_sec == 0
+        runtime.error('HTF FVG requires a time-based chart and a time-based HTF.')
+    if htf_fvg_tf_sec <= chart_tf_sec
+        runtime.error(str.format('Show FVG (Timeframe): select a timeframe higher than the chart timeframe {0}, currently selected: {1}', timeframe.period, fvg_htf))
 
 var htf_fvg_config_bull = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬈', extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_htf_fvg_line_css, 0, line.style_solid, bull_htf_fvg_css, xloc = xloc.bar_time), box_text_args = D.BoxTextArgs.new(bull_htf_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_htf_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = D.LabelArgs.new(bull_htf_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 var htf_fvg_config_bear = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬊', extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_htf_fvg_line_css, 0, line.style_solid, bear_htf_fvg_css, xloc = xloc.bar_time), box_text_args = D.BoxTextArgs.new(bear_htf_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_htf_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = D.LabelArgs.new(bear_htf_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
@@ -1781,7 +1787,7 @@ var htf_fvg_config_bear_filled = FVGConfig.new(show_box = show_htf_fvg, show_tar
 [_, htf_new_fvg_bull] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(1, show_htf_fvg, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
 [_, htf_new_fvg_bear] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(-1, show_htf_fvg, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
 htf_bar_changed = timeframe.change(fvg_htf)
-htf_fvg_confirmed = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed and (htf_bar_changed or timeframe.in_seconds(fvg_htf) == timeframe.in_seconds())
+htf_fvg_confirmed = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed and (htf_bar_changed or htf_fvg_tf_sec == chart_tf_sec)
 [htf_fvg_buffer_bull, htf_fvg_buffer_bear, htf_fvg_buffer_bull_filled, htf_fvg_buffer_bear_filled, htf_fvg_buffer_bull_filled_new, htf_fvg_buffer_bear_filled_new, htf_fvg_buffer_bull_discarded, htf_fvg_buffer_bear_discarded] = fvgs_objects_htf(htf_new_fvg_bull, htf_new_fvg_bear, htf_fvg_confirmed, fvg_size_threshold, active_break_mode, fvg_fill_target_ratio, 2)
 
 last_bull_ob_break_level = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().break_price : na
@@ -1850,16 +1856,16 @@ float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull
 float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
 float bear_ob_break_for_alert = not na(active_bear_ob_break_level) ? active_bear_ob_break_level : last_bear_ob_break_level
 float bear_fvg_fill_for_alert = not na(active_bear_fvg_fill_level) ? active_bear_fvg_fill_level : last_bear_fvg_fill_level
-bool any_live_bull_ob_break = false
-bool any_live_bear_ob_break = false
-bool any_live_bull_fvg_fill = false
-bool any_live_bear_fvg_fill = false
-float bull_ob_live_event_level = bull_ob_break_for_alert
-float bear_ob_live_event_level = bear_ob_break_for_alert
-float bull_fvg_live_event_level = bull_fvg_fill_for_alert
-float bear_fvg_live_event_level = bear_fvg_fill_for_alert
+bool any_live_bull_ob_break = ob_broken_new_bull.size() > 0
+bool any_live_bear_ob_break = ob_broken_new_bear.size() > 0
+bool any_live_bull_fvg_fill = filled_fvgs_new_bull.size() > 0
+bool any_live_bear_fvg_fill = filled_fvgs_new_bear.size() > 0
+float bull_ob_live_event_level = any_live_bull_ob_break ? ob_broken_new_bull.first().break_price : bull_ob_break_for_alert
+float bear_ob_live_event_level = any_live_bear_ob_break ? ob_broken_new_bear.first().break_price : bear_ob_break_for_alert
+float bull_fvg_live_event_level = any_live_bull_fvg_fill ? filled_fvgs_new_bull.first().fill_target_level : bull_fvg_fill_for_alert
+float bear_fvg_live_event_level = any_live_bear_fvg_fill ? filled_fvgs_new_bear.first().fill_target_level : bear_fvg_fill_for_alert
 
-if ob_blocks_bull.size() > 0
+if not any_live_bull_ob_break and ob_blocks_bull.size() > 0
     for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
         bull_ob_live_candidate = ob_blocks_bull.get(i)
         if low <= bull_ob_live_candidate.break_price
@@ -1867,7 +1873,7 @@ if ob_blocks_bull.size() > 0
             bull_ob_live_event_level := bull_ob_live_candidate.break_price
             break
 
-if ob_blocks_bear.size() > 0
+if not any_live_bear_ob_break and ob_blocks_bear.size() > 0
     for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
         bear_ob_live_candidate = ob_blocks_bear.get(i)
         if high >= bear_ob_live_candidate.break_price
@@ -1875,7 +1881,7 @@ if ob_blocks_bear.size() > 0
             bear_ob_live_event_level := bear_ob_live_candidate.break_price
             break
 
-if fvgs_bull.size() > 0
+if not any_live_bull_fvg_fill and fvgs_bull.size() > 0
     for i = fvgs_bull.size() - 1 to bull_fvg_scan_start
         bull_fvg_live_candidate = fvgs_bull.get(i)
         if low <= bull_fvg_live_candidate.fill_target_level
@@ -1883,7 +1889,7 @@ if fvgs_bull.size() > 0
             bull_fvg_live_event_level := bull_fvg_live_candidate.fill_target_level
             break
 
-if fvgs_bear.size() > 0
+if not any_live_bear_fvg_fill and fvgs_bear.size() > 0
     for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
         bear_fvg_live_candidate = fvgs_bear.get(i)
         if high >= bear_fvg_live_candidate.fill_target_level
@@ -2314,58 +2320,13 @@ barcolor(color_long_bars ? long_bar_color : na)
 // --------------------------------------------------
 // Long-dip alert presets
 // --------------------------------------------------
-bool alert_long_watchlist =
-    bullish_trend_condition and
-    long_zone_active
-
-bool alert_long_armed =
-    bullish_trend_condition and
-    long_zone_active and
-    reclaim_recent and
-    long_setup_armed
-
-bool alert_long_early =
-    bullish_trend_condition and
-    long_zone_active and
-    reclaim_recent and
-    long_internal_structure_ok and
-    bull_close_strong and
-    ema_support_ok
-
-bool alert_long_clean =
-    barstate.isconfirmed and
-    bullish_trend_condition and
-    long_zone_active and
-    reclaim_recent and
-    long_setup_confirmed and
-    bull_close_strong and
-    ema_support_ok and
-    adx_strong and
-    relvol_ok
-
-bool alert_long_entry_best =
-    barstate.isconfirmed and
-    bullish_trend_condition and
-    reclaim_recent and
-    long_ready_state and
-    bull_close_strong and
-    ema_support_ok
-
-bool alert_long_entry_strict =
-    barstate.isconfirmed and
-    bullish_trend_condition and
-    htf_bull_count >= 2 and
-    long_zone_active and
-    reclaim_recent and
-    long_ready_state and
-    bull_close_strong and
-    ema_support_ok and
-    adx_strong and
-    relvol_ok and
-    (na(ltf_volume_delta) or ltf_volume_delta >= 0)
-
-bool alert_long_fail =
-    long_invalidate_signal
+alert_long_watchlist = bullish_trend_condition and long_zone_active
+alert_long_armed = bullish_trend_condition and long_zone_active and reclaim_recent and long_setup_armed
+alert_long_early = bullish_trend_condition and long_zone_active and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
+alert_long_clean = barstate.isconfirmed and bullish_trend_condition and long_zone_active and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok
+alert_long_entry_best = barstate.isconfirmed and bullish_trend_condition and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok
+alert_long_entry_strict = barstate.isconfirmed and bullish_trend_condition and htf_bull_count >= 2 and long_zone_active and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and (na(ltf_volume_delta) or ltf_volume_delta >= 0)
+alert_long_fail = long_invalidate_signal
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
