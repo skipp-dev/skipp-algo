@@ -140,11 +140,17 @@ method overlaps_range(OrderBlock this, float range_top = 0, float range_btm = 0)
 method last_overlaps(OrderBlock[] this, float range_top, float range_btm) =>
     na(this) ? false : this.size() > 0 ? this.last().overlaps_range(range_top, range_btm) : false
 
-method overlaps_window(OrderBlock this, int left_time, int right_time) =>
-    na(this) ? false : this.right_bottom.time >= left_time and this.left_top.time <= right_time
+method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>
+    base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+    na(this) ? na : extend_until_broken ? this.broken ? nz(this.broken_time, base_right_time) : time_close : base_right_time
+
+method overlaps_window(OrderBlock this, int left_time, int right_time, bool extend_until_broken = true) =>
+    effective_right_time = this.rendered_right_time(extend_until_broken)
+    na(this) ? false : effective_right_time >= left_time and this.left_top.time <= right_time
 
 update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks, OrderBlock[] broken_blocks_new, simple LevelBreakMode broken_by = LevelBreakMode.HIGHLOW, int keep_broken_max = 5, OrderBlock[] discarded_buffer = na) =>
     bool broken_by_close = broken_by == LevelBreakMode.CLOSE
+    OrderBlock[] moved_blocks = array.new<OrderBlock>(0)
     
     broken_blocks_new.clear()
     
@@ -159,10 +165,13 @@ update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks
                 if mode == 1 ? block.break_price > break_src : block.break_price < break_src
                     block.broken       := true                    
                     block.broken_time  := time_close
-                    block.broken_index := bar_index
-                    broken_blocks.push(block)
-                    broken_blocks_new.push(block)
+                    block.broken_index := bar_index + 1
+                    moved_blocks.unshift(block)
                     tracking_blocks.remove(i)
+
+        for block in moved_blocks
+            broken_blocks.push(block)
+            broken_blocks_new.push(block)
 
         if keep_broken_max >= 0
             while broken_blocks.size() > keep_broken_max
@@ -221,9 +230,9 @@ track_obs(
  float max_block_size,
  bool enabled = true,
  simple bool include_consecutive_bars = true,
- simple bool capture_profile = false,
- simple bool align_edge_to_value_area = false,
- simple bool align_break_price_to_poc = false,
+ bool capture_profile = false,
+ bool align_edge_to_value_area = false,
+ bool align_break_price_to_poc = false,
  simple bool use_soft_confirm = true,
  float soft_confirm_offset = 0,
  simple bool use_soft_confirm_big_candle = true,
@@ -545,7 +554,7 @@ track_obs(
     [tracking_blocks_bull, tracking_blocks_bear, bull_ob_confirmed, bear_ob_confirmed, broken_blocks_bull, broken_blocks_bear, broken_blocks_new_bull, broken_blocks_new_bear, discarded_blocks_bull, discarded_blocks_bear]
 
 method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
-    visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right)
+    visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right, config.extend_until_broken)
 
     if not visible_match
         if not na(this.plot) and not this.hidden
@@ -609,7 +618,7 @@ method draw(OrderBlock[] blocks, OrderBlockConfig config, bool extend_only = tru
         count = 0
         for i = blocks.size() - 1 to 0
             block = blocks.get(i)
-            visible_match = na(visible_left) or na(visible_right) or block.overlaps_window(visible_left, visible_right)
+            visible_match = na(visible_left) or na(visible_right) or block.overlaps_window(visible_left, visible_right, config.extend_until_broken)
             if visible_match and count < config.show_last
                 block.draw(config, extend_only, force_overlay, left_override, right_override, visible_left, visible_right)
                 count += 1
@@ -824,8 +833,18 @@ type FVG
     D.Label plot_fill_target_label = na
     bool hidden = false
 
-method overlaps_window(FVG this, int left_time, int right_time) =>
-    na(this) ? false : this.right_bottom.time >= left_time and this.left_top.time <= right_time
+method rendered_right_time(FVG this, bool extend_until_filled = true) =>
+    base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+    effective_fill_time = nz(this.fill_time, base_right_time)
+    na(this) ? na :
+     extend_until_filled ?
+         this.filled ? effective_fill_time : time_close
+     :
+         this.filled ? math.min(effective_fill_time, base_right_time) : base_right_time
+
+method overlaps_window(FVG this, int left_time, int right_time, bool extend_until_filled = true) =>
+    effective_right_time = this.rendered_right_time(extend_until_filled)
+    na(this) ? false : effective_right_time >= left_time and this.left_top.time <= right_time
 
 method unshift_rotate(float[] this, float value, int max_size = 3) =>
     this.unshift(value)
@@ -885,6 +904,7 @@ fvgs_values(float size_threshold = 0, bool enabled = true) =>
     [bullish_fvg_alert, bull_top, bull_btm, bearish_fvg_alert, bear_top, bear_btm]
 
 method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, int keep_history = 5, FVG[] discard_buffer = na) =>
+    FVG[] moved_fvgs = array.new<FVG>(0)
     filled_new_buffer.clear()
 
     if na(keep_history) or keep_history <= 0
@@ -895,8 +915,11 @@ method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, in
             fvg = fvgs.get(i)
             if fvg.filled
                 moved = fvgs.remove(i)
-                filled_buffer.push(moved)
-                filled_new_buffer.push(moved)
+                moved_fvgs.unshift(moved)
+
+    for moved in moved_fvgs
+        filled_buffer.push(moved)
+        filled_new_buffer.push(moved)
 
     if keep_history > 0
         while filled_buffer.size() > keep_history
@@ -1021,7 +1044,7 @@ fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_
     [bullish_fvg_alert, bearish_fvg_alert, buffer_bull, buffer_bear, new_bull, new_bear, buffer_bull_filled, buffer_bear_filled, buffer_bull_filled_new, buffer_bear_filled_new, buffer_bull_discarded, buffer_bear_discarded]
 
 method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
-    visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right)
+    visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right, config.extend_until_filled)
 
     if not visible_match
         if not na(this.plot_box) and not this.hidden
@@ -1097,7 +1120,7 @@ method draw(FVG[] fvgs, FVGConfig config, bool extend_only = true, simple bool f
         count = 0
         for i = fvgs.size() - 1 to 0
             fvg = fvgs.get(i)
-            visible_match = na(visible_left) or na(visible_right) or fvg.overlaps_window(visible_left, visible_right)
+            visible_match = na(visible_left) or na(visible_right) or fvg.overlaps_window(visible_left, visible_right, config.extend_until_filled)
             if visible_match and count < config.show_last
                 fvg.draw(config, extend_only, force_overlay, left_override, right_override, visible_left, visible_right)
                 count += 1
@@ -1267,19 +1290,25 @@ get_structure_display_trend_only(simple int structure_len) =>
     bool structure_break_detected = bull_bos_alert or bull_choch_alert or bear_bos_alert or bear_choch_alert
     not na(ta.barssince(structure_break_detected)) ? trend : 0
 
-count_visible_obs(OrderBlock[] blocks, int visible_left, int visible_right) =>
+get_confirmed_structure_trend(string trend_tf, simple int structure_len) =>
+    htf_shift = barstate.isrealtime ? 1 : 0
+    ltf_shift = barstate.isrealtime ? 0 : 1
+    htf_trend = request.security(syminfo.tickerid, trend_tf, get_structure_display_trend_only(structure_len)[htf_shift], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off)
+    htf_trend[ltf_shift]
+
+count_visible_obs(OrderBlock[] blocks, int visible_left, int visible_right, bool extend_until_broken = true) =>
     visible_count = 0
     if not na(blocks)
         for block in blocks
-            if block.overlaps_window(visible_left, visible_right)
+            if block.overlaps_window(visible_left, visible_right, extend_until_broken)
                 visible_count += 1
     visible_count
 
-count_visible_fvgs(FVG[] fvgs, int visible_left, int visible_right) =>
+count_visible_fvgs(FVG[] fvgs, int visible_left, int visible_right, bool extend_until_filled = true) =>
     visible_count = 0
     if not na(fvgs)
         for fvg in fvgs
-            if fvg.overlaps_window(visible_left, visible_right)
+            if fvg.overlaps_window(visible_left, visible_right, extend_until_filled)
                 visible_count += 1
     visible_count
 
@@ -1540,9 +1569,9 @@ bool relvol_ok = not use_rel_volume_effective ? true : not na(rel_volume) and re
 string relvol_value_text = na(rel_volume) ? 'n/a' : str.tostring(rel_volume, '#.##') + 'x'
 string relvol_text = not use_rel_volume ? 'off' : not volume_data_ok ? 'limited' : relvol_value_text
 
-mtf_trend_1 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf1, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
-mtf_trend_2 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf2, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
-mtf_trend_3 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf3, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
+mtf_trend_1 = show_mtf_trend ? get_confirmed_structure_trend(mtf_trend_tf1, swing_length) : na
+mtf_trend_2 = show_mtf_trend ? get_confirmed_structure_trend(mtf_trend_tf2, swing_length) : na
+mtf_trend_3 = show_mtf_trend ? get_confirmed_structure_trend(mtf_trend_tf3, swing_length) : na
 
 [trend, bull_bos_alert, bull_choch_alert, top_x, top, trail_up_x, trail_up, hh, bear_bos_alert, bear_choch_alert, btm_x, btm, trail_dn_x, trail_dn, ll, hhll_x] = detect_structure(swing_length, filter_insignificant_internal_breaks = true)
 // Separate display-only trend state: avoid exposing the engine's bullish bootstrap bias before a real structure break occurs.
@@ -1632,7 +1661,7 @@ if show_internal_bear_bos or show_internal_bear_choch
     plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_alert, show_internal_bear_choch and internal_bear_choch_alert, structure_label_args_internal_bear, structure_line_args_internal_bear, keep_history = true, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
 bool enable_ob_engine = use_ob_engine
-[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = use_ob_profile, align_edge_to_value_area = use_ob_profile, align_break_price_to_poc = use_ob_profile, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle)
+[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = use_ob_profile_effective, align_edge_to_value_area = use_ob_profile_effective, align_break_price_to_poc = use_ob_profile_effective, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle)
 
 varip bool live_bull_ob_break = false
 varip bool live_bear_ob_break = false
@@ -1703,8 +1732,8 @@ var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_targ
 
 bool bullish_fvg_filled_alert = filled_fvgs_new_bull.size() > 0
 bool bearish_fvg_filled_alert = filled_fvgs_new_bear.size() > 0
-float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.first().fill_target_level : na
-float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.first().fill_target_level : na
+float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.last().fill_target_level : na
+float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.last().fill_target_level : na
 
 if barstate.islast
     fvgs_bull.draw(fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -1879,10 +1908,10 @@ bool any_live_bull_ob_break = ob_broken_new_bull.size() > 0
 bool any_live_bear_ob_break = ob_broken_new_bear.size() > 0
 bool any_live_bull_fvg_fill = filled_fvgs_new_bull.size() > 0
 bool any_live_bear_fvg_fill = filled_fvgs_new_bear.size() > 0
-float bull_ob_live_event_level = any_live_bull_ob_break ? ob_broken_new_bull.first().break_price : bull_ob_break_for_alert
-float bear_ob_live_event_level = any_live_bear_ob_break ? ob_broken_new_bear.first().break_price : bear_ob_break_for_alert
-float bull_fvg_live_event_level = any_live_bull_fvg_fill ? filled_fvgs_new_bull.first().fill_target_level : bull_fvg_fill_for_alert
-float bear_fvg_live_event_level = any_live_bear_fvg_fill ? filled_fvgs_new_bear.first().fill_target_level : bear_fvg_fill_for_alert
+float bull_ob_live_event_level = any_live_bull_ob_break ? ob_broken_new_bull.last().break_price : bull_ob_break_for_alert
+float bear_ob_live_event_level = any_live_bear_ob_break ? ob_broken_new_bear.last().break_price : bear_ob_break_for_alert
+float bull_fvg_live_event_level = any_live_bull_fvg_fill ? filled_fvgs_new_bull.last().fill_target_level : bull_fvg_fill_for_alert
+float bear_fvg_live_event_level = any_live_bear_fvg_fill ? filled_fvgs_new_bear.last().fill_target_level : bear_fvg_fill_for_alert
 
 if not any_live_bull_ob_break and ob_blocks_bull.size() > 0
     for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
@@ -1923,8 +1952,8 @@ float long_reclaim_swing_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ?
 bool long_reclaim_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
 float touched_bull_ob_top_prev = nz(touched_bull_ob_top[1], touched_bull_ob_top)
 float touched_bull_fvg_top_prev = nz(touched_bull_fvg_top[1], touched_bull_fvg_top)
-bool bull_reclaim_ob_cross = not na(touched_bull_ob_top) and not na(touched_bull_ob_top_prev) and long_reclaim_ob_break_src > touched_bull_ob_top and long_reclaim_ob_break_src[1] <= touched_bull_ob_top_prev
-bool bull_reclaim_fvg_cross = not na(touched_bull_fvg_top) and not na(touched_bull_fvg_top_prev) and long_reclaim_fvg_break_src > touched_bull_fvg_top and long_reclaim_fvg_break_src[1] <= touched_bull_fvg_top_prev
+bool bull_reclaim_ob_cross = not na(touched_bull_ob_top) and not na(touched_bull_ob_top_prev) and long_reclaim_ob_break_src > touched_bull_ob_top and (low <= touched_bull_ob_top or long_reclaim_ob_break_src[1] <= touched_bull_ob_top_prev)
+bool bull_reclaim_fvg_cross = not na(touched_bull_fvg_top) and not na(touched_bull_fvg_top_prev) and long_reclaim_fvg_break_src > touched_bull_fvg_top and (low <= touched_bull_fvg_top or long_reclaim_fvg_break_src[1] <= touched_bull_fvg_top_prev)
 
 bool bull_reclaim_ob = long_reclaim_bar_ok and touched_bull_ob_recent and not na(touched_bull_ob_top) and bull_reclaim_ob_cross
 bool bull_reclaim_fvg = long_reclaim_bar_ok and touched_bull_fvg_recent and not na(touched_bull_fvg_top) and bull_reclaim_fvg_cross
@@ -2271,10 +2300,10 @@ int visible_bear_obs = 0
 int visible_bull_fvgs = 0
 int visible_bear_fvgs = 0
 if dashboard_counts_active
-    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time) : ob_blocks_bull.size()
-    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time) : ob_blocks_bear.size()
-    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time) : fvgs_bull.size()
-    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time) : fvgs_bear.size()
+    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time, ob_extend_until_broken) : ob_blocks_bull.size()
+    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time, ob_extend_until_broken) : ob_blocks_bear.size()
+    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time, fvg_extend_until_filled) : fvgs_bull.size()
+    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time, fvg_extend_until_filled) : fvgs_bear.size()
 htf_bull_count = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0)
 htf_bear_count = (mtf_trend_1 < 0 ? 1 : 0) + (mtf_trend_2 < 0 ? 1 : 0) + (mtf_trend_3 < 0 ? 1 : 0)
 int trend_state = structure_display_trend > 0 ? 5 : structure_display_trend < 0 ? -1 : 0
@@ -2369,18 +2398,24 @@ alert_long_clean = barstate.isconfirmed and bullish_trend_condition and zone_rec
 alert_long_entry_best = barstate.isconfirmed and bullish_trend_condition and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok
 alert_long_entry_strict = barstate.isconfirmed and bullish_trend_condition and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and (na(ltf_volume_delta) or ltf_volume_delta >= 0)
 alert_long_fail = long_invalidate_signal
+alert_long_watchlist_event = edge(alert_long_watchlist)
+alert_long_armed_event = edge(alert_long_armed)
+alert_long_early_event = edge(alert_long_early)
+alert_long_clean_event = edge(alert_long_clean)
+alert_long_entry_best_event = edge(alert_long_entry_best)
+alert_long_entry_strict_event = edge(alert_long_entry_strict)
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
 alertcondition(long_confirm_signal, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation.')
 alertcondition(long_ready_signal, 'Long Ready', 'SMC++: long setup is ready with filters aligned.')
 alertcondition(long_invalidate_signal, 'Long Invalidated', 'SMC++: long setup was invalidated.')
-alertcondition(alert_long_watchlist, 'Long Dip Watchlist', 'SMC++: bullish trend with active pullback zone.')
-alertcondition(alert_long_armed, 'Long Dip Armed+', 'SMC++: reclaim detected and long setup armed.')
-alertcondition(alert_long_early, 'Long Dip Early', 'SMC++: early bullish long-dip hint with internal confirmation.')
-alertcondition(alert_long_clean, 'Long Dip Clean', 'SMC++: clean long-dip setup confirmed.')
-alertcondition(alert_long_entry_best, 'Long Dip Entry Best', 'SMC++: best standard long-dip entry condition.')
-alertcondition(alert_long_entry_strict, 'Long Dip Entry Strict', 'SMC++: strict long-dip entry with HTF and momentum alignment.')
+alertcondition(alert_long_watchlist_event, 'Long Dip Watchlist', 'SMC++: bullish trend with active pullback zone.')
+alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: reclaim detected and long setup armed.')
+alertcondition(alert_long_early_event, 'Long Dip Early', 'SMC++: early bullish long-dip hint with internal confirmation.')
+alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: clean long-dip setup confirmed.')
+alertcondition(alert_long_entry_best_event, 'Long Dip Entry Best', 'SMC++: best standard long-dip entry condition.')
+alertcondition(alert_long_entry_strict_event, 'Long Dip Entry Strict', 'SMC++: strict long-dip entry with HTF and momentum alignment.')
 alertcondition(alert_long_fail, 'Long Dip Failed', 'SMC++: long-dip setup invalidated.')
 alertcondition(bull_bos_alert, 'Bullish BOS Detected', 'SMC++: bullish break of structure detected.')
 alertcondition(bull_choch_alert, 'Bullish CHoCH Detected', 'SMC++: bullish change of character detected.')
@@ -2419,12 +2454,12 @@ fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal
 fire_dynamic_alert(enable_dynamic_alerts, long_arm_signal, 'Long Armed', str.format('Long setup armed from {0}', long_setup_source), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, long_confirm_signal, 'Long Confirmed', str.format('Trigger cleared from {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, long_ready_signal, 'Long Ready', str.format('Filters aligned for {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, edge(alert_long_watchlist), 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, edge(alert_long_armed), 'Long Dip Armed+', 'Reclaim detected and setup armed', long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, edge(alert_long_early), 'Long Dip Early', 'Internal confirmation starting', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, edge(alert_long_clean), 'Long Dip Clean', 'Confirmed long-dip setup', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, edge(alert_long_entry_best), 'Long Dip Entry Best', 'Standard long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, edge(alert_long_entry_strict), 'Long Dip Entry Strict', 'Strict long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_watchlist_event, 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_armed_event, 'Long Dip Armed+', 'Reclaim detected and setup armed', long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_early_event, 'Long Dip Early', 'Internal confirmation starting', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_clean_event, 'Long Dip Clean', 'Confirmed long-dip setup', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_entry_best_event, 'Long Dip Entry Best', 'Standard long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_entry_strict_event, 'Long Dip Entry Strict', 'Strict long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, alert_long_fail, 'Long Dip Failed', 'Setup invalidated', long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, long_invalidate_signal, 'Long Invalidated', str.format('Setup invalidated from {0}', long_last_invalid_source), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 

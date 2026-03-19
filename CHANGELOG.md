@@ -29,6 +29,12 @@ All notable changes to this project are documented in this file.
   - Hardened volume-data quality checks so relative volume, OB profiles, and volume-driven confirmations degrade gracefully on symbols with missing or effectively empty volume.
   - Added optional intraday VWAP/session alignment as an extra long filter for users who want session-aware intraday confirmation.
   - Added a practical risk/exit overlay that exposes trigger, invalidation, ATR-buffered stop, and 1R/2R targets directly on the chart and dashboard.
+  - Switched strict HTF trend confirmation to a confirmed-only `request.security()` pattern so live HTF bars can no longer repaint strict long-entry gating.
+  - Fixed same-bar OB/FVG dip-and-reclaim detection so valid wick-through reclaim candles no longer get missed when the previous close was already back above the zone.
+  - Restored newest-last ordering for broken OB and filled FVG event buffers, and aligned downstream alert level lookups with that ordering.
+  - Fixed visible-range filtering to respect the effective rendered right edge of extended OB/FVG objects, including the OB break bar.
+  - Aligned TradingView `alertcondition(...)` long-dip presets with the existing one-shot dynamic alerts by exposing the preset states as edge events.
+  - Wired the volume-quality guard through the OB profile capture/alignment engine path, not only the profile rendering path.
 
 - **SMC++ live alert and timeframe hardening:**
   - Fixed intrabar OB/FVG live alerts in `SMC++.pine` to prefer exact engine event buffers (`ob_broken_new_*`, `filled_fvgs_new_*`) before scanning active objects, preventing silent misses on the event bar.
