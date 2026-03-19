@@ -3,13 +3,13 @@
 // derived from Smart Money Concepts by LuxAlgo - https://www.tradingview.com/script/CnB3fSph-Smart-Money-Concepts-LUX/
 // © robbatt
 
+//@version=6
 import robbatt/lib_plot_objects/56 as D
 import robbatt/lib_profile/44 as PF
 import robbatt/lib_no_delay/18 as ND
 import robbatt/lib_math/2 as M
 // import robbatt/lib_smc/30 as SMC (temporarily included to fix 'pine compilation error' appearing since 24.10.2025)
 
-//@version=6
 indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
 
 // Safe refactor notes:
@@ -261,8 +261,10 @@ track_obs(
         bull_ob.reset_tracking()
         bear_ob.reset_tracking()
 
-    var float ob_size_min_bull = min_block_size, var float ob_size_min_bear = min_block_size
-    var float ob_size_max_bull = max_block_size, var float ob_size_max_bear = max_block_size
+    var float ob_size_min_bull = min_block_size
+    var float ob_size_min_bear = min_block_size
+    var float ob_size_max_bull = max_block_size
+    var float ob_size_max_bear = max_block_size
 
     bool is_green = open < close
     bool is_red = close < open
@@ -544,7 +546,8 @@ track_obs(
     [tracking_blocks_bull, tracking_blocks_bear, bull_ob_confirmed, bear_ob_confirmed, broken_blocks_bull, broken_blocks_bear, broken_blocks_new_bull, broken_blocks_new_bear, discarded_blocks_bull, discarded_blocks_bear]
 
 method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
-    var tf_ms = timeframe.in_seconds() * 1000
+    int tf_sec = timeframe.in_seconds()
+    int tf_ms = na(tf_sec) ? 0 : tf_sec * 1000
 
     visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right)
 
@@ -564,9 +567,10 @@ method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, s
             txt = config.show_text ? config.show_profile and config.profile_config.show_poc and config.profile_config.show_labels ? str.format('{0}{1}{2}', config.txt, txt_fvg, txt_id) : str.format('{0}{1}{2}{3}', config.txt, txt_fvg, txt_probability, txt_id) : ''
 
             xloc_bartime = config.args.xloc == xloc.bar_time
+            int broken_right_time = tf_ms > 0 ? this.broken_time - tf_ms : this.broken_time
 
             int left = not na(left_override) ? left_override : xloc_bartime ? this.left_top.time : this.left_top.index
-            int right = not na(right_override) ? right_override : config.extend_until_broken ? this.broken ? xloc_bartime ? this.broken_time - tf_ms : this.broken_index - 1 : xloc_bartime ? time : bar_index : xloc_bartime ? this.right_bottom.time : this.right_bottom.index
+            int right = not na(right_override) ? right_override : config.extend_until_broken ? this.broken ? xloc_bartime ? broken_right_time : this.broken_index - 1 : xloc_bartime ? time : bar_index : xloc_bartime ? this.right_bottom.time : this.right_bottom.index
 
             chart.point plot_left_top = D.create_point(left, this.left_top.price, config.args.xloc)
             chart.point plot_right_bottom = D.create_point(right, this.right_bottom.price, config.args.xloc)
@@ -717,7 +721,7 @@ plot_pivot_points(int mode, int x, float y, bool enabled, D.LabelArgs args, bool
         if not keep_history
             label.delete(label_swing_point[1])
 
-plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool enabled, D.LabelArgs label_args, D.LineArgs line_args, int override_right_index = na) =>
+plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool enabled, D.LabelArgs label_args, D.LineArgs line_args, int override_right_index = na, string text_prefix = '') =>
     var label label_latest_swing = label.new(na, na, color = #00000000, textcolor = label_args.text_color, style = label_args.style, size = label_args.size)
     var line line_latest_swing = line.new(na, na, na, na, color = line_args.line_color, style = line_args.style)
 
@@ -732,11 +736,11 @@ plot_swing_levels(int mode, int trail_x, float trail_y, int trend, bool enabled,
             right = not na(override_right_index) ? override_right_index : bar_index + 20
             line_latest_swing.set_xy2(right, trail_y)
             label_latest_swing.set_xy(right, trail_y)
-            label_latest_swing.set_text(hl_swing_txt)
+            label_latest_swing.set_text(text_prefix + hl_swing_txt)
 
-plot_structure(int x, float y, bool is_bos = false, bool is_choch = false, D.LabelArgs label_args, D.LineArgs line_args, bool keep_history) =>
+plot_structure(int x, float y, bool is_bos = false, bool is_choch = false, D.LabelArgs label_args, D.LineArgs line_args, bool keep_history, string text_prefix = '', string bos_text = 'BOS', string choch_text = 'CHoCH') =>
     if is_bos or is_choch
-        txt = is_choch ? 'CHoCH' : 'BOS'
+        txt = text_prefix + (is_choch ? choch_text : bos_text)
         structure_line = line.new(x, y, bar_index, y, color = line_args.line_color, style = line_args.style)
         structure_lbl = label.new(int(math.avg(x, bar_index)), y, txt, color = #00000000, textcolor = label_args.text_color, style = label_args.style, size = label_args.size)
 
@@ -1034,7 +1038,8 @@ fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_
     [bullish_fvg_alert, bearish_fvg_alert, buffer_bull, buffer_bear, new_bull, new_bear, buffer_bull_filled, buffer_bear_filled, buffer_bull_filled_new, buffer_bear_filled_new, buffer_bull_discarded, buffer_bear_discarded]
 
 method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool force_overlay = false, int left_override = na, int right_override = na, int visible_left = na, int visible_right = na) =>
-    var tf_ms = timeframe.in_seconds() * 1000
+    int tf_sec = timeframe.in_seconds()
+    int tf_ms = na(tf_sec) ? 0 : tf_sec * 1000
 
     visible_match = na(visible_left) or na(visible_right) or this.overlaps_window(visible_left, visible_right)
 
@@ -1049,8 +1054,20 @@ method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool for
             txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_probability)
 
             xloc_bartime = config.box_args.xloc == xloc.bar_time
+            int fill_right_time = tf_ms > 0 ? this.fill_time - tf_ms : this.fill_time
+            int extended_left_time = tf_ms > 0 ? this.left_top.time + config.extend_bars * tf_ms : this.left_top.time
             int left = not na(left_override) ? left_override : xloc_bartime ? this.left_top.time : this.left_top.index
-            int right = not na(right_override) ? right_override : config.extend_until_filled ? this.filled ? xloc_bartime ? this.fill_time - tf_ms : this.fill_index - 1 : xloc_bartime ? math.max(this.left_top.time + config.extend_bars * tf_ms, time) : math.max(this.left_top.index + config.extend_bars, bar_index) : this.filled ? xloc_bartime ? math.min(this.fill_time - tf_ms, math.max(this.left_top.time + config.extend_bars * tf_ms, this.right_bottom.time)) : math.min(this.fill_index - 1, math.max(this.left_top.index + config.extend_bars, this.right_bottom.index)) : xloc_bartime ? math.max(this.left_top.time + config.extend_bars * tf_ms, this.right_bottom.time) : math.max(this.left_top.index + config.extend_bars, this.right_bottom.index)
+            int right = not na(right_override) ? right_override :
+             config.extend_until_filled ?
+                 this.filled ?
+                     xloc_bartime ? fill_right_time : this.fill_index - 1
+                 :
+                     xloc_bartime ? math.max(extended_left_time, time) : math.max(this.left_top.index + config.extend_bars, bar_index)
+             :
+                 this.filled ?
+                     xloc_bartime ? math.min(fill_right_time, math.max(extended_left_time, this.right_bottom.time)) : math.min(this.fill_index - 1, math.max(this.left_top.index + config.extend_bars, this.right_bottom.index))
+                 :
+                     xloc_bartime ? math.max(extended_left_time, this.right_bottom.time) : math.max(this.left_top.index + config.extend_bars, this.right_bottom.index)
 
             chart.point plot_left_top = D.create_point(left, this.left_top.price, config.box_args.xloc)
             chart.point plot_right_bottom = D.create_point(right, this.right_bottom.price, config.box_args.xloc)
@@ -1168,6 +1185,7 @@ const int ATR_LEN_MAIN = 50
 const int ATR_LEN_PROFILE = 200
 const int ATR_LEN_PIVOT_FILTER = 3
 const int DEFAULT_SWING_LENGTH = 50
+const int DEFAULT_INTERNAL_LENGTH = 5
 const int DEFAULT_OB_SHOW_LAST = 2
 const int DEFAULT_FVG_SHOW_LAST = 2
 const int DEFAULT_KEEP_HISTORY = 1
@@ -1179,6 +1197,17 @@ const string DEFAULT_LTF_TIMEFRAME = '1'
 const string DEFAULT_TREND_TF_1 = '240'
 const string DEFAULT_TREND_TF_2 = '1D'
 const string DEFAULT_TREND_TF_3 = '1W'
+const string TXT_RECLAIM_OB = 'Reclaim OB'
+const string TXT_RECLAIM_FVG = 'Reclaim FVG'
+const string TXT_RECLAIM_SWING = 'Reclaim Swing Low'
+const string TXT_RECLAIM_INTERNAL = 'Reclaim Internal Low'
+const string TXT_LONG_ARMED = 'Long Armed'
+const string TXT_LONG_CONFIRMED = 'Long Confirmed'
+const string TXT_LONG_READY = 'Long Ready'
+const string TXT_LONG_INVALIDATED = 'Long Invalidated'
+const string TXT_INT_REVERSAL = 'INT Reversal'
+const string TXT_INT_BREAK = 'INT Break'
+const string TXT_TREND_CONFIRM = 'Trend Confirm'
 
 auto_ltf_timeframe(int chart_seconds) =>
     chart_seconds <= 60 ? '' :
@@ -1198,14 +1227,39 @@ trend_text(int trend_value) =>
 trend_text_or_na(float trend_value) =>
     na(trend_value) or trend_value == 0 ? 'n/a' : trend_value > 0 ? 'Bullish' : 'Bearish'
 
-trend_color(int trend_value) =>
-    trend_value > 0 ? color.new(color.lime, 0) : trend_value < 0 ? color.new(color.red, 0) : color.new(color.silver, 0)
-
-bool_text(bool value) =>
-    value ? 'Yes' : 'No'
+compact_trend_text(float trend_value) =>
+    na(trend_value) or trend_value == 0 ? '-' : trend_value > 0 ? 'Bull' : 'Bear'
 
 format_level(float value) =>
     na(value) ? 'n/a' : str.tostring(value, format.mintick)
+
+status_bg(int state) =>
+    state <= -1 ? color.new(color.red, 75) :
+     state == 0 ? color.new(color.gray, 80) :
+     state == 1 ? color.new(color.aqua, 80) :
+     state == 2 ? color.new(color.orange, 72) :
+     state == 3 ? color.new(color.yellow, 68) :
+     state == 4 ? color.new(color.lime, 72) :
+     color.new(color.green, 60)
+
+status_text(int state, string blocked, string neutral, string prep1, string prep2, string prep3, string confirm, string ready) =>
+    state <= -1 ? blocked :
+     state == 0 ? neutral :
+     state == 1 ? prep1 :
+     state == 2 ? prep2 :
+     state == 3 ? prep3 :
+     state == 4 ? confirm :
+     ready
+
+dashboard_row(table tbl, int row, string name, string value, color bg, color txt) =>
+    table.cell(tbl, 0, row, name, text_color = txt, bgcolor = bg)
+    table.cell(tbl, 1, row, value, text_color = txt, bgcolor = bg)
+
+scaled_marker_gap(int base_gap, bool auto_scale, int chart_tf_seconds, int reference_tf_seconds, float max_scale) =>
+    scale_base = reference_tf_seconds > 0 ? reference_tf_seconds : 180
+    ratio = scale_base > 0 and chart_tf_seconds > 0 ? chart_tf_seconds / scale_base : 1.0
+    bounded_scale = auto_scale ? math.min(math.max(math.sqrt(ratio), 1.0), max_scale) : 1.0
+    int(math.round(base_gap * bounded_scale))
 
 ltf_stats(float[] opens, float[] closes, float[] volumes) =>
     sample_count = opens.size()
@@ -1232,13 +1286,9 @@ ltf_stats(float[] opens, float[] closes, float[] volumes) =>
     [sample_count, bull_share, volume_delta]
 
 get_structure_display_trend_only(simple int structure_len) =>
-    var int display_trend = 0
-    [_, bull_bos_alert, bull_choch_alert, _, _, _, _, _, bear_bos_alert, bear_choch_alert, _, _, _, _, _, _] = detect_structure(structure_len, filter_insignificant_internal_breaks = true)
-    bool bullish_structure_break = bull_bos_alert or bull_choch_alert
-    bool bearish_structure_break = bear_bos_alert or bear_choch_alert
-
-    display_trend := bullish_structure_break ? 1 : bearish_structure_break ? -1 : display_trend
-    display_trend == 0 ? na : display_trend
+    [trend, bull_bos_alert, bull_choch_alert, _, _, _, _, _, bear_bos_alert, bear_choch_alert, _, _, _, _, _, _] = detect_structure(structure_len, filter_insignificant_internal_breaks = true)
+    bool structure_break_detected = bull_bos_alert or bull_choch_alert or bear_bos_alert or bear_choch_alert
+    not na(ta.barssince(structure_break_detected)) ? trend : 0
 
 count_visible_obs(OrderBlock[] blocks, int visible_left, int visible_right) =>
     visible_count = 0
@@ -1284,7 +1334,7 @@ string EQHL_THRESHOLD = 'Sensitivity threshold used for equal high / low detecti
 string SHOW_FVG = 'Display fair value gaps on the chart.'
 string FILTER_FVG = 'Filter out fair value gaps that are too small to matter.'
 string FVG_TF = 'Higher timeframe used for the higher-timeframe FVG overlay.'
-string SIGNAL_MODE_TOOLTIP = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts.'
+string SIGNAL_MODE_TOOLTIP = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close and should be treated as non-final until the bar confirms.'
 string LTF_TOOLTIP = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.'
 string DASHBOARD_TOOLTIP = 'Compact state table showing trend, OB/FVG counts, HTF alignment and intrabar pressure.'
 string PERFORMANCE_TOOLTIP = 'Restrict object rendering to the current visible chart window to reduce clutter and improve responsiveness.'
@@ -1308,6 +1358,7 @@ var g_dashboard = 'Dashboard'
 var bool show_dashboard = input.bool(true, 'Show dashboard', group = g_dashboard, tooltip = DASHBOARD_TOOLTIP)
 var bool show_dashboard_ltf = input.bool(true, 'Show LTF details', group = g_dashboard)
 var bool show_dashboard_counts = input.bool(true, 'Show object counts', group = g_dashboard)
+var bool show_dashboard_setup_age = input.bool(true, 'Show setup age', group = g_dashboard)
 
 var g_alerts = 'Alerts'
 var bool enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_alerts)
@@ -1316,15 +1367,63 @@ var bool enable_live_break_alerts = input.bool(true, 'Enable intrabar live break
 var g_perf = 'Performance'
 var bool render_visible_only = input.bool(true, 'Render visible range only', group = g_perf, tooltip = PERFORMANCE_TOOLTIP)
 
+var g_long = 'Long Dip Tools'
+// Visuals
+var bool show_reclaim_markers = input.bool(true, 'Show Reclaim Markers', group = g_long, inline = 'viz1')
+var bool show_long_confirmation_markers = input.bool(true, 'Show Long Confirmation Markers', group = g_long, inline = 'viz1')
+var bool show_long_background = input.bool(true, 'Show Long-only Background', group = g_long, inline = 'viz2')
+var bool color_long_bars = input.bool(false, 'Color Bars', group = g_long, inline = 'viz2')
+var bool auto_scale_marker_gaps = input.bool(true, 'Auto Scale Gaps', group = g_long, inline = 'viz3')
+var int reclaim_marker_spacing_bars = input.int(2, 'Reclaim Marker Gap', minval = 0, maxval = 50, group = g_long, inline = 'viz3')
+var int confirm_marker_spacing_bars = input.int(3, 'Confirm Marker Gap', minval = 0, maxval = 50, group = g_long, inline = 'viz3')
+var int ready_marker_spacing_bars = input.int(5, 'Ready/Fail Gap', minval = 0, maxval = 50, group = g_long, inline = 'viz4')
+var int marker_gap_reference_minutes = input.int(3, 'Auto Scale Base TF Min', minval = 1, maxval = 240, group = g_long, inline = 'viz4')
+var float marker_gap_max_scale = input.float(4.0, 'Max Scale', minval = 1.0, maxval = 10.0, step = 0.5, group = g_long, inline = 'viz4')
+
+// Setup timing
+var int long_signal_window = input.int(12, 'Signal Window Bars', minval = 1, group = g_long, inline = 'state1')
+var int long_confirm_lookback = input.int(3, 'Confirm Break Lookback', minval = 1, maxval = 20, group = g_long, inline = 'state1')
+var int long_setup_expiry_bars = input.int(6, 'Setup Expiry Bars', minval = 1, maxval = 30, group = g_long, inline = 'state2')
+var float long_invalidation_atr_mult = input.float(0.10, 'Invalidation Buffer ATR x', minval = 0.0, step = 0.05, group = g_long, inline = 'state2')
+var int long_zone_scan_limit = input.int(5, 'Zone Scan Depth', minval = 1, maxval = 20, group = g_long, inline = 'state2')
+
+// Confirmation rules
+var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
+var bool require_main_break_for_ready = input.bool(false, 'Require Main BOS For Ready', group = g_long, inline = 'confirm')
+var bool use_live_confirm_break = input.bool(true, 'Live Confirm Uses High', group = g_long, inline = 'confirm2')
+var bool use_live_invalidation_break = input.bool(false, 'Live Invalidation Uses Low', group = g_long, inline = 'confirm2')
+var string long_internal_structure_mode = input.string('Internal CHoCH only', 'Structure Mode', options = ['Internal CHoCH or BOS', 'Internal CHoCH only'], group = g_long, inline = 'confirm3')
+
+// EMA support
+var bool show_ema_support = input.bool(true, 'Show EMA Support', group = g_long, inline = 'ema')
+var int ema_fast_len = input.int(20, 'Fast', minval = 1, group = g_long, inline = 'ema')
+var int ema_slow_len = input.int(50, 'Slow', minval = 1, group = g_long, inline = 'ema')
+
+// ADX
+var bool use_adx = input.bool(true, 'Use ADX', group = g_long, inline = 'adx')
+var int adx_len = input.int(14, 'Length', minval = 1, group = g_long, inline = 'adx')
+var float adx_trend_min = input.float(20.0, 'Trend', minval = 1, step = 0.5, group = g_long, inline = 'adx2')
+var float adx_strong_min = input.float(25.0, 'Strong', minval = 1, step = 0.5, group = g_long, inline = 'adx2')
+
+// Relative volume
+var bool use_rel_volume = input.bool(true, 'Use Relative Volume', group = g_long, inline = 'rv')
+var int relvol_len = input.int(20, 'Length', minval = 1, group = g_long, inline = 'rv')
+var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, group = g_long, inline = 'rv')
+
+// Candle quality
+var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', group = g_long, inline = 'close')
+var float min_close_in_range_pct = input.float(0.65, 'Min Close In Range', minval = 0.50, maxval = 1.00, step = 0.05, group = g_long, inline = 'close')
+
 var g_struct = 'Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, tooltip = SHOW_SWING)
 var string show_bull = input.string('All', 'Bullish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bull')
 var color bull_css = input.color(#089981, '', group = g_struct, inline = 'bull')
 var string show_bear = input.string('All', 'Bearish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bear')
 var color bear_css = input.color(#f23645, '', group = g_struct, inline = 'bear')
-var bool show_swing_points = input.bool(false, 'Show Swing Points', group = g_struct, inline = 'swings', tooltip = SHOW_SWING_POINTS)
-var int swing_length = input.int(50, 'Swing Size', minval = 10, group = g_struct, inline = 'swings')
-var bool show_internals = input.bool(false, 'Show Internal Structure', group = g_struct)
+var bool show_swing_points = input.bool(false, 'Show Swing Points (HH/LH/HL/LL)', group = g_struct, inline = 'swings', tooltip = SHOW_SWING_POINTS)
+var int swing_length = input.int(DEFAULT_SWING_LENGTH, 'Swing Size', minval = 10, group = g_struct, inline = 'swings')
+var bool show_internals = input.bool(false, 'Show Internal Structure', group = g_struct, inline = 'internals')
+var int internal_length = input.int(DEFAULT_INTERNAL_LENGTH, 'Internal Size', minval = 3, group = g_struct, inline = 'internals')
 var bool show_latest_swings_levels = input.bool(true, 'Show Strong/Weak High/Low', group = g_struct, tooltip = SHOW_SWHL_POINTS)
 
 var bool show_bull_bos = show_Structure and (show_bull == 'All' or show_bull == 'BOS')
@@ -1379,12 +1478,41 @@ auto_selected_ltf = auto_ltf_timeframe(chart_timeframe_seconds)
 effective_ltf_timeframe = ltf_auto_select ? auto_selected_ltf : ltf_timeframe
 ltf_timeframe_valid = str.length(effective_ltf_timeframe) > 0 and timeframe.in_seconds(effective_ltf_timeframe) < chart_timeframe_seconds
 ltf_sampling_active = enable_ltf_sampling and ltf_timeframe_valid
-ltf_sampling_status = not enable_ltf_sampling ? 'disabled' : ltf_timeframe_valid ? 'active' : 'fallback'
+int marker_gap_reference_seconds = marker_gap_reference_minutes * 60
+int effective_reclaim_marker_gap = scaled_marker_gap(reclaim_marker_spacing_bars, auto_scale_marker_gaps, chart_timeframe_seconds, marker_gap_reference_seconds, marker_gap_max_scale)
+int effective_confirm_marker_gap = scaled_marker_gap(confirm_marker_spacing_bars, auto_scale_marker_gaps, chart_timeframe_seconds, marker_gap_reference_seconds, marker_gap_max_scale)
+int effective_ready_marker_gap = scaled_marker_gap(ready_marker_spacing_bars, auto_scale_marker_gaps, chart_timeframe_seconds, marker_gap_reference_seconds, marker_gap_max_scale)
 
 float[] ltf_opens = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, open) : array.new<float>(0)
 float[] ltf_closes = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, close) : array.new<float>(0)
 float[] ltf_volumes = ltf_sampling_active ? request.security_lower_tf(syminfo.tickerid, effective_ltf_timeframe, volume) : array.new<float>(0)
 [ltf_sample_count, ltf_bull_share, ltf_volume_delta] = ltf_stats(ltf_opens, ltf_closes, ltf_volumes)
+
+ema_fast = ta.ema(close, ema_fast_len)
+ema_slow = ta.ema(close, ema_slow_len)
+
+plot(show_ema_support ? ema_fast : na, 'EMA Fast', color = color.new(color.lime, 0), linewidth = 2)
+plot(show_ema_support ? ema_slow : na, 'EMA Slow', color = color.new(color.teal, 0), linewidth = 2)
+
+[plus_di, minus_di, adx_value] = ta.dmi(adx_len, adx_len)
+bool adx_data_ok = not na(adx_value) and not na(plus_di) and not na(minus_di)
+float rel_volume_ma = ta.sma(volume, relvol_len)
+float rel_volume = na(volume) or na(rel_volume_ma) or rel_volume_ma <= 0 ? na : volume / rel_volume_ma
+
+bar_range = math.max(high - low, syminfo.mintick)
+bull_close_in_range = (close - low) / bar_range
+
+bool bull_close_strong = not use_strong_close_filter ? true : bull_close_in_range >= min_close_in_range_pct
+string close_state_text = not use_strong_close_filter ? 'off' : bull_close_strong ? 'Strong Close' : 'Weak Close'
+
+bool ema_support_ok = not show_ema_support ? true : close >= ema_fast and ema_fast >= ema_slow and ema_fast > ema_fast[1]
+string ema_state_text = not show_ema_support ? 'off' : ema_support_ok ? 'OK' : 'No'
+
+bool adx_strong = not use_adx ? true : adx_data_ok and adx_value >= adx_strong_min and plus_di >= minus_di
+string adx_state_text = not use_adx ? 'off' : not adx_data_ok ? 'n/a' : plus_di < minus_di ? 'Bearish pressure' : adx_value < adx_trend_min ? 'Sideways' : adx_value < adx_strong_min ? 'Trend building' : 'Trend'
+
+bool relvol_ok = not use_rel_volume ? true : not na(rel_volume) and rel_volume >= relvol_good
+string relvol_text = not use_rel_volume ? 'off' : na(rel_volume) ? 'n/a' : str.format('{0,number,#.##}x', rel_volume)
 
 mtf_trend_1 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf1, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
 mtf_trend_2 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf2, get_structure_display_trend_only(swing_length), gaps = barmerge.gaps_off) : na
@@ -1392,10 +1520,20 @@ mtf_trend_3 = show_mtf_trend ? request.security(syminfo.tickerid, mtf_trend_tf3,
 
 [trend, bull_bos_alert, bull_choch_alert, top_x, top, trail_up_x, trail_up, hh, bear_bos_alert, bear_choch_alert, btm_x, btm, trail_dn_x, trail_dn, ll, hhll_x] = detect_structure(swing_length, filter_insignificant_internal_breaks = true)
 // Separate display-only trend state: avoid exposing the engine's bullish bootstrap bias before a real structure break occurs.
-var int structure_display_trend = 0
 bool bullish_structure_break = bull_bos_alert or bull_choch_alert
 bool bearish_structure_break = bear_bos_alert or bear_choch_alert
-structure_display_trend := bullish_structure_break ? 1 : bearish_structure_break ? -1 : structure_display_trend
+bool structure_break_detected = bullish_structure_break or bearish_structure_break
+structure_display_trend = not na(ta.barssince(structure_break_detected)) ? trend : 0
+bool bullish_trend_condition = structure_display_trend == 1
+bool bearish_trend_condition = structure_display_trend == -1
+bool bullish_trend_started = bullish_trend_condition and not bullish_trend_condition[1]
+bool bearish_trend_started = bearish_trend_condition and not bearish_trend_condition[1]
+bool directional_trend_started = bullish_trend_started or bearish_trend_started
+
+[internal_trend, internal_bull_bos_alert, internal_bull_choch_alert, internal_top_x, internal_top, internal_trail_up_x, internal_trail_up, internal_hh, internal_bear_bos_alert, internal_bear_choch_alert, internal_btm_x, internal_btm, internal_trail_dn_x, internal_trail_dn, internal_ll, internal_hhll_x] = detect_structure(internal_length, top, btm, filter_insignificant_internal_breaks = true)
+
+bool internal_structure_break_detected = internal_bull_bos_alert or internal_bull_choch_alert or internal_bear_bos_alert or internal_bear_choch_alert
+internal_display_trend = not na(ta.barssince(internal_structure_break_detected)) ? internal_trend : 0
 
 var D.LabelArgs pivot_label_args_bull = D.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_up)
 var D.LabelArgs pivot_label_args_bear = D.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down)
@@ -1403,23 +1541,72 @@ var D.LabelArgs swing_level_label_args_bull = D.LabelArgs.new(bull_css, #0000000
 var D.LabelArgs swing_level_label_args_bear = D.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_left)
 var D.LabelArgs structure_label_args_bull = D.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_down)
 var D.LabelArgs structure_label_args_bear = D.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down)
-var D.LineArgs structure_line_args_bull = D.LineArgs.new(bull_css, line.style_dotted)
-var D.LineArgs structure_line_args_bear = D.LineArgs.new(bear_css, line.style_dotted)
-var D.LineArgs swing_level_line_args_bull = D.LineArgs.new(bull_css)
-var D.LineArgs swing_level_line_args_bear = D.LineArgs.new(bear_css)
+var D.LineArgs structure_line_args_bull = D.LineArgs.new(bull_css, line.style_solid, 2)
+var D.LineArgs structure_line_args_bear = D.LineArgs.new(bear_css, line.style_solid, 2)
+var D.LineArgs swing_level_line_args_bull = D.LineArgs.new(bull_css, line.style_solid, 2)
+var D.LineArgs swing_level_line_args_bear = D.LineArgs.new(bear_css, line.style_solid, 2)
 
+var color bull_internal_css = color.new(bull_css, 78)
+var color bear_internal_css = color.new(bear_css, 78)
+
+var D.LabelArgs swing_level_label_args_internal_bull = D.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_left)
+var D.LabelArgs swing_level_label_args_internal_bear = D.LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_left)
+
+var D.LabelArgs structure_label_args_internal_bull = D.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_down)
+var D.LabelArgs structure_label_args_internal_bear = D.LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_down)
+
+var D.LineArgs structure_line_args_internal_bull = D.LineArgs.new(bull_internal_css, line.style_dashed)
+var D.LineArgs structure_line_args_internal_bear = D.LineArgs.new(bear_internal_css, line.style_dashed)
+
+var D.LineArgs swing_level_line_args_internal_bull = D.LineArgs.new(bull_internal_css, line.style_dashed)
+var D.LineArgs swing_level_line_args_internal_bear = D.LineArgs.new(bear_internal_css, line.style_dashed)
+
+var color long_color_zone = color.aqua
+var color long_color_reclaim = color.orange
+var color long_color_reversal = color.yellow
+var color long_color_building = color.rgb(212, 170, 34)
+var color long_color_confirmed = color.lime
+var color long_color_ready = color.green
+var color long_color_invalid = color.red
+var color long_dashboard_building_text = color.rgb(105, 74, 0)
+
+bool show_internal_bull_bos = show_internals and (show_bull == 'All' or show_bull == 'BOS')
+bool show_internal_bull_choch = show_internals and (show_bull == 'All' or show_bull == 'CHoCH')
+bool show_internal_bear_bos = show_internals and (show_bear == 'All' or show_bear == 'BOS')
+bool show_internal_bear_choch = show_internals and (show_bear == 'All' or show_bear == 'CHoCH')
+
+// Pivot labels (HH/LH/HL/LL)
 if show_swing_points
     plot_pivot_points(1, top_x, top, show_swing_points and not na(hh), pivot_label_args_bear, keep_history = true)
     plot_pivot_points(-1, btm_x, btm, show_swing_points and not na(ll), pivot_label_args_bull, keep_history = true)
-if show_latest_swings_levels
-    plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, show_latest_swings_levels, swing_level_label_args_bear, swing_level_line_args_bear, override_right_index = bar_index + 20)
-    plot_swing_levels(-1, trail_dn_x, trail_dn, structure_display_trend, show_latest_swings_levels, swing_level_label_args_bull, swing_level_line_args_bull, override_right_index = bar_index + 20)
+
+// UX-Fix:
+// If the user enables swing points they usually also expect the active swing levels.
+bool show_chart_swing_levels = show_latest_swings_levels or show_swing_points
+
+if show_chart_swing_levels
+    plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, true, swing_level_label_args_bear, swing_level_line_args_bear, override_right_index = bar_index + 20)
+    plot_swing_levels(-1, trail_dn_x, trail_dn, structure_display_trend, true, swing_level_label_args_bull, swing_level_line_args_bull, override_right_index = bar_index + 20)
+
 if show_bull_bos or show_bull_choch
     plot_structure(top_x, top, show_bull_bos and bull_bos_alert, show_bull_choch and bull_choch_alert, structure_label_args_bull, structure_line_args_bull, keep_history = true)
+
 if show_bear_bos or show_bear_choch
     plot_structure(btm_x, btm, show_bear_bos and bear_bos_alert, show_bear_choch and bear_choch_alert, structure_label_args_bear, structure_line_args_bear, keep_history = true)
 
-[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = show_ob, capture_profile = use_ob_profile, align_edge_to_value_area = use_ob_profile, align_break_price_to_poc = use_ob_profile, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode)
+// Internal structure: lighter dashed rendering
+if show_internals
+    plot_swing_levels(1, internal_trail_up_x, internal_trail_up, internal_display_trend, true, swing_level_label_args_internal_bear, swing_level_line_args_internal_bear, override_right_index = bar_index + 10, text_prefix = 'INT ')
+    plot_swing_levels(-1, internal_trail_dn_x, internal_trail_dn, internal_display_trend, true, swing_level_label_args_internal_bull, swing_level_line_args_internal_bull, override_right_index = bar_index + 10, text_prefix = 'INT ')
+
+if show_internal_bull_bos or show_internal_bull_choch
+    plot_structure(internal_top_x, internal_top, show_internal_bull_bos and internal_bull_bos_alert, show_internal_bull_choch and internal_bull_choch_alert, structure_label_args_internal_bull, structure_line_args_internal_bull, keep_history = true, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
+
+if show_internal_bear_bos or show_internal_bear_choch
+    plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_alert, show_internal_bear_choch and internal_bear_choch_alert, structure_label_args_internal_bear, structure_line_args_internal_bear, keep_history = true, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
+
+bool enable_ob_engine = true
+[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = use_ob_profile, align_edge_to_value_area = use_ob_profile, align_break_price_to_poc = use_ob_profile, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode)
 
 var map<int, OrderBlock> ob_registry_bull = map.new<int, OrderBlock>()
 var map<int, OrderBlock> ob_registry_bear = map.new<int, OrderBlock>()
@@ -1435,6 +1622,9 @@ varip bool live_bear_ob_break = false
 varip bool live_bull_fvg_fill = false
 varip bool live_bear_fvg_fill = false
 varip int intrabar_event_count = 0
+var int reclaim_marker_drawn_bar_index = na
+var int long_state_marker_drawn_bar_index = na
+var int long_ready_marker_drawn_bar_index = na
 
 if barstate.isnew
     live_bull_ob_break := false
@@ -1442,6 +1632,9 @@ if barstate.isnew
     live_bull_fvg_fill := false
     live_bear_fvg_fill := false
     intrabar_event_count := 0
+    reclaim_marker_drawn_bar_index := na
+    long_state_marker_drawn_bar_index := na
+    long_ready_marker_drawn_bar_index := na
 
 if barstate.islast
     ob_blocks_bull.draw(ob_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -1480,9 +1673,11 @@ var filter_insignificant_fvgs = input.bool(true, 'Filter: min size', group = g_f
 var min_fvg_size_atr_len = input.int(ATR_LEN_MAIN, 'ATR Length', minval = 1, group = g_fvg, inline = 'fvg_min')
 var min_fvg_size_atr_mult = input.float(DEFAULT_FVG_MIN_SIZE_MULT, 'x', minval = 0, step = 0.1, group = g_fvg, inline = 'fvg_min')
 float fvg_size_threshold = filter_insignificant_fvgs ? ND.atr(min_fvg_size_atr_len) * min_fvg_size_atr_mult : 0
-var fvg_fill_target_ratio = input.float(DEFAULT_FVG_FILL_TARGET_PCT, 'Filled at %', minval = -100, maxval = 200, step = 5, group = g_fvg) / 100
+var float fvg_fill_target_pct = input.float(DEFAULT_FVG_FILL_TARGET_PCT, 'Filled at %', minval = 0, maxval = 100, step = 5, group = g_fvg)
+float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 100.0))
 
-[bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, show_fvg, fvg_keep_filled_max)
+bool enable_fvg_engine = true
+[bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max)
 
 var map<int, FVG> fvg_registry_bull = map.new<int, FVG>()
 var map<int, FVG> fvg_registry_bear = map.new<int, FVG>()
@@ -1505,6 +1700,8 @@ var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_targ
 
 bool bullish_fvg_filled_alert = filled_fvgs_new_bull.size() > 0
 bool bearish_fvg_filled_alert = filled_fvgs_new_bear.size() > 0
+float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.last().fill_target_level : na
+float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.last().fill_target_level : na
 
 if barstate.islast
     fvgs_bull.draw(fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -1548,9 +1745,11 @@ fvgs_objects_htf(FVG new_bull, FVG new_bear, bool htf_is_confirmed, float size_t
         buffer_bull.remove_insignificant(size_threshold, htf_buffer_bull_discarded)
         buffer_bear.remove_insignificant(size_threshold, htf_buffer_bear_discarded)
 
-    if not na(new_bull)
+    bool htf_insert_ok = fill_mode == LevelBreakMode.CLOSE ? htf_is_confirmed : true
+
+    if htf_insert_ok and not na(new_bull)
         buffer_bull.push(new_bull)
-    if not na(new_bear)
+    if htf_insert_ok and not na(new_bear)
         buffer_bear.push(new_bear)
 
     [buffer_bull, buffer_bear, buffer_bull_filled, buffer_bear_filled, buffer_bull_filled_new, buffer_bear_filled_new, htf_buffer_bull_discarded, htf_buffer_bear_discarded]
@@ -1572,7 +1771,7 @@ var bear_htf_fvg_line_css_filled = bear_fvg_line_css_filled
 
 if barstate.isfirst and show_htf_fvg
     if timeframe.in_seconds(fvg_htf) < timeframe.in_seconds()
-        runtime.error(str.format('Show FVG (Timeframe): select a timeframe higher than the chart timeframe {0}, currently selected: {1}', timeframe.period, fvg_htf))
+        runtime.error(str.format('Show FVG (Timeframe): select a timeframe not lower than the chart timeframe {0}, currently selected: {1}', timeframe.period, fvg_htf))
 
 var htf_fvg_config_bull = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬈', extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bull_htf_fvg_line_css, 0, line.style_solid, bull_htf_fvg_css, xloc = xloc.bar_time), box_text_args = D.BoxTextArgs.new(bull_htf_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bull_htf_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = D.LabelArgs.new(bull_htf_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 var htf_fvg_config_bear = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬊', extend_until_filled = fvg_extend_until_filled, box_args = D.BoxArgs.new(bear_htf_fvg_line_css, 0, line.style_solid, bear_htf_fvg_css, xloc = xloc.bar_time), box_text_args = D.BoxTextArgs.new(bear_htf_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = D.LineArgs.new(bear_htf_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = D.LabelArgs.new(bear_htf_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
@@ -1590,19 +1789,406 @@ last_bear_ob_break_level = ob_blocks_bear.size() > 0 ? ob_blocks_bear.last().bre
 last_bull_fvg_fill_level = fvgs_bull.size() > 0 ? fvgs_bull.last().fill_target_level : na
 last_bear_fvg_fill_level = fvgs_bear.size() > 0 ? fvgs_bear.last().fill_target_level : na
 
+last_bull_ob_top = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().left_top.price : na
+last_bull_ob_bottom = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().right_bottom.price : na
+last_bull_fvg_top = fvgs_bull.size() > 0 ? fvgs_bull.last().left_top.price : na
+last_bull_fvg_bottom = fvgs_bull.size() > 0 ? fvgs_bull.last().right_bottom.price : na
+
+float active_bull_ob_top = na
+float active_bull_ob_bottom = na
+float active_bull_ob_break_level = na
+float active_bull_fvg_top = na
+float active_bull_fvg_bottom = na
+float active_bull_fvg_fill_level = na
+float active_bear_ob_break_level = na
+float active_bear_fvg_fill_level = na
+
+int bull_ob_scan_start = math.max(ob_blocks_bull.size() - long_zone_scan_limit, 0)
+if ob_blocks_bull.size() > 0
+    for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
+        bull_ob_candidate = ob_blocks_bull.get(i)
+        bool ob_candidate_active = low <= bull_ob_candidate.left_top.price and high >= bull_ob_candidate.right_bottom.price
+        if ob_candidate_active
+            active_bull_ob_top := bull_ob_candidate.left_top.price
+            active_bull_ob_bottom := bull_ob_candidate.right_bottom.price
+            active_bull_ob_break_level := bull_ob_candidate.break_price
+            break
+
+int bull_fvg_scan_start = math.max(fvgs_bull.size() - long_zone_scan_limit, 0)
+if fvgs_bull.size() > 0
+    for i = fvgs_bull.size() - 1 to bull_fvg_scan_start
+        bull_fvg_candidate = fvgs_bull.get(i)
+        bool fvg_candidate_active = low <= bull_fvg_candidate.left_top.price and high >= bull_fvg_candidate.right_bottom.price
+        if fvg_candidate_active
+            active_bull_fvg_top := bull_fvg_candidate.left_top.price
+            active_bull_fvg_bottom := bull_fvg_candidate.right_bottom.price
+            active_bull_fvg_fill_level := bull_fvg_candidate.fill_target_level
+            break
+
+int bear_ob_scan_start = math.max(ob_blocks_bear.size() - long_zone_scan_limit, 0)
+if ob_blocks_bear.size() > 0
+    for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
+        bear_ob_candidate = ob_blocks_bear.get(i)
+        bool bear_ob_candidate_active = low <= bear_ob_candidate.left_top.price and high >= bear_ob_candidate.right_bottom.price
+        if bear_ob_candidate_active
+            active_bear_ob_break_level := bear_ob_candidate.break_price
+            break
+
+int bear_fvg_scan_start = math.max(fvgs_bear.size() - long_zone_scan_limit, 0)
+if fvgs_bear.size() > 0
+    for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
+        bear_fvg_candidate = fvgs_bear.get(i)
+        bool bear_fvg_candidate_active = low <= bear_fvg_candidate.left_top.price and high >= bear_fvg_candidate.right_bottom.price
+        if bear_fvg_candidate_active
+            active_bear_fvg_fill_level := bear_fvg_candidate.fill_target_level
+            break
+
+bool in_bull_ob_zone = not na(active_bull_ob_top) and not na(active_bull_ob_bottom)
+bool in_bull_fvg_zone = not na(active_bull_fvg_top) and not na(active_bull_fvg_bottom)
+bool long_zone_active = in_bull_ob_zone or in_bull_fvg_zone
+float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level
+float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
+float bear_ob_break_for_alert = not na(active_bear_ob_break_level) ? active_bear_ob_break_level : last_bear_ob_break_level
+float bear_fvg_fill_for_alert = not na(active_bear_fvg_fill_level) ? active_bear_fvg_fill_level : last_bear_fvg_fill_level
+bool any_live_bull_ob_break = false
+bool any_live_bear_ob_break = false
+bool any_live_bull_fvg_fill = false
+bool any_live_bear_fvg_fill = false
+float bull_ob_live_event_level = bull_ob_break_for_alert
+float bear_ob_live_event_level = bear_ob_break_for_alert
+float bull_fvg_live_event_level = bull_fvg_fill_for_alert
+float bear_fvg_live_event_level = bear_fvg_fill_for_alert
+
+if ob_blocks_bull.size() > 0
+    for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
+        bull_ob_live_candidate = ob_blocks_bull.get(i)
+        if low <= bull_ob_live_candidate.break_price
+            any_live_bull_ob_break := true
+            bull_ob_live_event_level := bull_ob_live_candidate.break_price
+            break
+
+if ob_blocks_bear.size() > 0
+    for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
+        bear_ob_live_candidate = ob_blocks_bear.get(i)
+        if high >= bear_ob_live_candidate.break_price
+            any_live_bear_ob_break := true
+            bear_ob_live_event_level := bear_ob_live_candidate.break_price
+            break
+
+if fvgs_bull.size() > 0
+    for i = fvgs_bull.size() - 1 to bull_fvg_scan_start
+        bull_fvg_live_candidate = fvgs_bull.get(i)
+        if low <= bull_fvg_live_candidate.fill_target_level
+            any_live_bull_fvg_fill := true
+            bull_fvg_live_event_level := bull_fvg_live_candidate.fill_target_level
+            break
+
+if fvgs_bear.size() > 0
+    for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
+        bear_fvg_live_candidate = fvgs_bear.get(i)
+        if high >= bear_fvg_live_candidate.fill_target_level
+            any_live_bear_fvg_fill := true
+            bear_fvg_live_event_level := bear_fvg_live_candidate.fill_target_level
+            break
+
+float long_reclaim_ob_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
+float long_reclaim_fvg_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
+float long_reclaim_internal_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
+float long_reclaim_swing_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE ? high : close
+bool long_reclaim_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
+
+bool bull_reclaim_ob = long_reclaim_bar_ok and in_bull_ob_zone and long_reclaim_ob_break_src > active_bull_ob_top
+bool bull_reclaim_fvg = long_reclaim_bar_ok and in_bull_fvg_zone and long_reclaim_fvg_break_src > active_bull_fvg_top
+bool bull_reclaim_internal_low = long_reclaim_bar_ok and not na(internal_trail_dn) and low < internal_trail_dn and long_reclaim_internal_break_src > internal_trail_dn
+bool bull_reclaim_swing_low = long_reclaim_bar_ok and not na(trail_dn) and low < trail_dn and long_reclaim_swing_break_src > trail_dn
+bool bull_reclaim_any = bull_reclaim_ob or bull_reclaim_fvg or bull_reclaim_internal_low or bull_reclaim_swing_low
+
+int zone_since_bars = ta.barssince(long_zone_active)
+int reclaim_since_bars = ta.barssince(bull_reclaim_any)
+int internal_choch_since_bars = ta.barssince(internal_bull_choch_alert)
+int internal_bos_since_bars = ta.barssince(internal_bull_bos_alert)
+int main_bos_since_bars = ta.barssince(bull_bos_alert)
+
+bool zone_recent = not na(zone_since_bars) and zone_since_bars <= long_signal_window
+bool reclaim_recent = not na(reclaim_since_bars) and reclaim_since_bars <= long_signal_window
+bool internal_choch_recent = not na(internal_choch_since_bars) and internal_choch_since_bars <= long_signal_window
+bool internal_bos_recent = not na(internal_bos_since_bars) and internal_bos_since_bars <= long_signal_window
+bool main_bos_recent = not na(main_bos_since_bars) and main_bos_since_bars <= long_signal_window
+
+bool bearish_abort_signal = bear_bos_alert or bear_choch_alert or internal_bear_bos_alert or internal_bear_choch_alert
+int bearish_abort_since_bars = ta.barssince(bearish_abort_signal)
+bool bearish_abort_recent = not na(bearish_abort_since_bars) and bearish_abort_since_bars <= long_signal_window
+
+string long_zone_text = 'No Long Zone'
+if zone_recent
+    long_zone_text := 'Zone touched'
+if in_bull_fvg_zone
+    long_zone_text := 'In FVG Zone'
+if in_bull_ob_zone
+    long_zone_text := 'In OB Zone'
+if in_bull_ob_zone and in_bull_fvg_zone
+    long_zone_text := 'In OB + FVG Zone'
+
+string reclaim_text = 'No Reclaim'
+if reclaim_recent
+    reclaim_text := 'Reclaim recent'
+if bull_reclaim_internal_low
+    reclaim_text := 'Internal Low Reclaimed'
+if bull_reclaim_swing_low
+    reclaim_text := 'Swing Low Reclaimed'
+if bull_reclaim_fvg
+    reclaim_text := 'FVG Reclaimed'
+if bull_reclaim_ob
+    reclaim_text := 'OB Reclaimed'
+
+float long_invalidation_buffer = ob_threshold_atr * long_invalidation_atr_mult
+float prior_long_trigger_level = nz(ta.highest(high, long_confirm_lookback)[1], high)
+
+// --------------------------------------------------
+// Long dip state machine
+// 1) stored state
+// 2) invalidation rules
+// 3) arm setup
+// 4) confirm setup
+// 5) ready state + visual state
+// --------------------------------------------------
+
+// 1) Stored state
+var bool long_setup_armed = false
+var bool long_setup_confirmed = false
+var int long_setup_age = 0
+var int long_confirm_age = 0
+var int long_setup_arm_bar_index = na
+var float long_setup_trigger = na
+var float long_invalidation_level = na
+var string long_setup_source = 'None'
+var string long_last_invalid_source = 'None'
+var float long_last_invalid_level = na
+
+bool long_arm_signal = false
+bool long_confirm_signal = false
+bool long_invalidate_signal = false
+string long_setup_text = 'No Setup'
+int long_visual_state = 0
+int long_setup_dashboard_state = 0
+string long_visual_text = 'Neutral'
+color long_bg_color = na
+color long_bar_color = na
+string arm_source_text = 'None'
+float arm_invalidation_candidate = low
+float arm_trigger_candidate = math.max(high, prior_long_trigger_level)
+bool long_confirm_break = false
+bool internal_choch_since_arm = false
+bool internal_bos_since_arm = false
+bool long_confirm_structure_ok = false
+bool long_internal_structure_ok = false
+bool long_building_state = false
+
+if bull_reclaim_ob
+    arm_source_text := 'OB'
+    arm_invalidation_candidate := active_bull_ob_bottom
+else if bull_reclaim_fvg
+    arm_source_text := 'FVG'
+    arm_invalidation_candidate := active_bull_fvg_bottom
+else if bull_reclaim_swing_low
+    arm_source_text := 'Swing Low'
+    arm_invalidation_candidate := trail_dn
+else if bull_reclaim_internal_low
+    arm_source_text := 'Internal Low'
+    arm_invalidation_candidate := internal_trail_dn
+
+// 2) Invalidation
+if long_setup_armed and not long_setup_confirmed
+    long_setup_age += 1
+
+if long_setup_confirmed
+    long_confirm_age += 1
+
+bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age > long_setup_expiry_bars
+float long_invalidation_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE and use_live_invalidation_break ? low : close
+bool long_broken_down = not na(long_invalidation_level) and long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
+bool long_invalidated_now = bearish_abort_signal or long_broken_down or long_setup_expired
+
+if long_invalidated_now
+    long_last_invalid_source := long_setup_source
+    long_last_invalid_level := long_invalidation_level
+    long_invalidate_signal := long_setup_armed or long_setup_confirmed
+    long_setup_armed := false
+    long_setup_confirmed := false
+    long_setup_age := 0
+    long_confirm_age := 0
+    long_setup_arm_bar_index := na
+    long_setup_trigger := na
+    long_invalidation_level := na
+    long_setup_source := 'None'
+
+// 3) Arm setup
+if bull_reclaim_any and zone_recent and not long_setup_armed and not bearish_abort_recent
+    long_arm_signal := true
+    long_setup_armed := true
+    long_setup_confirmed := false
+    long_setup_age := 0
+    long_confirm_age := 0
+    long_setup_arm_bar_index := bar_index
+    long_setup_trigger := arm_trigger_candidate
+    long_invalidation_level := arm_invalidation_candidate
+    long_setup_source := arm_source_text
+
+// 4) Confirm setup
+float long_confirm_break_src = signal_mode == SignalMode.AGGRESSIVE_LIVE and use_live_confirm_break ? high : close
+long_confirm_break := long_setup_armed and not long_setup_confirmed and long_setup_age > 0 and long_confirm_break_src > long_setup_trigger
+internal_choch_since_arm := long_setup_armed and not na(long_setup_arm_bar_index) and not na(internal_choch_since_bars) and internal_choch_since_bars <= bar_index - long_setup_arm_bar_index
+internal_bos_since_arm := long_setup_armed and not na(long_setup_arm_bar_index) and not na(internal_bos_since_bars) and internal_bos_since_bars <= bar_index - long_setup_arm_bar_index
+long_internal_structure_ok := long_internal_structure_mode == 'Internal CHoCH only' ? (internal_bull_choch_alert or internal_choch_since_arm) : (internal_bull_choch_alert or internal_bull_bos_alert or internal_choch_since_arm or internal_bos_since_arm)
+long_confirm_structure_ok := not require_internal_break_for_confirm
+if not long_confirm_structure_ok
+    long_confirm_structure_ok := long_internal_structure_ok
+
+if long_confirm_break and long_confirm_structure_ok
+    long_setup_confirmed := true
+    long_confirm_age := 0
+    long_confirm_signal := true
+
+// 5) Ready state + visuals
+bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong
+bool long_ready_state = long_setup_confirmed and long_filters_ok and (not require_main_break_for_ready or bull_bos_alert or main_bos_recent)
+long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
+
+bool long_ready_signal = long_ready_state and not long_ready_state[1]
+
+long_setup_text := 'No Setup'
+if long_zone_active
+    long_setup_text := 'In Zone'
+if long_setup_armed
+    long_setup_text := str.format('Armed | {0}', long_setup_source)
+if long_building_state
+    long_setup_text := str.format('Building | {0}', long_setup_source)
+if long_setup_confirmed
+    long_setup_text := str.format('Confirmed | {0}', long_setup_source)
+if long_ready_state
+    long_setup_text := str.format('Ready | {0}', long_setup_source)
+
+long_visual_state := 0
+if long_zone_active
+    long_visual_state := 1
+if long_setup_armed
+    long_visual_state := 2
+if long_building_state
+    long_visual_state := 3
+if long_setup_confirmed
+    long_visual_state := 4
+if long_ready_state
+    long_visual_state := 5
+if (long_setup_armed or long_setup_confirmed or long_invalidate_signal) and (long_invalidated_now or bearish_abort_recent)
+    long_visual_state := -1
+
+long_setup_dashboard_state := long_visual_state
+
+long_visual_text := status_text(long_visual_state, 'Blocked', 'Neutral', 'In Zone', 'Armed', 'Building', 'Confirmed', 'Long Ready')
+
+long_bg_color := na
+if long_visual_state == -1
+    long_bg_color := color.new(color.red, 90)
+else if long_visual_state == 1
+    long_bg_color := color.new(color.aqua, 92)
+else if long_visual_state == 2
+    long_bg_color := color.new(color.orange, 88)
+else if long_visual_state == 3
+    long_bg_color := color.new(long_color_building, 84)
+else if long_visual_state == 4
+    long_bg_color := color.new(color.lime, 88)
+else if long_visual_state == 5
+    long_bg_color := color.new(color.green, 82)
+
+long_bar_color := na
+if long_visual_state == -1
+    long_bar_color := color.new(color.red, 0)
+else if long_visual_state == 1
+    long_bar_color := color.new(color.aqua, 45)
+else if long_visual_state == 2
+    long_bar_color := color.new(color.orange, 25)
+else if long_visual_state == 3
+    long_bar_color := color.new(long_color_building, 5)
+else if long_visual_state == 4
+    long_bar_color := color.new(color.lime, 0)
+else if long_visual_state == 5
+    long_bar_color := color.new(color.green, 0)
+
 if signal_mode == SignalMode.AGGRESSIVE_LIVE
-    if not live_bull_ob_break and not na(last_bull_ob_break_level) and low <= last_bull_ob_break_level
+    if not live_bull_ob_break and any_live_bull_ob_break
         live_bull_ob_break := true
         intrabar_event_count += 1
-    if not live_bear_ob_break and not na(last_bear_ob_break_level) and high >= last_bear_ob_break_level
+    if not live_bear_ob_break and any_live_bear_ob_break
         live_bear_ob_break := true
         intrabar_event_count += 1
-    if not live_bull_fvg_fill and not na(last_bull_fvg_fill_level) and low <= last_bull_fvg_fill_level
+    if not live_bull_fvg_fill and any_live_bull_fvg_fill
         live_bull_fvg_fill := true
         intrabar_event_count += 1
-    if not live_bear_fvg_fill and not na(last_bear_fvg_fill_level) and high >= last_bear_fvg_fill_level
+    if not live_bear_fvg_fill and any_live_bear_fvg_fill
         live_bear_fvg_fill := true
         intrabar_event_count += 1
+
+var int last_reclaim_marker_bar = na
+var int last_long_state_marker_bar = na
+var int last_long_ready_marker_bar = na
+bool can_draw_reclaim_marker = na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap
+bool can_draw_long_state_marker = na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap
+bool can_draw_long_ready_marker = na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap
+
+if show_reclaim_markers and bull_reclaim_ob and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+    label.new(bar_index, low, TXT_RECLAIM_OB, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
+    reclaim_marker_drawn_bar_index := bar_index
+    last_reclaim_marker_bar := bar_index
+
+if show_reclaim_markers and bull_reclaim_fvg and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+    label.new(bar_index, low, TXT_RECLAIM_FVG, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
+    reclaim_marker_drawn_bar_index := bar_index
+    last_reclaim_marker_bar := bar_index
+
+if show_reclaim_markers and bull_reclaim_swing_low and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+    label.new(bar_index, low, TXT_RECLAIM_SWING, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
+    reclaim_marker_drawn_bar_index := bar_index
+    last_reclaim_marker_bar := bar_index
+
+if show_reclaim_markers and bull_reclaim_internal_low and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+    label.new(bar_index, low, TXT_RECLAIM_INTERNAL, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.tiny)
+    reclaim_marker_drawn_bar_index := bar_index
+    last_reclaim_marker_bar := bar_index
+
+if show_long_confirmation_markers and internal_bull_choch_alert and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
+    label.new(bar_index, high, TXT_INT_REVERSAL, color = #00000000, textcolor = long_color_reversal, style = label.style_label_down, size = size.tiny)
+    long_state_marker_drawn_bar_index := bar_index
+    last_long_state_marker_bar := bar_index
+
+if show_long_confirmation_markers and internal_bull_bos_alert and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
+    label.new(bar_index, high, TXT_INT_BREAK, color = #00000000, textcolor = long_color_confirmed, style = label.style_label_down, size = size.tiny)
+    long_state_marker_drawn_bar_index := bar_index
+    last_long_state_marker_bar := bar_index
+
+if show_long_confirmation_markers and bull_bos_alert and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
+    label.new(bar_index, high, TXT_TREND_CONFIRM, color = #00000000, textcolor = long_color_ready, style = label.style_label_down, size = size.small)
+    long_state_marker_drawn_bar_index := bar_index
+    last_long_state_marker_bar := bar_index
+
+if show_long_confirmation_markers and long_arm_signal and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
+    label.new(bar_index, low, TXT_LONG_ARMED, color = #00000000, textcolor = long_color_zone, style = label.style_label_up, size = size.small)
+    long_state_marker_drawn_bar_index := bar_index
+    last_long_state_marker_bar := bar_index
+
+if show_long_confirmation_markers and long_confirm_signal and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
+    label.new(bar_index, high, TXT_LONG_CONFIRMED, color = #00000000, textcolor = long_color_confirmed, style = label.style_label_down, size = size.small)
+    long_state_marker_drawn_bar_index := bar_index
+    last_long_state_marker_bar := bar_index
+
+if show_long_confirmation_markers and long_ready_signal and can_draw_long_ready_marker and long_ready_marker_drawn_bar_index != bar_index
+    label.new(bar_index, high, TXT_LONG_READY, color = #00000000, textcolor = long_color_ready, style = label.style_label_down, size = size.small)
+    long_ready_marker_drawn_bar_index := bar_index
+    last_long_ready_marker_bar := bar_index
+
+if show_long_confirmation_markers and long_invalidate_signal and can_draw_long_ready_marker and long_ready_marker_drawn_bar_index != bar_index
+    label.new(bar_index, high, TXT_LONG_INVALIDATED, color = #00000000, textcolor = long_color_invalid, style = label.style_label_down, size = size.tiny)
+    long_ready_marker_drawn_bar_index := bar_index
+    last_long_ready_marker_bar := bar_index
 
 if show_htf_fvg and barstate.islast
     htf_fvg_buffer_bull.draw(htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -1639,52 +2225,114 @@ D.LineArgs eql_line_args = D.LineArgs.new(bull_css, line.style_dotted)
 plot_equal_level(show_eq and eqh_alert, eqh_x1, eqh_y1, eqh_x2, eqh_y2, 'EQH', eqh_label_args, eqh_line_args, keep_history = true, force_overlay = false)
 plot_equal_level(show_eq and eql_alert, eql_x1, eql_y1, eql_x2, eql_y2, 'EQL', eql_label_args, eql_line_args, keep_history = true, force_overlay = false)
 
+// =====================
+// Dashboard state + rendering
+// =====================
 dashboard_counts_active = show_dashboard and show_dashboard_counts
-visible_bull_obs = dashboard_counts_active ? (render_visible_only and not na(visible_left_time) and not na(visible_right_time) ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time) : ob_registry_bull.size()) : 0
-visible_bear_obs = dashboard_counts_active ? (render_visible_only and not na(visible_left_time) and not na(visible_right_time) ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time) : ob_registry_bear.size()) : 0
-visible_bull_fvgs = dashboard_counts_active ? (render_visible_only and not na(visible_left_time) and not na(visible_right_time) ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time) : fvg_registry_bull.size()) : 0
-visible_bear_fvgs = dashboard_counts_active ? (render_visible_only and not na(visible_left_time) and not na(visible_right_time) ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time) : fvg_registry_bear.size()) : 0
-dashboard_htf_trend = show_mtf_trend ? str.format('{0}:{1} | {2}:{3} | {4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3)) : 'off'
-dashboard_htf_fvg = show_htf_fvg ? str.format('{0} | bar change {1}', fvg_htf, bool_text(htf_bar_changed)) : 'off'
+bool use_visible_window = render_visible_only and not na(visible_left_time) and not na(visible_right_time)
+int visible_bull_obs = 0
+int visible_bear_obs = 0
+int visible_bull_fvgs = 0
+int visible_bear_fvgs = 0
+if dashboard_counts_active
+    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time) : ob_registry_bull.size()
+    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time) : ob_registry_bear.size()
+    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time) : fvg_registry_bull.size()
+    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time) : fvg_registry_bear.size()
+htf_bull_count = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0)
+htf_bear_count = (mtf_trend_1 < 0 ? 1 : 0) + (mtf_trend_2 < 0 ? 1 : 0) + (mtf_trend_3 < 0 ? 1 : 0)
+int trend_state = structure_display_trend > 0 ? 5 : structure_display_trend < 0 ? -1 : 0
+int htf_state = not show_mtf_trend ? 0 : htf_bull_count == 3 ? 5 : htf_bear_count == 3 ? -1 : htf_bull_count >= 2 ? 4 : htf_bear_count >= 2 ? 1 : 2
+int htf1_state = not show_mtf_trend ? 0 : mtf_trend_1 > 0 ? 5 : mtf_trend_1 < 0 ? -1 : 0
+int htf2_state = not show_mtf_trend ? 0 : mtf_trend_2 > 0 ? 5 : mtf_trend_2 < 0 ? -1 : 0
+int htf3_state = not show_mtf_trend ? 0 : mtf_trend_3 > 0 ? 5 : mtf_trend_3 < 0 ? -1 : 0
+int zone_state = in_bull_ob_zone or in_bull_fvg_zone ? 4 : zone_recent ? 2 : 0
+int reclaim_state = bull_reclaim_any ? 4 : reclaim_recent ? 2 : 0
+int close_state = not use_strong_close_filter ? 0 : bull_close_strong ? 5 : 2
+int ema_state = not show_ema_support ? 0 : ema_support_ok ? 5 : -1
+int adx_state = not use_adx ? 0 : not adx_data_ok ? 0 : plus_di < minus_di ? -1 : adx_value < adx_trend_min ? 0 : adx_value < adx_strong_min ? 3 : 5
+int relvol_state = not use_rel_volume ? 0 : na(rel_volume) ? 0 : rel_volume >= relvol_good ? 5 : rel_volume >= 1.0 ? 2 : -1
+int ltf_bias_state = not show_dashboard_ltf ? 0 : na(ltf_bull_share) ? 0 : ltf_bull_share >= 0.60 ? 5 : ltf_bull_share >= ltf_bias_hint ? 4 : ltf_bull_share >= 0.50 ? 2 : -1
+int ltf_delta_state = not show_dashboard_ltf ? 0 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0.15 ? 5 : ltf_volume_delta >= 0 ? 4 : -1
+int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
+string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
+string htf1_display = not show_mtf_trend ? 'Off' : compact_trend_text(mtf_trend_1)
+string htf2_display = not show_mtf_trend ? 'Off' : compact_trend_text(mtf_trend_2)
+string htf3_display = not show_mtf_trend ? 'Off' : compact_trend_text(mtf_trend_3)
+string zone_display = long_zone_text
+string reclaim_display = reclaim_text
+string long_setup_display = long_setup_text
+string long_visual_display = long_visual_text
+string close_display = close_state_text
+string ema_display = ema_state_text
+string adx_display = not use_adx ? 'Off' : str.format('{0,number,#.#} | {1}', adx_value, adx_state_text)
+string relvol_display = relvol_text
+string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
+string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
+string objects_ob_display = not show_dashboard_counts ? 'Hidden' : str.format('{0}/{1}', visible_bull_obs, visible_bear_obs)
+string objects_fvg_display = not show_dashboard_counts ? 'Hidden' : str.format('{0}/{1}', visible_bull_fvgs, visible_bear_fvgs)
+string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('C {0}', long_confirm_age) : long_setup_armed ? str.format('A {0}', long_setup_age) : 'n/a'
+string dashboard_swing_high_display = str.format('S {0}', format_level(trail_up))
+string dashboard_swing_low_display = str.format('S {0}', format_level(trail_dn))
+string dashboard_internal_high_display = show_internals ? str.format('I {0}', format_level(internal_trail_up)) : 'Off'
+string dashboard_internal_low_display = show_internals ? str.format('I {0}', format_level(internal_trail_dn)) : 'Off'
+string dashboard_ob_zone_display = str.format('{0}/{1}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom))
+string dashboard_fvg_zone_display = str.format('{0}/{1}', format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
+string dashboard_ob_trigger_display = format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)
+string dashboard_fvg_trigger_display = format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)
+int ob_zone_state = not na(active_bull_ob_top) ? 4 : not na(last_bull_ob_top) ? 2 : 0
+int fvg_zone_state = not na(active_bull_fvg_top) ? 4 : not na(last_bull_fvg_top) ? 2 : 0
+string dashboard_legend_text_top = 'Aq Zone | Or Arm | Gd Build'
+string dashboard_legend_text_bottom = 'Lm Cfm | Gr Ready | Rd Fail'
+color dashboard_header_bg = color.new(color.black, 100)
+color dashboard_text = chart.fg_color
+color dashboard_long_text = long_visual_state == 3 ? long_dashboard_building_text : dashboard_text
+color dashboard_swing_bg = color.new(color.silver, 88)
+color dashboard_trigger_bg = color.new(color.black, 100)
+color dashboard_legend_bg = color.new(color.black, 88)
+color dashboard_setup_age_bg = color.new(color.silver, 88)
+var table smc_dashboard = table.new(position.bottom_right, 2, 28, border_width = 0)
 
-var table smc_dashboard = table.new(position.top_right, 2, 14, border_width = 0)
 if show_dashboard and barstate.islast
-    color dashboard_text = color.new(chart.fg_color, 65)
-    color dashboard_muted = color.new(chart.fg_color, 82)
-    color dashboard_bg = color.new(color.black, 100)
-
-    table.cell(smc_dashboard, 0, 0, 'SMC++', text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 0, signal_mode_text, text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 1, 'Trend', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 1, trend_text_or_na(structure_display_trend), text_color = structure_display_trend == 0 ? dashboard_text : trend_color(structure_display_trend), bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 2, 'HTF Trend', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 2, dashboard_htf_trend, text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 3, 'Visible OB', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 3, show_dashboard_counts ? str.format('Bull {0} | Bear {1}', visible_bull_obs, visible_bear_obs) : 'hidden', text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 4, 'Open FVG', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 4, show_dashboard_counts ? str.format('Bull {0} | Bear {1}', visible_bull_fvgs, visible_bear_fvgs) : 'hidden', text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 5, 'HTF FVG', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 5, dashboard_htf_fvg, text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 6, 'LTF Samples', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 6, show_dashboard_ltf ? str.format('{0} ({1}, tf {2})', ltf_sample_count, ltf_sampling_status, str.length(effective_ltf_timeframe) > 0 ? effective_ltf_timeframe : 'n/a') : 'hidden', text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 7, 'LTF Bias', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 7, show_dashboard_ltf ? (na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)) : 'hidden', text_color = na(ltf_bull_share) ? dashboard_text : ltf_bull_share >= ltf_bias_hint ? color.lime : dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 8, 'LTF Delta', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 8, show_dashboard_ltf ? (na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)) : 'hidden', text_color = na(ltf_volume_delta) ? dashboard_text : ltf_volume_delta >= 0 ? color.lime : color.red, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 9, 'Live OB', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 9, str.format('Bull {0} | Bear {1}', bool_text(live_bull_ob_break), bool_text(live_bear_ob_break)), text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 10, 'Live FVG', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 10, str.format('Bull {0} | Bear {1}', bool_text(live_bull_fvg_fill), bool_text(live_bear_fvg_fill)), text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 11, 'Intrabar Events', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 11, str.tostring(intrabar_event_count), text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 12, 'Viewport', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 12, str.format('{0} | internals {1}', render_visible_only ? 'Visible only' : 'Full history', bool_text(show_internals)), text_color = dashboard_text, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 0, 13, 'Latest Levels', text_color = dashboard_muted, bgcolor = dashboard_bg)
-    table.cell(smc_dashboard, 1, 13, str.format('OB {0}/{1} | FVG {2}/{3}', format_level(last_bull_ob_break_level), format_level(last_bear_ob_break_level), format_level(last_bull_fvg_fill_level), format_level(last_bear_fvg_fill_level)), text_color = dashboard_text, bgcolor = dashboard_bg)
+    dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 1, 'Trend', trend_display, status_bg(trend_state), dashboard_text)
+    dashboard_row(smc_dashboard, 2, str.format('HTF {0}', mtf_trend_tf1), htf1_display, status_bg(htf1_state), dashboard_text)
+    dashboard_row(smc_dashboard, 3, str.format('HTF {0}', mtf_trend_tf2), htf2_display, status_bg(htf2_state), dashboard_text)
+    dashboard_row(smc_dashboard, 4, str.format('HTF {0}', mtf_trend_tf3), htf3_display, status_bg(htf3_state), dashboard_text)
+    dashboard_row(smc_dashboard, 5, 'Zone', zone_display, status_bg(zone_state), dashboard_text)
+    dashboard_row(smc_dashboard, 6, 'Reclaim', reclaim_display, status_bg(reclaim_state), dashboard_text)
+    dashboard_row(smc_dashboard, 7, 'Setup', long_setup_display, status_bg(long_setup_dashboard_state), dashboard_long_text)
+    dashboard_row(smc_dashboard, 8, 'Age', setup_age_display, dashboard_setup_age_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 9, 'Visual', long_visual_display, status_bg(long_visual_state), dashboard_long_text)
+    dashboard_row(smc_dashboard, 10, 'Close', close_display, status_bg(close_state), dashboard_text)
+    dashboard_row(smc_dashboard, 11, 'EMA', ema_display, status_bg(ema_state), dashboard_text)
+    dashboard_row(smc_dashboard, 12, 'ADX', adx_display, status_bg(adx_state), dashboard_text)
+    dashboard_row(smc_dashboard, 13, 'RelVol', relvol_display, status_bg(relvol_state), dashboard_text)
+    dashboard_row(smc_dashboard, 14, 'LTF Bias', ltf_bias_display, status_bg(ltf_bias_state), dashboard_text)
+    dashboard_row(smc_dashboard, 15, 'LTF Delta', ltf_delta_display, status_bg(ltf_delta_state), dashboard_text)
+    dashboard_row(smc_dashboard, 16, 'OB Cnt', objects_ob_display, status_bg(objects_state), dashboard_text)
+    dashboard_row(smc_dashboard, 17, 'FVG Cnt', objects_fvg_display, status_bg(objects_state), dashboard_text)
+    dashboard_row(smc_dashboard, 18, 'Swing H', dashboard_swing_high_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 19, 'Swing L', dashboard_swing_low_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 20, 'Int H', dashboard_internal_high_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 21, 'Int L', dashboard_internal_low_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 22, 'OB Zone', dashboard_ob_zone_display, status_bg(ob_zone_state), dashboard_text)
+    dashboard_row(smc_dashboard, 23, 'FVG Zone', dashboard_fvg_zone_display, status_bg(fvg_zone_state), dashboard_text)
+    dashboard_row(smc_dashboard, 24, 'OB Mid', dashboard_ob_trigger_display, dashboard_trigger_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 25, 'FVG Fill', dashboard_fvg_trigger_display, dashboard_trigger_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 26, 'Colors', dashboard_legend_text_top, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 27, '', dashboard_legend_text_bottom, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 13)
+    table.clear(smc_dashboard, 0, 0, 1, 27)
+
+bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
+barcolor(color_long_bars ? long_bar_color : na)
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
+alertcondition(long_arm_signal, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
+alertcondition(long_confirm_signal, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation.')
+alertcondition(long_ready_signal, 'Long Ready', 'SMC++: long setup is ready with filters aligned.')
+alertcondition(long_invalidate_signal, 'Long Invalidated', 'SMC++: long setup was invalidated.')
 alertcondition(bull_bos_alert, 'Bullish BOS Detected', 'SMC++: bullish break of structure detected.')
 alertcondition(bull_choch_alert, 'Bullish CHoCH Detected', 'SMC++: bullish change of character detected.')
 alertcondition(bear_bos_alert, 'Bearish BOS Detected', 'SMC++: bearish break of structure detected.')
@@ -1697,6 +2345,13 @@ alertcondition(bullish_fvg_alert, 'Bullish FVG Formed', 'SMC++: bullish fair val
 alertcondition(bearish_fvg_alert, 'Bearish FVG Formed', 'SMC++: bearish fair value gap formed.')
 alertcondition(bullish_fvg_filled_alert, 'Bullish FVG Filled', 'SMC++: bullish fair value gap filled.')
 alertcondition(bearish_fvg_filled_alert, 'Bearish FVG Filled', 'SMC++: bearish fair value gap filled.')
+alertcondition(live_bull_ob_break, 'Bullish OB Live Break', 'SMC++: intrabar bullish order block break detected.')
+alertcondition(live_bear_ob_break, 'Bearish OB Live Break', 'SMC++: intrabar bearish order block break detected.')
+alertcondition(live_bull_fvg_fill, 'Bullish FVG Live Fill', 'SMC++: intrabar bullish fair value gap fill detected.')
+alertcondition(live_bear_fvg_fill, 'Bearish FVG Live Fill', 'SMC++: intrabar bearish fair value gap fill detected.')
+alertcondition(bullish_trend_started, 'Bullish Trend Started', 'SMC++: structure trend turned bullish.')
+alertcondition(bearish_trend_started, 'Bearish Trend Started', 'SMC++: structure trend turned bearish.')
+alertcondition(directional_trend_started, 'Trend Direction Changed', 'SMC++: structure trend turned directional.')
 
 fire_dynamic_alert(enable_dynamic_alerts, bull_bos_alert, 'Bullish BOS', 'Structure break confirmed', top, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, bull_choch_alert, 'Bullish CHoCH', 'Character shift confirmed', top, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
@@ -1706,10 +2361,16 @@ fire_dynamic_alert(enable_dynamic_alerts, not na(new_ob_bull), 'Bullish Order Bl
 fire_dynamic_alert(enable_dynamic_alerts, not na(new_ob_bear), 'Bearish Order Block', 'New order block confirmed', not na(new_ob_bear) ? new_ob_bear.break_price : na, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, bullish_fvg_alert, 'Bullish FVG', 'New fair value gap formed', not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, bearish_fvg_alert, 'Bearish FVG', 'New fair value gap formed', not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, bullish_fvg_filled_alert, 'Bullish FVG Filled', 'Gap fill target reached', last_bull_fvg_fill_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts, bearish_fvg_filled_alert, 'Bearish FVG Filled', 'Gap fill target reached', last_bear_fvg_fill_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal_mode == SignalMode.AGGRESSIVE_LIVE, live_bull_ob_break, 'Bullish OB Live Break', 'Intrabar bullish order block break detected', last_bull_ob_break_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
-fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal_mode == SignalMode.AGGRESSIVE_LIVE, live_bear_ob_break, 'Bearish OB Live Break', 'Intrabar bearish order block break detected', last_bear_ob_break_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, bullish_fvg_filled_alert, 'Bullish FVG Filled', 'Gap fill target reached', bull_filled_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, bearish_fvg_filled_alert, 'Bearish FVG Filled', 'Gap fill target reached', bear_filled_alert_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal_mode == SignalMode.AGGRESSIVE_LIVE, live_bull_ob_break, 'Bullish OB Live Break', 'Intrabar bullish order block break detected', bull_ob_live_event_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal_mode == SignalMode.AGGRESSIVE_LIVE, live_bear_ob_break, 'Bearish OB Live Break', 'Intrabar bearish order block break detected', bear_ob_live_event_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal_mode == SignalMode.AGGRESSIVE_LIVE, live_bull_fvg_fill, 'Bullish FVG Live Fill', 'Intrabar bullish fair value gap fill detected', bull_fvg_live_event_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal_mode == SignalMode.AGGRESSIVE_LIVE, live_bear_fvg_fill, 'Bearish FVG Live Fill', 'Intrabar bearish fair value gap fill detected', bear_fvg_live_event_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, long_arm_signal, 'Long Armed', str.format('Long setup armed from {0}', long_setup_source), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, long_confirm_signal, 'Long Confirmed', str.format('Trigger cleared from {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, long_ready_signal, 'Long Ready', str.format('Filters aligned for {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, long_invalidate_signal, 'Long Invalidated', str.format('Setup invalidated from {0}', long_last_invalid_source), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION

@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-03-19)
+
+- **SMC++ dashboard layout tightened:**
+  - Reworked the `SMC++.pine` dashboard to be narrower and taller by splitting wide aggregate rows into shorter stacked rows.
+  - HTF trend, object counts, swing/internal levels, zone levels, and trigger levels now render as compact single-purpose rows instead of wide combined summaries.
+  - Shortened dashboard labels and legend text so the panel uses vertical space more efficiently without removing state information.
+
+### Added (2026-03-17)
+
+- **Databento bullish-quality score presets:**
+  - Added selectable Bullish-Quality weighting presets in `scripts/bullish_quality_config.py`:
+    - `conservative`
+    - `balanced` (default)
+    - `aggressive`
+  - The presets change how strongly market-structure signals influence `window_quality_score` without changing the export contract.
+  - Added test coverage for preset resolution in `tests/test_generate_bullish_quality_scanner.py`.
+  - Added Streamlit sidebar selection for the Bullish-Quality score profile in `databento_volatility_screener.py`.
+  - Added production-export CLI support via `--bullish-score-profile` in `scripts/databento_production_export.py`.
+
+### Changed (2026-03-17)
+
+- **Databento structure-aware scanner ranking and documentation:**
+  - Bullish-Quality remains structure-forward by default via the new `balanced` preset.
+  - Added dedicated structure-feature documentation in `docs/DATABENTO_STRUCTURE_FEATURES.md`.
+  - Extended `docs/RFC_BULLISH_QUALITY_PREMARKET_SCANNER.md` with structure-field and score-profile details.
+  - Long-Dip and Bullish-Quality ranking now expose the new structure columns more clearly in the Streamlit UI.
+
 ### Added (2026-03-05)
 
 - **USI-CHOCH early-entry upgrade (`USI-CHOCH.pine`):**
