@@ -1981,6 +1981,9 @@ build_dynamic_alert_message(bool enabled, bool condition, string event_name, str
     else
         ''
 
+htf_fvg_key(FVG fvg) =>
+    not na(fvg) ? str.format('{0}|{1}|{2}|{3}', fvg.left_top.time, fvg.right_bottom.time, format_level(fvg.left_top.price), format_level(fvg.right_bottom.price)) : ''
+
 push_capped_label(label[] buffer, label new_label, int max_keep) =>
     if not na(new_label)
         if max_keep <= 0
@@ -2194,7 +2197,7 @@ effective_ltf_timeframe = ltf_auto_select ? auto_selected_ltf : ltf_timeframe
 int effective_ltf_tf_sec = nz(timeframe.in_seconds(effective_ltf_timeframe), 0)
 ltf_timeframe_valid = chart_tf_sec > 0 and str.length(effective_ltf_timeframe) > 0 and effective_ltf_tf_sec > 0 and effective_ltf_tf_sec < chart_tf_sec
 ltf_ratio = effective_ltf_tf_sec > 0 ? int(math.floor(chart_tf_sec / effective_ltf_tf_sec)) : na
-bool ltf_needed_for_logic = show_dashboard_ltf or use_rel_volume or use_ltf_for_strict_entry
+bool ltf_needed_for_logic = (show_dashboard and show_dashboard_ltf) or use_ltf_for_strict_entry
 bool ltf_needed_for_messages = enable_dynamic_alerts and use_ltf_for_dynamic_alerts
 bool ltf_needed = ltf_needed_for_logic or ltf_needed_for_messages
 bool ltf_ratio_ok = not na(ltf_ratio) and ltf_ratio > 0 and ltf_ratio <= max_ltf_ratio
@@ -2466,7 +2469,8 @@ fvgs_objects_htf(FVG new_bull, FVG new_bear, bool htf_is_confirmed, float size_t
     if barstate.isfirst and not in_range(fill_target_ratio, 1, 0)
         runtime.error(str.format("FVG fill_target_ratio {0} ({0,number,percent}) not in range [0-1]. We chose not to support this for performance reasons (avoiding box overlap)", fill_target_ratio))
 
-    if fill_mode == LevelBreakMode.CLOSE ? htf_is_confirmed : true
+    bool htf_update_ok = fill_mode == LevelBreakMode.HIGHLOW or signal_mode == SignalMode.AGGRESSIVE_LIVE or barstate.isconfirmed
+    if htf_update_ok
         buffer_bull.update()
         buffer_bear.update()
         buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, htf_buffer_bull_discarded)
@@ -2516,21 +2520,23 @@ FVG htf_new_fvg_bull = na
 FVG htf_new_fvg_bear = na
 FVG htf_insert_fvg_bull = na
 FVG htf_insert_fvg_bear = na
-var int last_htf_inserted_bull_fvg_id = na
-var int last_htf_inserted_bear_fvg_id = na
+var string last_htf_inserted_bull_key = ''
+var string last_htf_inserted_bear_key = ''
+htf_bar_changed = timeframe.change(fvg_htf)
+htf_fvg_confirmed = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed and (htf_bar_changed or htf_fvg_tf_sec == chart_tf_sec)
 if show_htf_fvg
     [_, htf_new_fvg_bull_tmp] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(1, true, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
     [_, htf_new_fvg_bear_tmp] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(-1, true, fvg_size_threshold, LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
     htf_new_fvg_bull := htf_new_fvg_bull_tmp
     htf_new_fvg_bear := htf_new_fvg_bear_tmp
-    if not na(htf_new_fvg_bull) and (signal_mode == SignalMode.AGGRESSIVE_LIVE or barstate.isconfirmed) and htf_new_fvg_bull.id != last_htf_inserted_bull_fvg_id
+    string bull_htf_key = htf_fvg_key(htf_new_fvg_bull)
+    string bear_htf_key = htf_fvg_key(htf_new_fvg_bear)
+    if htf_fvg_confirmed and not na(htf_new_fvg_bull) and bull_htf_key != last_htf_inserted_bull_key
         htf_insert_fvg_bull := htf_new_fvg_bull
-        last_htf_inserted_bull_fvg_id := htf_new_fvg_bull.id
-    if not na(htf_new_fvg_bear) and (signal_mode == SignalMode.AGGRESSIVE_LIVE or barstate.isconfirmed) and htf_new_fvg_bear.id != last_htf_inserted_bear_fvg_id
+        last_htf_inserted_bull_key := bull_htf_key
+    if htf_fvg_confirmed and not na(htf_new_fvg_bear) and bear_htf_key != last_htf_inserted_bear_key
         htf_insert_fvg_bear := htf_new_fvg_bear
-        last_htf_inserted_bear_fvg_id := htf_new_fvg_bear.id
-htf_bar_changed = timeframe.change(fvg_htf)
-htf_fvg_confirmed = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed and (htf_bar_changed or htf_fvg_tf_sec == chart_tf_sec)
+        last_htf_inserted_bear_key := bear_htf_key
 [htf_fvg_buffer_bull, htf_fvg_buffer_bear, htf_fvg_buffer_bull_filled, htf_fvg_buffer_bear_filled, htf_fvg_buffer_bull_filled_new, htf_fvg_buffer_bear_filled_new, htf_fvg_buffer_bull_discarded, htf_fvg_buffer_bear_discarded] = fvgs_objects_htf(htf_insert_fvg_bull, htf_insert_fvg_bear, htf_fvg_confirmed, fvg_size_threshold, active_break_mode, fvg_fill_target_ratio, htf_fvg_keep_filled_max, object_gc_cycle)
 
 last_bull_ob_break_level = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().break_price : na
@@ -2626,6 +2632,11 @@ bool touched_bull_fvg_still_active = fvgs_bull.contains_id(touched_bull_fvg_id)
 bool touched_bull_ob_recent = touched_bull_ob_still_active and not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
 bool touched_bull_fvg_recent = touched_bull_fvg_still_active and not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
 bool long_zone_active = in_bull_ob_zone or in_bull_fvg_zone
+bool long_zone_active_safe = long_zone_active
+int active_long_zone_id_safe = active_long_zone_id
+if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
+    long_zone_active_safe := long_zone_active[1]
+    active_long_zone_id_safe := active_long_zone_id[1]
 float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level
 float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
 float bear_ob_break_for_alert = not na(active_bear_ob_break_level) ? active_bear_ob_break_level : last_bear_ob_break_level
@@ -3152,7 +3163,7 @@ plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2'
 // --------------------------------------------------
 // Long-dip alert presets
 // --------------------------------------------------
-alert_long_watchlist = bullish_trend_safe and long_zone_active
+alert_long_watchlist = bullish_trend_safe and long_zone_active_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
@@ -3166,7 +3177,7 @@ float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_tr
 alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
-bool long_watchlist_source_changed = alert_long_watchlist and (not alert_long_watchlist[1] or active_long_zone_id != active_long_zone_id[1])
+bool long_watchlist_source_changed = alert_long_watchlist and (not alert_long_watchlist[1] or active_long_zone_id_safe != active_long_zone_id_safe[1])
 if long_watchlist_source_changed
     long_watchlist_serial += 1
 var int last_long_armed_alert_serial = na
