@@ -705,8 +705,820 @@ skipp-algo/
 - [Deep Technical Documentation](docs/SkippALGO_Deep_Technical_Documentation.md)
 - [Deep Technical Documentation (v6.2.22)](docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md)
 - [Market Structure Guide](docs/SkippALGO_Market_Structure.md)
+- [SMC++ Dashboard Guide (DE)](docs/SMC_Dashboard_Long_Dip_Guide_DE.md)
+- [SMC++ Dashboard Guide (EN)](docs/SMC_Dashboard_Long_Dip_Guide_EN.md)
 - [Tuning Guide](docs/SkippALGO_Tuning_Guide.md)
 - [Kurzfassung für Nutzer](docs/SkippALGO_Kurzfassung_Fuer_Nutzer.md)
+
+*** Add File: /Users/steffenpreuss/Downloads/skipp-algo/docs/SMC_Dashboard_Long_Dip_Guide_DE.md
+# SMC++ Dashboard Guide fuer Long-Dip Setups (DE)
+
+## Zweck
+
+Dieses Dokument erklaert das SMC++-Dashboard in einfachem Deutsch.
+Es ist als Arbeits- und Interpretationshilfe gedacht, nicht als alleinstehendes Kaufsignal.
+
+Wichtige Grundregel:
+
+- Das Dashboard ist eine Ampel und Checkliste.
+- Je mehr Felder zusammenpassen, desto sauberer ist ein Long-Dip-Setup.
+- Eine Zone allein ist kein Einstieg.
+
+## Kerngedanke
+
+Das Dashboard beantwortet im Kern vier Fragen:
+
+1. Ist der Markt strukturell eher bullish oder bearish?
+2. Ist der Preis gerade in einer sinnvollen Pullback-Zone?
+3. Gibt es schon Rueckeroberung und Bestätigung?
+4. Sprechen Momentum, Close, EMA, ADX und Volumen eher fuer oder gegen einen Long?
+
+## Begriffe im Dashboard
+
+### SMC++
+
+Der Name des Skripts.
+
+### Trend
+
+Die aktuelle Marktstruktur des aktiven Charts.
+
+- Bullish: Struktur eher aufwaerts
+- Bearish: Struktur eher abwaerts
+- Neutral: kein sauberer Strukturvorteil
+
+### HTF Trend
+
+HTF steht fuer Higher Time Frame.
+Das Feld zeigt, ob hoehere Zeitebenen den Trade unterstuetzen.
+
+Beispiel:
+
+`3:Bearish | 10:Bullish | 30:Bearish`
+
+Das ist gemischt und fuer einen konservativen Long-Dip eher unguenstig.
+
+### Pullback Zone
+
+Zeigt, ob der Preis in einer Zone angekommen ist, aus der ein Dip-Bounce entstehen koennte.
+
+Typische Zustande:
+
+- In OB Zone
+- In FVG Zone
+- In OB + FVG Zone
+- No Long Zone
+
+Wichtig: Eine Zone bedeutet Beobachten, nicht Kaufen.
+
+### Reclaim
+
+Reclaim bedeutet, dass der Markt ein relevantes Level oder eine Zone zurueckerobert.
+Fuer Longs ist das wichtig, weil es zeigt, dass Kaeufer wieder Kontrolle uebernehmen.
+
+Positive Beispiele:
+
+- OB Reclaimed
+- FVG Reclaimed
+- Internal Low Reclaimed
+- Swing Low Reclaimed
+
+Warnsignal:
+
+- No Reclaim
+
+### Long Setup
+
+Der operative Zustand des Long-Setups.
+
+Typische Stufen:
+
+- In Zone: interessanter Bereich, aber noch kein Entry
+- Armed: Setup ist vorgemerkt
+- Building: Struktur baut sich auf
+- Confirmed: wichtige Bestätigung liegt vor
+- Ready: sauberes, fortgeschrittenes Long-Setup
+- Blocked oder Invalidated: Setup ist kaputt oder unbrauchbar
+
+### Setup Age
+
+Wie alt ein bewaffnetes oder bestaetigtes Setup ist.
+
+Beispiele:
+
+- armed 2
+- confirmed 1
+
+Frische Signale sind meist interessanter als alte Signale.
+
+### Long Visual
+
+Die farbliche Kurzfassung des Long-Zustands.
+Das Feld dient als schnelle Ampel fuer den visuellen Setup-Status.
+
+### Close Strength
+
+Zeigt, wie stark die aktuelle Kerze schliesst.
+
+- Strong Close: bullischer Schluss nahe dem oberen Bereich der Range
+- Weak Close: kein ueberzeugender Schluss
+
+Fuer Long-Dips ist ein starker Schluss meist deutlich besser.
+
+### EMA Support
+
+Prueft, ob Preis und EMAs das Long-Setup unterstuetzen.
+
+- OK: sauberer Rueckenwind durch EMAs
+- No: kein sauberer Trend-Rueckenwind
+
+### ADX
+
+Der ADX misst Trendstaerke, nicht nur Richtung.
+Mit der Zusatzinfo aus +DI und -DI sieht man, wer Druck macht.
+
+Beispiel:
+
+`30 | Bearish pressure`
+
+Das bedeutet:
+
+- die Bewegung hat Kraft
+- aber der Druck kommt eher von der Verkaeuferseite
+
+Das ist fuer Longs negativ.
+
+### Rel Volume
+
+Das relative Volumen im Vergleich zum Durchschnitt.
+
+Beispiele:
+
+- 1.2x: mehr Teilnahme als normal
+- 0.5x: unterdurchschnittliche Teilnahme
+- 0.01x: extrem schwach
+
+Sehr niedriges Volumen macht Signale oft unzuverlaessiger.
+
+### LTF Bias
+
+LTF steht fuer Lower Time Frame.
+Das Feld misst die Tendenz der kleineren Unterstruktur.
+
+- hoher Wert: eher bullish
+- niedriger Wert: eher bearish
+
+### LTF Delta
+
+Kurzfristiger Druck bzw. Volumenunterschied auf Unterzeitebene.
+
+- positiv: eher Kaeuferdruck
+- negativ: eher Verkaeuferdruck
+- n/a: keine brauchbare Datenbasis
+
+### Objects
+
+Zeigt, wie viele OB- und FVG-Objekte sichtbar sind.
+
+Beispiel:
+
+`OB 19/9 | FVG 34/29`
+
+Das ist eher Orientierung als Entry-Signal.
+
+### Swing H/L
+
+Zeigt Haupt- und interne Struktur-Hochs und -Tiefs.
+
+Beispiel:
+
+`Swing 8.23/7.89 | Int 8.03/7.92`
+
+Die internen Levels sind oft fruehere Trigger, die Swing-Level eher die groesseren Strukturmarken.
+
+### Long Zones
+
+Die aktuell relevanten Long-Zonen.
+
+Beispiel:
+
+`OB 7.68/7.64 | FVG 7.95/7.84`
+
+### Long Triggers
+
+Die Rueckeroberungs- oder Bestaetigungsmarken fuer das Setup.
+
+Beispiel:
+
+`OB mid 7.66 | FVG fill 7.88`
+
+### Legend
+
+Die Farblegende des Dashboards.
+
+- Aqua: Zone
+- Orange: Armed
+- Gold: Building
+- Lime: Confirmed
+- Green: Ready
+- Red: Fail
+
+## Beispielinterpretation eines Snapshots
+
+Beispielwerte:
+
+- Trend = Bullish
+- HTF Trend = 3:Bearish | 10:Bullish | 30:Bearish
+- Pullback Zone = In FVG Zone
+- Reclaim = No Reclaim
+- Setup Age = n/a
+- Long Visual = In Zone
+- Close Strength = Weak Close
+- EMA Support = No
+- ADX = 30 | Bearish pressure
+- Rel Volume = 0.01x
+- LTF Bias = 0%
+- LTF Delta = n/a
+
+Einfache Lesart:
+
+- Positiv: Der Preis ist in einer moeglichen Reaktionszone.
+- Negativ: Reclaim fehlt, Schluss ist schwach, EMA-Support fehlt, der Druck ist bearish, Volumen ist fast nicht vorhanden.
+
+Kurzfazit:
+
+> Interessante Long-Zone ja, aber noch keine saubere Long-Bestaetigung. Eher warten als einsteigen.
+
+## Was man mit diesem Zustand nicht tun sollte
+
+- Nicht nur wegen `In FVG Zone` oder `In OB Zone` kaufen.
+- Nicht gegen klaren Verkaeuferdruck blind long gehen.
+- Nicht `Trend = Bullish` ueberbewerten, wenn HTF, Reclaim, Close und EMA nicht mitziehen.
+- Nicht bei extrem schwachem Volumen aggressiv einsteigen.
+- Nicht ohne klares Invalidations-Level handeln.
+- Nicht den Live-Eindruck einer Zone mit einer bestaetigten Struktur verwechseln.
+
+## Worauf man fuer einen Long-Dip warten sollte
+
+Die saubere Reihenfolge ist meistens:
+
+1. Preis kommt in eine sinnvolle Zone.
+2. Ein Reclaim erscheint.
+3. Das Long Setup wird Armed oder Building.
+4. Spaeter folgt Confirmed oder Ready.
+5. Close, EMA, ADX und Volumen sprechen nicht mehr klar dagegen.
+
+## Drei Stufen fuer das Dashboard
+
+### 1. Beobachten
+
+Typisches Bild:
+
+- Trend bullish oder wenigstens nicht bearish
+- Preis in OB- oder FVG-Zone
+- Reclaim noch nicht vorhanden
+- Long Visual noch In Zone
+
+Bedeutung:
+
+> Interessanter Bereich, aber noch kein Beweis fuer uebernehmende Kaeufer.
+
+### 2. Vorbereiten
+
+Typisches Bild:
+
+- Reclaim ist vorhanden
+- Long Setup wird Armed oder Building
+- Close Strength verbessert sich
+- EMA Support wird besser
+- LTF Bias kippt nach oben
+
+Bedeutung:
+
+> Das Setup wird brauchbar, aber ist noch nicht maximal sauber.
+
+### 3. Einstieg
+
+Typisches Bild:
+
+- Trend bullish
+- Reclaim vorhanden
+- Long Setup ist Confirmed oder Ready
+- Long Visual ist Confirmed oder Long Ready
+- Strong Close
+- EMA Support OK
+- ADX nicht bearish pressure
+- Rel Volume nicht tot
+
+Bedeutung:
+
+> Zone, Rueckeroberung, Struktur und Filter passen jetzt deutlich besser zusammen.
+
+## Ampel fuer den Long-Dip
+
+### Gruen
+
+- Trend bullish
+- HTF mehrheitlich bullish oder mindestens nicht klar gegen den Trade
+- Pullback Zone aktiv
+- Reclaim vorhanden
+- Long Setup Confirmed oder Ready
+- Strong Close
+- EMA Support OK
+- ADX nicht bearish pressure
+- Rel Volume mindestens brauchbar
+- LTF Bias und LTF Delta positiv oder neutral-stuetzend
+
+### Gelb
+
+- Trend neutral bis leicht bullish
+- Zone aktiv
+- erster Reclaim oder frueher Strukturwechsel sichtbar
+- Long Setup Armed oder Building
+- Volumen und LTF-Daten noch nicht ideal
+
+### Rot
+
+- No Reclaim
+- Weak Close
+- EMA Support No
+- ADX bearish pressure
+- Volumen extrem schwach
+- HTF klar gegen den Trade
+- nur In Zone, aber noch keine Bestätigung
+
+## Fuenf-Punkte-Checkliste vor einem Long-Dip
+
+1. Trend bullish?
+2. Preis in einer sinnvollen OB- oder FVG-Zone?
+3. Reclaim vorhanden?
+4. Long Setup Confirmed oder Ready?
+5. Close, EMA, ADX und Volumen sprechen nicht dagegen?
+
+Wenn davon nur ein oder zwei Punkte passen, ist es meist zu frueh.
+
+## Einfache Wenn-Dann-Regel
+
+### Kein Long
+
+Wenn:
+
+- Reclaim = No Reclaim
+- oder Close Strength = Weak Close
+- oder EMA Support = No
+- oder ADX = Bearish pressure
+
+Dann:
+
+- kein sauberer Long-Dip-Entry
+
+### Interessant, aber noch frueh
+
+Wenn:
+
+- Preis in Zone
+- Reclaim vorhanden
+- Long Setup = Armed oder Building
+
+Dann:
+
+- Setup beobachten und Trigger planen, aber nicht hetzen
+
+### Sauberer Long-Dip
+
+Wenn:
+
+- Trend bullish
+- Zone aktiv
+- Reclaim vorhanden
+- Long Setup = Confirmed oder Ready
+- Close Strength = Strong Close
+- EMA Support = OK
+
+Dann:
+
+- wird der Long-Dip deutlich interessanter
+
+## 1-Zeilen-Regel
+
+Long-Dip nur traden, wenn:
+
+**Trend bullish + Preis in OB/FVG-Zone + Reclaim da + Long Setup Confirmed oder Ready + Strong Close + EMA Support OK**
+
+## Kurzform fuer den Bildschirm
+
+- Zone da?
+- Reclaim da?
+- Setup Confirmed oder Ready?
+- Strong Close?
+- EMA, ADX und Volumen nicht gegen dich?
+
+Wenn mehrere Antworten Nein sind, ist Warten oft die bessere Entscheidung.
+
+*** Add File: /Users/steffenpreuss/Downloads/skipp-algo/docs/SMC_Dashboard_Long_Dip_Guide_EN.md
+# SMC++ Dashboard Guide for Long-Dip Setups (EN)
+
+## Purpose
+
+This document explains the SMC++ dashboard in plain English.
+It is meant as an interpretation and workflow guide, not as a standalone buy signal.
+
+Core rule:
+
+- The dashboard is a traffic light and checklist.
+- The more fields align, the cleaner the long-dip setup.
+- A zone by itself is not an entry.
+
+## Core Idea
+
+The dashboard mainly answers four questions:
+
+1. Is the market structure currently bullish or bearish?
+2. Is price sitting inside a meaningful pullback zone?
+3. Do we already have reclaim and confirmation?
+4. Are close quality, EMA support, ADX, volume, and lower-timeframe pressure helping or hurting the long?
+
+## Dashboard Terms
+
+### SMC++
+
+The name of the script.
+
+### Trend
+
+The active market structure on the current chart.
+
+- Bullish: structure leans upward
+- Bearish: structure leans downward
+- Neutral: no clear structural edge yet
+
+### HTF Trend
+
+HTF means Higher Time Frame.
+This field checks whether larger timeframes support the trade.
+
+Example:
+
+`3:Bearish | 10:Bullish | 30:Bearish`
+
+That is mixed and not ideal for a conservative long-dip.
+
+### Pullback Zone
+
+Shows whether price has reached an area where a dip-bounce could develop.
+
+Typical states:
+
+- In OB Zone
+- In FVG Zone
+- In OB + FVG Zone
+- No Long Zone
+
+Important: a zone means watch, not buy.
+
+### Reclaim
+
+Reclaim means price has recovered an important level or zone.
+For longs, this matters because it shows buyers are taking control back.
+
+Positive examples:
+
+- OB Reclaimed
+- FVG Reclaimed
+- Internal Low Reclaimed
+- Swing Low Reclaimed
+
+Warning sign:
+
+- No Reclaim
+
+### Long Setup
+
+The operating state of the long setup.
+
+Typical stages:
+
+- In Zone: interesting area, but not an entry yet
+- Armed: setup is being tracked
+- Building: structure is improving
+- Confirmed: key confirmation is in place
+- Ready: clean, advanced long setup
+- Blocked or Invalidated: setup is broken or unusable
+
+### Setup Age
+
+How old an armed or confirmed setup is.
+
+Examples:
+
+- armed 2
+- confirmed 1
+
+Fresh setups are usually better than old ones.
+
+### Long Visual
+
+The visual summary of the long-state.
+This is the quick traffic-light version of the setup status.
+
+### Close Strength
+
+Shows how strong the current candle closed.
+
+- Strong Close: bullish close near the upper part of the range
+- Weak Close: not convincing
+
+For long-dips, a strong close is usually much better.
+
+### EMA Support
+
+Checks whether price and EMAs support the long idea.
+
+- OK: clean EMA tailwind
+- No: no clean trend support
+
+### ADX
+
+ADX measures trend strength, not only direction.
+Combined with +DI and -DI, it also shows who is applying pressure.
+
+Example:
+
+`30 | Bearish pressure`
+
+This means:
+
+- the move has strength
+- but the pressure currently comes from sellers
+
+That is negative for longs.
+
+### Rel Volume
+
+Relative volume compared to average volume.
+
+Examples:
+
+- 1.2x: more participation than normal
+- 0.5x: below-average participation
+- 0.01x: extremely weak
+
+Very low volume often makes signals less reliable.
+
+### LTF Bias
+
+LTF means Lower Time Frame.
+This field measures the tendency of the smaller internal structure.
+
+- higher value: more bullish
+- lower value: more bearish
+
+### LTF Delta
+
+Short-term pressure or volume imbalance on the lower timeframe.
+
+- positive: buyer pressure
+- negative: seller pressure
+- n/a: no useful data base
+
+### Objects
+
+Shows how many OB and FVG objects are visible.
+
+Example:
+
+`OB 19/9 | FVG 34/29`
+
+This is more orientation than entry logic.
+
+### Swing H/L
+
+Shows major and internal structure highs and lows.
+
+Example:
+
+`Swing 8.23/7.89 | Int 8.03/7.92`
+
+Internal levels are often earlier triggers, while swing levels are the larger structural references.
+
+### Long Zones
+
+The currently relevant long zones.
+
+Example:
+
+`OB 7.68/7.64 | FVG 7.95/7.84`
+
+### Long Triggers
+
+The reclaim or confirmation levels for the setup.
+
+Example:
+
+`OB mid 7.66 | FVG fill 7.88`
+
+### Legend
+
+The dashboard color legend.
+
+- Aqua: Zone
+- Orange: Armed
+- Gold: Building
+- Lime: Confirmed
+- Green: Ready
+- Red: Fail
+
+## Example Snapshot Interpretation
+
+Example values:
+
+- Trend = Bullish
+- HTF Trend = 3:Bearish | 10:Bullish | 30:Bearish
+- Pullback Zone = In FVG Zone
+- Reclaim = No Reclaim
+- Setup Age = n/a
+- Long Visual = In Zone
+- Close Strength = Weak Close
+- EMA Support = No
+- ADX = 30 | Bearish pressure
+- Rel Volume = 0.01x
+- LTF Bias = 0%
+- LTF Delta = n/a
+
+Simple read:
+
+- Positive: price is inside a potential reaction zone.
+- Negative: no reclaim, weak close, no EMA support, bearish pressure, and almost no volume.
+
+Short conclusion:
+
+> Interesting long zone, but not a clean long confirmation yet. Waiting is better than entering.
+
+## What You Should Not Do in This State
+
+- Do not buy only because price is inside an FVG or OB zone.
+- Do not blindly go long into clear seller pressure.
+- Do not overrate `Trend = Bullish` when HTF, reclaim, close, and EMA do not agree.
+- Do not enter aggressively on extremely weak volume.
+- Do not trade without a clear invalidation level.
+- Do not confuse a live zone touch with confirmed structure.
+
+## What to Wait For in a Long-Dip
+
+The cleaner sequence is usually:
+
+1. Price reaches a meaningful zone.
+2. A reclaim appears.
+3. The long setup becomes Armed or Building.
+4. Later it becomes Confirmed or Ready.
+5. Close, EMA, ADX, and volume stop arguing against the trade.
+
+## Three Dashboard Phases
+
+### 1. Watch
+
+Typical picture:
+
+- Trend bullish or at least not bearish
+- Price in an OB or FVG zone
+- No reclaim yet
+- Long Visual still In Zone
+
+Meaning:
+
+> Interesting area, but no proof yet that buyers are taking control.
+
+### 2. Prepare
+
+Typical picture:
+
+- Reclaim appears
+- Long Setup becomes Armed or Building
+- Close Strength improves
+- EMA Support improves
+- LTF Bias starts turning up
+
+Meaning:
+
+> The setup is becoming usable, but it is not fully clean yet.
+
+### 3. Entry
+
+Typical picture:
+
+- Trend bullish
+- Reclaim present
+- Long Setup is Confirmed or Ready
+- Long Visual is Confirmed or Long Ready
+- Strong Close
+- EMA Support OK
+- ADX is not bearish pressure
+- Relative volume is not dead
+
+Meaning:
+
+> Zone, reclaim, structure, and filters now align much better.
+
+## Traffic-Light View for Long-Dips
+
+### Green
+
+- Trend bullish
+- HTF mostly bullish or at least not clearly against the trade
+- Pullback Zone active
+- Reclaim present
+- Long Setup Confirmed or Ready
+- Strong Close
+- EMA Support OK
+- ADX not bearish pressure
+- Relative volume at least acceptable
+- LTF Bias and LTF Delta positive or neutral-supportive
+
+### Yellow
+
+- Trend neutral to mildly bullish
+- Zone active
+- first reclaim or early internal shift visible
+- Long Setup Armed or Building
+- volume and LTF data not ideal yet
+
+### Red
+
+- No Reclaim
+- Weak Close
+- EMA Support No
+- ADX bearish pressure
+- extremely weak volume
+- HTF clearly against the trade
+- only In Zone, but no confirmation yet
+
+## Five-Point Checklist Before a Long-Dip
+
+1. Is trend bullish?
+2. Is price inside a meaningful OB or FVG zone?
+3. Is reclaim present?
+4. Is the long setup Confirmed or Ready?
+5. Are close, EMA, ADX, and volume not fighting the trade?
+
+If only one or two of these are true, it is usually too early.
+
+## Simple If-Then Rule
+
+### No Long
+
+If:
+
+- Reclaim = No Reclaim
+- or Close Strength = Weak Close
+- or EMA Support = No
+- or ADX = Bearish pressure
+
+Then:
+
+- it is not a clean long-dip entry
+
+### Interesting, But Early
+
+If:
+
+- price is in the zone
+- reclaim is present
+- Long Setup = Armed or Building
+
+Then:
+
+- watch the setup and define triggers, but do not rush
+
+### Clean Long-Dip
+
+If:
+
+- Trend bullish
+- zone active
+- reclaim present
+- Long Setup = Confirmed or Ready
+- Close Strength = Strong Close
+- EMA Support = OK
+
+Then:
+
+- the long-dip becomes much more attractive
+
+## One-Line Rule
+
+Only trade a long-dip when:
+
+**Trend is bullish + price is in an OB/FVG zone + reclaim is present + Long Setup is Confirmed or Ready + Close is strong + EMA Support is OK**
+
+## Screen-Side Short Version
+
+- Zone active?
+- Reclaim present?
+- Setup Confirmed or Ready?
+- Strong Close?
+- EMA, ADX, and volume not against you?
+
+If several answers are No, waiting is often the better choice.
 
 ### Architecture & Planning
 

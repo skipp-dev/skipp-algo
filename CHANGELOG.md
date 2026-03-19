@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-03-19)
+
+- **SMC++ long-dip alert presets:**
+  - Added seven reusable alert preset booleans in `SMC++.pine` for `Watchlist`, `Armed+`, `Early`, `Clean`, `Entry Best`, `Entry Strict`, and `Failed` long-dip states.
+  - Added matching `alertcondition(...)` definitions so the presets are available directly in TradingView alerts.
+  - Added matching `fire_dynamic_alert(...)` calls so dynamic alerts can emit the same long-dip lifecycle states with level context.
+  - Added dedicated German and English documentation for the SMC++ dashboard and long-dip workflow under `docs/`.
+
 ### Changed (2026-03-19)
 
 - **SMC++ dashboard layout tightened:**

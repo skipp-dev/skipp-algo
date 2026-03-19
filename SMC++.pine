@@ -2311,11 +2311,74 @@ else if barstate.islast
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
 
+// --------------------------------------------------
+// Long-dip alert presets
+// --------------------------------------------------
+bool alert_long_watchlist =
+    bullish_trend_condition and
+    long_zone_active
+
+bool alert_long_armed =
+    bullish_trend_condition and
+    long_zone_active and
+    reclaim_recent and
+    long_setup_armed
+
+bool alert_long_early =
+    bullish_trend_condition and
+    long_zone_active and
+    reclaim_recent and
+    long_internal_structure_ok and
+    bull_close_strong and
+    ema_support_ok
+
+bool alert_long_clean =
+    barstate.isconfirmed and
+    bullish_trend_condition and
+    long_zone_active and
+    reclaim_recent and
+    long_setup_confirmed and
+    bull_close_strong and
+    ema_support_ok and
+    adx_strong and
+    relvol_ok
+
+bool alert_long_entry_best =
+    barstate.isconfirmed and
+    bullish_trend_condition and
+    reclaim_recent and
+    long_ready_state and
+    bull_close_strong and
+    ema_support_ok
+
+bool alert_long_entry_strict =
+    barstate.isconfirmed and
+    bullish_trend_condition and
+    htf_bull_count >= 2 and
+    long_zone_active and
+    reclaim_recent and
+    long_ready_state and
+    bull_close_strong and
+    ema_support_ok and
+    adx_strong and
+    relvol_ok and
+    (na(ltf_volume_delta) or ltf_volume_delta >= 0)
+
+bool alert_long_fail =
+    long_invalidate_signal
+
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
 alertcondition(long_confirm_signal, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation.')
 alertcondition(long_ready_signal, 'Long Ready', 'SMC++: long setup is ready with filters aligned.')
 alertcondition(long_invalidate_signal, 'Long Invalidated', 'SMC++: long setup was invalidated.')
+alertcondition(alert_long_watchlist, 'Long Dip Watchlist', 'SMC++: bullish trend with active pullback zone.')
+alertcondition(alert_long_armed, 'Long Dip Armed+', 'SMC++: reclaim detected and long setup armed.')
+alertcondition(alert_long_early, 'Long Dip Early', 'SMC++: early bullish long-dip hint with internal confirmation.')
+alertcondition(alert_long_clean, 'Long Dip Clean', 'SMC++: clean long-dip setup confirmed.')
+alertcondition(alert_long_entry_best, 'Long Dip Entry Best', 'SMC++: best standard long-dip entry condition.')
+alertcondition(alert_long_entry_strict, 'Long Dip Entry Strict', 'SMC++: strict long-dip entry with HTF and momentum alignment.')
+alertcondition(alert_long_fail, 'Long Dip Failed', 'SMC++: long-dip setup invalidated.')
 alertcondition(bull_bos_alert, 'Bullish BOS Detected', 'SMC++: bullish break of structure detected.')
 alertcondition(bull_choch_alert, 'Bullish CHoCH Detected', 'SMC++: bullish change of character detected.')
 alertcondition(bear_bos_alert, 'Bearish BOS Detected', 'SMC++: bearish break of structure detected.')
@@ -2353,6 +2416,13 @@ fire_dynamic_alert(enable_dynamic_alerts and enable_live_break_alerts and signal
 fire_dynamic_alert(enable_dynamic_alerts, long_arm_signal, 'Long Armed', str.format('Long setup armed from {0}', long_setup_source), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, long_confirm_signal, 'Long Confirmed', str.format('Trigger cleared from {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, long_ready_signal, 'Long Ready', str.format('Filters aligned for {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_watchlist, 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_armed, 'Long Dip Armed+', 'Reclaim detected and setup armed', long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_early, 'Long Dip Early', 'Internal confirmation starting', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_clean, 'Long Dip Clean', 'Confirmed long-dip setup', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_entry_best, 'Long Dip Entry Best', 'Standard long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_entry_strict, 'Long Dip Entry Strict', 'Strict long entry condition met', long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
+fire_dynamic_alert(enable_dynamic_alerts, alert_long_fail, 'Long Dip Failed', 'Setup invalidated', long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 fire_dynamic_alert(enable_dynamic_alerts, long_invalidate_signal, 'Long Invalidated', str.format('Setup invalidated from {0}', long_last_invalid_source), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text)
 
 /////////////////////////////////////////////////////////////////////////////////
