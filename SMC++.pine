@@ -317,21 +317,16 @@ type ProfileConfig
     bool show_poc = true
     bool show_profile = false
     bool show_va = false
-    bool show_va_fill = false
     bool show_background = false
     bool show_labels = false
     bool show_price_levels = false
     bool extend = false
 
     string poc_label_text = 'POC'
-    string vah_label_text = 'VAH'
-    string val_label_text = 'VAL'
     LineArgs args_poc_line = na
     LineArgs args_vah_line = na
     LineArgs args_val_line = na
     LabelArgs args_poc_label = na
-    LabelArgs args_vah_label = na
-    LabelArgs args_val_label = na
     LineArgs args_profile_line = na
     BoxArgs args_profile_bg = na
     bool initialized = false
@@ -346,10 +341,6 @@ method init(ProfileConfig this) =>
             this.args_val_line := LineArgs.new(color.yellow, line.style_dotted, 1, xloc = xloc.bar_index)
         if na(this.args_poc_label)
             this.args_poc_label := LabelArgs.new(color.orange, #00000000, xloc = xloc.bar_index, style = label.style_label_left)
-        if na(this.args_vah_label)
-            this.args_vah_label := LabelArgs.new(color.yellow, #00000000, xloc = xloc.bar_index, style = label.style_label_left)
-        if na(this.args_val_label)
-            this.args_val_label := LabelArgs.new(color.yellow, #00000000, xloc = xloc.bar_index, style = label.style_label_left)
         if na(this.args_profile_line)
             this.args_profile_line := LineArgs.new(color.rgb(120, 123, 134, 40), line.style_dotted, 1, xloc = xloc.bar_index)
         if na(this.args_profile_bg)
@@ -383,8 +374,6 @@ type Profile
     Line plot_vah = na
     Line plot_val = na
     Label plot_poc_label = na
-    Label plot_vah_label = na
-    Label plot_val_label = na
     Box plot_profile_bg = na
     bool hidden = false
 
@@ -398,10 +387,6 @@ method apply_style(Profile this, ProfileConfig args) =>
             this.plot_val.apply_style(args.args_val_line)
         if not na(this.plot_poc_label)
             this.plot_poc_label.apply_style(args.args_poc_label)
-        if not na(this.plot_vah_label)
-            this.plot_vah_label.apply_style(args.args_vah_label)
-        if not na(this.plot_val_label)
-            this.plot_val_label.apply_style(args.args_val_label)
         if not na(this.plot_profile_bg)
             this.plot_profile_bg.apply_style(args.args_profile_bg, BoxTextArgs.new())
     this
@@ -425,12 +410,6 @@ method delete(Profile this) =>
         if not na(this.plot_poc_label)
             this.plot_poc_label.delete()
             this.plot_poc_label := na
-        if not na(this.plot_vah_label)
-            this.plot_vah_label.delete()
-            this.plot_vah_label := na
-        if not na(this.plot_val_label)
-            this.plot_val_label.delete()
-            this.plot_val_label := na
         if not na(this.plot_profile_bg)
             this.plot_profile_bg.delete()
             this.plot_profile_bg := na
@@ -450,10 +429,6 @@ method hide(Profile this) =>
             this.plot_val.hide()
         if not na(this.plot_poc_label)
             this.plot_poc_label.hide()
-        if not na(this.plot_vah_label)
-            this.plot_vah_label.hide()
-        if not na(this.plot_val_label)
-            this.plot_val_label.hide()
         if not na(this.plot_profile_bg)
             this.plot_profile_bg.hide()
         this.hidden := true
