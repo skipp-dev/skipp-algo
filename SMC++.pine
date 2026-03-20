@@ -1465,12 +1465,6 @@ method contains_id(FVG[] this, int id) =>
                 break
     found
 
-method unshift_rotate(float[] this, float value, int max_size = 3) =>
-    this.unshift(value)
-    if this.size() > max_size
-        this.pop()
-    this
-
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
