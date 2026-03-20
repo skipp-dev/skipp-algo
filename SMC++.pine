@@ -3450,8 +3450,8 @@ bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal_latched, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
-alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation, with optional score gating.')
-alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: long setup is ready with filters aligned, with optional score gating.')
+alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation, with strict-flow context and optional score gating.')
+alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: long setup is ready with filters aligned, with strict-flow context and optional score gating.')
 alertcondition(long_invalidate_signal_latched, 'Long Invalidated', 'SMC++: long setup was invalidated.')
 alertcondition(long_arm_close_safe, 'Long Armed (Close Safe)', 'SMC++: long setup remained armed into the confirmed close.')
 alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close, with optional score gating.')
