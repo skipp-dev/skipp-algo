@@ -3536,7 +3536,6 @@ var int long_confirm_bar_index = na
 var float long_setup_trigger = na
 var float long_invalidation_level = na
 var string long_setup_source = 'None'
-var int long_setup_source_id = na
 var string long_setup_source_kind = 'None'
 var string long_setup_backing_zone_kind = 'None'
 var int long_setup_backing_zone_id = na
@@ -3661,7 +3660,6 @@ if long_invalidated_now
     long_setup_trigger := na
     long_invalidation_level := na
     long_setup_source := 'None'
-    long_setup_source_id := na
     long_setup_source_kind := 'None'
     long_setup_backing_zone_kind := 'None'
     long_setup_backing_zone_id := na
@@ -3677,7 +3675,6 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_setup_trigger := arm_trigger_candidate
     long_invalidation_level := arm_invalidation_candidate
     long_setup_source := arm_source_text
-    long_setup_source_id := arm_source_text == 'OB' ? touched_bull_ob_id : arm_source_text == 'FVG' ? touched_bull_fvg_id : na
     long_setup_source_kind := arm_source_text
     long_setup_backing_zone_kind := arm_backing_zone_kind
     long_setup_backing_zone_id := arm_backing_zone_id
@@ -3778,6 +3775,7 @@ long_building_state := long_setup_armed and long_internal_structure_ok and not l
 bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 bool long_entry_best_state = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
 bool long_entry_strict_state = close_safe_mode and bullish_trend_safe and htf_alignment_ok and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+bool long_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3829,15 +3827,14 @@ if (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invali
     long_visual_state := -1
 
 bool long_score_soft_block = not entry_score_ok and (long_setup_confirmed or long_ready_state)
-long_setup_dashboard_state := long_score_soft_block and long_visual_state > 0 ? 2 : long_visual_state
+long_setup_dashboard_state := long_visual_state
 
+// Lifecycle axis stays pure. Quality is shown in separate dashboard rows.
 long_visual_text := status_text(long_visual_state, 'Blocked', 'Neutral', 'In Zone', 'Armed', 'Building', 'Confirmed', 'Long Ready')
 if long_visual_state == 6
     long_visual_text := 'Entry Best'
 else if long_visual_state >= 7
     long_visual_text := 'Entry Strict'
-if long_score_soft_block
-    long_visual_text := long_ready_state ? 'Ready (Score Blocked)' : 'Confirmed (Score Blocked)'
 
 long_bg_color := na
 if long_visual_state == -1
@@ -3856,8 +3853,6 @@ else if long_visual_state == 6
     long_bg_color := color.new(color.green, 74)
 else if long_visual_state >= 7
     long_bg_color := color.new(color.green, 66)
-if long_score_soft_block and long_visual_state > 0
-    long_bg_color := color.new(color.orange, 84)
 
 long_bar_color := na
 if long_visual_state == -1
@@ -3876,8 +3871,6 @@ else if long_visual_state == 6
     long_bar_color := color.new(color.green, 0)
 else if long_visual_state >= 7
     long_bar_color := color.new(color.teal, 0)
-if long_score_soft_block and long_visual_state > 0
-    long_bar_color := color.new(color.orange, 0)
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break
@@ -4062,7 +4055,6 @@ int stretch_state = not use_stretch_context ? 0 : in_lower_extreme ? 5 : lower_e
 int ddvi_state = not use_ddvi_context ? 0 : ddvi_entry_strict_ok_safe ? 5 : ddvi_entry_best_ok_safe ? 4 : ddvi_ready_ok_safe ? 3 : ddvi_watchlist_ok_safe ? 2 : ddvi_lower_extreme_now ? 1 : na(ddvi) ? 1 : 0
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
-int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
 int session_gate_state = not use_trade_session_gate and not use_opening_range_gate ? 0 : session_structure_gate_ok ? 5 : not session_gate_ok ? -1 : opening_range_ready ? -1 : 1
 int market_gate_state = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 0 : market_regime_gate_ok ? 5 : market_symbols_missing and not block_on_missing_market_symbol ? 2 : -1
 int vola_gate_state = not use_vola_compression_gate ? 0 : vola_regime_gate_safe ? 5 : vola_compression_recent ? 2 : 1
@@ -4108,32 +4100,29 @@ string stretch_display = not use_stretch_context ? 'Off' : stretch_entry_strict_
 string ddvi_context_text = not use_ddvi_context ? 'Off' : ddvi_entry_strict_ok_safe ? strong_bull_divergence ? 'Strict OK\nStrong Bull Div' : hidden_bull_divergence ? 'Strict OK\nHidden Bull Div' : 'Strict OK\nBull Bias' : ddvi_entry_best_ok_safe ? strong_bull_divergence ? 'Best OK\nStrong Bull Div' : hidden_bull_divergence ? 'Best OK\nHidden Bull Div' : ddvi_bias_cross_up ? 'Best OK\nCross Up' : 'Best OK\nBias Transition' : ddvi_ready_ok_safe ? ddvi_recover_from_lower_extreme ? 'Ready OK\nRecovering' : 'Ready OK\nRising Bias' : ddvi_watchlist_ok_safe ? ddvi_lower_extreme_context ? 'Watchlist OK\nLower Extreme' : 'Watchlist OK\nRising Bias' : na(ddvi) ? 'Init\nWaiting' : ddvi_lower_extreme_now ? 'Blocked\nLower Extreme' : 'Neutral'
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
-string setup_quality_display = str.format('{0}\n{1}\n{2}\nEnv {3}\nHeadroom {4}', freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text)
 string strict_sequence_display = not use_strict_sequence ? 'off' : long_setup_armed or long_setup_confirmed ? long_source_zone_touch_recent ? 'zone ok' : 'wait source' : zone_touch_event_recent ? 'zone ok' : 'wait zone'
 string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_setup_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_setup_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
 string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort lockout'
-string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? 'Waiting Zone' : 'Strict OK'
-bool long_setup_strict_blocked = strict_flow_active and strict_flow_focus_display != 'off' and strict_flow_focus_display != 'Strict OK' and long_visual_state > 0
-bool long_setup_environment_blocked = long_environment_features_active and not long_environment_gate_ok and long_visual_state > 0
-bool long_setup_micro_blocked = use_microstructure_profiles and not microstructure_entry_gate_ok and long_visual_state > 0
-string long_visual_context_suffix = long_visual_environment_blocked ? long_environment_focus_display : ''
-if long_setup_micro_blocked
-    long_visual_context_suffix := str.length(long_visual_context_suffix) > 0 ? str.format('{0} | {1}', long_visual_context_suffix, microstructure_focus_display) : microstructure_focus_display
-string long_visual_display = str.length(long_visual_context_suffix) > 0 ? str.format('{0} | {1}', long_visual_text, long_visual_context_suffix) : long_visual_text
-string long_setup_context_suffix = long_setup_strict_blocked ? strict_flow_focus_display : ''
-if long_setup_environment_blocked
-    long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_context_suffix, long_environment_focus_display) : long_environment_focus_display
-if long_setup_micro_blocked
-    long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_context_suffix, microstructure_focus_display) : microstructure_focus_display
-if long_score_soft_block
-    long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | Score Blocked', long_setup_context_suffix) : 'Score Blocked'
-string long_setup_display = str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_text, long_setup_context_suffix) : long_setup_text
+string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? long_setup_armed or long_setup_confirmed ? 'Waiting Source' : 'Waiting Zone' : 'Strict OK'
+string long_visual_display = long_visual_text
+string long_setup_display = long_setup_text
 string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''
 string long_environment_alert_suffix = long_environment_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
 string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''
-string strict_flow_display = str.format('State {0}\nZone {1}\nSweep {2}\nGuard {3}', strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
-string execution_tier_display = long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? long_score_soft_block ? 'Ready blocked' : 'Ready' : long_setup_confirmed ? long_score_soft_block ? 'Confirmed blocked' : 'Confirmed' : long_setup_armed ? 'Armed' : 'n/a'
-string entry_score_display = str.format('{0}/{1}\nMin {2}\n{3}', long_entry_score, effective_entry_score_max, effective_min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
+string execution_tier_display = long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? 'Ready' : long_setup_confirmed ? 'Confirmed' : long_building_state ? 'Building' : long_setup_armed ? 'Armed' : long_zone_active ? 'Zone' : 'n/a'
+bool quality_axis_active = long_zone_active or zone_recent or reclaim_recent or long_setup_armed or long_setup_confirmed
+bool quality_clean_ok = quality_axis_active and long_clean_tier
+bool quality_score_ok = quality_axis_active and entry_score_ok
+bool quality_env_ok = quality_axis_active and long_environment_gate_ok and microstructure_entry_gate_ok
+bool quality_strict_ok = quality_axis_active and (not strict_flow_active or (not strict_sequence_waiting and not strict_sweep_blocked and not strict_guard_blocked))
+int quality_clean_state = not quality_axis_active ? 0 : quality_clean_ok ? 5 : long_setup_confirmed ? 2 : long_setup_armed ? 1 : 0
+int quality_score_state = not quality_axis_active ? 0 : quality_score_ok ? 5 : long_score_soft_block ? 2 : -1
+int quality_env_state = not quality_axis_active ? 0 : quality_env_ok ? 5 : not long_environment_gate_ok ? 2 : not microstructure_entry_gate_ok ? 1 : -1
+int quality_strict_state = not quality_axis_active ? 0 : quality_strict_ok ? 5 : strict_guard_blocked ? -1 : strict_sweep_blocked ? 2 : strict_sequence_waiting ? 1 : -1
+string quality_clean_display = not quality_axis_active ? 'n/a' : quality_clean_ok ? 'Clean' : long_setup_confirmed ? 'Not clean' : long_setup_armed ? 'Pre-confirm' : 'n/a'
+string quality_score_display = not quality_axis_active ? 'n/a' : str.format('{0}/{1}\nMin {2}\n{3}', long_entry_score, effective_entry_score_max, effective_min_entry_score, quality_score_ok ? 'OK' : 'Blocked')
+string quality_env_display = not quality_axis_active ? 'n/a' : str.format('Env {0}\nMicro {1}', long_environment_gate_ok ? 'OK' : long_environment_focus_display, microstructure_entry_gate_ok ? 'OK' : microstructure_focus_display)
+string quality_strict_display = not quality_axis_active ? 'n/a' : str.format('{0}\nZone {1}\nSweep {2}\nGuard {3}', quality_strict_ok ? 'Strict OK' : strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
 string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
 string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}\nInvalid {2}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level), format_level(long_invalidation_level))
@@ -4145,8 +4134,7 @@ string dashboard_legend_display = 'Zone: Aqua\nArmed: Orange\nBuilding: Gold\nCo
 color dashboard_header_bg = color.new(color.black, 100)
 color dashboard_text = chart.fg_color
 color dashboard_long_text = long_visual_state == 3 ? long_dashboard_building_text : dashboard_text
-color dashboard_long_visual_bg = long_visual_environment_blocked ? long_environment_focus_display == 'Session Block' ? color.new(color.blue, 72) : long_environment_focus_display == 'Market Block' ? color.new(color.red, 75) : long_environment_focus_display == 'Vola Block' ? color.new(color.orange, 72) : long_environment_focus_display == 'Trend Block' ? color.new(color.yellow, 68) : status_bg(long_visual_state) : status_bg(long_visual_state)
-color dashboard_setup_quality_bg = not long_environment_features_active or long_environment_gate_ok ? status_bg(quality_state) : long_environment_focus_display == 'Session Block' ? color.new(color.blue, 72) : long_environment_focus_display == 'Market Block' ? color.new(color.red, 75) : long_environment_focus_display == 'Vola Block' ? color.new(color.orange, 72) : long_environment_focus_display == 'Trend Block' ? color.new(color.yellow, 68) : status_bg(quality_state)
+color dashboard_long_visual_bg = status_bg(long_visual_state)
 color dashboard_session_gate_bg = not use_trade_session_gate and not use_opening_range_gate ? status_bg(0) : session_structure_gate_ok ? color.new(color.green, 60) : not session_gate_ok ? color.new(color.blue, 72) : color.new(color.aqua, 80)
 color dashboard_market_gate_bg = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? status_bg(0) : market_regime_gate_ok ? color.new(color.green, 60) : market_symbols_missing and not block_on_missing_market_symbol ? color.new(color.yellow, 68) : color.new(color.red, 75)
 color dashboard_vola_gate_bg = not use_vola_compression_gate ? status_bg(0) : vola_regime_gate_safe ? color.new(color.green, 60) : vola_compression_recent ? color.new(color.orange, 72) : color.new(color.aqua, 80)
@@ -4156,8 +4144,7 @@ color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
-color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
-var table smc_dashboard = table.new(position.bottom_right, 2, 40, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 41, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -4187,21 +4174,22 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 24, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
     dashboard_row(smc_dashboard, 25, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
     dashboard_row(smc_dashboard, 26, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 27, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 28, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 29, 'Exec Tier', execution_tier_display, status_bg(long_visual_state), dashboard_text)
-    dashboard_row(smc_dashboard, 30, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
-    dashboard_row(smc_dashboard, 31, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 32, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 33, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 34, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 35, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
-    dashboard_row(smc_dashboard, 36, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
-    dashboard_row(smc_dashboard, 37, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
-    dashboard_row(smc_dashboard, 38, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 39, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 27, 'Quality Clean', quality_clean_display, status_bg(quality_clean_state), dashboard_text)
+    dashboard_row(smc_dashboard, 28, 'Quality Env', quality_env_display, status_bg(quality_env_state), dashboard_text)
+    dashboard_row(smc_dashboard, 29, 'Quality Strict', quality_strict_display, status_bg(quality_strict_state), dashboard_text)
+    dashboard_row(smc_dashboard, 30, 'Exec Tier', execution_tier_display, status_bg(long_visual_state), dashboard_text)
+    dashboard_row(smc_dashboard, 31, 'Quality Score', quality_score_display, status_bg(quality_score_state), dashboard_text)
+    dashboard_row(smc_dashboard, 32, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 33, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 34, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 35, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 36, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
+    dashboard_row(smc_dashboard, 37, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
+    dashboard_row(smc_dashboard, 38, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
+    dashboard_row(smc_dashboard, 39, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 40, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 39)
+    table.clear(smc_dashboard, 0, 0, 1, 40)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -4221,7 +4209,7 @@ bgcolor(show_lower_extreme_bg and in_lower_extreme ? color.new(color.aqua, 90) :
 alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe and ddvi_watchlist_ok_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
-alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
+alert_long_clean = long_clean_tier
 alert_long_entry_best = long_entry_best_state
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
