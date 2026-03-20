@@ -2324,7 +2324,10 @@ bool use_ob_profile_effective = use_ob_profile and volume_data_ok
 var label volume_quality_warning = na
 if barstate.islast
     if not volume_data_ok
-        string volume_warning_text = allow_relvol_without_volume_data ? 'Volume data quality is limited\nOB profiles are off; RelVol and DDVI Best can fall back, but Strict and LTF delta stay limited' : 'Volume data quality is limited\nOB profiles are off; RelVol, DDVI Best, and strict entry may stay blocked'
+        string profile_warning_text = use_ob_profile ? 'OB profiles are off' : 'OB profiles are already off'
+        string ddvi_warning_text = use_ddvi_context ? 'DDVI Best can fall back' : 'DDVI context is off'
+        string fallback_warning_text = allow_relvol_without_volume_data ? str.format('{0}; RelVol and {1}, but Strict and LTF delta stay limited', profile_warning_text, ddvi_warning_text) : str.format('{0}; RelVol, {1}, and strict entry may stay blocked', profile_warning_text, use_ddvi_context ? 'DDVI Best' : 'strict entry')
+        string volume_warning_text = str.format('Volume data quality is limited\n{0}', fallback_warning_text)
         if na(volume_quality_warning)
             volume_quality_warning := label.new(bar_index, close, volume_warning_text, color = color.orange, textcolor = color.white, style = label.style_label_left, size = size.small)
         else
@@ -2407,7 +2410,8 @@ bool strict_ltf_unavailable = use_ltf_for_strict_entry and not strict_ltf_availa
 var label strict_ltf_warning = na
 if barstate.islast
     if strict_ltf_unavailable and not allow_strict_entry_without_ltf
-        string strict_ltf_warning_text = 'Strict entry is blocked by unavailable LTF sampling\nAdjust chart/LTF settings or enable the strict-entry fallback'
+        string strict_ltf_reason_text = not enable_ltf_sampling ? 'LTF sampling is turned off' : not ltf_timeframe_valid ? 'LTF timeframe is unavailable on this chart' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'LTF sampling is guarded by ratio/sample limits' : not volume_data_ok ? 'LTF volume is unavailable' : 'LTF sampling is unavailable'
+        string strict_ltf_warning_text = str.format('Strict entry is blocked\n{0}\nAdjust chart/LTF settings or enable the strict-entry fallback', strict_ltf_reason_text)
         if na(strict_ltf_warning)
             strict_ltf_warning := label.new(bar_index, high, strict_ltf_warning_text, color = color.new(color.red, 0), textcolor = color.white, style = label.style_label_upper_left, size = size.small)
         else
