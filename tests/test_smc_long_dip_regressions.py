@@ -320,6 +320,27 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert 'long_locked_source_top := long_locked_source_top_tmp' in source
 
 
+def test_long_alert_helpers_cover_close_safe_events_and_message_composition() -> None:
+    source = _read_smc_source()
+
+    assert 'resolve_long_close_safe_alert_events(bool bar_confirmed, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, bool long_setup_armed_prev, bool long_setup_confirmed_prev, bool long_ready_state_prev) =>' in source
+    assert "compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
+    assert "compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
+    assert "compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
+    assert "compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
+    assert '[long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe] = resolve_long_close_safe_alert_events(barstate.isconfirmed, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_armed[1], long_setup_confirmed[1], long_ready_state[1])' in source
+    assert 'compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+
+
 def test_pre_arm_ob_selection_prefers_touch_anchor_then_recency_then_quality() -> None:
     source = _read_smc_source()
 

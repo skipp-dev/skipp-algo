@@ -162,6 +162,49 @@ def _model_long_visual_text(long_visual_state: int) -> str:
     return 'Entry Strict'
 
 
+def _model_long_close_safe_alert_events(
+    bar_confirmed: bool,
+    long_setup_armed: bool,
+    long_setup_confirmed: bool,
+    long_ready_state: bool,
+    long_setup_armed_prev: bool,
+    long_setup_confirmed_prev: bool,
+    long_ready_state_prev: bool,
+) -> tuple[bool, bool, bool, bool]:
+    long_arm_close_safe = bar_confirmed and long_setup_armed and not long_setup_armed_prev
+    long_confirm_close_safe = bar_confirmed and long_setup_confirmed and not long_setup_confirmed_prev
+    long_ready_close_safe = bar_confirmed and long_ready_state and not long_ready_state_prev
+    long_invalidated_close_safe = bar_confirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed_prev or long_setup_confirmed_prev)
+    return long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe
+
+
+def _model_long_ready_alert_detail(
+    long_setup_source_display: str,
+    long_strict_alert_suffix: str,
+    long_environment_alert_suffix: str,
+    long_micro_alert_suffix: str,
+    long_score_detail_suffix: str,
+) -> str:
+    return f'Ready for {long_setup_source_display}: lifecycle, gates, context, upgrades passed{long_strict_alert_suffix}{long_environment_alert_suffix}{long_micro_alert_suffix}{long_score_detail_suffix}'
+
+
+def _model_long_confirmed_alert_detail(
+    long_setup_source_display: str,
+    long_strict_alert_suffix: str,
+    long_environment_alert_suffix: str,
+    long_micro_alert_suffix: str,
+    long_score_detail_suffix: str,
+) -> str:
+    return f'Confirmed from {long_setup_source_display}: confirm lifecycle and filters passed{long_strict_alert_suffix}{long_environment_alert_suffix}{long_micro_alert_suffix}{long_score_detail_suffix}'
+
+
+def _model_long_watchlist_alert_detail(
+    long_micro_alert_suffix: str,
+    long_score_detail_suffix: str,
+) -> str:
+    return f'Watchlist. Bullish trend plus active pullback zone{long_micro_alert_suffix}{long_score_detail_suffix}'
+
+
 def test_model_zone_candidate_priority_prefers_touch_anchor_then_recency_then_quality() -> None:
     assert _model_zone_candidate_preferred(True, 5, 0.2, 0.1, 10, False, 100, 0.9, 0.9, 99)
     assert _model_zone_candidate_preferred(False, 7, 0.2, 0.1, 10, False, 5, 0.9, 0.9, 99)
@@ -231,3 +274,20 @@ def test_model_long_visual_text_contract() -> None:
     assert _model_long_visual_text(5) == 'Long Ready'
     assert _model_long_visual_text(6) == 'Entry Best'
     assert _model_long_visual_text(7) == 'Entry Strict'
+
+
+def test_model_long_close_safe_alert_events_only_fire_on_confirmed_transitions() -> None:
+    assert _model_long_close_safe_alert_events(True, True, False, False, False, False, False) == (True, False, False, False)
+    assert _model_long_close_safe_alert_events(True, False, True, True, False, False, False) == (False, True, True, False)
+    assert _model_long_close_safe_alert_events(True, False, False, False, True, False, False) == (False, False, False, True)
+    assert _model_long_close_safe_alert_events(False, True, True, True, False, False, False) == (False, False, False, False)
+
+
+def test_model_long_alert_detail_contracts() -> None:
+    ready_detail = _model_long_ready_alert_detail('Swing Low -> OB', ' | strict', ' | env', ' | micro', ' | score')
+    confirmed_detail = _model_long_confirmed_alert_detail('OB', '', ' | env', ' | micro', ' | score')
+    watchlist_detail = _model_long_watchlist_alert_detail(' | micro', ' | score')
+
+    assert ready_detail == 'Ready for Swing Low -> OB: lifecycle, gates, context, upgrades passed | strict | env | micro | score'
+    assert confirmed_detail == 'Confirmed from OB: confirm lifecycle and filters passed | env | micro | score'
+    assert watchlist_detail == 'Watchlist. Bullish trend plus active pullback zone | micro | score'

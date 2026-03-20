@@ -1821,6 +1821,43 @@ resolve_long_bar_color(int long_visual_state, color long_color_building) =>
         bar_color := color.new(color.teal, 0)
     bar_color
 
+resolve_long_close_safe_alert_events(bool bar_confirmed, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, bool long_setup_armed_prev, bool long_setup_confirmed_prev, bool long_ready_state_prev) =>
+    bool long_arm_close_safe = bar_confirmed and long_setup_armed and not long_setup_armed_prev
+    bool long_confirm_close_safe = bar_confirmed and long_setup_confirmed and not long_setup_confirmed_prev
+    bool long_ready_close_safe = bar_confirmed and long_ready_state and not long_ready_state_prev
+    bool long_invalidated_close_safe = bar_confirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed_prev or long_setup_confirmed_prev)
+    [long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe]
+
+compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    str.format('Invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)
+
+compose_long_entry_strict_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'Entry Strict. Ready live, strict upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix
+
+compose_long_entry_best_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'Entry Best. Ready live, best upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix
+
+compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)
+
+compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)
+
+compose_long_clean_alert_detail(string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+
+compose_long_early_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'Early. Strict reclaim in, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix
+
+compose_long_armed_plus_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'Armed+. Strict reclaim in, setup armed' + long_micro_alert_suffix + long_score_detail_suffix
+
+compose_long_armed_alert_detail(string long_setup_source_display, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)
+
+compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'Watchlist. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix
+
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
@@ -4637,10 +4674,7 @@ if long_invalidate_signal_latched
     alert_long_entry_best_event_latched := false
     alert_long_entry_strict_event_latched := false
 
-bool long_arm_close_safe = barstate.isconfirmed and long_setup_armed and not long_setup_armed[1]
-bool long_confirm_close_safe = barstate.isconfirmed and long_setup_confirmed and not long_setup_confirmed[1]
-bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]
-bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed[1] or long_setup_confirmed[1])
+[long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe] = resolve_long_close_safe_alert_events(barstate.isconfirmed, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_armed[1], long_setup_confirmed[1], long_ready_state[1])
 bool long_arm_alert_event = long_arm_signal_latched
 bool long_confirm_alert_event = long_confirm_signal_latched
 bool long_ready_alert_event = long_ready_signal_latched
@@ -4708,56 +4742,56 @@ dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and use_sd_confluence and sd_higher_lows_event, '|sd_higher_lows|', 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 if dynamic_long_alert_mode == 'Priority'
     if enable_dynamic_alerts and long_invalidate_signal
-        [priority_seen_keys_invalidated, priority_sent_invalidated] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_invalidated|', 'Long Invalidated', str.format('Invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_invalidated, priority_sent_invalidated] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_invalidated|', 'Long Invalidated', compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_invalidated
         long_dynamic_alert_sent := priority_sent_invalidated
     else if enable_dynamic_alerts and alert_long_entry_strict_event
-        [priority_seen_keys_strict, priority_sent_strict] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_entry_strict|', 'Long Dip Entry Strict', 'Entry Strict. Ready live, strict upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_strict, priority_sent_strict] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_entry_strict|', 'Long Dip Entry Strict', compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_strict
         long_dynamic_alert_sent := priority_sent_strict
     else if enable_dynamic_alerts and alert_long_entry_best_event
-        [priority_seen_keys_best, priority_sent_best] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_entry_best|', 'Long Dip Entry Best', 'Entry Best. Ready live, best upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_best, priority_sent_best] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_entry_best|', 'Long Dip Entry Best', compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_best
         long_dynamic_alert_sent := priority_sent_best
     else if enable_dynamic_alerts and long_ready_signal
-        [priority_seen_keys_ready, priority_sent_ready] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_ready|', 'Long Ready', str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_ready, priority_sent_ready] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_ready|', 'Long Ready', compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_ready
         long_dynamic_alert_sent := priority_sent_ready
     else if enable_dynamic_alerts and long_confirm_signal
-        [priority_seen_keys_confirmed, priority_sent_confirmed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_confirmed|', 'Long Confirmed', str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_confirmed, priority_sent_confirmed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_confirmed|', 'Long Confirmed', compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_confirmed
         long_dynamic_alert_sent := priority_sent_confirmed
     else if enable_dynamic_alerts and alert_long_clean_event
-        [priority_seen_keys_clean, priority_sent_clean] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_clean|', 'Long Dip Clean', 'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_clean, priority_sent_clean] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_clean|', 'Long Dip Clean', compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_clean
         long_dynamic_alert_sent := priority_sent_clean
     else if enable_dynamic_alerts and alert_long_early_event
-        [priority_seen_keys_early, priority_sent_early] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_early|', 'Long Dip Early', 'Early. Strict reclaim in, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_early, priority_sent_early] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_early|', 'Long Dip Early', compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_early
         long_dynamic_alert_sent := priority_sent_early
     else if enable_dynamic_alerts and alert_long_armed_event
-        [priority_seen_keys_armed_plus, priority_sent_armed_plus] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_armed_plus|', 'Long Dip Armed+', 'Armed+. Strict reclaim in, setup armed' + long_micro_alert_suffix + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_armed_plus, priority_sent_armed_plus] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_armed_plus|', 'Long Dip Armed+', compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_armed_plus
         long_dynamic_alert_sent := priority_sent_armed_plus
     else if enable_dynamic_alerts and long_arm_signal
-        [priority_seen_keys_armed, priority_sent_armed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_armed|', 'Long Armed', str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_armed, priority_sent_armed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_armed|', 'Long Armed', compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_armed
         long_dynamic_alert_sent := priority_sent_armed
     else if enable_dynamic_alerts and alert_long_watchlist_event
-        [priority_seen_keys_watchlist, priority_sent_watchlist] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_watchlist|', 'Long Dip Watchlist', 'Watchlist. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_watchlist, priority_sent_watchlist] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_watchlist|', 'Long Dip Watchlist', compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_watchlist
         long_dynamic_alert_sent := priority_sent_watchlist
 else
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, '|long_invalidated|', 'Long Invalidated', str.format('Invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, '|long_entry_strict|', 'Long Dip Entry Strict', 'Entry Strict. Ready live, strict upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_best_event, '|long_entry_best|', 'Long Dip Entry Best', 'Entry Best. Ready live, best upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, '|long_ready|', 'Long Ready', str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_clean_event, '|long_clean|', 'Long Dip Clean', 'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, '|long_confirmed|', 'Long Confirmed', str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_early_event, '|long_early|', 'Long Dip Early', 'Early. Strict reclaim in, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, '|long_armed_plus|', 'Long Dip Armed+', 'Armed+. Strict reclaim in, setup armed' + long_micro_alert_suffix + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, '|long_armed|', 'Long Armed', str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, '|long_watchlist|', 'Long Dip Watchlist', 'Watchlist. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, '|long_invalidated|', 'Long Invalidated', compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, '|long_entry_strict|', 'Long Dip Entry Strict', compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_best_event, '|long_entry_best|', 'Long Dip Entry Best', compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, '|long_ready|', 'Long Ready', compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_clean_event, '|long_clean|', 'Long Dip Clean', compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, '|long_confirmed|', 'Long Confirmed', compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_early_event, '|long_early|', 'Long Dip Early', compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, '|long_armed_plus|', 'Long Dip Armed+', compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, '|long_armed|', 'Long Armed', compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, '|long_watchlist|', 'Long Dip Watchlist', compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
