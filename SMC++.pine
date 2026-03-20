@@ -10,7 +10,7 @@ indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_b
 //   clearer configuration naming and more descriptive alerts.
 // - The Order Block lifecycle remains: tracking -> extension -> awaiting confirmation -> confirmed/broken.
 
-// Local replacements for the small lib_math/lib_no_delay subset used by SMC++.
+// Embedded utility subset replacing the former lib_math/lib_no_delay dependency.
 in_range(float value, float max, float min = 0.0) => min <= value and value <= max
 in_range(int value, int max, int min = 0) => min <= value and value <= max
 in_range(float max1, float min1, float max2, float min2) => min2 <= min1 and min1 <= max2 and min2 <= max1 and max1 <= max2
@@ -121,9 +121,6 @@ create_box(int left, float top, int right, float bottom, string point_xloc, stri
     left_top = point_xloc == xloc.bar_time ? chart.point.from_time(left, top) : chart.point.from_index(left, top)
     right_bottom = point_xloc == xloc.bar_time ? chart.point.from_time(right, bottom) : chart.point.from_index(right, bottom)
     Box.new(left_top, right_bottom, txt)
-
-create_fill(Line this, Line other, color fill_color = #dededede, bool flip = false) =>
-    flip ? LineFill.new(this, other, fill_color, Line.new(other.end, other.start)) : LineFill.new(this, other, fill_color)
 
 method update(chart.point this, int bar_time, int bar_idx, float price) =>
     if not na(this)
@@ -321,7 +318,7 @@ method apply_style(Box this, BoxArgs args, BoxTextArgs text_args) =>
         this.plot.apply_style(args, text_args)
     this
 
-// Reduced local profile engine extracted from the used lib_profile subset.
+// Embedded profile engine subset replacing the former lib_profile dependency.
 type Bucket
     varip int idx
     varip float value
@@ -653,7 +650,7 @@ method draw(Profile this, ProfileConfig config, int left = na, int right = na, b
 /////////////////////////////////////////////////////////////////////////////////
 
 //-----------------------------------------------------------------------------
-//Functions
+//Core structures and helpers
 //-----------------------------------------------------------------------------
 
 enum LevelBreakMode
