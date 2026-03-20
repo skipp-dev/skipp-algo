@@ -2223,7 +2223,7 @@ var int vol_momentum_smooth = input.int(3, 'Smooth', minval = 1, group = g_volre
 var bool vol_require_squeeze_for_watchlist = input.bool(false, 'Watchlist prefers squeeze context', group = g_volreg)
 var bool vol_require_squeeze_for_ready = input.bool(false, 'Ready requires squeeze context', group = g_volreg, tooltip = 'Stacked rollout recommendation: off. Ready already needs regime trend, momentum expansion, and spread expansion, so squeeze context is better reserved for tighter entry tiers.')
 var bool vol_require_release_for_entry_best = input.bool(false, 'Entry Best requires squeeze release', group = g_volreg)
-var bool vol_require_release_for_entry_strict = input.bool(true, 'Entry Strict requires squeeze release', group = g_volreg)
+var bool vol_require_release_for_entry_strict = input.bool(false, 'Entry Strict requires squeeze release', group = g_volreg, tooltip = 'Stacked rollout recommendation: off. Strict already requires regime trend, rising slopes, expansion, acceleration, stretch, and DDVI/SD confluence, so mandatory squeeze release can make it unnecessarily rare.')
 var bool show_vol_regime_debug = input.bool(false, 'Show volatility regime debug markers', group = g_volreg)
 
 var g_stretch = 'Stretch / Mean Reversion Context'
@@ -2236,7 +2236,7 @@ var float anti_chase_max_z_best = input.float(0.25, 'Best max z', step = 0.1, gr
 var float anti_chase_max_z_strict = input.float(0.00, 'Strict max z', step = 0.1, group = g_stretch, inline = 'ac1', tooltip = 'Cautious rollout: 0.00. Strict then only allows entries at or below the mean, not above it.')
 var bool stretch_require_lower_extreme_for_watchlist = input.bool(false, 'Watchlist prefers lower extreme', group = g_stretch, tooltip = 'Recommended off for rollout. Watchlist stays broader while stronger stretch filters are reserved for higher-conviction states.')
 var bool stretch_require_lower_extreme_for_ready = input.bool(false, 'Ready requires lower extreme context', group = g_stretch, tooltip = 'Stacked rollout recommendation: off. Keep anti-chase active for Ready, but reserve mandatory lower-extreme context for Entry Best and Entry Strict.')
-var bool stretch_require_lower_extreme_for_entry_best = input.bool(true, 'Entry Best requires lower extreme context', group = g_stretch, tooltip = 'Recommended on. Best then stays aligned with actual downside stretch plus anti-chase protection.')
+var bool stretch_require_lower_extreme_for_entry_best = input.bool(false, 'Entry Best requires lower extreme context', group = g_stretch, tooltip = 'Stacked rollout recommendation: off. Anti-chase stays active, but Best no longer needs a fresh lower-extreme context on top of acceleration, DDVI, and regime filters.')
 var bool stretch_require_lower_extreme_for_entry_strict = input.bool(true, 'Entry Strict requires lower extreme context', group = g_stretch, tooltip = 'Recommended on. Strict should stay fully tied to real lower-extreme mean-reversion setups.')
 var bool show_stretch_overlay = input.bool(true, 'Show stretch overlays', group = g_stretch)
 var bool show_mean_target_overlay = input.bool(true, 'Show mean target overlay', group = g_stretch)
