@@ -76,13 +76,13 @@ smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5
     bool osc_pivot_h = not na(ta.pivothigh(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
     float pivot_osc_value = osc[pivot_confirmation_bars_right]
     float osc_dev_value = nz(ta.dev(pivot_osc_value, pivot_min_y_distance_len), 0.0) * pivot_min_y_distance_dev_mult
-    float price_atr_value = ta.atr(pivot_min_y_distance_len) * pivot_min_y_distance_atr_mult
-    var int osc_prev_l_idx = 0
-    var float osc_prev_l_value = 0.0
-    var float price_prev_l = 0.0
-    var int osc_prev_h_idx = 0
-    var float osc_prev_h_value = 0.0
-    var float price_prev_h = 0.0
+    float price_atr_value = smc_lib_atr(pivot_min_y_distance_len) * pivot_min_y_distance_atr_mult
+    var int osc_prev_l_idx = na
+    var float osc_prev_l_value = na
+    var float price_prev_l = na
+    var int osc_prev_h_idx = na
+    var float osc_prev_h_value = na
+    var float price_prev_h = na
 
     if barstate.isconfirmed and (osc_pivot_h or osc_pivot_l)
         float prev_pivot_value = osc_pivot_h ? osc_prev_h_value : osc_prev_l_value
@@ -90,6 +90,7 @@ smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5
         float new_pivot_value = osc[pivot_confirmation_bars_right]
         float new_pivot_price = osc_pivot_h ? ref_high[pivot_confirmation_bars_right] : ref_low[pivot_confirmation_bars_right]
         int new_pivot_distance = osc_pivot_h ? bar_index - osc_prev_h_idx : bar_index - osc_prev_l_idx
+        bool has_prev_pivot = osc_pivot_h ? not na(osc_prev_h_idx) and not na(prev_pivot_value) and not na(prev_pivot_price) : not na(osc_prev_l_idx) and not na(prev_pivot_value) and not na(prev_pivot_price)
 
         if osc_pivot_h
             osc_prev_h_idx := bar_index
@@ -100,9 +101,9 @@ smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5
             osc_prev_l_value := new_pivot_value
             price_prev_l := new_pivot_price
 
-        int mode = new_pivot_value < prev_pivot_value - osc_dev_value ? -1 : new_pivot_value > prev_pivot_value + osc_dev_value ? 1 : 0
-        int mode_p = new_pivot_price < prev_pivot_price - price_atr_value ? -1 : new_pivot_price > prev_pivot_price + price_atr_value ? 1 : 0
-        bool x_distance_in_range = new_pivot_distance >= pivot_min_x_distance and new_pivot_distance <= pivot_max_x_distance
+        int mode = has_prev_pivot ? new_pivot_value < prev_pivot_value - osc_dev_value ? -1 : new_pivot_value > prev_pivot_value + osc_dev_value ? 1 : 0 : 0
+        int mode_p = has_prev_pivot ? new_pivot_price < prev_pivot_price - price_atr_value ? -1 : new_pivot_price > prev_pivot_price + price_atr_value ? 1 : 0 : 0
+        bool x_distance_in_range = has_prev_pivot and new_pivot_distance >= pivot_min_x_distance and new_pivot_distance <= pivot_max_x_distance
 
         bool strong_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == -1
         bool medium_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == 0
