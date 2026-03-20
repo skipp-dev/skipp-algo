@@ -3020,9 +3020,12 @@ if long_ready_state
 if (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup) and (long_invalidated_now or bearish_abort_signal)
     long_visual_state := -1
 
-long_setup_dashboard_state := long_visual_state
+bool long_score_soft_block = not entry_score_ok and (long_setup_confirmed or long_ready_state)
+long_setup_dashboard_state := long_score_soft_block and long_visual_state > 0 ? 2 : long_visual_state
 
 long_visual_text := status_text(long_visual_state, 'Blocked', 'Neutral', 'In Zone', 'Armed', 'Building', 'Confirmed', 'Long Ready')
+if long_score_soft_block
+    long_visual_text := long_ready_state ? 'Ready (Score Blocked)' : 'Confirmed (Score Blocked)'
 
 long_bg_color := na
 if long_visual_state == -1
@@ -3037,6 +3040,8 @@ else if long_visual_state == 4
     long_bg_color := color.new(color.lime, 88)
 else if long_visual_state == 5
     long_bg_color := color.new(color.green, 82)
+if long_score_soft_block and long_visual_state > 0
+    long_bg_color := color.new(color.orange, 84)
 
 long_bar_color := na
 if long_visual_state == -1
@@ -3051,6 +3056,8 @@ else if long_visual_state == 4
     long_bar_color := color.new(color.lime, 0)
 else if long_visual_state == 5
     long_bar_color := color.new(color.green, 0)
+if long_score_soft_block and long_visual_state > 0
+    long_bar_color := color.new(color.orange, 0)
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break
@@ -3393,12 +3400,12 @@ bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal_latched, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
-alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation.')
-alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: long setup is ready with filters aligned.')
+alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation, with optional score gating.')
+alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: long setup is ready with filters aligned, with optional score gating.')
 alertcondition(long_invalidate_signal_latched, 'Long Invalidated', 'SMC++: long setup was invalidated.')
 alertcondition(long_arm_close_safe, 'Long Armed (Close Safe)', 'SMC++: long setup remained armed into the confirmed close.')
-alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close.')
-alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close.')
+alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close, with optional score gating.')
+alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close, with optional score gating.')
 alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: long setup ended invalidated at bar close.')
 alertcondition(alert_long_watchlist_event, 'Long Dip Watchlist', 'SMC++: bullish trend with active pullback zone.')
 alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: reclaim detected and long setup armed.')
