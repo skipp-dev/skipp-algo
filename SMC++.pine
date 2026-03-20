@@ -3769,7 +3769,7 @@ bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard
 bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
 bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
-bool long_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
+bool long_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -4453,14 +4453,14 @@ if dynamic_long_alert_mode == 'Priority'
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
         long_dynamic_alert_sent := true
         alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text), alert.freq_all)
-    else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
-        dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-        long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
         long_dynamic_alert_sent := true
         alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text), alert.freq_all)
+    else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
+        dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
+        long_dynamic_alert_sent := true
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
         long_dynamic_alert_sent := true
