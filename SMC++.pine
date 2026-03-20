@@ -10,12 +10,15 @@ indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_b
 //   clearer configuration naming and more descriptive alerts.
 // - The Order Block lifecycle remains: tracking -> extension -> awaiting confirmation -> confirmed/broken.
 
-// Embedded utility subset replacing the former external no-delay and divergence dependencies.
+// --------------------------------------------------
+// Embedded Library Subset
+// --------------------------------------------------
+// Local replacements for the former external no-delay and divergence dependencies.
 in_range(float value, float max, float min = 0.0) => min <= value and value <= max
 in_range(float max1, float min1, float max2, float min2) => min2 <= min1 and min1 <= max2 and min2 <= max1 and max1 <= max2
 range_overlap(float max1, float min1, float max2, float min2) => min1 < max2 and max1 > min2
 
-nd_atr(simple int length) =>
+smc_lib_atr(simple int length) =>
     float atr_value = ta.atr(length)
     var float sum = 0.0
     if bar_index < length
@@ -23,7 +26,7 @@ nd_atr(simple int length) =>
         atr_value := sum / (bar_index + 1)
     atr_value
 
-enum NoDelayMovingAverage
+enum SmcLibMovingAverage
     SMA = 'SMA (Simple)'
     EMA = 'EMA (Exponential)'
     RMA = 'RMA (Exponentially weighed)'
@@ -33,37 +36,37 @@ enum NoDelayMovingAverage
     EHMA = 'EHMA (Exponential Hull)'
     THMA = 'THMA (Triple Exponential Hull)'
 
-nd_ehma(float source, simple int length) =>
+smc_lib_ehma(float source, simple int length) =>
     int half_length = math.max(1, int(math.round(length / 2.0)))
     int sqrt_length = math.max(1, int(math.round(math.sqrt(length))))
     ta.ema(2 * ta.ema(source, half_length) - ta.ema(source, length), sqrt_length)
 
-nd_thma(float source, simple int length) =>
+smc_lib_thma(float source, simple int length) =>
     int len_sixth = math.max(1, int(math.round(length / 6.0)))
     int len_quarter = math.max(1, int(math.round(length / 4.0)))
     int len_half = math.max(1, int(math.round(length / 2.0)))
     ta.wma(ta.wma(source, len_sixth) * 3 - ta.wma(source, len_quarter) - ta.wma(source, len_half), len_half)
 
-nd_get_ma(simple NoDelayMovingAverage select_ma = NoDelayMovingAverage.SMA, float source, simple int length) =>
+smc_lib_get_ma(simple SmcLibMovingAverage select_ma = SmcLibMovingAverage.SMA, float source, simple int length) =>
     switch select_ma
-        NoDelayMovingAverage.EMA => ta.ema(source, length)
-        NoDelayMovingAverage.RMA => ta.rma(source, length)
-        NoDelayMovingAverage.WMA => ta.wma(source, length)
-        NoDelayMovingAverage.VWMA => ta.vwma(source, length)
-        NoDelayMovingAverage.HMA => ta.hma(source, length)
-        NoDelayMovingAverage.EHMA => nd_ehma(source, length)
-        NoDelayMovingAverage.THMA => nd_thma(source, length)
+        SmcLibMovingAverage.EMA => ta.ema(source, length)
+        SmcLibMovingAverage.RMA => ta.rma(source, length)
+        SmcLibMovingAverage.WMA => ta.wma(source, length)
+        SmcLibMovingAverage.VWMA => ta.vwma(source, length)
+        SmcLibMovingAverage.HMA => ta.hma(source, length)
+        SmcLibMovingAverage.EHMA => smc_lib_ehma(source, length)
+        SmcLibMovingAverage.THMA => smc_lib_thma(source, length)
         => ta.sma(source, length)
 
-nd_bb(float source, simple int length, float mult, simple NoDelayMovingAverage select_ma) =>
-    float base = nd_get_ma(select_ma, source, length)
+smc_lib_bb(float source, simple int length, float mult, simple SmcLibMovingAverage select_ma) =>
+    float base = smc_lib_get_ma(select_ma, source, length)
     float dev = mult * ta.stdev(source, length)
     [base, base + dev, base - dev]
 
-nd_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>
+smc_lib_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>
     ta.dmi(di_length, adx_smoothing)
 
-detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5, simple int pivot_confirmation_bars_right = 3, simple int pivot_min_x_distance = 5, simple int pivot_max_x_distance = 50, series float ref_low = low, series float ref_high = high, simple int pivot_min_y_distance_len = 14, simple float pivot_min_y_distance_dev_mult = 0.1, simple float pivot_min_y_distance_atr_mult = 0.1) =>
+smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5, simple int pivot_confirmation_bars_right = 3, simple int pivot_min_x_distance = 5, simple int pivot_max_x_distance = 50, series float ref_low = low, series float ref_high = high, simple int pivot_min_y_distance_len = 14, simple float pivot_min_y_distance_dev_mult = 0.1, simple float pivot_min_y_distance_atr_mult = 0.1) =>
     bool osc_pivot_l = not na(ta.pivotlow(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
     bool osc_pivot_h = not na(ta.pivothigh(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
     float pivot_osc_value = osc[pivot_confirmation_bars_right]
@@ -928,7 +931,7 @@ track_obs(
     var OrderBlock[] discarded_blocks_bull  = array.new<OrderBlock>(0)
     var OrderBlock[] discarded_blocks_bear  = array.new<OrderBlock>(0)
 
-    float atr = nd_atr(200)
+    float atr = smc_lib_atr(200)
     float fvg_min_size = atr * 0.2
     float impulse_candle_size = atr * 3
         
@@ -2328,9 +2331,9 @@ var string g_ddvi_ctx = 'DDVI Context'
 var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx, tooltip = 'Preset guide:\nStacked rollout = close-safe on, hidden bull on, strong bull on, lower-extreme context modestly persistent.\nBalanced = strong bull off if DDVI should mostly reward continuation-quality hidden divergence.\nTight = keep strong bull on and shorten the lower-extreme context window if DDVI should gate only the cleanest reversals.')
 var int ddvi_di_length = input.int(14, 'DDVI DI Length', minval = 1, group = g_ddvi_ctx, inline = 'd1')
 var int ddvi_advx_smooth = input.int(14, 'ADVX Smooth', minval = 1, group = g_ddvi_ctx, inline = 'd1')
-var NoDelayMovingAverage ddvi_ma_select = input.enum(NoDelayMovingAverage.SMA, 'DDVI MA', group = g_ddvi_ctx, inline = 'd2')
+var SmcLibMovingAverage ddvi_ma_select = input.enum(SmcLibMovingAverage.SMA, 'DDVI MA', group = g_ddvi_ctx, inline = 'd2')
 var int ddvi_ma_len = input.int(5, 'Length', minval = 1, group = g_ddvi_ctx, inline = 'd2')
-var NoDelayMovingAverage ddvi_bb_ma_select = input.enum(NoDelayMovingAverage.SMA, 'DDVI BB MA', group = g_ddvi_ctx, inline = 'bb')
+var SmcLibMovingAverage ddvi_bb_ma_select = input.enum(SmcLibMovingAverage.SMA, 'DDVI BB MA', group = g_ddvi_ctx, inline = 'bb')
 var int ddvi_bb_len = input.int(100, 'BB Length', minval = 5, group = g_ddvi_ctx, inline = 'bb')
 var float ddvi_bb_mult = input.float(1.5, 'BB Stdev', minval = 0.1, step = 0.1, group = g_ddvi_ctx, inline = 'bb')
 var int ddvi_lower_extreme_lookback = input.int(12, 'Lower extreme context bars', minval = 1, maxval = 50, group = g_ddvi_ctx, tooltip = 'Stacked rollout recommendation: 12. This keeps DDVI context alive long enough for Watchlist and Ready without forcing DDVI to remain at the absolute lower extreme.')
@@ -2391,8 +2394,8 @@ signal_mode_text = signal_mode == SignalMode.CONFIRMED_ONLY ? 'confirmed' : 'liv
 visible_left_time = render_visible_only ? chart.left_visible_bar_time : na
 visible_right_time = render_visible_only ? chart.right_visible_bar_time : na
 
-float soft_confirm_offset = nd_atr(soft_confirm_offset_atr_len) * soft_confirm_offset_atr_mult
-ob_threshold_atr = nd_atr(ATR_LEN_MAIN)
+float soft_confirm_offset = smc_lib_atr(soft_confirm_offset_atr_len) * soft_confirm_offset_atr_mult
+ob_threshold_atr = smc_lib_atr(ATR_LEN_MAIN)
 ob_threshold_min = ob_threshold_atr * ob_filter_min_mult
 ob_threshold_max = ob_threshold_atr * ob_filter_max_mult
 
@@ -2550,7 +2553,7 @@ float rel_volume = not volume_data_ok or na(rel_volume_ma) or rel_volume_ma <= 0
 
 bar_range = math.max(high - low, syminfo.mintick)
 bull_close_in_range = (close - low) / bar_range
-float atr_now = nd_atr(ATR_LEN_MAIN)
+float atr_now = smc_lib_atr(ATR_LEN_MAIN)
 float atr_baseline = ta.sma(atr_now, vola_baseline_len)
 float range_baseline = ta.sma(bar_range, vola_baseline_len)
 bool vola_compression_now = not na(atr_baseline) and not na(range_baseline) and atr_baseline > 0 and range_baseline > 0 and atr_now <= atr_baseline * compression_ratio_max and bar_range <= range_baseline * compression_ratio_max
@@ -2781,11 +2784,11 @@ float ddvi_bb_lower = na
 bool ddvi_strong_bull = false
 bool ddvi_hidden_bull = false
 bool ddvi_event_bar_ok = ddvi_close_safe_only ? barstate.isconfirmed : (signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed)
-[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = nd_dmi(ddvi_di_length, ddvi_advx_smooth)
+[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = smc_lib_dmi(ddvi_di_length, ddvi_advx_smooth)
 float ddvi_raw = ddvi_plus_raw - ddvi_minus_raw
-float ddvi_ma_raw = nd_get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
-[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = nd_bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
-[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = detect_divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
+float ddvi_ma_raw = smc_lib_get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
+[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = smc_lib_bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
+[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = smc_lib_detect_divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
 ddvi_plus := ddvi_plus_raw
 ddvi_minus := ddvi_minus_raw
 ddvi_advx := ddvi_advx_raw
@@ -3010,7 +3013,7 @@ var bear_fvg_line_css_filled = color.new(bear_fvg_css_filled, 50)
 var filter_insignificant_fvgs = input.bool(true, 'Filter: min size', group = g_fvg, inline = 'fvg_min', tooltip = FILTER_FVG)
 var min_fvg_size_atr_len = input.int(ATR_LEN_MAIN, 'ATR Length', minval = 1, group = g_fvg, inline = 'fvg_min')
 var min_fvg_size_atr_mult = input.float(DEFAULT_FVG_MIN_SIZE_MULT, 'x', minval = 0, step = 0.1, group = g_fvg, inline = 'fvg_min')
-float fvg_size_threshold = filter_insignificant_fvgs ? nd_atr(min_fvg_size_atr_len) * min_fvg_size_atr_mult : 0
+float fvg_size_threshold = filter_insignificant_fvgs ? smc_lib_atr(min_fvg_size_atr_len) * min_fvg_size_atr_mult : 0
 var float fvg_fill_target_pct = input.float(DEFAULT_FVG_FILL_TARGET_PCT, 'Filled at %', minval = 0, maxval = 100, step = 5, group = g_fvg)
 float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 100.0))
 var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display = display.none, tooltip = 'Keeps FVG-based long-dip logic and alerts running even if chart rendering is hidden.')
@@ -3792,7 +3795,7 @@ var show_eq = input.bool(false, 'Equal High / Low', group = g_eq, tooltip = SHOW
 var eq_len = input.int(3, 'Bars Confirmation', minval = 1, group = g_eq, tooltip = EQHL_BARS)
 var eq_threshold_in = input.float(0.1, 'Threshold', minval = 0, maxval = 0.5, step = 0.1, group = g_eq, tooltip = EQHL_THRESHOLD)
 
-eq_atr = nd_atr(ATR_LEN_MAIN)
+eq_atr = smc_lib_atr(ATR_LEN_MAIN)
 eq_threshold = eq_threshold_in * eq_atr
 [eqh_alert, eqh_x1, eqh_y1, eqh_x2, eqh_y2, eql_alert, eql_x1, eql_y1, eql_x2, eql_y2] = detect_equal_levels(eq_len, eq_threshold, enabled = show_eq)
 
