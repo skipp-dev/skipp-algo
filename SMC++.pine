@@ -3449,6 +3449,7 @@ float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math
 float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_setup_trigger : na
 bool overhead_zone_ok = not use_overhead_zone_filter or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r
 bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2
+bool relvol_score_unavailable = use_rel_volume and not volume_data_ok and allow_relvol_without_volume_data
 int trend_quality_score = 0
 trend_quality_score += bullish_trend_safe ? score_weight_structure : 0
 trend_quality_score += htf_alignment_ok ? score_weight_htf : 0
@@ -3459,7 +3460,9 @@ trend_quality_score += relvol_score_ok ? score_weight_relvol : 0
 trend_quality_score += market_regime_gate_ok ? score_weight_market : 0
 trend_quality_score += vola_regime_gate_safe ? score_weight_vola : 0
 int trend_quality_max_score = score_weight_structure + score_weight_htf + score_weight_ema + score_weight_adx + score_weight_close + score_weight_relvol + score_weight_market + score_weight_vola
-bool trend_quality_gate_ok = not use_trend_quality_score or trend_quality_score >= min_trend_quality_score
+int effective_trend_quality_max_score = trend_quality_max_score - (relvol_score_unavailable ? score_weight_relvol : 0)
+int effective_min_trend_quality_score = math.min(min_trend_quality_score, effective_trend_quality_max_score)
+bool trend_quality_gate_ok = not use_trend_quality_score or trend_quality_score >= effective_min_trend_quality_score
 bool long_environment_gate_ok = session_structure_gate_ok and market_regime_gate_ok and vola_regime_gate_safe and trend_quality_gate_ok
 bool microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
 bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok and long_environment_gate_ok and microstructure_entry_gate_ok
@@ -3480,8 +3483,11 @@ long_entry_score += relvol_score_ok ? 1 : 0
 long_entry_score += overhead_zone_ok ? 1 : 0
 long_entry_score += zone_touch_quality_ok ? 1 : 0
 long_entry_score += ready_is_fresh ? 1 : 0
-bool entry_score_ok = long_entry_score >= min_entry_score
-string long_score_detail_suffix = str.format(' | score={0}/{1}', long_entry_score, min_entry_score)
+int entry_score_max = 10
+int effective_entry_score_max = entry_score_max - (relvol_score_unavailable ? 1 : 0)
+int effective_min_entry_score = math.min(min_entry_score, effective_entry_score_max)
+bool entry_score_ok = long_entry_score >= effective_min_entry_score
+string long_score_detail_suffix = str.format(' | score={0}/{1}', long_entry_score, effective_min_entry_score)
 if close_safe_mode and long_confirm_break and long_confirm_structure_ok and accel_confirm_gate_ok and sd_confirmed_gate_ok and confirm_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and (not require_entry_score_for_confirmed or entry_score_ok)
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
@@ -3767,7 +3773,7 @@ bool strict_sequence_waiting = use_strict_sequence and not zone_touch_event_rece
 bool strict_sweep_ok = long_setup_source_kind == 'OB' ? bull_ob_real_sweep : long_setup_source_kind == 'FVG' ? bull_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
 bool strict_sweep_blocked = use_strict_sweep_for_zone_reclaim and (long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG') and not strict_sweep_ok
 bool strict_guard_blocked = use_strict_confirm_guard and not long_confirm_bearish_guard_ok
-int entry_score_state = entry_score_ok ? long_entry_score >= 9 ? 5 : 4 : long_entry_score >= math.max(min_entry_score - 1, 1) ? 2 : -1
+int entry_score_state = entry_score_ok ? long_entry_score >= math.max(effective_entry_score_max - 1, 1) ? 5 : 4 : long_entry_score >= math.max(effective_min_entry_score - 1, 1) ? 2 : -1
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
 string zone_display = long_zone_text
@@ -3781,7 +3787,7 @@ string vwap_display = vwap_state_text
 string session_gate_display = not use_trade_session_gate and not use_opening_range_gate ? 'Off' : not intraday_time_chart ? 'n/a' : not session_gate_ok ? 'Out of Session' : not use_opening_range_gate ? 'OK' : not opening_range_ready ? 'OR Pending' : opening_range_gate_ok ? 'OK' : opening_range_bias_mode == 'Above OR High' ? 'Below OR High' : 'Below OR Mid'
 string market_gate_display = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 'Off' : market_symbols_missing ? block_on_missing_market_symbol ? 'Missing/Blocked' : 'Missing/Ignored' : market_regime_gate_ok ? 'Risk-On' : 'Blocked'
 string vola_gate_display = not use_vola_compression_gate ? 'Off' : vola_compression_recent ? vola_expansion_now ? 'Compression -> Expansion' : 'Compression Only' : 'No Compression'
-string trend_quality_display = not use_trend_quality_score ? 'Off' : str.format('{0}/{1}\nMin {2}\n{3}', trend_quality_score, trend_quality_max_score, min_trend_quality_score, trend_quality_gate_ok ? 'OK' : 'Blocked')
+string trend_quality_display = not use_trend_quality_score ? 'Off' : str.format('{0}/{1}\nMin {2}\n{3}', trend_quality_score, effective_trend_quality_max_score, effective_min_trend_quality_score, trend_quality_gate_ok ? 'OK' : 'Blocked')
 string microstructure_focus_display = not use_microstructure_profiles ? 'Off' : not micro_session_gate_ok ? micro_is_midday_dead and micro_midday_block_active ? 'Midday Block' : micro_is_rth_only and not vwap_session_active ? 'RTH Block' : micro_is_weak_premarket and micro_premarket_active ? 'Premarket Block' : micro_is_weak_afterhours and micro_afterhours_active ? 'AH Block' : 'Micro Session Block' : not micro_freshness_gate_ok ? micro_is_fast_decay ? 'Fast Decay' : 'Micro Stale' : micro_is_stop_hunt ? 'Stop-Hunt' : micro_is_clean_reclaim ? 'Clean Reclaim' : micro_profile_text == 'Default' ? 'Micro OK' : micro_profile_text
 string micro_profile_display = not use_microstructure_profiles ? 'Off' : micro_profile_text
 string micro_session_display = not use_microstructure_profiles ? 'Off' : micro_session_gate_ok ? 'OK' : micro_is_midday_dead and micro_midday_block_active ? 'Midday blocked' : micro_is_rth_only and not vwap_session_active ? 'Outside RTH' : micro_is_weak_premarket and micro_premarket_active ? 'Premarket blocked' : micro_is_weak_afterhours and micro_afterhours_active ? 'AH blocked' : 'Blocked'
@@ -3822,7 +3828,7 @@ string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}
 string long_environment_alert_suffix = long_environment_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
 string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''
 string strict_flow_display = str.format('State {0}\nZone {1}\nSweep {2}\nGuard {3}', strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
-string entry_score_display = str.format('{0}/10\nMin {1}\n{2}', long_entry_score, min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
+string entry_score_display = str.format('{0}/{1}\nMin {2}\n{3}', long_entry_score, effective_entry_score_max, effective_min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
 string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
 string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}\nInvalid {2}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level), format_level(long_invalidation_level))
