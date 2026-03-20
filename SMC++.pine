@@ -2098,6 +2098,12 @@ var int long_setup_expiry_bars = input.int(6, 'Setup Expiry Bars', minval = 1, m
 var int long_confirm_expiry_bars = input.int(6, 'Confirmed Expiry Bars', minval = 1, maxval = 30, group = g_long, inline = 'state2')
 var float long_invalidation_atr_mult = input.float(0.10, 'Invalidation Buffer ATR x', minval = 0.0, step = 0.05, group = g_long, inline = 'state2')
 var int long_zone_scan_limit = input.int(5, 'Zone Scan Depth', minval = 1, maxval = 20, group = g_long, inline = 'state2')
+var int max_bars_arm_to_confirm = input.int(2, 'Max Bars Armed -> Confirm', minval = 1, maxval = 20, group = g_long, inline = 'fresh1')
+var int max_bars_confirm_to_ready = input.int(2, 'Max Bars Confirm -> Ready', minval = 1, maxval = 20, group = g_long, inline = 'fresh1')
+var int max_zone_touches_for_entry = input.int(2, 'Max Zone Touches For Entry', minval = 1, maxval = 10, group = g_long, inline = 'touch1')
+var bool block_third_touch = input.bool(true, 'Block 3rd+ Touch', group = g_long, inline = 'touch1')
+var float min_headroom_r = input.float(1.0, 'Min Headroom To Overhead Zone (R)', minval = 0.25, step = 0.25, group = g_long, inline = 'ovh1')
+var bool use_overhead_zone_filter = input.bool(true, 'Block Overhead Zone', group = g_long, inline = 'ovh1')
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
@@ -2671,6 +2677,20 @@ int active_long_zone_id_safe = active_long_zone_id
 if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
     long_zone_active_safe := long_zone_active[1]
     active_long_zone_id_safe := active_long_zone_id[1]
+bool zone_touch_tracking_active = live_exec ? long_zone_active : long_zone_active_safe
+int zone_touch_tracking_id = live_exec ? active_long_zone_id : active_long_zone_id_safe
+var int active_zone_touch_count = 0
+var int active_zone_touch_id = na
+var int last_zone_touch_bar = na
+bool zone_touch_now = zone_touch_tracking_active and (not zone_touch_tracking_active[1] or zone_touch_tracking_id != zone_touch_tracking_id[1])
+if zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tracking_id)
+    if zone_touch_tracking_id != active_zone_touch_id
+        active_zone_touch_id := zone_touch_tracking_id
+        active_zone_touch_count := 1
+    else
+        active_zone_touch_count += 1
+    last_zone_touch_bar := bar_index
+bool zone_touch_quality_ok = not block_third_touch or active_zone_touch_count <= max_zone_touches_for_entry
 float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level
 float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
 float bear_ob_break_for_alert = not na(active_bear_ob_break_level) ? active_bear_ob_break_level : last_bear_ob_break_level
@@ -2856,6 +2876,8 @@ else if bull_reclaim_internal_low
 bool close_safe_mode = live_exec or barstate.isconfirmed
 int long_setup_age = long_setup_armed and not na(long_setup_arm_bar_index) ? bar_index - long_setup_arm_bar_index : 0
 int long_confirm_age = long_setup_confirmed and not na(long_confirm_bar_index) ? bar_index - long_confirm_bar_index : 0
+bool confirm_is_fresh = long_setup_armed and not na(long_setup_arm_bar_index) and long_setup_age <= max_bars_arm_to_confirm
+bool ready_is_fresh = long_setup_confirmed and not na(long_confirm_bar_index) and long_confirm_age <= max_bars_confirm_to_ready
 long_setup_source_zone_id := long_setup_source_kind == 'OB' ? long_setup_source_id : long_setup_source_kind == 'FVG' ? -long_setup_source_id : na
 long_source_tracked := long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG'
 long_source_alive := long_setup_source_kind == 'OB' ? ob_blocks_bull.contains_id(long_setup_source_id) : long_setup_source_kind == 'FVG' ? fvgs_bull.contains_id(long_setup_source_id) : true
@@ -2919,19 +2941,28 @@ long_confirm_structure_ok := not require_internal_break_for_confirm
 if not long_confirm_structure_ok
     long_confirm_structure_ok := long_internal_structure_ok
 
-if close_safe_mode and long_confirm_break and long_confirm_structure_ok
+if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
     long_confirm_signal := true
 
 // 5) Ready state + visuals
-bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and long_filters_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
 long_plan_active := (long_setup_armed or long_setup_confirmed) and not na(long_setup_trigger) and not na(long_invalidation_level)
+float long_planned_stop_level = long_plan_active ? long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult : na
+float nearest_overhead_level = na
+if not na(active_bear_ob_break_level) and not na(active_bear_fvg_fill_level)
+    nearest_overhead_level := math.min(active_bear_ob_break_level, active_bear_fvg_fill_level)
+else
+    nearest_overhead_level := not na(active_bear_ob_break_level) ? active_bear_ob_break_level : active_bear_fvg_fill_level
+float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math.max(long_setup_trigger - long_planned_stop_level, syminfo.mintick) : na
+float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_setup_trigger : na
+bool overhead_zone_ok = not use_overhead_zone_filter or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r
+bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and zone_touch_quality_ok and long_filters_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
-    long_stop_level := long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult
+    long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
     long_target_1 := long_setup_trigger + long_risk_r * target1_r
     long_target_2 := long_setup_trigger + long_risk_r * target2_r
