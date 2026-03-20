@@ -205,6 +205,70 @@ def _model_long_watchlist_alert_detail(
     return f'Watchlist. Bullish trend plus active pullback zone{long_micro_alert_suffix}{long_score_detail_suffix}'
 
 
+def _model_long_alert_identity(long_alert_kind: str) -> tuple[str, str]:
+    seen_key = '|long_watchlist|'
+    event_name = 'Long Dip Watchlist'
+    if long_alert_kind == 'invalidated':
+        seen_key = '|long_invalidated|'
+        event_name = 'Long Invalidated'
+    elif long_alert_kind == 'entry_strict':
+        seen_key = '|long_entry_strict|'
+        event_name = 'Long Dip Entry Strict'
+    elif long_alert_kind == 'entry_best':
+        seen_key = '|long_entry_best|'
+        event_name = 'Long Dip Entry Best'
+    elif long_alert_kind == 'ready':
+        seen_key = '|long_ready|'
+        event_name = 'Long Ready'
+    elif long_alert_kind == 'confirmed':
+        seen_key = '|long_confirmed|'
+        event_name = 'Long Confirmed'
+    elif long_alert_kind == 'clean':
+        seen_key = '|long_clean|'
+        event_name = 'Long Dip Clean'
+    elif long_alert_kind == 'early':
+        seen_key = '|long_early|'
+        event_name = 'Long Dip Early'
+    elif long_alert_kind == 'armed_plus':
+        seen_key = '|long_armed_plus|'
+        event_name = 'Long Dip Armed+'
+    elif long_alert_kind == 'armed':
+        seen_key = '|long_armed|'
+        event_name = 'Long Armed'
+    return seen_key, event_name
+
+
+def _model_directional_dynamic_alert_identity(alert_kind: str, bullish: bool) -> tuple[str, str, str]:
+    seen_key = '|bull_bos|' if bullish else '|bear_bos|'
+    event_name = 'Bullish BOS' if bullish else 'Bearish BOS'
+    detail = 'Structure break confirmed'
+    if alert_kind == 'choch':
+        seen_key = '|bull_choch|' if bullish else '|bear_choch|'
+        event_name = 'Bullish CHoCH' if bullish else 'Bearish CHoCH'
+        detail = 'Character shift confirmed'
+    elif alert_kind == 'new_ob':
+        seen_key = '|new_bull_ob|' if bullish else '|new_bear_ob|'
+        event_name = 'Bullish Order Block' if bullish else 'Bearish Order Block'
+        detail = 'New order block confirmed'
+    elif alert_kind == 'new_fvg':
+        seen_key = '|new_bull_fvg|' if bullish else '|new_bear_fvg|'
+        event_name = 'Bullish FVG' if bullish else 'Bearish FVG'
+        detail = 'New fair value gap formed'
+    elif alert_kind == 'fvg_filled':
+        seen_key = '|bull_fvg_filled|' if bullish else '|bear_fvg_filled|'
+        event_name = 'Bullish FVG Filled' if bullish else 'Bearish FVG Filled'
+        detail = 'Gap fill target reached'
+    elif alert_kind == 'live_ob_break':
+        seen_key = '|live_bull_ob_break|' if bullish else '|live_bear_ob_break|'
+        event_name = 'Bullish OB Live Break' if bullish else 'Bearish OB Live Break'
+        detail = 'Intrabar bullish order block break detected' if bullish else 'Intrabar bearish order block break detected'
+    elif alert_kind == 'live_fvg_fill':
+        seen_key = '|live_bull_fvg_fill|' if bullish else '|live_bear_fvg_fill|'
+        event_name = 'Bullish FVG Live Fill' if bullish else 'Bearish FVG Live Fill'
+        detail = 'Intrabar bullish fair value gap fill detected' if bullish else 'Intrabar bearish fair value gap fill detected'
+    return seen_key, event_name, detail
+
+
 def test_model_zone_candidate_priority_prefers_touch_anchor_then_recency_then_quality() -> None:
     assert _model_zone_candidate_preferred(True, 5, 0.2, 0.1, 10, False, 100, 0.9, 0.9, 99)
     assert _model_zone_candidate_preferred(False, 7, 0.2, 0.1, 10, False, 5, 0.9, 0.9, 99)
@@ -291,3 +355,17 @@ def test_model_long_alert_detail_contracts() -> None:
     assert ready_detail == 'Ready for Swing Low -> OB: lifecycle, gates, context, upgrades passed | strict | env | micro | score'
     assert confirmed_detail == 'Confirmed from OB: confirm lifecycle and filters passed | env | micro | score'
     assert watchlist_detail == 'Watchlist. Bullish trend plus active pullback zone | micro | score'
+
+
+def test_model_long_alert_identity_contract() -> None:
+    assert _model_long_alert_identity('invalidated') == ('|long_invalidated|', 'Long Invalidated')
+    assert _model_long_alert_identity('entry_best') == ('|long_entry_best|', 'Long Dip Entry Best')
+    assert _model_long_alert_identity('armed') == ('|long_armed|', 'Long Armed')
+    assert _model_long_alert_identity('watchlist') == ('|long_watchlist|', 'Long Dip Watchlist')
+
+
+def test_model_directional_dynamic_alert_identity_contract() -> None:
+    assert _model_directional_dynamic_alert_identity('bos', True) == ('|bull_bos|', 'Bullish BOS', 'Structure break confirmed')
+    assert _model_directional_dynamic_alert_identity('choch', False) == ('|bear_choch|', 'Bearish CHoCH', 'Character shift confirmed')
+    assert _model_directional_dynamic_alert_identity('new_ob', False) == ('|new_bear_ob|', 'Bearish Order Block', 'New order block confirmed')
+    assert _model_directional_dynamic_alert_identity('live_fvg_fill', False) == ('|live_bear_fvg_fill|', 'Bearish FVG Live Fill', 'Intrabar bearish fair value gap fill detected')

@@ -1858,6 +1858,68 @@ compose_long_armed_alert_detail(string long_setup_source_display, string long_mi
 compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
     'Watchlist. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix
 
+resolve_long_alert_identity(string long_alert_kind) =>
+    string seen_key = '|long_watchlist|'
+    string event_name = 'Long Dip Watchlist'
+    if long_alert_kind == 'invalidated'
+        seen_key := '|long_invalidated|'
+        event_name := 'Long Invalidated'
+    else if long_alert_kind == 'entry_strict'
+        seen_key := '|long_entry_strict|'
+        event_name := 'Long Dip Entry Strict'
+    else if long_alert_kind == 'entry_best'
+        seen_key := '|long_entry_best|'
+        event_name := 'Long Dip Entry Best'
+    else if long_alert_kind == 'ready'
+        seen_key := '|long_ready|'
+        event_name := 'Long Ready'
+    else if long_alert_kind == 'confirmed'
+        seen_key := '|long_confirmed|'
+        event_name := 'Long Confirmed'
+    else if long_alert_kind == 'clean'
+        seen_key := '|long_clean|'
+        event_name := 'Long Dip Clean'
+    else if long_alert_kind == 'early'
+        seen_key := '|long_early|'
+        event_name := 'Long Dip Early'
+    else if long_alert_kind == 'armed_plus'
+        seen_key := '|long_armed_plus|'
+        event_name := 'Long Dip Armed+'
+    else if long_alert_kind == 'armed'
+        seen_key := '|long_armed|'
+        event_name := 'Long Armed'
+    [seen_key, event_name]
+
+resolve_directional_dynamic_alert_identity(string alert_kind, bool bullish) =>
+    string seen_key = bullish ? '|bull_bos|' : '|bear_bos|'
+    string event_name = bullish ? 'Bullish BOS' : 'Bearish BOS'
+    string detail = 'Structure break confirmed'
+    if alert_kind == 'choch'
+        seen_key := bullish ? '|bull_choch|' : '|bear_choch|'
+        event_name := bullish ? 'Bullish CHoCH' : 'Bearish CHoCH'
+        detail := 'Character shift confirmed'
+    else if alert_kind == 'new_ob'
+        seen_key := bullish ? '|new_bull_ob|' : '|new_bear_ob|'
+        event_name := bullish ? 'Bullish Order Block' : 'Bearish Order Block'
+        detail := 'New order block confirmed'
+    else if alert_kind == 'new_fvg'
+        seen_key := bullish ? '|new_bull_fvg|' : '|new_bear_fvg|'
+        event_name := bullish ? 'Bullish FVG' : 'Bearish FVG'
+        detail := 'New fair value gap formed'
+    else if alert_kind == 'fvg_filled'
+        seen_key := bullish ? '|bull_fvg_filled|' : '|bear_fvg_filled|'
+        event_name := bullish ? 'Bullish FVG Filled' : 'Bearish FVG Filled'
+        detail := 'Gap fill target reached'
+    else if alert_kind == 'live_ob_break'
+        seen_key := bullish ? '|live_bull_ob_break|' : '|live_bear_ob_break|'
+        event_name := bullish ? 'Bullish OB Live Break' : 'Bearish OB Live Break'
+        detail := bullish ? 'Intrabar bullish order block break detected' : 'Intrabar bearish order block break detected'
+    else if alert_kind == 'live_fvg_fill'
+        seen_key := bullish ? '|live_bull_fvg_fill|' : '|live_bear_fvg_fill|'
+        event_name := bullish ? 'Bullish FVG Live Fill' : 'Bearish FVG Live Fill'
+        detail := bullish ? 'Intrabar bullish fair value gap fill detected' : 'Intrabar bearish fair value gap fill detected'
+    [seen_key, event_name, detail]
+
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
@@ -4724,74 +4786,99 @@ varip string dynamic_alert_seen_keys = ''
 if barstate.isnew
     dynamic_alert_seen_keys := ''
 
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bull_bos_sig, '|bull_bos|', 'Bullish BOS', 'Structure break confirmed', top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bull_choch_sig, '|bull_choch|', 'Bullish CHoCH', 'Character shift confirmed', top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_bos_sig, '|bear_bos|', 'Bearish BOS', 'Structure break confirmed', btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_choch_sig, '|bear_choch|', 'Bearish CHoCH', 'Character shift confirmed', btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bull), '|new_bull_ob|', 'Bullish Order Block', 'New order block confirmed', new_ob_bull.break_price, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bear), '|new_bear_ob|', 'Bearish Order Block', 'New order block confirmed', new_ob_bear.break_price, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bullish_fvg_alert, '|new_bull_fvg|', 'Bullish FVG', 'New fair value gap formed', not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bearish_fvg_alert, '|new_bear_fvg|', 'Bearish FVG', 'New fair value gap formed', not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bullish_fvg_filled_alert, '|bull_fvg_filled|', 'Bullish FVG Filled', 'Gap fill target reached', bull_filled_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bearish_fvg_filled_alert, '|bear_fvg_filled|', 'Bearish FVG Filled', 'Gap fill target reached', bear_filled_alert_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bull_ob_break, '|live_bull_ob_break|', 'Bullish OB Live Break', 'Intrabar bullish order block break detected', bull_ob_live_event_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_ob_break, '|live_bear_ob_break|', 'Bearish OB Live Break', 'Intrabar bearish order block break detected', bear_ob_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bull_fvg_fill, '|live_bull_fvg_fill|', 'Bullish FVG Live Fill', 'Intrabar bullish fair value gap fill detected', bull_fvg_live_event_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_fvg_fill, '|live_bear_fvg_fill|', 'Bearish FVG Live Fill', 'Intrabar bearish fair value gap fill detected', bear_fvg_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+[bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', true)
+[bull_choch_alert_key, bull_choch_alert_name, bull_choch_alert_detail] = resolve_directional_dynamic_alert_identity('choch', true)
+[bear_bos_alert_key, bear_bos_alert_name, bear_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', false)
+[bear_choch_alert_key, bear_choch_alert_name, bear_choch_alert_detail] = resolve_directional_dynamic_alert_identity('choch', false)
+[bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail] = resolve_directional_dynamic_alert_identity('new_ob', true)
+[bear_ob_alert_key, bear_ob_alert_name, bear_ob_alert_detail] = resolve_directional_dynamic_alert_identity('new_ob', false)
+[bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('new_fvg', true)
+[bear_fvg_alert_key, bear_fvg_alert_name, bear_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('new_fvg', false)
+[bull_fvg_filled_alert_key, bull_fvg_filled_alert_name, bull_fvg_filled_alert_detail] = resolve_directional_dynamic_alert_identity('fvg_filled', true)
+[bear_fvg_filled_alert_key, bear_fvg_filled_alert_name, bear_fvg_filled_alert_detail] = resolve_directional_dynamic_alert_identity('fvg_filled', false)
+[bull_live_ob_alert_key, bull_live_ob_alert_name, bull_live_ob_alert_detail] = resolve_directional_dynamic_alert_identity('live_ob_break', true)
+[bear_live_ob_alert_key, bear_live_ob_alert_name, bear_live_ob_alert_detail] = resolve_directional_dynamic_alert_identity('live_ob_break', false)
+[bull_live_fvg_alert_key, bull_live_fvg_alert_name, bull_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', true)
+[bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', false)
+
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bull_bos_sig, bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail, top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bull_choch_sig, bull_choch_alert_key, bull_choch_alert_name, bull_choch_alert_detail, top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_bos_sig, bear_bos_alert_key, bear_bos_alert_name, bear_bos_alert_detail, btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_choch_sig, bear_choch_alert_key, bear_choch_alert_name, bear_choch_alert_detail, btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bull), bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail, new_ob_bull.break_price, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bear), bear_ob_alert_key, bear_ob_alert_name, bear_ob_alert_detail, new_ob_bear.break_price, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bullish_fvg_alert, bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail, not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bearish_fvg_alert, bear_fvg_alert_key, bear_fvg_alert_name, bear_fvg_alert_detail, not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bullish_fvg_filled_alert, bull_fvg_filled_alert_key, bull_fvg_filled_alert_name, bull_fvg_filled_alert_detail, bull_filled_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bearish_fvg_filled_alert, bear_fvg_filled_alert_key, bear_fvg_filled_alert_name, bear_fvg_filled_alert_detail, bear_filled_alert_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bull_ob_break, bull_live_ob_alert_key, bull_live_ob_alert_name, bull_live_ob_alert_detail, bull_ob_live_event_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_ob_break, bear_live_ob_alert_key, bear_live_ob_alert_name, bear_live_ob_alert_detail, bear_ob_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bull_fvg_fill, bull_live_fvg_alert_key, bull_live_fvg_alert_name, bull_live_fvg_alert_detail, bull_fvg_live_event_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_fvg_fill, bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail, bear_fvg_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and use_sd_confluence and sd_bullish_divergence_event, '|sd_bull_div|', 'Bullish SD Divergence', 'Price lower low vs oscillator higher low', low, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and use_sd_confluence and sd_higher_lows_event, '|sd_higher_lows|', 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+[long_invalidated_alert_key, long_invalidated_alert_name] = resolve_long_alert_identity('invalidated')
+[long_entry_strict_alert_key, long_entry_strict_alert_name] = resolve_long_alert_identity('entry_strict')
+[long_entry_best_alert_key, long_entry_best_alert_name] = resolve_long_alert_identity('entry_best')
+[long_ready_alert_key, long_ready_alert_name] = resolve_long_alert_identity('ready')
+[long_confirmed_alert_key, long_confirmed_alert_name] = resolve_long_alert_identity('confirmed')
+[long_clean_alert_key, long_clean_alert_name] = resolve_long_alert_identity('clean')
+[long_early_alert_key, long_early_alert_name] = resolve_long_alert_identity('early')
+[long_armed_plus_alert_key, long_armed_plus_alert_name] = resolve_long_alert_identity('armed_plus')
+[long_armed_alert_key, long_armed_alert_name] = resolve_long_alert_identity('armed')
+[long_watchlist_alert_key, long_watchlist_alert_name] = resolve_long_alert_identity('watchlist')
 if dynamic_long_alert_mode == 'Priority'
     if enable_dynamic_alerts and long_invalidate_signal
-        [priority_seen_keys_invalidated, priority_sent_invalidated] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_invalidated|', 'Long Invalidated', compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_invalidated, priority_sent_invalidated] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_invalidated
         long_dynamic_alert_sent := priority_sent_invalidated
     else if enable_dynamic_alerts and alert_long_entry_strict_event
-        [priority_seen_keys_strict, priority_sent_strict] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_entry_strict|', 'Long Dip Entry Strict', compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_strict, priority_sent_strict] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_strict
         long_dynamic_alert_sent := priority_sent_strict
     else if enable_dynamic_alerts and alert_long_entry_best_event
-        [priority_seen_keys_best, priority_sent_best] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_entry_best|', 'Long Dip Entry Best', compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_best, priority_sent_best] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_best
         long_dynamic_alert_sent := priority_sent_best
     else if enable_dynamic_alerts and long_ready_signal
-        [priority_seen_keys_ready, priority_sent_ready] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_ready|', 'Long Ready', compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_ready, priority_sent_ready] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_ready
         long_dynamic_alert_sent := priority_sent_ready
     else if enable_dynamic_alerts and long_confirm_signal
-        [priority_seen_keys_confirmed, priority_sent_confirmed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_confirmed|', 'Long Confirmed', compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_confirmed, priority_sent_confirmed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_confirmed
         long_dynamic_alert_sent := priority_sent_confirmed
     else if enable_dynamic_alerts and alert_long_clean_event
-        [priority_seen_keys_clean, priority_sent_clean] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_clean|', 'Long Dip Clean', compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_clean, priority_sent_clean] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_clean
         long_dynamic_alert_sent := priority_sent_clean
     else if enable_dynamic_alerts and alert_long_early_event
-        [priority_seen_keys_early, priority_sent_early] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_early|', 'Long Dip Early', compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_early, priority_sent_early] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_early
         long_dynamic_alert_sent := priority_sent_early
     else if enable_dynamic_alerts and alert_long_armed_event
-        [priority_seen_keys_armed_plus, priority_sent_armed_plus] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_armed_plus|', 'Long Dip Armed+', compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_armed_plus, priority_sent_armed_plus] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_armed_plus
         long_dynamic_alert_sent := priority_sent_armed_plus
     else if enable_dynamic_alerts and long_arm_signal
-        [priority_seen_keys_armed, priority_sent_armed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_armed|', 'Long Armed', compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_armed, priority_sent_armed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_armed
         long_dynamic_alert_sent := priority_sent_armed
     else if enable_dynamic_alerts and alert_long_watchlist_event
-        [priority_seen_keys_watchlist, priority_sent_watchlist] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, '|long_watchlist|', 'Long Dip Watchlist', compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        [priority_seen_keys_watchlist, priority_sent_watchlist] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         dynamic_alert_seen_keys := priority_seen_keys_watchlist
         long_dynamic_alert_sent := priority_sent_watchlist
 else
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, '|long_invalidated|', 'Long Invalidated', compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, '|long_entry_strict|', 'Long Dip Entry Strict', compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_best_event, '|long_entry_best|', 'Long Dip Entry Best', compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, '|long_ready|', 'Long Ready', compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_clean_event, '|long_clean|', 'Long Dip Clean', compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, '|long_confirmed|', 'Long Confirmed', compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_early_event, '|long_early|', 'Long Dip Early', compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, '|long_armed_plus|', 'Long Dip Armed+', compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, '|long_armed|', 'Long Armed', compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, '|long_watchlist|', 'Long Dip Watchlist', compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_best_event, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_clean_event, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_early_event, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
