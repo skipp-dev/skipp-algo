@@ -2115,7 +2115,7 @@ string EQHL_THRESHOLD = 'Sensitivity threshold used for equal high / low detecti
 string SHOW_FVG = 'Display fair value gaps on the chart.'
 string FILTER_FVG = 'Filter out fair value gaps that are too small to matter.'
 string FVG_TF = 'Higher timeframe used for the higher-timeframe FVG overlay.'
-string SIGNAL_MODE_TOOLTIP = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close and should be treated as non-final until the bar confirms.'
+string SIGNAL_MODE_TOOLTIP = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.'
 string LTF_TOOLTIP = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.'
 string DASHBOARD_TOOLTIP = 'Compact state table showing trend, OB/FVG counts, HTF alignment and intrabar pressure.'
 string PERFORMANCE_TOOLTIP = 'Restrict object rendering to the current visible chart window to reduce clutter and improve responsiveness.'
@@ -2431,7 +2431,7 @@ var use_retracements_with_FVG_out = input.bool(true, 'Use retracements with FVG-
 var use_ob_engine = input.bool(true, 'Use OB engine', group = g_ob, display = display.none, tooltip = 'Keeps OB-based long-dip logic and alerts running even if chart rendering is hidden.')
 
 active_break_mode = signal_mode == SignalMode.CONFIRMED_ONLY ? LevelBreakMode.CLOSE : LevelBreakMode.HIGHLOW
-signal_mode_text = signal_mode == SignalMode.CONFIRMED_ONLY ? 'confirmed' : 'live'
+signal_mode_text = signal_mode == SignalMode.CONFIRMED_ONLY ? 'confirmed' : 'live rt-only'
 visible_left_time = render_visible_only ? chart.left_visible_bar_time : na
 visible_right_time = render_visible_only ? chart.right_visible_bar_time : na
 
@@ -2447,12 +2447,12 @@ float summed_volume = summed_volume_cum - nz(summed_volume_cum[volume_quality_lo
 bool volume_current_bar_ok = not na(volume) and volume > 0
 bool volume_feed_quality_ok = summed_volume > 0 and nonzero_volume_bars >= min_nonzero_volume_bars
 bool volume_data_ok = volume_current_bar_ok and volume_feed_quality_ok
-bool use_ob_profile_effective = use_ob_profile and volume_data_ok
+bool use_ob_profile_effective = use_ob_profile and volume_feed_quality_ok
 
 var label volume_quality_warning = na
 if barstate.islast
     if not volume_current_bar_ok or not volume_feed_quality_ok
-        string profile_warning_text = use_ob_profile ? volume_current_bar_ok and not volume_feed_quality_ok ? 'OB profiles are off from weak feed' : 'OB profiles are off on this bar' : 'OB profiles are already off'
+        string profile_warning_text = not use_ob_profile ? 'OB profiles are already off' : not volume_feed_quality_ok ? 'OB profiles are paused from weak feed' : not volume_current_bar_ok ? 'OB profiles keep last valid shape' : 'OB profiles are on'
         string relvol_warning_text = not use_rel_volume ? 'RelVol is off' : volume_current_bar_ok ? allow_relvol_without_volume_data ? 'RelVol can fall back' : 'RelVol can stay blocked' : allow_relvol_without_volume_data ? 'RelVol falls back on this bar' : 'RelVol is blocked on this bar'
         string strict_warning_text = use_ltf_for_strict_entry ? 'Strict and LTF delta stay limited' : 'Strict LTF is off'
         string volume_warning_text = str.format('Volume data quality is limited\n{0}; {1}; {2}', profile_warning_text, relvol_warning_text, strict_warning_text)
@@ -3334,15 +3334,25 @@ bool zone_touch_event_recent = not na(last_zone_touch_event_bar_index) and bar_i
 bool ob_zone_touch_event_recent = not na(last_ob_zone_touch_bar_index) and bar_index - last_ob_zone_touch_bar_index <= long_signal_window
 bool fvg_zone_touch_event_recent = not na(last_fvg_zone_touch_bar_index) and bar_index - last_fvg_zone_touch_bar_index <= long_signal_window
 bool zone_touch_sequence_time_ok = not na(last_zone_touch_event_bar_index) and (allow_same_bar_zone_reclaim ? bar_index >= last_zone_touch_event_bar_index : bar_index > last_zone_touch_event_bar_index)
-bool ob_zone_touch_sequence_ok = ob_zone_touch_event_recent and zone_touch_sequence_time_ok and not na(touched_bull_ob_id) and last_ob_zone_touch_id == touched_bull_ob_id
-bool fvg_zone_touch_sequence_ok = fvg_zone_touch_event_recent and zone_touch_sequence_time_ok and not na(touched_bull_fvg_id) and last_fvg_zone_touch_id == touched_bull_fvg_id
+bool ob_zone_touch_sequence_time_ok = not na(last_ob_zone_touch_bar_index) and (allow_same_bar_zone_reclaim ? bar_index >= last_ob_zone_touch_bar_index : bar_index > last_ob_zone_touch_bar_index)
+bool fvg_zone_touch_sequence_time_ok = not na(last_fvg_zone_touch_bar_index) and (allow_same_bar_zone_reclaim ? bar_index >= last_fvg_zone_touch_bar_index : bar_index > last_fvg_zone_touch_bar_index)
+bool ob_zone_touch_sequence_ok = ob_zone_touch_event_recent and ob_zone_touch_sequence_time_ok and not na(touched_bull_ob_id) and last_ob_zone_touch_id == touched_bull_ob_id
+bool fvg_zone_touch_sequence_ok = fvg_zone_touch_event_recent and fvg_zone_touch_sequence_time_ok and not na(touched_bull_fvg_id) and last_fvg_zone_touch_id == touched_bull_fvg_id
 bool generic_zone_touch_sequence_ok = zone_touch_event_recent and zone_touch_sequence_time_ok
 bool zone_touch_tracking_active = live_exec ? long_zone_active : long_zone_active_safe
 int zone_touch_tracking_id = live_exec ? active_long_zone_id : active_long_zone_id_safe
 var int active_zone_touch_count = 0
 var int active_zone_touch_id = na
 var int last_zone_touch_bar = na
+var int active_ob_touch_count = 0
+var int active_ob_touch_id = na
+var int last_ob_touch_bar = na
+var int active_fvg_touch_count = 0
+var int active_fvg_touch_id = na
+var int last_fvg_touch_bar = na
 bool zone_touch_now = zone_touch_tracking_active and (not zone_touch_tracking_active[1] or zone_touch_tracking_id != zone_touch_tracking_id[1])
+bool ob_touch_now = in_bull_ob_zone and (not in_bull_ob_zone[1] or active_bull_ob_id != active_bull_ob_id[1])
+bool fvg_touch_now = in_bull_fvg_zone and (not in_bull_fvg_zone[1] or active_bull_fvg_id != active_bull_fvg_id[1])
 if zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tracking_id)
     if zone_touch_tracking_id != active_zone_touch_id
         active_zone_touch_id := zone_touch_tracking_id
@@ -3350,6 +3360,22 @@ if zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tra
     else
         active_zone_touch_count += 1
     last_zone_touch_bar := bar_index
+if ob_touch_now and last_ob_touch_bar != bar_index and not na(active_bull_ob_id)
+    if active_bull_ob_id != active_ob_touch_id
+        active_ob_touch_id := active_bull_ob_id
+        active_ob_touch_count := 1
+    else
+        active_ob_touch_count += 1
+    last_ob_touch_bar := bar_index
+if fvg_touch_now and last_fvg_touch_bar != bar_index and not na(active_bull_fvg_id)
+    if active_bull_fvg_id != active_fvg_touch_id
+        active_fvg_touch_id := active_bull_fvg_id
+        active_fvg_touch_count := 1
+    else
+        active_fvg_touch_count += 1
+    last_fvg_touch_bar := bar_index
+bool ob_zone_touch_quality_ok = not block_third_touch or active_ob_touch_count <= max_zone_touches_for_entry
+bool fvg_zone_touch_quality_ok = not block_third_touch or active_fvg_touch_count <= max_zone_touches_for_entry
 bool zone_touch_quality_ok = not block_third_touch or active_zone_touch_count <= max_zone_touches_for_entry
 float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level
 float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
@@ -3499,6 +3525,7 @@ var float long_invalidation_level = na
 var string long_setup_source = 'None'
 var int long_setup_source_id = na
 var string long_setup_source_kind = 'None'
+var string long_setup_backing_zone_kind = 'None'
 var int long_setup_backing_zone_id = na
 var int long_setup_serial = 0
 var string long_last_invalid_source = 'None'
@@ -3534,19 +3561,43 @@ bool long_source_alive = true
 bool long_source_lost = false
 bool armed_source_changed = false
 int long_active_source_zone_id = na
+string arm_backing_zone_kind = 'None'
+int arm_backing_zone_id = na
 
 if bull_reclaim_ob_strict
     arm_source_text := 'OB'
     arm_invalidation_candidate := touched_bull_ob_bottom
+    arm_backing_zone_kind := 'OB'
+    arm_backing_zone_id := touched_bull_ob_id
 else if bull_reclaim_fvg_strict
     arm_source_text := 'FVG'
     arm_invalidation_candidate := touched_bull_fvg_bottom
+    arm_backing_zone_kind := 'FVG'
+    arm_backing_zone_id := -touched_bull_fvg_id
 else if bull_reclaim_swing_low_strict
     arm_source_text := 'Swing Low'
     arm_invalidation_candidate := long_reclaim_swing_level
 else if bull_reclaim_internal_low_strict
     arm_source_text := 'Internal Low'
     arm_invalidation_candidate := long_reclaim_internal_level
+
+if arm_source_text == 'Swing Low' or arm_source_text == 'Internal Low'
+    if in_bull_ob_zone and in_bull_fvg_zone
+        bool ob_more_recent = na(last_fvg_zone_touch_bar_index) or (not na(last_ob_zone_touch_bar_index) and last_ob_zone_touch_bar_index >= last_fvg_zone_touch_bar_index)
+        arm_backing_zone_kind := ob_more_recent ? 'OB' : 'FVG'
+        arm_backing_zone_id := ob_more_recent ? active_bull_ob_id : -active_bull_fvg_id
+    else if in_bull_ob_zone
+        arm_backing_zone_kind := 'OB'
+        arm_backing_zone_id := active_bull_ob_id
+    else if in_bull_fvg_zone
+        arm_backing_zone_kind := 'FVG'
+        arm_backing_zone_id := -active_bull_fvg_id
+    else if touched_bull_ob_recent and not na(touched_bull_ob_id)
+        arm_backing_zone_kind := 'OB'
+        arm_backing_zone_id := touched_bull_ob_id
+    else if touched_bull_fvg_recent and not na(touched_bull_fvg_id)
+        arm_backing_zone_kind := 'FVG'
+        arm_backing_zone_id := -touched_bull_fvg_id
 
 // 2) Invalidation
 if barstate.isnew
@@ -3557,12 +3608,12 @@ int long_setup_age = long_setup_armed and not na(long_setup_arm_bar_index) ? bar
 int long_confirm_age = long_setup_confirmed and not na(long_confirm_bar_index) ? bar_index - long_confirm_bar_index : 0
 bool confirm_is_fresh = long_setup_armed and not na(long_setup_arm_bar_index) and long_setup_age <= max_bars_arm_to_confirm
 bool ready_is_fresh = long_setup_confirmed and not na(long_confirm_bar_index) and long_confirm_age <= max_bars_confirm_to_ready
-bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_armed or long_setup_age <= effective_fast_decay_setup_age_max
+bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_armed or long_setup_confirmed or long_setup_age <= effective_fast_decay_setup_age_max
 bool micro_confirm_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_confirmed or long_confirm_age <= effective_fast_decay_confirm_age_max
 bool micro_freshness_gate_ok = micro_setup_fresh_enough and micro_confirm_fresh_enough
-bool long_source_zone_touch_recent = long_setup_source_kind == 'OB' ? ob_zone_touch_event_recent : long_setup_source_kind == 'FVG' ? fvg_zone_touch_event_recent : zone_touch_event_recent
+bool long_source_zone_touch_recent = long_setup_backing_zone_kind == 'OB' ? ob_zone_touch_event_recent and last_ob_zone_touch_id == long_setup_backing_zone_id : long_setup_backing_zone_kind == 'FVG' ? fvg_zone_touch_event_recent and -last_fvg_zone_touch_id == long_setup_backing_zone_id : zone_touch_event_recent
 long_setup_source_zone_id := long_setup_backing_zone_id
-long_active_source_zone_id := long_setup_source_kind == 'OB' ? active_bull_ob_id : long_setup_source_kind == 'FVG' ? -active_bull_fvg_id : active_long_zone_id_safe
+long_active_source_zone_id := long_setup_backing_zone_kind == 'OB' ? active_bull_ob_id : long_setup_backing_zone_kind == 'FVG' ? -active_bull_fvg_id : active_long_zone_id_safe
 long_source_tracked := not na(long_setup_backing_zone_id)
 long_source_alive := long_setup_backing_zone_id > 0 ? ob_blocks_bull.contains_id(long_setup_backing_zone_id) : long_setup_backing_zone_id < 0 ? fvgs_bull.contains_id(-long_setup_backing_zone_id) : true
 long_source_lost := (long_setup_armed or long_setup_confirmed) and long_source_tracked and not long_source_alive
@@ -3600,10 +3651,11 @@ if long_invalidated_now
     long_setup_source := 'None'
     long_setup_source_id := na
     long_setup_source_kind := 'None'
+    long_setup_backing_zone_kind := 'None'
     long_setup_backing_zone_id := na
 
 // 3) Arm setup
-if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not long_invalidated_this_bar and not bearish_abort_lockout and micro_session_gate_ok and sd_armed_gate_ok
+if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not long_invalidated_this_bar and micro_session_gate_ok and sd_armed_gate_ok
     long_arm_signal := true
     long_setup_armed := true
     long_setup_confirmed := false
@@ -3614,7 +3666,8 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_setup_source := arm_source_text
     long_setup_source_id := arm_source_text == 'OB' ? touched_bull_ob_id : arm_source_text == 'FVG' ? touched_bull_fvg_id : na
     long_setup_source_kind := arm_source_text
-    long_setup_backing_zone_id := arm_source_text == 'OB' ? touched_bull_ob_id : arm_source_text == 'FVG' ? -touched_bull_fvg_id : active_long_zone_id
+    long_setup_backing_zone_kind := arm_backing_zone_kind
+    long_setup_backing_zone_id := arm_backing_zone_id
     long_setup_serial += 1
 
 // 4) Confirm setup
@@ -3640,6 +3693,7 @@ float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math
 float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_setup_trigger : na
 bool overhead_zone_ok = not use_overhead_zone_filter or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r
 bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2
+bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and (strict_ltf_unavailable or strict_ltf_unverifiable))
 bool relvol_score_unavailable = use_rel_volume and not relvol_data_ok and allow_relvol_without_volume_data
 int trend_quality_score = 0
 trend_quality_score += bullish_trend_safe ? score_weight_structure : 0
@@ -3661,7 +3715,9 @@ bool long_environment_features_active = use_trade_session_gate or use_opening_ra
 string long_environment_focus_display = not long_environment_gate_ok ? not session_structure_gate_ok ? 'Session Block' : not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : not trend_quality_gate_ok ? 'Trend Block' : 'Env Blocked' : 'Env OK'
 string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
 string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : 'source lost'
-string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : active_zone_touch_count <= 1 ? 'fresh touch' : active_zone_touch_count == 2 ? '2nd touch' : 'crowded'
+int long_active_touch_count = long_setup_armed or long_setup_confirmed ? long_setup_backing_zone_kind == 'OB' and long_setup_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : long_setup_backing_zone_kind == 'FVG' and -long_setup_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : active_zone_touch_count : bull_reclaim_ob_strict or in_bull_ob_zone and not in_bull_fvg_zone ? active_ob_touch_count : bull_reclaim_fvg_strict or in_bull_fvg_zone and not in_bull_ob_zone ? active_fvg_touch_count : active_zone_touch_count
+zone_touch_quality_ok := not block_third_touch or long_active_touch_count <= max_zone_touches_for_entry
+string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_active_touch_count <= 1 ? 'fresh touch' : long_active_touch_count == 2 ? '2nd touch' : 'crowded'
 string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)
 int long_entry_score = 0
 long_entry_score += bullish_trend_safe ? 1 : 0
@@ -3687,6 +3743,8 @@ if close_safe_mode and long_confirm_break and long_confirm_structure_ok and acce
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
 bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool long_entry_best_state = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+bool long_entry_strict_state = close_safe_mode and bullish_trend_safe and htf_alignment_ok and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3714,6 +3772,10 @@ if long_setup_confirmed
     long_setup_text := str.format('Confirmed | {0}', long_setup_source)
 if long_ready_state
     long_setup_text := str.format('Ready | {0}', long_setup_source)
+if long_entry_best_state
+    long_setup_text := str.format('Entry Best | {0}', long_setup_source)
+if long_entry_strict_state
+    long_setup_text := str.format('Entry Strict | {0}', long_setup_source)
 
 long_visual_state := 0
 if long_zone_active
@@ -3726,6 +3788,10 @@ if long_setup_confirmed
     long_visual_state := 4
 if long_ready_state
     long_visual_state := 5
+if long_entry_best_state
+    long_visual_state := 6
+if long_entry_strict_state
+    long_visual_state := 7
 if (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup) and (long_invalidated_now or bearish_abort_signal)
     long_visual_state := -1
 
@@ -3733,6 +3799,10 @@ bool long_score_soft_block = not entry_score_ok and (long_setup_confirmed or lon
 long_setup_dashboard_state := long_score_soft_block and long_visual_state > 0 ? 2 : long_visual_state
 
 long_visual_text := status_text(long_visual_state, 'Blocked', 'Neutral', 'In Zone', 'Armed', 'Building', 'Confirmed', 'Long Ready')
+if long_visual_state == 6
+    long_visual_text := 'Entry Best'
+else if long_visual_state >= 7
+    long_visual_text := 'Entry Strict'
 if long_score_soft_block
     long_visual_text := long_ready_state ? 'Ready (Score Blocked)' : 'Confirmed (Score Blocked)'
 
@@ -3749,6 +3819,10 @@ else if long_visual_state == 4
     long_bg_color := color.new(color.lime, 88)
 else if long_visual_state == 5
     long_bg_color := color.new(color.green, 82)
+else if long_visual_state == 6
+    long_bg_color := color.new(color.green, 74)
+else if long_visual_state >= 7
+    long_bg_color := color.new(color.green, 66)
 if long_score_soft_block and long_visual_state > 0
     long_bg_color := color.new(color.orange, 84)
 
@@ -3765,6 +3839,10 @@ else if long_visual_state == 4
     long_bar_color := color.new(color.lime, 0)
 else if long_visual_state == 5
     long_bar_color := color.new(color.green, 0)
+else if long_visual_state == 6
+    long_bar_color := color.new(color.green, 0)
+else if long_visual_state >= 7
+    long_bar_color := color.new(color.teal, 0)
 if long_score_soft_block and long_visual_state > 0
     long_bar_color := color.new(color.orange, 0)
 
@@ -3983,7 +4061,7 @@ string microstructure_focus_display = not use_microstructure_profiles ? 'Off' : 
 string micro_profile_display = not use_microstructure_profiles ? 'Off' : str.length(micro_modifier_text) > 0 ? str.format('{0}\nMods {1}', micro_profile_text, micro_modifier_text) : micro_profile_text
 string micro_session_display = not use_microstructure_profiles ? 'Off' : micro_session_gate_ok ? 'OK' : micro_is_midday_dead and micro_midday_block_active ? 'Midday blocked' : micro_is_rth_only and not vwap_session_active ? 'Outside RTH' : micro_is_weak_premarket and micro_premarket_active ? 'Premarket blocked' : micro_is_weak_afterhours and micro_afterhours_active ? 'AH blocked' : 'Blocked'
 string micro_freshness_display = not use_microstructure_profiles ? 'Off' : micro_freshness_gate_ok ? 'Fresh' : str.format('Stale | arm {0} / conf {1}', long_setup_age, long_confirm_age)
-string profile_volume_display = not use_ob_profile ? 'Prof Off' : use_ob_profile_effective ? 'Prof OK' : 'Prof No Vol'
+string profile_volume_display = not use_ob_profile ? 'Prof Off' : not volume_feed_quality_ok ? 'Prof Feed Weak' : not volume_current_bar_ok ? 'Prof Frozen' : use_ob_profile_effective ? 'Prof OK' : 'Prof Paused'
 string strict_ltf_display = not use_ltf_for_strict_entry ? 'Off' : strict_ltf_available ? 'OK' : strict_ltf_unverifiable ? 'Hist n/a' : allow_strict_entry_without_ltf ? 'Fallback' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : not ltf_price_ok ? 'No Bars' : not ltf_volume_ok ? 'No Vol' : 'Blocked'
 string volume_quality_display = volume_data_ok ? str.format('OK\n{0} | Strict {1}', profile_volume_display, strict_ltf_display) : not volume_current_bar_ok ? volume_best_fallback_active ? str.format('Bar No Vol\n{0} | Strict {1}', profile_volume_display, strict_ltf_display) : str.format('Bar No Vol\n{0} | Strict {1}', profile_volume_display, strict_ltf_display) : volume_best_fallback_active ? str.format('Feed Warn\n{0} | Strict {1}', profile_volume_display, strict_ltf_display) : str.format('Feed Weak\n{0} | Strict {1}', profile_volume_display, strict_ltf_display)
 string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_bull_share) ? 'n/a' : ltf_price_only ? str.format('{0,number,percent}\nPrice Only', ltf_bull_share) : str.format('{0,number,percent}', ltf_bull_share)
@@ -3998,9 +4076,9 @@ string ddvi_context_text = not use_ddvi_context ? 'Off' : ddvi_entry_strict_ok_s
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string setup_quality_display = str.format('{0}\n{1}\n{2}\nEnv {3}\nHeadroom {4}', freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text)
-string strict_sequence_display = not use_strict_sequence ? 'off' : zone_touch_event_recent ? 'zone ok' : 'wait zone'
+string strict_sequence_display = not use_strict_sequence ? 'off' : long_setup_armed or long_setup_confirmed ? long_source_zone_touch_recent ? 'zone ok' : 'wait source' : zone_touch_event_recent ? 'zone ok' : 'wait zone'
 string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_setup_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_setup_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
-string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort'
+string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort lockout'
 string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? 'Waiting Zone' : 'Strict OK'
 bool long_setup_strict_blocked = strict_flow_active and strict_flow_focus_display != 'off' and strict_flow_focus_display != 'Strict OK' and long_visual_state > 0
 bool long_setup_environment_blocked = long_environment_features_active and not long_environment_gate_ok and long_visual_state > 0
@@ -4014,11 +4092,14 @@ if long_setup_environment_blocked
     long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_context_suffix, long_environment_focus_display) : long_environment_focus_display
 if long_setup_micro_blocked
     long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_context_suffix, microstructure_focus_display) : microstructure_focus_display
+if long_score_soft_block
+    long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | Score Blocked', long_setup_context_suffix) : 'Score Blocked'
 string long_setup_display = str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_text, long_setup_context_suffix) : long_setup_text
 string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''
 string long_environment_alert_suffix = long_environment_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
 string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''
 string strict_flow_display = str.format('State {0}\nZone {1}\nSweep {2}\nGuard {3}', strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
+string execution_tier_display = long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? long_score_soft_block ? 'Ready blocked' : 'Ready' : long_setup_confirmed ? long_score_soft_block ? 'Confirmed blocked' : 'Confirmed' : long_setup_armed ? 'Armed' : 'n/a'
 string entry_score_display = str.format('{0}/{1}\nMin {2}\n{3}', long_entry_score, effective_entry_score_max, effective_min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
 string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
@@ -4043,7 +4124,7 @@ color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
 color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
-var table smc_dashboard = table.new(position.bottom_right, 2, 39, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 40, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -4075,18 +4156,19 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 26, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
     dashboard_row(smc_dashboard, 27, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
     dashboard_row(smc_dashboard, 28, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 29, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
-    dashboard_row(smc_dashboard, 30, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 31, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 32, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 33, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 34, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
-    dashboard_row(smc_dashboard, 35, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
-    dashboard_row(smc_dashboard, 36, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
-    dashboard_row(smc_dashboard, 37, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 38, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 29, 'Exec Tier', execution_tier_display, status_bg(long_visual_state), dashboard_text)
+    dashboard_row(smc_dashboard, 30, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
+    dashboard_row(smc_dashboard, 31, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 32, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 33, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 34, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 35, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
+    dashboard_row(smc_dashboard, 36, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
+    dashboard_row(smc_dashboard, 37, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
+    dashboard_row(smc_dashboard, 38, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 39, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 38)
+    table.clear(smc_dashboard, 0, 0, 1, 39)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -4107,14 +4189,13 @@ alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watc
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
-bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and (strict_ltf_unavailable or strict_ltf_unverifiable))
+alert_long_entry_best = long_entry_best_state
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+alert_long_entry_strict = long_entry_strict_state
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
@@ -4152,6 +4233,11 @@ varip bool long_arm_signal_latched = false
 varip bool long_confirm_signal_latched = false
 varip bool long_ready_signal_latched = false
 varip bool long_invalidate_signal_latched = false
+varip bool alert_long_armed_event_latched = false
+varip bool alert_long_early_event_latched = false
+varip bool alert_long_clean_event_latched = false
+varip bool alert_long_entry_best_event_latched = false
+varip bool alert_long_entry_strict_event_latched = false
 varip bool bull_ob_broken_event_latched = false
 varip bool bear_ob_broken_event_latched = false
 varip bool bull_fvg_filled_event_latched = false
@@ -4167,6 +4253,11 @@ if barstate.isnew
     long_confirm_signal_latched := false
     long_ready_signal_latched := false
     long_invalidate_signal_latched := false
+    alert_long_armed_event_latched := false
+    alert_long_early_event_latched := false
+    alert_long_clean_event_latched := false
+    alert_long_entry_best_event_latched := false
+    alert_long_entry_strict_event_latched := false
     bull_ob_broken_event_latched := false
     bear_ob_broken_event_latched := false
     bull_fvg_filled_event_latched := false
@@ -4185,6 +4276,16 @@ if live_exec ? long_ready_signal : barstate.isconfirmed and long_ready_signal
     long_ready_signal_latched := true
 if live_exec ? long_invalidate_signal : barstate.isconfirmed and long_invalidate_signal
     long_invalidate_signal_latched := true
+if live_exec ? alert_long_armed_event : barstate.isconfirmed and alert_long_armed_event
+    alert_long_armed_event_latched := true
+if live_exec ? alert_long_early_event : barstate.isconfirmed and alert_long_early_event
+    alert_long_early_event_latched := true
+if live_exec ? alert_long_clean_event : barstate.isconfirmed and alert_long_clean_event
+    alert_long_clean_event_latched := true
+if live_exec ? alert_long_entry_best_event : barstate.isconfirmed and alert_long_entry_best_event
+    alert_long_entry_best_event_latched := true
+if live_exec ? alert_long_entry_strict_event : barstate.isconfirmed and alert_long_entry_strict_event
+    alert_long_entry_strict_event_latched := true
 if bull_ob_broken_event
     bull_ob_broken_event_latched := true
 if bear_ob_broken_event
@@ -4225,11 +4326,11 @@ alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: l
 alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close, with environment-gate and microstructure context plus optional score gating.')
 alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: long setup ended invalidated at bar close.')
 alertcondition(alert_long_watchlist_event, 'Long Dip Watchlist', 'SMC++: watchlist tier active with bullish trend and active pullback zone.')
-alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: Armed+ tier active after strict reclaim qualified the setup.')
-alertcondition(alert_long_early_event, 'Long Dip Early', 'SMC++: early tier active with strict reclaim qualification and internal confirmation starting.')
-alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: confirmed tier active for a clean long-dip setup, with environment and microstructure context shown alongside the setup state.')
-alertcondition(alert_long_entry_best_event, 'Long Dip Entry Best', 'SMC++: Entry Best tier active with standard long-dip entry filters aligned.')
-alertcondition(alert_long_entry_strict_event, 'Long Dip Entry Strict', 'SMC++: Entry Strict tier active with HTF and momentum alignment plus full confluence.')
+alertcondition(alert_long_armed_event_latched, 'Long Dip Armed+', 'SMC++: Armed+ tier active after strict reclaim qualified the setup.')
+alertcondition(alert_long_early_event_latched, 'Long Dip Early', 'SMC++: early tier active with strict reclaim qualification and internal confirmation starting.')
+alertcondition(alert_long_clean_event_latched, 'Long Dip Clean', 'SMC++: confirmed tier active for a clean long-dip setup, with environment and microstructure context shown alongside the setup state.')
+alertcondition(alert_long_entry_best_event_latched, 'Long Dip Entry Best', 'SMC++: Entry Best tier active with standard long-dip entry filters aligned.')
+alertcondition(alert_long_entry_strict_event_latched, 'Long Dip Entry Strict', 'SMC++: Entry Strict tier active with HTF and momentum alignment plus full confluence.')
 alertcondition(long_invalidate_alert_event, 'Long Dip Failed', 'SMC++: long-dip setup invalidated.')
 alertcondition(bull_bos_sig, 'Bullish BOS Detected', 'SMC++: bullish break of structure detected.')
 alertcondition(bull_choch_sig, 'Bullish CHoCH Detected', 'SMC++: bullish change of character detected.')
