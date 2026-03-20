@@ -56,13 +56,6 @@ type Line
     bool hidden = false
     line plot = na
 
-type LineFill
-    Line a
-    Line b
-    varip color fill_color = #dededede
-    Line flip_support = na
-    linefill plot = na
-
 type BoxArgs
     varip color border_color = color.gray
     int border_width = 1
@@ -176,15 +169,6 @@ method delete(Box this) =>
         this.plot := na
     this
 
-method delete(LineFill this) =>
-    if not na(this) and not na(this.plot)
-        this.plot.delete()
-        this.plot := na
-    if not na(this) and not na(this.flip_support)
-        this.flip_support.delete()
-        this.flip_support := na
-    this
-
 method delete(Line[] this) =>
     if not na(this)
         for item in this
@@ -250,18 +234,6 @@ method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend
             this.plot.set_top_left_point(this.left_top)
         this.plot.set_bottom_right_point(this.right_bottom)
     this.hidden := false
-    this
-
-method draw(LineFill this, LineArgs flip_support_args = na, simple bool force_overlay = false) =>
-    if na(this) ? false : not na(this.a) and not na(this.b)
-        flipped = not na(this.flip_support)
-        line_b = flipped ? this.flip_support : this.b
-        if na(this.plot)
-            if flipped and not na(this.b.plot)
-                this.flip_support.draw(flip_support_args, extend_only = false, force_overlay = force_overlay)
-            this.plot := linefill.new(this.a.plot, line_b.plot, this.fill_color)
-        else if flipped
-            this.flip_support.update(this.b.end, this.b.start).draw(flip_support_args, extend_only = false, force_overlay = force_overlay)
     this
 
 method hide(Label this) =>
@@ -417,7 +389,6 @@ type Profile
     Label plot_poc_label = na
     Label plot_vah_label = na
     Label plot_val_label = na
-    LineFill plot_va_fill = na
     Box plot_profile_bg = na
     bool hidden = false
 
@@ -435,8 +406,6 @@ method apply_style(Profile this, ProfileConfig args) =>
             this.plot_vah_label.apply_style(args.args_vah_label)
         if not na(this.plot_val_label)
             this.plot_val_label.apply_style(args.args_val_label)
-        if not na(this.plot_va_fill)
-            this.plot_va_fill.plot.set_color(args.va_fill_color)
         if not na(this.plot_profile_bg)
             this.plot_profile_bg.apply_style(args.args_profile_bg, BoxTextArgs.new())
     this
@@ -466,9 +435,6 @@ method delete(Profile this) =>
         if not na(this.plot_val_label)
             this.plot_val_label.delete()
             this.plot_val_label := na
-        if not na(this.plot_va_fill)
-            this.plot_va_fill.delete()
-            this.plot_va_fill := na
         if not na(this.plot_profile_bg)
             this.plot_profile_bg.delete()
             this.plot_profile_bg := na
