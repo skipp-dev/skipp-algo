@@ -546,68 +546,75 @@ method init(Profile this, bool update_buckets = false) =>
 
 method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
     int range_count = array.size(this.data_values)
-    if range_count > 0 and not na(this.buckets)
-        float poc_volume = 0
-        float sum_volume_up = 0
-        float sum_volume_down = 0
-        int range_count_opens = na(this.data_opens) ? 0 : array.size(this.data_opens)
-        int range_count_closes = na(this.data_closes) ? 0 : array.size(this.data_closes)
+    if not na(this.buckets)
         this.poc_bucket_index := na
         this.val_bucket_index := na
         this.vah_bucket_index := na
         this.poc := na
         this.val := na
         this.vah := na
-        for i = 0 to this.resolution - 1
-            Bucket bucket = this.buckets.get(i)
-            float bucket_value = 0
-            for j = 0 to range_count - 1
-                float range_value = array.get(this.data_values, j)
-                float range_high = array.get(this.data_highs, j)
-                float range_low = array.get(this.data_lows, j)
-                float range_size = range_high - range_low
-                float overlap = math.max(0, math.min(range_high, bucket.top) - math.max(range_low, bucket.btm))
-                if (i == 0 or 0 < use_open_close_data_for_ranges_shorter_than_bars) and j < range_count_opens and j < range_count_closes
-                    float range_open = array.get(this.data_opens, j)
-                    float range_close = array.get(this.data_closes, j)
-                    if i == 0
-                        if range_open < range_close
-                            sum_volume_up += range_value
-                        else
-                            sum_volume_down += range_value
-                    if j < use_open_close_data_for_ranges_shorter_than_bars
-                        overlap += math.max(0, math.min(math.max(range_open, range_close), bucket.top) - math.max(math.min(range_open, range_close), bucket.btm)) / 2
-                        range_size += math.abs(range_open - range_close) / 2
-                float range_value_fraction = range_size > 0 ? overlap / range_size : (overlap > 0 ? 1 : 0)
-                bucket_value += range_value_fraction * range_value
-            bucket.update(bucket_value, this.total > 0 ? bucket_value / this.total : 0)
-            if bucket_value >= poc_volume
-                poc_volume := bucket_value
-                this.poc_bucket_index := i
-                this.poc := bucket.center
-        if not na(this.poc_bucket_index)
-            int left_va = this.poc_bucket_index
-            int right_va = this.poc_bucket_index
-            float va_sum = this.buckets.get(this.poc_bucket_index).value
-            float va_target = this.total * math.max(this.vah_threshold_pc - this.val_threshold_pc, 0) / 100.0
+        this.total_up := 0
+        this.total_down := 0
 
-            while va_sum < va_target and (left_va > 0 or right_va < this.resolution - 1)
-                float next_left = left_va > 0 ? this.buckets.get(left_va - 1).value : -1
-                float next_right = right_va < this.resolution - 1 ? this.buckets.get(right_va + 1).value : -1
+        if range_count <= 0 or this.total <= 0
+            for i = 0 to this.resolution - 1
+                this.buckets.get(i).update(0, 0)
+        else
+            float poc_volume = 0
+        float sum_volume_up = 0
+        float sum_volume_down = 0
+        int range_count_opens = na(this.data_opens) ? 0 : array.size(this.data_opens)
+        int range_count_closes = na(this.data_closes) ? 0 : array.size(this.data_closes)
+            for i = 0 to this.resolution - 1
+                Bucket bucket = this.buckets.get(i)
+                float bucket_value = 0
+                for j = 0 to range_count - 1
+                    float range_value = array.get(this.data_values, j)
+                    float range_high = array.get(this.data_highs, j)
+                    float range_low = array.get(this.data_lows, j)
+                    float range_size = range_high - range_low
+                    float overlap = math.max(0, math.min(range_high, bucket.top) - math.max(range_low, bucket.btm))
+                    if (i == 0 or 0 < use_open_close_data_for_ranges_shorter_than_bars) and j < range_count_opens and j < range_count_closes
+                        float range_open = array.get(this.data_opens, j)
+                        float range_close = array.get(this.data_closes, j)
+                        if i == 0
+                            if range_open < range_close
+                                sum_volume_up += range_value
+                            else
+                                sum_volume_down += range_value
+                        if j < use_open_close_data_for_ranges_shorter_than_bars
+                            overlap += math.max(0, math.min(math.max(range_open, range_close), bucket.top) - math.max(math.min(range_open, range_close), bucket.btm)) / 2
+                            range_size += math.abs(range_open - range_close) / 2
+                    float range_value_fraction = range_size > 0 ? overlap / range_size : (overlap > 0 ? 1 : 0)
+                    bucket_value += range_value_fraction * range_value
+                bucket.update(bucket_value, bucket_value / this.total)
+                if bucket_value > 0 and (na(this.poc_bucket_index) or bucket_value >= poc_volume)
+                    poc_volume := bucket_value
+                    this.poc_bucket_index := i
+                    this.poc := bucket.center
+            if not na(this.poc_bucket_index)
+                int left_va = this.poc_bucket_index
+                int right_va = this.poc_bucket_index
+                float va_sum = this.buckets.get(this.poc_bucket_index).value
+                float va_target = this.total * math.max(this.vah_threshold_pc - this.val_threshold_pc, 0) / 100.0
 
-                if next_left > next_right
-                    left_va -= 1
-                    va_sum += next_left
-                else
-                    right_va += 1
-                    va_sum += next_right
+                while va_sum < va_target and (left_va > 0 or right_va < this.resolution - 1)
+                    float next_left = left_va > 0 ? this.buckets.get(left_va - 1).value : -1
+                    float next_right = right_va < this.resolution - 1 ? this.buckets.get(right_va + 1).value : -1
 
-            this.val_bucket_index := left_va
-            this.vah_bucket_index := right_va
-            this.val := this.buckets.get(left_va).center
-            this.vah := this.buckets.get(right_va).center
-        this.total_up := sum_volume_up
-        this.total_down := sum_volume_down
+                    if next_left > next_right
+                        left_va -= 1
+                        va_sum += next_left
+                    else
+                        right_va += 1
+                        va_sum += next_right
+
+                this.val_bucket_index := left_va
+                this.vah_bucket_index := right_va
+                this.val := this.buckets.get(left_va).center
+                this.vah := this.buckets.get(right_va).center
+            this.total_up := sum_volume_up
+            this.total_down := sum_volume_down
     this
 
 create_profile(float[] opens, float[] highs, float[] lows, float[] closes, float[] values, int resolution = 25, float vah_pc = 80, float val_pc = 20, int idx = bar_index, bool init_calculated = true, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
@@ -786,7 +793,7 @@ create_ob(int id, int mode, int start_t, int start_i, float top, int end_t, int 
     block
 
 method align_to_profile(OrderBlock block, bool align_edge = false, bool align_break_price = false) =>
-    if not na(block.profile)
+    if not na(block.profile) and block.profile.total > 0
         if align_edge and not na(block.profile.vah)
             block.left_top.price     := block.profile.vah
             block.right_bottom.price := block.profile.val
