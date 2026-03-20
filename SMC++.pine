@@ -2276,8 +2276,6 @@ var int score_weight_ema = input.int(1, 'EMA', minval = 0, maxval = 3, group = g
 var int score_weight_adx = input.int(2, 'ADX', minval = 0, maxval = 3, group = g_quality, inline = 'qw2')
 var int score_weight_close = input.int(1, 'Close', minval = 0, maxval = 3, group = g_quality, inline = 'qw3')
 var int score_weight_relvol = input.int(1, 'RelVol', minval = 0, maxval = 3, group = g_quality, inline = 'qw3')
-var int score_weight_market = input.int(2, 'Market', minval = 0, maxval = 3, group = g_quality, inline = 'qw4')
-var int score_weight_vola = input.int(1, 'Vola', minval = 0, maxval = 3, group = g_quality, inline = 'qw4')
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
@@ -3731,31 +3729,34 @@ context_quality_score += adx_strong ? score_weight_adx : 0
 context_quality_score += bull_close_strong ? score_weight_close : 0
 context_quality_score += relvol_score_ok ? score_weight_relvol : 0
 context_quality_score += vwap_filter_ok ? context_quality_vwap_weight : 0
-context_quality_score += market_regime_gate_ok ? score_weight_market : 0
-context_quality_score += vola_regime_gate_safe ? score_weight_vola : 0
-int context_quality_max_score = score_weight_structure + score_weight_htf + score_weight_ema + score_weight_adx + score_weight_close + score_weight_relvol + context_quality_vwap_weight + score_weight_market + score_weight_vola
+int context_quality_max_score = score_weight_structure + score_weight_htf + score_weight_ema + score_weight_adx + score_weight_close + score_weight_relvol + context_quality_vwap_weight
 int effective_context_quality_max_score = context_quality_max_score - (relvol_score_unavailable ? score_weight_relvol : 0)
 int effective_min_context_quality_score = math.min(min_context_quality_score, effective_context_quality_max_score)
 bool context_quality_gate_ok = not use_context_quality_score or context_quality_score >= effective_min_context_quality_score
 bool environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe
 bool quality_gate_ok = context_quality_gate_ok
 bool microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
-bool setup_hard_gate_ok = zone_touch_quality_ok
 bool trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
-bool long_environment_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate or use_context_quality_score
-string long_environment_focus_display = not environment_hard_gate_ok ? not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env Blocked' : not context_quality_gate_ok ? 'Context Block' : 'Env OK'
+bool long_gate_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate
+string long_environment_focus_display = not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env OK'
 string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
 string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : 'source lost'
-int long_active_touch_count = long_setup_armed or long_setup_confirmed ? long_setup_backing_zone_touch_count : bull_reclaim_ob_strict or in_bull_ob_zone and not in_bull_fvg_zone ? active_ob_touch_count : bull_reclaim_fvg_strict or in_bull_fvg_zone and not in_bull_ob_zone ? active_fvg_touch_count : active_zone_touch_count
-zone_touch_quality_ok := not block_third_touch or long_active_touch_count <= max_zone_touches_for_entry
-string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_active_touch_count <= 1 ? 'fresh touch' : long_active_touch_count == 2 ? '2nd touch' : 'crowded'
+int effective_long_active_touch_count = active_zone_touch_count
+if long_setup_armed or long_setup_confirmed
+    effective_long_active_touch_count := long_setup_backing_zone_touch_count
+else if bull_reclaim_ob_strict or (in_bull_ob_zone and not in_bull_fvg_zone)
+    effective_long_active_touch_count := active_ob_touch_count
+else if bull_reclaim_fvg_strict or (in_bull_fvg_zone and not in_bull_ob_zone)
+    effective_long_active_touch_count := active_fvg_touch_count
+bool effective_zone_touch_quality_ok = not block_third_touch or effective_long_active_touch_count <= max_zone_touches_for_entry
+bool setup_hard_gate_ok = effective_zone_touch_quality_ok
+string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : effective_long_active_touch_count <= 1 ? 'fresh touch' : effective_long_active_touch_count == 2 ? '2nd touch' : 'crowded'
 string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)
 string long_score_detail_suffix = str.format(' | ctx={0}/{1}', context_quality_score, effective_min_context_quality_score)
 bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok
 bool confirm_hard_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
 bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok
-bool confirm_quality_gate_ok = true
-bool confirm_filters_ok = confirm_hard_gate_ok and confirm_upgrade_gate_ok and confirm_quality_gate_ok
+bool confirm_filters_ok = confirm_hard_gate_ok and confirm_upgrade_gate_ok
 if confirm_lifecycle_ok and confirm_filters_ok
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
@@ -3765,8 +3766,8 @@ bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
 bool lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
-bool long_entry_best_state = long_ready_state and quality_gate_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
-bool long_entry_strict_state = long_ready_state and quality_gate_ok and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
 bool long_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
 if long_plan_active
@@ -4098,7 +4099,7 @@ string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard
 string long_visual_display = long_visual_text
 string long_setup_display = long_setup_text
 string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''
-string long_environment_alert_suffix = long_environment_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
+string long_environment_alert_suffix = long_gate_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
 string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''
 string execution_tier_display = long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? 'Ready' : long_setup_confirmed ? 'Confirmed' : long_building_state ? 'Building' : long_setup_armed ? 'Armed' : long_zone_active ? 'Zone' : 'n/a'
 bool quality_axis_active = long_zone_active or zone_recent or reclaim_recent or long_setup_armed or long_setup_confirmed
