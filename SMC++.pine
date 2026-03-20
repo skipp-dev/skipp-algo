@@ -2324,7 +2324,7 @@ bool use_ob_profile_effective = use_ob_profile and volume_data_ok
 var label volume_quality_warning = na
 if barstate.islast
     if not volume_data_ok
-        string volume_warning_text = allow_relvol_without_volume_data ? 'Volume data quality is limited\nRelVol fallback is active; DDVI Best can pass, but Strict and LTF delta stay limited' : 'Volume data quality is limited\nRelVol, DDVI Best, and strict entry may stay blocked'
+        string volume_warning_text = allow_relvol_without_volume_data ? 'Volume data quality is limited\nOB profiles are off; RelVol and DDVI Best can fall back, but Strict and LTF delta stay limited' : 'Volume data quality is limited\nOB profiles are off; RelVol, DDVI Best, and strict entry may stay blocked'
         if na(volume_quality_warning)
             volume_quality_warning := label.new(bar_index, close, volume_warning_text, color = color.orange, textcolor = color.white, style = label.style_label_left, size = size.small)
         else
@@ -3781,8 +3781,9 @@ string microstructure_focus_display = not use_microstructure_profiles ? 'Off' : 
 string micro_profile_display = not use_microstructure_profiles ? 'Off' : micro_profile_text
 string micro_session_display = not use_microstructure_profiles ? 'Off' : micro_session_gate_ok ? 'OK' : micro_is_midday_dead and micro_midday_block_active ? 'Midday blocked' : micro_is_rth_only and not vwap_session_active ? 'Outside RTH' : micro_is_weak_premarket and micro_premarket_active ? 'Premarket blocked' : micro_is_weak_afterhours and micro_afterhours_active ? 'AH blocked' : 'Blocked'
 string micro_freshness_display = not use_microstructure_profiles ? 'Off' : micro_freshness_gate_ok ? 'Fresh' : str.format('Stale | arm {0} / conf {1}', long_setup_age, long_confirm_age)
+string profile_volume_display = not use_ob_profile ? 'Prof Off' : use_ob_profile_effective ? 'Prof OK' : 'Prof No Vol'
 string strict_ltf_display = not use_ltf_for_strict_entry ? 'Off' : strict_ltf_available ? 'OK' : allow_strict_entry_without_ltf ? 'Fallback' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : not volume_data_ok ? 'No Vol' : 'Blocked'
-string volume_quality_display = volume_data_ok ? str.format('OK\nStrict {0}', strict_ltf_display) : volume_best_fallback_active ? str.format('Best Fallback\nStrict {0}', strict_ltf_display) : str.format('No Vol\nStrict {0}', strict_ltf_display)
+string volume_quality_display = volume_data_ok ? str.format('OK\n{0} | Strict {1}', profile_volume_display, strict_ltf_display) : volume_best_fallback_active ? str.format('Best Fallback\n{0} | Strict {1}', profile_volume_display, strict_ltf_display) : str.format('No Vol\n{0} | Strict {1}', profile_volume_display, strict_ltf_display)
 string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
 string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
 string sd_display = not use_sd_confluence ? 'Off' : sd_entry_strict_gate_ok ? 'Strict OK\nDiv + HL' : sd_ready_gate_ok ? sd_require_for_entry_best ? 'Ready OK\nBest waits SD' : 'Ready OK\nBest inherits' : sd_support_any_recent ? str.format('Support Only\nOsc {0}', sd_rising ? 'Rising' : sd_falling ? 'Falling' : 'Flat') : 'None'
