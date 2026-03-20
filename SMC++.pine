@@ -1732,6 +1732,95 @@ evaluate_long_ready_states(bool close_safe_mode, bool long_setup_confirmed, bool
     bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
     [lifecycle_ready_ok, long_ready_state, long_entry_best_state, long_entry_strict_state]
 
+compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, string long_setup_source_display) =>
+    string setup_text = 'No Setup'
+    if long_zone_active
+        setup_text := 'In Zone'
+    if long_setup_armed
+        setup_text := str.format('Armed | {0}', long_setup_source_display)
+    if long_building_state
+        setup_text := str.format('Building | {0}', long_setup_source_display)
+    if long_setup_confirmed
+        setup_text := str.format('Confirmed | {0}', long_setup_source_display)
+    if long_ready_state
+        setup_text := str.format('Ready | {0}', long_setup_source_display)
+    if long_entry_best_state
+        setup_text := str.format('Entry Best | {0}', long_setup_source_display)
+    if long_entry_strict_state
+        setup_text := str.format('Entry Strict | {0}', long_setup_source_display)
+    setup_text
+
+resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now) =>
+    int visual_state = 0
+    if long_zone_active
+        visual_state := 1
+    if long_setup_armed
+        visual_state := 2
+    if long_building_state
+        visual_state := 3
+    if long_setup_confirmed
+        visual_state := 4
+    if long_ready_state
+        visual_state := 5
+    if long_entry_best_state
+        visual_state := 6
+    if long_entry_strict_state
+        visual_state := 7
+    if (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup) and long_invalidated_now
+        visual_state := -1
+    visual_state
+
+resolve_long_dashboard_state(int long_visual_state) =>
+    long_visual_state
+
+resolve_long_visual_text(int long_visual_state) =>
+    string visual_text = long_visual_state == -1 ? 'Blocked' : long_visual_state == 0 ? 'Neutral' : long_visual_state == 1 ? 'In Zone' : long_visual_state == 2 ? 'Armed' : long_visual_state == 3 ? 'Building' : long_visual_state == 4 ? 'Confirmed' : long_visual_state == 5 ? 'Long Ready' : 'Long Ready'
+    if long_visual_state == 6
+        visual_text := 'Entry Best'
+    else if long_visual_state >= 7
+        visual_text := 'Entry Strict'
+    visual_text
+
+resolve_long_bg_color(int long_visual_state, color long_color_building) =>
+    color bg_color = na
+    if long_visual_state == -1
+        bg_color := color.new(color.red, 90)
+    else if long_visual_state == 1
+        bg_color := color.new(color.aqua, 92)
+    else if long_visual_state == 2
+        bg_color := color.new(color.orange, 88)
+    else if long_visual_state == 3
+        bg_color := color.new(long_color_building, 84)
+    else if long_visual_state == 4
+        bg_color := color.new(color.lime, 88)
+    else if long_visual_state == 5
+        bg_color := color.new(color.green, 82)
+    else if long_visual_state == 6
+        bg_color := color.new(color.green, 74)
+    else if long_visual_state >= 7
+        bg_color := color.new(color.green, 66)
+    bg_color
+
+resolve_long_bar_color(int long_visual_state, color long_color_building) =>
+    color bar_color = na
+    if long_visual_state == -1
+        bar_color := color.new(color.red, 0)
+    else if long_visual_state == 1
+        bar_color := color.new(color.aqua, 45)
+    else if long_visual_state == 2
+        bar_color := color.new(color.orange, 25)
+    else if long_visual_state == 3
+        bar_color := color.new(long_color_building, 5)
+    else if long_visual_state == 4
+        bar_color := color.new(color.lime, 0)
+    else if long_visual_state == 5
+        bar_color := color.new(color.green, 0)
+    else if long_visual_state == 6
+        bar_color := color.new(color.green, 0)
+    else if long_visual_state >= 7
+        bar_color := color.new(color.teal, 0)
+    bar_color
+
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
@@ -4070,84 +4159,16 @@ if barstate.isnew
 bool long_ready_signal = long_ready_state and long_ready_state_rt_prev == 0
 long_ready_state_rt_prev := long_ready_state ? 1 : 0
 
-long_setup_text := 'No Setup'
-if long_zone_active
-    long_setup_text := 'In Zone'
-if long_setup_armed
-    long_setup_text := str.format('Armed | {0}', long_setup_source_display)
-if long_building_state
-    long_setup_text := str.format('Building | {0}', long_setup_source_display)
-if long_setup_confirmed
-    long_setup_text := str.format('Confirmed | {0}', long_setup_source_display)
-if long_ready_state
-    long_setup_text := str.format('Ready | {0}', long_setup_source_display)
-if long_entry_best_state
-    long_setup_text := str.format('Entry Best | {0}', long_setup_source_display)
-if long_entry_strict_state
-    long_setup_text := str.format('Entry Strict | {0}', long_setup_source_display)
+long_setup_text := compose_long_setup_text(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_setup_source_display)
 
-long_visual_state := 0
-if long_zone_active
-    long_visual_state := 1
-if long_setup_armed
-    long_visual_state := 2
-if long_building_state
-    long_visual_state := 3
-if long_setup_confirmed
-    long_visual_state := 4
-if long_ready_state
-    long_visual_state := 5
-if long_entry_best_state
-    long_visual_state := 6
-if long_entry_strict_state
-    long_visual_state := 7
-if (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup) and long_invalidated_now
-    long_visual_state := -1
+long_visual_state := resolve_long_visual_state(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidate_signal, invalidated_prior_setup, long_invalidated_now)
 
-long_setup_dashboard_state := long_visual_state
+long_setup_dashboard_state := resolve_long_dashboard_state(long_visual_state)
 
 // Lifecycle axis stays pure. Quality is shown in separate dashboard rows.
-long_visual_text := status_text(long_visual_state, 'Blocked', 'Neutral', 'In Zone', 'Armed', 'Building', 'Confirmed', 'Long Ready')
-if long_visual_state == 6
-    long_visual_text := 'Entry Best'
-else if long_visual_state >= 7
-    long_visual_text := 'Entry Strict'
-
-long_bg_color := na
-if long_visual_state == -1
-    long_bg_color := color.new(color.red, 90)
-else if long_visual_state == 1
-    long_bg_color := color.new(color.aqua, 92)
-else if long_visual_state == 2
-    long_bg_color := color.new(color.orange, 88)
-else if long_visual_state == 3
-    long_bg_color := color.new(long_color_building, 84)
-else if long_visual_state == 4
-    long_bg_color := color.new(color.lime, 88)
-else if long_visual_state == 5
-    long_bg_color := color.new(color.green, 82)
-else if long_visual_state == 6
-    long_bg_color := color.new(color.green, 74)
-else if long_visual_state >= 7
-    long_bg_color := color.new(color.green, 66)
-
-long_bar_color := na
-if long_visual_state == -1
-    long_bar_color := color.new(color.red, 0)
-else if long_visual_state == 1
-    long_bar_color := color.new(color.aqua, 45)
-else if long_visual_state == 2
-    long_bar_color := color.new(color.orange, 25)
-else if long_visual_state == 3
-    long_bar_color := color.new(long_color_building, 5)
-else if long_visual_state == 4
-    long_bar_color := color.new(color.lime, 0)
-else if long_visual_state == 5
-    long_bar_color := color.new(color.green, 0)
-else if long_visual_state == 6
-    long_bar_color := color.new(color.green, 0)
-else if long_visual_state >= 7
-    long_bar_color := color.new(color.teal, 0)
+long_visual_text := resolve_long_visual_text(long_visual_state)
+long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
+long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break
