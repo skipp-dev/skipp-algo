@@ -22,10 +22,9 @@ range_overlap(float max1, float min1, float max2, float min2) => min1 < max2 and
 // ATR helper
 smc_lib_atr(simple int length) =>
     float atr_value = ta.atr(length)
-    var float sum = 0.0
+    float tr_cum = ta.cum(ta.tr(true))
     if bar_index < length
-        sum += ta.tr(true)
-        atr_value := sum / (bar_index + 1)
+        atr_value := tr_cum / (bar_index + 1)
     atr_value
 
 // Moving-average selector helpers used by DDVI

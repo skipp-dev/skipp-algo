@@ -34,6 +34,18 @@ def test_plot_equal_level_uses_named_label_arguments_for_font_family() -> None:
     assert 'label_args.text_align, label_args.text_font_family' not in body
 
 
+def test_atr_helper_uses_deterministic_warmup_accumulator() -> None:
+    source = _read_smc_source()
+    body = _extract_function_body(source, 'smc_lib_atr')
+
+    assert 'float atr_value = ta.atr(length)' in body
+    assert 'float tr_cum = ta.cum(ta.tr(true))' in body
+    assert 'if bar_index < length' in body
+    assert 'atr_value := tr_cum / (bar_index + 1)' in body
+    assert 'var float sum = 0.0' not in body
+    assert 'sum += ta.tr(true)' not in body
+
+
 def test_strict_ltf_fallback_is_limited_to_missing_or_unverifiable_ltf() -> None:
     source = _read_smc_source()
 
