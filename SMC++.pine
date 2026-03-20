@@ -3250,6 +3250,8 @@ int ltf_delta_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 :
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
 int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
+bool strict_sweep_ok = long_setup_source_kind == 'OB' ? bull_ob_real_sweep : long_setup_source_kind == 'FVG' ? bull_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
+int strict_flow_state = not use_strict_sequence and not use_strict_sweep_for_zone_reclaim and not use_strict_confirm_guard ? 0 : not long_confirm_bearish_guard_ok ? -1 : use_strict_sequence and not zone_touch_event_recent ? 1 : use_strict_sweep_for_zone_reclaim and (long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG') and not strict_sweep_ok ? 1 : 4
 int entry_score_state = entry_score_ok ? long_entry_score >= 9 ? 5 : 4 : long_entry_score >= math.max(min_entry_score - 1, 1) ? 2 : -1
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
@@ -3269,6 +3271,10 @@ string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sa
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string setup_quality_display = str.format('{0}\n{1}\n{2}\nHeadroom {3}', freshness_text, source_state_text, zone_quality_text, overhead_text)
+string strict_sequence_display = not use_strict_sequence ? 'off' : zone_touch_event_recent ? 'zone ok' : 'wait zone'
+string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_setup_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_setup_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
+string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort'
+string strict_flow_display = str.format('Zone {0}\nSweep {1}\nGuard {2}', strict_sequence_display, strict_sweep_display, strict_guard_display)
 string entry_score_display = str.format('{0}/10\nMin {1}\n{2}', long_entry_score, min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
 string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
@@ -3286,7 +3292,7 @@ color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
-var table smc_dashboard = table.new(position.bottom_right, 2, 24, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 25, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -3310,11 +3316,12 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 18, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
     dashboard_row(smc_dashboard, 19, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
     dashboard_row(smc_dashboard, 20, 'Setup Quality', setup_quality_display, status_bg(quality_state), dashboard_text)
-    dashboard_row(smc_dashboard, 21, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
-    dashboard_row(smc_dashboard, 22, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 23, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 21, 'Strict Flow', strict_flow_display, status_bg(strict_flow_state), dashboard_text)
+    dashboard_row(smc_dashboard, 22, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
+    dashboard_row(smc_dashboard, 23, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 24, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 23)
+    table.clear(smc_dashboard, 0, 0, 1, 24)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -3444,8 +3451,8 @@ alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: l
 alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close, with optional score gating.')
 alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: long setup ended invalidated at bar close.')
 alertcondition(alert_long_watchlist_event, 'Long Dip Watchlist', 'SMC++: bullish trend with active pullback zone.')
-alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: reclaim detected and long setup armed.')
-alertcondition(alert_long_early_event, 'Long Dip Early', 'SMC++: early bullish long-dip hint with internal confirmation.')
+alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: strict reclaim qualified and long setup armed.')
+alertcondition(alert_long_early_event, 'Long Dip Early', 'SMC++: early bullish long-dip hint with strict reclaim qualification and internal confirmation.')
 alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: clean long-dip setup confirmed.')
 alertcondition(alert_long_entry_best_event, 'Long Dip Entry Best', 'SMC++: best standard long-dip entry condition.')
 alertcondition(alert_long_entry_strict_event, 'Long Dip Entry Strict', 'SMC++: strict long-dip entry with HTF and momentum alignment.')
@@ -3545,11 +3552,11 @@ if dynamic_long_alert_mode == 'Priority'
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Strict reclaim qualified, internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed' + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Strict reclaim qualified and setup armed' + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_arm_signal and not str.contains(dynamic_alert_seen_keys, '|long_armed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed|'
         long_dynamic_alert_sent := true
@@ -3579,10 +3586,10 @@ else
         alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}', long_setup_source, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Strict reclaim qualified, internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed' + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Strict reclaim qualified and setup armed' + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_arm_signal and not str.contains(dynamic_alert_seen_keys, '|long_armed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed|'
         alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Long setup armed from {0}{1}', long_setup_source, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
