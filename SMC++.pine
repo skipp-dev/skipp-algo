@@ -9,6 +9,7 @@ indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_b
 // - Improvements are limited to readability, defensive guards around draw/delete paths,
 //   clearer configuration naming and more descriptive alerts.
 // - The Order Block lifecycle remains: tracking -> extension -> awaiting confirmation -> confirmed/broken.
+// - Former external Pine library dependencies are embedded locally below so the script stays self-contained.
 
 // --------------------------------------------------
 // Embedded Library Subset
@@ -18,6 +19,7 @@ in_range(float value, float max, float min = 0.0) => min <= value and value <= m
 in_range(float max1, float min1, float max2, float min2) => min2 <= min1 and min1 <= max2 and min2 <= max1 and max1 <= max2
 range_overlap(float max1, float min1, float max2, float min2) => min1 < max2 and max1 > min2
 
+// ATR helper
 smc_lib_atr(simple int length) =>
     float atr_value = ta.atr(length)
     var float sum = 0.0
@@ -26,6 +28,7 @@ smc_lib_atr(simple int length) =>
         atr_value := sum / (bar_index + 1)
     atr_value
 
+// Moving-average selector helpers used by DDVI
 enum SmcLibMovingAverage
     SMA = 'SMA (Simple)'
     EMA = 'EMA (Exponential)'
@@ -63,9 +66,11 @@ smc_lib_bb(float source, simple int length, float mult, simple SmcLibMovingAvera
     float dev = mult * ta.stdev(source, length)
     [base, base + dev, base - dev]
 
+// DMI helper used by DDVI
 smc_lib_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>
     ta.dmi(di_length, adx_smoothing)
 
+// Divergence helper used by DDVI
 smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5, simple int pivot_confirmation_bars_right = 3, simple int pivot_min_x_distance = 5, simple int pivot_max_x_distance = 50, series float ref_low = low, series float ref_high = high, simple int pivot_min_y_distance_len = 14, simple float pivot_min_y_distance_dev_mult = 0.1, simple float pivot_min_y_distance_atr_mult = 0.1) =>
     bool osc_pivot_l = not na(ta.pivotlow(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
     bool osc_pivot_h = not na(ta.pivothigh(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
