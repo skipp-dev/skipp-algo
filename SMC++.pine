@@ -1909,6 +1909,16 @@ build_dynamic_alert_message(bool enabled, bool condition, string event_name, str
     else
         ''
 
+lr_slope_pct(series float src, simple int len) =>
+    float lr_now = ta.linreg(src, len, 0)
+    float lr_prev = ta.linreg(src, len, 1)
+    float base = math.max(math.abs(src), syminfo.mintick)
+    100.0 * (lr_now - lr_prev) / base
+
+weighted_avg4(float a, float b, float c, float d, float wa = 1.0, float wb = 1.0, float wc = 1.0, float wd = 1.0) =>
+    float wsum = wa + wb + wc + wd
+    wsum > 0 ? (a * wa + b * wb + c * wc + d * wd) / wsum : na
+
 external_trend_gate(simple string symbol, simple int fast_len, simple int slow_len) =>
     [ext_close, ext_fast, ext_slow] = request.security(symbol, timeframe.period, [close, ta.ema(close, fast_len), ta.ema(close, slow_len)], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 300)
 
@@ -2142,6 +2152,19 @@ var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, gro
 var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', group = g_long, inline = 'close')
 var float min_close_in_range_pct = input.float(0.65, 'Min Close In Range', minval = 0.50, maxval = 1.00, step = 0.05, group = g_long, inline = 'close')
 
+var g_accel = 'Pullback Acceleration'
+var bool use_accel_module = input.bool(true, 'Use acceleration timing module', group = g_accel)
+var int accel_len_fast = input.int(8, 'Fast length', minval = 2, group = g_accel, inline = 'acc1')
+var int accel_len_mid1 = input.int(13, 'Mid 1', minval = 3, group = g_accel, inline = 'acc1')
+var int accel_len_mid2 = input.int(21, 'Mid 2', minval = 5, group = g_accel, inline = 'acc2')
+var int accel_len_slow = input.int(34, 'Slow', minval = 8, group = g_accel, inline = 'acc2')
+var int accel_smooth_len = input.int(3, 'Smooth', minval = 1, group = g_accel, inline = 'acc3')
+var float accel_cross_threshold = input.float(0.0, 'Zero threshold', step = 0.01, group = g_accel, inline = 'acc3')
+var string accel_integration_mode = input.string('Confirm + Ready', 'Integration mode', options = ['Early only', 'Confirm + Ready', 'Strict entries only'], group = g_accel)
+var bool require_accel_above_zero_for_ready = input.bool(true, 'Ready requires accel > 0', group = g_accel)
+var int accel_recent_cross_bars = input.int(3, 'Recent cross bars', minval = 1, maxval = 20, group = g_accel)
+var bool show_accel_debug = input.bool(false, 'Show accel debug markers', group = g_accel)
+
 var g_struct = 'Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, tooltip = SHOW_SWING)
 var string show_bull = input.string('All', 'Bullish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bull')
@@ -2361,6 +2384,27 @@ string vwap_state_text = not use_vwap_filter ? 'off' : not intraday_time_chart ?
 
 bool adx_strong = not use_adx ? true : adx_data_ok and adx_value >= adx_strong_min and plus_di >= minus_di
 string adx_state_text = not use_adx ? 'off' : not adx_data_ok ? 'n/a' : plus_di < minus_di ? 'Bearish pressure' : adx_value < adx_trend_min ? 'Sideways' : adx_value < adx_strong_min ? 'Trend building' : 'Trend'
+
+float accel_fast_raw = lr_slope_pct(close, accel_len_fast)
+float accel_mid1_raw = lr_slope_pct(close, accel_len_mid1)
+float accel_mid2_raw = lr_slope_pct(close, accel_len_mid2)
+float accel_slow_raw = lr_slope_pct(close, accel_len_slow)
+float accel_raw = weighted_avg4(accel_fast_raw, accel_mid1_raw, accel_mid2_raw, accel_slow_raw, 1.5, 1.25, 1.0, 0.75)
+float accel_value = ta.ema(accel_raw, accel_smooth_len)
+bool accel_above_zero = not na(accel_value) and accel_value > accel_cross_threshold
+bool accel_below_zero = not na(accel_value) and accel_value < accel_cross_threshold
+bool accel_rising = not na(accel_value) and accel_value > accel_value[1]
+bool accel_pullback_exhaustion_long = use_accel_module and accel_below_zero and accel_rising
+bool accel_zero_cross_up = ta.crossover(accel_value, accel_cross_threshold)
+bool accel_reaccel_confirm_long = use_accel_module and accel_zero_cross_up
+int accel_cross_since_bars = ta.barssince(accel_reaccel_confirm_long)
+bool accel_recent_cross_long = not na(accel_cross_since_bars) and accel_cross_since_bars <= accel_recent_cross_bars
+bool accel_mode_early_only = accel_integration_mode == 'Early only'
+bool accel_mode_strict_entries_only = accel_integration_mode == 'Strict entries only'
+bool accel_early_gate_ok = not use_accel_module or accel_pullback_exhaustion_long or accel_recent_cross_long
+bool accel_confirm_gate_ok = not use_accel_module or accel_mode_early_only or accel_reaccel_confirm_long or accel_recent_cross_long
+bool accel_ready_gate_ok = not use_accel_module or accel_mode_strict_entries_only or (require_accel_above_zero_for_ready ? (accel_above_zero or accel_recent_cross_long) : accel_early_gate_ok)
+bool accel_strict_entry_gate_ok = not use_accel_module or (accel_above_zero and accel_recent_cross_long)
 
 float effective_ob_reclaim_min_penetration = ob_reclaim_min_penetration
 float effective_fvg_reclaim_min_penetration = fvg_reclaim_min_penetration
@@ -3117,14 +3161,14 @@ long_entry_score += zone_touch_quality_ok ? 1 : 0
 long_entry_score += ready_is_fresh ? 1 : 0
 bool entry_score_ok = long_entry_score >= min_entry_score
 string long_score_detail_suffix = str.format(' | score={0}/{1}', long_entry_score, min_entry_score)
-if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and (not require_entry_score_for_confirmed or entry_score_ok)
+if close_safe_mode and long_confirm_break and long_confirm_structure_ok and accel_confirm_gate_ok and confirm_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and (not require_entry_score_for_confirmed or entry_score_ok)
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
     long_confirm_signal := true
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3256,6 +3300,9 @@ plotshape(show_strict_debug_markers and bull_fvg_real_sweep, title = 'FVG Sweep 
 plotshape(show_strict_debug_markers and bull_reclaim_ob_strict, title = 'OB Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
 plotshape(show_strict_debug_markers and bull_reclaim_fvg_strict, title = 'FVG Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
 plotshape(show_strict_debug_markers and long_confirm_break and not long_confirm_bearish_guard_ok, title = 'Confirm Blocked By Bearish Abort', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'XCONF')
+plotshape(show_accel_debug and accel_pullback_exhaustion_long, title = 'Accel Pullback Exhaustion', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'ACC↓weak')
+plotshape(show_accel_debug and accel_reaccel_confirm_long, title = 'Accel Re-Acceleration', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'ACC↑')
+plotshape(show_accel_debug and accel_above_zero, title = 'Accel Above Zero', style = shape.circle, location = location.abovebar, color = color.lime, size = size.tiny, text = 'ACC+')
 plotshape(show_microstructure_debug and micro_session_gate_ok and zone_recent, title = 'Micro Session OK', style = shape.circle, location = location.belowbar, color = color.blue, size = size.tiny, text = 'uOK')
 plotshape(show_microstructure_debug and not micro_session_gate_ok and zone_recent, title = 'Micro Session Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uBLK')
 plotshape(show_microstructure_debug and micro_is_stop_hunt and bull_reclaim_any, title = 'Stop-hunt profile active', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'uSH')
@@ -3502,16 +3549,16 @@ plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2'
 // --------------------------------------------------
 alert_long_watchlist = bullish_trend_safe and long_zone_active_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
-alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
+alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_ready_gate_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok
+alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
