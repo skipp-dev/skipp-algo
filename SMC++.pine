@@ -290,6 +290,7 @@ method draw(Label this, LabelArgs args = na, simple bool force_overlay = false) 
             this.plot.set_point(this.point)
             if this.plot.get_text() != this.txt
                 this.plot.set_text(this.txt)
+            this.plot.set_tooltip(this.tooltip)
         this.hidden := false
     this
 
@@ -325,6 +326,7 @@ method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend
             else
                 this.plot.set_top_left_point(this.left_top)
             this.plot.set_bottom_right_point(this.right_bottom)
+            this.plot.set_text(this.txt)
         this.hidden := false
     this
 
@@ -508,6 +510,7 @@ method delete(Profile this) =>
         if not na(this.plot_profile_bg)
             this.plot_profile_bg.delete()
             this.plot_profile_bg := na
+        this.hidden := false
     this
 
 method hide(Profile this) =>
@@ -940,6 +943,8 @@ method reset_tracking(OrderBlock this) =>
     this.soft_confirmed := false
     this.has_fvg_out := false
     this.broken := false
+    this.broken_time := na
+    this.broken_index := na
 
     this.left_top := chart.point.now(high)
     this.right_bottom := chart.point.now(low)
@@ -2039,7 +2044,6 @@ method hide(FVG this) =>
             this.plot_fill_target_level.hide()
         if not na(this.plot_fill_target_label)
             this.plot_fill_target_label.hide()
-            this.plot_fill_target_label.plot.set_text(na)
         this.hidden := true
     this
 

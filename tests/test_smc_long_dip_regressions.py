@@ -114,12 +114,28 @@ def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
     assert 'method delete(OrderBlock this) =>' in source
     assert 'this.plot := na' in source
     assert 'this.profile := na' in source
+    assert 'method delete(Profile this) =>' in source
+    assert 'this.hidden := false' in source
     assert 'method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend_only = true, simple bool force_overlay = false) =>' in source
     assert 'if not na(this)' in source
+    assert 'this.plot.set_text(this.txt)' in source
+    assert 'method draw(Label this, LabelArgs args = na, simple bool force_overlay = false) =>' in source
+    assert 'this.plot.set_tooltip(this.tooltip)' in source
     assert 'method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>' in source
     assert 'int base_right_time = math.max(this.left_top.time, this.right_bottom.time)' in source
     assert 'method rendered_right_time(FVG this, bool extend_until_filled = true) =>' in source
     assert 'int effective_fill_time = effective_live_event_time(this.fill_time, base_right_time)' in source
+
+
+def test_fvg_hide_and_orderblock_reset_are_cleanup_consistent() -> None:
+    source = _read_smc_source()
+
+    assert 'method hide(FVG this) =>' in source
+    assert 'this.plot_fill_target_label.hide()' in source
+    assert 'this.plot_fill_target_label.plot.set_text(na)' not in source
+    assert 'method reset_tracking(OrderBlock this) =>' in source
+    assert 'this.broken_time := na' in source
+    assert 'this.broken_index := na' in source
 
 
 def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -> None:
