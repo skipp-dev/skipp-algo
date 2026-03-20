@@ -1988,6 +1988,18 @@ build_dynamic_alert_message(bool enabled, bool condition, string event_name, str
     else
         ''
 
+external_trend_gate(simple string symbol, simple int fast_len, simple int slow_len) =>
+    [ext_close, ext_fast, ext_slow] = request.security(symbol, timeframe.period, [close, ta.ema(close, fast_len), ta.ema(close, slow_len)], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 300)
+
+    bool ext_missing = na(ext_close) or na(ext_fast) or na(ext_slow)
+    [ext_missing, not ext_missing and ext_close > ext_fast and ext_fast > ext_slow]
+
+external_breadth_gate(simple string symbol) =>
+    ext_breadth = request.security(symbol, timeframe.period, close, gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 100)
+
+    bool breadth_missing = na(ext_breadth)
+    [breadth_missing, not breadth_missing and ext_breadth > 0]
+
 htf_fvg_key(FVG fvg) =>
     not na(fvg) ? str.format('{0}|{1}|{2}|{3}', fvg.left_top.time, fvg.right_bottom.time, format_level(fvg.left_top.price), format_level(fvg.right_bottom.price)) : ''
 
@@ -2076,6 +2088,23 @@ var g_session = 'Session / VWAP'
 var bool use_vwap_filter = input.bool(false, 'Use VWAP Filter', group = g_session, inline = 'vwap')
 var bool show_session_vwap = input.bool(false, 'Show VWAP', group = g_session, inline = 'vwap')
 var string vwap_session = input.session('0930-1600', 'Session', group = g_session, inline = 'session', display = display.none)
+var bool use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session, inline = 'trade1')
+var string trade_entry_session = input.session('0935-1130,1400-1530', 'Entry Session', group = g_session, inline = 'trade1', display = display.none)
+var bool block_entries_outside_session = input.bool(true, 'Block outside session', group = g_session, inline = 'trade2')
+var bool use_opening_range_gate = input.bool(false, 'Use Opening Range Gate', group = g_session, inline = 'or1')
+var int opening_range_minutes = input.int(30, 'OR min', minval = 5, maxval = 120, group = g_session, inline = 'or1')
+var string opening_range_bias_mode = input.string('Above OR Mid', 'Bias', options = ['Above OR Mid', 'Above OR High'], group = g_session, inline = 'or2')
+
+var g_market = 'Market Regime / Breadth'
+var bool use_index_gate = input.bool(true, 'Use Index Gate', group = g_market, inline = 'm1')
+var string index_gate_symbol = input.symbol('AMEX:SPY', 'Index', group = g_market, inline = 'm1')
+var bool use_sector_gate = input.bool(false, 'Use Sector Gate', group = g_market, inline = 'm2')
+var string sector_gate_symbol = input.symbol('NASDAQ:QQQ', 'Sector/Leader', group = g_market, inline = 'm2')
+var bool use_breadth_symbol_gate = input.bool(false, 'Use Breadth Symbol', group = g_market, inline = 'm3')
+var string breadth_gate_symbol = input.symbol('INDEX:ADD', 'Breadth', group = g_market, inline = 'm3')
+var bool block_on_missing_market_symbol = input.bool(false, 'Block on missing symbol', group = g_market, inline = 'm4')
+var int market_gate_fast_len = input.int(20, 'Fast EMA', minval = 2, group = g_market, inline = 'm5')
+var int market_gate_slow_len = input.int(50, 'Slow EMA', minval = 3, group = g_market, inline = 'm5')
 
 var g_long = 'Long Dip Tools'
 // Visuals
@@ -2114,6 +2143,26 @@ var float ob_reclaim_min_penetration = input.float(0.50, 'OB depth', minval = 0.
 var float fvg_reclaim_min_penetration = input.float(0.35, 'FVG depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict3')
 var bool use_strict_confirm_guard = input.bool(true, 'Strict confirm guard vs bearish breaks', group = g_long, inline = 'strict4')
 var bool show_strict_debug_markers = input.bool(false, 'Debug markers', group = g_long, inline = 'strict4')
+
+var g_vola = 'Volatility Regime'
+var bool use_vola_compression_gate = input.bool(false, 'Use Compression -> Expansion Gate', group = g_vola, inline = 'v1')
+var int vola_baseline_len = input.int(20, 'Baseline', minval = 5, group = g_vola, inline = 'v1')
+var float compression_ratio_max = input.float(0.85, 'Compression max ratio', minval = 0.4, maxval = 1.2, step = 0.05, group = g_vola, inline = 'v2')
+var int compression_recent_bars = input.int(8, 'Compression recent bars', minval = 1, maxval = 50, group = g_vola, inline = 'v2')
+var float expansion_range_mult = input.float(1.20, 'Expansion range x', minval = 1.0, step = 0.05, group = g_vola, inline = 'v3')
+var bool require_expansion_on_confirm_or_ready = input.bool(true, 'Require expansion now', group = g_vola, inline = 'v3')
+
+var g_quality = 'Trend Quality'
+var bool use_trend_quality_score = input.bool(true, 'Use Trend Quality Score', group = g_quality, inline = 'q1')
+var int min_trend_quality_score = input.int(7, 'Min score', minval = 1, maxval = 15, group = g_quality, inline = 'q1')
+var int score_weight_structure = input.int(2, 'Structure', minval = 0, maxval = 3, group = g_quality, inline = 'qw1')
+var int score_weight_htf = input.int(2, 'HTF', minval = 0, maxval = 3, group = g_quality, inline = 'qw1')
+var int score_weight_ema = input.int(1, 'EMA', minval = 0, maxval = 3, group = g_quality, inline = 'qw2')
+var int score_weight_adx = input.int(2, 'ADX', minval = 0, maxval = 3, group = g_quality, inline = 'qw2')
+var int score_weight_close = input.int(1, 'Close', minval = 0, maxval = 3, group = g_quality, inline = 'qw3')
+var int score_weight_relvol = input.int(1, 'RelVol', minval = 0, maxval = 3, group = g_quality, inline = 'qw3')
+var int score_weight_market = input.int(2, 'Market', minval = 0, maxval = 3, group = g_quality, inline = 'qw4')
+var int score_weight_vola = input.int(1, 'Vola', minval = 0, maxval = 3, group = g_quality, inline = 'qw4')
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
@@ -2281,6 +2330,26 @@ ema_fast = ta.ema(close, ema_fast_len)
 ema_slow = ta.ema(close, ema_slow_len)
 float session_vwap = intraday_time_chart ? ta.vwap(hlc3) : na
 bool vwap_session_active = intraday_time_chart and not na(time(timeframe.period, vwap_session))
+bool trade_entry_session_active = intraday_time_chart and not na(time(timeframe.period, trade_entry_session))
+bool session_gate_ok = not use_trade_session_gate ? true : not intraday_time_chart ? true : not block_entries_outside_session ? true : trade_entry_session_active
+int opening_range_bars = chart_tf_sec > 0 ? math.max(1, int(math.ceil(opening_range_minutes * 60.0 / chart_tf_sec))) : 1
+var float opening_range_high = na
+var float opening_range_low = na
+var int regular_session_open_bar = na
+bool regular_session_just_opened = vwap_session_active and not vwap_session_active[1]
+if regular_session_just_opened
+    regular_session_open_bar := bar_index
+    opening_range_high := high
+    opening_range_low := low
+else if vwap_session_active and not na(regular_session_open_bar)
+    int bars_since_regular_open = bar_index - regular_session_open_bar
+    if bars_since_regular_open < opening_range_bars
+        opening_range_high := na(opening_range_high) ? high : math.max(opening_range_high, high)
+        opening_range_low := na(opening_range_low) ? low : math.min(opening_range_low, low)
+bool opening_range_ready = vwap_session_active and not na(regular_session_open_bar) and bar_index - regular_session_open_bar >= opening_range_bars and not na(opening_range_high) and not na(opening_range_low)
+float opening_range_mid = opening_range_ready ? math.avg(opening_range_high, opening_range_low) : na
+bool opening_range_gate_ok = not use_opening_range_gate ? true : not intraday_time_chart ? true : not vwap_session_active ? true : not opening_range_ready ? false : opening_range_bias_mode == 'Above OR High' ? close > opening_range_high : close > opening_range_mid
+bool session_structure_gate_ok = session_gate_ok and opening_range_gate_ok
 bool vwap_filter_ok = not use_vwap_filter ? true : not intraday_time_chart ? true : not vwap_session_active ? true : not na(session_vwap) and close >= session_vwap
 
 plot(show_session_vwap and intraday_time_chart ? session_vwap : na, 'Session VWAP', color = color.new(color.blue, 0), linewidth = 2)
@@ -2296,9 +2365,17 @@ float rel_volume = not volume_data_ok or na(rel_volume_ma) or rel_volume_ma <= 0
 
 bar_range = math.max(high - low, syminfo.mintick)
 bull_close_in_range = (close - low) / bar_range
+float atr_now = nd_atr(ATR_LEN_MAIN)
+float atr_baseline = ta.sma(atr_now, vola_baseline_len)
+float range_baseline = ta.sma(bar_range, vola_baseline_len)
+bool vola_compression_now = not na(atr_baseline) and not na(range_baseline) and atr_baseline > 0 and range_baseline > 0 and atr_now <= atr_baseline * compression_ratio_max and bar_range <= range_baseline * compression_ratio_max
+int compression_since_bars = ta.barssince(vola_compression_now)
+bool vola_compression_recent = not na(compression_since_bars) and compression_since_bars <= compression_recent_bars
 
 bool bull_close_strong = not use_strong_close_filter ? true : bull_close_in_range >= min_close_in_range_pct
 string close_state_text = not use_strong_close_filter ? 'off' : bull_close_strong ? 'Strong Close' : 'Weak Close'
+bool vola_expansion_now = not na(range_baseline) and range_baseline > 0 and bar_range >= range_baseline * expansion_range_mult and bull_close_strong
+bool vola_regime_gate_ok = not use_vola_compression_gate ? true : vola_compression_recent and (not require_expansion_on_confirm_or_ready or vola_expansion_now)
 
 bool ema_support_ok = not show_ema_support ? true : close >= ema_fast and ema_fast >= ema_slow and ema_fast > ema_fast[1]
 string ema_state_text = not show_ema_support ? 'off' : ema_support_ok ? 'OK' : 'No'
@@ -2314,6 +2391,20 @@ string relvol_text = not use_rel_volume ? 'off' : not volume_data_ok ? allow_rel
 mtf_trend_1 = get_confirmed_structure_trend(mtf_trend_tf1, swing_length)
 mtf_trend_2 = get_confirmed_structure_trend(mtf_trend_tf2, swing_length)
 mtf_trend_3 = get_confirmed_structure_trend(mtf_trend_tf3, swing_length)
+[index_missing_calc, index_gate_ok_calc] = external_trend_gate(index_gate_symbol, market_gate_fast_len, market_gate_slow_len)
+[sector_missing_calc, sector_gate_ok_calc] = external_trend_gate(sector_gate_symbol, market_gate_fast_len, market_gate_slow_len)
+[breadth_missing_calc, breadth_gate_ok_calc] = external_breadth_gate(breadth_gate_symbol)
+bool index_missing = use_index_gate and index_missing_calc
+bool index_gate_ok_raw = not use_index_gate or index_gate_ok_calc
+bool sector_missing = use_sector_gate and sector_missing_calc
+bool sector_gate_ok_raw = not use_sector_gate or sector_gate_ok_calc
+bool breadth_missing = use_breadth_symbol_gate and breadth_missing_calc
+bool breadth_gate_ok_raw = not use_breadth_symbol_gate or breadth_gate_ok_calc
+bool market_symbols_missing = (use_index_gate and index_missing) or (use_sector_gate and sector_missing) or (use_breadth_symbol_gate and breadth_missing)
+bool index_gate_effective_ok = not use_index_gate or (index_missing ? not block_on_missing_market_symbol : index_gate_ok_raw)
+bool sector_gate_effective_ok = not use_sector_gate or (sector_missing ? not block_on_missing_market_symbol : sector_gate_ok_raw)
+bool breadth_gate_effective_ok = not use_breadth_symbol_gate or (breadth_missing ? not block_on_missing_market_symbol : breadth_gate_ok_raw)
+bool market_regime_gate_ok_raw = index_gate_effective_ok and sector_gate_effective_ok and breadth_gate_effective_ok
 
 [trend, bull_bos_alert, bull_choch_alert, top_x, top, trail_up_x, trail_up, hh, bear_bos_alert, bear_choch_alert, btm_x, btm, trail_dn_x, trail_dn, ll, hhll_x] = detect_structure(swing_length, filter_insignificant_internal_breaks = true)
 // Separate display-only trend state: avoid exposing the engine's bullish bootstrap bias before a real structure break occurs.
@@ -2333,6 +2424,12 @@ bool bearish_trend_safe = bearish_trend_condition
 if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
     bullish_trend_safe := bullish_trend_condition[1]
     bearish_trend_safe := bearish_trend_condition[1]
+bool market_regime_gate_ok = market_regime_gate_ok_raw
+if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
+    market_regime_gate_ok := bar_index > 0 ? market_regime_gate_ok_raw[1] : market_regime_gate_ok_raw
+bool vola_regime_gate_safe = vola_regime_gate_ok
+if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
+    vola_regime_gate_safe := bar_index > 0 ? vola_regime_gate_ok[1] : vola_regime_gate_ok
 bool bullish_trend_started = bullish_trend_safe and not bullish_trend_safe[1]
 bool bearish_trend_started = bearish_trend_safe and not bearish_trend_safe[1]
 bool directional_trend_started = bullish_trend_started or bearish_trend_started
@@ -2984,12 +3081,24 @@ else
 float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math.max(long_setup_trigger - long_planned_stop_level, syminfo.mintick) : na
 float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_setup_trigger : na
 bool overhead_zone_ok = not use_overhead_zone_filter or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r
-bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok
+bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2
+int trend_quality_score = 0
+trend_quality_score += bullish_trend_safe ? score_weight_structure : 0
+trend_quality_score += htf_alignment_ok ? score_weight_htf : 0
+trend_quality_score += ema_support_ok ? score_weight_ema : 0
+trend_quality_score += adx_strong ? score_weight_adx : 0
+trend_quality_score += bull_close_strong ? score_weight_close : 0
+trend_quality_score += relvol_ok ? score_weight_relvol : 0
+trend_quality_score += market_regime_gate_ok ? score_weight_market : 0
+trend_quality_score += vola_regime_gate_safe ? score_weight_vola : 0
+int trend_quality_max_score = score_weight_structure + score_weight_htf + score_weight_ema + score_weight_adx + score_weight_close + score_weight_relvol + score_weight_market + score_weight_vola
+bool trend_quality_gate_ok = not use_trend_quality_score or trend_quality_score >= min_trend_quality_score
+bool long_environment_gate_ok = session_structure_gate_ok and market_regime_gate_ok and vola_regime_gate_safe and trend_quality_gate_ok
+bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok and long_environment_gate_ok
 string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
 string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : 'source lost'
 string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : active_zone_touch_count <= 1 ? 'fresh touch' : active_zone_touch_count == 2 ? '2nd touch' : 'crowded'
 string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)
-bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2
 int long_entry_score = 0
 long_entry_score += bullish_trend_safe ? 1 : 0
 long_entry_score += htf_alignment_ok ? 1 : 0
@@ -3250,6 +3359,10 @@ int ltf_delta_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 :
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
 int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
+int session_gate_state = not use_trade_session_gate and not use_opening_range_gate ? 0 : session_structure_gate_ok ? 5 : not session_gate_ok ? -1 : opening_range_ready ? -1 : 1
+int market_gate_state = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 0 : market_regime_gate_ok ? 5 : market_symbols_missing and not block_on_missing_market_symbol ? 2 : -1
+int vola_gate_state = not use_vola_compression_gate ? 0 : vola_regime_gate_safe ? 5 : vola_compression_recent ? 2 : 1
+int trend_quality_state = not use_trend_quality_score ? 0 : trend_quality_gate_ok ? 5 : 2
 bool strict_flow_active = use_strict_sequence or use_strict_sweep_for_zone_reclaim or use_strict_confirm_guard
 bool strict_sequence_waiting = use_strict_sequence and not zone_touch_event_recent
 bool strict_sweep_ok = long_setup_source_kind == 'OB' ? bull_ob_real_sweep : long_setup_source_kind == 'FVG' ? bull_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
@@ -3266,6 +3379,10 @@ string ema_display = ema_state_text
 string adx_display = not use_adx ? 'Off' : str.format('{0,number,#.#} | {1}', adx_value, adx_state_text)
 string relvol_display = relvol_text
 string vwap_display = vwap_state_text
+string session_gate_display = not use_trade_session_gate and not use_opening_range_gate ? 'Off' : not intraday_time_chart ? 'n/a' : not session_gate_ok ? 'Out of Session' : not use_opening_range_gate ? 'OK' : not opening_range_ready ? 'OR Pending' : opening_range_gate_ok ? 'OK' : opening_range_bias_mode == 'Above OR High' ? 'Below OR High' : 'Below OR Mid'
+string market_gate_display = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 'Off' : market_symbols_missing ? block_on_missing_market_symbol ? 'Missing/Blocked' : 'Missing/Ignored' : market_regime_gate_ok ? 'Risk-On' : 'Blocked'
+string vola_gate_display = not use_vola_compression_gate ? 'Off' : vola_compression_recent ? vola_expansion_now ? 'Compression -> Expansion' : 'Compression Only' : 'No Compression'
+string trend_quality_display = not use_trend_quality_score ? 'Off' : str.format('{0}/{1}\nMin {2}\n{3}', trend_quality_score, trend_quality_max_score, min_trend_quality_score, trend_quality_gate_ok ? 'OK' : 'Blocked')
 string strict_ltf_display = not use_ltf_for_strict_entry ? 'Off' : strict_ltf_available ? 'OK' : allow_strict_entry_without_ltf ? 'Fallback' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : not volume_data_ok ? 'No Vol' : 'Blocked'
 string volume_quality_display = str.format('{0}\nStrict {1}', volume_data_ok ? 'OK' : 'Limited', strict_ltf_display)
 string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
@@ -3299,7 +3416,7 @@ color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
 color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
-var table smc_dashboard = table.new(position.bottom_right, 2, 25, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 29, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -3325,10 +3442,14 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 20, 'Setup Quality', setup_quality_display, status_bg(quality_state), dashboard_text)
     dashboard_row(smc_dashboard, 21, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
     dashboard_row(smc_dashboard, 22, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
-    dashboard_row(smc_dashboard, 23, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 24, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 23, 'Session', session_gate_display, status_bg(session_gate_state), dashboard_text)
+    dashboard_row(smc_dashboard, 24, 'Market Gate', market_gate_display, status_bg(market_gate_state), dashboard_text)
+    dashboard_row(smc_dashboard, 25, 'Vola Regime', vola_gate_display, status_bg(vola_gate_state), dashboard_text)
+    dashboard_row(smc_dashboard, 26, 'Trend Quality', trend_quality_display, status_bg(trend_quality_state), dashboard_text)
+    dashboard_row(smc_dashboard, 27, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 28, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 24)
+    table.clear(smc_dashboard, 0, 0, 1, 28)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -3345,14 +3466,14 @@ alert_long_watchlist = bullish_trend_safe and long_zone_active_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and entry_score_ok
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and entry_score_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and entry_score_ok
+alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and entry_score_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
