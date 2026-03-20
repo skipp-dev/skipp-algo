@@ -2576,8 +2576,10 @@ bool sd_armed_gate_ok = not use_sd_confluence or not sd_require_for_armed or sd_
 bool sd_early_gate_ok = not use_sd_confluence or not sd_require_for_early or sd_support_any_recent
 bool sd_confirmed_gate_ok = not use_sd_confluence or not sd_require_for_confirmed or sd_support_any_recent
 bool sd_ready_gate_ok = not use_sd_confluence or not sd_require_for_ready or sd_ready_context_ok
-bool sd_entry_best_gate_ok = not use_sd_confluence or not sd_require_for_entry_best or sd_support_any_recent
-bool sd_entry_strict_gate_ok = not use_sd_confluence or (sd_require_both_for_entry_strict ? sd_support_both_recent : sd_support_any_recent)
+bool sd_entry_best_context_ok = (not sd_require_for_ready or sd_ready_context_ok) and sd_support_any_recent
+bool sd_entry_best_gate_ok = not use_sd_confluence or not sd_require_for_entry_best or sd_entry_best_context_ok
+bool sd_entry_strict_context_ok = (not sd_require_for_ready or sd_ready_context_ok) and (sd_require_both_for_entry_strict ? sd_support_both_recent : sd_support_any_recent)
+bool sd_entry_strict_gate_ok = not use_sd_confluence or sd_entry_strict_context_ok
 
 float effective_ob_reclaim_min_penetration = ob_reclaim_min_penetration
 float effective_fvg_reclaim_min_penetration = fvg_reclaim_min_penetration
@@ -2655,9 +2657,9 @@ bool vol_watchlist_context_ok = not use_volatility_regime or (vol_regime_trend_o
 
 bool vol_ready_context_ok = not use_volatility_regime or (vol_regime_trend_ok and vol_momentum_expanding_long and vol_stack_spread_rising and (not vol_require_squeeze_for_ready or vol_squeeze_on or vol_squeeze_recent or vol_squeeze_release_recent))
 
-bool vol_entry_best_context_ok = not use_volatility_regime or (vol_regime_trend_ok and vol_momentum_expanding_long and vol_stack_spread_rising and (vol_require_release_for_entry_best ? vol_squeeze_release_recent : (vol_squeeze_on or vol_squeeze_recent or vol_squeeze_release_recent)))
+bool vol_entry_best_context_ok = not use_volatility_regime or (vol_ready_context_ok and (not vol_require_release_for_entry_best or vol_squeeze_release_recent))
 
-bool vol_entry_strict_context_ok = not use_volatility_regime or (vol_regime_trend_ok and vol_bull_stack_slopes and vol_momentum_expanding_long and vol_stack_spread_rising and (vol_require_release_for_entry_strict ? vol_squeeze_release_recent : (vol_squeeze_on or vol_squeeze_recent or vol_squeeze_release_recent)))
+bool vol_entry_strict_context_ok = not use_volatility_regime or (vol_entry_best_context_ok and vol_bull_stack_slopes and (not vol_require_release_for_entry_strict or vol_squeeze_release_recent))
 
 bool vol_watchlist_context_ok_safe = vol_watchlist_context_ok
 bool vol_entry_best_context_ok_safe = vol_entry_best_context_ok
@@ -2679,8 +2681,8 @@ bool anti_chase_ok_entry_best = not use_stretch_context or na(distance_to_mean_z
 bool anti_chase_ok_entry_strict = not use_stretch_context or na(distance_to_mean_z) or distance_to_mean_z <= anti_chase_max_z_strict
 bool stretch_watchlist_context_ok = not use_stretch_context or (not stretch_require_lower_extreme_for_watchlist or in_lower_extreme or lower_extreme_recent)
 bool stretch_ready_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_ready or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_ready)
-bool stretch_entry_best_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_entry_best or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best)
-bool stretch_entry_strict_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_entry_strict or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_strict)
+bool stretch_entry_best_context_ok = not use_stretch_context or (stretch_ready_context_ok and (not stretch_require_lower_extreme_for_entry_best or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best)
+bool stretch_entry_strict_context_ok = not use_stretch_context or (stretch_entry_best_context_ok and (not stretch_require_lower_extreme_for_entry_strict or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_strict)
 
 float ddvi_plus = na
 float ddvi_minus = na
@@ -2724,8 +2726,8 @@ bool strong_bull_divergence = use_ddvi_context and volume_data_ok and use_ddvi_s
 bool ddvi_bull_divergence_any = hidden_bull_divergence or strong_bull_divergence
 bool ddvi_watchlist_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_lower_extreme_context or ddvi_bias_rising)
 bool ddvi_ready_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_recover_from_lower_extreme or (ddvi_bias_rising and not ddvi_lower_extreme_now))
-bool ddvi_entry_best_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_bias_transition_ok or hidden_bull_divergence)
-bool ddvi_entry_strict_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_bias_ok and not ddvi_lower_extreme_now and (hidden_bull_divergence or strong_bull_divergence))
+bool ddvi_entry_best_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_ready_ok and (ddvi_bias_transition_ok or hidden_bull_divergence))
+bool ddvi_entry_strict_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_entry_best_ok and ddvi_bias_ok and not ddvi_lower_extreme_now and (hidden_bull_divergence or strong_bull_divergence))
 if ddvi_close_safe_only and not barstate.isconfirmed
     ddvi_watchlist_ok := bar_index > 0 ? ddvi_watchlist_ok[1] : ddvi_watchlist_ok
     ddvi_ready_ok := bar_index > 0 ? ddvi_ready_ok[1] : ddvi_ready_ok
