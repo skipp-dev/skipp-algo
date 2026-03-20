@@ -1510,10 +1510,10 @@ plot_equal_level(bool show_eq, int x1, float y1, int x2, float y2, string label_
 
         if force_overlay
             eq_line := line.new(x1, y1, x2, y2, color = line_args.line_color, style = line_args.style, width = line_args.width, force_overlay = true)
-            eq_lbl := label.new(int(math.avg(x1, x2)), math.avg(y1, y2), label_txt, label_args.xloc, label_args.yloc, label_args.bg_color, label_args.style, label_args.text_color, label_args.size, label_args.text_align, label_args.text_font_family, force_overlay = true)
+            eq_lbl := label.new(int(math.avg(x1, x2)), math.avg(y1, y2), label_txt, xloc = label_args.xloc, yloc = label_args.yloc, color = label_args.bg_color, style = label_args.style, textcolor = label_args.text_color, size = label_args.size, textalign = label_args.text_align, text_font_family = label_args.text_font_family, force_overlay = true)
         else
             eq_line := line.new(x1, y1, x2, y2, color = line_args.line_color, style = line_args.style, width = line_args.width)
-            eq_lbl := label.new(int(math.avg(x1, x2)), math.avg(y1, y2), label_txt, label_args.xloc, label_args.yloc, label_args.bg_color, label_args.style, label_args.text_color, label_args.size, label_args.text_align, label_args.text_font_family)
+            eq_lbl := label.new(int(math.avg(x1, x2)), math.avg(y1, y2), label_txt, xloc = label_args.xloc, yloc = label_args.yloc, color = label_args.bg_color, style = label_args.style, textcolor = label_args.text_color, size = label_args.size, textalign = label_args.text_align, text_font_family = label_args.text_font_family)
 
         if not keep_history
             line.delete(eq_line[1])
@@ -2162,7 +2162,7 @@ var SignalMode signal_mode = input.enum(SignalMode.CONFIRMED_ONLY, 'Signal Mode'
 var g_ltf = 'Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, tooltip = LTF_TOOLTIP)
 var bool use_ltf_for_strict_entry = input.bool(true, 'Use LTF for strict entry', group = g_ltf, tooltip = 'Keeps lower-timeframe sampling active for strict-entry filters even when the dashboard and dynamic alerts are off.')
-var bool allow_strict_entry_without_ltf = input.bool(false, 'Allow strict entry without LTF when unavailable', group = g_ltf, display = display.none, tooltip = 'Optional fallback. When enabled, strict-entry alerts may still trigger when lower-timeframe sampling is unavailable on the current chart, but other strict requirements such as confirmed volume-backed DDVI context still apply when enabled.')
+var bool allow_strict_entry_without_ltf = input.bool(false, 'Allow strict entry without LTF when unavailable', group = g_ltf, display = display.none, tooltip = 'Optional fallback. When enabled, strict-entry alerts may still trigger when lower-timeframe sampling is unavailable or unverifiable on the current chart. Strict normally prefers confirmed LTF volume context; this fallback relaxes only that sub-requirement while the remaining strict gates stay active.')
 var bool use_ltf_for_dynamic_alerts = input.bool(false, 'Use LTF in dynamic alerts', group = g_ltf, tooltip = 'When off, dynamic alert messages do not force lower-timeframe sampling just for message decoration.')
 var bool ltf_auto_select = input.bool(true, 'Auto-select lower timeframe', group = g_ltf)
 var string ltf_timeframe = input.timeframe(DEFAULT_LTF_TIMEFRAME, 'Lower timeframe', group = g_ltf, display = display.status_line)
@@ -2195,7 +2195,7 @@ var int max_ltf_samples_per_bar = input.int(300, 'Max LTF Samples / Bar', minval
 var g_data = 'Data Quality'
 var int volume_quality_lookback = input.int(50, 'Volume Quality Lookback', minval = 5, group = g_data, display = display.none)
 var int min_nonzero_volume_bars = input.int(10, 'Min Non-Zero Volume Bars', minval = 1, group = g_data, display = display.none)
-var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, non-strict stages do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, and score thresholds shrink by the unavailable RelVol component, while Strict still requires confirmed volume-backed context.')
+var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, non-strict stages do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, and score thresholds shrink by the unavailable RelVol component. Strict still prefers confirmed volume-backed context, but can be partially relaxed when the dedicated strict-entry LTF fallback is also enabled.')
 
 var g_risk = 'Risk / Exits'
 var bool show_risk_levels = input.bool(true, 'Show Risk Levels', group = g_risk)
@@ -4384,7 +4384,6 @@ alertcondition(alert_long_early_event_latched, 'Long Dip Early', 'SMC++: Early. 
 alertcondition(alert_long_clean_event_latched, 'Long Dip Clean', 'SMC++: Clean. Confirmed setup with supportive gate context.')
 alertcondition(alert_long_entry_best_event_latched, 'Long Dip Entry Best', 'SMC++: Entry Best. Ready is live and best upgrades passed.')
 alertcondition(alert_long_entry_strict_event_latched, 'Long Dip Entry Strict', 'SMC++: Entry Strict. Ready is live and strict upgrades passed.')
-alertcondition(long_invalidate_alert_event, 'Long Dip Failed', 'SMC++: Failed. Long-dip setup invalidated.')
 alertcondition(bull_bos_sig, 'Bullish BOS Detected', 'SMC++: bullish break of structure detected.')
 alertcondition(bull_choch_sig, 'Bullish CHoCH Detected', 'SMC++: bullish change of character detected.')
 alertcondition(bear_bos_sig, 'Bearish BOS Detected', 'SMC++: bearish break of structure detected.')

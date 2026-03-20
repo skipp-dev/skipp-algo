@@ -372,7 +372,7 @@ The current alert presets in `SMC++.pine` map directly to the workflow:
 - `Long Dip Clean`: confirmed and filtered setup
 - `Long Dip Entry Best`: recommended standard entry alert
 - `Long Dip Entry Strict`: later and more selective with HTF and momentum filters
-- `Long Dip Failed`: setup invalidated
+- `Long Invalidated`: setup invalidated
 
 Important behavior details after the latest alert fixes:
 

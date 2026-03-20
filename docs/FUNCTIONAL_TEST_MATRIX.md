@@ -77,3 +77,26 @@ pytest -q
 - Add dataset-driven mini backtest snapshots (trend/range/vol-spike/session-open).
 - Add mutation-style checks for gate bypass regressions.
 - Add risk-profile scenario matrix for Dynamic TP/SL and Breakeven interactions.
+
+---
+
+## SMC++ Edge-Case Matrix
+
+The current SMC++ long-dip flow is most sensitive around OB/profile ownership, sparse volume, and realtime invalidation timing. These scenarios should be covered as targeted behavior tests before treating the script as fully production-ready.
+
+| Scenario | Setup | Expected behavior | Risk guarded |
+| --- | --- | --- | --- |
+| OB profile on/off parity | Run the same reclaim-confirm-ready sequence once with `use_ob_profile = true` and once with `use_ob_profile = false` | Lifecycle progression should remain consistent; only profile-derived geometry and profile-specific diagnostics may differ | Profile toggle changing entry semantics unintentionally |
+| Zero-volume current bar | Feed a bar with valid price structure but zero/sparse volume while `allow_relvol_without_volume_data` is off, then on | Without fallback, RelVol-dependent stages should block; with fallback, non-strict stages may continue while strict still reflects reduced volume confidence | Sparse feed silently promoting weak setups |
+| Strict LTF unavailable fallback | Disable or guard LTF availability with `allow_strict_entry_without_ltf` off, then on | Strict should hard-block when fallback is off and may pass only the LTF sub-gate when fallback is on; other strict gates must still decide the outcome | Tooltip/policy drift in strict-entry semantics |
+| Backing-zone ownership transfer | Arm from an OB, then create an overlapping FVG/OB context and continue into confirmation | The setup should keep checking the original armed backing object for later invalidation instead of drifting to the newest overlap | Source drift after arm/confirm |
+| Broken OB after arm | Arm on an OB and then break that exact OB before confirmation or ready | The long setup must invalidate from the armed source and emit the invalidation path once | Stale armed setups surviving broken support |
+| Reclaim -> confirm -> invalidate | Produce a clean armed/confirmed sequence and then force source loss, expiry, or broken-down invalidation | Alert ladder should move forward monotonically and then terminate with `Long Invalidated` without reviving weaker states on the same setup serial | Lifecycle regressions after invalidation |
+| Same-bar realtime churn | In aggressive live mode, trigger arm/early/confirm intrabar and invalidate later on the same realtime bar | Latches may preserve live visibility intrabar, but the final close-safe state should resolve deterministically and not leave contradictory preset alerts latched | Realtime-only transitions leaking into close-safe history |
+| Volume-less profile object | Create or reuse an OB profile on bars with empty/zero profile volume buckets | The profile must not expose a fake POC/value area; fallback handling should stay defensive and avoid promoting profile-based quality | Fragile POC/value-area assumptions |
+
+### Suggested execution split
+
+- Close-safe path: run the matrix once in confirmed-only mode to verify historical reconstruction and final lifecycle states.
+- Realtime path: rerun the reclaim/invalidate and same-bar churn cases in aggressive live mode to verify latch behavior and alert monotonicity.
+- Profile stress path: rerun the ownership-transfer and volume-less profile cases with `use_ob_profile` toggled on and off to isolate profile-specific regressions.
