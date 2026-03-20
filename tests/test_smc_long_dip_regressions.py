@@ -72,7 +72,7 @@ def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
     assert 'select_long_arm_backing_zone_touch_count(string arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count) =>' in source
     assert 'long_setup_backing_zone_touch_count := select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)' in source
     assert "long_locked_source_kind := arm_backing_zone_kind" in source
-    assert "long_locked_source_id := arm_backing_zone_kind == 'OB' ? arm_backing_zone_id : arm_backing_zone_kind == 'FVG' ? -arm_backing_zone_id : na" in source
+    assert "long_locked_source_id := arm_backing_zone_kind == 'OB' ? arm_backing_zone_id : arm_backing_zone_kind == 'FVG' ? arm_backing_zone_id : na" in source
     assert 'long_locked_source_touch_count := long_setup_backing_zone_touch_count' in source
     assert 'long_setup_backing_zone_touch_count := long_locked_source_touch_count' in source
 
@@ -111,6 +111,9 @@ def test_ob_confirmed_profiles_are_rebuilt_from_copied_ltf_data() -> None:
 def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
     source = _read_smc_source()
 
+    assert 'method delete(OrderBlock this) =>' in source
+    assert 'this.plot := na' in source
+    assert 'this.profile := na' in source
     assert 'method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend_only = true, simple bool force_overlay = false) =>' in source
     assert 'if not na(this)' in source
     assert 'method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>' in source
@@ -122,9 +125,13 @@ def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
 def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -> None:
     source = _read_smc_source()
 
-    preset_defs = re.findall(r"alertcondition\(long_invalidate_alert_event, 'Long Invalidated', 'SMC\+\+: Invalidated\. Setup failed\.'\)", source)
+    preset_defs = re.findall(r"alertcondition\(long_invalidate_alert_event, 'Long Invalidated', 'SMC\+\+: Long setup invalidated\.'\)", source)
     assert len(preset_defs) == 1, 'Expected exactly one Long Invalidated preset definition'
     assert "alertcondition(long_invalidate_alert_event, 'Long Dip Failed'" not in source
+    assert "alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: Long setup invalidated at candle close.')" in source
+    assert "alertcondition(alert_long_watchlist_event_latched, 'Long Dip Watchlist', 'SMC++: Watchlist state active. Bullish trend with an active pullback zone.')" in source
+    assert "alertcondition(bull_bos_sig, 'Bullish BOS Detected', 'SMC++: Bullish break of structure detected.')" in source
+    assert "alertcondition(directional_trend_started, 'Trend Direction Changed', 'SMC++: Structure trend changed direction.')" in source
 
 
 def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -> None:
@@ -143,7 +150,7 @@ def test_active_backing_zones_are_protected_from_cleanup_rotation() -> None:
     source = _read_smc_source()
 
     assert 'protected_bull_id = long_setup_backing_zone_kind == \'OB\' ? long_setup_backing_zone_id : na' in source
-    assert 'long_setup_backing_zone_kind == \'FVG\' ? -long_setup_backing_zone_id : na' in source
+    assert 'long_setup_backing_zone_kind == \'FVG\' ? long_setup_backing_zone_id : na' in source
     assert 'tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull, protected_bull_id)' in source
     assert 'buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, buffer_bull_discarded, protected_bull_id)' in source
     assert 'buffer_bull.remove_insignificant(size_threshold, buffer_bull_discarded, protected_bull_id)' in source
@@ -209,7 +216,9 @@ def test_source_lock_decouples_setup_source_from_live_active_ranking() -> None:
 
     assert "var string long_locked_source_kind = 'None'" in source
     assert 'var int long_locked_source_id = na' in source
-    assert "OrderBlock current_locked_bull_ob = long_locked_source_kind == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id) : na" in source
+    assert "string prev_locked_source_kind = long_locked_source_kind" in source
+    assert 'int prev_locked_source_id = long_locked_source_id' in source
+    assert "OrderBlock prev_locked_bull_ob = prev_locked_source_kind == 'OB' ? ob_blocks_bull.get_by_id(prev_locked_source_id) : na" in source
     assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na" in source
     assert 'long_setup_source_zone_id' not in source
     assert 'armed_source_changed' not in source
@@ -225,6 +234,7 @@ def test_locked_source_drives_touch_history_and_strict_sweep() -> None:
     assert 'bool long_source_zone_touch_recent = (long_setup_armed or long_setup_confirmed) and not na(long_locked_source_id) ? long_locked_source_touch_recent' in source
     assert 'long_setup_backing_zone_touch_count := long_locked_source_touch_count' in source
     assert "bool strict_sweep_ok = long_locked_source_kind == 'OB' ? long_locked_ob_real_sweep : long_locked_source_kind == 'FVG' ? long_locked_fvg_real_sweep" in source
+    assert "fvg_zone_touch_event_recent and last_fvg_zone_touch_id == long_setup_backing_zone_id" in source
 
 
 def test_source_upgrade_is_explicit_and_quality_gated() -> None:
@@ -232,29 +242,30 @@ def test_source_upgrade_is_explicit_and_quality_gated() -> None:
 
     assert "var bool allow_armed_source_upgrade = input.bool(false, 'Allow Armed Source Upgrade'" in source
     assert "var float min_source_upgrade_quality_gain = input.float(0.15, 'Min Q Gain'" in source
-    assert 'float long_locked_source_quality = long_locked_source_kind == \'OB\' ? ob_quality_score(current_locked_bull_ob) : long_locked_source_kind == \'FVG\' ? fvg_quality_score(current_locked_bull_fvg, fvg_size_threshold) : 0.0' in source
-    assert 'bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_ob_strict' in source
-    assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_fvg_strict' in source
+    assert 'float long_locked_source_quality = prev_locked_source_kind == \'OB\' ? ob_quality_score(prev_locked_bull_ob) : prev_locked_source_kind == \'FVG\' ? fvg_quality_score(prev_locked_bull_fvg, fvg_size_threshold) : 0.0' in source
+    assert 'bool prev_locked_source_invalid_now = prev_locked_source_tracked and (prev_locked_source_broken or prev_locked_source_lost)' in source
+    assert 'bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_ob_strict' in source
+    assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict' in source
     assert 'and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'select_source_upgrade(bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float ob_upgrade_quality, float fvg_upgrade_quality) =>' in source
     assert 'if long_source_upgrade_now' in source
     assert '[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)' in source
-    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, long_locked_source_kind, long_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
 
 
 def test_source_upgrade_requires_different_candidate_than_locked_source() -> None:
     source = _read_smc_source()
 
-    assert "(long_locked_source_kind != 'OB' or long_locked_source_id != touched_bull_ob_id)" in source
-    assert "(long_locked_source_kind != 'FVG' or long_locked_source_id != touched_bull_fvg_id)" in source
+    assert "(prev_locked_source_kind != 'OB' or prev_locked_source_id != touched_bull_ob_id)" in source
+    assert "(prev_locked_source_kind != 'FVG' or prev_locked_source_id != touched_bull_fvg_id)" in source
 
 
 def test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain() -> None:
     source = _read_smc_source()
 
-    assert 'bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed' in source
-    assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed' in source
+    assert 'bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now' in source
+    assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now' in source
     assert 'touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'long_entry_origin_source' in source
@@ -264,7 +275,7 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
     source = _read_smc_source()
 
     assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, string locked_source_kind, int locked_source_id, string setup_backing_zone_kind, int setup_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
-    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, long_locked_source_kind, long_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
     assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na" in source
     assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? not na(long_locked_bull_ob) : long_locked_source_kind_final == 'FVG' ? not na(long_locked_bull_fvg) : false" in source
     assert "bool long_source_broken = long_locked_source_kind_final == 'OB' ? ob_broken_bull.contains_id(long_locked_source_id_final) or ob_broken_new_bull.contains_id(long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? filled_fvgs_bull.contains_id(long_locked_source_id_final) or filled_fvgs_new_bull.contains_id(long_locked_source_id_final) : false" in source
@@ -336,11 +347,15 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert 'resolve_long_arm_backing_zone(string arm_source_text, bool in_bull_ob_zone, bool in_bull_fvg_zone, int last_ob_zone_touch_bar_index, int last_fvg_zone_touch_bar_index, int active_bull_ob_id, int active_bull_fvg_id, bool touched_bull_ob_recent, int touched_bull_ob_id, bool touched_bull_fvg_recent, int touched_bull_fvg_id, string arm_backing_zone_kind, int arm_backing_zone_id) =>' in source
     assert 'resolve_long_locked_source_bounds(string arm_backing_zone_kind, int arm_backing_zone_id, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_top, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_top, float touched_bull_fvg_bottom) =>' in source
     assert '[arm_source_text_tmp, arm_invalidation_candidate_tmp, arm_backing_zone_kind_tmp, arm_backing_zone_id_tmp] = select_long_arm_source(bull_reclaim_ob_strict, bull_reclaim_fvg_strict, bull_reclaim_swing_low_strict, bull_reclaim_internal_low_strict, touched_bull_ob_bottom, touched_bull_ob_id, touched_bull_fvg_bottom, touched_bull_fvg_id, long_reclaim_swing_level, long_reclaim_internal_level)' in source
+    assert "arm_backing_zone_id := touched_bull_fvg_id" in source
     assert 'arm_source_text := arm_source_text_tmp' in source
     assert 'arm_invalidation_candidate := arm_invalidation_candidate_tmp' in source
     assert '[arm_backing_zone_kind_resolved, arm_backing_zone_id_resolved] = resolve_long_arm_backing_zone(arm_source_text, in_bull_ob_zone, in_bull_fvg_zone, last_ob_zone_touch_bar_index, last_fvg_zone_touch_bar_index, active_bull_ob_id, active_bull_fvg_id, touched_bull_ob_recent, touched_bull_ob_id, touched_bull_fvg_recent, touched_bull_fvg_id, arm_backing_zone_kind, arm_backing_zone_id)' in source
     assert 'arm_backing_zone_kind := arm_backing_zone_kind_resolved' in source
+    assert "backing_zone_id := ob_more_recent ? active_bull_ob_id : active_bull_fvg_id" in source
     assert '[long_locked_source_top_tmp, long_locked_source_bottom_tmp] = resolve_long_locked_source_bounds(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_top, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_top, touched_bull_fvg_bottom)' in source
+    assert "arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count" in source
+    assert "arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top" in source
     assert 'long_locked_source_top := long_locked_source_top_tmp' in source
 
 
@@ -374,6 +389,21 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_bos_sig, bear_bos_alert_key, bear_bos_alert_name, bear_bos_alert_detail, btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
+
+
+def test_intrabar_ready_and_watchlist_events_are_debounced_and_latched() -> None:
+    source = _read_smc_source()
+
+    assert 'varip bool long_ready_fired_this_bar = false' in source
+    assert 'bool long_ready_signal = long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' in source
+    assert 'if long_ready_signal' in source
+    assert 'long_ready_fired_this_bar := true' in source
+    assert 'varip bool long_watchlist_fired_this_bar = false' in source
+    assert 'bool long_watchlist_started = alert_long_watchlist and long_watchlist_rt_prev_active == 0 and not long_watchlist_fired_this_bar' in source
+    assert 'long_watchlist_fired_this_bar := true' in source
+    assert 'varip bool alert_long_watchlist_event_latched = false' in source
+    assert 'alert_long_watchlist_event_latched := update_latched_flag(alert_long_watchlist_event_latched, alert_long_watchlist_event, live_exec, barstate.isconfirmed)' in source
+    assert 'alert_long_watchlist_event_latched := false' in source
 
 
 def test_pre_arm_ob_selection_prefers_touch_anchor_then_recency_then_quality() -> None:
