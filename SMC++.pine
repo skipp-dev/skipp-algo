@@ -16,7 +16,6 @@ in_range(int value, int max, int min = 0) => min <= value and value <= max
 in_range(float max1, float min1, float max2, float min2) => min2 <= min1 and min1 <= max2 and min2 <= max1 and max1 <= max2
 in_range(int max1, int min1, int max2, int min2) => min2 <= min1 and min1 <= max2 and min2 <= max1 and max1 <= max2
 range_overlap(float max1, float min1, float max2, float min2) => min1 < max2 and max1 > min2
-range_overlap(int max1, int min1, int max2, int min2) => min1 < max2 and max1 > min2
 
 nd_atr(simple int length) =>
     float atr_value = ta.atr(length)
@@ -337,7 +336,6 @@ type ProfileConfig
     LabelArgs args_val_label = na
     LineArgs args_profile_line = na
     BoxArgs args_profile_bg = na
-    color va_fill_color = color.yellow
     bool initialized = false
 
 method init(ProfileConfig this) =>
