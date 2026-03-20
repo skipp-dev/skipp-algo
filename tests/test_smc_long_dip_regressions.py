@@ -69,7 +69,8 @@ def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
 
     assert 'long_setup_backing_zone_kind := arm_backing_zone_kind' in source
     assert 'long_setup_backing_zone_id := arm_backing_zone_id' in source
-    assert "long_setup_backing_zone_touch_count := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_touch_count : 0" in source
+    assert 'select_long_arm_backing_zone_touch_count(string arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count) =>' in source
+    assert 'long_setup_backing_zone_touch_count := select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)' in source
     assert "long_locked_source_kind := arm_backing_zone_kind" in source
     assert "long_locked_source_id := arm_backing_zone_kind == 'OB' ? arm_backing_zone_id : arm_backing_zone_kind == 'FVG' ? -arm_backing_zone_id : na" in source
     assert 'long_locked_source_touch_count := long_setup_backing_zone_touch_count' in source
@@ -214,9 +215,10 @@ def test_source_upgrade_is_explicit_and_quality_gated() -> None:
     assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_fvg_strict' in source
     assert 'and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
+    assert 'select_source_upgrade(bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float ob_upgrade_quality, float fvg_upgrade_quality) =>' in source
     assert 'if long_source_upgrade_now' in source
-    assert "string long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_setup_backing_zone_kind" in source
-    assert "string long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_locked_source_kind" in source
+    assert '[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)' in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, long_locked_source_kind, long_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
 
 
 def test_source_upgrade_requires_different_candidate_than_locked_source() -> None:
@@ -239,7 +241,8 @@ def test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain() -> None:
 def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() -> None:
     source = _read_smc_source()
 
-    assert "int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_locked_source_id" in source
+    assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, string locked_source_kind, int locked_source_id, string setup_backing_zone_kind, int setup_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, long_locked_source_kind, long_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
     assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na" in source
     assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? not na(long_locked_bull_ob) : long_locked_source_kind_final == 'FVG' ? not na(long_locked_bull_fvg) : false" in source
     assert "bool long_source_broken = long_locked_source_kind_final == 'OB' ? ob_broken_bull.contains_id(long_locked_source_id_final) or ob_broken_new_bull.contains_id(long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? filled_fvgs_bull.contains_id(long_locked_source_id_final) or filled_fvgs_new_bull.contains_id(long_locked_source_id_final) : false" in source
@@ -256,23 +259,53 @@ def test_entry_origin_and_validation_source_are_separated_for_display_and_invali
     assert "long_setup_text := str.format('Confirmed | {0}', long_setup_source_display)" in source
 
 
+def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
+    source = _read_smc_source()
+
+    assert 'select_long_arm_source(bool bull_reclaim_ob_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_internal_low_strict, float touched_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_fvg_bottom, int touched_bull_fvg_id, float long_reclaim_swing_level, float long_reclaim_internal_level) =>' in source
+    assert 'resolve_long_arm_backing_zone(string arm_source_text, bool in_bull_ob_zone, bool in_bull_fvg_zone, int last_ob_zone_touch_bar_index, int last_fvg_zone_touch_bar_index, int active_bull_ob_id, int active_bull_fvg_id, bool touched_bull_ob_recent, int touched_bull_ob_id, bool touched_bull_fvg_recent, int touched_bull_fvg_id, string arm_backing_zone_kind, int arm_backing_zone_id) =>' in source
+    assert 'resolve_long_locked_source_bounds(string arm_backing_zone_kind, int arm_backing_zone_id, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_top, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_top, float touched_bull_fvg_bottom) =>' in source
+    assert '[arm_source_text_tmp, arm_invalidation_candidate_tmp, arm_backing_zone_kind_tmp, arm_backing_zone_id_tmp] = select_long_arm_source(bull_reclaim_ob_strict, bull_reclaim_fvg_strict, bull_reclaim_swing_low_strict, bull_reclaim_internal_low_strict, touched_bull_ob_bottom, touched_bull_ob_id, touched_bull_fvg_bottom, touched_bull_fvg_id, long_reclaim_swing_level, long_reclaim_internal_level)' in source
+    assert 'arm_source_text := arm_source_text_tmp' in source
+    assert 'arm_invalidation_candidate := arm_invalidation_candidate_tmp' in source
+    assert '[arm_backing_zone_kind_resolved, arm_backing_zone_id_resolved] = resolve_long_arm_backing_zone(arm_source_text, in_bull_ob_zone, in_bull_fvg_zone, last_ob_zone_touch_bar_index, last_fvg_zone_touch_bar_index, active_bull_ob_id, active_bull_fvg_id, touched_bull_ob_recent, touched_bull_ob_id, touched_bull_fvg_recent, touched_bull_fvg_id, arm_backing_zone_kind, arm_backing_zone_id)' in source
+    assert 'arm_backing_zone_kind := arm_backing_zone_kind_resolved' in source
+    assert '[long_locked_source_top_tmp, long_locked_source_bottom_tmp] = resolve_long_locked_source_bounds(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_top, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_top, touched_bull_fvg_bottom)' in source
+    assert 'long_locked_source_top := long_locked_source_top_tmp' in source
+
+
 def test_pre_arm_ob_selection_prefers_touch_anchor_then_recency_then_quality() -> None:
     source = _read_smc_source()
 
     assert 'bool ob_candidate_touch_anchor = not na(touched_bull_ob_id) and bull_ob_candidate.id == touched_bull_ob_id' in source
-    assert 'prefer_ob_candidate := ob_candidate_touch_anchor and not best_bull_ob_touch_anchor' in source
-    assert 'prefer_ob_candidate := na(best_bull_ob_recency) or ob_candidate_recency > best_bull_ob_recency' in source
-    assert 'prefer_ob_candidate := na(best_bull_ob_quality) or ob_candidate_quality > best_bull_ob_quality' in source
-    assert 'prefer_ob_candidate := na(best_bull_ob_overlap) or ob_candidate_overlap > best_bull_ob_overlap' in source
+    assert 'zone_candidate_preferred(bool candidate_touch_anchor, int candidate_recency, float candidate_quality, float candidate_overlap, int candidate_id, bool best_touch_anchor, int best_recency, float best_quality, float best_overlap, int best_id) =>' in source
+    assert 'prefer_ob_candidate := zone_candidate_preferred(ob_candidate_touch_anchor, ob_candidate_recency, ob_candidate_quality, ob_candidate_overlap, bull_ob_candidate.id, best_bull_ob_touch_anchor, best_bull_ob_recency, best_bull_ob_quality, best_bull_ob_overlap, best_bull_ob_id)' in source
 
 
 def test_pre_arm_fvg_and_combined_active_zone_use_deterministic_priority() -> None:
     source = _read_smc_source()
 
     assert 'bool fvg_candidate_touch_anchor = not na(touched_bull_fvg_id) and bull_fvg_candidate.id == touched_bull_fvg_id' in source
-    assert 'prefer_fvg_candidate := fvg_candidate_touch_anchor and not best_bull_fvg_touch_anchor' in source
+    assert 'prefer_fvg_candidate := zone_candidate_preferred(fvg_candidate_touch_anchor, fvg_candidate_recency, fvg_candidate_quality, fvg_candidate_overlap, bull_fvg_candidate.id, best_bull_fvg_touch_anchor, best_bull_fvg_recency, best_bull_fvg_quality, best_bull_fvg_overlap, best_bull_fvg_id)' in source
+    assert 'prefer_primary_zone(bool primary_touch_anchor, int primary_recency, float primary_quality, float primary_overlap, int primary_id, bool secondary_touch_anchor, int secondary_recency, float secondary_quality, float secondary_overlap, int secondary_id) =>' in source
     assert 'bool prefer_active_ob_zone = not na(active_bull_ob_id)' in source
-    assert 'prefer_active_ob_zone := active_bull_ob_touch_anchor and not active_bull_fvg_touch_anchor' in source
-    assert 'prefer_active_ob_zone := active_bull_ob_recency > active_bull_fvg_recency' in source
-    assert 'prefer_active_ob_zone := active_bull_ob_quality > active_bull_fvg_quality' in source
+    assert 'prefer_active_ob_zone := prefer_primary_zone(active_bull_ob_touch_anchor, active_bull_ob_recency, active_bull_ob_quality, best_bull_ob_overlap, active_bull_ob_id, active_bull_fvg_touch_anchor, active_bull_fvg_recency, active_bull_fvg_quality, best_bull_fvg_overlap, active_bull_fvg_id)' in source
     assert 'int active_long_zone_id = not na(active_bull_ob_id) and (na(active_bull_fvg_id) or prefer_active_ob_zone) ? active_bull_ob_id : not na(active_bull_fvg_id) ? -active_bull_fvg_id : na' in source
+
+
+def test_bear_pre_arm_selection_uses_same_deterministic_priority_without_touch_anchor() -> None:
+    source = _read_smc_source()
+
+    assert 'int best_bear_ob_recency = na' in source
+    assert 'float best_bear_ob_quality = na' in source
+    assert 'prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate.id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)' in source
+    assert 'int best_bear_fvg_recency = na' in source
+    assert 'float best_bear_fvg_quality = na' in source
+    assert 'prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate.id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)' in source
+
+
+def test_locked_source_touch_count_selection_is_extracted() -> None:
+    source = _read_smc_source()
+
+    assert 'select_locked_source_touch_count(bool source_upgrade_now, bool prefer_ob_upgrade_now, int ob_candidate_id, int active_ob_touch_id, int active_ob_touch_count, int touched_ob_touch_count, int fvg_candidate_id, int active_fvg_touch_id, int active_fvg_touch_count, int touched_fvg_touch_count, int locked_source_touch_count) =>' in source
+    assert 'int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)' in source

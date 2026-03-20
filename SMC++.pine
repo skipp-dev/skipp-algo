@@ -1618,6 +1618,89 @@ method get_by_id(FVG[] this, int id) =>
                 break
     found
 
+zone_candidate_preferred(bool candidate_touch_anchor, int candidate_recency, float candidate_quality, float candidate_overlap, int candidate_id, bool best_touch_anchor, int best_recency, float best_quality, float best_overlap, int best_id) =>
+    bool prefer_candidate = candidate_touch_anchor and not best_touch_anchor
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor
+        prefer_candidate := na(best_recency) or candidate_recency > best_recency
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor and candidate_recency == best_recency
+        prefer_candidate := na(best_quality) or candidate_quality > best_quality
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor and candidate_recency == best_recency and candidate_quality == best_quality
+        prefer_candidate := na(best_overlap) or candidate_overlap > best_overlap
+    if not prefer_candidate and candidate_touch_anchor == best_touch_anchor and candidate_recency == best_recency and candidate_quality == best_quality and candidate_overlap == best_overlap
+        prefer_candidate := na(best_id) or candidate_id > best_id
+    prefer_candidate
+
+prefer_primary_zone(bool primary_touch_anchor, int primary_recency, float primary_quality, float primary_overlap, int primary_id, bool secondary_touch_anchor, int secondary_recency, float secondary_quality, float secondary_overlap, int secondary_id) =>
+    zone_candidate_preferred(primary_touch_anchor, primary_recency, primary_quality, primary_overlap, primary_id, secondary_touch_anchor, secondary_recency, secondary_quality, secondary_overlap, secondary_id)
+
+select_source_upgrade(bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float ob_upgrade_quality, float fvg_upgrade_quality) =>
+    bool source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok
+    bool prefer_ob_upgrade_now = source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or ob_upgrade_quality >= fvg_upgrade_quality)
+    [source_upgrade_now, prefer_ob_upgrade_now]
+
+stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, string locked_source_kind, int locked_source_id, string setup_backing_zone_kind, int setup_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>
+    string locked_source_kind_final = source_upgrade_now ? prefer_ob_upgrade_now ? 'OB' : 'FVG' : locked_source_kind
+    int locked_source_id_final = source_upgrade_now ? prefer_ob_upgrade_now ? ob_candidate_id : fvg_candidate_id : locked_source_id
+    string setup_backing_zone_kind_final = source_upgrade_now ? prefer_ob_upgrade_now ? 'OB' : 'FVG' : setup_backing_zone_kind
+    int setup_backing_zone_id_final = source_upgrade_now ? prefer_ob_upgrade_now ? ob_candidate_id : -fvg_candidate_id : setup_backing_zone_id
+    [locked_source_kind_final, locked_source_id_final, setup_backing_zone_kind_final, setup_backing_zone_id_final]
+
+select_locked_source_touch_count(bool source_upgrade_now, bool prefer_ob_upgrade_now, int ob_candidate_id, int active_ob_touch_id, int active_ob_touch_count, int touched_ob_touch_count, int fvg_candidate_id, int active_fvg_touch_id, int active_fvg_touch_count, int touched_fvg_touch_count, int locked_source_touch_count) =>
+    source_upgrade_now ? prefer_ob_upgrade_now ? (ob_candidate_id == active_ob_touch_id ? active_ob_touch_count : math.max(touched_ob_touch_count, 1)) : (fvg_candidate_id == active_fvg_touch_id ? active_fvg_touch_count : math.max(touched_fvg_touch_count, 1)) : locked_source_touch_count
+
+select_long_arm_source(bool bull_reclaim_ob_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_internal_low_strict, float touched_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_fvg_bottom, int touched_bull_fvg_id, float long_reclaim_swing_level, float long_reclaim_internal_level) =>
+    string arm_source_text = 'None'
+    float arm_invalidation_candidate = low
+    string arm_backing_zone_kind = 'None'
+    int arm_backing_zone_id = na
+    if bull_reclaim_ob_strict
+        arm_source_text := 'OB'
+        arm_invalidation_candidate := touched_bull_ob_bottom
+        arm_backing_zone_kind := 'OB'
+        arm_backing_zone_id := touched_bull_ob_id
+    else if bull_reclaim_fvg_strict
+        arm_source_text := 'FVG'
+        arm_invalidation_candidate := touched_bull_fvg_bottom
+        arm_backing_zone_kind := 'FVG'
+        arm_backing_zone_id := -touched_bull_fvg_id
+    else if bull_reclaim_swing_low_strict
+        arm_source_text := 'Swing Low'
+        arm_invalidation_candidate := long_reclaim_swing_level
+    else if bull_reclaim_internal_low_strict
+        arm_source_text := 'Internal Low'
+        arm_invalidation_candidate := long_reclaim_internal_level
+    [arm_source_text, arm_invalidation_candidate, arm_backing_zone_kind, arm_backing_zone_id]
+
+resolve_long_arm_backing_zone(string arm_source_text, bool in_bull_ob_zone, bool in_bull_fvg_zone, int last_ob_zone_touch_bar_index, int last_fvg_zone_touch_bar_index, int active_bull_ob_id, int active_bull_fvg_id, bool touched_bull_ob_recent, int touched_bull_ob_id, bool touched_bull_fvg_recent, int touched_bull_fvg_id, string arm_backing_zone_kind, int arm_backing_zone_id) =>
+    string backing_zone_kind = arm_backing_zone_kind
+    int backing_zone_id = arm_backing_zone_id
+    if arm_source_text == 'Swing Low' or arm_source_text == 'Internal Low'
+        if in_bull_ob_zone and in_bull_fvg_zone
+            bool ob_more_recent = na(last_fvg_zone_touch_bar_index) or (not na(last_ob_zone_touch_bar_index) and last_ob_zone_touch_bar_index >= last_fvg_zone_touch_bar_index)
+            backing_zone_kind := ob_more_recent ? 'OB' : 'FVG'
+            backing_zone_id := ob_more_recent ? active_bull_ob_id : -active_bull_fvg_id
+        else if in_bull_ob_zone
+            backing_zone_kind := 'OB'
+            backing_zone_id := active_bull_ob_id
+        else if in_bull_fvg_zone
+            backing_zone_kind := 'FVG'
+            backing_zone_id := -active_bull_fvg_id
+        else if touched_bull_ob_recent and not na(touched_bull_ob_id)
+            backing_zone_kind := 'OB'
+            backing_zone_id := touched_bull_ob_id
+        else if touched_bull_fvg_recent and not na(touched_bull_fvg_id)
+            backing_zone_kind := 'FVG'
+            backing_zone_id := -touched_bull_fvg_id
+    [backing_zone_kind, backing_zone_id]
+
+select_long_arm_backing_zone_touch_count(string arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count) =>
+    arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_touch_count : 0
+
+resolve_long_locked_source_bounds(string arm_backing_zone_kind, int arm_backing_zone_id, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_top, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_top, float touched_bull_fvg_bottom) =>
+    float locked_source_top = arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_top : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_top : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_top : na
+    float locked_source_bottom = arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_bottom : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_bottom : na
+    [locked_source_top, locked_source_bottom]
+
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
@@ -3364,15 +3447,7 @@ if ob_blocks_bull.size() > 0
         float ob_candidate_quality = ob_quality_score(bull_ob_candidate)
         bool prefer_ob_candidate = na(best_bull_ob_idx)
         if ob_candidate_active and not prefer_ob_candidate
-            prefer_ob_candidate := ob_candidate_touch_anchor and not best_bull_ob_touch_anchor
-            if not prefer_ob_candidate and ob_candidate_touch_anchor == best_bull_ob_touch_anchor
-                prefer_ob_candidate := na(best_bull_ob_recency) or ob_candidate_recency > best_bull_ob_recency
-            if not prefer_ob_candidate and ob_candidate_touch_anchor == best_bull_ob_touch_anchor and ob_candidate_recency == best_bull_ob_recency
-                prefer_ob_candidate := na(best_bull_ob_quality) or ob_candidate_quality > best_bull_ob_quality
-            if not prefer_ob_candidate and ob_candidate_touch_anchor == best_bull_ob_touch_anchor and ob_candidate_recency == best_bull_ob_recency and ob_candidate_quality == best_bull_ob_quality
-                prefer_ob_candidate := na(best_bull_ob_overlap) or ob_candidate_overlap > best_bull_ob_overlap
-            if not prefer_ob_candidate and ob_candidate_touch_anchor == best_bull_ob_touch_anchor and ob_candidate_recency == best_bull_ob_recency and ob_candidate_quality == best_bull_ob_quality and ob_candidate_overlap == best_bull_ob_overlap
-                prefer_ob_candidate := na(best_bull_ob_id) or bull_ob_candidate.id > best_bull_ob_id
+            prefer_ob_candidate := zone_candidate_preferred(ob_candidate_touch_anchor, ob_candidate_recency, ob_candidate_quality, ob_candidate_overlap, bull_ob_candidate.id, best_bull_ob_touch_anchor, best_bull_ob_recency, best_bull_ob_quality, best_bull_ob_overlap, best_bull_ob_id)
         if ob_candidate_active and prefer_ob_candidate
             best_bull_ob_idx := i
             best_bull_ob_id := bull_ob_candidate.id
@@ -3416,15 +3491,7 @@ if fvgs_bull.size() > 0
         float fvg_candidate_quality = fvg_quality_score(bull_fvg_candidate, fvg_size_threshold)
         bool prefer_fvg_candidate = na(best_bull_fvg_idx)
         if fvg_candidate_active and not prefer_fvg_candidate
-            prefer_fvg_candidate := fvg_candidate_touch_anchor and not best_bull_fvg_touch_anchor
-            if not prefer_fvg_candidate and fvg_candidate_touch_anchor == best_bull_fvg_touch_anchor
-                prefer_fvg_candidate := na(best_bull_fvg_recency) or fvg_candidate_recency > best_bull_fvg_recency
-            if not prefer_fvg_candidate and fvg_candidate_touch_anchor == best_bull_fvg_touch_anchor and fvg_candidate_recency == best_bull_fvg_recency
-                prefer_fvg_candidate := na(best_bull_fvg_quality) or fvg_candidate_quality > best_bull_fvg_quality
-            if not prefer_fvg_candidate and fvg_candidate_touch_anchor == best_bull_fvg_touch_anchor and fvg_candidate_recency == best_bull_fvg_recency and fvg_candidate_quality == best_bull_fvg_quality
-                prefer_fvg_candidate := na(best_bull_fvg_overlap) or fvg_candidate_overlap > best_bull_fvg_overlap
-            if not prefer_fvg_candidate and fvg_candidate_touch_anchor == best_bull_fvg_touch_anchor and fvg_candidate_recency == best_bull_fvg_recency and fvg_candidate_quality == best_bull_fvg_quality and fvg_candidate_overlap == best_bull_fvg_overlap
-                prefer_fvg_candidate := na(best_bull_fvg_id) or bull_fvg_candidate.id > best_bull_fvg_id
+            prefer_fvg_candidate := zone_candidate_preferred(fvg_candidate_touch_anchor, fvg_candidate_recency, fvg_candidate_quality, fvg_candidate_overlap, bull_fvg_candidate.id, best_bull_fvg_touch_anchor, best_bull_fvg_recency, best_bull_fvg_quality, best_bull_fvg_overlap, best_bull_fvg_id)
         if fvg_candidate_active and prefer_fvg_candidate
             best_bull_fvg_idx := i
             best_bull_fvg_id := bull_fvg_candidate.id
@@ -3453,27 +3520,49 @@ if not na(best_bull_fvg_idx)
         touched_bull_fvg_bar_index := bar_index
 
 int best_bear_ob_idx = na
+int best_bear_ob_id = na
+int best_bear_ob_recency = na
+float best_bear_ob_quality = na
 float best_bear_ob_overlap = na
 if ob_blocks_bear.size() > 0
     for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
         bear_ob_candidate = ob_blocks_bear.get(i)
         float bear_ob_candidate_overlap = math.min(high, bear_ob_candidate.left_top.price) - math.max(low, bear_ob_candidate.right_bottom.price)
         bool bear_ob_candidate_active = bear_ob_candidate_overlap >= 0
-        if bear_ob_candidate_active and (na(best_bear_ob_idx) or bear_ob_candidate_overlap > best_bear_ob_overlap)
+        int bear_ob_candidate_recency = bear_ob_candidate.right_bottom.index
+        float bear_ob_candidate_quality = ob_quality_score(bear_ob_candidate)
+        bool prefer_bear_ob_candidate = na(best_bear_ob_idx)
+        if bear_ob_candidate_active and not prefer_bear_ob_candidate
+            prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate.id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)
+        if bear_ob_candidate_active and prefer_bear_ob_candidate
             best_bear_ob_idx := i
+            best_bear_ob_id := bear_ob_candidate.id
+            best_bear_ob_recency := bear_ob_candidate_recency
+            best_bear_ob_quality := bear_ob_candidate_quality
             best_bear_ob_overlap := bear_ob_candidate_overlap
 if not na(best_bear_ob_idx)
     active_bear_ob_break_level := ob_blocks_bear.get(best_bear_ob_idx).break_price
 
 int best_bear_fvg_idx = na
+int best_bear_fvg_id = na
+int best_bear_fvg_recency = na
+float best_bear_fvg_quality = na
 float best_bear_fvg_overlap = na
 if fvgs_bear.size() > 0
     for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
         bear_fvg_candidate = fvgs_bear.get(i)
         float bear_fvg_candidate_overlap = math.min(high, bear_fvg_candidate.left_top.price) - math.max(low, bear_fvg_candidate.right_bottom.price)
         bool bear_fvg_candidate_active = bear_fvg_candidate_overlap >= 0
-        if bear_fvg_candidate_active and (na(best_bear_fvg_idx) or bear_fvg_candidate_overlap > best_bear_fvg_overlap)
+        int bear_fvg_candidate_recency = bear_fvg_candidate.right_bottom.index
+        float bear_fvg_candidate_quality = fvg_quality_score(bear_fvg_candidate, fvg_size_threshold)
+        bool prefer_bear_fvg_candidate = na(best_bear_fvg_idx)
+        if bear_fvg_candidate_active and not prefer_bear_fvg_candidate
+            prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate.id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)
+        if bear_fvg_candidate_active and prefer_bear_fvg_candidate
             best_bear_fvg_idx := i
+            best_bear_fvg_id := bear_fvg_candidate.id
+            best_bear_fvg_recency := bear_fvg_candidate_recency
+            best_bear_fvg_quality := bear_fvg_candidate_quality
             best_bear_fvg_overlap := bear_fvg_candidate_overlap
 if not na(best_bear_fvg_idx)
     active_bear_fvg_fill_level := fvgs_bear.get(best_bear_fvg_idx).fill_target_level
@@ -3482,13 +3571,7 @@ bool in_bull_ob_zone = not na(active_bull_ob_top) and not na(active_bull_ob_bott
 bool in_bull_fvg_zone = not na(active_bull_fvg_top) and not na(active_bull_fvg_bottom)
 bool prefer_active_ob_zone = not na(active_bull_ob_id)
 if not na(active_bull_ob_id) and not na(active_bull_fvg_id)
-    prefer_active_ob_zone := active_bull_ob_touch_anchor and not active_bull_fvg_touch_anchor
-    if active_bull_ob_touch_anchor == active_bull_fvg_touch_anchor
-        prefer_active_ob_zone := active_bull_ob_recency > active_bull_fvg_recency
-    if active_bull_ob_touch_anchor == active_bull_fvg_touch_anchor and active_bull_ob_recency == active_bull_fvg_recency
-        prefer_active_ob_zone := active_bull_ob_quality > active_bull_fvg_quality
-    if active_bull_ob_touch_anchor == active_bull_fvg_touch_anchor and active_bull_ob_recency == active_bull_fvg_recency and active_bull_ob_quality == active_bull_fvg_quality
-        prefer_active_ob_zone := best_bull_ob_overlap >= best_bull_fvg_overlap
+    prefer_active_ob_zone := prefer_primary_zone(active_bull_ob_touch_anchor, active_bull_ob_recency, active_bull_ob_quality, best_bull_ob_overlap, active_bull_ob_id, active_bull_fvg_touch_anchor, active_bull_fvg_recency, active_bull_fvg_quality, best_bull_fvg_overlap, active_bull_fvg_id)
 int active_long_zone_id = not na(active_bull_ob_id) and (na(active_bull_fvg_id) or prefer_active_ob_zone) ? active_bull_ob_id : not na(active_bull_fvg_id) ? -active_bull_fvg_id : na
 bool touched_bull_ob_still_active = ob_blocks_bull.contains_id(touched_bull_ob_id)
 bool touched_bull_fvg_still_active = fvgs_bull.contains_id(touched_bull_fvg_id)
@@ -3742,40 +3825,14 @@ bool long_source_lost = false
 string arm_backing_zone_kind = 'None'
 int arm_backing_zone_id = na
 
-if bull_reclaim_ob_strict
-    arm_source_text := 'OB'
-    arm_invalidation_candidate := touched_bull_ob_bottom
-    arm_backing_zone_kind := 'OB'
-    arm_backing_zone_id := touched_bull_ob_id
-else if bull_reclaim_fvg_strict
-    arm_source_text := 'FVG'
-    arm_invalidation_candidate := touched_bull_fvg_bottom
-    arm_backing_zone_kind := 'FVG'
-    arm_backing_zone_id := -touched_bull_fvg_id
-else if bull_reclaim_swing_low_strict
-    arm_source_text := 'Swing Low'
-    arm_invalidation_candidate := long_reclaim_swing_level
-else if bull_reclaim_internal_low_strict
-    arm_source_text := 'Internal Low'
-    arm_invalidation_candidate := long_reclaim_internal_level
-
-if arm_source_text == 'Swing Low' or arm_source_text == 'Internal Low'
-    if in_bull_ob_zone and in_bull_fvg_zone
-        bool ob_more_recent = na(last_fvg_zone_touch_bar_index) or (not na(last_ob_zone_touch_bar_index) and last_ob_zone_touch_bar_index >= last_fvg_zone_touch_bar_index)
-        arm_backing_zone_kind := ob_more_recent ? 'OB' : 'FVG'
-        arm_backing_zone_id := ob_more_recent ? active_bull_ob_id : -active_bull_fvg_id
-    else if in_bull_ob_zone
-        arm_backing_zone_kind := 'OB'
-        arm_backing_zone_id := active_bull_ob_id
-    else if in_bull_fvg_zone
-        arm_backing_zone_kind := 'FVG'
-        arm_backing_zone_id := -active_bull_fvg_id
-    else if touched_bull_ob_recent and not na(touched_bull_ob_id)
-        arm_backing_zone_kind := 'OB'
-        arm_backing_zone_id := touched_bull_ob_id
-    else if touched_bull_fvg_recent and not na(touched_bull_fvg_id)
-        arm_backing_zone_kind := 'FVG'
-        arm_backing_zone_id := -touched_bull_fvg_id
+[arm_source_text_tmp, arm_invalidation_candidate_tmp, arm_backing_zone_kind_tmp, arm_backing_zone_id_tmp] = select_long_arm_source(bull_reclaim_ob_strict, bull_reclaim_fvg_strict, bull_reclaim_swing_low_strict, bull_reclaim_internal_low_strict, touched_bull_ob_bottom, touched_bull_ob_id, touched_bull_fvg_bottom, touched_bull_fvg_id, long_reclaim_swing_level, long_reclaim_internal_level)
+arm_source_text := arm_source_text_tmp
+arm_invalidation_candidate := arm_invalidation_candidate_tmp
+arm_backing_zone_kind := arm_backing_zone_kind_tmp
+arm_backing_zone_id := arm_backing_zone_id_tmp
+[arm_backing_zone_kind_resolved, arm_backing_zone_id_resolved] = resolve_long_arm_backing_zone(arm_source_text, in_bull_ob_zone, in_bull_fvg_zone, last_ob_zone_touch_bar_index, last_fvg_zone_touch_bar_index, active_bull_ob_id, active_bull_fvg_id, touched_bull_ob_recent, touched_bull_ob_id, touched_bull_fvg_recent, touched_bull_fvg_id, arm_backing_zone_kind, arm_backing_zone_id)
+arm_backing_zone_kind := arm_backing_zone_kind_resolved
+arm_backing_zone_id := arm_backing_zone_id_resolved
 
 // 2) Invalidation
 if barstate.isnew
@@ -3794,13 +3851,9 @@ FVG current_locked_bull_fvg = long_locked_source_kind == 'FVG' ? fvgs_bull.get_b
 float long_locked_source_quality = long_locked_source_kind == 'OB' ? ob_quality_score(current_locked_bull_ob) : long_locked_source_kind == 'FVG' ? fvg_quality_score(current_locked_bull_fvg, fvg_size_threshold) : 0.0
 bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_ob_strict and not na(touched_bull_ob_block) and (long_locked_source_kind != 'OB' or long_locked_source_id != touched_bull_ob_id) and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
 bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_fvg_strict and not na(touched_bull_fvg_block) and (long_locked_source_kind != 'FVG' or long_locked_source_id != touched_bull_fvg_id) and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
-bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok
-bool prefer_ob_upgrade = long_source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)
-string long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_locked_source_kind
-int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_locked_source_id
-string long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_setup_backing_zone_kind
-int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : -touched_bull_fvg_id : long_setup_backing_zone_id
-int long_locked_source_touch_count_effective = long_source_upgrade_now ? prefer_ob_upgrade ? (touched_bull_ob_id == active_ob_touch_id ? active_ob_touch_count : math.max(touched_bull_ob_touch_count, 1)) : (touched_bull_fvg_id == active_fvg_touch_id ? active_fvg_touch_count : math.max(touched_bull_fvg_touch_count, 1)) : long_locked_source_touch_count
+[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)
+[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, long_locked_source_kind, long_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)
+int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)
 int long_locked_source_last_touch_bar_index_effective = long_source_upgrade_now and not na(long_locked_source_id_final) ? bar_index : long_locked_source_last_touch_bar_index
 OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na
 FVG long_locked_bull_fvg = long_locked_source_kind_final == 'FVG' ? fvgs_bull.get_by_id(long_locked_source_id_final) : na
@@ -3887,11 +3940,12 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_entry_origin_source := arm_source_text
     long_setup_backing_zone_kind := arm_backing_zone_kind
     long_setup_backing_zone_id := arm_backing_zone_id
-    long_setup_backing_zone_touch_count := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_touch_count : 0
+    long_setup_backing_zone_touch_count := select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)
     long_locked_source_kind := arm_backing_zone_kind
     long_locked_source_id := arm_backing_zone_kind == 'OB' ? arm_backing_zone_id : arm_backing_zone_kind == 'FVG' ? -arm_backing_zone_id : na
-    long_locked_source_top := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_top : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_top : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_top : na
-    long_locked_source_bottom := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_bottom : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_bottom : na
+    [long_locked_source_top_tmp, long_locked_source_bottom_tmp] = resolve_long_locked_source_bounds(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_top, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_top, touched_bull_fvg_bottom)
+    long_locked_source_top := long_locked_source_top_tmp
+    long_locked_source_bottom := long_locked_source_bottom_tmp
     long_locked_source_touch_count := long_setup_backing_zone_touch_count
     long_locked_source_last_touch_bar_index := not na(long_locked_source_id) ? bar_index : na
     long_setup_serial += 1
