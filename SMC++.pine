@@ -733,7 +733,7 @@ type OrderBlock
     Box plot
     Profile profile
 
-    float probability                            = 0
+    float quality_score                          = 0
     bool trailing                                = false
     bool extending                               = false
     bool awaiting_confirmation                   = false
@@ -753,7 +753,7 @@ type OrderBlockConfig
     bool show_profile = true
     bool show_text = true
     bool show_fvg_out = true
-    bool show_probability = false
+    bool show_quality_score = false
     bool extend_until_broken = true
 
     BoxArgs args
@@ -792,7 +792,7 @@ create_ob(int id, int mode, int start_t, int start_i, float top, int end_t, int 
 
     float block_height = math.max(top - bottom, syminfo.mintick)
     float normalized_height = math.min(block_height / math.max(syminfo.mintick * 20, syminfo.mintick), 1.0)
-    block.probability := math.max(0.0, math.min(1.0, 0.20 + normalized_height * 0.20))
+    block.quality_score := math.max(0.0, math.min(1.0, 0.20 + normalized_height * 0.20))
 
     block
 
@@ -853,6 +853,15 @@ method contains_id(OrderBlock[] this, int id) =>
         for block in this
             if block.id == id
                 found := true
+                break
+    found
+
+method get_by_id(OrderBlock[] this, int id) =>
+    OrderBlock found = na
+    if not na(this) and not na(id)
+        for block in this
+            if block.id == id
+                found := block
                 break
     found
 
@@ -1306,10 +1315,10 @@ method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, s
 
         if barstate.islast and not na(this) and config.show
             txt_fvg = config.show_fvg_out and this.has_fvg_out ? '+FVG' : ''
-            float ob_quality = config.show_probability ? ob_quality_score(this) : 0.0
-            txt_probability = config.show_probability and ob_quality > 0 ? str.format(' (Q {0,number,percent})', ob_quality) : ''
+            float ob_quality = config.show_quality_score ? ob_quality_score(this) : 0.0
+            txt_quality = config.show_quality_score and ob_quality > 0 ? str.format(' (Q {0,number,percent})', ob_quality) : ''
             txt_id = config.show_id ? ' #' + str.tostring(this.id) : ''
-            txt = config.show_text ? config.show_profile and config.profile_config.show_poc and config.profile_config.show_labels ? str.format('{0}{1}{2}', config.txt, txt_fvg, txt_id) : str.format('{0}{1}{2}{3}', config.txt, txt_fvg, txt_probability, txt_id) : ''
+            txt = config.show_text ? config.show_profile and config.profile_config.show_poc and config.profile_config.show_labels ? str.format('{0}{1}{2}', config.txt, txt_fvg, txt_id) : str.format('{0}{1}{2}{3}', config.txt, txt_fvg, txt_quality, txt_id) : ''
 
             xloc_bartime = config.args.xloc == xloc.bar_time
             int broken_right_time = effective_live_event_time(this.broken_time, math.max(this.left_top.time, this.right_bottom.time))
@@ -1332,7 +1341,7 @@ method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, s
                     this.plot.plot.set_text(txt)
 
                 if config.show_profile and not na(this.profile)
-                    poc_txt = config.show_probability and config.profile_config.show_poc and config.profile_config.show_labels ? config.profile_config.poc_label_text + txt_fvg + txt_probability : na
+                    poc_txt = config.show_quality_score and config.profile_config.show_poc and config.profile_config.show_labels ? config.profile_config.poc_label_text + txt_fvg + txt_quality : na
                     this.profile.draw(config.profile_config, left, right, extend_only, force_overlay, poc_txt)
 
                 if this.broken and broken_right_time <= current_bar_right_time()
@@ -1548,7 +1557,7 @@ type FVGConfig
     bool show_target_label = true
     int show_last = 5
     bool show_text = true
-    bool show_probability = false
+    bool show_quality_score = false
     bool show_profile = false
     BoxArgs box_args = na
     BoxTextArgs box_text_args = na
@@ -1569,7 +1578,7 @@ type FVG
     float fill_current_ratio
     float fill_current_level
     float total_volume
-    float probability = na
+    float quality_score = na
     bool filled = false
     int fill_time = na
     int fill_index = na
@@ -1600,6 +1609,15 @@ method contains_id(FVG[] this, int id) =>
                 break
     found
 
+method get_by_id(FVG[] this, int id) =>
+    FVG found = na
+    if not na(this) and not na(id)
+        for fvg in this
+            if fvg.id == id
+                found := fvg
+                break
+    found
+
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
@@ -1623,7 +1641,7 @@ _detect_fvg_object(int mode, bool enabled, float size_threshold = 0, LevelBreakM
          fill_current_ratio = 0,
          fill_current_level = mode == 1 ? top : btm,
          total_volume = volume[2] + volume[1] + volume)
-        new_fvg.probability := math.max(0.0, math.min(1.0, 0.15 + math.min(size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (new_fvg.total_volume > 0 ? 0.10 : 0.0) + 0.15))
+        new_fvg.quality_score := math.max(0.0, math.min(1.0, 0.15 + math.min(size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (new_fvg.total_volume > 0 ? 0.10 : 0.0) + 0.15))
         [true, new_fvg]
     else
         [false, na]
@@ -1826,9 +1844,9 @@ method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool for
     else
 
         if barstate.islast and not na(this) and (config.show_box or config.show_target)
-            float fvg_quality = config.show_probability ? fvg_quality_score(this, this.left_top.price - this.right_bottom.price) : 0.0
-            txt_probability = config.show_probability and fvg_quality > 0 ? str.format('(Q {0,number,percent})', fvg_quality) : ''
-            txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_probability)
+            float fvg_quality = config.show_quality_score ? fvg_quality_score(this, this.left_top.price - this.right_bottom.price) : 0.0
+            txt_quality = config.show_quality_score and fvg_quality > 0 ? str.format('(Q {0,number,percent})', fvg_quality) : ''
+            txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_quality)
 
             xloc_bartime = config.box_args.xloc == xloc.bar_time
             int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
@@ -1869,7 +1887,7 @@ method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool for
                 this.plot_fill_target_level.draw(config.line_args, extend_only, force_overlay)
 
             if config.show_target_label
-                txt_target = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', txt_probability)
+                txt_target = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', txt_quality)
                 if na(this.plot_fill_target_label)
                     this.plot_fill_target_label := create_label(right, this.fill_target_level, config.label_args.xloc, txt_target)
                 else
@@ -2324,6 +2342,8 @@ var bool use_strict_sequence = input.bool(true, 'Strict: Zone -> Reclaim -> Inte
 var bool tighten_armed_stage = input.bool(true, 'Tighten Armed Stage', group = g_long, inline = 'strict1')
 var bool allow_same_bar_zone_reclaim = input.bool(false, 'Allow same-bar reclaim', group = g_long, inline = 'strict1')
 var bool use_strict_sweep_for_zone_reclaim = input.bool(true, 'Strict sweep for OB/FVG reclaim', group = g_long, inline = 'strict2')
+var bool allow_armed_source_upgrade = input.bool(false, 'Allow Armed Source Upgrade', group = g_long, inline = 'strict5')
+var float min_source_upgrade_quality_gain = input.float(0.15, 'Min Q Gain', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict5')
 var float ob_reclaim_min_penetration = input.float(0.50, 'OB depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict2')
 var float fvg_reclaim_min_penetration = input.float(0.35, 'FVG depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict3')
 var bool use_strict_confirm_guard = input.bool(true, 'Strict confirm guard vs bearish breaks', group = g_long, inline = 'strict4')
@@ -3112,6 +3132,12 @@ var string long_setup_source_kind = 'None'
 var string long_setup_backing_zone_kind = 'None'
 var int long_setup_backing_zone_id = na
 var int long_setup_backing_zone_touch_count = 0
+var string long_locked_source_kind = 'None'
+var int long_locked_source_id = na
+var float long_locked_source_top = na
+var float long_locked_source_bottom = na
+var int long_locked_source_touch_count = 0
+var int long_locked_source_last_touch_bar_index = na
 var int long_setup_serial = 0
 var string long_last_invalid_source = 'None'
 var float long_last_invalid_level = na
@@ -3179,11 +3205,11 @@ var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display =
 bool enable_fvg_engine = use_fvg_engine
 [bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max, object_gc_cycle, long_setup_backing_zone_kind == 'FVG' ? -long_setup_backing_zone_id : na)
 
-var fvg_config_bull = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬈', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc.bar_index), box_text_args = BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
-var fvg_config_bear = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬊', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css, 0, line.style_solid, bear_fvg_css, xloc.bar_index), box_text_args = BoxTextArgs.new(bear_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(bear_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bull = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬈', show_quality_score = true, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc.bar_index), box_text_args = BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bear = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬊', show_quality_score = true, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css, 0, line.style_solid, bear_fvg_css, xloc.bar_index), box_text_args = BoxTextArgs.new(bear_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(bear_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 var show_fvg_filled = show_fvg and fvg_keep_filled and fvg_keep_filled_max > 0
-var fvg_config_bull_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_probability = false, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc.bar_index), box_text_args = BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
-var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_probability = false, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc.bar_index), box_text_args = BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bull_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_quality_score = false, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc.bar_index), box_text_args = BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
+var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_quality_score = false, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc.bar_index), box_text_args = BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 
 bool bullish_fvg_filled_alert = filled_fvgs_new_bull.size() > 0
 bool bearish_fvg_filled_alert = filled_fvgs_new_bear.size() > 0
@@ -3332,12 +3358,14 @@ if ob_blocks_bull.size() > 0
             best_bull_ob_idx := i
             best_bull_ob_overlap := ob_candidate_overlap
 int active_bull_ob_id = na
+float active_bull_ob_quality = 0.0
 if not na(best_bull_ob_idx)
     best_bull_ob = ob_blocks_bull.get(best_bull_ob_idx)
     active_bull_ob_top := best_bull_ob.left_top.price
     active_bull_ob_bottom := best_bull_ob.right_bottom.price
     active_bull_ob_break_level := best_bull_ob.break_price
     active_bull_ob_id := best_bull_ob.id
+    active_bull_ob_quality := ob_quality_score(best_bull_ob)
     if state_update_bar_ok
         touched_bull_ob_top := active_bull_ob_top
         touched_bull_ob_bottom := active_bull_ob_bottom
@@ -3356,12 +3384,14 @@ if fvgs_bull.size() > 0
             best_bull_fvg_idx := i
             best_bull_fvg_overlap := fvg_candidate_overlap
 int active_bull_fvg_id = na
+float active_bull_fvg_quality = 0.0
 if not na(best_bull_fvg_idx)
     best_bull_fvg = fvgs_bull.get(best_bull_fvg_idx)
     active_bull_fvg_top := best_bull_fvg.left_top.price
     active_bull_fvg_bottom := best_bull_fvg.right_bottom.price
     active_bull_fvg_fill_level := best_bull_fvg.fill_target_level
     active_bull_fvg_id := best_bull_fvg.id
+    active_bull_fvg_quality := fvg_quality_score(best_bull_fvg, fvg_size_threshold)
     if state_update_bar_ok
         touched_bull_fvg_top := active_bull_fvg_top
         touched_bull_fvg_bottom := active_bull_fvg_bottom
@@ -3402,6 +3432,10 @@ bool touched_bull_ob_still_active = ob_blocks_bull.contains_id(touched_bull_ob_i
 bool touched_bull_fvg_still_active = fvgs_bull.contains_id(touched_bull_fvg_id)
 bool touched_bull_ob_recent = touched_bull_ob_still_active and not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
 bool touched_bull_fvg_recent = touched_bull_fvg_still_active and not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
+OrderBlock touched_bull_ob_block = touched_bull_ob_still_active ? ob_blocks_bull.get_by_id(touched_bull_ob_id) : na
+FVG touched_bull_fvg_block = touched_bull_fvg_still_active ? fvgs_bull.get_by_id(touched_bull_fvg_id) : na
+float touched_bull_ob_quality = not na(touched_bull_ob_block) ? ob_quality_score(touched_bull_ob_block) : 0.0
+float touched_bull_fvg_quality = not na(touched_bull_fvg_block) ? fvg_quality_score(touched_bull_fvg_block, fvg_size_threshold) : 0.0
 bool long_zone_active = in_bull_ob_zone or in_bull_fvg_zone
 bool long_zone_active_safe = long_zone_active
 int active_long_zone_id_safe = active_long_zone_id
@@ -3473,6 +3507,21 @@ if state_update_bar_ok and fvg_touch_now and last_fvg_touch_bar != bar_index and
     else
         active_fvg_touch_count += 1
     last_fvg_touch_bar := bar_index
+
+OrderBlock long_locked_bull_ob = long_locked_source_kind == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id) : na
+FVG long_locked_bull_fvg = long_locked_source_kind == 'FVG' ? fvgs_bull.get_by_id(long_locked_source_id) : na
+bool long_locked_source_alive_now = long_locked_source_kind == 'OB' ? not na(long_locked_bull_ob) : long_locked_source_kind == 'FVG' ? not na(long_locked_bull_fvg) : false
+float long_locked_source_top_now = long_locked_source_kind == 'OB' and not na(long_locked_bull_ob) ? long_locked_bull_ob.left_top.price : long_locked_source_kind == 'FVG' and not na(long_locked_bull_fvg) ? long_locked_bull_fvg.left_top.price : na
+float long_locked_source_bottom_now = long_locked_source_kind == 'OB' and not na(long_locked_bull_ob) ? long_locked_bull_ob.right_bottom.price : long_locked_source_kind == 'FVG' and not na(long_locked_bull_fvg) ? long_locked_bull_fvg.right_bottom.price : na
+if long_locked_source_alive_now
+    long_locked_source_top := long_locked_source_top_now
+    long_locked_source_bottom := long_locked_source_bottom_now
+bool long_locked_source_in_zone = long_locked_source_alive_now and not na(long_locked_source_top_now) and not na(long_locked_source_bottom_now) and math.min(high, long_locked_source_top_now) - math.max(low, long_locked_source_bottom_now) >= 0
+bool long_locked_source_touch_now = long_locked_source_in_zone and (not long_locked_source_in_zone[1] or long_locked_source_id != long_locked_source_id[1] or long_locked_source_kind != long_locked_source_kind[1])
+if state_update_bar_ok and (long_setup_armed or long_setup_confirmed) and long_locked_source_touch_now and long_locked_source_last_touch_bar_index != bar_index and not na(long_locked_source_id)
+    long_locked_source_touch_count += 1
+    long_locked_source_last_touch_bar_index := bar_index
+bool long_locked_source_touch_recent = (long_setup_armed or long_setup_confirmed) and not na(long_locked_source_last_touch_bar_index) and bar_index - long_locked_source_last_touch_bar_index <= long_signal_window
 bool ob_zone_touch_quality_ok = not block_third_touch or active_ob_touch_count <= max_zone_touches_for_entry
 bool fvg_zone_touch_quality_ok = not block_third_touch or active_fvg_touch_count <= max_zone_touches_for_entry
 bool zone_touch_quality_ok = not block_third_touch or active_zone_touch_count <= max_zone_touches_for_entry
@@ -3555,6 +3604,11 @@ float bull_ob_required_sweep_level = not na(bull_ob_zone_height) ? touched_bull_
 float bull_fvg_required_sweep_level = not na(bull_fvg_zone_height) ? touched_bull_fvg_top - bull_fvg_zone_height * effective_fvg_reclaim_min_penetration : na
 bool bull_ob_real_sweep = touched_bull_ob_still_active and not na(bull_ob_required_sweep_level) and low <= bull_ob_required_sweep_level
 bool bull_fvg_real_sweep = touched_bull_fvg_still_active and not na(bull_fvg_required_sweep_level) and low <= bull_fvg_required_sweep_level
+float long_locked_source_zone_height = not na(long_locked_source_top) and not na(long_locked_source_bottom) ? math.max(long_locked_source_top - long_locked_source_bottom, syminfo.mintick) : na
+float long_locked_ob_required_sweep_level = long_locked_source_kind == 'OB' and not na(long_locked_source_zone_height) ? long_locked_source_top - long_locked_source_zone_height * effective_ob_reclaim_min_penetration : na
+float long_locked_fvg_required_sweep_level = long_locked_source_kind == 'FVG' and not na(long_locked_source_zone_height) ? long_locked_source_top - long_locked_source_zone_height * effective_fvg_reclaim_min_penetration : na
+bool long_locked_ob_real_sweep = long_locked_source_kind == 'OB' and long_locked_source_alive_now and not na(long_locked_ob_required_sweep_level) and low <= long_locked_ob_required_sweep_level
+bool long_locked_fvg_real_sweep = long_locked_source_kind == 'FVG' and long_locked_source_alive_now and not na(long_locked_fvg_required_sweep_level) and low <= long_locked_fvg_required_sweep_level
 bool bull_reclaim_ob_strict = bull_reclaim_ob and (not use_strict_sequence or ob_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim or bull_ob_real_sweep)
 bool bull_reclaim_fvg_strict = bull_reclaim_fvg and (not use_strict_sequence or fvg_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim or bull_fvg_real_sweep)
 bool bull_reclaim_internal_low_strict = bull_reclaim_internal_low and (not use_strict_sequence or generic_zone_touch_sequence_ok)
@@ -3692,23 +3746,39 @@ bool ready_is_fresh = long_setup_confirmed and not na(long_confirm_bar_index) an
 bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_armed or long_setup_confirmed or long_setup_age <= effective_fast_decay_setup_age_max
 bool micro_confirm_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_confirmed or long_confirm_age <= effective_fast_decay_confirm_age_max
 bool micro_freshness_gate_ok = micro_setup_fresh_enough and micro_confirm_fresh_enough
-bool long_source_zone_touch_recent = long_setup_backing_zone_kind == 'OB' ? ob_zone_touch_event_recent and last_ob_zone_touch_id == long_setup_backing_zone_id : long_setup_backing_zone_kind == 'FVG' ? fvg_zone_touch_event_recent and -last_fvg_zone_touch_id == long_setup_backing_zone_id : zone_touch_event_recent
-long_setup_source_zone_id := long_setup_backing_zone_id
-long_active_source_zone_id := long_setup_backing_zone_kind == 'OB' ? active_bull_ob_id : long_setup_backing_zone_kind == 'FVG' ? -active_bull_fvg_id : active_long_zone_id_safe
-long_source_tracked := not na(long_setup_backing_zone_id)
-long_source_alive := long_setup_backing_zone_id > 0 ? ob_blocks_bull.contains_id(long_setup_backing_zone_id) : long_setup_backing_zone_id < 0 ? fvgs_bull.contains_id(-long_setup_backing_zone_id) : true
-long_source_lost := (long_setup_armed or long_setup_confirmed) and long_source_tracked and not long_source_alive
-armed_source_changed := long_setup_armed and not long_setup_confirmed and long_source_tracked and not long_source_lost and not na(long_setup_source_zone_id) and not na(long_active_source_zone_id) and long_active_source_zone_id != long_setup_source_zone_id
+float long_locked_source_quality = long_locked_source_kind == 'OB' ? ob_quality_score(long_locked_bull_ob) : long_locked_source_kind == 'FVG' ? fvg_quality_score(long_locked_bull_fvg, fvg_size_threshold) : 0.0
+bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_ob_strict and not na(touched_bull_ob_block) and (long_locked_source_kind != 'OB' or long_locked_source_id != touched_bull_ob_id) and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
+bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and bull_reclaim_fvg_strict and not na(touched_bull_fvg_block) and (long_locked_source_kind != 'FVG' or long_locked_source_id != touched_bull_fvg_id) and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
+bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok
+if long_source_upgrade_now
+    bool prefer_ob_upgrade = ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)
+    long_setup_backing_zone_kind := prefer_ob_upgrade ? 'OB' : 'FVG'
+    long_setup_backing_zone_id := prefer_ob_upgrade ? touched_bull_ob_id : -touched_bull_fvg_id
+    long_setup_backing_zone_touch_count := prefer_ob_upgrade ? (touched_bull_ob_id == active_ob_touch_id ? active_ob_touch_count : math.max(long_locked_source_touch_count, 1)) : (touched_bull_fvg_id == active_fvg_touch_id ? active_fvg_touch_count : math.max(long_locked_source_touch_count, 1))
+    long_locked_source_kind := prefer_ob_upgrade ? 'OB' : 'FVG'
+    long_locked_source_id := prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id
+    long_locked_source_top := prefer_ob_upgrade ? touched_bull_ob_block.left_top.price : touched_bull_fvg_block.left_top.price
+    long_locked_source_bottom := prefer_ob_upgrade ? touched_bull_ob_block.right_bottom.price : touched_bull_fvg_block.right_bottom.price
+    long_locked_source_touch_count := long_setup_backing_zone_touch_count
+    long_locked_source_last_touch_bar_index := bar_index
+bool long_source_zone_touch_recent = (long_setup_armed or long_setup_confirmed) and not na(long_locked_source_id) ? long_locked_source_touch_recent : long_setup_backing_zone_kind == 'OB' ? ob_zone_touch_event_recent and last_ob_zone_touch_id == long_setup_backing_zone_id : long_setup_backing_zone_kind == 'FVG' ? fvg_zone_touch_event_recent and -last_fvg_zone_touch_id == long_setup_backing_zone_id : zone_touch_event_recent
+long_setup_source_zone_id := long_locked_source_id
+long_active_source_zone_id := long_locked_source_kind == 'OB' ? active_bull_ob_id : long_locked_source_kind == 'FVG' ? -active_bull_fvg_id : active_long_zone_id_safe
+long_source_tracked := not na(long_locked_source_id)
+long_source_alive := not long_source_tracked ? true : long_locked_source_alive_now
+bool long_source_broken = long_locked_source_kind == 'OB' ? ob_broken_bull.contains_id(long_locked_source_id) or ob_broken_new_bull.contains_id(long_locked_source_id) : long_locked_source_kind == 'FVG' ? filled_fvgs_bull.contains_id(long_locked_source_id) or filled_fvgs_new_bull.contains_id(long_locked_source_id) : false
+long_source_lost := (long_setup_armed or long_setup_confirmed) and long_source_tracked and not long_source_alive and not long_source_broken
+armed_source_changed := false
 bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age > long_setup_expiry_bars
 bool long_confirm_expired = long_setup_confirmed and long_confirm_age > long_confirm_expiry_bars
 float long_invalidation_break_src = live_exec and effective_use_live_invalidation_break ? low : close
 bool long_broken_down = not na(long_invalidation_level) and long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
-bool long_invalidated_now = armed_source_changed or long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired))
+bool long_invalidated_now = long_source_broken or long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired))
 bool invalidated_prior_setup = false
 
 if long_invalidated_now
-    if armed_source_changed
-        long_last_invalid_source := str.format('{0} source changed', long_setup_source)
+    if long_source_broken
+        long_last_invalid_source := str.format('{0} source invalidated', long_setup_source)
     else if long_source_lost
         long_last_invalid_source := str.format('{0} backing zone lost', long_setup_source)
     else if long_setup_expired
@@ -3732,6 +3802,12 @@ if long_invalidated_now
     long_setup_backing_zone_kind := 'None'
     long_setup_backing_zone_id := na
     long_setup_backing_zone_touch_count := 0
+    long_locked_source_kind := 'None'
+    long_locked_source_id := na
+    long_locked_source_top := na
+    long_locked_source_bottom := na
+    long_locked_source_touch_count := 0
+    long_locked_source_last_touch_bar_index := na
 
 // 3) Arm setup
 bool armed_prequality_ok = not tighten_armed_stage or (bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok)
@@ -3748,6 +3824,12 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_setup_backing_zone_kind := arm_backing_zone_kind
     long_setup_backing_zone_id := arm_backing_zone_id
     long_setup_backing_zone_touch_count := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : 0
+    long_locked_source_kind := arm_backing_zone_kind
+    long_locked_source_id := arm_backing_zone_kind == 'OB' ? arm_backing_zone_id : arm_backing_zone_kind == 'FVG' ? -arm_backing_zone_id : na
+    long_locked_source_top := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_top : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_top : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_top : na
+    long_locked_source_bottom := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_bottom : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_bottom : na
+    long_locked_source_touch_count := long_setup_backing_zone_touch_count
+    long_locked_source_last_touch_bar_index := not na(long_locked_source_id) ? bar_index : na
     long_setup_serial += 1
 
 // 4) Confirm setup
@@ -3764,10 +3846,7 @@ if not long_confirm_structure_ok
 long_plan_active := (long_setup_armed or long_setup_confirmed) and not na(long_setup_trigger) and not na(long_invalidation_level)
 float long_planned_stop_level = long_plan_active ? long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult : na
 if long_setup_armed or long_setup_confirmed
-    if long_setup_backing_zone_kind == 'OB' and long_setup_backing_zone_id == active_ob_touch_id
-        long_setup_backing_zone_touch_count := active_ob_touch_count
-    else if long_setup_backing_zone_kind == 'FVG' and -long_setup_backing_zone_id == active_fvg_touch_id
-        long_setup_backing_zone_touch_count := active_fvg_touch_count
+    long_setup_backing_zone_touch_count := long_locked_source_touch_count
 float overhead_scan_reference = long_plan_active and not na(long_setup_trigger) ? long_setup_trigger : close
 float nearest_bear_ob_blocker_level = na
 if ob_blocks_bear.size() > 0
@@ -3814,7 +3893,7 @@ bool trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok an
 bool long_gate_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate
 string long_environment_focus_display = not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env OK'
 string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
-string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : 'source lost'
+string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : long_source_broken ? 'source invalid' : 'source lost'
 int effective_long_active_touch_count = active_zone_touch_count
 if long_setup_armed or long_setup_confirmed
     effective_long_active_touch_count := long_setup_backing_zone_touch_count
@@ -4132,8 +4211,8 @@ int micro_profile_state = not use_microstructure_profiles ? 0 : micro_is_stop_hu
 int micro_freshness_state = not use_microstructure_profiles ? 0 : micro_freshness_gate_ok ? 5 : -1
 bool strict_flow_active = use_strict_sequence or use_strict_sweep_for_zone_reclaim or use_strict_confirm_guard
 bool strict_sequence_waiting = use_strict_sequence and not long_source_zone_touch_recent
-bool strict_sweep_ok = long_setup_source_kind == 'OB' ? bull_ob_real_sweep : long_setup_source_kind == 'FVG' ? bull_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
-bool strict_sweep_blocked = use_strict_sweep_for_zone_reclaim and (long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG') and not strict_sweep_ok
+bool strict_sweep_ok = long_locked_source_kind == 'OB' ? long_locked_ob_real_sweep : long_locked_source_kind == 'FVG' ? long_locked_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
+bool strict_sweep_blocked = use_strict_sweep_for_zone_reclaim and (long_locked_source_kind == 'OB' or long_locked_source_kind == 'FVG') and not strict_sweep_ok
 bool strict_guard_blocked = use_strict_confirm_guard and not long_confirm_bearish_guard_ok
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
@@ -4167,7 +4246,7 @@ string ddvi_context_text = not use_ddvi_context ? 'Off' : ddvi_entry_strict_ok_s
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string strict_sequence_display = not use_strict_sequence ? 'off' : long_setup_armed or long_setup_confirmed ? long_source_zone_touch_recent ? 'zone ok' : 'wait source' : zone_touch_event_recent ? 'zone ok' : 'wait zone'
-string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_setup_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_setup_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
+string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_locked_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_locked_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
 string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort lockout'
 string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? long_setup_armed or long_setup_confirmed ? 'Waiting Source' : 'Waiting Zone' : 'Strict OK'
 string long_visual_display = long_visual_text
