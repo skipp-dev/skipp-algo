@@ -2105,6 +2105,8 @@ var bool block_third_touch = input.bool(true, 'Block 3rd+ Touch', group = g_long
 var float min_headroom_r = input.float(1.0, 'Min Headroom To Overhead Zone (R)', minval = 0.25, step = 0.25, group = g_long, inline = 'ovh1')
 var bool use_overhead_zone_filter = input.bool(true, 'Block Overhead Zone', group = g_long, inline = 'ovh1')
 var int min_entry_score = input.int(8, 'Min Entry Score', minval = 1, maxval = 10, group = g_long, inline = 'score1')
+var bool require_entry_score_for_confirmed = input.bool(false, 'Gate Confirmed By Score', group = g_long, inline = 'score1')
+var bool require_entry_score_for_ready = input.bool(false, 'Gate Ready By Score', group = g_long, inline = 'score2')
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
@@ -2942,14 +2944,7 @@ long_confirm_structure_ok := not require_internal_break_for_confirm
 if not long_confirm_structure_ok
     long_confirm_structure_ok := long_internal_structure_ok
 
-if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh
-    long_setup_confirmed := true
-    long_confirm_bar_index := bar_index
-    long_confirm_signal := true
-
 // 5) Ready state + visuals
-bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
-long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
 long_plan_active := (long_setup_armed or long_setup_confirmed) and not na(long_setup_trigger) and not na(long_invalidation_level)
 float long_planned_stop_level = long_plan_active ? long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult : na
 float nearest_overhead_level = na
@@ -2978,7 +2973,15 @@ long_entry_score += overhead_zone_ok ? 1 : 0
 long_entry_score += zone_touch_quality_ok ? 1 : 0
 long_entry_score += ready_is_fresh ? 1 : 0
 bool entry_score_ok = long_entry_score >= min_entry_score
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and zone_touch_quality_ok and long_filters_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+string long_score_detail_suffix = str.format(' | score={0}/{1}', long_entry_score, min_entry_score)
+if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and (not require_entry_score_for_confirmed or entry_score_ok)
+    long_setup_confirmed := true
+    long_confirm_bar_index := bar_index
+    long_confirm_signal := true
+
+bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
+long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and zone_touch_quality_ok and long_filters_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3475,74 +3478,74 @@ if dynamic_long_alert_mode == 'Priority'
     if enable_dynamic_alerts and not long_dynamic_alert_sent and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_invalidated|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}', long_last_invalid_source), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}', long_last_invalid_source, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_entry_strict_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_strict|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_strict|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Strict long entry condition met', long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Strict long entry condition met' + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_entry_best_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_best|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met', long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met' + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup', long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup' + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}{1}', long_setup_source, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}', long_setup_source, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting', long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed', long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed' + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_arm_signal and not str.contains(dynamic_alert_seen_keys, '|long_armed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Long setup armed from {0}', long_setup_source), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Long setup armed from {0}{1}', long_setup_source, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_watchlist_event and not str.contains(dynamic_alert_seen_keys, '|long_watchlist|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_watchlist|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Bullish trend with active pullback zone' + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 else
     if enable_dynamic_alerts and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_invalidated|'
-        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}', long_last_invalid_source), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}', long_last_invalid_source, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_entry_strict_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_strict|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_strict|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Strict long entry condition met', long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Strict long entry condition met' + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_entry_best_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_best|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met', long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met' + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup', long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup' + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
-        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}{1}', long_setup_source, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
-        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}', long_setup_source), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}', long_setup_source, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting', long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed', long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Reclaim detected and setup armed' + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_arm_signal and not str.contains(dynamic_alert_seen_keys, '|long_armed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed|'
-        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Long setup armed from {0}', long_setup_source), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Long setup armed from {0}{1}', long_setup_source, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_watchlist_event and not str.contains(dynamic_alert_seen_keys, '|long_watchlist|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_watchlist|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Bullish trend with active pullback zone', long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Bullish trend with active pullback zone' + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
