@@ -1903,10 +1903,9 @@ count_visible_fvgs(FVG[] fvgs, int visible_left, int visible_right, bool extend_
                 visible_count += 1
     visible_count
 
-build_dynamic_alert_message(bool enabled, bool condition, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, string mode_text) =>
+build_dynamic_alert_message(bool enabled, bool condition, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, bool ltf_price_only_context, string mode_text) =>
     if enabled and condition
         direction_text = direction > 0 ? 'bullish' : direction < 0 ? 'bearish' : 'neutral'
-        bool ltf_price_only_context = not na(ltf_bull_share) and na(ltf_volume_delta)
         share_text = na(ltf_bull_share) ? 'n/a' : ltf_price_only_context ? str.format('{0,number,percent} (price-only)', ltf_bull_share) : str.format('{0,number,percent}', ltf_bull_share)
         delta_text = ltf_price_only_context ? 'no-vol' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
         str.format('SMC++ | {0} | {1} | {2} | dir={3} | level={4} | tf={5} | mode={6} | ltf_bull_share={7} | ltf_volume_delta={8}', syminfo.ticker, event_name, detail, direction_text, format_level(level), timeframe.period, mode_text, share_text, delta_text)
@@ -4052,124 +4051,124 @@ if barstate.isnew
 
 if enable_dynamic_alerts and bull_bos_sig and not str.contains(dynamic_alert_seen_keys, '|bull_bos|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|bull_bos|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish BOS', 'Structure break confirmed', top, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish BOS', 'Structure break confirmed', top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bull_choch_sig and not str.contains(dynamic_alert_seen_keys, '|bull_choch|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|bull_choch|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish CHoCH', 'Character shift confirmed', top, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish CHoCH', 'Character shift confirmed', top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bear_bos_sig and not str.contains(dynamic_alert_seen_keys, '|bear_bos|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|bear_bos|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish BOS', 'Structure break confirmed', btm, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish BOS', 'Structure break confirmed', btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bear_choch_sig and not str.contains(dynamic_alert_seen_keys, '|bear_choch|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|bear_choch|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish CHoCH', 'Character shift confirmed', btm, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish CHoCH', 'Character shift confirmed', btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and not na(new_ob_bull) and not str.contains(dynamic_alert_seen_keys, '|new_bull_ob|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|new_bull_ob|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish Order Block', 'New order block confirmed', new_ob_bull.break_price, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish Order Block', 'New order block confirmed', new_ob_bull.break_price, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and not na(new_ob_bear) and not str.contains(dynamic_alert_seen_keys, '|new_bear_ob|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|new_bear_ob|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish Order Block', 'New order block confirmed', new_ob_bear.break_price, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish Order Block', 'New order block confirmed', new_ob_bear.break_price, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bullish_fvg_alert and not str.contains(dynamic_alert_seen_keys, '|new_bull_fvg|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|new_bull_fvg|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish FVG', 'New fair value gap formed', not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish FVG', 'New fair value gap formed', not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bearish_fvg_alert and not str.contains(dynamic_alert_seen_keys, '|new_bear_fvg|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|new_bear_fvg|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish FVG', 'New fair value gap formed', not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish FVG', 'New fair value gap formed', not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bullish_fvg_filled_alert and not str.contains(dynamic_alert_seen_keys, '|bull_fvg_filled|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|bull_fvg_filled|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish FVG Filled', 'Gap fill target reached', bull_filled_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish FVG Filled', 'Gap fill target reached', bull_filled_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and bearish_fvg_filled_alert and not str.contains(dynamic_alert_seen_keys, '|bear_fvg_filled|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|bear_fvg_filled|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish FVG Filled', 'Gap fill target reached', bear_filled_alert_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish FVG Filled', 'Gap fill target reached', bear_filled_alert_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bull_ob_break and not str.contains(dynamic_alert_seen_keys, '|live_bull_ob_break|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|live_bull_ob_break|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish OB Live Break', 'Intrabar bullish order block break detected', bull_ob_live_event_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish OB Live Break', 'Intrabar bullish order block break detected', bull_ob_live_event_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_ob_break and not str.contains(dynamic_alert_seen_keys, '|live_bear_ob_break|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|live_bear_ob_break|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish OB Live Break', 'Intrabar bearish order block break detected', bear_ob_live_event_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish OB Live Break', 'Intrabar bearish order block break detected', bear_ob_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bull_fvg_fill and not str.contains(dynamic_alert_seen_keys, '|live_bull_fvg_fill|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|live_bull_fvg_fill|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish FVG Live Fill', 'Intrabar bullish fair value gap fill detected', bull_fvg_live_event_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish FVG Live Fill', 'Intrabar bullish fair value gap fill detected', bull_fvg_live_event_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_fvg_fill and not str.contains(dynamic_alert_seen_keys, '|live_bear_fvg_fill|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|live_bear_fvg_fill|'
-    alert(build_dynamic_alert_message(true, true, 'Bearish FVG Live Fill', 'Intrabar bearish fair value gap fill detected', bear_fvg_live_event_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bearish FVG Live Fill', 'Intrabar bearish fair value gap fill detected', bear_fvg_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and use_sd_confluence and sd_bullish_divergence_event and not str.contains(dynamic_alert_seen_keys, '|sd_bull_div|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|sd_bull_div|'
-    alert(build_dynamic_alert_message(true, true, 'Bullish SD Divergence', 'Price lower low vs oscillator higher low', low, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'Bullish SD Divergence', 'Price lower low vs oscillator higher low', low, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if enable_dynamic_alerts and use_sd_confluence and sd_higher_lows_event and not str.contains(dynamic_alert_seen_keys, '|sd_higher_lows|')
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|sd_higher_lows|'
-    alert(build_dynamic_alert_message(true, true, 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+    alert(build_dynamic_alert_message(true, true, 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 if dynamic_long_alert_mode == 'Priority'
     if enable_dynamic_alerts and not long_dynamic_alert_sent and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_invalidated|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_entry_strict_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_strict|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_strict|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Entry Strict tier active: highest-conviction long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Entry Strict tier active: highest-conviction long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_entry_best_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_best|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Entry Best tier active: standard long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Entry Best tier active: standard long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready tier active for {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready tier active for {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Confirmed tier active from {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Confirmed tier active from {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Early tier active: strict reclaim qualified, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Early tier active: strict reclaim qualified, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Armed+ tier active: strict reclaim qualified and setup armed' + long_micro_alert_suffix + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Armed+ tier active: strict reclaim qualified and setup armed' + long_micro_alert_suffix + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_arm_signal and not str.contains(dynamic_alert_seen_keys, '|long_armed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Armed tier active from {0}{1}{2}', long_setup_source, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Armed tier active from {0}{1}{2}', long_setup_source, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_watchlist_event and not str.contains(dynamic_alert_seen_keys, '|long_watchlist|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_watchlist|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Watchlist tier active: bullish trend with active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Watchlist tier active: bullish trend with active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 else
     if enable_dynamic_alerts and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_invalidated|'
-        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_entry_strict_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_strict|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_strict|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Entry Strict tier active: highest-conviction long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Strict', 'Entry Strict tier active: highest-conviction long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_entry_best_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_best|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Entry Best tier active: standard long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Entry Best tier active: standard long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
-        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready tier active for {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready tier active for {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
-        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Confirmed tier active from {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Confirmed tier active from {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Early tier active: strict reclaim qualified, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Early tier active: strict reclaim qualified, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_armed_event and not str.contains(dynamic_alert_seen_keys, '|long_armed_plus|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed_plus|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Armed+ tier active: strict reclaim qualified and setup armed' + long_micro_alert_suffix + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Armed+', 'Armed+ tier active: strict reclaim qualified and setup armed' + long_micro_alert_suffix + long_score_detail_suffix, long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_arm_signal and not str.contains(dynamic_alert_seen_keys, '|long_armed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_armed|'
-        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Armed tier active from {0}{1}{2}', long_setup_source, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Armed', str.format('Armed tier active from {0}{1}{2}', long_setup_source, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_watchlist_event and not str.contains(dynamic_alert_seen_keys, '|long_watchlist|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_watchlist|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Watchlist tier active: bullish trend with active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Watchlist', 'Watchlist tier active: bullish trend with active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix, long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
