@@ -2603,6 +2603,7 @@ if use_microstructure_profiles and micro_is_fast_decay
     effective_fast_decay_confirm_age_max := math.min(effective_fast_decay_confirm_age_max, micro_fast_decay_confirm_age_max)
 
 bool relvol_ok = not use_rel_volume ? true : not volume_data_ok ? allow_relvol_without_volume_data : not na(rel_volume) and rel_volume >= effective_relvol_good
+bool relvol_score_ok = not use_rel_volume ? true : volume_data_ok and not na(rel_volume) and rel_volume >= effective_relvol_good
 string relvol_value_text = na(rel_volume) ? 'n/a' : str.tostring(rel_volume, '#.##') + 'x'
 string relvol_text = not use_rel_volume ? 'off' : not volume_data_ok ? allow_relvol_without_volume_data ? 'fallback' : 'blocked' : relvol_value_text
 
@@ -3450,7 +3451,7 @@ trend_quality_score += htf_alignment_ok ? score_weight_htf : 0
 trend_quality_score += ema_support_ok ? score_weight_ema : 0
 trend_quality_score += adx_strong ? score_weight_adx : 0
 trend_quality_score += bull_close_strong ? score_weight_close : 0
-trend_quality_score += relvol_ok ? score_weight_relvol : 0
+trend_quality_score += relvol_score_ok ? score_weight_relvol : 0
 trend_quality_score += market_regime_gate_ok ? score_weight_market : 0
 trend_quality_score += vola_regime_gate_safe ? score_weight_vola : 0
 int trend_quality_max_score = score_weight_structure + score_weight_htf + score_weight_ema + score_weight_adx + score_weight_close + score_weight_relvol + score_weight_market + score_weight_vola
@@ -3471,7 +3472,7 @@ long_entry_score += long_internal_structure_ok ? 1 : 0
 long_entry_score += bull_close_strong ? 1 : 0
 long_entry_score += ema_support_ok ? 1 : 0
 long_entry_score += adx_strong ? 1 : 0
-long_entry_score += relvol_ok ? 1 : 0
+long_entry_score += relvol_score_ok ? 1 : 0
 long_entry_score += overhead_zone_ok ? 1 : 0
 long_entry_score += zone_touch_quality_ok ? 1 : 0
 long_entry_score += ready_is_fresh ? 1 : 0
