@@ -2033,7 +2033,7 @@ var int max_ltf_samples_per_bar = input.int(300, 'Max LTF Samples / Bar', minval
 var g_data = 'Data Quality'
 var int volume_quality_lookback = input.int(50, 'Volume Quality Lookback', minval = 5, group = g_data, display = display.none)
 var int min_nonzero_volume_bars = input.int(10, 'Min Non-Zero Volume Bars', minval = 1, group = g_data, display = display.none)
-var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, long-ready filters do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready gates stop hard-blocking, while entry upgrades still require confirmed volume-backed context.')
+var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, long-ready filters do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, while Strict still requires confirmed volume-backed context.')
 
 var g_risk = 'Risk / Exits'
 var bool show_risk_levels = input.bool(true, 'Show Risk Levels', group = g_risk)
@@ -2324,7 +2324,7 @@ bool use_ob_profile_effective = use_ob_profile and volume_data_ok
 var label volume_quality_warning = na
 if barstate.islast
     if not volume_data_ok
-        string volume_warning_text = allow_relvol_without_volume_data ? 'Volume data quality is limited\nRelVol fallback is active; DDVI ready can pass, but entry upgrades and LTF delta stay limited' : 'Volume data quality is limited\nRelVol, DDVI ready, and strict entry may stay blocked'
+        string volume_warning_text = allow_relvol_without_volume_data ? 'Volume data quality is limited\nRelVol fallback is active; DDVI Best can pass, but Strict and LTF delta stay limited' : 'Volume data quality is limited\nRelVol, DDVI Best, and strict entry may stay blocked'
         if na(volume_quality_warning)
             volume_quality_warning := label.new(bar_index, close, volume_warning_text, color = color.orange, textcolor = color.white, style = label.style_label_left, size = size.small)
         else
@@ -2727,7 +2727,7 @@ bool ddvi_bull_divergence_any = hidden_bull_divergence or strong_bull_divergence
 bool ddvi_non_strict_volume_fallback = use_ddvi_context and not volume_data_ok and allow_relvol_without_volume_data
 bool ddvi_watchlist_ok = not use_ddvi_context ? true : ddvi_non_strict_volume_fallback ? true : not volume_data_ok ? false : (ddvi_lower_extreme_context or ddvi_bias_rising)
 bool ddvi_ready_ok = not use_ddvi_context ? true : ddvi_non_strict_volume_fallback ? true : not volume_data_ok ? false : (ddvi_recover_from_lower_extreme or (ddvi_bias_rising and not ddvi_lower_extreme_now))
-bool ddvi_entry_best_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_ready_ok and (ddvi_bias_transition_ok or hidden_bull_divergence or strong_bull_divergence))
+bool ddvi_entry_best_ok = not use_ddvi_context ? true : ddvi_non_strict_volume_fallback ? ddvi_ready_ok : not volume_data_ok ? false : (ddvi_ready_ok and (ddvi_bias_transition_ok or hidden_bull_divergence or strong_bull_divergence))
 bool ddvi_entry_strict_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_entry_best_ok and ddvi_bias_ok and not ddvi_lower_extreme_now)
 if ddvi_close_safe_only and not barstate.isconfirmed
     ddvi_watchlist_ok := bar_index > 0 ? ddvi_watchlist_ok[1] : ddvi_watchlist_ok
@@ -3745,7 +3745,7 @@ int vol_regime_state = not use_volatility_regime ? 0 : vol_regime_trend_ok and v
 int vol_squeeze_state = not use_volatility_regime ? 0 : vol_squeeze_released ? 5 : vol_squeeze_on ? 4 : vol_squeeze_recent ? 2 : 0
 int vol_expansion_state = not use_volatility_regime ? 0 : vol_momentum_expanding_long and vol_stack_spread_rising ? 5 : vol_momentum_expanding_long ? 3 : vol_stack_spread_rising ? 2 : 0
 int stretch_state = not use_stretch_context ? 0 : in_lower_extreme ? 5 : lower_extreme_recent ? 4 : anti_chase_ok_entry_strict ? 2 : -1
-int ddvi_state = not use_ddvi_context ? 0 : ddvi_non_strict_volume_fallback ? 3 : not volume_data_ok ? -1 : ddvi_entry_strict_ok_safe ? 5 : ddvi_entry_best_ok_safe ? 4 : ddvi_ready_ok_safe ? 3 : ddvi_watchlist_ok_safe ? 2 : ddvi_lower_extreme_now ? 1 : 0
+int ddvi_state = not use_ddvi_context ? 0 : ddvi_non_strict_volume_fallback ? 4 : not volume_data_ok ? -1 : ddvi_entry_strict_ok_safe ? 5 : ddvi_entry_best_ok_safe ? 4 : ddvi_ready_ok_safe ? 3 : ddvi_watchlist_ok_safe ? 2 : ddvi_lower_extreme_now ? 1 : 0
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
 int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
@@ -3790,7 +3790,7 @@ string vol_regime_display = not use_volatility_regime ? 'Off' : vol_entry_strict
 string vol_squeeze_display = not use_volatility_regime ? 'Off' : vol_squeeze_released ? 'Released' : vol_squeeze_on ? 'Active' : vol_squeeze_recent ? 'Recent' : 'None'
 string vol_expansion_display = not use_volatility_regime ? 'Off' : str.format('{0,number,#.##}%\n{1,number,#.##}% | {2}', vol_stack_spread_pct, vol_momentum, vol_momentum_expanding_long and vol_stack_spread_rising ? 'Expanding' : vol_momentum_expanding_long ? 'Momentum' : vol_stack_spread_rising ? 'Spread' : 'Flat')
 string stretch_display = not use_stretch_context ? 'Off' : stretch_entry_strict_context_ok ? str.format('Strict OK\nz={0,number,#.##}\nMean {1}', distance_to_mean_z, format_level(stretch_mean)) : stretch_entry_best_context_ok ? str.format('Best OK\nz={0,number,#.##}\nMean {1}', distance_to_mean_z, format_level(stretch_mean)) : stretch_ready_context_ok ? str.format('Ready OK\nz={0,number,#.##}\nThr {1}', distance_to_mean_z, format_level(stretch_lower_threshold)) : stretch_watchlist_context_ok ? str.format('Watchlist OK\nz={0,number,#.##}\nThr {1}', distance_to_mean_z, format_level(stretch_lower_threshold)) : na(distance_to_mean_z) ? 'Blocked\nn/a' : str.format('Blocked\nz={0,number,#.##}\nThr {1}', distance_to_mean_z, format_level(stretch_lower_threshold))
-string ddvi_context_text = not use_ddvi_context ? 'Off' : ddvi_non_strict_volume_fallback ? 'Ready Fallback\nNo Vol' : not volume_data_ok ? 'No Vol' : ddvi_entry_strict_ok_safe ? strong_bull_divergence ? 'Strict OK\nStrong Bull Div' : hidden_bull_divergence ? 'Strict OK\nHidden Bull Div' : 'Strict OK\nBull Bias' : ddvi_entry_best_ok_safe ? strong_bull_divergence ? 'Best OK\nStrong Bull Div' : hidden_bull_divergence ? 'Best OK\nHidden Bull Div' : ddvi_bias_cross_up ? 'Best OK\nCross Up' : 'Best OK\nBias Transition' : ddvi_ready_ok_safe ? ddvi_recover_from_lower_extreme ? 'Ready OK\nRecovering' : 'Ready OK\nRising Bias' : ddvi_watchlist_ok_safe ? ddvi_lower_extreme_context ? 'Watchlist OK\nLower Extreme' : 'Watchlist OK\nRising Bias' : ddvi_lower_extreme_now ? 'Blocked\nLower Extreme' : 'Neutral'
+string ddvi_context_text = not use_ddvi_context ? 'Off' : ddvi_non_strict_volume_fallback ? 'Best Fallback\nNo Vol' : not volume_data_ok ? 'No Vol' : ddvi_entry_strict_ok_safe ? strong_bull_divergence ? 'Strict OK\nStrong Bull Div' : hidden_bull_divergence ? 'Strict OK\nHidden Bull Div' : 'Strict OK\nBull Bias' : ddvi_entry_best_ok_safe ? strong_bull_divergence ? 'Best OK\nStrong Bull Div' : hidden_bull_divergence ? 'Best OK\nHidden Bull Div' : ddvi_bias_cross_up ? 'Best OK\nCross Up' : 'Best OK\nBias Transition' : ddvi_ready_ok_safe ? ddvi_recover_from_lower_extreme ? 'Ready OK\nRecovering' : 'Ready OK\nRising Bias' : ddvi_watchlist_ok_safe ? ddvi_lower_extreme_context ? 'Watchlist OK\nLower Extreme' : 'Watchlist OK\nRising Bias' : ddvi_lower_extreme_now ? 'Blocked\nLower Extreme' : 'Neutral'
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string setup_quality_display = str.format('{0}\n{1}\n{2}\nEnv {3}\nHeadroom {4}', freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text)
