@@ -25,6 +25,87 @@ def _extract_function_body(source: str, function_name: str) -> str:
     return '\n'.join(lines)
 
 
+def _model_zone_candidate_preferred(
+    candidate_touch_anchor: bool,
+    candidate_recency: int | None,
+    candidate_quality: float | None,
+    candidate_overlap: float | None,
+    candidate_id: int | None,
+    best_touch_anchor: bool,
+    best_recency: int | None,
+    best_quality: float | None,
+    best_overlap: float | None,
+    best_id: int | None,
+) -> bool:
+    if candidate_touch_anchor != best_touch_anchor:
+        return candidate_touch_anchor
+    if best_recency is None or candidate_recency != best_recency:
+        return best_recency is None or (candidate_recency is not None and candidate_recency > best_recency)
+    if best_quality is None or candidate_quality != best_quality:
+        return best_quality is None or (candidate_quality is not None and candidate_quality > best_quality)
+    if best_overlap is None or candidate_overlap != best_overlap:
+        return best_overlap is None or (candidate_overlap is not None and candidate_overlap > best_overlap)
+    return best_id is None or (candidate_id is not None and candidate_id > best_id)
+
+
+def _model_long_invalidation_reason(
+    source_broken: bool,
+    source_lost: bool,
+    setup_expired: bool,
+    confirm_expired: bool,
+    validation_source: str,
+    entry_origin_source: str,
+    setup_source_display: str,
+) -> str:
+    if source_broken:
+        return f'{validation_source} source invalidated'
+    if source_lost:
+        return f'{validation_source} backing zone lost'
+    if setup_expired:
+        return f'{entry_origin_source} setup expired'
+    if confirm_expired:
+        return f'{entry_origin_source} confirm expired'
+    return setup_source_display
+
+
+def _model_long_setup_source_display(entry_origin_source: str, validation_source: str) -> str:
+    if entry_origin_source == 'None':
+        return validation_source
+    if validation_source == 'None' or entry_origin_source == validation_source:
+        return entry_origin_source
+    return f'{entry_origin_source} -> {validation_source}'
+
+
+def _model_long_ready_states(
+    lifecycle_ready_ok: bool,
+    setup_hard_gate_ok: bool,
+    trade_hard_gate_ok: bool,
+    environment_hard_gate_ok: bool,
+    quality_gate_ok: bool,
+    accel_ready_gate_ok: bool,
+    sd_ready_gate_ok: bool,
+    vol_ready_context_ok: bool,
+    stretch_ready_context_ok: bool,
+    ddvi_ready_ok_safe: bool,
+    accel_entry_best_gate_ok: bool,
+    sd_entry_best_gate_ok: bool,
+    vol_entry_best_context_ok_safe: bool,
+    stretch_entry_best_context_ok: bool,
+    ddvi_entry_best_ok_safe: bool,
+    strict_entry_ltf_ok: bool,
+    htf_alignment_ok: bool,
+    accel_strict_entry_gate_ok: bool,
+    sd_entry_strict_gate_ok: bool,
+    vol_entry_strict_context_ok_safe: bool,
+    stretch_entry_strict_context_ok: bool,
+    ddvi_entry_strict_ok_safe: bool,
+) -> tuple[bool, bool, bool]:
+    long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
+    long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+    long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    return long_ready_state, long_entry_best_state, long_entry_strict_state
+
+
 def test_plot_equal_level_uses_named_label_arguments_for_font_family() -> None:
     source = _read_smc_source()
     body = _extract_function_body(source, 'plot_equal_level')
@@ -80,10 +161,8 @@ def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
 def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> None:
     source = _read_smc_source()
 
-    assert "long_last_invalid_source := str.format('{0} source invalidated', long_validation_source)" in source
-    assert "long_last_invalid_source := str.format('{0} backing zone lost', long_validation_source)" in source
-    assert "long_last_invalid_source := str.format('{0} setup expired', long_entry_origin_source)" in source
-    assert "long_last_invalid_source := str.format('{0} confirm expired', long_entry_origin_source)" in source
+    assert 'resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, string long_validation_source, string long_entry_origin_source, string long_setup_source_display) =>' in source
+    assert 'long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source, long_entry_origin_source, long_setup_source_display)' in source
     assert 'long_invalidate_signal := long_setup_armed or long_setup_confirmed' in source
     assert "long_entry_origin_source := 'None'" in source
     assert "long_setup_backing_zone_kind := 'None'" in source
@@ -255,8 +334,33 @@ def test_entry_origin_and_validation_source_are_separated_for_display_and_invali
     assert "string long_validation_source = 'None'" in source
     assert "string long_setup_source_display = 'None'" in source
     assert "long_validation_source := long_locked_source_kind == 'OB' ? 'OB' : long_locked_source_kind == 'FVG' ? 'FVG' : 'None'" in source
-    assert "long_setup_source_display := long_entry_origin_source == 'None' ? long_validation_source : long_validation_source == 'None' or long_entry_origin_source == long_validation_source ? long_entry_origin_source : str.format('{0} -> {1}', long_entry_origin_source, long_validation_source)" in source
+    assert 'compose_long_setup_source_display(string long_entry_origin_source, string long_validation_source) =>' in source
+    assert 'long_setup_source_display := compose_long_setup_source_display(long_entry_origin_source, long_validation_source)' in source
     assert "long_setup_text := str.format('Confirmed | {0}', long_setup_source_display)" in source
+
+
+def test_display_and_status_text_are_extracted_into_helpers() -> None:
+    source = _read_smc_source()
+
+    assert 'describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>' in source
+    assert 'describe_long_source_state(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>' in source
+    assert 'string freshness_text = describe_long_freshness(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh)' in source
+    assert 'string source_state_text = describe_long_source_state(long_source_tracked, long_source_alive, long_source_broken)' in source
+
+
+def test_confirm_and_ready_gate_logic_is_extracted_into_helpers() -> None:
+    source = _read_smc_source()
+
+    assert 'select_effective_long_touch_count(bool long_setup_armed, bool long_setup_confirmed, int long_setup_backing_zone_touch_count, bool bull_reclaim_ob_strict, bool in_bull_ob_zone, bool in_bull_fvg_zone, int active_ob_touch_count, bool bull_reclaim_fvg_strict, int active_fvg_touch_count, int active_zone_touch_count) =>' in source
+    assert 'describe_long_zone_quality(bool long_zone_active, bool long_setup_armed, bool long_setup_confirmed, int effective_long_active_touch_count) =>' in source
+    assert 'confirm_long_filters(bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool accel_confirm_gate_ok, bool sd_confirmed_gate_ok) =>' in source
+    assert 'confirm_long_state(bool close_safe_mode, bool long_confirm_break, bool long_confirm_structure_ok, bool confirm_is_fresh, bool long_confirm_bearish_guard_ok, bool confirm_hard_gate_ok, bool confirm_upgrade_gate_ok) =>' in source
+    assert 'evaluate_long_ready_states(bool close_safe_mode, bool long_setup_confirmed, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert 'int effective_long_active_touch_count = select_effective_long_touch_count(long_setup_armed, long_setup_confirmed, long_setup_backing_zone_touch_count, bull_reclaim_ob_strict, in_bull_ob_zone, in_bull_fvg_zone, active_ob_touch_count, bull_reclaim_fvg_strict, active_fvg_touch_count, active_zone_touch_count)' in source
+    assert 'string zone_quality_text = describe_long_zone_quality(long_zone_active, long_setup_armed, long_setup_confirmed, effective_long_active_touch_count)' in source
+    assert '[confirm_hard_gate_ok, confirm_upgrade_gate_ok] = confirm_long_filters(micro_session_gate_ok, micro_freshness_gate_ok, accel_confirm_gate_ok, sd_confirmed_gate_ok)' in source
+    assert '[confirm_lifecycle_ok, confirm_filters_ok] = confirm_long_state(close_safe_mode, long_confirm_break, long_confirm_structure_ok, confirm_is_fresh, long_confirm_bearish_guard_ok, confirm_hard_gate_ok, confirm_upgrade_gate_ok)' in source
+    assert '[lifecycle_ready_ok, long_ready_state, long_entry_best_state, long_entry_strict_state] = evaluate_long_ready_states(close_safe_mode, long_setup_confirmed, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
 
 
 def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
@@ -309,3 +413,53 @@ def test_locked_source_touch_count_selection_is_extracted() -> None:
 
     assert 'select_locked_source_touch_count(bool source_upgrade_now, bool prefer_ob_upgrade_now, int ob_candidate_id, int active_ob_touch_id, int active_ob_touch_count, int touched_ob_touch_count, int fvg_candidate_id, int active_fvg_touch_id, int active_fvg_touch_count, int touched_fvg_touch_count, int locked_source_touch_count) =>' in source
     assert 'int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)' in source
+
+
+def test_model_zone_candidate_priority_prefers_touch_anchor_then_recency_then_quality() -> None:
+    assert _model_zone_candidate_preferred(True, 5, 0.2, 0.1, 10, False, 100, 0.9, 0.9, 99)
+    assert _model_zone_candidate_preferred(False, 7, 0.2, 0.1, 10, False, 5, 0.9, 0.9, 99)
+    assert _model_zone_candidate_preferred(False, 7, 0.8, 0.1, 10, False, 7, 0.2, 0.9, 99)
+    assert _model_zone_candidate_preferred(False, 7, 0.8, 0.5, 10, False, 7, 0.8, 0.1, 99)
+    assert _model_zone_candidate_preferred(False, 7, 0.8, 0.5, 11, False, 7, 0.8, 0.5, 10)
+
+
+def test_model_long_invalidation_reason_uses_expected_precedence() -> None:
+    assert _model_long_invalidation_reason(True, True, True, True, 'FVG', 'Swing Low', 'Swing Low -> FVG') == 'FVG source invalidated'
+    assert _model_long_invalidation_reason(False, True, True, True, 'FVG', 'Swing Low', 'Swing Low -> FVG') == 'FVG backing zone lost'
+    assert _model_long_invalidation_reason(False, False, True, True, 'FVG', 'Swing Low', 'Swing Low -> FVG') == 'Swing Low setup expired'
+    assert _model_long_invalidation_reason(False, False, False, True, 'FVG', 'Swing Low', 'Swing Low -> FVG') == 'Swing Low confirm expired'
+    assert _model_long_invalidation_reason(False, False, False, False, 'FVG', 'Swing Low', 'Swing Low -> FVG') == 'Swing Low -> FVG'
+
+
+def test_model_long_setup_source_display_contract() -> None:
+    assert _model_long_setup_source_display('None', 'OB') == 'OB'
+    assert _model_long_setup_source_display('OB', 'OB') == 'OB'
+    assert _model_long_setup_source_display('Swing Low', 'None') == 'Swing Low'
+    assert _model_long_setup_source_display('Swing Low', 'FVG') == 'Swing Low -> FVG'
+
+
+def test_model_long_ready_state_contract() -> None:
+    ready, entry_best, entry_strict = _model_long_ready_states(
+        True, True, True, True, True, True, True, True, True, True,
+        True, True, True, True, True,
+        True, True, True, True, True, True, True,
+    )
+    assert ready is True
+    assert entry_best is True
+    assert entry_strict is True
+
+    ready, entry_best, entry_strict = _model_long_ready_states(
+        False, True, True, True, True, True, True, True, True, True,
+        True, True, True, True, True,
+        True, True, True, True, True, True, True,
+    )
+    assert (ready, entry_best, entry_strict) == (False, False, False)
+
+    ready, entry_best, entry_strict = _model_long_ready_states(
+        True, True, True, True, True, True, True, True, True, True,
+        True, True, True, True, True,
+        False, True, True, True, True, True, True,
+    )
+    assert ready is True
+    assert entry_best is True
+    assert entry_strict is False

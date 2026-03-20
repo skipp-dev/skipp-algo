@@ -1701,6 +1701,37 @@ resolve_long_locked_source_bounds(string arm_backing_zone_kind, int arm_backing_
     float locked_source_bottom = arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_bottom : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_bottom : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_bottom : na
     [locked_source_top, locked_source_bottom]
 
+resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, string long_validation_source, string long_entry_origin_source, string long_setup_source_display) =>
+    long_source_broken ? str.format('{0} source invalidated', long_validation_source) : long_source_lost ? str.format('{0} backing zone lost', long_validation_source) : long_setup_expired ? str.format('{0} setup expired', long_entry_origin_source) : long_confirm_expired ? str.format('{0} confirm expired', long_entry_origin_source) : long_setup_source_display
+
+compose_long_setup_source_display(string long_entry_origin_source, string long_validation_source) =>
+    long_entry_origin_source == 'None' ? long_validation_source : long_validation_source == 'None' or long_entry_origin_source == long_validation_source ? long_entry_origin_source : str.format('{0} -> {1}', long_entry_origin_source, long_validation_source)
+
+describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
+    not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
+
+describe_long_source_state(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
+    not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : long_source_broken ? 'source invalid' : 'source lost'
+
+select_effective_long_touch_count(bool long_setup_armed, bool long_setup_confirmed, int long_setup_backing_zone_touch_count, bool bull_reclaim_ob_strict, bool in_bull_ob_zone, bool in_bull_fvg_zone, int active_ob_touch_count, bool bull_reclaim_fvg_strict, int active_fvg_touch_count, int active_zone_touch_count) =>
+    long_setup_armed or long_setup_confirmed ? long_setup_backing_zone_touch_count : bull_reclaim_ob_strict or (in_bull_ob_zone and not in_bull_fvg_zone) ? active_ob_touch_count : bull_reclaim_fvg_strict or (in_bull_fvg_zone and not in_bull_ob_zone) ? active_fvg_touch_count : active_zone_touch_count
+
+describe_long_zone_quality(bool long_zone_active, bool long_setup_armed, bool long_setup_confirmed, int effective_long_active_touch_count) =>
+    not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : effective_long_active_touch_count <= 1 ? 'fresh touch' : effective_long_active_touch_count == 2 ? '2nd touch' : 'crowded'
+
+confirm_long_filters(bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool accel_confirm_gate_ok, bool sd_confirmed_gate_ok) =>
+    [micro_session_gate_ok and micro_freshness_gate_ok, accel_confirm_gate_ok and sd_confirmed_gate_ok]
+
+confirm_long_state(bool close_safe_mode, bool long_confirm_break, bool long_confirm_structure_ok, bool confirm_is_fresh, bool long_confirm_bearish_guard_ok, bool confirm_hard_gate_ok, bool confirm_upgrade_gate_ok) =>
+    [close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok, confirm_hard_gate_ok and confirm_upgrade_gate_ok]
+
+evaluate_long_ready_states(bool close_safe_mode, bool long_setup_confirmed, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    bool lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+    bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
+    bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+    bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    [lifecycle_ready_ok, long_ready_state, long_entry_best_state, long_entry_strict_state]
+
 _detect_fvg(int mode, bool enabled, float size_threshold = 0) =>
     float top = low[mode == 1 ? 0 : 2]
     float btm = high[mode == 1 ? 2 : 0]
@@ -3896,16 +3927,7 @@ bool long_invalidated_now = long_source_broken or long_source_lost or (close_saf
 bool invalidated_prior_setup = false
 
 if long_invalidated_now
-    if long_source_broken
-        long_last_invalid_source := str.format('{0} source invalidated', long_validation_source)
-    else if long_source_lost
-        long_last_invalid_source := str.format('{0} backing zone lost', long_validation_source)
-    else if long_setup_expired
-        long_last_invalid_source := str.format('{0} setup expired', long_entry_origin_source)
-    else if long_confirm_expired
-        long_last_invalid_source := str.format('{0} confirm expired', long_entry_origin_source)
-    else
-        long_last_invalid_source := long_setup_source_display
+    long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source, long_entry_origin_source, long_setup_source_display)
     long_last_invalid_level := long_invalidation_level
     long_invalidate_signal := long_setup_armed or long_setup_confirmed
     invalidated_prior_setup := long_invalidate_signal
@@ -4010,26 +4032,18 @@ bool microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_ga
 bool trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
 bool long_gate_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate
 string long_environment_focus_display = not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env OK'
-string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
-string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : long_source_broken ? 'source invalid' : 'source lost'
+string freshness_text = describe_long_freshness(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh)
+string source_state_text = describe_long_source_state(long_source_tracked, long_source_alive, long_source_broken)
 long_validation_source := long_locked_source_kind == 'OB' ? 'OB' : long_locked_source_kind == 'FVG' ? 'FVG' : 'None'
-long_setup_source_display := long_entry_origin_source == 'None' ? long_validation_source : long_validation_source == 'None' or long_entry_origin_source == long_validation_source ? long_entry_origin_source : str.format('{0} -> {1}', long_entry_origin_source, long_validation_source)
-int effective_long_active_touch_count = active_zone_touch_count
-if long_setup_armed or long_setup_confirmed
-    effective_long_active_touch_count := long_setup_backing_zone_touch_count
-else if bull_reclaim_ob_strict or (in_bull_ob_zone and not in_bull_fvg_zone)
-    effective_long_active_touch_count := active_ob_touch_count
-else if bull_reclaim_fvg_strict or (in_bull_fvg_zone and not in_bull_ob_zone)
-    effective_long_active_touch_count := active_fvg_touch_count
+long_setup_source_display := compose_long_setup_source_display(long_entry_origin_source, long_validation_source)
+int effective_long_active_touch_count = select_effective_long_touch_count(long_setup_armed, long_setup_confirmed, long_setup_backing_zone_touch_count, bull_reclaim_ob_strict, in_bull_ob_zone, in_bull_fvg_zone, active_ob_touch_count, bull_reclaim_fvg_strict, active_fvg_touch_count, active_zone_touch_count)
 bool effective_zone_touch_quality_ok = not block_third_touch or effective_long_active_touch_count <= max_zone_touches_for_entry
 bool setup_hard_gate_ok = effective_zone_touch_quality_ok
-string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : effective_long_active_touch_count <= 1 ? 'fresh touch' : effective_long_active_touch_count == 2 ? '2nd touch' : 'crowded'
+string zone_quality_text = describe_long_zone_quality(long_zone_active, long_setup_armed, long_setup_confirmed, effective_long_active_touch_count)
 string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)
 string long_score_detail_suffix = str.format(' | ctx={0}/{1}', context_quality_score, effective_min_context_quality_score)
-bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok
-bool confirm_hard_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
-bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok
-bool confirm_filters_ok = confirm_hard_gate_ok and confirm_upgrade_gate_ok
+[confirm_hard_gate_ok, confirm_upgrade_gate_ok] = confirm_long_filters(micro_session_gate_ok, micro_freshness_gate_ok, accel_confirm_gate_ok, sd_confirmed_gate_ok)
+[confirm_lifecycle_ok, confirm_filters_ok] = confirm_long_state(close_safe_mode, long_confirm_break, long_confirm_structure_ok, confirm_is_fresh, long_confirm_bearish_guard_ok, confirm_hard_gate_ok, confirm_upgrade_gate_ok)
 if confirm_lifecycle_ok and confirm_filters_ok
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
@@ -4037,10 +4051,7 @@ if confirm_lifecycle_ok and confirm_filters_ok
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
-bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
-bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
-bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+[lifecycle_ready_ok, long_ready_state, long_entry_best_state, long_entry_strict_state] = evaluate_long_ready_states(close_safe_mode, long_setup_confirmed, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
 bool long_quality_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
 if long_plan_active
