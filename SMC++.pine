@@ -2104,6 +2104,7 @@ var int max_zone_touches_for_entry = input.int(2, 'Max Zone Touches For Entry', 
 var bool block_third_touch = input.bool(true, 'Block 3rd+ Touch', group = g_long, inline = 'touch1')
 var float min_headroom_r = input.float(1.0, 'Min Headroom To Overhead Zone (R)', minval = 0.25, step = 0.25, group = g_long, inline = 'ovh1')
 var bool use_overhead_zone_filter = input.bool(true, 'Block Overhead Zone', group = g_long, inline = 'ovh1')
+var int min_entry_score = input.int(8, 'Min Entry Score', minval = 1, maxval = 10, group = g_long, inline = 'score1')
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
@@ -2960,6 +2961,23 @@ float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math
 float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_setup_trigger : na
 bool overhead_zone_ok = not use_overhead_zone_filter or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r
 bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok
+string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
+string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : 'source lost'
+string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : active_zone_touch_count <= 1 ? 'fresh touch' : active_zone_touch_count == 2 ? '2nd touch' : 'crowded'
+string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)
+bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2
+int long_entry_score = 0
+long_entry_score += bullish_trend_safe ? 1 : 0
+long_entry_score += htf_alignment_ok ? 1 : 0
+long_entry_score += long_internal_structure_ok ? 1 : 0
+long_entry_score += bull_close_strong ? 1 : 0
+long_entry_score += ema_support_ok ? 1 : 0
+long_entry_score += adx_strong ? 1 : 0
+long_entry_score += relvol_ok ? 1 : 0
+long_entry_score += overhead_zone_ok ? 1 : 0
+long_entry_score += zone_touch_quality_ok ? 1 : 0
+long_entry_score += ready_is_fresh ? 1 : 0
+bool entry_score_ok = long_entry_score >= min_entry_score
 bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and zone_touch_quality_ok and long_filters_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
@@ -3185,6 +3203,8 @@ int ltf_bias_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 : 
 int ltf_delta_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 : not ltf_timeframe_valid ? 0 : not ltf_ratio_ok or not ltf_sample_count_ok ? -1 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0.15 ? 5 : ltf_volume_delta >= 0 ? 4 : -1
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
+int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
+int entry_score_state = entry_score_ok ? long_entry_score >= 9 ? 5 : 4 : long_entry_score >= math.max(min_entry_score - 1, 1) ? 2 : -1
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
 string zone_display = long_zone_text
@@ -3202,6 +3222,8 @@ string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sam
 string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
+string setup_quality_display = str.format('{0}\n{1}\n{2}\nHeadroom {3}', freshness_text, source_state_text, zone_quality_text, overhead_text)
+string entry_score_display = str.format('{0}/10\nMin {1}\n{2}', long_entry_score, min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
 string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
 string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}\nInvalid {2}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level), format_level(long_invalidation_level))
@@ -3218,7 +3240,7 @@ color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
-var table smc_dashboard = table.new(position.bottom_right, 2, 22, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 24, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -3241,10 +3263,12 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 17, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
     dashboard_row(smc_dashboard, 18, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
     dashboard_row(smc_dashboard, 19, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 20, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 21, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 20, 'Setup Quality', setup_quality_display, status_bg(quality_state), dashboard_text)
+    dashboard_row(smc_dashboard, 21, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
+    dashboard_row(smc_dashboard, 22, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 23, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 21)
+    table.clear(smc_dashboard, 0, 0, 1, 23)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -3261,14 +3285,14 @@ alert_long_watchlist = bullish_trend_safe and long_zone_active_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and entry_score_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok
+alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and entry_score_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
