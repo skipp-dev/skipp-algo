@@ -1906,8 +1906,9 @@ count_visible_fvgs(FVG[] fvgs, int visible_left, int visible_right, bool extend_
 build_dynamic_alert_message(bool enabled, bool condition, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, string mode_text) =>
     if enabled and condition
         direction_text = direction > 0 ? 'bullish' : direction < 0 ? 'bearish' : 'neutral'
-        share_text = na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
-        delta_text = na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
+        bool ltf_price_only_context = not na(ltf_bull_share) and na(ltf_volume_delta)
+        share_text = na(ltf_bull_share) ? 'n/a' : ltf_price_only_context ? str.format('{0,number,percent} (price-only)', ltf_bull_share) : str.format('{0,number,percent}', ltf_bull_share)
+        delta_text = ltf_price_only_context ? 'no-vol' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
         str.format('SMC++ | {0} | {1} | {2} | dir={3} | level={4} | tf={5} | mode={6} | ltf_bull_share={7} | ltf_volume_delta={8}', syminfo.ticker, event_name, detail, direction_text, format_level(level), timeframe.period, mode_text, share_text, delta_text)
     else
         ''
