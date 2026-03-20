@@ -4,16 +4,13 @@
 
 indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
 
-import robbatt/lib_no_delay/16 as ND
-import robbatt/lib_divergence/2 as DIV
-
 // Safe refactor notes:
 // - Core BOS/CHoCH, Order Block and FVG logic is intentionally unchanged.
 // - Improvements are limited to readability, defensive guards around draw/delete paths,
 //   clearer configuration naming and more descriptive alerts.
 // - The Order Block lifecycle remains: tracking -> extension -> awaiting confirmation -> confirmed/broken.
 
-// Embedded utility subset replacing the former lib_math/lib_no_delay dependency.
+// Embedded utility subset replacing the former external no-delay and divergence dependencies.
 in_range(float value, float max, float min = 0.0) => min <= value and value <= max
 in_range(float max1, float min1, float max2, float min2) => min2 <= min1 and min1 <= max2 and min2 <= max1 and max1 <= max2
 range_overlap(float max1, float min1, float max2, float min2) => min1 < max2 and max1 > min2
@@ -25,6 +22,91 @@ nd_atr(simple int length) =>
         sum += ta.tr(true)
         atr_value := sum / (bar_index + 1)
     atr_value
+
+enum NoDelayMovingAverage
+    SMA = 'SMA (Simple)'
+    EMA = 'EMA (Exponential)'
+    RMA = 'RMA (Exponentially weighed)'
+    WMA = 'WMA (Weighed)'
+    VWMA = 'VWMA (Volume weighed)'
+    HMA = 'HMA (Hull)'
+    EHMA = 'EHMA (Exponential Hull)'
+    THMA = 'THMA (Triple Exponential Hull)'
+
+nd_ehma(float source, simple int length) =>
+    int half_length = math.max(1, int(math.round(length / 2.0)))
+    int sqrt_length = math.max(1, int(math.round(math.sqrt(length))))
+    ta.ema(2 * ta.ema(source, half_length) - ta.ema(source, length), sqrt_length)
+
+nd_thma(float source, simple int length) =>
+    int len_sixth = math.max(1, int(math.round(length / 6.0)))
+    int len_quarter = math.max(1, int(math.round(length / 4.0)))
+    int len_half = math.max(1, int(math.round(length / 2.0)))
+    ta.wma(ta.wma(source, len_sixth) * 3 - ta.wma(source, len_quarter) - ta.wma(source, len_half), len_half)
+
+nd_get_ma(simple NoDelayMovingAverage select_ma = NoDelayMovingAverage.SMA, float source, simple int length) =>
+    switch select_ma
+        NoDelayMovingAverage.EMA => ta.ema(source, length)
+        NoDelayMovingAverage.RMA => ta.rma(source, length)
+        NoDelayMovingAverage.WMA => ta.wma(source, length)
+        NoDelayMovingAverage.VWMA => ta.vwma(source, length)
+        NoDelayMovingAverage.HMA => ta.hma(source, length)
+        NoDelayMovingAverage.EHMA => nd_ehma(source, length)
+        NoDelayMovingAverage.THMA => nd_thma(source, length)
+        => ta.sma(source, length)
+
+nd_bb(float source, simple int length, float mult, simple NoDelayMovingAverage select_ma) =>
+    float base = nd_get_ma(select_ma, source, length)
+    float dev = mult * ta.stdev(source, length)
+    [base, base + dev, base - dev]
+
+nd_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>
+    ta.dmi(di_length, adx_smoothing)
+
+detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5, simple int pivot_confirmation_bars_right = 3, simple int pivot_min_x_distance = 5, simple int pivot_max_x_distance = 50, series float ref_low = low, series float ref_high = high, simple int pivot_min_y_distance_len = 14, simple float pivot_min_y_distance_dev_mult = 0.1, simple float pivot_min_y_distance_atr_mult = 0.1) =>
+    bool osc_pivot_l = not na(ta.pivotlow(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
+    bool osc_pivot_h = not na(ta.pivothigh(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
+    float pivot_osc_value = osc[pivot_confirmation_bars_right]
+    float osc_dev_value = nz(ta.dev(pivot_osc_value, pivot_min_y_distance_len), 0.0) * pivot_min_y_distance_dev_mult
+    float price_atr_value = ta.atr(pivot_min_y_distance_len) * pivot_min_y_distance_atr_mult
+    var int osc_prev_l_idx = 0
+    var float osc_prev_l_value = 0.0
+    var float price_prev_l = 0.0
+    var int osc_prev_h_idx = 0
+    var float osc_prev_h_value = 0.0
+    var float price_prev_h = 0.0
+
+    if barstate.isconfirmed and (osc_pivot_h or osc_pivot_l)
+        float prev_pivot_value = osc_pivot_h ? osc_prev_h_value : osc_prev_l_value
+        float prev_pivot_price = osc_pivot_h ? price_prev_h : price_prev_l
+        float new_pivot_value = osc[pivot_confirmation_bars_right]
+        float new_pivot_price = osc_pivot_h ? ref_high[pivot_confirmation_bars_right] : ref_low[pivot_confirmation_bars_right]
+        int new_pivot_distance = osc_pivot_h ? bar_index - osc_prev_h_idx : bar_index - osc_prev_l_idx
+
+        if osc_pivot_h
+            osc_prev_h_idx := bar_index
+            osc_prev_h_value := new_pivot_value
+            price_prev_h := new_pivot_price
+        if osc_pivot_l
+            osc_prev_l_idx := bar_index
+            osc_prev_l_value := new_pivot_value
+            price_prev_l := new_pivot_price
+
+        int mode = new_pivot_value < prev_pivot_value - osc_dev_value ? -1 : new_pivot_value > prev_pivot_value + osc_dev_value ? 1 : 0
+        int mode_p = new_pivot_price < prev_pivot_price - price_atr_value ? -1 : new_pivot_price > prev_pivot_price + price_atr_value ? 1 : 0
+        bool x_distance_in_range = new_pivot_distance >= pivot_min_x_distance and new_pivot_distance <= pivot_max_x_distance
+
+        bool strong_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == -1
+        bool medium_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == 0
+        bool weak_bull = osc_pivot_l and x_distance_in_range and mode == 0 and mode_p == -1
+        bool hidden_bull = osc_pivot_l and x_distance_in_range and mode == -1 and mode_p == 1
+        bool strong_bear = osc_pivot_h and x_distance_in_range and mode == -1 and mode_p == 1
+        bool medium_bear = osc_pivot_h and x_distance_in_range and mode == -1 and mode_p == 0
+        bool weak_bear = osc_pivot_h and x_distance_in_range and mode == 0 and mode_p == 1
+        bool hidden_bear = osc_pivot_h and x_distance_in_range and mode == 1 and mode_p == -1
+        [strong_bull, strong_bear, medium_bull, medium_bear, weak_bull, weak_bear, hidden_bull, hidden_bear, osc_pivot_h, osc_pivot_l]
+    else
+        [false, false, false, false, false, false, false, false, osc_pivot_h, osc_pivot_l]
 
 type LabelArgs
     varip color text_color = color.gray
@@ -2246,9 +2328,9 @@ var string g_ddvi_ctx = 'DDVI Context'
 var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx, tooltip = 'Preset guide:\nStacked rollout = close-safe on, hidden bull on, strong bull on, lower-extreme context modestly persistent.\nBalanced = strong bull off if DDVI should mostly reward continuation-quality hidden divergence.\nTight = keep strong bull on and shorten the lower-extreme context window if DDVI should gate only the cleanest reversals.')
 var int ddvi_di_length = input.int(14, 'DDVI DI Length', minval = 1, group = g_ddvi_ctx, inline = 'd1')
 var int ddvi_advx_smooth = input.int(14, 'ADVX Smooth', minval = 1, group = g_ddvi_ctx, inline = 'd1')
-var ND.MovingAverage ddvi_ma_select = input.enum(ND.MovingAverage.SMA, 'DDVI MA', group = g_ddvi_ctx, inline = 'd2')
+var NoDelayMovingAverage ddvi_ma_select = input.enum(NoDelayMovingAverage.SMA, 'DDVI MA', group = g_ddvi_ctx, inline = 'd2')
 var int ddvi_ma_len = input.int(5, 'Length', minval = 1, group = g_ddvi_ctx, inline = 'd2')
-var ND.MovingAverage ddvi_bb_ma_select = input.enum(ND.MovingAverage.SMA, 'DDVI BB MA', group = g_ddvi_ctx, inline = 'bb')
+var NoDelayMovingAverage ddvi_bb_ma_select = input.enum(NoDelayMovingAverage.SMA, 'DDVI BB MA', group = g_ddvi_ctx, inline = 'bb')
 var int ddvi_bb_len = input.int(100, 'BB Length', minval = 5, group = g_ddvi_ctx, inline = 'bb')
 var float ddvi_bb_mult = input.float(1.5, 'BB Stdev', minval = 0.1, step = 0.1, group = g_ddvi_ctx, inline = 'bb')
 var int ddvi_lower_extreme_lookback = input.int(12, 'Lower extreme context bars', minval = 1, maxval = 50, group = g_ddvi_ctx, tooltip = 'Stacked rollout recommendation: 12. This keeps DDVI context alive long enough for Watchlist and Ready without forcing DDVI to remain at the absolute lower extreme.')
@@ -2699,11 +2781,11 @@ float ddvi_bb_lower = na
 bool ddvi_strong_bull = false
 bool ddvi_hidden_bull = false
 bool ddvi_event_bar_ok = ddvi_close_safe_only ? barstate.isconfirmed : (signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed)
-[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = ND.dmi(ddvi_di_length, ddvi_advx_smooth)
+[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = nd_dmi(ddvi_di_length, ddvi_advx_smooth)
 float ddvi_raw = ddvi_plus_raw - ddvi_minus_raw
-float ddvi_ma_raw = ND.get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
-[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = ND.bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
-[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = DIV.divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
+float ddvi_ma_raw = nd_get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
+[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = nd_bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
+[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = detect_divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
 ddvi_plus := ddvi_plus_raw
 ddvi_minus := ddvi_minus_raw
 ddvi_advx := ddvi_advx_raw
