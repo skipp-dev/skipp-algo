@@ -2000,7 +2000,7 @@ var SignalMode signal_mode = input.enum(SignalMode.CONFIRMED_ONLY, 'Signal Mode'
 var g_ltf = 'Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, tooltip = LTF_TOOLTIP)
 var bool use_ltf_for_strict_entry = input.bool(true, 'Use LTF for strict entry', group = g_ltf, tooltip = 'Keeps lower-timeframe sampling active for strict-entry filters even when the dashboard and dynamic alerts are off.')
-var bool allow_strict_entry_without_ltf = input.bool(false, 'Allow strict entry without LTF when unavailable', group = g_ltf, display = display.none, tooltip = 'Optional fallback. When enabled, strict-entry alerts may still trigger when lower-timeframe sampling is unavailable on the current chart.')
+var bool allow_strict_entry_without_ltf = input.bool(false, 'Allow strict entry without LTF when unavailable', group = g_ltf, display = display.none, tooltip = 'Optional fallback. When enabled, strict-entry alerts may still trigger when lower-timeframe sampling is unavailable on the current chart, but other strict requirements such as confirmed volume-backed DDVI context still apply when enabled.')
 var bool use_ltf_for_dynamic_alerts = input.bool(false, 'Use LTF in dynamic alerts', group = g_ltf, tooltip = 'When off, dynamic alert messages do not force lower-timeframe sampling just for message decoration.')
 var bool ltf_auto_select = input.bool(true, 'Auto-select lower timeframe', group = g_ltf)
 var string ltf_timeframe = input.timeframe(DEFAULT_LTF_TIMEFRAME, 'Lower timeframe', group = g_ltf, display = display.status_line)
@@ -2033,7 +2033,7 @@ var int max_ltf_samples_per_bar = input.int(300, 'Max LTF Samples / Bar', minval
 var g_data = 'Data Quality'
 var int volume_quality_lookback = input.int(50, 'Volume Quality Lookback', minval = 5, group = g_data, display = display.none)
 var int min_nonzero_volume_bars = input.int(10, 'Min Non-Zero Volume Bars', minval = 1, group = g_data, display = display.none)
-var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, long-ready filters do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, while Strict still requires confirmed volume-backed context.')
+var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, non-strict stages do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, and score thresholds shrink by the unavailable RelVol component, while Strict still requires confirmed volume-backed context.')
 
 var g_risk = 'Risk / Exits'
 var bool show_risk_levels = input.bool(true, 'Show Risk Levels', group = g_risk)
@@ -2325,7 +2325,7 @@ var label volume_quality_warning = na
 if barstate.islast
     if not volume_data_ok
         string profile_warning_text = use_ob_profile ? 'OB profiles are off' : 'OB profiles are already off'
-        string ddvi_warning_text = use_ddvi_context ? 'DDVI Best can fall back' : 'DDVI context is off'
+        string ddvi_warning_text = use_ddvi_context ? 'DDVI watchlist/ready/best can fall back' : 'DDVI context is off'
         string fallback_warning_text = allow_relvol_without_volume_data ? str.format('{0}; RelVol and {1}, but Strict and LTF delta stay limited', profile_warning_text, ddvi_warning_text) : str.format('{0}; RelVol, {1}, and strict entry may stay blocked', profile_warning_text, use_ddvi_context ? 'DDVI Best' : 'strict entry')
         string volume_warning_text = str.format('Volume data quality is limited\n{0}', fallback_warning_text)
         if na(volume_quality_warning)
@@ -4021,17 +4021,17 @@ bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal_latched, 'Long Armed', 'SMC++: armed tier active after reclaim and zone confirmation.')
-alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: confirmed tier active after trigger break and internal structure confirmation, with strict-flow, environment-gate, and microstructure context plus optional score gating.')
+alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: confirmed tier active after trigger break and internal structure confirmation, with strict-flow plus environment and microstructure context, and optional score gating when enabled.')
 alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: ready tier active with filters aligned, with strict-flow, environment-gate, and microstructure context plus optional score gating.')
 alertcondition(long_invalidate_signal_latched, 'Long Invalidated', 'SMC++: long setup was invalidated.')
 alertcondition(long_arm_close_safe, 'Long Armed (Close Safe)', 'SMC++: long setup remained armed into the confirmed close.')
-alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close, with environment-gate and microstructure context plus optional score gating.')
+alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close, with environment and microstructure context, and optional score gating when enabled.')
 alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close, with environment-gate and microstructure context plus optional score gating.')
 alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: long setup ended invalidated at bar close.')
 alertcondition(alert_long_watchlist_event, 'Long Dip Watchlist', 'SMC++: watchlist tier active with bullish trend and active pullback zone.')
 alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: Armed+ tier active after strict reclaim qualified the setup.')
 alertcondition(alert_long_early_event, 'Long Dip Early', 'SMC++: early tier active with strict reclaim qualification and internal confirmation starting.')
-alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: confirmed tier active for a clean long-dip setup, with environment-gate and microstructure context.')
+alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: confirmed tier active for a clean long-dip setup, with environment and microstructure context shown alongside the setup state.')
 alertcondition(alert_long_entry_best_event, 'Long Dip Entry Best', 'SMC++: Entry Best tier active with standard long-dip entry filters aligned.')
 alertcondition(alert_long_entry_strict_event, 'Long Dip Entry Strict', 'SMC++: Entry Strict tier active with HTF and momentum alignment plus full confluence.')
 alertcondition(long_invalidate_signal_latched, 'Long Dip Failed', 'SMC++: long-dip setup invalidated.')
@@ -4121,14 +4121,14 @@ if dynamic_long_alert_mode == 'Priority'
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
         long_dynamic_alert_sent := true
         alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Entry Best tier active: standard long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
-    else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
-        dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-        long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
         long_dynamic_alert_sent := true
         alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready tier active for {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
+    else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
+        dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
+        long_dynamic_alert_sent := true
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
         long_dynamic_alert_sent := true
@@ -4159,12 +4159,12 @@ else
     if enable_dynamic_alerts and alert_long_entry_best_event and not str.contains(dynamic_alert_seen_keys, '|long_entry_best|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_entry_best|'
         alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Entry Best tier active: standard long entry filters aligned' + long_micro_alert_suffix + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
-    if enable_dynamic_alerts and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
-        dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
         alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Ready tier active for {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
+    if enable_dynamic_alerts and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
+        dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed tier active: clean long-dip setup' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
         alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Confirmed tier active from {0}{1}{2}{3}{4}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_ok and not volume_data_ok, signal_mode_text), alert.freq_all)
