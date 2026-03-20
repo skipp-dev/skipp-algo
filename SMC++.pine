@@ -2243,7 +2243,7 @@ var bool show_mean_target_overlay = input.bool(true, 'Show mean target overlay',
 var bool show_lower_extreme_bg = input.bool(false, 'Highlight lower extreme background', group = g_stretch)
 
 var string g_ddvi_ctx = 'DDVI Context'
-var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx)
+var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx, tooltip = 'Preset guide:\nStacked rollout = close-safe on, hidden bull on, strong bull on, lower-extreme context modestly persistent.\nBalanced = strong bull off if DDVI should mostly reward continuation-quality hidden divergence.\nTight = keep strong bull on and shorten the lower-extreme context window if DDVI should gate only the cleanest reversals.')
 var int ddvi_di_length = input.int(14, 'DDVI DI Length', minval = 1, group = g_ddvi_ctx, inline = 'd1')
 var int ddvi_advx_smooth = input.int(14, 'ADVX Smooth', minval = 1, group = g_ddvi_ctx, inline = 'd1')
 var ND.MovingAverage ddvi_ma_select = input.enum(ND.MovingAverage.SMA, 'DDVI MA', group = g_ddvi_ctx, inline = 'd2')
@@ -2251,9 +2251,9 @@ var int ddvi_ma_len = input.int(5, 'Length', minval = 1, group = g_ddvi_ctx, inl
 var ND.MovingAverage ddvi_bb_ma_select = input.enum(ND.MovingAverage.SMA, 'DDVI BB MA', group = g_ddvi_ctx, inline = 'bb')
 var int ddvi_bb_len = input.int(100, 'BB Length', minval = 5, group = g_ddvi_ctx, inline = 'bb')
 var float ddvi_bb_mult = input.float(1.5, 'BB Stdev', minval = 0.1, step = 0.1, group = g_ddvi_ctx, inline = 'bb')
-var int ddvi_lower_extreme_lookback = input.int(8, 'Lower extreme context bars', minval = 1, maxval = 50, group = g_ddvi_ctx)
-var bool use_ddvi_hidden_bull = input.bool(true, 'Use hidden bull divergence', group = g_ddvi_ctx, inline = 'div')
-var bool use_ddvi_strong_bull = input.bool(false, 'Use strong bull divergence', group = g_ddvi_ctx, inline = 'div')
+var int ddvi_lower_extreme_lookback = input.int(12, 'Lower extreme context bars', minval = 1, maxval = 50, group = g_ddvi_ctx, tooltip = 'Stacked rollout recommendation: 12. This keeps DDVI context alive long enough for Watchlist and Ready without forcing DDVI to remain at the absolute lower extreme.')
+var bool use_ddvi_hidden_bull = input.bool(true, 'Use hidden bull divergence', group = g_ddvi_ctx, inline = 'div', tooltip = 'Recommended on. Hidden bull divergence is the most natural DDVI continuation signal for long-dip entries.')
+var bool use_ddvi_strong_bull = input.bool(true, 'Use strong bull divergence', group = g_ddvi_ctx, inline = 'div', tooltip = 'Stacked rollout recommendation: on. Entry Strict otherwise depends too often on hidden bull divergence alone once the rest of the confluence stack is active.')
 var int ddvi_pivot_left = input.int(5, 'Pivot Left', minval = 1, group = g_ddvi_ctx, inline = 'p1')
 var int ddvi_pivot_right = input.int(3, 'Right', minval = 1, group = g_ddvi_ctx, inline = 'p1')
 var int ddvi_div_min_range = input.int(5, 'Div Min', minval = 1, group = g_ddvi_ctx, inline = 'p2')
@@ -2261,7 +2261,7 @@ var int ddvi_div_max_range = input.int(60, 'Max', minval = 2, group = g_ddvi_ctx
 var int ddvi_eq_zone_len = input.int(14, 'Equal zone length', minval = 1, group = g_ddvi_ctx, inline = 'p3')
 var float ddvi_eq_zone_atr_mult = input.float(0.2, 'Price ATR x', minval = 0.0, step = 0.1, group = g_ddvi_ctx, inline = 'p3')
 var float ddvi_eq_zone_dev_mult = input.float(0.2, 'DDVI Dev x', minval = 0.0, step = 0.01, group = g_ddvi_ctx, inline = 'p3')
-var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', group = g_ddvi_ctx)
+var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', group = g_ddvi_ctx, tooltip = 'Recommended on. Keeps DDVI event gating aligned with the rest of the close-safe SMC++ flow.')
 
 var g_struct = 'Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, tooltip = SHOW_SWING)
@@ -2692,30 +2692,32 @@ float ddvi_bb_lower = na
 bool ddvi_strong_bull = false
 bool ddvi_hidden_bull = false
 bool ddvi_event_bar_ok = ddvi_close_safe_only ? barstate.isconfirmed : (signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed)
-if use_ddvi_context and volume_data_ok
-    [ddvi_plus_tmp, ddvi_minus_tmp, ddvi_advx_tmp] = ND.dmi(ddvi_di_length, ddvi_advx_smooth)
-    ddvi_plus := ddvi_plus_tmp
-    ddvi_minus := ddvi_minus_tmp
-    ddvi_advx := ddvi_advx_tmp
-    float ddvi_raw = ddvi_plus - ddvi_minus
-    ddvi := ND.get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
-    [ddvi_bb_basis_tmp, ddvi_bb_upper_tmp, ddvi_bb_lower_tmp] = ND.bb(ddvi, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
-    ddvi_bb_basis := ddvi_bb_basis_tmp
-    ddvi_bb_upper := ddvi_bb_upper_tmp
-    ddvi_bb_lower := ddvi_bb_lower_tmp
-    [strong_bull_tmp, _, _, _, _, _, hidden_bull_tmp, _, _, _] = DIV.divergence(ddvi, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
-    ddvi_strong_bull := strong_bull_tmp
-    ddvi_hidden_bull := hidden_bull_tmp
+[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = ND.dmi(ddvi_di_length, ddvi_advx_smooth)
+float ddvi_raw = ddvi_plus_raw - ddvi_minus_raw
+float ddvi_ma_raw = ND.get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
+[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = ND.bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
+[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = DIV.divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
+ddvi_plus := ddvi_plus_raw
+ddvi_minus := ddvi_minus_raw
+ddvi_advx := ddvi_advx_raw
+ddvi := ddvi_ma_raw
+ddvi_bb_basis := ddvi_bb_basis_raw
+ddvi_bb_upper := ddvi_bb_upper_raw
+ddvi_bb_lower := ddvi_bb_lower_raw
+ddvi_strong_bull := ddvi_strong_bull_raw
+ddvi_hidden_bull := ddvi_hidden_bull_raw
 
+bool ddvi_bias_cross_up_raw = ta.crossover(ddvi_ma_raw, 0)
+bool ddvi_recover_from_lower_extreme_raw = ta.crossover(ddvi_ma_raw, ddvi_bb_lower_raw)
 bool ddvi_bias_bull = use_ddvi_context and volume_data_ok and not na(ddvi) and ddvi > 0
 bool ddvi_bias_rising = use_ddvi_context and volume_data_ok and not na(ddvi) and not na(ddvi[1]) and ddvi > ddvi[1]
-bool ddvi_bias_cross_up = use_ddvi_context and volume_data_ok and ddvi_event_bar_ok and not na(ddvi) and ta.crossover(ddvi, 0)
+bool ddvi_bias_cross_up = use_ddvi_context and volume_data_ok and ddvi_event_bar_ok and not na(ddvi) and ddvi_bias_cross_up_raw
 bool ddvi_bias_ok = ddvi_bias_bull and ddvi_bias_rising
 bool ddvi_bias_transition_ok = ddvi_bias_cross_up or (ddvi_bias_bull and ddvi_bias_rising)
 bool ddvi_lower_extreme_now = use_ddvi_context and volume_data_ok and not na(ddvi) and not na(ddvi_bb_lower) and ddvi <= ddvi_bb_lower
 int ddvi_lower_extreme_since = ta.barssince(ddvi_lower_extreme_now)
 bool ddvi_lower_extreme_recent = use_ddvi_context and volume_data_ok and not na(ddvi_lower_extreme_since) and ddvi_lower_extreme_since <= ddvi_lower_extreme_lookback
-bool ddvi_recover_from_lower_extreme = use_ddvi_context and volume_data_ok and ddvi_event_bar_ok and not na(ddvi) and not na(ddvi_bb_lower) and ta.crossover(ddvi, ddvi_bb_lower)
+bool ddvi_recover_from_lower_extreme = use_ddvi_context and volume_data_ok and ddvi_event_bar_ok and not na(ddvi) and not na(ddvi_bb_lower) and ddvi_recover_from_lower_extreme_raw
 bool ddvi_lower_extreme_context = ddvi_lower_extreme_now or ddvi_lower_extreme_recent or ddvi_recover_from_lower_extreme
 bool hidden_bull_divergence = use_ddvi_context and volume_data_ok and use_ddvi_hidden_bull and ddvi_hidden_bull
 bool strong_bull_divergence = use_ddvi_context and volume_data_ok and use_ddvi_strong_bull and ddvi_strong_bull
