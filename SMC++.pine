@@ -2160,20 +2160,20 @@ var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', g
 var float min_close_in_range_pct = input.float(0.65, 'Min Close In Range', minval = 0.50, maxval = 1.00, step = 0.05, group = g_long, inline = 'close')
 
 var g_accel = 'Pullback Acceleration'
-var bool use_accel_module = input.bool(true, 'Use acceleration timing module', group = g_accel)
+var bool use_accel_module = input.bool(true, 'Use acceleration timing module', group = g_accel, tooltip = 'Preset guide:\nCautious rollout = Early only + Ready requires accel > 0.\nFull confluence = Confirm + Ready or Strict entries only, depending on how hard you want confirmation and entries filtered.')
 var int accel_len_fast = input.int(8, 'Fast length', minval = 2, group = g_accel, inline = 'acc1')
 var int accel_len_mid1 = input.int(13, 'Mid 1', minval = 3, group = g_accel, inline = 'acc1')
 var int accel_len_mid2 = input.int(21, 'Mid 2', minval = 5, group = g_accel, inline = 'acc2')
 var int accel_len_slow = input.int(34, 'Slow', minval = 8, group = g_accel, inline = 'acc2')
 var int accel_smooth_len = input.int(3, 'Smooth', minval = 1, group = g_accel, inline = 'acc3')
 var float accel_cross_threshold = input.float(0.0, 'Zero threshold', step = 0.01, group = g_accel, inline = 'acc3')
-var string accel_integration_mode = input.string('Early only', 'Integration mode', options = ['Early only', 'Confirm + Ready', 'Strict entries only'], group = g_accel)
-var bool require_accel_above_zero_for_ready = input.bool(true, 'Ready requires accel > 0', group = g_accel)
+var string accel_integration_mode = input.string('Early only', 'Integration mode', options = ['Early only', 'Confirm + Ready', 'Strict entries only'], group = g_accel, tooltip = 'Cautious rollout: Early only.\nBalanced: Confirm + Ready.\nHard filter: Strict entries only.')
+var bool require_accel_above_zero_for_ready = input.bool(true, 'Ready requires accel > 0', group = g_accel, tooltip = 'Recommended on for rollout. Turning this off allows weaker pullback-recovery states to qualify as Ready.')
 var int accel_recent_cross_bars = input.int(3, 'Recent cross bars', minval = 1, maxval = 20, group = g_accel)
 var bool show_accel_debug = input.bool(false, 'Show accel debug markers', group = g_accel)
 
 var g_sd = 'Second Derivative Confluence'
-var bool use_sd_confluence = input.bool(true, 'Use second-derivative confluence', group = g_sd)
+var bool use_sd_confluence = input.bool(true, 'Use second-derivative confluence', group = g_sd, tooltip = 'Preset guide:\nCautious rollout = Armed off, Confirmed off, Entry Best off, Entry Strict requires both.\nFull confluence = Armed/Confirmed/Entry Best on if you want SD to harden most long states.')
 var int sd_lr_len = input.int(14, 'LR length', minval = 3, group = g_sd, inline = 'sd1')
 var int sd_smooth_len = input.int(3, 'Smooth', minval = 1, group = g_sd, inline = 'sd1')
 var int sd_pivot_len = input.int(3, 'Pivot length', minval = 1, maxval = 10, group = g_sd, inline = 'sd2')
@@ -2183,9 +2183,9 @@ var bool sd_require_for_armed = input.bool(false, 'Require SD confluence for Arm
 var bool sd_require_for_early = input.bool(true, 'Require SD confluence for Early', group = g_sd)
 var bool sd_require_for_confirmed = input.bool(false, 'Require SD confluence for Confirmed', group = g_sd)
 var bool sd_require_for_ready = input.bool(true, 'Require SD confluence for Ready', group = g_sd)
-var bool sd_require_for_entry_best = input.bool(false, 'Require SD confluence for Entry Best', group = g_sd)
-var bool sd_require_both_for_entry_strict = input.bool(true, 'Entry Strict requires BOTH signals', group = g_sd)
-var bool sd_require_osc_rising_for_ready = input.bool(true, 'Ready requires oscillator rising', group = g_sd)
+var bool sd_require_for_entry_best = input.bool(false, 'Require SD confluence for Entry Best', group = g_sd, tooltip = 'Cautious rollout keeps this off. Full confluence can turn this on to harden the standard entry tier.')
+var bool sd_require_both_for_entry_strict = input.bool(true, 'Entry Strict requires BOTH signals', group = g_sd, tooltip = 'Recommended on. Strict then needs both bullish divergence and oscillator higher lows.')
+var bool sd_require_osc_rising_for_ready = input.bool(true, 'Ready requires oscillator rising', group = g_sd, tooltip = 'Recommended on for rollout. Keeps Ready tied to improving oscillator context, not just stale recent events.')
 var bool show_sd_debug = input.bool(false, 'Show SD debug markers', group = g_sd)
 
 var g_struct = 'Market Structure'
