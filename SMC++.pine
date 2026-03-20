@@ -3128,7 +3128,6 @@ var int long_confirm_bar_index = na
 var float long_setup_trigger = na
 var float long_invalidation_level = na
 var string long_setup_source = 'None'
-var string long_setup_source_kind = 'None'
 var string long_setup_backing_zone_kind = 'None'
 var int long_setup_backing_zone_id = na
 var int long_setup_backing_zone_touch_count = 0
@@ -3798,7 +3797,6 @@ if long_invalidated_now
     long_setup_trigger := na
     long_invalidation_level := na
     long_setup_source := 'None'
-    long_setup_source_kind := 'None'
     long_setup_backing_zone_kind := 'None'
     long_setup_backing_zone_id := na
     long_setup_backing_zone_touch_count := 0
@@ -3820,7 +3818,6 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_setup_trigger := arm_trigger_candidate
     long_invalidation_level := arm_invalidation_candidate
     long_setup_source := arm_source_text
-    long_setup_source_kind := arm_source_text
     long_setup_backing_zone_kind := arm_backing_zone_kind
     long_setup_backing_zone_id := arm_backing_zone_id
     long_setup_backing_zone_touch_count := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : arm_backing_zone_kind == 'FVG' and -arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : 0

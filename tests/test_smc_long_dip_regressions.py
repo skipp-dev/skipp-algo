@@ -217,3 +217,20 @@ def test_source_upgrade_is_explicit_and_quality_gated() -> None:
     assert 'if long_source_upgrade_now' in source
     assert "long_setup_backing_zone_kind := prefer_ob_upgrade ? 'OB' : 'FVG'" in source
     assert "long_locked_source_kind := prefer_ob_upgrade ? 'OB' : 'FVG'" in source
+
+
+def test_source_upgrade_requires_different_candidate_than_locked_source() -> None:
+    source = _read_smc_source()
+
+    assert "(long_locked_source_kind != 'OB' or long_locked_source_id != touched_bull_ob_id)" in source
+    assert "(long_locked_source_kind != 'FVG' or long_locked_source_id != touched_bull_fvg_id)" in source
+
+
+def test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain() -> None:
+    source = _read_smc_source()
+
+    assert 'bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed' in source
+    assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed' in source
+    assert 'touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
+    assert 'touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
+    assert 'long_setup_source_kind' not in source
