@@ -20,6 +20,77 @@ The latest SMC++ updates tightened four areas in particular:
 - Data quality is split more clearly: missing current-bar volume, weak feed quality, and missing LTF volume context are no longer treated as the same problem.
 - Alerts and dashboard state are aligned more closely: Ready and Invalidated use latched event states, and the microstructure row now shows the primary profile plus active modifiers.
 
+## Dashboard Blocks
+
+The dashboard is now grouped not only by individual rows, but also by four functional blocks.
+
+### [ Lifecycle ]
+
+This block shows the pure setup progression.
+
+- Trend
+- HTF Trend
+- Pullback Zone
+- Reclaim
+- Long Setup
+- Setup Age
+- Long Visual
+- Exec Tier
+
+This answers: Where is the setup right now in its progression?
+
+### [ Hard Gates ]
+
+This block shows release and block conditions.
+
+- Session
+- Market Gate
+- Vola Regime
+- Micro Session
+- Micro Fresh
+- Volume Data
+- Quality Env
+- Quality Strict
+
+This answers: Is the setup even allowed to keep progressing under the current market and execution conditions?
+
+### [ Quality ]
+
+This block shows context quality.
+
+- Close Strength
+- EMA Support
+- ADX
+- Rel Volume
+- VWAP Filter
+- Context Quality
+- Quality Score
+- Quality Clean
+
+This answers: How clean and reliable is the setup environment?
+
+### [ Modules ]
+
+This block shows the upgrade modules.
+
+- SD Confluence
+- SD Osc
+- Vol Regime
+- Vol Squeeze
+- Vol Expand
+- Stretch
+- DDVI
+- LTF Bias
+- LTF Delta
+- Objects
+- Swing H/L
+- Long Zones
+- Long Triggers
+- Micro Profile
+- Risk Plan
+
+This answers: Which add-on modules upgrade a Ready setup toward Best or Strict?
+
 ## Dashboard Terms in Plain English
 
 ### Trend
@@ -351,4 +422,6 @@ It fits the dashboard workflow well:
 
 Only trade a long-dip when:
 
-**Trend is bullish + price is in an OB/FVG zone + reclaim is present + Long Setup is Confirmed or Ready + close is strong + EMA Support is OK**
+### Rule Summary
+
+Trend is bullish + price is in an OB/FVG zone + reclaim is present + Long Setup is Confirmed or Ready + close is strong + EMA Support is OK
