@@ -836,6 +836,12 @@ method create_profile(OrderBlock block, float[] opens, float[] tops, float[] bot
 method create_profile(OrderBlock block, int resolution = 20, float vah_pc = 80, float val_pc = 20, bool init_calculated = true, simple int use_open_close_data_for_blocks_shorter_than_bars = 4) =>
     block.create_profile(block.ltf_open, block.ltf_high, block.ltf_low, block.ltf_close, block.ltf_volume, resolution, vah_pc, val_pc, init_calculated, use_open_close_data_for_blocks_shorter_than_bars)
 
+resolve_confirmed_ob_break_price(bool align_edge_to_value_area, bool align_break_price_to_poc, float original_top, float original_bottom, float confirmed_top, float confirmed_bottom, float current_break_price) =>
+    float resolved_break_price = current_break_price
+    if not align_break_price_to_poc
+        resolved_break_price := align_edge_to_value_area ? math.avg(confirmed_top, confirmed_bottom) : math.avg(original_top, original_bottom)
+    resolved_break_price
+
 method overlaps_range(OrderBlock this, float range_top = 0, float range_btm = 0) =>
     na(this) ? false : range_overlap(this.left_top.price, this.right_bottom.price, range_top, range_btm)
 
@@ -1080,6 +1086,8 @@ track_obs(
                                 bear_ob_confirmed.create_profile()
                                 bear_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
 
+                            bear_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, _check_top[2], _check_btm[2], bear_ob_confirmed.left_top.price, bear_ob_confirmed.right_bottom.price, bear_ob_confirmed.break_price)
+
                         bear_ob_confirmed.right_bottom.index := bar_index
                         bear_ob_confirmed.right_bottom.time := time_close
                         tracking_blocks_bear.push(bear_ob_confirmed)
@@ -1138,6 +1146,8 @@ track_obs(
                             if align_edge_to_value_area or align_break_price_to_poc
                                 bull_ob_confirmed.create_profile()
                                 bull_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
+
+                            bull_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, _check_top[2], _check_btm[2], bull_ob_confirmed.left_top.price, bull_ob_confirmed.right_bottom.price, bull_ob_confirmed.break_price)
 
                         bull_ob_confirmed.right_bottom.index := bar_index
                         bull_ob_confirmed.right_bottom.time := time_close
@@ -1226,8 +1236,7 @@ track_obs(
                         bull_ob_confirmed.create_profile()
                         bull_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
 
-                    if not align_break_price_to_poc
-                        bull_ob_confirmed.break_price := math.avg(bull_ob.left_top.price, bull_ob.right_bottom.price)
+                    bull_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, bull_ob.left_top.price, bull_ob.right_bottom.price, bull_ob_confirmed.left_top.price, bull_ob_confirmed.right_bottom.price, bull_ob_confirmed.break_price)
                     bull_ob.profile := na
 
                     if is_fvg_up and high[2] < bull_ob_confirmed.left_top.price and bull_ob_confirmed.left_top.price < low
@@ -1269,8 +1278,7 @@ track_obs(
                         bear_ob_confirmed.create_profile()
                         bear_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
 
-                    if not align_break_price_to_poc
-                        bear_ob_confirmed.break_price := math.avg(bear_ob.left_top.price, bear_ob.right_bottom.price)
+                    bear_ob_confirmed.break_price := resolve_confirmed_ob_break_price(align_edge_to_value_area, align_break_price_to_poc, bear_ob.left_top.price, bear_ob.right_bottom.price, bear_ob_confirmed.left_top.price, bear_ob_confirmed.right_bottom.price, bear_ob_confirmed.break_price)
                     bear_ob.profile := na
 
                     if is_fvg_down and low[2] < bear_ob_confirmed.right_bottom.price and bear_ob_confirmed.right_bottom.price < high
@@ -1812,7 +1820,7 @@ resolve_long_close_safe_alert_events(bool bar_confirmed, bool long_setup_armed, 
     [long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe]
 
 compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    str.format('Invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)
+    str.format('{0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)
 
 compose_long_entry_strict_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
     'Entry Strict. Ready live, strict upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix

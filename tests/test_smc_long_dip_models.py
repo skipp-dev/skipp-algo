@@ -205,6 +205,21 @@ def _model_long_watchlist_alert_detail(
     return f'Watchlist. Bullish trend plus active pullback zone{long_micro_alert_suffix}{long_score_detail_suffix}'
 
 
+def _model_resolve_confirmed_ob_break_price(
+    align_edge_to_value_area: bool,
+    align_break_price_to_poc: bool,
+    original_top: float,
+    original_bottom: float,
+    confirmed_top: float,
+    confirmed_bottom: float,
+    current_break_price: float,
+) -> float:
+    resolved_break_price = current_break_price
+    if not align_break_price_to_poc:
+        resolved_break_price = (confirmed_top + confirmed_bottom) / 2 if align_edge_to_value_area else (original_top + original_bottom) / 2
+    return resolved_break_price
+
+
 def _model_long_alert_identity(long_alert_kind: str) -> tuple[str, str]:
     seen_key = '|long_watchlist|'
     event_name = 'Long Dip Watchlist'
@@ -352,9 +367,12 @@ def test_model_long_alert_detail_contracts() -> None:
     confirmed_detail = _model_long_confirmed_alert_detail('OB', '', ' | env', ' | micro', ' | score')
     watchlist_detail = _model_long_watchlist_alert_detail(' | micro', ' | score')
 
+    invalidated_detail = 'OB source invalidated | micro | score'
+
     assert ready_detail == 'Ready for Swing Low -> OB: lifecycle, gates, context, upgrades passed | strict | env | micro | score'
     assert confirmed_detail == 'Confirmed from OB: confirm lifecycle and filters passed | env | micro | score'
     assert watchlist_detail == 'Watchlist. Bullish trend plus active pullback zone | micro | score'
+    assert invalidated_detail == 'OB source invalidated | micro | score'
 
 
 def test_model_long_alert_identity_contract() -> None:
@@ -369,3 +387,9 @@ def test_model_directional_dynamic_alert_identity_contract() -> None:
     assert _model_directional_dynamic_alert_identity('choch', False) == ('|bear_choch|', 'Bearish CHoCH', 'Character shift confirmed')
     assert _model_directional_dynamic_alert_identity('new_ob', False) == ('|new_bear_ob|', 'Bearish Order Block', 'New order block confirmed')
     assert _model_directional_dynamic_alert_identity('live_fvg_fill', False) == ('|live_bear_fvg_fill|', 'Bearish FVG Live Fill', 'Intrabar bearish fair value gap fill detected')
+
+
+def test_model_confirmed_ob_break_price_tracks_final_aligned_box_when_needed() -> None:
+    assert _model_resolve_confirmed_ob_break_price(True, False, 110.0, 100.0, 108.0, 104.0, 105.5) == 106.0
+    assert _model_resolve_confirmed_ob_break_price(False, False, 110.0, 100.0, 108.0, 104.0, 105.5) == 105.0
+    assert _model_resolve_confirmed_ob_break_price(True, True, 110.0, 100.0, 108.0, 104.0, 105.5) == 105.5
