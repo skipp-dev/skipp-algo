@@ -2107,6 +2107,13 @@ var bool use_overhead_zone_filter = input.bool(true, 'Block Overhead Zone', grou
 var int min_entry_score = input.int(8, 'Min Entry Score', minval = 1, maxval = 10, group = g_long, inline = 'score1')
 var bool require_entry_score_for_confirmed = input.bool(false, 'Gate Confirmed By Score', group = g_long, inline = 'score1')
 var bool require_entry_score_for_ready = input.bool(false, 'Gate Ready By Score', group = g_long, inline = 'score2')
+var bool use_strict_sequence = input.bool(true, 'Strict: Zone -> Reclaim -> Internal Break', group = g_long, inline = 'strict1')
+var bool allow_same_bar_zone_reclaim = input.bool(false, 'Allow same-bar reclaim', group = g_long, inline = 'strict1')
+var bool use_strict_sweep_for_zone_reclaim = input.bool(true, 'Strict sweep for OB/FVG reclaim', group = g_long, inline = 'strict2')
+var float ob_reclaim_min_penetration = input.float(0.50, 'OB depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict2')
+var float fvg_reclaim_min_penetration = input.float(0.35, 'FVG depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict3')
+var bool use_strict_confirm_guard = input.bool(true, 'Strict confirm guard vs bearish breaks', group = g_long, inline = 'strict4')
+var bool show_strict_debug_markers = input.bool(false, 'Debug markers', group = g_long, inline = 'strict4')
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm')
@@ -2680,6 +2687,17 @@ int active_long_zone_id_safe = active_long_zone_id
 if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
     long_zone_active_safe := long_zone_active[1]
     active_long_zone_id_safe := active_long_zone_id[1]
+var int last_zone_touch_event_bar_index = na
+var int last_zone_touch_event_zone_id = na
+bool zone_touch_event = long_zone_active and (not long_zone_active[1] or active_long_zone_id != active_long_zone_id[1])
+if zone_touch_event
+    last_zone_touch_event_bar_index := bar_index
+    last_zone_touch_event_zone_id := active_long_zone_id
+bool zone_touch_event_recent = not na(last_zone_touch_event_bar_index) and bar_index - last_zone_touch_event_bar_index <= long_signal_window
+bool zone_touch_sequence_time_ok = not na(last_zone_touch_event_bar_index) and (allow_same_bar_zone_reclaim ? bar_index >= last_zone_touch_event_bar_index : bar_index > last_zone_touch_event_bar_index)
+bool ob_zone_touch_sequence_ok = zone_touch_event_recent and zone_touch_sequence_time_ok and not na(touched_bull_ob_id) and last_zone_touch_event_zone_id == touched_bull_ob_id
+bool fvg_zone_touch_sequence_ok = zone_touch_event_recent and zone_touch_sequence_time_ok and not na(touched_bull_fvg_id) and last_zone_touch_event_zone_id == -touched_bull_fvg_id
+bool generic_zone_touch_sequence_ok = zone_touch_event_recent and zone_touch_sequence_time_ok
 bool zone_touch_tracking_active = live_exec ? long_zone_active : long_zone_active_safe
 int zone_touch_tracking_id = live_exec ? active_long_zone_id : active_long_zone_id_safe
 var int active_zone_touch_count = 0
@@ -2765,8 +2783,18 @@ bool bull_reclaim_ob = long_reclaim_bar_ok and touched_bull_ob_recent and not na
 bool bull_reclaim_fvg = long_reclaim_bar_ok and touched_bull_fvg_recent and not na(touched_bull_fvg_top) and (bull_reclaim_fvg_cross or bull_reclaim_fvg_wick_reclaim)
 bool bull_reclaim_internal_low = long_reclaim_bar_ok and not na(internal_trail_dn) and low < internal_trail_dn and long_reclaim_internal_break_src > internal_trail_dn
 bool bull_reclaim_swing_low = long_reclaim_bar_ok and not na(trail_dn) and low < trail_dn and long_reclaim_swing_break_src > trail_dn
-bool bull_reclaim_any = bull_reclaim_ob or bull_reclaim_fvg or bull_reclaim_internal_low or bull_reclaim_swing_low
-bool bull_reclaim_any_for_arm = bull_reclaim_ob or bull_reclaim_fvg or ((bull_reclaim_internal_low or bull_reclaim_swing_low) and long_zone_active)
+float bull_ob_zone_height = not na(touched_bull_ob_top) and not na(touched_bull_ob_bottom) ? math.max(touched_bull_ob_top - touched_bull_ob_bottom, syminfo.mintick) : na
+float bull_fvg_zone_height = not na(touched_bull_fvg_top) and not na(touched_bull_fvg_bottom) ? math.max(touched_bull_fvg_top - touched_bull_fvg_bottom, syminfo.mintick) : na
+float bull_ob_required_sweep_level = not na(bull_ob_zone_height) ? touched_bull_ob_top - bull_ob_zone_height * ob_reclaim_min_penetration : na
+float bull_fvg_required_sweep_level = not na(bull_fvg_zone_height) ? touched_bull_fvg_top - bull_fvg_zone_height * fvg_reclaim_min_penetration : na
+bool bull_ob_real_sweep = touched_bull_ob_still_active and not na(bull_ob_required_sweep_level) and low <= bull_ob_required_sweep_level
+bool bull_fvg_real_sweep = touched_bull_fvg_still_active and not na(bull_fvg_required_sweep_level) and low <= bull_fvg_required_sweep_level
+bool bull_reclaim_ob_strict = bull_reclaim_ob and (not use_strict_sequence or ob_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim or bull_ob_real_sweep)
+bool bull_reclaim_fvg_strict = bull_reclaim_fvg and (not use_strict_sequence or fvg_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim or bull_fvg_real_sweep)
+bool bull_reclaim_internal_low_strict = bull_reclaim_internal_low and (not use_strict_sequence or generic_zone_touch_sequence_ok)
+bool bull_reclaim_swing_low_strict = bull_reclaim_swing_low and (not use_strict_sequence or generic_zone_touch_sequence_ok)
+bool bull_reclaim_any = bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
+bool bull_reclaim_any_for_arm = bull_reclaim_ob_strict or bull_reclaim_fvg_strict or ((bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict) and long_zone_active)
 
 int zone_since_bars = ta.barssince(long_zone_active)
 int reclaim_since_bars = ta.barssince(bull_reclaim_any)
@@ -2784,6 +2812,7 @@ bool bearish_abort_signal = bear_bos_sig or bear_choch_sig or internal_bear_bos_
 int bearish_abort_since_bars = ta.barssince(bearish_abort_signal)
 bool bearish_abort_recent = not na(bearish_abort_since_bars) and bearish_abort_since_bars <= long_signal_window
 bool bearish_abort_lockout = bearish_abort_signal
+bool long_confirm_bearish_guard_ok = not use_strict_confirm_guard or (not bearish_abort_signal and not bearish_abort_recent)
 
 string long_zone_text = 'No Long Zone'
 if zone_recent
@@ -2798,13 +2827,13 @@ if in_bull_ob_zone and in_bull_fvg_zone
 string reclaim_text = 'No Reclaim'
 if reclaim_recent
     reclaim_text := 'Reclaim recent'
-if bull_reclaim_internal_low
+if bull_reclaim_internal_low_strict
     reclaim_text := 'Internal Low Reclaimed'
-if bull_reclaim_swing_low
+if bull_reclaim_swing_low_strict
     reclaim_text := 'Swing Low Reclaimed'
-if bull_reclaim_fvg
+if bull_reclaim_fvg_strict
     reclaim_text := 'FVG Reclaimed'
-if bull_reclaim_ob
+if bull_reclaim_ob_strict
     reclaim_text := 'OB Reclaimed'
 
 float long_invalidation_buffer = ob_threshold_atr * long_invalidation_atr_mult
@@ -2862,16 +2891,16 @@ bool long_source_alive = true
 bool long_source_lost = false
 bool armed_source_changed = false
 
-if bull_reclaim_ob
+if bull_reclaim_ob_strict
     arm_source_text := 'OB'
     arm_invalidation_candidate := touched_bull_ob_bottom
-else if bull_reclaim_fvg
+else if bull_reclaim_fvg_strict
     arm_source_text := 'FVG'
     arm_invalidation_candidate := touched_bull_fvg_bottom
-else if bull_reclaim_swing_low
+else if bull_reclaim_swing_low_strict
     arm_source_text := 'Swing Low'
     arm_invalidation_candidate := trail_dn
-else if bull_reclaim_internal_low
+else if bull_reclaim_internal_low_strict
     arm_source_text := 'Internal Low'
     arm_invalidation_candidate := internal_trail_dn
 
@@ -2920,7 +2949,7 @@ if armed_source_changed
     long_setup_source_kind := 'None'
 
 // 3) Arm setup
-if bull_reclaim_any_for_arm and zone_recent and not long_setup_armed and not bearish_abort_lockout
+if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not bearish_abort_lockout
     long_arm_signal := true
     long_setup_armed := true
     long_setup_confirmed := false
@@ -2974,14 +3003,14 @@ long_entry_score += zone_touch_quality_ok ? 1 : 0
 long_entry_score += ready_is_fresh ? 1 : 0
 bool entry_score_ok = long_entry_score >= min_entry_score
 string long_score_detail_suffix = str.format(' | score={0}/{1}', long_entry_score, min_entry_score)
-if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and (not require_entry_score_for_confirmed or entry_score_ok)
+if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok and (not require_entry_score_for_confirmed or entry_score_ok)
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
     long_confirm_signal := true
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and zone_touch_quality_ok and long_filters_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3083,29 +3112,36 @@ bool can_draw_reclaim_marker = na(last_reclaim_marker_bar) or effective_reclaim_
 bool can_draw_long_state_marker = na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap
 bool can_draw_long_ready_marker = na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap
 
-if show_reclaim_markers and bull_reclaim_ob and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+if show_reclaim_markers and bull_reclaim_ob_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
     reclaim_ob_label = label.new(bar_index, low, TXT_RECLAIM_OB, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
     push_capped_label(reclaim_marker_history, reclaim_ob_label, long_marker_history_limit)
     reclaim_marker_drawn_bar_index := bar_index
     last_reclaim_marker_bar := bar_index
 
-if show_reclaim_markers and bull_reclaim_fvg and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+if show_reclaim_markers and bull_reclaim_fvg_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
     reclaim_fvg_label = label.new(bar_index, low, TXT_RECLAIM_FVG, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
     push_capped_label(reclaim_marker_history, reclaim_fvg_label, long_marker_history_limit)
     reclaim_marker_drawn_bar_index := bar_index
     last_reclaim_marker_bar := bar_index
 
-if show_reclaim_markers and bull_reclaim_swing_low and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+if show_reclaim_markers and bull_reclaim_swing_low_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
     reclaim_swing_label = label.new(bar_index, low, TXT_RECLAIM_SWING, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
     push_capped_label(reclaim_marker_history, reclaim_swing_label, long_marker_history_limit)
     reclaim_marker_drawn_bar_index := bar_index
     last_reclaim_marker_bar := bar_index
 
-if show_reclaim_markers and bull_reclaim_internal_low and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
+if show_reclaim_markers and bull_reclaim_internal_low_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
     reclaim_internal_label = label.new(bar_index, low, TXT_RECLAIM_INTERNAL, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.tiny)
     push_capped_label(reclaim_marker_history, reclaim_internal_label, long_marker_history_limit)
     reclaim_marker_drawn_bar_index := bar_index
     last_reclaim_marker_bar := bar_index
+
+plotshape(show_strict_debug_markers and zone_touch_event, title = 'Zone Touch Event', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'ZT')
+plotshape(show_strict_debug_markers and bull_ob_real_sweep, title = 'OB Sweep OK', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'OBS')
+plotshape(show_strict_debug_markers and bull_fvg_real_sweep, title = 'FVG Sweep OK', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'FVS')
+plotshape(show_strict_debug_markers and bull_reclaim_ob_strict, title = 'OB Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
+plotshape(show_strict_debug_markers and bull_reclaim_fvg_strict, title = 'FVG Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
+plotshape(show_strict_debug_markers and long_confirm_break and not long_confirm_bearish_guard_ok, title = 'Confirm Blocked By Bearish Abort', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'XCONF')
 
 if show_long_confirmation_markers and internal_bull_choch_sig and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
     int_reversal_label = label.new(bar_index, high, TXT_INT_REVERSAL, color = #00000000, textcolor = long_color_reversal, style = label.style_label_down, size = size.tiny)
