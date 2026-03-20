@@ -2000,6 +2000,14 @@ external_breadth_gate(simple string symbol) =>
     bool breadth_missing = na(ext_breadth)
     [breadth_missing, not breadth_missing and ext_breadth > 0]
 
+normalize_csv_token(string s) =>
+    str.upper(str.replace_all(s, ' ', ''))
+
+csv_has_token(string csv, string token) =>
+    string haystack = ',' + normalize_csv_token(csv) + ','
+    string needle = ',' + normalize_csv_token(token) + ','
+    str.contains(haystack, needle)
+
 htf_fvg_key(FVG fvg) =>
     not na(fvg) ? str.format('{0}|{1}|{2}|{3}', fvg.left_top.time, fvg.right_bottom.time, format_level(fvg.left_top.price), format_level(fvg.right_bottom.price)) : ''
 
@@ -2094,6 +2102,28 @@ var bool block_entries_outside_session = input.bool(true, 'Block outside session
 var bool use_opening_range_gate = input.bool(false, 'Use Opening Range Gate', group = g_session, inline = 'or1')
 var int opening_range_minutes = input.int(30, 'OR min', minval = 5, maxval = 120, group = g_session, inline = 'or1')
 var string opening_range_bias_mode = input.string('Above OR Mid', 'Bias', options = ['Above OR Mid', 'Above OR High'], group = g_session, inline = 'or2')
+
+var g_micro = 'Ticker Microstructure'
+var bool use_microstructure_profiles = input.bool(true, 'Use ticker microstructure profiles', group = g_micro)
+var string clean_reclaim_tickers = input.string('', 'Clean reclaim tickers', group = g_micro, display = display.none)
+var string stop_hunt_tickers = input.string('', 'Stop-hunt prone tickers', group = g_micro, display = display.none)
+var string midday_dead_tickers = input.string('', 'Midday-dead tickers', group = g_micro, display = display.none)
+var string rth_only_tickers = input.string('', 'RTH-only tickers', group = g_micro, display = display.none)
+var string weak_premarket_tickers = input.string('', 'Weak premarket tickers', group = g_micro, display = display.none)
+var string weak_afterhours_tickers = input.string('', 'Weak after-hours tickers', group = g_micro, display = display.none)
+var string fast_decay_tickers = input.string('', 'Fast-decay / stale-fast tickers', group = g_micro, display = display.none)
+var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
+var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
+var string micro_afterhours_session = input.session('1601-2000', 'After-hours', group = g_micro, display = display.none)
+var float micro_stop_hunt_ob_sweep_depth = input.float(0.65, 'Stop-hunt OB sweep depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_micro)
+var float micro_stop_hunt_fvg_sweep_depth = input.float(0.45, 'Stop-hunt FVG sweep depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_micro)
+var float micro_stop_hunt_relvol_min = input.float(1.4, 'Stop-hunt min RelVol', minval = 0.5, step = 0.1, group = g_micro)
+var float micro_stop_hunt_invalidation_atr = input.float(0.20, 'Stop-hunt invalidation ATR x', minval = 0.0, step = 0.05, group = g_micro)
+var bool micro_stop_hunt_force_close_confirm = input.bool(true, 'Stop-hunt: force close confirm', group = g_micro)
+var bool micro_stop_hunt_disable_live_invalid = input.bool(true, 'Stop-hunt: disable live invalidation', group = g_micro)
+var int micro_fast_decay_setup_age_max = input.int(3, 'Fast-decay max armed age', minval = 1, maxval = 20, group = g_micro)
+var int micro_fast_decay_confirm_age_max = input.int(2, 'Fast-decay max confirmed age', minval = 1, maxval = 20, group = g_micro)
+var bool show_microstructure_debug = input.bool(false, 'Show microstructure debug', group = g_micro)
 
 var g_market = 'Market Regime / Breadth'
 var bool use_index_gate = input.bool(true, 'Use Index Gate', group = g_market, inline = 'm1')
@@ -2277,6 +2307,25 @@ ob_config_bear_broken.show_profile := use_ob_profile_effective
 
 int chart_tf_sec = nz(timeframe.in_seconds(), 0)
 bool intraday_time_chart = chart_tf_sec > 0 and chart_tf_sec < 86400
+string current_symbol_key = syminfo.ticker
+bool micro_is_clean_reclaim = use_microstructure_profiles and csv_has_token(clean_reclaim_tickers, current_symbol_key)
+bool micro_is_stop_hunt = use_microstructure_profiles and csv_has_token(stop_hunt_tickers, current_symbol_key)
+bool micro_is_midday_dead = use_microstructure_profiles and csv_has_token(midday_dead_tickers, current_symbol_key)
+bool micro_is_rth_only = use_microstructure_profiles and csv_has_token(rth_only_tickers, current_symbol_key)
+bool micro_is_weak_premarket = use_microstructure_profiles and csv_has_token(weak_premarket_tickers, current_symbol_key)
+bool micro_is_weak_afterhours = use_microstructure_profiles and csv_has_token(weak_afterhours_tickers, current_symbol_key)
+bool micro_is_fast_decay = use_microstructure_profiles and csv_has_token(fast_decay_tickers, current_symbol_key)
+string micro_profile_text = 'Default'
+if micro_is_stop_hunt
+    micro_profile_text := 'Stop-Hunt Sensitive'
+else if micro_is_clean_reclaim
+    micro_profile_text := 'Clean Reclaim'
+else if micro_is_rth_only
+    micro_profile_text := 'RTH Only'
+else if micro_is_midday_dead
+    micro_profile_text := 'Midday Dead'
+else if micro_is_fast_decay
+    micro_profile_text := 'Fast Decay'
 auto_selected_ltf = auto_ltf_timeframe(chart_tf_sec)
 effective_ltf_timeframe = ltf_auto_select ? auto_selected_ltf : ltf_timeframe
 int effective_ltf_tf_sec = nz(timeframe.in_seconds(effective_ltf_timeframe), 0)
@@ -2331,6 +2380,9 @@ ema_slow = ta.ema(close, ema_slow_len)
 float session_vwap = intraday_time_chart ? ta.vwap(hlc3) : na
 bool vwap_session_active = intraday_time_chart and not na(time(timeframe.period, vwap_session))
 bool trade_entry_session_active = intraday_time_chart and not na(time(timeframe.period, trade_entry_session))
+bool micro_midday_block_active = intraday_time_chart and not na(time(timeframe.period, micro_midday_block_session))
+bool micro_premarket_active = intraday_time_chart and not na(time(timeframe.period, micro_premarket_session))
+bool micro_afterhours_active = intraday_time_chart and not na(time(timeframe.period, micro_afterhours_session))
 bool session_gate_ok = not use_trade_session_gate ? true : not intraday_time_chart ? true : not block_entries_outside_session ? true : trade_entry_session_active
 int opening_range_bars = chart_tf_sec > 0 ? math.max(1, int(math.ceil(opening_range_minutes * 60.0 / chart_tf_sec))) : 1
 var float opening_range_high = na
@@ -2350,6 +2402,11 @@ bool opening_range_ready = vwap_session_active and not na(regular_session_open_b
 float opening_range_mid = opening_range_ready ? math.avg(opening_range_high, opening_range_low) : na
 bool opening_range_gate_ok = not use_opening_range_gate ? true : not intraday_time_chart ? true : not vwap_session_active ? true : not opening_range_ready ? false : opening_range_bias_mode == 'Above OR High' ? close > opening_range_high : close > opening_range_mid
 bool session_structure_gate_ok = session_gate_ok and opening_range_gate_ok
+bool micro_rth_gate_ok = not micro_is_rth_only or not intraday_time_chart or vwap_session_active
+bool micro_midday_gate_ok = not micro_is_midday_dead or not intraday_time_chart or not micro_midday_block_active
+bool micro_premarket_gate_ok = not micro_is_weak_premarket or not intraday_time_chart or not micro_premarket_active
+bool micro_afterhours_gate_ok = not micro_is_weak_afterhours or not intraday_time_chart or not micro_afterhours_active
+bool micro_session_gate_ok = not use_microstructure_profiles or not intraday_time_chart or (micro_rth_gate_ok and micro_midday_gate_ok and micro_premarket_gate_ok and micro_afterhours_gate_ok)
 bool vwap_filter_ok = not use_vwap_filter ? true : not intraday_time_chart ? true : not vwap_session_active ? true : not na(session_vwap) and close >= session_vwap
 
 plot(show_session_vwap and intraday_time_chart ? session_vwap : na, 'Session VWAP', color = color.new(color.blue, 0), linewidth = 2)
@@ -2384,7 +2441,28 @@ string vwap_state_text = not use_vwap_filter ? 'off' : not intraday_time_chart ?
 bool adx_strong = not use_adx ? true : adx_data_ok and adx_value >= adx_strong_min and plus_di >= minus_di
 string adx_state_text = not use_adx ? 'off' : not adx_data_ok ? 'n/a' : plus_di < minus_di ? 'Bearish pressure' : adx_value < adx_trend_min ? 'Sideways' : adx_value < adx_strong_min ? 'Trend building' : 'Trend'
 
-bool relvol_ok = not use_rel_volume ? true : not volume_data_ok ? allow_relvol_without_volume_data : not na(rel_volume) and rel_volume >= relvol_good
+float effective_ob_reclaim_min_penetration = ob_reclaim_min_penetration
+float effective_fvg_reclaim_min_penetration = fvg_reclaim_min_penetration
+float effective_relvol_good = relvol_good
+float effective_long_invalidation_atr_mult = long_invalidation_atr_mult
+bool effective_use_live_confirm_break = use_live_confirm_break
+bool effective_use_live_invalidation_break = use_live_invalidation_break
+int effective_fast_decay_setup_age_max = long_setup_expiry_bars
+int effective_fast_decay_confirm_age_max = long_confirm_expiry_bars
+if use_microstructure_profiles and micro_is_stop_hunt
+    effective_ob_reclaim_min_penetration := math.max(effective_ob_reclaim_min_penetration, micro_stop_hunt_ob_sweep_depth)
+    effective_fvg_reclaim_min_penetration := math.max(effective_fvg_reclaim_min_penetration, micro_stop_hunt_fvg_sweep_depth)
+    effective_relvol_good := math.max(effective_relvol_good, micro_stop_hunt_relvol_min)
+    effective_long_invalidation_atr_mult := math.max(effective_long_invalidation_atr_mult, micro_stop_hunt_invalidation_atr)
+    if micro_stop_hunt_force_close_confirm
+        effective_use_live_confirm_break := false
+    if micro_stop_hunt_disable_live_invalid
+        effective_use_live_invalidation_break := false
+if use_microstructure_profiles and micro_is_fast_decay
+    effective_fast_decay_setup_age_max := math.min(effective_fast_decay_setup_age_max, micro_fast_decay_setup_age_max)
+    effective_fast_decay_confirm_age_max := math.min(effective_fast_decay_confirm_age_max, micro_fast_decay_confirm_age_max)
+
+bool relvol_ok = not use_rel_volume ? true : not volume_data_ok ? allow_relvol_without_volume_data : not na(rel_volume) and rel_volume >= effective_relvol_good
 string relvol_value_text = na(rel_volume) ? 'n/a' : str.tostring(rel_volume, '#.##') + 'x'
 string relvol_text = not use_rel_volume ? 'off' : not volume_data_ok ? allow_relvol_without_volume_data ? 'fallback' : 'blocked' : relvol_value_text
 
@@ -2882,8 +2960,8 @@ bool bull_reclaim_internal_low = long_reclaim_bar_ok and not na(internal_trail_d
 bool bull_reclaim_swing_low = long_reclaim_bar_ok and not na(trail_dn) and low < trail_dn and long_reclaim_swing_break_src > trail_dn
 float bull_ob_zone_height = not na(touched_bull_ob_top) and not na(touched_bull_ob_bottom) ? math.max(touched_bull_ob_top - touched_bull_ob_bottom, syminfo.mintick) : na
 float bull_fvg_zone_height = not na(touched_bull_fvg_top) and not na(touched_bull_fvg_bottom) ? math.max(touched_bull_fvg_top - touched_bull_fvg_bottom, syminfo.mintick) : na
-float bull_ob_required_sweep_level = not na(bull_ob_zone_height) ? touched_bull_ob_top - bull_ob_zone_height * ob_reclaim_min_penetration : na
-float bull_fvg_required_sweep_level = not na(bull_fvg_zone_height) ? touched_bull_fvg_top - bull_fvg_zone_height * fvg_reclaim_min_penetration : na
+float bull_ob_required_sweep_level = not na(bull_ob_zone_height) ? touched_bull_ob_top - bull_ob_zone_height * effective_ob_reclaim_min_penetration : na
+float bull_fvg_required_sweep_level = not na(bull_fvg_zone_height) ? touched_bull_fvg_top - bull_fvg_zone_height * effective_fvg_reclaim_min_penetration : na
 bool bull_ob_real_sweep = touched_bull_ob_still_active and not na(bull_ob_required_sweep_level) and low <= bull_ob_required_sweep_level
 bool bull_fvg_real_sweep = touched_bull_fvg_still_active and not na(bull_fvg_required_sweep_level) and low <= bull_fvg_required_sweep_level
 bool bull_reclaim_ob_strict = bull_reclaim_ob and (not use_strict_sequence or ob_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim or bull_ob_real_sweep)
@@ -2933,7 +3011,7 @@ if bull_reclaim_fvg_strict
 if bull_reclaim_ob_strict
     reclaim_text := 'OB Reclaimed'
 
-float long_invalidation_buffer = ob_threshold_atr * long_invalidation_atr_mult
+float long_invalidation_buffer = ob_threshold_atr * effective_long_invalidation_atr_mult
 float prior_long_trigger_level = nz(ta.highest(high, long_confirm_lookback)[1], high)
 
 // --------------------------------------------------
@@ -3007,6 +3085,9 @@ int long_setup_age = long_setup_armed and not na(long_setup_arm_bar_index) ? bar
 int long_confirm_age = long_setup_confirmed and not na(long_confirm_bar_index) ? bar_index - long_confirm_bar_index : 0
 bool confirm_is_fresh = long_setup_armed and not na(long_setup_arm_bar_index) and long_setup_age <= max_bars_arm_to_confirm
 bool ready_is_fresh = long_setup_confirmed and not na(long_confirm_bar_index) and long_confirm_age <= max_bars_confirm_to_ready
+bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_armed or long_setup_age <= effective_fast_decay_setup_age_max
+bool micro_confirm_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_setup_confirmed or long_confirm_age <= effective_fast_decay_confirm_age_max
+bool micro_freshness_gate_ok = micro_setup_fresh_enough and micro_confirm_fresh_enough
 long_setup_source_zone_id := long_setup_source_kind == 'OB' ? long_setup_source_id : long_setup_source_kind == 'FVG' ? -long_setup_source_id : na
 long_source_tracked := long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG'
 long_source_alive := long_setup_source_kind == 'OB' ? ob_blocks_bull.contains_id(long_setup_source_id) : long_setup_source_kind == 'FVG' ? fvgs_bull.contains_id(long_setup_source_id) : true
@@ -3014,7 +3095,7 @@ long_source_lost := (long_setup_armed or long_setup_confirmed) and long_source_t
 armed_source_changed := long_setup_armed and not long_setup_confirmed and long_source_tracked and not long_source_lost and not na(long_setup_source_zone_id) and not na(active_long_zone_id_safe) and active_long_zone_id_safe != long_setup_source_zone_id
 bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age >= long_setup_expiry_bars
 bool long_confirm_expired = long_setup_confirmed and long_confirm_age >= long_confirm_expiry_bars
-float long_invalidation_break_src = live_exec and use_live_invalidation_break ? low : close
+float long_invalidation_break_src = live_exec and effective_use_live_invalidation_break ? low : close
 bool long_broken_down = not na(long_invalidation_level) and long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
 bool long_invalidated_now = long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired)) or bearish_abort_signal
 bool invalidated_prior_setup = false
@@ -3046,7 +3127,7 @@ if armed_source_changed
     long_setup_source_kind := 'None'
 
 // 3) Arm setup
-if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not bearish_abort_lockout
+if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not bearish_abort_lockout and micro_session_gate_ok
     long_arm_signal := true
     long_setup_armed := true
     long_setup_confirmed := false
@@ -3060,7 +3141,7 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_setup_serial += 1
 
 // 4) Confirm setup
-float long_confirm_break_src = live_exec and use_live_confirm_break ? high : close
+float long_confirm_break_src = live_exec and effective_use_live_confirm_break ? high : close
 bool allow_same_bar_confirm = live_exec
 long_confirm_break := long_setup_armed and not long_setup_confirmed and not na(long_setup_arm_bar_index) and (bar_index > long_setup_arm_bar_index or allow_same_bar_confirm) and long_confirm_break_src > long_setup_trigger
 internal_choch_since_arm := long_setup_armed and not na(long_setup_arm_bar_index) and not na(internal_choch_since_bars) and internal_choch_since_bars <= bar_index - long_setup_arm_bar_index
@@ -3094,7 +3175,8 @@ trend_quality_score += vola_regime_gate_safe ? score_weight_vola : 0
 int trend_quality_max_score = score_weight_structure + score_weight_htf + score_weight_ema + score_weight_adx + score_weight_close + score_weight_relvol + score_weight_market + score_weight_vola
 bool trend_quality_gate_ok = not use_trend_quality_score or trend_quality_score >= min_trend_quality_score
 bool long_environment_gate_ok = session_structure_gate_ok and market_regime_gate_ok and vola_regime_gate_safe and trend_quality_gate_ok
-bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok and long_environment_gate_ok
+bool microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
+bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok and long_environment_gate_ok and microstructure_entry_gate_ok
 bool long_environment_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate or use_trend_quality_score
 string long_environment_focus_display = not long_environment_gate_ok ? not session_structure_gate_ok ? 'Session Block' : not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : not trend_quality_gate_ok ? 'Trend Block' : 'Env Blocked' : 'Env OK'
 string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
@@ -3114,14 +3196,14 @@ long_entry_score += zone_touch_quality_ok ? 1 : 0
 long_entry_score += ready_is_fresh ? 1 : 0
 bool entry_score_ok = long_entry_score >= min_entry_score
 string long_score_detail_suffix = str.format(' | score={0}/{1}', long_entry_score, min_entry_score)
-if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok and (not require_entry_score_for_confirmed or entry_score_ok)
+if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and (not require_entry_score_for_confirmed or entry_score_ok)
     long_setup_confirmed := true
     long_confirm_bar_index := bar_index
     long_confirm_signal := true
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3253,6 +3335,10 @@ plotshape(show_strict_debug_markers and bull_fvg_real_sweep, title = 'FVG Sweep 
 plotshape(show_strict_debug_markers and bull_reclaim_ob_strict, title = 'OB Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
 plotshape(show_strict_debug_markers and bull_reclaim_fvg_strict, title = 'FVG Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
 plotshape(show_strict_debug_markers and long_confirm_break and not long_confirm_bearish_guard_ok, title = 'Confirm Blocked By Bearish Abort', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'XCONF')
+plotshape(show_microstructure_debug and micro_session_gate_ok and zone_recent, title = 'Micro Session OK', style = shape.circle, location = location.belowbar, color = color.blue, size = size.tiny, text = 'uOK')
+plotshape(show_microstructure_debug and not micro_session_gate_ok and zone_recent, title = 'Micro Session Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uBLK')
+plotshape(show_microstructure_debug and micro_is_stop_hunt and bull_reclaim_any, title = 'Stop-hunt profile active', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'uSH')
+plotshape(show_microstructure_debug and not micro_freshness_gate_ok and (long_setup_armed or long_setup_confirmed), title = 'Micro Freshness Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uSTALE')
 
 if show_long_confirmation_markers and internal_bull_choch_sig and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
     int_reversal_label = label.new(bar_index, high, TXT_INT_REVERSAL, color = #00000000, textcolor = long_color_reversal, style = label.style_label_down, size = size.tiny)
@@ -3365,6 +3451,9 @@ int session_gate_state = not use_trade_session_gate and not use_opening_range_ga
 int market_gate_state = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 0 : market_regime_gate_ok ? 5 : market_symbols_missing and not block_on_missing_market_symbol ? 2 : -1
 int vola_gate_state = not use_vola_compression_gate ? 0 : vola_regime_gate_safe ? 5 : vola_compression_recent ? 2 : 1
 int trend_quality_state = not use_trend_quality_score ? 0 : trend_quality_gate_ok ? 5 : 2
+int micro_session_state = not use_microstructure_profiles ? 0 : micro_session_gate_ok ? 5 : -1
+int micro_profile_state = not use_microstructure_profiles ? 0 : micro_is_stop_hunt ? 2 : micro_is_clean_reclaim ? 5 : 3
+int micro_freshness_state = not use_microstructure_profiles ? 0 : micro_freshness_gate_ok ? 5 : -1
 bool strict_flow_active = use_strict_sequence or use_strict_sweep_for_zone_reclaim or use_strict_confirm_guard
 bool strict_sequence_waiting = use_strict_sequence and not zone_touch_event_recent
 bool strict_sweep_ok = long_setup_source_kind == 'OB' ? bull_ob_real_sweep : long_setup_source_kind == 'FVG' ? bull_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
@@ -3386,6 +3475,9 @@ string session_gate_display = not use_trade_session_gate and not use_opening_ran
 string market_gate_display = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 'Off' : market_symbols_missing ? block_on_missing_market_symbol ? 'Missing/Blocked' : 'Missing/Ignored' : market_regime_gate_ok ? 'Risk-On' : 'Blocked'
 string vola_gate_display = not use_vola_compression_gate ? 'Off' : vola_compression_recent ? vola_expansion_now ? 'Compression -> Expansion' : 'Compression Only' : 'No Compression'
 string trend_quality_display = not use_trend_quality_score ? 'Off' : str.format('{0}/{1}\nMin {2}\n{3}', trend_quality_score, trend_quality_max_score, min_trend_quality_score, trend_quality_gate_ok ? 'OK' : 'Blocked')
+string micro_profile_display = not use_microstructure_profiles ? 'Off' : micro_profile_text
+string micro_session_display = not use_microstructure_profiles ? 'Off' : micro_session_gate_ok ? 'OK' : micro_is_midday_dead and micro_midday_block_active ? 'Midday blocked' : micro_is_rth_only and not vwap_session_active ? 'Outside RTH' : micro_is_weak_premarket and micro_premarket_active ? 'Premarket blocked' : micro_is_weak_afterhours and micro_afterhours_active ? 'AH blocked' : 'Blocked'
+string micro_freshness_display = not use_microstructure_profiles ? 'Off' : micro_freshness_gate_ok ? 'Fresh' : str.format('Stale | arm {0} / conf {1}', long_setup_age, long_confirm_age)
 string strict_ltf_display = not use_ltf_for_strict_entry ? 'Off' : strict_ltf_available ? 'OK' : allow_strict_entry_without_ltf ? 'Fallback' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : not volume_data_ok ? 'No Vol' : 'Blocked'
 string volume_quality_display = str.format('{0}\nStrict {1}', volume_data_ok ? 'OK' : 'Limited', strict_ltf_display)
 string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_bull_share) ? 'n/a' : str.format('{0,number,percent}', ltf_bull_share)
@@ -3430,7 +3522,7 @@ color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
 color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
-var table smc_dashboard = table.new(position.bottom_right, 2, 29, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 32, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -3460,10 +3552,13 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 24, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
     dashboard_row(smc_dashboard, 25, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
     dashboard_row(smc_dashboard, 26, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 27, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 28, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 27, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
+    dashboard_row(smc_dashboard, 28, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
+    dashboard_row(smc_dashboard, 29, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
+    dashboard_row(smc_dashboard, 30, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 31, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 28)
+    table.clear(smc_dashboard, 0, 0, 1, 31)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -3479,15 +3574,15 @@ plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2'
 alert_long_watchlist = bullish_trend_safe and long_zone_active_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok
-alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and entry_score_ok
+alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and entry_score_ok
+alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
