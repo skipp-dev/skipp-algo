@@ -11,6 +11,15 @@ Grundregel:
 - Je mehr Felder zusammenpassen, desto sauberer ist ein Setup.
 - Eine Zone allein ist kein Einstieg.
 
+## Neueste Aenderungen (Maerz 2026)
+
+Die juengsten SMC++-Updates haben vor allem vier Dinge geschaerft:
+
+- Die `Watchlist` ist jetzt wieder bewusst generisch: Sie bedeutet nur, dass ein bullischer Trend plus eine aktive Pullback-Zone vorhanden sind.
+- Alles Strenge dahinter ist jetzt quellenspezifisch: Reclaim-Sequenz, Armed/Confirmed-Tracking und Invalidierung folgen dem konkreten OB- oder FVG-Objekt, das das Setup traegt.
+- Datenqualitaet wird klarer getrennt: fehlendes Volumen auf der aktuellen Kerze, schwache Feed-Qualitaet und fehlende LTF-Volumenbasis werden nicht mehr in einen Topf geworfen.
+- Alerts und Dashboard sind enger synchronisiert: Ready- und Invalidated-Ereignisse nutzen gelatchte Event-States, und die Microstructure-Anzeige zeigt jetzt Hauptprofil plus aktive Modifier.
+
 ## Dashboard-Begriffe einfach erklaert
 
 ### Trend
@@ -120,6 +129,11 @@ Relatives Volumen gegen den Durchschnitt.
 - 0.5x: unterdurchschnittlich
 - 0.01x: extrem schwach
 
+Wichtig seit den letzten Fixes:
+
+- Das Dashboard trennt jetzt besser zwischen `schwacher aktueller Volumen-Kerze` und `grundsaetzlich unbrauchbarer Volumenbasis`.
+- Wenn Volumendaten fehlen, degradiert das System kontrolliert, statt RelVol, Profile und volumengetriebene Bestaetigungen stillschweigend falsch zu behandeln.
+
 ### LTF Bias
 
 LTF bedeutet Lower Time Frame.
@@ -132,6 +146,19 @@ Kurzfristiger Druck bzw. Volumenunterschied auf Unterzeitebene.
 - positiv: eher Kaeuferdruck
 - negativ: eher Verkaeuferdruck
 - n/a: keine brauchbare Datenbasis
+
+Neu dabei:
+
+- LTF-Preisverfuegbarkeit und LTF-Volumenverfuegbarkeit werden getrennt behandelt.
+- Dadurch kann das System klar anzeigen, ob es nur preisbasierte Unterstruktur sieht oder ob auch Volumen-Delta wirklich belastbar ist.
+
+### Micro Profile
+
+Zeigt das dominante Microstructure-Profil fuer den aktuellen Marktabschnitt.
+
+- Das kann zum Beispiel neutral, trendig, impulsiv oder ausgeduennt sein.
+- Neu ist, dass zusaetzliche Modifier im Dashboard sichtbar werden, wenn mehrere Microstructure-Regeln gleichzeitig aktiv sind.
+- So sieht man besser, warum ein Setup geschaerft oder abgeschwaecht wurde.
 
 ### Objects
 
@@ -275,6 +302,21 @@ Die aktuellen Alert-Presets in `SMC++.pine` bilden den Workflow direkt ab:
 - `Long Dip Entry Best`: empfohlener Standard-Entry-Alert
 - `Long Dip Entry Strict`: spaeter und selektiver mit HTF- und Momentum-Filtern
 - `Long Dip Failed`: Setup invalidiert
+
+Wichtige Verhaltensdetails seit den letzten Alert-Fixes:
+
+- `Long Dip Watchlist` feuert nur noch dann neu, wenn die generische Watchlist wirklich neu aktiv wird. Ein Wechsel von OB zu FVG innerhalb derselben Watchlist loest keinen zweiten Watchlist-Alert mehr aus.
+- `Long Ready` und `Long Invalidated` sind fuer TradingView-Presets jetzt robuster auf Live-Bars, weil intrabar Zustandswechsel per Latch gehalten werden.
+- Im Dynamic-Alert-Modus `Priority` kann `Long Invalidated` jetzt auch spaeter auf derselben Echtzeitkerze noch gesendet werden, selbst wenn zuvor bereits ein schwaecherer Lifecycle-Alert wie Watchlist oder Ready gesendet wurde.
+
+## Profil- und Zonenlogik
+
+Fuer die juengsten Profil- und Ueberlappungs-Fixes ist wichtig:
+
+- Die aktive Long-Zone wird bei Ueberlappung sauberer nach Qualitaet ausgewaehlt, nicht nur nach erstem Treffer.
+- OB-Profile bauen ihre Value Area jetzt vom POC nach aussen auf. Das ist naeher an der eigentlichen Profil-Logik.
+- Leere oder volumenlose Profile werden nicht mehr so behandelt, als haetten sie einen gueltigen POC oder eine gueltige Value Area.
+- Wenn ein Setup auf einem bestimmten OB oder FVG bewaffnet wurde, dann prueft auch die spaetere Invalidierung genau dieses Backing-Objekt.
 
 ## Empfohlene Nutzung der Alerts
 

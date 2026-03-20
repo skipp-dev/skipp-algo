@@ -11,6 +11,15 @@ Core rule:
 - The more fields align, the cleaner the setup.
 - A zone by itself is not an entry.
 
+## Recent Changes (March 2026)
+
+The latest SMC++ updates tightened four areas in particular:
+
+- `Watchlist` is intentionally generic again: it only means bullish trend plus an active pullback zone.
+- Everything strict behind it is now source-specific: reclaim sequencing, armed/confirmed tracking, and invalidation follow the actual OB or FVG that backs the setup.
+- Data quality is split more clearly: missing current-bar volume, weak feed quality, and missing LTF volume context are no longer treated as the same problem.
+- Alerts and dashboard state are aligned more closely: Ready and Invalidated use latched event states, and the microstructure row now shows the primary profile plus active modifiers.
+
 ## Dashboard Terms in Plain English
 
 ### Trend
@@ -120,6 +129,11 @@ Relative volume against average volume.
 - 0.5x: below normal participation
 - 0.01x: extremely weak
 
+Important after the latest fixes:
+
+- The dashboard now distinguishes weak current-bar volume from a generally unusable volume basis.
+- When volume data is missing, the engine degrades in a controlled way instead of silently mis-handling relative volume, profiles, and volume-driven confirmations.
+
 ### LTF Bias
 
 LTF means Lower Time Frame.
@@ -132,6 +146,19 @@ Short-term pressure or volume imbalance on the lower timeframe.
 - positive: buyer pressure
 - negative: seller pressure
 - n/a: no useful data base
+
+New behavior:
+
+- LTF price availability and LTF volume availability are handled separately.
+- This makes it clearer when the engine only has price-based lower-timeframe structure and when true volume-delta context is actually available.
+
+### Micro Profile
+
+Shows the dominant microstructure profile for the current market segment.
+
+- This can be neutral, trending, impulsive, or thin depending on the current regime.
+- The latest changes also expose active modifiers in the dashboard when multiple microstructure rules stack.
+- That makes it easier to see why a setup was tightened or relaxed.
 
 ### Objects
 
@@ -275,6 +302,21 @@ The current alert presets in `SMC++.pine` map directly to the workflow:
 - `Long Dip Entry Best`: recommended standard entry alert
 - `Long Dip Entry Strict`: later and more selective with HTF and momentum filters
 - `Long Dip Failed`: setup invalidated
+
+Important behavior details after the latest alert fixes:
+
+- `Long Dip Watchlist` now retriggers only when the generic watchlist actually becomes active again. An OB-to-FVG handoff inside the same watchlist context does not create a second watchlist alert.
+- `Long Ready` and `Long Invalidated` are now more robust for TradingView presets on live bars because intrabar state transitions are held by latches.
+- In `Priority` dynamic-alert mode, `Long Invalidated` can now still be sent later on the same realtime bar even if a weaker lifecycle alert such as Watchlist or Ready was already sent earlier.
+
+## Profile and Zone Logic
+
+The recent profile and overlap fixes mean:
+
+- The active long zone is selected more cleanly when overlaps exist, instead of relying on a simple first-match merge.
+- OB profiles now build their value area outward from the POC, which better matches actual profile logic.
+- Empty or zero-volume profiles are no longer treated as if they had a valid POC or value area.
+- If a setup was armed on a specific OB or FVG, later invalidation checks that same backing object instead of a merged generic zone.
 
 ## Recommended Alert Usage
 

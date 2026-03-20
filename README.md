@@ -568,6 +568,13 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 - Drawdown hard gate, macro guards, MTF confirmation
 - Consolidated alert dispatch (one `alert()` per bar per symbol)
 
+### Recent SMC++ Changes
+
+- Long-dip watchlist, strict-flow sequencing, and invalidation were hardened so overlapping OB/FVG setups keep a generic watchlist stage but source-specific reclaim, backing-zone tracking, and invalidation.
+- TradingView lifecycle presets now use latched event states for better live-bar reliability, and priority-mode dynamic alerts no longer let weaker lifecycle messages suppress same-bar invalidation.
+- Volume and lower-timeframe quality handling now degrade more explicitly by separating current-bar volume health, feed quality, LTF price context, and LTF volume context.
+- OB profile alignment, value-area logic, and empty-profile handling were tightened, and the dashboard now exposes the active microstructure profile plus stacked modifiers more clearly.
+
 ### Additional Pine Scripts
 
 | Script | Description |

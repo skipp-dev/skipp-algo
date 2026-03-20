@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-03-20)
+
+- **SMC++ long-dip state, alert, and profile consistency:**
+  - Fixed overlapping OB/FVG long-dip sequencing so strict reclaim history, arming, and invalidation now track the actual source object instead of the merged long-zone view.
+  - Fixed armed-source invalidation to compare against the active zone for the armed source kind, preventing overlap cases from silently surviving on the wrong zone.
+  - Fixed long-dip watchlist alerts to be generic again: the watchlist event now triggers only when the generic watchlist becomes active, not when OB/FVG source rotation happens inside an already active watchlist.
+  - Fixed priority-mode dynamic lifecycle alerts so `Long Invalidated` can still fire on the same realtime bar after a weaker lifecycle alert was already sent earlier in that bar.
+  - Fixed TradingView `alertcondition(...)` lifecycle presets and OB/FVG event presets to use per-bar latched event state, reducing missed intrabar transitions for close-safe users.
+  - Fixed volume-quality signaling to distinguish current-bar volume loss from rolling feed degradation, and aligned dashboard messaging with that split.
+  - Fixed lower-timeframe confirmation fallback handling by separating price availability from volume availability and by tightening when strict-entry fallback is allowed historically.
+  - Fixed OB profile value-area construction to expand from the POC outward and hardened profile alignment against empty or zero-volume profiles.
+  - Fixed active long-zone selection to prefer the better overlap candidate instead of relying on a first-match merge.
+  - Fixed pivot HH/HL/LH/LL labels, FVG hide cleanup, and symbol-token matching for microstructure/profile overrides.
+
+### Changed (2026-03-20)
+
+- **SMC++ dashboard and workflow documentation:**
+  - Documented that the Watchlist tier is a generic context stage, while strict sequencing, backing-zone tracking, and invalidation are source-specific to the active OB or FVG.
+  - Documented the new microstructure display behavior where the dashboard shows both the primary profile and active modifiers that can tighten or relax long-dip filters.
+  - Documented the degraded-data model for relative volume and lower-timeframe checks so users can see when the engine is operating with price-only or fallback-safe context.
+
 ### Fixed (2026-03-19)
 
 - **SMC++ long-dip and object lifecycle hardening:**

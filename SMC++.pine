@@ -4118,21 +4118,18 @@ alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_co
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
-varip int long_watchlist_rt_prev_id = na
 if barstate.isnew
     long_watchlist_rt_prev_active := alert_long_watchlist[1] ? 1 : 0
-    long_watchlist_rt_prev_id := active_long_zone_id_safe[1]
-bool long_watchlist_source_changed = alert_long_watchlist and (long_watchlist_rt_prev_active == 0 or active_long_zone_id_safe != long_watchlist_rt_prev_id)
+bool long_watchlist_started = alert_long_watchlist and long_watchlist_rt_prev_active == 0
 long_watchlist_rt_prev_active := alert_long_watchlist ? 1 : 0
-long_watchlist_rt_prev_id := active_long_zone_id_safe
-if long_watchlist_source_changed
+if long_watchlist_started
     long_watchlist_serial += 1
 var int last_long_armed_alert_serial = na
 var int last_long_early_alert_serial = na
 var int last_long_clean_alert_serial = na
 var int last_long_entry_best_alert_serial = na
 var int last_long_entry_strict_alert_serial = na
-bool alert_long_watchlist_event = long_watchlist_source_changed and long_watchlist_serial > 0
+bool alert_long_watchlist_event = long_watchlist_started and long_watchlist_serial > 0
 bool alert_long_armed_event = alert_long_armed and long_setup_serial > 0 and last_long_armed_alert_serial != long_setup_serial
 if alert_long_armed_event
     last_long_armed_alert_serial := long_setup_serial
@@ -4308,7 +4305,7 @@ if enable_dynamic_alerts and use_sd_confluence and sd_higher_lows_event and not 
     dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|sd_higher_lows|'
     alert(build_dynamic_alert_message(true, true, 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text), alert.freq_all)
 if dynamic_long_alert_mode == 'Priority'
-    if enable_dynamic_alerts and not long_dynamic_alert_sent and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
+    if enable_dynamic_alerts and long_invalidate_signal and not str.contains(dynamic_alert_seen_keys, '|long_invalidated|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_invalidated|'
         long_dynamic_alert_sent := true
         alert(build_dynamic_alert_message(true, true, 'Long Invalidated', str.format('Setup invalidated from {0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text), alert.freq_all)
