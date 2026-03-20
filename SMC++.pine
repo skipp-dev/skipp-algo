@@ -2178,6 +2178,11 @@ var float accel_cross_threshold = input.float(0.0, 'Zero threshold', step = 0.01
 var string accel_integration_mode = input.string('Early only', 'Integration mode', options = ['Early only', 'Confirm + Ready', 'Strict entries only'], group = g_accel, tooltip = 'Cautious rollout: Early only.\nBalanced: Confirm + Ready.\nHard filter: Strict entries only.')
 var bool require_accel_above_zero_for_ready = input.bool(true, 'Ready requires accel > 0', group = g_accel, tooltip = 'Recommended on for rollout. Turning this off allows weaker pullback-recovery states to qualify as Ready.')
 var int accel_recent_cross_bars = input.int(3, 'Recent cross bars', minval = 1, maxval = 20, group = g_accel)
+var bool accel_close_safe_only = input.bool(true, 'Acceleration close-safe only', group = g_accel, tooltip = 'When enabled, acceleration states only advance on confirmed bar data. This keeps the timing layer aligned with the rest of the close-safe pipeline.')
+var bool accel_use_for_early = input.bool(true, 'Map to Early', group = g_accel, inline = 'accmap1')
+var bool accel_use_for_ready = input.bool(true, 'Map to Ready', group = g_accel, inline = 'accmap1')
+var bool accel_use_for_entry_best = input.bool(true, 'Map to Entry Best', group = g_accel, inline = 'accmap2')
+var bool accel_use_for_entry_strict = input.bool(true, 'Map to Entry Strict', group = g_accel, inline = 'accmap2')
 var bool show_accel_debug = input.bool(false, 'Show accel debug markers', group = g_accel)
 
 var g_sd = 'Second Derivative Confluence'
@@ -2463,17 +2468,38 @@ float accel_value = ta.ema(accel_raw, accel_smooth_len)
 bool accel_above_zero = not na(accel_value) and accel_value > accel_cross_threshold
 bool accel_below_zero = not na(accel_value) and accel_value < accel_cross_threshold
 bool accel_rising = not na(accel_value) and accel_value > accel_value[1]
-bool accel_pullback_exhaustion_long = use_accel_module and accel_below_zero and accel_rising
-bool accel_zero_cross_up = ta.crossover(accel_value, accel_cross_threshold)
-bool accel_reaccel_confirm_long = use_accel_module and accel_zero_cross_up
-int accel_cross_since_bars = ta.barssince(accel_reaccel_confirm_long)
-bool accel_recent_cross_long = not na(accel_cross_since_bars) and accel_cross_since_bars <= accel_recent_cross_bars
+bool accel_below_zero_rising = not na(accel_value) and accel_value < accel_cross_threshold and accel_value > accel_value[1]
+bool accel_cross_up = ta.crossover(accel_value, accel_cross_threshold)
+int accel_cross_since_bars = ta.barssince(accel_cross_up)
+bool accel_cross_up_recent = not na(accel_cross_since_bars) and accel_cross_since_bars <= accel_recent_cross_bars
+float accel_value_safe = accel_value
+bool accel_below_zero_rising_safe = accel_below_zero_rising
+bool accel_cross_up_safe = accel_cross_up
+bool accel_cross_up_recent_safe = accel_cross_up_recent
+if accel_close_safe_only and not barstate.isconfirmed
+    accel_value_safe := nz(accel_value[1], accel_value)
+    accel_below_zero_rising_safe := false
+    accel_cross_up_safe := false
+    accel_cross_up_recent_safe := false
+    if bar_index > 0
+        accel_below_zero_rising_safe := accel_below_zero_rising[1]
+        accel_cross_up_safe := accel_cross_up[1]
+        accel_cross_up_recent_safe := accel_cross_up_recent[1]
+bool accel_pullback_exhaustion_long = use_accel_module and accel_below_zero_rising_safe
+bool accel_zero_cross_up = accel_cross_up_safe
+bool accel_reaccel_confirm_long = use_accel_module and accel_cross_up_safe
+bool accel_recent_cross_long = accel_cross_up_recent_safe
 bool accel_mode_early_only = accel_integration_mode == 'Early only'
 bool accel_mode_strict_entries_only = accel_integration_mode == 'Strict entries only'
-bool accel_early_gate_ok = not use_accel_module or accel_pullback_exhaustion_long or accel_recent_cross_long
-bool accel_confirm_gate_ok = not use_accel_module or accel_mode_early_only or accel_reaccel_confirm_long or accel_recent_cross_long
-bool accel_ready_gate_ok = not use_accel_module or accel_mode_strict_entries_only or (require_accel_above_zero_for_ready ? (accel_above_zero or accel_recent_cross_long) : accel_early_gate_ok)
-bool accel_strict_entry_gate_ok = not use_accel_module or (accel_above_zero and accel_recent_cross_long)
+bool accel_early_context_ok = not use_accel_module or not accel_use_for_early or accel_below_zero_rising_safe or accel_cross_up_recent_safe
+bool accel_ready_context_ok = not use_accel_module or not accel_use_for_ready or accel_below_zero_rising_safe or accel_cross_up_recent_safe
+bool accel_entry_best_context_ok = not use_accel_module or not accel_use_for_entry_best or accel_below_zero_rising_safe or accel_cross_up_safe or accel_cross_up_recent_safe
+bool accel_entry_strict_context_ok = not use_accel_module or not accel_use_for_entry_strict or accel_cross_up_safe or accel_cross_up_recent_safe
+bool accel_early_gate_ok = accel_early_context_ok
+bool accel_confirm_gate_ok = not use_accel_module or accel_mode_early_only or accel_mode_strict_entries_only or accel_cross_up_safe or accel_cross_up_recent_safe
+bool accel_ready_gate_ok = not use_accel_module or accel_mode_strict_entries_only or (require_accel_above_zero_for_ready ? ((not na(accel_value_safe) and accel_value_safe > accel_cross_threshold) or accel_cross_up_recent_safe) : accel_ready_context_ok)
+bool accel_entry_best_gate_ok = accel_entry_best_context_ok
+bool accel_strict_entry_gate_ok = accel_entry_strict_context_ok
 
 float sd_raw = sd_lr2_pct(close, sd_lr_len)
 float sd_value = ta.ema(sd_raw, sd_smooth_len)
@@ -3508,8 +3534,8 @@ plotshape(show_strict_debug_markers and bull_fvg_real_sweep, title = 'FVG Sweep 
 plotshape(show_strict_debug_markers and bull_reclaim_ob_strict, title = 'OB Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
 plotshape(show_strict_debug_markers and bull_reclaim_fvg_strict, title = 'FVG Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
 plotshape(show_strict_debug_markers and long_confirm_break and not long_confirm_bearish_guard_ok, title = 'Confirm Blocked By Bearish Abort', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'XCONF')
-plotshape(show_accel_debug and accel_pullback_exhaustion_long, title = 'Accel Pullback Exhaustion', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'ACC↓weak')
-plotshape(show_accel_debug and accel_reaccel_confirm_long, title = 'Accel Re-Acceleration', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'ACC↑')
+plotshape(show_accel_debug and accel_below_zero_rising_safe, title = 'Accel Below Zero Rising', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'ACC↑')
+plotshape(show_accel_debug and accel_cross_up_safe, title = 'Accel Cross Up', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'XUP')
 plotshape(show_accel_debug and accel_above_zero, title = 'Accel Above Zero', style = shape.circle, location = location.abovebar, color = color.lime, size = size.tiny, text = 'ACC+')
 plotshape(show_sd_debug and sd_bullish_divergence_event, title = 'Bullish SD Divergence', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'DIV')
 plotshape(show_sd_debug and sd_higher_lows_event, title = 'SD Higher Lows', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'HL')
@@ -3788,7 +3814,7 @@ alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watc
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_ready_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
