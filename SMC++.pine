@@ -3375,7 +3375,8 @@ string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Beari
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
 string zone_display = long_zone_text
 string reclaim_display = reclaim_text
-string long_visual_display = long_visual_text
+bool long_visual_environment_blocked = long_environment_features_active and not long_environment_gate_ok and long_visual_state > 0
+string long_visual_display = long_visual_environment_blocked ? str.format('{0} | {1}', long_visual_text, long_environment_focus_display) : long_visual_text
 string close_display = close_state_text
 string ema_display = ema_state_text
 string adx_display = not use_adx ? 'Off' : str.format('{0,number,#.#} | {1}', adx_value, adx_state_text)
@@ -3391,7 +3392,7 @@ string ltf_bias_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sam
 string ltf_delta_display = not show_dashboard_ltf ? 'Hidden' : not enable_ltf_sampling ? 'Off' : not ltf_timeframe_valid ? 'n/a' : not ltf_ratio_ok or not ltf_sample_count_ok ? 'Guarded' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
-string setup_quality_display = str.format('{0}\n{1}\n{2}\nHeadroom {3}', freshness_text, source_state_text, zone_quality_text, overhead_text)
+string setup_quality_display = str.format('{0}\n{1}\n{2}\nEnv {3}\nHeadroom {4}', freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text)
 string strict_sequence_display = not use_strict_sequence ? 'off' : zone_touch_event_recent ? 'zone ok' : 'wait zone'
 string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_setup_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_setup_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
 string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort'
