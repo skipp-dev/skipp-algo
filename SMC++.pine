@@ -3419,6 +3419,7 @@ color dashboard_header_bg = color.new(color.black, 100)
 color dashboard_text = chart.fg_color
 color dashboard_long_text = long_visual_state == 3 ? long_dashboard_building_text : dashboard_text
 color dashboard_long_visual_bg = long_visual_environment_blocked ? long_environment_focus_display == 'Session Block' ? color.new(color.blue, 72) : long_environment_focus_display == 'Market Block' ? color.new(color.red, 75) : long_environment_focus_display == 'Vola Block' ? color.new(color.orange, 72) : long_environment_focus_display == 'Trend Block' ? color.new(color.yellow, 68) : status_bg(long_visual_state) : status_bg(long_visual_state)
+color dashboard_setup_quality_bg = not long_environment_features_active or long_environment_gate_ok ? status_bg(quality_state) : long_environment_focus_display == 'Session Block' ? color.new(color.blue, 72) : long_environment_focus_display == 'Market Block' ? color.new(color.red, 75) : long_environment_focus_display == 'Vola Block' ? color.new(color.orange, 72) : long_environment_focus_display == 'Trend Block' ? color.new(color.yellow, 68) : status_bg(quality_state)
 color dashboard_swing_bg = color.new(color.silver, 88)
 color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_risk_bg = color.new(color.black, 92)
@@ -3448,7 +3449,7 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 17, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
     dashboard_row(smc_dashboard, 18, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
     dashboard_row(smc_dashboard, 19, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 20, 'Setup Quality', setup_quality_display, status_bg(quality_state), dashboard_text)
+    dashboard_row(smc_dashboard, 20, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
     dashboard_row(smc_dashboard, 21, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
     dashboard_row(smc_dashboard, 22, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
     dashboard_row(smc_dashboard, 23, 'Session', session_gate_display, status_bg(session_gate_state), dashboard_text)
