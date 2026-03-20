@@ -3260,7 +3260,6 @@ string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Beari
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
 string zone_display = long_zone_text
 string reclaim_display = reclaim_text
-string long_setup_display = long_setup_text
 string long_visual_display = long_visual_text
 string close_display = close_state_text
 string ema_display = ema_state_text
@@ -3278,6 +3277,8 @@ string strict_sequence_display = not use_strict_sequence ? 'off' : zone_touch_ev
 string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : long_setup_source_kind == 'OB' ? strict_sweep_ok ? 'OB ok' : 'OB miss' : long_setup_source_kind == 'FVG' ? strict_sweep_ok ? 'FVG ok' : 'FVG miss' : strict_sweep_ok ? 'ok' : 'n/a'
 string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort'
 string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? 'Waiting Zone' : 'Strict OK'
+bool long_setup_strict_blocked = strict_flow_active and strict_flow_focus_display != 'off' and strict_flow_focus_display != 'Strict OK' and long_visual_state > 0
+string long_setup_display = long_setup_strict_blocked ? str.format('{0} | {1}', long_setup_text, strict_flow_focus_display) : long_setup_text
 string strict_flow_display = str.format('State {0}\nZone {1}\nSweep {2}\nGuard {3}', strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
 string entry_score_display = str.format('{0}/10\nMin {1}\n{2}', long_entry_score, min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
