@@ -2218,6 +2218,22 @@ var bool vol_require_release_for_entry_best = input.bool(false, 'Entry Best requ
 var bool vol_require_release_for_entry_strict = input.bool(true, 'Entry Strict requires squeeze release', group = g_volreg)
 var bool show_vol_regime_debug = input.bool(false, 'Show volatility regime debug markers', group = g_volreg)
 
+var g_stretch = 'Stretch / Mean Reversion Context'
+var bool use_stretch_context = input.bool(true, 'Use stretch context', group = g_stretch)
+var int stretch_len = input.int(100, 'Mean / StdDev length', minval = 20, group = g_stretch, inline = 'dist1')
+var float lower_extreme_z = input.float(1.5, 'Lower extreme z', minval = 0.5, step = 0.1, group = g_stretch, inline = 'dist1')
+var int lower_extreme_recent_bars = input.int(12, 'Lower extreme recent bars', minval = 1, maxval = 100, group = g_stretch, inline = 'dist2')
+var float anti_chase_max_z_ready = input.float(0.50, 'Ready max z', step = 0.1, group = g_stretch, inline = 'ac1')
+var float anti_chase_max_z_best = input.float(0.25, 'Best max z', step = 0.1, group = g_stretch, inline = 'ac1')
+var float anti_chase_max_z_strict = input.float(0.00, 'Strict max z', step = 0.1, group = g_stretch, inline = 'ac1')
+var bool stretch_require_lower_extreme_for_watchlist = input.bool(false, 'Watchlist prefers lower extreme', group = g_stretch)
+var bool stretch_require_lower_extreme_for_ready = input.bool(true, 'Ready requires lower extreme context', group = g_stretch)
+var bool stretch_require_lower_extreme_for_entry_best = input.bool(true, 'Entry Best requires lower extreme context', group = g_stretch)
+var bool stretch_require_lower_extreme_for_entry_strict = input.bool(true, 'Entry Strict requires lower extreme context', group = g_stretch)
+var bool show_stretch_overlay = input.bool(true, 'Show stretch overlays', group = g_stretch)
+var bool show_mean_target_overlay = input.bool(true, 'Show mean target overlay', group = g_stretch)
+var bool show_lower_extreme_bg = input.bool(false, 'Highlight lower extreme background', group = g_stretch)
+
 var g_struct = 'Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, tooltip = SHOW_SWING)
 var string show_bull = input.string('All', 'Bullish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bull')
@@ -2600,6 +2616,21 @@ if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
     vol_watchlist_context_ok_safe := vol_watchlist_context_ok[1]
     vol_entry_best_context_ok_safe := vol_entry_best_context_ok[1]
     vol_entry_strict_context_ok_safe := vol_entry_strict_context_ok[1]
+
+float stretch_mean = ta.sma(close, stretch_len)
+float stretch_std = ta.stdev(close, stretch_len)
+float stretch_lower_threshold = not na(stretch_mean) and not na(stretch_std) ? stretch_mean - lower_extreme_z * stretch_std : na
+bool in_lower_extreme = not na(stretch_lower_threshold) and low <= stretch_lower_threshold
+int lower_extreme_since_bars = ta.barssince(in_lower_extreme)
+bool lower_extreme_recent = not na(lower_extreme_since_bars) and lower_extreme_since_bars <= lower_extreme_recent_bars
+float distance_to_mean_z = not na(stretch_mean) and not na(stretch_std) and stretch_std > 0 ? (close - stretch_mean) / stretch_std : na
+bool anti_chase_ok_ready = not use_stretch_context or na(distance_to_mean_z) or distance_to_mean_z <= anti_chase_max_z_ready
+bool anti_chase_ok_entry_best = not use_stretch_context or na(distance_to_mean_z) or distance_to_mean_z <= anti_chase_max_z_best
+bool anti_chase_ok_entry_strict = not use_stretch_context or na(distance_to_mean_z) or distance_to_mean_z <= anti_chase_max_z_strict
+bool stretch_watchlist_context_ok = not use_stretch_context or (not stretch_require_lower_extreme_for_watchlist or in_lower_extreme or lower_extreme_recent)
+bool stretch_ready_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_ready or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_ready)
+bool stretch_entry_best_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_entry_best or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best)
+bool stretch_entry_strict_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_entry_strict or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_strict)
 
 mtf_trend_1 = get_confirmed_structure_trend(mtf_trend_tf1, swing_length)
 mtf_trend_2 = get_confirmed_structure_trend(mtf_trend_tf2, swing_length)
@@ -2997,6 +3028,9 @@ int active_long_zone_id_safe = active_long_zone_id
 if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
     long_zone_active_safe := long_zone_active[1]
     active_long_zone_id_safe := active_long_zone_id[1]
+bool stretch_watchlist_context_ok_safe = stretch_watchlist_context_ok
+if signal_mode != SignalMode.AGGRESSIVE_LIVE and not barstate.isconfirmed
+    stretch_watchlist_context_ok_safe := stretch_watchlist_context_ok[1]
 var int last_zone_touch_event_bar_index = na
 var int last_zone_touch_event_zone_id = na
 bool zone_touch_event = long_zone_active and (not long_zone_active[1] or active_long_zone_id != active_long_zone_id[1])
@@ -3338,12 +3372,16 @@ if close_safe_mode and long_confirm_break and long_confirm_structure_ok and acce
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
     long_target_1 := long_setup_trigger + long_risk_r * target1_r
     long_target_2 := long_setup_trigger + long_risk_r * target2_r
+
+float long_mean_target = na
+if long_plan_active and show_mean_target_overlay and not na(stretch_mean)
+    long_mean_target := stretch_mean > long_setup_trigger ? stretch_mean : na
 
 varip int long_ready_state_rt_prev = 0
 if barstate.isnew
@@ -3594,6 +3632,7 @@ int sd_osc_state = not use_sd_confluence ? 0 : sd_above_zero and sd_rising ? 5 :
 int vol_regime_state = not use_volatility_regime ? 0 : vol_regime_trend_ok and vol_bull_stack_slopes ? 5 : vol_regime_trend_ok ? 3 : -1
 int vol_squeeze_state = not use_volatility_regime ? 0 : vol_squeeze_released ? 5 : vol_squeeze_on ? 4 : vol_squeeze_recent ? 2 : 0
 int vol_expansion_state = not use_volatility_regime ? 0 : vol_momentum_expanding_long and vol_stack_spread_rising ? 5 : vol_momentum_expanding_long ? 3 : vol_stack_spread_rising ? 2 : 0
+int stretch_state = not use_stretch_context ? 0 : in_lower_extreme ? 5 : lower_extreme_recent ? 4 : anti_chase_ok_entry_strict ? 2 : -1
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
 int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
@@ -3637,6 +3676,7 @@ string sd_osc_display = not use_sd_confluence ? 'Off' : str.format('{0,number,#.
 string vol_regime_display = not use_volatility_regime ? 'Off' : str.format('{0}\n{1}', vol_bull_stack_order ? 'Bull Stack' : 'No Stack', vol_bull_stack_slopes ? 'Slopes Up' : 'Slopes Mixed')
 string vol_squeeze_display = not use_volatility_regime ? 'Off' : vol_squeeze_released ? 'Released' : vol_squeeze_on ? 'Active' : vol_squeeze_recent ? 'Recent' : 'None'
 string vol_expansion_display = not use_volatility_regime ? 'Off' : str.format('{0,number,#.##}%\n{1,number,#.##}% | {2}', vol_stack_spread_pct, vol_momentum, vol_momentum_expanding_long and vol_stack_spread_rising ? 'Expanding' : vol_momentum_expanding_long ? 'Momentum' : vol_stack_spread_rising ? 'Spread' : 'Flat')
+string stretch_display = not use_stretch_context ? 'Off' : in_lower_extreme ? 'In lower extreme' : lower_extreme_recent ? 'Recent lower extreme' : na(distance_to_mean_z) ? 'n/a' : str.format('z={0,number,#.##}', distance_to_mean_z)
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string setup_quality_display = str.format('{0}\n{1}\n{2}\nEnv {3}\nHeadroom {4}', freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text)
@@ -3685,7 +3725,7 @@ color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
 color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
-var table smc_dashboard = table.new(position.bottom_right, 2, 37, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 38, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -3709,24 +3749,25 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 18, 'Vol Regime', vol_regime_display, status_bg(vol_regime_state), dashboard_text)
     dashboard_row(smc_dashboard, 19, 'Vol Squeeze', vol_squeeze_display, status_bg(vol_squeeze_state), dashboard_text)
     dashboard_row(smc_dashboard, 20, 'Vol Expand', vol_expansion_display, status_bg(vol_expansion_state), dashboard_text)
-    dashboard_row(smc_dashboard, 21, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
-    dashboard_row(smc_dashboard, 22, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 23, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
-    dashboard_row(smc_dashboard, 24, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 25, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 26, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 27, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
-    dashboard_row(smc_dashboard, 28, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 29, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 30, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 31, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 32, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
-    dashboard_row(smc_dashboard, 33, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
-    dashboard_row(smc_dashboard, 34, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
-    dashboard_row(smc_dashboard, 35, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 36, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 21, 'Stretch', stretch_display, status_bg(stretch_state), dashboard_text)
+    dashboard_row(smc_dashboard, 22, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
+    dashboard_row(smc_dashboard, 23, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 24, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
+    dashboard_row(smc_dashboard, 25, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 26, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 27, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 28, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
+    dashboard_row(smc_dashboard, 29, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 30, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 31, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 32, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 33, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
+    dashboard_row(smc_dashboard, 34, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
+    dashboard_row(smc_dashboard, 35, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
+    dashboard_row(smc_dashboard, 36, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 37, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 36)
+    table.clear(smc_dashboard, 0, 0, 1, 37)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -3735,22 +3776,26 @@ plot(show_risk_levels and long_plan_active ? long_invalidation_level : na, 'Long
 plot(show_risk_levels and long_plan_active ? long_stop_level : na, 'Long Stop', color = color.new(color.red, 0), linewidth = 2, style = plot.style_linebr)
 plot(show_risk_levels and long_plan_active ? long_target_1 : na, 'Long Target 1', color = color.new(color.lime, 0), linewidth = 1, style = plot.style_linebr)
 plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2', color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active and show_mean_target_overlay ? long_mean_target : na, 'Long Mean Target', color = color.new(color.blue, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_stretch_overlay ? stretch_mean : na, 'Stretch Mean', color = color.new(color.blue, 45), linewidth = 1, style = plot.style_linebr)
+plot(show_stretch_overlay ? stretch_lower_threshold : na, 'Lower Extreme Threshold', color = color.new(color.aqua, 0), linewidth = 1, style = plot.style_linebr)
+bgcolor(show_lower_extreme_bg and in_lower_extreme ? color.new(color.aqua, 90) : na, title = 'Lower Extreme Background')
 
 // --------------------------------------------------
 // Long-dip alert presets
 // --------------------------------------------------
-alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe
+alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_ready_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_ready_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe
+alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
