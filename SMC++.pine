@@ -3250,8 +3250,11 @@ int ltf_delta_state = not show_dashboard_ltf ? 0 : not enable_ltf_sampling ? 0 :
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
 int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
+bool strict_flow_active = use_strict_sequence or use_strict_sweep_for_zone_reclaim or use_strict_confirm_guard
+bool strict_sequence_waiting = use_strict_sequence and not zone_touch_event_recent
 bool strict_sweep_ok = long_setup_source_kind == 'OB' ? bull_ob_real_sweep : long_setup_source_kind == 'FVG' ? bull_fvg_real_sweep : bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict
-int strict_flow_state = not use_strict_sequence and not use_strict_sweep_for_zone_reclaim and not use_strict_confirm_guard ? 0 : not long_confirm_bearish_guard_ok ? -1 : use_strict_sequence and not zone_touch_event_recent ? 1 : use_strict_sweep_for_zone_reclaim and (long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG') and not strict_sweep_ok ? 1 : 4
+bool strict_sweep_blocked = use_strict_sweep_for_zone_reclaim and (long_setup_source_kind == 'OB' or long_setup_source_kind == 'FVG') and not strict_sweep_ok
+bool strict_guard_blocked = use_strict_confirm_guard and not long_confirm_bearish_guard_ok
 int entry_score_state = entry_score_ok ? long_entry_score >= 9 ? 5 : 4 : long_entry_score >= math.max(min_entry_score - 1, 1) ? 2 : -1
 string trend_display = trend_state == 5 ? 'Bullish' : trend_state == -1 ? 'Bearish' : 'Neutral'
 string htf_display = not show_mtf_trend ? 'Off' : str.format('{0}:{1}\n{2}:{3}\n{4}:{5}', mtf_trend_tf1, trend_text_or_na(mtf_trend_1), mtf_trend_tf2, trend_text_or_na(mtf_trend_2), mtf_trend_tf3, trend_text_or_na(mtf_trend_3))
@@ -3292,6 +3295,7 @@ color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
+color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
 var table smc_dashboard = table.new(position.bottom_right, 2, 25, border_width = 0)
 
 if show_dashboard and barstate.islast
@@ -3316,7 +3320,7 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 18, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
     dashboard_row(smc_dashboard, 19, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
     dashboard_row(smc_dashboard, 20, 'Setup Quality', setup_quality_display, status_bg(quality_state), dashboard_text)
-    dashboard_row(smc_dashboard, 21, 'Strict Flow', strict_flow_display, status_bg(strict_flow_state), dashboard_text)
+    dashboard_row(smc_dashboard, 21, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
     dashboard_row(smc_dashboard, 22, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
     dashboard_row(smc_dashboard, 23, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
     dashboard_row(smc_dashboard, 24, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
