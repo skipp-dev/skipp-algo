@@ -4,6 +4,9 @@
 
 indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
 
+import robbatt/lib_no_delay/16 as ND
+import robbatt/lib_divergence/2 as DIV
+
 // Safe refactor notes:
 // - Core BOS/CHoCH, Order Block and FVG logic is intentionally unchanged.
 // - Improvements are limited to readability, defensive guards around draw/delete paths,
@@ -2239,6 +2242,27 @@ var bool show_stretch_overlay = input.bool(true, 'Show stretch overlays', group 
 var bool show_mean_target_overlay = input.bool(true, 'Show mean target overlay', group = g_stretch)
 var bool show_lower_extreme_bg = input.bool(false, 'Highlight lower extreme background', group = g_stretch)
 
+var string g_ddvi_ctx = 'DDVI Context'
+var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx)
+var int ddvi_di_length = input.int(14, 'DDVI DI Length', minval = 1, group = g_ddvi_ctx, inline = 'd1')
+var int ddvi_advx_smooth = input.int(14, 'ADVX Smooth', minval = 1, group = g_ddvi_ctx, inline = 'd1')
+var ND.MovingAverage ddvi_ma_select = input.enum(ND.MovingAverage.SMA, 'DDVI MA', group = g_ddvi_ctx, inline = 'd2')
+var int ddvi_ma_len = input.int(5, 'Length', minval = 1, group = g_ddvi_ctx, inline = 'd2')
+var ND.MovingAverage ddvi_bb_ma_select = input.enum(ND.MovingAverage.SMA, 'DDVI BB MA', group = g_ddvi_ctx, inline = 'bb')
+var int ddvi_bb_len = input.int(100, 'BB Length', minval = 5, group = g_ddvi_ctx, inline = 'bb')
+var float ddvi_bb_mult = input.float(1.5, 'BB Stdev', minval = 0.1, step = 0.1, group = g_ddvi_ctx, inline = 'bb')
+var int ddvi_lower_extreme_lookback = input.int(8, 'Lower extreme context bars', minval = 1, maxval = 50, group = g_ddvi_ctx)
+var bool use_ddvi_hidden_bull = input.bool(true, 'Use hidden bull divergence', group = g_ddvi_ctx, inline = 'div')
+var bool use_ddvi_strong_bull = input.bool(false, 'Use strong bull divergence', group = g_ddvi_ctx, inline = 'div')
+var int ddvi_pivot_left = input.int(5, 'Pivot Left', minval = 1, group = g_ddvi_ctx, inline = 'p1')
+var int ddvi_pivot_right = input.int(3, 'Right', minval = 1, group = g_ddvi_ctx, inline = 'p1')
+var int ddvi_div_min_range = input.int(5, 'Div Min', minval = 1, group = g_ddvi_ctx, inline = 'p2')
+var int ddvi_div_max_range = input.int(60, 'Max', minval = 2, group = g_ddvi_ctx, inline = 'p2')
+var int ddvi_eq_zone_len = input.int(14, 'Equal zone length', minval = 1, group = g_ddvi_ctx, inline = 'p3')
+var float ddvi_eq_zone_atr_mult = input.float(0.2, 'Price ATR x', minval = 0.0, step = 0.1, group = g_ddvi_ctx, inline = 'p3')
+var float ddvi_eq_zone_dev_mult = input.float(0.2, 'DDVI Dev x', minval = 0.0, step = 0.01, group = g_ddvi_ctx, inline = 'p3')
+var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', group = g_ddvi_ctx)
+
 var g_struct = 'Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, tooltip = SHOW_SWING)
 var string show_bull = input.string('All', 'Bullish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bull')
@@ -2657,6 +2681,54 @@ bool stretch_watchlist_context_ok = not use_stretch_context or (not stretch_requ
 bool stretch_ready_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_ready or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_ready)
 bool stretch_entry_best_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_entry_best or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best)
 bool stretch_entry_strict_context_ok = not use_stretch_context or ((not stretch_require_lower_extreme_for_entry_strict or in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_strict)
+
+float ddvi_plus = na
+float ddvi_minus = na
+float ddvi_advx = na
+float ddvi = na
+float ddvi_bb_basis = na
+float ddvi_bb_upper = na
+float ddvi_bb_lower = na
+bool ddvi_strong_bull = false
+bool ddvi_hidden_bull = false
+bool ddvi_event_bar_ok = ddvi_close_safe_only ? barstate.isconfirmed : (signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed)
+if use_ddvi_context and volume_data_ok
+    [ddvi_plus_tmp, ddvi_minus_tmp, ddvi_advx_tmp] = ND.dmi(ddvi_di_length, ddvi_advx_smooth)
+    ddvi_plus := ddvi_plus_tmp
+    ddvi_minus := ddvi_minus_tmp
+    ddvi_advx := ddvi_advx_tmp
+    float ddvi_raw = ddvi_plus - ddvi_minus
+    ddvi := ND.get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
+    [ddvi_bb_basis_tmp, ddvi_bb_upper_tmp, ddvi_bb_lower_tmp] = ND.bb(ddvi, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
+    ddvi_bb_basis := ddvi_bb_basis_tmp
+    ddvi_bb_upper := ddvi_bb_upper_tmp
+    ddvi_bb_lower := ddvi_bb_lower_tmp
+    [strong_bull_tmp, _, _, _, _, _, hidden_bull_tmp, _, _, _] = DIV.divergence(ddvi, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
+    ddvi_strong_bull := strong_bull_tmp
+    ddvi_hidden_bull := hidden_bull_tmp
+
+bool ddvi_bias_bull = use_ddvi_context and volume_data_ok and not na(ddvi) and ddvi > 0
+bool ddvi_bias_rising = use_ddvi_context and volume_data_ok and not na(ddvi) and not na(ddvi[1]) and ddvi > ddvi[1]
+bool ddvi_bias_cross_up = use_ddvi_context and volume_data_ok and ddvi_event_bar_ok and not na(ddvi) and ta.crossover(ddvi, 0)
+bool ddvi_bias_ok = ddvi_bias_bull and ddvi_bias_rising
+bool ddvi_bias_transition_ok = ddvi_bias_cross_up or (ddvi_bias_bull and ddvi_bias_rising)
+bool ddvi_lower_extreme_now = use_ddvi_context and volume_data_ok and not na(ddvi) and not na(ddvi_bb_lower) and ddvi <= ddvi_bb_lower
+int ddvi_lower_extreme_since = ta.barssince(ddvi_lower_extreme_now)
+bool ddvi_lower_extreme_recent = use_ddvi_context and volume_data_ok and not na(ddvi_lower_extreme_since) and ddvi_lower_extreme_since <= ddvi_lower_extreme_lookback
+bool ddvi_recover_from_lower_extreme = use_ddvi_context and volume_data_ok and ddvi_event_bar_ok and not na(ddvi) and not na(ddvi_bb_lower) and ta.crossover(ddvi, ddvi_bb_lower)
+bool ddvi_lower_extreme_context = ddvi_lower_extreme_now or ddvi_lower_extreme_recent or ddvi_recover_from_lower_extreme
+bool hidden_bull_divergence = use_ddvi_context and volume_data_ok and use_ddvi_hidden_bull and ddvi_hidden_bull
+bool strong_bull_divergence = use_ddvi_context and volume_data_ok and use_ddvi_strong_bull and ddvi_strong_bull
+bool ddvi_bull_divergence_any = hidden_bull_divergence or strong_bull_divergence
+bool ddvi_watchlist_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_lower_extreme_context or ddvi_bias_rising)
+bool ddvi_ready_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_recover_from_lower_extreme or (ddvi_bias_rising and not ddvi_lower_extreme_now))
+bool ddvi_entry_best_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_bias_transition_ok or hidden_bull_divergence)
+bool ddvi_entry_strict_ok = not use_ddvi_context ? true : not volume_data_ok ? false : (ddvi_bias_ok and not ddvi_lower_extreme_now and (hidden_bull_divergence or strong_bull_divergence))
+if ddvi_close_safe_only and not barstate.isconfirmed
+    ddvi_watchlist_ok := bar_index > 0 ? ddvi_watchlist_ok[1] : ddvi_watchlist_ok
+    ddvi_ready_ok := bar_index > 0 ? ddvi_ready_ok[1] : ddvi_ready_ok
+    ddvi_entry_best_ok := bar_index > 0 ? ddvi_entry_best_ok[1] : ddvi_entry_best_ok
+    ddvi_entry_strict_ok := bar_index > 0 ? ddvi_entry_strict_ok[1] : ddvi_entry_strict_ok
 
 mtf_trend_1 = get_confirmed_structure_trend(mtf_trend_tf1, swing_length)
 mtf_trend_2 = get_confirmed_structure_trend(mtf_trend_tf2, swing_length)
@@ -3398,7 +3470,7 @@ if close_safe_mode and long_confirm_break and long_confirm_structure_ok and acce
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool long_ready_state = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and micro_session_gate_ok and micro_freshness_gate_ok and long_confirm_bearish_guard_ok and zone_touch_quality_ok and long_filters_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok and (not require_entry_score_for_ready or entry_score_ok) and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -3659,6 +3731,7 @@ int vol_regime_state = not use_volatility_regime ? 0 : vol_regime_trend_ok and v
 int vol_squeeze_state = not use_volatility_regime ? 0 : vol_squeeze_released ? 5 : vol_squeeze_on ? 4 : vol_squeeze_recent ? 2 : 0
 int vol_expansion_state = not use_volatility_regime ? 0 : vol_momentum_expanding_long and vol_stack_spread_rising ? 5 : vol_momentum_expanding_long ? 3 : vol_stack_spread_rising ? 2 : 0
 int stretch_state = not use_stretch_context ? 0 : in_lower_extreme ? 5 : lower_extreme_recent ? 4 : anti_chase_ok_entry_strict ? 2 : -1
+int ddvi_state = not use_ddvi_context ? 0 : not volume_data_ok ? -1 : ddvi_entry_strict_ok ? 5 : ddvi_entry_best_ok ? 4 : ddvi_ready_ok ? 3 : ddvi_watchlist_ok ? 2 : ddvi_lower_extreme_now ? 1 : 0
 int objects_state = not show_dashboard_counts ? 0 : (visible_bull_obs + visible_bull_fvgs) > 0 ? 4 : 0
 int risk_state = long_plan_active ? 4 : 0
 int quality_state = long_source_lost ? -1 : not zone_touch_quality_ok or not overhead_zone_ok ? 1 : long_setup_armed or long_setup_confirmed ? 4 : 0
@@ -3703,6 +3776,7 @@ string vol_regime_display = not use_volatility_regime ? 'Off' : str.format('{0}\
 string vol_squeeze_display = not use_volatility_regime ? 'Off' : vol_squeeze_released ? 'Released' : vol_squeeze_on ? 'Active' : vol_squeeze_recent ? 'Recent' : 'None'
 string vol_expansion_display = not use_volatility_regime ? 'Off' : str.format('{0,number,#.##}%\n{1,number,#.##}% | {2}', vol_stack_spread_pct, vol_momentum, vol_momentum_expanding_long and vol_stack_spread_rising ? 'Expanding' : vol_momentum_expanding_long ? 'Momentum' : vol_stack_spread_rising ? 'Spread' : 'Flat')
 string stretch_display = not use_stretch_context ? 'Off' : in_lower_extreme ? str.format('Lower Extreme\nz={0,number,#.##}\nMean {1}', distance_to_mean_z, format_level(stretch_mean)) : lower_extreme_recent ? str.format('Recent Extreme\nz={0,number,#.##}\nThr {1}', distance_to_mean_z, format_level(stretch_lower_threshold)) : na(distance_to_mean_z) ? 'n/a' : str.format('z={0,number,#.##}\nMean {1}\nThr {2}', distance_to_mean_z, format_level(stretch_mean), format_level(stretch_lower_threshold))
+string ddvi_context_text = not use_ddvi_context ? 'Off' : not volume_data_ok ? 'No Vol' : hidden_bull_divergence ? 'Hidden Bull Div' : strong_bull_divergence ? 'Strong Bull Div' : ddvi_recover_from_lower_extreme ? 'Recovering' : ddvi_lower_extreme_now ? 'Lower Extreme' : ddvi_bias_cross_up ? 'Cross Up' : ddvi_bias_ok ? 'Bull Bias' : ddvi_bias_rising ? 'Rising' : 'Neutral'
 string objects_display = not show_dashboard_counts ? 'Hidden' : str.format('OB {0}/{1}\nFVG {2}/{3}', visible_bull_obs, visible_bear_obs, visible_bull_fvgs, visible_bear_fvgs)
 string setup_age_display = not show_dashboard_setup_age ? 'Hidden' : long_setup_confirmed ? str.format('confirmed {0}', long_confirm_age) : long_setup_armed ? str.format('armed {0}', long_setup_age) : 'n/a'
 string setup_quality_display = str.format('{0}\n{1}\n{2}\nEnv {3}\nHeadroom {4}', freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text)
@@ -3751,7 +3825,7 @@ color dashboard_risk_bg = color.new(color.black, 92)
 color dashboard_legend_bg = color.new(color.black, 88)
 color dashboard_setup_age_bg = color.new(color.silver, 88)
 color dashboard_strict_flow_bg = not strict_flow_active ? status_bg(0) : strict_guard_blocked ? color.new(color.red, 75) : strict_sweep_blocked ? color.new(color.orange, 72) : strict_sequence_waiting ? color.new(color.aqua, 80) : color.new(color.lime, 72)
-var table smc_dashboard = table.new(position.bottom_right, 2, 38, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 39, border_width = 0)
 
 if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 0, 'SMC++', signal_mode_text, dashboard_header_bg, dashboard_text)
@@ -3776,24 +3850,25 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 19, 'Vol Squeeze', vol_squeeze_display, status_bg(vol_squeeze_state), dashboard_text)
     dashboard_row(smc_dashboard, 20, 'Vol Expand', vol_expansion_display, status_bg(vol_expansion_state), dashboard_text)
     dashboard_row(smc_dashboard, 21, 'Stretch', stretch_display, status_bg(stretch_state), dashboard_text)
-    dashboard_row(smc_dashboard, 22, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
-    dashboard_row(smc_dashboard, 23, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 24, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
-    dashboard_row(smc_dashboard, 25, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 26, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 27, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 28, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
-    dashboard_row(smc_dashboard, 29, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 30, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 31, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 32, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 33, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
-    dashboard_row(smc_dashboard, 34, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
-    dashboard_row(smc_dashboard, 35, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
-    dashboard_row(smc_dashboard, 36, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
-    dashboard_row(smc_dashboard, 37, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 22, 'DDVI', ddvi_context_text, status_bg(ddvi_state), dashboard_text)
+    dashboard_row(smc_dashboard, 23, 'Objects', objects_display, status_bg(objects_state), dashboard_text)
+    dashboard_row(smc_dashboard, 24, 'Swing H/L', dashboard_swing_levels_display, dashboard_swing_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 25, 'Long Zones', dashboard_long_zones_display, status_bg(long_zones_state), dashboard_text)
+    dashboard_row(smc_dashboard, 26, 'Long Triggers', dashboard_long_triggers_display, dashboard_trigger_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 27, 'Setup Quality', setup_quality_display, dashboard_setup_quality_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 28, 'Strict Flow', strict_flow_display, dashboard_strict_flow_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 29, 'Entry Score', entry_score_display, status_bg(entry_score_state), dashboard_text)
+    dashboard_row(smc_dashboard, 30, 'Session', session_gate_display, dashboard_session_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 31, 'Market Gate', market_gate_display, dashboard_market_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 32, 'Vola Regime', vola_gate_display, dashboard_vola_gate_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 33, 'Trend Quality', trend_quality_display, dashboard_trend_quality_bg, dashboard_text)
+    dashboard_row(smc_dashboard, 34, 'Micro Profile', micro_profile_display, status_bg(micro_profile_state), dashboard_text)
+    dashboard_row(smc_dashboard, 35, 'Micro Session', micro_session_display, status_bg(micro_session_state), dashboard_text)
+    dashboard_row(smc_dashboard, 36, 'Micro Fresh', micro_freshness_display, status_bg(micro_freshness_state), dashboard_text)
+    dashboard_row(smc_dashboard, 37, 'Risk Plan', risk_display, risk_state > 0 ? dashboard_risk_bg : status_bg(risk_state), dashboard_text)
+    dashboard_row(smc_dashboard, 38, 'Legend', dashboard_legend_display, dashboard_legend_bg, dashboard_text)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 37)
+    table.clear(smc_dashboard, 0, 0, 1, 38)
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
@@ -3810,18 +3885,18 @@ bgcolor(show_lower_extreme_bg and in_lower_extreme ? color.new(color.aqua, 90) :
 // --------------------------------------------------
 // Long-dip alert presets
 // --------------------------------------------------
-alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe
+alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe and ddvi_watchlist_ok
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
-alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok
+alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable)
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok
+alert_long_entry_strict = close_safe_mode and bullish_trend_safe and htf_bull_count >= 2 and zone_recent and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and strict_entry_ltf_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
 varip int long_watchlist_rt_prev_active = 0
