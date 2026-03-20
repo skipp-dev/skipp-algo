@@ -3095,6 +3095,8 @@ int trend_quality_max_score = score_weight_structure + score_weight_htf + score_
 bool trend_quality_gate_ok = not use_trend_quality_score or trend_quality_score >= min_trend_quality_score
 bool long_environment_gate_ok = session_structure_gate_ok and market_regime_gate_ok and vola_regime_gate_safe and trend_quality_gate_ok
 bool long_filters_ok = ema_support_ok and adx_strong and relvol_ok and bull_close_strong and vwap_filter_ok and overhead_zone_ok and long_environment_gate_ok
+bool long_environment_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate or use_trend_quality_score
+string long_environment_focus_display = not long_environment_gate_ok ? not session_structure_gate_ok ? 'Session Block' : not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : not trend_quality_gate_ok ? 'Trend Block' : 'Env Blocked' : 'Env OK'
 string freshness_text = not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
 string source_state_text = not long_source_tracked ? 'n/a' : long_source_alive ? 'source alive' : 'source lost'
 string zone_quality_text = not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : active_zone_touch_count <= 1 ? 'fresh touch' : active_zone_touch_count == 2 ? '2nd touch' : 'crowded'
@@ -3395,8 +3397,13 @@ string strict_sweep_display = not use_strict_sweep_for_zone_reclaim ? 'off' : lo
 string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confirm_bearish_guard_ok ? 'guard ok' : 'bear abort'
 string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? 'Waiting Zone' : 'Strict OK'
 bool long_setup_strict_blocked = strict_flow_active and strict_flow_focus_display != 'off' and strict_flow_focus_display != 'Strict OK' and long_visual_state > 0
-string long_setup_display = long_setup_strict_blocked ? str.format('{0} | {1}', long_setup_text, strict_flow_focus_display) : long_setup_text
+bool long_setup_environment_blocked = long_environment_features_active and not long_environment_gate_ok and long_visual_state > 0
+string long_setup_context_suffix = long_setup_strict_blocked ? strict_flow_focus_display : ''
+if long_setup_environment_blocked
+    long_setup_context_suffix := str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_context_suffix, long_environment_focus_display) : long_environment_focus_display
+string long_setup_display = str.length(long_setup_context_suffix) > 0 ? str.format('{0} | {1}', long_setup_text, long_setup_context_suffix) : long_setup_text
 string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''
+string long_environment_alert_suffix = long_environment_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
 string strict_flow_display = str.format('State {0}\nZone {1}\nSweep {2}\nGuard {3}', strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
 string entry_score_display = str.format('{0}/10\nMin {1}\n{2}', long_entry_score, min_entry_score, entry_score_ok ? 'Actionable' : 'Blocked')
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
@@ -3571,17 +3578,17 @@ bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed
 
 // Alerts use clearer wording but keep the same underlying trigger logic.
 alertcondition(long_arm_signal_latched, 'Long Armed', 'SMC++: long setup armed after reclaim and zone confirmation.')
-alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation, with strict-flow context and optional score gating.')
-alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: long setup is ready with filters aligned, with strict-flow context and optional score gating.')
+alertcondition(long_confirm_signal_latched, 'Long Confirmed', 'SMC++: long setup confirmed after trigger break and internal structure confirmation, with strict-flow and environment-gate context plus optional score gating.')
+alertcondition(long_ready_signal_latched, 'Long Ready', 'SMC++: long setup is ready with filters aligned, with strict-flow and environment-gate context plus optional score gating.')
 alertcondition(long_invalidate_signal_latched, 'Long Invalidated', 'SMC++: long setup was invalidated.')
 alertcondition(long_arm_close_safe, 'Long Armed (Close Safe)', 'SMC++: long setup remained armed into the confirmed close.')
-alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close, with optional score gating.')
-alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close, with optional score gating.')
+alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: long setup remained confirmed at bar close, with environment-gate context and optional score gating.')
+alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: long setup remained ready at bar close, with environment-gate context and optional score gating.')
 alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: long setup ended invalidated at bar close.')
 alertcondition(alert_long_watchlist_event, 'Long Dip Watchlist', 'SMC++: bullish trend with active pullback zone.')
 alertcondition(alert_long_armed_event, 'Long Dip Armed+', 'SMC++: strict reclaim qualified and long setup armed.')
 alertcondition(alert_long_early_event, 'Long Dip Early', 'SMC++: early bullish long-dip hint with strict reclaim qualification and internal confirmation.')
-alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: clean long-dip setup confirmed.')
+alertcondition(alert_long_clean_event, 'Long Dip Clean', 'SMC++: clean long-dip setup confirmed, with environment-gate context.')
 alertcondition(alert_long_entry_best_event, 'Long Dip Entry Best', 'SMC++: best standard long-dip entry condition.')
 alertcondition(alert_long_entry_strict_event, 'Long Dip Entry Strict', 'SMC++: strict long-dip entry with HTF and momentum alignment.')
 alertcondition(long_invalidate_signal_latched, 'Long Dip Failed', 'SMC++: long-dip setup invalidated.')
@@ -3668,15 +3675,15 @@ if dynamic_long_alert_mode == 'Priority'
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup' + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup' + long_environment_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}{1}{2}', long_setup_source, long_strict_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}{1}{2}{3}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
         long_dynamic_alert_sent := true
-        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}{2}', long_setup_source, long_strict_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}{2}{3}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     else if enable_dynamic_alerts and not long_dynamic_alert_sent and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
         long_dynamic_alert_sent := true
@@ -3705,13 +3712,13 @@ else
         alert(build_dynamic_alert_message(true, true, 'Long Dip Entry Best', 'Standard long entry condition met' + long_score_detail_suffix, long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_clean_event and not str.contains(dynamic_alert_seen_keys, '|long_clean|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_clean|'
-        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup' + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Dip Clean', 'Confirmed long-dip setup' + long_environment_alert_suffix + long_score_detail_suffix, long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_ready_signal and not str.contains(dynamic_alert_seen_keys, '|long_ready|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_ready|'
-        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}{1}{2}', long_setup_source, long_strict_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Ready', str.format('Filters aligned for {0}{1}{2}{3}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and long_confirm_signal and not str.contains(dynamic_alert_seen_keys, '|long_confirmed|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_confirmed|'
-        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}{2}', long_setup_source, long_strict_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, 'Long Confirmed', str.format('Trigger cleared from {0}{1}{2}{3}', long_setup_source, long_strict_alert_suffix, long_environment_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
     if enable_dynamic_alerts and alert_long_early_event and not str.contains(dynamic_alert_seen_keys, '|long_early|')
         dynamic_alert_seen_keys := dynamic_alert_seen_keys + '|long_early|'
         alert(build_dynamic_alert_message(true, true, 'Long Dip Early', 'Strict reclaim qualified, internal confirmation starting' + long_score_detail_suffix, long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, signal_mode_text), alert.freq_all)
