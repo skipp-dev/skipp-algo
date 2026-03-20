@@ -2168,7 +2168,7 @@ var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', g
 var float min_close_in_range_pct = input.float(0.65, 'Min Close In Range', minval = 0.50, maxval = 1.00, step = 0.05, group = g_long, inline = 'close')
 
 var g_accel = 'Pullback Acceleration'
-var bool use_accel_module = input.bool(true, 'Use acceleration timing module', group = g_accel, tooltip = 'Preset guide:\nCautious rollout = Early only + Ready requires accel > 0.\nFull confluence = Confirm + Ready or Strict entries only, depending on how hard you want confirmation and entries filtered.')
+var bool use_accel_module = input.bool(true, 'Use acceleration timing module', group = g_accel, tooltip = 'Preset guide:\nStacked rollout = Early only + Ready accel > 0 off.\nBalanced = Confirm + Ready if you want acceleration to harden setup confirmation too.\nTight = Strict entries only when acceleration should mostly gate the final entry tier.')
 var int accel_len_fast = input.int(8, 'Fast length', minval = 2, group = g_accel, inline = 'acc1')
 var int accel_len_mid1 = input.int(13, 'Mid 1', minval = 3, group = g_accel, inline = 'acc1')
 var int accel_len_mid2 = input.int(21, 'Mid 2', minval = 5, group = g_accel, inline = 'acc2')
@@ -2176,7 +2176,7 @@ var int accel_len_slow = input.int(34, 'Slow', minval = 8, group = g_accel, inli
 var int accel_smooth_len = input.int(3, 'Smooth', minval = 1, group = g_accel, inline = 'acc3')
 var float accel_cross_threshold = input.float(0.0, 'Zero threshold', step = 0.01, group = g_accel, inline = 'acc3')
 var string accel_integration_mode = input.string('Early only', 'Integration mode', options = ['Early only', 'Confirm + Ready', 'Strict entries only'], group = g_accel, tooltip = 'Cautious rollout: Early only.\nBalanced: Confirm + Ready.\nHard filter: Strict entries only.')
-var bool require_accel_above_zero_for_ready = input.bool(true, 'Ready requires accel > 0', group = g_accel, tooltip = 'Recommended on for rollout. Turning this off allows weaker pullback-recovery states to qualify as Ready.')
+var bool require_accel_above_zero_for_ready = input.bool(false, 'Ready requires accel > 0', group = g_accel, tooltip = 'Stacked rollout recommendation: off. Ready already checks acceleration turn or recent cross, so forcing accel > 0 can delay signals unnecessarily.')
 var int accel_recent_cross_bars = input.int(3, 'Recent cross bars', minval = 1, maxval = 20, group = g_accel)
 var bool accel_close_safe_only = input.bool(true, 'Acceleration close-safe only', group = g_accel, tooltip = 'When enabled, acceleration states only advance on confirmed bar data. This keeps the timing layer aligned with the rest of the close-safe pipeline.')
 var bool accel_use_for_early = input.bool(true, 'Map to Early', group = g_accel, inline = 'accmap1')
@@ -2186,7 +2186,7 @@ var bool accel_use_for_entry_strict = input.bool(true, 'Map to Entry Strict', gr
 var bool show_accel_debug = input.bool(false, 'Show accel debug markers', group = g_accel)
 
 var g_sd = 'Second Derivative Confluence'
-var bool use_sd_confluence = input.bool(true, 'Use second-derivative confluence', group = g_sd, tooltip = 'Preset guide:\nCautious rollout = Armed off, Confirmed off, Entry Best off, Entry Strict requires both.\nFull confluence = Armed/Confirmed/Entry Best on if you want SD to harden most long states.')
+var bool use_sd_confluence = input.bool(true, 'Use second-derivative confluence', group = g_sd, tooltip = 'Preset guide:\nStacked rollout = Armed off, Confirmed off, Entry Best off, Entry Strict requires both.\nBalanced = keep Ready on and consider Entry Best on only after observing enough flow.\nTight = enable Armed/Confirmed/Entry Best if SD should harden most long states.')
 var int sd_lr_len = input.int(14, 'LR length', minval = 3, group = g_sd, inline = 'sd1')
 var int sd_smooth_len = input.int(3, 'Smooth', minval = 1, group = g_sd, inline = 'sd1')
 var int sd_pivot_len = input.int(3, 'Pivot length', minval = 1, maxval = 10, group = g_sd, inline = 'sd2')
@@ -2202,7 +2202,7 @@ var bool sd_require_osc_rising_for_ready = input.bool(true, 'Ready requires osci
 var bool show_sd_debug = input.bool(false, 'Show SD debug markers', group = g_sd)
 
 var g_volreg = 'Volatility / Expansion Regime'
-var bool use_volatility_regime = input.bool(true, 'Use volatility regime filter', group = g_volreg)
+var bool use_volatility_regime = input.bool(true, 'Use volatility regime filter', group = g_volreg, tooltip = 'Preset guide:\nStacked rollout = Ready squeeze off, Entry Best release off, Entry Strict release on.\nBalanced = turn Ready squeeze on once regime quality is stable.\nTight = require squeeze or release context deeper into the stack if you want fewer but cleaner entries.')
 var string vol_ma_mode = input.string('EMA', 'Stack MA mode', options = ['EMA', 'QEMA-like'], group = g_volreg)
 var int vol_ma_len_1 = input.int(8, 'MA 1', minval = 2, group = g_volreg, inline = 'ma1')
 var int vol_ma_len_2 = input.int(21, 'MA 2', minval = 3, group = g_volreg, inline = 'ma1')
@@ -2218,13 +2218,13 @@ var int vol_release_recent_bars = input.int(8, 'Release recent bars', minval = 1
 var int vol_momentum_len = input.int(10, 'Momentum length', minval = 1, group = g_volreg, inline = 'mom1')
 var int vol_momentum_smooth = input.int(3, 'Smooth', minval = 1, group = g_volreg, inline = 'mom1')
 var bool vol_require_squeeze_for_watchlist = input.bool(false, 'Watchlist prefers squeeze context', group = g_volreg)
-var bool vol_require_squeeze_for_ready = input.bool(true, 'Ready requires squeeze context', group = g_volreg)
+var bool vol_require_squeeze_for_ready = input.bool(false, 'Ready requires squeeze context', group = g_volreg, tooltip = 'Stacked rollout recommendation: off. Ready already needs regime trend, momentum expansion, and spread expansion, so squeeze context is better reserved for tighter entry tiers.')
 var bool vol_require_release_for_entry_best = input.bool(false, 'Entry Best requires squeeze release', group = g_volreg)
 var bool vol_require_release_for_entry_strict = input.bool(true, 'Entry Strict requires squeeze release', group = g_volreg)
 var bool show_vol_regime_debug = input.bool(false, 'Show volatility regime debug markers', group = g_volreg)
 
 var g_stretch = 'Stretch / Mean Reversion Context'
-var bool use_stretch_context = input.bool(true, 'Use stretch context', group = g_stretch, tooltip = 'Preset guide:\nCautious rollout = Watchlist off, Ready on, Best on, Strict on.\nLooser rollout = turn Ready or Best lower-extreme requirements off.\nTighter anti-chase = keep Strict at 0.00 or below.')
+var bool use_stretch_context = input.bool(true, 'Use stretch context', group = g_stretch, tooltip = 'Preset guide:\nStacked rollout = Watchlist lower-extreme off, Ready lower-extreme off, Best on, Strict on, anti-chase active.\nBalanced = turn Ready lower-extreme on if you want more genuine deep-pullback bias.\nTight = keep Strict at 0.00 or below and keep Best tied to lower-extreme context.')
 var int stretch_len = input.int(100, 'Mean / StdDev length', minval = 20, group = g_stretch, inline = 'dist1', tooltip = 'Recommended start: 100. Shorter reacts faster, longer is smoother and more stable.')
 var float lower_extreme_z = input.float(1.5, 'Lower extreme z', minval = 0.5, step = 0.1, group = g_stretch, inline = 'dist1', tooltip = 'Recommended start: 1.5. Higher values require deeper downside stretch before context turns favorable.')
 var int lower_extreme_recent_bars = input.int(12, 'Lower extreme recent bars', minval = 1, maxval = 100, group = g_stretch, inline = 'dist2', tooltip = 'Recommended start: 12. This keeps stretch context alive briefly after the actual lower-extreme touch.')
@@ -2232,7 +2232,7 @@ var float anti_chase_max_z_ready = input.float(0.50, 'Ready max z', step = 0.1, 
 var float anti_chase_max_z_best = input.float(0.25, 'Best max z', step = 0.1, group = g_stretch, inline = 'ac1', tooltip = 'Cautious rollout: 0.25. Keeps Entry Best closer to the original dip rather than a late mean chase.')
 var float anti_chase_max_z_strict = input.float(0.00, 'Strict max z', step = 0.1, group = g_stretch, inline = 'ac1', tooltip = 'Cautious rollout: 0.00. Strict then only allows entries at or below the mean, not above it.')
 var bool stretch_require_lower_extreme_for_watchlist = input.bool(false, 'Watchlist prefers lower extreme', group = g_stretch, tooltip = 'Recommended off for rollout. Watchlist stays broader while stronger stretch filters are reserved for higher-conviction states.')
-var bool stretch_require_lower_extreme_for_ready = input.bool(true, 'Ready requires lower extreme context', group = g_stretch, tooltip = 'Recommended on. Ready then represents genuine stretched pullbacks instead of any generic rebound.')
+var bool stretch_require_lower_extreme_for_ready = input.bool(false, 'Ready requires lower extreme context', group = g_stretch, tooltip = 'Stacked rollout recommendation: off. Keep anti-chase active for Ready, but reserve mandatory lower-extreme context for Entry Best and Entry Strict.')
 var bool stretch_require_lower_extreme_for_entry_best = input.bool(true, 'Entry Best requires lower extreme context', group = g_stretch, tooltip = 'Recommended on. Best then stays aligned with actual downside stretch plus anti-chase protection.')
 var bool stretch_require_lower_extreme_for_entry_strict = input.bool(true, 'Entry Strict requires lower extreme context', group = g_stretch, tooltip = 'Recommended on. Strict should stay fully tied to real lower-extreme mean-reversion setups.')
 var bool show_stretch_overlay = input.bool(true, 'Show stretch overlays', group = g_stretch)
