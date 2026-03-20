@@ -3418,6 +3418,7 @@ string dashboard_legend_display = 'Zone: Aqua\nArmed: Orange\nBuilding: Gold\nCo
 color dashboard_header_bg = color.new(color.black, 100)
 color dashboard_text = chart.fg_color
 color dashboard_long_text = long_visual_state == 3 ? long_dashboard_building_text : dashboard_text
+color dashboard_long_visual_bg = long_visual_environment_blocked ? long_environment_focus_display == 'Session Block' ? color.new(color.blue, 72) : long_environment_focus_display == 'Market Block' ? color.new(color.red, 75) : long_environment_focus_display == 'Vola Block' ? color.new(color.orange, 72) : long_environment_focus_display == 'Trend Block' ? color.new(color.yellow, 68) : status_bg(long_visual_state) : status_bg(long_visual_state)
 color dashboard_swing_bg = color.new(color.silver, 88)
 color dashboard_trigger_bg = color.new(color.black, 100)
 color dashboard_risk_bg = color.new(color.black, 92)
@@ -3434,7 +3435,7 @@ if show_dashboard and barstate.islast
     dashboard_row(smc_dashboard, 4, 'Reclaim', reclaim_display, status_bg(reclaim_state), dashboard_text)
     dashboard_row(smc_dashboard, 5, 'Long Setup', long_setup_display, status_bg(long_setup_dashboard_state), dashboard_long_text)
     dashboard_row(smc_dashboard, 6, 'Setup Age', setup_age_display, dashboard_setup_age_bg, dashboard_text)
-    dashboard_row(smc_dashboard, 7, 'Long Visual', long_visual_display, status_bg(long_visual_state), dashboard_long_text)
+    dashboard_row(smc_dashboard, 7, 'Long Visual', long_visual_display, dashboard_long_visual_bg, dashboard_long_text)
     dashboard_row(smc_dashboard, 8, 'Close Strength', close_display, status_bg(close_state), dashboard_text)
     dashboard_row(smc_dashboard, 9, 'EMA Support', ema_display, status_bg(ema_state), dashboard_text)
     dashboard_row(smc_dashboard, 10, 'ADX', adx_display, status_bg(adx_state), dashboard_text)
