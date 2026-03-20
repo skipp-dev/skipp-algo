@@ -1,10 +1,6 @@
 // This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
-// This work is licensed under a Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/171819202111121314151612345678910
-// derived from Smart Money Concepts by LuxAlgo - https://www.tradingview.com/script/CnB3fSph-Smart-Money-Concepts-LUX/
-// © robbatt
 
 //@version=6
-// import robbatt/lib_smc/30 as SMC (temporarily included to fix 'pine compilation error' appearing since 24.10.2025)
 
 indicator("Smart Money Concepts (Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
 
@@ -653,7 +649,7 @@ method draw(Profile this, ProfileConfig config, int left = na, int right = na, b
     this
 
 /////////////////////////////////////////////////////////////////////////////////
-//#region    LIB SMC v30 (temporarily added here to fix 'pine compilation error')
+//#region    EMBEDDED SMC SUBSET
 /////////////////////////////////////////////////////////////////////////////////
 
 //-----------------------------------------------------------------------------
@@ -1844,7 +1840,7 @@ premium_discount_zones_plot(bool show, int pd_start, float premium_top, float pr
     false
 
 /////////////////////////////////////////////////////////////////////////////////
-//#endregion                       LIB SMC
+//#endregion                EMBEDDED SMC SUBSET
 /////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////
