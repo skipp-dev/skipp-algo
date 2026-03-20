@@ -81,18 +81,37 @@ def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> N
     source = _read_smc_source()
 
     assert 'resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, string long_validation_source, string long_entry_origin_source, string long_setup_source_display) =>' in source
-    assert 'long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source, long_entry_origin_source, long_setup_source_display)' in source
+    assert "string long_validation_source_now = long_locked_source_kind_final == 'OB' ? 'OB' : long_locked_source_kind_final == 'FVG' ? 'FVG' : 'None'" in source
+    assert 'string long_setup_source_display_now = compose_long_setup_source_display(long_entry_origin_source, long_validation_source_now)' in source
+    assert 'long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)' in source
     assert 'long_invalidate_signal := long_setup_armed or long_setup_confirmed' in source
     assert "long_entry_origin_source := 'None'" in source
     assert "long_setup_backing_zone_kind := 'None'" in source
     assert 'long_setup_backing_zone_id := na' in source
 
 
-def test_ob_profile_ownership_transfer_paths_remain_present() -> None:
+def test_ob_confirmed_profiles_are_rebuilt_from_copied_ltf_data() -> None:
     source = _read_smc_source()
 
-    assert source.count('bear_ob_confirmed.profile := bull_ob.profile') >= 1
-    assert source.count('bull_ob_confirmed.profile := bear_ob.profile') >= 1
+    assert source.count('bear_ob_confirmed.create_profile()') >= 2
+    assert source.count('bull_ob_confirmed.create_profile()') >= 2
+    assert 'bear_ob_confirmed.profile := bull_ob.profile' not in source
+    assert 'bull_ob_confirmed.profile := bear_ob.profile' not in source
+    assert 'bull_ob_confirmed.profile := bull_ob.profile' not in source
+    assert 'bear_ob_confirmed.profile := bear_ob.profile' not in source
+    assert 'bear_ob_confirmed.ltf_open := bull_ob.ltf_open.copy()' in source
+    assert 'bull_ob_confirmed.ltf_open := bear_ob.ltf_open.copy()' in source
+
+
+def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
+    source = _read_smc_source()
+
+    assert 'method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend_only = true, simple bool force_overlay = false) =>' in source
+    assert 'if not na(this)' in source
+    assert 'method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>' in source
+    assert 'int base_right_time = math.max(this.left_top.time, this.right_bottom.time)' in source
+    assert 'method rendered_right_time(FVG this, bool extend_until_filled = true) =>' in source
+    assert 'int effective_fill_time = effective_live_event_time(this.fill_time, base_right_time)' in source
 
 
 def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -> None:

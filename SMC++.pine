@@ -311,20 +311,21 @@ method draw(Line this, LineArgs args = na, bool extend_only = true, simple bool 
     this
 
 method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend_only = true, simple bool force_overlay = false) =>
-    config = args.or_default()
-    config_txt = text_args.or_default()
-    if na(this.plot)
-        if force_overlay
-            this.plot := box.new(this.left_top, this.right_bottom, config.border_color, config.border_width, config.border_style, config.extend, config.xloc, config.bg_color, this.txt, config_txt.text_size, config_txt.text_color, config_txt.text_halign, config_txt.text_valign, config_txt.text_wrap, config_txt.text_font_family, force_overlay = true)
+    if not na(this)
+        config = args.or_default()
+        config_txt = text_args.or_default()
+        if na(this.plot)
+            if force_overlay
+                this.plot := box.new(this.left_top, this.right_bottom, config.border_color, config.border_width, config.border_style, config.extend, config.xloc, config.bg_color, this.txt, config_txt.text_size, config_txt.text_color, config_txt.text_halign, config_txt.text_valign, config_txt.text_wrap, config_txt.text_font_family, force_overlay = true)
+            else
+                this.plot := box.new(this.left_top, this.right_bottom, config.border_color, config.border_width, config.border_style, config.extend, config.xloc, config.bg_color, this.txt, config_txt.text_size, config_txt.text_color, config_txt.text_halign, config_txt.text_valign, config_txt.text_wrap, config_txt.text_font_family, force_overlay = false)
         else
-            this.plot := box.new(this.left_top, this.right_bottom, config.border_color, config.border_width, config.border_style, config.extend, config.xloc, config.bg_color, this.txt, config_txt.text_size, config_txt.text_color, config_txt.text_halign, config_txt.text_valign, config_txt.text_wrap, config_txt.text_font_family, force_overlay = false)
-    else
-        if extend_only
-            this.plot.set_top(this.left_top.price)
-        else
-            this.plot.set_top_left_point(this.left_top)
-        this.plot.set_bottom_right_point(this.right_bottom)
-    this.hidden := false
+            if extend_only
+                this.plot.set_top(this.left_top.price)
+            else
+                this.plot.set_top_left_point(this.left_top)
+            this.plot.set_bottom_right_point(this.right_bottom)
+        this.hidden := false
     this
 
 method hide(Label this) =>
@@ -873,8 +874,11 @@ effective_live_event_time(int event_time, int fallback_time) =>
     barstate.isrealtime ? math.min(base_time, current_bar_right_time()) : base_time
 
 method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>
-    base_right_time = math.max(this.left_top.time, this.right_bottom.time)
-    na(this) ? na : extend_until_broken ? this.broken ? effective_live_event_time(this.broken_time, base_right_time) : current_bar_right_time() : base_right_time
+    if na(this)
+        na
+    else
+        int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+        extend_until_broken ? (this.broken ? effective_live_event_time(this.broken_time, base_right_time) : current_bar_right_time()) : base_right_time
 
 method overlaps_window(OrderBlock this, int left_time, int right_time, bool extend_until_broken = true) =>
     effective_right_time = this.rendered_right_time(extend_until_broken)
@@ -1072,16 +1076,9 @@ track_obs(
                             bear_ob_confirmed.ltf_close := bull_ob.ltf_close.copy()
                             bear_ob_confirmed.ltf_volume := bull_ob.ltf_volume.copy()
 
-                            if update_profile_current_bar
-                                if na(bull_ob.profile)
-                                    bear_ob_confirmed.create_profile()
-                                else
-                                    // Ownership transfer intended: the confirmed bearish block reuses the tracked profile state.
-                                    bear_ob_confirmed.profile := bull_ob.profile
-
+                            if align_edge_to_value_area or align_break_price_to_poc
+                                bear_ob_confirmed.create_profile()
                                 bear_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
-                            else if not na(bull_ob.profile)
-                                bear_ob_confirmed.profile := bull_ob.profile
 
                         bear_ob_confirmed.right_bottom.index := bar_index
                         bear_ob_confirmed.right_bottom.time := time_close
@@ -1138,16 +1135,9 @@ track_obs(
                             bull_ob_confirmed.ltf_close := bear_ob.ltf_close.copy()
                             bull_ob_confirmed.ltf_volume := bear_ob.ltf_volume.copy()
 
-                            if update_profile_current_bar
-                                if na(bear_ob.profile)
-                                    bull_ob_confirmed.create_profile()
-                                else
-                                    // Ownership transfer intended: the confirmed bullish block reuses the tracked profile state.
-                                    bull_ob_confirmed.profile := bear_ob.profile
-
+                            if align_edge_to_value_area or align_break_price_to_poc
+                                bull_ob_confirmed.create_profile()
                                 bull_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
-                            else if not na(bear_ob.profile)
-                                bull_ob_confirmed.profile := bear_ob.profile
 
                         bull_ob_confirmed.right_bottom.index := bar_index
                         bull_ob_confirmed.right_bottom.time := time_close
@@ -1232,12 +1222,9 @@ track_obs(
                     bull_ob_confirmed.left_top := bull_ob.left_top.copy()
                     bull_ob_confirmed.right_bottom := bull_ob.right_bottom.copy()
 
-                    if update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
-                        // Ownership transfer intended: the confirmed bullish block takes over the prepared profile state.
-                        bull_ob_confirmed.profile := bull_ob.profile
+                    if align_edge_to_value_area or align_break_price_to_poc
+                        bull_ob_confirmed.create_profile()
                         bull_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
-                    else if (align_edge_to_value_area or align_break_price_to_poc) and not na(bull_ob.profile)
-                        bull_ob_confirmed.profile := bull_ob.profile
 
                     if not align_break_price_to_poc
                         bull_ob_confirmed.break_price := math.avg(bull_ob.left_top.price, bull_ob.right_bottom.price)
@@ -1278,12 +1265,9 @@ track_obs(
                     bear_ob_confirmed.left_top := bear_ob.left_top.copy()
                     bear_ob_confirmed.right_bottom := bear_ob.right_bottom.copy()
 
-                    if update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
-                        // Ownership transfer intended: the confirmed bearish block takes over the prepared profile state.
-                        bear_ob_confirmed.profile := bear_ob.profile
+                    if align_edge_to_value_area or align_break_price_to_poc
+                        bear_ob_confirmed.create_profile()
                         bear_ob_confirmed.align_to_profile(align_edge_to_value_area, align_break_price_to_poc)
-                    else if (align_edge_to_value_area or align_break_price_to_poc) and not na(bear_ob.profile)
-                        bear_ob_confirmed.profile := bear_ob.profile
 
                     if not align_break_price_to_poc
                         bear_ob_confirmed.break_price := math.avg(bear_ob.left_top.price, bear_ob.right_bottom.price)
@@ -1588,13 +1572,12 @@ type FVG
     bool hidden = false
 
 method rendered_right_time(FVG this, bool extend_until_filled = true) =>
-    base_right_time = math.max(this.left_top.time, this.right_bottom.time)
-    effective_fill_time = effective_live_event_time(this.fill_time, base_right_time)
-    na(this) ? na :
-     extend_until_filled ?
-         this.filled ? effective_fill_time : current_bar_right_time()
-     :
-         this.filled ? math.min(effective_fill_time, base_right_time) : base_right_time
+    int rendered_right_time_value = na
+    if not na(this)
+        int base_right_time = math.max(this.left_top.time, this.right_bottom.time)
+        int effective_fill_time = effective_live_event_time(this.fill_time, base_right_time)
+        rendered_right_time_value := extend_until_filled ? (this.filled ? effective_fill_time : current_bar_right_time()) : (this.filled ? math.min(effective_fill_time, base_right_time) : base_right_time)
+    rendered_right_time_value
 
 method overlaps_window(FVG this, int left_time, int right_time, bool extend_until_filled = true) =>
     effective_right_time = this.rendered_right_time(extend_until_filled)
@@ -4113,9 +4096,11 @@ float long_invalidation_break_src = live_exec and effective_use_live_invalidatio
 bool long_broken_down = not na(long_invalidation_level) and long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
 bool long_invalidated_now = long_source_broken or long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired))
 bool invalidated_prior_setup = false
+string long_validation_source_now = long_locked_source_kind_final == 'OB' ? 'OB' : long_locked_source_kind_final == 'FVG' ? 'FVG' : 'None'
+string long_setup_source_display_now = compose_long_setup_source_display(long_entry_origin_source, long_validation_source_now)
 
 if long_invalidated_now
-    long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source, long_entry_origin_source, long_setup_source_display)
+    long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)
     long_last_invalid_level := long_invalidation_level
     long_invalidate_signal := long_setup_armed or long_setup_confirmed
     invalidated_prior_setup := long_invalidate_signal
