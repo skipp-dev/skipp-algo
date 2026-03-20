@@ -100,3 +100,73 @@ def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -
     preset_defs = re.findall(r"alertcondition\(long_invalidate_alert_event, 'Long Invalidated', 'SMC\+\+: Invalidated\. Setup failed\.'\)", source)
     assert len(preset_defs) == 1, 'Expected exactly one Long Invalidated preset definition'
     assert "alertcondition(long_invalidate_alert_event, 'Long Dip Failed'" not in source
+
+
+def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -> None:
+    source = _read_smc_source()
+
+    assert "bool state_update_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed" in source
+    assert 'if state_update_bar_ok and ob_zone_touch_event' in source
+    assert 'if state_update_bar_ok and fvg_zone_touch_event' in source
+    assert 'if state_update_bar_ok and zone_touch_event' in source
+    assert 'if state_update_bar_ok and zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tracking_id)' in source
+    assert 'if state_update_bar_ok and ob_touch_now and last_ob_touch_bar != bar_index and not na(active_bull_ob_id)' in source
+    assert 'if state_update_bar_ok and fvg_touch_now and last_fvg_touch_bar != bar_index and not na(active_bull_fvg_id)' in source
+
+
+def test_active_backing_zones_are_protected_from_cleanup_rotation() -> None:
+    source = _read_smc_source()
+
+    assert 'protected_bull_id = long_setup_backing_zone_kind == \'OB\' ? long_setup_backing_zone_id : na' in source
+    assert 'long_setup_backing_zone_kind == \'FVG\' ? -long_setup_backing_zone_id : na' in source
+    assert 'tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull, protected_bull_id)' in source
+    assert 'buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, buffer_bull_discarded, protected_bull_id)' in source
+    assert 'buffer_bull.remove_insignificant(size_threshold, buffer_bull_discarded, protected_bull_id)' in source
+    assert 'bool is_protected = not na(protected_id) and block.id == protected_id' in source
+    assert 'bool is_protected = not na(protected_id) and fvg.id == protected_id' in source
+
+
+def test_quality_scores_replace_dead_probability_display() -> None:
+    source = _read_smc_source()
+
+    assert 'ob_quality_score(OrderBlock block) =>' in source
+    assert 'fvg_quality_score(FVG fvg, float size_threshold = 0.0) =>' in source
+    assert "str.format(' (Q {0,number,percent})', ob_quality)" in source
+    assert "str.format('(Q {0,number,percent})', fvg_quality)" in source
+
+
+def test_armed_stage_can_be_optionally_tightened() -> None:
+    source = _read_smc_source()
+
+    assert "var bool tighten_armed_stage = input.bool(true, 'Tighten Armed Stage'" in source
+    assert 'bool armed_prequality_ok = not tighten_armed_stage or (bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok)' in source
+    assert 'and armed_prequality_ok' in source
+
+
+def test_breadth_gate_supports_multiple_modes() -> None:
+    source = _read_smc_source()
+
+    assert "external_breadth_gate(simple string symbol, simple string mode, simple int len) =>" in source
+    assert "var string breadth_gate_mode = input.string('Above Zero', 'Breadth Mode', options = ['Above Zero', 'Above EMA', 'Rising']" in source
+    assert "var int breadth_gate_len = input.int(20, 'Breadth EMA Len', minval = 2" in source
+    assert "[breadth_missing_calc, breadth_gate_ok_calc] = external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
+    assert "bool breadth_pass = mode == 'Above EMA' ? ext_breadth > ext_ema : mode == 'Rising' ? ext_breadth > ext_breadth[1] : ext_breadth > 0" in source
+
+
+def test_clean_tier_is_renamed_as_a_quality_diagnostic() -> None:
+    source = _read_smc_source()
+
+    assert 'bool long_quality_clean_tier =' in source
+    assert 'quality_clean_ok = quality_axis_active and long_quality_clean_tier' in source
+    assert 'alert_long_clean = long_quality_clean_tier' in source
+    assert 'long_clean_tier' not in source
+
+
+def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
+    source = _read_smc_source()
+
+    assert 'update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks, OrderBlock[] broken_blocks_new, simple LevelBreakMode broken_by = LevelBreakMode.HIGHLOW, int keep_broken_max = 5, OrderBlock[] discarded_buffer = na) =>' in source
+    assert 'update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)' in source
+    assert 'update_broken(-1, tracking_blocks_bear, broken_blocks_bear, broken_blocks_new_bear, broken_by, keep_broken_max, discarded_blocks_bear)' in source
+    assert 'long_invalidate_signal := long_setup_armed or long_setup_confirmed' in source
+    assert 'long_source_lost := (long_setup_armed or long_setup_confirmed) and long_source_tracked and not long_source_alive' in source

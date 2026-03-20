@@ -790,7 +790,26 @@ create_ob(int id, int mode, int start_t, int start_i, float top, int end_t, int 
      array.new<float>(0)
      )
 
+    float block_height = math.max(top - bottom, syminfo.mintick)
+    float normalized_height = math.min(block_height / math.max(syminfo.mintick * 20, syminfo.mintick), 1.0)
+    block.probability := math.max(0.0, math.min(1.0, 0.20 + normalized_height * 0.20))
+
     block
+
+ob_quality_score(OrderBlock block) =>
+    if na(block)
+        0.0
+    else
+        float block_height = math.max(block.left_top.price - block.right_bottom.price, syminfo.mintick)
+        float size_component = math.min(block_height / math.max(syminfo.mintick * 20, syminfo.mintick), 1.0)
+        float score = 0.15
+        score += size_component * 0.20
+        score += block.has_fvg_out ? 0.20 : 0.0
+        score += block.has_big_candle ? 0.15 : 0.0
+        score += block.soft_confirmed ? 0.15 : 0.0
+        score += not block.broken ? 0.10 : 0.0
+        score += not na(block.profile) and block.profile.total > 0 ? 0.05 : 0.0
+        math.max(0.0, math.min(1.0, score))
 
 method align_to_profile(OrderBlock block, bool align_edge = false, bool align_break_price = false) =>
     if not na(block.profile) and block.profile.total > 0
@@ -906,12 +925,13 @@ method reset_tracking(OrderBlock this) =>
     this.break_price := hl2
   
 
-method remove_insignificant(OrderBlock[] blocks, float min_size, float max_size, OrderBlock[] removed_buffer = na) =>
+method remove_insignificant(OrderBlock[] blocks, float min_size, float max_size, OrderBlock[] removed_buffer = na, int protected_id = na) =>
     if blocks.size() > 0
         for i = blocks.size() - 1 to 0
             block = blocks.get(i)
             size = block.left_top.price - block.right_bottom.price
-            if size < min_size or max_size < size
+            bool is_protected = not na(protected_id) and block.id == protected_id
+            if not is_protected and (size < min_size or max_size < size)
                 log.info("clearing out old OB to free memory (top: {0} | bottom: {1}) with size ({2}) outside range (min: {3} | max: {4})", block.left_top.price, block.right_bottom.price, size, min_size, max_size)
 
                 if not na(removed_buffer)
@@ -944,7 +964,9 @@ track_obs(
  simple bool use_retracements_with_FVG_out = true,
  simple LevelBreakMode broken_by = LevelBreakMode.HIGHLOW,
  simple int keep_broken_max = 5,
- simple int gc_cycle = na
+ simple int gc_cycle = na,
+ simple int protected_bull_id = na,
+ simple int protected_bear_id = na
  ) =>
     // Order block lifecycle:
     // 1. trailing: candidate block is tracked while price builds it
@@ -1000,8 +1022,8 @@ track_obs(
         update_broken(-1, tracking_blocks_bear, broken_blocks_bear, broken_blocks_new_bear, broken_by, keep_broken_max, discarded_blocks_bear)
 
         if gc_cycle > 0 and bar_index % gc_cycle == 0
-            tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull)
-            tracking_blocks_bear.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bear)
+            tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull, protected_bull_id)
+            tracking_blocks_bear.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bear, protected_bear_id)
 
         if reset_bull_next_bar
             reset_bull_next_bar := false
@@ -1284,7 +1306,8 @@ method draw(OrderBlock this, OrderBlockConfig config, bool extend_only = true, s
 
         if barstate.islast and not na(this) and config.show
             txt_fvg = config.show_fvg_out and this.has_fvg_out ? '+FVG' : ''
-            txt_probability = config.show_probability and this.probability > 0 ? str.format(' ({0,number,percent})', this.probability) : ''
+            float ob_quality = config.show_probability ? ob_quality_score(this) : 0.0
+            txt_probability = config.show_probability and ob_quality > 0 ? str.format(' (Q {0,number,percent})', ob_quality) : ''
             txt_id = config.show_id ? ' #' + str.tostring(this.id) : ''
             txt = config.show_text ? config.show_profile and config.profile_config.show_poc and config.profile_config.show_labels ? str.format('{0}{1}{2}', config.txt, txt_fvg, txt_id) : str.format('{0}{1}{2}{3}', config.txt, txt_fvg, txt_probability, txt_id) : ''
 
@@ -1592,14 +1615,16 @@ _detect_fvg_object(int mode, bool enabled, float size_threshold = 0, LevelBreakM
     float size = top - btm
 
     if enabled and barstate.isconfirmed and size > size_threshold
-        [true, FVG.new(na, mode, fill_mode,
+        FVG new_fvg = FVG.new(na, mode, fill_mode,
          left_top = chart.point.new(time[2], bar_index[2], top),
          right_bottom = chart.point.new(time_close, bar_index, btm),
          fvg_fill_target_ratio = fill_target_ratio,
          fill_target_level = mode == 1 ? top - fill_target_ratio * size : btm + fill_target_ratio * size,
          fill_current_ratio = 0,
          fill_current_level = mode == 1 ? top : btm,
-         total_volume = volume[2] + volume[1] + volume)]
+         total_volume = volume[2] + volume[1] + volume)
+        new_fvg.probability := math.max(0.0, math.min(1.0, 0.15 + math.min(size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (new_fvg.total_volume > 0 ? 0.10 : 0.0) + 0.15))
+        [true, new_fvg]
     else
         [false, na]
 
@@ -1628,7 +1653,7 @@ fvgs_values(float size_threshold = 0, bool enabled = true) =>
     [bearish_fvg_alert, bear_top, bear_btm] = _detect_fvg(-1, enabled, size_threshold)
     [bullish_fvg_alert, bull_top, bull_btm, bearish_fvg_alert, bear_top, bear_btm]
 
-method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, int keep_history = 5, FVG[] discard_buffer = na) =>
+method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, int keep_history = 5, FVG[] discard_buffer = na, int protected_id = na) =>
     FVG[] moved_fvgs = array.new<FVG>(0)
     filled_new_buffer.clear()
 
@@ -1638,7 +1663,8 @@ method clear_filled(FVG[] fvgs, FVG[] filled_buffer, FVG[] filled_new_buffer, in
     if fvgs.size() > 0 and not na(filled_buffer)
         for i = fvgs.size() - 1 to 0
             fvg = fvgs.get(i)
-            if fvg.filled
+            bool is_protected = not na(protected_id) and fvg.id == protected_id
+            if not is_protected and fvg.filled
                 moved = fvgs.remove(i)
                 moved_fvgs.unshift(moved)
 
@@ -1724,12 +1750,13 @@ method delete(FVG[] fvgs) =>
             fvg.delete()
     fvgs
 
-method remove_insignificant(FVG[] fvgs, float size_threshold, FVG[] removed_buffer = na) =>
+method remove_insignificant(FVG[] fvgs, float size_threshold, FVG[] removed_buffer = na, int protected_id = na) =>
     if fvgs.size() > 0
         for i = fvgs.size() - 1 to 0
             fvg = fvgs.get(i)
             size = fvg.left_top.price - fvg.right_bottom.price
-            if size < size_threshold
+            bool is_protected = not na(protected_id) and fvg.id == protected_id
+            if not is_protected and size < size_threshold
                 log.info("clearing out old FVG to free memory (top: {0} | bottom: {1}) with size ({2}) below threshold ({3})", fvg.left_top.price, fvg.right_bottom.price, size, size_threshold)
                 if not na(removed_buffer)
                     removed_buffer.push(fvg)
@@ -1737,7 +1764,21 @@ method remove_insignificant(FVG[] fvgs, float size_threshold, FVG[] removed_buff
                 fvgs.remove(i)
     fvgs
 
-fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_target_ratio = 0.5, float size_threshold = 0, simple bool enabled = true, simple int filled_max_keep = 5, simple int gc_cycle = na) =>
+fvg_quality_score(FVG fvg, float size_threshold = 0.0) =>
+    if na(fvg)
+        0.0
+    else
+        float gap_size = math.max(fvg.left_top.price - fvg.right_bottom.price, syminfo.mintick)
+        float normalized_gap = size_threshold > 0 ? math.min(gap_size / math.max(size_threshold * 3.0, syminfo.mintick), 1.0) : 0.5
+        float unfilled_component = 1.0 - math.max(0.0, math.min(1.0, nz(fvg.fill_current_ratio, 0.0)))
+        float score = 0.15
+        score += normalized_gap * 0.35
+        score += unfilled_component * 0.25
+        score += not fvg.filled ? 0.15 : 0.0
+        score += nz(fvg.total_volume, 0.0) > 0 ? 0.10 : 0.0
+        math.max(0.0, math.min(1.0, score))
+
+fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_target_ratio = 0.5, float size_threshold = 0, simple bool enabled = true, simple int filled_max_keep = 5, simple int gc_cycle = na, simple int protected_bull_id = na, simple int protected_bear_id = na) =>
     var FVG[] buffer_bull = array.new<FVG>(0)
     var FVG[] buffer_bear = array.new<FVG>(0)
     var FVG[] buffer_bull_filled = array.new<FVG>(0)
@@ -1757,12 +1798,12 @@ fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_
     buffer_bull.update()
     buffer_bear.update()
 
-    buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, buffer_bull_discarded)
-    buffer_bear.clear_filled(buffer_bear_filled, buffer_bear_filled_new, filled_max_keep, buffer_bear_discarded)
+    buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, buffer_bull_discarded, protected_bull_id)
+    buffer_bear.clear_filled(buffer_bear_filled, buffer_bear_filled_new, filled_max_keep, buffer_bear_discarded, protected_bear_id)
 
     if gc_cycle > 0 and bar_index % gc_cycle == 0
-        buffer_bull.remove_insignificant(size_threshold, buffer_bull_discarded)
-        buffer_bear.remove_insignificant(size_threshold, buffer_bear_discarded)
+        buffer_bull.remove_insignificant(size_threshold, buffer_bull_discarded, protected_bull_id)
+        buffer_bear.remove_insignificant(size_threshold, buffer_bear_discarded, protected_bear_id)
 
     if bullish_fvg_alert
         next_id += 1
@@ -1785,7 +1826,8 @@ method draw(FVG this, FVGConfig config, bool extend_only = true, simple bool for
     else
 
         if barstate.islast and not na(this) and (config.show_box or config.show_target)
-            txt_probability = config.show_probability and this.probability > 0 ? str.format('({0,number,percent})', this.probability) : ''
+            float fvg_quality = config.show_probability ? fvg_quality_score(this, this.left_top.price - this.right_bottom.price) : 0.0
+            txt_probability = config.show_probability and fvg_quality > 0 ? str.format('(Q {0,number,percent})', fvg_quality) : ''
             txt = str.format('{0}{1}', config.show_text ? config.txt + ' ' : '', config.show_target_label ? '' : txt_probability)
 
             xloc_bartime = config.box_args.xloc == xloc.bar_time
@@ -2102,11 +2144,13 @@ external_trend_gate(simple string symbol, simple int fast_len, simple int slow_l
     bool ext_missing = na(ext_close) or na(ext_fast) or na(ext_slow)
     [ext_missing, not ext_missing and ext_close > ext_fast and ext_fast > ext_slow]
 
-external_breadth_gate(simple string symbol) =>
+external_breadth_gate(simple string symbol, simple string mode, simple int len) =>
     ext_breadth = request.security(symbol, timeframe.period, close, gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 100)
+    ext_ema = request.security(symbol, timeframe.period, ta.ema(close, len), gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 100)
 
-    bool breadth_missing = na(ext_breadth)
-    [breadth_missing, not breadth_missing and ext_breadth > 0]
+    bool breadth_missing = na(ext_breadth) or (mode == 'Above EMA' and na(ext_ema))
+    bool breadth_pass = mode == 'Above EMA' ? ext_breadth > ext_ema : mode == 'Rising' ? ext_breadth > ext_breadth[1] : ext_breadth > 0
+    [breadth_missing, not breadth_missing and breadth_pass]
 
 normalize_csv_token(string s) =>
     str.upper(str.replace_all(s, ' ', ''))
@@ -2243,7 +2287,9 @@ var bool use_sector_gate = input.bool(false, 'Use Sector Gate', group = g_market
 var string sector_gate_symbol = input.symbol('NASDAQ:QQQ', 'Sector/Leader', group = g_market, inline = 'm2')
 var bool use_breadth_symbol_gate = input.bool(false, 'Use Breadth Symbol', group = g_market, inline = 'm3')
 var string breadth_gate_symbol = input.symbol('INDEX:ADD', 'Breadth', group = g_market, inline = 'm3')
+var string breadth_gate_mode = input.string('Above Zero', 'Breadth Mode', options = ['Above Zero', 'Above EMA', 'Rising'], group = g_market, inline = 'm4')
 var bool block_on_missing_market_symbol = input.bool(false, 'Block on missing symbol', group = g_market, inline = 'm4')
+var int breadth_gate_len = input.int(20, 'Breadth EMA Len', minval = 2, group = g_market, inline = 'm5')
 var int market_gate_fast_len = input.int(20, 'Fast EMA', minval = 2, group = g_market, inline = 'm5')
 var int market_gate_slow_len = input.int(50, 'Slow EMA', minval = 3, group = g_market, inline = 'm5')
 
@@ -2275,6 +2321,7 @@ var bool block_third_touch = input.bool(true, 'Block 3rd+ Touch', group = g_long
 var float min_headroom_r = input.float(1.0, 'Min Headroom To Overhead Zone (R)', minval = 0.25, step = 0.25, group = g_long, inline = 'ovh1')
 var bool use_overhead_zone_filter = input.bool(true, 'Block Overhead Zone', group = g_long, inline = 'ovh1')
 var bool use_strict_sequence = input.bool(true, 'Strict: Zone -> Reclaim -> Internal Break', group = g_long, inline = 'strict1')
+var bool tighten_armed_stage = input.bool(true, 'Tighten Armed Stage', group = g_long, inline = 'strict1')
 var bool allow_same_bar_zone_reclaim = input.bool(false, 'Allow same-bar reclaim', group = g_long, inline = 'strict1')
 var bool use_strict_sweep_for_zone_reclaim = input.bool(true, 'Strict sweep for OB/FVG reclaim', group = g_long, inline = 'strict2')
 var float ob_reclaim_min_penetration = input.float(0.50, 'OB depth', minval = 0.0, maxval = 1.0, step = 0.05, group = g_long, inline = 'strict2')
@@ -2932,7 +2979,7 @@ mtf_trend_2 = get_confirmed_structure_trend(mtf_trend_tf2, swing_length)
 mtf_trend_3 = get_confirmed_structure_trend(mtf_trend_tf3, swing_length)
 [index_missing_calc, index_gate_ok_calc] = external_trend_gate(index_gate_symbol, market_gate_fast_len, market_gate_slow_len)
 [sector_missing_calc, sector_gate_ok_calc] = external_trend_gate(sector_gate_symbol, market_gate_fast_len, market_gate_slow_len)
-[breadth_missing_calc, breadth_gate_ok_calc] = external_breadth_gate(breadth_gate_symbol)
+[breadth_missing_calc, breadth_gate_ok_calc] = external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)
 bool index_missing = use_index_gate and index_missing_calc
 bool index_gate_ok_raw = not use_index_gate or index_gate_ok_calc
 bool sector_missing = use_sector_gate and sector_missing_calc
@@ -2954,6 +3001,7 @@ structure_display_trend = not na(ta.barssince(structure_break_detected)) ? trend
 bool bullish_trend_condition = structure_display_trend == 1
 bool bearish_trend_condition = structure_display_trend == -1
 bool live_exec = signal_mode == SignalMode.AGGRESSIVE_LIVE and barstate.isrealtime
+bool state_update_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed
 bool bull_bos_sig = signal_mode == SignalMode.AGGRESSIVE_LIVE ? bull_bos_alert : barstate.isconfirmed and bull_bos_alert
 bool bull_choch_sig = signal_mode == SignalMode.AGGRESSIVE_LIVE ? bull_choch_alert : barstate.isconfirmed and bull_choch_alert
 bool bear_bos_sig = signal_mode == SignalMode.AGGRESSIVE_LIVE ? bear_bos_alert : barstate.isconfirmed and bear_bos_alert
@@ -3052,8 +3100,25 @@ if show_internal_bull_bos or show_internal_bull_choch
 if show_internal_bear_bos or show_internal_bear_choch
     plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_sig, show_internal_bear_choch and internal_bear_choch_sig, structure_label_args_internal_bear, structure_line_args_internal_bear, keep_history = keep_visual_history, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
+// Persistent long-setup storage must exist before the OB/FVG engines run so active backing zones can be protected from cleanup.
+var bool long_setup_armed = false
+var bool long_setup_confirmed = false
+var int long_setup_arm_bar_index = na
+var int long_confirm_bar_index = na
+var float long_setup_trigger = na
+var float long_invalidation_level = na
+var string long_setup_source = 'None'
+var string long_setup_source_kind = 'None'
+var string long_setup_backing_zone_kind = 'None'
+var int long_setup_backing_zone_id = na
+var int long_setup_backing_zone_touch_count = 0
+var int long_setup_serial = 0
+var string long_last_invalid_source = 'None'
+var float long_last_invalid_level = na
+varip bool long_invalidated_this_bar = false
+
 bool enable_ob_engine = use_ob_engine
-[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = update_ob_profile_current_bar, update_profile_current_bar = update_ob_profile_current_bar, align_edge_to_value_area = use_ob_profile_effective, align_break_price_to_poc = use_ob_profile_effective, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle)
+[ob_blocks_bull, ob_blocks_bear, new_ob_bull, new_ob_bear, ob_broken_bull, ob_broken_bear, ob_broken_new_bull, ob_broken_new_bear, ob_discarded_bull, ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = update_ob_profile_current_bar, update_profile_current_bar = update_ob_profile_current_bar, align_edge_to_value_area = use_ob_profile_effective, align_break_price_to_poc = use_ob_profile_effective, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle, protected_bull_id = long_setup_backing_zone_kind == 'OB' ? long_setup_backing_zone_id : na)
 
 varip bool live_bull_ob_break = false
 varip bool live_bear_ob_break = false
@@ -3112,7 +3177,7 @@ float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 
 var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display = display.none, tooltip = 'Keeps FVG-based long-dip logic and alerts running even if chart rendering is hidden.')
 
 bool enable_fvg_engine = use_fvg_engine
-[bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max, object_gc_cycle)
+[bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, new_fvg_bear, filled_fvgs_bull, filled_fvgs_bear, filled_fvgs_new_bull, filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max, object_gc_cycle, long_setup_backing_zone_kind == 'FVG' ? -long_setup_backing_zone_id : na)
 
 var fvg_config_bull = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬈', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc.bar_index), box_text_args = BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 var fvg_config_bear = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬊', show_probability = true, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css, 0, line.style_solid, bear_fvg_css, xloc.bar_index), box_text_args = BoxTextArgs.new(bear_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(bear_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
@@ -3273,10 +3338,11 @@ if not na(best_bull_ob_idx)
     active_bull_ob_bottom := best_bull_ob.right_bottom.price
     active_bull_ob_break_level := best_bull_ob.break_price
     active_bull_ob_id := best_bull_ob.id
-    touched_bull_ob_top := active_bull_ob_top
-    touched_bull_ob_bottom := active_bull_ob_bottom
-    touched_bull_ob_id := active_bull_ob_id
-    if na(active_bull_ob_id[1]) or active_bull_ob_id != active_bull_ob_id[1]
+    if state_update_bar_ok
+        touched_bull_ob_top := active_bull_ob_top
+        touched_bull_ob_bottom := active_bull_ob_bottom
+        touched_bull_ob_id := active_bull_ob_id
+    if state_update_bar_ok and (na(active_bull_ob_id[1]) or active_bull_ob_id != active_bull_ob_id[1])
         touched_bull_ob_bar_index := bar_index
 
 int best_bull_fvg_idx = na
@@ -3296,10 +3362,11 @@ if not na(best_bull_fvg_idx)
     active_bull_fvg_bottom := best_bull_fvg.right_bottom.price
     active_bull_fvg_fill_level := best_bull_fvg.fill_target_level
     active_bull_fvg_id := best_bull_fvg.id
-    touched_bull_fvg_top := active_bull_fvg_top
-    touched_bull_fvg_bottom := active_bull_fvg_bottom
-    touched_bull_fvg_id := active_bull_fvg_id
-    if na(active_bull_fvg_id[1]) or active_bull_fvg_id != active_bull_fvg_id[1]
+    if state_update_bar_ok
+        touched_bull_fvg_top := active_bull_fvg_top
+        touched_bull_fvg_bottom := active_bull_fvg_bottom
+        touched_bull_fvg_id := active_bull_fvg_id
+    if state_update_bar_ok and (na(active_bull_fvg_id[1]) or active_bull_fvg_id != active_bull_fvg_id[1])
         touched_bull_fvg_bar_index := bar_index
 
 int best_bear_ob_idx = na
@@ -3353,13 +3420,13 @@ var int last_fvg_zone_touch_id = na
 bool ob_zone_touch_event = in_bull_ob_zone and (not in_bull_ob_zone[1] or active_bull_ob_id != active_bull_ob_id[1])
 bool fvg_zone_touch_event = in_bull_fvg_zone and (not in_bull_fvg_zone[1] or active_bull_fvg_id != active_bull_fvg_id[1])
 bool zone_touch_event = ob_zone_touch_event or fvg_zone_touch_event or (long_zone_active and not long_zone_active[1])
-if ob_zone_touch_event
+if state_update_bar_ok and ob_zone_touch_event
     last_ob_zone_touch_bar_index := bar_index
     last_ob_zone_touch_id := active_bull_ob_id
-if fvg_zone_touch_event
+if state_update_bar_ok and fvg_zone_touch_event
     last_fvg_zone_touch_bar_index := bar_index
     last_fvg_zone_touch_id := active_bull_fvg_id
-if zone_touch_event
+if state_update_bar_ok and zone_touch_event
     last_zone_touch_event_bar_index := bar_index
     last_zone_touch_event_zone_id := active_long_zone_id
 bool zone_touch_event_recent = not na(last_zone_touch_event_bar_index) and bar_index - last_zone_touch_event_bar_index <= long_signal_window
@@ -3385,21 +3452,21 @@ var int last_fvg_touch_bar = na
 bool zone_touch_now = zone_touch_tracking_active and (not zone_touch_tracking_active[1] or zone_touch_tracking_id != zone_touch_tracking_id[1])
 bool ob_touch_now = in_bull_ob_zone and (not in_bull_ob_zone[1] or active_bull_ob_id != active_bull_ob_id[1])
 bool fvg_touch_now = in_bull_fvg_zone and (not in_bull_fvg_zone[1] or active_bull_fvg_id != active_bull_fvg_id[1])
-if zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tracking_id)
+if state_update_bar_ok and zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tracking_id)
     if zone_touch_tracking_id != active_zone_touch_id
         active_zone_touch_id := zone_touch_tracking_id
         active_zone_touch_count := 1
     else
         active_zone_touch_count += 1
     last_zone_touch_bar := bar_index
-if ob_touch_now and last_ob_touch_bar != bar_index and not na(active_bull_ob_id)
+if state_update_bar_ok and ob_touch_now and last_ob_touch_bar != bar_index and not na(active_bull_ob_id)
     if active_bull_ob_id != active_ob_touch_id
         active_ob_touch_id := active_bull_ob_id
         active_ob_touch_count := 1
     else
         active_ob_touch_count += 1
     last_ob_touch_bar := bar_index
-if fvg_touch_now and last_fvg_touch_bar != bar_index and not na(active_bull_fvg_id)
+if state_update_bar_ok and fvg_touch_now and last_fvg_touch_bar != bar_index and not na(active_bull_fvg_id)
     if active_bull_fvg_id != active_fvg_touch_id
         active_fvg_touch_id := active_bull_fvg_id
         active_fvg_touch_count := 1
@@ -3546,23 +3613,6 @@ float prior_long_trigger_level = nz(ta.highest(high, long_confirm_lookback)[1], 
 // 5) ready state + visual state
 // --------------------------------------------------
 
-// 1) Stored state
-var bool long_setup_armed = false
-var bool long_setup_confirmed = false
-var int long_setup_arm_bar_index = na
-var int long_confirm_bar_index = na
-var float long_setup_trigger = na
-var float long_invalidation_level = na
-var string long_setup_source = 'None'
-var string long_setup_source_kind = 'None'
-var string long_setup_backing_zone_kind = 'None'
-var int long_setup_backing_zone_id = na
-var int long_setup_backing_zone_touch_count = 0
-var int long_setup_serial = 0
-var string long_last_invalid_source = 'None'
-var float long_last_invalid_level = na
-varip bool long_invalidated_this_bar = false
-
 bool long_arm_signal = false
 bool long_confirm_signal = false
 bool long_invalidate_signal = false
@@ -3684,7 +3734,8 @@ if long_invalidated_now
     long_setup_backing_zone_touch_count := 0
 
 // 3) Arm setup
-if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not long_invalidated_this_bar and micro_session_gate_ok and sd_armed_gate_ok
+bool armed_prequality_ok = not tighten_armed_stage or (bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok)
+if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not long_invalidated_this_bar and micro_session_gate_ok and sd_armed_gate_ok and armed_prequality_ok
     long_arm_signal := true
     long_setup_armed := true
     long_setup_confirmed := false
@@ -3792,7 +3843,7 @@ bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard
 bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
 bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
-bool long_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
+bool long_quality_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
 if long_plan_active
     long_stop_level := long_planned_stop_level
     long_risk_r := math.max(long_setup_trigger - long_stop_level, syminfo.mintick)
@@ -4126,7 +4177,7 @@ string long_environment_alert_suffix = long_gate_features_active ? str.format(' 
 string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''
 string execution_tier_display = long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? 'Ready' : long_setup_confirmed ? 'Confirmed' : long_building_state ? 'Building' : long_setup_armed ? 'Armed' : long_zone_active ? 'Zone' : 'n/a'
 bool quality_axis_active = long_zone_active or zone_recent or reclaim_recent or long_setup_armed or long_setup_confirmed
-bool quality_clean_ok = quality_axis_active and long_clean_tier
+bool quality_clean_ok = quality_axis_active and long_quality_clean_tier
 bool quality_score_ok = quality_axis_active and quality_gate_ok
 bool quality_env_ok = quality_axis_active and trade_hard_gate_ok and environment_hard_gate_ok
 bool quality_strict_ok = quality_axis_active and (not strict_flow_active or (not strict_sequence_waiting and not strict_sweep_blocked and not strict_guard_blocked))
@@ -4239,7 +4290,7 @@ bgcolor(show_lower_extreme_bg and in_lower_extreme ? color.new(color.aqua, 90) :
 alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe and ddvi_watchlist_ok_safe
 alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
-alert_long_clean = long_clean_tier
+alert_long_clean = long_quality_clean_tier
 alert_long_entry_best = long_entry_best_state
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
