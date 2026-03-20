@@ -773,9 +773,6 @@ method any_overlaps(OrderBlock[] this, float range_top, float range_btm) =>
                 break
     found
 
-method last_overlaps(OrderBlock[] this, float range_top, float range_btm) =>
-    this.any_overlaps(range_top, range_btm)
-
 method contains_id(OrderBlock[] this, int id) =>
     found = false
     if not na(this) and not na(id)
