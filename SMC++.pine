@@ -546,15 +546,18 @@ method init(Profile this, bool update_buckets = false) =>
 
 method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
     int range_count = array.size(this.data_values)
-    float vah_threshold = this.total * (this.vah_threshold_pc / 100)
-    float val_threshold = this.total * (this.val_threshold_pc / 100)
     if range_count > 0 and not na(this.buckets)
         float poc_volume = 0
-        float sum_volume = 0
         float sum_volume_up = 0
         float sum_volume_down = 0
         int range_count_opens = na(this.data_opens) ? 0 : array.size(this.data_opens)
         int range_count_closes = na(this.data_closes) ? 0 : array.size(this.data_closes)
+        this.poc_bucket_index := na
+        this.val_bucket_index := na
+        this.vah_bucket_index := na
+        this.poc := na
+        this.val := na
+        this.vah := na
         for i = 0 to this.resolution - 1
             Bucket bucket = this.buckets.get(i)
             float bucket_value = 0
@@ -582,13 +585,27 @@ method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter
                 poc_volume := bucket_value
                 this.poc_bucket_index := i
                 this.poc := bucket.center
-            if sum_volume < val_threshold and val_threshold <= (sum_volume + bucket_value)
-                this.val_bucket_index := i
-                this.val := bucket.center
-            if sum_volume < vah_threshold and vah_threshold <= (sum_volume + bucket_value)
-                this.vah_bucket_index := i
-                this.vah := bucket.center
-            sum_volume += bucket_value
+        if not na(this.poc_bucket_index)
+            int left_va = this.poc_bucket_index
+            int right_va = this.poc_bucket_index
+            float va_sum = this.buckets.get(this.poc_bucket_index).value
+            float va_target = this.total * math.max(this.vah_threshold_pc - this.val_threshold_pc, 0) / 100.0
+
+            while va_sum < va_target and (left_va > 0 or right_va < this.resolution - 1)
+                float next_left = left_va > 0 ? this.buckets.get(left_va - 1).value : -1
+                float next_right = right_va < this.resolution - 1 ? this.buckets.get(right_va + 1).value : -1
+
+                if next_left > next_right
+                    left_va -= 1
+                    va_sum += next_left
+                else
+                    right_va += 1
+                    va_sum += next_right
+
+            this.val_bucket_index := left_va
+            this.vah_bucket_index := right_va
+            this.val := this.buckets.get(left_va).center
+            this.vah := this.buckets.get(right_va).center
         this.total_up := sum_volume_up
         this.total_down := sum_volume_down
     this
@@ -1398,9 +1415,15 @@ detect_structure(simple int swing_len = 50, float super_hh = na, float super_ll 
     [trend, bull_bos_alert, bull_choch_alert, top_x, top_y, trail_up_x, trail_up, hh, bear_bos_alert, bear_choch_alert, btm_x, btm_y, trail_dn_x, trail_dn, ll, hhll_x]
 
 plot_pivot_points(int mode, int x, float y, bool enabled, LabelArgs args, bool keep_history) =>
+    var float prev_high_pivot = na
+    var float prev_low_pivot = na
     if enabled and not na(x)
-        txt_swing_point = mode == 1 ? (y > y[1] ? 'HH' : 'LH') : mode == -1 ? (y < y[1] ? 'LL' : 'HL') : na
+        txt_swing_point = mode == 1 ? (na(prev_high_pivot) or y > prev_high_pivot ? 'HH' : 'LH') : mode == -1 ? (na(prev_low_pivot) or y < prev_low_pivot ? 'LL' : 'HL') : na
         label_swing_point = label.new(x, y, txt_swing_point, color = args.bg_color, textcolor = args.text_color, style = args.style, size = args.size)
+        if mode == 1
+            prev_high_pivot := y
+        else if mode == -1
+            prev_low_pivot := y
         if not keep_history
             label.delete(label_swing_point[1])
 
@@ -1653,6 +1676,8 @@ method hide(FVG this) =>
     if not na(this) and not this.hidden
         if not na(this.plot_box)
             this.plot_box.hide()
+        if not na(this.plot_fill_target_level)
+            this.plot_fill_target_level.hide()
         if not na(this.plot_fill_target_label)
             this.plot_fill_target_label.hide()
             this.plot_fill_target_label.plot.set_text(na)
@@ -2047,6 +2072,9 @@ csv_has_token(string csv, string token) =>
     string haystack = ',' + normalize_csv_token(csv) + ','
     string needle = ',' + normalize_csv_token(token) + ','
     str.contains(haystack, needle)
+
+csv_has_symbol_token(string csv, string ticker, string tickerid) =>
+    csv_has_token(csv, ticker) or csv_has_token(csv, tickerid)
 
 htf_fvg_key(FVG fvg) =>
     not na(fvg) ? str.format('{0}|{1}|{2}|{3}', fvg.left_top.time, fvg.right_bottom.time, format_level(fvg.left_top.price), format_level(fvg.right_bottom.price)) : ''
@@ -2446,13 +2474,14 @@ ob_config_bear_broken.show_profile := use_ob_profile_effective
 int chart_tf_sec = nz(timeframe.in_seconds(), 0)
 bool intraday_time_chart = chart_tf_sec > 0 and chart_tf_sec < 86400
 string current_symbol_key = syminfo.ticker
-bool micro_is_clean_reclaim = use_microstructure_profiles and csv_has_token(clean_reclaim_tickers, current_symbol_key)
-bool micro_is_stop_hunt = use_microstructure_profiles and csv_has_token(stop_hunt_tickers, current_symbol_key)
-bool micro_is_midday_dead = use_microstructure_profiles and csv_has_token(midday_dead_tickers, current_symbol_key)
-bool micro_is_rth_only = use_microstructure_profiles and csv_has_token(rth_only_tickers, current_symbol_key)
-bool micro_is_weak_premarket = use_microstructure_profiles and csv_has_token(weak_premarket_tickers, current_symbol_key)
-bool micro_is_weak_afterhours = use_microstructure_profiles and csv_has_token(weak_afterhours_tickers, current_symbol_key)
-bool micro_is_fast_decay = use_microstructure_profiles and csv_has_token(fast_decay_tickers, current_symbol_key)
+string current_symbol_key_qualified = syminfo.tickerid
+bool micro_is_clean_reclaim = use_microstructure_profiles and csv_has_symbol_token(clean_reclaim_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_stop_hunt = use_microstructure_profiles and csv_has_symbol_token(stop_hunt_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_midday_dead = use_microstructure_profiles and csv_has_symbol_token(midday_dead_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_rth_only = use_microstructure_profiles and csv_has_symbol_token(rth_only_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_weak_premarket = use_microstructure_profiles and csv_has_symbol_token(weak_premarket_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_weak_afterhours = use_microstructure_profiles and csv_has_symbol_token(weak_afterhours_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_fast_decay = use_microstructure_profiles and csv_has_symbol_token(fast_decay_tickers, current_symbol_key, current_symbol_key_qualified)
 string micro_profile_text = 'Default'
 if micro_is_stop_hunt
     micro_profile_text := 'Stop-Hunt Sensitive'
@@ -3174,12 +3203,15 @@ int bear_ob_scan_start = math.max(0, ob_blocks_bear.size() - long_zone_scan_limi
 int bear_fvg_scan_start = math.max(0, fvgs_bear.size() - long_zone_scan_limit)
 
 int best_bull_ob_idx = na
+float best_bull_ob_overlap = na
 if ob_blocks_bull.size() > 0
     for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
         bull_ob_candidate = ob_blocks_bull.get(i)
-        bool ob_candidate_active = low <= bull_ob_candidate.left_top.price and high >= bull_ob_candidate.right_bottom.price
-        if ob_candidate_active and na(best_bull_ob_idx)
+        float ob_candidate_overlap = math.min(high, bull_ob_candidate.left_top.price) - math.max(low, bull_ob_candidate.right_bottom.price)
+        bool ob_candidate_active = ob_candidate_overlap >= 0
+        if ob_candidate_active and (na(best_bull_ob_idx) or ob_candidate_overlap > best_bull_ob_overlap)
             best_bull_ob_idx := i
+            best_bull_ob_overlap := ob_candidate_overlap
 int active_bull_ob_id = na
 if not na(best_bull_ob_idx)
     best_bull_ob = ob_blocks_bull.get(best_bull_ob_idx)
@@ -3194,12 +3226,15 @@ if not na(best_bull_ob_idx)
         touched_bull_ob_bar_index := bar_index
 
 int best_bull_fvg_idx = na
+float best_bull_fvg_overlap = na
 if fvgs_bull.size() > 0
     for i = fvgs_bull.size() - 1 to bull_fvg_scan_start
         bull_fvg_candidate = fvgs_bull.get(i)
-        bool fvg_candidate_active = low <= bull_fvg_candidate.left_top.price and high >= bull_fvg_candidate.right_bottom.price
-        if fvg_candidate_active and na(best_bull_fvg_idx)
+        float fvg_candidate_overlap = math.min(high, bull_fvg_candidate.left_top.price) - math.max(low, bull_fvg_candidate.right_bottom.price)
+        bool fvg_candidate_active = fvg_candidate_overlap >= 0
+        if fvg_candidate_active and (na(best_bull_fvg_idx) or fvg_candidate_overlap > best_bull_fvg_overlap)
             best_bull_fvg_idx := i
+            best_bull_fvg_overlap := fvg_candidate_overlap
 int active_bull_fvg_id = na
 if not na(best_bull_fvg_idx)
     best_bull_fvg = fvgs_bull.get(best_bull_fvg_idx)
@@ -3214,22 +3249,28 @@ if not na(best_bull_fvg_idx)
         touched_bull_fvg_bar_index := bar_index
 
 int best_bear_ob_idx = na
+float best_bear_ob_overlap = na
 if ob_blocks_bear.size() > 0
     for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
         bear_ob_candidate = ob_blocks_bear.get(i)
-        bool bear_ob_candidate_active = low <= bear_ob_candidate.left_top.price and high >= bear_ob_candidate.right_bottom.price
-        if bear_ob_candidate_active and na(best_bear_ob_idx)
+        float bear_ob_candidate_overlap = math.min(high, bear_ob_candidate.left_top.price) - math.max(low, bear_ob_candidate.right_bottom.price)
+        bool bear_ob_candidate_active = bear_ob_candidate_overlap >= 0
+        if bear_ob_candidate_active and (na(best_bear_ob_idx) or bear_ob_candidate_overlap > best_bear_ob_overlap)
             best_bear_ob_idx := i
+            best_bear_ob_overlap := bear_ob_candidate_overlap
 if not na(best_bear_ob_idx)
     active_bear_ob_break_level := ob_blocks_bear.get(best_bear_ob_idx).break_price
 
 int best_bear_fvg_idx = na
+float best_bear_fvg_overlap = na
 if fvgs_bear.size() > 0
     for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
         bear_fvg_candidate = fvgs_bear.get(i)
-        bool bear_fvg_candidate_active = low <= bear_fvg_candidate.left_top.price and high >= bear_fvg_candidate.right_bottom.price
-        if bear_fvg_candidate_active and na(best_bear_fvg_idx)
+        float bear_fvg_candidate_overlap = math.min(high, bear_fvg_candidate.left_top.price) - math.max(low, bear_fvg_candidate.right_bottom.price)
+        bool bear_fvg_candidate_active = bear_fvg_candidate_overlap >= 0
+        if bear_fvg_candidate_active and (na(best_bear_fvg_idx) or bear_fvg_candidate_overlap > best_bear_fvg_overlap)
             best_bear_fvg_idx := i
+            best_bear_fvg_overlap := bear_fvg_candidate_overlap
 if not na(best_bear_fvg_idx)
     active_bear_fvg_fill_level := fvgs_bear.get(best_bear_fvg_idx).fill_target_level
 
@@ -3856,7 +3897,7 @@ int reclaim_state = bull_reclaim_any ? 4 : reclaim_recent ? 2 : 0
 int close_state = not use_strong_close_filter ? 0 : bull_close_strong ? 5 : 2
 int ema_state = not show_ema_support ? 0 : ema_support_ok ? 5 : -1
 int adx_state = not use_adx ? 0 : not adx_data_ok ? 0 : plus_di < minus_di ? -1 : adx_value < adx_trend_min ? 0 : adx_value < adx_strong_min ? 3 : 5
-int relvol_state = not use_rel_volume ? 0 : not relvol_data_ok ? allow_relvol_without_volume_data ? 3 : -1 : na(rel_volume) ? 0 : rel_volume >= relvol_good ? 5 : rel_volume >= 1.0 ? 2 : -1
+int relvol_state = not use_rel_volume ? 0 : not relvol_data_ok ? allow_relvol_without_volume_data ? 3 : -1 : na(rel_volume) ? 0 : rel_volume >= effective_relvol_good ? 5 : rel_volume >= 1.0 ? 2 : -1
 int vwap_state = not use_vwap_filter ? 0 : not intraday_time_chart ? 0 : not vwap_session_active ? 0 : vwap_filter_ok ? 5 : -1
 bool volume_best_fallback_active = not relvol_data_ok and allow_relvol_without_volume_data
 int volume_quality_state = volume_feed_quality_ok ? use_ltf_for_strict_entry ? strict_ltf_available ? 5 : strict_ltf_unverifiable or allow_strict_entry_without_ltf ? 3 : -1 : 5 : volume_best_fallback_active ? 4 : -1
@@ -4028,7 +4069,7 @@ alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and lon
 alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
 alert_long_clean = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok and microstructure_entry_gate_ok
 alert_long_entry_best = close_safe_mode and bullish_trend_safe and reclaim_recent and long_ready_state and bull_close_strong and ema_support_ok and vwap_filter_ok and long_environment_gate_ok and microstructure_entry_gate_ok and entry_score_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
-bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and strict_ltf_unavailable) or strict_ltf_unverifiable
+bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and (strict_ltf_unavailable or strict_ltf_unverifiable))
 float long_watchlist_alert_level = not na(active_bull_ob_bottom) ? active_bull_ob_bottom : not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
 float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
 float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
