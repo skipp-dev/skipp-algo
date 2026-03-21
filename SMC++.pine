@@ -2413,15 +2413,6 @@ emit_dynamic_alert_if_allowed(string seen_keys, bool event_active, string seen_k
         alert(build_dynamic_alert_message(true, true, event_name, detail, level, direction, ltf_bull_share, ltf_volume_delta, ltf_price_only_context, mode_text), alert.freq_all)
     next_seen_keys
 
-emit_priority_dynamic_alert_if_allowed(string seen_keys, bool already_sent, bool event_active, string seen_key, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, bool ltf_price_only_context, string mode_text) =>
-    next_seen_keys = seen_keys
-    next_sent = already_sent
-    if not already_sent
-        updated_seen_keys = emit_dynamic_alert_if_allowed(seen_keys, event_active, seen_key, event_name, detail, level, direction, ltf_bull_share, ltf_volume_delta, ltf_price_only_context, mode_text)
-        next_seen_keys := updated_seen_keys
-        next_sent := updated_seen_keys != seen_keys
-    [next_seen_keys, next_sent]
-
 next_serial_event(bool event_condition, int serial, int last_serial) =>
     event_active = event_condition and serial > 0 and last_serial != serial
     [event_active, event_active ? serial : last_serial]
@@ -4865,45 +4856,45 @@ dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys
 [long_watchlist_alert_key, long_watchlist_alert_name] = resolve_long_alert_identity('watchlist')
 if dynamic_long_alert_mode == 'Priority'
     if enable_dynamic_alerts and long_invalidate_signal
-        [priority_seen_keys_invalidated, priority_sent_invalidated] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_invalidated = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_invalidated != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_invalidated
-        long_dynamic_alert_sent := priority_sent_invalidated
     else if enable_dynamic_alerts and alert_long_entry_strict_event
-        [priority_seen_keys_strict, priority_sent_strict] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_strict = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_strict != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_strict
-        long_dynamic_alert_sent := priority_sent_strict
     else if enable_dynamic_alerts and alert_long_entry_best_event
-        [priority_seen_keys_best, priority_sent_best] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_best = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_best != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_best
-        long_dynamic_alert_sent := priority_sent_best
     else if enable_dynamic_alerts and long_ready_signal
-        [priority_seen_keys_ready, priority_sent_ready] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_ready = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_ready != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_ready
-        long_dynamic_alert_sent := priority_sent_ready
     else if enable_dynamic_alerts and long_confirm_signal
-        [priority_seen_keys_confirmed, priority_sent_confirmed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_confirmed != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_confirmed
-        long_dynamic_alert_sent := priority_sent_confirmed
     else if enable_dynamic_alerts and alert_long_clean_event
-        [priority_seen_keys_clean, priority_sent_clean] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_clean = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_clean != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_clean
-        long_dynamic_alert_sent := priority_sent_clean
     else if enable_dynamic_alerts and alert_long_early_event
-        [priority_seen_keys_early, priority_sent_early] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_early = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_early != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_early
-        long_dynamic_alert_sent := priority_sent_early
     else if enable_dynamic_alerts and alert_long_armed_event
-        [priority_seen_keys_armed_plus, priority_sent_armed_plus] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_armed_plus = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_armed_plus != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_armed_plus
-        long_dynamic_alert_sent := priority_sent_armed_plus
     else if enable_dynamic_alerts and long_arm_signal
-        [priority_seen_keys_armed, priority_sent_armed] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_armed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_armed != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_armed
-        long_dynamic_alert_sent := priority_sent_armed
     else if enable_dynamic_alerts and alert_long_watchlist_event
-        [priority_seen_keys_watchlist, priority_sent_watchlist] = emit_priority_dynamic_alert_if_allowed(dynamic_alert_seen_keys, long_dynamic_alert_sent, true, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_watchlist = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_watchlist
-        long_dynamic_alert_sent := priority_sent_watchlist
 else
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
