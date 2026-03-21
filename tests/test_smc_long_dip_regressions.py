@@ -264,21 +264,35 @@ def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> No
     source = _read_smc_source()
 
     assert "var bool show_long_engine_debug = input.bool(false, 'Show long engine debug'" in source
+    assert "var string long_engine_debug_mode = input.string('Compact', 'Detail', options = ['Compact', 'Full']" in source
     assert "var bool show_ob_debug = input.bool(false, 'Show OB debug'" in source
     assert "var bool show_fvg_debug = input.bool(false, 'Show FVG debug'" in source
-    assert 'compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>' in source
-    assert 'compose_long_debug_summary_text(bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>' in source
-    assert 'compose_long_engine_debug_label_text(string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>' in source
-    assert "log.info('{0}', compose_long_engine_event_log('LONG ARMED'" in source
-    assert "log.info('{0}', compose_long_engine_event_log('LONG INVALID'" in source
+    assert 'compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug, string long_engine_debug_mode) =>' in source
+    assert "debug_mode_is_full(string long_engine_debug_mode) =>" in source
+    assert 'resolve_long_ready_blocker_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
+    assert "resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_state, string long_ready_blocker_text, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>" in source
+    assert "not session_structure_gate_ok ? 'Blocked: Session Gate'" in source
+    assert "not market_regime_gate_ok ? 'Blocked: Market Gate'" in source
+    assert "long_ready_state ? 'Passed' : not long_setup_confirmed ? 'Awaiting Confirm'" in source
+    assert "not ddvi_ready_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'" in source
+    assert "long_entry_strict_state ? 'Passed' : not long_ready_state ? 'Need Ready: ' + long_ready_blocker_text" in source
+    assert "not strict_entry_ltf_ok ? 'Blocked: LTF Confirmation'" in source
+    assert 'compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
+    assert 'compose_long_engine_debug_label_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
+    assert "log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG ARMED'" in source
+    assert "log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG INVALID'" in source
     assert "plotshape(show_ob_debug and ob_zone_touch_event, title = 'OB Zone Touch Debug'" in source
     assert "plotshape(show_fvg_debug and bullish_fvg_filled_alert, title = 'Bullish FVG Filled Debug'" in source
     assert "plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug'" in source
-    assert "string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source)" in source
-    assert "dashboard_row(tbl, 44, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), _db_text)" in source
-    assert "dashboard_row(tbl, 45, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), _db_text)" in source
-    assert 'var table _smc_dashboard = table.new(position.bottom_right, 2, 46, border_width = 0)' in source
-    assert 'table.clear(_smc_dashboard, 0, 0, 1, 45)' in source
+    assert "string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)" in source
+    assert "string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)" in source
+    assert "string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)" in source
+    assert "dashboard_row(tbl, 44, 'Ready Gate', long_ready_blocker_text" in source
+    assert "dashboard_row(tbl, 45, 'Strict Gate', long_strict_blocker_text" in source
+    assert "dashboard_row(tbl, 46, 'Debug Flags', compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode)" in source
+    assert "dashboard_row(tbl, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off'" in source
+    assert 'var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)' in source
+    assert 'table.clear(_smc_dashboard, 0, 0, 1, 47)' in source
     assert "[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
 
 

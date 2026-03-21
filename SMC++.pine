@@ -1438,41 +1438,64 @@ compose_zone_summary_text(bool show_ob_zone, float ob_top, float ob_bottom, bool
         zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)
     zone_text
 
-compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>
+compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug, string long_engine_debug_mode) =>
     string debug_text = 'off'
+    string long_debug_mode_suffix = long_engine_debug_mode == 'Full' ? ' Full' : ' Compact'
     if show_ob_debug
         debug_text := 'OB'
     if show_fvg_debug
         debug_text := debug_text == 'off' ? 'FVG' : debug_text + ' | FVG'
     if show_long_engine_debug
-        debug_text := debug_text == 'off' ? 'Long' : debug_text + ' | Long'
+        debug_text := debug_text == 'off' ? 'Long' + long_debug_mode_suffix : debug_text + ' | Long' + long_debug_mode_suffix
     debug_text
 
-compose_long_debug_summary_text(bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>
+debug_mode_is_full(string long_engine_debug_mode) =>
+    long_engine_debug_mode == 'Full'
+
+resolve_trade_gate_reason(bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>
+    not session_structure_gate_ok ? 'Blocked: Session Gate' : not micro_session_gate_ok ? 'Blocked: Micro Session' : not micro_freshness_gate_ok ? 'Blocked: Micro Freshness' : not overhead_zone_ok ? 'Blocked: Overhead' : 'Trade OK'
+
+resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
+    not market_regime_gate_ok ? 'Blocked: Market Gate' : not vola_regime_gate_safe ? 'Blocked: Vola Gate' : 'Env OK'
+
+resolve_long_ready_blocker_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+    long_ready_state ? 'Passed' : not long_setup_confirmed ? 'Awaiting Confirm' : not close_safe_mode ? 'Awaiting Close' : not ready_bar_gap_ok ? 'Awaiting Next Bar' : long_confirm_expired ? 'Blocked: Confirm Expired' : not ready_is_fresh ? 'Blocked: Confirm Stale' : not long_confirm_bearish_guard_ok ? 'Blocked: Bearish Guard' : require_main_break_for_ready and not (bull_bos_sig or main_bos_recent) ? 'Awaiting Main Break' : not setup_hard_gate_ok ? 'Blocked: Touch Count' : not session_structure_gate_ok or not micro_session_gate_ok or not micro_freshness_gate_ok or not overhead_zone_ok ? resolve_trade_gate_reason(session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok) : not market_regime_gate_ok or not vola_regime_gate_safe ? resolve_environment_gate_reason(market_regime_gate_ok, vola_regime_gate_safe) : not quality_gate_ok ? 'Blocked: Context Score' : not accel_ready_gate_ok ? 'Blocked: Acceleration' : not sd_ready_gate_ok ? 'Blocked: SD Confluence' : not vol_ready_context_ok ? 'Blocked: Volatility Context' : not stretch_ready_context_ok ? 'Blocked: Stretch Context' : not ddvi_ready_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'
+
+resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_state, string long_ready_blocker_text, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    long_entry_strict_state ? 'Passed' : not long_ready_state ? 'Need Ready: ' + long_ready_blocker_text : not strict_entry_ltf_ok ? 'Blocked: LTF Confirmation' : not htf_alignment_ok ? 'Blocked: HTF Alignment' : not accel_strict_entry_gate_ok ? 'Blocked: Acceleration' : not sd_entry_strict_gate_ok ? 'Blocked: SD Confluence' : not vol_entry_strict_context_ok_safe ? 'Blocked: Volatility Context' : not stretch_entry_strict_context_ok ? 'Blocked: Stretch Context' : not ddvi_entry_strict_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'
+
+compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
     string debug_text = 'idle'
+    bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
     if long_setup_armed or long_setup_confirmed or long_ready_state
-        debug_text := 'src=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + freshness_text + ' | ' + source_state_text + ' | ' + zone_quality_text + ' | ' + long_environment_focus_display
+        debug_text := debug_mode_full ? 'src=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + freshness_text + ' | ' + source_state_text + ' | ' + zone_quality_text + ' | ' + long_environment_focus_display + ' | ready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text : 'src=' + long_setup_source_display + ' | rdy=' + long_ready_blocker_text + ' | st=' + long_strict_blocker_text
     else if long_last_invalid_source != 'None'
         debug_text := 'last=' + long_last_invalid_source
     if long_source_upgrade_now
         debug_text += ' | upgrade'
     debug_text
 
-compose_long_engine_debug_label_text(string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>
-    string debug_text = 'Long Engine'
+compose_long_engine_debug_label_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
+    bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
+    string debug_text = 'Long Engine (' + long_engine_debug_mode + ')'
     debug_text += '\nsetup=' + long_setup_text + ' | visual=' + long_visual_text
-    debug_text += '\nsrc=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count)
-    debug_text += '\nfresh=' + freshness_text + ' | ' + source_state_text
-    debug_text += '\nzone=' + zone_quality_text + ' | env=' + long_environment_focus_display
-    debug_text += '\ntrig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
+    debug_text += debug_mode_full ? '\nsrc=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) : '\nsrc=' + long_setup_source_display + ' | rdy=' + long_ready_blocker_text + ' | st=' + long_strict_blocker_text
+    if debug_mode_full
+        debug_text += '\nfresh=' + freshness_text + ' | ' + source_state_text
+        debug_text += '\nzone=' + zone_quality_text + ' | env=' + long_environment_focus_display
+        debug_text += '\nready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text
+        debug_text += '\ntrig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
     if long_source_upgrade_now
         debug_text += '\nupgrade=active'
     if long_last_invalid_source != 'None'
         debug_text += '\nlast=' + long_last_invalid_source
     debug_text
 
-compose_long_engine_event_log(string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_last_invalid_source) =>
-    string event_text = event_name + ' | src=' + long_setup_source_display + ' | trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | fresh=' + freshness_text + ' | ' + source_state_text + ' | zone=' + zone_quality_text + ' | env=' + long_environment_focus_display
+compose_long_engine_event_log(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
+    bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
+    string event_text = event_name + ' | src=' + long_setup_source_display + ' | trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level)
+    event_text += debug_mode_full ? ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | fresh=' + freshness_text + ' | ' + source_state_text + ' | zone=' + zone_quality_text + ' | env=' + long_environment_focus_display : ''
+    event_text += ' | ready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text
     if long_source_upgrade_now
         event_text += ' | upgrade'
     if long_last_invalid_source != 'None'
@@ -2126,6 +2149,7 @@ var g_long = 'Long Dip Tools'
 var bool show_reclaim_markers = input.bool(true, 'Show Reclaim Markers', group = g_long, inline = 'viz1')
 var bool show_long_confirmation_markers = input.bool(true, 'Show Long Confirmation Markers', group = g_long, inline = 'viz1')
 var bool show_long_engine_debug = input.bool(false, 'Show long engine debug', group = g_long, inline = 'vizd')
+var string long_engine_debug_mode = input.string('Compact', 'Detail', options = ['Compact', 'Full'], group = g_long, inline = 'vizd')
 var bool show_long_background = input.bool(true, 'Show Long-only Background', group = g_long, inline = 'viz2')
 var bool color_long_bars = input.bool(false, 'Color Bars', group = g_long, inline = 'viz2')
 var int long_marker_history_limit = input.int(100, 'Marker History Limit', minval = 0, maxval = 500, group = g_long, inline = 'viz2')
@@ -3708,6 +3732,8 @@ bool lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and ready_bar
 bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
 bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
 bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
+string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
 bool long_quality_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
 if long_plan_active
@@ -3743,18 +3769,18 @@ string long_debug_log_source_display = long_invalidate_signal ? long_debug_event
 int long_debug_log_touch_count = long_invalidate_signal ? long_debug_event_touch_count : long_setup_backing_zone_touch_count
 float long_debug_log_trigger = long_invalidate_signal ? long_debug_event_trigger : long_setup_trigger
 float long_debug_log_invalidation = long_invalidate_signal ? long_debug_event_invalidation : long_invalidation_level
-string long_debug_summary_text = compose_long_debug_summary_text(long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source)
+string long_debug_summary_text = compose_long_debug_summary_text(long_engine_debug_mode, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
 
 if show_long_engine_debug and long_source_upgrade_now
-    log.info('{0}', compose_long_engine_event_log('LONG UPGRADE', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_last_invalid_source))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG UPGRADE', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_arm_signal
-    log.info('{0}', compose_long_engine_event_log('LONG ARMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG ARMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_confirm_signal
-    log.info('{0}', compose_long_engine_event_log('LONG CONFIRMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG CONFIRMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_ready_signal
-    log.info('{0}', compose_long_engine_event_log('LONG READY', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG READY', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_invalidate_signal
-    log.info('{0}', compose_long_engine_event_log('LONG INVALID', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG INVALID', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break
@@ -3875,7 +3901,7 @@ if show_long_confirmation_markers and long_invalidate_signal and can_draw_long_r
 
 if barstate.islast
     if show_long_engine_debug
-        string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source)
+        string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
         float long_engine_debug_y = high + ob_threshold_atr * 2.0
         if na(long_engine_debug_label)
             long_engine_debug_label := label.new(bar_index, long_engine_debug_y, long_engine_debug_label_text, color = color.new(color.black, 55), textcolor = color.white, style = label.style_label_left, size = size.tiny)
@@ -4408,12 +4434,6 @@ render_smc_dashboard_documented(table tbl) =>
     string _db_risk_plan_text = long_plan_active ? 'Entry ' + u.format_level(long_setup_trigger) + ' | Stop ' + u.format_level(long_stop_level) + ' | T1 ' + u.format_level(long_target_1) + ' | T2 ' + u.format_level(long_target_2) : 'n/a'
     int _db_risk_plan_state = long_plan_active ? 5 : 0
 
-        string _db_debug_flags_text = compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug)
-        int _db_debug_flags_state = show_ob_debug or show_fvg_debug or show_long_engine_debug ? 5 : 0
-
-        string _db_long_debug_text = show_long_engine_debug ? long_debug_summary_text : 'off'
-        int _db_long_debug_state = not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_setup_armed or long_setup_confirmed or long_ready_state ? 5 : 2
-
     dashboard_header(tbl, 0, 'SMC++ | ' + signal_mode_text, _db_header_bg, _db_text)
 
     dashboard_header(tbl, 1, '[ Lifecycle ]', _db_header_bg, _db_text)
@@ -4462,15 +4482,17 @@ render_smc_dashboard_documented(table tbl) =>
     dashboard_row(tbl, 41, 'Long Triggers', _db_long_triggers_text, status_bg(_db_long_triggers_state), _db_text)
     dashboard_row(tbl, 42, 'Micro Profile', _db_micro_profile_text, status_bg(_db_micro_profile_state), _db_text)
     dashboard_row(tbl, 43, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), _db_text)
-    dashboard_row(tbl, 44, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), _db_text)
-    dashboard_row(tbl, 45, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), _db_text)
+    dashboard_row(tbl, 44, 'Ready Gate', long_ready_blocker_text, status_bg(long_ready_state ? 5 : not long_setup_confirmed ? 2 : not lifecycle_ready_ok ? 2 : not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok ? -1 : 2), _db_text)
+    dashboard_row(tbl, 45, 'Strict Gate', long_strict_blocker_text, status_bg(long_entry_strict_state ? 5 : not long_ready_state ? 2 : not strict_entry_ltf_ok or not htf_alignment_ok or not accel_strict_entry_gate_ok or not sd_entry_strict_gate_ok or not vol_entry_strict_context_ok_safe or not stretch_entry_strict_context_ok or not ddvi_entry_strict_ok_safe ? -1 : 2), _db_text)
+    dashboard_row(tbl, 46, 'Debug Flags', compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode), status_bg(show_ob_debug or show_fvg_debug or show_long_engine_debug ? 5 : 0), _db_text)
+    dashboard_row(tbl, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off', status_bg(not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_setup_armed or long_setup_confirmed or long_ready_state ? 5 : 2), _db_text)
 
-var table _smc_dashboard = table.new(position.bottom_right, 2, 46, border_width = 0)
+var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)
 
 if show_dashboard and barstate.islast
     render_smc_dashboard_documented(_smc_dashboard)
 else if barstate.islast
-    table.clear(_smc_dashboard, 0, 0, 1, 45)
+    table.clear(_smc_dashboard, 0, 0, 1, 47)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
