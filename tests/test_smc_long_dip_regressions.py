@@ -139,6 +139,21 @@ def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
     assert 'int effective_fill_time = effective_live_event_time(this.fill_time, base_right_time)' in source
 
 
+def test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_methods() -> None:
+    source = _read_smc_source()
+
+    assert 'draw(ob_blocks_bull, ob_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
+    assert 'draw(ob_blocks_bear, ob_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)' in source
+    assert 'draw(fvgs_bull, fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
+    assert 'draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
+    assert 'contains_id(ob_blocks_bull, touched_bull_ob_id)' in source
+    assert 'get_by_id(ob_blocks_bull, touched_bull_ob_id)' in source
+    assert 'contains_id(filled_fvgs_bull, long_locked_source_id_final)' in source
+    assert 'ob_blocks_bull.draw(' not in source
+    assert 'fvgs_bull.draw(' not in source
+    assert 'htf_fvg_buffer_bull.draw(' not in source
+
+
 def test_fvg_hide_and_orderblock_reset_are_cleanup_consistent() -> None:
     source = _read_smc_source()
 
@@ -246,8 +261,8 @@ def test_source_lock_decouples_setup_source_from_live_active_ranking() -> None:
     assert 'var int long_locked_source_id = na' in source
     assert "string prev_locked_source_kind = long_locked_source_kind" in source
     assert 'int prev_locked_source_id = long_locked_source_id' in source
-    assert "OrderBlock prev_locked_bull_ob = prev_locked_source_kind == 'OB' ? ob_blocks_bull.get_by_id(prev_locked_source_id) : na" in source
-    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na" in source
+    assert "OrderBlock prev_locked_bull_ob = prev_locked_source_kind == 'OB' ? get_by_id(ob_blocks_bull, prev_locked_source_id) : na" in source
+    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na" in source
     assert 'long_setup_source_zone_id' not in source
     assert 'armed_source_changed' not in source
     assert 'bool long_invalidated_now = long_source_broken or long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired))' in source
@@ -304,9 +319,9 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
 
     assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, string locked_source_kind, int locked_source_id, string setup_backing_zone_kind, int setup_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
     assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
-    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na" in source
+    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na" in source
     assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? not na(long_locked_bull_ob) : long_locked_source_kind_final == 'FVG' ? not na(long_locked_bull_fvg) : false" in source
-    assert "bool long_source_broken = long_locked_source_kind_final == 'OB' ? ob_broken_bull.contains_id(long_locked_source_id_final) or ob_broken_new_bull.contains_id(long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? filled_fvgs_bull.contains_id(long_locked_source_id_final) or filled_fvgs_new_bull.contains_id(long_locked_source_id_final) : false" in source
+    assert "bool long_source_broken = long_locked_source_kind_final == 'OB' ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false" in source
 
 
 def test_entry_origin_and_validation_source_are_separated_for_display_and_invalidation() -> None:

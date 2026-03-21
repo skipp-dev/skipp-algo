@@ -3461,20 +3461,20 @@ if barstate.isnew
     long_ready_marker_drawn_bar_index := na
 
 if barstate.islast
-    ob_blocks_bull.draw(ob_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
-    ob_blocks_bear.draw(ob_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
+    draw(ob_blocks_bull, ob_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
+    draw(ob_blocks_bear, ob_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
 
     if show_ob and ob_keep_broken and ob_keep_broken_max > 0
-        ob_broken_bull.draw(ob_config_bull_broken, visible_left = visible_left_time, visible_right = visible_right_time)
-        ob_broken_bear.draw(ob_config_bear_broken, visible_left = visible_left_time, visible_right = visible_right_time)
+        draw(ob_broken_bull, ob_config_bull_broken, visible_left = visible_left_time, visible_right = visible_right_time)
+        draw(ob_broken_bear, ob_config_bear_broken, visible_left = visible_left_time, visible_right = visible_right_time)
     else
-        ob_broken_bull.delete()
-        ob_broken_bear.delete()
+        delete(ob_broken_bull)
+        delete(ob_broken_bear)
 
     if barstate.isconfirmed
-        ob_discarded_bull.delete()
+        delete(ob_discarded_bull)
         ob_discarded_bull.clear()
-        ob_discarded_bear.delete()
+        delete(ob_discarded_bear)
         ob_discarded_bear.clear()
 
 var g_fvg = 'Fair Value Gaps'
@@ -3514,20 +3514,20 @@ float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.
 float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.last().fill_target_level : na
 
 if barstate.islast
-    fvgs_bull.draw(fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
-    fvgs_bear.draw(fvg_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
+    draw(fvgs_bull, fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
+    draw(fvgs_bear, fvg_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
 
     if show_fvg_filled
-        filled_fvgs_bull.draw(fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
-        filled_fvgs_bear.draw(fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
+        draw(filled_fvgs_bull, fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
+        draw(filled_fvgs_bear, fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
     else
-        filled_fvgs_bull.delete()
-        filled_fvgs_bear.delete()
+        delete(filled_fvgs_bull)
+        delete(filled_fvgs_bear)
 
     if barstate.isconfirmed
-        fvg_discarded_bull.delete()
+        delete(fvg_discarded_bull)
         fvg_discarded_bull.clear()
-        fvg_discarded_bear.delete()
+        delete(fvg_discarded_bear)
         fvg_discarded_bear.clear()
 
 fvgs_objects_htf(FVG new_bull, FVG new_bear, bool htf_is_confirmed, float size_threshold, simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, simple float fill_target_ratio = 0.5, simple int filled_max_keep = 5, simple int gc_cycle = na) =>
@@ -3788,12 +3788,12 @@ bool prefer_active_ob_zone = not na(active_bull_ob_id)
 if not na(active_bull_ob_id) and not na(active_bull_fvg_id)
     prefer_active_ob_zone := prefer_primary_zone(active_bull_ob_touch_anchor, active_bull_ob_recency, active_bull_ob_quality, best_bull_ob_overlap, active_bull_ob_id, active_bull_fvg_touch_anchor, active_bull_fvg_recency, active_bull_fvg_quality, best_bull_fvg_overlap, active_bull_fvg_id)
 int active_long_zone_id = not na(active_bull_ob_id) and (na(active_bull_fvg_id) or prefer_active_ob_zone) ? active_bull_ob_id : not na(active_bull_fvg_id) ? -active_bull_fvg_id : na
-bool touched_bull_ob_still_active = ob_blocks_bull.contains_id(touched_bull_ob_id)
-bool touched_bull_fvg_still_active = fvgs_bull.contains_id(touched_bull_fvg_id)
+bool touched_bull_ob_still_active = contains_id(ob_blocks_bull, touched_bull_ob_id)
+bool touched_bull_fvg_still_active = contains_id(fvgs_bull, touched_bull_fvg_id)
 bool touched_bull_ob_recent = touched_bull_ob_still_active and not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
 bool touched_bull_fvg_recent = touched_bull_fvg_still_active and not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
-OrderBlock touched_bull_ob_block = touched_bull_ob_still_active ? ob_blocks_bull.get_by_id(touched_bull_ob_id) : na
-FVG touched_bull_fvg_block = touched_bull_fvg_still_active ? fvgs_bull.get_by_id(touched_bull_fvg_id) : na
+OrderBlock touched_bull_ob_block = touched_bull_ob_still_active ? get_by_id(ob_blocks_bull, touched_bull_ob_id) : na
+FVG touched_bull_fvg_block = touched_bull_fvg_still_active ? get_by_id(fvgs_bull, touched_bull_fvg_id) : na
 float touched_bull_ob_quality = not na(touched_bull_ob_block) ? ob_quality_score(touched_bull_ob_block) : 0.0
 float touched_bull_fvg_quality = not na(touched_bull_fvg_block) ? fvg_quality_score(touched_bull_fvg_block, fvg_size_threshold) : 0.0
 bool long_zone_active = in_bull_ob_zone or in_bull_fvg_zone
@@ -4067,14 +4067,14 @@ string prev_locked_source_kind = long_locked_source_kind
 int prev_locked_source_id = long_locked_source_id
 bool prev_locked_source_tracked = not na(prev_locked_source_id)
 
-OrderBlock prev_locked_bull_ob = prev_locked_source_kind == 'OB' ? ob_blocks_bull.get_by_id(prev_locked_source_id) : na
-FVG prev_locked_bull_fvg = prev_locked_source_kind == 'FVG' ? fvgs_bull.get_by_id(prev_locked_source_id) : na
+OrderBlock prev_locked_bull_ob = prev_locked_source_kind == 'OB' ? get_by_id(ob_blocks_bull, prev_locked_source_id) : na
+FVG prev_locked_bull_fvg = prev_locked_source_kind == 'FVG' ? get_by_id(fvgs_bull, prev_locked_source_id) : na
 
 float long_locked_source_quality = prev_locked_source_kind == 'OB' ? ob_quality_score(prev_locked_bull_ob) : prev_locked_source_kind == 'FVG' ? fvg_quality_score(prev_locked_bull_fvg, fvg_size_threshold) : 0.0
 
 bool prev_locked_source_alive = prev_locked_source_kind == 'OB' ? not na(prev_locked_bull_ob) : prev_locked_source_kind == 'FVG' ? not na(prev_locked_bull_fvg) : false
 
-bool prev_locked_source_broken = prev_locked_source_kind == 'OB' ? ob_broken_bull.contains_id(prev_locked_source_id) or ob_broken_new_bull.contains_id(prev_locked_source_id) : prev_locked_source_kind == 'FVG' ? filled_fvgs_bull.contains_id(prev_locked_source_id) or filled_fvgs_new_bull.contains_id(prev_locked_source_id) : false
+bool prev_locked_source_broken = prev_locked_source_kind == 'OB' ? contains_id(ob_broken_bull, prev_locked_source_id) or contains_id(ob_broken_new_bull, prev_locked_source_id) : prev_locked_source_kind == 'FVG' ? contains_id(filled_fvgs_bull, prev_locked_source_id) or contains_id(filled_fvgs_new_bull, prev_locked_source_id) : false
 
 bool prev_locked_source_lost = (long_setup_armed or long_setup_confirmed) and prev_locked_source_tracked and not prev_locked_source_alive and not prev_locked_source_broken
 
@@ -4089,8 +4089,8 @@ bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and
 [long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)
 int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)
 int long_locked_source_last_touch_bar_index_effective = long_source_upgrade_now and not na(long_locked_source_id_final) ? bar_index : long_locked_source_last_touch_bar_index
-OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? ob_blocks_bull.get_by_id(long_locked_source_id_final) : na
-FVG long_locked_bull_fvg = long_locked_source_kind_final == 'FVG' ? fvgs_bull.get_by_id(long_locked_source_id_final) : na
+OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na
+FVG long_locked_bull_fvg = long_locked_source_kind_final == 'FVG' ? get_by_id(fvgs_bull, long_locked_source_id_final) : na
 bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? not na(long_locked_bull_ob) : long_locked_source_kind_final == 'FVG' ? not na(long_locked_bull_fvg) : false
 float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and not na(long_locked_bull_ob) ? long_locked_bull_ob.left_top.price : long_locked_source_kind_final == 'FVG' and not na(long_locked_bull_fvg) ? long_locked_bull_fvg.left_top.price : na
 float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and not na(long_locked_bull_ob) ? long_locked_bull_ob.right_bottom.price : long_locked_source_kind_final == 'FVG' and not na(long_locked_bull_fvg) ? long_locked_bull_fvg.right_bottom.price : na
@@ -4120,7 +4120,7 @@ if long_locked_source_alive_now
 bool long_source_zone_touch_recent = (long_setup_armed or long_setup_confirmed) and not na(long_locked_source_id) ? long_locked_source_touch_recent : long_setup_backing_zone_kind == 'OB' ? ob_zone_touch_event_recent and last_ob_zone_touch_id == long_setup_backing_zone_id : long_setup_backing_zone_kind == 'FVG' ? fvg_zone_touch_event_recent and last_fvg_zone_touch_id == long_setup_backing_zone_id : zone_touch_event_recent
 long_source_tracked := not na(long_locked_source_id)
 long_source_alive := not long_source_tracked ? true : long_locked_source_alive_now
-bool long_source_broken = long_locked_source_kind_final == 'OB' ? ob_broken_bull.contains_id(long_locked_source_id_final) or ob_broken_new_bull.contains_id(long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? filled_fvgs_bull.contains_id(long_locked_source_id_final) or filled_fvgs_new_bull.contains_id(long_locked_source_id_final) : false
+bool long_source_broken = long_locked_source_kind_final == 'OB' ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false
 long_source_lost := (long_setup_armed or long_setup_confirmed) and long_source_tracked and not long_source_alive and not long_source_broken
 bool long_setup_expired = long_setup_armed and not long_setup_confirmed and long_setup_age > long_setup_expiry_bars
 bool long_confirm_expired = long_setup_confirmed and long_confirm_age > long_confirm_expiry_bars
@@ -4402,20 +4402,20 @@ if show_long_confirmation_markers and long_invalidate_signal and can_draw_long_r
     last_long_ready_marker_bar := bar_index
 
 if show_htf_fvg and barstate.islast
-    htf_fvg_buffer_bull.draw(htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
-    htf_fvg_buffer_bear.draw(htf_fvg_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
+    draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
+    draw(htf_fvg_buffer_bear, htf_fvg_config_bear, visible_left = visible_left_time, visible_right = visible_right_time)
 
     if htf_fvg_keep_filled and htf_fvg_keep_filled_max > 0
-        htf_fvg_buffer_bull_filled.draw(htf_fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
-        htf_fvg_buffer_bear_filled.draw(htf_fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
+        draw(htf_fvg_buffer_bull_filled, htf_fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
+        draw(htf_fvg_buffer_bear_filled, htf_fvg_config_bear_filled, visible_left = visible_left_time, visible_right = visible_right_time)
     else
-        htf_fvg_buffer_bull_filled.delete()
-        htf_fvg_buffer_bear_filled.delete()
+        delete(htf_fvg_buffer_bull_filled)
+        delete(htf_fvg_buffer_bear_filled)
 
     if barstate.isconfirmed
-        htf_fvg_buffer_bull_discarded.delete()
+        delete(htf_fvg_buffer_bull_discarded)
         htf_fvg_buffer_bull_discarded.clear()
-        htf_fvg_buffer_bear_discarded.delete()
+        delete(htf_fvg_buffer_bear_discarded)
         htf_fvg_buffer_bear_discarded.clear()
 
 var g_eq = 'Equal Highs / Lows'
