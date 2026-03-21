@@ -93,6 +93,10 @@ def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> N
     source = _read_smc_source()
 
     assert 'resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, string long_validation_source, string long_entry_origin_source, string long_setup_source_display) =>' in source
+    assert "long_source_broken ? long_validation_source + ' source invalidated'" in source
+    assert "long_source_lost ? long_validation_source + ' backing zone lost'" in source
+    assert "long_setup_expired ? long_entry_origin_source + ' setup expired'" in source
+    assert "long_confirm_expired ? long_entry_origin_source + ' confirm expired'" in source
     assert "string long_validation_source_now = long_locked_source_kind_final == 'OB' ? 'OB' : long_locked_source_kind_final == 'FVG' ? 'FVG' : 'None'" in source
     assert 'string long_setup_source_display_now = compose_long_setup_source_display(long_entry_origin_source, long_validation_source_now)' in source
     assert 'long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)' in source
@@ -100,6 +104,8 @@ def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> N
     assert "long_entry_origin_source := 'None'" in source
     assert "long_setup_backing_zone_kind := 'None'" in source
     assert 'long_setup_backing_zone_id := na' in source
+    assert "long_source_broken ? str.format('{0} source invalidated', long_validation_source)" not in source
+    assert "long_source_lost ? str.format('{0} backing zone lost', long_validation_source)" not in source
 
 
 def test_ob_confirmed_profiles_are_rebuilt_from_copied_ltf_data() -> None:
@@ -363,9 +369,11 @@ def test_entry_origin_and_validation_source_are_separated_for_display_and_invali
     assert "string long_setup_source_display = 'None'" in source
     assert "long_validation_source := long_locked_source_kind == 'OB' ? 'OB' : long_locked_source_kind == 'FVG' ? 'FVG' : 'None'" in source
     assert 'compose_long_setup_source_display(string long_entry_origin_source, string long_validation_source) =>' in source
+    assert "long_entry_origin_source == 'None' ? long_validation_source : long_validation_source == 'None' or long_entry_origin_source == long_validation_source ? long_entry_origin_source : long_entry_origin_source + ' -> ' + long_validation_source" in source
     assert 'long_setup_source_display := compose_long_setup_source_display(long_entry_origin_source, long_validation_source)' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, string long_setup_source_display) =>' in source
     assert "long_setup_text := compose_long_setup_text(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_setup_source_display)" in source
+    assert "str.format('{0} -> {1}', long_entry_origin_source, long_validation_source)" not in source
 
 
 def test_display_and_status_text_are_extracted_into_helpers() -> None:
@@ -404,9 +412,21 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
     source = _read_smc_source()
 
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, string long_setup_source_display) =>' in source
+    assert "setup_text := 'Armed | ' + long_setup_source_display" in source
+    assert "setup_text := 'Building | ' + long_setup_source_display" in source
+    assert "setup_text := 'Confirmed | ' + long_setup_source_display" in source
+    assert "setup_text := 'Ready | ' + long_setup_source_display" in source
+    assert "setup_text := 'Entry Best | ' + long_setup_source_display" in source
+    assert "setup_text := 'Entry Strict | ' + long_setup_source_display" in source
     assert 'resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now) =>' in source
     assert "long_setup_text := compose_long_setup_text(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_setup_source_display)" in source
     assert 'long_visual_state := resolve_long_visual_state(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidate_signal, invalidated_prior_setup, long_invalidated_now)' in source
+    assert "setup_text := str.format('Armed | {0}', long_setup_source_display)" not in source
+    assert "setup_text := str.format('Building | {0}', long_setup_source_display)" not in source
+    assert "setup_text := str.format('Confirmed | {0}', long_setup_source_display)" not in source
+    assert "setup_text := str.format('Ready | {0}', long_setup_source_display)" not in source
+    assert "setup_text := str.format('Entry Best | {0}', long_setup_source_display)" not in source
+    assert "setup_text := str.format('Entry Strict | {0}', long_setup_source_display)" not in source
 
 
 def test_visual_text_dashboard_and_colors_are_extracted_into_helpers() -> None:

@@ -1699,10 +1699,10 @@ resolve_long_locked_source_bounds(string arm_backing_zone_kind, int arm_backing_
     [locked_source_top, locked_source_bottom]
 
 resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, string long_validation_source, string long_entry_origin_source, string long_setup_source_display) =>
-    long_source_broken ? str.format('{0} source invalidated', long_validation_source) : long_source_lost ? str.format('{0} backing zone lost', long_validation_source) : long_setup_expired ? str.format('{0} setup expired', long_entry_origin_source) : long_confirm_expired ? str.format('{0} confirm expired', long_entry_origin_source) : long_setup_source_display
+    long_source_broken ? long_validation_source + ' source invalidated' : long_source_lost ? long_validation_source + ' backing zone lost' : long_setup_expired ? long_entry_origin_source + ' setup expired' : long_confirm_expired ? long_entry_origin_source + ' confirm expired' : long_setup_source_display
 
 compose_long_setup_source_display(string long_entry_origin_source, string long_validation_source) =>
-    long_entry_origin_source == 'None' ? long_validation_source : long_validation_source == 'None' or long_entry_origin_source == long_validation_source ? long_entry_origin_source : str.format('{0} -> {1}', long_entry_origin_source, long_validation_source)
+    long_entry_origin_source == 'None' ? long_validation_source : long_validation_source == 'None' or long_entry_origin_source == long_validation_source ? long_entry_origin_source : long_entry_origin_source + ' -> ' + long_validation_source
 
 describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
     not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
@@ -1734,17 +1734,17 @@ compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_
     if long_zone_active
         setup_text := 'In Zone'
     if long_setup_armed
-        setup_text := str.format('Armed | {0}', long_setup_source_display)
+        setup_text := 'Armed | ' + long_setup_source_display
     if long_building_state
-        setup_text := str.format('Building | {0}', long_setup_source_display)
+        setup_text := 'Building | ' + long_setup_source_display
     if long_setup_confirmed
-        setup_text := str.format('Confirmed | {0}', long_setup_source_display)
+        setup_text := 'Confirmed | ' + long_setup_source_display
     if long_ready_state
-        setup_text := str.format('Ready | {0}', long_setup_source_display)
+        setup_text := 'Ready | ' + long_setup_source_display
     if long_entry_best_state
-        setup_text := str.format('Entry Best | {0}', long_setup_source_display)
+        setup_text := 'Entry Best | ' + long_setup_source_display
     if long_entry_strict_state
-        setup_text := str.format('Entry Strict | {0}', long_setup_source_display)
+        setup_text := 'Entry Strict | ' + long_setup_source_display
     setup_text
 
 resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now) =>
