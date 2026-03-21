@@ -3016,30 +3016,6 @@ method invalidate(LongLifecycleState this, string reason, float level) =>
     this.last_invalid_level := level
     this.clear()
 
-sync_long_state_from_legacy(LongLifecycleState st, bool armed, bool confirmed, int arm_bar_index, int confirm_bar_index, float trigger, float invalidation_level, int entry_origin_source, int backing_zone_kind, int backing_zone_id, int backing_zone_touch_count, int locked_source_kind, int locked_source_id, float locked_source_top, float locked_source_bottom, int locked_source_touch_count, int locked_source_last_touch_bar_index, int setup_serial, string last_invalid_source, float last_invalid_level) =>
-    st.armed := armed
-    st.confirmed := confirmed
-    st.arm_bar_index := arm_bar_index
-    st.confirm_bar_index := confirm_bar_index
-    st.trigger := trigger
-    st.invalidation_level := invalidation_level
-    st.entry_origin_source := entry_origin_source
-    st.backing_zone_kind := backing_zone_kind
-    st.backing_zone_id := backing_zone_id
-    st.backing_zone_touch_count := backing_zone_touch_count
-    st.locked_source_kind := locked_source_kind
-    st.locked_source_id := locked_source_id
-    st.locked_source_top := locked_source_top
-    st.locked_source_bottom := locked_source_bottom
-    st.locked_source_touch_count := locked_source_touch_count
-    st.locked_source_last_touch_bar_index := locked_source_last_touch_bar_index
-    st.setup_serial := setup_serial
-    st.last_invalid_source := last_invalid_source
-    st.last_invalid_level := last_invalid_level
-
-project_long_state(LongLifecycleState st) =>
-    [st.armed, st.confirmed, st.arm_bar_index, st.confirm_bar_index, st.trigger, st.invalidation_level, st.entry_origin_source, st.backing_zone_kind, st.backing_zone_id, st.backing_zone_touch_count, st.locked_source_kind, st.locked_source_id, st.locked_source_top, st.locked_source_bottom, st.locked_source_touch_count, st.locked_source_last_touch_bar_index, st.setup_serial, st.last_invalid_source, st.last_invalid_level]
-
 validate_long_state(LongLifecycleState st, bool enabled = true) =>
     if enabled
         if st.confirmed and not st.armed
@@ -3055,29 +3031,10 @@ validate_long_state(LongLifecycleState st, bool enabled = true) =>
 
 // Persistent long-setup storage must exist before the OB/FVG engines run so active backing zones can be protected from cleanup.
 var LongLifecycleState long_state = LongLifecycleState.new(false, false, na, na, na, na, LONG_SOURCE_NONE, LONG_SOURCE_NONE, na, 0, LONG_SOURCE_NONE, na, na, na, 0, na, 0, 'None', na)
-var bool long_setup_armed = false
-var bool long_setup_confirmed = false
-var int long_setup_arm_bar_index = na
-var int long_confirm_bar_index = na
-var float long_setup_trigger = na
-var float long_invalidation_level = na
-var int long_entry_origin_source = LONG_SOURCE_NONE
-var int long_setup_backing_zone_kind = LONG_SOURCE_NONE
-var int long_setup_backing_zone_id = na
-var int long_setup_backing_zone_touch_count = 0
-var int long_locked_source_kind = LONG_SOURCE_NONE
-var int long_locked_source_id = na
-var float long_locked_source_top = na
-var float long_locked_source_bottom = na
-var int long_locked_source_touch_count = 0
-var int long_locked_source_last_touch_bar_index = na
-var int long_setup_serial = 0
-var string long_last_invalid_source = 'None'
-var float long_last_invalid_level = na
 varip bool long_invalidated_this_bar = false
 
 bool enable_ob_engine = use_ob_engine
-int _ob_backing_zone_id = long_setup_backing_zone_kind == LONG_SOURCE_OB ? long_setup_backing_zone_id : na
+int _ob_backing_zone_id = long_state.backing_zone_kind == LONG_SOURCE_OB ? long_state.backing_zone_id : na
 [ob_blocks_bull, ob_blocks_bear, new_ob_bull, _new_ob_bear, ob_broken_bull, _ob_broken_bear, ob_broken_new_bull, _ob_broken_new_bear, ob_discarded_bull, _ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = collect_ob_profile_current_bar, update_profile_current_bar = collect_ob_profile_current_bar, align_edge_to_value_area = use_ob_profile_effective, align_break_price_to_poc = use_ob_profile_effective, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle, protected_bull_id = _ob_backing_zone_id)
 
 varip bool live_bull_ob_break = false
@@ -3125,7 +3082,7 @@ float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 
 var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display = display.none, tooltip = 'Keeps FVG-based long-dip logic and alerts running even if chart rendering is hidden.')
 
 bool enable_fvg_engine = use_fvg_engine
-int _fvg_backing_zone_id = long_setup_backing_zone_kind == LONG_SOURCE_FVG ? long_setup_backing_zone_id : na
+int _fvg_backing_zone_id = long_state.backing_zone_kind == LONG_SOURCE_FVG ? long_state.backing_zone_id : na
 [bullish_fvg_alert, bearish_fvg_alert, fvgs_bull, fvgs_bear, new_fvg_bull, _new_fvg_bear, filled_fvgs_bull, _filled_fvgs_bear, filled_fvgs_new_bull, _filled_fvgs_new_bear, fvg_discarded_bull, fvg_discarded_bear] = fvgs_objects(active_break_mode, fvg_fill_target_ratio, fvg_size_threshold, enable_fvg_engine, fvg_keep_filled_max, object_gc_cycle, _fvg_backing_zone_id)
 
 var fvg_config_bull = FVGConfig.new(show_box = show_fvg, show_target = show_fvg, show_target_label = true, show_last = fvg_showlast, txt = 'FVG ⬈', show_quality_score = true, extend_until_filled = fvg_extend_until_filled, box_args = d.BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc.bar_index), box_text_args = d.BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = d.LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc.bar_index), label_args = d.LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
@@ -3760,9 +3717,9 @@ if not long_confirm_structure_ok
     long_confirm_structure_ok := long_internal_structure_ok
 
 // 5) Ready state + visuals
-long_plan_active := (long_setup_armed or long_setup_confirmed) and not na(long_setup_trigger) and not na(long_invalidation_level)
-float long_planned_stop_level = long_plan_active ? long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult : na
-float overhead_scan_reference = long_plan_active and not na(long_setup_trigger) ? long_setup_trigger : close
+long_plan_active := (long_state.armed or long_state.confirmed) and not na(long_state.trigger) and not na(long_state.invalidation_level)
+float long_planned_stop_level = long_plan_active ? long_state.invalidation_level - ob_threshold_atr * stop_buffer_atr_mult : na
+float overhead_scan_reference = long_plan_active and not na(long_state.trigger) ? long_state.trigger : close
 float nearest_bear_ob_blocker_level = na
 if array.size(ob_blocks_bear) > 0
     for i = array.size(ob_blocks_bear) - 1 to bear_ob_scan_start
@@ -3782,8 +3739,8 @@ if not na(nearest_bear_ob_blocker_level) and not na(nearest_bear_fvg_blocker_lev
     nearest_overhead_level := math.min(nearest_bear_ob_blocker_level, nearest_bear_fvg_blocker_level)
 else
     nearest_overhead_level := not na(nearest_bear_ob_blocker_level) ? nearest_bear_ob_blocker_level : nearest_bear_fvg_blocker_level
-float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math.max(long_setup_trigger - long_planned_stop_level, syminfo.mintick) : na
-float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_setup_trigger : na
+float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math.max(long_state.trigger - long_planned_stop_level, syminfo.mintick) : na
+float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_state.trigger : na
 bool overhead_zone_ok = not use_overhead_zone_filter or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r
 bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2
 bool strict_entry_ltf_ok = not use_ltf_for_strict_entry or (strict_ltf_available and ltf_volume_delta >= 0) or (allow_strict_entry_without_ltf and (strict_ltf_unavailable or strict_ltf_unverifiable))
@@ -3867,26 +3824,6 @@ long_visual_state := resolve_long_visual_state(long_zone_active, long_state.arme
 long_visual_text := resolve_long_visual_text(long_visual_state)
 long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
 long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
-[projected_long_setup_armed, projected_long_setup_confirmed, projected_long_setup_arm_bar_index, projected_long_confirm_bar_index, projected_long_setup_trigger, projected_long_invalidation_level, projected_long_entry_origin_source, projected_long_setup_backing_zone_kind, projected_long_setup_backing_zone_id, projected_long_setup_backing_zone_touch_count, projected_long_locked_source_kind, projected_long_locked_source_id, projected_long_locked_source_top, projected_long_locked_source_bottom, projected_long_locked_source_touch_count, projected_long_locked_source_last_touch_bar_index, projected_long_setup_serial, projected_long_last_invalid_source, projected_long_last_invalid_level] = project_long_state(long_state)
-long_setup_armed := projected_long_setup_armed
-long_setup_confirmed := projected_long_setup_confirmed
-long_setup_arm_bar_index := projected_long_setup_arm_bar_index
-long_confirm_bar_index := projected_long_confirm_bar_index
-long_setup_trigger := projected_long_setup_trigger
-long_invalidation_level := projected_long_invalidation_level
-long_entry_origin_source := projected_long_entry_origin_source
-long_setup_backing_zone_kind := projected_long_setup_backing_zone_kind
-long_setup_backing_zone_id := projected_long_setup_backing_zone_id
-long_setup_backing_zone_touch_count := projected_long_setup_backing_zone_touch_count
-long_locked_source_kind := projected_long_locked_source_kind
-long_locked_source_id := projected_long_locked_source_id
-long_locked_source_top := projected_long_locked_source_top
-long_locked_source_bottom := projected_long_locked_source_bottom
-long_locked_source_touch_count := projected_long_locked_source_touch_count
-long_locked_source_last_touch_bar_index := projected_long_locked_source_last_touch_bar_index
-long_setup_serial := projected_long_setup_serial
-long_last_invalid_source := projected_long_last_invalid_source
-long_last_invalid_level := projected_long_last_invalid_level
 validate_long_state(long_state, show_long_engine_debug)
 string long_debug_log_source_display = long_invalidate_signal ? long_debug_event_source_display : long_setup_source_display
 int long_debug_log_touch_count = long_invalidate_signal ? long_debug_event_touch_count : long_state.backing_zone_touch_count
@@ -3895,15 +3832,15 @@ float long_debug_log_invalidation = long_invalidate_signal ? long_debug_event_in
 string long_debug_summary_text = compose_long_debug_summary_text(long_engine_debug_mode, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_state.backing_zone_touch_count, long_source_upgrade_now, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
 
 if show_long_engine_debug and long_source_upgrade_now
-    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG UPGRADE', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG UPGRADE', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_arm_signal
-    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG ARMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG ARMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_confirm_signal
-    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG CONFIRMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG CONFIRMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_ready_signal
-    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG READY', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG READY', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 if show_long_engine_debug and long_invalidate_signal
-    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG INVALID', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode, 'LONG INVALID', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break
@@ -3978,7 +3915,7 @@ plotshape(show_vol_regime_debug and vol_momentum_expanding_long and vol_stack_sp
 plotshape(show_microstructure_debug and micro_session_gate_ok and zone_recent, title = 'Micro Session OK', style = shape.circle, location = location.belowbar, color = color.blue, size = size.tiny, text = 'uOK')
 plotshape(show_microstructure_debug and not micro_session_gate_ok and zone_recent, title = 'Micro Session Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uBLK')
 plotshape(show_microstructure_debug and micro_is_stop_hunt and bull_reclaim_any, title = 'Stop-hunt profile active', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'uSH')
-plotshape(show_microstructure_debug and not micro_freshness_gate_ok and (long_setup_armed or long_setup_confirmed), title = 'Micro Freshness Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uSTALE')
+plotshape(show_microstructure_debug and not micro_freshness_gate_ok and (long_state.armed or long_state.confirmed), title = 'Micro Freshness Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uSTALE')
 
 if show_long_confirmation_markers and internal_bull_choch_sig and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
     int_reversal_label = label.new(bar_index, high, TXT_INT_REVERSAL, color = #00000000, textcolor = long_color_reversal, style = label.style_label_down, size = size.tiny)
@@ -4024,7 +3961,7 @@ if show_long_confirmation_markers and long_invalidate_signal and can_draw_long_r
 
 if barstate.islast
     if show_long_engine_debug
-        string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
+        string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_state.trigger, long_state.invalidation_level, long_state.backing_zone_touch_count, long_source_upgrade_now, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
         float long_engine_debug_y = high + ob_threshold_atr * 2.0
         if na(long_engine_debug_label)
             long_engine_debug_label := label.new(bar_index, long_engine_debug_y, long_engine_debug_label_text, color = color.new(color.black, 55), textcolor = color.white, style = label.style_label_left, size = size.tiny)
@@ -4066,8 +4003,8 @@ plot_equal_level(show_eq and eql_alert, eql_x1, eql_y1, eql_x2, eql_y2, 'EQL', e
 
 bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
 barcolor(color_long_bars ? long_bar_color : na)
-plot(show_risk_levels and long_plan_active ? long_setup_trigger : na, 'Long Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
-plot(show_risk_levels and long_plan_active ? long_invalidation_level : na, 'Long Invalidation', color = color.new(color.orange, 0), linewidth = 1, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active ? long_state.trigger : na, 'Long Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_levels and long_plan_active ? long_state.invalidation_level : na, 'Long Invalidation', color = color.new(color.orange, 0), linewidth = 1, style = plot.style_linebr)
 plot(show_risk_levels and long_plan_active ? long_stop_level : na, 'Long Stop', color = color.new(color.red, 0), linewidth = 2, style = plot.style_linebr)
 plot(show_risk_levels and long_plan_active ? long_target_1 : na, 'Long Target 1', color = color.new(color.lime, 0), linewidth = 1, style = plot.style_linebr)
 plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2', color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
@@ -4091,10 +4028,10 @@ else if not na(active_bull_fvg_id)
     long_watchlist_alert_level := active_bull_fvg_bottom
 else
     long_watchlist_alert_level := not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low
-float long_early_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-float long_clean_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-float long_entry_best_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
-float long_entry_strict_alert_level = not na(long_setup_trigger) ? long_setup_trigger : long_watchlist_alert_level
+float long_early_alert_level = not na(long_state.trigger) ? long_state.trigger : long_watchlist_alert_level
+float long_clean_alert_level = not na(long_state.trigger) ? long_state.trigger : long_watchlist_alert_level
+float long_entry_best_alert_level = not na(long_state.trigger) ? long_state.trigger : long_watchlist_alert_level
+float long_entry_strict_alert_level = not na(long_state.trigger) ? long_state.trigger : long_watchlist_alert_level
 alert_long_entry_strict = long_entry_strict_state
 alert_long_fail = long_invalidate_signal
 var int long_watchlist_serial = 0
@@ -4114,17 +4051,17 @@ var int last_long_clean_alert_serial = na
 var int last_long_entry_best_alert_serial = na
 var int last_long_entry_strict_alert_serial = na
 bool alert_long_watchlist_event = long_watchlist_started and long_watchlist_serial > 0
-bool alert_long_early_event = alert_long_early and long_setup_serial > 0 and last_long_early_alert_serial != long_setup_serial
-last_long_early_alert_serial := alert_long_early_event ? long_setup_serial : last_long_early_alert_serial
+bool alert_long_early_event = alert_long_early and long_state.setup_serial > 0 and last_long_early_alert_serial != long_state.setup_serial
+last_long_early_alert_serial := alert_long_early_event ? long_state.setup_serial : last_long_early_alert_serial
 bool suppress_armed_plus_event = alert_long_early or long_arm_signal
-bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_setup_serial > 0 and last_long_armed_alert_serial != long_setup_serial
-last_long_armed_alert_serial := alert_long_armed_event ? long_setup_serial : last_long_armed_alert_serial
-bool alert_long_clean_event = alert_long_clean and long_setup_serial > 0 and last_long_clean_alert_serial != long_setup_serial
-last_long_clean_alert_serial := alert_long_clean_event ? long_setup_serial : last_long_clean_alert_serial
-bool alert_long_entry_best_event = alert_long_entry_best and long_setup_serial > 0 and last_long_entry_best_alert_serial != long_setup_serial
-last_long_entry_best_alert_serial := alert_long_entry_best_event ? long_setup_serial : last_long_entry_best_alert_serial
-bool alert_long_entry_strict_event = alert_long_entry_strict and long_setup_serial > 0 and last_long_entry_strict_alert_serial != long_setup_serial
-last_long_entry_strict_alert_serial := alert_long_entry_strict_event ? long_setup_serial : last_long_entry_strict_alert_serial
+bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_state.setup_serial > 0 and last_long_armed_alert_serial != long_state.setup_serial
+last_long_armed_alert_serial := alert_long_armed_event ? long_state.setup_serial : last_long_armed_alert_serial
+bool alert_long_clean_event = alert_long_clean and long_state.setup_serial > 0 and last_long_clean_alert_serial != long_state.setup_serial
+last_long_clean_alert_serial := alert_long_clean_event ? long_state.setup_serial : last_long_clean_alert_serial
+bool alert_long_entry_best_event = alert_long_entry_best and long_state.setup_serial > 0 and last_long_entry_best_alert_serial != long_state.setup_serial
+last_long_entry_best_alert_serial := alert_long_entry_best_event ? long_state.setup_serial : last_long_entry_best_alert_serial
+bool alert_long_entry_strict_event = alert_long_entry_strict and long_state.setup_serial > 0 and last_long_entry_strict_alert_serial != long_state.setup_serial
+last_long_entry_strict_alert_serial := alert_long_entry_strict_event ? long_state.setup_serial : last_long_entry_strict_alert_serial
 bool bull_ob_broken_event = array.size(ob_broken_new_bull) > 0
 
 varip bool long_arm_signal_latched = false
@@ -4190,10 +4127,10 @@ if long_invalidate_signal_latched
     alert_long_entry_best_event_latched := false
     alert_long_entry_strict_event_latched := false
 
-bool long_arm_close_safe = barstate.isconfirmed and long_setup_armed and not long_setup_armed[1]
-bool long_confirm_close_safe = barstate.isconfirmed and long_setup_confirmed and not long_setup_confirmed[1]
+bool long_arm_close_safe = barstate.isconfirmed and long_state.armed and not (long_state[1]).armed
+bool long_confirm_close_safe = barstate.isconfirmed and long_state.confirmed and not (long_state[1]).confirmed
 bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]
-bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed[1] or long_setup_confirmed[1])
+bool long_invalidated_close_safe = barstate.isconfirmed and not long_state.armed and not long_state.confirmed and ((long_state[1]).armed or (long_state[1]).confirmed)
 bool long_arm_alert_event = long_arm_signal_latched
 bool long_confirm_alert_event = long_confirm_signal_latched
 bool long_ready_alert_event = long_ready_signal_latched
@@ -4301,8 +4238,8 @@ if dynamic_long_alert_mode == 'Priority'
              true,
              long_invalidated_alert_key,
              long_invalidated_alert_name,
-             compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix),
-             long_last_invalid_level,
+             compose_long_invalidated_alert_detail(long_state.last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix),
+             long_state.last_invalid_level,
              -1,
              ltf_bull_share,
              ltf_volume_delta,
@@ -4322,11 +4259,11 @@ if dynamic_long_alert_mode == 'Priority'
         long_dynamic_alert_sent := priority_seen_keys_best != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_best
     else if enable_dynamic_alerts and long_ready_signal
-        priority_seen_keys_ready = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_ready = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_state.trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         long_dynamic_alert_sent := priority_seen_keys_ready != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_ready
     else if enable_dynamic_alerts and long_confirm_signal
-        priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_state.trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         long_dynamic_alert_sent := priority_seen_keys_confirmed != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_confirmed
     else if enable_dynamic_alerts and alert_long_clean_event
@@ -4338,11 +4275,11 @@ if dynamic_long_alert_mode == 'Priority'
         long_dynamic_alert_sent := priority_seen_keys_early != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_early
     else if enable_dynamic_alerts and alert_long_armed_event
-        priority_seen_keys_armed_plus = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_armed_plus = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_state.invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         long_dynamic_alert_sent := priority_seen_keys_armed_plus != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_armed_plus
     else if enable_dynamic_alerts and long_arm_signal
-        priority_seen_keys_armed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+        priority_seen_keys_armed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_state.invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
         long_dynamic_alert_sent := priority_seen_keys_armed != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_armed
     else if enable_dynamic_alerts and alert_long_watchlist_event
@@ -4350,15 +4287,15 @@ if dynamic_long_alert_mode == 'Priority'
         long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys
         dynamic_alert_seen_keys := priority_seen_keys_watchlist
 else
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_state.last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_state.last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_best_event, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_state.trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_clean_event, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_state.trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_early_event, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_state.invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+    dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_state.invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 
 // --------------------------------------------------
@@ -4379,17 +4316,10 @@ db_trend_state(int dir) =>
     dir > 0 ? 5 : dir < 0 ? -1 : 0
 
 db_exec_tier_text() =>
-    long_entry_strict_state ? 'Strict' :
-     long_entry_best_state ? 'Best' :
-     long_ready_state ? 'Ready' :
-     long_setup_confirmed ? 'Confirmed' :
-     long_setup_armed ? 'Armed' :
-     long_zone_active ? 'Watchlist' : 'n/a'
+    long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? 'Ready' : long_state.confirmed ? 'Confirmed' : long_state.armed ? 'Armed' : long_zone_active ? 'Watchlist' : 'n/a'
 
 db_setup_age_text() =>
-    long_setup_confirmed and not na(long_confirm_bar_index) ? 'confirmed ' + str.tostring(long_confirm_age) :
-     long_setup_armed and not na(long_setup_arm_bar_index) ? 'armed ' + str.tostring(long_setup_age) :
-     'n/a'
+    long_state.confirmed and not na(long_state.confirm_bar_index) ? 'confirmed ' + str.tostring(long_confirm_age) : long_state.armed and not na(long_state.arm_bar_index) ? 'armed ' + str.tostring(long_setup_age) : 'n/a'
 
 render_smc_dashboard_documented(table tbl) =>
     color _db_text = chart.fg_color
@@ -4399,12 +4329,12 @@ render_smc_dashboard_documented(table tbl) =>
     string _db_htf_text = mtf_trend_tf1 + ':' + db_trend_text(mtf_trend_1) + ' | ' + mtf_trend_tf2 + ':' + db_trend_text(mtf_trend_2) + ' | ' + mtf_trend_tf3 + ':' + db_trend_text(mtf_trend_3)
     int _db_htf_state = _mtf_bull_count >= 2 ? 5 : _mtf_bull_count == 1 ? 3 : -1
 
-    int _db_setup_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_setup_confirmed ? 4 : long_building_state ? 3 : long_setup_armed ? 2 : long_zone_active ? 1 : 0
+    int _db_setup_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_state.confirmed ? 4 : long_building_state ? 3 : long_state.armed ? 2 : long_zone_active ? 1 : 0
     string _db_exec_tier_text = db_exec_tier_text()
-    int _db_exec_tier_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_setup_confirmed ? 4 : long_setup_armed ? 2 : long_zone_active ? 1 : 0
+    int _db_exec_tier_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_state.confirmed ? 4 : long_state.armed ? 2 : long_zone_active ? 1 : 0
 
     string _db_setup_age = db_setup_age_text()
-    int _db_setup_age_state = long_setup_confirmed ? (ready_is_fresh ? 5 : 2) : long_setup_armed ? (confirm_is_fresh ? 4 : 2) : 0
+    int _db_setup_age_state = long_state.confirmed ? (ready_is_fresh ? 5 : 2) : long_state.armed ? (confirm_is_fresh ? 4 : 2) : 0
 
     int _db_pullback_state = in_bull_ob_zone and in_bull_fvg_zone ? 5 : in_bull_ob_zone or in_bull_fvg_zone ? 4 : 0
     int _db_reclaim_state = bull_reclaim_ob_strict or bull_reclaim_fvg_strict ? 5 : bull_reclaim_swing_low_strict or bull_reclaim_internal_low_strict ? 4 : reclaim_recent ? 2 : 0
@@ -4546,7 +4476,7 @@ render_smc_dashboard_documented(table tbl) =>
     string _db_long_zones_text = compose_zone_summary_text(in_bull_ob_zone, active_bull_ob_top, active_bull_ob_bottom, in_bull_fvg_zone, active_bull_fvg_top, active_bull_fvg_bottom, 'No Long Zones')
     int _db_long_zones_state = long_zone_active ? 5 : 0
 
-    string _db_long_triggers_text = long_plan_active ? 'Trig ' + u.format_level(long_setup_trigger) + ' | Inv ' + u.format_level(long_invalidation_level) : 'n/a'
+    string _db_long_triggers_text = long_plan_active ? 'Trig ' + u.format_level(long_state.trigger) + ' | Inv ' + u.format_level(long_state.invalidation_level) : 'n/a'
     int _db_long_triggers_state = long_plan_active ? 5 : 0
 
     string _db_micro_profile_text = not use_microstructure_profiles ? 'off' :
@@ -4554,7 +4484,7 @@ render_smc_dashboard_documented(table tbl) =>
          micro_profile_text
     int _db_micro_profile_state = not use_microstructure_profiles ? 0 : str.length(micro_modifier_text) > 0 or micro_profile_text != 'Default' ? 5 : 3
 
-    string _db_risk_plan_text = long_plan_active ? 'Entry ' + u.format_level(long_setup_trigger) + ' | Stop ' + u.format_level(long_stop_level) + ' | T1 ' + u.format_level(long_target_1) + ' | T2 ' + u.format_level(long_target_2) : 'n/a'
+    string _db_risk_plan_text = long_plan_active ? 'Entry ' + u.format_level(long_state.trigger) + ' | Stop ' + u.format_level(long_stop_level) + ' | T1 ' + u.format_level(long_target_1) + ' | T2 ' + u.format_level(long_target_2) : 'n/a'
     int _db_risk_plan_state = long_plan_active ? 5 : 0
 
     dashboard_header(tbl, 0, 'SMC++ | ' + signal_mode_text, _db_header_bg, _db_text)
@@ -4605,10 +4535,10 @@ render_smc_dashboard_documented(table tbl) =>
     dashboard_row(tbl, 41, 'Long Triggers', _db_long_triggers_text, status_bg(_db_long_triggers_state), _db_text)
     dashboard_row(tbl, 42, 'Micro Profile', _db_micro_profile_text, status_bg(_db_micro_profile_state), _db_text)
     dashboard_row(tbl, 43, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), _db_text)
-    dashboard_row(tbl, 44, 'Ready Gate', long_ready_blocker_text, status_bg(long_ready_state ? 5 : not long_setup_confirmed ? 2 : not lifecycle_ready_ok ? 2 : not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok ? -1 : 2), _db_text)
+    dashboard_row(tbl, 44, 'Ready Gate', long_ready_blocker_text, status_bg(long_ready_state ? 5 : not long_state.confirmed ? 2 : not lifecycle_ready_ok ? 2 : not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok ? -1 : 2), _db_text)
     dashboard_row(tbl, 45, 'Strict Gate', long_strict_blocker_text, status_bg(long_entry_strict_state ? 5 : not long_ready_state ? 2 : not strict_entry_ltf_ok or not htf_alignment_ok or not accel_strict_entry_gate_ok or not sd_entry_strict_gate_ok or not vol_entry_strict_context_ok_safe or not stretch_entry_strict_context_ok or not ddvi_entry_strict_ok_safe ? -1 : 2), _db_text)
     dashboard_row(tbl, 46, 'Debug Flags', compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode), status_bg(show_ob_debug or show_fvg_debug or show_long_engine_debug ? 5 : 0), _db_text)
-    dashboard_row(tbl, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off', status_bg(not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_setup_armed or long_setup_confirmed or long_ready_state ? 5 : 2), _db_text)
+    dashboard_row(tbl, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off', status_bg(not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_state.armed or long_state.confirmed or long_ready_state ? 5 : 2), _db_text)
 
 var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)
 
