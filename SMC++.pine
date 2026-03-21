@@ -1828,22 +1828,6 @@ get_structure_display_trend_only(simple int structure_len) =>
 get_confirmed_structure_trend(string trend_tf, simple int structure_len) =>
     request.security(syminfo.tickerid, trend_tf, get_structure_display_trend_only(structure_len)[1], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on)
 
-count_visible_obs(OrderBlock[] blocks, int visible_left, int visible_right, bool extend_until_broken = true) =>
-    visible_count = 0
-    if not na(blocks)
-        for block in blocks
-            if block.overlaps_window(visible_left, visible_right, extend_until_broken)
-                visible_count += 1
-    visible_count
-
-count_visible_fvgs(FVG[] fvgs, int visible_left, int visible_right, bool extend_until_filled = true) =>
-    visible_count = 0
-    if not na(fvgs)
-        for fvg in fvgs
-            if fvg.overlaps_window(visible_left, visible_right, extend_until_filled)
-                visible_count += 1
-    visible_count
-
 build_dynamic_alert_message(bool enabled, bool condition, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, bool ltf_price_only_context, string mode_text) =>
     if enabled and condition
         direction_text = direction > 0 ? 'bullish' : direction < 0 ? 'bearish' : 'neutral'
@@ -2258,7 +2242,7 @@ bool volume_current_bar_ok = not na(volume) and volume > 0
 bool volume_feed_quality_ok = summed_volume > 0 and nonzero_volume_bars >= min_nonzero_volume_bars
 bool volume_data_ok = volume_current_bar_ok and volume_feed_quality_ok
 bool use_ob_profile_effective = use_ob_profile and volume_feed_quality_ok
-bool update_ob_profile_current_bar = use_ob_profile_effective and volume_current_bar_ok
+bool collect_ob_profile_current_bar = use_ob_profile_effective and volume_current_bar_ok
 
 var label volume_quality_warning = na
 if barstate.islast
@@ -2818,7 +2802,7 @@ varip bool long_invalidated_this_bar = false
 
 bool enable_ob_engine = use_ob_engine
 int _ob_backing_zone_id = long_setup_backing_zone_kind == 'OB' ? long_setup_backing_zone_id : na
-[ob_blocks_bull, ob_blocks_bear, new_ob_bull, _new_ob_bear, ob_broken_bull, _ob_broken_bear, ob_broken_new_bull, _ob_broken_new_bear, ob_discarded_bull, _ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = update_ob_profile_current_bar, update_profile_current_bar = update_ob_profile_current_bar, align_edge_to_value_area = use_ob_profile_effective, align_break_price_to_poc = use_ob_profile_effective, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle, protected_bull_id = _ob_backing_zone_id)
+[ob_blocks_bull, ob_blocks_bear, new_ob_bull, _new_ob_bear, ob_broken_bull, _ob_broken_bear, ob_broken_new_bull, _ob_broken_new_bear, ob_discarded_bull, _ob_discarded_bear] = track_obs(swing_length, hh, ll, bull_bos_alert, bull_choch_alert, bear_bos_alert, bear_choch_alert, ob_threshold_min, ob_threshold_max, enabled = enable_ob_engine, capture_profile = collect_ob_profile_current_bar, update_profile_current_bar = collect_ob_profile_current_bar, align_edge_to_value_area = use_ob_profile_effective, align_break_price_to_poc = use_ob_profile_effective, use_soft_confirm = use_ob_soft_confirm, soft_confirm_offset = soft_confirm_offset, keep_broken_max = ob_keep_broken_max, broken_by = active_break_mode, gc_cycle = object_gc_cycle, protected_bull_id = _ob_backing_zone_id)
 
 varip bool live_bull_ob_break = false
 varip bool live_bull_fvg_fill = false
@@ -3460,7 +3444,6 @@ if state_update_bar_ok or long_source_upgrade_now
 if long_locked_source_alive_now
     long_locked_source_top := long_locked_source_top_now
     long_locked_source_bottom := long_locked_source_bottom_now
-bool long_source_zone_touch_recent = (long_setup_armed or long_setup_confirmed) and not na(long_locked_source_id) ? long_locked_source_touch_recent : long_setup_backing_zone_kind == 'OB' ? ob_zone_touch_event_recent and last_ob_zone_touch_id == long_setup_backing_zone_id : long_setup_backing_zone_kind == 'FVG' ? fvg_zone_touch_event_recent and last_fvg_zone_touch_id == long_setup_backing_zone_id : zone_touch_event_recent
 long_source_tracked := not na(long_locked_source_id)
 long_source_alive := not long_source_tracked ? true : long_locked_source_alive_now
 bool long_source_broken = long_locked_source_kind_final == 'OB' ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false
@@ -3577,7 +3560,6 @@ bool environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe
 bool quality_gate_ok = context_quality_gate_ok
 bool microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
 bool trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
-bool long_gate_features_active = use_trade_session_gate or use_opening_range_gate or use_index_gate or use_sector_gate or use_breadth_symbol_gate or use_vola_compression_gate
 string long_environment_focus_display = not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env OK'
 string freshness_text = describe_long_freshness(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh)
 string source_state_text = describe_long_source_state(long_source_tracked, long_source_alive, long_source_broken)
@@ -3589,6 +3571,9 @@ bool setup_hard_gate_ok = effective_zone_touch_quality_ok
 string zone_quality_text = describe_long_zone_quality(long_zone_active, long_setup_armed, long_setup_confirmed, effective_long_active_touch_count)
 string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.tostring(headroom_to_overhead / planned_risk, '#.##') + 'R'
 string long_score_detail_suffix = ' | ctx=' + str.tostring(context_quality_score) + '/' + str.tostring(effective_min_context_quality_score)
+string long_strict_alert_suffix = (use_strict_sequence or use_strict_sweep_for_zone_reclaim or use_strict_confirm_guard) ? ' | strict=on' : ''
+string long_environment_alert_suffix = ' | env=' + long_environment_focus_display + ' | overhead=' + overhead_text
+string long_micro_alert_suffix = use_microstructure_profiles ? ' | micro=' + micro_profile_text + ' | freshness=' + freshness_text + ' | source=' + source_state_text + ' | zone=' + zone_quality_text : ''
 bool confirm_hard_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
 bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok
 bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok
@@ -4048,6 +4033,48 @@ else
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
     dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
+
+// --------------------------------------------------
+// Compact Dashboard
+// --------------------------------------------------
+dashboard_row(table tbl, int row, string name, string value, color bg, color txt) =>
+    table.cell(tbl, 0, row, name, text_color = txt, bgcolor = bg, text_size = size.tiny)
+    table.cell(tbl, 1, row, value, text_color = txt, bgcolor = bg, text_size = size.tiny)
+
+color _db_text = color.white
+color _db_header_bg = color.new(color.blue, 68)
+int _db_lifecycle_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_setup_confirmed ? 3 : long_setup_armed ? 2 : long_zone_active ? 1 : 0
+int _db_env_state = not market_regime_gate_ok ? -1 : not vola_regime_gate_safe ? 2 : 5
+int _db_micro_state = not micro_session_gate_ok ? -1 : not micro_freshness_gate_ok ? 2 : 5
+int _db_ctx_state = not context_quality_gate_ok ? 2 : 5
+string _db_ctx_text = str.tostring(context_quality_score) + '/' + str.tostring(effective_min_context_quality_score)
+string _db_close_text = close_state_text
+string _db_ema_text = ema_state_text
+string _db_zone_text = long_zone_text
+string _db_reclaim_text = reclaim_text
+string _db_overhead_text = overhead_text
+string _db_ltf_text = show_dashboard_ltf ? str.tostring(ltf_bull_share, '#') + '% | Δ' + str.tostring(ltf_volume_delta, '#.#') : 'off'
+int _db_ltf_state = not show_dashboard_ltf ? 0 : ltf_bull_share >= 60 ? 5 : ltf_bull_share >= 40 ? 3 : -1
+
+render_smc_dashboard_compact(table tbl) =>
+    dashboard_row(tbl, 0, 'SMC++', signal_mode_text, _db_header_bg, _db_text)
+    dashboard_row(tbl, 1, 'Setup', long_setup_text, status_bg(_db_lifecycle_state), _db_text)
+    dashboard_row(tbl, 2, 'Zone', _db_zone_text, status_bg(long_zone_active ? 4 : 0), _db_text)
+    dashboard_row(tbl, 3, 'Reclaim', _db_reclaim_text, status_bg(long_zone_active and long_setup_armed ? 4 : 0), _db_text)
+    dashboard_row(tbl, 4, 'Environment', long_environment_focus_display, status_bg(_db_env_state), _db_text)
+    dashboard_row(tbl, 5, 'Micro', micro_session_gate_ok and micro_freshness_gate_ok ? 'OK' : not micro_session_gate_ok ? 'Session' : 'Stale', status_bg(_db_micro_state), _db_text)
+    dashboard_row(tbl, 6, 'Context', _db_ctx_text, status_bg(_db_ctx_state), _db_text)
+    dashboard_row(tbl, 7, 'Close', _db_close_text, status_bg(close_safe_mode ? 5 : 0), _db_text)
+    dashboard_row(tbl, 8, 'EMA', _db_ema_text, status_bg(ema_state_text == 'OK' ? 5 : ema_state_text == 'off' ? 0 : -1), _db_text)
+    dashboard_row(tbl, 9, 'Overhead', _db_overhead_text, status_bg(_db_overhead_text == 'off' or _db_overhead_text == 'clear' ? 0 : 3), _db_text)
+    dashboard_row(tbl, 10, 'LTF', _db_ltf_text, status_bg(_db_ltf_state), _db_text)
+
+var table _smc_dashboard = table.new(position.bottom_right, 2, 11, border_width = 0)
+
+if show_dashboard and barstate.islast
+    render_smc_dashboard_compact(_smc_dashboard)
+else if barstate.islast
+    table.clear(_smc_dashboard, 0, 0, 1, 10)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
