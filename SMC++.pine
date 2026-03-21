@@ -4528,9 +4528,9 @@ string strict_guard_display = not use_strict_confirm_guard ? 'off' : long_confir
 string strict_flow_focus_display = not strict_flow_active ? 'off' : strict_guard_blocked ? 'Bear Abort' : strict_sweep_blocked ? 'Sweep Miss' : strict_sequence_waiting ? long_setup_armed or long_setup_confirmed ? 'Waiting Source' : 'Waiting Zone' : 'Strict OK'
 string long_visual_display = long_visual_text
 string long_setup_display = long_setup_text
-string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''
-string long_environment_alert_suffix = long_gate_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''
-string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''
+string long_strict_alert_suffix = strict_flow_active ? ' | strict=' + strict_flow_focus_display : ''
+string long_environment_alert_suffix = long_gate_features_active ? ' | env=' + long_environment_focus_display : ''
+string long_micro_alert_suffix = use_microstructure_profiles ? ' | micro=' + microstructure_focus_display : ''
 string execution_tier_display = long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? 'Ready' : long_setup_confirmed ? 'Confirmed' : long_building_state ? 'Building' : long_setup_armed ? 'Armed' : long_zone_active ? 'Zone' : 'n/a'
 bool quality_axis_active = long_zone_active or zone_recent or reclaim_recent or long_setup_armed or long_setup_confirmed
 bool quality_clean_ok = quality_axis_active and long_quality_clean_tier

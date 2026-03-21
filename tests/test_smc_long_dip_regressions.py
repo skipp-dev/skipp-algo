@@ -465,6 +465,9 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'float new_ob_bear_alert_level = not na(new_ob_bear) ? new_ob_bear.break_price : na' not in source
     assert 'float new_fvg_bull_alert_level = not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na' not in source
     assert 'float new_fvg_bear_alert_level = not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na' not in source
+    assert "string long_strict_alert_suffix = strict_flow_active ? ' | strict=' + strict_flow_focus_display : ''" in source
+    assert "string long_environment_alert_suffix = long_gate_features_active ? ' | env=' + long_environment_focus_display : ''" in source
+    assert "string long_micro_alert_suffix = use_microstructure_profiles ? ' | micro=' + microstructure_focus_display : ''" in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert "if dynamic_long_alert_mode == 'Priority'" in source
     assert 'priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
@@ -494,6 +497,9 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "string quality_score_display = not quality_axis_active ? 'n/a' : str.format('Ctx {0}/{1}\\nMin {2}\\n{3}', context_quality_score, effective_context_quality_max_score, effective_min_context_quality_score, quality_score_ok ? 'OK' : 'Blocked')" not in source
     assert "string quality_env_display = not quality_axis_active ? 'n/a' : str.format('Trade {0}\\nEnv {1}', trade_hard_gate_ok ? 'OK' : not session_structure_gate_ok ? 'Session Block' : not microstructure_entry_gate_ok ? 'Micro Block' : not overhead_zone_ok ? 'Headroom Block' : 'Trade Blocked', environment_hard_gate_ok ? 'OK' : long_environment_focus_display)" not in source
     assert "string quality_strict_display = not quality_axis_active ? 'n/a' : str.format('{0}\\nZone {1}\\nSweep {2}\\nGuard {3}', quality_strict_ok ? 'Strict OK' : strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)" not in source
+    assert "string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''" not in source
+    assert "string long_environment_alert_suffix = long_gate_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''" not in source
+    assert "string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''" not in source
     assert "string dashboard_swing_levels_display = str.format('Swing {0}/{1}\\nInt {2}/{3}', dashboard_swing_up_text, dashboard_swing_down_text, dashboard_internal_up_text, dashboard_internal_down_text)" not in source
     assert "string dashboard_long_zones_display = str.format('OB {0}/{1}\\nFVG {2}/{3}', dashboard_long_ob_top_text, dashboard_long_ob_bottom_text, dashboard_long_fvg_top_text, dashboard_long_fvg_bottom_text)" not in source
     assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))" not in source
