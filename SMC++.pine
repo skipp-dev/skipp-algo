@@ -1410,6 +1410,13 @@ long_source_is_zone_kind(int long_source_kind) =>
 select_locked_source_touch_count(bool source_upgrade_now, bool prefer_ob_upgrade_now, int ob_candidate_id, int active_ob_touch_id, int active_ob_touch_count, int touched_ob_touch_count, int fvg_candidate_id, int active_fvg_touch_id, int active_fvg_touch_count, int touched_fvg_touch_count, int locked_source_touch_count) =>
     source_upgrade_now ? prefer_ob_upgrade_now ? (ob_candidate_id == active_ob_touch_id ? active_ob_touch_count : math.max(touched_ob_touch_count, 1)) : (fvg_candidate_id == active_fvg_touch_id ? active_fvg_touch_count : math.max(touched_fvg_touch_count, 1)) : locked_source_touch_count
 
+stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, int prev_locked_source_kind, int prev_locked_source_id, int current_backing_zone_kind, int current_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>
+    int next_locked_source_kind = source_upgrade_now ? prefer_ob_upgrade_now ? LONG_SOURCE_OB : LONG_SOURCE_FVG : prev_locked_source_kind
+    int next_locked_source_id = source_upgrade_now ? prefer_ob_upgrade_now ? ob_candidate_id : fvg_candidate_id : prev_locked_source_id
+    int next_backing_zone_kind = source_upgrade_now ? prefer_ob_upgrade_now ? LONG_SOURCE_OB : LONG_SOURCE_FVG : current_backing_zone_kind
+    int next_backing_zone_id = source_upgrade_now ? prefer_ob_upgrade_now ? ob_candidate_id : fvg_candidate_id : current_backing_zone_id
+    [next_locked_source_kind, next_locked_source_id, next_backing_zone_kind, next_backing_zone_id]
+
 select_long_arm_backing_zone_touch_count(int arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count) =>
     arm_backing_zone_kind == LONG_SOURCE_OB and arm_backing_zone_id == active_ob_touch_id ? active_ob_touch_count : arm_backing_zone_kind == LONG_SOURCE_OB and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_touch_count : arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count : arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_touch_count : 0
 
@@ -1914,6 +1921,15 @@ method draw(FVG[] fvgs, FVGConfig config, bool extend_only = true, simple bool f
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                EMBEDDED SMC SUBSET
 /////////////////////////////////////////////////////////////////////////////////
+
+// Signal / state contract
+// - *_raw      : raw condition, may be intrabar/transient
+// - *_safe     : non-repainting / close-safe projection used outside live mode
+// - *_event    : edge-triggered event on this bar
+// - *_latched  : intrabar-persisted event/state until bar close
+// - *_state    : continuous state, not necessarily edge-triggered
+// - In CONFIRMED_ONLY mode, decisions should be reconstructable after reload.
+// - In AGGRESSIVE_LIVE mode, intrabar transitions may occur before close and are realtime-only.
 
 /////////////////////////////////////////////////////////////////////////////////
 //#region                         IMPLEMENTATION
@@ -2918,7 +2934,115 @@ if show_internals
 if show_internal_bull_bos or show_internal_bull_choch
     plot_structure(internal_top_x, internal_top, show_internal_bull_bos and internal_bull_bos_sig, show_internal_bull_choch and internal_bull_choch_sig, d.LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_down), d.LineArgs.new(bull_internal_css, line.style_dashed), keep_history = keep_visual_history, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
+type LongLifecycleState
+    bool armed = false
+    bool confirmed = false
+    int arm_bar_index = na
+    int confirm_bar_index = na
+    float trigger = na
+    float invalidation_level = na
+    int entry_origin_source
+    int backing_zone_kind
+    int backing_zone_id = na
+    int backing_zone_touch_count = 0
+    int locked_source_kind
+    int locked_source_id = na
+    float locked_source_top = na
+    float locked_source_bottom = na
+    int locked_source_touch_count = 0
+    int locked_source_last_touch_bar_index = na
+    int setup_serial = 0
+    string last_invalid_source = 'None'
+    float last_invalid_level = na
+
+method clear(LongLifecycleState this) =>
+    this.armed := false
+    this.confirmed := false
+    this.arm_bar_index := na
+    this.confirm_bar_index := na
+    this.trigger := na
+    this.invalidation_level := na
+    this.entry_origin_source := LONG_SOURCE_NONE
+    this.backing_zone_kind := LONG_SOURCE_NONE
+    this.backing_zone_id := na
+    this.backing_zone_touch_count := 0
+    this.locked_source_kind := LONG_SOURCE_NONE
+    this.locked_source_id := na
+    this.locked_source_top := na
+    this.locked_source_bottom := na
+    this.locked_source_touch_count := 0
+    this.locked_source_last_touch_bar_index := na
+    this
+
+method arm(LongLifecycleState this, int arm_bar_index, float trigger, float invalidation_level, int entry_origin_source, int backing_zone_kind, int backing_zone_id, int backing_zone_touch_count, int locked_source_kind, int locked_source_id, float locked_source_top, float locked_source_bottom, int locked_source_touch_count, int locked_source_last_touch_bar_index) =>
+    this.armed := true
+    this.confirmed := false
+    this.arm_bar_index := arm_bar_index
+    this.confirm_bar_index := na
+    this.trigger := trigger
+    this.invalidation_level := invalidation_level
+    this.entry_origin_source := entry_origin_source
+    this.backing_zone_kind := backing_zone_kind
+    this.backing_zone_id := backing_zone_id
+    this.backing_zone_touch_count := backing_zone_touch_count
+    this.locked_source_kind := locked_source_kind
+    this.locked_source_id := locked_source_id
+    this.locked_source_top := locked_source_top
+    this.locked_source_bottom := locked_source_bottom
+    this.locked_source_touch_count := locked_source_touch_count
+    this.locked_source_last_touch_bar_index := locked_source_last_touch_bar_index
+    this.setup_serial += 1
+    this
+
+method confirm(LongLifecycleState this, int confirm_bar_index) =>
+    this.confirmed := true
+    this.confirm_bar_index := confirm_bar_index
+    this
+
+method invalidate(LongLifecycleState this, string reason, float level) =>
+    this.last_invalid_source := reason
+    this.last_invalid_level := level
+    this.clear()
+
+sync_long_state_from_legacy(LongLifecycleState st, bool armed, bool confirmed, int arm_bar_index, int confirm_bar_index, float trigger, float invalidation_level, int entry_origin_source, int backing_zone_kind, int backing_zone_id, int backing_zone_touch_count, int locked_source_kind, int locked_source_id, float locked_source_top, float locked_source_bottom, int locked_source_touch_count, int locked_source_last_touch_bar_index, int setup_serial, string last_invalid_source, float last_invalid_level) =>
+    st.armed := armed
+    st.confirmed := confirmed
+    st.arm_bar_index := arm_bar_index
+    st.confirm_bar_index := confirm_bar_index
+    st.trigger := trigger
+    st.invalidation_level := invalidation_level
+    st.entry_origin_source := entry_origin_source
+    st.backing_zone_kind := backing_zone_kind
+    st.backing_zone_id := backing_zone_id
+    st.backing_zone_touch_count := backing_zone_touch_count
+    st.locked_source_kind := locked_source_kind
+    st.locked_source_id := locked_source_id
+    st.locked_source_top := locked_source_top
+    st.locked_source_bottom := locked_source_bottom
+    st.locked_source_touch_count := locked_source_touch_count
+    st.locked_source_last_touch_bar_index := locked_source_last_touch_bar_index
+    st.setup_serial := setup_serial
+    st.last_invalid_source := last_invalid_source
+    st.last_invalid_level := last_invalid_level
+
+project_long_state(LongLifecycleState st) =>
+    [st.armed, st.confirmed, st.arm_bar_index, st.confirm_bar_index, st.trigger, st.invalidation_level, st.entry_origin_source, st.backing_zone_kind, st.backing_zone_id, st.backing_zone_touch_count, st.locked_source_kind, st.locked_source_id, st.locked_source_top, st.locked_source_bottom, st.locked_source_touch_count, st.locked_source_last_touch_bar_index, st.setup_serial, st.last_invalid_source, st.last_invalid_level]
+
+validate_long_state(LongLifecycleState st, bool enabled = true) =>
+    if enabled
+        if st.confirmed and not st.armed
+            runtime.error('Long invariant failed: confirmed requires armed')
+        if st.locked_source_kind == LONG_SOURCE_NONE and not na(st.locked_source_id)
+            runtime.error('Long invariant failed: NONE source cannot carry id')
+        if st.locked_source_kind != LONG_SOURCE_NONE and na(st.locked_source_id)
+            runtime.error('Long invariant failed: source kind requires source id')
+        if st.backing_zone_kind == LONG_SOURCE_NONE and not na(st.backing_zone_id)
+            runtime.error('Long invariant failed: NONE backing zone cannot carry id')
+        if st.backing_zone_kind != LONG_SOURCE_NONE and na(st.backing_zone_id) and long_source_is_zone_kind(st.backing_zone_kind)
+            runtime.error('Long invariant failed: zone backing kind requires zone id')
+
 // Persistent long-setup storage must exist before the OB/FVG engines run so active backing zones can be protected from cleanup.
+var LongLifecycleState long_state = LongLifecycleState.new(false, false, na, na, na, na, LONG_SOURCE_NONE, LONG_SOURCE_NONE, na, 0, LONG_SOURCE_NONE, na, na, na, 0, na, 0, 'None', na)
 var bool long_setup_armed = false
 var bool long_setup_confirmed = false
 var int long_setup_arm_bar_index = na
@@ -3557,10 +3681,7 @@ bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and
 bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok
 bool prefer_ob_upgrade = long_source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)
 
-int long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG : prev_locked_source_kind
-int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : prev_locked_source_id
-int long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG : long_setup_backing_zone_kind
-int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id
+[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)
 int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)
 int long_locked_source_last_touch_bar_index_effective = long_source_upgrade_now and not na(long_locked_source_id_final) ? bar_index : long_locked_source_last_touch_bar_index
 bool long_locked_source_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(fvgs_bull, long_locked_source_id_final) : false
@@ -3607,49 +3728,64 @@ if long_invalidated_now
     long_debug_event_touch_count := long_setup_backing_zone_touch_count
     long_debug_event_trigger := long_setup_trigger
     long_debug_event_invalidation := long_invalidation_level
-    long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)
-    long_last_invalid_level := long_invalidation_level
+    string long_invalidation_reason = resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)
     long_invalidate_signal := long_setup_armed or long_setup_confirmed
     invalidated_prior_setup := long_invalidate_signal
     long_invalidated_this_bar := long_invalidate_signal
-    long_setup_armed := false
-    long_setup_confirmed := false
-    long_setup_arm_bar_index := na
-    long_confirm_bar_index := na
-    long_setup_trigger := na
-    long_invalidation_level := na
-    long_entry_origin_source := LONG_SOURCE_NONE
-    long_setup_backing_zone_kind := LONG_SOURCE_NONE
-    long_setup_backing_zone_id := na
-    long_setup_backing_zone_touch_count := 0
-    long_locked_source_kind := LONG_SOURCE_NONE
-    long_locked_source_id := na
-    long_locked_source_top := na
-    long_locked_source_bottom := na
-    long_locked_source_touch_count := 0
-    long_locked_source_last_touch_bar_index := na
+    sync_long_state_from_legacy(long_state, long_setup_armed, long_setup_confirmed, long_setup_arm_bar_index, long_confirm_bar_index, long_setup_trigger, long_invalidation_level, long_entry_origin_source, long_setup_backing_zone_kind, long_setup_backing_zone_id, long_setup_backing_zone_touch_count, long_locked_source_kind, long_locked_source_id, long_locked_source_top, long_locked_source_bottom, long_locked_source_touch_count, long_locked_source_last_touch_bar_index, long_setup_serial, long_last_invalid_source, long_last_invalid_level)
+    long_state.invalidate(long_invalidation_reason, long_invalidation_level)
+    [projected_long_setup_armed, projected_long_setup_confirmed, projected_long_setup_arm_bar_index, projected_long_confirm_bar_index, projected_long_setup_trigger, projected_long_invalidation_level, projected_long_entry_origin_source, projected_long_setup_backing_zone_kind, projected_long_setup_backing_zone_id, projected_long_setup_backing_zone_touch_count, projected_long_locked_source_kind, projected_long_locked_source_id, projected_long_locked_source_top, projected_long_locked_source_bottom, projected_long_locked_source_touch_count, projected_long_locked_source_last_touch_bar_index, projected_long_setup_serial, projected_long_last_invalid_source, projected_long_last_invalid_level] = project_long_state(long_state)
+    long_setup_armed := projected_long_setup_armed
+    long_setup_confirmed := projected_long_setup_confirmed
+    long_setup_arm_bar_index := projected_long_setup_arm_bar_index
+    long_confirm_bar_index := projected_long_confirm_bar_index
+    long_setup_trigger := projected_long_setup_trigger
+    long_invalidation_level := projected_long_invalidation_level
+    long_entry_origin_source := projected_long_entry_origin_source
+    long_setup_backing_zone_kind := projected_long_setup_backing_zone_kind
+    long_setup_backing_zone_id := projected_long_setup_backing_zone_id
+    long_setup_backing_zone_touch_count := projected_long_setup_backing_zone_touch_count
+    long_locked_source_kind := projected_long_locked_source_kind
+    long_locked_source_id := projected_long_locked_source_id
+    long_locked_source_top := projected_long_locked_source_top
+    long_locked_source_bottom := projected_long_locked_source_bottom
+    long_locked_source_touch_count := projected_long_locked_source_touch_count
+    long_locked_source_last_touch_bar_index := projected_long_locked_source_last_touch_bar_index
+    long_setup_serial := projected_long_setup_serial
+    long_last_invalid_source := projected_long_last_invalid_source
+    long_last_invalid_level := projected_long_last_invalid_level
 
 // 3) Arm setup
 bool armed_prequality_ok = not tighten_armed_stage or (bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok)
 if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent : zone_recent) and not long_setup_armed and not long_invalidated_this_bar and micro_session_gate_ok and sd_armed_gate_ok and armed_prequality_ok
+    int long_arm_backing_zone_touch_count = select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)
+    int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)
+    float long_arm_locked_source_top = resolve_long_zone_top(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top)
+    float long_arm_locked_source_bottom = resolve_long_zone_bottom(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom)
+    int long_arm_locked_source_last_touch_bar_index = not na(long_arm_locked_source_id) ? bar_index : na
     long_arm_signal := true
-    long_setup_armed := true
-    long_setup_confirmed := false
-    long_setup_arm_bar_index := bar_index
-    long_confirm_bar_index := na
-    long_setup_trigger := arm_trigger_candidate
-    long_invalidation_level := arm_invalidation_candidate
-    long_entry_origin_source := arm_source_kind
-    long_setup_backing_zone_kind := arm_backing_zone_kind
-    long_setup_backing_zone_id := arm_backing_zone_id
-    long_setup_backing_zone_touch_count := select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)
-    long_locked_source_kind := arm_backing_zone_kind
-    long_locked_source_id := resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)
-    long_locked_source_top := resolve_long_zone_top(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top)
-    long_locked_source_bottom := resolve_long_zone_bottom(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom)
-    long_locked_source_touch_count := long_setup_backing_zone_touch_count
-    long_locked_source_last_touch_bar_index := not na(long_locked_source_id) ? bar_index : na
-    long_setup_serial += 1
+    sync_long_state_from_legacy(long_state, long_setup_armed, long_setup_confirmed, long_setup_arm_bar_index, long_confirm_bar_index, long_setup_trigger, long_invalidation_level, long_entry_origin_source, long_setup_backing_zone_kind, long_setup_backing_zone_id, long_setup_backing_zone_touch_count, long_locked_source_kind, long_locked_source_id, long_locked_source_top, long_locked_source_bottom, long_locked_source_touch_count, long_locked_source_last_touch_bar_index, long_setup_serial, long_last_invalid_source, long_last_invalid_level)
+    long_state.arm(bar_index, arm_trigger_candidate, arm_invalidation_candidate, arm_source_kind, arm_backing_zone_kind, arm_backing_zone_id, long_arm_backing_zone_touch_count, arm_backing_zone_kind, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_backing_zone_touch_count, long_arm_locked_source_last_touch_bar_index)
+    [projected_long_setup_armed, projected_long_setup_confirmed, projected_long_setup_arm_bar_index, projected_long_confirm_bar_index, projected_long_setup_trigger, projected_long_invalidation_level, projected_long_entry_origin_source, projected_long_setup_backing_zone_kind, projected_long_setup_backing_zone_id, projected_long_setup_backing_zone_touch_count, projected_long_locked_source_kind, projected_long_locked_source_id, projected_long_locked_source_top, projected_long_locked_source_bottom, projected_long_locked_source_touch_count, projected_long_locked_source_last_touch_bar_index, projected_long_setup_serial, projected_long_last_invalid_source, projected_long_last_invalid_level] = project_long_state(long_state)
+    long_setup_armed := projected_long_setup_armed
+    long_setup_confirmed := projected_long_setup_confirmed
+    long_setup_arm_bar_index := projected_long_setup_arm_bar_index
+    long_confirm_bar_index := projected_long_confirm_bar_index
+    long_setup_trigger := projected_long_setup_trigger
+    long_invalidation_level := projected_long_invalidation_level
+    long_entry_origin_source := projected_long_entry_origin_source
+    long_setup_backing_zone_kind := projected_long_setup_backing_zone_kind
+    long_setup_backing_zone_id := projected_long_setup_backing_zone_id
+    long_setup_backing_zone_touch_count := projected_long_setup_backing_zone_touch_count
+    long_locked_source_kind := projected_long_locked_source_kind
+    long_locked_source_id := projected_long_locked_source_id
+    long_locked_source_top := projected_long_locked_source_top
+    long_locked_source_bottom := projected_long_locked_source_bottom
+    long_locked_source_touch_count := projected_long_locked_source_touch_count
+    long_locked_source_last_touch_bar_index := projected_long_locked_source_last_touch_bar_index
+    long_setup_serial := projected_long_setup_serial
+    long_last_invalid_source := projected_long_last_invalid_source
+    long_last_invalid_level := projected_long_last_invalid_level
 
 // 4) Confirm setup
 float long_confirm_break_src = live_exec and effective_use_live_confirm_break ? high : close
@@ -3728,8 +3864,28 @@ bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok
 bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok
 bool confirm_filters_ok = confirm_hard_gate_ok and confirm_upgrade_gate_ok
 if confirm_lifecycle_ok and confirm_filters_ok
-    long_setup_confirmed := true
-    long_confirm_bar_index := bar_index
+    sync_long_state_from_legacy(long_state, long_setup_armed, long_setup_confirmed, long_setup_arm_bar_index, long_confirm_bar_index, long_setup_trigger, long_invalidation_level, long_entry_origin_source, long_setup_backing_zone_kind, long_setup_backing_zone_id, long_setup_backing_zone_touch_count, long_locked_source_kind, long_locked_source_id, long_locked_source_top, long_locked_source_bottom, long_locked_source_touch_count, long_locked_source_last_touch_bar_index, long_setup_serial, long_last_invalid_source, long_last_invalid_level)
+    long_state.confirm(bar_index)
+    [projected_long_setup_armed, projected_long_setup_confirmed, projected_long_setup_arm_bar_index, projected_long_confirm_bar_index, projected_long_setup_trigger, projected_long_invalidation_level, projected_long_entry_origin_source, projected_long_setup_backing_zone_kind, projected_long_setup_backing_zone_id, projected_long_setup_backing_zone_touch_count, projected_long_locked_source_kind, projected_long_locked_source_id, projected_long_locked_source_top, projected_long_locked_source_bottom, projected_long_locked_source_touch_count, projected_long_locked_source_last_touch_bar_index, projected_long_setup_serial, projected_long_last_invalid_source, projected_long_last_invalid_level] = project_long_state(long_state)
+    long_setup_armed := projected_long_setup_armed
+    long_setup_confirmed := projected_long_setup_confirmed
+    long_setup_arm_bar_index := projected_long_setup_arm_bar_index
+    long_confirm_bar_index := projected_long_confirm_bar_index
+    long_setup_trigger := projected_long_setup_trigger
+    long_invalidation_level := projected_long_invalidation_level
+    long_entry_origin_source := projected_long_entry_origin_source
+    long_setup_backing_zone_kind := projected_long_setup_backing_zone_kind
+    long_setup_backing_zone_id := projected_long_setup_backing_zone_id
+    long_setup_backing_zone_touch_count := projected_long_setup_backing_zone_touch_count
+    long_locked_source_kind := projected_long_locked_source_kind
+    long_locked_source_id := projected_long_locked_source_id
+    long_locked_source_top := projected_long_locked_source_top
+    long_locked_source_bottom := projected_long_locked_source_bottom
+    long_locked_source_touch_count := projected_long_locked_source_touch_count
+    long_locked_source_last_touch_bar_index := projected_long_locked_source_last_touch_bar_index
+    long_setup_serial := projected_long_setup_serial
+    long_last_invalid_source := projected_long_last_invalid_source
+    long_last_invalid_level := projected_long_last_invalid_level
     long_confirm_signal := true
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
@@ -3772,6 +3928,8 @@ long_visual_state := resolve_long_visual_state(long_zone_active, long_setup_arme
 long_visual_text := resolve_long_visual_text(long_visual_state)
 long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
 long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
+sync_long_state_from_legacy(long_state, long_setup_armed, long_setup_confirmed, long_setup_arm_bar_index, long_confirm_bar_index, long_setup_trigger, long_invalidation_level, long_entry_origin_source, long_setup_backing_zone_kind, long_setup_backing_zone_id, long_setup_backing_zone_touch_count, long_locked_source_kind, long_locked_source_id, long_locked_source_top, long_locked_source_bottom, long_locked_source_touch_count, long_locked_source_last_touch_bar_index, long_setup_serial, long_last_invalid_source, long_last_invalid_level)
+validate_long_state(long_state, show_long_engine_debug)
 string long_debug_log_source_display = long_invalidate_signal ? long_debug_event_source_display : long_setup_source_display
 int long_debug_log_touch_count = long_invalidate_signal ? long_debug_event_touch_count : long_setup_backing_zone_touch_count
 float long_debug_log_trigger = long_invalidate_signal ? long_debug_event_trigger : long_setup_trigger

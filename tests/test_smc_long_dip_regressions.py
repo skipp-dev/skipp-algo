@@ -75,19 +75,35 @@ def test_ob_profile_freezes_when_volume_quality_is_weak() -> None:
     assert 'update_profile_current_bar = collect_ob_profile_current_bar' in source
 
 
+def test_signal_and_long_state_contract_are_declared_for_safe_refactors() -> None:
+    source = _read_smc_source()
+
+    assert '// Signal / state contract' in source
+    assert '// - *_raw      : raw condition, may be intrabar/transient' in source
+    assert '// - *_latched  : intrabar-persisted event/state until bar close' in source
+    assert 'type LongLifecycleState' in source
+    assert "var LongLifecycleState long_state = LongLifecycleState.new(false, false, na, na, na, na, LONG_SOURCE_NONE, LONG_SOURCE_NONE, na, 0, LONG_SOURCE_NONE, na, na, na, 0, na, 0, 'None', na)" in source
+    assert 'method clear(LongLifecycleState this) =>' in source
+    assert 'method arm(LongLifecycleState this, int arm_bar_index, float trigger, float invalidation_level, int entry_origin_source, int backing_zone_kind, int backing_zone_id, int backing_zone_touch_count, int locked_source_kind, int locked_source_id, float locked_source_top, float locked_source_bottom, int locked_source_touch_count, int locked_source_last_touch_bar_index) =>' in source
+    assert 'method confirm(LongLifecycleState this, int confirm_bar_index) =>' in source
+    assert 'method invalidate(LongLifecycleState this, string reason, float level) =>' in source
+    assert 'sync_long_state_from_legacy(LongLifecycleState st, bool armed, bool confirmed, int arm_bar_index, int confirm_bar_index, float trigger, float invalidation_level, int entry_origin_source, int backing_zone_kind, int backing_zone_id, int backing_zone_touch_count, int locked_source_kind, int locked_source_id, float locked_source_top, float locked_source_bottom, int locked_source_touch_count, int locked_source_last_touch_bar_index, int setup_serial, string last_invalid_source, float last_invalid_level) =>' in source
+    assert 'project_long_state(LongLifecycleState st) =>' in source
+    assert 'validate_long_state(LongLifecycleState st, bool enabled = true) =>' in source
+    assert 'sync_long_state_from_legacy(long_state, long_setup_armed, long_setup_confirmed, long_setup_arm_bar_index, long_confirm_bar_index, long_setup_trigger, long_invalidation_level, long_entry_origin_source, long_setup_backing_zone_kind, long_setup_backing_zone_id, long_setup_backing_zone_touch_count, long_locked_source_kind, long_locked_source_id, long_locked_source_top, long_locked_source_bottom, long_locked_source_touch_count, long_locked_source_last_touch_bar_index, long_setup_serial, long_last_invalid_source, long_last_invalid_level)' in source
+    assert 'validate_long_state(long_state, show_long_engine_debug)' in source
+
+
 def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
     source = _read_smc_source()
 
     assert 'int LONG_SOURCE_OB = 1' in source
     assert 'int LONG_SOURCE_FVG = 2' in source
-    assert 'long_setup_backing_zone_kind := arm_backing_zone_kind' in source
-    assert 'long_setup_backing_zone_id := arm_backing_zone_id' in source
     assert 'select_long_arm_backing_zone_touch_count(int arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count) =>' in source
-    assert 'long_setup_backing_zone_touch_count := select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)' in source
-    assert "long_locked_source_kind := arm_backing_zone_kind" in source
+    assert 'int long_arm_backing_zone_touch_count = select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)' in source
     assert 'resolve_long_zone_id(int long_zone_kind, int long_zone_id) =>' in source
-    assert 'long_locked_source_id := resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
-    assert 'long_locked_source_touch_count := long_setup_backing_zone_touch_count' in source
+    assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
+    assert 'long_state.arm(bar_index, arm_trigger_candidate, arm_invalidation_candidate, arm_source_kind, arm_backing_zone_kind, arm_backing_zone_id, long_arm_backing_zone_touch_count, arm_backing_zone_kind, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_backing_zone_touch_count, long_arm_locked_source_last_touch_bar_index)' in source
     assert 'long_setup_backing_zone_touch_count := long_locked_source_touch_count' in source
 
 
@@ -104,11 +120,11 @@ def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> N
     assert "long_confirm_expired ? long_entry_origin_source_text + ' confirm expired'" in source
     assert 'int long_validation_source_now = resolve_long_validation_source(long_locked_source_kind_final)' in source
     assert 'string long_setup_source_display_now = compose_long_setup_source_display(long_entry_origin_source, long_validation_source_now)' in source
-    assert 'long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)' in source
+    assert 'string long_invalidation_reason = resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)' in source
     assert 'long_invalidate_signal := long_setup_armed or long_setup_confirmed' in source
-    assert 'long_entry_origin_source := LONG_SOURCE_NONE' in source
-    assert 'long_setup_backing_zone_kind := LONG_SOURCE_NONE' in source
-    assert 'long_setup_backing_zone_id := na' in source
+    assert 'long_state.invalidate(long_invalidation_reason, long_invalidation_level)' in source
+    assert '[projected_long_setup_armed, projected_long_setup_confirmed, projected_long_setup_arm_bar_index, projected_long_confirm_bar_index, projected_long_setup_trigger, projected_long_invalidation_level, projected_long_entry_origin_source, projected_long_setup_backing_zone_kind, projected_long_setup_backing_zone_id, projected_long_setup_backing_zone_touch_count, projected_long_locked_source_kind, projected_long_locked_source_id, projected_long_locked_source_top, projected_long_locked_source_bottom, projected_long_locked_source_touch_count, projected_long_locked_source_last_touch_bar_index, projected_long_setup_serial, projected_long_last_invalid_source, projected_long_last_invalid_level] = project_long_state(long_state)' in source
+    assert 'long_setup_armed := projected_long_setup_armed' in source
     assert "long_source_broken ? str.format('{0} source invalidated', long_validation_source)" not in source
     assert "long_source_lost ? str.format('{0} backing zone lost', long_validation_source)" not in source
 
@@ -371,16 +387,12 @@ def test_source_upgrade_is_explicit_and_quality_gated() -> None:
     assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict' in source
     assert 'and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
-    # select_source_upgrade helper inlined — logic lives inline now
     assert 'if long_source_upgrade_now' in source
     assert 'bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok' in source
     assert 'bool prefer_ob_upgrade = long_source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)' in source
-    assert 'int long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG : prev_locked_source_kind' in source
-    assert 'int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : prev_locked_source_id' in source
-    assert 'int long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG : long_setup_backing_zone_kind' in source
-    assert 'int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id' in source
+    assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, int prev_locked_source_kind, int prev_locked_source_id, int current_backing_zone_kind, int current_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
     assert '[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)' not in source
-    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' not in source
 
 
 def test_source_upgrade_requires_different_candidate_than_locked_source() -> None:
@@ -403,17 +415,23 @@ def test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain() -> None:
 def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() -> None:
     source = _read_smc_source()
 
-    # stage_locked_source_transition helper inlined
-    assert 'int long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG : prev_locked_source_kind' in source
-    assert 'int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : prev_locked_source_id' in source
-    assert 'int long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG : long_setup_backing_zone_kind' in source
-    assert 'int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id' in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
     assert 'bool long_locked_source_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(fvgs_bull, long_locked_source_id_final) : false' in source
     assert 'resolve_long_zone_top(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_top, int touched_bull_ob_id, float touched_bull_ob_top, int active_bull_fvg_id, float active_bull_fvg_top, int touched_bull_fvg_id, float touched_bull_fvg_top, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_top = na) =>' in source
     assert 'float long_locked_source_top_now = resolve_long_zone_top(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_locked_source_top)' in source
     assert 'resolve_long_zone_bottom(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_bottom, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_bottom = na) =>' in source
     assert 'float long_locked_source_bottom_now = resolve_long_zone_bottom(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_locked_source_bottom)' in source
     assert 'bool long_source_broken = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false' in source
+
+
+def test_arm_and_confirm_transitions_route_through_long_state_methods() -> None:
+    source = _read_smc_source()
+
+    assert 'long_state.arm(bar_index, arm_trigger_candidate, arm_invalidation_candidate, arm_source_kind, arm_backing_zone_kind, arm_backing_zone_id, long_arm_backing_zone_touch_count, arm_backing_zone_kind, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_backing_zone_touch_count, long_arm_locked_source_last_touch_bar_index)' in source
+    assert 'long_state.confirm(bar_index)' in source
+    assert 'sync_long_state_from_legacy(long_state, long_setup_armed, long_setup_confirmed, long_setup_arm_bar_index, long_confirm_bar_index, long_setup_trigger, long_invalidation_level, long_entry_origin_source, long_setup_backing_zone_kind, long_setup_backing_zone_id, long_setup_backing_zone_touch_count, long_locked_source_kind, long_locked_source_id, long_locked_source_top, long_locked_source_bottom, long_locked_source_touch_count, long_locked_source_last_touch_bar_index, long_setup_serial, long_last_invalid_source, long_last_invalid_level)' in source
+    assert '[projected_long_setup_armed, projected_long_setup_confirmed, projected_long_setup_arm_bar_index, projected_long_confirm_bar_index, projected_long_setup_trigger, projected_long_invalidation_level, projected_long_entry_origin_source, projected_long_setup_backing_zone_kind, projected_long_setup_backing_zone_id, projected_long_setup_backing_zone_touch_count, projected_long_locked_source_kind, projected_long_locked_source_id, projected_long_locked_source_top, projected_long_locked_source_bottom, projected_long_locked_source_touch_count, projected_long_locked_source_last_touch_bar_index, projected_long_setup_serial, projected_long_last_invalid_source, projected_long_last_invalid_level] = project_long_state(long_state)' in source
+    assert 'long_setup_confirmed := projected_long_setup_confirmed' in source
 
 
 def test_entry_origin_and_validation_source_are_separated_for_display_and_invalidation() -> None:
@@ -590,9 +608,9 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert "backing_zone_id := ob_more_recent ? active_bull_ob_id : active_bull_fvg_id" in source
     # tuple call negative assertion removed — helpers no longer exist
     assert 'arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count' in source
-    assert 'long_locked_source_id := resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
-    assert 'long_locked_source_top := resolve_long_zone_top(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top)' in source
-    assert 'long_locked_source_bottom := resolve_long_zone_bottom(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom)' in source
+    assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
+    assert 'float long_arm_locked_source_top = resolve_long_zone_top(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top)' in source
+    assert 'float long_arm_locked_source_bottom = resolve_long_zone_bottom(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom)' in source
     assert 'bool long_locked_source_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(fvgs_bull, long_locked_source_id_final) : false' in source
     assert 'float long_locked_source_top_now = resolve_long_zone_top(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_locked_source_top)' in source
     assert 'float long_locked_source_bottom_now = resolve_long_zone_bottom(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_locked_source_bottom)' in source
