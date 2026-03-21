@@ -4203,14 +4203,14 @@ float nearest_bear_ob_blocker_level = na
 if array.size(ob_blocks_bear) > 0
     for i = array.size(ob_blocks_bear) - 1 to bear_ob_scan_start
         bear_ob_blocker = array.get(ob_blocks_bear, i)
-        float bear_ob_blocker_level = bear_ob_blocker.break_price
+        float bear_ob_blocker_level = resolve_ob_alert_level(bear_ob_blocker)
         if not na(bear_ob_blocker_level) and bear_ob_blocker_level >= overhead_scan_reference and (na(nearest_bear_ob_blocker_level) or bear_ob_blocker_level < nearest_bear_ob_blocker_level)
             nearest_bear_ob_blocker_level := bear_ob_blocker_level
 float nearest_bear_fvg_blocker_level = na
 if array.size(fvgs_bear) > 0
     for i = array.size(fvgs_bear) - 1 to bear_fvg_scan_start
         bear_fvg_blocker = array.get(fvgs_bear, i)
-        float bear_fvg_blocker_level = bear_fvg_blocker.fill_target_level
+        float bear_fvg_blocker_level = resolve_fvg_alert_level(bear_fvg_blocker)
         if not na(bear_fvg_blocker_level) and bear_fvg_blocker_level >= overhead_scan_reference and (na(nearest_bear_fvg_blocker_level) or bear_fvg_blocker_level < nearest_bear_fvg_blocker_level)
             nearest_bear_fvg_blocker_level := bear_fvg_blocker_level
 float nearest_overhead_level = na

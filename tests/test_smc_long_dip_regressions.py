@@ -463,12 +463,16 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'float new_ob_bear_alert_level = resolve_ob_alert_level(new_ob_bear)' in source
     assert 'float new_fvg_bull_alert_level = resolve_fvg_alert_level(new_fvg_bull)' in source
     assert 'float new_fvg_bear_alert_level = resolve_fvg_alert_level(new_fvg_bear)' in source
+    assert 'float bear_ob_blocker_level = resolve_ob_alert_level(bear_ob_blocker)' in source
+    assert 'float bear_fvg_blocker_level = resolve_fvg_alert_level(bear_fvg_blocker)' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bull), bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail, new_ob_bull_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bear), bear_ob_alert_key, bear_ob_alert_name, bear_ob_alert_detail, new_ob_bear_alert_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bullish_fvg_alert, bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail, new_fvg_bull_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bearish_fvg_alert, bear_fvg_alert_key, bear_fvg_alert_name, bear_fvg_alert_detail, new_fvg_bear_alert_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'new_ob_bull.break_price, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
     assert 'new_ob_bear.break_price, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
+    assert 'float bear_ob_blocker_level = bear_ob_blocker.break_price' not in source
+    assert 'float bear_fvg_blocker_level = bear_fvg_blocker.fill_target_level' not in source
     assert 'float new_ob_bull_alert_level = not na(new_ob_bull) ? new_ob_bull.break_price : na' not in source
     assert 'float new_ob_bear_alert_level = not na(new_ob_bear) ? new_ob_bear.break_price : na' not in source
     assert 'float new_fvg_bull_alert_level = not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na' not in source
