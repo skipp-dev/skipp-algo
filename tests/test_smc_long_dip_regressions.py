@@ -470,6 +470,12 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys' in source
     assert 'emit_priority_dynamic_alert_if_allowed(' not in source
+    assert 'prefer_level(float primary_level, float fallback_level) =>' in source
+    assert 'float dashboard_long_ob_trigger_level = prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)' in source
+    assert 'float dashboard_long_fvg_trigger_level = prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)' in source
+    assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))" in source
+    assert "format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)" not in source
+    assert "format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)" not in source
     assert 'bool alert_long_early_event = alert_long_early and long_setup_serial > 0 and last_long_early_alert_serial != long_setup_serial' in source
     assert 'last_long_early_alert_serial := alert_long_early_event ? long_setup_serial : last_long_early_alert_serial' in source
     assert 'bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_setup_serial > 0 and last_long_armed_alert_serial != long_setup_serial' in source

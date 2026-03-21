@@ -2318,6 +2318,9 @@ trend_text_or_na(float trend_value) =>
 format_level(float value) =>
     na(value) ? 'n/a' : str.tostring(value, format.mintick)
 
+prefer_level(float primary_level, float fallback_level) =>
+    not na(primary_level) ? primary_level : fallback_level
+
 edge(bool condition) =>
     condition and not condition[1]
 
@@ -4543,8 +4546,14 @@ string quality_score_display = not quality_axis_active ? 'n/a' : str.format('Ctx
 string quality_env_display = not quality_axis_active ? 'n/a' : str.format('Trade {0}\nEnv {1}', trade_hard_gate_ok ? 'OK' : not session_structure_gate_ok ? 'Session Block' : not microstructure_entry_gate_ok ? 'Micro Block' : not overhead_zone_ok ? 'Headroom Block' : 'Trade Blocked', environment_hard_gate_ok ? 'OK' : long_environment_focus_display)
 string quality_strict_display = not quality_axis_active ? 'n/a' : str.format('{0}\nZone {1}\nSweep {2}\nGuard {3}', quality_strict_ok ? 'Strict OK' : strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)
 string dashboard_swing_levels_display = str.format('Swing {0}/{1}\nInt {2}/{3}', format_level(trail_up), format_level(trail_dn), show_internals ? format_level(internal_trail_up) : 'Off', show_internals ? format_level(internal_trail_dn) : 'Off')
-string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(not na(active_bull_ob_top) ? active_bull_ob_top : last_bull_ob_top), format_level(not na(active_bull_ob_bottom) ? active_bull_ob_bottom : last_bull_ob_bottom), format_level(not na(active_bull_fvg_top) ? active_bull_fvg_top : last_bull_fvg_top), format_level(not na(active_bull_fvg_bottom) ? active_bull_fvg_bottom : last_bull_fvg_bottom))
-string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}\nInvalid {2}', format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level), format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level), format_level(long_invalidation_level))
+float dashboard_long_ob_top_level = prefer_level(active_bull_ob_top, last_bull_ob_top)
+float dashboard_long_ob_bottom_level = prefer_level(active_bull_ob_bottom, last_bull_ob_bottom)
+float dashboard_long_fvg_top_level = prefer_level(active_bull_fvg_top, last_bull_fvg_top)
+float dashboard_long_fvg_bottom_level = prefer_level(active_bull_fvg_bottom, last_bull_fvg_bottom)
+float dashboard_long_ob_trigger_level = prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)
+float dashboard_long_fvg_trigger_level = prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)
+string dashboard_long_zones_display = str.format('OB {0}/{1}\nFVG {2}/{3}', format_level(dashboard_long_ob_top_level), format_level(dashboard_long_ob_bottom_level), format_level(dashboard_long_fvg_top_level), format_level(dashboard_long_fvg_bottom_level))
+string dashboard_long_triggers_display = str.format('OB mid {0}\nFVG fill {1}\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))
 string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\nStop {1}\nT1 {2}\nT2 {3}', format_level(long_setup_trigger), format_level(long_stop_level), format_level(long_target_1), format_level(long_target_2))
 int ob_zone_state = not na(active_bull_ob_top) ? 4 : not na(last_bull_ob_top) ? 2 : 0
 int fvg_zone_state = not na(active_bull_fvg_top) ? 4 : not na(last_bull_fvg_top) ? 2 : 0
