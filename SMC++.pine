@@ -1669,25 +1669,16 @@ _detect_fvg_object(int mode, bool enabled, float size_threshold = 0, ct.LevelBre
     else
         [false, na]
 
-_clear_broken_fvg(int mode, array<box> upper_boxes, array<box> lower_boxes, float fill_ratio = 0.5) =>
-    fvg_count = array.size(upper_boxes)
-    if barstate.isconfirmed and fvg_count > 0
-        for int i = fvg_count - 1 to 0
-            box = switch mode
-                1 => array.get(lower_boxes, i)
-                -1 => array.get(upper_boxes, i)
-                => na
-
-            do_delete = switch mode
-                1 => low < (box.get_top(box) - fill_ratio * (box.get_top(box) - box.get_bottom(box)))
-                -1 => high > (box.get_bottom(box) + fill_ratio * (box.get_top(box) - box.get_bottom(box)))
-                => false
-
-            if do_delete
-                box.delete(array.remove(upper_boxes, i))
-                box.delete(array.remove(lower_boxes, i))
-            else
-                break
+_detect_fvg_values_for_htf(int mode, bool enabled, float size_threshold = 0, float fill_target_ratio = 0.5) =>
+    float top = low[mode == 1 ? 0 : 2]
+    float btm = high[mode == 1 ? 2 : 0]
+    float size = top - btm
+    bool found = enabled and barstate.isconfirmed and size > size_threshold
+    int left_time = found ? time[2] : na
+    int right_time = found ? time_close : na
+    float fill_target = found ? (mode == 1 ? top - fill_target_ratio * size : btm + fill_target_ratio * size) : na
+    float total_vol = found ? volume[2] + volume[1] + volume : na
+    [found, top, btm, left_time, right_time, fill_target, total_vol]
 
 fvgs_values(float size_threshold = 0, bool enabled = true) =>
     [bullish_fvg_alert, bull_top, bull_btm] = _detect_fvg(1, enabled, size_threshold)
@@ -3213,8 +3204,6 @@ var htf_fvg_config_bear = FVGConfig.new(show_box = show_htf_fvg, show_target = s
 var htf_fvg_config_bull_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = d.BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc = xloc.bar_time), box_text_args = d.BoxTextArgs.new(bull_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = d.LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = d.LabelArgs.new(bull_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 var htf_fvg_config_bear_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = d.BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc = xloc.bar_time), box_text_args = d.BoxTextArgs.new(bear_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = d.LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = d.LabelArgs.new(bear_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 
-FVG htf_new_fvg_bull = na
-FVG htf_new_fvg_bear = na
 FVG htf_insert_fvg_bull = na
 FVG htf_insert_fvg_bear = na
 var string last_htf_inserted_bull_key = ''
@@ -3222,17 +3211,37 @@ var string last_htf_inserted_bear_key = ''
 htf_bar_changed = timeframe.change(fvg_htf)
 htf_fvg_confirmed = signal_mode == ct.SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed and (htf_bar_changed or htf_fvg_tf_sec == chart_tf_sec)
 if show_htf_fvg
-    [_, htf_new_fvg_bull_tmp] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(1, true, fvg_size_threshold, ct.LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
-    [_, htf_new_fvg_bear_tmp] = request.security(syminfo.tickerid, fvg_htf, _detect_fvg_object(-1, true, fvg_size_threshold, ct.LevelBreakMode.CLOSE, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
-    htf_new_fvg_bull := htf_new_fvg_bull_tmp
-    htf_new_fvg_bear := htf_new_fvg_bear_tmp
-    string bull_htf_key = not na(htf_new_fvg_bull) ? u.htf_fvg_key(htf_new_fvg_bull.left_top.time, htf_new_fvg_bull.right_bottom.time, htf_new_fvg_bull.left_top.price, htf_new_fvg_bull.right_bottom.price) : ''
-    string bear_htf_key = not na(htf_new_fvg_bear) ? u.htf_fvg_key(htf_new_fvg_bear.left_top.time, htf_new_fvg_bear.right_bottom.time, htf_new_fvg_bear.left_top.price, htf_new_fvg_bear.right_bottom.price) : ''
-    if htf_fvg_confirmed and not na(htf_new_fvg_bull) and bull_htf_key != last_htf_inserted_bull_key
-        htf_insert_fvg_bull := htf_new_fvg_bull
+    [htf_bull_found, htf_bull_top, htf_bull_btm, htf_bull_left_time, htf_bull_right_time, htf_bull_fill_target, htf_bull_total_vol] =
+         request.security(syminfo.tickerid, fvg_htf, _detect_fvg_values_for_htf(1, true, fvg_size_threshold, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+    [htf_bear_found, htf_bear_top, htf_bear_btm, htf_bear_left_time, htf_bear_right_time, htf_bear_fill_target, htf_bear_total_vol] =
+         request.security(syminfo.tickerid, fvg_htf, _detect_fvg_values_for_htf(-1, true, fvg_size_threshold, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+    string bull_htf_key = htf_bull_found ? u.htf_fvg_key(htf_bull_left_time, htf_bull_right_time, htf_bull_top, htf_bull_btm) : ''
+    string bear_htf_key = htf_bear_found ? u.htf_fvg_key(htf_bear_left_time, htf_bear_right_time, htf_bear_top, htf_bear_btm) : ''
+    if htf_fvg_confirmed and htf_bull_found and bull_htf_key != last_htf_inserted_bull_key
+        float htf_bull_size = htf_bull_top - htf_bull_btm
+        htf_insert_fvg_bull := FVG.new(
+             na, 1, ct.LevelBreakMode.CLOSE,
+             left_top = chart.point.new(htf_bull_left_time, na, htf_bull_top),
+             right_bottom = chart.point.new(htf_bull_right_time, na, htf_bull_btm),
+             fvg_fill_target_ratio = fvg_fill_target_ratio,
+             fill_target_level = htf_bull_fill_target,
+             fill_current_ratio = 0,
+             fill_current_level = htf_bull_top,
+             total_volume = htf_bull_total_vol)
+        htf_insert_fvg_bull.quality_score := math.max(0.0, math.min(1.0, 0.15 + math.min(htf_bull_size / math.max(fvg_size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (htf_bull_total_vol > 0 ? 0.10 : 0.0) + 0.15))
         last_htf_inserted_bull_key := bull_htf_key
-    if htf_fvg_confirmed and not na(htf_new_fvg_bear) and bear_htf_key != last_htf_inserted_bear_key
-        htf_insert_fvg_bear := htf_new_fvg_bear
+    if htf_fvg_confirmed and htf_bear_found and bear_htf_key != last_htf_inserted_bear_key
+        float htf_bear_size = htf_bear_top - htf_bear_btm
+        htf_insert_fvg_bear := FVG.new(
+             na, -1, ct.LevelBreakMode.CLOSE,
+             left_top = chart.point.new(htf_bear_left_time, na, htf_bear_top),
+             right_bottom = chart.point.new(htf_bear_right_time, na, htf_bear_btm),
+             fvg_fill_target_ratio = fvg_fill_target_ratio,
+             fill_target_level = htf_bear_fill_target,
+             fill_current_ratio = 0,
+             fill_current_level = htf_bear_btm,
+             total_volume = htf_bear_total_vol)
+        htf_insert_fvg_bear.quality_score := math.max(0.0, math.min(1.0, 0.15 + math.min(htf_bear_size / math.max(fvg_size_threshold * 3.0, syminfo.mintick), 1.0) * 0.35 + (htf_bear_total_vol > 0 ? 0.10 : 0.0) + 0.15))
         last_htf_inserted_bear_key := bear_htf_key
 [htf_fvg_buffer_bull, htf_fvg_buffer_bear, htf_fvg_buffer_bull_filled, htf_fvg_buffer_bear_filled, htf_fvg_buffer_bull_filled_new, htf_fvg_buffer_bear_filled_new, htf_fvg_buffer_bull_discarded, htf_fvg_buffer_bear_discarded] = fvgs_objects_htf(htf_insert_fvg_bull, htf_insert_fvg_bear, htf_fvg_confirmed, fvg_size_threshold, active_break_mode, fvg_fill_target_ratio, htf_fvg_keep_filled_max, object_gc_cycle)
 

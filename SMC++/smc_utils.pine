@@ -99,18 +99,38 @@ export qema_like(series float src, simple int len) =>
     5.0 * ema1 - 10.0 * ema2 + 10.0 * ema3 - 5.0 * ema4 + ema5
 
 export external_trend_gate(simple string symbol, simple int fast_len, simple int slow_len) =>
-    float ext_close = request.security(symbol, timeframe.period, close, gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 300)
+    float ext_close = request.security(symbol, timeframe.period, close,
+         gaps = barmerge.gaps_off,
+         lookahead = barmerge.lookahead_off,
+         ignore_invalid_symbol = true,
+         calc_bars_count = 300)
 
-    float ext_fast = na(ext_close) ? na : ta.ema(ext_close, fast_len)
-    float ext_slow = na(ext_close) ? na : ta.ema(ext_close, slow_len)
+    float ext_close_sparse = request.security(symbol, timeframe.period, close,
+         gaps = barmerge.gaps_on,
+         lookahead = barmerge.lookahead_off,
+         ignore_invalid_symbol = true,
+         calc_bars_count = 300)
+
+    float ext_fast = ta.ema(ext_close_sparse, fast_len)
+    float ext_slow = ta.ema(ext_close_sparse, slow_len)
 
     bool ext_missing = na(ext_close) or na(ext_fast) or na(ext_slow)
     [ext_missing, not ext_missing and ext_close > ext_fast and ext_fast > ext_slow]
 
 export external_breadth_gate(simple string symbol, simple string mode, simple int len) =>
-    float ext_breadth = request.security(symbol, timeframe.period, close, gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off, ignore_invalid_symbol = true, calc_bars_count = 100)
+    float ext_breadth = request.security(symbol, timeframe.period, close,
+         gaps = barmerge.gaps_off,
+         lookahead = barmerge.lookahead_off,
+         ignore_invalid_symbol = true,
+         calc_bars_count = 100)
 
-    float ext_ema = na(ext_breadth) ? na : ta.ema(ext_breadth, len)
+    float ext_breadth_sparse = request.security(symbol, timeframe.period, close,
+         gaps = barmerge.gaps_on,
+         lookahead = barmerge.lookahead_off,
+         ignore_invalid_symbol = true,
+         calc_bars_count = 100)
+
+    float ext_ema = ta.ema(ext_breadth_sparse, len)
 
     bool breadth_missing = na(ext_breadth) or (mode == 'Above EMA' and na(ext_ema))
     bool breadth_pass = mode == 'Above EMA' ? ext_breadth > ext_ema : mode == 'Rising' ? ext_breadth > ext_breadth[1] : ext_breadth > 0
