@@ -9,6 +9,13 @@ import preuss_steffen/smc_core_types/1 as ct
 import preuss_steffen/smc_utils/1 as u
 import preuss_steffen/smc_draw/1 as d
 
+// High-level architecture:
+// - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.
+// - Shared enums and core types live in ct, generic formatting/range helpers live in u, and draw wrappers live in d.
+// - The long lifecycle flows as: zone detection -> reclaim/arm -> confirm -> ready/entry -> invalidated/reset.
+// - Active zones stay ranking/UI concepts, while armed/confirmed validation reads from locked source state.
+// - Profile alignment is optional and should fail closed on malformed thresholds or empty source arrays.
+
 // Safe refactor notes:
 // - Core BOS/CHoCH, Order Block and FVG logic is intentionally unchanged.
 // - Improvements are limited to readability, defensive guards around draw/delete paths,
@@ -130,6 +137,27 @@ method update(Bucket this, float top, float bottom, float value, float fraction)
     this.value := value
     this.fraction := rounded_fraction
     this
+
+normalize_profile_resolution(int resolution) =>
+    math.max(1, resolution)
+
+normalize_profile_vah_pc(float vah_pc, float val_pc) =>
+    math.max(0.0, math.min(100.0, math.max(vah_pc, val_pc)))
+
+normalize_profile_val_pc(float vah_pc, float val_pc) =>
+    math.max(0.0, math.min(100.0, math.min(vah_pc, val_pc)))
+
+profile_data_ready(float[] highs, float[] lows, float[] values) =>
+    not na(highs) and not na(lows) and not na(values) and array.size(highs) > 0 and array.size(lows) > 0 and array.size(values) > 0
+
+is_impulse_candle_now(float candle_body, float impulse_candle_size) =>
+    candle_body >= impulse_candle_size
+
+is_indecision_candle_now(float high_now, float low_now, float prior_high, float prior_low, float candle_top_now, float candle_btm_now, float prior_candle_top, float prior_candle_btm, float prior_candle_body, float candle_body, float candle_open, float candle_close) =>
+    u.in_range(high_now, low_now, prior_high, prior_low) and prior_candle_body > candle_body or u.in_range(candle_top_now, candle_btm_now, prior_candle_top, prior_candle_btm) or candle_open == candle_close
+
+profile_features_enabled(bool capture_profile_now, bool align_edge_to_value_area_now, bool align_break_price_to_poc_now) =>
+    capture_profile_now or align_edge_to_value_area_now or align_break_price_to_poc_now
 
 method update(Bucket this, float value, float fraction) =>
     this.value := value
@@ -348,7 +376,14 @@ method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter
     this
 
 create_profile(float[] opens, float[] highs, float[] lows, float[] closes, float[] values, int resolution = 25, float vah_pc = 80, float val_pc = 20, int idx = bar_index, bool init_calculated = true, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
-    profile = Profile.new(idx, resolution, vah_pc, val_pc, opens, highs, lows, closes, values, h = highs.max(), l = lows.min(), total = values.sum())
+    int profile_resolution = normalize_profile_resolution(resolution)
+    float profile_vah_pc = normalize_profile_vah_pc(vah_pc, val_pc)
+    float profile_val_pc = normalize_profile_val_pc(vah_pc, val_pc)
+    bool profile_has_range_data = profile_data_ready(highs, lows, values)
+    float profile_high = profile_has_range_data ? highs.max() : na
+    float profile_low = profile_has_range_data ? lows.min() : na
+    float profile_total = profile_has_range_data ? values.sum() : 0
+    profile = Profile.new(idx, profile_resolution, profile_vah_pc, profile_val_pc, opens, highs, lows, closes, values, h = profile_high, l = profile_low, total = profile_total)
     profile.init(update_buckets = true)
     if init_calculated
         profile.calculate(use_open_close_data_for_ranges_shorter_than_bars)
@@ -754,14 +789,14 @@ track_obs(
     float candle_top = math.max(open, close)
     float candle_btm = math.min(open, close)
     float candle_body = math.abs(open - close)
-    bool is_impulse_candle = candle_body >= impulse_candle_size
-    bool is_indecision = u.in_range(high, low, high[1], low[1]) and candle_body[1] > candle_body or u.in_range(candle_top, candle_btm, candle_top[1], candle_btm[1]) or open == close
+    bool is_impulse_candle = is_impulse_candle_now(candle_body, impulse_candle_size)
+    bool is_indecision = is_indecision_candle_now(high, low, high[1], low[1], candle_top, candle_btm, candle_top[1], candle_btm[1], candle_body[1], candle_body, open, close)
     OrderBlock bull_ob_confirmed = na
     OrderBlock bear_ob_confirmed = na
     var bool reset_bull_next_bar = false
     var bool reset_bear_next_bar = false
 
-    bool profile_features_active = capture_profile or align_edge_to_value_area or align_break_price_to_poc
+    bool profile_features_active = profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)
 
     if enabled
         update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)
@@ -1417,45 +1452,36 @@ select_effective_long_touch_count(bool long_setup_armed, bool long_setup_confirm
 describe_long_zone_quality(bool long_zone_active, bool long_setup_armed, bool long_setup_confirmed, int effective_long_active_touch_count) =>
     not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : effective_long_active_touch_count <= 1 ? 'fresh touch' : effective_long_active_touch_count == 2 ? '2nd touch' : 'crowded'
 
+// Long state codes:
+// -1 invalidated, 0 no setup, 1 in zone, 2 armed, 3 building, 4 confirmed, 5 ready, 6 entry best, 7 entry strict.
+// Source-state semantics: tracked = locked source id exists, alive = source still resolves, broken = explicit mitigation/fill break, lost = tracked but no longer resolvable and not broken.
+resolve_long_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar, bool long_invalidate_signal = false) =>
+    bool invalid_state = (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup or long_invalidated_now or long_invalidated_this_bar) and (long_invalidated_now or long_invalidated_this_bar)
+    if invalid_state
+        -1
+    else if long_entry_strict_state
+        7
+    else if long_entry_best_state
+        6
+    else if long_ready_state
+        5
+    else if long_setup_confirmed
+        4
+    else if long_building_state
+        3
+    else if long_setup_armed
+        2
+    else if long_zone_active
+        1
+    else
+        0
+
 compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>
-    string setup_text = 'No Setup'
-    if long_zone_active
-        setup_text := 'In Zone'
-    if long_setup_armed
-        setup_text := 'Armed | ' + long_setup_source_display
-    if long_building_state
-        setup_text := 'Building | ' + long_setup_source_display
-    if long_setup_confirmed
-        setup_text := 'Confirmed | ' + long_setup_source_display
-    if long_ready_state
-        setup_text := 'Ready | ' + long_setup_source_display
-    if long_entry_best_state
-        setup_text := 'Entry Best | ' + long_setup_source_display
-    if long_entry_strict_state
-        setup_text := 'Entry Strict | ' + long_setup_source_display
-    if (invalidated_prior_setup or long_invalidated_now or long_invalidated_this_bar) and not long_setup_armed and not long_setup_confirmed
-        setup_text := 'Invalidated'
-    setup_text
+    int state_code = resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)
+    state_code == -1 ? 'Invalidated' : state_code == 0 ? 'No Setup' : state_code == 1 ? 'In Zone' : state_code == 2 ? 'Armed | ' + long_setup_source_display : state_code == 3 ? 'Building | ' + long_setup_source_display : state_code == 4 ? 'Confirmed | ' + long_setup_source_display : state_code == 5 ? 'Ready | ' + long_setup_source_display : state_code == 6 ? 'Entry Best | ' + long_setup_source_display : state_code == 7 ? 'Entry Strict | ' + long_setup_source_display : 'No Setup'
 
 resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>
-    int visual_state = 0
-    if long_zone_active
-        visual_state := 1
-    if long_setup_armed
-        visual_state := 2
-    if long_building_state
-        visual_state := 3
-    if long_setup_confirmed
-        visual_state := 4
-    if long_ready_state
-        visual_state := 5
-    if long_entry_best_state
-        visual_state := 6
-    if long_entry_strict_state
-        visual_state := 7
-    if (long_setup_armed or long_setup_confirmed or long_invalidate_signal or invalidated_prior_setup or long_invalidated_this_bar) and (long_invalidated_now or long_invalidated_this_bar)
-        visual_state := -1
-    visual_state
+    resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar, long_invalidate_signal)
 
 
 resolve_long_visual_text(int long_visual_state) =>

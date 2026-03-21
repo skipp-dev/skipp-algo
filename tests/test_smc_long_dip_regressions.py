@@ -411,15 +411,18 @@ def test_confirm_and_ready_gate_logic_is_extracted_into_helpers() -> None:
 def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
     source = _read_smc_source()
 
+    assert 'resolve_long_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar, bool long_invalidate_signal = false) =>' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
-    assert "setup_text := 'Armed | ' + long_setup_source_display" in source
-    assert "setup_text := 'Building | ' + long_setup_source_display" in source
-    assert "setup_text := 'Confirmed | ' + long_setup_source_display" in source
-    assert "setup_text := 'Ready | ' + long_setup_source_display" in source
-    assert "setup_text := 'Entry Best | ' + long_setup_source_display" in source
-    assert "setup_text := 'Entry Strict | ' + long_setup_source_display" in source
-    assert "setup_text := 'Invalidated'" in source
+    assert "int state_code = resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)" in source
+    assert "state_code == -1 ? 'Invalidated'" in source
+    assert "state_code == 2 ? 'Armed | ' + long_setup_source_display" in source
+    assert "state_code == 3 ? 'Building | ' + long_setup_source_display" in source
+    assert "state_code == 4 ? 'Confirmed | ' + long_setup_source_display" in source
+    assert "state_code == 5 ? 'Ready | ' + long_setup_source_display" in source
+    assert "state_code == 6 ? 'Entry Best | ' + long_setup_source_display" in source
+    assert "state_code == 7 ? 'Entry Strict | ' + long_setup_source_display" in source
     assert 'resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
+    assert 'resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar, long_invalidate_signal)' in source
     assert "long_setup_text := compose_long_setup_text(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidated_now, invalidated_prior_setup, long_invalidated_this_bar, long_setup_source_display)" in source
     assert 'long_visual_state := resolve_long_visual_state(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidate_signal, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
     assert "setup_text := str.format('Armed | {0}', long_setup_source_display)" not in source
@@ -428,6 +431,25 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
     assert "setup_text := str.format('Ready | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Entry Best | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Entry Strict | {0}', long_setup_source_display)" not in source
+
+
+def test_profile_and_track_obs_use_defensive_semantic_helpers() -> None:
+    source = _read_smc_source()
+
+    assert 'normalize_profile_resolution(int resolution) =>' in source
+    assert 'normalize_profile_vah_pc(float vah_pc, float val_pc) =>' in source
+    assert 'normalize_profile_val_pc(float vah_pc, float val_pc) =>' in source
+    assert 'profile_data_ready(float[] highs, float[] lows, float[] values) =>' in source
+    assert 'int profile_resolution = normalize_profile_resolution(resolution)' in source
+    assert 'float profile_vah_pc = normalize_profile_vah_pc(vah_pc, val_pc)' in source
+    assert 'float profile_val_pc = normalize_profile_val_pc(vah_pc, val_pc)' in source
+    assert 'bool profile_has_range_data = profile_data_ready(highs, lows, values)' in source
+    assert 'is_impulse_candle_now(float candle_body, float impulse_candle_size) =>' in source
+    assert 'is_indecision_candle_now(float high_now, float low_now, float prior_high, float prior_low, float candle_top_now, float candle_btm_now, float prior_candle_top, float prior_candle_btm, float prior_candle_body, float candle_body, float candle_open, float candle_close) =>' in source
+    assert 'profile_features_enabled(bool capture_profile_now, bool align_edge_to_value_area_now, bool align_break_price_to_poc_now) =>' in source
+    assert 'bool is_impulse_candle = is_impulse_candle_now(candle_body, impulse_candle_size)' in source
+    assert 'bool is_indecision = is_indecision_candle_now(high, low, high[1], low[1], candle_top, candle_btm, candle_top[1], candle_btm[1], candle_body[1], candle_body, open, close)' in source
+    assert 'bool profile_features_active = profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)' in source
 
 
 def test_watchlist_alert_level_follows_active_zone_preference() -> None:
