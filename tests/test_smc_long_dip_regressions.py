@@ -104,7 +104,7 @@ def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
     assert 'resolve_long_zone_id(int long_zone_kind, int long_zone_id) =>' in source
     assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
     assert 'long_state.arm(bar_index, arm_trigger_candidate, arm_invalidation_candidate, arm_source_kind, arm_backing_zone_kind, arm_backing_zone_id, long_arm_backing_zone_touch_count, arm_backing_zone_kind, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_backing_zone_touch_count, long_arm_locked_source_last_touch_bar_index)' in source
-    assert 'long_setup_backing_zone_touch_count := long_locked_source_touch_count' in source
+    assert 'method sync_locked_tracking(LongLifecycleState this, int backing_zone_kind, int backing_zone_id, int locked_source_kind, int locked_source_id, float locked_source_top, float locked_source_bottom, int locked_source_touch_count, int locked_source_last_touch_bar_index) =>' in source
 
 
 def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> None:
@@ -371,7 +371,7 @@ def test_locked_source_drives_touch_history_and_strict_sweep() -> None:
     assert 'long_locked_source_touch_count_effective += 1' in source
     assert 'bool long_locked_source_touch_recent = (long_setup_armed or long_setup_confirmed) and not na(long_locked_source_last_touch_bar_index_effective) and bar_index - long_locked_source_last_touch_bar_index_effective <= long_signal_window' in source
     # long_source_zone_touch_recent removed (Patch 5) — long_locked_source_touch_recent used directly
-    assert 'long_setup_backing_zone_touch_count := long_locked_source_touch_count' in source
+    assert 'long_state.sync_locked_tracking(long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final, long_locked_source_kind_final, long_locked_source_id_final, long_locked_source_top_effective, long_locked_source_bottom_effective, long_locked_source_touch_count_effective, long_locked_source_last_touch_bar_index_effective)' in source
     # fvg_zone_touch_sequence_ok uses touched_bull_fvg_id now (not long_setup_backing_zone_id)
     assert 'fvg_zone_touch_event_recent and fvg_zone_touch_sequence_time_ok and not na(touched_bull_fvg_id) and last_fvg_zone_touch_id == touched_bull_fvg_id' in source
 
