@@ -149,9 +149,24 @@ def test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_m
     assert 'contains_id(ob_blocks_bull, touched_bull_ob_id)' in source
     assert 'get_by_id(ob_blocks_bull, touched_bull_ob_id)' in source
     assert 'contains_id(filled_fvgs_bull, long_locked_source_id_final)' in source
+    assert 'array.size(filled_fvgs_new_bull) > 0' in source
+    assert 'array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1).fill_target_level' in source
+    assert 'array.size(ob_blocks_bull) > 0' in source
+    assert 'array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).break_price' in source
+    assert 'bull_ob_candidate = array.get(ob_blocks_bull, i)' in source
+    assert 'array.clear(ob_discarded_bull)' in source
+    assert 'array.clear(fvg_discarded_bull)' in source
+    assert 'array.clear(htf_fvg_buffer_bull_discarded)' in source
     assert 'ob_blocks_bull.draw(' not in source
     assert 'fvgs_bull.draw(' not in source
     assert 'htf_fvg_buffer_bull.draw(' not in source
+    assert 'filled_fvgs_new_bull.size()' not in source
+    assert 'filled_fvgs_new_bull.last()' not in source
+    assert 'ob_blocks_bull.size()' not in source
+    assert 'ob_blocks_bull.get(' not in source
+    assert 'ob_discarded_bull.clear()' not in source
+    assert 'fvg_discarded_bull.clear()' not in source
+    assert 'htf_fvg_buffer_bull_discarded.clear()' not in source
 
 
 def test_fvg_hide_and_orderblock_reset_are_cleanup_consistent() -> None:

@@ -3473,9 +3473,9 @@ if barstate.islast
 
     if barstate.isconfirmed
         delete(ob_discarded_bull)
-        ob_discarded_bull.clear()
+        array.clear(ob_discarded_bull)
         delete(ob_discarded_bear)
-        ob_discarded_bear.clear()
+        array.clear(ob_discarded_bear)
 
 var g_fvg = 'Fair Value Gaps'
 var show_fvg = input.bool(true, 'Show Fair Value Gaps', group = g_fvg, inline = 'show', tooltip = SHOW_FVG)
@@ -3508,10 +3508,10 @@ var show_fvg_filled = show_fvg and fvg_keep_filled and fvg_keep_filled_max > 0
 var fvg_config_bull_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_quality_score = false, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc.bar_index), box_text_args = BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 var fvg_config_bear_filled = FVGConfig.new(show_box = show_fvg_filled, show_target = show_fvg_filled, show_last = fvg_keep_filled_max, txt = '', show_quality_score = false, extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc.bar_index), box_text_args = BoxTextArgs.new(chart.fg_color, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc.bar_index), label_args = LabelArgs.new(#00000000, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal, text_align = text.align_left))
 
-bool bullish_fvg_filled_alert = filled_fvgs_new_bull.size() > 0
-bool bearish_fvg_filled_alert = filled_fvgs_new_bear.size() > 0
-float bull_filled_alert_level = bullish_fvg_filled_alert ? filled_fvgs_new_bull.last().fill_target_level : na
-float bear_filled_alert_level = bearish_fvg_filled_alert ? filled_fvgs_new_bear.last().fill_target_level : na
+bool bullish_fvg_filled_alert = array.size(filled_fvgs_new_bull) > 0
+bool bearish_fvg_filled_alert = array.size(filled_fvgs_new_bear) > 0
+float bull_filled_alert_level = bullish_fvg_filled_alert ? array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1).fill_target_level : na
+float bear_filled_alert_level = bearish_fvg_filled_alert ? array.get(filled_fvgs_new_bear, array.size(filled_fvgs_new_bear) - 1).fill_target_level : na
 
 if barstate.islast
     draw(fvgs_bull, fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -3526,9 +3526,9 @@ if barstate.islast
 
     if barstate.isconfirmed
         delete(fvg_discarded_bull)
-        fvg_discarded_bull.clear()
+        array.clear(fvg_discarded_bull)
         delete(fvg_discarded_bear)
-        fvg_discarded_bear.clear()
+        array.clear(fvg_discarded_bear)
 
 fvgs_objects_htf(FVG new_bull, FVG new_bear, bool htf_is_confirmed, float size_threshold, simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, simple float fill_target_ratio = 0.5, simple int filled_max_keep = 5, simple int gc_cycle = na) =>
     var FVG[] buffer_bull = array.new<FVG>(0)
@@ -3613,15 +3613,15 @@ if show_htf_fvg
         last_htf_inserted_bear_key := bear_htf_key
 [htf_fvg_buffer_bull, htf_fvg_buffer_bear, htf_fvg_buffer_bull_filled, htf_fvg_buffer_bear_filled, htf_fvg_buffer_bull_filled_new, htf_fvg_buffer_bear_filled_new, htf_fvg_buffer_bull_discarded, htf_fvg_buffer_bear_discarded] = fvgs_objects_htf(htf_insert_fvg_bull, htf_insert_fvg_bear, htf_fvg_confirmed, fvg_size_threshold, active_break_mode, fvg_fill_target_ratio, htf_fvg_keep_filled_max, object_gc_cycle)
 
-last_bull_ob_break_level = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().break_price : na
-last_bear_ob_break_level = ob_blocks_bear.size() > 0 ? ob_blocks_bear.last().break_price : na
-last_bull_fvg_fill_level = fvgs_bull.size() > 0 ? fvgs_bull.last().fill_target_level : na
-last_bear_fvg_fill_level = fvgs_bear.size() > 0 ? fvgs_bear.last().fill_target_level : na
+last_bull_ob_break_level = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).break_price : na
+last_bear_ob_break_level = array.size(ob_blocks_bear) > 0 ? array.get(ob_blocks_bear, array.size(ob_blocks_bear) - 1).break_price : na
+last_bull_fvg_fill_level = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1).fill_target_level : na
+last_bear_fvg_fill_level = array.size(fvgs_bear) > 0 ? array.get(fvgs_bear, array.size(fvgs_bear) - 1).fill_target_level : na
 
-last_bull_ob_top = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().left_top.price : na
-last_bull_ob_bottom = ob_blocks_bull.size() > 0 ? ob_blocks_bull.last().right_bottom.price : na
-last_bull_fvg_top = fvgs_bull.size() > 0 ? fvgs_bull.last().left_top.price : na
-last_bull_fvg_bottom = fvgs_bull.size() > 0 ? fvgs_bull.last().right_bottom.price : na
+last_bull_ob_top = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).left_top.price : na
+last_bull_ob_bottom = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).right_bottom.price : na
+last_bull_fvg_top = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1).left_top.price : na
+last_bull_fvg_bottom = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1).right_bottom.price : na
 
 float active_bull_ob_top = na
 float active_bull_ob_bottom = na
@@ -3641,10 +3641,10 @@ var float touched_bull_fvg_bottom = na
 var int touched_bull_fvg_bar_index = na
 var int touched_bull_fvg_id = na
 var int touched_bull_fvg_touch_count = 0
-int bull_ob_scan_start = math.max(0, ob_blocks_bull.size() - long_zone_scan_limit)
-int bull_fvg_scan_start = math.max(0, fvgs_bull.size() - long_zone_scan_limit)
-int bear_ob_scan_start = math.max(0, ob_blocks_bear.size() - long_zone_scan_limit)
-int bear_fvg_scan_start = math.max(0, fvgs_bear.size() - long_zone_scan_limit)
+int bull_ob_scan_start = math.max(0, array.size(ob_blocks_bull) - long_zone_scan_limit)
+int bull_fvg_scan_start = math.max(0, array.size(fvgs_bull) - long_zone_scan_limit)
+int bear_ob_scan_start = math.max(0, array.size(ob_blocks_bear) - long_zone_scan_limit)
+int bear_fvg_scan_start = math.max(0, array.size(fvgs_bear) - long_zone_scan_limit)
 
 int best_bull_ob_idx = na
 int best_bull_ob_id = na
@@ -3652,9 +3652,9 @@ int best_bull_ob_recency = na
 bool best_bull_ob_touch_anchor = false
 float best_bull_ob_quality = na
 float best_bull_ob_overlap = na
-if ob_blocks_bull.size() > 0
-    for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
-        bull_ob_candidate = ob_blocks_bull.get(i)
+if array.size(ob_blocks_bull) > 0
+    for i = array.size(ob_blocks_bull) - 1 to bull_ob_scan_start
+        bull_ob_candidate = array.get(ob_blocks_bull, i)
         float ob_candidate_overlap = math.min(high, bull_ob_candidate.left_top.price) - math.max(low, bull_ob_candidate.right_bottom.price)
         bool ob_candidate_active = ob_candidate_overlap >= 0
         bool ob_candidate_touch_anchor = not na(touched_bull_ob_id) and bull_ob_candidate.id == touched_bull_ob_id and not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
@@ -3675,7 +3675,7 @@ float active_bull_ob_quality = 0.0
 int active_bull_ob_recency = na
 bool active_bull_ob_touch_anchor = false
 if not na(best_bull_ob_idx)
-    best_bull_ob = ob_blocks_bull.get(best_bull_ob_idx)
+    best_bull_ob = array.get(ob_blocks_bull, best_bull_ob_idx)
     active_bull_ob_top := best_bull_ob.left_top.price
     active_bull_ob_bottom := best_bull_ob.right_bottom.price
     active_bull_ob_break_level := best_bull_ob.break_price
@@ -3696,9 +3696,9 @@ int best_bull_fvg_recency = na
 bool best_bull_fvg_touch_anchor = false
 float best_bull_fvg_quality = na
 float best_bull_fvg_overlap = na
-if fvgs_bull.size() > 0
-    for i = fvgs_bull.size() - 1 to bull_fvg_scan_start
-        bull_fvg_candidate = fvgs_bull.get(i)
+if array.size(fvgs_bull) > 0
+    for i = array.size(fvgs_bull) - 1 to bull_fvg_scan_start
+        bull_fvg_candidate = array.get(fvgs_bull, i)
         float fvg_candidate_overlap = math.min(high, bull_fvg_candidate.left_top.price) - math.max(low, bull_fvg_candidate.right_bottom.price)
         bool fvg_candidate_active = fvg_candidate_overlap >= 0
         bool fvg_candidate_touch_anchor = not na(touched_bull_fvg_id) and bull_fvg_candidate.id == touched_bull_fvg_id and not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
@@ -3719,7 +3719,7 @@ float active_bull_fvg_quality = 0.0
 int active_bull_fvg_recency = na
 bool active_bull_fvg_touch_anchor = false
 if not na(best_bull_fvg_idx)
-    best_bull_fvg = fvgs_bull.get(best_bull_fvg_idx)
+    best_bull_fvg = array.get(fvgs_bull, best_bull_fvg_idx)
     active_bull_fvg_top := best_bull_fvg.left_top.price
     active_bull_fvg_bottom := best_bull_fvg.right_bottom.price
     active_bull_fvg_fill_level := best_bull_fvg.fill_target_level
@@ -3739,9 +3739,9 @@ int best_bear_ob_id = na
 int best_bear_ob_recency = na
 float best_bear_ob_quality = na
 float best_bear_ob_overlap = na
-if ob_blocks_bear.size() > 0
-    for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
-        bear_ob_candidate = ob_blocks_bear.get(i)
+if array.size(ob_blocks_bear) > 0
+    for i = array.size(ob_blocks_bear) - 1 to bear_ob_scan_start
+        bear_ob_candidate = array.get(ob_blocks_bear, i)
         float bear_ob_candidate_overlap = math.min(high, bear_ob_candidate.left_top.price) - math.max(low, bear_ob_candidate.right_bottom.price)
         bool bear_ob_candidate_active = bear_ob_candidate_overlap >= 0
         int bear_ob_candidate_recency = bear_ob_candidate.right_bottom.index
@@ -3756,16 +3756,16 @@ if ob_blocks_bear.size() > 0
             best_bear_ob_quality := bear_ob_candidate_quality
             best_bear_ob_overlap := bear_ob_candidate_overlap
 if not na(best_bear_ob_idx)
-    active_bear_ob_break_level := ob_blocks_bear.get(best_bear_ob_idx).break_price
+    active_bear_ob_break_level := array.get(ob_blocks_bear, best_bear_ob_idx).break_price
 
 int best_bear_fvg_idx = na
 int best_bear_fvg_id = na
 int best_bear_fvg_recency = na
 float best_bear_fvg_quality = na
 float best_bear_fvg_overlap = na
-if fvgs_bear.size() > 0
-    for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
-        bear_fvg_candidate = fvgs_bear.get(i)
+if array.size(fvgs_bear) > 0
+    for i = array.size(fvgs_bear) - 1 to bear_fvg_scan_start
+        bear_fvg_candidate = array.get(fvgs_bear, i)
         float bear_fvg_candidate_overlap = math.min(high, bear_fvg_candidate.left_top.price) - math.max(low, bear_fvg_candidate.right_bottom.price)
         bool bear_fvg_candidate_active = bear_fvg_candidate_overlap >= 0
         int bear_fvg_candidate_recency = bear_fvg_candidate.right_bottom.index
@@ -3780,7 +3780,7 @@ if fvgs_bear.size() > 0
             best_bear_fvg_quality := bear_fvg_candidate_quality
             best_bear_fvg_overlap := bear_fvg_candidate_overlap
 if not na(best_bear_fvg_idx)
-    active_bear_fvg_fill_level := fvgs_bear.get(best_bear_fvg_idx).fill_target_level
+    active_bear_fvg_fill_level := array.get(fvgs_bear, best_bear_fvg_idx).fill_target_level
 
 bool in_bull_ob_zone = not na(active_bull_ob_top) and not na(active_bull_ob_bottom)
 bool in_bull_fvg_zone = not na(active_bull_fvg_top) and not na(active_bull_fvg_bottom)
@@ -3876,54 +3876,54 @@ float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull
 float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level
 float bear_ob_break_for_alert = not na(active_bear_ob_break_level) ? active_bear_ob_break_level : last_bear_ob_break_level
 float bear_fvg_fill_for_alert = not na(active_bear_fvg_fill_level) ? active_bear_fvg_fill_level : last_bear_fvg_fill_level
-bool any_live_bull_ob_break = ob_broken_new_bull.size() > 0
-bool any_live_bear_ob_break = ob_broken_new_bear.size() > 0
-bool any_live_bull_fvg_fill = filled_fvgs_new_bull.size() > 0
-bool any_live_bear_fvg_fill = filled_fvgs_new_bear.size() > 0
-float bull_ob_live_event_level = any_live_bull_ob_break ? ob_broken_new_bull.last().break_price : bull_ob_break_for_alert
-float bear_ob_live_event_level = any_live_bear_ob_break ? ob_broken_new_bear.last().break_price : bear_ob_break_for_alert
-float bull_fvg_live_event_level = any_live_bull_fvg_fill ? filled_fvgs_new_bull.last().fill_target_level : bull_fvg_fill_for_alert
-float bear_fvg_live_event_level = any_live_bear_fvg_fill ? filled_fvgs_new_bear.last().fill_target_level : bear_fvg_fill_for_alert
+bool any_live_bull_ob_break = array.size(ob_broken_new_bull) > 0
+bool any_live_bear_ob_break = array.size(ob_broken_new_bear) > 0
+bool any_live_bull_fvg_fill = array.size(filled_fvgs_new_bull) > 0
+bool any_live_bear_fvg_fill = array.size(filled_fvgs_new_bear) > 0
+float bull_ob_live_event_level = any_live_bull_ob_break ? array.get(ob_broken_new_bull, array.size(ob_broken_new_bull) - 1).break_price : bull_ob_break_for_alert
+float bear_ob_live_event_level = any_live_bear_ob_break ? array.get(ob_broken_new_bear, array.size(ob_broken_new_bear) - 1).break_price : bear_ob_break_for_alert
+float bull_fvg_live_event_level = any_live_bull_fvg_fill ? array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1).fill_target_level : bull_fvg_fill_for_alert
+float bear_fvg_live_event_level = any_live_bear_fvg_fill ? array.get(filled_fvgs_new_bear, array.size(filled_fvgs_new_bear) - 1).fill_target_level : bear_fvg_fill_for_alert
 int best_live_bull_ob_idx = na
 int best_live_bear_ob_idx = na
 int best_live_bull_fvg_idx = na
 int best_live_bear_fvg_idx = na
 
-if not any_live_bull_ob_break and ob_blocks_bull.size() > 0
-    for i = ob_blocks_bull.size() - 1 to bull_ob_scan_start
-        bull_ob_live_candidate = ob_blocks_bull.get(i)
-        if low <= bull_ob_live_candidate.break_price and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < ob_blocks_bull.get(best_live_bull_ob_idx).right_bottom.price)
+if not any_live_bull_ob_break and array.size(ob_blocks_bull) > 0
+    for i = array.size(ob_blocks_bull) - 1 to bull_ob_scan_start
+        bull_ob_live_candidate = array.get(ob_blocks_bull, i)
+        if low <= bull_ob_live_candidate.break_price and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < array.get(ob_blocks_bull, best_live_bull_ob_idx).right_bottom.price)
             best_live_bull_ob_idx := i
 if not na(best_live_bull_ob_idx)
     any_live_bull_ob_break := true
-    bull_ob_live_event_level := ob_blocks_bull.get(best_live_bull_ob_idx).break_price
+    bull_ob_live_event_level := array.get(ob_blocks_bull, best_live_bull_ob_idx).break_price
 
-if not any_live_bear_ob_break and ob_blocks_bear.size() > 0
-    for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
-        bear_ob_live_candidate = ob_blocks_bear.get(i)
-        if high >= bear_ob_live_candidate.break_price and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > ob_blocks_bear.get(best_live_bear_ob_idx).left_top.price)
+if not any_live_bear_ob_break and array.size(ob_blocks_bear) > 0
+    for i = array.size(ob_blocks_bear) - 1 to bear_ob_scan_start
+        bear_ob_live_candidate = array.get(ob_blocks_bear, i)
+        if high >= bear_ob_live_candidate.break_price and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > array.get(ob_blocks_bear, best_live_bear_ob_idx).left_top.price)
             best_live_bear_ob_idx := i
 if not na(best_live_bear_ob_idx)
     any_live_bear_ob_break := true
-    bear_ob_live_event_level := ob_blocks_bear.get(best_live_bear_ob_idx).break_price
+    bear_ob_live_event_level := array.get(ob_blocks_bear, best_live_bear_ob_idx).break_price
 
-if not any_live_bull_fvg_fill and fvgs_bull.size() > 0
-    for i = fvgs_bull.size() - 1 to bull_fvg_scan_start
-        bull_fvg_live_candidate = fvgs_bull.get(i)
-        if low <= bull_fvg_live_candidate.fill_target_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < fvgs_bull.get(best_live_bull_fvg_idx).right_bottom.price)
+if not any_live_bull_fvg_fill and array.size(fvgs_bull) > 0
+    for i = array.size(fvgs_bull) - 1 to bull_fvg_scan_start
+        bull_fvg_live_candidate = array.get(fvgs_bull, i)
+        if low <= bull_fvg_live_candidate.fill_target_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < array.get(fvgs_bull, best_live_bull_fvg_idx).right_bottom.price)
             best_live_bull_fvg_idx := i
 if not na(best_live_bull_fvg_idx)
     any_live_bull_fvg_fill := true
-    bull_fvg_live_event_level := fvgs_bull.get(best_live_bull_fvg_idx).fill_target_level
+    bull_fvg_live_event_level := array.get(fvgs_bull, best_live_bull_fvg_idx).fill_target_level
 
-if not any_live_bear_fvg_fill and fvgs_bear.size() > 0
-    for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
-        bear_fvg_live_candidate = fvgs_bear.get(i)
-        if high >= bear_fvg_live_candidate.fill_target_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > fvgs_bear.get(best_live_bear_fvg_idx).left_top.price)
+if not any_live_bear_fvg_fill and array.size(fvgs_bear) > 0
+    for i = array.size(fvgs_bear) - 1 to bear_fvg_scan_start
+        bear_fvg_live_candidate = array.get(fvgs_bear, i)
+        if high >= bear_fvg_live_candidate.fill_target_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > array.get(fvgs_bear, best_live_bear_fvg_idx).left_top.price)
             best_live_bear_fvg_idx := i
 if not na(best_live_bear_fvg_idx)
     any_live_bear_fvg_fill := true
-    bear_fvg_live_event_level := fvgs_bear.get(best_live_bear_fvg_idx).fill_target_level
+    bear_fvg_live_event_level := array.get(fvgs_bear, best_live_bear_fvg_idx).fill_target_level
 
 float long_reclaim_ob_break_src = live_exec ? high : close
 float long_reclaim_fvg_break_src = live_exec ? high : close
@@ -4194,16 +4194,16 @@ if long_setup_armed or long_setup_confirmed
     long_setup_backing_zone_touch_count := long_locked_source_touch_count
 float overhead_scan_reference = long_plan_active and not na(long_setup_trigger) ? long_setup_trigger : close
 float nearest_bear_ob_blocker_level = na
-if ob_blocks_bear.size() > 0
-    for i = ob_blocks_bear.size() - 1 to bear_ob_scan_start
-        bear_ob_blocker = ob_blocks_bear.get(i)
+if array.size(ob_blocks_bear) > 0
+    for i = array.size(ob_blocks_bear) - 1 to bear_ob_scan_start
+        bear_ob_blocker = array.get(ob_blocks_bear, i)
         float bear_ob_blocker_level = bear_ob_blocker.break_price
         if not na(bear_ob_blocker_level) and bear_ob_blocker_level >= overhead_scan_reference and (na(nearest_bear_ob_blocker_level) or bear_ob_blocker_level < nearest_bear_ob_blocker_level)
             nearest_bear_ob_blocker_level := bear_ob_blocker_level
 float nearest_bear_fvg_blocker_level = na
-if fvgs_bear.size() > 0
-    for i = fvgs_bear.size() - 1 to bear_fvg_scan_start
-        bear_fvg_blocker = fvgs_bear.get(i)
+if array.size(fvgs_bear) > 0
+    for i = array.size(fvgs_bear) - 1 to bear_fvg_scan_start
+        bear_fvg_blocker = array.get(fvgs_bear, i)
         float bear_fvg_blocker_level = bear_fvg_blocker.fill_target_level
         if not na(bear_fvg_blocker_level) and bear_fvg_blocker_level >= overhead_scan_reference and (na(nearest_bear_fvg_blocker_level) or bear_fvg_blocker_level < nearest_bear_fvg_blocker_level)
             nearest_bear_fvg_blocker_level := bear_fvg_blocker_level
@@ -4414,9 +4414,9 @@ if show_htf_fvg and barstate.islast
 
     if barstate.isconfirmed
         delete(htf_fvg_buffer_bull_discarded)
-        htf_fvg_buffer_bull_discarded.clear()
+        array.clear(htf_fvg_buffer_bull_discarded)
         delete(htf_fvg_buffer_bear_discarded)
-        htf_fvg_buffer_bear_discarded.clear()
+        array.clear(htf_fvg_buffer_bear_discarded)
 
 var g_eq = 'Equal Highs / Lows'
 var show_eq = input.bool(false, 'Equal High / Low', group = g_eq, tooltip = SHOW_EQHL)
@@ -4445,10 +4445,10 @@ int visible_bear_obs = 0
 int visible_bull_fvgs = 0
 int visible_bear_fvgs = 0
 if dashboard_counts_active
-    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time, ob_extend_until_broken) : ob_blocks_bull.size()
-    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time, ob_extend_until_broken) : ob_blocks_bear.size()
-    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time, fvg_extend_until_filled) : fvgs_bull.size()
-    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time, fvg_extend_until_filled) : fvgs_bear.size()
+    visible_bull_obs := use_visible_window ? count_visible_obs(ob_blocks_bull, visible_left_time, visible_right_time, ob_extend_until_broken) : array.size(ob_blocks_bull)
+    visible_bear_obs := use_visible_window ? count_visible_obs(ob_blocks_bear, visible_left_time, visible_right_time, ob_extend_until_broken) : array.size(ob_blocks_bear)
+    visible_bull_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bull, visible_left_time, visible_right_time, fvg_extend_until_filled) : array.size(fvgs_bull)
+    visible_bear_fvgs := use_visible_window ? count_visible_fvgs(fvgs_bear, visible_left_time, visible_right_time, fvg_extend_until_filled) : array.size(fvgs_bear)
 htf_bull_count = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0)
 htf_bear_count = (mtf_trend_1 < 0 ? 1 : 0) + (mtf_trend_2 < 0 ? 1 : 0) + (mtf_trend_3 < 0 ? 1 : 0)
 int trend_state = structure_display_trend > 0 ? 5 : structure_display_trend < 0 ? -1 : 0
@@ -4682,8 +4682,8 @@ last_long_entry_best_alert_serial := next_last_long_entry_best_alert_serial
 [next_alert_long_entry_strict_event, next_last_long_entry_strict_alert_serial] = next_serial_event(alert_long_entry_strict, long_setup_serial, last_long_entry_strict_alert_serial)
 bool alert_long_entry_strict_event = next_alert_long_entry_strict_event
 last_long_entry_strict_alert_serial := next_last_long_entry_strict_alert_serial
-bool bull_ob_broken_event = ob_broken_new_bull.size() > 0
-bool bear_ob_broken_event = ob_broken_new_bear.size() > 0
+bool bull_ob_broken_event = array.size(ob_broken_new_bull) > 0
+bool bear_ob_broken_event = array.size(ob_broken_new_bear) > 0
 
 varip bool long_arm_signal_latched = false
 varip bool long_confirm_signal_latched = false
