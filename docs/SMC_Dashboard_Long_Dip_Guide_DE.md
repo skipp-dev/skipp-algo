@@ -20,6 +20,11 @@ Die juengsten SMC++-Updates haben vor allem vier Dinge geschaerft:
 - Datenqualitaet wird klarer getrennt: fehlendes Volumen auf der aktuellen Kerze, schwache Feed-Qualitaet und fehlende LTF-Volumenbasis werden nicht mehr in einen Topf geworfen.
 - Alerts und Dashboard sind enger synchronisiert: Ready- und Invalidated-Ereignisse nutzen gelatchte Event-States, und die Microstructure-Anzeige zeigt jetzt Hauptprofil plus aktive Modifier.
 
+Seit den juengsten Review-Fixes kommen noch zwei praktische Details dazu:
+
+- `Long Setup` und `Long Visual` bleiben nach einer intrabar-Invalidierung bis zur naechsten Kerze sichtbar auf dem Invalidated/Fail-Zustand, statt auf derselben Echtzeitkerze wieder still auf neutral zurueckzufallen.
+- Das Watchlist-Alert-Level folgt jetzt der gleichen aktiven OB/FVG-Zonenpraeferenz wie der Rest der Long-Zonenlogik, statt bei gleichzeitiger OB- und FVG-Verfuegbarkeit immer stumpf OB zu bevorzugen.
+
 ## Dashboard-Bloecke
 
 Das Dashboard ist jetzt nicht nur nach Einzelzeilen, sondern auch nach vier Funktionsbloecken gegliedert.
@@ -150,7 +155,11 @@ Der operative Zustand des Long-Setups.
 - Building: Struktur baut sich auf
 - Confirmed: wichtige Bestaetigung liegt vor
 - Ready: sauberes, fortgeschrittenes Setup
-- Blocked oder Invalidated: Setup ist kaputt
+- Invalidated: Setup ist kaputt
+
+Wichtig auf Live-Bars:
+
+- Wenn ein Setup intrabar invalidiert wurde, bleibt `Long Setup` jetzt bis zur naechsten Kerze sichtbar auf `Invalidated`.
 
 ### Setup Age
 
@@ -166,6 +175,19 @@ Frische Signale sind meist besser als alte.
 ### Long Visual
 
 Die farbliche Kurzfassung des Long-Zustands.
+
+Typische Zustaende:
+
+- Fail
+- Neutral
+- In Zone
+- Armed
+- Building
+- Confirmed
+- Ready
+
+`Long Visual` zeigt bewusst nur den Lifecycle.
+`Best` und `Strict` stehen separat in `Exec Tier`.
 
 ### Close Strength
 
@@ -246,6 +268,11 @@ Die aktuell relevanten Long-Zonen.
 ### Long Triggers
 
 Die Rueckeroberungs- oder Bestaetigungslevel fuer das Setup.
+
+Wichtig:
+
+- Das Watchlist-Alert-Level und die Trigger-Interpretation folgen jetzt der bevorzugten aktiven Zone.
+- Wenn OB und FVG gleichzeitig moeglich sind, wird nicht mehr automatisch OB fuer das Alert-Level genommen, sondern die intern bereits bevorzugte aktive Zone.
 
 ### Legend
 
@@ -379,12 +406,14 @@ Wichtige Verhaltensdetails seit den letzten Alert-Fixes:
 - `Long Dip Watchlist` feuert nur noch dann neu, wenn die generische Watchlist wirklich neu aktiv wird. Ein Wechsel von OB zu FVG innerhalb derselben Watchlist loest keinen zweiten Watchlist-Alert mehr aus.
 - `Long Ready` und `Long Invalidated` sind fuer TradingView-Presets jetzt robuster auf Live-Bars, weil intrabar Zustandswechsel per Latch gehalten werden.
 - Im Dynamic-Alert-Modus `Priority` kann `Long Invalidated` jetzt auch spaeter auf derselben Echtzeitkerze noch gesendet werden, selbst wenn zuvor bereits ein schwaecherer Lifecycle-Alert wie Watchlist oder Ready gesendet wurde.
+- Passend dazu bleibt die Dashboard-Anzeige fuer `Long Setup` und `Long Visual` auf derselben Echtzeitkerze jetzt ebenfalls sticky auf Invalidated/Fail, damit Alert und UI nicht auseinanderlaufen.
 
 ## Profil- und Zonenlogik
 
 Fuer die juengsten Profil- und Ueberlappungs-Fixes ist wichtig:
 
 - Die aktive Long-Zone wird bei Ueberlappung sauberer nach Qualitaet ausgewaehlt, nicht nur nach erstem Treffer.
+- Das Watchlist-Alert-Level nutzt jetzt dieselbe Zonenpraeferenz wie diese aktive Long-Zonenwahl.
 - OB-Profile bauen ihre Value Area jetzt vom POC nach aussen auf. Das ist naeher an der eigentlichen Profil-Logik.
 - Leere oder volumenlose Profile werden nicht mehr so behandelt, als haetten sie einen gueltigen POC oder eine gueltige Value Area.
 - Wenn ein Setup auf einem bestimmten OB oder FVG bewaffnet wurde, dann prueft auch die spaetere Invalidierung genau dieses Backing-Objekt.

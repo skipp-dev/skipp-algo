@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-03-21)
+
+- **SMC++ intrabar invalidation and watchlist-level consistency:**
+  - Kept `Long Setup` and `Long Visual` sticky on `Invalidated` / `Fail` for the rest of the realtime bar after an intrabar invalidation, so the dashboard no longer drops back to a neutral-looking state after the alert already fired.
+  - Aligned the long-dip watchlist alert level with the existing active-zone preference logic, so overlapping OB/FVG cases now point at the same preferred active zone used by the setup engine instead of always preferring OB.
+
+### Changed (2026-03-21)
+
+- **SMC++ documentation refresh:**
+  - Updated the German dashboard guide to document sticky intrabar invalidation behavior in the dashboard and the watchlist alert-level alignment with active-zone preference.
+
 ### Fixed (2026-03-20)
 
 - **SMC++ long-dip state, alert, and profile consistency:**
