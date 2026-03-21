@@ -1395,6 +1395,16 @@ compose_long_setup_source_display(int long_entry_origin_source, int long_validat
     string long_validation_source_text = resolve_long_source_text(long_validation_source)
     long_entry_origin_source == LONG_SOURCE_NONE ? long_validation_source_text : long_validation_source == LONG_SOURCE_NONE or long_entry_origin_source == long_validation_source ? long_entry_origin_source_text : long_entry_origin_source_text + ' -> ' + long_validation_source_text
 
+compose_zone_summary_text(bool show_ob_zone, float ob_top, float ob_bottom, bool show_fvg_zone, float fvg_top, float fvg_bottom, string empty_text) =>
+    string zone_text = empty_text
+    if show_ob_zone
+        zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom)
+    if show_fvg_zone
+        zone_text := 'FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)
+    if show_ob_zone and show_fvg_zone
+        zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)
+    zone_text
+
 describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
     not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
 
@@ -4269,13 +4279,7 @@ render_smc_dashboard_documented(table tbl) =>
     string _db_swing_text = 'S ' + (not na(trail_up) ? u.format_level(trail_up) : 'n/a') + ' / ' + (not na(trail_dn) ? u.format_level(trail_dn) : 'n/a') + ' | I ' + (not na(internal_trail_up) ? u.format_level(internal_trail_up) : 'n/a') + ' / ' + (not na(internal_trail_dn) ? u.format_level(internal_trail_dn) : 'n/a')
     int _db_swing_state = bullish_trend_safe ? 5 : bearish_trend_safe ? -1 : 0
 
-    string _db_long_zones_text = 'No Long Zones'
-    if in_bull_ob_zone
-        _db_long_zones_text := 'OB ' + u.format_level(active_bull_ob_top) + ' / ' + u.format_level(active_bull_ob_bottom)
-    if in_bull_fvg_zone
-        _db_long_zones_text := 'FVG ' + u.format_level(active_bull_fvg_top) + ' / ' + u.format_level(active_bull_fvg_bottom)
-    if in_bull_ob_zone and in_bull_fvg_zone
-        _db_long_zones_text := 'OB ' + u.format_level(active_bull_ob_top) + ' / ' + u.format_level(active_bull_ob_bottom) + ' | FVG ' + u.format_level(active_bull_fvg_top) + ' / ' + u.format_level(active_bull_fvg_bottom)
+    string _db_long_zones_text = compose_zone_summary_text(in_bull_ob_zone, active_bull_ob_top, active_bull_ob_bottom, in_bull_fvg_zone, active_bull_fvg_top, active_bull_fvg_bottom, 'No Long Zones')
     int _db_long_zones_state = long_zone_active ? 5 : 0
 
     string _db_long_triggers_text = long_plan_active ? 'Trig ' + u.format_level(long_setup_trigger) + ' | Inv ' + u.format_level(long_invalidation_level) : 'n/a'

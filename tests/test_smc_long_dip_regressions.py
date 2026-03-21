@@ -465,6 +465,16 @@ def test_visual_text_dashboard_and_colors_are_extracted_into_helpers() -> None:
     assert 'long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)' in source
 
 
+def test_dashboard_long_zone_summary_uses_shared_zone_text_helper() -> None:
+    source = _read_smc_source()
+
+    assert "compose_zone_summary_text(bool show_ob_zone, float ob_top, float ob_bottom, bool show_fvg_zone, float fvg_top, float fvg_bottom, string empty_text) =>" in source
+    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom)" in source
+    assert "zone_text := 'FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" in source
+    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" in source
+    assert "string _db_long_zones_text = compose_zone_summary_text(in_bull_ob_zone, active_bull_ob_top, active_bull_ob_bottom, in_bull_fvg_zone, active_bull_fvg_top, active_bull_fvg_bottom, 'No Long Zones')" in source
+
+
 def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     source = _read_smc_source()
 
