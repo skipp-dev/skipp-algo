@@ -1472,17 +1472,77 @@ resolve_trade_gate_reason(bool session_structure_gate_ok, bool micro_session_gat
 resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
     not market_regime_gate_ok ? 'Blocked: Market Gate' : not vola_regime_gate_safe ? 'Blocked: Vola Gate' : 'Env OK'
 
+// Long engine architecture
+// 1. Source tracking identifies the active OB/FVG candidate and locks the current setup anchor.
+// 2. Confirmed state validates reclaim structure on close-safe data.
+// 3. Ready inherits the confirmed lifecycle and adds touch hygiene, trade release, environment, and context gates.
+// 4. Best and Strict are execution tiers layered on top of Ready rather than separate lifecycle stages.
+// 5. Debug labels, alerts, and dashboard rows read the same Ready/Strict outputs to keep user messaging consistent.
+// Core user-facing controls:
+// - Signal mode controls realtime vs close-safe alert behavior.
+// - Strict sequence/sweep/confirm toggles decide how demanding the higher execution tiers are.
+// - Context quality, overhead, and microstructure switches decide how much market filtering is required before entry.
+compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>
+    bool helper_environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe
+    bool helper_quality_gate_ok = context_quality_gate_ok
+    bool helper_microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
+    bool helper_trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
+    string helper_long_environment_focus_display = not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env OK'
+    [helper_environment_hard_gate_ok, helper_quality_gate_ok, helper_microstructure_entry_gate_ok, helper_trade_hard_gate_ok, helper_long_environment_focus_display]
+
+resolve_long_ready_lifecycle_reason(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent) =>
+    long_ready_state ? 'Passed' : not long_setup_confirmed ? 'Awaiting Confirm' : not close_safe_mode ? 'Awaiting Close' : not ready_bar_gap_ok ? 'Awaiting Next Bar' : long_confirm_expired ? 'Blocked: Confirm Expired' : not ready_is_fresh ? 'Blocked: Confirm Stale' : not long_confirm_bearish_guard_ok ? 'Blocked: Bearish Guard' : require_main_break_for_ready and not (bull_bos_sig or main_bos_recent) ? 'Awaiting Main Break' : ''
+
+resolve_long_ready_gate_reason(bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+    not setup_hard_gate_ok ? 'Blocked: Touch Count' : not session_structure_gate_ok or not micro_session_gate_ok or not micro_freshness_gate_ok or not overhead_zone_ok ? resolve_trade_gate_reason(session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok) : not market_regime_gate_ok or not vola_regime_gate_safe ? resolve_environment_gate_reason(market_regime_gate_ok, vola_regime_gate_safe) : not quality_gate_ok ? 'Blocked: Context Score' : not accel_ready_gate_ok ? 'Blocked: Acceleration' : not sd_ready_gate_ok ? 'Blocked: SD Confluence' : not vol_ready_context_ok ? 'Blocked: Volatility Context' : not stretch_ready_context_ok ? 'Blocked: Stretch Context' : not ddvi_ready_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'
+
+resolve_long_strict_gate_reason(bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    not strict_entry_ltf_ok ? 'Blocked: LTF Confirmation' : not htf_alignment_ok ? 'Blocked: HTF Alignment' : not accel_strict_entry_gate_ok ? 'Blocked: Acceleration' : not sd_entry_strict_gate_ok ? 'Blocked: SD Confluence' : not vol_entry_strict_context_ok_safe ? 'Blocked: Volatility Context' : not stretch_entry_strict_context_ok ? 'Blocked: Stretch Context' : not ddvi_entry_strict_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'
+
+compute_long_ready_state(bool close_safe_mode, bool long_setup_confirmed, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+    bool helper_lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and ready_bar_gap_ok and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+    bool helper_long_ready_state = helper_lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
+    [helper_lifecycle_ready_ok, helper_long_ready_state]
+
+compute_long_entry_best_state(bool long_ready_state, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>
+    long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+
+compute_long_entry_strict_state(bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+
 resolve_long_ready_blocker_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
-    long_ready_state ? 'Passed' : not long_setup_confirmed ? 'Awaiting Confirm' : not close_safe_mode ? 'Awaiting Close' : not ready_bar_gap_ok ? 'Awaiting Next Bar' : long_confirm_expired ? 'Blocked: Confirm Expired' : not ready_is_fresh ? 'Blocked: Confirm Stale' : not long_confirm_bearish_guard_ok ? 'Blocked: Bearish Guard' : require_main_break_for_ready and not (bull_bos_sig or main_bos_recent) ? 'Awaiting Main Break' : not setup_hard_gate_ok ? 'Blocked: Touch Count' : not session_structure_gate_ok or not micro_session_gate_ok or not micro_freshness_gate_ok or not overhead_zone_ok ? resolve_trade_gate_reason(session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok) : not market_regime_gate_ok or not vola_regime_gate_safe ? resolve_environment_gate_reason(market_regime_gate_ok, vola_regime_gate_safe) : not quality_gate_ok ? 'Blocked: Context Score' : not accel_ready_gate_ok ? 'Blocked: Acceleration' : not sd_ready_gate_ok ? 'Blocked: SD Confluence' : not vol_ready_context_ok ? 'Blocked: Volatility Context' : not stretch_ready_context_ok ? 'Blocked: Stretch Context' : not ddvi_ready_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'
+    string lifecycle_reason = resolve_long_ready_lifecycle_reason(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent)
+    str.length(lifecycle_reason) > 0 ? lifecycle_reason : resolve_long_ready_gate_reason(setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
 resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_state, string long_ready_blocker_text, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    long_entry_strict_state ? 'Passed' : not long_ready_state ? 'Need Ready: ' + long_ready_blocker_text : not strict_entry_ltf_ok ? 'Blocked: LTF Confirmation' : not htf_alignment_ok ? 'Blocked: HTF Alignment' : not accel_strict_entry_gate_ok ? 'Blocked: Acceleration' : not sd_entry_strict_gate_ok ? 'Blocked: SD Confluence' : not vol_entry_strict_context_ok_safe ? 'Blocked: Volatility Context' : not stretch_entry_strict_context_ok ? 'Blocked: Stretch Context' : not ddvi_entry_strict_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'
+    long_entry_strict_state ? 'Passed' : not long_ready_state ? 'Need Ready: ' + long_ready_blocker_text : resolve_long_strict_gate_reason(strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
+
+compose_long_debug_compact_text(string long_setup_source_display, string long_ready_blocker_text, string long_strict_blocker_text) =>
+    'src=' + long_setup_source_display + ' | rdy=' + long_ready_blocker_text + ' | st=' + long_strict_blocker_text
+
+compose_long_debug_source_touch_text(string long_setup_source_display, int long_setup_backing_zone_touch_count) =>
+    'src=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count)
+
+compose_long_debug_ready_strict_text(string long_ready_blocker_text, string long_strict_blocker_text) =>
+    'ready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text
+
+compose_long_debug_fresh_source_text(string freshness_text, string source_state_text) =>
+    'fresh=' + freshness_text + ' | ' + source_state_text
+
+compose_long_debug_zone_env_text(string zone_quality_text, string long_environment_focus_display) =>
+    'zone=' + zone_quality_text + ' | env=' + long_environment_focus_display
+
+compose_long_debug_event_context_text(int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display) =>
+    'touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + ' | ' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display)
+
+compose_long_debug_levels_text(float long_setup_trigger, float long_invalidation_level, string overhead_text) =>
+    'trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
 
 compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
     string debug_text = 'idle'
     bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
     if long_setup_armed or long_setup_confirmed or long_ready_state
-        debug_text := debug_mode_full ? 'src=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + freshness_text + ' | ' + source_state_text + ' | ' + zone_quality_text + ' | ' + long_environment_focus_display + ' | ready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text : 'src=' + long_setup_source_display + ' | rdy=' + long_ready_blocker_text + ' | st=' + long_strict_blocker_text
+        debug_text := debug_mode_full ? compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count) + ' | ' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + ' | ' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display) + ' | ' + compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text) : compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)
     else if long_last_invalid_source != 'None'
         debug_text := 'last=' + long_last_invalid_source
     if long_source_upgrade_now
@@ -1493,12 +1553,12 @@ compose_long_engine_debug_label_text(string long_engine_debug_mode, string long_
     bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
     string debug_text = 'Long Engine (' + long_engine_debug_mode + ')'
     debug_text += '\nsetup=' + long_setup_text + ' | visual=' + long_visual_text
-    debug_text += debug_mode_full ? '\nsrc=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) : '\nsrc=' + long_setup_source_display + ' | rdy=' + long_ready_blocker_text + ' | st=' + long_strict_blocker_text
+    debug_text += debug_mode_full ? '\n' + compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count) : '\n' + compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)
     if debug_mode_full
-        debug_text += '\nfresh=' + freshness_text + ' | ' + source_state_text
-        debug_text += '\nzone=' + zone_quality_text + ' | env=' + long_environment_focus_display
-        debug_text += '\nready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text
-        debug_text += '\ntrig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
+        debug_text += '\n' + compose_long_debug_fresh_source_text(freshness_text, source_state_text)
+        debug_text += '\n' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display)
+        debug_text += '\n' + compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text)
+        debug_text += '\n' + compose_long_debug_levels_text(long_setup_trigger, long_invalidation_level, overhead_text)
     if long_source_upgrade_now
         debug_text += '\nupgrade=active'
     if long_last_invalid_source != 'None'
@@ -1508,8 +1568,8 @@ compose_long_engine_debug_label_text(string long_engine_debug_mode, string long_
 compose_long_engine_event_log(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
     bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
     string event_text = event_name + ' | src=' + long_setup_source_display + ' | trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level)
-    event_text += debug_mode_full ? ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | fresh=' + freshness_text + ' | ' + source_state_text + ' | zone=' + zone_quality_text + ' | env=' + long_environment_focus_display : ''
-    event_text += ' | ready=' + long_ready_blocker_text + ' | strict=' + long_strict_blocker_text
+    event_text += debug_mode_full ? ' | ' + compose_long_debug_event_context_text(long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display) : ''
+    event_text += ' | ' + compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text)
     if long_source_upgrade_now
         event_text += ' | upgrade'
     if long_last_invalid_source != 'None'
@@ -3625,7 +3685,7 @@ bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_
 bool micro_confirm_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_state.confirmed or long_confirm_age <= effective_fast_decay_confirm_age_max
 bool micro_freshness_gate_ok = micro_setup_fresh_enough and micro_confirm_fresh_enough
 // Snapshot des aktuell gelockten Sources VOR einer moeglichen Source-Upgrade-Entscheidung.
-// Dadurch gewinnt eine echte Invalidierung des alten Sources immer gegen ein gleichzeitiges Upgrade.
+// A true invalidation of the old source always wins against a same-bar upgrade.
 int prev_locked_source_kind = long_state.locked_source_kind
 int prev_locked_source_id = long_state.locked_source_id
 bool prev_locked_source_tracked = not na(prev_locked_source_id)
@@ -3643,7 +3703,8 @@ bool prev_locked_source_lost = (long_state.armed or long_state.confirmed) and pr
 
 bool prev_locked_source_invalid_now = prev_locked_source_tracked and (prev_locked_source_broken or prev_locked_source_lost)
 
-// Upgrade nur erlauben, wenn der bisher gelockte Source in diesem Bar NICHT bereits invalid ist.
+// A true invalidation of the old source always wins against a same-bar upgrade.
+// Only allow an upgrade when the currently locked source is not already invalid on this bar.
 bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now and bull_reclaim_ob_strict and not na(touched_bull_ob_block) and (prev_locked_source_kind != LONG_SOURCE_OB or prev_locked_source_id != touched_bull_ob_id) and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
 bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict and not na(touched_bull_fvg_block) and (prev_locked_source_kind != LONG_SOURCE_FVG or prev_locked_source_id != touched_bull_fvg_id) and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
 
@@ -3758,11 +3819,7 @@ int context_quality_max_score = score_weight_structure + score_weight_htf + scor
 int effective_context_quality_max_score = context_quality_max_score - (relvol_score_unavailable ? score_weight_relvol : 0)
 int effective_min_context_quality_score = math.min(min_context_quality_score, effective_context_quality_max_score)
 bool context_quality_gate_ok = not use_context_quality_score or context_quality_score >= effective_min_context_quality_score
-bool environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe
-bool quality_gate_ok = context_quality_gate_ok
-bool microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
-bool trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
-string long_environment_focus_display = not market_regime_gate_ok ? 'Market Block' : not vola_regime_gate_safe ? 'Vola Block' : 'Env OK'
+[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)
 string freshness_text = describe_long_freshness(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh)
 string source_state_text = describe_long_source_state(long_source_tracked, long_source_alive, long_source_broken)
 long_validation_source := resolve_long_validation_source(long_state.locked_source_kind)
@@ -3787,10 +3844,9 @@ if confirm_lifecycle_ok and confirm_filters_ok
 bool long_setup_in_progress = long_state.armed and not long_state.confirmed
 long_building_state := long_state.armed and long_internal_structure_ok and not long_state.confirmed
 bool ready_bar_gap_ok = not na(long_state.confirm_bar_index) and bar_index > long_state.confirm_bar_index
-bool lifecycle_ready_ok = close_safe_mode and long_state.confirmed and ready_bar_gap_ok and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
-bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
-bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
-bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+[lifecycle_ready_ok, long_ready_state] = compute_long_ready_state(close_safe_mode, long_state.confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
+bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)
+bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
@@ -4321,6 +4377,15 @@ db_exec_tier_text() =>
 db_setup_age_text() =>
     long_state.confirmed and not na(long_state.confirm_bar_index) ? 'confirmed ' + str.tostring(long_confirm_age) : long_state.armed and not na(long_state.arm_bar_index) ? 'armed ' + str.tostring(long_setup_age) : 'n/a'
 
+db_ready_gate_state(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok) =>
+    long_ready_state ? 5 : not long_setup_confirmed ? 2 : not lifecycle_ready_ok ? 2 : not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok ? -1 : 2
+
+db_strict_gate_state(bool long_entry_strict_state, bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    long_entry_strict_state ? 5 : not long_ready_state ? 2 : not strict_entry_ltf_ok or not htf_alignment_ok or not accel_strict_entry_gate_ok or not sd_entry_strict_gate_ok or not vol_entry_strict_context_ok_safe or not stretch_entry_strict_context_ok or not ddvi_entry_strict_ok_safe ? -1 : 2
+
+db_long_debug_state(bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state) =>
+    not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_setup_armed or long_setup_confirmed or long_ready_state ? 5 : 2
+
 render_smc_dashboard_documented(table tbl) =>
     color _db_text = chart.fg_color
     color _db_header_bg = color.new(color.black, 100)
@@ -4535,10 +4600,10 @@ render_smc_dashboard_documented(table tbl) =>
     dashboard_row(tbl, 41, 'Long Triggers', _db_long_triggers_text, status_bg(_db_long_triggers_state), _db_text)
     dashboard_row(tbl, 42, 'Micro Profile', _db_micro_profile_text, status_bg(_db_micro_profile_state), _db_text)
     dashboard_row(tbl, 43, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), _db_text)
-    dashboard_row(tbl, 44, 'Ready Gate', long_ready_blocker_text, status_bg(long_ready_state ? 5 : not long_state.confirmed ? 2 : not lifecycle_ready_ok ? 2 : not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok ? -1 : 2), _db_text)
-    dashboard_row(tbl, 45, 'Strict Gate', long_strict_blocker_text, status_bg(long_entry_strict_state ? 5 : not long_ready_state ? 2 : not strict_entry_ltf_ok or not htf_alignment_ok or not accel_strict_entry_gate_ok or not sd_entry_strict_gate_ok or not vol_entry_strict_context_ok_safe or not stretch_entry_strict_context_ok or not ddvi_entry_strict_ok_safe ? -1 : 2), _db_text)
+    dashboard_row(tbl, 44, 'Ready Gate', long_ready_blocker_text, status_bg(db_ready_gate_state(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok)), _db_text)
+    dashboard_row(tbl, 45, 'Strict Gate', long_strict_blocker_text, status_bg(db_strict_gate_state(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)), _db_text)
     dashboard_row(tbl, 46, 'Debug Flags', compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode), status_bg(show_ob_debug or show_fvg_debug or show_long_engine_debug ? 5 : 0), _db_text)
-    dashboard_row(tbl, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off', status_bg(not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_state.armed or long_state.confirmed or long_ready_state ? 5 : 2), _db_text)
+    dashboard_row(tbl, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off', status_bg(db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state)), _db_text)
 
 var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)
 
