@@ -277,7 +277,7 @@ def test_source_lock_decouples_setup_source_from_live_active_ranking() -> None:
     assert "string prev_locked_source_kind = long_locked_source_kind" in source
     assert 'int prev_locked_source_id = long_locked_source_id' in source
     assert "OrderBlock prev_locked_bull_ob = prev_locked_source_kind == 'OB' ? get_by_id(ob_blocks_bull, prev_locked_source_id) : na" in source
-    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na" in source
+    assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false" in source
     assert 'long_setup_source_zone_id' not in source
     assert 'armed_source_changed' not in source
     assert 'bool long_invalidated_now = long_source_broken or long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired))' in source
@@ -334,8 +334,9 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
 
     assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, string locked_source_kind, int locked_source_id, string setup_backing_zone_kind, int setup_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
     assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
-    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na" in source
-    assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? not na(long_locked_bull_ob) : long_locked_source_kind_final == 'FVG' ? not na(long_locked_bull_fvg) : false" in source
+    assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false" in source
+    assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : na" in source
+    assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : na" in source
     assert "bool long_source_broken = long_locked_source_kind_final == 'OB' ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false" in source
 
 
@@ -423,6 +424,13 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert "arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count" in source
     assert "arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top" in source
     assert 'long_locked_source_top := long_locked_source_top_tmp' in source
+    assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false" in source
+    assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : na" in source
+    assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : na" in source
+    assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na" not in source
+    assert "FVG long_locked_bull_fvg = long_locked_source_kind_final == 'FVG' ? get_by_id(fvgs_bull, long_locked_source_id_final) : na" not in source
+    assert 'long_locked_bull_ob.left_top.price' not in source
+    assert 'long_locked_bull_fvg.right_bottom.price' not in source
 
 
 def test_long_alert_helpers_cover_close_safe_events_and_message_composition() -> None:
