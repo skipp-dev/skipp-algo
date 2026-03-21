@@ -3152,9 +3152,9 @@ var int last_ob_touch_bar = na
 var int active_fvg_touch_count = 0
 var int active_fvg_touch_id = na
 var int last_fvg_touch_bar = na
-bool zone_touch_now = zone_touch_tracking_active and (not zone_touch_tracking_active[1] or zone_touch_tracking_id != zone_touch_tracking_id[1])
-bool ob_touch_now = in_bull_ob_zone and (not in_bull_ob_zone[1] or active_bull_ob_id != active_bull_ob_id[1])
-bool fvg_touch_now = in_bull_fvg_zone and (not in_bull_fvg_zone[1] or active_bull_fvg_id != active_bull_fvg_id[1])
+bool zone_touch_now = zone_touch_tracking_active and not zone_touch_tracking_active[1]
+bool ob_touch_now = in_bull_ob_zone and not in_bull_ob_zone[1]
+bool fvg_touch_now = in_bull_fvg_zone and not in_bull_fvg_zone[1]
 if state_update_bar_ok and zone_touch_now and last_zone_touch_bar != bar_index and not na(zone_touch_tracking_id)
     if zone_touch_tracking_id != active_zone_touch_id
         active_zone_touch_id := zone_touch_tracking_id
@@ -3585,7 +3585,8 @@ if confirm_lifecycle_ok and confirm_filters_ok
 
 bool long_setup_in_progress = long_setup_armed and not long_setup_confirmed
 long_building_state := long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-bool lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
+bool ready_bar_gap_ok = not na(long_confirm_bar_index) and bar_index > long_confirm_bar_index
+bool lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and ready_bar_gap_ok and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
 bool long_ready_state = lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
 bool long_entry_best_state = long_ready_state and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
 bool long_entry_strict_state = long_ready_state and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
@@ -4053,8 +4054,10 @@ string _db_ema_text = ema_state_text
 string _db_zone_text = long_zone_text
 string _db_reclaim_text = reclaim_text
 string _db_overhead_text = overhead_text
-string _db_ltf_text = show_dashboard_ltf ? str.tostring(ltf_bull_share, '#') + '% | Δ' + str.tostring(ltf_volume_delta, '#.#') : 'off'
-int _db_ltf_state = not show_dashboard_ltf ? 0 : ltf_bull_share >= 60 ? 5 : ltf_bull_share >= 40 ? 3 : -1
+string _db_ltf_share_text = na(ltf_bull_share) ? 'n/a' : str.tostring(ltf_bull_share * 100.0, '#') + '%'
+string _db_ltf_delta_text = na(ltf_volume_delta) ? 'n/a' : str.tostring(ltf_volume_delta, '#.#')
+string _db_ltf_text = show_dashboard_ltf ? _db_ltf_share_text + ' | Δ' + _db_ltf_delta_text : 'off'
+int _db_ltf_state = not show_dashboard_ltf ? 0 : na(ltf_bull_share) ? 0 : ltf_bull_share >= 0.60 ? 5 : ltf_bull_share >= 0.40 ? 3 : -1
 
 render_smc_dashboard_compact(table tbl) =>
     dashboard_row(tbl, 0, 'SMC++', signal_mode_text, _db_header_bg, _db_text)
@@ -4064,9 +4067,9 @@ render_smc_dashboard_compact(table tbl) =>
     dashboard_row(tbl, 4, 'Environment', long_environment_focus_display, status_bg(_db_env_state), _db_text)
     dashboard_row(tbl, 5, 'Micro', micro_session_gate_ok and micro_freshness_gate_ok ? 'OK' : not micro_session_gate_ok ? 'Session' : 'Stale', status_bg(_db_micro_state), _db_text)
     dashboard_row(tbl, 6, 'Context', _db_ctx_text, status_bg(_db_ctx_state), _db_text)
-    dashboard_row(tbl, 7, 'Close', _db_close_text, status_bg(close_safe_mode ? 5 : 0), _db_text)
+    dashboard_row(tbl, 7, 'Close', _db_close_text, status_bg(not use_strong_close_filter ? 0 : bull_close_strong ? 5 : -1), _db_text)
     dashboard_row(tbl, 8, 'EMA', _db_ema_text, status_bg(ema_state_text == 'OK' ? 5 : ema_state_text == 'off' ? 0 : -1), _db_text)
-    dashboard_row(tbl, 9, 'Overhead', _db_overhead_text, status_bg(_db_overhead_text == 'off' or _db_overhead_text == 'clear' ? 0 : 3), _db_text)
+    dashboard_row(tbl, 9, 'Overhead', _db_overhead_text, status_bg(not use_overhead_zone_filter ? 0 : overhead_zone_ok ? 5 : -1), _db_text)
     dashboard_row(tbl, 10, 'LTF', _db_ltf_text, status_bg(_db_ltf_state), _db_text)
 
 var table _smc_dashboard = table.new(position.bottom_right, 2, 11, border_width = 0)
