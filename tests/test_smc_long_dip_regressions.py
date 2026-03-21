@@ -134,11 +134,8 @@ def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
     assert 'this.profile := na' in source
     assert 'method delete(Profile this) =>' in source
     assert 'this.hidden := false' in source
-    assert 'method draw(Box this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend_only = true, simple bool force_overlay = false) =>' in source
-    assert 'if not na(this)' in source
-    assert 'this.plot.set_text(this.txt)' in source
-    assert 'method draw(Label this, LabelArgs args = na, simple bool force_overlay = false) =>' in source
-    assert 'this.plot.set_tooltip(this.tooltip)' in source
+    # Draw methods moved to smc_draw library (d.SmcBox, d.SmcLabel)
+    assert 'import skipp_dev/smc_draw/1 as d' in source
     assert 'method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>' in source
     assert 'int base_right_time = math.max(this.left_top.time, this.right_bottom.time)' in source
     assert 'method rendered_right_time(FVG this, bool extend_until_filled = true) =>' in source
