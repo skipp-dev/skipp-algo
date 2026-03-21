@@ -452,6 +452,24 @@ def test_profile_and_track_obs_use_defensive_semantic_helpers() -> None:
     assert 'bool profile_features_active = profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)' in source
 
 
+def test_track_obs_lifecycle_steps_are_split_into_small_helpers() -> None:
+    source = _read_smc_source()
+
+    assert 'method capture_profile_bar(OrderBlock this, bool enabled) =>' in source
+    assert 'handle_pending_tracking_reset(OrderBlock block, bool reset_next_bar) =>' in source
+    assert 'prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc) =>' in source
+    assert 'update_soft_confirmation(OrderBlock block, bool bullish_side, bool use_soft_confirm_big_candle, bool is_impulse_candle, bool is_trend_candle, float soft_confirm_offset, float impulse_candle_size) =>' in source
+    assert 'confirmation_price_exited(OrderBlock block, bool bullish_side, float soft_confirm_offset) =>' in source
+    assert 'confirmation_trigger_active(OrderBlock block, bool use_soft_confirm, float swing_confirmed, bool bos_alert, bool choch_alert, int swing_len) =>' in source
+    assert 'ob_size_within_bounds(OrderBlock block, bool align_edge_to_value_area, float ob_size_max, float ob_size_min) =>' in source
+    assert 'reset_bull_next_bar := handle_pending_tracking_reset(bull_ob, reset_bull_next_bar)' in source
+    assert 'bull_ob.capture_profile_bar(profile_features_active and update_profile_current_bar)' in source
+    assert '[ob_size_min_bull, ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc)' in source
+    assert 'update_soft_confirmation(bull_ob, true, use_soft_confirm_big_candle, is_impulse_candle, is_green, soft_confirm_offset, impulse_candle_size)' in source
+    assert 'bull_confirm_trigger = confirmation_trigger_active(bull_ob, use_soft_confirm, swing_low_confirmed, bull_bos_alert, bull_choch_alert, swing_len)' in source
+    assert 'if ob_size_within_bounds(bull_ob, align_edge_to_value_area, ob_size_max_bull, ob_size_min_bull)' in source
+
+
 def test_watchlist_alert_level_follows_active_zone_preference() -> None:
     source = _read_smc_source()
 

@@ -705,6 +705,56 @@ method reset_tracking(OrderBlock this) =>
     this.left_top := chart.point.now(high)
     this.right_bottom := chart.point.now(low)
     this.break_price := hl2
+
+method capture_profile_bar(OrderBlock this, bool enabled) =>
+    if enabled
+        this.ltf_open.push(open)
+        this.ltf_high.push(high)
+        this.ltf_low.push(low)
+        this.ltf_close.push(close)
+        this.ltf_volume.push(volume)
+    this
+
+handle_pending_tracking_reset(OrderBlock block, bool reset_next_bar) =>
+    if reset_next_bar
+        block.reset_tracking()
+        false
+    else
+        reset_next_bar
+
+prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc) =>
+    block.left_top.price := math.max(open, block.left_top.price)
+    block.right_bottom := chart.point.new(time_close[1], bar_index[1], block.right_bottom.price)
+    block.extending := false
+    block.awaiting_confirmation := true
+    int ob_length = math.max(block.right_bottom.index - block.left_top.index + 1, 1)
+    float ob_size_min = round_size_bounds ? math.round_to_mintick(min_block_size) : min_block_size
+    float ob_size_max = round_size_bounds ? math.round_to_mintick(max_block_size * ob_length) : max_block_size * ob_length
+    if update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
+        block.create_profile()
+        block.align_to_profile(align_break_price = true)
+    [ob_size_min, ob_size_max]
+
+update_soft_confirmation(OrderBlock block, bool bullish_side, bool use_soft_confirm_big_candle, bool is_impulse_candle, bool is_trend_candle, float soft_confirm_offset, float impulse_candle_size) =>
+    if barstate.isconfirmed and not block.soft_confirmed
+        if not block.touched_break_price_before_confirmation
+            bool touched_break = bullish_side ? block.break_price > low and block.right_bottom.index < bar_index : block.break_price < high and block.right_bottom.index < bar_index
+            if touched_break
+                block.touched_break_price_before_confirmation := true
+        bool soft_offset_reached = bullish_side ? block.touched_break_price_before_confirmation and block.left_top.price + soft_confirm_offset < close : block.touched_break_price_before_confirmation and block.right_bottom.price - soft_confirm_offset > close
+        bool big_candle_override = use_soft_confirm_big_candle and is_impulse_candle and is_trend_candle and (bullish_side ? close - block.left_top.price >= impulse_candle_size / 2 : block.right_bottom.price - close >= impulse_candle_size / 2)
+        if soft_offset_reached or big_candle_override
+            block.soft_confirmed := true
+    block.soft_confirmed
+
+confirmation_price_exited(OrderBlock block, bool bullish_side, float soft_confirm_offset) =>
+    bullish_side ? block.left_top.price + soft_confirm_offset < close : block.right_bottom.price - soft_confirm_offset > close
+
+confirmation_trigger_active(OrderBlock block, bool use_soft_confirm, float swing_confirmed, bool bos_alert, bool choch_alert, int swing_len) =>
+    (block.soft_confirmed and use_soft_confirm) or not na(swing_confirmed) or bos_alert or choch_alert or bar_index - block.right_bottom.index >= swing_len
+
+ob_size_within_bounds(OrderBlock block, bool align_edge_to_value_area, float ob_size_max, float ob_size_min) =>
+    align_edge_to_value_area and not na(block.profile) ? u.in_range(math.round_to_mintick(block.profile.vah - block.profile.val), ob_size_max, ob_size_min) : u.in_range(math.round_to_mintick(block.left_top.price - block.right_bottom.price), ob_size_max, ob_size_min)
   
 method remove_insignificant(OrderBlock[] blocks, float min_size, float max_size, OrderBlock[] removed_buffer = na, int protected_id = na) =>
     if blocks.size() > 0
@@ -806,20 +856,11 @@ track_obs(
             tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull, protected_bull_id)
             tracking_blocks_bear.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bear, protected_bear_id)
 
-        if reset_bull_next_bar
-            reset_bull_next_bar := false
-            bull_ob.reset_tracking()
-        if reset_bear_next_bar
-            reset_bear_next_bar := false
-            bear_ob.reset_tracking()
+        reset_bull_next_bar := handle_pending_tracking_reset(bull_ob, reset_bull_next_bar)
+        reset_bear_next_bar := handle_pending_tracking_reset(bear_ob, reset_bear_next_bar)
 
         if bull_ob.trailing 
-            if profile_features_active and update_profile_current_bar
-                bull_ob.ltf_open.push(open)
-                bull_ob.ltf_high.push(high)
-                bull_ob.ltf_low.push(low)
-                bull_ob.ltf_close.push(close)
-                bull_ob.ltf_volume.push(volume)
+            bull_ob.capture_profile_bar(profile_features_active and update_profile_current_bar)
 
             _check_start_t = bull_ob.left_top.time
             _check_start_i = bull_ob.left_top.index
@@ -875,12 +916,7 @@ track_obs(
                     bull_ob.has_big_candle := true
 
         if bear_ob.trailing
-            if profile_features_active and update_profile_current_bar
-                bear_ob.ltf_open.push(open)
-                bear_ob.ltf_high.push(high)
-                bear_ob.ltf_low.push(low)
-                bear_ob.ltf_close.push(close)
-                bear_ob.ltf_volume.push(volume)
+            bear_ob.capture_profile_bar(profile_features_active and update_profile_current_bar)
 
             _check_start_t = bear_ob.left_top.time
             _check_start_i = bear_ob.left_top.index
@@ -936,56 +972,26 @@ track_obs(
 
         if barstate.isconfirmed
             if bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)
-                bull_ob.left_top.price := math.max(open, bull_ob.left_top.price)
-                bull_ob.right_bottom := chart.point.new(time_close[1], bar_index[1], bull_ob.right_bottom.price)
-                bull_ob.extending := false
-                bull_ob.awaiting_confirmation := true
-
-                ob_length = bull_ob.right_bottom.index - bull_ob.left_top.index + 1
-                ob_size_min_bull := math.round_to_mintick(min_block_size)
-                ob_size_max_bull := math.round_to_mintick(max_block_size * ob_length)
-
-                if update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
-                    bull_ob.create_profile()
-                    bull_ob.align_to_profile(align_break_price = true)
+                [ob_size_min_bull, ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc)
 
                 if not bear_ob.awaiting_confirmation and not bear_ob.extending
                     bear_ob.reset_tracking()
 
             if bear_ob.trailing and bear_ob.extending and bear_ob.left_top.index < bar_index and is_green and not is_indecision and u.in_range(close, bear_ob.left_top.price, bear_ob.right_bottom.price)
-                bear_ob.left_top.price := math.max(open, bear_ob.left_top.price)
-                bear_ob.right_bottom := chart.point.new(time_close[1], bar_index[1], bear_ob.right_bottom.price)
-                bear_ob.extending := false
-                bear_ob.awaiting_confirmation := true
-
-                ob_length = bear_ob.right_bottom.index - bear_ob.left_top.index + 1
-                ob_size_min_bear := min_block_size
-                ob_size_max_bear := max_block_size * ob_length
-
-                if update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
-                    bear_ob.create_profile()
-                    bear_ob.align_to_profile(align_break_price = true)
+                [ob_size_min_bear, ob_size_max_bear] = prepare_order_block_confirmation(bear_ob, min_block_size, max_block_size, false, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc)
 
                 if not bull_ob.awaiting_confirmation and not bull_ob.extending
                     bull_ob.reset_tracking()
 
         if bull_ob.trailing and bull_ob.awaiting_confirmation
-            if barstate.isconfirmed and not bull_ob.soft_confirmed
-                if not bull_ob.touched_break_price_before_confirmation
-                    if bull_ob.break_price > low and bull_ob.right_bottom.index < bar_index
-                        bull_ob.touched_break_price_before_confirmation := true
+            update_soft_confirmation(bull_ob, true, use_soft_confirm_big_candle, is_impulse_candle, is_green, soft_confirm_offset, impulse_candle_size)
 
-                if bull_ob.touched_break_price_before_confirmation and bull_ob.left_top.price + soft_confirm_offset < close
-                    bull_ob.soft_confirmed := true
-                else if use_soft_confirm_big_candle and is_impulse_candle and is_green and close - bull_ob.left_top.price >= impulse_candle_size / 2
-                    bull_ob.soft_confirmed := true
-
-            bull_price_exited = bull_ob.left_top.price + soft_confirm_offset < close
-            bull_confirm_trigger = (bull_ob.soft_confirmed and use_soft_confirm) or not na(swing_low_confirmed) or bull_bos_alert or bull_choch_alert or bar_index - bull_ob.right_bottom.index >= swing_len
+            bull_price_exited = confirmation_price_exited(bull_ob, true, soft_confirm_offset)
+            bull_confirm_trigger = confirmation_trigger_active(bull_ob, use_soft_confirm, swing_low_confirmed, bull_bos_alert, bull_choch_alert, swing_len)
             bull_should_confirm = bull_price_exited and barstate.isconfirmed and bull_confirm_trigger
 
             if bull_should_confirm
-                if align_edge_to_value_area and not na(bull_ob.profile) ? u.in_range(math.round_to_mintick(bull_ob.profile.vah - bull_ob.profile.val), ob_size_max_bull, ob_size_min_bull) : u.in_range(math.round_to_mintick(bull_ob.left_top.price - bull_ob.right_bottom.price), ob_size_max_bull, ob_size_min_bull)
+                if ob_size_within_bounds(bull_ob, align_edge_to_value_area, ob_size_max_bull, ob_size_min_bull)
                     bull_ob.trailing := false
                     next_id += 1
                     bull_ob.id := next_id
@@ -1012,22 +1018,14 @@ track_obs(
                     bull_ob.reset_tracking()
 
         if bear_ob.trailing and bear_ob.awaiting_confirmation
-            if barstate.isconfirmed and not bear_ob.soft_confirmed
-                if not bear_ob.touched_break_price_before_confirmation
-                    if bear_ob.break_price < high and bear_ob.right_bottom.index < bar_index
-                        bear_ob.touched_break_price_before_confirmation := true
+            update_soft_confirmation(bear_ob, false, use_soft_confirm_big_candle, is_impulse_candle, is_red, soft_confirm_offset, impulse_candle_size)
 
-                if bear_ob.touched_break_price_before_confirmation and bear_ob.right_bottom.price - soft_confirm_offset > close
-                    bear_ob.soft_confirmed := true
-                else if use_soft_confirm_big_candle and is_impulse_candle and is_red and bear_ob.right_bottom.price - close >= impulse_candle_size / 2
-                    bear_ob.soft_confirmed := true
-
-            bear_price_exited = bear_ob.right_bottom.price - soft_confirm_offset > close
-            bear_confirm_trigger = (bear_ob.soft_confirmed and use_soft_confirm) or not na(swing_high_confirmed) or bear_bos_alert or bear_choch_alert or bar_index - bear_ob.right_bottom.index >= swing_len
+            bear_price_exited = confirmation_price_exited(bear_ob, false, soft_confirm_offset)
+            bear_confirm_trigger = confirmation_trigger_active(bear_ob, use_soft_confirm, swing_high_confirmed, bear_bos_alert, bear_choch_alert, swing_len)
             bear_should_confirm = bear_price_exited and barstate.isconfirmed and bear_confirm_trigger
 
             if bear_should_confirm
-                if align_edge_to_value_area and not na(bear_ob.profile) ? u.in_range(math.round_to_mintick(bear_ob.profile.vah - bear_ob.profile.val), ob_size_max_bear, ob_size_min_bear) : u.in_range(math.round_to_mintick(bear_ob.left_top.price - bear_ob.right_bottom.price), ob_size_max_bear, ob_size_min_bear)
+                if ob_size_within_bounds(bear_ob, align_edge_to_value_area, ob_size_max_bear, ob_size_min_bear)
                     bear_ob.trailing := false
                     next_id += 1
                     bear_ob.id := next_id
