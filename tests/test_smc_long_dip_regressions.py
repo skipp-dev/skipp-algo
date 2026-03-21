@@ -765,16 +765,16 @@ def test_intrabar_ready_and_watchlist_events_are_debounced_and_latched() -> None
 def test_pre_arm_ob_selection_prefers_touch_anchor_then_recency_then_quality() -> None:
     source = _read_smc_source()
 
-    assert 'bool ob_candidate_touch_anchor = not na(touched_bull_ob_id) and bull_ob_candidate.id == touched_bull_ob_id' in source
+    assert 'bool ob_candidate_touch_anchor = not na(touched_bull_ob_id) and ob_candidate_id == touched_bull_ob_id' in source
     assert 'zone_candidate_preferred(bool candidate_touch_anchor, int candidate_recency, float candidate_quality, float candidate_overlap, int candidate_id, bool best_touch_anchor, int best_recency, float best_quality, float best_overlap, int best_id) =>' in source
-    assert 'prefer_ob_candidate := zone_candidate_preferred(ob_candidate_touch_anchor, ob_candidate_recency, ob_candidate_quality, ob_candidate_overlap, bull_ob_candidate.id, best_bull_ob_touch_anchor, best_bull_ob_recency, best_bull_ob_quality, best_bull_ob_overlap, best_bull_ob_id)' in source
+    assert 'prefer_ob_candidate := zone_candidate_preferred(ob_candidate_touch_anchor, ob_candidate_recency, ob_candidate_quality, ob_candidate_overlap, ob_candidate_id, best_bull_ob_touch_anchor, best_bull_ob_recency, best_bull_ob_quality, best_bull_ob_overlap, best_bull_ob_id)' in source
 
 
 def test_pre_arm_fvg_and_combined_active_zone_use_deterministic_priority() -> None:
     source = _read_smc_source()
 
-    assert 'bool fvg_candidate_touch_anchor = not na(touched_bull_fvg_id) and bull_fvg_candidate.id == touched_bull_fvg_id' in source
-    assert 'prefer_fvg_candidate := zone_candidate_preferred(fvg_candidate_touch_anchor, fvg_candidate_recency, fvg_candidate_quality, fvg_candidate_overlap, bull_fvg_candidate.id, best_bull_fvg_touch_anchor, best_bull_fvg_recency, best_bull_fvg_quality, best_bull_fvg_overlap, best_bull_fvg_id)' in source
+    assert 'bool fvg_candidate_touch_anchor = not na(touched_bull_fvg_id) and fvg_candidate_id == touched_bull_fvg_id' in source
+    assert 'prefer_fvg_candidate := zone_candidate_preferred(fvg_candidate_touch_anchor, fvg_candidate_recency, fvg_candidate_quality, fvg_candidate_overlap, fvg_candidate_id, best_bull_fvg_touch_anchor, best_bull_fvg_recency, best_bull_fvg_quality, best_bull_fvg_overlap, best_bull_fvg_id)' in source
     assert 'prefer_primary_zone(bool primary_touch_anchor, int primary_recency, float primary_quality, float primary_overlap, int primary_id, bool secondary_touch_anchor, int secondary_recency, float secondary_quality, float secondary_overlap, int secondary_id) =>' in source
     assert 'bool prefer_active_ob_zone = not na(active_bull_ob_id)' in source
     assert 'prefer_active_ob_zone := prefer_primary_zone(active_bull_ob_touch_anchor, active_bull_ob_recency, active_bull_ob_quality, best_bull_ob_overlap, active_bull_ob_id, active_bull_fvg_touch_anchor, active_bull_fvg_recency, active_bull_fvg_quality, best_bull_fvg_overlap, active_bull_fvg_id)' in source
@@ -786,10 +786,10 @@ def test_bear_pre_arm_selection_uses_same_deterministic_priority_without_touch_a
 
     assert 'int best_bear_ob_recency = na' in source
     assert 'float best_bear_ob_quality = na' in source
-    assert 'prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate.id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)' in source
+    assert 'prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate_id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)' in source
     assert 'int best_bear_fvg_recency = na' in source
     assert 'float best_bear_fvg_quality = na' in source
-    assert 'prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate.id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)' in source
+    assert 'prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate_id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)' in source
 
 
 def test_locked_source_touch_count_selection_is_extracted() -> None:

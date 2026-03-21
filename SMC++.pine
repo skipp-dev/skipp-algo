@@ -2470,6 +2470,18 @@ resolve_fvg_recency_index(FVG gap) =>
         idx := gap.right_bottom.index
     idx
 
+resolve_ob_id(OrderBlock block) =>
+    int val = na
+    if not na(block)
+        val := block.id
+    val
+
+resolve_fvg_id(FVG gap) =>
+    int val = na
+    if not na(gap)
+        val := gap.id
+    val
+
 next_serial_event(bool event_condition, int serial, int last_serial) =>
     event_active = event_condition and serial > 0 and last_serial != serial
     [event_active, event_active ? serial : last_serial]
@@ -3709,19 +3721,20 @@ float best_bull_ob_overlap = na
 if array.size(ob_blocks_bull) > 0
     for i = array.size(ob_blocks_bull) - 1 to bull_ob_scan_start
         bull_ob_candidate = array.get(ob_blocks_bull, i)
+        int ob_candidate_id = resolve_ob_id(bull_ob_candidate)
         float ob_candidate_top = resolve_ob_top_boundary(bull_ob_candidate)
         float ob_candidate_bottom = resolve_ob_bottom_boundary(bull_ob_candidate)
         float ob_candidate_overlap = math.min(high, ob_candidate_top) - math.max(low, ob_candidate_bottom)
         bool ob_candidate_active = ob_candidate_overlap >= 0
-        bool ob_candidate_touch_anchor = not na(touched_bull_ob_id) and bull_ob_candidate.id == touched_bull_ob_id and not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
+        bool ob_candidate_touch_anchor = not na(touched_bull_ob_id) and ob_candidate_id == touched_bull_ob_id and not na(touched_bull_ob_bar_index) and bar_index - touched_bull_ob_bar_index <= long_signal_window
         int ob_candidate_recency = resolve_ob_recency_index(bull_ob_candidate)
         float ob_candidate_quality = ob_quality_score(bull_ob_candidate)
         bool prefer_ob_candidate = na(best_bull_ob_idx)
         if ob_candidate_active and not prefer_ob_candidate
-            prefer_ob_candidate := zone_candidate_preferred(ob_candidate_touch_anchor, ob_candidate_recency, ob_candidate_quality, ob_candidate_overlap, bull_ob_candidate.id, best_bull_ob_touch_anchor, best_bull_ob_recency, best_bull_ob_quality, best_bull_ob_overlap, best_bull_ob_id)
+            prefer_ob_candidate := zone_candidate_preferred(ob_candidate_touch_anchor, ob_candidate_recency, ob_candidate_quality, ob_candidate_overlap, ob_candidate_id, best_bull_ob_touch_anchor, best_bull_ob_recency, best_bull_ob_quality, best_bull_ob_overlap, best_bull_ob_id)
         if ob_candidate_active and prefer_ob_candidate
             best_bull_ob_idx := i
-            best_bull_ob_id := bull_ob_candidate.id
+            best_bull_ob_id := ob_candidate_id
             best_bull_ob_recency := ob_candidate_recency
             best_bull_ob_touch_anchor := ob_candidate_touch_anchor
             best_bull_ob_quality := ob_candidate_quality
@@ -3735,7 +3748,7 @@ if not na(best_bull_ob_idx)
     active_bull_ob_top := resolve_ob_top_boundary(best_bull_ob)
     active_bull_ob_bottom := resolve_ob_bottom_boundary(best_bull_ob)
     active_bull_ob_break_level := resolve_ob_alert_level(best_bull_ob)
-    active_bull_ob_id := best_bull_ob.id
+    active_bull_ob_id := resolve_ob_id(best_bull_ob)
     active_bull_ob_quality := ob_quality_score(best_bull_ob)
     active_bull_ob_recency := resolve_ob_recency_index(best_bull_ob)
     active_bull_ob_touch_anchor := best_bull_ob_touch_anchor
@@ -3755,19 +3768,20 @@ float best_bull_fvg_overlap = na
 if array.size(fvgs_bull) > 0
     for i = array.size(fvgs_bull) - 1 to bull_fvg_scan_start
         bull_fvg_candidate = array.get(fvgs_bull, i)
+        int fvg_candidate_id = resolve_fvg_id(bull_fvg_candidate)
         float fvg_candidate_top = resolve_fvg_top_boundary(bull_fvg_candidate)
         float fvg_candidate_bottom = resolve_fvg_bottom_boundary(bull_fvg_candidate)
         float fvg_candidate_overlap = math.min(high, fvg_candidate_top) - math.max(low, fvg_candidate_bottom)
         bool fvg_candidate_active = fvg_candidate_overlap >= 0
-        bool fvg_candidate_touch_anchor = not na(touched_bull_fvg_id) and bull_fvg_candidate.id == touched_bull_fvg_id and not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
+        bool fvg_candidate_touch_anchor = not na(touched_bull_fvg_id) and fvg_candidate_id == touched_bull_fvg_id and not na(touched_bull_fvg_bar_index) and bar_index - touched_bull_fvg_bar_index <= long_signal_window
         int fvg_candidate_recency = resolve_fvg_recency_index(bull_fvg_candidate)
         float fvg_candidate_quality = fvg_quality_score(bull_fvg_candidate, fvg_size_threshold)
         bool prefer_fvg_candidate = na(best_bull_fvg_idx)
         if fvg_candidate_active and not prefer_fvg_candidate
-            prefer_fvg_candidate := zone_candidate_preferred(fvg_candidate_touch_anchor, fvg_candidate_recency, fvg_candidate_quality, fvg_candidate_overlap, bull_fvg_candidate.id, best_bull_fvg_touch_anchor, best_bull_fvg_recency, best_bull_fvg_quality, best_bull_fvg_overlap, best_bull_fvg_id)
+            prefer_fvg_candidate := zone_candidate_preferred(fvg_candidate_touch_anchor, fvg_candidate_recency, fvg_candidate_quality, fvg_candidate_overlap, fvg_candidate_id, best_bull_fvg_touch_anchor, best_bull_fvg_recency, best_bull_fvg_quality, best_bull_fvg_overlap, best_bull_fvg_id)
         if fvg_candidate_active and prefer_fvg_candidate
             best_bull_fvg_idx := i
-            best_bull_fvg_id := bull_fvg_candidate.id
+            best_bull_fvg_id := fvg_candidate_id
             best_bull_fvg_recency := fvg_candidate_recency
             best_bull_fvg_touch_anchor := fvg_candidate_touch_anchor
             best_bull_fvg_quality := fvg_candidate_quality
@@ -3781,7 +3795,7 @@ if not na(best_bull_fvg_idx)
     active_bull_fvg_top := resolve_fvg_top_boundary(best_bull_fvg)
     active_bull_fvg_bottom := resolve_fvg_bottom_boundary(best_bull_fvg)
     active_bull_fvg_fill_level := resolve_fvg_alert_level(best_bull_fvg)
-    active_bull_fvg_id := best_bull_fvg.id
+    active_bull_fvg_id := resolve_fvg_id(best_bull_fvg)
     active_bull_fvg_quality := fvg_quality_score(best_bull_fvg, fvg_size_threshold)
     active_bull_fvg_recency := resolve_fvg_recency_index(best_bull_fvg)
     active_bull_fvg_touch_anchor := best_bull_fvg_touch_anchor
@@ -3804,14 +3818,15 @@ if array.size(ob_blocks_bear) > 0
         float bear_ob_candidate_bottom = resolve_ob_bottom_boundary(bear_ob_candidate)
         float bear_ob_candidate_overlap = math.min(high, bear_ob_candidate_top) - math.max(low, bear_ob_candidate_bottom)
         bool bear_ob_candidate_active = bear_ob_candidate_overlap >= 0
+        int bear_ob_candidate_id = resolve_ob_id(bear_ob_candidate)
         int bear_ob_candidate_recency = resolve_ob_recency_index(bear_ob_candidate)
         float bear_ob_candidate_quality = ob_quality_score(bear_ob_candidate)
         bool prefer_bear_ob_candidate = na(best_bear_ob_idx)
         if bear_ob_candidate_active and not prefer_bear_ob_candidate
-            prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate.id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)
+            prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate_id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)
         if bear_ob_candidate_active and prefer_bear_ob_candidate
             best_bear_ob_idx := i
-            best_bear_ob_id := bear_ob_candidate.id
+            best_bear_ob_id := bear_ob_candidate_id
             best_bear_ob_recency := bear_ob_candidate_recency
             best_bear_ob_quality := bear_ob_candidate_quality
             best_bear_ob_overlap := bear_ob_candidate_overlap
@@ -3831,14 +3846,15 @@ if array.size(fvgs_bear) > 0
         float bear_fvg_candidate_bottom = resolve_fvg_bottom_boundary(bear_fvg_candidate)
         float bear_fvg_candidate_overlap = math.min(high, bear_fvg_candidate_top) - math.max(low, bear_fvg_candidate_bottom)
         bool bear_fvg_candidate_active = bear_fvg_candidate_overlap >= 0
+        int bear_fvg_candidate_id = resolve_fvg_id(bear_fvg_candidate)
         int bear_fvg_candidate_recency = resolve_fvg_recency_index(bear_fvg_candidate)
         float bear_fvg_candidate_quality = fvg_quality_score(bear_fvg_candidate, fvg_size_threshold)
         bool prefer_bear_fvg_candidate = na(best_bear_fvg_idx)
         if bear_fvg_candidate_active and not prefer_bear_fvg_candidate
-            prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate.id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)
+            prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate_id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)
         if bear_fvg_candidate_active and prefer_bear_fvg_candidate
             best_bear_fvg_idx := i
-            best_bear_fvg_id := bear_fvg_candidate.id
+            best_bear_fvg_id := bear_fvg_candidate_id
             best_bear_fvg_recency := bear_fvg_candidate_recency
             best_bear_fvg_quality := bear_fvg_candidate_quality
             best_bear_fvg_overlap := bear_fvg_candidate_overlap
