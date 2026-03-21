@@ -474,16 +474,22 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'float dashboard_long_ob_trigger_level = prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)' in source
     assert 'float dashboard_long_fvg_trigger_level = prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)' in source
     assert 'string dashboard_long_invalid_text = format_level(long_invalidation_level)' in source
-    assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', dashboard_long_ob_trigger_text, dashboard_long_fvg_trigger_text, dashboard_long_invalid_text)" in source
+    assert "string dashboard_swing_levels_display = 'Swing ' + dashboard_swing_up_text + '/' + dashboard_swing_down_text + '\\nInt ' + dashboard_internal_up_text + '/' + dashboard_internal_down_text" in source
+    assert "string dashboard_long_zones_display = 'OB ' + dashboard_long_ob_top_text + '/' + dashboard_long_ob_bottom_text + '\\nFVG ' + dashboard_long_fvg_top_text + '/' + dashboard_long_fvg_bottom_text" in source
+    assert "string dashboard_long_triggers_display = 'OB mid ' + dashboard_long_ob_trigger_text + '\\nFVG fill ' + dashboard_long_fvg_trigger_text + '\\nInvalid ' + dashboard_long_invalid_text" in source
     assert 'string risk_trigger_text = format_level(long_setup_trigger)' in source
     assert 'string risk_stop_text = format_level(long_stop_level)' in source
     assert 'string risk_target_1_text = format_level(long_target_1)' in source
     assert 'string risk_target_2_text = format_level(long_target_2)' in source
-    assert "string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\\nStop {1}\\nT1 {2}\\nT2 {3}', risk_trigger_text, risk_stop_text, risk_target_1_text, risk_target_2_text)" in source
+    assert "string risk_display = not long_plan_active ? 'n/a' : 'Trig ' + risk_trigger_text + '\\nStop ' + risk_stop_text + '\\nT1 ' + risk_target_1_text + '\\nT2 ' + risk_target_2_text" in source
     assert "format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)" not in source
     assert "format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)" not in source
+    assert "string dashboard_swing_levels_display = str.format('Swing {0}/{1}\\nInt {2}/{3}', dashboard_swing_up_text, dashboard_swing_down_text, dashboard_internal_up_text, dashboard_internal_down_text)" not in source
+    assert "string dashboard_long_zones_display = str.format('OB {0}/{1}\\nFVG {2}/{3}', dashboard_long_ob_top_text, dashboard_long_ob_bottom_text, dashboard_long_fvg_top_text, dashboard_long_fvg_bottom_text)" not in source
     assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))" not in source
+    assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', dashboard_long_ob_trigger_text, dashboard_long_fvg_trigger_text, dashboard_long_invalid_text)" not in source
     assert "string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\\nStop {1}\\nT1 {2}\\nT2 {3}', format_level(long_setup_trigger), format_level(long_stop_level), format_level(long_target_1), format_level(long_target_2))" not in source
+    assert "string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\\nStop {1}\\nT1 {2}\\nT2 {3}', risk_trigger_text, risk_stop_text, risk_target_1_text, risk_target_2_text)" not in source
     assert 'bool alert_long_early_event = alert_long_early and long_setup_serial > 0 and last_long_early_alert_serial != long_setup_serial' in source
     assert 'last_long_early_alert_serial := alert_long_early_event ? long_setup_serial : last_long_early_alert_serial' in source
     assert 'bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_setup_serial > 0 and last_long_armed_alert_serial != long_setup_serial' in source
