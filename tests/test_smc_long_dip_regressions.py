@@ -217,8 +217,9 @@ def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -
 def test_active_backing_zones_are_protected_from_cleanup_rotation() -> None:
     source = _read_smc_source()
 
-    assert 'protected_bull_id = long_setup_backing_zone_kind == \'OB\' ? long_setup_backing_zone_id : na' in source
-    assert 'long_setup_backing_zone_kind == \'FVG\' ? long_setup_backing_zone_id : na' in source
+    assert '_ob_backing_zone_id = long_setup_backing_zone_kind == \'OB\' ? long_setup_backing_zone_id : na' in source
+    assert 'protected_bull_id = _ob_backing_zone_id' in source
+    assert '_fvg_backing_zone_id = long_setup_backing_zone_kind == \'FVG\' ? long_setup_backing_zone_id : na' in source
     assert 'tracking_blocks_bull.remove_insignificant(min_block_size, max_block_size, discarded_blocks_bull, protected_bull_id)' in source
     assert 'buffer_bull.clear_filled(buffer_bull_filled, buffer_bull_filled_new, filled_max_keep, buffer_bull_discarded, protected_bull_id)' in source
     assert 'buffer_bull.remove_insignificant(size_threshold, buffer_bull_discarded, protected_bull_id)' in source
