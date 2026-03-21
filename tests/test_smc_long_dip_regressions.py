@@ -533,6 +533,18 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "string quality_score_display = not quality_axis_active ? 'n/a' : 'Ctx ' + str.tostring(context_quality_score) + '/' + str.tostring(effective_context_quality_max_score) + '\\nMin ' + str.tostring(effective_min_context_quality_score) + '\\n' + quality_score_status_text" in source
     assert "string quality_env_display = not quality_axis_active ? 'n/a' : 'Trade ' + quality_env_trade_text + '\\nEnv ' + quality_env_context_text" in source
     assert "string quality_strict_display = not quality_axis_active ? 'n/a' : quality_strict_status_text + '\\nZone ' + strict_sequence_display + '\\nSweep ' + strict_sweep_display + '\\nGuard ' + strict_guard_display" in source
+    assert "string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.tostring(headroom_to_overhead / planned_risk, '#.##') + 'R'" in source
+    assert "string long_score_detail_suffix = ' | ctx=' + str.tostring(context_quality_score) + '/' + str.tostring(effective_min_context_quality_score)" in source
+    assert "string micro_profile_focus_text = str.length(micro_modifier_text) > 0 ? micro_profile_text + ' | ' + micro_modifier_text : micro_profile_text == 'Default' ? 'Micro OK' : micro_profile_text" in source
+    assert "string micro_profile_detail_text = str.length(micro_modifier_text) > 0 ? micro_profile_text + '\\nMods ' + micro_modifier_text : micro_profile_text" in source
+    assert "string micro_profile_display = not use_microstructure_profiles ? 'Off' : micro_profile_detail_text" in source
+    assert "string volume_quality_prefix = volume_data_ok ? 'OK' : not volume_current_bar_ok ? 'Bar No Vol' : volume_best_fallback_active ? 'Feed Warn' : 'Feed Weak'" in source
+    assert "string volume_quality_display = volume_quality_prefix + '\\n' + profile_volume_display + ' | Strict ' + strict_ltf_display" in source
+    assert 'string stretch_mean_text = format_level(stretch_mean)' in source
+    assert 'string stretch_threshold_text = format_level(stretch_lower_threshold)' in source
+    assert "string stretch_z_text = na(distance_to_mean_z) ? 'n/a' : str.tostring(distance_to_mean_z, '#.##')" in source
+    assert "'Strict OK\\nz=' + stretch_z_text + '\\nMean ' + stretch_mean_text" in source
+    assert "'Watchlist OK\\nz=' + stretch_z_text + '\\nThr ' + stretch_threshold_text" in source
     assert 'float dashboard_long_ob_trigger_level = prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)' in source
     assert 'float dashboard_long_fvg_trigger_level = prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)' in source
     assert 'string dashboard_long_invalid_text = format_level(long_invalidation_level)' in source
@@ -552,6 +564,12 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''" not in source
     assert "string long_environment_alert_suffix = long_gate_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''" not in source
     assert "string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''" not in source
+    assert "string overhead_text = not use_overhead_zone_filter ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)" not in source
+    assert "string long_score_detail_suffix = str.format(' | ctx={0}/{1}', context_quality_score, effective_min_context_quality_score)" not in source
+    assert "str.length(micro_modifier_text) > 0 ? str.format('{0} | {1}', micro_profile_text, micro_modifier_text) : micro_profile_text == 'Default' ? 'Micro OK' : micro_profile_text" not in source
+    assert "string micro_profile_display = not use_microstructure_profiles ? 'Off' : str.length(micro_modifier_text) > 0 ? str.format('{0}\nMods {1}', micro_profile_text, micro_modifier_text) : micro_profile_text" not in source
+    assert "string volume_quality_display = volume_data_ok ? str.format('OK\n{0} | Strict {1}', profile_volume_display, strict_ltf_display)" not in source
+    assert "string stretch_display = not use_stretch_context ? 'Off' : stretch_entry_strict_context_ok ? str.format('Strict OK\nz={0,number,#.##}\nMean {1}', distance_to_mean_z, format_level(stretch_mean))" not in source
     assert "string dashboard_swing_levels_display = str.format('Swing {0}/{1}\\nInt {2}/{3}', dashboard_swing_up_text, dashboard_swing_down_text, dashboard_internal_up_text, dashboard_internal_down_text)" not in source
     assert "string dashboard_long_zones_display = str.format('OB {0}/{1}\\nFVG {2}/{3}', dashboard_long_ob_top_text, dashboard_long_ob_bottom_text, dashboard_long_fvg_top_text, dashboard_long_fvg_bottom_text)" not in source
     assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))" not in source
