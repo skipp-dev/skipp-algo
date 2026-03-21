@@ -4041,8 +4041,8 @@ dashboard_row(table tbl, int row, string name, string value, color bg, color txt
     table.cell(tbl, 0, row, name, text_color = txt, bgcolor = bg, text_size = size.tiny)
     table.cell(tbl, 1, row, value, text_color = txt, bgcolor = bg, text_size = size.tiny)
 
-color _db_text = color.white
-color _db_header_bg = color.new(color.blue, 68)
+color _db_text = chart.fg_color
+color _db_header_bg = color.new(color.black, 100)
 int _db_lifecycle_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_setup_confirmed ? 3 : long_setup_armed ? 2 : long_zone_active ? 1 : 0
 int _db_env_state = not market_regime_gate_ok ? -1 : not vola_regime_gate_safe ? 2 : 5
 int _db_micro_state = not micro_session_gate_ok ? -1 : not micro_freshness_gate_ok ? 2 : 5
