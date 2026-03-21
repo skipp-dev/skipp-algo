@@ -296,6 +296,24 @@ def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> No
     assert "[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
 
 
+def test_prepare_order_block_confirmation_runs_each_calc_without_shadowing_state() -> None:
+    source = _read_smc_source()
+
+    assert 'prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc, bool should_prepare) =>' in source
+    assert 'if should_prepare' in source
+    assert 'if should_prepare and update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)' in source
+    assert 'bool bull_prepare_confirmation = enabled and barstate.isconfirmed and bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)' in source
+    assert 'bool bear_prepare_confirmation = enabled and barstate.isconfirmed and bear_ob.trailing and bear_ob.extending and bear_ob.left_top.index < bar_index and is_green and not is_indecision and u.in_range(close, bear_ob.left_top.price, bear_ob.right_bottom.price)' in source
+    assert '[prepared_ob_size_min_bull, prepared_ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bull_prepare_confirmation)' in source
+    assert '[prepared_ob_size_min_bear, prepared_ob_size_max_bear] = prepare_order_block_confirmation(bear_ob, min_block_size, max_block_size, false, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bear_prepare_confirmation)' in source
+    assert 'ob_size_min_bull := prepared_ob_size_min_bull' in source
+    assert 'ob_size_max_bull := prepared_ob_size_max_bull' in source
+    assert 'ob_size_min_bear := prepared_ob_size_min_bear' in source
+    assert 'ob_size_max_bear := prepared_ob_size_max_bear' in source
+    assert '[ob_size_min_bull, ob_size_max_bull] = prepare_order_block_confirmation(' not in source
+    assert '[ob_size_min_bear, ob_size_max_bear] = prepare_order_block_confirmation(' not in source
+
+
 def test_clean_tier_is_renamed_as_a_quality_diagnostic() -> None:
     source = _read_smc_source()
 
@@ -492,14 +510,15 @@ def test_track_obs_lifecycle_steps_are_split_into_small_helpers() -> None:
 
     assert 'method capture_profile_bar(OrderBlock this, bool enabled) =>' in source
     assert 'handle_pending_tracking_reset(OrderBlock block, bool reset_next_bar) =>' in source
-    assert 'prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc) =>' in source
+    assert 'prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc, bool should_prepare) =>' in source
     assert 'update_soft_confirmation(OrderBlock block, bool bullish_side, bool use_soft_confirm_big_candle, bool is_impulse_candle, bool is_trend_candle, float soft_confirm_offset, float impulse_candle_size) =>' in source
     assert 'confirmation_price_exited(OrderBlock block, bool bullish_side, float soft_confirm_offset) =>' in source
     assert 'confirmation_trigger_active(OrderBlock block, bool use_soft_confirm, float swing_confirmed, bool bos_alert, bool choch_alert, int swing_len) =>' in source
     assert 'ob_size_within_bounds(OrderBlock block, bool align_edge_to_value_area, float ob_size_max, float ob_size_min) =>' in source
     assert 'reset_bull_next_bar := handle_pending_tracking_reset(bull_ob, reset_bull_next_bar)' in source
     assert 'bull_ob.capture_profile_bar(profile_features_active and update_profile_current_bar)' in source
-    assert '[ob_size_min_bull, ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc)' in source
+    assert 'bool bull_prepare_confirmation = enabled and barstate.isconfirmed and bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)' in source
+    assert '[prepared_ob_size_min_bull, prepared_ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bull_prepare_confirmation)' in source
     assert 'update_soft_confirmation(bull_ob, true, use_soft_confirm_big_candle, is_impulse_candle, is_green, soft_confirm_offset, impulse_candle_size)' in source
     assert 'bull_confirm_trigger = confirmation_trigger_active(bull_ob, use_soft_confirm, swing_low_confirmed, bull_bos_alert, bull_choch_alert, swing_len)' in source
     assert 'if ob_size_within_bounds(bull_ob, align_edge_to_value_area, ob_size_max_bull, ob_size_min_bull)' in source

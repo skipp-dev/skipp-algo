@@ -722,15 +722,16 @@ handle_pending_tracking_reset(OrderBlock block, bool reset_next_bar) =>
     else
         reset_next_bar
 
-prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc) =>
-    block.left_top.price := math.max(open, block.left_top.price)
-    block.right_bottom := chart.point.new(time_close[1], bar_index[1], block.right_bottom.price)
-    block.extending := false
-    block.awaiting_confirmation := true
+prepare_order_block_confirmation(OrderBlock block, float min_block_size, float max_block_size, bool round_size_bounds, bool update_profile_current_bar, bool align_edge_to_value_area, bool align_break_price_to_poc, bool should_prepare) =>
+    if should_prepare
+        block.left_top.price := math.max(open, block.left_top.price)
+        block.right_bottom := chart.point.new(time_close[1], bar_index[1], block.right_bottom.price)
+        block.extending := false
+        block.awaiting_confirmation := true
     int ob_length = math.max(block.right_bottom.index - block.left_top.index + 1, 1)
     float ob_size_min = round_size_bounds ? math.round_to_mintick(min_block_size) : min_block_size
     float ob_size_max = round_size_bounds ? math.round_to_mintick(max_block_size * ob_length) : max_block_size * ob_length
-    if update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
+    if should_prepare and update_profile_current_bar and (align_edge_to_value_area or align_break_price_to_poc)
         block.create_profile()
         block.align_to_profile(align_break_price = true)
     [ob_size_min, ob_size_max]
@@ -847,6 +848,10 @@ track_obs(
     var bool reset_bear_next_bar = false
 
     bool profile_features_active = profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)
+    bool bull_prepare_confirmation = enabled and barstate.isconfirmed and bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)
+    bool bear_prepare_confirmation = enabled and barstate.isconfirmed and bear_ob.trailing and bear_ob.extending and bear_ob.left_top.index < bar_index and is_green and not is_indecision and u.in_range(close, bear_ob.left_top.price, bear_ob.right_bottom.price)
+    [prepared_ob_size_min_bull, prepared_ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bull_prepare_confirmation)
+    [prepared_ob_size_min_bear, prepared_ob_size_max_bear] = prepare_order_block_confirmation(bear_ob, min_block_size, max_block_size, false, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bear_prepare_confirmation)
 
     if enabled
         update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)
@@ -971,14 +976,16 @@ track_obs(
                     bear_ob.has_big_candle := true
 
         if barstate.isconfirmed
-            if bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)
-                [ob_size_min_bull, ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc)
+            if bull_prepare_confirmation
+                ob_size_min_bull := prepared_ob_size_min_bull
+                ob_size_max_bull := prepared_ob_size_max_bull
 
                 if not bear_ob.awaiting_confirmation and not bear_ob.extending
                     bear_ob.reset_tracking()
 
-            if bear_ob.trailing and bear_ob.extending and bear_ob.left_top.index < bar_index and is_green and not is_indecision and u.in_range(close, bear_ob.left_top.price, bear_ob.right_bottom.price)
-                [ob_size_min_bear, ob_size_max_bear] = prepare_order_block_confirmation(bear_ob, min_block_size, max_block_size, false, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc)
+            if bear_prepare_confirmation
+                ob_size_min_bear := prepared_ob_size_min_bear
+                ob_size_max_bear := prepared_ob_size_max_bear
 
                 if not bull_ob.awaiting_confirmation and not bull_ob.extending
                     bull_ob.reset_tracking()
