@@ -4090,9 +4090,13 @@ bool prev_locked_source_invalid_now = prev_locked_source_tracked and (prev_locke
 bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_ob_strict and not na(touched_bull_ob_block) and (prev_locked_source_kind != 'OB' or prev_locked_source_id != touched_bull_ob_id) and touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
 bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_setup_armed and not long_setup_confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict and not na(touched_bull_fvg_block) and (prev_locked_source_kind != 'FVG' or prev_locked_source_id != touched_bull_fvg_id) and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain
 
-[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)
+bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok
+bool prefer_ob_upgrade = long_source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)
 
-[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)
+string long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : prev_locked_source_kind
+int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : prev_locked_source_id
+string long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_setup_backing_zone_kind
+int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id
 int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)
 int long_locked_source_last_touch_bar_index_effective = long_source_upgrade_now and not na(long_locked_source_id_final) ? bar_index : long_locked_source_last_touch_bar_index
 bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false

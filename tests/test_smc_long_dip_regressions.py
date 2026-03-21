@@ -308,8 +308,14 @@ def test_source_upgrade_is_explicit_and_quality_gated() -> None:
     assert 'and touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'select_source_upgrade(bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float ob_upgrade_quality, float fvg_upgrade_quality) =>' in source
     assert 'if long_source_upgrade_now' in source
-    assert '[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)' in source
-    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
+    assert 'bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok' in source
+    assert 'bool prefer_ob_upgrade = long_source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)' in source
+    assert "string long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : prev_locked_source_kind" in source
+    assert 'int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : prev_locked_source_id' in source
+    assert "string long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_setup_backing_zone_kind" in source
+    assert 'int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id' in source
+    assert '[long_source_upgrade_now, prefer_ob_upgrade] = select_source_upgrade(ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality)' not in source
+    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' not in source
 
 
 def test_source_upgrade_requires_different_candidate_than_locked_source() -> None:
@@ -333,7 +339,10 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
     source = _read_smc_source()
 
     assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, string locked_source_kind, int locked_source_id, string setup_backing_zone_kind, int setup_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
-    assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_setup_backing_zone_kind, long_setup_backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
+    assert "string long_locked_source_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : prev_locked_source_kind" in source
+    assert 'int long_locked_source_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : prev_locked_source_id' in source
+    assert "string long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_setup_backing_zone_kind" in source
+    assert 'int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id' in source
     assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false" in source
     assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : na" in source
     assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : na" in source
