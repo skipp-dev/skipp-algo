@@ -4669,22 +4669,17 @@ var int last_long_clean_alert_serial = na
 var int last_long_entry_best_alert_serial = na
 var int last_long_entry_strict_alert_serial = na
 bool alert_long_watchlist_event = long_watchlist_started and long_watchlist_serial > 0
-[next_alert_long_early_event, next_last_long_early_alert_serial] = next_serial_event(alert_long_early, long_setup_serial, last_long_early_alert_serial)
-bool alert_long_early_event = next_alert_long_early_event
-last_long_early_alert_serial := next_last_long_early_alert_serial
+bool alert_long_early_event = alert_long_early and long_setup_serial > 0 and last_long_early_alert_serial != long_setup_serial
+last_long_early_alert_serial := alert_long_early_event ? long_setup_serial : last_long_early_alert_serial
 bool suppress_armed_plus_event = alert_long_early or long_arm_signal
-[next_alert_long_armed_event, next_last_long_armed_alert_serial] = next_serial_event(alert_long_armed and not suppress_armed_plus_event, long_setup_serial, last_long_armed_alert_serial)
-bool alert_long_armed_event = next_alert_long_armed_event
-last_long_armed_alert_serial := next_last_long_armed_alert_serial
-[next_alert_long_clean_event, next_last_long_clean_alert_serial] = next_serial_event(alert_long_clean, long_setup_serial, last_long_clean_alert_serial)
-bool alert_long_clean_event = next_alert_long_clean_event
-last_long_clean_alert_serial := next_last_long_clean_alert_serial
-[next_alert_long_entry_best_event, next_last_long_entry_best_alert_serial] = next_serial_event(alert_long_entry_best, long_setup_serial, last_long_entry_best_alert_serial)
-bool alert_long_entry_best_event = next_alert_long_entry_best_event
-last_long_entry_best_alert_serial := next_last_long_entry_best_alert_serial
-[next_alert_long_entry_strict_event, next_last_long_entry_strict_alert_serial] = next_serial_event(alert_long_entry_strict, long_setup_serial, last_long_entry_strict_alert_serial)
-bool alert_long_entry_strict_event = next_alert_long_entry_strict_event
-last_long_entry_strict_alert_serial := next_last_long_entry_strict_alert_serial
+bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_setup_serial > 0 and last_long_armed_alert_serial != long_setup_serial
+last_long_armed_alert_serial := alert_long_armed_event ? long_setup_serial : last_long_armed_alert_serial
+bool alert_long_clean_event = alert_long_clean and long_setup_serial > 0 and last_long_clean_alert_serial != long_setup_serial
+last_long_clean_alert_serial := alert_long_clean_event ? long_setup_serial : last_long_clean_alert_serial
+bool alert_long_entry_best_event = alert_long_entry_best and long_setup_serial > 0 and last_long_entry_best_alert_serial != long_setup_serial
+last_long_entry_best_alert_serial := alert_long_entry_best_event ? long_setup_serial : last_long_entry_best_alert_serial
+bool alert_long_entry_strict_event = alert_long_entry_strict and long_setup_serial > 0 and last_long_entry_strict_alert_serial != long_setup_serial
+last_long_entry_strict_alert_serial := alert_long_entry_strict_event ? long_setup_serial : last_long_entry_strict_alert_serial
 bool bull_ob_broken_event = array.size(ob_broken_new_bull) > 0
 bool bear_ob_broken_event = array.size(ob_broken_new_bear) > 0
 

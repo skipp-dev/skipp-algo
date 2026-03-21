@@ -470,6 +470,21 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys' in source
     assert 'emit_priority_dynamic_alert_if_allowed(' not in source
+    assert 'bool alert_long_early_event = alert_long_early and long_setup_serial > 0 and last_long_early_alert_serial != long_setup_serial' in source
+    assert 'last_long_early_alert_serial := alert_long_early_event ? long_setup_serial : last_long_early_alert_serial' in source
+    assert 'bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_setup_serial > 0 and last_long_armed_alert_serial != long_setup_serial' in source
+    assert 'last_long_armed_alert_serial := alert_long_armed_event ? long_setup_serial : last_long_armed_alert_serial' in source
+    assert 'bool alert_long_clean_event = alert_long_clean and long_setup_serial > 0 and last_long_clean_alert_serial != long_setup_serial' in source
+    assert 'last_long_clean_alert_serial := alert_long_clean_event ? long_setup_serial : last_long_clean_alert_serial' in source
+    assert 'bool alert_long_entry_best_event = alert_long_entry_best and long_setup_serial > 0 and last_long_entry_best_alert_serial != long_setup_serial' in source
+    assert 'last_long_entry_best_alert_serial := alert_long_entry_best_event ? long_setup_serial : last_long_entry_best_alert_serial' in source
+    assert 'bool alert_long_entry_strict_event = alert_long_entry_strict and long_setup_serial > 0 and last_long_entry_strict_alert_serial != long_setup_serial' in source
+    assert 'last_long_entry_strict_alert_serial := alert_long_entry_strict_event ? long_setup_serial : last_long_entry_strict_alert_serial' in source
+    assert '[next_alert_long_early_event, next_last_long_early_alert_serial] = next_serial_event(alert_long_early, long_setup_serial, last_long_early_alert_serial)' not in source
+    assert '[next_alert_long_armed_event, next_last_long_armed_alert_serial] = next_serial_event(alert_long_armed and not suppress_armed_plus_event, long_setup_serial, last_long_armed_alert_serial)' not in source
+    assert '[next_alert_long_clean_event, next_last_long_clean_alert_serial] = next_serial_event(alert_long_clean, long_setup_serial, last_long_clean_alert_serial)' not in source
+    assert '[next_alert_long_entry_best_event, next_last_long_entry_best_alert_serial] = next_serial_event(alert_long_entry_best, long_setup_serial, last_long_entry_best_alert_serial)' not in source
+    assert '[next_alert_long_entry_strict_event, next_last_long_entry_strict_alert_serial] = next_serial_event(alert_long_entry_strict, long_setup_serial, last_long_entry_strict_alert_serial)' not in source
 
 
 def test_intrabar_ready_and_watchlist_events_are_debounced_and_latched() -> None:
