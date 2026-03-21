@@ -1826,7 +1826,7 @@ resolve_long_close_safe_alert_events(bool bar_confirmed, bool long_setup_armed, 
     [long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe]
 
 compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    str.format('{0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)
+    long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_entry_strict_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
     'Entry Strict. Ready live, strict upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix
@@ -1835,10 +1835,10 @@ compose_long_entry_best_alert_detail(string long_micro_alert_suffix, string long
     'Entry Best. Ready live, best upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)
+    'Ready for ' + long_setup_source_display + ': lifecycle, gates, context, upgrades passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)
+    'Confirmed from ' + long_setup_source_display + ': confirm lifecycle and filters passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_clean_alert_detail(string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
     'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
@@ -1850,7 +1850,7 @@ compose_long_armed_plus_alert_detail(string long_micro_alert_suffix, string long
     'Armed+. Strict reclaim in, setup armed' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_armed_alert_detail(string long_setup_source_display, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)
+    'Armed from ' + long_setup_source_display + ': reclaim and zone confirmation in' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
     'Watchlist. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix
@@ -4046,14 +4046,39 @@ bool long_source_lost = false
 string arm_backing_zone_kind = 'None'
 int arm_backing_zone_id = na
 
-[arm_source_text_tmp, arm_invalidation_candidate_tmp, arm_backing_zone_kind_tmp, arm_backing_zone_id_tmp] = select_long_arm_source(bull_reclaim_ob_strict, bull_reclaim_fvg_strict, bull_reclaim_swing_low_strict, bull_reclaim_internal_low_strict, touched_bull_ob_bottom, touched_bull_ob_id, touched_bull_fvg_bottom, touched_bull_fvg_id, long_reclaim_swing_level, long_reclaim_internal_level)
-arm_source_text := arm_source_text_tmp
-arm_invalidation_candidate := arm_invalidation_candidate_tmp
-arm_backing_zone_kind := arm_backing_zone_kind_tmp
-arm_backing_zone_id := arm_backing_zone_id_tmp
-[arm_backing_zone_kind_resolved, arm_backing_zone_id_resolved] = resolve_long_arm_backing_zone(arm_source_text, in_bull_ob_zone, in_bull_fvg_zone, last_ob_zone_touch_bar_index, last_fvg_zone_touch_bar_index, active_bull_ob_id, active_bull_fvg_id, touched_bull_ob_recent, touched_bull_ob_id, touched_bull_fvg_recent, touched_bull_fvg_id, arm_backing_zone_kind, arm_backing_zone_id)
-arm_backing_zone_kind := arm_backing_zone_kind_resolved
-arm_backing_zone_id := arm_backing_zone_id_resolved
+if bull_reclaim_ob_strict
+    arm_source_text := 'OB'
+    arm_invalidation_candidate := touched_bull_ob_bottom
+    arm_backing_zone_kind := 'OB'
+    arm_backing_zone_id := touched_bull_ob_id
+else if bull_reclaim_fvg_strict
+    arm_source_text := 'FVG'
+    arm_invalidation_candidate := touched_bull_fvg_bottom
+    arm_backing_zone_kind := 'FVG'
+    arm_backing_zone_id := touched_bull_fvg_id
+else if bull_reclaim_swing_low_strict
+    arm_source_text := 'Swing Low'
+    arm_invalidation_candidate := long_reclaim_swing_level
+else if bull_reclaim_internal_low_strict
+    arm_source_text := 'Internal Low'
+    arm_invalidation_candidate := long_reclaim_internal_level
+if arm_source_text == 'Swing Low' or arm_source_text == 'Internal Low'
+    if in_bull_ob_zone and in_bull_fvg_zone
+        bool ob_more_recent = na(last_fvg_zone_touch_bar_index) or (not na(last_ob_zone_touch_bar_index) and last_ob_zone_touch_bar_index >= last_fvg_zone_touch_bar_index)
+        arm_backing_zone_kind := ob_more_recent ? 'OB' : 'FVG'
+        arm_backing_zone_id := ob_more_recent ? active_bull_ob_id : active_bull_fvg_id
+    else if in_bull_ob_zone
+        arm_backing_zone_kind := 'OB'
+        arm_backing_zone_id := active_bull_ob_id
+    else if in_bull_fvg_zone
+        arm_backing_zone_kind := 'FVG'
+        arm_backing_zone_id := active_bull_fvg_id
+    else if touched_bull_ob_recent and not na(touched_bull_ob_id)
+        arm_backing_zone_kind := 'OB'
+        arm_backing_zone_id := touched_bull_ob_id
+    else if touched_bull_fvg_recent and not na(touched_bull_fvg_id)
+        arm_backing_zone_kind := 'FVG'
+        arm_backing_zone_id := touched_bull_fvg_id
 
 // 2) Invalidation
 if barstate.isnew
@@ -4100,8 +4125,8 @@ int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgra
 int long_locked_source_touch_count_effective = select_locked_source_touch_count(long_source_upgrade_now, prefer_ob_upgrade, touched_bull_ob_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_touch_count, touched_bull_fvg_id, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_touch_count, long_locked_source_touch_count)
 int long_locked_source_last_touch_bar_index_effective = long_source_upgrade_now and not na(long_locked_source_id_final) ? bar_index : long_locked_source_last_touch_bar_index
 bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false
-float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : na
-float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : na
+float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : long_locked_source_alive_now and not long_source_upgrade_now and long_locked_source_kind_final == prev_locked_source_kind and long_locked_source_id_final == prev_locked_source_id ? long_locked_source_top : na
+float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : long_locked_source_alive_now and not long_source_upgrade_now and long_locked_source_kind_final == prev_locked_source_kind and long_locked_source_id_final == prev_locked_source_id ? long_locked_source_bottom : na
 bool long_locked_source_in_zone = long_locked_source_alive_now and not na(long_locked_source_top_now) and not na(long_locked_source_bottom_now) and math.min(high, long_locked_source_top_now) - math.max(low, long_locked_source_bottom_now) >= 0
 bool long_locked_source_touch_now = long_locked_source_in_zone and (not long_locked_source_in_zone[1] or long_locked_source_id_final != long_locked_source_id_final[1] or long_locked_source_kind_final != long_locked_source_kind_final[1])
 if state_update_bar_ok and (long_setup_armed or long_setup_confirmed) and long_locked_source_touch_now and long_locked_source_last_touch_bar_index_effective != bar_index and not na(long_locked_source_id_final)
@@ -4178,9 +4203,8 @@ if bull_reclaim_any_for_arm and (use_strict_sequence ? zone_touch_event_recent :
     long_setup_backing_zone_touch_count := select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)
     long_locked_source_kind := arm_backing_zone_kind
     long_locked_source_id := arm_backing_zone_kind == 'OB' ? arm_backing_zone_id : arm_backing_zone_kind == 'FVG' ? arm_backing_zone_id : na
-    [long_locked_source_top_tmp, long_locked_source_bottom_tmp] = resolve_long_locked_source_bounds(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_top, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_top, touched_bull_fvg_bottom)
-    long_locked_source_top := long_locked_source_top_tmp
-    long_locked_source_bottom := long_locked_source_bottom_tmp
+    long_locked_source_top := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_top : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_top : arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top : arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_top : na
+    long_locked_source_bottom := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_bottom : arm_backing_zone_kind == 'OB' and arm_backing_zone_id == touched_bull_ob_id ? touched_bull_ob_bottom : arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_bottom : arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == touched_bull_fvg_id ? touched_bull_fvg_bottom : na
     long_locked_source_touch_count := long_setup_backing_zone_touch_count
     long_locked_source_last_touch_bar_index := not na(long_locked_source_id) ? bar_index : na
     long_setup_serial += 1
@@ -4858,20 +4882,48 @@ varip string dynamic_alert_seen_keys = ''
 if barstate.isnew
     dynamic_alert_seen_keys := ''
 
-[bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', true)
-[bull_choch_alert_key, bull_choch_alert_name, bull_choch_alert_detail] = resolve_directional_dynamic_alert_identity('choch', true)
-[bear_bos_alert_key, bear_bos_alert_name, bear_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', false)
-[bear_choch_alert_key, bear_choch_alert_name, bear_choch_alert_detail] = resolve_directional_dynamic_alert_identity('choch', false)
-[bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail] = resolve_directional_dynamic_alert_identity('new_ob', true)
-[bear_ob_alert_key, bear_ob_alert_name, bear_ob_alert_detail] = resolve_directional_dynamic_alert_identity('new_ob', false)
-[bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('new_fvg', true)
-[bear_fvg_alert_key, bear_fvg_alert_name, bear_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('new_fvg', false)
-[bull_fvg_filled_alert_key, bull_fvg_filled_alert_name, bull_fvg_filled_alert_detail] = resolve_directional_dynamic_alert_identity('fvg_filled', true)
-[bear_fvg_filled_alert_key, bear_fvg_filled_alert_name, bear_fvg_filled_alert_detail] = resolve_directional_dynamic_alert_identity('fvg_filled', false)
-[bull_live_ob_alert_key, bull_live_ob_alert_name, bull_live_ob_alert_detail] = resolve_directional_dynamic_alert_identity('live_ob_break', true)
-[bear_live_ob_alert_key, bear_live_ob_alert_name, bear_live_ob_alert_detail] = resolve_directional_dynamic_alert_identity('live_ob_break', false)
-[bull_live_fvg_alert_key, bull_live_fvg_alert_name, bull_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', true)
-[bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', false)
+string bull_bos_alert_key = '|bull_bos|'
+string bull_bos_alert_name = 'Bullish BOS'
+string bull_bos_alert_detail = 'Structure break confirmed'
+string bull_choch_alert_key = '|bull_choch|'
+string bull_choch_alert_name = 'Bullish CHoCH'
+string bull_choch_alert_detail = 'Character shift confirmed'
+string bear_bos_alert_key = '|bear_bos|'
+string bear_bos_alert_name = 'Bearish BOS'
+string bear_bos_alert_detail = 'Structure break confirmed'
+string bear_choch_alert_key = '|bear_choch|'
+string bear_choch_alert_name = 'Bearish CHoCH'
+string bear_choch_alert_detail = 'Character shift confirmed'
+string bull_ob_alert_key = '|new_bull_ob|'
+string bull_ob_alert_name = 'Bullish Order Block'
+string bull_ob_alert_detail = 'New order block confirmed'
+string bear_ob_alert_key = '|new_bear_ob|'
+string bear_ob_alert_name = 'Bearish Order Block'
+string bear_ob_alert_detail = 'New order block confirmed'
+string bull_fvg_alert_key = '|new_bull_fvg|'
+string bull_fvg_alert_name = 'Bullish FVG'
+string bull_fvg_alert_detail = 'New fair value gap formed'
+string bear_fvg_alert_key = '|new_bear_fvg|'
+string bear_fvg_alert_name = 'Bearish FVG'
+string bear_fvg_alert_detail = 'New fair value gap formed'
+string bull_fvg_filled_alert_key = '|bull_fvg_filled|'
+string bull_fvg_filled_alert_name = 'Bullish FVG Filled'
+string bull_fvg_filled_alert_detail = 'Gap fill target reached'
+string bear_fvg_filled_alert_key = '|bear_fvg_filled|'
+string bear_fvg_filled_alert_name = 'Bearish FVG Filled'
+string bear_fvg_filled_alert_detail = 'Gap fill target reached'
+string bull_live_ob_alert_key = '|live_bull_ob_break|'
+string bull_live_ob_alert_name = 'Bullish OB Live Break'
+string bull_live_ob_alert_detail = 'Intrabar bullish order block break detected'
+string bear_live_ob_alert_key = '|live_bear_ob_break|'
+string bear_live_ob_alert_name = 'Bearish OB Live Break'
+string bear_live_ob_alert_detail = 'Intrabar bearish order block break detected'
+string bull_live_fvg_alert_key = '|live_bull_fvg_fill|'
+string bull_live_fvg_alert_name = 'Bullish FVG Live Fill'
+string bull_live_fvg_alert_detail = 'Intrabar bullish fair value gap fill detected'
+string bear_live_fvg_alert_key = '|live_bear_fvg_fill|'
+string bear_live_fvg_alert_name = 'Bearish FVG Live Fill'
+string bear_live_fvg_alert_detail = 'Intrabar bearish fair value gap fill detected'
 float new_fvg_bull_alert_level = resolve_fvg_alert_level(new_fvg_bull)
 float new_fvg_bear_alert_level = resolve_fvg_alert_level(new_fvg_bear)
 float new_ob_bull_alert_level = resolve_ob_alert_level(new_ob_bull)
@@ -4893,16 +4945,26 @@ dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and enable_live_break_alerts and live_exec and live_bear_fvg_fill, bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail, bear_fvg_live_event_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and use_sd_confluence and sd_bullish_divergence_event, '|sd_bull_div|', 'Bullish SD Divergence', 'Price lower low vs oscillator higher low', low, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and use_sd_confluence and sd_higher_lows_event, '|sd_higher_lows|', 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-[long_invalidated_alert_key, long_invalidated_alert_name] = resolve_long_alert_identity('invalidated')
-[long_entry_strict_alert_key, long_entry_strict_alert_name] = resolve_long_alert_identity('entry_strict')
-[long_entry_best_alert_key, long_entry_best_alert_name] = resolve_long_alert_identity('entry_best')
-[long_ready_alert_key, long_ready_alert_name] = resolve_long_alert_identity('ready')
-[long_confirmed_alert_key, long_confirmed_alert_name] = resolve_long_alert_identity('confirmed')
-[long_clean_alert_key, long_clean_alert_name] = resolve_long_alert_identity('clean')
-[long_early_alert_key, long_early_alert_name] = resolve_long_alert_identity('early')
-[long_armed_plus_alert_key, long_armed_plus_alert_name] = resolve_long_alert_identity('armed_plus')
-[long_armed_alert_key, long_armed_alert_name] = resolve_long_alert_identity('armed')
-[long_watchlist_alert_key, long_watchlist_alert_name] = resolve_long_alert_identity('watchlist')
+string long_invalidated_alert_key = '|long_invalidated|'
+string long_invalidated_alert_name = 'Long Invalidated'
+string long_entry_strict_alert_key = '|long_entry_strict|'
+string long_entry_strict_alert_name = 'Long Dip Entry Strict'
+string long_entry_best_alert_key = '|long_entry_best|'
+string long_entry_best_alert_name = 'Long Dip Entry Best'
+string long_ready_alert_key = '|long_ready|'
+string long_ready_alert_name = 'Long Ready'
+string long_confirmed_alert_key = '|long_confirmed|'
+string long_confirmed_alert_name = 'Long Confirmed'
+string long_clean_alert_key = '|long_clean|'
+string long_clean_alert_name = 'Long Dip Clean'
+string long_early_alert_key = '|long_early|'
+string long_early_alert_name = 'Long Dip Early'
+string long_armed_plus_alert_key = '|long_armed_plus|'
+string long_armed_plus_alert_name = 'Long Dip Armed+'
+string long_armed_alert_key = '|long_armed|'
+string long_armed_alert_name = 'Long Armed'
+string long_watchlist_alert_key = '|long_watchlist|'
+string long_watchlist_alert_name = 'Long Dip Watchlist'
 if dynamic_long_alert_mode == 'Priority'
     if enable_dynamic_alerts and long_invalidate_signal
         priority_seen_keys_invalidated = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)

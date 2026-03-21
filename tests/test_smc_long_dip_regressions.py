@@ -344,8 +344,10 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
     assert "string long_setup_backing_zone_kind_final = long_source_upgrade_now ? prefer_ob_upgrade ? 'OB' : 'FVG' : long_setup_backing_zone_kind" in source
     assert 'int long_setup_backing_zone_id_final = long_source_upgrade_now ? prefer_ob_upgrade ? touched_bull_ob_id : touched_bull_fvg_id : long_setup_backing_zone_id' in source
     assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false" in source
-    assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : na" in source
-    assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : na" in source
+    assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top" in source
+    assert "long_locked_source_alive_now and not long_source_upgrade_now and long_locked_source_kind_final == prev_locked_source_kind and long_locked_source_id_final == prev_locked_source_id ? long_locked_source_top : na" in source
+    assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom" in source
+    assert "long_locked_source_alive_now and not long_source_upgrade_now and long_locked_source_kind_final == prev_locked_source_kind and long_locked_source_id_final == prev_locked_source_id ? long_locked_source_bottom : na" in source
     assert "bool long_source_broken = long_locked_source_kind_final == 'OB' ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false" in source
 
 
@@ -422,20 +424,30 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert 'select_long_arm_source(bool bull_reclaim_ob_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_internal_low_strict, float touched_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_fvg_bottom, int touched_bull_fvg_id, float long_reclaim_swing_level, float long_reclaim_internal_level) =>' in source
     assert 'resolve_long_arm_backing_zone(string arm_source_text, bool in_bull_ob_zone, bool in_bull_fvg_zone, int last_ob_zone_touch_bar_index, int last_fvg_zone_touch_bar_index, int active_bull_ob_id, int active_bull_fvg_id, bool touched_bull_ob_recent, int touched_bull_ob_id, bool touched_bull_fvg_recent, int touched_bull_fvg_id, string arm_backing_zone_kind, int arm_backing_zone_id) =>' in source
     assert 'resolve_long_locked_source_bounds(string arm_backing_zone_kind, int arm_backing_zone_id, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_top, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_top, float touched_bull_fvg_bottom) =>' in source
-    assert '[arm_source_text_tmp, arm_invalidation_candidate_tmp, arm_backing_zone_kind_tmp, arm_backing_zone_id_tmp] = select_long_arm_source(bull_reclaim_ob_strict, bull_reclaim_fvg_strict, bull_reclaim_swing_low_strict, bull_reclaim_internal_low_strict, touched_bull_ob_bottom, touched_bull_ob_id, touched_bull_fvg_bottom, touched_bull_fvg_id, long_reclaim_swing_level, long_reclaim_internal_level)' in source
+    assert 'if bull_reclaim_ob_strict' in source
+    assert "arm_source_text := 'OB'" in source
+    assert 'arm_invalidation_candidate := touched_bull_ob_bottom' in source
     assert "arm_backing_zone_id := touched_bull_fvg_id" in source
-    assert 'arm_source_text := arm_source_text_tmp' in source
-    assert 'arm_invalidation_candidate := arm_invalidation_candidate_tmp' in source
-    assert '[arm_backing_zone_kind_resolved, arm_backing_zone_id_resolved] = resolve_long_arm_backing_zone(arm_source_text, in_bull_ob_zone, in_bull_fvg_zone, last_ob_zone_touch_bar_index, last_fvg_zone_touch_bar_index, active_bull_ob_id, active_bull_fvg_id, touched_bull_ob_recent, touched_bull_ob_id, touched_bull_fvg_recent, touched_bull_fvg_id, arm_backing_zone_kind, arm_backing_zone_id)' in source
-    assert 'arm_backing_zone_kind := arm_backing_zone_kind_resolved' in source
+    assert "if arm_source_text == 'Swing Low' or arm_source_text == 'Internal Low'" in source
+    assert "arm_backing_zone_kind := ob_more_recent ? 'OB' : 'FVG'" in source
+    assert 'arm_backing_zone_id := ob_more_recent ? active_bull_ob_id : active_bull_fvg_id' in source
+    assert '[arm_source_text_tmp, arm_invalidation_candidate_tmp, arm_backing_zone_kind_tmp, arm_backing_zone_id_tmp] = select_long_arm_source(bull_reclaim_ob_strict, bull_reclaim_fvg_strict, bull_reclaim_swing_low_strict, bull_reclaim_internal_low_strict, touched_bull_ob_bottom, touched_bull_ob_id, touched_bull_fvg_bottom, touched_bull_fvg_id, long_reclaim_swing_level, long_reclaim_internal_level)' not in source
+    assert "arm_backing_zone_id := touched_bull_fvg_id" in source
+    assert 'arm_source_text := arm_source_text_tmp' not in source
+    assert 'arm_invalidation_candidate := arm_invalidation_candidate_tmp' not in source
+    assert '[arm_backing_zone_kind_resolved, arm_backing_zone_id_resolved] = resolve_long_arm_backing_zone(arm_source_text, in_bull_ob_zone, in_bull_fvg_zone, last_ob_zone_touch_bar_index, last_fvg_zone_touch_bar_index, active_bull_ob_id, active_bull_fvg_id, touched_bull_ob_recent, touched_bull_ob_id, touched_bull_fvg_recent, touched_bull_fvg_id, arm_backing_zone_kind, arm_backing_zone_id)' not in source
+    assert 'arm_backing_zone_kind := arm_backing_zone_kind_resolved' not in source
     assert "backing_zone_id := ob_more_recent ? active_bull_ob_id : active_bull_fvg_id" in source
-    assert '[long_locked_source_top_tmp, long_locked_source_bottom_tmp] = resolve_long_locked_source_bounds(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_top, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_top, touched_bull_fvg_bottom)' in source
+    assert '[long_locked_source_top_tmp, long_locked_source_bottom_tmp] = resolve_long_locked_source_bounds(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_top, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_top, touched_bull_fvg_bottom)' not in source
     assert "arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count" in source
     assert "arm_backing_zone_kind == 'FVG' and arm_backing_zone_id == active_bull_fvg_id ? active_bull_fvg_top" in source
-    assert 'long_locked_source_top := long_locked_source_top_tmp' in source
+    assert "long_locked_source_top := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_top" in source
+    assert "long_locked_source_bottom := arm_backing_zone_kind == 'OB' and arm_backing_zone_id == active_bull_ob_id ? active_bull_ob_bottom" in source
     assert "bool long_locked_source_alive_now = long_locked_source_kind_final == 'OB' ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == 'FVG' ? contains_id(fvgs_bull, long_locked_source_id_final) : false" in source
-    assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_top : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_top : na" in source
-    assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom : long_locked_source_kind_final == 'OB' and long_locked_source_id_final == touched_bull_ob_id ? touched_bull_ob_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == active_bull_fvg_id ? active_bull_fvg_bottom : long_locked_source_kind_final == 'FVG' and long_locked_source_id_final == touched_bull_fvg_id ? touched_bull_fvg_bottom : na" in source
+    assert "float long_locked_source_top_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_top" in source
+    assert "long_locked_source_alive_now and not long_source_upgrade_now and long_locked_source_kind_final == prev_locked_source_kind and long_locked_source_id_final == prev_locked_source_id ? long_locked_source_top : na" in source
+    assert "float long_locked_source_bottom_now = long_locked_source_kind_final == 'OB' and long_locked_source_id_final == active_bull_ob_id ? active_bull_ob_bottom" in source
+    assert "long_locked_source_alive_now and not long_source_upgrade_now and long_locked_source_kind_final == prev_locked_source_kind and long_locked_source_id_final == prev_locked_source_id ? long_locked_source_bottom : na" in source
     assert "OrderBlock long_locked_bull_ob = long_locked_source_kind_final == 'OB' ? get_by_id(ob_blocks_bull, long_locked_source_id_final) : na" not in source
     assert "FVG long_locked_bull_fvg = long_locked_source_kind_final == 'FVG' ? get_by_id(fvgs_bull, long_locked_source_id_final) : na" not in source
     assert 'long_locked_bull_ob.left_top.price' not in source
@@ -449,7 +461,7 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "resolve_long_alert_identity(string long_alert_kind) =>" in source
     assert "resolve_directional_dynamic_alert_identity(string alert_kind, bool bullish) =>" in source
     assert "compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
-    assert "str.format('{0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)" in source
+    assert 'long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix' in source
     assert "compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
     assert "compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
     assert "compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
@@ -458,10 +470,14 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]' in source
     assert 'bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed[1] or long_setup_confirmed[1])' in source
     assert '[long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe] = resolve_long_close_safe_alert_events(barstate.isconfirmed, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_armed[1], long_setup_confirmed[1], long_ready_state[1])' not in source
-    assert "[bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', true)" in source
-    assert "[bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', false)" in source
-    assert "[long_invalidated_alert_key, long_invalidated_alert_name] = resolve_long_alert_identity('invalidated')" in source
-    assert "[long_watchlist_alert_key, long_watchlist_alert_name] = resolve_long_alert_identity('watchlist')" in source
+    assert "string bull_bos_alert_key = '|bull_bos|'" in source
+    assert "string bear_live_fvg_alert_key = '|live_bear_fvg_fill|'" in source
+    assert "string long_invalidated_alert_key = '|long_invalidated|'" in source
+    assert "string long_watchlist_alert_name = 'Long Dip Watchlist'" in source
+    assert "[bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', true)" not in source
+    assert "[bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', false)" not in source
+    assert "[long_invalidated_alert_key, long_invalidated_alert_name] = resolve_long_alert_identity('invalidated')" not in source
+    assert "[long_watchlist_alert_key, long_watchlist_alert_name] = resolve_long_alert_identity('watchlist')" not in source
     assert 'compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
@@ -472,6 +488,13 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert "str.format('{0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)" not in source
+    assert "str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)" not in source
+    assert "str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)" not in source
+    assert "str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)" not in source
+    assert "'Ready for ' + long_setup_source_display + ': lifecycle, gates, context, upgrades passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in source
+    assert "'Confirmed from ' + long_setup_source_display + ': confirm lifecycle and filters passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in source
+    assert "'Armed from ' + long_setup_source_display + ': reclaim and zone confirmation in' + long_micro_alert_suffix + long_score_detail_suffix" in source
     assert "Invalidated from {0}" not in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_bos_sig, bear_bos_alert_key, bear_bos_alert_name, bear_bos_alert_detail, btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'resolve_ob_alert_level(OrderBlock block) =>' in source
