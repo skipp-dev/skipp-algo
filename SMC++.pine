@@ -1438,6 +1438,47 @@ compose_zone_summary_text(bool show_ob_zone, float ob_top, float ob_bottom, bool
         zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)
     zone_text
 
+compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>
+    string debug_text = 'off'
+    if show_ob_debug
+        debug_text := 'OB'
+    if show_fvg_debug
+        debug_text := debug_text == 'off' ? 'FVG' : debug_text + ' | FVG'
+    if show_long_engine_debug
+        debug_text := debug_text == 'off' ? 'Long' : debug_text + ' | Long'
+    debug_text
+
+compose_long_debug_summary_text(bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>
+    string debug_text = 'idle'
+    if long_setup_armed or long_setup_confirmed or long_ready_state
+        debug_text := 'src=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + freshness_text + ' | ' + source_state_text + ' | ' + zone_quality_text + ' | ' + long_environment_focus_display
+    else if long_last_invalid_source != 'None'
+        debug_text := 'last=' + long_last_invalid_source
+    if long_source_upgrade_now
+        debug_text += ' | upgrade'
+    debug_text
+
+compose_long_engine_debug_label_text(string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>
+    string debug_text = 'Long Engine'
+    debug_text += '\nsetup=' + long_setup_text + ' | visual=' + long_visual_text
+    debug_text += '\nsrc=' + long_setup_source_display + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count)
+    debug_text += '\nfresh=' + freshness_text + ' | ' + source_state_text
+    debug_text += '\nzone=' + zone_quality_text + ' | env=' + long_environment_focus_display
+    debug_text += '\ntrig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
+    if long_source_upgrade_now
+        debug_text += '\nupgrade=active'
+    if long_last_invalid_source != 'None'
+        debug_text += '\nlast=' + long_last_invalid_source
+    debug_text
+
+compose_long_engine_event_log(string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_last_invalid_source) =>
+    string event_text = event_name + ' | src=' + long_setup_source_display + ' | trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | fresh=' + freshness_text + ' | ' + source_state_text + ' | zone=' + zone_quality_text + ' | env=' + long_environment_focus_display
+    if long_source_upgrade_now
+        event_text += ' | upgrade'
+    if long_last_invalid_source != 'None'
+        event_text += ' | reason=' + long_last_invalid_source
+    event_text
+
 describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
     not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'
 
@@ -2084,6 +2125,7 @@ var g_long = 'Long Dip Tools'
 // Visuals
 var bool show_reclaim_markers = input.bool(true, 'Show Reclaim Markers', group = g_long, inline = 'viz1')
 var bool show_long_confirmation_markers = input.bool(true, 'Show Long Confirmation Markers', group = g_long, inline = 'viz1')
+var bool show_long_engine_debug = input.bool(false, 'Show long engine debug', group = g_long, inline = 'vizd')
 var bool show_long_background = input.bool(true, 'Show Long-only Background', group = g_long, inline = 'viz2')
 var bool color_long_bars = input.bool(false, 'Color Bars', group = g_long, inline = 'viz2')
 var int long_marker_history_limit = input.int(100, 'Marker History Limit', minval = 0, maxval = 500, group = g_long, inline = 'viz2')
@@ -2275,6 +2317,7 @@ var show_ob = input.bool(true, 'Show Order Blocks', group = g_ob, inline = 'OB',
 var bull_ob_css = input.color(color.new(#3668f2, 80), '', group = g_ob, inline = 'OB')
 var bull_ob_css_line = input.color(color.new(#3668f2, 15), '', group = g_ob, inline = 'OB')
 var ob_showlast = input.int(DEFAULT_OB_SHOW_LAST, 'Show last', minval = 1, group = g_ob, inline = 'OB')
+var bool show_ob_debug = input.bool(false, 'Show OB debug', group = g_ob)
 var ob_filter_min_mult = input.float(DEFAULT_OB_FILTER_MIN_MULT, 'Size Filter (ATR x) Min', minval = 0, step = 0.1, group = g_ob, inline = 'OB Filter')
 var ob_filter_max_mult = input.float(DEFAULT_OB_FILTER_MAX_MULT, 'Max', minval = 1, step = 0.1, group = g_ob, inline = 'OB Filter', tooltip = FILTER_OB)
 var show_ob_id = false
@@ -2901,6 +2944,7 @@ var fvg_showlast = input.int(DEFAULT_FVG_SHOW_LAST, 'Show last', minval = 1, gro
 var fvg_extend_until_filled = input.bool(true, 'Extend until filled', group = g_fvg, inline = 'ext')
 var fvg_keep_filled = input.bool(true, 'Keep filled', group = g_fvg, inline = 'keep filled')
 var fvg_keep_filled_max = input.int(DEFAULT_KEEP_HISTORY, '', minval = 1, group = g_fvg, inline = 'keep filled')
+var bool show_fvg_debug = input.bool(false, 'Show FVG debug', group = g_fvg)
 var bull_fvg_css = input.color(color.new(#00ff68, 90), '', group = g_fvg, inline = 'show')
 var bull_fvg_line_css = input.color(color.new(#00ff68, 25), '', group = g_fvg, inline = 'show')
 var bull_fvg_css_filled = input.color(color.new(color.gray, 80), '', group = g_fvg, inline = 'keep filled')
@@ -3405,6 +3449,10 @@ bool long_source_alive = true
 bool long_source_lost = false
 int arm_backing_zone_kind = LONG_SOURCE_NONE
 int arm_backing_zone_id = na
+string long_debug_event_source_display = long_setup_source_display
+int long_debug_event_touch_count = long_setup_backing_zone_touch_count
+float long_debug_event_trigger = long_setup_trigger
+float long_debug_event_invalidation = long_invalidation_level
 
 if bull_reclaim_ob_strict
     arm_source_kind := LONG_SOURCE_OB
@@ -3524,6 +3572,10 @@ int long_validation_source_now = resolve_long_validation_source(long_locked_sour
 string long_setup_source_display_now = compose_long_setup_source_display(long_entry_origin_source, long_validation_source_now)
 
 if long_invalidated_now
+    long_debug_event_source_display := long_setup_source_display_now
+    long_debug_event_touch_count := long_setup_backing_zone_touch_count
+    long_debug_event_trigger := long_setup_trigger
+    long_debug_event_invalidation := long_invalidation_level
     long_last_invalid_source := resolve_long_invalidation_reason(long_source_broken, long_source_lost, long_setup_expired, long_confirm_expired, long_validation_source_now, long_entry_origin_source, long_setup_source_display_now)
     long_last_invalid_level := long_invalidation_level
     long_invalidate_signal := long_setup_armed or long_setup_confirmed
@@ -3687,6 +3739,22 @@ long_visual_state := resolve_long_visual_state(long_zone_active, long_setup_arme
 long_visual_text := resolve_long_visual_text(long_visual_state)
 long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
 long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
+string long_debug_log_source_display = long_invalidate_signal ? long_debug_event_source_display : long_setup_source_display
+int long_debug_log_touch_count = long_invalidate_signal ? long_debug_event_touch_count : long_setup_backing_zone_touch_count
+float long_debug_log_trigger = long_invalidate_signal ? long_debug_event_trigger : long_setup_trigger
+float long_debug_log_invalidation = long_invalidate_signal ? long_debug_event_invalidation : long_invalidation_level
+string long_debug_summary_text = compose_long_debug_summary_text(long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source)
+
+if show_long_engine_debug and long_source_upgrade_now
+    log.info('{0}', compose_long_engine_event_log('LONG UPGRADE', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_last_invalid_source))
+if show_long_engine_debug and long_arm_signal
+    log.info('{0}', compose_long_engine_event_log('LONG ARMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+if show_long_engine_debug and long_confirm_signal
+    log.info('{0}', compose_long_engine_event_log('LONG CONFIRMED', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+if show_long_engine_debug and long_ready_signal
+    log.info('{0}', compose_long_engine_event_log('LONG READY', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
+if show_long_engine_debug and long_invalidate_signal
+    log.info('{0}', compose_long_engine_event_log('LONG INVALID', long_debug_log_source_display, long_debug_log_trigger, long_debug_log_invalidation, long_debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_last_invalid_source))
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break
@@ -3700,6 +3768,7 @@ var int last_long_ready_marker_bar = na
 var label[] reclaim_marker_history = array.new<label>(0)
 var label[] long_state_marker_history = array.new<label>(0)
 var label[] long_ready_marker_history = array.new<label>(0)
+var label long_engine_debug_label = na
 if barstate.islast
     u.trim_label_history(reclaim_marker_history, show_reclaim_markers ? long_marker_history_limit : 0)
     u.trim_label_history(long_state_marker_history, show_long_confirmation_markers ? long_marker_history_limit : 0)
@@ -3738,6 +3807,15 @@ plotshape(show_strict_debug_markers and bull_fvg_real_sweep, title = 'FVG Sweep 
 plotshape(show_strict_debug_markers and bull_reclaim_ob_strict, title = 'OB Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
 plotshape(show_strict_debug_markers and bull_reclaim_fvg_strict, title = 'FVG Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
 plotshape(show_strict_debug_markers and long_confirm_break and not long_confirm_bearish_guard_ok, title = 'Confirm Blocked By Bearish Abort', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'XCONF')
+plotshape(show_ob_debug and ob_zone_touch_event, title = 'OB Zone Touch Debug', style = shape.circle, location = location.belowbar, color = color.blue, size = size.tiny, text = 'OBZ')
+plotshape(show_ob_debug and not na(new_ob_bull), title = 'Bullish OB Formed Debug', style = shape.circle, location = location.belowbar, color = color.new(color.blue, 0), size = size.tiny, text = 'OB+')
+plotshape(show_ob_debug and bull_reclaim_ob_strict, title = 'OB Reclaim Debug', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
+plotshape(show_ob_debug and array.size(ob_broken_new_bull) > 0, title = 'Bullish OB Broken Debug', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'OBX')
+plotshape(show_fvg_debug and fvg_zone_touch_event, title = 'FVG Zone Touch Debug', style = shape.circle, location = location.belowbar, color = color.green, size = size.tiny, text = 'FVG')
+plotshape(show_fvg_debug and bullish_fvg_alert, title = 'Bullish FVG Formed Debug', style = shape.circle, location = location.belowbar, color = color.new(color.green, 0), size = size.tiny, text = 'FV+')
+plotshape(show_fvg_debug and bull_reclaim_fvg_strict, title = 'FVG Reclaim Debug', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
+plotshape(show_fvg_debug and bullish_fvg_filled_alert, title = 'Bullish FVG Filled Debug', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'FVX')
+plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug', style = shape.circle, location = location.abovebar, color = color.teal, size = size.tiny, text = 'LUP')
 plotshape(show_accel_debug and accel_below_zero_rising_safe, title = 'Accel Below Zero Rising', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'ACC↑')
 plotshape(show_accel_debug and accel_cross_up_safe, title = 'Accel Cross Up', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'XUP')
 plotshape(show_accel_debug and accel_above_zero, title = 'Accel Above Zero', style = shape.circle, location = location.abovebar, color = color.lime, size = size.tiny, text = 'ACC+')
@@ -3794,6 +3872,19 @@ if show_long_confirmation_markers and long_invalidate_signal and can_draw_long_r
     u.push_capped_label(long_ready_marker_history, long_invalidated_label, long_marker_history_limit)
     long_ready_marker_drawn_bar_index := bar_index
     last_long_ready_marker_bar := bar_index
+
+if barstate.islast
+    if show_long_engine_debug
+        string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source)
+        float long_engine_debug_y = high + ob_threshold_atr * 2.0
+        if na(long_engine_debug_label)
+            long_engine_debug_label := label.new(bar_index, long_engine_debug_y, long_engine_debug_label_text, color = color.new(color.black, 55), textcolor = color.white, style = label.style_label_left, size = size.tiny)
+        else
+            label.set_xy(long_engine_debug_label, bar_index, long_engine_debug_y)
+            label.set_text(long_engine_debug_label, long_engine_debug_label_text)
+    else if not na(long_engine_debug_label)
+        label.delete(long_engine_debug_label)
+        long_engine_debug_label := na
 
 if show_htf_fvg and barstate.islast
     draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
@@ -4317,6 +4408,12 @@ render_smc_dashboard_documented(table tbl) =>
     string _db_risk_plan_text = long_plan_active ? 'Entry ' + u.format_level(long_setup_trigger) + ' | Stop ' + u.format_level(long_stop_level) + ' | T1 ' + u.format_level(long_target_1) + ' | T2 ' + u.format_level(long_target_2) : 'n/a'
     int _db_risk_plan_state = long_plan_active ? 5 : 0
 
+        string _db_debug_flags_text = compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug)
+        int _db_debug_flags_state = show_ob_debug or show_fvg_debug or show_long_engine_debug ? 5 : 0
+
+        string _db_long_debug_text = show_long_engine_debug ? long_debug_summary_text : 'off'
+        int _db_long_debug_state = not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_setup_armed or long_setup_confirmed or long_ready_state ? 5 : 2
+
     dashboard_header(tbl, 0, 'SMC++ | ' + signal_mode_text, _db_header_bg, _db_text)
 
     dashboard_header(tbl, 1, '[ Lifecycle ]', _db_header_bg, _db_text)
@@ -4365,13 +4462,15 @@ render_smc_dashboard_documented(table tbl) =>
     dashboard_row(tbl, 41, 'Long Triggers', _db_long_triggers_text, status_bg(_db_long_triggers_state), _db_text)
     dashboard_row(tbl, 42, 'Micro Profile', _db_micro_profile_text, status_bg(_db_micro_profile_state), _db_text)
     dashboard_row(tbl, 43, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), _db_text)
+    dashboard_row(tbl, 44, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), _db_text)
+    dashboard_row(tbl, 45, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), _db_text)
 
-var table _smc_dashboard = table.new(position.bottom_right, 2, 44, border_width = 0)
+var table _smc_dashboard = table.new(position.bottom_right, 2, 46, border_width = 0)
 
 if show_dashboard and barstate.islast
     render_smc_dashboard_documented(_smc_dashboard)
 else if barstate.islast
-    table.clear(_smc_dashboard, 0, 0, 1, 43)
+    table.clear(_smc_dashboard, 0, 0, 1, 45)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION

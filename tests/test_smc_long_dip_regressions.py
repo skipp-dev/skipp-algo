@@ -258,6 +258,27 @@ def test_breadth_gate_supports_multiple_modes() -> None:
 
     assert "var string breadth_gate_mode = input.string('Above Zero', 'Breadth Mode', options = ['Above Zero', 'Above EMA', 'Rising']" in source
     assert "var int breadth_gate_len = input.int(20, 'Breadth EMA Len', minval = 2" in source
+
+
+def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> None:
+    source = _read_smc_source()
+
+    assert "var bool show_long_engine_debug = input.bool(false, 'Show long engine debug'" in source
+    assert "var bool show_ob_debug = input.bool(false, 'Show OB debug'" in source
+    assert "var bool show_fvg_debug = input.bool(false, 'Show FVG debug'" in source
+    assert 'compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>' in source
+    assert 'compose_long_debug_summary_text(bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>' in source
+    assert 'compose_long_engine_debug_label_text(string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_last_invalid_source) =>' in source
+    assert "log.info('{0}', compose_long_engine_event_log('LONG ARMED'" in source
+    assert "log.info('{0}', compose_long_engine_event_log('LONG INVALID'" in source
+    assert "plotshape(show_ob_debug and ob_zone_touch_event, title = 'OB Zone Touch Debug'" in source
+    assert "plotshape(show_fvg_debug and bullish_fvg_filled_alert, title = 'Bullish FVG Filled Debug'" in source
+    assert "plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug'" in source
+    assert "string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_last_invalid_source)" in source
+    assert "dashboard_row(tbl, 44, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), _db_text)" in source
+    assert "dashboard_row(tbl, 45, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), _db_text)" in source
+    assert 'var table _smc_dashboard = table.new(position.bottom_right, 2, 46, border_width = 0)' in source
+    assert 'table.clear(_smc_dashboard, 0, 0, 1, 45)' in source
     assert "[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
 
 
