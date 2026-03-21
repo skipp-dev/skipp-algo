@@ -428,11 +428,10 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
 def test_visual_text_dashboard_and_colors_are_extracted_into_helpers() -> None:
     source = _read_smc_source()
 
-    assert 'resolve_long_dashboard_state(int long_visual_state) =>' in source
+    # resolve_long_dashboard_state removed as dead code (Patch 4)
     assert 'resolve_long_visual_text(int long_visual_state) =>' in source
     assert 'resolve_long_bg_color(int long_visual_state, color long_color_building) =>' in source
     assert 'resolve_long_bar_color(int long_visual_state, color long_color_building) =>' in source
-    assert 'long_setup_dashboard_state := resolve_long_dashboard_state(long_visual_state)' in source
     assert 'long_visual_text := resolve_long_visual_text(long_visual_state)' in source
     assert 'long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)' in source
     assert 'long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)' in source
@@ -779,14 +778,15 @@ def test_pre_arm_fvg_and_combined_active_zone_use_deterministic_priority() -> No
 
 
 def test_bear_pre_arm_selection_uses_same_deterministic_priority_without_touch_anchor() -> None:
+    """Bear active-closest scanning removed (Patch 4), but blocker scanning must stay."""
     source = _read_smc_source()
 
-    assert 'int best_bear_ob_recency = na' in source
-    assert 'float best_bear_ob_quality = na' in source
-    assert 'prefer_bear_ob_candidate := zone_candidate_preferred(false, bear_ob_candidate_recency, bear_ob_candidate_quality, bear_ob_candidate_overlap, bear_ob_candidate_id, false, best_bear_ob_recency, best_bear_ob_quality, best_bear_ob_overlap, best_bear_ob_id)' in source
-    assert 'int best_bear_fvg_recency = na' in source
-    assert 'float best_bear_fvg_quality = na' in source
-    assert 'prefer_bear_fvg_candidate := zone_candidate_preferred(false, bear_fvg_candidate_recency, bear_fvg_candidate_quality, bear_fvg_candidate_overlap, bear_fvg_candidate_id, false, best_bear_fvg_recency, best_bear_fvg_quality, best_bear_fvg_overlap, best_bear_fvg_id)' in source
+    # Blocker scanning still present (long-only overhead zone filter)
+    assert 'nearest_bear_ob_blocker_level' in source
+    assert 'nearest_bear_fvg_blocker_level' in source
+    # Active-closest scanning loops removed
+    assert 'int best_bear_ob_idx = na' not in source
+    assert 'int best_bear_fvg_idx = na' not in source
 
 
 def test_locked_source_touch_count_selection_is_extracted() -> None:
