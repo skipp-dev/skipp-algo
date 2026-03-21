@@ -891,8 +891,11 @@ method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>
         extend_until_broken ? (this.broken ? effective_live_event_time(this.broken_time, base_right_time) : current_bar_right_time()) : base_right_time
 
 method overlaps_window(OrderBlock this, int left_time, int right_time, bool extend_until_broken = true) =>
-    effective_right_time = this.rendered_right_time(extend_until_broken)
-    na(this) ? false : effective_right_time >= left_time and this.left_top.time <= right_time
+    if na(this)
+        false
+    else
+        effective_right_time = this.rendered_right_time(extend_until_broken)
+        effective_right_time >= left_time and this.left_top.time <= right_time
 
 update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks, OrderBlock[] broken_blocks_new, simple LevelBreakMode broken_by = LevelBreakMode.HIGHLOW, int keep_broken_max = 5, OrderBlock[] discarded_buffer = na) =>
     bool broken_by_close = broken_by == LevelBreakMode.CLOSE
@@ -1594,8 +1597,11 @@ method rendered_right_time(FVG this, bool extend_until_filled = true) =>
     rendered_right_time_value
 
 method overlaps_window(FVG this, int left_time, int right_time, bool extend_until_filled = true) =>
-    effective_right_time = this.rendered_right_time(extend_until_filled)
-    na(this) ? false : effective_right_time >= left_time and this.left_top.time <= right_time
+    if na(this)
+        false
+    else
+        effective_right_time = this.rendered_right_time(extend_until_filled)
+        effective_right_time >= left_time and this.left_top.time <= right_time
 
 method contains_id(FVG[] this, int id) =>
     found = false
