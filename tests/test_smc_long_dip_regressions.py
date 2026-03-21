@@ -523,6 +523,10 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bear_bos_sig, bear_bos_alert_key, bear_bos_alert_name, bear_bos_alert_detail, btm, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'resolve_ob_alert_level(OrderBlock block) =>' in source
     assert 'resolve_fvg_alert_level(FVG gap) =>' in source
+    assert 'resolve_ob_top_boundary(OrderBlock block) =>' in source
+    assert 'resolve_ob_bottom_boundary(OrderBlock block) =>' in source
+    assert 'resolve_fvg_top_boundary(FVG gap) =>' in source
+    assert 'resolve_fvg_bottom_boundary(FVG gap) =>' in source
     assert 'float new_ob_bull_alert_level = resolve_ob_alert_level(new_ob_bull)' in source
     assert 'float new_ob_bear_alert_level = resolve_ob_alert_level(new_ob_bear)' in source
     assert 'float new_fvg_bull_alert_level = resolve_fvg_alert_level(new_fvg_bull)' in source
@@ -537,12 +541,12 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'OrderBlock last_bear_ob = array.size(ob_blocks_bear) > 0 ? array.get(ob_blocks_bear, array.size(ob_blocks_bear) - 1) : na' in source
     assert 'last_bull_ob_break_level = resolve_ob_alert_level(last_bull_ob)' in source
     assert 'last_bear_ob_break_level = resolve_ob_alert_level(last_bear_ob)' in source
-    assert 'last_bull_ob_top = not na(last_bull_ob) ? last_bull_ob.left_top.price : na' in source
-    assert 'last_bull_ob_bottom = not na(last_bull_ob) ? last_bull_ob.right_bottom.price : na' in source
+    assert 'last_bull_ob_top = resolve_ob_top_boundary(last_bull_ob)' in source
+    assert 'last_bull_ob_bottom = resolve_ob_bottom_boundary(last_bull_ob)' in source
     assert 'last_bull_fvg_fill_level = resolve_fvg_alert_level(last_bull_fvg_gap)' in source
     assert 'last_bear_fvg_fill_level = resolve_fvg_alert_level(last_bear_fvg_gap)' in source
-    assert 'last_bull_fvg_top = not na(last_bull_fvg_gap) ? last_bull_fvg_gap.left_top.price : na' in source
-    assert 'last_bull_fvg_bottom = not na(last_bull_fvg_gap) ? last_bull_fvg_gap.right_bottom.price : na' in source
+    assert 'last_bull_fvg_top = resolve_fvg_top_boundary(last_bull_fvg_gap)' in source
+    assert 'last_bull_fvg_bottom = resolve_fvg_bottom_boundary(last_bull_fvg_gap)' in source
     assert 'active_bull_ob_break_level := resolve_ob_alert_level(best_bull_ob)' in source
     assert 'OrderBlock active_bear_ob = array.get(ob_blocks_bear, best_bear_ob_idx)' in source
     assert 'active_bear_ob_break_level := resolve_ob_alert_level(active_bear_ob)' in source
@@ -559,28 +563,66 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'float bear_fvg_live_event_level = any_live_bear_fvg_fill ? resolve_fvg_alert_level(bear_live_filled_gap) : bear_fvg_fill_for_alert' in source
     assert 'float best_live_bull_ob_boundary = na' in source
     assert 'OrderBlock best_live_bull_ob = array.get(ob_blocks_bull, best_live_bull_ob_idx)' in source
-    assert 'best_live_bull_ob_boundary := best_live_bull_ob.right_bottom.price' in source
+    assert 'best_live_bull_ob_boundary := resolve_ob_bottom_boundary(best_live_bull_ob)' in source
     assert 'float bull_ob_live_candidate_level = resolve_ob_alert_level(bull_ob_live_candidate)' in source
+    assert 'float bull_ob_live_candidate_boundary = resolve_ob_bottom_boundary(bull_ob_live_candidate)' in source
     assert 'float best_live_bear_ob_boundary = na' in source
     assert 'OrderBlock best_live_bear_ob = array.get(ob_blocks_bear, best_live_bear_ob_idx)' in source
-    assert 'best_live_bear_ob_boundary := best_live_bear_ob.left_top.price' in source
+    assert 'best_live_bear_ob_boundary := resolve_ob_top_boundary(best_live_bear_ob)' in source
     assert 'float bear_ob_live_candidate_level = resolve_ob_alert_level(bear_ob_live_candidate)' in source
+    assert 'float bear_ob_live_candidate_boundary = resolve_ob_top_boundary(bear_ob_live_candidate)' in source
     assert 'float bull_fvg_live_candidate_level = resolve_fvg_alert_level(bull_fvg_live_candidate)' in source
+    assert 'float bull_fvg_live_candidate_boundary = resolve_fvg_bottom_boundary(bull_fvg_live_candidate)' in source
     assert 'float bear_fvg_live_candidate_level = resolve_fvg_alert_level(bear_fvg_live_candidate)' in source
+    assert 'float bear_fvg_live_candidate_boundary = resolve_fvg_top_boundary(bear_fvg_live_candidate)' in source
     assert 'float best_live_bull_fvg_boundary = na' in source
     assert 'FVG best_live_bull_fvg = array.get(fvgs_bull, best_live_bull_fvg_idx)' in source
-    assert 'best_live_bull_fvg_boundary := best_live_bull_fvg.right_bottom.price' in source
+    assert 'best_live_bull_fvg_boundary := resolve_fvg_bottom_boundary(best_live_bull_fvg)' in source
     assert 'FVG bull_live_fvg = array.get(fvgs_bull, best_live_bull_fvg_idx)' in source
     assert 'bull_fvg_live_event_level := resolve_fvg_alert_level(bull_live_fvg)' in source
     assert 'float best_live_bear_fvg_boundary = na' in source
     assert 'FVG best_live_bear_fvg = array.get(fvgs_bear, best_live_bear_fvg_idx)' in source
-    assert 'best_live_bear_fvg_boundary := best_live_bear_fvg.left_top.price' in source
+    assert 'best_live_bear_fvg_boundary := resolve_fvg_top_boundary(best_live_bear_fvg)' in source
     assert 'FVG bear_live_fvg = array.get(fvgs_bear, best_live_bear_fvg_idx)' in source
     assert 'bear_fvg_live_event_level := resolve_fvg_alert_level(bear_live_fvg)' in source
     assert 'OrderBlock bull_live_ob = array.get(ob_blocks_bull, best_live_bull_ob_idx)' in source
     assert 'bull_ob_live_event_level := resolve_ob_alert_level(bull_live_ob)' in source
     assert 'OrderBlock bear_live_ob = array.get(ob_blocks_bear, best_live_bear_ob_idx)' in source
     assert 'bear_ob_live_event_level := resolve_ob_alert_level(bear_live_ob)' in source
+    assert 'best_live_bull_ob_boundary := best_live_bull_ob.right_bottom.price' not in source
+    assert 'best_live_bear_ob_boundary := best_live_bear_ob.left_top.price' not in source
+    assert 'best_live_bull_fvg_boundary := best_live_bull_fvg.right_bottom.price' not in source
+    assert 'best_live_bear_fvg_boundary := best_live_bear_fvg.left_top.price' not in source
+    assert 'bull_ob_live_candidate_boundary = bull_ob_live_candidate.right_bottom.price' not in source
+    assert 'bear_ob_live_candidate_boundary = bear_ob_live_candidate.left_top.price' not in source
+    assert 'bull_fvg_live_candidate_boundary = bull_fvg_live_candidate.right_bottom.price' not in source
+    assert 'bear_fvg_live_candidate_boundary = bear_fvg_live_candidate.left_top.price' not in source
+    assert 'active_bull_ob_top := best_bull_ob.left_top.price' not in source
+    assert 'active_bull_ob_bottom := best_bull_ob.right_bottom.price' not in source
+    assert 'active_bull_fvg_top := best_bull_fvg.left_top.price' not in source
+    assert 'active_bull_fvg_bottom := best_bull_fvg.right_bottom.price' not in source
+    assert 'bull_ob_candidate.left_top.price' not in source
+    assert 'bull_ob_candidate.right_bottom.price' not in source
+    assert 'bull_fvg_candidate.left_top.price' not in source
+    assert 'bull_fvg_candidate.right_bottom.price' not in source
+    assert 'bear_ob_candidate.left_top.price' not in source
+    assert 'bear_ob_candidate.right_bottom.price' not in source
+    assert 'bear_fvg_candidate.left_top.price' not in source
+    assert 'bear_fvg_candidate.right_bottom.price' not in source
+    assert 'bull_ob_candidate.right_bottom.index' not in source
+    assert 'bull_fvg_candidate.right_bottom.index' not in source
+    assert 'bear_ob_candidate.right_bottom.index' not in source
+    assert 'bear_fvg_candidate.right_bottom.index' not in source
+    assert 'best_bull_ob.right_bottom.index' not in source
+    assert 'best_bull_fvg.right_bottom.index' not in source
+    assert 'active_bull_ob_top := resolve_ob_top_boundary(best_bull_ob)' in source
+    assert 'active_bull_ob_bottom := resolve_ob_bottom_boundary(best_bull_ob)' in source
+    assert 'active_bull_ob_recency := resolve_ob_recency_index(best_bull_ob)' in source
+    assert 'active_bull_fvg_top := resolve_fvg_top_boundary(best_bull_fvg)' in source
+    assert 'active_bull_fvg_bottom := resolve_fvg_bottom_boundary(best_bull_fvg)' in source
+    assert 'active_bull_fvg_recency := resolve_fvg_recency_index(best_bull_fvg)' in source
+    assert 'resolve_ob_recency_index(OrderBlock block)' in source
+    assert 'resolve_fvg_recency_index(FVG gap)' in source
     assert 'float bear_ob_blocker_level = resolve_ob_alert_level(bear_ob_blocker)' in source
     assert 'float bear_fvg_blocker_level = resolve_fvg_alert_level(bear_fvg_blocker)' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bull), bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail, new_ob_bull_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
@@ -615,15 +657,19 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'float bear_fvg_live_event_level = any_live_bear_fvg_fill ? array.get(filled_fvgs_new_bear, array.size(filled_fvgs_new_bear) - 1).fill_target_level : bear_fvg_fill_for_alert' not in source
     assert 'if low <= bull_ob_live_candidate.break_price and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < array.get(ob_blocks_bull, best_live_bull_ob_idx).right_bottom.price)' not in source
     assert 'if low <= bull_ob_live_candidate.break_price and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < best_live_bull_ob_boundary)' not in source
+    assert 'if low <= bull_ob_live_candidate_level and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < best_live_bull_ob_boundary)' not in source
     assert 'bull_ob_live_event_level := array.get(ob_blocks_bull, best_live_bull_ob_idx).break_price' not in source
     assert 'if high >= bear_ob_live_candidate.break_price and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > array.get(ob_blocks_bear, best_live_bear_ob_idx).left_top.price)' not in source
     assert 'if high >= bear_ob_live_candidate.break_price and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > best_live_bear_ob_boundary)' not in source
+    assert 'if high >= bear_ob_live_candidate_level and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > best_live_bear_ob_boundary)' not in source
     assert 'bear_ob_live_event_level := array.get(ob_blocks_bear, best_live_bear_ob_idx).break_price' not in source
     assert 'if low <= bull_fvg_live_candidate.fill_target_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < array.get(fvgs_bull, best_live_bull_fvg_idx).right_bottom.price)' not in source
     assert 'if low <= bull_fvg_live_candidate_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < array.get(fvgs_bull, best_live_bull_fvg_idx).right_bottom.price)' not in source
+    assert 'if low <= bull_fvg_live_candidate_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < best_live_bull_fvg_boundary)' not in source
     assert 'bull_fvg_live_event_level := array.get(fvgs_bull, best_live_bull_fvg_idx).fill_target_level' not in source
     assert 'if high >= bear_fvg_live_candidate.fill_target_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > array.get(fvgs_bear, best_live_bear_fvg_idx).left_top.price)' not in source
     assert 'if high >= bear_fvg_live_candidate_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > array.get(fvgs_bear, best_live_bear_fvg_idx).left_top.price)' not in source
+    assert 'if high >= bear_fvg_live_candidate_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > best_live_bear_fvg_boundary)' not in source
     assert 'bear_fvg_live_event_level := array.get(fvgs_bear, best_live_bear_fvg_idx).fill_target_level' not in source
     assert "string long_strict_alert_suffix = strict_flow_active ? ' | strict=' + strict_flow_focus_display : ''" in source
     assert "string long_environment_alert_suffix = long_gate_features_active ? ' | env=' + long_environment_focus_display : ''" in source
