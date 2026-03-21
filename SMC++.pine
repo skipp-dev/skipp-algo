@@ -2413,6 +2413,18 @@ emit_dynamic_alert_if_allowed(string seen_keys, bool event_active, string seen_k
         alert(build_dynamic_alert_message(true, true, event_name, detail, level, direction, ltf_bull_share, ltf_volume_delta, ltf_price_only_context, mode_text), alert.freq_all)
     next_seen_keys
 
+resolve_ob_alert_level(OrderBlock block) =>
+    float level = na
+    if not na(block)
+        level := block.break_price
+    level
+
+resolve_fvg_alert_level(FVG gap) =>
+    float level = na
+    if not na(gap)
+        level := gap.fill_target_level
+    level
+
 next_serial_event(bool event_condition, int serial, int last_serial) =>
     event_active = event_condition and serial > 0 and last_serial != serial
     [event_active, event_active ? serial : last_serial]
@@ -4827,10 +4839,10 @@ if barstate.isnew
 [bear_live_ob_alert_key, bear_live_ob_alert_name, bear_live_ob_alert_detail] = resolve_directional_dynamic_alert_identity('live_ob_break', false)
 [bull_live_fvg_alert_key, bull_live_fvg_alert_name, bull_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', true)
 [bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', false)
-float new_fvg_bull_alert_level = not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na
-float new_fvg_bear_alert_level = not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na
-float new_ob_bull_alert_level = not na(new_ob_bull) ? new_ob_bull.break_price : na
-float new_ob_bear_alert_level = not na(new_ob_bear) ? new_ob_bear.break_price : na
+float new_fvg_bull_alert_level = resolve_fvg_alert_level(new_fvg_bull)
+float new_fvg_bear_alert_level = resolve_fvg_alert_level(new_fvg_bear)
+float new_ob_bull_alert_level = resolve_ob_alert_level(new_ob_bull)
+float new_ob_bear_alert_level = resolve_ob_alert_level(new_ob_bear)
 
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bull_bos_sig, bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail, top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
 dynamic_alert_seen_keys := emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bull_choch_sig, bull_choch_alert_key, bull_choch_alert_name, bull_choch_alert_detail, top, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
