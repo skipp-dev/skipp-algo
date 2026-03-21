@@ -993,8 +993,8 @@ track_obs(
  simple LevelBreakMode broken_by = LevelBreakMode.HIGHLOW,
  simple int keep_broken_max = 5,
  simple int gc_cycle = na,
- simple int protected_bull_id = na,
- simple int protected_bear_id = na
+ int protected_bull_id = na,
+ int protected_bear_id = na
  ) =>
     // Order block lifecycle:
     // 1. trailing: candidate block is tracked while price builds it
@@ -2100,7 +2100,7 @@ fvg_quality_score(FVG fvg, float size_threshold = 0.0) =>
         score += nz(fvg.total_volume, 0.0) > 0 ? 0.10 : 0.0
         math.max(0.0, math.min(1.0, score))
 
-fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_target_ratio = 0.5, float size_threshold = 0, simple bool enabled = true, simple int filled_max_keep = 5, simple int gc_cycle = na, simple int protected_bull_id = na, simple int protected_bear_id = na) =>
+fvgs_objects(simple LevelBreakMode fill_mode = LevelBreakMode.CLOSE, float fill_target_ratio = 0.5, float size_threshold = 0, simple bool enabled = true, simple int filled_max_keep = 5, simple int gc_cycle = na, int protected_bull_id = na, int protected_bear_id = na) =>
     var FVG[] buffer_bull = array.new<FVG>(0)
     var FVG[] buffer_bear = array.new<FVG>(0)
     var FVG[] buffer_bull_filled = array.new<FVG>(0)
