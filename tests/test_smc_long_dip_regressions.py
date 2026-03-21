@@ -205,7 +205,7 @@ def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -
 def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -> None:
     source = _read_smc_source()
 
-    assert "bool state_update_bar_ok = signal_mode == SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed" in source
+    assert "bool state_update_bar_ok = signal_mode == ct.SignalMode.AGGRESSIVE_LIVE ? true : barstate.isconfirmed" in source
     assert 'if state_update_bar_ok and ob_zone_touch_event' in source
     assert 'if state_update_bar_ok and fvg_zone_touch_event' in source
     assert 'if state_update_bar_ok and zone_touch_event' in source
@@ -254,11 +254,9 @@ def test_armed_stage_can_be_optionally_tightened() -> None:
 def test_breadth_gate_supports_multiple_modes() -> None:
     source = _read_smc_source()
 
-    assert "external_breadth_gate(simple string symbol, simple string mode, simple int len) =>" in source
     assert "var string breadth_gate_mode = input.string('Above Zero', 'Breadth Mode', options = ['Above Zero', 'Above EMA', 'Rising']" in source
     assert "var int breadth_gate_len = input.int(20, 'Breadth EMA Len', minval = 2" in source
-    assert "[breadth_missing_calc, breadth_gate_ok_calc] = external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
-    assert "bool breadth_pass = mode == 'Above EMA' ? ext_breadth > ext_ema : mode == 'Rising' ? ext_breadth > ext_breadth[1] : ext_breadth > 0" in source
+    assert "[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
 
 
 def test_clean_tier_is_renamed_as_a_quality_diagnostic() -> None:
@@ -273,7 +271,7 @@ def test_clean_tier_is_renamed_as_a_quality_diagnostic() -> None:
 def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
     source = _read_smc_source()
 
-    assert 'update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks, OrderBlock[] broken_blocks_new, simple LevelBreakMode broken_by = LevelBreakMode.HIGHLOW, int keep_broken_max = 5, OrderBlock[] discarded_buffer = na) =>' in source
+    assert 'update_broken(int mode, OrderBlock[] tracking_blocks, OrderBlock[] broken_blocks, OrderBlock[] broken_blocks_new, simple ct.LevelBreakMode broken_by = ct.LevelBreakMode.HIGHLOW, int keep_broken_max = 5, OrderBlock[] discarded_buffer = na) =>' in source
     assert 'update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)' in source
     assert 'update_broken(-1, tracking_blocks_bear, broken_blocks_bear, broken_blocks_new_bear, broken_by, keep_broken_max, discarded_blocks_bear)' in source
     assert 'long_invalidate_signal := long_setup_armed or long_setup_confirmed' in source
@@ -680,7 +678,8 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, not long_dynamic_alert_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_setup_trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
     assert 'long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys' in source
     assert 'emit_priority_dynamic_alert_if_allowed(' not in source
-    assert 'prefer_level(float primary_level, float fallback_level) =>' in source
+    # prefer_level definition moved to smc_utils library
+    assert 'u.prefer_level(' in source
     assert "string quality_score_status_text = quality_score_ok ? 'OK' : 'Blocked'" in source
     assert "string quality_env_trade_text = trade_hard_gate_ok ? 'OK' : not session_structure_gate_ok ? 'Session Block' : not microstructure_entry_gate_ok ? 'Micro Block' : not overhead_zone_ok ? 'Headroom Block' : 'Trade Blocked'" in source
     assert "string quality_env_context_text = environment_hard_gate_ok ? 'OK' : long_environment_focus_display" in source
@@ -695,21 +694,21 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "string micro_profile_display = not use_microstructure_profiles ? 'Off' : micro_profile_detail_text" in source
     assert "string volume_quality_prefix = volume_data_ok ? 'OK' : not volume_current_bar_ok ? 'Bar No Vol' : volume_best_fallback_active ? 'Feed Warn' : 'Feed Weak'" in source
     assert "string volume_quality_display = volume_quality_prefix + '\\n' + profile_volume_display + ' | Strict ' + strict_ltf_display" in source
-    assert 'string stretch_mean_text = format_level(stretch_mean)' in source
-    assert 'string stretch_threshold_text = format_level(stretch_lower_threshold)' in source
+    assert 'string stretch_mean_text = u.format_level(stretch_mean)' in source
+    assert 'string stretch_threshold_text = u.format_level(stretch_lower_threshold)' in source
     assert "string stretch_z_text = na(distance_to_mean_z) ? 'n/a' : str.tostring(distance_to_mean_z, '#.##')" in source
     assert "'Strict OK\\nz=' + stretch_z_text + '\\nMean ' + stretch_mean_text" in source
     assert "'Watchlist OK\\nz=' + stretch_z_text + '\\nThr ' + stretch_threshold_text" in source
-    assert 'float dashboard_long_ob_trigger_level = prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)' in source
-    assert 'float dashboard_long_fvg_trigger_level = prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)' in source
-    assert 'string dashboard_long_invalid_text = format_level(long_invalidation_level)' in source
+    assert 'float dashboard_long_ob_trigger_level = u.prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)' in source
+    assert 'float dashboard_long_fvg_trigger_level = u.prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)' in source
+    assert 'string dashboard_long_invalid_text = u.format_level(long_invalidation_level)' in source
     assert "string dashboard_swing_levels_display = 'Swing ' + dashboard_swing_up_text + '/' + dashboard_swing_down_text + '\\nInt ' + dashboard_internal_up_text + '/' + dashboard_internal_down_text" in source
     assert "string dashboard_long_zones_display = 'OB ' + dashboard_long_ob_top_text + '/' + dashboard_long_ob_bottom_text + '\\nFVG ' + dashboard_long_fvg_top_text + '/' + dashboard_long_fvg_bottom_text" in source
     assert "string dashboard_long_triggers_display = 'OB mid ' + dashboard_long_ob_trigger_text + '\\nFVG fill ' + dashboard_long_fvg_trigger_text + '\\nInvalid ' + dashboard_long_invalid_text" in source
-    assert 'string risk_trigger_text = format_level(long_setup_trigger)' in source
-    assert 'string risk_stop_text = format_level(long_stop_level)' in source
-    assert 'string risk_target_1_text = format_level(long_target_1)' in source
-    assert 'string risk_target_2_text = format_level(long_target_2)' in source
+    assert 'string risk_trigger_text = u.format_level(long_setup_trigger)' in source
+    assert 'string risk_stop_text = u.format_level(long_stop_level)' in source
+    assert 'string risk_target_1_text = u.format_level(long_target_1)' in source
+    assert 'string risk_target_2_text = u.format_level(long_target_2)' in source
     assert "string risk_display = not long_plan_active ? 'n/a' : 'Trig ' + risk_trigger_text + '\\nStop ' + risk_stop_text + '\\nT1 ' + risk_target_1_text + '\\nT2 ' + risk_target_2_text" in source
     assert "format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)" not in source
     assert "format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)" not in source

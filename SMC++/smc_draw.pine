@@ -1,0 +1,311 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=6
+library("smc_draw", overlay = true)
+
+// --------------------------------------------------
+// Draw wrapper types
+// --------------------------------------------------
+
+export type LabelArgs
+    varip color text_color = color.gray
+    varip color bg_color = #00000000
+    string text_font_family = font.family_default
+    string xloc = xloc.bar_index
+    string yloc = yloc.price
+    string style = label.style_label_down
+    string size = size.normal
+    string text_align = text.align_center
+
+export type SmcLabel
+    varip chart.point point
+    varip string txt = ''
+    varip string tooltip = na
+    bool hidden = false
+    label plot = na
+
+export type LineArgs
+    varip color line_color = color.gray
+    string style = line.style_solid
+    int width = 1
+    string xloc = xloc.bar_index
+    string extend = extend.none
+
+export type SmcLine
+    varip chart.point start
+    varip chart.point end
+    bool hidden = false
+    line plot = na
+
+export type BoxArgs
+    varip color border_color = color.gray
+    int border_width = 1
+    string border_style = line.style_solid
+    varip color bg_color = #dededede
+    string xloc = xloc.bar_index
+    string extend = extend.none
+
+export type BoxTextArgs
+    varip color text_color = color.gray
+    string text_size = size.normal
+    string text_halign = text.align_center
+    string text_valign = text.align_center
+    string text_wrap = text.wrap_none
+    string text_font_family = font.family_default
+
+export type SmcBox
+    varip chart.point left_top
+    varip chart.point right_bottom
+    varip string txt = ''
+    bool hidden = false
+    box plot = na
+
+// --------------------------------------------------
+// Default resolvers
+// --------------------------------------------------
+
+export method or_default(LineArgs args) =>
+    var default = LineArgs.new()
+    na(args) ? default : args
+
+export method or_default(LabelArgs args) =>
+    var default = LabelArgs.new()
+    na(args) ? default : args
+
+export method or_default(BoxArgs args) =>
+    var default = BoxArgs.new()
+    na(args) ? default : args
+
+export method or_default(BoxTextArgs args) =>
+    var default = BoxTextArgs.new()
+    na(args) ? default : args
+
+// --------------------------------------------------
+// Factories
+// --------------------------------------------------
+
+export create_point(int x, float price, string point_xloc) =>
+    point_xloc == xloc.bar_time ? chart.point.from_time(x, price) : chart.point.from_index(x, price)
+
+export create_label(int x, float y, string point_xloc, string txt = na, string tooltip = na) =>
+    point = point_xloc == xloc.bar_time ? chart.point.from_time(x, y) : chart.point.from_index(x, y)
+    SmcLabel.new(point, txt, tooltip)
+
+export create_label(chart.point this, string txt = na, string tooltip = na) =>
+    na(this) ? na : SmcLabel.new(this, txt, tooltip)
+
+export create_line(int x1, float y1, int x2, float y2, string point_xloc) =>
+    start = point_xloc == xloc.bar_time ? chart.point.from_time(x1, y1) : chart.point.from_index(x1, y1)
+    end = point_xloc == xloc.bar_time ? chart.point.from_time(x2, y2) : chart.point.from_index(x2, y2)
+    SmcLine.new(start, end)
+
+export create_box(int left, float top, int right, float bottom, string point_xloc, string txt = na) =>
+    left_top = point_xloc == xloc.bar_time ? chart.point.from_time(left, top) : chart.point.from_index(left, top)
+    right_bottom = point_xloc == xloc.bar_time ? chart.point.from_time(right, bottom) : chart.point.from_index(right, bottom)
+    SmcBox.new(left_top, right_bottom, txt)
+
+// --------------------------------------------------
+// Point updates
+// --------------------------------------------------
+
+export method update(chart.point this, int bar_time, int bar_idx, float price) =>
+    if not na(this)
+        this.time := bar_time
+        this.index := bar_idx
+        this.price := price
+        true
+    else
+        false
+
+export method update(chart.point this, int x, float price, string point_xloc) =>
+    point_xloc == xloc.bar_time ? this.update(x, na, price) : this.update(na, x, price)
+
+export method update(chart.point this, chart.point other) =>
+    na(other) ? this.update(na, na, na) : this.update(other.time, other.index, other.price)
+
+// --------------------------------------------------
+// Object updates
+// --------------------------------------------------
+
+export method update(SmcLabel this, int bar_time, int bar_idx, float price, string txt = '', string tooltip = '') =>
+    this.point.update(bar_time, bar_idx, price)
+    if txt != ''
+        this.txt := txt
+    if tooltip != ''
+        this.tooltip := tooltip
+    this
+
+export method update(SmcLabel this, chart.point point, string txt = '', string tooltip = '') =>
+    na(point) ? this.update(na, na, na, txt, tooltip) : this.update(point.time, point.index, point.price, txt, tooltip)
+
+export method update(SmcLine this, chart.point start, chart.point end) =>
+    this.start.update(start)
+    this.end.update(end)
+    this
+
+export method update(SmcBox this, chart.point left_top, chart.point right_bottom) =>
+    this.left_top.update(left_top)
+    this.right_bottom.update(right_bottom)
+    this
+
+// --------------------------------------------------
+// Delete
+// --------------------------------------------------
+
+export method delete(SmcLine this) =>
+    if not na(this) and not na(this.plot)
+        this.plot.delete()
+        this.plot := na
+    this
+
+export method delete(SmcLabel this) =>
+    if not na(this) and not na(this.plot)
+        this.plot.delete()
+        this.plot := na
+    this
+
+export method delete(SmcBox this) =>
+    if not na(this) and not na(this.plot)
+        this.plot.delete()
+        this.plot := na
+    this
+
+export method delete(SmcLine[] this) =>
+    if not na(this)
+        for item in this
+            item.delete()
+    this
+
+export method delete(SmcLabel[] this) =>
+    if not na(this)
+        for item in this
+            item.delete()
+    this
+
+export method delete(SmcBox[] this) =>
+    if not na(this)
+        for item in this
+            item.delete()
+    this
+
+// --------------------------------------------------
+// Draw
+// --------------------------------------------------
+
+export method draw(SmcLabel this, LabelArgs args = na, simple bool force_overlay = false) =>
+    if not na(this)
+        config = args.or_default()
+        if na(this.plot)
+            if force_overlay
+                this.plot := label.new(this.point, this.txt, config.xloc, config.yloc, config.bg_color, config.style, config.text_color, config.size, config.text_align, this.tooltip, config.text_font_family, force_overlay = true)
+            else
+                this.plot := label.new(this.point, this.txt, config.xloc, config.yloc, config.bg_color, config.style, config.text_color, config.size, config.text_align, this.tooltip, config.text_font_family, force_overlay = false)
+        else
+            this.plot.set_point(this.point)
+            if this.plot.get_text() != this.txt
+                this.plot.set_text(this.txt)
+            this.plot.set_tooltip(this.tooltip)
+        this.hidden := false
+    this
+
+export method draw(SmcLine this, LineArgs args = na, bool extend_only = true, simple bool force_overlay = false) =>
+    if not na(this)
+        config = args.or_default()
+        if na(this.plot)
+            if force_overlay
+                this.plot := line.new(this.start, this.end, config.xloc, config.extend, config.line_color, config.style, config.width, force_overlay = true)
+            else
+                this.plot := line.new(this.start, this.end, config.xloc, config.extend, config.line_color, config.style, config.width, force_overlay = false)
+        else
+            if extend_only
+                this.plot.set_y1(this.start.price)
+            else
+                this.plot.set_first_point(this.start)
+            this.plot.set_second_point(this.end)
+        this.hidden := false
+    this
+
+export method draw(SmcBox this, BoxArgs args = na, BoxTextArgs text_args = na, bool extend_only = true, simple bool force_overlay = false) =>
+    if not na(this)
+        config = args.or_default()
+        config_txt = text_args.or_default()
+        if na(this.plot)
+            if force_overlay
+                this.plot := box.new(this.left_top, this.right_bottom, config.border_color, config.border_width, config.border_style, config.extend, config.xloc, config.bg_color, this.txt, config_txt.text_size, config_txt.text_color, config_txt.text_halign, config_txt.text_valign, config_txt.text_wrap, config_txt.text_font_family, force_overlay = true)
+            else
+                this.plot := box.new(this.left_top, this.right_bottom, config.border_color, config.border_width, config.border_style, config.extend, config.xloc, config.bg_color, this.txt, config_txt.text_size, config_txt.text_color, config_txt.text_halign, config_txt.text_valign, config_txt.text_wrap, config_txt.text_font_family, force_overlay = false)
+        else
+            if extend_only
+                this.plot.set_top(this.left_top.price)
+            else
+                this.plot.set_top_left_point(this.left_top)
+            this.plot.set_bottom_right_point(this.right_bottom)
+            this.plot.set_text(this.txt)
+        this.hidden := false
+    this
+
+// --------------------------------------------------
+// Hide
+// --------------------------------------------------
+
+export method hide(SmcLabel this) =>
+    if not na(this) and not this.hidden and not na(this.plot)
+        this.plot.set_y(na)
+        this.plot.set_text(na)
+        this.hidden := true
+    this
+
+export method hide(SmcLine this) =>
+    if not na(this) and not this.hidden and not na(this.plot)
+        this.plot.set_y2(na)
+        this.hidden := true
+    this
+
+export method hide(SmcBox this) =>
+    if not na(this) and not this.hidden and not na(this.plot)
+        this.plot.set_bottom(na)
+        this.hidden := true
+    this
+
+// --------------------------------------------------
+// Low-level style application
+// --------------------------------------------------
+
+export method apply_style(line this, LineArgs args) =>
+    if not na(this) and not na(args)
+        this.set_color(args.line_color)
+        this.set_style(args.style)
+
+export method apply_style(label this, LabelArgs args) =>
+    if not na(this) and not na(args)
+        this.set_textcolor(args.text_color)
+        this.set_color(args.bg_color)
+        this.set_style(args.style)
+
+export method apply_style(box this, BoxArgs args, BoxTextArgs text_args) =>
+    if not na(this)
+        if not na(args)
+            this.set_border_color(args.border_color)
+            this.set_border_style(args.border_style)
+            this.set_bgcolor(args.bg_color)
+        if not na(text_args)
+            this.set_text_color(text_args.text_color)
+
+// --------------------------------------------------
+// Wrapper style application
+// --------------------------------------------------
+
+export method apply_style(SmcLabel this, LabelArgs args) =>
+    if not na(this) and not na(this.plot)
+        this.plot.apply_style(args)
+    this
+
+export method apply_style(SmcLine this, LineArgs args) =>
+    if not na(this) and not na(this.plot)
+        this.plot.apply_style(args)
+    this
+
+export method apply_style(SmcBox this, BoxArgs args, BoxTextArgs text_args) =>
+    if not na(this) and not na(this.plot)
+        this.plot.apply_style(args, text_args)
+    this

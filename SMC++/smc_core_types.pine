@@ -1,0 +1,26 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=6
+library("smc_core_types", overlay = true)
+
+// --------------------------------------------------
+// Shared enums used across modules
+// --------------------------------------------------
+
+export enum SmcLibMovingAverage
+    SMA = 'SMA (Simple)'
+    EMA = 'EMA (Exponential)'
+    RMA = 'RMA (Exponentially weighed)'
+    WMA = 'WMA (Weighed)'
+    VWMA = 'VWMA (Volume weighed)'
+    HMA = 'HMA (Hull)'
+    EHMA = 'EHMA (Exponential Hull)'
+    THMA = 'THMA (Triple Exponential Hull)'
+
+export enum LevelBreakMode
+    CLOSE = 'candle close price'
+    HIGHLOW = 'high/low (live)'
+
+export enum SignalMode
+    CONFIRMED_ONLY = 'Confirmed only'
+    AGGRESSIVE_LIVE = 'Aggressive live'
