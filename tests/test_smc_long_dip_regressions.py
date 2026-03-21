@@ -428,7 +428,11 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
     assert "compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
     assert "compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
-    assert '[long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe] = resolve_long_close_safe_alert_events(barstate.isconfirmed, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_armed[1], long_setup_confirmed[1], long_ready_state[1])' in source
+    assert 'bool long_arm_close_safe = barstate.isconfirmed and long_setup_armed and not long_setup_armed[1]' in source
+    assert 'bool long_confirm_close_safe = barstate.isconfirmed and long_setup_confirmed and not long_setup_confirmed[1]' in source
+    assert 'bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]' in source
+    assert 'bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed[1] or long_setup_confirmed[1])' in source
+    assert '[long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe] = resolve_long_close_safe_alert_events(barstate.isconfirmed, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_armed[1], long_setup_confirmed[1], long_ready_state[1])' not in source
     assert "[bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail] = resolve_directional_dynamic_alert_identity('bos', true)" in source
     assert "[bear_live_fvg_alert_key, bear_live_fvg_alert_name, bear_live_fvg_alert_detail] = resolve_directional_dynamic_alert_identity('live_fvg_fill', false)" in source
     assert "[long_invalidated_alert_key, long_invalidated_alert_name] = resolve_long_alert_identity('invalidated')" in source

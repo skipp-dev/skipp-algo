@@ -4767,7 +4767,10 @@ if long_invalidate_signal_latched
     alert_long_entry_best_event_latched := false
     alert_long_entry_strict_event_latched := false
 
-[long_arm_close_safe, long_confirm_close_safe, long_ready_close_safe, long_invalidated_close_safe] = resolve_long_close_safe_alert_events(barstate.isconfirmed, long_setup_armed, long_setup_confirmed, long_ready_state, long_setup_armed[1], long_setup_confirmed[1], long_ready_state[1])
+bool long_arm_close_safe = barstate.isconfirmed and long_setup_armed and not long_setup_armed[1]
+bool long_confirm_close_safe = barstate.isconfirmed and long_setup_confirmed and not long_setup_confirmed[1]
+bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]
+bool long_invalidated_close_safe = barstate.isconfirmed and not long_setup_armed and not long_setup_confirmed and (long_setup_armed[1] or long_setup_confirmed[1])
 bool long_arm_alert_event = long_arm_signal_latched
 bool long_confirm_alert_event = long_confirm_signal_latched
 bool long_ready_alert_event = long_ready_signal_latched
