@@ -471,6 +471,13 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys' in source
     assert 'emit_priority_dynamic_alert_if_allowed(' not in source
     assert 'prefer_level(float primary_level, float fallback_level) =>' in source
+    assert "string quality_score_status_text = quality_score_ok ? 'OK' : 'Blocked'" in source
+    assert "string quality_env_trade_text = trade_hard_gate_ok ? 'OK' : not session_structure_gate_ok ? 'Session Block' : not microstructure_entry_gate_ok ? 'Micro Block' : not overhead_zone_ok ? 'Headroom Block' : 'Trade Blocked'" in source
+    assert "string quality_env_context_text = environment_hard_gate_ok ? 'OK' : long_environment_focus_display" in source
+    assert "string quality_strict_status_text = quality_strict_ok ? 'Strict OK' : strict_flow_focus_display" in source
+    assert "string quality_score_display = not quality_axis_active ? 'n/a' : 'Ctx ' + str.tostring(context_quality_score) + '/' + str.tostring(effective_context_quality_max_score) + '\\nMin ' + str.tostring(effective_min_context_quality_score) + '\\n' + quality_score_status_text" in source
+    assert "string quality_env_display = not quality_axis_active ? 'n/a' : 'Trade ' + quality_env_trade_text + '\\nEnv ' + quality_env_context_text" in source
+    assert "string quality_strict_display = not quality_axis_active ? 'n/a' : quality_strict_status_text + '\\nZone ' + strict_sequence_display + '\\nSweep ' + strict_sweep_display + '\\nGuard ' + strict_guard_display" in source
     assert 'float dashboard_long_ob_trigger_level = prefer_level(active_bull_ob_break_level, last_bull_ob_break_level)' in source
     assert 'float dashboard_long_fvg_trigger_level = prefer_level(active_bull_fvg_fill_level, last_bull_fvg_fill_level)' in source
     assert 'string dashboard_long_invalid_text = format_level(long_invalidation_level)' in source
@@ -484,6 +491,9 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert "string risk_display = not long_plan_active ? 'n/a' : 'Trig ' + risk_trigger_text + '\\nStop ' + risk_stop_text + '\\nT1 ' + risk_target_1_text + '\\nT2 ' + risk_target_2_text" in source
     assert "format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)" not in source
     assert "format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)" not in source
+    assert "string quality_score_display = not quality_axis_active ? 'n/a' : str.format('Ctx {0}/{1}\\nMin {2}\\n{3}', context_quality_score, effective_context_quality_max_score, effective_min_context_quality_score, quality_score_ok ? 'OK' : 'Blocked')" not in source
+    assert "string quality_env_display = not quality_axis_active ? 'n/a' : str.format('Trade {0}\\nEnv {1}', trade_hard_gate_ok ? 'OK' : not session_structure_gate_ok ? 'Session Block' : not microstructure_entry_gate_ok ? 'Micro Block' : not overhead_zone_ok ? 'Headroom Block' : 'Trade Blocked', environment_hard_gate_ok ? 'OK' : long_environment_focus_display)" not in source
+    assert "string quality_strict_display = not quality_axis_active ? 'n/a' : str.format('{0}\\nZone {1}\\nSweep {2}\\nGuard {3}', quality_strict_ok ? 'Strict OK' : strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)" not in source
     assert "string dashboard_swing_levels_display = str.format('Swing {0}/{1}\\nInt {2}/{3}', dashboard_swing_up_text, dashboard_swing_down_text, dashboard_internal_up_text, dashboard_internal_down_text)" not in source
     assert "string dashboard_long_zones_display = str.format('OB {0}/{1}\\nFVG {2}/{3}', dashboard_long_ob_top_text, dashboard_long_ob_bottom_text, dashboard_long_fvg_top_text, dashboard_long_fvg_bottom_text)" not in source
     assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))" not in source
