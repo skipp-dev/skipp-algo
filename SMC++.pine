@@ -3408,31 +3408,8 @@ bool internal_bear_choch_sig = signal_mode == SignalMode.AGGRESSIVE_LIVE ? inter
 bool internal_structure_break_detected = internal_bull_bos_alert or internal_bull_choch_alert or internal_bear_bos_alert or internal_bear_choch_alert
 internal_display_trend = not na(ta.barssince(internal_structure_break_detected)) ? internal_trend : 0
 
-var LabelArgs pivot_label_args_bull = LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_up)
-var LabelArgs pivot_label_args_bear = LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down)
-var LabelArgs swing_level_label_args_bull = LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_left)
-var LabelArgs swing_level_label_args_bear = LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_left)
-var LabelArgs structure_label_args_bull = LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_down)
-var LabelArgs structure_label_args_bear = LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down)
-var LineArgs structure_line_args_bull = LineArgs.new(bull_css, line.style_solid, 2)
-var LineArgs structure_line_args_bear = LineArgs.new(bear_css, line.style_solid, 2)
-var LineArgs swing_level_line_args_bull = LineArgs.new(bull_css, line.style_solid, 2)
-var LineArgs swing_level_line_args_bear = LineArgs.new(bear_css, line.style_solid, 2)
-
 var color bull_internal_css = color.new(bull_css, 78)
 var color bear_internal_css = color.new(bear_css, 78)
-
-var LabelArgs swing_level_label_args_internal_bull = LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_left)
-var LabelArgs swing_level_label_args_internal_bear = LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_left)
-
-var LabelArgs structure_label_args_internal_bull = LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_down)
-var LabelArgs structure_label_args_internal_bear = LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_down)
-
-var LineArgs structure_line_args_internal_bull = LineArgs.new(bull_internal_css, line.style_dashed)
-var LineArgs structure_line_args_internal_bear = LineArgs.new(bear_internal_css, line.style_dashed)
-
-var LineArgs swing_level_line_args_internal_bull = LineArgs.new(bull_internal_css, line.style_dashed)
-var LineArgs swing_level_line_args_internal_bear = LineArgs.new(bear_internal_css, line.style_dashed)
 
 var color long_color_zone = color.aqua
 var color long_color_reclaim = color.orange
@@ -3450,33 +3427,33 @@ bool show_internal_bear_choch = show_internals and (show_bear == 'All' or show_b
 
 // Pivot labels (HH/LH/HL/LL)
 if show_swing_points
-    plot_pivot_points(1, top_x, top, show_swing_points and not na(hh), pivot_label_args_bear, keep_history = keep_visual_history)
-    plot_pivot_points(-1, btm_x, btm, show_swing_points and not na(ll), pivot_label_args_bull, keep_history = keep_visual_history)
+    plot_pivot_points(1, top_x, top, show_swing_points and not na(hh), LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down), keep_history = keep_visual_history)
+    plot_pivot_points(-1, btm_x, btm, show_swing_points and not na(ll), LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_up), keep_history = keep_visual_history)
 
 // UX-Fix:
 // If the user enables swing points they usually also expect the active swing levels.
 bool show_chart_swing_levels = show_latest_swings_levels or show_swing_points
 
 if show_chart_swing_levels
-    plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, true, swing_level_label_args_bear, swing_level_line_args_bear, override_right_index = bar_index + 20)
-    plot_swing_levels(-1, trail_dn_x, trail_dn, structure_display_trend, true, swing_level_label_args_bull, swing_level_line_args_bull, override_right_index = bar_index + 20)
+    plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, true, LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_left), LineArgs.new(bear_css, line.style_solid, 2), override_right_index = bar_index + 20)
+    plot_swing_levels(-1, trail_dn_x, trail_dn, structure_display_trend, true, LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_left), LineArgs.new(bull_css, line.style_solid, 2), override_right_index = bar_index + 20)
 
 if show_bull_bos or show_bull_choch
-    plot_structure(top_x, top, show_bull_bos and bull_bos_sig, show_bull_choch and bull_choch_sig, structure_label_args_bull, structure_line_args_bull, keep_history = keep_visual_history)
+    plot_structure(top_x, top, show_bull_bos and bull_bos_sig, show_bull_choch and bull_choch_sig, LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_down), LineArgs.new(bull_css, line.style_solid, 2), keep_history = keep_visual_history)
 
 if show_bear_bos or show_bear_choch
-    plot_structure(btm_x, btm, show_bear_bos and bear_bos_sig, show_bear_choch and bear_choch_sig, structure_label_args_bear, structure_line_args_bear, keep_history = keep_visual_history)
+    plot_structure(btm_x, btm, show_bear_bos and bear_bos_sig, show_bear_choch and bear_choch_sig, LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down), LineArgs.new(bear_css, line.style_solid, 2), keep_history = keep_visual_history)
 
 // Internal structure: lighter dashed rendering
 if show_internals
-    plot_swing_levels(1, internal_trail_up_x, internal_trail_up, internal_display_trend, true, swing_level_label_args_internal_bear, swing_level_line_args_internal_bear, override_right_index = bar_index + 10, text_prefix = 'INT ')
-    plot_swing_levels(-1, internal_trail_dn_x, internal_trail_dn, internal_display_trend, true, swing_level_label_args_internal_bull, swing_level_line_args_internal_bull, override_right_index = bar_index + 10, text_prefix = 'INT ')
+    plot_swing_levels(1, internal_trail_up_x, internal_trail_up, internal_display_trend, true, LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_left), LineArgs.new(bear_internal_css, line.style_dashed), override_right_index = bar_index + 10, text_prefix = 'INT ')
+    plot_swing_levels(-1, internal_trail_dn_x, internal_trail_dn, internal_display_trend, true, LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_left), LineArgs.new(bull_internal_css, line.style_dashed), override_right_index = bar_index + 10, text_prefix = 'INT ')
 
 if show_internal_bull_bos or show_internal_bull_choch
-    plot_structure(internal_top_x, internal_top, show_internal_bull_bos and internal_bull_bos_sig, show_internal_bull_choch and internal_bull_choch_sig, structure_label_args_internal_bull, structure_line_args_internal_bull, keep_history = keep_visual_history, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
+    plot_structure(internal_top_x, internal_top, show_internal_bull_bos and internal_bull_bos_sig, show_internal_bull_choch and internal_bull_choch_sig, LabelArgs.new(bull_internal_css, #00000000, size = size.tiny, style = label.style_label_down), LineArgs.new(bull_internal_css, line.style_dashed), keep_history = keep_visual_history, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
 if show_internal_bear_bos or show_internal_bear_choch
-    plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_sig, show_internal_bear_choch and internal_bear_choch_sig, structure_label_args_internal_bear, structure_line_args_internal_bear, keep_history = keep_visual_history, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
+    plot_structure(internal_btm_x, internal_btm, show_internal_bear_bos and internal_bear_bos_sig, show_internal_bear_choch and internal_bear_choch_sig, LabelArgs.new(bear_internal_css, #00000000, size = size.tiny, style = label.style_label_down), LineArgs.new(bear_internal_css, line.style_dashed), keep_history = keep_visual_history, text_prefix = 'INT ', bos_text = 'Break', choch_text = 'Reversal')
 
 // Persistent long-setup storage must exist before the OB/FVG engines run so active backing zones can be protected from cleanup.
 var bool long_setup_armed = false
@@ -3633,14 +3610,6 @@ var fvg_htf = input.timeframe('1D', '', group = g_htf_fvg, inline = 'show')
 var htf_fvg_showlast = input.int(1, 'Show last', minval = 1, group = g_htf_fvg, inline = 'show2')
 var htf_fvg_keep_filled = input.bool(true, 'Keep filled', group = g_htf_fvg, inline = 'keep filled')
 var htf_fvg_keep_filled_max = input.int(1, '', minval = 1, group = g_htf_fvg, inline = 'keep filled')
-var bull_htf_fvg_css = bull_fvg_css
-var bear_htf_fvg_css = bear_fvg_css
-var bull_htf_fvg_line_css = bull_fvg_line_css
-var bear_htf_fvg_line_css = bear_fvg_line_css
-var bull_htf_fvg_css_filled = bull_fvg_css_filled
-var bear_htf_fvg_css_filled = bear_fvg_css_filled
-var bull_htf_fvg_line_css_filled = bull_fvg_line_css_filled
-var bear_htf_fvg_line_css_filled = bear_fvg_line_css_filled
 int htf_fvg_tf_sec = nz(timeframe.in_seconds(fvg_htf), 0)
 
 if barstate.isfirst and show_htf_fvg
@@ -3649,10 +3618,10 @@ if barstate.isfirst and show_htf_fvg
     if htf_fvg_tf_sec <= chart_tf_sec
         runtime.error(str.format('Show FVG (Timeframe): select a timeframe higher than the chart timeframe {0}, currently selected: {1}', timeframe.period, fvg_htf))
 
-var htf_fvg_config_bull = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬈', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_htf_fvg_line_css, 0, line.style_solid, bull_htf_fvg_css, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bull_htf_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_htf_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bull_htf_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
-var htf_fvg_config_bear = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬊', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_htf_fvg_line_css, 0, line.style_solid, bear_htf_fvg_css, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bear_htf_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_htf_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bear_htf_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
-var htf_fvg_config_bull_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_htf_fvg_line_css_filled, 0, line.style_solid, bull_htf_fvg_css_filled, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bull_htf_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_htf_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bull_htf_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
-var htf_fvg_config_bear_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_htf_fvg_line_css_filled, 0, line.style_solid, bear_htf_fvg_css_filled, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bear_htf_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_htf_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bear_htf_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
+var htf_fvg_config_bull = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬈', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css, 0, line.style_solid, bull_fvg_css, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bull_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bull_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
+var htf_fvg_config_bear = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_showlast, txt = fvg_htf + ' - FVG ⬊', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css, 0, line.style_solid, bear_fvg_css, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bear_fvg_line_css, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bear_fvg_line_css, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
+var htf_fvg_config_bull_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bull_fvg_line_css_filled, 0, line.style_solid, bull_fvg_css_filled, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bull_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bull_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bull_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
+var htf_fvg_config_bear_filled = FVGConfig.new(show_box = show_htf_fvg, show_target = show_htf_fvg, show_last = htf_fvg_keep_filled_max, txt = '', extend_until_filled = fvg_extend_until_filled, box_args = BoxArgs.new(bear_fvg_line_css_filled, 0, line.style_solid, bear_fvg_css_filled, xloc = xloc.bar_time), box_text_args = BoxTextArgs.new(bear_fvg_line_css_filled, size.normal, text.align_right, text.align_center), line_args = LineArgs.new(bear_fvg_line_css_filled, line.style_solid, 1, xloc = xloc.bar_time), label_args = LabelArgs.new(bear_fvg_css_filled, xloc = xloc.bar_time, style = label.style_label_left, size = size.small, text_align = text.align_left))
 
 FVG htf_new_fvg_bull = na
 FVG htf_new_fvg_bear = na
