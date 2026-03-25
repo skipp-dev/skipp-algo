@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 import logging
 import os
+import socket
 import tempfile
 import time
+import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
@@ -671,6 +674,39 @@ def _sign_payload(payload: bytes, secret: str) -> str:
     return hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
 
+def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
+    """Best-effort SSRF guard for outbound webhooks."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False, "invalid_url"
+
+    if parsed.scheme not in {"https", "http"}:
+        return False, "unsupported_scheme"
+
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return False, "missing_host"
+    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+        return False, "local_host"
+
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            return False, "private_or_local_ip"
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
+            for info in infos:
+                ip = ipaddress.ip_address(info[4][0])
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+                    return False, "resolved_to_private_or_local_ip"
+        except Exception:
+            pass
+
+    return True, ""
+
+
 def fire_webhook(
     item: ClassifiedItem,
     url: str,
@@ -709,6 +745,10 @@ def fire_webhook(
     """
     if not url:
         return None
+    safe, reason = _is_safe_webhook_url(url)
+    if not safe:
+        logger.warning("Webhook URL rejected (%s) for %s", reason, item.ticker)
+        return None
     if item.news_score < min_score:
         return None
 
@@ -745,9 +785,9 @@ def fire_webhook(
 
     # Reuse caller-provided client or create a one-shot client
     managed = _client is None
-    client = _client if _client is not None else httpx.Client(timeout=timeout)
+    client = _client if _client is not None else httpx.Client(timeout=timeout, follow_redirects=False)
     try:
-        r = client.post(url, content=body, headers=headers)
+        r = client.post(url, content=body, headers=headers, follow_redirects=False)
         r.raise_for_status()
         logger.info(
             "Webhook fired for %s (score=%.3f): HTTP %d",

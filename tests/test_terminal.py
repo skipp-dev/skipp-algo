@@ -410,6 +410,15 @@ class TestWebhookStub:
         assert body["ticker"] == "NVDA"
         assert body["action"] == "buy"  # bullish + high score
 
+    @patch("terminal_export.httpx.Client")
+    def test_rejects_private_webhook_url(self, mock_client_cls: MagicMock) -> None:
+        from terminal_export import fire_webhook
+
+        ci = self._make_ci(news_score=0.95)
+        result = fire_webhook(ci, url="http://127.0.0.1/webhook")
+        assert result is None
+        mock_client_cls.assert_not_called()
+
 
 # ═════════════════════════════════════════════════════════════════
 # Integration: classifier pipeline on Benzinga data

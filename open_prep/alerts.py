@@ -7,12 +7,15 @@ Configuration is loaded from ``artifacts/open_prep/alert_config.json``.
 from __future__ import annotations
 
 import json
+import ipaddress
 import logging
 import os
+import socket
 import ssl
 import tempfile
 import threading
 import time
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
@@ -92,16 +95,24 @@ _throttle_lock = threading.Lock()
 _LAST_SENT_MAX = 500
 
 
-def _is_throttled(symbol: str, throttle_seconds: int) -> bool:
+def _throttle_key(symbol: str, target_scope: str | None = None) -> str:
+    if target_scope:
+        return target_scope
+    return symbol
+
+
+def _is_throttled(symbol: str, throttle_seconds: int, *, target_scope: str | None = None) -> bool:
     """Check if we recently sent an alert for this symbol."""
+    key = _throttle_key(symbol, target_scope)
     with _throttle_lock:
-        last = _last_sent.get(symbol, 0.0)
+        last = _last_sent.get(key, 0.0)
     return (time.time() - last) < throttle_seconds
 
 
-def _mark_sent(symbol: str) -> None:
+def _mark_sent(symbol: str, *, target_scope: str | None = None) -> None:
+    key = _throttle_key(symbol, target_scope)
     with _throttle_lock:
-        _last_sent[symbol] = time.time()
+        _last_sent[key] = time.time()
 
 
 def _prune_stale_entries(throttle_seconds: int) -> None:
@@ -196,6 +207,43 @@ _FORMATTERS = {
 }
 
 
+def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
+    """Best-effort SSRF guard for outbound webhook targets."""
+    try:
+        parsed = urllib.parse.urlparse(url)
+    except Exception:
+        return False, "invalid_url"
+
+    if parsed.scheme not in {"https", "http"}:
+        return False, "unsupported_scheme"
+
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return False, "missing_host"
+
+    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+        return False, "local_host"
+
+    try:
+        ip = ipaddress.ip_address(host)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+            return False, "private_or_local_ip"
+    except ValueError:
+        # Not an IP literal. Resolve and block clearly local/private answers.
+        try:
+            infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
+            for info in infos:
+                addr = info[4][0]
+                ip = ipaddress.ip_address(addr)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
+                    return False, "resolved_to_private_or_local_ip"
+        except Exception:
+            # DNS failures are surfaced by sender path.
+            pass
+
+    return True, ""
+
+
 # ---------------------------------------------------------------------------
 # Dispatch
 # ---------------------------------------------------------------------------
@@ -247,11 +295,15 @@ def dispatch_alerts(
             logger.debug("Throttled alert for %s", symbol)
             continue
 
-        any_success = False
         for target in targets:
             target_type = target.get("type", "generic")
             url = target.get("url", "")
             if not url:
+                continue
+            target_name = str(target.get("name", target_type) or target_type)
+            target_scope = f"{symbol}::{target_name}"
+            if _is_throttled(symbol, throttle, target_scope=target_scope):
+                logger.debug("Throttled alert for %s/%s", symbol, target_name)
                 continue
 
             try:
@@ -270,16 +322,12 @@ def dispatch_alerts(
             result = _send_webhook(url, payload, target.get("headers"))
             status = result.get("status", 0)
             if 200 <= status < 300:
-                any_success = True
+                _mark_sent(symbol, target_scope=target_scope)
             results.append({
                 "symbol": symbol,
-                "target": target.get("name", target_type),
+                "target": target_name,
                 "status": status,
             })
-
-        # Only suppress retries if at least one target succeeded
-        if any_success:
-            _mark_sent(symbol)
 
     if results:
         logger.info("Dispatched %d alert(s)", len(results))
@@ -295,11 +343,16 @@ def _send_webhook(
 ) -> dict[str, Any]:
     """Send a webhook POST request.  Uses urllib to avoid hard dependency.
 
-    Retries up to *_max_retries* times on HTTP 429 (Too Many Requests)
-    with exponential back-off (1s, 2s).
+    Retries up to *_max_retries* times on retryable failures
+    (429, 5xx, and transient network errors).
     """
     import urllib.error
     import urllib.request
+
+    safe, reason = _is_safe_webhook_url(url)
+    if not safe:
+        logger.warning("Blocked webhook URL (%s)", reason)
+        return {"status": 0, "error": f"unsafe_url:{reason}"}
 
     hdrs = {"Content-Type": "application/json"}
     if headers:
@@ -317,22 +370,46 @@ def _send_webhook(
     # Mask URL for logging to avoid leaking auth tokens in query params.
     masked_url = url.split("?")[0] + ("?***" if "?" in url else "")
 
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+            return None
+
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=ssl_ctx),
+        _NoRedirect(),
+    )
+
     last_exc: Exception | None = None
+    retryable_http = {429, 500, 502, 503, 504}
     for attempt in range(_max_retries + 1):
         req = urllib.request.Request(url, data=data, headers=hdrs, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=10, context=ssl_ctx) as resp:
+            with opener.open(req, timeout=10) as resp:
                 return {"status": resp.status, "body": resp.read().decode("utf-8", errors="replace")[:500]}
         except urllib.error.HTTPError as exc:
-            if exc.code == 429 and attempt < _max_retries:
+            if exc.code in {301, 302, 303, 307, 308}:
+                logger.warning("Webhook redirect blocked for %s", masked_url)
+                return {"status": exc.code, "error": "redirect_blocked"}
+            if exc.code in retryable_http and attempt < _max_retries:
                 wait = (attempt + 1) * 1.0  # 1s, 2s
-                logger.info("Webhook 429 for %s — retrying in %.0fs (attempt %d/%d)",
+                logger.info("Webhook HTTP %d for %s — retrying in %.0fs (attempt %d/%d)",
+                            exc.code,
                             masked_url, wait, attempt + 1, _max_retries)
                 time.sleep(wait)
                 last_exc = exc
                 continue
             logger.warning("Webhook HTTP error %d for %s", exc.code, masked_url)
             return {"status": exc.code, "error": type(exc).__name__}
+        except urllib.error.URLError as exc:
+            if attempt < _max_retries:
+                wait = (attempt + 1) * 1.0
+                logger.info("Webhook network error for %s — retrying in %.0fs (attempt %d/%d)",
+                            masked_url, wait, attempt + 1, _max_retries)
+                time.sleep(wait)
+                last_exc = exc
+                continue
+            logger.warning("Webhook network error for %s: %s", masked_url, exc)
+            return {"status": 0, "error": type(exc).__name__}
         except Exception as exc:
             logger.warning("Webhook error for %s: %s", masked_url, exc)
             return {"status": 0, "error": type(exc).__name__}
