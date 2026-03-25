@@ -671,3 +671,215 @@ def test_build_symbol_day_microstructure_feature_frame_warns_when_minute_detail_
     assert bbb_row["daily_rth_dollar_volume"] == pytest.approx(0.0)
     assert "Session minute detail missing for" in caplog.text
     assert "BBB" in caplog.text
+
+
+def test_build_symbol_day_microstructure_feature_frame_warns_when_regular_session_detail_is_missing_but_other_sessions_exist(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.8,
+                "day_low": 9.7,
+                "day_close": 10.5,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "open_to_current_pct": 1.6,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            }
+        ]
+    )
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T08:15:00Z"),
+                "session": "premarket",
+                "open": 10.0,
+                "high": 10.1,
+                "low": 9.95,
+                "close": 10.05,
+                "volume": 12000,
+                "trade_count": 15,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T21:10:00Z"),
+                "session": "afterhours",
+                "open": 10.04,
+                "high": 10.06,
+                "low": 10.0,
+                "close": 10.02,
+                "volume": 8000,
+                "trade_count": 10,
+            },
+        ]
+    )
+
+    with caplog.at_level("WARNING"):
+        output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    row = output.iloc[0]
+    assert bool(row["missing_regular_session_detail"]) is True
+    assert bool(row["missing_premarket_detail"]) is False
+    assert bool(row["missing_afterhours_detail"]) is False
+    assert "no regular-session bars" in caplog.text
+
+
+def test_build_base_snapshot_from_bundle_payload_excludes_missing_minute_detail_rows_from_minute_derived_20d_means(
+    tmp_path: Path,
+) -> None:
+    bundle_payload, _ = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.8,
+                "day_low": 9.7,
+                "day_close": 10.5,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "open_to_current_pct": 1.6,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.7,
+                "day_high": 11.2,
+                "day_low": 10.1,
+                "day_close": 10.4,
+                "day_volume": 1_900_000,
+                "previous_close": 10.5,
+                "close_trade_hygiene_score": 0.76,
+                "reclaimed_start_price_within_30s": False,
+                "early_dip_pct_10s": -1.0,
+                "open_to_current_pct": -0.5,
+                "window_return_pct": -0.5,
+                "close_preclose_return_pct": -0.3,
+            },
+        ]
+    )
+    frames["daily_symbol_features_full_universe"] = daily_features
+    frames["daily_bars"] = daily_features[
+        ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"]
+    ].rename(
+        columns={
+            "day_open": "open",
+            "day_high": "high",
+            "day_low": "low",
+            "day_close": "close",
+            "day_volume": "volume",
+        }
+    )
+
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.1,
+                "low": 9.95,
+                "close": 10.05,
+                "volume": 1000,
+                "trade_count": 10,
+            }
+        ]
+    )
+
+    base_snapshot, _, symbol_day = build_base_snapshot_from_bundle_payload(
+        bundle_payload,
+        schema_path=SCHEMA_PATH,
+        session_minute_detail=session_minute_detail,
+        asof_date="2026-03-20",
+    )
+
+    day_rows = symbol_day.loc[symbol_day["symbol"] == "AAA"].sort_values("trade_date").reset_index(drop=True)
+    assert bool(day_rows.loc[0, "minute_detail_missing"]) is False
+    assert bool(day_rows.loc[1, "minute_detail_missing"]) is True
+
+    expected_single_day_ratio = float(day_rows.loc[0, "daily_open_30m_dollar_share"])
+    actual_ratio = float(base_snapshot.loc[0, "open_30m_dollar_share_20d"])
+    assert actual_ratio == pytest.approx(expected_single_day_ratio)
+
+
+def test_collect_full_universe_session_minute_detail_cache_coverage_uses_runtime_unsupported_sidecar(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "session_minute.parquet"
+    cache_meta_path = tmp_path / "session_minute.parquet.meta.json"
+    cache_meta_path.write_text(
+        json.dumps({"trade_day": "2026-02-10", "runtime_unsupported_symbols": ["AACB"]}),
+        encoding="utf-8",
+    )
+
+    cached_frame = pd.DataFrame(
+        [
+            {
+                "trade_date": date(2026, 2, 10),
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-02-10T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.2,
+                "low": 9.9,
+                "close": 10.1,
+                "volume": 1000,
+                "trade_count": 20,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(runtime, "build_cache_path", lambda *args, **kwargs: cache_path)
+    monkeypatch.setattr(runtime, "_read_cached_frame", lambda *args, **kwargs: cached_frame.copy())
+
+    def fail_fetch(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("fetch should not run when cache coverage passes with unresolved sidecar")
+
+    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fail_fetch)
+
+    output = collect_full_universe_session_minute_detail(
+        "dummy-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 2, 10)],
+        universe_symbols={"AAA", "AACB"},
+        display_timezone="America/New_York",
+        use_file_cache=True,
+        force_refresh=False,
+    )
+
+    assert set(output["symbol"].unique()) == {"AAA"}
