@@ -593,6 +593,21 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_earnings_calendar(self, from_date: date, to_date: date) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {
+            "from": from_date.isoformat(),
+            "to": to_date.isoformat(),
+        }
+        try:
+            data = self._get("/stable/earnings-calendar", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/earnings-calendar",
+                "FMP feature unavailable (stable/earnings-calendar); continuing without earnings calendar data.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_sector_performance(self) -> list[dict[str, Any]]:
         today = _today_et_date()
         current = self._get("/stable/sector-performance", {"date": today.isoformat()})

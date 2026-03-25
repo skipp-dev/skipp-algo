@@ -246,6 +246,47 @@ PREMARKET_FEATURE_COLUMNS = [
     "premarket_seconds",
 ]
 
+RESEARCH_EVENT_FLAG_COLUMNS = [
+    "trade_date",
+    "symbol",
+    "is_earnings_day",
+    "earnings_timing_pre_open",
+    "earnings_timing_post_close",
+]
+
+RESEARCH_EVENT_FLAG_COVERAGE_COLUMNS = [
+    "flag_name",
+    "symbol_day_rows",
+    "non_null_rows",
+    "null_rows",
+    "non_null_rate",
+    "true_rows",
+    "true_rate",
+    "affected_trade_dates",
+    "all_false_bug",
+    "all_true_bug",
+]
+
+RESEARCH_EVENT_FLAG_TRADE_DATE_COLUMNS = [
+    "trade_date",
+    "flag_name",
+    "symbol_day_rows",
+    "true_rows",
+    "true_rate",
+]
+
+RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS = [
+    "flag_name",
+    "selected_top20pct",
+    "flag_value",
+    "row_count",
+    "mean_window_range_pct",
+    "mean_realized_vol_pct",
+    "mean_close_trade_hygiene_score",
+    "mean_close_last_1m_volume_share",
+    "mean_close_to_next_open_return_pct",
+]
+
 CLOSE_IMBALANCE_FEATURE_COLUMNS = [
     "trade_date",
     "symbol",
@@ -2243,6 +2284,211 @@ def _resolve_latest_iso_timestamp(frame: pd.DataFrame, *, candidates: tuple[str,
     return None
 
 
+def _parse_calendar_trade_date(value: Any) -> date | None:
+    parsed = pd.to_datetime(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(parsed):
+        return None
+    if isinstance(parsed, pd.Timestamp):
+        return parsed.date()
+    return None
+
+
+def _normalize_earnings_timing(value: Any) -> str:
+    return " ".join(str(value or "").strip().lower().replace("_", " ").replace("-", " ").split())
+
+
+def _timing_is_pre_open(value: Any) -> bool:
+    normalized = _normalize_earnings_timing(value)
+    return normalized in {"bmo", "before market open", "before open", "pre market", "premarket"}
+
+
+def _timing_is_post_close(value: Any) -> bool:
+    normalized = _normalize_earnings_timing(value)
+    return normalized in {"amc", "after market close", "after close", "post market", "postmarket"}
+
+
+def _empty_research_event_flags(scope: pd.DataFrame, *, missing: bool) -> pd.DataFrame:
+    out = scope[["trade_date", "symbol"]].drop_duplicates(subset=["trade_date", "symbol"]).copy()
+    dtype = "boolean"
+    fill_value = pd.NA if missing else False
+    for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        out[column] = pd.Series([fill_value] * len(out), dtype=dtype)
+    return out[RESEARCH_EVENT_FLAG_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True)
+
+
+def _build_research_event_flags_full_universe_export(
+    *,
+    daily_features: pd.DataFrame,
+    fmp_api_key: str,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    scope = daily_features[["trade_date", "symbol"]].copy()
+    scope["trade_date"] = pd.to_datetime(scope["trade_date"], errors="coerce").dt.date
+    scope["symbol"] = scope["symbol"].astype(str).str.upper()
+    scope = scope.dropna(subset=["trade_date", "symbol"]).drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    if scope.empty:
+        return pd.DataFrame(columns=RESEARCH_EVENT_FLAG_COLUMNS), {
+            "enabled": False,
+            "source": "fmp_earnings_calendar",
+            "status": "empty_scope",
+        }
+    if not fmp_api_key:
+        return _empty_research_event_flags(scope, missing=True), {
+            "enabled": False,
+            "source": "fmp_earnings_calendar",
+            "status": "missing_api_key",
+        }
+
+    trade_dates = sorted(set(scope["trade_date"].tolist()))
+    client = FMPClient(fmp_api_key)
+    try:
+        earnings_rows = client.get_earnings_calendar(trade_dates[0], trade_dates[-1])
+    except Exception as exc:
+        logger.warning("Research event flag fetch failed; leaving earnings flags missing: %s", exc)
+        return _empty_research_event_flags(scope, missing=True), {
+            "enabled": False,
+            "source": "fmp_earnings_calendar",
+            "status": "fetch_failed",
+            "error": str(exc),
+        }
+
+    aggregated: dict[tuple[date, str], dict[str, bool]] = {}
+    for item in earnings_rows:
+        trade_day = _parse_calendar_trade_date(item.get("date"))
+        symbol = str(item.get("symbol") or "").strip().upper()
+        if trade_day is None or not symbol:
+            continue
+        key = (trade_day, symbol)
+        entry = aggregated.setdefault(
+            key,
+            {
+                "is_earnings_day": True,
+                "earnings_timing_pre_open": False,
+                "earnings_timing_post_close": False,
+            },
+        )
+        raw_timing = item.get("time") or item.get("releaseTime")
+        entry["earnings_timing_pre_open"] = bool(entry["earnings_timing_pre_open"] or _timing_is_pre_open(raw_timing))
+        entry["earnings_timing_post_close"] = bool(entry["earnings_timing_post_close"] or _timing_is_post_close(raw_timing))
+
+    if not aggregated:
+        return _empty_research_event_flags(scope, missing=False), {
+            "enabled": True,
+            "source": "fmp_earnings_calendar",
+            "status": "ok_empty_calendar",
+            "fetched_rows": 0,
+        }
+
+    event_frame = pd.DataFrame(
+        [
+            {
+                "trade_date": trade_day,
+                "symbol": symbol,
+                **values,
+            }
+            for (trade_day, symbol), values in aggregated.items()
+        ]
+    )
+    event_frame["trade_date"] = pd.to_datetime(event_frame["trade_date"], errors="coerce").dt.date
+    event_frame["symbol"] = event_frame["symbol"].astype(str).str.upper()
+    for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        event_frame[column] = pd.Series(event_frame[column], dtype="boolean")
+
+    merged = scope.merge(event_frame, on=["trade_date", "symbol"], how="left")
+    for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        merged[column] = pd.Series(merged[column], dtype="boolean").fillna(False)
+    return merged[RESEARCH_EVENT_FLAG_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True), {
+        "enabled": True,
+        "source": "fmp_earnings_calendar",
+        "status": "ok",
+        "fetched_rows": int(len(earnings_rows)),
+        "matched_symbol_days": int(len(event_frame)),
+    }
+
+
+def _build_research_event_flag_coverage(flags_frame: pd.DataFrame) -> pd.DataFrame:
+    if flags_frame.empty:
+        return pd.DataFrame(columns=RESEARCH_EVENT_FLAG_COVERAGE_COLUMNS)
+    rows: list[dict[str, Any]] = []
+    total_rows = int(len(flags_frame))
+    for flag_name in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        series = pd.Series(flags_frame[flag_name], dtype="boolean")
+        non_null_rows = int(series.notna().sum())
+        true_rows = int(series.fillna(False).sum())
+        rows.append(
+            {
+                "flag_name": flag_name,
+                "symbol_day_rows": total_rows,
+                "non_null_rows": non_null_rows,
+                "null_rows": total_rows - non_null_rows,
+                "non_null_rate": float(non_null_rows / total_rows) if total_rows else 0.0,
+                "true_rows": true_rows,
+                "true_rate": float(true_rows / non_null_rows) if non_null_rows else 0.0,
+                "affected_trade_dates": int(flags_frame.loc[series.fillna(False), "trade_date"].nunique()),
+                "all_false_bug": bool(non_null_rows > 0 and true_rows == 0),
+                "all_true_bug": bool(non_null_rows > 0 and true_rows == non_null_rows),
+            }
+        )
+    return pd.DataFrame(rows, columns=RESEARCH_EVENT_FLAG_COVERAGE_COLUMNS)
+
+
+def _build_research_event_flag_trade_date_distribution(flags_frame: pd.DataFrame) -> pd.DataFrame:
+    if flags_frame.empty:
+        return pd.DataFrame(columns=RESEARCH_EVENT_FLAG_TRADE_DATE_COLUMNS)
+    rows: list[dict[str, Any]] = []
+    total_by_date = flags_frame.groupby("trade_date")["symbol"].size().to_dict()
+    for flag_name in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        series = pd.Series(flags_frame[flag_name], dtype="boolean").fillna(False)
+        grouped = (
+            flags_frame.assign(_flag_value=series)
+            .groupby("trade_date", sort=True)["_flag_value"]
+            .sum()
+            .to_dict()
+        )
+        for trade_day, symbol_day_rows in total_by_date.items():
+            true_rows = int(grouped.get(trade_day, 0))
+            rows.append(
+                {
+                    "trade_date": trade_day,
+                    "flag_name": flag_name,
+                    "symbol_day_rows": int(symbol_day_rows),
+                    "true_rows": true_rows,
+                    "true_rate": float(true_rows / symbol_day_rows) if symbol_day_rows else 0.0,
+                }
+            )
+    return pd.DataFrame(rows, columns=RESEARCH_EVENT_FLAG_TRADE_DATE_COLUMNS).sort_values(["trade_date", "flag_name"]).reset_index(drop=True)
+
+
+def _build_research_event_flag_outcome_slices(daily_features: pd.DataFrame, flags_frame: pd.DataFrame) -> pd.DataFrame:
+    if daily_features.empty or flags_frame.empty:
+        return pd.DataFrame(columns=RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS)
+    merged = daily_features.merge(flags_frame, on=["trade_date", "symbol"], how="left")
+    rows: list[dict[str, Any]] = []
+    metric_columns = {
+        "mean_window_range_pct": "window_range_pct",
+        "mean_realized_vol_pct": "realized_vol_pct",
+        "mean_close_trade_hygiene_score": "close_trade_hygiene_score",
+        "mean_close_last_1m_volume_share": "close_last_1m_volume_share",
+        "mean_close_to_next_open_return_pct": "close_to_next_open_return_pct",
+    }
+    for flag_name in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        merged[flag_name] = pd.Series(merged[flag_name], dtype="boolean")
+        for selected in (False, True):
+            selected_slice = merged[merged["selected_top20pct"].astype(bool) == selected]
+            for flag_value in (False, True):
+                cohort = selected_slice[pd.Series(selected_slice[flag_name], dtype="boolean").fillna(False) == flag_value]
+                row: dict[str, Any] = {
+                    "flag_name": flag_name,
+                    "selected_top20pct": bool(selected),
+                    "flag_value": bool(flag_value),
+                    "row_count": int(len(cohort)),
+                }
+                for output_name, source_name in metric_columns.items():
+                    numeric = pd.to_numeric(cohort.get(source_name, pd.Series(dtype=float)), errors="coerce")
+                    row[output_name] = float(numeric.mean()) if not numeric.dropna().empty else 0.0
+                rows.append(row)
+    return pd.DataFrame(rows, columns=RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS)
+
+
 def _filter_ranked_symbol_day_scope(frame: pd.DataFrame, ranked_scope: pd.DataFrame) -> pd.DataFrame:
     if frame.empty or ranked_scope.empty:
         return frame.iloc[0:0].copy()
@@ -2512,6 +2758,23 @@ def run_production_export_pipeline(
         top_fraction=top_fraction,
         smc_base_only=smc_base_only,
     )
+    research_event_flags_full_universe, research_event_flag_metadata = _build_research_event_flags_full_universe_export(
+        daily_features=daily_symbol_features_full_universe,
+        fmp_api_key=fmp_api_key,
+    )
+    daily_symbol_features_full_universe = daily_symbol_features_full_universe.merge(
+        research_event_flags_full_universe,
+        on=["trade_date", "symbol"],
+        how="left",
+    )
+    for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="boolean")
+    research_event_flag_coverage = _build_research_event_flag_coverage(research_event_flags_full_universe)
+    research_event_flag_trade_date_distribution = _build_research_event_flag_trade_date_distribution(research_event_flags_full_universe)
+    research_event_flag_outcome_slices = _build_research_event_flag_outcome_slices(
+        daily_symbol_features_full_universe,
+        research_event_flags_full_universe,
+    )
     full_universe_second_detail_open = _prepare_full_universe_second_detail_export(
         full_universe_second_detail_raw,
         daily_symbol_features_full_universe,
@@ -2620,6 +2883,7 @@ def run_production_export_pipeline(
         "premarket_window_feature_rows": int(len(premarket_window_features_full_universe)),
         "close_imbalance_symbol_day_rows": int(close_imbalance_features_full_universe["has_close_window_detail"].sum()) if not close_imbalance_features_full_universe.empty else 0,
         "close_imbalance_outcome_rows": int(len(close_imbalance_outcomes_full_universe)),
+        "research_event_flag_rows": int(len(research_event_flags_full_universe)),
         "batl": batl_debug,
     }
 
@@ -2762,6 +3026,11 @@ def run_production_export_pipeline(
         "premarket_features_full_universe_rows": len(premarket_features_full_universe),
         "premarket_window_features_full_universe_rows": len(premarket_window_features_full_universe),
         "symbol_day_diagnostics_rows": len(symbol_day_diagnostics),
+        "research_event_flags_full_universe_rows": len(research_event_flags_full_universe),
+        "research_event_flag_coverage_rows": len(research_event_flag_coverage),
+        "research_event_flag_trade_date_distribution_rows": len(research_event_flag_trade_date_distribution),
+        "research_event_flag_outcome_slices_rows": len(research_event_flag_outcome_slices),
+        "research_event_flags_source": research_event_flag_metadata,
         "detail_symbol_count": int(summary["symbol"].nunique()) if not summary.empty else 0,
         "expected_symbol_day_rows": int(len(daily_symbol_features_full_universe)),
         "covered_symbol_day_rows": int(daily_symbol_features_full_universe["has_intraday"].sum()) if not daily_symbol_features_full_universe.empty else 0,
@@ -2798,6 +3067,10 @@ def run_production_export_pipeline(
             "premarket_features_full_universe": premarket_features_full_universe,
             "premarket_window_features_full_universe": premarket_window_features_full_universe,
             "symbol_day_diagnostics": symbol_day_diagnostics,
+            "research_event_flags_full_universe": research_event_flags_full_universe,
+            "research_event_flag_coverage": research_event_flag_coverage,
+            "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+            "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
             "quality_window_status_latest": quality_window_status,
         },
         cost_estimate=cost_estimate,
@@ -2817,6 +3090,10 @@ def run_production_export_pipeline(
             "premarket_features_full_universe": premarket_features_full_universe,
             "premarket_window_features_full_universe": premarket_window_features_full_universe,
             "symbol_day_diagnostics": symbol_day_diagnostics,
+            "research_event_flags_full_universe": research_event_flags_full_universe,
+            "research_event_flag_coverage": research_event_flag_coverage,
+            "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+            "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
             "quality_window_status_latest": quality_window_status,
         },
     )
@@ -2846,6 +3123,10 @@ def run_production_export_pipeline(
         "premarket_features_full_universe": premarket_features_full_universe,
         "premarket_window_features_full_universe": premarket_window_features_full_universe,
         "symbol_day_diagnostics": symbol_day_diagnostics,
+        "research_event_flags_full_universe": research_event_flags_full_universe,
+        "research_event_flag_coverage": research_event_flag_coverage,
+        "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+        "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
         "cost_estimate": cost_estimate,
         "output_checks": output_summary,
         "batl_debug": batl_debug,

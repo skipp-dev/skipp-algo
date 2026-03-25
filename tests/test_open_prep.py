@@ -2371,6 +2371,42 @@ class TestFMPProfileBulkFallback(unittest.TestCase):
         self.assertFalse(any("Traceback" in line for line in logs.output))
 
 
+class TestFMPEarningsCalendarFallback(unittest.TestCase):
+    def test_get_earnings_calendar_uses_stable_endpoint_and_date_range(self):
+        from open_prep.macro import FMPClient
+
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", return_value=[{"symbol": "NVDA"}]) as mock_get:
+            result = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 21))
+
+        self.assertEqual(result, [{"symbol": "NVDA"}])
+        mock_get.assert_called_once_with(
+            "/stable/earnings-calendar",
+            {"from": "2026-03-20", "to": "2026-03-21"},
+        )
+
+    def test_earnings_calendar_http_400_logs_once_and_returns_empty(self):
+        from open_prep import macro
+        from open_prep.macro import FMPClient
+
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+        client = FMPClient(api_key="test")
+
+        with patch.object(
+            FMPClient,
+            "_get",
+            side_effect=RuntimeError("FMP API HTTP 400 on /stable/earnings-calendar: Bad Request"),
+        ):
+            with self.assertLogs("open_prep.macro", level="INFO") as logs:
+                first = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 20))
+                second = client.get_earnings_calendar(date(2026, 3, 20), date(2026, 3, 20))
+
+        self.assertEqual(first, [])
+        self.assertEqual(second, [])
+        msgs = [line for line in logs.output if "stable/earnings-calendar" in line]
+        self.assertEqual(len(msgs), 1)
+
+
 class TestFMPClientCircuitBreakerValidationFailures(unittest.TestCase):
     """Validation failures after a 200 response must re-open half-open circuits."""
 

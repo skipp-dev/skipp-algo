@@ -11,6 +11,7 @@ import warnings
 import numpy as np
 import pandas as pd
 import pytest
+import scripts.databento_production_export as export_mod
 
 from scripts.load_databento_export_bundle import build_bundle_summary, load_export_bundle, resolve_manifest_path
 from scripts.bullish_quality_config import PremarketWindowDefinition, build_default_bullish_quality_config
@@ -19,6 +20,10 @@ from scripts.databento_production_export import (
     _build_exact_window_end_lookup,
     _build_batl_debug_payload,
     _build_daily_symbol_features_full_universe_export,
+    _build_research_event_flag_coverage,
+    _build_research_event_flag_outcome_slices,
+    _build_research_event_flag_trade_date_distribution,
+    _build_research_event_flags_full_universe_export,
     _build_quality_window_status_latest,
     _populate_quality_window_ranks,
     _compute_quality_reason,
@@ -118,6 +123,127 @@ from databento_volatility_screener import (
     WATCHLIST_SNAPSHOT_FILE,
 )
 from scripts.generate_databento_watchlist import LongDipConfig, generate_watchlist_result
+
+
+def test_build_research_event_flags_full_universe_export_derives_earnings_flags(monkeypatch) -> None:
+    daily_features = pd.DataFrame(
+        [
+            {"trade_date": date(2026, 3, 20), "symbol": "AAA"},
+            {"trade_date": date(2026, 3, 20), "symbol": "BBB"},
+            {"trade_date": date(2026, 3, 21), "symbol": "AAA"},
+        ]
+    )
+
+    class FakeFMPClient:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+
+        def get_earnings_calendar(self, from_date: date, to_date: date) -> list[dict[str, object]]:
+            assert from_date == date(2026, 3, 20)
+            assert to_date == date(2026, 3, 21)
+            return [
+                {"date": "2026-03-20", "symbol": "AAA", "time": "bmo"},
+                {"date": "2026-03-20", "symbol": "BBB", "releaseTime": "after market close"},
+                {"date": "2026-03-21", "symbol": "AAA", "time": ""},
+            ]
+
+    monkeypatch.setattr(export_mod, "FMPClient", FakeFMPClient)
+
+    flags, metadata = _build_research_event_flags_full_universe_export(
+        daily_features=daily_features,
+        fmp_api_key="demo-key",
+    )
+
+    assert metadata["status"] == "ok"
+    aaa_day1 = flags[(flags["trade_date"] == date(2026, 3, 20)) & (flags["symbol"] == "AAA")].iloc[0]
+    bbb_day1 = flags[(flags["trade_date"] == date(2026, 3, 20)) & (flags["symbol"] == "BBB")].iloc[0]
+    aaa_day2 = flags[(flags["trade_date"] == date(2026, 3, 21)) & (flags["symbol"] == "AAA")].iloc[0]
+
+    assert bool(aaa_day1["is_earnings_day"]) is True
+    assert bool(aaa_day1["earnings_timing_pre_open"]) is True
+    assert bool(aaa_day1["earnings_timing_post_close"]) is False
+    assert bool(bbb_day1["is_earnings_day"]) is True
+    assert bool(bbb_day1["earnings_timing_pre_open"]) is False
+    assert bool(bbb_day1["earnings_timing_post_close"]) is True
+    assert bool(aaa_day2["is_earnings_day"]) is True
+    assert bool(aaa_day2["earnings_timing_pre_open"]) is False
+    assert bool(aaa_day2["earnings_timing_post_close"]) is False
+
+
+def test_build_research_event_flag_coverage_and_distribution_report_rates() -> None:
+    flags = pd.DataFrame(
+        [
+            {"trade_date": date(2026, 3, 20), "symbol": "AAA", "is_earnings_day": True, "earnings_timing_pre_open": True, "earnings_timing_post_close": False},
+            {"trade_date": date(2026, 3, 20), "symbol": "BBB", "is_earnings_day": False, "earnings_timing_pre_open": False, "earnings_timing_post_close": False},
+            {"trade_date": date(2026, 3, 21), "symbol": "AAA", "is_earnings_day": True, "earnings_timing_pre_open": False, "earnings_timing_post_close": True},
+        ]
+    )
+
+    coverage = _build_research_event_flag_coverage(flags)
+    distribution = _build_research_event_flag_trade_date_distribution(flags)
+
+    earnings_row = coverage[coverage["flag_name"] == "is_earnings_day"].iloc[0]
+    post_close_row = coverage[coverage["flag_name"] == "earnings_timing_post_close"].iloc[0]
+    dist_row = distribution[
+        (distribution["flag_name"] == "is_earnings_day") & (distribution["trade_date"] == date(2026, 3, 20))
+    ].iloc[0]
+
+    assert earnings_row["symbol_day_rows"] == 3
+    assert earnings_row["true_rows"] == 2
+    assert bool(earnings_row["all_false_bug"]) is False
+    assert post_close_row["true_rows"] == 1
+    assert dist_row["true_rows"] == 1
+    assert dist_row["symbol_day_rows"] == 2
+
+
+def test_build_research_event_flag_outcome_slices_separates_selected_and_flag_state() -> None:
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": date(2026, 3, 20),
+                "symbol": "AAA",
+                "selected_top20pct": True,
+                "window_range_pct": 5.0,
+                "realized_vol_pct": 2.0,
+                "close_trade_hygiene_score": 0.8,
+                "close_last_1m_volume_share": 0.2,
+                "close_to_next_open_return_pct": 1.0,
+            },
+            {
+                "trade_date": date(2026, 3, 20),
+                "symbol": "BBB",
+                "selected_top20pct": False,
+                "window_range_pct": 2.0,
+                "realized_vol_pct": 1.0,
+                "close_trade_hygiene_score": 0.5,
+                "close_last_1m_volume_share": 0.1,
+                "close_to_next_open_return_pct": -0.5,
+            },
+        ]
+    )
+    flags = pd.DataFrame(
+        [
+            {"trade_date": date(2026, 3, 20), "symbol": "AAA", "is_earnings_day": True, "earnings_timing_pre_open": True, "earnings_timing_post_close": False},
+            {"trade_date": date(2026, 3, 20), "symbol": "BBB", "is_earnings_day": False, "earnings_timing_pre_open": False, "earnings_timing_post_close": False},
+        ]
+    )
+
+    slices = _build_research_event_flag_outcome_slices(daily_features, flags)
+    selected_true = slices[
+        (slices["flag_name"] == "is_earnings_day")
+        & (slices["selected_top20pct"] == True)
+        & (slices["flag_value"] == True)
+    ].iloc[0]
+    unselected_false = slices[
+        (slices["flag_name"] == "is_earnings_day")
+        & (slices["selected_top20pct"] == False)
+        & (slices["flag_value"] == False)
+    ].iloc[0]
+
+    assert selected_true["row_count"] == 1
+    assert selected_true["mean_window_range_pct"] == 5.0
+    assert unselected_false["row_count"] == 1
+    assert unselected_false["mean_close_to_next_open_return_pct"] == -0.5
 
 
 def test_build_window_definition_berlin_local_to_utc() -> None:
