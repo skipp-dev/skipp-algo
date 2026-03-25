@@ -13,7 +13,7 @@ px = ("string ", "int ", "float ", "bool ", "color ", "var ", "OrderBlock ", "FV
 for i, line in enumerate(lines):
     s = line.strip()
     if s.endswith("=>") and not s.startswith("//") and not s.startswith("if ") and not s.startswith("else"):
-        if bc > 0:
+        if bc > 0 and bs is not None:
             blocks.append((bs + 1, i + 1, bc, lines[bs].strip()[:80]))
             bc = 0
             bs = None
@@ -27,12 +27,12 @@ for i, line in enumerate(lines):
             if bs is None:
                 bs = i
             bc += 1
-        elif bc > 0 and not s.startswith("//") and s != "":
+        elif bc > 0 and bs is not None and not s.startswith("//") and s != "":
             blocks.append((bs + 1, i + 1, bc, lines[bs].strip()[:80]))
             bc = 0
             bs = None
 
-if bc > 0:
+if bc > 0 and bs is not None:
     blocks.append((bs + 1, len(lines), bc, lines[bs].strip()[:80]))
 
 blocks.sort(key=lambda x: -x[2])
