@@ -59,6 +59,8 @@ Preferred path:
 2. Use the UI button `Publish To TradingView` to run the contract check, publish the generated library, and run the post-publish core validation.
 3. Review `artifacts/tradingview/library_release_manifest.json` and the emitted publish report for the final release status.
 
+`tv:publish-micro-library` now applies the same hard open-existing requirement as preflight before any editor mutation. If the exact target script cannot be reopened first, the publish run aborts before writing to the editor.
+
 The automated publish report now distinguishes two separate facts:
 
 - `publishedScriptVerified`: the TradingView library script could be reopened after publish

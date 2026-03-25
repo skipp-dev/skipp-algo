@@ -381,6 +381,11 @@ async function main(): Promise<number> {
 
       if (cli.openExisting) {
         openedExistingScript = await openExistingScript(session.page, details.libraryName).catch(() => false);
+        if (!openedExistingScript) {
+          throw new Error(
+            `Could not open existing TradingView script: ${details.libraryName}. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
+          );
+        }
       }
 
       const code = fs.readFileSync(details.libraryPath, "utf-8");

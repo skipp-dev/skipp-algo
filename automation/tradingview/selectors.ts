@@ -72,16 +72,16 @@ export const tvSelectors = {
   },
 
   scriptRow(page: Page, scriptName: string): Locator[] {
-    const [exact, loose, fuzzy] = scriptNamePatterns(scriptName);
+    const [exact, loose] = scriptNamePatterns(scriptName);
+    const dialog = page.locator('[role="dialog"]');
+    const menuInner = page.locator('[data-name="menu-inner"]');
 
     return [
+      dialog.getByText(exact),
+      menuInner.getByText(exact),
       page.getByText(exact),
-      page.getByText(loose),
-      page.getByText(fuzzy),
-      page.locator('[data-name="menu-inner"]').getByText(loose),
-      page.locator('[data-name="menu-inner"]').getByText(fuzzy),
-      page.locator('[role="dialog"]').getByText(loose),
-      page.locator('[role="dialog"]').getByText(fuzzy),
+      dialog.getByText(loose),
+      menuInner.getByText(loose),
     ];
   },
 
