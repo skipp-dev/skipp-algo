@@ -157,5 +157,5 @@ def test_session_boundary_triggers_watchlist_rebuild(monkeypatch) -> None:
     assert called["reload"] == 1
     assert engine._last_prices == {}
     assert engine._quote_hashes == {}
-    assert engine._avg_vol_cache == {}
+    assert engine._avg_vol_cache == {"AAA": 100_000}  # preserved across session boundary (Fix #5)
     assert engine._new_entrant_set == {"AAA"}

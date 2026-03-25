@@ -446,8 +446,10 @@ class AsyncNewsstackPoller:
         self._thread.start()
         logger.info("Async newsstack poller started (interval=%.0fs)", self._interval)
 
-    def stop(self) -> None:
+    def stop(self, timeout: float = 5.0) -> None:
         self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
 
     def latest(self) -> dict[str, dict[str, Any]]:
         """Return the latest newsstack data (never blocks)."""
@@ -1840,33 +1842,6 @@ class RealtimeEngine:
             symbol, level, volume_ratio, abs_change,
         )
 
-        # ── #7  Dynamic cooldown (oscillation-based) ────────────────
-        if level == "A0":
-            # Derive regime label for cooldown: map VolumeRegimeDetector states
-            _vol_regime = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
-            _cd_regime = "THIN" if _vol_regime == "HOLIDAY_SUSPECT" else (
-                "HIGH" if volume_ratio > A0_VOLUME_RATIO_MIN else "NORMAL"
-            )
-            _has_news = bool(_safe_float(watchlist_entry.get("news_catalyst_score"), 0.0) > 0.3)
-
-            is_active, remaining = self._dynamic_cooldown.check_cooldown(
-                symbol, volume_regime=_cd_regime, has_news_catalyst=_has_news,
-            )
-            if is_active:
-                level = "A1"  # cooldown active — downgrade to A1
-                logger.debug(
-                    "Dynamic cooldown active for %s (%.0fs remaining, regime=%s)",
-                    symbol, remaining, _cd_regime,
-                )
-            else:
-                # Require momentum confirmation for A0
-                if prev_price is not None and direction == "LONG" and price <= prev_price:
-                    level = "A1"  # momentum not confirming — keep at A1
-                elif prev_price is not None and direction == "SHORT" and price >= prev_price:
-                    level = "A1"
-                else:
-                    self._dynamic_cooldown.record_transition(symbol, direction)
-
         # ── #12 Technical indicator confirmation/boost/penalty ───────
         tech_data = self._technical_scorer.get_technical_data(symbol, "1D")
         tech_score = tech_data.get("technical_score", 0.5)
@@ -1874,12 +1849,10 @@ class RealtimeEngine:
         tech_rsi = tech_data.get("rsi")
         tech_macd = tech_data.get("macd_signal") or ""
 
-        cooldown_forced = self._dynamic_cooldown.is_cooling(symbol)
-
         if tech_rsi is not None and level:
             if direction == "LONG":
-                # RSI oversold boost — upgrade A1→A0, A2→A1 (only if not in cooldown)
-                if tech_rsi < 30 and level == "A1" and not cooldown_forced:
+                # RSI oversold boost — upgrade A1→A0, A2→A1
+                if tech_rsi < 30 and level == "A1":
                     level = "A0"
                     logger.debug(
                         "%s RSI %.1f < 30 oversold — upgrading A1→A0", symbol, tech_rsi,
@@ -1893,8 +1866,8 @@ class RealtimeEngine:
                         "%s RSI %.1f > 70 overbought — downgrade A0→A1", symbol, tech_rsi,
                     )
             elif direction == "SHORT":
-                # RSI overbought boost for shorts (only if not in cooldown)
-                if tech_rsi > 70 and level == "A1" and not cooldown_forced:
+                # RSI overbought boost for shorts
+                if tech_rsi > 70 and level == "A1":
                     level = "A0"
                     logger.debug(
                         "%s RSI %.1f > 70 overbought — SHORT upgrade A1→A0", symbol, tech_rsi,
@@ -1927,6 +1900,36 @@ class RealtimeEngine:
                 "%s tech_score=%.3f + aligned tech_signal=%s — upgrading A1→A0",
                 symbol, tech_score, tech_signal,
             )
+
+        # ── #7  Final dynamic cooldown gate (after ALL upgrades) ────
+        # This is the single authoritative cooldown check. Every path
+        # that can produce A0 (base thresholds, PDH/PDL breakout,
+        # technicals, RSI boost) runs first; only then do we decide
+        # whether cooldown allows the A0 through.
+        _vol_regime = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
+        _cd_regime = "THIN" if _vol_regime == "HOLIDAY_SUSPECT" else (
+            "HIGH" if volume_ratio > A0_VOLUME_RATIO_MIN else "NORMAL"
+        )
+        _has_news = bool(_safe_float(watchlist_entry.get("news_catalyst_score"), 0.0) > 0.3)
+
+        if level == "A0":
+            is_active, remaining = self._dynamic_cooldown.check_cooldown(
+                symbol, volume_regime=_cd_regime, has_news_catalyst=_has_news,
+            )
+            if is_active:
+                level = "A1"  # cooldown active — downgrade to A1
+                logger.debug(
+                    "Dynamic cooldown active for %s (%.0fs remaining, regime=%s)",
+                    symbol, remaining, _cd_regime,
+                )
+            else:
+                # Require momentum confirmation for A0
+                if prev_price is not None and direction == "LONG" and price <= prev_price:
+                    level = "A1"  # momentum not confirming — keep at A1
+                elif prev_price is not None and direction == "SHORT" and price >= prev_price:
+                    level = "A1"
+                else:
+                    self._dynamic_cooldown.record_transition(symbol, direction)
 
         now = datetime.now(UTC)
         now_iso = now.isoformat()
@@ -2002,7 +2005,9 @@ class RealtimeEngine:
             self._last_prices.clear()
             self._price_history.clear()
             self._quote_hashes.clear()
-            self._avg_vol_cache.clear()
+            # NOTE: _avg_vol_cache is NOT cleared here — reload_watchlist()
+            # prunes symbols no longer on the watchlist, keeping valid
+            # avg-volume data available on the first in-session poll cycle.
             self._earnings_today_cache.clear()
             self._was_outside_market = False
             logger.info("Session boundary — cleared stale _last_prices (%d symbols)", n_cleared)
@@ -2117,10 +2122,15 @@ class RealtimeEngine:
                     # Upgrade A1 → A0 if news catalyst is strong AND
                     # the dynamic cooldown is not active for this symbol.
                     if signal.level in ("A1", "A2") and signal.news_score >= 0.80:
-                        cd_active, _ = self._dynamic_cooldown.check_cooldown(sym)
+                        _vol_regime_ns = self._volume_regime.regime if hasattr(self._volume_regime, "regime") else "NORMAL"
+                        _cd_regime_ns = "THIN" if _vol_regime_ns == "HOLIDAY_SUSPECT" else "NORMAL"
+                        cd_active, _ = self._dynamic_cooldown.check_cooldown(
+                            sym, volume_regime=_cd_regime_ns, has_news_catalyst=True,
+                        )
                         if not cd_active:
                             signal.level = "A0"
                             signal.details["a0_upgrade_reason"] = "news_catalyst"
+                            self._dynamic_cooldown.record_transition(sym, signal.direction)
 
                 # Check if we already have an active signal for this symbol
                 _level_rank = {"A0": 0, "A1": 1, "A2": 2}
@@ -2629,8 +2639,9 @@ def main() -> None:
     )
 
     # Start telemetry HTTP server (daemon thread — auto-stops on exit)
+    telemetry_server: Any = None
     if args.telemetry_port > 0:
-        _start_telemetry_server(engine.telemetry, port=args.telemetry_port)
+        telemetry_server = _start_telemetry_server(engine.telemetry, port=args.telemetry_port)
 
     # Start async newsstack for fast/ultra modes (reduces per-poll latency)
     if args.fast or args.ultra:
@@ -2683,6 +2694,9 @@ def main() -> None:
             # Stop async newsstack thread gracefully
             if engine._async_newsstack is not None:
                 engine._async_newsstack.stop()
+            # Shutdown telemetry HTTP server
+            if telemetry_server is not None:
+                telemetry_server.shutdown()
             break
         except Exception as exc:
             logger.error("Poll error: %s", exc, exc_info=True)

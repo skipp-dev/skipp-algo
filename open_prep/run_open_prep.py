@@ -2191,8 +2191,18 @@ def _fetch_premarket_context(
             premarket[sym].setdefault("analyst_catalyst_score", 0.0)
 
     # --- Extended-hours activity via stable endpoints ---
+    # Split into isolated stages so a failure in one data source
+    # does not discard results already obtained from earlier stages.
+    after_map: dict[str, dict[str, Any]] = {}
+    trade_map: dict[str, dict[str, Any]] = {}
+    prev_close_map: dict[str, float] = {}
+    avg_volume_map: dict[str, float] = {}
+    mover_seed: list[str] = []
+    mover_seed_set: set[str] = set()
+    union_symbols: list[str] = list(symbols)
+
+    # Stage 1: mover seed + union symbol list
     try:
-        # Reuse cached mover seed if available to avoid 3 redundant API calls.
         if cached_mover_seed:
             mover_seed = cached_mover_seed
         else:
@@ -2201,33 +2211,48 @@ def _fetch_premarket_context(
         union_symbols = _normalize_symbols(symbols + mover_seed)
         if len(union_symbols) > MAX_PREMARKET_UNION_SYMBOLS:
             union_symbols = union_symbols[:MAX_PREMARKET_UNION_SYMBOLS]
+    except Exception as exc:
+        logger.warning("Premarket mover seed build failed: %s", exc, exc_info=True)
+        errors.append(f"premarket_mover_seed: {_APIKEY_RE.sub(r'\\1=***', str(exc))}")
 
+    # Stage 2: aftermarket quotes
+    try:
         after_quotes = client.get_batch_aftermarket_quote(union_symbols)
-        after_map: dict[str, dict[str, Any]] = {}
         for row in after_quotes:
             sym = str(row.get("symbol") or "").strip().upper()
             if sym:
                 after_map[sym] = row
+    except Exception as exc:
+        logger.warning("Aftermarket quote fetch failed: %s", exc, exc_info=True)
+        errors.append(f"aftermarket_quote: {_APIKEY_RE.sub(r'\\1=***', str(exc))}")
 
+    # Stage 3: aftermarket trades
+    try:
         after_trades = client.get_batch_aftermarket_trade(union_symbols)
-        trade_map: dict[str, dict[str, Any]] = {}
         for row in after_trades:
             sym = str(row.get("symbol") or "").strip().upper()
             if sym:
                 trade_map[sym] = row
+    except Exception as exc:
+        logger.warning("Aftermarket trade fetch failed: %s", exc, exc_info=True)
+        errors.append(f"aftermarket_trade: {_APIKEY_RE.sub(r'\\1=***', str(exc))}")
 
-        # Fetch spot quotes to derive change % against previousClose.
+    # Stage 4: spot quotes for prev_close and avg_volume
+    try:
         spot_quotes = client.get_batch_quotes(union_symbols)
-        prev_close_map: dict[str, float] = {}
-        avg_volume_map: dict[str, float] = {}
         for row in spot_quotes:
             sym = str(row.get("symbol") or "").strip().upper()
             if not sym:
                 continue
             prev_close_map[sym] = _to_float(row.get("previousClose"), default=0.0)
             avg_volume_map[sym] = _to_float(row.get("avgVolume"), default=0.0)
+    except Exception as exc:
+        logger.warning("Spot quote fetch failed: %s", exc, exc_info=True)
+        errors.append(f"spot_quote: {_APIKEY_RE.sub(r'\\1=***', str(exc))}")
 
-        for sym in symbols:
+    # Stage 5: per-symbol enrichment (defensively per symbol)
+    for sym in symbols:
+        try:
             aq = after_map.get(sym, {})
             at = trade_map.get(sym, {})
 
@@ -2297,17 +2322,23 @@ def _fetch_premarket_context(
             premarket[sym]["premarket_spread_bps"] = None if spread_bps is None else round(spread_bps, 4)
             premarket[sym]["ext_volume_ratio"] = round(ext_vol_ratio, 6)
             premarket[sym]["ext_hours_score"] = ext_hours_score
-    except Exception as exc:
-        logger.warning("Premarket movers fetch failed: %s", exc, exc_info=True)
-        errors.append(f"premarket_movers: {_APIKEY_RE.sub(r'\\1=***', str(exc))}")
-        for sym in symbols:
+        except Exception as exc:
+            logger.debug("Premarket enrichment failed for %s: %s", sym, exc)
             premarket[sym].setdefault("is_premarket_mover", False)
             premarket[sym].setdefault("mover_seed_hit", False)
             premarket[sym].setdefault("premarket_stale", False)
-            premarket[sym].setdefault("premarket_freshness_sec", None)
-            premarket[sym].setdefault("premarket_spread_bps", None)
             premarket[sym].setdefault("ext_volume_ratio", 0.0)
             premarket[sym].setdefault("ext_hours_score", 0.0)
+
+    # Ensure all symbols have default premarket fields (covers upstream fetch failures)
+    for sym in symbols:
+        premarket[sym].setdefault("is_premarket_mover", False)
+        premarket[sym].setdefault("mover_seed_hit", False)
+        premarket[sym].setdefault("premarket_stale", False)
+        premarket[sym].setdefault("premarket_freshness_sec", None)
+        premarket[sym].setdefault("premarket_spread_bps", None)
+        premarket[sym].setdefault("ext_volume_ratio", 0.0)
+        premarket[sym].setdefault("ext_hours_score", 0.0)
 
     error_msg = "; ".join(errors) if errors else None
     return premarket, error_msg
@@ -2843,7 +2874,10 @@ def _atr14_by_symbol(
     missing_symbols = [sym for sym in symbols if sym not in atr_map]
     if missing_symbols:
         workers = max(1, min(int(parallel_workers), max(1, len(missing_symbols))))
-        with ThreadPoolExecutor(max_workers=workers) as executor:
+        atr_timeout = max(_to_float(os.environ.get("OPEN_PREP_ATR_FETCH_TIMEOUT_SECONDS"), default=30.0), 0.0)
+        executor = ThreadPoolExecutor(max_workers=workers)
+        timed_out = False
+        try:
             future_map = {
                 executor.submit(
                     _fetch_symbol_atr,
@@ -2855,22 +2889,29 @@ def _atr14_by_symbol(
                 ): symbol
                 for symbol in missing_symbols
             }
-            for future in as_completed(future_map):
-                symbol = future_map[future]
-                try:
-                    sym, atr_value, momentum_z, vwap_value, avg_vol_fb, err = future.result()
-                    atr_map[sym] = atr_value
-                    momentum_z_map[sym] = momentum_z
-                    vwap_map[sym] = vwap_value
-                    avg_volume_fallback_map[sym] = max(_to_float(avg_vol_fb, default=0.0), 0.0)
-                    if err:
-                        errors[sym] = err
-                except Exception as exc:  # pragma: no cover - defensive catch
-                    atr_map[symbol] = 0.0
-                    momentum_z_map[symbol] = 0.0
-                    vwap_map[symbol] = None
-                    avg_volume_fallback_map[symbol] = 0.0
-                    errors[symbol] = _APIKEY_RE.sub(r"\1=***", str(exc))
+            try:
+                for future in as_completed(future_map, timeout=atr_timeout):
+                    symbol = future_map[future]
+                    try:
+                        sym, atr_value, momentum_z, vwap_value, avg_vol_fb, err = future.result()
+                        atr_map[sym] = atr_value
+                        momentum_z_map[sym] = momentum_z
+                        vwap_map[sym] = vwap_value
+                        avg_volume_fallback_map[sym] = max(_to_float(avg_vol_fb, default=0.0), 0.0)
+                        if err:
+                            errors[sym] = err
+                    except Exception as exc:  # pragma: no cover - defensive catch
+                        atr_map[symbol] = 0.0
+                        momentum_z_map[symbol] = 0.0
+                        vwap_map[symbol] = None
+                        avg_volume_fallback_map[symbol] = 0.0
+                        errors[symbol] = _APIKEY_RE.sub(r"\1=***", str(exc))
+            except FuturesTimeoutError:
+                timed_out = True
+                logger.warning("ATR fetch timed out after %.1fs; continuing with partial (%d/%d).",
+                               atr_timeout, len(atr_map), len(symbols))
+        finally:
+            _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
 
     # Keep deterministic key presence/order compatibility.
     for symbol in symbols:

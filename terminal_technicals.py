@@ -259,6 +259,7 @@ def _tv_throttle() -> None:
     Uses wider spacing for 5 min after a cooldown ends to ease back in.
     """
     global _tv_last_call_ts, _tv_cooldown_ended_at
+    sleep_dur = 0.0
     with _tv_rate_lock:
         now = time.time()
         # Check cooldown FIRST — don't even space-wait if we're blocked
@@ -275,8 +276,13 @@ def _tv_throttle() -> None:
             spacing = _TV_MIN_CALL_SPACING_BASE
         elapsed = now - _tv_last_call_ts
         if elapsed < spacing:
-            time.sleep(spacing - elapsed)
-        _tv_last_call_ts = time.time()
+            sleep_dur = spacing - elapsed
+        # Optimistically update timestamp so concurrent callers don't
+        # compute the same wait.
+        _tv_last_call_ts = now + sleep_dur
+    # Sleep OUTSIDE the lock so other threads aren't blocked
+    if sleep_dur > 0:
+        time.sleep(sleep_dur)
 
 
 def _cache_key(symbol: str, interval: str) -> tuple[str, str]:
@@ -325,6 +331,9 @@ def _fmp_fallback(symbol: str, interval: str, ts: float) -> TechnicalResult | No
     return result
 
 
+_SYMBOL_EXCHANGE_CACHE: dict[str, str] = {}
+
+
 def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
     """Try common US exchanges in priority order.
 
@@ -332,8 +341,16 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
     caller's cooldown logic (``fetch_technicals``) handles back-off.
     No internal retry loop — retrying inside cooldown only generates
     more 429s and extends the ban.
+
+    Caches the successful exchange per symbol so that subsequent calls
+    skip probing and use only one throttle window.
     """
-    for exchange in ("NASDAQ", "NYSE", "AMEX"):
+    cached_exchange = _SYMBOL_EXCHANGE_CACHE.get(symbol)
+    exchanges = ("NASDAQ", "NYSE", "AMEX")
+    if cached_exchange:
+        # Try cached exchange first, then fall through to the others
+        exchanges = (cached_exchange,) + tuple(e for e in exchanges if e != cached_exchange)
+    for exchange in exchanges:
         try:
             _tv_throttle()  # enforces spacing + raises on cooldown
             h = TA_Handler(
@@ -345,6 +362,7 @@ def _try_exchanges(symbol: str, interval_val: str) -> Any | None:
             analysis = h.get_analysis()
             if analysis and analysis.summary:
                 _tv_register_success()
+                _SYMBOL_EXCHANGE_CACHE[symbol] = exchange
                 return analysis
         except Exception as exc:
             _msg = _APIKEY_RE.sub(r"\1=***", str(exc))

@@ -32,6 +32,22 @@ from terminal_poller import ClassifiedItem
 logger = logging.getLogger(__name__)
 
 
+def _dedup_key(d: dict[str, Any]) -> str:
+    """Build a collision-resistant dedup key for a news item.
+
+    When *item_id* is present and non-empty, the key is ``item_id:ticker``.
+    Otherwise fall back to ``ticker|provider|headline`` so that distinct
+    articles for the same ticker are never collapsed into one.
+    """
+    item_id = str(d.get("item_id") or "").strip()
+    ticker = str(d.get("ticker") or "").strip().upper()
+    if item_id:
+        return f"{item_id}:{ticker}"
+    provider = str(d.get("provider") or "").strip()
+    headline = str(d.get("headline") or d.get("title") or "").strip()
+    return f"{ticker}|{provider}|{headline}"
+
+
 # ── JSONL Export for VisiData ───────────────────────────────────
 
 def append_jsonl(item: ClassifiedItem, path: str) -> None:
@@ -64,15 +80,11 @@ def rewrite_jsonl(path: str, items: list[dict[str, Any]]) -> None:
         items,
         key=lambda d: d.get("published_ts") or d.get("updated_ts") or 0,
     )
-    # Deduplicate by item_id:ticker
-    seen_keys: set[str] = set()
-    unique_items: list[dict[str, Any]] = []
+    # Deduplicate — newest-wins (last occurrence in oldest-first order)
+    dedup_map: dict[str, dict[str, Any]] = {}
     for d in sorted_items:
-        key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
-        if key not in seen_keys:
-            seen_keys.add(key)
-            unique_items.append(d)
-    sorted_items = unique_items
+        dedup_map[_dedup_key(d)] = d
+    sorted_items = list(dedup_map.values())
     dest_dir = os.path.dirname(os.path.abspath(path)) or "."
     os.makedirs(dest_dir, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=dest_dir, suffix=".tmp", prefix="rw_")
@@ -108,25 +120,20 @@ def rotate_jsonl(path: str, max_lines: int = 5000, max_age_s: float = 14400.0) -
 
     original_count = len(lines)
 
-    # Age-based filtering + dedup within the file
+    # Age-based filtering + newest-wins dedup within the file
     cutoff = time.time() - max_age_s if max_age_s > 0 else 0.0
-    seen_keys: set[str] = set()
-    deduped_lines: list[str] = []
+    dedup_map: dict[str, str] = {}       # key → raw line (last write wins)
+    unparseable: list[str] = []
     for raw in lines:
         try:
             d = json.loads(raw)
-            # Dedup by item_id:ticker
-            key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
             # Age filter
             if cutoff and (d.get("published_ts") or 0) < cutoff:
                 continue
-            deduped_lines.append(raw)
+            dedup_map[_dedup_key(d)] = raw     # newest-wins: overwrite
         except (json.JSONDecodeError, TypeError):
-            deduped_lines.append(raw)  # keep unparseable lines
-    lines = deduped_lines
+            unparseable.append(raw)             # keep unparseable lines
+    lines = list(dedup_map.values()) + unparseable
 
     # Skip rewrite if nothing changed (no dupes removed, no age filter, within cap)
     if len(lines) == original_count and len(lines) <= max_lines:
@@ -159,8 +166,7 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
     robust than relying on ``reverse()`` of append order, which can
     break if ``rewrite_jsonl`` or ``rotate_jsonl`` reorder lines.
     """
-    result: list[dict[str, Any]] = []
-    seen_keys: set[str] = set()
+    dedup_map: dict[str, dict[str, Any]] = {}
     try:
         with open(path, "r", encoding="utf-8") as f:
             for raw in f:
@@ -171,12 +177,8 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
                     d = json.loads(raw)
                 except json.JSONDecodeError:
                     continue
-                # Deduplicate by item_id:ticker (same key as dedup_merge)
-                key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
-                result.append(d)
+                # Newest-wins dedup with robust key
+                dedup_map[_dedup_key(d)] = d
     except FileNotFoundError:
         return []
     except OSError as exc:
@@ -184,8 +186,9 @@ def load_jsonl_feed(path: str, max_items: int = 500) -> list[dict[str, Any]]:
         # gracefully instead of crashing on Streamlit Cloud.
         logger.warning("load_jsonl_feed: OSError reading %s: %s", path, exc)
         # Return whatever was parsed before the error
-        if not result:
+        if not dedup_map:
             return []
+    result = list(dedup_map.values())
     # Sort by timestamp descending — always correct regardless of
     # on-disk line order (append, rewrite, rotate all may differ).
     result.sort(
@@ -615,8 +618,18 @@ def build_vd_bz_calendar(
             "importance": r.get("importance", ""),
         })
 
-    # Sort by date descending (most recent first)
-    rows.sort(key=lambda x: str(x.get("date", "")), reverse=True)
+    # Sort by date descending (most recent first) — parse to datetime
+    # for correct chronological ordering regardless of string format.
+    def _calendar_sort_key(x: dict[str, Any]) -> float:
+        raw = x.get("date", "")
+        if not raw:
+            return 0.0
+        try:
+            return datetime.fromisoformat(str(raw)).timestamp()
+        except (ValueError, TypeError):
+            return 0.0
+
+    rows.sort(key=_calendar_sort_key, reverse=True)
     return rows
 
 
