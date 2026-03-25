@@ -59,6 +59,8 @@ npm run tv:preflight
 npm run tv:publish-micro-library
 ```
 
+The TradingView publish flow is fail-closed: reopening the published script must resolve the exact script identity from canonical editor context, and body-level version text is retained only as diagnostic fallback. The legacy `scripts/99_full_release.ts` path is intentionally blocked.
+
 Required environment variables for automation jobs:
 
 - `TV_STORAGE_STATE`

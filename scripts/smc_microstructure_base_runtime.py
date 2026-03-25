@@ -1297,6 +1297,15 @@ def resolve_base_csv_selection(candidates: list[Path], selected_label: str | Non
     return next((path for path in candidates if path.name == selected), None)
 
 
+def resolve_base_csv_action_target(candidates: list[Path], selected_label: str | None) -> tuple[Path | None, str | None]:
+    selected = resolve_base_csv_selection(candidates, selected_label)
+    if not candidates:
+        return None, "No generated base CSV found yet. Run the SMC base scan first."
+    if len(candidates) > 1 and selected is None:
+        return None, "Select an explicit generated base CSV before generating or publishing Pine artifacts."
+    return selected, None
+
+
 def run_streamlit_micro_base_app() -> None:
     import os
     import streamlit as st
@@ -1378,12 +1387,16 @@ def run_streamlit_micro_base_app() -> None:
     selected_base_csv = resolve_base_csv_selection(base_csv_candidates, selected_base_csv_label)
     if base_csv_requires_explicit_selection and selected_base_csv is None:
         st.info("Multiple generated base snapshots were found. Select the exact base CSV before generating or publishing Pine artifacts.")
+    action_base_csv, action_base_csv_error = resolve_base_csv_action_target(base_csv_candidates, selected_base_csv_label)
 
     action_cols = st.columns(4)
     run_base_scan = action_cols[0].button("Run SMC Base Scan", type="primary")
     refresh_base_scan = action_cols[1].button("Refresh Data")
     generate_pine = action_cols[2].button("Generate Pine Library")
-    publish_pine = action_cols[3].button("Publish To TradingView", disabled=not bool(publish_guard["can_publish"]))
+    publish_pine = action_cols[3].button(
+        "Publish To TradingView",
+        disabled=not bool(publish_guard["can_publish"]) or action_base_csv_error is not None,
+    )
 
     if publish_guard["severity"] == "error":
         st.error(str(publish_guard["message"]))
@@ -1456,15 +1469,12 @@ def run_streamlit_micro_base_app() -> None:
                 st.success(success_message)
 
     if generate_pine:
-        if selected_base_csv is None:
-            if base_csv_candidates:
-                st.error("Select an explicit generated base CSV before generating Pine artifacts.")
-            else:
-                st.error("No generated base CSV found yet. Run the SMC base scan first.")
+        if action_base_csv is None:
+            st.error(str(action_base_csv_error))
         else:
             try:
                 pine_result = generate_pine_library_from_base(
-                    base_csv_path=selected_base_csv,
+                    base_csv_path=action_base_csv,
                     schema_path=schema_path,
                     output_root=repo_root,
                     overrides_path=overrides_path if overrides_path.exists() else None,
@@ -1476,7 +1486,7 @@ def run_streamlit_micro_base_app() -> None:
                 st.error(f"Pine generation failed: {type(exc).__name__}: {exc}")
             else:
                 st.session_state["smc_pine_result"] = pine_result
-                add_log(f"Pine library generated from {selected_base_csv}")
+                add_log(f"Pine library generated from {action_base_csv}")
                 st.success("Pine library artifacts generated. TradingView publish can now be triggered from this UI.")
 
     if publish_pine:
@@ -1485,6 +1495,8 @@ def run_streamlit_micro_base_app() -> None:
         status.write("Step 1/3: Verifying manifest, generated snippet, and SMC core import contract...")
         add_log("TradingView micro-library publish started.")
         try:
+            if action_base_csv is None:
+                raise RuntimeError(str(action_base_csv_error))
             if not publish_guard["can_publish"]:
                 raise RuntimeError(str(publish_guard["message"]))
             publish_result = publish_micro_library_to_tradingview(

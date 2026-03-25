@@ -62,8 +62,12 @@ Preferred path:
 The automated publish report now distinguishes two separate facts:
 
 - `publishedScriptVerified`: the TradingView library script could be reopened after publish
-- `publishVerificationMode`: publish proof is only release-green when the reopened script context proves the expected version; `body_fallback` is diagnostic only and fails closed
+- `publishVerificationMode`: publish proof is only release-green when the reopened script identity matches exactly in canonical editor context and that same context proves the expected version; `body_fallback` is diagnostic only and fails closed
 - `repoCoreValidationReport`: the local repo core consumer was revalidated in mutating preflight mode after publish
+
+Legacy note:
+
+- `scripts/99_full_release.ts` is intentionally reduced to a hard-fail stub and is not a supported release path.
 
 Fallback manual path:
 

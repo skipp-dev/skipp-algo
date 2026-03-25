@@ -18,6 +18,7 @@ from scripts.smc_microstructure_base_runtime import (
     evaluate_micro_library_publish_guard,
     generate_base_from_bundle,
     list_generated_base_csvs,
+    resolve_base_csv_action_target,
     resolve_base_csv_selection,
 )
 
@@ -262,6 +263,28 @@ def test_generate_base_from_bundle_writes_artifacts(tmp_path: Path) -> None:
     assert output_paths["mapping_md"].exists()
     assert output_paths["mapping_json"].exists()
     assert output_paths["base_manifest"].exists()
+
+
+def test_resolve_base_csv_action_target_requires_explicit_choice_for_multiple_candidates(tmp_path: Path) -> None:
+    older = tmp_path / "older__smc_microstructure_base_2026-03-20.csv"
+    newer = tmp_path / "newer__smc_microstructure_base_2026-03-21.csv"
+    older.write_text("a", encoding="utf-8")
+    newer.write_text("b", encoding="utf-8")
+
+    selected, error = resolve_base_csv_action_target([newer, older], None)
+
+    assert selected is None
+    assert error == "Select an explicit generated base CSV before generating or publishing Pine artifacts."
+
+
+def test_resolve_base_csv_action_target_allows_single_candidate_without_manual_choice(tmp_path: Path) -> None:
+    only = tmp_path / "only__smc_microstructure_base_2026-03-21.csv"
+    only.write_text("a", encoding="utf-8")
+
+    selected, error = resolve_base_csv_action_target([only], None)
+
+    assert selected == only
+    assert error is None
 
 
 def test_resolve_base_csv_selection_requires_explicit_choice_when_multiple_candidates(tmp_path: Path) -> None:

@@ -267,8 +267,11 @@ test("legacy full release path is no longer an official production entry point",
   const packageJson = JSON.parse(
     fs.readFileSync(path.resolve("package.json"), "utf-8"),
   ) as { scripts?: Record<string, string> };
+  const legacyScript = fs.readFileSync(path.resolve("scripts/99_full_release.ts"), "utf-8");
 
   assert.equal("tv:full-release" in (packageJson.scripts ?? {}), false);
+  assert.match(legacyScript, /deprecated and blocked/);
+  assert.equal(legacyScript.includes("publishPrivateScript"), false);
 });
 
 test("readonly preflight never counts as repo-source compile evidence", () => {

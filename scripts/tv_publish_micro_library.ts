@@ -433,7 +433,9 @@ async function main(): Promise<number> {
       ok: repoCoreValidation.ok,
       contractOk: true,
       publishAttempted,
-      publishOk: publishedScriptVerified && publishedVersion === details.libraryVersion,
+      publishOk: publishedScriptVerified
+        && publishVerificationMode === "script_context"
+        && publishedVersion === details.libraryVersion,
       openedExistingScript,
       publishedScriptVerified,
       publishVerificationMode,

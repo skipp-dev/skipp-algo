@@ -132,7 +132,9 @@ test("scriptNameAppearsInUiText matches normalized UI text", () => {
 test("uiTextContainsExactScriptName rejects similar names", () => {
   assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine"), true);
   assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core"), false);
-  assert.equal(uiTextContainsExactScriptName("SMC Core", "SMC Core Engine"), true);
+  assert.equal(uiTextContainsExactScriptName("SMC Core", "SMC Core Engine"), false);
+  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine Copy"), false);
+  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine - backup"), false);
 });
 
 test("verifyOpenScriptIdentity fails when dialog closes but wrong script is open", () => {
@@ -154,9 +156,17 @@ test("verifyOpenScriptIdentity fails for similar-name match only", () => {
 test("verifyOpenScriptIdentity passes for exact name in editor context", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,
-    editorContextTexts: ["Editor Header SMC Core Engine"],
+    editorContextTexts: ["SMC Core Engine"],
     bodyText: "Workspace body SMC Core Engine",
   }), true);
+});
+
+test("verifyOpenScriptIdentity fails closed on conflicting canonical editor context", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "SMC Dashboard"],
+    bodyText: "Workspace body SMC Core Engine",
+  }), false);
 });
 
 test("verifyOpenScriptIdentity fails when body text matches accidentally but editor context is missing", () => {
@@ -181,6 +191,23 @@ test("detectPublishedVersionFromContextTexts only accepts target-script context"
   assert.equal(detectPublishedVersionFromContextTexts([
     "Generic publish version 7 successfully.",
   ], "SMC Core Engine"), null);
+});
+
+test("detectPublishedVersionFromContextTexts fails closed on multiple target versions", () => {
+  assert.equal(detectPublishedVersionFromContextTexts([
+    "Published SMC Core Engine version 7 successfully.",
+    "Published SMC Core Engine version 8 successfully.",
+  ], "SMC Core Engine"), null);
+});
+
+test("detectPublishedVersionFromBody fails closed on multiple target versions", () => {
+  assert.equal(
+    detectPublishedVersionFromBody(
+      "Published SMC Core Engine version 7 successfully. Later dialog repeated SMC Core Engine version 8.",
+      "SMC Core Engine",
+    ),
+    null,
+  );
 });
 
 test("resolvePublishedVersionEvidence marks generic body-only evidence as fallback", () => {
@@ -212,6 +239,21 @@ test("resolvePublishedVersionEvidence fails closed when no reliable evidence exi
     scriptName: "SMC Core Engine",
     contextTexts: [],
     bodyText: "Published successfully.",
+  }), {
+    publishedVersion: null,
+    verificationMode: "not_verified",
+    fallbackVersion: null,
+  });
+});
+
+test("resolvePublishedVersionEvidence fails closed on conflicting script-context versions", () => {
+  assert.deepEqual(resolvePublishedVersionEvidence({
+    scriptName: "SMC Core Engine",
+    contextTexts: [
+      "Published SMC Core Engine version 7 successfully.",
+      "Published SMC Core Engine version 8 successfully.",
+    ],
+    bodyText: "Release notes version 99.",
   }), {
     publishedVersion: null,
     verificationMode: "not_verified",

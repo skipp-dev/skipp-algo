@@ -126,16 +126,19 @@ function compactUiText(value: string): string {
   return normalizeUiText(value).replace(/[^a-z0-9]+/gi, "").toLowerCase();
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function buildScriptNamePatterns(scriptName: string): RegExp[] {
-  const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const normalizedWords = scriptName
     .split(/\s+/)
     .map((part) => part.trim())
     .filter(Boolean);
-  const exact = new RegExp(`^${escape(scriptName)}$`, "i");
-  const loose = new RegExp(escape(scriptName), "i");
+  const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
+  const loose = new RegExp(escapeRegex(scriptName), "i");
   const fuzzy = normalizedWords.length > 0
-    ? new RegExp(normalizedWords.map((part) => escape(part.slice(0, Math.min(part.length, 4)))).join(".*"), "i")
+    ? new RegExp(normalizedWords.map((part) => escapeRegex(part.slice(0, Math.min(part.length, 4)))).join(".*"), "i")
     : loose;
 
   return [exact, loose, fuzzy];
@@ -519,15 +522,102 @@ export function scriptNameAppearsInUiText(scriptName: string, uiText: string): b
     || compactText.includes(compactScriptName);
 }
 
+function buildAnchoredScriptNamePattern(scriptName: string): RegExp | null {
+  const normalizedScriptName = normalizeUiText(scriptName);
+  if (!normalizedScriptName) {
+    return null;
+  }
+
+  return new RegExp(`(^|[^a-z0-9])${escapeRegex(normalizedScriptName)}(?=$|[^a-z0-9])`, "i");
+}
+
+function uniqueNormalizedTexts(values: string[]): string[] {
+  return [...new Set(values.map((value) => normalizeUiText(value)).filter(Boolean))];
+}
+
+function collectPublishedVersionsFromBody(bodyText: string, scriptName?: string): number[] {
+  const normalizedBody = normalizeUiText(bodyText);
+  if (!normalizedBody) {
+    return [];
+  }
+
+  const versions = new Set<number>();
+  if (!scriptName) {
+    for (const match of normalizedBody.matchAll(/\bversion\s+(\d+)\b/gi)) {
+      const version = Number(match[1]);
+      if (Number.isFinite(version)) {
+        versions.add(version);
+      }
+    }
+    return [...versions];
+  }
+
+  const anchoredPattern = buildAnchoredScriptNamePattern(scriptName);
+  if (!anchoredPattern) {
+    return [];
+  }
+
+  const versionPattern = new RegExp(`${anchoredPattern.source}.{0,240}?\\bversion\\s+(\\d+)\\b`, "gi");
+  for (const match of normalizedBody.matchAll(versionPattern)) {
+    const version = Number(match[2]);
+    if (Number.isFinite(version)) {
+      versions.add(version);
+    }
+  }
+
+  return [...versions];
+}
+
+function collectPublishedVersionsFromContextTexts(contextTexts: string[], scriptName?: string): number[] {
+  const normalizedTexts = uniqueNormalizedTexts(contextTexts);
+  if (normalizedTexts.length === 0) {
+    return [];
+  }
+
+  const versions = new Set<number>();
+  const anchoredPattern = scriptName ? buildAnchoredScriptNamePattern(scriptName) : null;
+  for (const candidate of normalizedTexts) {
+    if (scriptName && anchoredPattern && !anchoredPattern.test(candidate)) {
+      continue;
+    }
+
+    for (const match of candidate.matchAll(/\bversion\s+(\d+)\b/gi)) {
+      const version = Number(match[1]);
+      if (Number.isFinite(version)) {
+        versions.add(version);
+      }
+    }
+  }
+
+  return [...versions];
+}
+
+function hasConflictingCanonicalEditorContext(scriptName: string, editorContextTexts: string[]): boolean {
+  const normalizedScriptName = normalizeUiText(scriptName).toLowerCase();
+  const anchoredPattern = buildAnchoredScriptNamePattern(scriptName);
+  if (!normalizedScriptName || !anchoredPattern) {
+    return false;
+  }
+
+  return uniqueNormalizedTexts(editorContextTexts).some((candidate) => {
+    const normalizedCandidate = candidate.toLowerCase();
+    if (normalizedCandidate === normalizedScriptName) {
+      return false;
+    }
+    if (anchoredPattern.test(candidate)) {
+      return false;
+    }
+    return /^[a-z0-9_+.-]+(?: [a-z0-9_+.-]+){0,7}$/i.test(candidate);
+  });
+}
+
 export function uiTextContainsExactScriptName(scriptName: string, uiText: string): boolean {
   const normalizedScriptName = normalizeUiText(scriptName);
   if (!normalizedScriptName) {
     return false;
   }
 
-  return normalizeUiText(uiText)
-    .toLowerCase()
-    .includes(normalizedScriptName.toLowerCase());
+  return normalizeUiText(uiText).toLowerCase() === normalizedScriptName.toLowerCase();
 }
 
 function stripInlineComment(line: string): string {
@@ -590,8 +680,7 @@ export function verifyOpenScriptIdentity(scriptName: string, options: {
     return false;
   }
 
-  const bodyText = options.bodyText ?? "";
-  if (bodyText && !scriptNameAppearsInUiText(scriptName, bodyText)) {
+  if (hasConflictingCanonicalEditorContext(scriptName, options.editorContextTexts)) {
     return false;
   }
 
@@ -599,75 +688,13 @@ export function verifyOpenScriptIdentity(scriptName: string, options: {
 }
 
 export function detectPublishedVersionFromBody(bodyText: string, scriptName?: string): number | null {
-  const normalizedBody = normalizeUiText(bodyText);
-  if (!scriptName) {
-    const genericMatch = normalizedBody.match(/\bversion\s+(\d+)\b/i);
-    if (!genericMatch) {
-      return null;
-    }
-    const genericVersion = Number(genericMatch[1]);
-    return Number.isFinite(genericVersion) ? genericVersion : null;
-  }
-
-  const normalizedScriptName = normalizeUiText(scriptName);
-  const scriptIndex = normalizedBody.toLowerCase().indexOf(normalizedScriptName.toLowerCase());
-  if (scriptIndex === -1) {
-    return null;
-  }
-
-  const afterScript = normalizedBody.slice(scriptIndex, scriptIndex + 240);
-  const versionAfterScript = afterScript.match(/\bversion\s+(\d+)\b/i);
-  if (versionAfterScript) {
-    const version = Number(versionAfterScript[1]);
-    if (Number.isFinite(version)) {
-      return version;
-    }
-  }
-
-  return null;
+  const versions = collectPublishedVersionsFromBody(bodyText, scriptName);
+  return versions.length === 1 ? versions[0] : null;
 }
 
 export function detectPublishedVersionFromContextTexts(contextTexts: string[], scriptName?: string): number | null {
-  const normalizedTexts = contextTexts.map((text) => normalizeUiText(text)).filter(Boolean);
-  if (normalizedTexts.length === 0) {
-    return null;
-  }
-
-  if (!scriptName) {
-    for (const candidate of normalizedTexts) {
-      const match = candidate.match(/\bversion\s+(\d+)\b/i);
-      if (!match) {
-        continue;
-      }
-      const version = Number(match[1]);
-      if (Number.isFinite(version)) {
-        return version;
-      }
-    }
-    return null;
-  }
-
-  for (const candidate of normalizedTexts) {
-    if (!uiTextContainsExactScriptName(scriptName, candidate)) {
-      continue;
-    }
-    const normalizedScriptName = normalizeUiText(scriptName);
-    const scriptIndex = candidate.toLowerCase().indexOf(normalizedScriptName.toLowerCase());
-    if (scriptIndex === -1) {
-      continue;
-    }
-    const afterScript = candidate.slice(scriptIndex, scriptIndex + 240);
-    const match = afterScript.match(/\bversion\s+(\d+)\b/i);
-    if (!match) {
-      continue;
-    }
-    const version = Number(match[1]);
-    if (Number.isFinite(version)) {
-      return version;
-    }
-  }
-
-  return null;
+  const versions = collectPublishedVersionsFromContextTexts(contextTexts, scriptName);
+  return versions.length === 1 ? versions[0] : null;
 }
 
 export function resolvePublishedVersionEvidence(options: {
@@ -679,21 +706,29 @@ export function resolvePublishedVersionEvidence(options: {
   verificationMode: "script_context" | "body_fallback" | "not_verified";
   fallbackVersion: number | null;
 } {
-  const contextVersion = detectPublishedVersionFromContextTexts(options.contextTexts, options.scriptName);
-  if (contextVersion !== null) {
+  const contextVersions = collectPublishedVersionsFromContextTexts(options.contextTexts, options.scriptName);
+  if (contextVersions.length === 1) {
     return {
-      publishedVersion: contextVersion,
+      publishedVersion: contextVersions[0],
       verificationMode: "script_context",
       fallbackVersion: null,
     };
   }
 
-  const fallbackVersion = detectPublishedVersionFromBody(options.bodyText, options.scriptName);
-  if (fallbackVersion !== null) {
+  if (contextVersions.length > 1) {
     return {
-      publishedVersion: fallbackVersion,
+      publishedVersion: null,
+      verificationMode: "not_verified",
+      fallbackVersion: null,
+    };
+  }
+
+  const fallbackVersions = collectPublishedVersionsFromBody(options.bodyText, options.scriptName);
+  if (fallbackVersions.length === 1) {
+    return {
+      publishedVersion: fallbackVersions[0],
       verificationMode: "body_fallback",
-      fallbackVersion,
+      fallbackVersion: fallbackVersions[0],
     };
   }
 
