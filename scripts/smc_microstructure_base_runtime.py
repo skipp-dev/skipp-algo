@@ -228,6 +228,9 @@ REGULAR_MINUTES = 390
 MIDDAY_MINUTES = 180
 AFTERHOURS_MINUTES = 240
 
+# Each keyword starts with a space to avoid matching prefix-only company names
+# (e.g., "ETFMG..." would not match " ETF"). Names that begin with the keyword
+# (no preceding word) are intentionally excluded from the ETF heuristic.
 ETF_KEYWORDS = (
     " ETF",
     " TRUST",
@@ -574,7 +577,7 @@ def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
         return 0.0
     first_bucket = float(bucket_dollar.iloc[0])
     if first_bucket <= 0:
-        return float(max(len(bucket_dollar), 1))
+        return 0.0
     threshold = first_bucket * 0.5
     later = bucket_dollar.iloc[1:]
     hit = later[later <= threshold]
@@ -911,6 +914,14 @@ def build_base_snapshot_from_bundle_payload(
     resolved_asof = asof_date or str(symbol_day_features["trade_date"].dropna().max())
     if not resolved_asof:
         raise RuntimeError("Unable to resolve asof_date from bundle symbol-day features")
+    resolved_date = date.fromisoformat(resolved_asof)
+    days_stale = (date.today() - resolved_date).days
+    if days_stale > 5:
+        warnings.warn(
+            f"Bundle asof_date is {days_stale} trading days old ({resolved_asof}). "
+            "The generated Pine library will reflect stale microstructure data.",
+            stacklevel=2,
+        )
 
     trailing = symbol_day_features.loc[symbol_day_features["trade_date"] <= resolved_asof].copy()
     trailing = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(20)
@@ -919,6 +930,15 @@ def build_base_snapshot_from_bundle_payload(
     rows: list[dict[str, Any]] = []
     for symbol, group in trailing.groupby("symbol", sort=True):
         latest_row = latest.loc[latest["symbol"] == symbol].iloc[0]
+        coverage_days = int(group["trade_date"].nunique())
+        coverage_days_min = 3  # Minimum sessions for meaningful 20d metrics
+        if coverage_days < coverage_days_min:
+            logger.warning(
+                "Symbol %s has only %d trading days in trailing window; "
+                "20d metrics are not statistically meaningful.",
+                symbol,
+                coverage_days,
+            )
         daily_close = pd.to_numeric(group.get("day_close"), errors="coerce")
         day_volume = pd.to_numeric(group.get("day_volume"), errors="coerce")
         adv_fallback = (daily_close * day_volume).replace([np.inf, -np.inf], np.nan)
@@ -935,7 +955,7 @@ def build_base_snapshot_from_bundle_payload(
                     infer_asset_type(str(latest_row.get("company_name") or ""), str(latest_row.get("asset_type") or "")),
                     _safe_float(latest_row.get("market_cap"), default=np.nan),
                 ),
-                "history_coverage_days_20d": int(group["trade_date"].nunique()),
+                "history_coverage_days_20d": coverage_days,
                 "adv_dollar_rth_20d": _mean_or_default(adv_dollar, default=0.0),
                 "avg_spread_bps_rth_20d": _mean_or_default(group["daily_avg_spread_bps_rth"], default=0.0),
                 "rth_active_minutes_share_20d": _clip01(_mean_or_default(group["daily_rth_active_minutes_share"], default=0.0)),
@@ -1061,6 +1081,7 @@ def write_base_manifest(
     mapping_json_path: Path,
     library_owner: str,
     library_version: int,
+    core_ready: bool = False,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -1072,7 +1093,7 @@ def write_base_manifest(
         "mapping_md_path": str(mapping_md_path),
         "mapping_json_path": str(mapping_json_path),
         "recommended_library_import": f"{library_owner}/smc_micro_profiles_generated/{library_version}",
-        "core_ready": True,
+        "core_ready": core_ready,
         "tradingview_publish_required": True,
         "tradingview_publish_note": "The Pine library artifact is ready for manual TradingView publish; SMC_Core_Engine already imports the generated library path.",
     }
@@ -1152,6 +1173,7 @@ def generate_base_from_bundle(
         mapping_json_path=output_paths["mapping_json"],
         library_owner=library_owner,
         library_version=library_version,
+        core_ready=False,
     )
     return {
         "bundle_manifest_path": Path(bundle_payload["manifest_path"]),
@@ -1368,11 +1390,19 @@ def run_streamlit_micro_base_app() -> None:
     export_dir = Path(export_dir_raw).expanduser()
     schema_path = repo_root / "schema" / "schema.json"
     overrides_path = repo_root / "data" / "input" / "microstructure_overrides.csv"
-    publish_guard = evaluate_micro_library_publish_guard(
-        repo_root=repo_root,
-        library_owner=str(library_owner),
-        library_version=int(library_version),
-    )
+    try:
+        publish_guard = evaluate_micro_library_publish_guard(
+            repo_root=repo_root,
+            library_owner=str(library_owner),
+            library_version=int(library_version),
+        )
+    except Exception as exc:
+        publish_guard = {
+            "can_publish": False,
+            "message": f"Publish guard evaluation failed: {exc}",
+            "severity": "error",
+            "contract": {},
+        }
     base_csv_candidates = list_generated_base_csvs(export_dir)
     base_csv_option_labels = [path.name for path in base_csv_candidates]
     base_csv_requires_explicit_selection = len(base_csv_candidates) > 1
