@@ -8,7 +8,6 @@ configurable TTL.
 
 from __future__ import annotations
 
-import atexit
 import logging
 import os
 import threading
@@ -16,16 +15,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from open_prep.macro import FMPClient
+
 log = logging.getLogger(__name__)
 
 # ── Optional deps ────────────────────────────────────────────────
-try:
-    import httpx  # type: ignore[import-untyped]
-
-    _HTTPX_AVAILABLE = True
-except ImportError:
-    _HTTPX_AVAILABLE = False
-
 try:
     import yfinance as yf  # type: ignore[import-untyped]
 
@@ -37,43 +31,15 @@ try:
 except ImportError:
     _YF_AVAILABLE = False
 
-# ── FMP base URL & client ────────────────────────────────────────
-_FMP_BASE = "https://financialmodelingprep.com"
-_fmp_client: httpx.Client | None = None
-_fmp_client_lock = threading.Lock()
-_APIKEY_RE = __import__("re").compile(r"(apikey|api_key|token|key)=[^&\s]+", __import__("re").IGNORECASE)
+# ── FMP shared client ────────────────────────────────────────────
 
 
-def _get_fmp_client() -> httpx.Client | None:
-    global _fmp_client
-    if _fmp_client is None and _HTTPX_AVAILABLE:
-        with _fmp_client_lock:
-            if _fmp_client is None:
-                _fmp_client = httpx.Client(timeout=10.0)
-                atexit.register(_fmp_client.close)
-    return _fmp_client
+def _make_fmp_client(api_key: str) -> FMPClient:
+    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=10.0)
 
 
 def _fmp_key() -> str:
     return os.environ.get("FMP_API_KEY", "")
-
-
-def _fmp_get(path: str, **params: Any) -> list[dict] | dict | None:
-    """GET from FMP /stable/ API.  Returns parsed JSON or None on error."""
-    key = _fmp_key()
-    if not key:
-        return None
-    client = _get_fmp_client()
-    if client is None:
-        return None
-    params["apikey"] = key
-    try:
-        r = client.get(f"{_FMP_BASE}{path}", params=params)
-        r.raise_for_status()
-        return r.json()  # type: ignore[no-any-return]
-    except Exception as exc:
-        log.debug("FMP %s failed: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)))
-        return None
 
 
 # ── Rating label mapping ────────────────────────────────────────
@@ -239,17 +205,16 @@ _NO_FUNDAMENTALS_SYMBOLS: set[str] = {
 
 def _fetch_fmp(sym: str) -> ForecastResult | None:
     """Try fetching forecast data from FMP /stable/ endpoints."""
-    if not _fmp_key():
+    api_key = _fmp_key()
+    if not api_key:
         return None
+    client = _make_fmp_client(api_key)
 
     result = ForecastResult(symbol=sym, ts=time.time(), source="fmp")
     got_anything = False
 
     # Fetch profile early — needed for current price AND ETF detection
-    _profile: dict[str, Any] = {}
-    q = _fmp_get("/stable/profile", symbol=sym)
-    if isinstance(q, list) and q:
-        _profile = q[0]
+    _profile = client.get_company_profile(sym)
 
     # ETF / fund check — these have no analyst forecasts
     if _profile.get("isEtf") or _profile.get("isFund"):
@@ -258,9 +223,9 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
         return result
 
     # 1) Price Target Consensus
-    pt_data = _fmp_get("/stable/price-target-consensus", symbol=sym)
-    if isinstance(pt_data, list) and pt_data:
-        d = pt_data[0]
+    pt_data = client.get_price_target_consensus(sym)
+    if pt_data:
+        d = pt_data
         current = float(_profile.get("price", 0))
 
         result.price_target = PriceTarget(
@@ -273,9 +238,9 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
         got_anything = True
 
         # Enrich with price-target-summary
-        pts_data = _fmp_get("/stable/price-target-summary", symbol=sym)
-        if isinstance(pts_data, list) and pts_data:
-            s = pts_data[0]
+        pts_data = client.get_price_target_summary(sym)
+        if pts_data:
+            s = pts_data
             result.price_target.last_month_avg = float(s.get("lastMonthAvgPriceTarget", 0))
             result.price_target.last_month_count = int(s.get("lastMonthCount", 0))
             result.price_target.last_quarter_avg = float(s.get("lastQuarterAvgPriceTarget", 0))
@@ -284,9 +249,9 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
             result.price_target.last_year_count = int(s.get("lastYearCount", 0))
 
     # 2) Grades Consensus (analyst ratings)
-    gc_data = _fmp_get("/stable/grades-consensus", symbol=sym)
-    if isinstance(gc_data, list) and gc_data:
-        d = gc_data[0]
+    gc_data = client.get_grades_consensus(sym)
+    if gc_data:
+        d = gc_data
         result.rating = AnalystRating(
             strong_buy=int(d.get("strongBuy", 0)),
             buy=int(d.get("buy", 0)),
@@ -298,8 +263,8 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
         got_anything = True
 
     # 3) Analyst Estimates (quarterly EPS)
-    ae_data = _fmp_get("/stable/analyst-estimates", symbol=sym, period="quarter", limit=8)
-    if isinstance(ae_data, list) and ae_data:
+    ae_data = client.get_analyst_estimates(sym, period="quarter", limit=8)
+    if ae_data:
         for d in ae_data:
             date_str = d.get("date", "")
             result.eps_estimates.append(EPSEstimate(
@@ -314,8 +279,8 @@ def _fetch_fmp(sym: str) -> ForecastResult | None:
         got_anything = True
 
     # 4) Grades (individual upgrades/downgrades)
-    gr_data = _fmp_get("/stable/grades", symbol=sym, limit=15)
-    if isinstance(gr_data, list) and gr_data:
+    gr_data = client.get_upgrades_downgrades(sym)[:15]
+    if gr_data:
         for d in gr_data:
             result.upgrades_downgrades.append(UpgradeDowngrade(
                 date=str(d.get("date", ""))[:10],

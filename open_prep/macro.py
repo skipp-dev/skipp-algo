@@ -865,6 +865,7 @@ class FMPClient:
         symbol: str | None = None,
         date_from: date | None = None,
         date_to: date | None = None,
+        limit: int | None = None,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {}
         if symbol:
@@ -873,6 +874,8 @@ class FMPClient:
             params["from"] = date_from.isoformat()
         if date_to is not None:
             params["to"] = date_to.isoformat()
+        if limit is not None:
+            params["limit"] = max(int(limit), 1)
         try:
             data = self._get("/stable/grades", params)
         except RuntimeError:
@@ -953,6 +956,25 @@ class FMPClient:
                     return dict(row)
         return {}
 
+    def get_price_target_consensus(self, symbol: str) -> dict[str, Any]:
+        requested_symbol = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/price-target-consensus", {"symbol": requested_symbol})
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("symbol") or "").strip().upper() == requested_symbol:
+                    return dict(row)
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
     def get_price_target_summary(self, symbol: str) -> dict[str, Any]:
         requested_symbol = str(symbol).strip().upper()
         try:
@@ -971,6 +993,37 @@ class FMPClient:
                 if isinstance(row, dict):
                     return dict(row)
         return {}
+
+    def get_grades_consensus(self, symbol: str) -> dict[str, Any]:
+        requested_symbol = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/grades-consensus", {"symbol": requested_symbol})
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("symbol") or "").strip().upper() == requested_symbol:
+                    return dict(row)
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
+    def get_analyst_estimates(self, symbol: str, *, period: str = "quarter", limit: int = 8) -> list[dict[str, Any]]:
+        params = {
+            "symbol": str(symbol).strip().upper(),
+            "period": str(period).strip() or "quarter",
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/analyst-estimates", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
 
     def get_earnings_report(self, symbol: str, limit: int = 12) -> list[dict[str, Any]]:
         params = {

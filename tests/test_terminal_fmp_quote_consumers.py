@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 from terminal_fmp_insights import fetch_fmp_profiles, fetch_fmp_quotes, fetch_fmp_ratios
+from terminal_forecast import _fetch_fmp
 from terminal_fmp_technicals import _fetch_price
 from terminal_poller import (
     fetch_defense_watchlist,
@@ -196,6 +198,69 @@ def test_fetch_fmp_profiles_fail_soft_on_client_error() -> None:
         rows = fetch_fmp_profiles("key", ["aapl"])
 
     assert rows == []
+
+
+def test_terminal_forecast_uses_shared_client_paths() -> None:
+    with patch.dict(os.environ, {"FMP_API_KEY": "key"}, clear=False), patch(
+        "terminal_forecast.FMPClient.get_company_profile",
+        autospec=True,
+        return_value={"symbol": "AAPL", "price": 123.45},
+    ) as mock_profile, patch(
+        "terminal_forecast.FMPClient.get_price_target_consensus",
+        autospec=True,
+        return_value={"symbol": "AAPL", "targetHigh": 180, "targetLow": 140, "targetConsensus": 160, "targetMedian": 158},
+    ) as mock_pt, patch(
+        "terminal_forecast.FMPClient.get_price_target_summary",
+        autospec=True,
+        return_value={"symbol": "AAPL", "lastMonthAvgPriceTarget": 159, "lastMonthCount": 3},
+    ) as mock_pt_summary, patch(
+        "terminal_forecast.FMPClient.get_grades_consensus",
+        autospec=True,
+        return_value={"symbol": "AAPL", "strongBuy": 5, "buy": 10, "hold": 3, "sell": 1, "strongSell": 0, "consensus": "Buy"},
+    ) as mock_grades_consensus, patch(
+        "terminal_forecast.FMPClient.get_analyst_estimates",
+        autospec=True,
+        return_value=[{"date": "2026-06-30", "epsAvg": 2.5, "epsLow": 2.1, "epsHigh": 2.9, "numAnalystsEps": 14, "revenueAvg": 100.0, "ebitdaAvg": 50.0}],
+    ) as mock_estimates, patch(
+        "terminal_forecast.FMPClient.get_upgrades_downgrades",
+        autospec=True,
+        return_value=[{"date": "2026-03-20", "gradingCompany": "Firm", "newGrade": "Buy", "previousGrade": "Hold", "action": "upgrade"}],
+    ) as mock_grades:
+        result = _fetch_fmp("aapl")
+
+    assert result is not None
+    assert result.source == "fmp"
+    assert result.price_target is not None
+    assert result.price_target.target_mean == 160.0
+    assert result.rating is not None
+    assert result.rating.consensus_label == "Buy"
+    assert len(result.eps_estimates) == 1
+    assert len(result.upgrades_downgrades) == 1
+    assert mock_profile.call_args.args[1] == "aapl"
+    assert mock_pt.call_args.args[1] == "aapl"
+    assert mock_pt_summary.call_args.args[1] == "aapl"
+    assert mock_grades_consensus.call_args.args[1] == "aapl"
+    assert mock_estimates.call_args.args[1] == "aapl"
+    assert mock_estimates.call_args.kwargs == {"period": "quarter", "limit": 8}
+    assert mock_grades.call_args.args[1] == "aapl"
+    assert mock_grades.call_args.kwargs == {}
+
+
+def test_terminal_forecast_etf_profile_short_circuits_shared_calls() -> None:
+    with patch.dict(os.environ, {"FMP_API_KEY": "key"}, clear=False), patch(
+        "terminal_forecast.FMPClient.get_company_profile",
+        autospec=True,
+        return_value={"symbol": "SOXL", "isEtf": True},
+    ) as mock_profile, patch(
+        "terminal_forecast.FMPClient.get_price_target_consensus",
+        autospec=True,
+    ) as mock_pt:
+        result = _fetch_fmp("SOXL")
+
+    assert result is not None
+    assert result.error == "ETF — analyst forecasts not available"
+    mock_profile.assert_called_once()
+    mock_pt.assert_not_called()
 
 
 def test_fetch_price_uses_shared_quote_path() -> None:
