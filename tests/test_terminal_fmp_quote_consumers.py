@@ -4,9 +4,19 @@ import os
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+import httpx
+
+from terminal_bitcoin import (
+    fetch_btc_news,
+    fetch_btc_ohlcv,
+    fetch_btc_quote,
+    fetch_crypto_listings,
+    fetch_crypto_movers,
+    fetch_fear_greed,
+)
 from terminal_fmp_insights import fetch_fmp_profiles, fetch_fmp_quotes, fetch_fmp_ratios
 from terminal_forecast import _fetch_fmp
-from terminal_fmp_technicals import _fetch_price
+from terminal_fmp_technicals import _fetch_indicator, _fetch_price
 from terminal_poller import (
     fetch_defense_watchlist,
     fetch_economic_calendar,
@@ -273,3 +283,136 @@ def test_fetch_price_uses_shared_quote_path() -> None:
 
     assert price == 123.45
     assert mock_quote.call_args.args[1] == "AAPL"
+
+
+def test_fetch_indicator_uses_shared_client_path() -> None:
+    with patch(
+        "terminal_fmp_technicals.FMPClient.get_technical_indicator",
+        autospec=True,
+        return_value={"rsi": 55.0},
+    ) as mock_indicator:
+        row = _fetch_indicator("aapl", "1day", "rsi", "key", indicator_period=14)
+
+    assert row == {"rsi": 55.0}
+    assert mock_indicator.call_args.args[1] == "AAPL"
+    assert mock_indicator.call_args.args[2] == "1day"
+    assert mock_indicator.call_args.args[3] == "rsi"
+    assert mock_indicator.call_args.kwargs == {"indicator_period": 14}
+
+
+def test_fetch_btc_quote_uses_shared_quote_path() -> None:
+    with patch(
+        "terminal_bitcoin._get_cached",
+        return_value=None,
+    ), patch(
+        "terminal_bitcoin._set_cached"
+    ), patch(
+        "terminal_bitcoin.FMPClient.get_index_quote",
+        autospec=True,
+        return_value={"symbol": "BTCUSD", "price": 100000.0, "change": 500.0, "changesPercentage": 0.5},
+    ) as mock_quote:
+        quote = fetch_btc_quote()
+
+    assert quote is not None
+    assert quote.price == 100000.0
+    assert mock_quote.call_args.args[1] == "BTCUSD"
+
+
+def test_fetch_btc_ohlcv_daily_uses_shared_crypto_history() -> None:
+    with patch(
+        "terminal_bitcoin._get_cached",
+        return_value=None,
+    ), patch(
+        "terminal_bitcoin._set_cached"
+    ), patch(
+        "terminal_bitcoin._YF",
+        False,
+    ), patch(
+        "terminal_bitcoin.FMPClient.get_cryptocurrency_historical_price",
+        autospec=True,
+        return_value=[{"date": "2026-03-01", "open": 1, "high": 2, "low": 0.5, "close": 1.5, "volume": 10}],
+    ) as mock_history:
+        rows = fetch_btc_ohlcv(period="5d", interval="1d")
+
+    assert rows == [{"date": "2026-03-01", "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 10.0}]
+    assert mock_history.call_args.args[1] == "BTCUSD"
+
+
+def test_fetch_crypto_movers_uses_shared_batch_crypto_quotes() -> None:
+    with patch(
+        "terminal_bitcoin._get_cached",
+        return_value=None,
+    ), patch(
+        "terminal_bitcoin._set_cached"
+    ), patch(
+        "terminal_bitcoin.FMPClient.get_batch_crypto_quotes",
+        autospec=True,
+        return_value=[{"symbol": "BTCUSD", "price": 100.0, "change": 10.0}, {"symbol": "ETHUSD", "price": 100.0, "change": -5.0}],
+    ) as mock_quotes:
+        movers = fetch_crypto_movers()
+
+    assert movers["gainers"][0].symbol == "BTCUSD"
+    assert movers["losers"][0].symbol == "ETHUSD"
+    mock_quotes.assert_called_once()
+
+
+def test_fetch_crypto_listings_uses_shared_client() -> None:
+    with patch(
+        "terminal_bitcoin._get_cached",
+        return_value=None,
+    ), patch(
+        "terminal_bitcoin._set_cached"
+    ), patch(
+        "terminal_bitcoin.FMPClient.get_cryptocurrency_list",
+        autospec=True,
+        return_value=[{"symbol": "BTCUSD", "name": "Bitcoin", "currency": "USD", "exchangeShortName": "CRYPTO"}],
+    ) as mock_listings:
+        rows = fetch_crypto_listings(limit=5)
+
+    assert len(rows) == 1
+    assert rows[0].symbol == "BTCUSD"
+    mock_listings.assert_called_once()
+
+
+def test_fetch_btc_news_uses_shared_news_path_and_fallback() -> None:
+    with patch(
+        "terminal_bitcoin._get_cached",
+        return_value=None,
+    ), patch(
+        "terminal_bitcoin._set_cached"
+    ), patch(
+        "terminal_bitcoin.FMPClient.get_stock_latest_news",
+        autospec=True,
+        side_effect=[[], [{"title": "Bitcoin rallies", "url": "https://example.test", "site": "Test", "publishedDate": "2026-03-25", "text": "BTC move"}]],
+    ) as mock_news:
+        rows = fetch_btc_news(limit=1)
+
+    assert len(rows) == 1
+    assert rows[0]["title"] == "Bitcoin rallies"
+    assert mock_news.call_args_list[0].kwargs == {"symbol": "BTCUSD", "limit": 1}
+    assert mock_news.call_args_list[1].kwargs == {"limit": 50}
+
+
+def test_fetch_fear_greed_fmp_fallback_uses_shared_client() -> None:
+    fake_response = MagicMock()
+    fake_response.raise_for_status.side_effect = httpx.ReadTimeout("down")
+
+    with patch(
+        "terminal_bitcoin._get_cached",
+        return_value=None,
+    ), patch(
+        "terminal_bitcoin._set_cached"
+    ), patch(
+        "terminal_bitcoin._get_client",
+        return_value=MagicMock(get=MagicMock(return_value=fake_response)),
+    ), patch(
+        "terminal_bitcoin.FMPClient.get_fear_and_greed_index",
+        autospec=True,
+        return_value=[{"value": 55, "valueClassification": "Greed", "timestamp": "2026-03-25"}],
+    ) as mock_fg:
+        row = fetch_fear_greed()
+
+    assert row is not None
+    assert row.value == 55.0
+    assert row.label == "Greed"
+    mock_fg.assert_called_once()

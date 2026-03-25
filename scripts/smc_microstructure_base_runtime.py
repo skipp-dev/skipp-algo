@@ -367,6 +367,7 @@ def collect_full_universe_session_minute_detail(
     dataset: str,
     trading_days: list[date],
     universe_symbols: set[str],
+    expected_symbols_by_trade_day: dict[date, set[str]] | None = None,
     display_timezone: str,
     cache_dir: str | Path | None = None,
     use_file_cache: bool = True,
@@ -395,6 +396,15 @@ def collect_full_universe_session_minute_detail(
     latest_trade_day = max(trading_days)
 
     for trade_day in trading_days:
+        day_expected_symbols = {
+            str(symbol).strip().upper()
+            for symbol in (expected_symbols_by_trade_day or {}).get(trade_day, universe_symbols)
+            if str(symbol).strip()
+        }
+        day_expected_symbols &= {str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()}
+        if not day_expected_symbols:
+            continue
+
         local_start = datetime.combine(trade_day, PREMARKET_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         local_end = datetime.combine(trade_day, AFTERHOURS_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         fetch_start_utc = pd.Timestamp(local_start.astimezone(UTC))
@@ -411,7 +421,7 @@ def collect_full_universe_session_minute_detail(
                 display_timezone,
                 PREMARKET_START_ET.strftime("%H%M%S"),
                 AFTERHOURS_END_ET.strftime("%H%M%S"),
-                _universe_fingerprint(universe_symbols),
+                _universe_fingerprint(day_expected_symbols),
             ],
         )
         day_frame: pd.DataFrame | None = None
@@ -424,7 +434,7 @@ def collect_full_universe_session_minute_detail(
                 try:
                     _assert_complete_symbol_coverage(
                         day_frame,
-                        universe_symbols,
+                        day_expected_symbols,
                         context=f"Cached session minute detail for {trade_day}",
                     )
                 except RuntimeError as exc:
@@ -433,7 +443,7 @@ def collect_full_universe_session_minute_detail(
 
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
-            active_symbols = set(universe_symbols) - runtime_unsupported_symbols
+            active_symbols = set(day_expected_symbols) - runtime_unsupported_symbols
             for symbols_batch in _iter_symbol_batches(active_symbols):
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -469,7 +479,7 @@ def collect_full_universe_session_minute_detail(
 
                 frame = frame.copy()
                 frame["symbol"] = frame["symbol"].astype(str).str.upper()
-                frame = frame[frame["symbol"].isin(universe_symbols)].copy()
+                frame = frame[frame["symbol"].isin(day_expected_symbols)].copy()
                 if frame.empty:
                     continue
 
@@ -496,7 +506,7 @@ def collect_full_universe_session_minute_detail(
                 day_parts.append(frame[output_columns].reset_index(drop=True))
 
             day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
-            expected_symbols = set(universe_symbols) - runtime_unsupported_symbols
+            expected_symbols = set(day_expected_symbols) - runtime_unsupported_symbols
             if runtime_unsupported_symbols:
                 logger.warning(
                     "Session minute detail for %s excluded %d runtime-unsupported symbols from completeness checks.",
@@ -1273,6 +1283,17 @@ def run_databento_base_scan_pipeline(
             "Unable to resolve trade dates for the SMC base scan. The export manifest is missing trade_dates_covered "
             "and no fallback trade_date values were available in daily_symbol_features_full_universe."
         )
+    intraday_expected = daily_feature_frame.copy()
+    intraday_expected["trade_date"] = pd.to_datetime(intraday_expected.get("trade_date"), errors="coerce").dt.date
+    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
+    intraday_expected["has_intraday"] = intraday_expected.get("has_intraday", False).fillna(False).astype(bool)
+    intraday_expected = intraday_expected.loc[
+        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("") & intraday_expected["has_intraday"]
+    ].copy()
+    expected_symbols_by_trade_day = {
+        trade_day: set(group["symbol"].tolist())
+        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
+    }
     universe_symbols = set(daily_feature_frame["symbol"].dropna().astype(str).str.upper())
 
     _progress("Step 11/12: Collecting full-session minute detail for microstructure base derivation...")
@@ -1281,6 +1302,7 @@ def run_databento_base_scan_pipeline(
         dataset=dataset,
         trading_days=trading_days,
         universe_symbols=universe_symbols,
+        expected_symbols_by_trade_day=expected_symbols_by_trade_day,
         display_timezone=display_timezone,
         cache_dir=cache_dir,
         use_file_cache=use_file_cache,

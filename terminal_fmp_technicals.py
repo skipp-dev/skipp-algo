@@ -29,8 +29,6 @@ import threading
 import time
 from typing import Any
 
-import httpx
-
 from open_prep.macro import FMPClient
 
 log = logging.getLogger(__name__)
@@ -51,18 +49,8 @@ _INTERVAL_TO_TIMEFRAME: dict[str, str] = {
     "1M": "1day",
 }
 
-# ── Module-level httpx client ───────────────────────────────────────
-_client_lock = threading.Lock()
-_client: httpx.Client | None = None
-
-
-def _get_client() -> httpx.Client:
-    global _client
-    if _client is None:
-        with _client_lock:
-            if _client is None:
-                _client = httpx.Client(timeout=_FMP_TIMEOUT)
-    return _client
+def _make_fmp_client(api_key: str) -> FMPClient:
+    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT)
 
 
 def _get_api_key() -> str:
@@ -115,22 +103,18 @@ def _fetch_indicator(
     Returns the most recent data point dict, or None on failure.
     """
     params: dict[str, Any] = {
-        "apikey": api_key,
         "symbol": symbol.upper(),
         "timeframe": timeframe,
     }
-    if indicator_period is not None:
-        params["periodLength"] = indicator_period
 
     try:
-        url = f"{_FMP_BASE}/technical-indicators/{indicator_type}"
-        r = _get_client().get(url, params=params)
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, list) and data:
-            first_row = data[0]
-            return dict(first_row) if isinstance(first_row, dict) else None
-        return None
+        data = _make_fmp_client(api_key).get_technical_indicator(
+            params["symbol"],
+            params["timeframe"],
+            indicator_type,
+            indicator_period=indicator_period,
+        )
+        return data or None
     except Exception as exc:
         log.debug("FMP indicator %s/%s(%s) failed: %s", symbol, timeframe, indicator_type, exc)
         return None
@@ -139,7 +123,7 @@ def _fetch_indicator(
 def _fetch_price(symbol: str, api_key: str) -> float | None:
     """Fetch current price via the shared FMP quote path."""
     try:
-        row = FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT).get_index_quote(symbol.upper())
+        row = _make_fmp_client(api_key).get_index_quote(symbol.upper())
         price_raw = row.get("price")
         if price_raw in (None, ""):
             return None

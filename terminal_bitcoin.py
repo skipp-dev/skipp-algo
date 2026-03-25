@@ -28,6 +28,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from open_prep.macro import FMPClient
 
 from terminal_technicals import (
     _tv_cooldown_remaining,
@@ -73,6 +74,13 @@ _FMP_BASE = "https://financialmodelingprep.com/stable"
 
 def _fmp_key() -> str:
     return os.environ.get("FMP_API_KEY", "")
+
+
+def _make_fmp_client() -> FMPClient | None:
+    api_key = _fmp_key()
+    if not api_key:
+        return None
+    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=15.0)
 
 
 # ── HTTP client singleton ────────────────────────────────────────
@@ -139,32 +147,6 @@ _OUTLOOK_TTL = 600     # 10 min for tomorrow outlook
 _OHLCV_10M_ERROR_TTL = 90  # throttle repeated failing 10m fetch attempts
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
-
-
-# ── FMP helper ───────────────────────────────────────────────────
-
-def _fmp_get(path: str, params: dict[str, Any] | None = None) -> Any:
-    """GET from FMP stable API. Returns parsed JSON or None on error."""
-    key = _fmp_key()
-    if not key:
-        log.debug("FMP_API_KEY not set")
-        return None
-    client = _get_client()
-    if client is None:
-        log.debug("httpx not available")
-        return None
-    p: dict[str, Any] = dict(params or {})
-    p["apikey"] = key
-    try:
-        r = client.get(f"{_FMP_BASE}/{path}", params=p)
-        r.raise_for_status()
-        return r.json()
-    except (httpx.HTTPError, OSError, ValueError) as exc:
-        log.warning("FMP %s failed: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)))
-        return None
-    except Exception as exc:
-        log.warning("FMP %s unexpected error: %s", path, _APIKEY_RE.sub(r"\1=***", str(exc)), exc_info=True)
-        return None
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -323,19 +305,18 @@ def fetch_btc_quote() -> BTCQuote | None:
     if cached is not None:
         return cached  # type: ignore
 
-    data = _fmp_get("quote", {"symbol": "BTCUSD"})
+    client = _make_fmp_client()
+    data = client.get_index_quote("BTCUSD") if client is not None else {}
     if not data:
         # Fallback: yfinance
         return _btc_quote_yfinance()
 
-    rows = data if isinstance(data, list) else [data]
-    if not rows:
-        return _btc_quote_yfinance()
-
-    d = rows[0] if isinstance(rows[0], dict) else {}
+    d = data if isinstance(data, dict) else {}
     def _sf(val: object) -> float:
         """Safely coerce API value to float (handles None, 'N/A', etc.)."""
         if val is None:
+            return 0.0
+        if not isinstance(val, (int, float, str)):
             return 0.0
         try:
             return float(val)
@@ -435,7 +416,8 @@ def fetch_btc_ohlcv(
             log.warning("yfinance BTC OHLCV failed: %s", exc)
 
     # For daily, try FMP first
-    data = _fmp_get("cryptocurrency-historical-price", {"symbol": "BTCUSD"})
+    client = _make_fmp_client()
+    data = client.get_cryptocurrency_historical_price("BTCUSD") if client is not None else []
     if data and isinstance(data, list):
         rows = []
         for d in data[:365]:  # limit to 1 year
@@ -695,7 +677,8 @@ def fetch_fear_greed() -> FearGreed | None:
         log.debug("alternative.me F&G failed: %s", exc)
 
     # Fallback: FMP (may not be available on all plans)
-    data = _fmp_get("fear-and-greed-index")
+    client = _make_fmp_client()
+    data = client.get_fear_and_greed_index() if client is not None else []
     if not data:
         return None
 
@@ -730,7 +713,8 @@ def fetch_crypto_movers() -> dict[str, list[CryptoMover]]:
 
     # Use batch-crypto-quotes (fields: symbol, price, change, volume)
     # and compute change_pct ourselves since the endpoint doesn't provide it.
-    data = _fmp_get("batch-crypto-quotes")
+    client = _make_fmp_client()
+    data = client.get_batch_crypto_quotes() if client is not None else []
     if data and isinstance(data, list):
         for d in data:
             if not isinstance(d, dict):
@@ -767,7 +751,8 @@ def fetch_crypto_listings(limit: int = 50) -> list[CryptoListing]:
     if cached is not None:
         return cached[:limit]  # type: ignore
 
-    data = _fmp_get("cryptocurrency-list")
+    client = _make_fmp_client()
+    data = client.get_cryptocurrency_list() if client is not None else []
     if not data or not isinstance(data, list):
         return []
 
@@ -818,7 +803,8 @@ def fetch_btc_news(limit: int = 10) -> list[dict[str, Any]]:
         return cached[:limit]  # type: ignore
 
     # FMP crypto news
-    data = _fmp_get("news/stock-latest", {"symbol": "BTCUSD", "limit": str(limit)})
+    client = _make_fmp_client()
+    data = client.get_stock_latest_news(symbol="BTCUSD", limit=limit) if client is not None else []
 
     articles: list[dict[str, Any]] = []
     if isinstance(data, list):
@@ -836,7 +822,7 @@ def fetch_btc_news(limit: int = 10) -> list[dict[str, Any]]:
 
     # If FMP returned nothing, try general crypto search
     if not articles:
-        data2 = _fmp_get("news/stock-latest", {"limit": "50"})
+        data2 = client.get_stock_latest_news(limit=50) if client is not None else []
         if isinstance(data2, list):
             for d in data2:
                 if isinstance(d, dict):

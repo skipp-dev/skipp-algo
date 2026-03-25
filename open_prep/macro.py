@@ -765,6 +765,71 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_stock_latest_news(self, *, symbol: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": max(int(limit), 1)}
+        if symbol:
+            params["symbol"] = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/news/stock-latest", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_batch_crypto_quotes(self) -> list[dict[str, Any]]:
+        try:
+            data = self._get("/stable/batch-crypto-quotes", {})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_cryptocurrency_historical_price(self, symbol: str) -> list[dict[str, Any]]:
+        params = {"symbol": str(symbol).strip().upper()}
+        try:
+            data = self._get("/stable/cryptocurrency-historical-price", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_cryptocurrency_list(self) -> list[dict[str, Any]]:
+        try:
+            data = self._get("/stable/cryptocurrency-list", {})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_fear_and_greed_index(self) -> list[dict[str, Any]]:
+        try:
+            data = self._get("/stable/fear-and-greed-index", {})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_technical_indicator(
+        self,
+        symbol: str,
+        timeframe: str,
+        indicator_type: str,
+        *,
+        indicator_period: int | None = None,
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {
+            "symbol": str(symbol).strip().upper(),
+            "timeframe": str(timeframe).strip(),
+        }
+        if indicator_period is not None:
+            params["periodLength"] = int(indicator_period)
+        try:
+            data = self._get(f"/stable/technical-indicators/{indicator_type}", params)
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
     def get_batch_aftermarket_trade(self, symbols: list[str]) -> list[dict[str, Any]]:
         data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
         return list(data) if isinstance(data, list) else []
