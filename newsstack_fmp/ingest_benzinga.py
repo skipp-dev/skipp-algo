@@ -48,6 +48,81 @@ from newsstack_fmp._bz_http import _request_with_retry, _sanitize_exc, _sanitize
 BENZINGA_REST_BASE = "https://api.benzinga.com/api/v2/news"
 
 
+def _coerce_benzinga_date_param(value: str | None) -> str | None:
+    if not value:
+        return None
+    stripped = str(value).strip()
+    if not stripped:
+        return None
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", stripped):
+        return stripped
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})[T\s]", stripped)
+    if match:
+        return match.group(1)
+    return stripped
+
+
+def _build_news_params(
+    *,
+    api_key: str,
+    updated_since: str | None,
+    page_size: int,
+    channels: str | None,
+    topics: str | None,
+    page: int,
+    date_from: str | None,
+    date_to: str | None,
+    publish_since: str | None,
+    tickers: str | None,
+    display_output: str | None,
+    ticker_param_name: str = "tickers",
+) -> dict[str, Any]:
+    params: dict[str, Any] = {
+        "token": api_key,
+        "pageSize": page_size,
+        "page": page,
+    }
+    if updated_since:
+        params["updatedSince"] = updated_since
+    if date_from:
+        params["dateFrom"] = date_from
+    if date_to:
+        params["dateTo"] = date_to
+    if publish_since:
+        params["publishSince"] = publish_since
+    if tickers:
+        params[ticker_param_name] = tickers
+    if channels:
+        params["channels"] = channels
+    if topics:
+        params["topics"] = topics
+    if display_output:
+        params["displayOutput"] = display_output
+    return params
+
+
+def _historical_news_param_variants(base_params: dict[str, Any]) -> list[dict[str, Any]]:
+    variants: list[dict[str, Any]] = [base_params]
+    normalized_dates = dict(base_params)
+    changed_dates = False
+    for key in ("dateFrom", "dateTo", "publishSince"):
+        coerced = _coerce_benzinga_date_param(normalized_dates.get(key))
+        if coerced and coerced != normalized_dates.get(key):
+            normalized_dates[key] = coerced
+            changed_dates = True
+    if changed_dates:
+        variants.append(normalized_dates)
+
+    if base_params.get("tickers"):
+        symbol_variants_source = variants.copy()
+        for candidate in symbol_variants_source:
+            rewritten = dict(candidate)
+            rewritten["symbols"] = rewritten.pop("tickers")
+            if rewritten not in variants:
+                variants.append(rewritten)
+    return variants
+
+
 class BenzingaRestAdapter:
     """Synchronous Benzinga REST news adapter using ``updatedSince``."""
 
@@ -88,62 +163,71 @@ class BenzingaRestAdapter:
         topics : str, optional
             Comma-separated topic names to filter by.
         """
-        params: dict[str, Any] = {
-            "token": self.api_key,
-            "pageSize": page_size,
-            "page": page,
-        }
-        if updated_since:
-            params["updatedSince"] = updated_since
-        if date_from:
-            params["dateFrom"] = date_from
-        if date_to:
-            params["dateTo"] = date_to
-        if publish_since:
-            params["publishSince"] = publish_since
-        if tickers:
-            params["tickers"] = tickers
-        if channels:
-            params["channels"] = channels
-        if topics:
-            params["topics"] = topics
-        if display_output:
-            params["displayOutput"] = display_output
+        params = _build_news_params(
+            api_key=self.api_key,
+            updated_since=updated_since,
+            page_size=page_size,
+            channels=channels,
+            topics=topics,
+            page=page,
+            date_from=date_from,
+            date_to=date_to,
+            publish_since=publish_since,
+            tickers=tickers,
+            display_output=display_output,
+        )
+        request_variants = _historical_news_param_variants(params)
 
         _RETRYABLE = {429, 500, 502, 503, 504}
         _MAX_ATTEMPTS = 3
         last_exc: Exception | None = None
         r: httpx.Response | None = None
-        for attempt in range(_MAX_ATTEMPTS):
-            try:
-                r = self.client.get(BENZINGA_REST_BASE, params=params)
-                if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
-                    logger.warning(
-                        "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
-                        r.status_code, attempt + 1, _MAX_ATTEMPTS,
-                        2 ** attempt,
-                    )
-                    time.sleep(2 ** attempt)
-                    continue
-                r.raise_for_status()
-                break  # success
-            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
-                last_exc = exc
-                if attempt < _MAX_ATTEMPTS - 1:
-                    logger.warning(
-                        "Benzinga network error (attempt %d/%d): %s – retrying in %ds",
-                        attempt + 1, _MAX_ATTEMPTS, exc, 2 ** attempt,
-                    )
-                    time.sleep(2 ** attempt)
-                    continue
-                raise
-            except httpx.HTTPStatusError as exc:
-                assert r is not None
-                raise httpx.HTTPStatusError(
-                    message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
-                    request=exc.request,
-                    response=exc.response,
-                ) from None
+        for variant_index, request_params in enumerate(request_variants):
+            last_variant = variant_index == len(request_variants) - 1
+            for attempt in range(_MAX_ATTEMPTS):
+                try:
+                    r = self.client.get(BENZINGA_REST_BASE, params=request_params)
+                    if r.status_code in _RETRYABLE and attempt < _MAX_ATTEMPTS - 1:
+                        logger.warning(
+                            "Benzinga HTTP %s (attempt %d/%d) – retrying in %ds",
+                            r.status_code, attempt + 1, _MAX_ATTEMPTS,
+                            2 ** attempt,
+                        )
+                        time.sleep(2 ** attempt)
+                        continue
+                    r.raise_for_status()
+                    break
+                except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                    last_exc = exc
+                    if attempt < _MAX_ATTEMPTS - 1:
+                        logger.warning(
+                            "Benzinga network error (attempt %d/%d): %s – retrying in %ds",
+                            attempt + 1, _MAX_ATTEMPTS, exc, 2 ** attempt,
+                        )
+                        time.sleep(2 ** attempt)
+                        continue
+                    raise
+                except httpx.HTTPStatusError as exc:
+                    assert r is not None
+                    if r.status_code == 400 and not last_variant:
+                        logger.warning(
+                            "Benzinga rejected historical news request shape (%s); retrying with provider fallback.",
+                            _sanitize_url(str(r.url)),
+                        )
+                        last_exc = exc
+                        break
+                    raise httpx.HTTPStatusError(
+                        message=f"HTTP {r.status_code} from {_sanitize_url(str(r.url))}",
+                        request=exc.request,
+                        response=exc.response,
+                    ) from None
+            else:
+                continue
+
+            if r is not None and r.status_code < 400:
+                break
+            if last_variant and last_exc is not None:
+                raise last_exc
 
         if r is None:
             raise RuntimeError(

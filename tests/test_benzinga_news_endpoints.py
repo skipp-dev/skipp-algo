@@ -283,3 +283,39 @@ class TestBenzingaRestAdapterHistoricalFilters:
         assert params["channels"] == "Markets"
         assert params["topics"] == "Earnings"
         assert params["displayOutput"] == "full"
+
+    def test_fetch_news_retries_with_provider_fallback_after_400(self):
+        adapter = BenzingaRestAdapter("test_key")
+        try:
+            bad_response = MagicMock(spec=httpx.Response)
+            bad_response.status_code = 400
+            bad_response.headers = {"content-type": "application/json"}
+            bad_response.url = "https://api.benzinga.com/api/v2/news?tickers=AAPL&dateFrom=2026-03-19T13:30:00Z"
+            bad_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "bad request",
+                request=MagicMock(),
+                response=bad_response,
+            )
+
+            ok_response = self._mock_response([])
+
+            with patch.object(adapter.client, "get", side_effect=[bad_response, ok_response]) as mock_get:
+                adapter.fetch_news(
+                    page_size=50,
+                    page=0,
+                    date_from="2026-03-19T13:30:00Z",
+                    date_to="2026-03-20T13:30:00Z",
+                    tickers="AAPL",
+                )
+        finally:
+            adapter.close()
+
+        assert mock_get.call_count == 2
+        first_params = mock_get.call_args_list[0].kwargs["params"]
+        second_params = mock_get.call_args_list[1].kwargs["params"]
+        assert first_params["dateFrom"] == "2026-03-19T13:30:00Z"
+        assert first_params["dateTo"] == "2026-03-20T13:30:00Z"
+        assert first_params["tickers"] == "AAPL"
+        assert second_params["dateFrom"] == "2026-03-19"
+        assert second_params["dateTo"] == "2026-03-20"
+        assert second_params["tickers"] == "AAPL"

@@ -46,8 +46,8 @@ def test_build_research_news_flags_full_universe_export_dedupes_symbol_day_artic
 
         def fetch_news(self, **kwargs):
             if kwargs["tickers"] == "AAA,BBB":
-                assert kwargs["date_from"] == "2026-03-19T13:30:00Z"
-                assert kwargs["date_to"] == "2026-03-20T13:30:00Z"
+                assert kwargs["date_from"] == "2026-03-19"
+                assert kwargs["date_to"] == "2026-03-20"
                 return [
                     _news_item("dup-1", "2026-03-19T13:30:00Z", ["AAA"]),
                     _news_item("dup-1", "2026-03-19T13:30:00Z", ["AAA"]),
@@ -56,8 +56,8 @@ def test_build_research_news_flags_full_universe_export_dedupes_symbol_day_artic
                     _news_item("end-excluded", "2026-03-20T13:30:00Z", ["AAA"]),
                 ] if kwargs["page"] == 0 else []
             assert kwargs["tickers"] == "AAA"
-            assert kwargs["date_from"] == "2026-03-20T13:30:00Z"
-            assert kwargs["date_to"] == "2026-03-21T13:30:00Z"
+            assert kwargs["date_from"] == "2026-03-20"
+            assert kwargs["date_to"] == "2026-03-21"
             return []
 
         def close(self) -> None:

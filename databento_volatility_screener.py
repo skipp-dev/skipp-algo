@@ -1204,12 +1204,28 @@ def _collapse_duplicate_symbol_seconds(frame: pd.DataFrame, *, context: str) -> 
     if not duplicate_mask.any():
         return frame
 
-    duplicate_keys = int(frame.loc[duplicate_mask, ["symbol", "ts"]].drop_duplicates().shape[0])
-    logger.warning(
-        "%s: consolidating %d duplicate symbol-second rows by aggregating OHLCV.",
-        context,
-        duplicate_keys,
-    )
+    duplicate_rows = frame.loc[duplicate_mask].copy()
+    duplicate_keys = int(duplicate_rows[["symbol", "ts"]].drop_duplicates().shape[0])
+    publisher_sharded_keys = 0
+    anomalous_keys = duplicate_keys
+    if "publisher_id" in duplicate_rows.columns:
+        publisher_counts = duplicate_rows.groupby(["symbol", "ts"], sort=False)["publisher_id"].nunique(dropna=False)
+        row_counts = duplicate_rows.groupby(["symbol", "ts"], sort=False).size()
+        publisher_sharded_keys = int(((publisher_counts > 1) & publisher_counts.eq(row_counts)).sum())
+        anomalous_keys = max(0, duplicate_keys - publisher_sharded_keys)
+
+    if anomalous_keys > 0:
+        logger.warning(
+            "%s: consolidating %d duplicate symbol-second rows by aggregating OHLCV.",
+            context,
+            anomalous_keys,
+        )
+    if publisher_sharded_keys > 0:
+        logger.info(
+            "%s: consolidating %d multi-publisher symbol-second rows into composite OHLCV.",
+            context,
+            publisher_sharded_keys,
+        )
 
     ordered = frame.sort_values(["symbol", "ts"]).reset_index(drop=True)
     aggregations: dict[str, str] = {}

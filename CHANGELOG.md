@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-03-25)
+
+- **Historical Benzinga symbol-day export hardening:**
+  - Fixed historical Benzinga news fetches in `newsstack_fmp/ingest_benzinga.py` to retry provider-rejected request shapes with date-only filters and an alternate symbol parameter fallback instead of failing immediately on HTTP 400.
+  - Updated `scripts/databento_production_export.py` to use Benzinga-friendly day filters for historical company-news export requests while still enforcing the exact ET/UTC event windows locally after fetch.
+  - Added focused regression coverage in `tests/test_benzinga_news_endpoints.py` and updated `tests/test_databento_production_export_news.py` to lock the new historical request shape.
+
+- **SMC base session-minute coverage guard:**
+  - Fixed `scripts/smc_microstructure_base_runtime.py` so Databento symbols explicitly reported as unresolved at runtime are excluded from the hard session-minute completeness check instead of causing false `incomplete symbol coverage` failures.
+  - Added regression coverage in `tests/test_smc_microstructure_base_runtime.py` for runtime-unsupported symbols.
+
+- **Databento open-window second-detail duplicate handling:**
+  - Fixed `databento_volatility_screener.py` duplicate symbol-second logging to distinguish expected multi-publisher `ohlcv-1s` shards from anomalous duplicate rows.
+  - Expected venue-level shards are now consolidated into composite OHLCV with info-level logging, while same-publisher anomalies remain warning-level.
+  - Added regression coverage in `tests/test_databento_volatility_screener.py` for both multi-publisher composite rows and true duplicate anomalies.
+
 ### Fixed (2026-03-24)
 
 - **TradingView validation-layer storage-state hardening:**

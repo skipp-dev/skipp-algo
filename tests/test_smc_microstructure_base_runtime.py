@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from typing import Any, cast
 from datetime import date
 from pathlib import Path
@@ -362,3 +363,47 @@ def test_collect_full_universe_session_minute_detail_returns_empty_frame_for_emp
         "volume",
         "trade_count",
     ]
+
+
+def test_collect_full_universe_session_minute_detail_excludes_runtime_unsupported_symbols_from_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class FakeStore:
+        def to_df(self, count: int = 250_000) -> pd.DataFrame:
+            return pd.DataFrame(
+                [
+                    {
+                        "symbol": "AAA",
+                        "ts": pd.Timestamp("2026-02-10T13:30:00Z"),
+                        "open": 10.0,
+                        "high": 10.2,
+                        "low": 9.9,
+                        "close": 10.1,
+                        "volume": 1000,
+                        "trade_count": 25,
+                    }
+                ]
+            )
+
+    def fake_get_range(*args: Any, **kwargs: Any) -> FakeStore:
+        warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
+        return FakeStore()
+
+    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+
+    with caplog.at_level("WARNING"):
+        output = collect_full_universe_session_minute_detail(
+            "dummy-key",
+            dataset="DBEQ.BASIC",
+            trading_days=[date(2026, 2, 10)],
+            universe_symbols={"AAA", "AACB"},
+            display_timezone="America/New_York",
+            use_file_cache=False,
+        )
+
+    assert set(output["symbol"].unique()) == {"AAA"}
+    assert "excluded 1 runtime-unsupported symbols from completeness checks" in caplog.text

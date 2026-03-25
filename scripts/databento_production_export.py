@@ -309,6 +309,37 @@ RESEARCH_NEWS_FLAG_COVERAGE_COLUMNS = RESEARCH_EVENT_FLAG_COVERAGE_COLUMNS.copy(
 RESEARCH_NEWS_FLAG_TRADE_DATE_COLUMNS = RESEARCH_EVENT_FLAG_TRADE_DATE_COLUMNS.copy()
 RESEARCH_NEWS_FLAG_OUTCOME_SLICE_COLUMNS = RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS.copy()
 
+RESEARCH_NEWS_STATUS_OK = "ok"
+RESEARCH_NEWS_STATUS_OK_EMPTY = "ok_empty"
+RESEARCH_NEWS_STATUS_FETCH_FAILED = "fetch_failed"
+RESEARCH_NEWS_STATUS_PARTIAL_FETCH_FAILED = "partial_fetch_failed"
+RESEARCH_NEWS_STATUS_TRUNCATED = "truncated"
+RESEARCH_NEWS_STATUS_PARTIAL_FETCH_FAILED_TRUNCATED = "partial_fetch_failed_truncated"
+
+CORE_BENZINGA_NEWS_SIDE_BY_SIDE_COLUMNS = [
+    "trade_date",
+    "symbol",
+    "selected_top20pct",
+    "core_news_catalyst_score",
+    "core_news_event_class",
+    "core_news_materiality",
+    "core_news_recency_bucket",
+    "core_news_source_tier",
+    "core_has_news",
+    "benzinga_has_company_news_24h",
+    "benzinga_company_news_item_count_24h",
+    "benzinga_has_company_news_preopen_window",
+    "benzinga_status_bucket",
+    "overlap_bucket",
+]
+
+CORE_BENZINGA_NEWS_OVERLAP_COLUMNS = [
+    "trade_date",
+    "overlap_bucket",
+    "symbol_day_rows",
+    "selected_top20pct_rows",
+]
+
 CLOSE_IMBALANCE_FEATURE_COLUMNS = [
     "trade_date",
     "symbol",
@@ -2342,9 +2373,9 @@ def _research_news_window_bounds_for_trade_date(trade_day: Any) -> dict[str, pd.
     }
 
 
-def _iso8601_utc(value: pd.Timestamp) -> str:
+def _benzinga_date_utc(value: pd.Timestamp) -> str:
     timestamp = value.tz_convert(UTC) if value.tzinfo is not None else value.tz_localize(UTC)
-    return timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return timestamp.strftime("%Y-%m-%d")
 
 
 def _iter_symbol_batches(symbols: Sequence[str], *, batch_size: int) -> list[list[str]]:
@@ -2401,6 +2432,173 @@ def _research_news_positive_mask(frame: pd.DataFrame, column: str) -> pd.Series:
     return pd.Series(frame.get(column, pd.Series(dtype="boolean")), dtype="boolean").fillna(False)
 
 
+def _resolve_research_news_status(
+    *,
+    resolved_symbol_days: int,
+    failed_symbol_days: int,
+    truncated_symbol_days: int,
+    matched_symbol_articles: int,
+) -> str:
+    if failed_symbol_days and resolved_symbol_days == 0:
+        return RESEARCH_NEWS_STATUS_FETCH_FAILED
+    if failed_symbol_days and truncated_symbol_days:
+        return RESEARCH_NEWS_STATUS_PARTIAL_FETCH_FAILED_TRUNCATED
+    if failed_symbol_days:
+        return RESEARCH_NEWS_STATUS_PARTIAL_FETCH_FAILED
+    if truncated_symbol_days:
+        return RESEARCH_NEWS_STATUS_TRUNCATED
+    if matched_symbol_articles == 0:
+        return RESEARCH_NEWS_STATUS_OK_EMPTY
+    return RESEARCH_NEWS_STATUS_OK
+
+
+def _apply_research_news_symbol_day_semantics(
+    merged: pd.DataFrame,
+    *,
+    resolved_mask: pd.Series,
+    failed_mask: pd.Series,
+    truncated_mask: pd.Series,
+) -> pd.DataFrame:
+    out = merged.copy()
+
+    has_news = pd.Series(out.get("has_company_news_24h"), dtype="boolean")
+    has_preopen = pd.Series(out.get("has_company_news_preopen_window"), dtype="boolean")
+    count_series = pd.Series(out.get("company_news_item_count_24h"), dtype="Int64")
+
+    observed_has_news = has_news.fillna(False)
+    observed_has_preopen = has_preopen.fillna(False)
+
+    has_news.loc[failed_mask] = pd.NA
+    has_news.loc[truncated_mask & observed_has_news] = True
+    has_news.loc[truncated_mask & ~observed_has_news] = pd.NA
+    has_news.loc[resolved_mask & ~(failed_mask | truncated_mask) & has_news.isna()] = False
+
+    has_preopen.loc[failed_mask] = pd.NA
+    has_preopen.loc[truncated_mask & observed_has_preopen] = True
+    has_preopen.loc[truncated_mask & ~observed_has_preopen] = pd.NA
+    has_preopen.loc[resolved_mask & ~(failed_mask | truncated_mask) & has_preopen.isna()] = False
+
+    count_series.loc[failed_mask | truncated_mask] = pd.NA
+    count_series.loc[resolved_mask & ~(failed_mask | truncated_mask) & count_series.isna()] = 0
+
+    out["has_company_news_24h"] = has_news
+    out["has_company_news_preopen_window"] = has_preopen
+    out["company_news_item_count_24h"] = count_series
+    return out
+
+
+def _benzinga_flag_status_bucket(row: pd.Series) -> str:
+    if pd.isna(row.get("has_company_news_24h")) and pd.isna(row.get("company_news_item_count_24h")):
+        return "unknown"
+    if pd.isna(row.get("company_news_item_count_24h")):
+        return "degraded"
+    return "full"
+
+
+def _core_vs_benzinga_overlap_bucket(row: pd.Series) -> str:
+    benzinga_flag = row.get("benzinga_has_company_news_24h")
+    if pd.isna(benzinga_flag):
+        return "benzinga_unknown"
+    core_has_news = bool(row.get("core_has_news", False))
+    benzinga_has_news = bool(benzinga_flag)
+    if core_has_news and benzinga_has_news:
+        return "both"
+    if core_has_news:
+        return "core_only"
+    if benzinga_has_news:
+        return "benzinga_only"
+    return "neither"
+
+
+def _build_core_vs_benzinga_news_side_by_side(
+    *,
+    daily_features: pd.DataFrame,
+    research_news_flags: pd.DataFrame,
+    fmp_api_key: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+    scope = daily_features[[col for col in ("trade_date", "symbol", "selected_top20pct") if col in daily_features.columns]].copy()
+    if "selected_top20pct" not in scope.columns:
+        scope["selected_top20pct"] = False
+    scope["trade_date"] = pd.to_datetime(scope["trade_date"], errors="coerce").dt.date
+    scope["symbol"] = scope["symbol"].map(_normalize_research_symbol)
+    scope = scope.dropna(subset=["trade_date", "symbol"])
+    scope = scope[scope["symbol"].astype(str).str.len() > 0]
+    scope = scope.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    if scope.empty:
+        return (
+            pd.DataFrame(columns=CORE_BENZINGA_NEWS_SIDE_BY_SIDE_COLUMNS),
+            pd.DataFrame(columns=CORE_BENZINGA_NEWS_OVERLAP_COLUMNS),
+            {"enabled": False, "status": "empty_scope"},
+        )
+
+    latest_trade_date = max(scope["trade_date"])
+    latest_scope = scope[scope["trade_date"] == latest_trade_date].copy().reset_index(drop=True)
+    if latest_scope.empty:
+        return (
+            pd.DataFrame(columns=CORE_BENZINGA_NEWS_SIDE_BY_SIDE_COLUMNS),
+            pd.DataFrame(columns=CORE_BENZINGA_NEWS_OVERLAP_COLUMNS),
+            {"enabled": False, "status": "empty_latest_trade_date_scope"},
+        )
+
+    latest_flags = research_news_flags.copy()
+    latest_flags["trade_date"] = pd.to_datetime(latest_flags["trade_date"], errors="coerce").dt.date
+    latest_flags["symbol"] = latest_flags["symbol"].map(_normalize_research_symbol)
+    latest_flags = latest_flags[latest_flags["trade_date"] == latest_trade_date].copy()
+
+    merged = latest_scope.merge(latest_flags, on=["trade_date", "symbol"], how="left")
+    merged.rename(columns={
+        "has_company_news_24h": "benzinga_has_company_news_24h",
+        "company_news_item_count_24h": "benzinga_company_news_item_count_24h",
+        "has_company_news_preopen_window": "benzinga_has_company_news_preopen_window",
+    }, inplace=True)
+
+    core_scores: dict[str, float] = {}
+    core_metrics: dict[str, dict[str, Any]] = {}
+    core_fetch_error: str | None = None
+    if not fmp_api_key:
+        core_fetch_error = "missing_fmp_api_key"
+    else:
+        from open_prep import run_open_prep as open_prep_run
+
+        client = FMPClient(api_key=fmp_api_key)
+        core_scores, core_metrics, core_fetch_error = open_prep_run._fetch_news_context(
+            client=client,
+            symbols=latest_scope["symbol"].tolist(),
+        )
+
+    merged["core_news_catalyst_score"] = merged["symbol"].map(lambda sym: float(core_scores.get(str(sym).upper(), 0.0) or 0.0))
+    merged["core_news_event_class"] = merged["symbol"].map(lambda sym: (core_metrics.get(str(sym).upper(), {}) or {}).get("event_class", "UNKNOWN"))
+    merged["core_news_materiality"] = merged["symbol"].map(lambda sym: (core_metrics.get(str(sym).upper(), {}) or {}).get("materiality", "LOW"))
+    merged["core_news_recency_bucket"] = merged["symbol"].map(lambda sym: (core_metrics.get(str(sym).upper(), {}) or {}).get("recency_bucket", "UNKNOWN"))
+    merged["core_news_source_tier"] = merged["symbol"].map(lambda sym: (core_metrics.get(str(sym).upper(), {}) or {}).get("source_tier", "TIER_3"))
+    merged["core_has_news"] = merged["core_news_catalyst_score"].gt(0.0)
+    merged["benzinga_status_bucket"] = merged.apply(_benzinga_flag_status_bucket, axis=1)
+    merged["overlap_bucket"] = merged.apply(_core_vs_benzinga_overlap_bucket, axis=1)
+
+    overlap_stats = (
+        merged.groupby("overlap_bucket", dropna=False)
+        .agg(
+            symbol_day_rows=("symbol", "size"),
+            selected_top20pct_rows=("selected_top20pct", lambda s: int(pd.Series(s).fillna(False).astype(bool).sum())),
+        )
+        .reset_index()
+    )
+    overlap_stats.insert(0, "trade_date", latest_trade_date)
+
+    return (
+        merged[CORE_BENZINGA_NEWS_SIDE_BY_SIDE_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True),
+        overlap_stats[CORE_BENZINGA_NEWS_OVERLAP_COLUMNS],
+        {
+            "enabled": True,
+            "status": "ok" if core_fetch_error is None else "core_fetch_degraded",
+            "trade_date": latest_trade_date.isoformat(),
+            "symbol_day_rows": int(len(merged)),
+            "core_nonzero_symbols": int(merged["core_has_news"].sum()),
+            "core_fetch_error": core_fetch_error,
+        },
+    )
+
+
 def _build_research_news_flags_full_universe_export(
     *,
     daily_features: pd.DataFrame,
@@ -2433,6 +2631,7 @@ def _build_research_news_flags_full_universe_export(
     adapter = BenzingaRestAdapter(benzinga_api_key)
     resolved_symbol_days: set[tuple[date, str]] = set()
     failed_symbol_days: set[tuple[date, str]] = set()
+    truncated_symbol_days: set[tuple[date, str]] = set()
     article_rows: list[dict[str, Any]] = []
     fetched_items = 0
     ignored_items_missing_timestamp = 0
@@ -2444,8 +2643,8 @@ def _build_research_news_flags_full_universe_export(
             if pd.isna(trade_day):
                 continue
             windows = _research_news_window_bounds_for_trade_date(trade_day)
-            date_from = _iso8601_utc(windows["window_24h_start_utc"])
-            date_to = _iso8601_utc(windows["trade_open_utc"])
+            date_from = _benzinga_date_utc(windows["window_24h_start_utc"])
+            date_to = _benzinga_date_utc(windows["trade_open_utc"])
             symbols = sorted({_normalize_research_symbol(value) for value in symbol_frame["symbol"].tolist() if _normalize_research_symbol(value)})
             for batch in _iter_symbol_batches(symbols, batch_size=symbol_batch_size):
                 batch_keys = {(trade_day, symbol) for symbol in batch}
@@ -2487,6 +2686,7 @@ def _build_research_news_flags_full_universe_export(
                             break
                         if page == max_pages_per_request - 1:
                             truncated_requests += 1
+                            truncated_symbol_days.update(batch_keys)
                     resolved_symbol_days.update(batch_keys)
                 except Exception as exc:
                     logger.warning(
@@ -2526,23 +2726,20 @@ def _build_research_news_flags_full_universe_export(
     key_series = merged.apply(lambda row: (row["trade_date"], row["symbol"]), axis=1)
     resolved_mask = key_series.isin(resolved_symbol_days)
     failed_mask = key_series.isin(failed_symbol_days)
-    for column in RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS:
-        merged[column] = pd.Series(merged[column], dtype="boolean")
-        merged.loc[resolved_mask & ~failed_mask & merged[column].isna(), column] = False
-        merged.loc[failed_mask, column] = pd.NA
-    for column in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
-        merged[column] = pd.Series(merged[column], dtype="Int64")
-        merged.loc[resolved_mask & ~failed_mask & merged[column].isna(), column] = 0
-        merged.loc[failed_mask, column] = pd.NA
+    truncated_mask = key_series.isin(truncated_symbol_days)
+    merged = _apply_research_news_symbol_day_semantics(
+        merged,
+        resolved_mask=resolved_mask,
+        failed_mask=failed_mask,
+        truncated_mask=truncated_mask,
+    )
 
-    if failed_symbol_days and not resolved_symbol_days:
-        status = "fetch_failed"
-    elif failed_symbol_days:
-        status = "partial_fetch_failed"
-    elif aggregated.empty:
-        status = "ok_empty"
-    else:
-        status = "ok"
+    status = _resolve_research_news_status(
+        resolved_symbol_days=len(resolved_symbol_days),
+        failed_symbol_days=len(failed_symbol_days),
+        truncated_symbol_days=len(truncated_symbol_days),
+        matched_symbol_articles=len(article_frame),
+    )
 
     return merged[RESEARCH_NEWS_FLAG_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True), {
         "enabled": True,
@@ -2551,10 +2748,12 @@ def _build_research_news_flags_full_universe_export(
         "window_24h_anchor_et": "09:30:00",
         "window_24h_rule": "[trade_date 09:30 ET - 24h, trade_date 09:30 ET)",
         "preopen_window_et": "04:00:00-09:30:00",
-        "request_mode": "dateFrom/dateTo+ticker_batches",
+        "request_mode": "dateFrom/dateTo-date+ticker_batches",
         "requested_symbol_days": int(len(scope)),
         "resolved_symbol_days": int(len(resolved_symbol_days)),
         "failed_symbol_days": int(len(failed_symbol_days)),
+        "truncated_symbol_days": int(len(truncated_symbol_days)),
+        "degraded_symbol_days": int(len(failed_symbol_days | truncated_symbol_days)),
         "fetched_provider_items": int(fetched_items),
         "matched_symbol_articles": int(len(article_frame)),
         "ignored_items_missing_timestamp": int(ignored_items_missing_timestamp),
@@ -3128,6 +3327,11 @@ def run_production_export_pipeline(
         daily_symbol_features_full_universe,
         research_news_flags_full_universe,
     )
+    core_vs_benzinga_news_side_by_side, core_vs_benzinga_news_overlap_stats, core_vs_benzinga_news_metadata = _build_core_vs_benzinga_news_side_by_side(
+        daily_features=daily_symbol_features_full_universe,
+        research_news_flags=research_news_flags_full_universe,
+        fmp_api_key=fmp_api_key,
+    )
     full_universe_second_detail_open = _prepare_full_universe_second_detail_export(
         full_universe_second_detail_raw,
         daily_symbol_features_full_universe,
@@ -3238,6 +3442,8 @@ def run_production_export_pipeline(
         "close_imbalance_outcome_rows": int(len(close_imbalance_outcomes_full_universe)),
         "research_event_flag_rows": int(len(research_event_flags_full_universe)),
         "research_news_flag_rows": int(len(research_news_flags_full_universe)),
+        "core_vs_benzinga_news_side_by_side_rows": int(len(core_vs_benzinga_news_side_by_side)),
+        "core_vs_benzinga_news_overlap_stats_rows": int(len(core_vs_benzinga_news_overlap_stats)),
         "batl": batl_debug,
     }
 
@@ -3390,6 +3596,9 @@ def run_production_export_pipeline(
         "research_news_flag_trade_date_distribution_rows": len(research_news_flag_trade_date_distribution),
         "research_news_flag_outcome_slices_rows": len(research_news_flag_outcome_slices),
         "research_news_flags_source": research_news_flag_metadata,
+        "core_vs_benzinga_news_side_by_side_rows": len(core_vs_benzinga_news_side_by_side),
+        "core_vs_benzinga_news_overlap_stats_rows": len(core_vs_benzinga_news_overlap_stats),
+        "core_vs_benzinga_news_source": core_vs_benzinga_news_metadata,
         "detail_symbol_count": int(summary["symbol"].nunique()) if not summary.empty else 0,
         "expected_symbol_day_rows": int(len(daily_symbol_features_full_universe)),
         "covered_symbol_day_rows": int(daily_symbol_features_full_universe["has_intraday"].sum()) if not daily_symbol_features_full_universe.empty else 0,
@@ -3434,6 +3643,8 @@ def run_production_export_pipeline(
             "research_news_flag_coverage": research_news_flag_coverage,
             "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
             "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+            "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+            "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
             "quality_window_status_latest": quality_window_status,
         },
         cost_estimate=cost_estimate,
@@ -3461,6 +3672,8 @@ def run_production_export_pipeline(
             "research_news_flag_coverage": research_news_flag_coverage,
             "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
             "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+            "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+            "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
             "quality_window_status_latest": quality_window_status,
         },
     )
@@ -3498,6 +3711,8 @@ def run_production_export_pipeline(
         "research_news_flag_coverage": research_news_flag_coverage,
         "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
         "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+        "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+        "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
         "cost_estimate": cost_estimate,
         "output_checks": output_summary,
         "batl_debug": batl_debug,

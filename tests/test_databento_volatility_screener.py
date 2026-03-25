@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
 import json
+import logging
 import os
 from pathlib import Path
 import threading
@@ -3501,6 +3502,54 @@ def test_collapse_duplicate_symbol_seconds_sums_trade_count_alias_columns() -> N
     assert len(collapsed) == 1
     assert int(collapsed.iloc[0]["trade_count"]) == 10
     assert int(collapsed.iloc[0]["n_trades"]) == 24
+
+
+def test_collapse_duplicate_symbol_seconds_treats_multi_publisher_rows_as_expected_composite(caplog) -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA"],
+            "ts": [pd.Timestamp("2026-03-05T14:30:00Z"), pd.Timestamp("2026-03-05T14:30:00Z")],
+            "publisher_id": [39, 41],
+            "open": [10.0, 10.2],
+            "high": [10.5, 10.6],
+            "low": [9.9, 10.1],
+            "close": [10.1, 10.4],
+            "volume": [100, 200],
+        }
+    )
+
+    with caplog.at_level(logging.INFO):
+        collapsed = _collapse_duplicate_symbol_seconds(frame, context="unit-test")
+
+    assert len(collapsed) == 1
+    assert float(collapsed.iloc[0]["open"]) == 10.0
+    assert float(collapsed.iloc[0]["high"]) == 10.6
+    assert float(collapsed.iloc[0]["low"]) == 9.9
+    assert float(collapsed.iloc[0]["close"]) == 10.4
+    assert float(collapsed.iloc[0]["volume"]) == 300.0
+    assert any("multi-publisher symbol-second rows into composite OHLCV" in msg for msg in caplog.messages)
+    assert not any("duplicate symbol-second rows by aggregating OHLCV" in msg for msg in caplog.messages)
+
+
+def test_collapse_duplicate_symbol_seconds_warns_for_same_publisher_duplicates(caplog) -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA"],
+            "ts": [pd.Timestamp("2026-03-05T14:30:00Z"), pd.Timestamp("2026-03-05T14:30:00Z")],
+            "publisher_id": [39, 39],
+            "open": [10.0, 10.2],
+            "high": [10.5, 10.6],
+            "low": [9.9, 10.1],
+            "close": [10.1, 10.4],
+            "volume": [100, 200],
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        collapsed = _collapse_duplicate_symbol_seconds(frame, context="unit-test")
+
+    assert len(collapsed) == 1
+    assert any("duplicate symbol-second rows by aggregating OHLCV" in msg for msg in caplog.messages)
 
 
 def test_deduplicate_daily_symbol_rows_aggregates_ohlcv() -> None:

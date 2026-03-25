@@ -496,9 +496,16 @@ def collect_full_universe_session_minute_detail(
                 day_parts.append(frame[output_columns].reset_index(drop=True))
 
             day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
+            expected_symbols = set(universe_symbols) - runtime_unsupported_symbols
+            if runtime_unsupported_symbols:
+                logger.warning(
+                    "Session minute detail for %s excluded %d runtime-unsupported symbols from completeness checks.",
+                    trade_day,
+                    len(runtime_unsupported_symbols),
+                )
             _assert_complete_symbol_coverage(
                 day_frame,
-                universe_symbols,
+                expected_symbols,
                 context=f"Session minute detail for {trade_day}",
             )
             if use_file_cache and not day_frame.empty:
