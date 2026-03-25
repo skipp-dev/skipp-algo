@@ -63,16 +63,23 @@ Hier geht es um die Frage: Darf das Setup unter den aktuellen Markt- und Ausfueh
 
 Dieser Block zeigt die Kontextqualitaet.
 
-- Close Strength
-- EMA Support
-- ADX
-- Rel Volume
-- VWAP Filter
-- Context Quality
-- Quality Score
-- Quality Clean
+- Primary | Quality Env
+- Primary | Quality Score
+- Primary | Quality Clean
+- Diag | Quality Strict
+- Diag | Close Strength
+- Diag | EMA Support
+- Diag | ADX
+- Diag | Rel Volume
+- Diag | VWAP Filter
+- Diag | Context Quality
 
 Hier geht es um die Frage: Wie sauber und belastbar ist das Setup-Umfeld?
+
+Leseregel:
+
+- `Primary`-Zeilen sind die zuerst zu lesenden Trade-Signal-Metriken.
+- `Diag`-Zeilen liefern Einordnung und Debug-Kontext, sollen aber ein schwaches Setup nicht allein zu einem Entry machen.
 
 ### [ Modules ]
 

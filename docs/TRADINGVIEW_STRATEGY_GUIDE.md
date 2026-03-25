@@ -302,6 +302,16 @@ Notes:
 * This mode is intentionally intrabar/repainting and may differ from close-confirmed outcomes.
 * Preview labels are realtime-only; historical bars still reflect confirmed logic.
 
+### L.1) Close-confirmed strategy path
+
+For the current SMC long strategy wrapper, the default backtest path is bar-close driven:
+
+* `process_orders_on_close = true` keeps order staging on confirmed bars.
+* The wrapper consumes confirmed BUS inputs rather than inventing its own intrabar lookahead.
+* Higher-timeframe context in the SMC core now uses `lookahead = barmerge.lookahead_off` where it feeds the confirmed path.
+
+This does not remove the explicit aggressive live / preview semantics elsewhere in the codebase, but it keeps the default strategy path aligned with close-confirmed historical evaluation.
+
 ### M) Sideways/Chop semantics (naming + intent)
 
 To avoid confusion, the codebase now treats three concepts separately:
