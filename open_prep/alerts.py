@@ -295,6 +295,8 @@ def dispatch_alerts(
             logger.debug("Throttled alert for %s", symbol)
             continue
 
+        sent_targets = 0
+        failed_targets = 0
         for target in targets:
             target_type = target.get("type", "generic")
             url = target.get("url", "")
@@ -304,6 +306,7 @@ def dispatch_alerts(
             target_scope = f"{symbol}::{target_name}"
             if _is_throttled(symbol, throttle, target_scope=target_scope):
                 logger.debug("Throttled alert for %s/%s", symbol, target_name)
+                sent_targets += 1  # already delivered previously
                 continue
 
             try:
@@ -317,17 +320,25 @@ def dispatch_alerts(
                     payload = _format_generic_payload(candidate, regime=regime)
             except Exception:
                 logger.warning("Failed to format alert payload for %s/%s", symbol, target_type, exc_info=True)
+                failed_targets += 1
                 continue
 
             result = _send_webhook(url, payload, target.get("headers"))
             status = result.get("status", 0)
             if 200 <= status < 300:
                 _mark_sent(symbol, target_scope=target_scope)
+                sent_targets += 1
+            else:
+                failed_targets += 1
             results.append({
                 "symbol": symbol,
                 "target": target_name,
                 "status": status,
             })
+
+        # Mark symbol-level throttle only when all targets were delivered
+        if sent_targets > 0 and failed_targets == 0:
+            _mark_sent(symbol)
 
     if results:
         logger.info("Dispatched %d alert(s)", len(results))

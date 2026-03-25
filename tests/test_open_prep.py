@@ -2244,6 +2244,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
                     {},
                     {},
                     {},
+                    {},
                 ),
             ),
             patch(
@@ -2297,6 +2298,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
                 "open_prep.run_open_prep._fetch_quotes_with_atr",
                 return_value=(
                     [{"symbol": "NVDA", "previousClose": 100.0, "price": 101.0, "atr": 2.0}],
+                    {},
                     {},
                     {},
                     {},
