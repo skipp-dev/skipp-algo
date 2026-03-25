@@ -2488,9 +2488,9 @@ def _apply_research_news_symbol_day_semantics(
 
 
 def _benzinga_flag_status_bucket(row: pd.Series) -> str:
-    if pd.isna(row.get("has_company_news_24h")) and pd.isna(row.get("company_news_item_count_24h")):
+    if pd.isna(row.get("benzinga_has_company_news_24h")) and pd.isna(row.get("benzinga_company_news_item_count_24h")):
         return "unknown"
-    if pd.isna(row.get("company_news_item_count_24h")):
+    if pd.isna(row.get("benzinga_company_news_item_count_24h")):
         return "degraded"
     return "full"
 

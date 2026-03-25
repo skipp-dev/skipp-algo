@@ -136,6 +136,37 @@ Datei: `open_prep/news.py`
   - `news_catalyst_score`, `sentiment_*`, `event_*`, `source_tier`, `articles[]` (max 5, newest-first).
 - Exakte Benzinga-Abgrenzung und Feld-Verdrahtung:
   - siehe `docs/OPEN_PREP_BENZINGA_NEWS_WIRING.md`
+- Default-Quelle im Core-Run bleibt FMP plus TradingView.
+- Optionaler Benzinga-Core-Supplement-Pfad:
+  - `OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS=1`
+  - mappt Benzinga-`NewsItem` auf denselben Artikelvertrag und laeuft bewusst ueber denselben `build_news_scores(...)`-Pfad
+  - bleibt standardmaessig deaktiviert, damit sich das Produktionsverhalten nicht still aendert
+
+### 4.5 Historische Benzinga-Newsflags im Exportpfad
+
+Datei: `scripts/databento_production_export.py`
+
+- Historischer Company-News-Export fuer symbol-day Scope ueber Benzinga REST
+- Hauptartefakte:
+  - `research_news_flags_full_universe`
+  - `research_news_flag_coverage`
+  - `research_news_flag_trade_date_distribution`
+  - `research_news_flag_outcome_slices`
+  - `core_vs_benzinga_news_side_by_side`
+  - `core_vs_benzinga_news_overlap_stats`
+
+Status-Semantik:
+
+- `ok`: vollstaendig aufgeloest
+- `ok_empty`: vollstaendig aufgeloest, aber keine passenden Artikel
+- `partial_fetch_failed`: Teilmenge fehlgeschlagen
+- `truncated`: Provider-Paging-Limit abgeschnitten
+- `partial_fetch_failed_truncated`: Mischung aus Fehler und Truncation
+
+Wichtige Guardrail:
+
+- unter Truncation werden Count-Felder bewusst auf missing gesetzt, damit Lower-Bounds nicht als vollstaendige Coverage erscheinen
+- Bool-Felder bleiben nur dann `True`, wenn das positive Signal direkt beobachtet wurde; sonst missing statt `False`
 
 ---
 

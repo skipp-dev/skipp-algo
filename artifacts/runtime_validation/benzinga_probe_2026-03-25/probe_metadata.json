@@ -1,0 +1,95 @@
+{
+  "trade_days": [
+    "2026-03-23",
+    "2026-03-24"
+  ],
+  "symbols": [
+    "NVDA",
+    "TSLA",
+    "PLTR",
+    "AAPL",
+    "AMD",
+    "MSTR"
+  ],
+  "research_news_flags_source": {
+    "enabled": true,
+    "source": "benzinga_news",
+    "status": "ok",
+    "window_24h_anchor_et": "09:30:00",
+    "window_24h_rule": "[trade_date 09:30 ET - 24h, trade_date 09:30 ET)",
+    "preopen_window_et": "04:00:00-09:30:00",
+    "request_mode": "dateFrom/dateTo-date+ticker_batches",
+    "requested_symbol_days": 12,
+    "resolved_symbol_days": 12,
+    "failed_symbol_days": 0,
+    "truncated_symbol_days": 0,
+    "degraded_symbol_days": 0,
+    "fetched_provider_items": 43,
+    "matched_symbol_articles": 21,
+    "ignored_items_missing_timestamp": 0,
+    "truncated_requests": 0,
+    "sample_errors": []
+  },
+  "core_vs_benzinga_news_source": {
+    "enabled": true,
+    "status": "ok",
+    "trade_date": "2026-03-24",
+    "symbol_day_rows": 6,
+    "core_nonzero_symbols": 5,
+    "core_fetch_error": null
+  },
+  "observed_company_news_rows": 4,
+  "observed_preopen_rows": 3,
+  "company_news_examples": [
+    {
+      "trade_date": "2026-03-23",
+      "symbol": "AAPL",
+      "company_news_item_count_24h": 4,
+      "has_company_news_preopen_window": true
+    },
+    {
+      "trade_date": "2026-03-23",
+      "symbol": "AMD",
+      "company_news_item_count_24h": 1,
+      "has_company_news_preopen_window": true
+    },
+    {
+      "trade_date": "2026-03-24",
+      "symbol": "AAPL",
+      "company_news_item_count_24h": 15,
+      "has_company_news_preopen_window": true
+    },
+    {
+      "trade_date": "2026-03-24",
+      "symbol": "AMD",
+      "company_news_item_count_24h": 1,
+      "has_company_news_preopen_window": false
+    }
+  ],
+  "overlap_buckets": [
+    {
+      "trade_date": "2026-03-24",
+      "overlap_bucket": "both",
+      "symbol_day_rows": 2,
+      "selected_top20pct_rows": 0
+    },
+    {
+      "trade_date": "2026-03-24",
+      "overlap_bucket": "core_only",
+      "symbol_day_rows": 3,
+      "selected_top20pct_rows": 2
+    },
+    {
+      "trade_date": "2026-03-24",
+      "overlap_bucket": "neither",
+      "symbol_day_rows": 1,
+      "selected_top20pct_rows": 1
+    }
+  ],
+  "paths": {
+    "research_news_flags_full_universe": "artifacts/runtime_validation/benzinga_probe_2026-03-25/research_news_flags_full_universe.csv",
+    "core_vs_benzinga_news_side_by_side": "artifacts/runtime_validation/benzinga_probe_2026-03-25/core_vs_benzinga_news_side_by_side.csv",
+    "core_vs_benzinga_news_overlap_stats": "artifacts/runtime_validation/benzinga_probe_2026-03-25/core_vs_benzinga_news_overlap_stats.csv",
+    "probe_metadata": "artifacts/runtime_validation/benzinga_probe_2026-03-25/probe_metadata.json"
+  }
+}

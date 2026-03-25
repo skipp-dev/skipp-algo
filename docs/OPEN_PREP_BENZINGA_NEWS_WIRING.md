@@ -4,19 +4,26 @@ Dieses Dokument beschreibt die exakte Datenherkunft und Verdrahtung der derzeit 
 
 ## Kurzantwort
 
-Die bestehenden Open-Prep-News-Felder kommen aktuell nicht direkt aus Benzinga.
+Die bestehenden Open-Prep-News-Felder kommen standardmaessig weiterhin nicht direkt aus Benzinga.
 
 Der Core-Open-Prep-Run berechnet seine News-Felder aus:
 
 - FMP-Artikel via `FMPClient.get_fmp_articles(...)`
 - einem TradingView-Supplement via `_fetch_tradingview_news_articles(...)`
 
-Benzinga ist derzeit in zwei getrennten Pfaden verdrahtet:
+Benzinga ist derzeit in drei getrennten Pfaden verdrahtet:
 
 - als separater News-Stack fuer realtime/newsfeedartige Kandidaten
+- als historischer Export-/Research-Pfad fuer symbol-day Company-News-Flags
 - als Benzinga-Intelligence-UI mit rohen Kalender-/News-/Options-/Insider-Daten
 
-Es gibt aktuell keine Rueckverdrahtung von Benzinga in `news_catalyst_by_symbol` oder in die daraus abgeleiteten Candidate-Felder wie `news_event_class`, `news_materiality` oder `news_source_tier`.
+Es gibt keine produktive Default-Rueckverdrahtung von Benzinga in `news_catalyst_by_symbol` oder in die daraus abgeleiteten Candidate-Felder wie `news_event_class`, `news_materiality` oder `news_source_tier`.
+
+Neu ist nur ein optionaler, standardmaessig deaktivierter Integrationspfad:
+
+- `OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS=1`
+
+Wenn dieses Flag nicht gesetzt ist, bleibt die Core-Open-Prep-Verdrahtung unveraendert bei FMP plus TradingView.
 
 ## 1. Core Open Prep News: echte Herkunft
 
@@ -28,13 +35,15 @@ Aktueller Ablauf:
 
 1. FMP-Artikel werden ueber `client.get_fmp_articles(limit=250)` geladen.
 2. TradingView-Headlines werden optional ueber `_fetch_tradingview_news_articles(symbols=...)` geladen.
-3. Beide Artikelmengen werden dedupliziert.
-4. Die zusammengefuehrten Artikel werden an `build_news_scores(...)` uebergeben.
+3. Optional koennen Benzinga-Artikel ueber `_fetch_benzinga_core_news_articles(symbols=...)` zugemischt werden, aber nur wenn `OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS=1` gesetzt ist.
+4. Alle Artikelmengen werden gemeinsam dedupliziert.
+5. Die zusammengefuehrten Artikel werden an `build_news_scores(...)` uebergeben.
 
 Wichtige Konsequenz:
 
-- Benzinga wird in diesem Pfad nicht aufgerufen.
-- Alles, was in `news_catalyst_by_symbol` landet, stammt derzeit aus FMP plus TradingView, nicht aus Benzinga.
+- Default: Benzinga wird in diesem Pfad nicht aufgerufen.
+- Opt-in: Bei gesetztem Flag wird Benzinga in denselben Artikelvertrag transformiert und ueber denselben Scoring-Pfad verarbeitet.
+- Alles, was in `news_catalyst_by_symbol` landet, stammt damit weiterhin aus genau einem gemeinsamen `build_news_scores(...)`-Pfad, nicht aus einem separaten Benzinga-Scorer.
 
 Relevante Stellen:
 
@@ -54,6 +63,16 @@ Relevante Stellen:
 - `link` oder `url`
 
 Aus diesen Eingangsdaten werden die Open-Prep-News-Felder abgeleitet.
+
+Der opt-in-Benzinga-Pfad mappt `NewsItem` explizit auf genau diesen Vertrag ueber `_benzinga_news_item_to_article(...)` mit:
+
+- `tickers`
+- `title`
+- `content`
+- `date`
+- `source`
+- `url`
+- `provider`
 
 ## 3. Exakte Ableitung der Open-Prep-News-Felder
 
@@ -233,6 +252,33 @@ Pfad:
 
 Diese Kandidaten landen in `streamlit_monitor.py` nur in der separaten News-Stack-Anzeige. Sie werden nicht in `build_news_scores(...)` eingespeist.
 
+### 5.1.1 Historischer Export-/Research-Pfad
+
+Der historische symbol-day Company-News-Pfad laeuft separat in `scripts/databento_production_export.py`.
+
+Er erzeugt derzeit:
+
+- `research_news_flags_full_universe`
+- `research_news_flag_coverage`
+- `research_news_flag_trade_date_distribution`
+- `research_news_flag_outcome_slices`
+- `core_vs_benzinga_news_side_by_side`
+- `core_vs_benzinga_news_overlap_stats`
+
+Wesentliche Semantik nach der Haertung:
+
+- `status=ok`: alle angefragten symbol-days wurden aufgeloest, keine Truncation
+- `status=ok_empty`: sauber aufgeloest, aber keine passenden Artikel
+- `status=partial_fetch_failed`: Teilmenge konnte nicht geladen werden
+- `status=truncated`: Provider-Antwort wurde wegen Paging-Limit abgeschnitten
+- `status=partial_fetch_failed_truncated`: Mischung aus Fehlern und abgeschnittenen Requests
+
+Wichtig fuer die Feldsemantik:
+
+- unter Truncation bleibt `has_company_news_24h=True` nur dann gesetzt, wenn mindestens ein Artikel direkt beobachtet wurde
+- `company_news_item_count_24h` wird unter Truncation bewusst auf missing gesetzt, damit kein Lower-Bound still als Vollzaehlung interpretiert wird
+- `has_company_news_preopen_window` bleibt unter Truncation nur dann `True`, wenn das Preopen-Fenster direkt beobachtet wurde; sonst missing
+
 ### 5.2 Benzinga Intelligence Tabs
 
 Die Benzinga-Intelligence-Tabs in `open_prep/streamlit_monitor.py` nutzen Wrapper aus `terminal_poller.py`.
@@ -271,9 +317,13 @@ Aktuelle Quellen:
 - FMP
 - TradingView
 
+Optional, standardmaessig aus:
+
+- Benzinga ueber `OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS=1`
+
 Nicht enthalten:
 
-- Benzinga
+- Benzinga im Default-Run
 
 ### B. News Stack (Benzinga - realtime polling)
 
@@ -299,12 +349,12 @@ Stand jetzt gilt damit eindeutig:
 
 1. Benzinga speist den separaten `newsstack_fmp`-Pfad.
 2. Open Prep Core-Newsfelder werden in `open_prep/news.py` berechnet.
-3. Der Core-Newspfad wird aktuell aus FMP und TradingView gespeist.
-4. Es gibt keine bestehende Verdrahtung von Benzinga in `news_catalyst_by_symbol`.
+3. Der Core-Newspfad wird standardmaessig aus FMP und TradingView gespeist.
+4. Optional existiert jetzt eine Default-OFF-Benzinga-Zumischung am korrekten Merge-Punkt `_fetch_news_context(...)`.
 5. Es gibt keine bestehende Verdrahtung von Benzinga in die Candidate-Felder `news_event_class`, `news_materiality`, `news_recency_bucket` oder `news_source_tier`.
 
 ## 8. Richtiger Integrationspunkt, falls Benzinga diese Felder speisen soll
 
 Falls Benzinga kuenftig die bestehenden Open-Prep-News-Felder speisen soll, ist der richtige Integrationspunkt nicht `streamlit_monitor.py`, sondern `open_prep/run_open_prep.py` in `_fetch_news_context(...)`.
 
-Dann muesste Benzinga in artikelartige Dicts fuer `build_news_scores(...)` adaptiert werden, analog zum bestehenden TradingView-Supplement.
+Diese Vorbereitung existiert jetzt bereits opt-in: Benzinga wird in artikelartige Dicts fuer `build_news_scores(...)` adaptiert, analog zum bestehenden TradingView-Supplement, aber standardmaessig deaktiviert.

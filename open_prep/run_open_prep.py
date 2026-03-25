@@ -3429,7 +3429,14 @@ def _fetch_news_context(
     tradingview_articles, tradingview_fetch_error = _fetch_tradingview_news_articles(symbols=symbols)
     if tradingview_fetch_error:
         news_fetch_errors.append(f"tradingview:{tradingview_fetch_error}")
-    articles = _dedupe_news_articles([articles, tradingview_articles])
+
+    benzinga_articles: list[dict[str, Any]] = []
+    if _bool_env("OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS", False):
+        benzinga_articles, benzinga_fetch_error = _fetch_benzinga_core_news_articles(symbols=symbols)
+        if benzinga_fetch_error:
+            news_fetch_errors.append(f"benzinga:{benzinga_fetch_error}")
+
+    articles = _dedupe_news_articles([articles, tradingview_articles, benzinga_articles])
 
     if articles:
         news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
@@ -3481,6 +3488,31 @@ def _tradingview_headline_to_article(headline: Any) -> dict[str, Any] | None:
         "source": str(getattr(headline, "source", "") or getattr(headline, "provider", "") or "TradingView").strip(),
         "url": str(getattr(headline, "story_url", "") or "").strip(),
         "provider": str(getattr(headline, "provider", "") or "tradingview").strip(),
+    }
+
+
+def _benzinga_news_item_to_article(item: Any) -> dict[str, Any] | None:
+    title = str(getattr(item, "headline", "") or "").strip()
+    if not title:
+        return None
+    tickers = _normalize_symbols(list(getattr(item, "tickers", []) or []))
+    if not tickers:
+        return None
+    published_ts = getattr(item, "published_ts", None)
+    published = ""
+    try:
+        if published_ts is not None:
+            published = datetime.fromtimestamp(float(published_ts), tz=UTC).isoformat()
+    except (TypeError, ValueError, OSError, OverflowError):
+        published = ""
+    return {
+        "tickers": ",".join(tickers),
+        "title": title,
+        "content": str(getattr(item, "snippet", "") or "").strip(),
+        "date": published,
+        "source": str(getattr(item, "source", "") or "Benzinga").strip(),
+        "url": str(getattr(item, "url", "") or "").strip(),
+        "provider": str(getattr(item, "provider", "") or "benzinga_rest").strip(),
     }
 
 
@@ -3540,6 +3572,66 @@ def _fetch_tradingview_news_articles(*, symbols: list[str]) -> tuple[list[dict[s
         article = _tradingview_headline_to_article(headline)
         if article is not None:
             articles.append(article)
+
+    return articles, None
+
+
+def _fetch_benzinga_core_news_articles(*, symbols: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+    api_key = str(os.environ.get("BENZINGA_API_KEY") or "").strip()
+    if not api_key:
+        return [], "missing BENZINGA_API_KEY"
+
+    max_symbols = max(_int_env("OPEN_PREP_BENZINGA_CORE_NEWS_MAX_SYMBOLS", 40), 0)
+    if max_symbols == 0:
+        return [], None
+
+    normalized_symbols = _normalize_symbols(symbols)[:max_symbols]
+    if not normalized_symbols:
+        return [], None
+
+    batch_size = max(_int_env("OPEN_PREP_BENZINGA_CORE_NEWS_MAX_BATCH", 20), 1)
+    page_size = max(_int_env("OPEN_PREP_BENZINGA_CORE_NEWS_PAGE_SIZE", 100), 1)
+    max_pages = max(_int_env("OPEN_PREP_BENZINGA_CORE_NEWS_MAX_PAGES", 2), 1)
+    now_utc = datetime.now(UTC)
+    date_from = (now_utc - timedelta(days=1)).date().isoformat()
+    date_to = now_utc.date().isoformat()
+
+    try:
+        from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+    except Exception as exc:
+        message = _APIKEY_RE.sub(r"\1=***", str(exc))
+        logger.warning("Benzinga news import failed, continuing without supplement: %s", type(exc).__name__, exc_info=True)
+        return [], message
+
+    adapter = BenzingaRestAdapter(api_key=api_key)
+    articles: list[dict[str, Any]] = []
+    try:
+        for start in range(0, len(normalized_symbols), batch_size):
+            batch = normalized_symbols[start : start + batch_size]
+            for page in range(max_pages):
+                items = adapter.fetch_news(
+                    tickers=",".join(batch),
+                    date_from=date_from,
+                    date_to=date_to,
+                    page_size=page_size,
+                    page=page,
+                )
+                if not items:
+                    break
+                for item in items:
+                    article = _benzinga_news_item_to_article(item)
+                    if article is not None:
+                        articles.append(article)
+                if len(items) < page_size:
+                    break
+    except Exception as exc:
+        message = _APIKEY_RE.sub(r"\1=***", str(exc))
+        logger.warning("Benzinga news fetch failed, continuing without supplement: %s", type(exc).__name__, exc_info=True)
+        return [], message
+    finally:
+        close = getattr(adapter, "close", None)
+        if callable(close):
+            close()
 
     return articles, None
 

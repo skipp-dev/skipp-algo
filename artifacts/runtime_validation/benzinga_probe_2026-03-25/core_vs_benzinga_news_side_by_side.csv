@@ -1,0 +1,7 @@
+trade_date,symbol,selected_top20pct,core_news_catalyst_score,core_news_event_class,core_news_materiality,core_news_recency_bucket,core_news_source_tier,core_has_news,benzinga_has_company_news_24h,benzinga_company_news_item_count_24h,benzinga_has_company_news_preopen_window,benzinga_status_bucket,overlap_bucket
+2026-03-24,AAPL,False,0.9,UNKNOWN,LOW,AGING,TIER_2,True,True,15,True,full,both
+2026-03-24,AMD,False,0.15,UNKNOWN,LOW,AGING,TIER_3,True,True,1,False,full,both
+2026-03-24,MSTR,True,0.0,UNKNOWN,LOW,UNKNOWN,TIER_3,False,False,0,False,full,neither
+2026-03-24,NVDA,True,1.25,UNKNOWN,LOW,WARM,TIER_3,True,False,0,False,full,core_only
+2026-03-24,PLTR,True,1.25,UNKNOWN,LOW,WARM,TIER_2,True,False,0,False,full,core_only
+2026-03-24,TSLA,False,1.6,SCHEDULED,LOW,FRESH,TIER_3,True,False,0,False,full,core_only

@@ -1,0 +1,13 @@
+trade_date,symbol,has_company_news_24h,company_news_item_count_24h,has_company_news_preopen_window
+2026-03-23,AAPL,True,4,True
+2026-03-23,AMD,True,1,True
+2026-03-23,MSTR,False,0,False
+2026-03-23,NVDA,False,0,False
+2026-03-23,PLTR,False,0,False
+2026-03-23,TSLA,False,0,False
+2026-03-24,AAPL,True,15,True
+2026-03-24,AMD,True,1,False
+2026-03-24,MSTR,False,0,False
+2026-03-24,NVDA,False,0,False
+2026-03-24,PLTR,False,0,False
+2026-03-24,TSLA,False,0,False

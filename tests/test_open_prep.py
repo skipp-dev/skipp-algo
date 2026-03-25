@@ -456,6 +456,116 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIn("NVDA", scores)
         self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
 
+    def test_fetch_news_context_does_not_call_benzinga_when_flag_disabled(self):
+        client = MagicMock()
+        client.get_fmp_articles.return_value = [
+            {
+                "tickers": "NASDAQ:NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20 14:30:00",
+                "source": "FMP",
+            }
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "0",
+        }, clear=False), patch("open_prep.run_open_prep._fetch_benzinga_core_news_articles", side_effect=AssertionError("benzinga should stay disabled")):
+            scores, metrics, fetch_error = run_open_prep._fetch_news_context(
+                client=client,
+                symbols=["NVDA"],
+            )
+
+        self.assertIsNone(fetch_error)
+        self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
+        self.assertIn("NVDA", scores)
+
+    def test_fetch_news_context_includes_benzinga_when_flag_enabled(self):
+        client = MagicMock()
+        client.get_fmp_articles.return_value = []
+        benzinga_articles = [
+            {
+                "tickers": "PLTR",
+                "title": "Palantir wins major defense contract",
+                "content": "",
+                "date": "2026-02-20T14:45:00+00:00",
+                "source": "Benzinga",
+                "provider": "benzinga_rest",
+                "url": "https://example.test/pltr-bz",
+            }
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "0",
+            "OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS": "1",
+        }, clear=False), patch("open_prep.run_open_prep._fetch_benzinga_core_news_articles", return_value=(benzinga_articles, None)) as benzinga_mock:
+            scores, metrics, fetch_error = run_open_prep._fetch_news_context(
+                client=client,
+                symbols=["PLTR"],
+            )
+
+        self.assertIsNone(fetch_error)
+        benzinga_mock.assert_called_once()
+        self.assertIn("PLTR", scores)
+        self.assertEqual(metrics["PLTR"]["mentions_total"], 1)
+
+    def test_fetch_news_context_dedupes_matching_fmp_and_benzinga_articles(self):
+        client = MagicMock()
+        client.get_fmp_articles.return_value = [
+            {
+                "tickers": "NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20T14:30:00+00:00",
+                "source": "FMP",
+                "url": "https://example.test/shared-story",
+            }
+        ]
+        benzinga_articles = [
+            {
+                "tickers": "NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20T14:30:00+00:00",
+                "source": "Benzinga",
+                "provider": "benzinga_rest",
+                "url": "https://example.test/shared-story",
+            }
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "0",
+            "OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS": "1",
+        }, clear=False), patch("open_prep.run_open_prep._fetch_benzinga_core_news_articles", return_value=(benzinga_articles, None)):
+            scores, metrics, fetch_error = run_open_prep._fetch_news_context(
+                client=client,
+                symbols=["NVDA"],
+            )
+
+        self.assertIsNone(fetch_error)
+        self.assertIn("NVDA", scores)
+        self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
+
+    def test_benzinga_news_item_to_article_matches_existing_contract(self):
+        item = type("FakeBenzingaItem", (), {
+            "headline": "NVIDIA expands AI footprint",
+            "snippet": "Short summary",
+            "tickers": ["NVDA"],
+            "published_ts": datetime(2026, 2, 20, 14, 30, tzinfo=UTC).timestamp(),
+            "source": "Benzinga",
+            "url": "https://example.test/nvda-bz",
+            "provider": "benzinga_rest",
+        })()
+
+        article = run_open_prep._benzinga_news_item_to_article(item)
+
+        assert article is not None
+        self.assertEqual(article["tickers"], "NVDA")
+        self.assertEqual(article["title"], "NVIDIA expands AI footprint")
+        self.assertEqual(article["content"], "Short summary")
+        self.assertEqual(article["provider"], "benzinga_rest")
+        self.assertTrue(article["date"].startswith("2026-02-20T14:30:00"))
+
     def test_news_score_does_not_double_count_2h_articles(self):
         """A single article from < 2h ago must score exactly 0.5, not 0.65."""
         symbols = ["AAPL"]

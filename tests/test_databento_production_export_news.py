@@ -7,6 +7,7 @@ import scripts.databento_production_export as export_mod
 
 from newsstack_fmp.common_types import NewsItem
 from scripts.databento_production_export import (
+    _build_core_vs_benzinga_news_side_by_side,
     _build_research_news_flag_coverage,
     _build_research_news_flag_outcome_slices,
     _build_research_news_flag_trade_date_distribution,
@@ -123,6 +124,110 @@ def test_build_research_news_flags_full_universe_export_marks_failed_symbol_days
     assert pd.isna(bbb_row["has_company_news_24h"])
     assert pd.isna(bbb_row["company_news_item_count_24h"])
     assert pd.isna(bbb_row["has_company_news_preopen_window"])
+
+
+def test_build_research_news_flags_full_universe_export_marks_truncated_symbol_days_degraded(monkeypatch) -> None:
+    daily_features = pd.DataFrame(
+        [
+            {"trade_date": date(2026, 3, 20), "symbol": "AAA"},
+        ]
+    )
+
+    class FakeBenzingaRestAdapter:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+
+        def fetch_news(self, **kwargs):
+            assert kwargs["tickers"] == "AAA"
+            return [_news_item("aaa-1", "2026-03-19T20:00:00Z", ["AAA"])]
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(export_mod, "BenzingaRestAdapter", FakeBenzingaRestAdapter)
+
+    flags, metadata = _build_research_news_flags_full_universe_export(
+        daily_features=daily_features,
+        benzinga_api_key="demo-key",
+        max_pages_per_request=1,
+        page_size=1,
+    )
+
+    row = flags.iloc[0]
+    assert metadata["status"] == "truncated"
+    assert metadata["truncated_symbol_days"] == 1
+    assert bool(row["has_company_news_24h"]) is True
+    assert pd.isna(row["company_news_item_count_24h"])
+    assert pd.isna(row["has_company_news_preopen_window"])
+
+
+def test_build_core_vs_benzinga_news_side_by_side_uses_current_core_path(monkeypatch) -> None:
+    daily_features = pd.DataFrame(
+        [
+            {"trade_date": date(2026, 3, 20), "symbol": "AAA", "selected_top20pct": True},
+            {"trade_date": date(2026, 3, 20), "symbol": "BBB", "selected_top20pct": False},
+            {"trade_date": date(2026, 3, 19), "symbol": "ZZZ", "selected_top20pct": False},
+        ]
+    )
+    research_flags = pd.DataFrame(
+        [
+            {
+                "trade_date": date(2026, 3, 20),
+                "symbol": "AAA",
+                "has_company_news_24h": True,
+                "company_news_item_count_24h": 2,
+                "has_company_news_preopen_window": True,
+            },
+            {
+                "trade_date": date(2026, 3, 20),
+                "symbol": "BBB",
+                "has_company_news_24h": False,
+                "company_news_item_count_24h": 0,
+                "has_company_news_preopen_window": False,
+            },
+        ]
+    )
+
+    class FakeFMPClient:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+
+    def fake_fetch_news_context(*, client, symbols):
+        assert client.api_key == "demo-fmp"
+        assert symbols == ["AAA", "BBB"]
+        return (
+            {"AAA": 0.8, "BBB": 0.0},
+            {
+                "AAA": {
+                    "event_class": "EARNINGS",
+                    "materiality": "HIGH",
+                    "recency_bucket": "LT_2H",
+                    "source_tier": "TIER_1",
+                },
+                "BBB": {
+                    "event_class": "NONE",
+                    "materiality": "LOW",
+                    "recency_bucket": "STALE",
+                    "source_tier": "TIER_3",
+                },
+            },
+            None,
+        )
+
+    monkeypatch.setattr(export_mod, "FMPClient", FakeFMPClient)
+    monkeypatch.setattr("open_prep.run_open_prep._fetch_news_context", fake_fetch_news_context)
+
+    side_by_side, overlap_stats, metadata = _build_core_vs_benzinga_news_side_by_side(
+        daily_features=daily_features,
+        research_news_flags=research_flags,
+        fmp_api_key="demo-fmp",
+    )
+
+    assert metadata["status"] == "ok"
+    assert list(side_by_side["symbol"]) == ["AAA", "BBB"]
+    assert list(side_by_side["overlap_bucket"]) == ["both", "neither"]
+    assert overlap_stats.set_index("overlap_bucket").loc["both", "symbol_day_rows"] == 1
+    assert overlap_stats.set_index("overlap_bucket").loc["neither", "symbol_day_rows"] == 1
 
 
 def test_build_research_news_flag_coverage_distribution_and_outcome_slices() -> None:
