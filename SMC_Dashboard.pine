@@ -109,6 +109,12 @@ dashboard_row(table tbl, int row, string label_text, string value_text, color bg
 section_row(table tbl, int row, string title, color bg, color txt) =>
     dashboard_row(tbl, row, title, "", bg, txt)
 
+primary_metric_bg(int state_value) =>
+    color.new(status_bg(state_value), 0)
+
+diagnostic_metric_bg(int state_value) =>
+    color.new(status_bg(state_value), 8)
+
 source_kind_text(int source_code) =>
     string label_text = "None"
     if source_code == 1
@@ -732,17 +738,17 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 14, "Micro Session", decode_micro_session_text(micro_session_row_code), status_bg(row_status(micro_session_row_code)), txt)
     dashboard_row(smc_dashboard, 15, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code), status_bg(row_status(micro_fresh_row_code)), txt)
     dashboard_row(smc_dashboard, 16, "Volume Data", decode_volume_data_text(volume_data_row_code), status_bg(row_status(volume_data_row_code)), txt)
-    section_row(smc_dashboard, 17, "[ Quality ]", header_bg, txt)
-    dashboard_row(smc_dashboard, 18, "Quality Env", decode_quality_env_text(quality_env_row_code), status_bg(row_status(quality_env_row_code)), txt)
-    dashboard_row(smc_dashboard, 19, "Quality Strict", decode_quality_strict_text(quality_strict_row_code), status_bg(row_status(quality_strict_row_code)), txt)
-    dashboard_row(smc_dashboard, 20, "Close Strength", decode_close_text(close_row_code), status_bg(row_status(close_row_code)), txt)
-    dashboard_row(smc_dashboard, 21, "EMA Support", decode_ema_text(ema_row_code), status_bg(row_status(ema_row_code)), txt)
-    dashboard_row(smc_dashboard, 22, "ADX", decode_adx_text(adx_row_code), status_bg(row_status(adx_row_code)), txt)
-    dashboard_row(smc_dashboard, 23, "Rel Volume", decode_relvol_text(relvol_row_code), status_bg(row_status(relvol_row_code)), txt)
-    dashboard_row(smc_dashboard, 24, "VWAP Filter", decode_vwap_text(vwap_row_code), status_bg(row_status(vwap_row_code)), txt)
-    dashboard_row(smc_dashboard, 25, "Context Quality", decode_context_quality_text(context_quality_row_code), status_bg(row_status(context_quality_row_code)), txt)
-    dashboard_row(smc_dashboard, 26, "Quality Score", quality_bounds_text(src_quality_score, src_quality_bounds_pack), status_bg(row_status(quality_score_row_code)), txt)
-    dashboard_row(smc_dashboard, 27, "Quality Clean", decode_quality_clean_text(quality_clean_row_code), status_bg(row_status(quality_clean_row_code)), txt)
+    section_row(smc_dashboard, 17, "[ Quality ] Primary trade signal metrics vs diagnostics", header_bg, txt)
+    dashboard_row(smc_dashboard, 18, "Primary | Quality Env", decode_quality_env_text(quality_env_row_code), primary_metric_bg(row_status(quality_env_row_code)), txt)
+    dashboard_row(smc_dashboard, 19, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
+    dashboard_row(smc_dashboard, 20, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
+    dashboard_row(smc_dashboard, 21, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
+    dashboard_row(smc_dashboard, 22, "Diag | ADX", decode_adx_text(adx_row_code), diagnostic_metric_bg(row_status(adx_row_code)), txt)
+    dashboard_row(smc_dashboard, 23, "Diag | Rel Volume", decode_relvol_text(relvol_row_code), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
+    dashboard_row(smc_dashboard, 24, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
+    dashboard_row(smc_dashboard, 25, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
+    dashboard_row(smc_dashboard, 26, "Primary | Quality Score", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
+    dashboard_row(smc_dashboard, 27, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
     section_row(smc_dashboard, 28, "[ Modules ]", header_bg, txt)
     dashboard_row(smc_dashboard, 29, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
     dashboard_row(smc_dashboard, 30, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)

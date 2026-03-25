@@ -18,6 +18,13 @@ function scriptNamePatterns(scriptName: string): RegExp[] {
   return [exact, loose, fuzzy];
 }
 
+function publishedVersionContextPattern(scriptName: string): RegExp {
+  return new RegExp(
+    `(^|[^a-z0-9])${escapeRegex(scriptName)}(?:\\s*[:,-]?\\s*)version\\s+\\d+\\b`,
+    "i",
+  );
+}
+
 export type ScriptRowLocatorSpec = {
   scope: "dialog" | "menu_inner";
   matchKind: "exact" | "loose";
@@ -99,14 +106,13 @@ export const tvSelectors = {
   },
 
   publishedVersionContext(page: Page, scriptName: string): Locator[] {
-    const [exact, loose] = scriptNamePatterns(scriptName);
+    const exactVersionContext = publishedVersionContextPattern(scriptName);
 
     return [
-      page.locator('[role="dialog"]').filter({ hasText: exact }),
-      page.locator('[role="dialog"]').filter({ hasText: loose }),
-      page.locator('[data-name="menu-inner"]').filter({ hasText: loose }),
-      page.locator('[role="status"], [role="alert"], [aria-live="polite"], [aria-live="assertive"], [data-name*="toast" i], [class*="toast" i], [class*="notification" i]').filter({ hasText: loose }),
-      page.locator('[data-name*="title" i], [class*="title" i], [data-name*="header" i], [class*="header" i]').filter({ hasText: loose }),
+      page.locator('[role="dialog"]').filter({ hasText: exactVersionContext }),
+      page.locator('[data-name="menu-inner"]').filter({ hasText: exactVersionContext }),
+      page.locator('[role="status"], [role="alert"], [aria-live="polite"], [aria-live="assertive"], [data-name*="toast" i], [class*="toast" i], [class*="notification" i]').filter({ hasText: exactVersionContext }),
+      page.locator('[data-name*="title" i], [class*="title" i], [data-name*="header" i], [class*="header" i]').filter({ hasText: exactVersionContext }),
     ];
   },
 
@@ -206,39 +212,23 @@ export const tvSelectors = {
   },
 
   settingsForScript(page: Page, scriptName: string): Locator[] {
-    const [, loose, fuzzy] = scriptNamePatterns(scriptName);
+    const [exact] = scriptNamePatterns(scriptName);
 
     return [
-      page.getByRole("button", { name: new RegExp(`${escapeRegex(scriptName)}.*settings`, "i") }),
-      page.getByTitle(loose),
-      page.getByTitle(fuzzy),
+      page.getByRole("button", { name: new RegExp(`^${escapeRegex(scriptName)}\\s+settings$`, "i") }),
+      page.getByRole("button", { name: new RegExp(`^settings\\s+${escapeRegex(scriptName)}$`, "i") }),
+      page.getByTitle(exact),
     ];
   },
 
   scriptLegendContainers(page: Page, scriptName: string): Locator[] {
-    const [, loose, fuzzy] = scriptNamePatterns(scriptName);
+    const [exact] = scriptNamePatterns(scriptName);
 
     return [
-      page.getByText(loose).locator("xpath=ancestor::div[1]"),
-      page.getByText(loose).locator("xpath=ancestor::div[2]"),
-      page.getByText(loose).locator("xpath=ancestor::div[3]"),
-      page.getByText(fuzzy).locator("xpath=ancestor::div[1]"),
-      page.getByText(fuzzy).locator("xpath=ancestor::div[2]"),
-      page.getByText(fuzzy).locator("xpath=ancestor::div[3]"),
-      page.getByText(loose).locator("xpath=ancestor::section[1]"),
-      page.getByText(fuzzy).locator("xpath=ancestor::section[1]"),
-      page.locator('[data-name*="legend" i]').filter({ hasText: loose }),
-      page.locator('[data-name*="legend" i]').filter({ hasText: fuzzy }),
-      page.locator('[class*="legend" i]').filter({ hasText: loose }),
-      page.locator('[class*="legend" i]').filter({ hasText: fuzzy }),
-      page.locator('[data-name*="source-item" i]').filter({ hasText: loose }),
-      page.locator('[data-name*="source-item" i]').filter({ hasText: fuzzy }),
-      page.locator('[class*="source-item" i]').filter({ hasText: loose }),
-      page.locator('[class*="source-item" i]').filter({ hasText: fuzzy }),
-      page.locator('[data-name*="study" i]').filter({ hasText: loose }),
-      page.locator('[data-name*="study" i]').filter({ hasText: fuzzy }),
-      page.locator('[class*="study" i]').filter({ hasText: loose }),
-      page.locator('[class*="study" i]').filter({ hasText: fuzzy }),
+      page.getByText(exact).locator("xpath=ancestor::div[1]"),
+      page.getByText(exact).locator("xpath=ancestor::div[2]"),
+      page.getByText(exact).locator("xpath=ancestor::div[3]"),
+      page.getByText(exact).locator("xpath=ancestor::section[1]"),
     ];
   },
 

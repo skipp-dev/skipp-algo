@@ -11,6 +11,7 @@ import {
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
   collectPublishedVersionContextTexts,
+  countOrderedCodeBlockOccurrences,
   containsOrderedCodeBlock,
   ensurePineEditor,
   gotoChart,
@@ -166,7 +167,7 @@ function findImportPathForAlias(text: string, alias: string): string {
   throw new Error(`No import found for alias ${alias}`);
 }
 
-function verifyPublishContract(manifestPath: string, corePath: string): ContractDetails {
+export function verifyPublishContract(manifestPath: string, corePath: string): ContractDetails {
   const manifest = readJson<GeneratedLibraryManifest>(manifestPath);
   const repoRoot = path.dirname(path.resolve(corePath));
   const snippetPath = path.resolve(repoRoot, manifest.core_import_snippet);
@@ -207,7 +208,18 @@ function verifyPublishContract(manifestPath: string, corePath: string): Contract
 
   const snippetBody = snippetLines.slice(1).join("\n");
   if (!containsOrderedCodeBlock(coreText, snippetBody)) {
-    throw new Error("Core file is missing the generated contiguous alias block from the import snippet");
+    throw new Error(
+      "Core file is missing the generated import snippet as a contiguous alias block. "
+      + `Expected block: ${JSON.stringify(snippetLines)}`,
+    );
+  }
+
+  const occurrenceCount = countOrderedCodeBlockOccurrences(coreText, snippetBody);
+  if (occurrenceCount !== 1) {
+    throw new Error(
+      "Core file must contain the generated import snippet alias block exactly once as real contiguous code. "
+      + `Observed occurrences: ${occurrenceCount}`,
+    );
   }
 
   return {

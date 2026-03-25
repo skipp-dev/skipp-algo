@@ -39,3 +39,38 @@ test("settingsForScript does not use raw CSS attribute interpolation for arbitra
   assert.equal(locators.length, 3);
   assert.equal(calls.some((call) => call.startsWith("locator:")), false);
 });
+
+test("publishedVersionContext requires immediate version evidence for the exact script name", () => {
+  const calls: string[] = [];
+  const fakeLocator = {
+    filter: (options: { hasText: RegExp }) => {
+      calls.push(`filter:${options.hasText.source}`);
+      return { kind: "filter" };
+    },
+  };
+  const fakePage = {
+    locator: (_selector: string) => fakeLocator,
+  };
+
+  const locators = tvSelectors.publishedVersionContext(fakePage as never, "SMC Core Engine");
+
+  assert.equal(locators.length, 4);
+  assert.equal(calls.every((call) => call.includes("SMC Core Engine") && call.includes("version")), true);
+});
+
+test("scriptLegendContainers only anchor exact script text descendants", () => {
+  const calls: string[] = [];
+  const fakePage = {
+    getByText: (pattern: RegExp) => {
+      calls.push(pattern.source);
+      return {
+        locator: (_selector: string) => ({ kind: "ancestor" }),
+      };
+    },
+  };
+
+  const locators = tvSelectors.scriptLegendContainers(fakePage as never, "SMC Core Engine");
+
+  assert.equal(locators.length, 4);
+  assert.deepEqual(calls, ["^SMC Core Engine$", "^SMC Core Engine$", "^SMC Core Engine$", "^SMC Core Engine$"]);
+});

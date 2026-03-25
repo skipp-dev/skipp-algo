@@ -940,8 +940,7 @@ def build_base_snapshot_from_bundle_payload(
     days_stale = (date.today() - resolved_date).days
     if days_stale > 5:
         warnings.warn(
-            f"Bundle asof_date is {days_stale} days old ({resolved_asof}). "
-            "The generated Pine library will reflect stale microstructure data.",
+            f"Microstructure base asof_date is {days_stale} days old; results may be stale.",
             stacklevel=2,
         )
 
@@ -953,11 +952,11 @@ def build_base_snapshot_from_bundle_payload(
     for symbol, group in trailing.groupby("symbol", sort=True):
         latest_row = latest.loc[latest["symbol"] == symbol].iloc[0]
         coverage_days = int(group["trade_date"].nunique())
-        coverage_days_min = 3  # Minimum sessions for meaningful 20d metrics
+        coverage_days_min = 5
         if coverage_days < coverage_days_min:
             logger.warning(
                 "Symbol %s has only %d trading days in trailing window; "
-                "20d metrics are not statistically meaningful.",
+                "coverage quality is limited and 20d metrics may be unstable.",
                 symbol,
                 coverage_days,
             )

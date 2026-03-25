@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any, cast
 from datetime import date
 from pathlib import Path
 
@@ -139,7 +140,7 @@ def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(
 
     monkeypatch.setattr(runtime, "date", FakeDate)
 
-    with pytest.warns(UserWarning, match=r"Bundle asof_date is 8 days old \(2026-03-19\)"):
+    with pytest.warns(UserWarning, match=r"Microstructure base asof_date is 8 days old; results may be stale\."):
         output, payload, _ = build_base_snapshot_from_bundle_payload(
             bundle_payload,
             schema_path=SCHEMA_PATH,
@@ -149,7 +150,104 @@ def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(
 
     assert payload["asof_date"] == "2026-03-19"
     assert list(output["symbol"]) == ["AAA"]
-    assert "only 1 trading days in trailing window" in caplog.text
+    assert "coverage quality is limited" in caplog.text
+
+
+def test_build_base_snapshot_from_bundle_payload_warns_when_symbol_coverage_is_thin(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bundle_payload, session_minute_detail = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
+    daily_features = pd.concat(
+        [
+            pd.DataFrame(
+                [
+                    {
+                        "trade_date": "2026-03-18",
+                        "symbol": "AAA",
+                        "exchange": "NASDAQ",
+                        "company_name": "Alpha Holdings",
+                        "asset_type": "stock",
+                        "market_cap": 3_200_000_000,
+                        "day_open": 9.8,
+                        "day_high": 10.1,
+                        "day_low": 9.6,
+                        "day_close": 9.9,
+                        "day_volume": 1_200_000,
+                        "previous_close": 9.7,
+                        "close_trade_hygiene_score": 0.75,
+                        "reclaimed_start_price_within_30s": True,
+                        "early_dip_pct_10s": -0.6,
+                        "open_to_current_pct": 1.0,
+                        "window_return_pct": 1.0,
+                        "close_preclose_return_pct": 0.2,
+                    }
+                ]
+            ),
+            daily_features,
+        ],
+        ignore_index=True,
+    )
+    frames["daily_symbol_features_full_universe"] = daily_features
+    frames["daily_bars"] = daily_features[
+        ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"]
+    ].rename(
+        columns={
+            "day_open": "open",
+            "day_high": "high",
+            "day_low": "low",
+            "day_close": "close",
+            "day_volume": "volume",
+        }
+    )
+    session_minute_detail = pd.concat(
+        [
+            pd.DataFrame(
+                [
+                    {
+                        "trade_date": "2026-03-18",
+                        "symbol": "AAA",
+                        "timestamp": pd.Timestamp("2026-03-18T13:30:00Z"),
+                        "session": "regular",
+                        "open": 9.8,
+                        "high": 9.95,
+                        "low": 9.75,
+                        "close": 9.9,
+                        "volume": 42_000,
+                        "trade_count": 60,
+                    },
+                    {
+                        "trade_date": "2026-03-18",
+                        "symbol": "AAA",
+                        "timestamp": pd.Timestamp("2026-03-18T19:50:00Z"),
+                        "session": "regular",
+                        "open": 9.92,
+                        "high": 10.0,
+                        "low": 9.88,
+                        "close": 9.94,
+                        "volume": 38_000,
+                        "trade_count": 55,
+                    },
+                ]
+            ),
+            session_minute_detail,
+        ],
+        ignore_index=True,
+    )
+
+    with caplog.at_level("WARNING"):
+        output, payload, _ = build_base_snapshot_from_bundle_payload(
+            bundle_payload,
+            schema_path=SCHEMA_PATH,
+            session_minute_detail=session_minute_detail,
+            asof_date="2026-03-20",
+        )
+
+    assert payload["asof_date"] == "2026-03-20"
+    assert output.loc[0, "history_coverage_days_20d"] == 3
+    assert "Symbol AAA has only 3 trading days in trailing window" in caplog.text
 
 
 def test_infer_asset_type_excludes_prefix_only_etf_names() -> None:
@@ -203,7 +301,8 @@ def test_build_symbol_day_microstructure_feature_frame_marks_null_activity_day_i
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     bundle_payload, _ = _make_bundle_payload(tmp_path)
-    daily_features = bundle_payload["frames"]["daily_symbol_features_full_universe"].copy()
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
     session_minute_detail = pd.DataFrame(
         [
             {

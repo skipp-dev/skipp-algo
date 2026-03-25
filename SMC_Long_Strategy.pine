@@ -3,6 +3,7 @@
 
 //@version=6
 
+// Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
 strategy("SMC Long Strategy", overlay = true, pyramiding = 0, process_orders_on_close = true)
 
 src_armed = input.source(close, "BUS Armed")
@@ -42,6 +43,7 @@ else
 
 bool risk_levels_ok = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
 bool quality_ok = na(src_quality_score) ? false : src_quality_score >= min_quality_score
+// Entry/exit logic is evaluated from confirmed BUS inputs; no intrabar lookahead is used in this strategy wrapper.
 bool can_stage_entry = selected_state and quality_ok and risk_levels_ok
 
 float risk_per_unit = risk_levels_ok ? src_trigger - src_invalidation : na

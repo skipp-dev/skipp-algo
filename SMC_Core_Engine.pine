@@ -2942,8 +2942,9 @@ get_structure_display_trend_only(simple int structure_len) =>
     bool structure_break_detected = bull_bos_alert or bull_choch_alert or bear_bos_alert or bear_choch_alert
     not na(ta.barssince(structure_break_detected)) ? trend : 0
 
+// HTF trend confirmation is sampled without lookahead so the dashboard state stays tied to closed HTF bars.
 get_confirmed_structure_trend(string trend_tf, simple int structure_len) =>
-    request.security(syminfo.tickerid, trend_tf, get_structure_display_trend_only(structure_len)[1], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_on)
+    request.security(syminfo.tickerid, trend_tf, get_structure_display_trend_only(structure_len)[1], gaps = barmerge.gaps_off, lookahead = barmerge.lookahead_off)
 
 build_dynamic_alert_message(bool enabled, bool condition, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, bool ltf_price_only_context, string mode_text) =>
     if enabled and condition
@@ -4464,6 +4465,7 @@ if structure_display_trend == -1
 bool live_exec = false
 if signal_mode == ct.SignalMode.AGGRESSIVE_LIVE and barstate.isrealtime
     live_exec := true
+// Entry/exit state propagation uses confirmed bars unless the operator explicitly opts into aggressive live mode.
 bool state_update_bar_ok = barstate.isconfirmed
 if signal_mode == ct.SignalMode.AGGRESSIVE_LIVE
     state_update_bar_ok := true
@@ -4842,10 +4844,11 @@ if signal_mode == ct.SignalMode.AGGRESSIVE_LIVE
 else if barstate.isconfirmed
     htf_fvg_confirmed := htf_bar_changed or htf_fvg_tf_sec == chart_tf_sec
 if show_htf_fvg
+    // HTF FVG context is read with lookahead_off so non-live paths only consume completed HTF bars.
     [htf_bull_found, htf_bull_top, htf_bull_btm, htf_bull_left_time, htf_bull_right_time, htf_bull_fill_target, htf_bull_total_vol] =
-         request.security(syminfo.tickerid, fvg_htf, _detect_fvg_values_for_htf(1, true, fvg_size_threshold, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+        request.security(syminfo.tickerid, fvg_htf, _detect_fvg_values_for_htf(1, true, fvg_size_threshold, fvg_fill_target_ratio), gaps = barmerge.gaps_on, lookahead = barmerge.lookahead_off)
     [htf_bear_found, htf_bear_top, htf_bear_btm, htf_bear_left_time, htf_bear_right_time, htf_bear_fill_target, htf_bear_total_vol] =
-         request.security(syminfo.tickerid, fvg_htf, _detect_fvg_values_for_htf(-1, true, fvg_size_threshold, fvg_fill_target_ratio), gaps = barmerge.gaps_on)
+        request.security(syminfo.tickerid, fvg_htf, _detect_fvg_values_for_htf(-1, true, fvg_size_threshold, fvg_fill_target_ratio), gaps = barmerge.gaps_on, lookahead = barmerge.lookahead_off)
     string bull_htf_key = ''
     if htf_bull_found
         bull_htf_key := u.htf_fvg_key(htf_bull_left_time, htf_bull_right_time, htf_bull_top, htf_bull_btm)

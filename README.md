@@ -59,7 +59,7 @@ npm run tv:preflight
 npm run tv:publish-micro-library
 ```
 
-The TradingView publish flow is fail-closed: reopening the published script must resolve the exact script identity from canonical editor context, and body-level version text is retained only as diagnostic fallback. The legacy `scripts/99_full_release.ts` path is intentionally blocked.
+The TradingView publish flow is fail-closed: reopening the published script must resolve the exact script identity from canonical editor context, version evidence must come from exact script-bound version context, and body-level version text is retained only as diagnostic fallback. The local publish contract also requires the generated contiguous alias block to appear exactly once in the core consumer. The legacy `scripts/99_full_release.ts` path is intentionally blocked.
 
 Required environment variables for automation jobs:
 
@@ -601,6 +601,12 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 - **Entry presets:** Manual, Intraday, Swing — drive effective score thresholds/weights
 - **Engines:** Hybrid, Breakout, Trend+Pullback, Loose
 - **Score Engine (Option C):** High-quality setup scoring independent of rigid engine logic
+
+### Repaint / Backtest Note
+
+- HTF `request.security()` reads in the SMC core use `lookahead = barmerge.lookahead_off` so higher-timeframe context stays bound to completed HTF bars.
+- The non-aggressive lifecycle path in the core advances on confirmed bars, and [SMC_Long_Strategy.pine](SMC_Long_Strategy.pine) stages orders with `process_orders_on_close = true`.
+- In practice that means the default backtest path is bar-close driven; only the explicit aggressive live mode can consume realtime preview behavior.
 
 ### Key Features
 

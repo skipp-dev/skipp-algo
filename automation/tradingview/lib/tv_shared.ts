@@ -492,6 +492,25 @@ export function containsOrderedCodeBlock(haystack: string, snippet: string): boo
   return false;
 }
 
+export function countOrderedCodeBlockOccurrences(haystack: string, snippet: string): number {
+  const haystackLines = significantCodeLines(haystack);
+  const snippetLines = significantCodeLines(snippet);
+
+  if (snippetLines.length === 0) {
+    return 0;
+  }
+
+  let matches = 0;
+  for (let start = 0; start <= haystackLines.length - snippetLines.length; start += 1) {
+    const blockMatches = snippetLines.every((line, offset) => haystackLines[start + offset] === line);
+    if (blockMatches) {
+      matches += 1;
+    }
+  }
+
+  return matches;
+}
+
 export function containsAnchoredCodeBlockAfterLine(haystack: string, anchorLine: string, snippet: string): boolean {
   const haystackLines = significantCodeLines(haystack);
   const normalizedAnchor = significantCodeLines(anchorLine)[0] ?? "";
@@ -536,15 +555,27 @@ function uniqueNormalizedTexts(values: string[]): string[] {
   return [...new Set(values.map((value) => normalizeUiText(value)).filter(Boolean))];
 }
 
-function collectPublishedVersionsFromBody(bodyText: string, scriptName?: string): number[] {
-  const normalizedBody = normalizeUiText(bodyText);
-  if (!normalizedBody) {
+function buildExactPublishedVersionEvidencePattern(scriptName: string): RegExp | null {
+  const normalizedScriptName = normalizeUiText(scriptName);
+  if (!normalizedScriptName) {
+    return null;
+  }
+
+  return new RegExp(
+    `(^|[^a-z0-9])${escapeRegex(normalizedScriptName)}(?:\\s*[:,-]?\\s*)version\\s+(\\d+)\\b`,
+    "gi",
+  );
+}
+
+function collectExactPublishedVersions(text: string, scriptName?: string): number[] {
+  const normalizedText = normalizeUiText(text);
+  if (!normalizedText) {
     return [];
   }
 
   const versions = new Set<number>();
   if (!scriptName) {
-    for (const match of normalizedBody.matchAll(/\bversion\s+(\d+)\b/gi)) {
+    for (const match of normalizedText.matchAll(/\bversion\s+(\d+)\b/gi)) {
       const version = Number(match[1]);
       if (Number.isFinite(version)) {
         versions.add(version);
@@ -553,13 +584,12 @@ function collectPublishedVersionsFromBody(bodyText: string, scriptName?: string)
     return [...versions];
   }
 
-  const anchoredPattern = buildAnchoredScriptNamePattern(scriptName);
-  if (!anchoredPattern) {
+  const versionPattern = buildExactPublishedVersionEvidencePattern(scriptName);
+  if (!versionPattern) {
     return [];
   }
 
-  const versionPattern = new RegExp(`${anchoredPattern.source}.{0,240}?\\bversion\\s+(\\d+)\\b`, "gi");
-  for (const match of normalizedBody.matchAll(versionPattern)) {
+  for (const match of normalizedText.matchAll(versionPattern)) {
     const version = Number(match[2]);
     if (Number.isFinite(version)) {
       versions.add(version);
@@ -569,6 +599,10 @@ function collectPublishedVersionsFromBody(bodyText: string, scriptName?: string)
   return [...versions];
 }
 
+function collectPublishedVersionsFromBody(bodyText: string, scriptName?: string): number[] {
+  return collectExactPublishedVersions(bodyText, scriptName);
+}
+
 function collectPublishedVersionsFromContextTexts(contextTexts: string[], scriptName?: string): number[] {
   const normalizedTexts = uniqueNormalizedTexts(contextTexts);
   if (normalizedTexts.length === 0) {
@@ -576,16 +610,10 @@ function collectPublishedVersionsFromContextTexts(contextTexts: string[], script
   }
 
   const versions = new Set<number>();
-  const anchoredPattern = scriptName ? buildAnchoredScriptNamePattern(scriptName) : null;
   for (const candidate of normalizedTexts) {
-    if (scriptName && anchoredPattern && !anchoredPattern.test(candidate)) {
-      continue;
-    }
-
-    for (const match of candidate.matchAll(/\bversion\s+(\d+)\b/gi)) {
-      const version = Number(match[1]);
+    for (const version of collectExactPublishedVersions(candidate, scriptName)) {
       if (Number.isFinite(version)) {
-        versions.add(version);
+        versions.add(Number(version));
       }
     }
   }
@@ -1474,7 +1502,8 @@ async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string
   const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
   const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
   if (!titledDialog) {
-    return true;
+    tracePageEvent(page, `${tracePrefix}-identity-missing-title`, scriptName);
+    throw new Error(`Opened settings dialog without an identifiable script title for: ${scriptName}`);
   }
   if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
     return true;
@@ -1486,7 +1515,7 @@ async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string
 export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogTitle?: string | null): boolean {
   const normalizedTitle = normalizeUiText(dialogTitle ?? "");
   if (!normalizedTitle) {
-    return true;
+    return false;
   }
 
   return uiTextContainsExactScriptName(scriptName, normalizedTitle);

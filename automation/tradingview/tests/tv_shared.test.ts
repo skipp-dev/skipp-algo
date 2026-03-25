@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   buildScriptNamePatterns,
+  countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
   resolveOpenScriptIdentityEvidence,
   settingsDialogTitleMatchesScriptName,
@@ -70,6 +71,10 @@ gamma = micro.gamma()
 alpha = micro.alpha()
 gamma = micro.gamma()
 `), false);
+  assert.equal(countOrderedCodeBlockOccurrences(haystack, `
+beta = micro.beta()
+gamma = micro.gamma()
+`), 1);
 });
 
 test("anchored code block verification ignores comment-only matches", () => {
@@ -238,7 +243,7 @@ test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
 test("settings dialog identity check rejects mismatched titled dialogs", () => {
   assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", "SMC Dashboard"), false);
   assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", "SMC Core Engine"), true);
-  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", ""), true);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", ""), false);
 });
 
 test("buildScriptNamePatterns fuzzy does not match engineering suite expansion", () => {
@@ -262,6 +267,23 @@ test("detectPublishedVersionFromContextTexts only accepts target-script context"
   assert.equal(detectPublishedVersionFromContextTexts([
     "Generic publish version 7 successfully.",
   ], "SMC Core Engine"), null);
+});
+
+test("detectPublishedVersionFromContextTexts rejects similar-name supersets", () => {
+  assert.equal(detectPublishedVersionFromContextTexts([
+    "SMC Core Engine Copy version 7",
+  ], "SMC Core Engine"), null);
+  assert.equal(detectPublishedVersionFromContextTexts([
+    "SMC Core Engine (v2) version 7",
+  ], "SMC Core Engine"), null);
+  assert.equal(detectPublishedVersionFromContextTexts([
+    "Published SMC Core Engine version 7 successfully.",
+  ], "SMC Core Engine"), 7);
+});
+
+test("detectPublishedVersionFromBody rejects similar-name supersets", () => {
+  assert.equal(detectPublishedVersionFromBody("SMC Core Engine Copy version 7", "SMC Core Engine"), null);
+  assert.equal(detectPublishedVersionFromBody("SMC Core Engine (v2) version 7", "SMC Core Engine"), null);
 });
 
 test("detectPublishedVersionFromContextTexts fails closed on multiple target versions", () => {

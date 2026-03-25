@@ -49,7 +49,7 @@ This verifies:
 - the manifest recommended import path
 - the first import line in the generated snippet
 - the actual import used by SMC_Core_Engine.pine
-- the generated alias block copied into the core file in the same order
+- the generated alias block copied into the core file in the same order and exactly once as real contiguous code
 
 ## TradingView Publish
 
@@ -65,8 +65,10 @@ The automated publish report now distinguishes two separate facts:
 
 - `publishedScriptVerified`: the TradingView library script could be reopened after publish
 - `identityVerificationMode`: exact reopened script identity from canonical editor context
-- `versionVerificationMode`: version proof from dedicated version-bearing UI context; `body_fallback` is diagnostic only and fails closed
+- `versionVerificationMode`: version proof from dedicated exact script-bound version UI context; `body_fallback` is diagnostic only and fails closed
 - `repoCoreValidationReport`: the local repo core consumer was revalidated in mutating preflight mode after publish
+
+Settings-opening automation is also fail-closed: if the visible settings dialog cannot prove the exact target script from its title, the run aborts instead of accepting an unidentified dialog.
 
 `--no-open-existing` remains a deliberate Sonderpfad for a fresh untitled draft and is not treated as the default hardened release path.
 
