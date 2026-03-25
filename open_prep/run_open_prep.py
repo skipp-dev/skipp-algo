@@ -729,11 +729,61 @@ def _parse_calendar_date(value: Any) -> date | None:
     raw = str(value or "").strip()
     if not raw:
         return None
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized).date()
+    except ValueError:
+        pass
+
     date_part = raw.split("T")[0].split(" ")[0]
     try:
         return date.fromisoformat(date_part)
     except ValueError:
+        pass
+
+    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(date_part, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _parse_calendar_timestamp(value: Any) -> float | None:
+    raw = str(value or "").strip()
+    if not raw:
         return None
+
+    normalized = raw.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC).timestamp()
+    except ValueError:
+        pass
+
+    candidate = raw.replace("T", " ")
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%Y %H:%M",
+        "%m/%d/%Y %I:%M:%S %p",
+        "%m/%d/%Y %I:%M %p",
+        "%m-%d-%Y %H:%M:%S",
+        "%m-%d-%Y %H:%M",
+    ):
+        try:
+            dt = datetime.strptime(candidate, fmt).replace(tzinfo=UTC)
+            return dt.timestamp()
+        except ValueError:
+            continue
+
+    d = _parse_calendar_date(raw)
+    if d is None:
+        return None
+    return datetime(d.year, d.month, d.day, tzinfo=UTC).timestamp()
 
 
 # ---------------------------------------------------------------------------
@@ -975,18 +1025,26 @@ def _fetch_upgrades_downgrades(
         return {}
 
     universe_set = {s.upper() for s in symbols}
-    # Group by symbol, keep chronological order (newest first)
-    by_symbol: dict[str, list[dict[str, Any]]] = {}
-    for row in raw:
+    # Group by symbol; select latest by parsed published date to avoid
+    # dependence on provider row ordering.
+    by_symbol: dict[str, list[tuple[float | None, int, dict[str, Any]]]] = {}
+    for idx, row in enumerate(raw):
         sym = str(row.get("symbol") or "").strip().upper()
         if not sym or sym not in universe_set:
             continue
-        by_symbol.setdefault(sym, []).append(row)
+        ts = _parse_calendar_timestamp(row.get("publishedDate") or row.get("date"))
+        by_symbol.setdefault(sym, []).append((ts, idx, row))
 
     result: dict[str, dict[str, Any]] = {}
     for sym, rows in by_symbol.items():
-        # Take the most recent entry (FMP returns newest first)
-        latest = rows[0]
+        latest = max(
+            rows,
+            key=lambda item: (
+                item[0] is not None,
+                item[0] if item[0] is not None else float("-inf"),
+                -item[1],
+            ),
+        )[2]
         action = str(latest.get("action") or latest.get("newGrade") or "").strip()
         emoji, label = _classify_upgrade_downgrade_action(action)
         result[sym] = {
@@ -1248,6 +1306,8 @@ def _fetch_house_trading(
     *,
     client: FMPClient,
     symbols: list[str],
+    today: date | None = None,
+    lookback_days: int = 90,
 ) -> dict[str, dict[str, Any]]:
     """Fetch House trading disclosures and aggregate per symbol.
 
@@ -1265,10 +1325,20 @@ def _fetch_house_trading(
         return result
 
     symbol_set = {s.upper() for s in symbols if s.strip()}
+    effective_today = today or date.today()
+    cutoff = effective_today - timedelta(days=max(int(lookback_days), 0))
 
     for row in raw:
         sym = str(row.get("symbol") or row.get("ticker") or "").strip().upper()
         if not sym or sym not in symbol_set:
+            continue
+        tx_date = _parse_calendar_date(
+            row.get("transactionDate")
+            or row.get("disclosureDate")
+            or row.get("publishedDate")
+            or row.get("date")
+        )
+        if tx_date is None or tx_date < cutoff:
             continue
         tx_type = str(row.get("type") or row.get("transactionType") or "").strip().lower()
         entry = result.setdefault(sym, {"house_buys": 0, "house_sells": 0})
@@ -3091,7 +3161,7 @@ def _compute_tomorrow_outlook(
     # Count tomorrow's earnings
     earnings_tomorrow = [
         e for e in earnings_calendar
-        if str(e.get("date") or "").startswith(next_td_iso)
+        if _parse_calendar_date(e.get("date")) == next_td
     ]
     earnings_bmo_tomorrow = [
         e for e in earnings_tomorrow
@@ -3101,7 +3171,7 @@ def _compute_tomorrow_outlook(
     # Count high-impact macro events for tomorrow from full range calendar
     tomorrow_events = [
         e for e in all_range_events
-        if str(e.get("date") or "").startswith(next_td_iso)
+        if _parse_calendar_date(e.get("date")) == next_td
     ]
     high_impact_tomorrow = [
         e for e in tomorrow_events
@@ -4477,6 +4547,7 @@ def generate_open_prep_result(
         house_trading = _fetch_house_trading(
             client=data_client,
             symbols=symbol_list,
+            today=today,
         )
         if house_trading:
             logger.info("House trading: %d symbols with activity", len(house_trading))
