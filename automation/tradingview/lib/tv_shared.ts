@@ -130,7 +130,7 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function buildScriptNamePatterns(scriptName: string): RegExp[] {
+export function buildScriptNamePatterns(scriptName: string): RegExp[] {
   const normalizedWords = scriptName
     .split(/\s+/)
     .map((part) => part.trim())
@@ -138,14 +138,15 @@ function buildScriptNamePatterns(scriptName: string): RegExp[] {
   const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
   const loose = new RegExp(escapeRegex(scriptName), "i");
   const fuzzy = normalizedWords.length > 0
-    ? new RegExp(normalizedWords.map((part) => escapeRegex(part.slice(0, Math.min(part.length, 4)))).join(".*"), "i")
+    ? new RegExp(normalizedWords.map((part) => `\\b${escapeRegex(part)}(?=$|[^a-z0-9])`).join(".*"), "i")
     : loose;
 
   return [exact, loose, fuzzy];
 }
 
-function validateTradingViewStorageState(storageStatePath: string): void {
+export function validateTradingViewStorageState(storageStatePath: string): void {
   if (boolEnv("TV_SKIP_AUTH_STATE_VALIDATION", false)) {
+    console.error("[tv-auth] WARNING: TV_SKIP_AUTH_STATE_VALIDATION=1 is set. Storage state validation is bypassed.");
     return;
   }
 
@@ -599,15 +600,41 @@ function hasConflictingCanonicalEditorContext(scriptName: string, editorContextT
     return false;
   }
 
+  const looksLikeScriptNameCandidate = (candidate: string): boolean => {
+    const trimmed = normalizeUiText(candidate);
+    if (trimmed.length <= 2 || trimmed.length > 120) {
+      return false;
+    }
+    if (!/\w/.test(trimmed)) {
+      return false;
+    }
+    if (/https?:\/\/|www\./i.test(trimmed)) {
+      return false;
+    }
+    if (/^\d+(?:[ .:/-]\d+)*$/.test(trimmed)) {
+      return false;
+    }
+    if (trimmed.split(/\s+/).length > 12) {
+      return false;
+    }
+    if (/\b(tab|editor|search|result|results|publish|private|open|inputs|style|properties|visibility|strategy report)\b/i.test(trimmed)) {
+      return false;
+    }
+    if (/[.!?]/.test(trimmed) && trimmed.split(/\s+/).length > 5) {
+      return false;
+    }
+    return true;
+  };
+
   return uniqueNormalizedTexts(editorContextTexts).some((candidate) => {
     const normalizedCandidate = candidate.toLowerCase();
     if (normalizedCandidate === normalizedScriptName) {
       return false;
     }
-    if (anchoredPattern.test(candidate)) {
+    if (uiTextContainsExactScriptName(scriptName, candidate)) {
       return false;
     }
-    return /^[a-z0-9_+.-]+(?: [a-z0-9_+.-]+){0,7}$/i.test(candidate);
+    return looksLikeScriptNameCandidate(candidate);
   });
 }
 
@@ -1444,6 +1471,19 @@ async function snapshotDialog(dialog: Locator): Promise<VisibleDialogSnapshot> {
   };
 }
 
+async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string, tracePrefix: string): Promise<boolean> {
+  const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
+  const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
+  if (!titledDialog) {
+    return true;
+  }
+  if (uiTextContainsExactScriptName(scriptName, titledDialog.title)) {
+    return true;
+  }
+  tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
+  return false;
+}
+
 async function collectVisibleDialogSnapshots(page: Page): Promise<VisibleDialogSnapshot[]> {
   const roots = [
     page.locator('[role="dialog"]'),
@@ -1788,7 +1828,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       "script-settings-legend-wrapper-dblclick-ok",
       scriptName,
     )) {
-      return true;
+      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-dblclick");
     }
 
     const clickedDirectSettings = await clickVisibleWithFallback(
@@ -1801,10 +1841,10 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
     if (clickedDirectSettings) {
       tracePageEvent(page, "script-settings-legend-wrapper-direct-clicked", scriptName);
       if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-direct-surface");
       }
       if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-wrapper-direct")) {
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-direct-dialog");
       }
     }
 
@@ -1818,7 +1858,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
     if (clickedMenu) {
       tracePageEvent(page, "script-settings-legend-wrapper-menu-clicked", scriptName);
       if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-wrapper-menu")) {
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-menu-dialog");
       }
     }
   }
@@ -1864,7 +1904,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
         "script-settings-legend-container-dblclick-ok",
         `${scriptName}:${containerIndex}`,
       )) {
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-container-dblclick");
       }
 
       const clickedDirectSettings = await clickVisibleWithFallback(
@@ -1878,10 +1918,10 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
         tracePageEvent(page, "script-settings-legend-direct-clicked", `${scriptName}:${containerIndex}`);
         await page.waitForTimeout(250);
         if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-surface");
         }
         if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-direct:${scriptName}:${containerIndex}`)) {
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-dialog");
         }
         tracePageEvent(page, "script-settings-legend-direct-no-surface", `${scriptName}:${containerIndex}`);
       }
@@ -1897,7 +1937,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
         tracePageEvent(page, "script-settings-legend-container-clicked", `${scriptName}:${containerIndex}`);
         await page.waitForTimeout(250);
         if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-menu:${scriptName}:${containerIndex}`)) {
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-menu-dialog");
         }
         tracePageEvent(page, "script-settings-legend-container-no-surface", `${scriptName}:${containerIndex}`);
       }
@@ -1913,14 +1953,14 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
         await page.waitForTimeout(350);
         if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-mouse:${scriptName}:${containerIndex}`)) {
           tracePageEvent(page, "script-settings-legend-container-mouse-ok", `${scriptName}:${containerIndex}`);
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-mouse-dialog");
         }
 
         await page.mouse.click(targetX, targetY, { button: "right" }).catch(() => undefined);
         await page.waitForTimeout(350);
         if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-rightclick:${scriptName}:${containerIndex}`)) {
           tracePageEvent(page, "script-settings-legend-container-rightclick-ok", `${scriptName}:${containerIndex}`);
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-rightclick-dialog");
         }
       }
 
@@ -1928,7 +1968,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       await page.waitForTimeout(350);
       if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-force-rightclick:${scriptName}:${containerIndex}`)) {
         tracePageEvent(page, "script-settings-legend-container-force-rightclick-ok", `${scriptName}:${containerIndex}`);
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-force-rightclick-dialog");
       }
     }
   }
@@ -1977,7 +2017,7 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
         "script-settings-text-ancestor-dblclick-ok",
         `${scriptName}:${level}`,
       )) {
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-dblclick");
       }
 
       const clickedDirectSettings = await clickVisibleWithFallback(
@@ -1990,11 +2030,11 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
       if (clickedDirectSettings) {
         if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
           tracePageEvent(page, "script-settings-text-ancestor-direct-ok", `${scriptName}:${level}`);
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-direct-surface");
         }
         if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-direct:${scriptName}:${level}`)) {
           tracePageEvent(page, "script-settings-text-ancestor-direct-ok", `${scriptName}:${level}`);
-          return true;
+          return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-direct-dialog");
         }
       }
 
@@ -2007,7 +2047,7 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
       );
       if (clickedMenu && (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-menu:${scriptName}:${level}`))) {
         tracePageEvent(page, "script-settings-text-ancestor-menu-ok", `${scriptName}:${level}`);
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-menu-dialog");
       }
     }
 
@@ -2022,7 +2062,7 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
       await page.waitForTimeout(350);
       if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-rightclick:${scriptName}`)) {
         tracePageEvent(page, "script-settings-text-rightclick-ok", scriptName);
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-rightclick-dialog");
       }
     }
 
@@ -2030,7 +2070,7 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
     await page.waitForTimeout(350);
     if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-force-rightclick:${scriptName}`)) {
       tracePageEvent(page, "script-settings-text-force-rightclick-ok", scriptName);
-      return true;
+      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-force-rightclick-dialog");
     }
 
     for (let level = 1; level <= 4; level += 1) {

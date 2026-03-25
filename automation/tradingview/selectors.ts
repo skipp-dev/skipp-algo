@@ -212,8 +212,6 @@ export const tvSelectors = {
       page.getByRole("button", { name: new RegExp(`${escapeRegex(scriptName)}.*settings`, "i") }),
       page.getByTitle(loose),
       page.getByTitle(fuzzy),
-      page.locator(`[title*="${scriptName}"]`),
-      page.locator(`[aria-label*="${scriptName}"]`),
     ];
   },
 

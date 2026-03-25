@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildScriptNamePatterns,
   collectVisibleLocatorMetadata,
-  collectPublishedVersionContextTexts,
   resolveOpenScriptIdentityEvidence,
+  validateTradingViewStorageState,
   containsAnchoredCodeBlockAfterLine,
   containsOrderedCodeBlock,
   detectPublishedVersionFromContextTexts,
@@ -172,6 +173,20 @@ test("verifyOpenScriptIdentity fails closed on conflicting canonical editor cont
   }), false);
 });
 
+test("verifyOpenScriptIdentity rejects similar engineering suite names", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "SMC Core Engineering Suite"],
+  }), false);
+});
+
+test("verifyOpenScriptIdentity treats parenthesized version suffix as conflict", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "SMC Core Engine (v2)"],
+  }), false);
+});
+
 test("verifyOpenScriptIdentity fails when body text matches accidentally but editor context is missing", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,
@@ -195,6 +210,13 @@ test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
     verified: false,
     verificationMode: "not_verified",
   });
+});
+
+test("buildScriptNamePatterns fuzzy does not match engineering suite expansion", () => {
+  const [, , fuzzyPattern] = buildScriptNamePatterns("SMC Core Engine");
+
+  assert.equal(fuzzyPattern.test("SMC Core Engineering Suite"), false);
+  assert.equal(fuzzyPattern.test("SMC Core Engine"), true);
 });
 
 test("detectPublishedVersionFromBody anchors version to the target script when provided", () => {
@@ -308,4 +330,28 @@ test("collectVisibleLocatorMetadata samples all visible candidates instead of fi
     { text: "SMC Core Engine", ariaLabel: "", title: "" },
     { text: "SMC Dashboard", ariaLabel: "", title: "Dashboard" },
   ]);
+});
+
+test("TV_SKIP_AUTH_STATE_VALIDATION emits a warning and bypasses validation", () => {
+  const previous = process.env.TV_SKIP_AUTH_STATE_VALIDATION;
+  const messages: string[] = [];
+  const originalError = console.error;
+
+  process.env.TV_SKIP_AUTH_STATE_VALIDATION = "1";
+  console.error = (...args: unknown[]) => {
+    messages.push(args.map((arg) => String(arg)).join(" "));
+  };
+
+  try {
+    validateTradingViewStorageState("/path/that/is/not_checked.json");
+  } finally {
+    console.error = originalError;
+    if (previous == null) {
+      delete process.env.TV_SKIP_AUTH_STATE_VALIDATION;
+    } else {
+      process.env.TV_SKIP_AUTH_STATE_VALIDATION = previous;
+    }
+  }
+
+  assert.equal(messages.some((message) => message.includes("TV_SKIP_AUTH_STATE_VALIDATION=1 is set")), true);
 });
