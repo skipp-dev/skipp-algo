@@ -5,6 +5,7 @@ import {
   buildScriptNamePatterns,
   collectVisibleLocatorMetadata,
   resolveOpenScriptIdentityEvidence,
+  settingsDialogTitleMatchesScriptName,
   validateTradingViewStorageState,
   containsAnchoredCodeBlockAfterLine,
   containsOrderedCodeBlock,
@@ -187,6 +188,14 @@ test("verifyOpenScriptIdentity treats parenthesized version suffix as conflict",
   }), false);
 });
 
+test("verifyOpenScriptIdentity treats lone parenthesized version suffix as conflict", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine (v2)"],
+    bodyText: "Workspace body SMC Core Engine",
+  }), false);
+});
+
 test("verifyOpenScriptIdentity fails when body text matches accidentally but editor context is missing", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,
@@ -210,6 +219,12 @@ test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
     verified: false,
     verificationMode: "not_verified",
   });
+});
+
+test("settings dialog identity check rejects mismatched titled dialogs", () => {
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", "SMC Dashboard"), false);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", "SMC Core Engine"), true);
+  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", ""), true);
 });
 
 test("buildScriptNamePatterns fuzzy does not match engineering suite expansion", () => {

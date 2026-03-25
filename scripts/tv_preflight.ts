@@ -416,7 +416,10 @@ async function main(): Promise<number> {
       }
 
       if (target.checkInputs) {
-        await openSettingsForScript(session.page, target.scriptName);
+        const settingsOpened = await openSettingsForScript(session.page, target.scriptName);
+        if (settingsOpened !== true) {
+          throw new Error(`Settings opened for the wrong TradingView script: ${target.scriptName}`);
+        }
         targetResult.settings_open_ok = true;
         await openInputsTab(session.page);
         targetResult.inputs_tab_ok = true;

@@ -595,46 +595,45 @@ function collectPublishedVersionsFromContextTexts(contextTexts: string[], script
 
 function hasConflictingCanonicalEditorContext(scriptName: string, editorContextTexts: string[]): boolean {
   const normalizedScriptName = normalizeUiText(scriptName).toLowerCase();
-  const anchoredPattern = buildAnchoredScriptNamePattern(scriptName);
-  if (!normalizedScriptName || !anchoredPattern) {
+  if (!normalizedScriptName) {
     return false;
   }
 
-  const looksLikeScriptNameCandidate = (candidate: string): boolean => {
+  const isObviousGenericUiText = (candidate: string): boolean => {
     const trimmed = normalizeUiText(candidate);
     if (trimmed.length <= 2 || trimmed.length > 120) {
-      return false;
+      return true;
     }
     if (!/\w/.test(trimmed)) {
-      return false;
+      return true;
     }
     if (/https?:\/\/|www\./i.test(trimmed)) {
-      return false;
+      return true;
     }
     if (/^\d+(?:[ .:/-]\d+)*$/.test(trimmed)) {
-      return false;
+      return true;
     }
     if (trimmed.split(/\s+/).length > 12) {
-      return false;
+      return true;
     }
-    if (/\b(tab|editor|search|result|results|publish|private|open|inputs|style|properties|visibility|strategy report)\b/i.test(trimmed)) {
-      return false;
+    if (/^[a-z]{1,2}$/i.test(trimmed)) {
+      return true;
     }
-    if (/[.!?]/.test(trimmed) && trimmed.split(/\s+/).length > 5) {
-      return false;
-    }
-    return true;
+    return false;
   };
 
   return uniqueNormalizedTexts(editorContextTexts).some((candidate) => {
-    const normalizedCandidate = candidate.toLowerCase();
-    if (normalizedCandidate === normalizedScriptName) {
+    const normalizedCandidate = normalizeUiText(candidate).toLowerCase();
+    if (!normalizedCandidate || normalizedCandidate === normalizedScriptName) {
       return false;
     }
     if (uiTextContainsExactScriptName(scriptName, candidate)) {
       return false;
     }
-    return looksLikeScriptNameCandidate(candidate);
+    if (isObviousGenericUiText(candidate)) {
+      return false;
+    }
+    return true;
   });
 }
 
@@ -1477,11 +1476,20 @@ async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string
   if (!titledDialog) {
     return true;
   }
-  if (uiTextContainsExactScriptName(scriptName, titledDialog.title)) {
+  if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
     return true;
   }
   tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
-  return false;
+  throw new Error(`Opened settings dialog for wrong script: expected ${scriptName}, got ${titledDialog.title}`);
+}
+
+export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogTitle?: string | null): boolean {
+  const normalizedTitle = normalizeUiText(dialogTitle ?? "");
+  if (!normalizedTitle) {
+    return true;
+  }
+
+  return uiTextContainsExactScriptName(scriptName, normalizedTitle);
 }
 
 async function collectVisibleDialogSnapshots(page: Page): Promise<VisibleDialogSnapshot[]> {
@@ -2086,7 +2094,7 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
       await page.waitForTimeout(350);
       if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-text-ancestor-rightclick:${scriptName}:${level}`)) {
         tracePageEvent(page, "script-settings-text-ancestor-rightclick-ok", `${scriptName}:${level}`);
-        return true;
+        return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-text-ancestor-rightclick-dialog");
       }
     }
   }
@@ -3071,8 +3079,8 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string): 
   });
 }
 
-export async function openSettingsForScript(page: Page, scriptName: string): Promise<void> {
-  await runTrackedStep(page, `openSettingsForScript:${scriptName}`, async () => {
+export async function openSettingsForScript(page: Page, scriptName: string): Promise<boolean> {
+  return runTrackedStep(page, `openSettingsForScript:${scriptName}`, async () => {
     await dismissSignInModal(page);
     await closePineEditorIfVisible(page);
     tracePageEvent(page, "script-settings-open-start", scriptName);
@@ -3109,7 +3117,7 @@ export async function openSettingsForScript(page: Page, scriptName: string): Pro
 
     if (await waitForScriptSettingsInputsSurface(page, 750)) {
       tracePageEvent(page, "script-settings-open-indicator-dialog-visible", scriptName);
-      return;
+      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-visible-dialog");
     }
 
     await dismissSignInModal(page);
@@ -3123,7 +3131,7 @@ export async function openSettingsForScript(page: Page, scriptName: string): Pro
     tracePageEvent(page, "script-settings-open-menu-action-result", `${scriptName}:${clickedSettings}`);
     if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, 2_000))) {
       tracePageEvent(page, "script-settings-open-indicator-dialog-after-action", scriptName);
-      return;
+      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-action-dialog");
     }
 
     await closeModal(page).catch(() => undefined);
