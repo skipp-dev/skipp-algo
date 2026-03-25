@@ -112,6 +112,11 @@ class BenzingaFinancialAdapter:
         if isinstance(data, dict):
             api_error = data.get("error") or data.get("errors")
             if api_error:
+                logger.error(
+                    "Benzinga financial error payload for %s: %s",
+                    _sanitize_url(str(r.url)),
+                    api_error,
+                )
                 raise RuntimeError(f"Benzinga financial API error: {api_error}")
         return data
 

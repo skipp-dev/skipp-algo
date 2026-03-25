@@ -302,15 +302,17 @@ class TestEdgeCases:
             with pytest.raises(ValueError, match="non-JSON"):
                 adapter.fetch_fundamentals("AAPL")
 
-    def test_error_body_on_http_200_raises(self, adapter: BenzingaFinancialAdapter):
+    def test_error_body_on_http_200_raises(self, adapter: BenzingaFinancialAdapter, caplog):
         """HTTP 200 with {'error': ...} must fail loudly."""
         with patch.object(
             adapter.client,
             "get",
             return_value=_mock_response({"error": "invalid token"}),
         ):
-            with pytest.raises(RuntimeError, match="Benzinga financial API error"):
-                adapter.fetch_fundamentals("AAPL")
+            with caplog.at_level("ERROR"):
+                with pytest.raises(RuntimeError, match="Benzinga financial API error"):
+                    adapter.fetch_fundamentals("AAPL")
+        assert "error payload" in caplog.text.lower()
 
     def test_string_response_returns_empty(self, adapter: BenzingaFinancialAdapter):
         """String response returns empty list."""
