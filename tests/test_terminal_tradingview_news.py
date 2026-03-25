@@ -51,3 +51,18 @@ def test_health_failure_counter_increments_and_success_resets_streak() -> None:
     assert healthy["total_failures"] == 2
 
     _reset_health_state()
+
+
+def test_health_three_consecutive_failures_mark_down_and_unhealthy() -> None:
+    _reset_health_state()
+
+    _health.record_failure("timeout")
+    _health.record_failure("http 503")
+    _health.record_failure("url error")
+
+    st = health_status()
+    assert st["consecutive_failures"] == 3
+    assert st["status"] == "down"
+    assert _health.is_healthy is False
+
+    _reset_health_state()
