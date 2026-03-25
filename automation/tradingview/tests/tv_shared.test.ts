@@ -196,6 +196,20 @@ test("verifyOpenScriptIdentity treats lone parenthesized version suffix as confl
   }), false);
 });
 
+test("verifyOpenScriptIdentity treats copy suffix as conflict", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "SMC Core Engine - copy"],
+  }), false);
+});
+
+test("verifyOpenScriptIdentity fails closed for multiple similar conflicting contexts", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "SMC Core Engine (v2)", "SMC Core Engine - copy"],
+  }), false);
+});
+
 test("verifyOpenScriptIdentity fails when body text matches accidentally but editor context is missing", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,

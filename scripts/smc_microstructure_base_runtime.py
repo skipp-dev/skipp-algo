@@ -686,6 +686,28 @@ def build_symbol_day_microstructure_feature_frame(
                 - pd.Timedelta(hours=9, minutes=30)
             ).dt.total_seconds() / 60.0
 
+            null_activity_keys: list[tuple[date, str]] = []
+            for (trade_day, symbol), group in minute_frame.groupby(["trade_date", "symbol"], sort=False):
+                close_series = pd.to_numeric(group.get("close"), errors="coerce")
+                volume_series = pd.to_numeric(group.get("volume"), errors="coerce").fillna(0.0)
+                close_missing = close_series.isna().all()
+                volume_inactive = bool((volume_series <= 0).all())
+                if close_missing or volume_inactive:
+                    logger.warning(
+                        "Symbol %s on %s has no usable close/volume activity; marking all minute bars inactive.",
+                        symbol,
+                        trade_day,
+                    )
+                    null_activity_keys.append((trade_day, symbol))
+
+            if null_activity_keys:
+                null_activity_index = pd.MultiIndex.from_tuples(null_activity_keys, names=["trade_date", "symbol"])
+                minute_index = pd.MultiIndex.from_frame(minute_frame[["trade_date", "symbol"]])
+                inactive_mask = minute_index.isin(null_activity_index)
+                minute_frame.loc[inactive_mask, "active_minute"] = False
+                minute_frame.loc[inactive_mask, "trade_proxy"] = 0.0
+                minute_frame.loc[inactive_mask, "dollar_volume"] = 0.0
+
             rows: list[dict[str, Any]] = []
             for (trade_day, symbol), group in minute_frame.groupby(["trade_date", "symbol"], sort=False):
                 ordered = group.sort_values("timestamp").reset_index(drop=True)
@@ -918,7 +940,7 @@ def build_base_snapshot_from_bundle_payload(
     days_stale = (date.today() - resolved_date).days
     if days_stale > 5:
         warnings.warn(
-            f"Bundle asof_date is {days_stale} trading days old ({resolved_asof}). "
+            f"Bundle asof_date is {days_stale} days old ({resolved_asof}). "
             "The generated Pine library will reflect stale microstructure data.",
             stacklevel=2,
         )
@@ -1094,6 +1116,7 @@ def write_base_manifest(
         "mapping_json_path": str(mapping_json_path),
         "recommended_library_import": f"{library_owner}/smc_micro_profiles_generated/{library_version}",
         "core_ready": core_ready,
+        "core_ready_note": "core_ready only describes the generated base snapshot artifact state; TradingView contract readiness is validated later via verify_publish_contract and tv_publish_micro_library.",
         "tradingview_publish_required": True,
         "tradingview_publish_note": "The Pine library artifact is ready for manual TradingView publish; SMC_Core_Engine already imports the generated library path.",
     }

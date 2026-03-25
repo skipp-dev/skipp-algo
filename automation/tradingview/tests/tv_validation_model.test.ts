@@ -281,6 +281,10 @@ test("readonly preflight never counts as repo-source compile evidence", () => {
   }), false);
   assert.equal(reportProvidesRepoSourceCompileEvidence({
     execution_mode: "readonly",
+    compile_green: "not_verified",
+  }), false);
+  assert.equal(reportProvidesRepoSourceCompileEvidence({
+    execution_mode: "readonly",
     compile_green: "not_run",
   }), false);
   assert.equal(reportProvidesRepoSourceCompileEvidence({

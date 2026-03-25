@@ -4,6 +4,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -12,6 +13,8 @@ from scripts.smc_microstructure_base_runtime import (
     _consistency_score,
     _setup_decay_half_life_30m_buckets,
     build_base_snapshot_from_bundle_payload,
+    build_symbol_day_microstructure_feature_frame,
+    collect_full_universe_session_minute_detail,
     infer_asset_type,
     write_base_manifest,
 )
@@ -136,7 +139,7 @@ def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(
 
     monkeypatch.setattr(runtime, "date", FakeDate)
 
-    with pytest.warns(UserWarning, match=r"Bundle asof_date is 8 trading days old \(2026-03-19\)"):
+    with pytest.warns(UserWarning, match=r"Bundle asof_date is 8 days old \(2026-03-19\)"):
         output, payload, _ = build_base_snapshot_from_bundle_payload(
             bundle_payload,
             schema_path=SCHEMA_PATH,
@@ -192,3 +195,71 @@ def test_write_base_manifest_persists_core_ready_false(tmp_path: Path) -> None:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assert payload["core_ready"] is False
+    assert "base snapshot artifact state" in payload["core_ready_note"]
+
+
+def test_build_symbol_day_microstructure_feature_frame_marks_null_activity_day_inactive(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bundle_payload, _ = _make_bundle_payload(tmp_path)
+    daily_features = bundle_payload["frames"]["daily_symbol_features_full_universe"].copy()
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.0,
+                "low": 10.0,
+                "close": np.nan,
+                "volume": 0.0,
+                "trade_count": np.nan,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:31:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.0,
+                "low": 10.0,
+                "close": np.nan,
+                "volume": 0.0,
+                "trade_count": np.nan,
+            },
+        ]
+    )
+
+    with caplog.at_level("WARNING"):
+        output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    assert output.loc[0, "daily_rth_active_minutes_share"] == pytest.approx(0.0)
+    assert output.loc[0, "daily_rth_dollar_volume"] == pytest.approx(0.0)
+    assert "marking all minute bars inactive" in caplog.text
+
+
+def test_collect_full_universe_session_minute_detail_returns_empty_frame_for_empty_universe() -> None:
+    output = collect_full_universe_session_minute_detail(
+        "dummy-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 3, 20)],
+        universe_symbols=set(),
+        display_timezone="UTC",
+    )
+
+    assert output.empty
+    assert list(output.columns) == [
+        "trade_date",
+        "symbol",
+        "timestamp",
+        "session",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "trade_count",
+    ]
