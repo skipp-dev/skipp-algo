@@ -625,6 +625,16 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_profiles(self, symbols: list[str]) -> list[dict[str, Any]]:
+        requested_symbols = [str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()]
+        if not requested_symbols:
+            return []
+        try:
+            data = self._get("/stable/profile", {"symbol": ",".join(requested_symbols)})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_company_screener(self, **kwargs: Any) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/company-screener", kwargs)
@@ -1015,6 +1025,16 @@ class FMPClient:
                 if isinstance(row, dict):
                     return dict(row)
         return {}
+
+    def get_sector_performance_snapshot(self, as_of: date | None = None) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if as_of is not None:
+            params["date"] = as_of.isoformat()
+        try:
+            data = self._get("/stable/sector-performance-snapshot", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
 
     def get_sector_performance(self) -> list[dict[str, Any]]:
         today = _today_et_date()

@@ -30,24 +30,9 @@ logger = logging.getLogger(__name__)
 # ── Regex to strip API keys from error messages ──────────────────
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
-# ── Shared FMP httpx client (avoid per-call TCP+TLS overhead) ──
-import atexit
-import threading as _threading
 
-_fmp_client: "httpx.Client | None" = None  # type: ignore[name-defined]
-_fmp_client_lock = _threading.Lock()
-
-
-def _get_fmp_client() -> "httpx.Client":  # type: ignore[name-defined]
-    """Return a lazily-created, module-scoped httpx.Client for FMP."""
-    global _fmp_client
-    if _fmp_client is None:
-        with _fmp_client_lock:
-            if _fmp_client is None:
-                import httpx
-                _fmp_client = httpx.Client(timeout=10.0)
-                atexit.register(_fmp_client.close)
-    return _fmp_client  # type: ignore[return-value]
+def _make_fmp_client(api_key: str) -> FMPClient:
+    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=10.0)
 
 # US Eastern timezone for market session detection
 _ET = ZoneInfo("America/New_York")
@@ -224,17 +209,19 @@ def _yf_screen_movers() -> dict[str, list[dict[str, Any]]]:
 
 
 def _fetch_fmp_list(api_key: str, endpoint: str) -> list[dict[str, Any]]:
-    """Generic FMP list endpoint fetcher with retry and safe error logging."""
-    url = f"https://financialmodelingprep.com/stable/{endpoint}"
-    params = {"apikey": api_key}
-
-    try:
-        r = _get_fmp_client().get(url, params=params)
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, list):
-            return [d for d in data if isinstance(d, dict)]
+    """Generic FMP list endpoint fetcher via the shared client."""
+    client = _make_fmp_client(api_key)
+    fetchers = {
+        "biggest-gainers": client.get_biggest_gainers,
+        "biggest-losers": client.get_biggest_losers,
+        "most-actives": client.get_premarket_movers,
+    }
+    fetcher = fetchers.get(endpoint)
+    if fetcher is None:
         return []
+    try:
+        data = fetcher()
+        return [row for row in data if isinstance(row, dict)]
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("FMP %s fetch failed: %s", endpoint, _msg)
@@ -274,11 +261,11 @@ def enrich_with_batch_quote(
     if not symbols:
         return items
 
-    sym_str = ",".join(symbols)
+    client = _make_fmp_client(api_key)
 
     quote_map: dict[str, dict[str, Any]] = {}
     try:
-        quotes = FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=10.0).get_batch_quotes(symbols)
+        quotes = client.get_batch_quotes(symbols)
         for q in quotes:
             sym = (q.get("symbol") or "").upper().strip()
             if sym:
@@ -290,17 +277,11 @@ def enrich_with_batch_quote(
     # Also fetch profile for averageVolume and sector
     profile_map: dict[str, dict[str, Any]] = {}
     try:
-        r = _get_fmp_client().get(
-            "https://financialmodelingprep.com/stable/profile",
-            params={"apikey": api_key, "symbol": sym_str},
-        )
-        r.raise_for_status()
-        profiles = r.json()
-        if isinstance(profiles, list):
-            for p in profiles:
-                sym = (p.get("symbol") or "").upper().strip()
-                if sym:
-                    profile_map[sym] = p
+        profiles = client.get_profiles(symbols)
+        for p in profiles:
+            sym = (p.get("symbol") or "").upper().strip()
+            if sym:
+                profile_map[sym] = p
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.warning("FMP profile enrichment failed: %s", _msg)
@@ -316,13 +297,13 @@ def enrich_with_batch_quote(
             for k in _enrich_keys:
                 if k not in item or item[k] is None:
                     item[k] = quote_row.get(k)
-        p = profile_map.get(sym)
-        if p:
+        profile_row = profile_map.get(sym)
+        if profile_row:
             # backfill averageVolume and sector from profile
             if not item.get("avgVolume"):
-                item["avgVolume"] = p.get("averageVolume")
+                item["avgVolume"] = profile_row.get("averageVolume")
             if not item.get("sector"):
-                item["sector"] = p.get("sector")
+                item["sector"] = profile_row.get("sector")
 
     return items
 

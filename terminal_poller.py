@@ -83,25 +83,9 @@ from open_prep.playbook import (
 
 logger = logging.getLogger(__name__)
 
-# ── Shared FMP httpx client (avoid per-call TCP+TLS overhead) ──
 
-import atexit
-import threading
-
-_fmp_client: "httpx.Client | None" = None   # type: ignore[name-defined]
-_fmp_client_lock = threading.Lock()
-
-
-def _get_fmp_client() -> "httpx.Client":   # type: ignore[name-defined]
-    """Return a lazily-created, module-scoped httpx.Client for FMP."""
-    global _fmp_client
-    if _fmp_client is None:
-        with _fmp_client_lock:
-            if _fmp_client is None:
-                import httpx
-                _fmp_client = httpx.Client(timeout=12.0)
-                atexit.register(_fmp_client.close)
-    return _fmp_client  # type: ignore[return-value]
+def _make_fmp_client(api_key: str) -> FMPClient:
+    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=12.0)
 
 
 # ── Safe env-var parsers ────────────────────────────────────────
@@ -564,16 +548,11 @@ def fetch_economic_calendar(
         List of economic events with keys: date, country, event,
         actual, previous, estimate, currency, etc.
     """
-    url = "https://financialmodelingprep.com/stable/economic-calendar"
-    params = {"from": from_date, "to": to_date, "apikey": api_key}
-
     try:
-        r = _get_fmp_client().get(url, params=params)
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, list):
-            return data
-        return []
+        return _make_fmp_client(api_key).get_macro_calendar(
+            date.fromisoformat(from_date),
+            date.fromisoformat(to_date),
+        )
     except Exception as exc:
         log_fetch_warning("FMP economic calendar", exc)
         return []
@@ -591,20 +570,12 @@ def fetch_ticker_sectors(api_key: str, tickers: list[str]) -> dict[str, str]:
     if not api_key or not tickers:
         return {}
 
-    sym_str = ",".join(t.upper().strip() for t in tickers if t.strip())
-    if not sym_str:
+    symbols = [t.upper().strip() for t in tickers if t.strip()]
+    if not symbols:
         return {}
 
     try:
-        r = _get_fmp_client().get(
-            "https://financialmodelingprep.com/stable/profile",
-            params={"apikey": api_key, "symbol": sym_str},
-        )
-        r.raise_for_status()
-        profiles = r.json()
-        if not isinstance(profiles, list):
-            return {}
-
+        profiles = _make_fmp_client(api_key).get_profiles(symbols)
         result: dict[str, str] = {}
         for p in profiles:
             sym = (p.get("symbol") or "").upper().strip()
@@ -634,18 +605,15 @@ def fetch_sector_performance(api_key: str) -> list[dict[str, Any]]:
 
     Returns list of dicts with keys: sector, changesPercentage.
     """
-    url = "https://financialmodelingprep.com/stable/sector-performance-snapshot"
     try:
-        client = _get_fmp_client()
+        client = _make_fmp_client(api_key)
         data: list = []
         # Walk back using the formal trading-day calendar to find
         # the most recent session with data (handles long weekends,
         # holidays like Thanksgiving correctly).
         query_date = datetime.now(_ET).date()
         for _ in range(6):
-            r = client.get(url, params={"apikey": api_key, "date": query_date.isoformat()})
-            r.raise_for_status()
-            candidate = r.json()
+            candidate = client.get_sector_performance_snapshot(query_date)
             if isinstance(candidate, list) and candidate:
                 data = candidate
                 break
@@ -739,16 +707,12 @@ def fetch_industry_performance(
         ``price``, ``volume``, ``sector``, ``industry``, ``beta``,
         ``lastAnnualDividend``, etc.
     """
-    url = "https://financialmodelingprep.com/stable/company-screener"
     try:
-        r = _get_fmp_client().get(url, params={
-            "apikey": fmp_api_key,
+        data = _make_fmp_client(fmp_api_key).get_company_screener(**{
             "industry": industry,
             "limit": str(limit),
             "exchange": "NYSE,NASDAQ,AMEX",
         })
-        r.raise_for_status()
-        data = r.json()
         if not isinstance(data, list):
             return []
         # Sort by market cap descending
