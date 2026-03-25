@@ -635,6 +635,16 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_ratios_ttm(self, symbol: str) -> list[dict[str, Any]]:
+        requested_symbol = str(symbol).strip().upper()
+        if not requested_symbol:
+            return []
+        try:
+            data = self._get("/stable/ratios-ttm", {"symbol": requested_symbol})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_company_screener(self, **kwargs: Any) -> list[dict[str, Any]]:
         try:
             data = self._get("/stable/company-screener", kwargs)

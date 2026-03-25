@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from unittest.mock import MagicMock, patch
 
-from terminal_fmp_insights import fetch_fmp_quotes
+from terminal_fmp_insights import fetch_fmp_profiles, fetch_fmp_quotes, fetch_fmp_ratios
 from terminal_fmp_technicals import _fetch_price
 from terminal_poller import (
     fetch_defense_watchlist,
@@ -155,6 +155,47 @@ def test_fetch_fmp_quotes_uses_shared_client() -> None:
 
     assert rows == [{"symbol": "AAPL", "price": 200.0}]
     assert mock_quotes.call_args.args[1] == ["AAPL", "MSFT"]
+
+
+def test_fetch_fmp_profiles_uses_shared_client() -> None:
+    with patch(
+        "terminal_fmp_insights.FMPClient.get_profiles",
+        autospec=True,
+        return_value=[{"symbol": "AAPL", "sector": "Technology"}],
+    ) as mock_profiles:
+        rows = fetch_fmp_profiles("key", ["aapl", "msft"])
+
+    assert rows == [{"symbol": "AAPL", "sector": "Technology"}]
+    assert mock_profiles.call_args.args[1] == ["AAPL", "MSFT"]
+
+
+def test_fetch_fmp_ratios_uses_shared_client_per_symbol() -> None:
+    def _fake_ratios(_client: object, symbol: str) -> list[dict[str, object]]:
+        if symbol == "AAPL":
+            return [{"priceToBookRatioTTM": 10.5}]
+        return []
+
+    with patch(
+        "terminal_fmp_insights.FMPClient.get_ratios_ttm",
+        autospec=True,
+        side_effect=_fake_ratios,
+    ) as mock_ratios:
+        rows = fetch_fmp_ratios("key", ["aapl", "msft"])
+
+    assert rows == [{"priceToBookRatioTTM": 10.5, "symbol": "AAPL"}]
+    assert mock_ratios.call_args_list[0].args[1] == "AAPL"
+    assert mock_ratios.call_args_list[1].args[1] == "MSFT"
+
+
+def test_fetch_fmp_profiles_fail_soft_on_client_error() -> None:
+    with patch(
+        "terminal_fmp_insights.FMPClient.get_profiles",
+        autospec=True,
+        side_effect=RuntimeError("down"),
+    ):
+        rows = fetch_fmp_profiles("key", ["aapl"])
+
+    assert rows == []
 
 
 def test_fetch_price_uses_shared_quote_path() -> None:

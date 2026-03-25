@@ -63,19 +63,13 @@ def _set_cached(key: str, text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# FMP data fetching (REST, via httpx — already a project dependency)
+# FMP data fetching via shared client
 # ---------------------------------------------------------------------------
-_FMP_BASE = "https://financialmodelingprep.com/stable"
 _FMP_TIMEOUT = 12.0
-_fmp_client: httpx.Client | None = None
 
 
-def _get_fmp_client() -> httpx.Client:
-    """Return a module-level reusable httpx client for FMP calls."""
-    global _fmp_client  # noqa: PLW0603
-    if _fmp_client is None:
-        _fmp_client = httpx.Client(timeout=_FMP_TIMEOUT)
-    return _fmp_client
+def _make_fmp_client(api_key: str) -> FMPClient:
+    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT)
 
 
 def fetch_fmp_quotes(api_key: str, tickers: list[str]) -> list[dict[str, Any]]:
@@ -84,7 +78,7 @@ def fetch_fmp_quotes(api_key: str, tickers: list[str]) -> list[dict[str, Any]]:
         return []
     try:
         symbols = [t.upper().strip() for t in tickers[:20] if t and t.strip()]
-        return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT).get_batch_quotes(symbols)
+        return _make_fmp_client(api_key).get_batch_quotes(symbols)
     except Exception as exc:
         logger.warning("FMP quote fetch failed: %s", exc)
         return []
@@ -94,15 +88,9 @@ def fetch_fmp_profiles(api_key: str, tickers: list[str]) -> list[dict[str, Any]]
     """Fetch company profiles from FMP for a list of tickers."""
     if not api_key or not tickers:
         return []
-    sym_str = ",".join(t.upper().strip() for t in tickers[:20])
     try:
-        r = _get_fmp_client().get(
-            f"{_FMP_BASE}/profile",
-            params={"apikey": api_key, "symbol": sym_str},
-        )
-        r.raise_for_status()
-        data = r.json()
-        return data if isinstance(data, list) else []
+        symbols = [t.upper().strip() for t in tickers[:20] if t and t.strip()]
+        return _make_fmp_client(api_key).get_profiles(symbols)
     except Exception as exc:
         logger.warning("FMP profile failed: %s", exc)
         return []
@@ -113,20 +101,19 @@ def fetch_fmp_ratios(api_key: str, tickers: list[str]) -> list[dict[str, Any]]:
     if not api_key or not tickers:
         return []
     results: list[dict[str, Any]] = []
+    client = _make_fmp_client(api_key)
     for tk in tickers[:10]:
+        requested_symbol = tk.upper().strip()
+        if not requested_symbol:
+            continue
         try:
-            r = _get_fmp_client().get(
-                f"{_FMP_BASE}/ratios-ttm",
-                params={"apikey": api_key, "symbol": tk.upper().strip()},
-            )
-            r.raise_for_status()
-            data = r.json()
+            data = client.get_ratios_ttm(requested_symbol)
             if isinstance(data, list) and data:
                 entry = data[0]
-                entry["symbol"] = tk.upper().strip()
+                entry["symbol"] = requested_symbol
                 results.append(entry)
         except Exception as exc:
-            logger.debug("FMP ratios-ttm(%s) failed: %s", tk, exc)
+            logger.debug("FMP ratios-ttm(%s) failed: %s", requested_symbol, exc)
     return results
 
 
