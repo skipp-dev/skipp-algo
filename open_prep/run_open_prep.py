@@ -112,6 +112,22 @@ PM_CACHE_TTL_SECONDS = 120
 TOP_N_EXT_FOR_PMH = 50
 PM_FETCH_TIMEOUT_SECONDS = 30.0
 
+
+def _shutdown_executor_with_timeout_policy(
+    executor: ThreadPoolExecutor,
+    *,
+    timed_out: bool,
+) -> None:
+    """Shutdown helper that preserves hard timeout semantics.
+
+    When a future batch times out, we must not block waiting for hung workers.
+    """
+    wait_for_workers = not timed_out
+    try:
+        executor.shutdown(wait=wait_for_workers, cancel_futures=timed_out)
+    except TypeError:
+        executor.shutdown(wait=wait_for_workers)
+
 # ── Macro relevance scoring weights ─────────────────────────
 MACRO_RELEVANCE_HIGH = 30       # CPI, PPI, PCE, nonfarm, jobless
 MACRO_RELEVANCE_MID = 20        # GDP, ISM, retail sales, sentiment
@@ -1143,7 +1159,9 @@ def _fetch_institutional_ownership(
         }
 
     workers = max(1, min(5, len(batch)))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1155,7 +1173,10 @@ def _fetch_institutional_ownership(
                 except Exception as exc:
                     logger.debug("Institutional ownership worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Institutional ownership fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
 
     return result
 
@@ -1315,7 +1336,9 @@ def _fetch_dcf_valuations(
         }
 
     workers = max(1, min(5, len(batch)))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1327,7 +1350,10 @@ def _fetch_dcf_valuations(
                 except Exception as exc:
                     logger.debug("DCF worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("DCF fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
 
     return result
 
@@ -1386,7 +1412,9 @@ def _fetch_finnhub_insider_sentiment(
             return sym, None
 
     workers = max(1, min(5, len(batch)))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1397,7 +1425,10 @@ def _fetch_finnhub_insider_sentiment(
                 except Exception as exc:
                     logger.debug("Finnhub insider sentiment future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Finnhub insider sentiment timed out; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
     return result
 
 
@@ -1428,7 +1459,9 @@ def _fetch_finnhub_peers(
             return sym, []
 
     workers = max(1, min(5, len(batch)))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=20.0):
@@ -1439,7 +1472,10 @@ def _fetch_finnhub_peers(
                 except Exception as exc:
                     logger.debug("Finnhub peers future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Finnhub peers timed out; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
     return result
 
 
@@ -1504,7 +1540,9 @@ def _fetch_finnhub_social_sentiment(
             return sym, None
 
     workers = max(1, min(5, len(batch)))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1515,7 +1553,10 @@ def _fetch_finnhub_social_sentiment(
                 except Exception as exc:
                     logger.debug("Finnhub social sentiment future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Finnhub social sentiment timed out; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
     return result
 
 
@@ -1587,7 +1628,9 @@ def _fetch_finnhub_patterns(
     # Serial execution (1 worker) to stay within Finnhub free-tier 30 req/s.
     # Each symbol fires 3 sequential API calls with 0.05 s sleeps between.
     workers = 1
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=45.0):
@@ -1598,7 +1641,10 @@ def _fetch_finnhub_patterns(
                 except Exception as exc:
                     logger.debug("Finnhub patterns future failed for %s: %s", futs[fut], exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Finnhub patterns timed out; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
     return result
 
 
@@ -1657,7 +1703,9 @@ def _enrich_symbol_sectors_from_profiles(
 
     fetched = 0
     workers = max(1, min(_SECTOR_PROFILE_WORKERS, len(lookup)))
-    with ThreadPoolExecutor(max_workers=workers) as executor:
+    executor = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {executor.submit(_fetch_one, s): s for s in lookup}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1670,7 +1718,10 @@ def _enrich_symbol_sectors_from_profiles(
                 except Exception as exc:
                     logger.debug("Sector profile future failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Sector profile fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
 
     if fetched:
         logger.info(
@@ -1870,7 +1921,9 @@ def _fetch_analyst_catalyst(
             return sym, None
 
     result: dict[str, dict[str, Any]] = {}
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    executor = ThreadPoolExecutor(max_workers=5)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1882,7 +1935,10 @@ def _fetch_analyst_catalyst(
                 except Exception as exc:
                     logger.debug("Analyst catalyst worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Analyst catalyst fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
 
     return result
 
@@ -1931,7 +1987,9 @@ def _fetch_earnings_distance_features(
             return sym, None
 
     out: dict[str, dict[str, Any]] = {}
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    executor = ThreadPoolExecutor(max_workers=5)
+    timed_out = False
+    try:
         futs = {executor.submit(_single, s): s for s in batch}
         try:
             for fut in as_completed(futs, timeout=30.0):
@@ -1943,7 +2001,10 @@ def _fetch_earnings_distance_features(
                 except Exception as exc:
                     logger.debug("Earnings distance worker failed for %s: %s", sym_key, exc)
         except FuturesTimeoutError:
+            timed_out = True
             logger.warning("Earnings distance fetch timed out after 30 s; continuing with partial.")
+    finally:
+        _shutdown_executor_with_timeout_policy(executor, timed_out=timed_out)
     return out
 
 
@@ -2961,7 +3022,9 @@ def _fetch_premarket_high_low_bulk(
     timeout_eff = max(float(fetch_timeout_seconds), 0.0)
     timeout_arg: float | None = timeout_eff if timeout_eff > 0.0 else None
 
-    with ThreadPoolExecutor(max_workers=workers) as ex:
+    ex = ThreadPoolExecutor(max_workers=workers)
+    timed_out = False
+    try:
         futs = {ex.submit(_one, sym): sym for sym in symbols}
         try:
             for fut in as_completed(futs, timeout=timeout_arg):
@@ -2973,6 +3036,7 @@ def _fetch_premarket_high_low_bulk(
                     logger.debug("PMH/PML future failed for %s: %s", sym, exc)
                     out[sym] = {"premarket_high": None, "premarket_low": None}
         except FuturesTimeoutError:
+            timed_out = True
             timeout_msg = (
                 f"pmh_pml_fetch_timeout_{timeout_eff:.1f}s"
                 if timeout_eff > 0.0
@@ -2982,10 +3046,11 @@ def _fetch_premarket_high_low_bulk(
                 "PMH/PML fetch timed out after %.1fs; continuing with partial results.",
                 timeout_eff,
             )
-            ex.shutdown(wait=False, cancel_futures=True)
             for sym in symbols:
                 out.setdefault(sym, {"premarket_high": None, "premarket_low": None})
             return out, timeout_msg
+    finally:
+        _shutdown_executor_with_timeout_policy(ex, timed_out=timed_out)
 
     for sym in symbols:
         out.setdefault(sym, {"premarket_high": None, "premarket_low": None})
@@ -4852,7 +4917,9 @@ def generate_open_prep_result(
                 logger.debug("Breakout enrichment: failed to fetch bars for %s: %s", sym, exc)
             return sym, []
 
-        with ThreadPoolExecutor(max_workers=min(5, len(v2_symbols))) as pool:
+        pool = ThreadPoolExecutor(max_workers=min(5, len(v2_symbols)))
+        timed_out = False
+        try:
             futs = {pool.submit(_fetch_daily_bars, s): s for s in v2_symbols}
             try:
                 for fut in as_completed(futs, timeout=30.0):
@@ -4863,7 +4930,10 @@ def generate_open_prep_result(
                     except Exception as exc:
                         logger.debug("Daily bars future failed: %s", exc)
             except FuturesTimeoutError:
+                timed_out = True
                 logger.warning("Daily bars fetch timed out after 30s; continuing with partial.")
+        finally:
+            _shutdown_executor_with_timeout_policy(pool, timed_out=timed_out)
 
     for row in ranked_v2:
         sym = str(row.get("symbol", "")).strip().upper()

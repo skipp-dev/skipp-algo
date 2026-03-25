@@ -945,6 +945,7 @@ class VolumeRegimeDetector:
 
         thin_count = 0
         total = 0
+        vol_frac = max(_expected_cumulative_volume_fraction(), 0.02)
         for _sym, q in quotes.items():
             vol = _safe_float(q.get("volume"), 0.0)
             # FMP batch-quote omits avgVolume — try watchlist_avg_volumes
@@ -954,8 +955,10 @@ class VolumeRegimeDetector:
                 avg_vol = self._wl_avg_volumes.get(_sym, 0.0)
             if avg_vol <= 0:
                 continue   # unknown volume — exclude from both counts
+            # Compare against expected intraday pace, not raw cumulative day fraction.
+            vol_pace = vol / vol_frac
             total += 1
-            if vol < avg_vol * THIN_VOLUME_RATIO:
+            if vol_pace < avg_vol * THIN_VOLUME_RATIO:
                 thin_count += 1
 
         self.thin_fraction = (thin_count / total) if total > 0 else 0.0
@@ -2001,9 +2004,11 @@ class RealtimeEngine:
             self._quote_hashes.clear()
             self._avg_vol_cache.clear()
             self._earnings_today_cache.clear()
-            self._new_entrant_set.clear()
             self._was_outside_market = False
             logger.info("Session boundary — cleared stale _last_prices (%d symbols)", n_cleared)
+            # Rebuild watchlist enrichment immediately so avg_volume fallback is
+            # available on the first in-session poll cycle.
+            self.reload_watchlist()
 
         if self._client_disabled_reason:
             # Persist empty signals with disabled reason so UIs stay green

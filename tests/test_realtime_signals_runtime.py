@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections import deque
+
 from pathlib import Path
 
 import open_prep.realtime_signals as rs
@@ -110,3 +112,50 @@ def test_volume_regime_warns_when_all_avg_volumes_missing(caplog) -> None:
     assert regime == "NORMAL"
     assert detector.thin_fraction == 0.0
     assert "avgvolume unavailable" in caplog.text.lower()
+
+
+def test_volume_regime_uses_intraday_volume_pace(monkeypatch) -> None:
+    detector = rs.VolumeRegimeDetector()
+    # 22% of daily avg at 10:00 ET should not be considered thin when
+    # the expected cumulative fraction is ~20%.
+    quotes = {
+        "AAA": {"symbol": "AAA", "volume": 220_000, "avgVolume": 1_000_000},
+        "BBB": {"symbol": "BBB", "volume": 180_000, "avgVolume": 1_000_000},
+    }
+    monkeypatch.setattr(rs, "_expected_cumulative_volume_fraction", lambda: 0.20)
+
+    regime = detector.update(quotes)
+    assert regime == "NORMAL"
+    assert detector.thin_fraction == 0.0
+
+
+def test_session_boundary_triggers_watchlist_rebuild(monkeypatch) -> None:
+    monkeypatch.setattr(rs.RealtimeEngine, "_load_watchlist", lambda self: None)
+    monkeypatch.setattr(rs.RealtimeEngine, "_restore_signals_from_disk", lambda self: None)
+
+    engine = rs.RealtimeEngine(fmp_client=None)
+    engine._was_outside_market = True
+    engine._last_prices = {"AAA": 10.0}
+    engine._price_history = {"AAA": deque([10.0])}
+    engine._quote_hashes = {"AAA": "h"}
+    engine._avg_vol_cache = {"AAA": 100_000}
+    engine._earnings_today_cache = {"AAA": {"symbol": "AAA"}}
+    engine._new_entrant_set = {"AAA"}
+
+    called = {"reload": 0}
+
+    def _reload() -> None:
+        called["reload"] += 1
+
+    monkeypatch.setattr(rs, "_is_within_market_hours", lambda: True)
+    monkeypatch.setattr(engine, "reload_watchlist", _reload)
+    monkeypatch.setattr(engine, "_fetch_realtime_quotes", lambda: {})
+    monkeypatch.setattr(engine, "_save_signals", lambda *args, **kwargs: None)
+
+    out = engine.poll_once()
+    assert out == []
+    assert called["reload"] == 1
+    assert engine._last_prices == {}
+    assert engine._quote_hashes == {}
+    assert engine._avg_vol_cache == {}
+    assert engine._new_entrant_set == {"AAA"}
