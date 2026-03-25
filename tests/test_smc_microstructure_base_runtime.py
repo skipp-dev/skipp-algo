@@ -883,3 +883,104 @@ def test_collect_full_universe_session_minute_detail_cache_coverage_uses_runtime
     )
 
     assert set(output["symbol"].unique()) == {"AAA"}
+
+
+def test_build_base_snapshot_from_bundle_payload_preserves_adv_dollar_daily_fallback_when_minute_detail_is_missing(
+    tmp_path: Path,
+) -> None:
+    bundle_payload, _ = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
+    frames["daily_symbol_features_full_universe"] = daily_features
+    frames["daily_bars"] = daily_features[
+        ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"]
+    ].rename(
+        columns={
+            "day_open": "open",
+            "day_high": "high",
+            "day_low": "low",
+            "day_close": "close",
+            "day_volume": "volume",
+        }
+    )
+
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.1,
+                "low": 9.95,
+                "close": 10.05,
+                "volume": 1000,
+                "trade_count": 10,
+            }
+        ]
+    )
+
+    base_snapshot, _, symbol_day = build_base_snapshot_from_bundle_payload(
+        bundle_payload,
+        schema_path=SCHEMA_PATH,
+        session_minute_detail=session_minute_detail,
+        asof_date="2026-03-20",
+    )
+
+    day_rows = symbol_day.loc[symbol_day["symbol"] == "AAA"].sort_values("trade_date").reset_index(drop=True)
+    assert bool(day_rows.loc[0, "minute_detail_missing"]) is False
+    assert bool(day_rows.loc[1, "minute_detail_missing"]) is True
+
+    day1_adv_from_minute = 10.05 * 1000.0
+    day2_adv_from_daily_fallback = 10.4 * 1_900_000.0
+    expected_adv = (day1_adv_from_minute + day2_adv_from_daily_fallback) / 2.0
+    actual_adv = float(base_snapshot.loc[0, "adv_dollar_rth_20d"])
+
+    assert actual_adv == pytest.approx(expected_adv)
+
+
+def test_collect_full_universe_session_minute_detail_writes_unresolved_cache_sidecar_even_when_day_frame_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "session_minute.parquet"
+    cache_meta_path = tmp_path / "session_minute.parquet.meta.json"
+    wrote_parquet: dict[str, bool] = {"value": False}
+
+    class EmptyStore:
+        def to_df(self, count: int = 250_000) -> pd.DataFrame:
+            return pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count"])
+
+    def fake_get_range(*args: Any, **kwargs: Any) -> EmptyStore:
+        warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
+        return EmptyStore()
+
+    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(runtime, "build_cache_path", lambda *args, **kwargs: cache_path)
+    monkeypatch.setattr(runtime, "_read_cached_frame", lambda *args, **kwargs: None)
+    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+    monkeypatch.setattr(
+        runtime,
+        "_write_cached_frame",
+        lambda *args, **kwargs: wrote_parquet.__setitem__("value", True),
+    )
+
+    output = collect_full_universe_session_minute_detail(
+        "dummy-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 2, 10)],
+        universe_symbols={"AACB"},
+        display_timezone="America/New_York",
+        use_file_cache=True,
+        force_refresh=False,
+    )
+
+    assert output.empty
+    assert wrote_parquet["value"] is False
+    assert cache_meta_path.exists()
+    payload = json.loads(cache_meta_path.read_text(encoding="utf-8"))
+    assert payload["trade_day"] == "2026-02-10"
+    assert payload["runtime_unsupported_symbols"] == ["AACB"]

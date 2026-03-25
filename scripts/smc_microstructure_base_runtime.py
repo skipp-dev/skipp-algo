@@ -543,8 +543,9 @@ def collect_full_universe_session_minute_detail(
                 expected_symbols,
                 context=f"Session minute detail for {trade_day}",
             )
-            if use_file_cache and not day_frame.empty:
-                _write_cached_frame(cache_path, day_frame)
+            if use_file_cache:
+                if not day_frame.empty:
+                    _write_cached_frame(cache_path, day_frame)
                 cache_meta_payload = {
                     "trade_day": trade_day.isoformat(),
                     "runtime_unsupported_symbols": sorted(day_runtime_unsupported_symbols),
@@ -1104,10 +1105,6 @@ def build_base_snapshot_from_bundle_payload(
         adv_fallback = (daily_close * day_volume).replace([np.inf, -np.inf], np.nan)
         adv_group = _metric_group(group, symbol, "daily_rth_dollar_volume")
         adv_rth = pd.to_numeric(adv_group.get("daily_rth_dollar_volume"), errors="coerce")
-        adv_fallback = pd.to_numeric(adv_group.get("day_close"), errors="coerce") * pd.to_numeric(
-            adv_group.get("day_volume"), errors="coerce"
-        )
-        adv_fallback = adv_fallback.replace([np.inf, -np.inf], np.nan)
         adv_dollar = adv_rth.where(adv_rth > 0).combine_first(adv_fallback)
 
         rows.append(
