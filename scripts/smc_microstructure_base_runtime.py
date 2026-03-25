@@ -291,6 +291,12 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     return float(numeric)
 
 
+def _series_from_frame(frame: pd.DataFrame, column: str, default: Any = np.nan) -> pd.Series:
+    if column in frame.columns:
+        return pd.Series(frame[column], index=frame.index)
+    return pd.Series(default, index=frame.index)
+
+
 def _safe_ratio(numerator: Any, denominator: Any, *, default: float = 0.0) -> float:
     numerator_value = _safe_float(numerator, default=np.nan)
     denominator_value = _safe_float(denominator, default=np.nan)
@@ -898,10 +904,10 @@ def build_symbol_day_microstructure_feature_frame(
         + merged["daily_close_hygiene"].map(_clip01)
     ) / 5.0
 
-    reclaim_flag = merged.get("reclaimed_start_price_within_30s", pd.Series(False, index=merged.index)).map(_coerce_bool)
-    early_dip_pct = pd.to_numeric(merged.get("early_dip_pct_10s"), errors="coerce").fillna(0.0)
-    followthrough_pct = pd.to_numeric(merged.get("open_to_current_pct"), errors="coerce").fillna(
-        pd.to_numeric(merged.get("window_return_pct"), errors="coerce").fillna(0.0)
+    reclaim_flag = _series_from_frame(merged, "reclaimed_start_price_within_30s", False).map(_coerce_bool)
+    early_dip_pct = pd.to_numeric(_series_from_frame(merged, "early_dip_pct_10s"), errors="coerce").fillna(0.0)
+    followthrough_pct = pd.to_numeric(_series_from_frame(merged, "open_to_current_pct"), errors="coerce").fillna(
+        pd.to_numeric(_series_from_frame(merged, "window_return_pct"), errors="coerce").fillna(0.0)
     )
     merged["daily_reclaim_respect_flag"] = reclaim_flag.astype(int)
     merged["daily_reclaim_failure_flag"] = ((early_dip_pct < 0) & (~reclaim_flag | (followthrough_pct <= 0))).astype(int)
@@ -948,7 +954,7 @@ def build_symbol_day_microstructure_feature_frame(
         merged["daily_open_30m_dollar_share"].ge(0.35)
         & merged["daily_midday_efficiency"].lt(0.35)
         & merged["daily_early_vs_late_followthrough_ratio"].gt(1.2)
-        & pd.to_numeric(merged.get("close_preclose_return_pct"), errors="coerce").fillna(0.0).lt(0.0)
+        & pd.to_numeric(_series_from_frame(merged, "close_preclose_return_pct"), errors="coerce").fillna(0.0).lt(0.0)
     ).astype(int)
 
     return merged

@@ -739,6 +739,67 @@ def test_build_symbol_day_microstructure_feature_frame_warns_when_regular_sessio
     assert "no regular-session bars" in caplog.text
 
 
+def test_build_symbol_day_microstructure_feature_frame_falls_back_to_window_return_when_open_to_current_missing() -> None:
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.8,
+                "day_low": 9.7,
+                "day_close": 10.5,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            }
+        ]
+    )
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.2,
+                "low": 9.9,
+                "close": 10.1,
+                "volume": 50_000,
+                "trade_count": 75,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T19:45:00Z"),
+                "session": "regular",
+                "open": 10.45,
+                "high": 10.6,
+                "low": 10.35,
+                "close": 10.5,
+                "volume": 55_000,
+                "trade_count": 80,
+            },
+        ]
+    )
+
+    output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    row = output.iloc[0]
+    assert row["daily_reclaim_respect_flag"] == 1
+    assert row["daily_reclaim_failure_flag"] == 0
+    assert row["daily_reclaim_followthrough_r"] == pytest.approx(2.0)
+
+
 def test_build_base_snapshot_from_bundle_payload_excludes_missing_minute_detail_rows_from_minute_derived_20d_means(
     tmp_path: Path,
 ) -> None:
