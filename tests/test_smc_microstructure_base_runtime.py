@@ -445,3 +445,229 @@ def test_collect_full_universe_session_minute_detail_uses_day_specific_expected_
     )
 
     assert set(output["symbol"].unique()) == {"AAA"}
+
+
+def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols_do_not_leak_across_trade_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStore:
+        def __init__(self, frame: pd.DataFrame) -> None:
+            self._frame = frame
+
+        def to_df(self, count: int = 250_000) -> pd.DataFrame:
+            return self._frame.copy()
+
+    requested_batches: list[list[str]] = []
+    call_count = 0
+
+    def fake_get_range(*args: Any, **kwargs: Any) -> FakeStore:
+        nonlocal call_count
+        call_count += 1
+        symbols = [str(value).upper() for value in kwargs.get("symbols", [])]
+        requested_batches.append(symbols)
+        if call_count == 1:
+            warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
+            return FakeStore(pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count"]))
+        return FakeStore(
+            pd.DataFrame(
+                [
+                    {
+                        "symbol": "AACB",
+                        "ts": pd.Timestamp("2026-02-11T13:30:00Z"),
+                        "open": 5.0,
+                        "high": 5.1,
+                        "low": 4.9,
+                        "close": 5.05,
+                        "volume": 1500,
+                        "trade_count": 12,
+                    }
+                ]
+            )
+        )
+
+    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-12T03:00:00Z"))
+    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+
+    output = collect_full_universe_session_minute_detail(
+        "dummy-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 2, 10), date(2026, 2, 11)],
+        universe_symbols={"AACB"},
+        display_timezone="America/New_York",
+        use_file_cache=False,
+    )
+
+    assert len(requested_batches) == 2
+    assert set(requested_batches[0]) == {"AACB"}
+    assert set(requested_batches[1]) == {"AACB"}
+    assert set(output["symbol"].unique()) == {"AACB"}
+    assert set(pd.to_datetime(output["trade_date"]).dt.date.unique()) == {date(2026, 2, 11)}
+
+
+def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because_has_intraday_is_false(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {}
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-02-10",
+                "symbol": "AAA",
+                "has_intraday": False,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        runtime,
+        "run_production_export_pipeline",
+        lambda **kwargs: {"exported_paths": {"manifest": str(tmp_path / "fake_manifest.json")}},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "load_export_bundle",
+        lambda *args, **kwargs: {
+            "manifest": {"trade_dates_covered": ["2026-02-10"]},
+            "frames": {
+                "daily_symbol_features_full_universe": daily_features,
+                "daily_bars": pd.DataFrame(),
+            },
+            "base_prefix": "databento_volatility_production_fake",
+        },
+    )
+
+    def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
+        captured["expected_symbols_by_trade_day"] = kwargs.get("expected_symbols_by_trade_day")
+        return pd.DataFrame()
+
+    monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
+    monkeypatch.setattr(
+        runtime,
+        "generate_base_from_bundle",
+        lambda *args, **kwargs: {"warnings": [], "output_paths": {}, "base_snapshot": pd.DataFrame(), "symbol_day_features": pd.DataFrame()},
+    )
+
+    runtime.run_databento_base_scan_pipeline(
+        databento_api_key="dummy-db",
+        fmp_api_key="",
+        dataset="DBEQ.BASIC",
+        export_dir=tmp_path,
+        schema_path=SCHEMA_PATH,
+        lookback_days=2,
+        display_timezone="America/New_York",
+    )
+
+    expected = cast(dict[date, set[str]], captured["expected_symbols_by_trade_day"])
+    assert expected == {date(2026, 2, 10): {"AAA"}}
+
+
+def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_without_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {}
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-02-10",
+                "symbol": "AAA",
+            },
+            {
+                "trade_date": "2026-02-10",
+                "symbol": "BBB",
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        runtime,
+        "run_production_export_pipeline",
+        lambda **kwargs: {"exported_paths": {"manifest": str(tmp_path / "fake_manifest.json")}},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "load_export_bundle",
+        lambda *args, **kwargs: {
+            "manifest": {"trade_dates_covered": ["2026-02-10"]},
+            "frames": {
+                "daily_symbol_features_full_universe": daily_features,
+                "daily_bars": pd.DataFrame(),
+            },
+            "base_prefix": "databento_volatility_production_fake",
+        },
+    )
+
+    def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
+        captured["expected_symbols_by_trade_day"] = kwargs.get("expected_symbols_by_trade_day")
+        return pd.DataFrame()
+
+    monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
+    monkeypatch.setattr(
+        runtime,
+        "generate_base_from_bundle",
+        lambda *args, **kwargs: {"warnings": [], "output_paths": {}, "base_snapshot": pd.DataFrame(), "symbol_day_features": pd.DataFrame()},
+    )
+
+    runtime.run_databento_base_scan_pipeline(
+        databento_api_key="dummy-db",
+        fmp_api_key="",
+        dataset="DBEQ.BASIC",
+        export_dir=tmp_path,
+        schema_path=SCHEMA_PATH,
+        lookback_days=2,
+        display_timezone="America/New_York",
+    )
+
+    expected = cast(dict[date, set[str]], captured["expected_symbols_by_trade_day"])
+    assert expected == {date(2026, 2, 10): {"AAA", "BBB"}}
+
+
+def test_build_symbol_day_microstructure_feature_frame_warns_when_minute_detail_is_missing_for_symbol_day(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bundle_payload, session_minute_detail = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
+    daily_features = pd.concat(
+        [
+            daily_features,
+            pd.DataFrame(
+                [
+                    {
+                        "trade_date": "2026-03-20",
+                        "symbol": "BBB",
+                        "exchange": "NASDAQ",
+                        "company_name": "Beta Holdings",
+                        "asset_type": "stock",
+                        "market_cap": 2_100_000_000,
+                        "day_open": 8.0,
+                        "day_high": 8.3,
+                        "day_low": 7.8,
+                        "day_close": 8.1,
+                        "day_volume": 900_000,
+                        "previous_close": 7.9,
+                        "close_trade_hygiene_score": 0.70,
+                        "reclaimed_start_price_within_30s": False,
+                        "early_dip_pct_10s": -0.5,
+                        "open_to_current_pct": 0.1,
+                        "window_return_pct": 0.1,
+                        "close_preclose_return_pct": -0.1,
+                    }
+                ]
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    with caplog.at_level("WARNING"):
+        output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    trade_dates = pd.to_datetime(output["trade_date"], errors="coerce").dt.date
+    bbb_row = output.loc[(trade_dates == date(2026, 3, 20)) & (output["symbol"] == "BBB")].iloc[0]
+    assert bbb_row["daily_rth_dollar_volume"] == pytest.approx(0.0)
+    assert "Session minute detail missing for" in caplog.text
+    assert "BBB" in caplog.text

@@ -392,10 +392,11 @@ def collect_full_universe_session_minute_detail(
     available_end = _get_schema_available_end(client, dataset, "ohlcv-1m")
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
-    runtime_unsupported_symbols: set[str] = set()
+    runtime_unsupported_symbols_seen_global: set[str] = set()
     latest_trade_day = max(trading_days)
 
     for trade_day in trading_days:
+        day_runtime_unsupported_symbols: set[str] = set()
         day_expected_symbols = {
             str(symbol).strip().upper()
             for symbol in (expected_symbols_by_trade_day or {}).get(trade_day, universe_symbols)
@@ -443,7 +444,7 @@ def collect_full_universe_session_minute_detail(
 
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
-            active_symbols = set(day_expected_symbols) - runtime_unsupported_symbols
+            active_symbols = set(day_expected_symbols)
             for symbols_batch in _iter_symbol_batches(active_symbols):
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -458,9 +459,11 @@ def collect_full_universe_session_minute_detail(
                             end=fetch_end_utc.isoformat(),
                         )
                     frame = _store_to_frame(store, count=250_000, context="collect_full_universe_session_minute_detail")
-                    runtime_unsupported_symbols.update(
-                        _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+                    unresolved_symbols = _extract_unresolved_symbols_from_warning_messages(
+                        [str(item.message) for item in caught_warnings]
                     )
+                    day_runtime_unsupported_symbols.update(unresolved_symbols)
+                    runtime_unsupported_symbols_seen_global.update(unresolved_symbols)
                     if not frame.empty:
                         _validate_frame_columns(
                             frame,
@@ -506,12 +509,17 @@ def collect_full_universe_session_minute_detail(
                 day_parts.append(frame[output_columns].reset_index(drop=True))
 
             day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
-            expected_symbols = set(day_expected_symbols) - runtime_unsupported_symbols
-            if runtime_unsupported_symbols:
+            expected_symbols = set(day_expected_symbols) - day_runtime_unsupported_symbols
+            if day_runtime_unsupported_symbols:
                 logger.warning(
-                    "Session minute detail for %s excluded %d runtime-unsupported symbols from completeness checks.",
+                    "Session minute detail for %s excluded %d runtime-unsupported symbols from completeness checks for this trade day.",
                     trade_day,
-                    len(runtime_unsupported_symbols),
+                    len(day_runtime_unsupported_symbols),
+                )
+            if runtime_unsupported_symbols_seen_global:
+                logger.info(
+                    "Cumulative runtime-unsupported symbols observed across processed trade days: %d",
+                    len(runtime_unsupported_symbols_seen_global),
                 )
             _assert_complete_symbol_coverage(
                 day_frame,
@@ -796,6 +804,21 @@ def build_symbol_day_microstructure_feature_frame(
             minute_metrics = pd.DataFrame(rows, columns=metric_columns)
 
     merged = daily.merge(minute_metrics, on=["trade_date", "symbol"], how="left")
+    minute_metric_value_columns = [column for column in metric_columns if column not in {"trade_date", "symbol"}]
+    if minute_metric_value_columns:
+        missing_minute_rows = merged[minute_metric_value_columns].isna().all(axis=1)
+        if bool(missing_minute_rows.any()):
+            missing_count = int(missing_minute_rows.sum())
+            sample_rows = merged.loc[missing_minute_rows, ["trade_date", "symbol"]].head(10)
+            sample = ", ".join(
+                f"{str(row.trade_date)}:{str(row.symbol)}"
+                for row in sample_rows.itertuples(index=False)
+            )
+            logger.warning(
+                "Session minute detail missing for %d symbol-day rows; minute-derived metrics will be filled with 0.0. Sample: %s",
+                missing_count,
+                sample or "n/a",
+            )
     for column in metric_columns:
         if column in {"trade_date", "symbol"}:
             continue
@@ -1286,10 +1309,24 @@ def run_databento_base_scan_pipeline(
     intraday_expected = daily_feature_frame.copy()
     intraday_expected["trade_date"] = pd.to_datetime(intraday_expected.get("trade_date"), errors="coerce").dt.date
     intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
-    intraday_expected["has_intraday"] = intraday_expected.get("has_intraday", False).fillna(False).astype(bool)
+    has_intraday_available = "has_intraday" in intraday_expected.columns
+    if has_intraday_available:
+        intraday_expected["has_intraday"] = intraday_expected["has_intraday"].map(_coerce_bool)
+    else:
+        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
+        logger.warning(
+            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch all symbol-days for minute detail coverage."
+        )
     intraday_expected = intraday_expected.loc[
-        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("") & intraday_expected["has_intraday"]
+        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
     ].copy()
+    if has_intraday_available:
+        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
+        if has_intraday_false_count > 0:
+            logger.warning(
+                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope and treating has_intraday as diagnostic-only.",
+                has_intraday_false_count,
+            )
     expected_symbols_by_trade_day = {
         trade_day: set(group["symbol"].tolist())
         for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
