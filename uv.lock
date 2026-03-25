@@ -1,0 +1,8 @@
+version = 1
+revision = 2
+requires-python = ">=3.12"
+
+[[package]]
+name = "skipp-algo"
+version = "6.3.9"
+source = { virtual = "." }

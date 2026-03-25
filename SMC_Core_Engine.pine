@@ -3,11 +3,12 @@
 
 //@version=6
 
-indicator("Smart Money Concepts (Highly Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 500)
-
+indicator("SMC Core Engine", "SMC Core", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)
+ 
 import preuss_steffen/smc_core_types/1 as ct
 import preuss_steffen/smc_utils/1 as u
 import preuss_steffen/smc_draw/1 as d
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
 
 // High-level architecture:
 // - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.
@@ -617,7 +618,7 @@ method overlaps_range(OrderBlock this, float range_top = 0, float range_btm = 0)
 
 method any_overlaps(OrderBlock[] this, float range_top, float range_btm) =>
     found = false
-    if not na(this)
+    if not na(this) and this.size() > 0
         for i = this.size() - 1 to 0
             if this.get(i).overlaps_range(range_top, range_btm)
                 found := true
@@ -1945,6 +1946,555 @@ resolve_long_bar_color(int long_visual_state, color long_color_building) =>
         bar_color := color.new(color.teal, 0)
     bar_color
 
+pack_bus_row(int row_state, int reason_code) =>
+    float((row_state + 1) * 100 + reason_code)
+
+pack_bus_four(float value1, float value2, float value3, float value4) =>
+    value1 * 1000000000.0 + value2 * 1000000.0 + value3 * 1000.0 + value4
+
+normalize_bus_trend(int dir) =>
+    dir > 0 ? 2 : dir < 0 ? 0 : 1
+
+pack_bus_trend_set(int trend_now, int trend_htf_1, int trend_htf_2, int trend_htf_3) =>
+    float(normalize_bus_trend(trend_now) * 1000 + normalize_bus_trend(trend_htf_1) * 100 + normalize_bus_trend(trend_htf_2) * 10 + normalize_bus_trend(trend_htf_3))
+
+pack_bus_meta(int freshness_code, int source_state_code, int reclaim_code, int zone_code) =>
+    float(freshness_code * 1000 + source_state_code * 100 + reclaim_code * 10 + zone_code)
+
+resolve_bus_freshness_code(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
+    int freshness_code = 0
+    if long_setup_confirmed
+        freshness_code := ready_is_fresh ? 1 : 2
+    else if long_setup_armed
+        freshness_code := confirm_is_fresh ? 3 : 4
+    freshness_code
+
+resolve_bus_source_state_code(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
+    int source_state_code = 0
+    if long_source_tracked
+        if long_source_alive
+            source_state_code := 1
+        else if long_source_broken
+            source_state_code := 2
+        else
+            source_state_code := 3
+    source_state_code
+
+resolve_bus_zone_code(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    int zone_code = 0
+    if long_zone_active
+        zone_code := 1
+    if in_bull_fvg_zone
+        zone_code := 2
+    if in_bull_ob_zone
+        zone_code := 3
+    if in_bull_ob_zone and in_bull_fvg_zone
+        zone_code := 4
+    zone_code
+
+resolve_bus_zone_row(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    int zone_code = resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
+    int zone_state = 0
+    if zone_code == 2 or zone_code == 3
+        zone_state := 4
+    else if zone_code == 4
+        zone_state := 5
+    pack_bus_row(zone_state, zone_code)
+
+resolve_bus_reclaim_code(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
+    int reclaim_code = 0
+    if reclaim_recent
+        reclaim_code := 1
+    if bull_reclaim_internal_low_strict
+        reclaim_code := 2
+    if bull_reclaim_swing_low_strict
+        reclaim_code := 3
+    if bull_reclaim_fvg_strict
+        reclaim_code := 4
+    if bull_reclaim_ob_strict
+        reclaim_code := 5
+    reclaim_code
+
+resolve_bus_reclaim_row(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
+    int reclaim_code = resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
+    int reclaim_state = 0
+    if reclaim_code == 1
+        reclaim_state := 2
+    else if reclaim_code == 2 or reclaim_code == 3
+        reclaim_state := 4
+    else if reclaim_code == 4 or reclaim_code == 5
+        reclaim_state := 5
+    pack_bus_row(reclaim_state, reclaim_code)
+
+resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_gate, bool use_opening_range_gate, bool session_structure_gate_ok, bool session_gate_ok) =>
+    if not intraday_time_chart
+        pack_bus_row(0, 1)
+    else if not use_trade_session_gate and not use_opening_range_gate
+        pack_bus_row(0, 2)
+    else if session_structure_gate_ok
+        pack_bus_row(5, 1)
+    else if not session_gate_ok
+        pack_bus_row(-1, 3)
+    else
+        pack_bus_row(-1, 4)
+
+resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok) =>
+    if not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate
+        pack_bus_row(0, 1)
+    else if market_symbols_missing and block_on_missing_market_symbol
+        pack_bus_row(-1, 2)
+    else if market_symbols_missing
+        pack_bus_row(2, 2)
+    else if market_regime_gate_ok
+        pack_bus_row(5, 1)
+    else if not index_gate_effective_ok
+        pack_bus_row(-1, 3)
+    else if not sector_gate_effective_ok
+        pack_bus_row(-1, 4)
+    else
+        pack_bus_row(-1, 5)
+
+resolve_bus_vola_row(bool use_vola_compression_gate, bool vola_regime_gate_safe, bool vola_expansion_now, bool vola_compression_recent) =>
+    if not use_vola_compression_gate
+        pack_bus_row(0, 1)
+    else if vola_regime_gate_safe and vola_expansion_now
+        pack_bus_row(5, 2)
+    else if vola_regime_gate_safe and vola_compression_recent
+        pack_bus_row(3, 3)
+    else if vola_regime_gate_safe
+        pack_bus_row(3, 1)
+    else
+        pack_bus_row(-1, 4)
+
+resolve_bus_micro_session_row(bool use_microstructure_profiles, bool intraday_time_chart, bool micro_session_gate_ok, bool micro_rth_gate_ok, bool micro_midday_gate_ok, bool micro_premarket_gate_ok) =>
+    if not use_microstructure_profiles or not intraday_time_chart
+        pack_bus_row(0, 1)
+    else if micro_session_gate_ok
+        pack_bus_row(5, 1)
+    else if not micro_rth_gate_ok
+        pack_bus_row(-1, 2)
+    else if not micro_midday_gate_ok
+        pack_bus_row(-1, 3)
+    else if not micro_premarket_gate_ok
+        pack_bus_row(-1, 4)
+    else
+        pack_bus_row(-1, 5)
+
+resolve_bus_micro_fresh_row(bool use_microstructure_profiles, bool micro_freshness_gate_ok) =>
+    if not use_microstructure_profiles
+        pack_bus_row(0, 1)
+    else if micro_freshness_gate_ok
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(-1, 2)
+
+resolve_bus_volume_data_row(bool volume_current_bar_ok, bool volume_feed_quality_ok, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_volume_ok, bool ltf_price_only) =>
+    if not volume_current_bar_ok
+        pack_bus_row(-1, 1)
+    else if not volume_feed_quality_ok
+        pack_bus_row(2, 2)
+    else if ltf_sampling_active and ltf_price_ok and not ltf_volume_ok
+        pack_bus_row(2, 3)
+    else if ltf_price_only
+        pack_bus_row(2, 4)
+    else
+        pack_bus_row(5, 1)
+
+resolve_bus_quality_env_row(bool environment_hard_gate_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
+    if environment_hard_gate_ok
+        pack_bus_row(5, 1)
+    else if not market_regime_gate_ok
+        pack_bus_row(-1, 2)
+    else if not vola_regime_gate_safe
+        pack_bus_row(-1, 3)
+    else
+        pack_bus_row(2, 4)
+
+resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    bool strict_quality_ok = strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    if long_entry_strict_state
+        pack_bus_row(5, 1)
+    else if strict_quality_ok
+        pack_bus_row(4, 2)
+    else if not strict_entry_ltf_ok
+        pack_bus_row(-1, 3)
+    else if not htf_alignment_ok
+        pack_bus_row(-1, 4)
+    else if not accel_strict_entry_gate_ok
+        pack_bus_row(-1, 5)
+    else if not sd_entry_strict_gate_ok
+        pack_bus_row(-1, 6)
+    else if not vol_entry_strict_context_ok_safe
+        pack_bus_row(-1, 7)
+    else if not stretch_entry_strict_context_ok
+        pack_bus_row(-1, 8)
+    else
+        pack_bus_row(-1, 9)
+
+resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
+    if not use_strong_close_filter
+        pack_bus_row(0, 1)
+    else if bull_close_strong
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(-1, 2)
+
+resolve_bus_ema_support_row(bool show_ema_support, bool ema_support_ok) =>
+    if not show_ema_support
+        pack_bus_row(0, 1)
+    else if ema_support_ok
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(-1, 2)
+
+resolve_bus_adx_row(bool use_adx, bool adx_data_ok, float plus_di, float minus_di, bool adx_strong, float adx_value, float adx_trend_min) =>
+    if not use_adx
+        pack_bus_row(0, 1)
+    else if not adx_data_ok
+        pack_bus_row(0, 2)
+    else if plus_di < minus_di
+        pack_bus_row(-1, 3)
+    else if adx_strong
+        pack_bus_row(5, 4)
+    else if adx_value >= adx_trend_min
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(2, 6)
+
+resolve_bus_relvol_row(bool use_rel_volume, bool relvol_data_ok, bool allow_relvol_without_volume_data, bool relvol_ok) =>
+    if not use_rel_volume
+        pack_bus_row(0, 1)
+    else if not relvol_data_ok and allow_relvol_without_volume_data
+        pack_bus_row(2, 2)
+    else if not relvol_data_ok
+        pack_bus_row(-1, 3)
+    else if relvol_ok
+        pack_bus_row(5, 4)
+    else
+        pack_bus_row(-1, 5)
+
+resolve_bus_vwap_row(bool use_vwap_filter, bool intraday_time_chart, bool vwap_session_active, bool vwap_filter_ok) =>
+    if not use_vwap_filter
+        pack_bus_row(0, 1)
+    else if not intraday_time_chart
+        pack_bus_row(0, 2)
+    else if not vwap_session_active
+        pack_bus_row(0, 3)
+    else if vwap_filter_ok
+        pack_bus_row(5, 4)
+    else
+        pack_bus_row(-1, 5)
+
+resolve_bus_context_quality_row(bool use_context_quality_score_eff, bool context_quality_gate_ok) =>
+    if not use_context_quality_score_eff
+        pack_bus_row(0, 1)
+    else if context_quality_gate_ok
+        pack_bus_row(5, 2)
+    else
+        pack_bus_row(2, 3)
+
+resolve_bus_quality_score_row(bool context_quality_gate_ok) =>
+    context_quality_gate_ok ? pack_bus_row(5, 1) : pack_bus_row(2, 2)
+
+resolve_bus_quality_clean_row(bool long_quality_clean_tier) =>
+    long_quality_clean_tier ? pack_bus_row(5, 1) : pack_bus_row(0, 2)
+
+resolve_bus_sd_confluence_row(bool use_sd_confluence, bool sd_support_both_recent, bool sd_bullish_divergence_recent, bool sd_higher_lows_recent, bool sd_support_any_recent) =>
+    if not use_sd_confluence
+        pack_bus_row(0, 1)
+    else if sd_support_both_recent
+        pack_bus_row(5, 2)
+    else if sd_bullish_divergence_recent
+        pack_bus_row(4, 3)
+    else if sd_higher_lows_recent
+        pack_bus_row(4, 4)
+    else if sd_support_any_recent
+        pack_bus_row(4, 5)
+    else
+        pack_bus_row(0, 6)
+
+resolve_bus_sd_osc_row(bool use_sd_confluence, float sd_value, bool sd_above_zero, bool sd_rising, bool sd_below_zero, bool sd_falling) =>
+    if not use_sd_confluence
+        pack_bus_row(0, 1)
+    else if na(sd_value)
+        pack_bus_row(0, 2)
+    else if sd_above_zero and sd_rising
+        pack_bus_row(5, 3)
+    else if sd_rising
+        pack_bus_row(3, 4)
+    else if sd_below_zero and sd_falling
+        pack_bus_row(-1, 5)
+    else
+        pack_bus_row(2, 6)
+
+resolve_bus_vol_regime_row(bool use_volatility_regime, bool vol_regime_trend_ok) =>
+    if not use_volatility_regime
+        pack_bus_row(0, 1)
+    else if vol_regime_trend_ok
+        pack_bus_row(5, 2)
+    else
+        pack_bus_row(-1, 3)
+
+resolve_bus_vol_squeeze_row(bool use_volatility_regime, bool vol_squeeze_on, bool vol_squeeze_release_recent, bool vol_squeeze_recent) =>
+    if not use_volatility_regime
+        pack_bus_row(0, 1)
+    else if vol_squeeze_on
+        pack_bus_row(5, 2)
+    else if vol_squeeze_release_recent
+        pack_bus_row(4, 3)
+    else if vol_squeeze_recent
+        pack_bus_row(3, 4)
+    else
+        pack_bus_row(0, 5)
+
+resolve_bus_vol_expand_row(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
+    if not use_volatility_regime
+        pack_bus_row(0, 1)
+    else if vol_momentum_expanding_long and vol_stack_spread_rising
+        pack_bus_row(5, 2)
+    else if vol_momentum_expanding_long or vol_stack_spread_rising
+        pack_bus_row(3, 3)
+    else
+        pack_bus_row(0, 4)
+
+resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_entry_best, bool anti_chase_ok_ready) =>
+    if not use_stretch_context
+        pack_bus_row(0, 1)
+    else if na(distance_to_mean_z)
+        pack_bus_row(0, 2)
+    else if (in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best
+        pack_bus_row(5, in_lower_extreme ? 3 : 4)
+    else if anti_chase_ok_ready
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+resolve_bus_ddvi_row(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
+    if not use_ddvi_context
+        pack_bus_row(0, 1)
+    else if ddvi_bias_ok and ddvi_bull_divergence_any
+        pack_bus_row(5, 2)
+    else if ddvi_bias_ok
+        pack_bus_row(4, 3)
+    else if ddvi_bull_divergence_any
+        pack_bus_row(4, 4)
+    else if ddvi_lower_extreme_context
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(0, 6)
+
+resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_price_only, float ltf_bull_share, float ltf_bias_hint) =>
+    if not show_dashboard_ltf_eff
+        pack_bus_row(0, 1)
+    else if not ltf_sampling_active or not ltf_price_ok
+        pack_bus_row(0, 2)
+    else if ltf_bull_share >= ltf_bias_hint and ltf_price_only
+        pack_bus_row(5, 3)
+    else if ltf_bull_share >= ltf_bias_hint
+        pack_bus_row(5, 4)
+    else if ltf_bull_share >= 0.50
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+resolve_bus_ltf_delta_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
+    if not show_dashboard_ltf_eff
+        pack_bus_row(0, 1)
+    else if not ltf_sampling_active
+        pack_bus_row(0, 2)
+    else if ltf_price_only
+        pack_bus_row(2, 3)
+    else if na(ltf_volume_delta)
+        pack_bus_row(0, 4)
+    else if ltf_volume_delta >= 0
+        pack_bus_row(5, 5)
+    else
+        pack_bus_row(-1, 6)
+
+resolve_bus_objects_row(int ob_count, int fvg_count) =>
+    if ob_count > 0 and fvg_count > 0
+        pack_bus_row(5, 3)
+    else if ob_count > 0
+        pack_bus_row(3, 1)
+    else if fvg_count > 0
+        pack_bus_row(3, 2)
+    else
+        pack_bus_row(0, 4)
+
+resolve_bus_swing_row(bool bullish_trend_safe, bool bearish_trend_safe) =>
+    if bullish_trend_safe
+        pack_bus_row(5, 1)
+    else if bearish_trend_safe
+        pack_bus_row(-1, 2)
+    else
+        pack_bus_row(0, 3)
+
+resolve_bus_micro_profile_row(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
+    int reason_code = 1
+    if micro_profile_text == 'Stop-Hunt Sensitive'
+        reason_code := 2
+    else if micro_profile_text == 'Clean Reclaim'
+        reason_code := 3
+    else if micro_profile_text == 'RTH Only'
+        reason_code := 4
+    else if micro_profile_text == 'Midday Dead'
+        reason_code := 5
+    else if micro_profile_text == 'Fast Decay'
+        reason_code := 6
+    int profile_state = 0
+    if use_microstructure_profiles
+        profile_state := str.length(micro_modifier_text) > 0 or micro_profile_text != 'Default' ? 5 : 3
+    pack_bus_row(use_microstructure_profiles ? profile_state : 0, use_microstructure_profiles ? reason_code : 0)
+
+resolve_bus_micro_modifier_mask(string micro_modifier_text) =>
+    int modifier_mask = 0
+    if str.contains(micro_modifier_text, 'Stop-Hunt')
+        modifier_mask += 1
+    if str.contains(micro_modifier_text, 'Clean Reclaim')
+        modifier_mask += 2
+    if str.contains(micro_modifier_text, 'Fast Decay')
+        modifier_mask += 4
+    if str.contains(micro_modifier_text, 'RTH Only')
+        modifier_mask += 8
+    if str.contains(micro_modifier_text, 'Midday Dead')
+        modifier_mask += 16
+    if str.contains(micro_modifier_text, 'Weak Premarket')
+        modifier_mask += 32
+    if str.contains(micro_modifier_text, 'Weak Afterhours')
+        modifier_mask += 64
+    float(modifier_mask)
+
+resolve_bus_long_triggers_row(bool long_plan_active) =>
+    long_plan_active ? pack_bus_row(5, 1) : pack_bus_row(0, 2)
+
+resolve_bus_risk_plan_row(bool long_plan_active) =>
+    long_plan_active ? pack_bus_row(5, 1) : pack_bus_row(0, 2)
+
+resolve_bus_ready_gate_row(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+    int row_state = 2
+    int reason_code = 1
+    if long_ready_state
+        row_state := 5
+    else if not long_setup_confirmed
+        row_state := 2
+        reason_code := 2
+    else if not close_safe_mode
+        row_state := 2
+        reason_code := 3
+    else if not ready_bar_gap_ok
+        row_state := 2
+        reason_code := 4
+    else if long_confirm_expired or not ready_is_fresh
+        row_state := 2
+        reason_code := long_confirm_expired ? 5 : 6
+    else if not long_confirm_bearish_guard_ok
+        row_state := 2
+        reason_code := 7
+    else if require_main_break_for_ready and (not bull_bos_sig or not main_bos_recent)
+        row_state := 2
+        reason_code := 8
+    else if not lifecycle_ready_ok
+        row_state := 2
+        reason_code := 9
+    else if not setup_hard_gate_ok
+        row_state := -1
+        reason_code := 10
+    else if not session_structure_gate_ok
+        row_state := -1
+        reason_code := 11
+    else if not micro_session_gate_ok
+        row_state := -1
+        reason_code := 12
+    else if not micro_freshness_gate_ok
+        row_state := -1
+        reason_code := 13
+    else if not overhead_zone_ok
+        row_state := -1
+        reason_code := 14
+    else if not trade_hard_gate_ok
+        row_state := -1
+        reason_code := 15
+    else if not market_regime_gate_ok
+        row_state := -1
+        reason_code := 16
+    else if not vola_regime_gate_safe
+        row_state := -1
+        reason_code := 17
+    else if not environment_hard_gate_ok
+        row_state := -1
+        reason_code := 18
+    else if not quality_gate_ok
+        row_state := -1
+        reason_code := 19
+    else if not accel_ready_gate_ok
+        row_state := -1
+        reason_code := 20
+    else if not sd_ready_gate_ok
+        row_state := -1
+        reason_code := 21
+    else if not vol_ready_context_ok
+        row_state := -1
+        reason_code := 22
+    else if not stretch_ready_context_ok
+        row_state := -1
+        reason_code := 23
+    else if not ddvi_ready_ok_safe
+        row_state := -1
+        reason_code := 24
+    pack_bus_row(row_state, reason_code)
+
+resolve_bus_strict_gate_row(bool long_entry_strict_state, bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    int row_state = 2
+    int reason_code = 1
+    if long_entry_strict_state
+        row_state := 5
+    else if not long_ready_state
+        row_state := 2
+        reason_code := 2
+    else if not strict_entry_ltf_ok
+        row_state := -1
+        reason_code := 3
+    else if not htf_alignment_ok
+        row_state := -1
+        reason_code := 4
+    else if not accel_strict_entry_gate_ok
+        row_state := -1
+        reason_code := 5
+    else if not sd_entry_strict_gate_ok
+        row_state := -1
+        reason_code := 6
+    else if not vol_entry_strict_context_ok_safe
+        row_state := -1
+        reason_code := 7
+    else if not stretch_entry_strict_context_ok
+        row_state := -1
+        reason_code := 8
+    else if not ddvi_entry_strict_ok_safe
+        row_state := -1
+        reason_code := 9
+    pack_bus_row(row_state, reason_code)
+
+resolve_bus_debug_state_row(bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state) =>
+    int debug_state = 0
+    int reason_code = 1
+    if not show_long_engine_debug
+        debug_state := 0
+        reason_code := 0
+    else if long_visual_state == -1
+        debug_state := -1
+        reason_code := 2
+    else if long_setup_armed or long_setup_confirmed or long_ready_state
+        debug_state := 5
+        reason_code := 3
+    else
+        debug_state := 2
+        reason_code := 4
+    pack_bus_row(debug_state, reason_code)
+
+resolve_bus_debug_flags_row(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>
+    int reason_code = (show_ob_debug ? 1 : 0) + (show_fvg_debug ? 2 : 0) + (show_long_engine_debug ? 4 : 0)
+    pack_bus_row(reason_code > 0 ? 5 : 0, reason_code)
+
 compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
     long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
 
@@ -2574,13 +3124,13 @@ var string opening_range_bias_mode = input.string('Above OR Mid', 'Bias', option
 
 var g_micro = 'Ticker Microstructure'
 var bool use_microstructure_profiles = input.bool(true, 'Use ticker microstructure profiles', group = g_micro)
-var string clean_reclaim_tickers = input.string('', 'Clean reclaim tickers', group = g_micro, display = display.none)
-var string stop_hunt_tickers = input.string('', 'Stop-hunt prone tickers', group = g_micro, display = display.none)
-var string midday_dead_tickers = input.string('', 'Midday-dead tickers', group = g_micro, display = display.none)
-var string rth_only_tickers = input.string('', 'RTH-only tickers', group = g_micro, display = display.none)
-var string weak_premarket_tickers = input.string('', 'Weak premarket tickers', group = g_micro, display = display.none)
-var string weak_afterhours_tickers = input.string('', 'Weak after-hours tickers', group = g_micro, display = display.none)
-var string fast_decay_tickers = input.string('', 'Fast-decay / stale-fast tickers', group = g_micro, display = display.none)
+string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS
+string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS
+string midday_dead_tickers_effective = mp.MIDDAY_DEAD_TICKERS
+string rth_only_tickers_effective = mp.RTH_ONLY_TICKERS
+string weak_premarket_tickers_effective = mp.WEAK_PREMARKET_TICKERS
+string weak_afterhours_tickers_effective = mp.WEAK_AFTERHOURS_TICKERS
+string fast_decay_tickers_effective = mp.FAST_DECAY_TICKERS
 var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
 var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
 var string micro_afterhours_session = input.session('1601-2000', 'After-hours', group = g_micro, display = display.none)
@@ -2600,7 +3150,7 @@ var string index_gate_symbol = input.symbol('AMEX:SPY', 'Index', group = g_marke
 var bool use_sector_gate = input.bool(false, 'Use Sector Gate', group = g_market, inline = 'm2')
 var string sector_gate_symbol = input.symbol('NASDAQ:QQQ', 'Sector/Leader', group = g_market, inline = 'm2')
 var bool use_breadth_symbol_gate = input.bool(false, 'Use Breadth Symbol', group = g_market, inline = 'm3')
-var string breadth_gate_symbol = input.symbol('INDEX:ADD', 'Breadth', group = g_market, inline = 'm3')
+var string breadth_gate_symbol = input.string('', 'Breadth', group = g_market, inline = 'm3', tooltip = 'Optional breadth symbol, e.g. NYSE:ADD. Leave empty unless you actively use the breadth gate.')
 var string breadth_gate_mode = input.string('Above Zero', 'Breadth Mode', options = ['Above Zero', 'Above EMA', 'Rising'], group = g_market, inline = 'm4')
 var bool block_on_missing_market_symbol = input.bool(false, 'Block on missing symbol', group = g_market, inline = 'm4')
 var int breadth_gate_len = input.int(20, 'Breadth EMA Len', minval = 2, group = g_market, inline = 'm5')
@@ -3009,13 +3559,13 @@ int chart_tf_sec = nz(timeframe.in_seconds(), 0)
 bool intraday_time_chart = chart_tf_sec > 0 and chart_tf_sec < 86400
 string current_symbol_key = syminfo.ticker
 string current_symbol_key_qualified = syminfo.tickerid
-bool micro_is_clean_reclaim = use_microstructure_profiles and u.csv_has_symbol_token(clean_reclaim_tickers, current_symbol_key, current_symbol_key_qualified)
-bool micro_is_stop_hunt = use_microstructure_profiles and u.csv_has_symbol_token(stop_hunt_tickers, current_symbol_key, current_symbol_key_qualified)
-bool micro_is_midday_dead = use_microstructure_profiles and u.csv_has_symbol_token(midday_dead_tickers, current_symbol_key, current_symbol_key_qualified)
-bool micro_is_rth_only = use_microstructure_profiles and u.csv_has_symbol_token(rth_only_tickers, current_symbol_key, current_symbol_key_qualified)
-bool micro_is_weak_premarket = use_microstructure_profiles and u.csv_has_symbol_token(weak_premarket_tickers, current_symbol_key, current_symbol_key_qualified)
-bool micro_is_weak_afterhours = use_microstructure_profiles and u.csv_has_symbol_token(weak_afterhours_tickers, current_symbol_key, current_symbol_key_qualified)
-bool micro_is_fast_decay = use_microstructure_profiles and u.csv_has_symbol_token(fast_decay_tickers, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_clean_reclaim = use_microstructure_profiles and u.csv_has_symbol_token(clean_reclaim_tickers_effective, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_stop_hunt = use_microstructure_profiles and u.csv_has_symbol_token(stop_hunt_tickers_effective, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_midday_dead = use_microstructure_profiles and u.csv_has_symbol_token(midday_dead_tickers_effective, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_rth_only = use_microstructure_profiles and u.csv_has_symbol_token(rth_only_tickers_effective, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_weak_premarket = use_microstructure_profiles and u.csv_has_symbol_token(weak_premarket_tickers_effective, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_weak_afterhours = use_microstructure_profiles and u.csv_has_symbol_token(weak_afterhours_tickers_effective, current_symbol_key, current_symbol_key_qualified)
+bool micro_is_fast_decay = use_microstructure_profiles and u.csv_has_symbol_token(fast_decay_tickers_effective, current_symbol_key, current_symbol_key_qualified)
 string micro_profile_text = 'Default'
 if micro_is_stop_hunt
     micro_profile_text := 'Stop-Hunt Sensitive'
@@ -3846,7 +4396,17 @@ mtf_trend_2 = get_confirmed_structure_trend(mtf_trend_tf2, swing_length)
 mtf_trend_3 = get_confirmed_structure_trend(mtf_trend_tf3, swing_length)
 [index_missing_calc, index_gate_ok_calc] = u.external_trend_gate(index_gate_symbol, market_gate_fast_len, market_gate_slow_len)
 [sector_missing_calc, sector_gate_ok_calc] = u.external_trend_gate(sector_gate_symbol, market_gate_fast_len, market_gate_slow_len)
-[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)
+string breadth_gate_symbol_effective = str.trim(breadth_gate_symbol)
+bool breadth_missing_calc = false
+bool breadth_gate_ok_calc = true
+if use_breadth_symbol_gate
+    if str.length(breadth_gate_symbol_effective) > 0
+        [breadth_missing_calc_value, breadth_gate_ok_calc_value] = u.external_breadth_gate(breadth_gate_symbol_effective, breadth_gate_mode, breadth_gate_len)
+        breadth_missing_calc := breadth_missing_calc_value
+        breadth_gate_ok_calc := breadth_gate_ok_calc_value
+    else
+        breadth_missing_calc := true
+        breadth_gate_ok_calc := false
 bool index_missing = use_index_gate and index_missing_calc
 bool index_gate_ok_raw = true
 if use_index_gate
@@ -5252,1166 +5812,32 @@ if live_exec
     if not live_bull_fvg_fill and any_live_bull_fvg_fill
         live_bull_fvg_fill := true
 
-var int last_reclaim_marker_bar = na
-var int last_long_state_marker_bar = na
-var int last_long_ready_marker_bar = na
-var label[] reclaim_marker_history = array.new<label>(0)
-var label[] long_state_marker_history = array.new<label>(0)
-var label[] long_ready_marker_history = array.new<label>(0)
-var label long_engine_debug_label = na
-if barstate.islast
-    u.trim_label_history(reclaim_marker_history, show_reclaim_markers ? long_marker_history_limit_eff : 0)
-    u.trim_label_history(long_state_marker_history, show_long_confirmation_markers ? long_marker_history_limit_eff : 0)
-    u.trim_label_history(long_ready_marker_history, show_long_confirmation_markers ? long_marker_history_limit_eff : 0)
-bool can_draw_reclaim_marker = false
-if na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap
-    can_draw_reclaim_marker := true
-bool can_draw_long_state_marker = false
-if na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap
-    can_draw_long_state_marker := true
-bool can_draw_long_ready_marker = false
-if na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap
-    can_draw_long_ready_marker := true
-
-if show_reclaim_markers and bull_reclaim_ob_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
-    reclaim_ob_label = label.new(bar_index, low, TXT_RECLAIM_OB, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
-    u.push_capped_label(reclaim_marker_history, reclaim_ob_label, long_marker_history_limit_eff)
-    reclaim_marker_drawn_bar_index := bar_index
-    last_reclaim_marker_bar := bar_index
-
-if show_reclaim_markers and bull_reclaim_fvg_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
-    reclaim_fvg_label = label.new(bar_index, low, TXT_RECLAIM_FVG, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
-    u.push_capped_label(reclaim_marker_history, reclaim_fvg_label, long_marker_history_limit_eff)
-    reclaim_marker_drawn_bar_index := bar_index
-    last_reclaim_marker_bar := bar_index
-
-if show_reclaim_markers and bull_reclaim_swing_low_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
-    reclaim_swing_label = label.new(bar_index, low, TXT_RECLAIM_SWING, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.small)
-    u.push_capped_label(reclaim_marker_history, reclaim_swing_label, long_marker_history_limit_eff)
-    reclaim_marker_drawn_bar_index := bar_index
-    last_reclaim_marker_bar := bar_index
-
-if show_reclaim_markers and bull_reclaim_internal_low_strict and can_draw_reclaim_marker and reclaim_marker_drawn_bar_index != bar_index
-    reclaim_internal_label = label.new(bar_index, low, TXT_RECLAIM_INTERNAL, color = #00000000, textcolor = long_color_reclaim, style = label.style_label_up, size = size.tiny)
-    u.push_capped_label(reclaim_marker_history, reclaim_internal_label, long_marker_history_limit_eff)
-    reclaim_marker_drawn_bar_index := bar_index
-    last_reclaim_marker_bar := bar_index
-
-plotshape(show_strict_debug_markers and zone_touch_event, title = 'Zone Touch Event', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'ZT')
-plotshape(show_strict_debug_markers and bull_ob_real_sweep, title = 'OB Sweep OK', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'OBS')
-plotshape(show_strict_debug_markers and bull_fvg_real_sweep, title = 'FVG Sweep OK', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'FVS')
-plotshape(show_strict_debug_markers and bull_reclaim_ob_strict, title = 'OB Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
-plotshape(show_strict_debug_markers and bull_reclaim_fvg_strict, title = 'FVG Reclaim Strict', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
-plotshape(show_strict_debug_markers and long_confirm_break and not long_confirm_bearish_guard_ok, title = 'Confirm Blocked By Bearish Abort', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'XCONF')
-plotshape(show_ob_debug and ob_zone_touch_event, title = 'OB Zone Touch Debug', style = shape.circle, location = location.belowbar, color = color.blue, size = size.tiny, text = 'OBZ')
-plotshape(show_ob_debug and not na(new_ob_bull), title = 'Bullish OB Formed Debug', style = shape.circle, location = location.belowbar, color = color.new(color.blue, 0), size = size.tiny, text = 'OB+')
-plotshape(show_ob_debug and bull_reclaim_ob_strict, title = 'OB Reclaim Debug', style = shape.triangleup, location = location.belowbar, color = color.orange, size = size.tiny, text = 'ROB')
-plotshape(show_ob_debug and array.size(ob_broken_new_bull) > 0, title = 'Bullish OB Broken Debug', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'OBX')
-plotshape(show_fvg_debug and fvg_zone_touch_event, title = 'FVG Zone Touch Debug', style = shape.circle, location = location.belowbar, color = color.green, size = size.tiny, text = 'FVG')
-plotshape(show_fvg_debug and bullish_fvg_alert, title = 'Bullish FVG Formed Debug', style = shape.circle, location = location.belowbar, color = color.new(color.green, 0), size = size.tiny, text = 'FV+')
-plotshape(show_fvg_debug and bull_reclaim_fvg_strict, title = 'FVG Reclaim Debug', style = shape.triangleup, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'RFV')
-plotshape(show_fvg_debug and bullish_fvg_filled_alert, title = 'Bullish FVG Filled Debug', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'FVX')
-plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug', style = shape.circle, location = location.abovebar, color = color.teal, size = size.tiny, text = 'LUP')
-plotshape(show_accel_debug and accel_below_zero_rising_safe, title = 'Accel Below Zero Rising', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'ACC↑')
-plotshape(show_accel_debug and accel_cross_up_safe, title = 'Accel Cross Up', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'XUP')
-plotshape(show_accel_debug and accel_above_zero, title = 'Accel Above Zero', style = shape.circle, location = location.abovebar, color = color.lime, size = size.tiny, text = 'ACC+')
-plotshape(show_sd_debug and sd_bullish_divergence_event, title = 'Bullish SD Divergence', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'DIV')
-plotshape(show_sd_debug and sd_higher_lows_event, title = 'SD Higher Lows', style = shape.circle, location = location.belowbar, color = color.yellow, size = size.tiny, text = 'HL')
-plotshape(show_sd_debug and sd_support_both_recent, title = 'SD Strong Confluence', style = shape.circle, location = location.belowbar, color = color.lime, size = size.tiny, text = 'DIV+HL')
-plotshape(show_vol_regime_debug and vol_squeeze_on, title = 'Vol Squeeze On', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'SQZ')
-plotshape(show_vol_regime_debug and vol_squeeze_released, title = 'Vol Squeeze Release', style = shape.circle, location = location.belowbar, color = color.aqua, size = size.tiny, text = 'REL')
-plotshape(show_vol_regime_debug and vol_regime_trend_ok, title = 'Vol Bull Stack', style = shape.circle, location = location.abovebar, color = color.lime, size = size.tiny, text = 'STACK')
-plotshape(show_vol_regime_debug and vol_momentum_expanding_long and vol_stack_spread_rising, title = 'Vol Expansion Bias', style = shape.circle, location = location.abovebar, color = color.yellow, size = size.tiny, text = 'EXP')
-plotshape(show_microstructure_debug and micro_session_gate_ok and zone_recent, title = 'Micro Session OK', style = shape.circle, location = location.belowbar, color = color.blue, size = size.tiny, text = 'uOK')
-plotshape(show_microstructure_debug and not micro_session_gate_ok and zone_recent, title = 'Micro Session Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uBLK')
-plotshape(show_microstructure_debug and micro_is_stop_hunt and bull_reclaim_any, title = 'Stop-hunt profile active', style = shape.circle, location = location.belowbar, color = color.orange, size = size.tiny, text = 'uSH')
-plotshape(show_microstructure_debug and not micro_freshness_gate_ok and (long_state.armed or long_state.confirmed), title = 'Micro Freshness Blocked', style = shape.xcross, location = location.abovebar, color = color.red, size = size.tiny, text = 'uSTALE')
-
-if show_long_confirmation_markers and internal_bull_choch_sig and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
-    int_reversal_label = label.new(bar_index, high, TXT_INT_REVERSAL, color = #00000000, textcolor = long_color_reversal, style = label.style_label_down, size = size.tiny)
-    u.push_capped_label(long_state_marker_history, int_reversal_label, long_marker_history_limit_eff)
-    long_state_marker_drawn_bar_index := bar_index
-    last_long_state_marker_bar := bar_index
-
-if show_long_confirmation_markers and internal_bull_bos_sig and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
-    int_break_label = label.new(bar_index, high, TXT_INT_BREAK, color = #00000000, textcolor = long_color_confirmed, style = label.style_label_down, size = size.tiny)
-    u.push_capped_label(long_state_marker_history, int_break_label, long_marker_history_limit_eff)
-    long_state_marker_drawn_bar_index := bar_index
-    last_long_state_marker_bar := bar_index
-
-if show_long_confirmation_markers and bull_bos_sig and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
-    trend_confirm_label = label.new(bar_index, high, TXT_TREND_CONFIRM, color = #00000000, textcolor = long_color_ready, style = label.style_label_down, size = size.small)
-    u.push_capped_label(long_state_marker_history, trend_confirm_label, long_marker_history_limit_eff)
-    long_state_marker_drawn_bar_index := bar_index
-    last_long_state_marker_bar := bar_index
-
-if show_long_confirmation_markers and long_arm_signal and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
-    long_armed_label = label.new(bar_index, low, TXT_LONG_ARMED, color = #00000000, textcolor = long_color_zone, style = label.style_label_up, size = size.small)
-    u.push_capped_label(long_state_marker_history, long_armed_label, long_marker_history_limit_eff)
-    long_state_marker_drawn_bar_index := bar_index
-    last_long_state_marker_bar := bar_index
-
-if show_long_confirmation_markers and long_confirm_signal and can_draw_long_state_marker and long_state_marker_drawn_bar_index != bar_index
-    long_confirmed_label = label.new(bar_index, high, TXT_LONG_CONFIRMED, color = #00000000, textcolor = long_color_confirmed, style = label.style_label_down, size = size.small)
-    u.push_capped_label(long_state_marker_history, long_confirmed_label, long_marker_history_limit_eff)
-    long_state_marker_drawn_bar_index := bar_index
-    last_long_state_marker_bar := bar_index
-
-if show_long_confirmation_markers and long_ready_signal and can_draw_long_ready_marker and long_ready_marker_drawn_bar_index != bar_index
-    long_ready_label = label.new(bar_index, high, TXT_LONG_READY, color = #00000000, textcolor = long_color_ready, style = label.style_label_down, size = size.small)
-    u.push_capped_label(long_ready_marker_history, long_ready_label, long_marker_history_limit_eff)
-    long_ready_marker_drawn_bar_index := bar_index
-    last_long_ready_marker_bar := bar_index
-
-if show_long_confirmation_markers and long_invalidate_signal and can_draw_long_ready_marker and long_ready_marker_drawn_bar_index != bar_index
-    long_invalidated_label = label.new(bar_index, high, TXT_LONG_INVALIDATED, color = #00000000, textcolor = long_color_invalid, style = label.style_label_down, size = size.tiny)
-    u.push_capped_label(long_ready_marker_history, long_invalidated_label, long_marker_history_limit_eff)
-    long_ready_marker_drawn_bar_index := bar_index
-    last_long_ready_marker_bar := bar_index
-
-if barstate.islast
-    if show_long_engine_debug
-        string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode_eff, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_state.trigger, long_state.invalidation_level, long_state.backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
-        float long_engine_debug_y = high + ob_threshold_atr * 2.0
-        if na(long_engine_debug_label)
-            long_engine_debug_label := label.new(bar_index, long_engine_debug_y, long_engine_debug_label_text, color = color.new(color.black, 55), textcolor = color.white, style = label.style_label_left, size = size.tiny)
-        else
-            label.set_xy(long_engine_debug_label, bar_index, long_engine_debug_y)
-            label.set_text(long_engine_debug_label, long_engine_debug_label_text)
-    else if not na(long_engine_debug_label)
-        label.delete(long_engine_debug_label)
-        long_engine_debug_label := na
-
-if show_htf_fvg and barstate.islast
-    draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)
-
-    if htf_fvg_keep_filled and htf_fvg_keep_filled_max > 0
-        draw(htf_fvg_buffer_bull_filled, htf_fvg_config_bull_filled, visible_left = visible_left_time, visible_right = visible_right_time)
-    else
-        delete(htf_fvg_buffer_bull_filled)
-
-    if barstate.isconfirmed
-        delete(htf_fvg_buffer_bull_discarded)
-        array.clear(htf_fvg_buffer_bull_discarded)
-
-var g_eq = 'Equal Highs / Lows'
-var show_eq = input.bool(false, 'Equal High / Low', group = g_eq, tooltip = 'Display equal highs and equal lows on the chart.')
-var eq_len = input.int(3, 'Bars Confirmation', minval = 1, group = g_eq, tooltip = 'Number of bars used to confirm equal highs and equal lows.')
-var eq_threshold_in = input.float(0.1, 'Threshold', minval = 0, maxval = 0.5, step = 0.1, group = g_eq, tooltip = 'Sensitivity threshold used for equal high / low detection. Lower values return fewer but usually cleaner levels.')
-
-eq_atr = smc_lib_atr(ATR_LEN_MAIN)
-eq_threshold = eq_threshold_in * eq_atr
-[eqh_alert, eqh_x1, eqh_y1, eqh_x2, eqh_y2, eql_alert, eql_x1, eql_y1, eql_x2, eql_y2] = detect_equal_levels(eq_len, eq_threshold, enabled = show_eq)
-
-d.LabelArgs eqh_label_args = d.LabelArgs.new(bear_css, #00000000, style = label.style_label_down, size = size.tiny)
-d.LineArgs eqh_line_args = d.LineArgs.new(bear_css, line.style_dotted)
-d.LabelArgs eql_label_args = d.LabelArgs.new(bull_css, #00000000, style = label.style_label_up, size = size.tiny)
-d.LineArgs eql_line_args = d.LineArgs.new(bull_css, line.style_dotted)
-
-plot_equal_level(show_eq and eqh_alert, eqh_x1, eqh_y1, eqh_x2, eqh_y2, 'EQH', eqh_label_args, eqh_line_args, keep_history = keep_visual_history_eff, force_overlay = false)
-plot_equal_level(show_eq and eql_alert, eql_x1, eql_y1, eql_x2, eql_y2, 'EQL', eql_label_args, eql_line_args, keep_history = keep_visual_history_eff, force_overlay = false)
-
-bgcolor(show_long_background ? long_bg_color : na, title = 'Long-only Background')
-barcolor(color_long_bars ? long_bar_color : na)
-plot(show_risk_levels and long_plan_active ? long_state.trigger : na, 'Long Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
-plot(show_risk_levels and long_plan_active ? long_state.invalidation_level : na, 'Long Invalidation', color = color.new(color.orange, 0), linewidth = 1, style = plot.style_linebr)
-plot(show_risk_levels and long_plan_active ? long_stop_level : na, 'Long Stop', color = color.new(color.red, 0), linewidth = 2, style = plot.style_linebr)
-plot(show_risk_levels and long_plan_active ? long_target_1 : na, 'Long Target 1', color = color.new(color.lime, 0), linewidth = 1, style = plot.style_linebr)
-plot(show_risk_levels and long_plan_active ? long_target_2 : na, 'Long Target 2', color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
-plot(show_risk_levels and long_plan_active and show_mean_target_overlay ? long_mean_target : na, 'Long Mean Target', color = color.new(color.blue, 0), linewidth = 2, style = plot.style_linebr)
-plot(show_stretch_overlay ? stretch_mean : na, 'Stretch Mean', color = color.new(color.blue, 45), linewidth = 1, style = plot.style_linebr)
-plot(show_stretch_overlay ? stretch_lower_threshold : na, 'Lower Extreme Threshold', color = color.new(color.aqua, 0), linewidth = 1, style = plot.style_linebr)
-bgcolor(show_lower_extreme_bg and in_lower_extreme ? color.new(color.aqua, 90) : na, title = 'Lower Extreme Background')
-
-// --------------------------------------------------
-// Long-dip alert presets
-// --------------------------------------------------
-alert_long_watchlist = false
-if bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe and ddvi_watchlist_ok_safe
-    alert_long_watchlist := true
-alert_long_armed = false
-if bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress
-    alert_long_armed := true
-alert_long_early = false
-if bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok
-    alert_long_early := true
-alert_long_clean = long_quality_clean_tier
-alert_long_entry_best = long_entry_best_state
-float long_watchlist_alert_level = na
-if not na(active_bull_ob_id) and (na(active_bull_fvg_id) or prefer_active_ob_zone)
-    long_watchlist_alert_level := active_bull_ob_bottom
-else if not na(active_bull_fvg_id)
-    long_watchlist_alert_level := active_bull_fvg_bottom
-else
-    long_watchlist_alert_level := low
-    if not na(last_bull_fvg_bottom)
-        long_watchlist_alert_level := last_bull_fvg_bottom
-    if not na(last_bull_ob_bottom)
-        long_watchlist_alert_level := last_bull_ob_bottom
-float long_early_alert_level = long_watchlist_alert_level
-if not na(long_state.trigger)
-    long_early_alert_level := long_state.trigger
-float long_clean_alert_level = long_watchlist_alert_level
-if not na(long_state.trigger)
-    long_clean_alert_level := long_state.trigger
-float long_entry_best_alert_level = long_watchlist_alert_level
-if not na(long_state.trigger)
-    long_entry_best_alert_level := long_state.trigger
-float long_entry_strict_alert_level = long_watchlist_alert_level
-if not na(long_state.trigger)
-    long_entry_strict_alert_level := long_state.trigger
-alert_long_entry_strict = false
-if long_entry_strict_state
-    alert_long_entry_strict := true
-alert_long_fail = false
-if long_invalidate_signal
-    alert_long_fail := true
-var int long_watchlist_serial = 0
-varip int long_watchlist_rt_prev_active = 0
-varip bool long_watchlist_fired_this_bar = false
-if barstate.isnew
-    long_watchlist_rt_prev_active := 0
-    if alert_long_watchlist[1]
-        long_watchlist_rt_prev_active := 1
-    long_watchlist_fired_this_bar := false
-bool long_watchlist_started = false
-if alert_long_watchlist and long_watchlist_rt_prev_active == 0 and not long_watchlist_fired_this_bar
-    long_watchlist_started := true
-if long_watchlist_started
-    long_watchlist_serial += 1
-    long_watchlist_fired_this_bar := true
-long_watchlist_rt_prev_active := 0
-if alert_long_watchlist
-    long_watchlist_rt_prev_active := 1
-var int last_long_armed_alert_serial = na
-var int last_long_early_alert_serial = na
-var int last_long_clean_alert_serial = na
-var int last_long_entry_best_alert_serial = na
-var int last_long_entry_strict_alert_serial = na
-bool alert_long_watchlist_event = false
-if long_watchlist_started and long_watchlist_serial > 0
-    alert_long_watchlist_event := true
-bool alert_long_early_event = false
-if alert_long_early and long_state.setup_serial > 0 and last_long_early_alert_serial != long_state.setup_serial
-    alert_long_early_event := true
-if alert_long_early_event
-    last_long_early_alert_serial := long_state.setup_serial
-bool suppress_armed_plus_event = false
-if alert_long_early
-    suppress_armed_plus_event := true
-if long_arm_signal
-    suppress_armed_plus_event := true
-bool alert_long_armed_event = false
-if alert_long_armed and not suppress_armed_plus_event and long_state.setup_serial > 0 and last_long_armed_alert_serial != long_state.setup_serial
-    alert_long_armed_event := true
-if alert_long_armed_event
-    last_long_armed_alert_serial := long_state.setup_serial
-bool alert_long_clean_event = false
-if alert_long_clean and long_state.setup_serial > 0 and last_long_clean_alert_serial != long_state.setup_serial
-    alert_long_clean_event := true
-if alert_long_clean_event
-    last_long_clean_alert_serial := long_state.setup_serial
-bool alert_long_entry_best_event = false
-if alert_long_entry_best and long_state.setup_serial > 0 and last_long_entry_best_alert_serial != long_state.setup_serial
-    alert_long_entry_best_event := true
-if alert_long_entry_best_event
-    last_long_entry_best_alert_serial := long_state.setup_serial
-bool alert_long_entry_strict_event = false
-if alert_long_entry_strict and long_state.setup_serial > 0 and last_long_entry_strict_alert_serial != long_state.setup_serial
-    alert_long_entry_strict_event := true
-if alert_long_entry_strict_event
-    last_long_entry_strict_alert_serial := long_state.setup_serial
-bool bull_ob_broken_event = false
-if array.size(ob_broken_new_bull) > 0
-    bull_ob_broken_event := true
-
-varip bool long_arm_signal_latched = false
-varip bool long_confirm_signal_latched = false
-varip bool long_ready_signal_latched = false
-varip bool long_invalidate_signal_latched = false
-varip bool alert_long_watchlist_event_latched = false
-varip bool alert_long_armed_event_latched = false
-varip bool alert_long_early_event_latched = false
-varip bool alert_long_clean_event_latched = false
-varip bool alert_long_entry_best_event_latched = false
-varip bool alert_long_entry_strict_event_latched = false
-varip bool bull_ob_broken_event_latched = false
-varip bool bull_fvg_filled_event_latched = false
-varip bool live_bull_ob_break_latched = false
-varip bool live_bull_fvg_fill_latched = false
-varip bool long_dynamic_alert_sent = false
-
-if barstate.isnew
-    long_arm_signal_latched := false
-    long_confirm_signal_latched := false
-    long_ready_signal_latched := false
-    long_invalidate_signal_latched := false
-    alert_long_watchlist_event_latched := false
-    alert_long_armed_event_latched := false
-    alert_long_early_event_latched := false
-    alert_long_clean_event_latched := false
-    alert_long_entry_best_event_latched := false
-    alert_long_entry_strict_event_latched := false
-    bull_ob_broken_event_latched := false
-    bull_fvg_filled_event_latched := false
-    live_bull_ob_break_latched := false
-    live_bull_fvg_fill_latched := false
-    long_dynamic_alert_sent := false
-
-long_arm_signal_latched := update_latched_flag(long_arm_signal_latched, long_arm_signal, live_exec, barstate.isconfirmed)
-long_confirm_signal_latched := update_latched_flag(long_confirm_signal_latched, long_confirm_signal, live_exec, barstate.isconfirmed)
-long_ready_signal_latched := update_latched_flag(long_ready_signal_latched, long_ready_signal, live_exec, barstate.isconfirmed)
-long_invalidate_signal_latched := update_latched_flag(long_invalidate_signal_latched, long_invalidate_signal, live_exec, barstate.isconfirmed)
-alert_long_watchlist_event_latched := update_latched_flag(alert_long_watchlist_event_latched, alert_long_watchlist_event, live_exec, barstate.isconfirmed)
-alert_long_armed_event_latched := update_latched_flag(alert_long_armed_event_latched, alert_long_armed_event, live_exec, barstate.isconfirmed)
-alert_long_early_event_latched := update_latched_flag(alert_long_early_event_latched, alert_long_early_event, live_exec, barstate.isconfirmed)
-alert_long_clean_event_latched := update_latched_flag(alert_long_clean_event_latched, alert_long_clean_event, live_exec, barstate.isconfirmed)
-alert_long_entry_best_event_latched := update_latched_flag(alert_long_entry_best_event_latched, alert_long_entry_best_event, live_exec, barstate.isconfirmed)
-alert_long_entry_strict_event_latched := update_latched_flag(alert_long_entry_strict_event_latched, alert_long_entry_strict_event, live_exec, barstate.isconfirmed)
-if bull_ob_broken_event
-    bull_ob_broken_event_latched := true
-if bullish_fvg_filled_alert
-    bull_fvg_filled_event_latched := true
-if live_bull_ob_break
-    live_bull_ob_break_latched := true
-if live_bull_fvg_fill
-    live_bull_fvg_fill_latched := true
-
-if long_invalidate_signal_latched
-    long_arm_signal_latched := false
-    long_confirm_signal_latched := false
-    long_ready_signal_latched := false
-    alert_long_watchlist_event_latched := false
-    alert_long_armed_event_latched := false
-    alert_long_early_event_latched := false
-    alert_long_clean_event_latched := false
-    alert_long_entry_best_event_latched := false
-    alert_long_entry_strict_event_latched := false
-
-bool long_arm_close_safe = false
-if barstate.isconfirmed and long_state.armed and not (long_state[1]).armed
-    long_arm_close_safe := true
-bool long_confirm_close_safe = false
-if barstate.isconfirmed and long_state.confirmed and not (long_state[1]).confirmed
-    long_confirm_close_safe := true
-bool long_ready_close_safe = false
-if barstate.isconfirmed and long_ready_state and not long_ready_state[1]
-    long_ready_close_safe := true
-bool long_invalidated_close_safe = false
-if barstate.isconfirmed and not long_state.armed and not long_state.confirmed and ((long_state[1]).armed or (long_state[1]).confirmed)
-    long_invalidated_close_safe := true
-bool long_arm_alert_event = false
-if long_arm_signal_latched
-    long_arm_alert_event := true
-bool long_confirm_alert_event = false
-if long_confirm_signal_latched
-    long_confirm_alert_event := true
-bool long_ready_alert_event = false
-if long_ready_signal_latched
-    long_ready_alert_event := true
-bool long_invalidate_alert_event = false
-if long_invalidate_signal_latched
-    long_invalidate_alert_event := true
-bool live_bull_ob_break_alert_event = false
-if live_bull_ob_break_latched
-    live_bull_ob_break_alert_event := true
-bool live_bull_fvg_fill_alert_event = false
-if live_bull_fvg_fill_latched
-    live_bull_fvg_fill_alert_event := true
-
-// Alerts use clearer wording but keep the same underlying trigger logic.
-alertcondition(long_arm_alert_event, 'Long Armed', 'SMC++: Long setup armed. Reclaim and zone confirmation are in place.')
-alertcondition(long_confirm_alert_event, 'Long Confirmed', 'SMC++: Long setup confirmed. Confirmation lifecycle and filters passed.')
-alertcondition(long_ready_alert_event, 'Long Ready', 'SMC++: Long setup ready. Lifecycle, gates, context, and upgrades passed.')
-alertcondition(long_invalidate_alert_event, 'Long Invalidated', 'SMC++: Long setup invalidated.')
-
-alertcondition(long_arm_close_safe, 'Long Armed (Close Safe)', 'SMC++: Long setup armed at candle close. Reclaim and zone confirmation held.')
-alertcondition(long_confirm_close_safe, 'Long Confirmed (Close Safe)', 'SMC++: Long setup confirmed at candle close. Confirmation lifecycle and filters held.')
-alertcondition(long_ready_close_safe, 'Long Ready (Close Safe)', 'SMC++: Long setup ready at candle close. Lifecycle, gates, context, and upgrades held.')
-alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: Long setup invalidated at candle close.')
-
-alertcondition(alert_long_watchlist_event_latched, 'Long Dip Watchlist', 'SMC++: Watchlist state active. Bullish trend with an active pullback zone.')
-alertcondition(alert_long_armed_event_latched, 'Long Dip Armed+', 'SMC++: Armed+ state active. Strict reclaim qualified and setup is armed.')
-alertcondition(alert_long_early_event_latched, 'Long Dip Early', 'SMC++: Early long state active. Strict reclaim is in and internal confirmation is starting.')
-alertcondition(alert_long_clean_event_latched, 'Long Dip Clean', 'SMC++: Clean long state active. Confirmed setup with supportive gate context.')
-alertcondition(alert_long_entry_best_event_latched, 'Long Dip Entry Best', 'SMC++: Entry Best state active. Ready is live and best-upgrade filters passed.')
-alertcondition(alert_long_entry_strict_event_latched, 'Long Dip Entry Strict', 'SMC++: Entry Strict state active. Ready is live and strict-upgrade filters passed.')
-
-alertcondition(bull_bos_sig, 'Bullish BOS Detected', 'SMC++: Bullish break of structure detected.')
-alertcondition(bull_choch_sig, 'Bullish CHoCH Detected', 'SMC++: Bullish change of character detected.')
-
-alertcondition(bull_ob_broken_event_latched, 'Bullish Order Block Broken', 'SMC++: A bullish order block was broken.')
-
-alertcondition(eqh_alert, 'Equal Highs Detected', 'SMC++: Equal highs detected.')
-alertcondition(eql_alert, 'Equal Lows Detected', 'SMC++: Equal lows detected.')
-
-alertcondition(bullish_fvg_alert, 'Bullish FVG Formed', 'SMC++: Bullish fair value gap formed.')
-alertcondition(bull_fvg_filled_event_latched, 'Bullish FVG Filled', 'SMC++: Bullish fair value gap fill target reached.')
-
-alertcondition(live_bull_ob_break_alert_event, 'Bullish OB Live Break', 'SMC++: Intrabar bullish order block break detected.')
-alertcondition(live_bull_fvg_fill_alert_event, 'Bullish FVG Live Fill', 'SMC++: Intrabar bullish fair value gap fill detected.')
-
-alertcondition(bullish_trend_started, 'Bullish Trend Started', 'SMC++: Structure trend turned bullish.')
-alertcondition(directional_trend_started, 'Trend Direction Changed', 'SMC++: Structure trend changed direction.')
-
-varip string dynamic_alert_seen_keys = ''
-
-if barstate.isnew
-    dynamic_alert_seen_keys := ''
-
-emit_bullish_dynamic_alerts(string seen_keys, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string signal_mode_text) =>
-    string bull_bos_alert_key = '|bull_bos|'
-    string bull_bos_alert_name = 'Bullish BOS'
-    string bull_bos_alert_detail = 'Structure break confirmed'
-    string bull_choch_alert_key = '|bull_choch|'
-    string bull_choch_alert_name = 'Bullish CHoCH'
-    string bull_choch_alert_detail = 'Character shift confirmed'
-    string bull_ob_alert_key = '|new_bull_ob|'
-    string bull_ob_alert_name = 'Bullish Order Block'
-    string bull_ob_alert_detail = 'New order block confirmed'
-    string bull_fvg_alert_key = '|new_bull_fvg|'
-    string bull_fvg_alert_name = 'Bullish FVG'
-    string bull_fvg_alert_detail = 'New fair value gap formed'
-    string bull_fvg_filled_alert_key = '|bull_fvg_filled|'
-    string bull_fvg_filled_alert_name = 'Bullish FVG Filled'
-    string bull_fvg_filled_alert_detail = 'Gap fill target reached'
-    string bull_live_ob_alert_key = '|live_bull_ob_break|'
-    string bull_live_ob_alert_name = 'Bullish OB Live Break'
-    string bull_live_ob_alert_detail = 'Intrabar bullish order block break detected'
-    string bull_live_fvg_alert_key = '|live_bull_fvg_fill|'
-    string bull_live_fvg_alert_name = 'Bullish FVG Live Fill'
-    string bull_live_fvg_alert_detail = 'Intrabar bullish fair value gap fill detected'
-    float new_fvg_bull_alert_level = resolve_fvg_alert_level(new_fvg_bull)
-    float new_ob_bull_alert_level = resolve_ob_alert_level(new_ob_bull)
-    [dynamic_bull_bos_alert_active, dynamic_bull_choch_alert_active, dynamic_new_bull_ob_alert_active, dynamic_new_bull_fvg_alert_active, dynamic_bull_fvg_filled_alert_active, dynamic_live_bull_ob_break_alert_active, dynamic_live_bull_fvg_fill_alert_active, dynamic_sd_bull_divergence_alert_active, dynamic_sd_higher_lows_alert_active] = compute_bullish_dynamic_alert_gates(enable_dynamic_alerts, bull_bos_sig, bull_choch_sig, new_ob_bull, bullish_fvg_alert, bullish_fvg_filled_alert, enable_live_break_alerts, live_exec, live_bull_ob_break, live_bull_fvg_fill, use_sd_confluence, sd_bullish_divergence_event, sd_higher_lows_event)
-    string next_seen_keys = seen_keys
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_bull_bos_alert_active, bull_bos_alert_key, bull_bos_alert_name, bull_bos_alert_detail, top, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_bull_choch_alert_active, bull_choch_alert_key, bull_choch_alert_name, bull_choch_alert_detail, top, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_new_bull_ob_alert_active, bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail, new_ob_bull_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_new_bull_fvg_alert_active, bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail, new_fvg_bull_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_bull_fvg_filled_alert_active, bull_fvg_filled_alert_key, bull_fvg_filled_alert_name, bull_fvg_filled_alert_detail, bull_filled_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_live_bull_ob_break_alert_active, bull_live_ob_alert_key, bull_live_ob_alert_name, bull_live_ob_alert_detail, bull_ob_live_event_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_live_bull_fvg_fill_alert_active, bull_live_fvg_alert_key, bull_live_fvg_alert_name, bull_live_fvg_alert_detail, bull_fvg_live_event_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_sd_bull_divergence_alert_active, '|sd_bull_div|', 'Bullish SD Divergence', 'Price lower low vs oscillator higher low', low, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_sd_higher_lows_alert_active, '|sd_higher_lows|', 'SD Higher Lows', 'Oscillator printed consecutive higher lows', close, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys
-
-emit_long_dynamic_alerts(string seen_keys, bool already_sent, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string signal_mode_text) =>
-    string long_invalidated_alert_key = '|long_invalidated|'
-    string long_invalidated_alert_name = 'Long Invalidated'
-    string long_entry_strict_alert_key = '|long_entry_strict|'
-    string long_entry_strict_alert_name = 'Long Dip Entry Strict'
-    string long_entry_best_alert_key = '|long_entry_best|'
-    string long_entry_best_alert_name = 'Long Dip Entry Best'
-    string long_ready_alert_key = '|long_ready|'
-    string long_ready_alert_name = 'Long Ready'
-    string long_confirmed_alert_key = '|long_confirmed|'
-    string long_confirmed_alert_name = 'Long Confirmed'
-    string long_clean_alert_key = '|long_clean|'
-    string long_clean_alert_name = 'Long Dip Clean'
-    string long_early_alert_key = '|long_early|'
-    string long_early_alert_name = 'Long Dip Early'
-    string long_armed_plus_alert_key = '|long_armed_plus|'
-    string long_armed_plus_alert_name = 'Long Dip Armed+'
-    string long_armed_alert_key = '|long_armed|'
-    string long_armed_alert_name = 'Long Armed'
-    string long_watchlist_alert_key = '|long_watchlist|'
-    string long_watchlist_alert_name = 'Long Dip Watchlist'
-    [priority_invalidated_alert_active, priority_strict_alert_active, priority_best_alert_active, priority_ready_alert_active, priority_confirmed_alert_active, priority_clean_alert_active, priority_early_alert_active, priority_armed_plus_alert_active, priority_armed_alert_active, priority_watchlist_alert_active] = compute_long_dynamic_alert_gates(enable_dynamic_alerts, long_invalidate_signal, alert_long_entry_strict_event, alert_long_entry_best_event, long_ready_signal, long_confirm_signal, alert_long_clean_event, alert_long_early_event, alert_long_armed_event, long_arm_signal, alert_long_watchlist_event)
-    [dynamic_long_invalidated_alert_active, dynamic_long_strict_alert_active, dynamic_long_best_alert_active, dynamic_long_ready_alert_active, dynamic_long_confirmed_alert_active, dynamic_long_clean_alert_active, dynamic_long_early_alert_active, dynamic_long_armed_plus_alert_active, dynamic_long_armed_alert_active, dynamic_long_watchlist_alert_active] = compute_long_dynamic_alert_gates(enable_dynamic_alerts, long_invalidate_signal, alert_long_entry_strict_event, alert_long_entry_best_event, long_ready_signal, long_confirm_signal, alert_long_clean_event, alert_long_early_event, alert_long_armed_event, long_arm_signal, alert_long_watchlist_event)
-    string next_seen_keys = seen_keys
-    if dynamic_long_alert_mode == 'Priority'
-        next_seen_keys := emit_priority_long_dynamic_alerts(next_seen_keys, already_sent, priority_invalidated_alert_active, priority_strict_alert_active, priority_best_alert_active, priority_ready_alert_active, priority_confirmed_alert_active, priority_clean_alert_active, priority_early_alert_active, priority_armed_plus_alert_active, priority_armed_alert_active, priority_watchlist_alert_active, long_invalidated_alert_key, long_invalidated_alert_name, long_entry_strict_alert_key, long_entry_strict_alert_name, long_entry_best_alert_key, long_entry_best_alert_name, long_ready_alert_key, long_ready_alert_name, long_confirmed_alert_key, long_confirmed_alert_name, long_clean_alert_key, long_clean_alert_name, long_early_alert_key, long_early_alert_name, long_armed_plus_alert_key, long_armed_plus_alert_name, long_armed_alert_key, long_armed_alert_name, long_watchlist_alert_key, long_watchlist_alert_name, long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix, signal_mode_text, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, long_state.last_invalid_source, long_state.last_invalid_level, long_state.trigger, long_state.invalidation_level, long_entry_strict_alert_level, long_entry_best_alert_level, long_clean_alert_level, long_early_alert_level, long_watchlist_alert_level)
-    else
-        next_seen_keys := emit_linear_long_dynamic_alerts(next_seen_keys, dynamic_long_invalidated_alert_active, dynamic_long_strict_alert_active, dynamic_long_best_alert_active, dynamic_long_ready_alert_active, dynamic_long_clean_alert_active, dynamic_long_confirmed_alert_active, dynamic_long_early_alert_active, dynamic_long_armed_plus_alert_active, dynamic_long_armed_alert_active, dynamic_long_watchlist_alert_active, long_invalidated_alert_key, long_invalidated_alert_name, long_entry_strict_alert_key, long_entry_strict_alert_name, long_entry_best_alert_key, long_entry_best_alert_name, long_ready_alert_key, long_ready_alert_name, long_clean_alert_key, long_clean_alert_name, long_confirmed_alert_key, long_confirmed_alert_name, long_early_alert_key, long_early_alert_name, long_armed_plus_alert_key, long_armed_plus_alert_name, long_armed_alert_key, long_armed_alert_name, long_watchlist_alert_key, long_watchlist_alert_name, long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix, signal_mode_text, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, long_state.last_invalid_source, long_state.last_invalid_level, long_state.trigger, long_state.invalidation_level, long_entry_strict_alert_level, long_entry_best_alert_level, long_clean_alert_level, long_early_alert_level, long_watchlist_alert_level)
-    next_seen_keys
-
-dynamic_alert_seen_keys := emit_bullish_dynamic_alerts(dynamic_alert_seen_keys, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-string next_long_dynamic_alert_seen_keys = emit_long_dynamic_alerts(dynamic_alert_seen_keys, long_dynamic_alert_sent, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)
-long_dynamic_alert_sent := long_dynamic_alert_sent or next_long_dynamic_alert_seen_keys != dynamic_alert_seen_keys
-dynamic_alert_seen_keys := next_long_dynamic_alert_seen_keys
-
-// --------------------------------------------------
-// Documented Dashboard
-// --------------------------------------------------
-dashboard_header(table tbl, int row, string title, color bg, color txt) =>
-    table.cell(tbl, 0, row, title, text_color = txt, bgcolor = bg, text_size = size.tiny)
-    table.cell(tbl, 1, row, '', text_color = txt, bgcolor = bg, text_size = size.tiny)
-
-dashboard_section_header(table tbl, int base_row, string title, color bg, color txt) =>
-    dashboard_header(tbl, base_row, title, bg, txt)
-
-dashboard_row(table tbl, int row, string name, string value, color bg, color txt) =>
-    table.cell(tbl, 0, row, name, text_color = txt, bgcolor = bg, text_size = size.tiny)
-    table.cell(tbl, 1, row, value, text_color = txt, bgcolor = bg, text_size = size.tiny)
-
-dashboard_section_row(table tbl, int base_row, int offset, string name, string value, color bg, color txt) =>
-    dashboard_row(tbl, base_row + offset, name, value, bg, txt)
-
-db_trend_text(int dir) =>
-    string trend_text = 'Neutral'
-    if dir > 0
-        trend_text := 'Bullish'
-    else if dir < 0
-        trend_text := 'Bearish'
-    trend_text
-
-db_trend_state(int dir) =>
-    int trend_state = 0
-    if dir > 0
-        trend_state := 5
-    else if dir < 0
-        trend_state := -1
-    trend_state
-
-db_exec_tier_text() =>
-    string exec_tier_text = 'n/a'
-    if long_entry_strict_state
-        exec_tier_text := 'Strict'
-    else if long_entry_best_state
-        exec_tier_text := 'Best'
-    else if long_ready_state
-        exec_tier_text := 'Ready'
-    else if long_state.confirmed
-        exec_tier_text := 'Confirmed'
-    else if long_state.armed
-        exec_tier_text := 'Armed'
-    else if long_zone_active
-        exec_tier_text := 'Watchlist'
-    exec_tier_text
-
-db_setup_age_text() =>
-    string setup_age_text = 'n/a'
-    if long_state.confirmed and not na(long_state.confirm_bar_index)
-        setup_age_text := 'confirmed ' + str.tostring(long_confirm_age)
-    else if long_state.armed and not na(long_state.arm_bar_index)
-        setup_age_text := 'armed ' + str.tostring(long_setup_age)
-    setup_age_text
-
-db_ready_gate_state(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok) =>
-    int ready_gate_state = 2
-    if long_ready_state
-        ready_gate_state := 5
-    else if not long_setup_confirmed
-        ready_gate_state := 2
-    else if not lifecycle_ready_ok
-        ready_gate_state := 2
-    else if not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok
-        ready_gate_state := -1
-    ready_gate_state
-
-db_strict_gate_state(bool long_entry_strict_state, bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    int strict_gate_state = 2
-    if long_entry_strict_state
-        strict_gate_state := 5
-    else if not long_ready_state
-        strict_gate_state := 2
-    else if not strict_entry_ltf_ok or not htf_alignment_ok or not accel_strict_entry_gate_ok or not sd_entry_strict_gate_ok or not vol_entry_strict_context_ok_safe or not stretch_entry_strict_context_ok or not ddvi_entry_strict_ok_safe
-        strict_gate_state := -1
-    strict_gate_state
-
-db_long_debug_state(bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state) =>
-    int debug_state = 0
-    if not show_long_engine_debug
-        debug_state := 0
-    else if long_visual_state == -1
-        debug_state := -1
-    else if long_setup_armed or long_setup_confirmed or long_ready_state
-        debug_state := 5
-    else
-        debug_state := 2
-    debug_state
-
-compute_dashboard_hard_gate_prep() =>
-    string _db_session_text = 'OR blocked'
-    if not intraday_time_chart
-        _db_session_text := 'n/a'
-    else if not use_trade_session_gate and not use_opening_range_gate
-        _db_session_text := 'off'
-    else if session_structure_gate_ok
-        _db_session_text := 'OK'
-    else if not session_gate_ok
-        _db_session_text := 'Entry session blocked'
-    int _db_session_state = -1
-    if not intraday_time_chart
-        _db_session_state := 0
-    else if not use_trade_session_gate and not use_opening_range_gate
-        _db_session_state := 0
-    else if session_structure_gate_ok
-        _db_session_state := 5
-
-    string _db_market_text = 'Breadth blocked'
-    if not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate
-        _db_market_text := 'off'
-    else if market_symbols_missing and block_on_missing_market_symbol
-        _db_market_text := 'Missing symbol'
-    else if market_regime_gate_ok
-        _db_market_text := 'OK'
-    else if not index_gate_effective_ok
-        _db_market_text := 'Index blocked'
-    else if not sector_gate_effective_ok
-        _db_market_text := 'Sector blocked'
-    int _db_market_state = -1
-    if not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate
-        _db_market_state := 0
-    else if market_symbols_missing and not block_on_missing_market_symbol
-        _db_market_state := 2
-    else if market_regime_gate_ok
-        _db_market_state := 5
-
-    string _db_vola_gate_text = 'Blocked'
-    if not use_vola_compression_gate
-        _db_vola_gate_text := 'off'
-    else if vola_regime_gate_safe
-        if vola_expansion_now
-            _db_vola_gate_text := 'Compression -> Expansion'
-        else if vola_compression_recent
-            _db_vola_gate_text := 'Compression context'
-        else
-            _db_vola_gate_text := 'OK'
-    int _db_vola_gate_state = -1
-    if not use_vola_compression_gate
-        _db_vola_gate_state := 0
-    else if vola_regime_gate_safe
-        if vola_expansion_now
-            _db_vola_gate_state := 5
-        else
-            _db_vola_gate_state := 3
-
-    string _db_micro_session_text = 'Weak after-hours'
-    if not use_microstructure_profiles or not intraday_time_chart
-        _db_micro_session_text := 'off'
-    else if micro_session_gate_ok
-        _db_micro_session_text := 'OK'
-    else if not micro_rth_gate_ok
-        _db_micro_session_text := 'RTH only'
-    else if not micro_midday_gate_ok
-        _db_micro_session_text := 'Midday block'
-    else if not micro_premarket_gate_ok
-        _db_micro_session_text := 'Weak premarket'
-    int _db_micro_session_state = -1
-    if not use_microstructure_profiles or not intraday_time_chart
-        _db_micro_session_state := 0
-    else if micro_session_gate_ok
-        _db_micro_session_state := 5
-
-    string _db_micro_fresh_text = freshness_text + ' | ' + source_state_text
-    if not use_microstructure_profiles
-        _db_micro_fresh_text := 'off'
-    int _db_micro_fresh_state = -1
-    if not use_microstructure_profiles
-        _db_micro_fresh_state := 0
-    else if micro_freshness_gate_ok
-        _db_micro_fresh_state := 5
-
-    string _db_volume_data_text = 'OK'
-    if not volume_current_bar_ok
-        _db_volume_data_text := 'No current bar volume'
-    else if not volume_feed_quality_ok
-        _db_volume_data_text := 'Weak feed quality'
-    else if ltf_sampling_active and ltf_price_ok and not ltf_volume_ok
-        _db_volume_data_text := 'Chart OK | LTF no-vol'
-    else if ltf_price_only
-        _db_volume_data_text := 'Price-only LTF'
-    int _db_volume_data_state = 5
-    if not volume_current_bar_ok
-        _db_volume_data_state := -1
-    else if not volume_feed_quality_ok
-        _db_volume_data_state := 2
-    else if ltf_sampling_active and ltf_price_ok and not ltf_volume_ok
-        _db_volume_data_state := 2
-
-    [_db_session_text, _db_session_state, _db_market_text, _db_market_state, _db_vola_gate_text, _db_vola_gate_state, _db_micro_session_text, _db_micro_session_state, _db_micro_fresh_text, _db_micro_fresh_state, _db_volume_data_text, _db_volume_data_state]
-
-compute_dashboard_gate_quality_prep() =>
-    string _db_quality_env_text = 'Mixed'
-    if environment_hard_gate_ok
-        _db_quality_env_text := 'Passed'
-    else if not market_regime_gate_ok
-        _db_quality_env_text := 'Market Gate Blocked'
-    else if not vola_regime_gate_safe
-        _db_quality_env_text := 'Vola Gate Blocked'
-    int _db_quality_env_state = 2
-    if environment_hard_gate_ok
-        _db_quality_env_state := 5
-    else if not market_regime_gate_ok or not vola_regime_gate_safe
-        _db_quality_env_state := -1
-
-    bool _db_strict_quality_ok = false
-    if strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
-        _db_strict_quality_ok := true
-    string _db_quality_strict_text = 'DDVI Blocked'
-    if long_entry_strict_state
-        _db_quality_strict_text := 'Passed'
-    else if _db_strict_quality_ok
-        _db_quality_strict_text := 'Eligible'
-    else if not strict_entry_ltf_ok
-        _db_quality_strict_text := 'LTF Blocked'
-    else if not htf_alignment_ok
-        _db_quality_strict_text := 'HTF Blocked'
-    else if not accel_strict_entry_gate_ok
-        _db_quality_strict_text := 'Accel Blocked'
-    else if not sd_entry_strict_gate_ok
-        _db_quality_strict_text := 'SD Blocked'
-    else if not vol_entry_strict_context_ok_safe
-        _db_quality_strict_text := 'Vol Blocked'
-    else if not stretch_entry_strict_context_ok
-        _db_quality_strict_text := 'Stretch Blocked'
-    int _db_quality_strict_state = -1
-    if long_entry_strict_state
-        _db_quality_strict_state := 5
-    else if _db_strict_quality_ok
-        _db_quality_strict_state := 4
-
-    [_db_quality_env_text, _db_quality_env_state, _db_strict_quality_ok, _db_quality_strict_text, _db_quality_strict_state]
-
-compute_dashboard_quality_filters_prep() =>
-    int _db_close_strength_state = 0
-    if use_strong_close_filter
-        if bull_close_strong
-            _db_close_strength_state := 5
-        else
-            _db_close_strength_state := -1
-
-    int _db_ema_support_state = 0
-    if show_ema_support
-        if ema_support_ok
-            _db_ema_support_state := 5
-        else
-            _db_ema_support_state := -1
-
-    string _db_adx_text = 'off'
-    if use_adx
-        if not adx_data_ok
-            _db_adx_text := 'n/a'
-        else
-            _db_adx_text := str.tostring(adx_value, '#.##') + ' | ' + adx_state_text
-    int _db_adx_state = 0
-    if use_adx and adx_data_ok
-        if plus_di < minus_di
-            _db_adx_state := -1
-        else if adx_strong
-            _db_adx_state := 5
-        else if adx_value >= adx_trend_min
-            _db_adx_state := 3
-        else
-            _db_adx_state := 2
-
-    string _db_relvol_text = relvol_text
-    int _db_relvol_state = 0
-    if use_rel_volume
-        if not relvol_data_ok
-            if allow_relvol_without_volume_data
-                _db_relvol_state := 2
-            else
-                _db_relvol_state := -1
-        else if relvol_ok
-            _db_relvol_state := 5
-        else
-            _db_relvol_state := -1
-
-    string _db_vwap_text = vwap_state_text
-    int _db_vwap_state = 0
-    if use_vwap_filter and intraday_time_chart and vwap_session_active
-        if vwap_filter_ok
-            _db_vwap_state := 5
-        else
-            _db_vwap_state := -1
-
-    string _db_context_quality_text = 'off'
-    if use_context_quality_score_eff
-        if context_quality_gate_ok
-            _db_context_quality_text := 'Supportive'
-        else
-            _db_context_quality_text := 'Weak'
-    int _db_context_quality_state = 0
-    if use_context_quality_score_eff
-        if context_quality_gate_ok
-            _db_context_quality_state := 5
-        else
-            _db_context_quality_state := 2
-
-    string _db_quality_score_text = str.tostring(context_quality_score) + '/' + str.tostring(effective_context_quality_max_score) + ' | min ' + str.tostring(effective_min_context_quality_score)
-    int _db_quality_score_state = 2
-    if context_quality_gate_ok
-        _db_quality_score_state := 5
-
-    string _db_quality_clean_text = 'No'
-    if long_quality_clean_tier
-        _db_quality_clean_text := 'Clean'
-    int _db_quality_clean_state = 0
-    if long_quality_clean_tier
-        _db_quality_clean_state := 5
-
-    [_db_close_strength_state, _db_ema_support_state, _db_adx_text, _db_adx_state, _db_relvol_text, _db_relvol_state, _db_vwap_text, _db_vwap_state, _db_context_quality_text, _db_context_quality_state, _db_quality_score_text, _db_quality_score_state, _db_quality_clean_text, _db_quality_clean_state]
-
-compute_dashboard_modules_structure_prep() =>
-    string _db_sd_confluence_text = 'none'
-    if not use_sd_confluence
-        _db_sd_confluence_text := 'off'
-    else if sd_support_both_recent
-        _db_sd_confluence_text := 'Bull div + HL'
-    else if sd_bullish_divergence_recent
-        _db_sd_confluence_text := 'Bull div'
-    else if sd_higher_lows_recent
-        _db_sd_confluence_text := 'Higher lows'
-    int _db_sd_confluence_state = 0
-    if use_sd_confluence
-        if sd_support_both_recent
-            _db_sd_confluence_state := 5
-        else if sd_support_any_recent
-            _db_sd_confluence_state := 4
-
-    string _db_sd_direction_text = 'flat'
-    if sd_rising
-        _db_sd_direction_text := 'rising'
-    else if sd_falling
-        _db_sd_direction_text := 'falling'
-    string _db_sd_osc_text = str.tostring(sd_value, '#.##') + ' | ' + _db_sd_direction_text
-    if not use_sd_confluence
-        _db_sd_osc_text := 'off'
-    else if na(sd_value)
-        _db_sd_osc_text := 'n/a'
-    int _db_sd_osc_state = 0
-    if use_sd_confluence and not na(sd_value)
-        if sd_above_zero and sd_rising
-            _db_sd_osc_state := 5
-        else if sd_rising
-            _db_sd_osc_state := 3
-        else if sd_below_zero and sd_falling
-            _db_sd_osc_state := -1
-
-    string _db_vol_regime_text = 'off'
-    if use_volatility_regime
-        if vol_regime_trend_ok
-            _db_vol_regime_text := 'Bull stack'
-        else
-            _db_vol_regime_text := 'Weak stack'
-    int _db_vol_regime_state = 0
-    if use_volatility_regime
-        if vol_regime_trend_ok
-            _db_vol_regime_state := 5
-        else
-            _db_vol_regime_state := -1
-
-    string _db_vol_squeeze_text = 'No squeeze'
-    if not use_volatility_regime
-        _db_vol_squeeze_text := 'off'
-    else if vol_squeeze_on
-        _db_vol_squeeze_text := 'Squeeze on'
-    else if vol_squeeze_release_recent
-        _db_vol_squeeze_text := 'Released'
-    else if vol_squeeze_recent
-        _db_vol_squeeze_text := 'Recent squeeze'
-    int _db_vol_squeeze_state = 0
-    if use_volatility_regime
-        if vol_squeeze_on
-            _db_vol_squeeze_state := 5
-        else if vol_squeeze_release_recent
-            _db_vol_squeeze_state := 4
-        else if vol_squeeze_recent
-            _db_vol_squeeze_state := 3
-
-    string _db_vol_expand_text = 'No Expansion'
-    if not use_volatility_regime
-        _db_vol_expand_text := 'off'
-    else if vol_momentum_expanding_long and vol_stack_spread_rising
-        _db_vol_expand_text := 'Expansion'
-    else if vol_momentum_expanding_long or vol_stack_spread_rising
-        _db_vol_expand_text := 'Building'
-    int _db_vol_expand_state = 0
-    if use_volatility_regime
-        if vol_momentum_expanding_long and vol_stack_spread_rising
-            _db_vol_expand_state := 5
-        else if vol_momentum_expanding_long or vol_stack_spread_rising
-            _db_vol_expand_state := 3
-
-    string _db_stretch_state_text = 'chasing'
-    if in_lower_extreme
-        _db_stretch_state_text := 'lower extreme'
-    else if lower_extreme_recent
-        _db_stretch_state_text := 'recent extreme'
-    else if anti_chase_ok_entry_best
-        _db_stretch_state_text := 'anti-chase ok'
-    string _db_stretch_text = str.tostring(distance_to_mean_z, '#.##') + 'z | ' + _db_stretch_state_text
-    if not use_stretch_context
-        _db_stretch_text := 'off'
-    else if na(distance_to_mean_z)
-        _db_stretch_text := 'n/a'
-    int _db_stretch_state = 0
-    if use_stretch_context and not na(distance_to_mean_z)
-        if (in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best
-            _db_stretch_state := 5
-        else if anti_chase_ok_ready
-            _db_stretch_state := 3
-        else
-            _db_stretch_state := -1
-
-    string _db_ddvi_text = 'Weak'
-    if not use_ddvi_context
-        _db_ddvi_text := 'off'
-    else if ddvi_bias_ok and ddvi_bull_divergence_any
-        _db_ddvi_text := 'Bull bias + div'
-    else if ddvi_bias_ok
-        _db_ddvi_text := 'Bull bias'
-    else if ddvi_bull_divergence_any
-        _db_ddvi_text := 'Bull div'
-    else if ddvi_lower_extreme_context
-        _db_ddvi_text := 'Lower extreme'
-    int _db_ddvi_state = 0
-    if use_ddvi_context
-        if ddvi_bias_ok and ddvi_bull_divergence_any
-            _db_ddvi_state := 5
-        else if ddvi_bias_ok or ddvi_bull_divergence_any
-            _db_ddvi_state := 4
-        else if ddvi_lower_extreme_context
-            _db_ddvi_state := 3
-
-    string _db_ltf_bias_text = 'off'
-    if show_dashboard_ltf_eff
-        if not ltf_sampling_active or not ltf_price_ok
-            _db_ltf_bias_text := 'n/a'
-        else
-            _db_ltf_bias_text := str.tostring(ltf_bull_share * 100.0, '#') + '%'
-            if ltf_price_only
-                _db_ltf_bias_text += ' price-only'
-    int _db_ltf_bias_state = 0
-    if show_dashboard_ltf_eff and ltf_sampling_active and ltf_price_ok
-        if ltf_bull_share >= ltf_bias_hint
-            _db_ltf_bias_state := 5
-        else if ltf_bull_share >= 0.50
-            _db_ltf_bias_state := 3
-        else
-            _db_ltf_bias_state := -1
-
-    string _db_ltf_delta_text = 'off'
-    if show_dashboard_ltf_eff
-        if not ltf_sampling_active
-            _db_ltf_delta_text := 'n/a'
-        else if ltf_price_only
-            _db_ltf_delta_text := 'no-vol'
-        else if na(ltf_volume_delta)
-            _db_ltf_delta_text := 'n/a'
-        else
-            _db_ltf_delta_text := str.format('{0,number,percent}', ltf_volume_delta)
-    int _db_ltf_delta_state = 0
-    if show_dashboard_ltf_eff and ltf_sampling_active
-        if ltf_price_only
-            _db_ltf_delta_state := 2
-        else if not na(ltf_volume_delta)
-            if ltf_volume_delta >= 0
-                _db_ltf_delta_state := 5
-            else
-                _db_ltf_delta_state := -1
-
-    string _db_objects_text = 'OB ' + str.tostring(array.size(ob_blocks_bull)) + ' | FVG ' + str.tostring(array.size(fvgs_bull))
-    int _db_objects_state = 0
-    if array.size(ob_blocks_bull) > 0 and array.size(fvgs_bull) > 0
-        _db_objects_state := 5
-    else if array.size(ob_blocks_bull) > 0 or array.size(fvgs_bull) > 0
-        _db_objects_state := 3
-
-    string _db_swing_trail_up_text = 'n/a'
-    if not na(trail_up)
-        _db_swing_trail_up_text := u.format_level(trail_up)
-    string _db_swing_trail_dn_text = 'n/a'
-    if not na(trail_dn)
-        _db_swing_trail_dn_text := u.format_level(trail_dn)
-    string _db_swing_internal_up_text = 'n/a'
-    if not na(internal_trail_up)
-        _db_swing_internal_up_text := u.format_level(internal_trail_up)
-    string _db_swing_internal_dn_text = 'n/a'
-    if not na(internal_trail_dn)
-        _db_swing_internal_dn_text := u.format_level(internal_trail_dn)
-    string _db_swing_text = 'S ' + _db_swing_trail_up_text + ' / ' + _db_swing_trail_dn_text + ' | I ' + _db_swing_internal_up_text + ' / ' + _db_swing_internal_dn_text
-    int _db_swing_state = 0
-    if bullish_trend_safe
-        _db_swing_state := 5
-    else if bearish_trend_safe
-        _db_swing_state := -1
-
-    string _db_long_zones_text = compose_zone_summary_text(in_bull_ob_zone, active_bull_ob_top, active_bull_ob_bottom, in_bull_fvg_zone, active_bull_fvg_top, active_bull_fvg_bottom, 'No Long Zones')
-    int _db_long_zones_state = 0
-    if long_zone_active
-        _db_long_zones_state := 5
-
-    string _db_long_triggers_text = 'n/a'
-    if long_plan_active
-        _db_long_triggers_text := 'Trig ' + u.format_level(long_state.trigger) + ' | Inv ' + u.format_level(long_state.invalidation_level)
-    int _db_long_triggers_state = 0
-    if long_plan_active
-        _db_long_triggers_state := 5
-
-    string _db_micro_profile_text = micro_profile_text
-    if not use_microstructure_profiles
-        _db_micro_profile_text := 'off'
-    else if str.length(micro_modifier_text) > 0
-        _db_micro_profile_text := micro_profile_text + ' | mod: ' + micro_modifier_text
-    int _db_micro_profile_state = 0
-    if use_microstructure_profiles
-        if str.length(micro_modifier_text) > 0 or micro_profile_text != 'Default'
-            _db_micro_profile_state := 5
-        else
-            _db_micro_profile_state := 3
-
-    string _db_risk_plan_text = 'n/a'
-    if long_plan_active
-        _db_risk_plan_text := 'Entry ' + u.format_level(long_state.trigger) + ' | Stop ' + u.format_level(long_stop_level) + ' | T1 ' + u.format_level(long_target_1) + ' | T2 ' + u.format_level(long_target_2)
-    int _db_risk_plan_state = 0
-    if long_plan_active
-        _db_risk_plan_state := 5
-
-    [_db_sd_confluence_text, _db_sd_confluence_state, _db_sd_direction_text, _db_sd_osc_text, _db_sd_osc_state, _db_vol_regime_text, _db_vol_regime_state, _db_vol_squeeze_text, _db_vol_squeeze_state, _db_vol_expand_text, _db_vol_expand_state, _db_stretch_state_text, _db_stretch_text, _db_stretch_state, _db_ddvi_text, _db_ddvi_state, _db_ltf_bias_text, _db_ltf_bias_state, _db_ltf_delta_text, _db_ltf_delta_state, _db_objects_text, _db_objects_state, _db_swing_trail_up_text, _db_swing_trail_dn_text, _db_swing_internal_up_text, _db_swing_internal_dn_text, _db_swing_text, _db_swing_state, _db_long_zones_text, _db_long_zones_state, _db_long_triggers_text, _db_long_triggers_state, _db_micro_profile_text, _db_micro_profile_state, _db_risk_plan_text, _db_risk_plan_state]
-
-compute_dashboard_lifecycle_prep() =>
-    int _mtf_bull_count = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0)
-    string _db_trend_text = db_trend_text(structure_display_trend)
-    int _db_trend_state = db_trend_state(structure_display_trend)
-    string _db_htf_text = mtf_trend_tf1 + ':' + db_trend_text(mtf_trend_1) + ' | ' + mtf_trend_tf2 + ':' + db_trend_text(mtf_trend_2) + ' | ' + mtf_trend_tf3 + ':' + db_trend_text(mtf_trend_3)
-    int _db_htf_state = -1
-    if _mtf_bull_count >= 2
-        _db_htf_state := 5
-    else if _mtf_bull_count == 1
-        _db_htf_state := 3
-
-    int _db_setup_state = 0
-    if long_entry_strict_state or long_entry_best_state
-        _db_setup_state := 5
-    else if long_ready_state or long_state.confirmed
-        _db_setup_state := 4
-    else if long_building_state
-        _db_setup_state := 3
-    else if long_state.armed
-        _db_setup_state := 2
-    else if long_zone_active
-        _db_setup_state := 1
-
-    string _db_exec_tier_text = db_exec_tier_text()
-    int _db_exec_tier_state = 0
-    if long_entry_strict_state or long_entry_best_state
-        _db_exec_tier_state := 5
-    else if long_ready_state or long_state.confirmed
-        _db_exec_tier_state := 4
-    else if long_state.armed
-        _db_exec_tier_state := 2
-    else if long_zone_active
-        _db_exec_tier_state := 1
-
-    string _db_setup_age = db_setup_age_text()
-    int _db_setup_age_state = 0
-    if long_state.confirmed
-        _db_setup_age_state := ready_is_fresh ? 5 : 2
-    else if long_state.armed
-        _db_setup_age_state := confirm_is_fresh ? 4 : 2
-
-    int _db_pullback_state = 0
-    if in_bull_ob_zone and in_bull_fvg_zone
-        _db_pullback_state := 5
-    else if in_bull_ob_zone or in_bull_fvg_zone
-        _db_pullback_state := 4
-
-    int _db_reclaim_state = 0
-    if bull_reclaim_ob_strict or bull_reclaim_fvg_strict
-        _db_reclaim_state := 5
-    else if bull_reclaim_swing_low_strict or bull_reclaim_internal_low_strict
-        _db_reclaim_state := 4
-    else if reclaim_recent
-        _db_reclaim_state := 2
-
-    int _db_long_visual_state = long_visual_state
-
-    [_mtf_bull_count, _db_trend_text, _db_trend_state, _db_htf_text, _db_htf_state, _db_setup_state, _db_exec_tier_text, _db_exec_tier_state, _db_setup_age, _db_setup_age_state, _db_pullback_state, _db_reclaim_state, _db_long_visual_state]
-
-compute_dashboard_engine_debug_prep() =>
-    int _db_ready_gate_state = db_ready_gate_state(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok)
-    int _db_strict_gate_state = db_strict_gate_state(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
-    int _db_debug_flags_state = 0
-    if show_ob_debug or show_fvg_debug or show_long_engine_debug
-        _db_debug_flags_state := 5
-    string _db_debug_flags_text = compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode_eff)
-    string _db_long_debug_text = 'off'
-    if show_long_engine_debug
-        _db_long_debug_text := long_debug_summary_text
-    int _db_long_debug_state = db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state)
-
-    [_db_ready_gate_state, _db_strict_gate_state, _db_debug_flags_state, _db_debug_flags_text, _db_long_debug_text, _db_long_debug_state]
-
-render_dashboard_quality_section(table tbl, color header_bg, color txt) =>
-    [_db_quality_env_text, _db_quality_env_state, _db_strict_quality_ok, _db_quality_strict_text, _db_quality_strict_state] = compute_dashboard_gate_quality_prep()
-    [_db_close_strength_state, _db_ema_support_state, _db_adx_text, _db_adx_state, _db_relvol_text, _db_relvol_state, _db_vwap_text, _db_vwap_state, _db_context_quality_text, _db_context_quality_state, _db_quality_score_text, _db_quality_score_state, _db_quality_clean_text, _db_quality_clean_state] = compute_dashboard_quality_filters_prep()
-    dashboard_section_header(tbl, 19, '[ Quality ]', header_bg, txt)
-    dashboard_section_row(tbl, 10, 7, 'Quality Env', _db_quality_env_text, status_bg(_db_quality_env_state), txt)
-    dashboard_section_row(tbl, 10, 8, 'Quality Strict', _db_quality_strict_text, status_bg(_db_quality_strict_state), txt)
-    dashboard_section_row(tbl, 19, 1, 'Close Strength', close_state_text, status_bg(_db_close_strength_state), txt)
-    dashboard_section_row(tbl, 19, 2, 'EMA Support', ema_state_text, status_bg(_db_ema_support_state), txt)
-    dashboard_section_row(tbl, 19, 3, 'ADX', _db_adx_text, status_bg(_db_adx_state), txt)
-    dashboard_section_row(tbl, 19, 4, 'Rel Volume', _db_relvol_text, status_bg(_db_relvol_state), txt)
-    dashboard_section_row(tbl, 19, 5, 'VWAP Filter', _db_vwap_text, status_bg(_db_vwap_state), txt)
-    dashboard_section_row(tbl, 19, 6, 'Context Quality', _db_context_quality_text, status_bg(_db_context_quality_state), txt)
-    dashboard_section_row(tbl, 19, 7, 'Quality Score', _db_quality_score_text, status_bg(_db_quality_score_state), txt)
-    dashboard_section_row(tbl, 19, 8, 'Quality Clean', _db_quality_clean_text, status_bg(_db_quality_clean_state), txt)
-
-render_dashboard_modules_section(table tbl, color header_bg, color txt) =>
-    [_db_sd_confluence_text, _db_sd_confluence_state, _db_sd_direction_text, _db_sd_osc_text, _db_sd_osc_state, _db_vol_regime_text, _db_vol_regime_state, _db_vol_squeeze_text, _db_vol_squeeze_state, _db_vol_expand_text, _db_vol_expand_state, _db_stretch_state_text, _db_stretch_text, _db_stretch_state, _db_ddvi_text, _db_ddvi_state, _db_ltf_bias_text, _db_ltf_bias_state, _db_ltf_delta_text, _db_ltf_delta_state, _db_objects_text, _db_objects_state, _db_swing_trail_up_text, _db_swing_trail_dn_text, _db_swing_internal_up_text, _db_swing_internal_dn_text, _db_swing_text, _db_swing_state, _db_long_zones_text, _db_long_zones_state, _db_long_triggers_text, _db_long_triggers_state, _db_micro_profile_text, _db_micro_profile_state, _db_risk_plan_text, _db_risk_plan_state] = compute_dashboard_modules_structure_prep()
-    dashboard_section_header(tbl, 28, '[ Modules ]', header_bg, txt)
-    dashboard_section_row(tbl, 28, 1, 'SD Confluence', _db_sd_confluence_text, status_bg(_db_sd_confluence_state), txt)
-    dashboard_section_row(tbl, 28, 2, 'SD Osc', _db_sd_osc_text, status_bg(_db_sd_osc_state), txt)
-    dashboard_section_row(tbl, 28, 3, 'Vol Regime', _db_vol_regime_text, status_bg(_db_vol_regime_state), txt)
-    dashboard_section_row(tbl, 28, 4, 'Vol Squeeze', _db_vol_squeeze_text, status_bg(_db_vol_squeeze_state), txt)
-    dashboard_section_row(tbl, 28, 5, 'Vol Expand', _db_vol_expand_text, status_bg(_db_vol_expand_state), txt)
-    dashboard_section_row(tbl, 28, 6, 'Stretch', _db_stretch_text, status_bg(_db_stretch_state), txt)
-    dashboard_section_row(tbl, 28, 7, 'DDVI', _db_ddvi_text, status_bg(_db_ddvi_state), txt)
-    dashboard_section_row(tbl, 28, 8, 'LTF Bias', _db_ltf_bias_text, status_bg(_db_ltf_bias_state), txt)
-    dashboard_section_row(tbl, 28, 9, 'LTF Delta', _db_ltf_delta_text, status_bg(_db_ltf_delta_state), txt)
-    dashboard_section_row(tbl, 28, 10, 'Objects', _db_objects_text, status_bg(_db_objects_state), txt)
-    dashboard_section_row(tbl, 28, 11, 'Swing H/L', _db_swing_text, status_bg(_db_swing_state), txt)
-    dashboard_section_row(tbl, 28, 12, 'Long Zones', _db_long_zones_text, status_bg(_db_long_zones_state), txt)
-    dashboard_section_row(tbl, 28, 13, 'Long Triggers', _db_long_triggers_text, status_bg(_db_long_triggers_state), txt)
-    dashboard_section_row(tbl, 28, 14, 'Micro Profile', _db_micro_profile_text, status_bg(_db_micro_profile_state), txt)
-    dashboard_section_row(tbl, 28, 15, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), txt)
-
-render_dashboard_engine_section(table tbl, color txt) =>
-    [_db_ready_gate_state, _db_strict_gate_state, _db_debug_flags_state, _db_debug_flags_text, _db_long_debug_text, _db_long_debug_state] = compute_dashboard_engine_debug_prep()
-    dashboard_section_row(tbl, 44, 0, 'Ready Gate', long_ready_blocker_text, status_bg(_db_ready_gate_state), txt)
-    dashboard_section_row(tbl, 44, 1, 'Strict Gate', long_strict_blocker_text, status_bg(_db_strict_gate_state), txt)
-    dashboard_section_row(tbl, 44, 2, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), txt)
-    dashboard_section_row(tbl, 44, 3, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), txt)
-
-render_dashboard_lifecycle_section(table tbl, color header_bg, color txt) =>
-    [_mtf_bull_count, _db_trend_text, _db_trend_state, _db_htf_text, _db_htf_state, _db_setup_state, _db_exec_tier_text, _db_exec_tier_state, _db_setup_age, _db_setup_age_state, _db_pullback_state, _db_reclaim_state, _db_long_visual_state] = compute_dashboard_lifecycle_prep()
-    dashboard_section_header(tbl, 1, '[ Lifecycle ]', header_bg, txt)
-    dashboard_section_row(tbl, 1, 1, 'Trend', _db_trend_text, status_bg(_db_trend_state), txt)
-    dashboard_section_row(tbl, 1, 2, 'HTF Trend', _db_htf_text, status_bg(_db_htf_state), txt)
-    dashboard_section_row(tbl, 1, 3, 'Pullback Zone', long_zone_text, status_bg(_db_pullback_state), txt)
-    dashboard_section_row(tbl, 1, 4, 'Reclaim', reclaim_text, status_bg(_db_reclaim_state), txt)
-    dashboard_section_row(tbl, 1, 5, 'Long Setup', long_setup_text, status_bg(_db_setup_state), txt)
-    dashboard_section_row(tbl, 1, 6, 'Setup Age', _db_setup_age, status_bg(_db_setup_age_state), txt)
-    dashboard_section_row(tbl, 1, 7, 'Long Visual', long_visual_text, status_bg(_db_long_visual_state), txt)
-    dashboard_section_row(tbl, 1, 8, 'Exec Tier', _db_exec_tier_text, status_bg(_db_exec_tier_state), txt)
-
-render_dashboard_hard_gates_section(table tbl, color header_bg, color txt) =>
-    [_db_session_text, _db_session_state, _db_market_text, _db_market_state, _db_vola_gate_text, _db_vola_gate_state, _db_micro_session_text, _db_micro_session_state, _db_micro_fresh_text, _db_micro_fresh_state, _db_volume_data_text, _db_volume_data_state] = compute_dashboard_hard_gate_prep()
-    dashboard_section_header(tbl, 10, '[ Hard Gates ]', header_bg, txt)
-    dashboard_section_row(tbl, 10, 1, 'Session', _db_session_text, status_bg(_db_session_state), txt)
-    dashboard_section_row(tbl, 10, 2, 'Market Gate', _db_market_text, status_bg(_db_market_state), txt)
-    dashboard_section_row(tbl, 10, 3, 'Vola Regime', _db_vola_gate_text, status_bg(_db_vola_gate_state), txt)
-    dashboard_section_row(tbl, 10, 4, 'Micro Session', _db_micro_session_text, status_bg(_db_micro_session_state), txt)
-    dashboard_section_row(tbl, 10, 5, 'Micro Fresh', _db_micro_fresh_text, status_bg(_db_micro_fresh_state), txt)
-    dashboard_section_row(tbl, 10, 6, 'Volume Data', _db_volume_data_text, status_bg(_db_volume_data_state), txt)
-
-var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)
-
-if show_dashboard and barstate.islast
-    color _db_text = chart.fg_color
-    color _db_header_bg = color.new(color.black, 100)
-    dashboard_header(_smc_dashboard, 0, 'SMC++ | ' + signal_mode_text + ' | ' + long_user_preset + ' | ' + performance_mode, _db_header_bg, _db_text)
-    render_dashboard_lifecycle_section(_smc_dashboard, _db_header_bg, _db_text)
-    render_dashboard_hard_gates_section(_smc_dashboard, _db_header_bg, _db_text)
-    render_dashboard_quality_section(_smc_dashboard, _db_header_bg, _db_text)
-    render_dashboard_modules_section(_smc_dashboard, _db_header_bg, _db_text)
-    render_dashboard_engine_section(_smc_dashboard, _db_text)
-else if barstate.islast
-    table.clear(_smc_dashboard, 0, 0, 1, 47)
+plot(long_zone_active ? 1.0 : 0.0, 'BUS ZoneActive', display = display.none)
+plot(long_state.armed ? 1.0 : 0.0, 'BUS Armed', display = display.none)
+plot(long_state.confirmed ? 1.0 : 0.0, 'BUS Confirmed', display = display.none)
+plot(long_ready_state ? 1.0 : 0.0, 'BUS Ready', display = display.none)
+plot(long_entry_best_state ? 1.0 : 0.0, 'BUS EntryBest', display = display.none)
+plot(long_entry_strict_state ? 1.0 : 0.0, 'BUS EntryStrict', display = display.none)
+plot(long_state.trigger, 'BUS Trigger', display = display.none)
+plot(long_state.invalidation_level, 'BUS Invalidation', display = display.none)
+plot(context_quality_score, 'BUS QualityScore', display = display.none)
+plot(long_validation_source, 'BUS SourceKind', display = display.none)
+plot(long_visual_state, 'BUS StateCode', display = display.none)
+plot(pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3), 'BUS TrendPack', display = display.none)
+plot(pack_bus_meta(resolve_bus_freshness_code(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)), 'BUS MetaPack', display = display.none)
+plot(pack_bus_four(resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok), resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)), 'BUS HardGatesPackA', display = display.none)
+plot(pack_bus_four(resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only), resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe), resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)), 'BUS HardGatesPackB', display = display.none)
+plot(pack_bus_four(resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong), resolve_bus_ema_support_row(show_ema_support, ema_support_ok), resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min), resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)), 'BUS QualityPackA', display = display.none)
+plot(pack_bus_four(resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok), resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok), resolve_bus_quality_clean_row(long_quality_clean_tier), resolve_bus_quality_score_row(context_quality_gate_ok)), 'BUS QualityPackB', display = display.none)
+plot(effective_min_context_quality_score * 100.0 + effective_context_quality_max_score, 'BUS QualityBoundsPack', display = display.none)
+plot(pack_bus_four(resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent)), 'BUS ModulePackA', display = display.none)
+plot(pack_bus_four(resolve_bus_vol_expand_row(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), resolve_bus_stretch_row(use_stretch_context, distance_to_mean_z, in_lower_extreme, lower_extreme_recent, anti_chase_ok_entry_best, anti_chase_ok_ready), resolve_bus_ddvi_row(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), resolve_bus_ltf_bias_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_ok, ltf_price_only, ltf_bull_share, ltf_bias_hint)), 'BUS ModulePackB', display = display.none)
+plot(pack_bus_four(resolve_bus_ltf_delta_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), resolve_bus_objects_row(array.size(ob_blocks_bull), array.size(fvgs_bull)), resolve_bus_swing_row(bullish_trend_safe, bearish_trend_safe), resolve_bus_micro_profile_row(use_microstructure_profiles, micro_profile_text, micro_modifier_text)), 'BUS ModulePackC', display = display.none)
+plot(pack_bus_four(resolve_bus_zone_row(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), resolve_bus_long_triggers_row(long_plan_active), resolve_bus_risk_plan_row(long_plan_active), resolve_bus_debug_flags_row(show_ob_debug, show_fvg_debug, show_long_engine_debug)), 'BUS ModulePackD', display = display.none)
+plot(pack_bus_four(resolve_bus_ready_gate_row(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), resolve_bus_debug_state_row(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state), resolve_bus_micro_modifier_mask(micro_modifier_text)), 'BUS EnginePack', display = display.none)
+plot(long_stop_level, 'BUS StopLevel', display = display.none)
+plot(long_target_1, 'BUS Target1', display = display.none)
+plot(long_target_2, 'BUS Target2', display = display.none)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION

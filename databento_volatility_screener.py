@@ -600,6 +600,7 @@ def _import_databento() -> Any:
 
 
 def _make_databento_client(api_key: str | None = None) -> Any:
+    _normalize_tls_certificate_env()
     db = _import_databento()
     return db.Historical(api_key or os.getenv("DATABENTO_API_KEY"))
 
@@ -724,6 +725,24 @@ def _warn_with_redacted_exception(message: str, exc: BaseException, *, include_t
     logger.warning("%s: %s", message, _redact_sensitive_error_text(str(exc)), exc_info=include_traceback)
 
 
+def _normalize_tls_certificate_env() -> str:
+    cafile = str(certifi.where())
+    for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        current = str(os.getenv(env_name) or "").strip()
+        if not current or current == cafile:
+            continue
+        if Path(current).exists():
+            continue
+        logger.warning(
+            "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
+            env_name,
+            current,
+            cafile,
+        )
+        os.environ[env_name] = cafile
+    return cafile
+
+
 def _is_retryable_databento_get_range_error(exc: BaseException) -> bool:
     message = _redact_sensitive_error_text(str(exc)).lower()
     if not message:
@@ -737,7 +756,11 @@ def _is_retryable_databento_get_range_error(exc: BaseException) -> bool:
         "504",
         "service unavailable",
         "gateway timeout",
+        "connection aborted",
+        "connection broken",
         "connection reset",
+        "remote end closed connection without response",
+        "remotedisconnected",
         "temporarily unavailable",
     )
     return any(fragment in message for fragment in retryable_fragments)
@@ -747,6 +770,7 @@ def _databento_get_range_with_retry(client: Any, *, context: str, **kwargs: Any)
     last_exc: BaseException | None = None
     for attempt in range(1, DATABENTO_GET_RANGE_MAX_ATTEMPTS + 1):
         try:
+            _normalize_tls_certificate_env()
             return client.timeseries.get_range(**kwargs)
         except Exception as exc:
             last_exc = exc
@@ -1028,7 +1052,7 @@ def _normalize_requested_exchange_codes(exchanges: str) -> set[str]:
 
 def _download_nasdaq_trader_text(url: str) -> str:
     import ssl
-    _ssl_ctx = ssl.create_default_context(cafile=certifi.where())
+    _ssl_ctx = ssl.create_default_context(cafile=_normalize_tls_certificate_env())
     request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
     last_error: Exception | None = None
     for attempt in range(3):

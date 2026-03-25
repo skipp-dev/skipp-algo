@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 logger = logging.getLogger(__name__)
 
 FIXED_ET_DISPLAY_TIMEZONE = "America/New_York"
+FUNDAMENTAL_REFERENCE_EMPTY_CACHE_TTL_SECONDS = 30 * 60
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -1001,13 +1002,20 @@ def _load_fundamental_reference(
     if use_file_cache and not force_refresh:
         cached = _read_cached_frame(cache_path)
         if cached is not None:
-            return cached
+            if cached.empty and cache_path.exists():
+                age_seconds = (datetime.now(UTC) - datetime.fromtimestamp(cache_path.stat().st_mtime, tz=UTC)).total_seconds()
+                if age_seconds > FUNDAMENTAL_REFERENCE_EMPTY_CACHE_TTL_SECONDS:
+                    logger.info(
+                        "Negative FMP fundamentals cache expired (%.1f min old), refreshing.",
+                        age_seconds / 60.0,
+                    )
+                else:
+                    return cached
+            else:
+                return cached
 
     if not str(fmp_api_key or "").strip():
-        empty = _empty_fundamental_reference_frame()
-        if use_file_cache:
-            _write_cached_frame(cache_path, empty)
-        return empty
+        return _empty_fundamental_reference_frame()
 
     try:
         rows = FMPClient(fmp_api_key).get_profile_bulk()
@@ -1842,6 +1850,7 @@ def _build_daily_symbol_features_full_universe_export(
     premarket_anchor_et: time,
     ranking_metric: str,
     top_fraction: float,
+    smc_base_only: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     features, coverage = build_daily_features_full_universe(
         trading_days=trading_days,
@@ -1945,44 +1954,45 @@ def _build_daily_symbol_features_full_universe_export(
         & (features["rank_within_trade_date"].astype("Int64") <= features["take_n_for_trade_date"])
     )
 
-    early_ranking_metric = "focus_0400_open_30s_volume"
-    early_has_rows = _numeric_series(features, "focus_0400_open_window_second_rows", fill_value=0.0).fillna(0).astype(int) > 0
-    early_prev_close_mask = pd.to_numeric(features.get("previous_close"), errors="coerce").notna()
-    early_metric_series = _numeric_series(features, early_ranking_metric)
-    early_eligible_mask = (
-        features["is_supported_by_databento"]
-        & features["has_reference_data"]
-        & features["has_daily_bars"]
-        & early_prev_close_mask
-        & early_has_rows
-        & early_metric_series.notna()
-    )
-    early_eligible_count_map = early_eligible_mask.groupby(features["trade_date"]).sum().astype(int).to_dict()
-    early_take_n_map = {
-        trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0
-        for trade_day, count in early_eligible_count_map.items()
-    }
     features["selected_top20pct_0400"] = False
-    early_candidates = features.loc[early_eligible_mask].copy()
-    if not early_candidates.empty:
-        early_candidates[early_ranking_metric] = pd.to_numeric(early_candidates[early_ranking_metric], errors="coerce")
-        early_candidates = early_candidates.sort_values(
-            ["trade_date", early_ranking_metric, "symbol"],
-            ascending=[True, False, True],
-        ).reset_index(drop=True)
-        early_candidates["rank_within_trade_date_0400"] = early_candidates.groupby("trade_date").cumcount() + 1
-        early_candidates["take_n_for_trade_date_0400"] = early_candidates["trade_date"].map(early_take_n_map).fillna(0).astype(int)
-        early_selected = early_candidates[
-            early_candidates["rank_within_trade_date_0400"] <= early_candidates["take_n_for_trade_date_0400"]
-        ][["trade_date", "symbol"]].copy()
-        early_selected["selected_top20pct_0400"] = True
-        features = features.drop(columns=["selected_top20pct_0400"]).merge(
-            early_selected,
-            on=["trade_date", "symbol"],
-            how="left",
+    if not smc_base_only:
+        early_ranking_metric = "focus_0400_open_30s_volume"
+        early_has_rows = _numeric_series(features, "focus_0400_open_window_second_rows", fill_value=0.0).fillna(0).astype(int) > 0
+        early_prev_close_mask = pd.to_numeric(features.get("previous_close"), errors="coerce").notna()
+        early_metric_series = _numeric_series(features, early_ranking_metric)
+        early_eligible_mask = (
+            features["is_supported_by_databento"]
+            & features["has_reference_data"]
+            & features["has_daily_bars"]
+            & early_prev_close_mask
+            & early_has_rows
+            & early_metric_series.notna()
         )
-        features["selected_top20pct_0400"] = pd.Series(features["selected_top20pct_0400"], dtype="boolean").fillna(False)
-        features["selected_top20pct_0400"] = features["selected_top20pct_0400"].astype(bool)
+        early_eligible_count_map = early_eligible_mask.groupby(features["trade_date"]).sum().astype(int).to_dict()
+        early_take_n_map = {
+            trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0
+            for trade_day, count in early_eligible_count_map.items()
+        }
+        early_candidates = features.loc[early_eligible_mask].copy()
+        if not early_candidates.empty:
+            early_candidates[early_ranking_metric] = pd.to_numeric(early_candidates[early_ranking_metric], errors="coerce")
+            early_candidates = early_candidates.sort_values(
+                ["trade_date", early_ranking_metric, "symbol"],
+                ascending=[True, False, True],
+            ).reset_index(drop=True)
+            early_candidates["rank_within_trade_date_0400"] = early_candidates.groupby("trade_date").cumcount() + 1
+            early_candidates["take_n_for_trade_date_0400"] = early_candidates["trade_date"].map(early_take_n_map).fillna(0).astype(int)
+            early_selected = early_candidates[
+                early_candidates["rank_within_trade_date_0400"] <= early_candidates["take_n_for_trade_date_0400"]
+            ][["trade_date", "symbol"]].copy()
+            early_selected["selected_top20pct_0400"] = True
+            features = features.drop(columns=["selected_top20pct_0400"]).merge(
+                early_selected,
+                on=["trade_date", "symbol"],
+                how="left",
+            )
+            features["selected_top20pct_0400"] = pd.Series(features["selected_top20pct_0400"], dtype="boolean").fillna(False)
+            features["selected_top20pct_0400"] = features["selected_top20pct_0400"].astype(bool)
 
     diagnostics = features[
         [
@@ -2263,6 +2273,7 @@ def run_production_export_pipeline(
     second_detail_scope: str = "full_universe",
     bullish_score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     skip_cost_estimate: bool | None = None,
+    smc_base_only: bool = False,
     progress_callback: Any = None,
 ) -> dict[str, Any]:
     if not databento_api_key:
@@ -2339,7 +2350,10 @@ def run_production_export_pipeline(
     )
     daily_bars_fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
 
-    _progress(f"Step 6/10: Running intraday screens ({len(trading_days)} days, including fixed 10:00 ET outcome snapshot)...")
+    if smc_base_only:
+        _progress(f"Step 6/10: Running intraday screens ({len(trading_days)} days, SMC base-only mode without fixed 10:00 ET outcome snapshot)...")
+    else:
+        _progress(f"Step 6/10: Running intraday screens ({len(trading_days)} days, including fixed 10:00 ET outcome snapshot)...")
     intraday = run_intraday_screen(
         databento_api_key,
         dataset=dataset,
@@ -2354,19 +2368,21 @@ def run_production_export_pipeline(
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
     )
-    intraday_close_outcome_anchor = _run_fixed_et_intraday_screen(
-        databento_api_key,
-        dataset=dataset,
-        trading_days=trading_days,
-        universe_symbols=universe_symbols,
-        daily_bars=daily_bars,
-        window_start=time(9, 30),
-        window_end=DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
-        premarket_anchor_et=time(9, 30),
-        cache_dir=resolved_cache_dir,
-        use_file_cache=use_file_cache,
-        force_refresh=force_refresh,
-    )
+    intraday_close_outcome_anchor = pd.DataFrame()
+    if not smc_base_only:
+        intraday_close_outcome_anchor = _run_fixed_et_intraday_screen(
+            databento_api_key,
+            dataset=dataset,
+            trading_days=trading_days,
+            universe_symbols=universe_symbols,
+            daily_bars=daily_bars,
+            window_start=time(9, 30),
+            window_end=DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
+            premarket_anchor_et=time(9, 30),
+            cache_dir=resolved_cache_dir,
+            use_file_cache=use_file_cache,
+            force_refresh=force_refresh,
+        )
     if not intraday_close_outcome_anchor.empty:
         exact_1000_lookup = _build_exact_window_end_lookup(
             intraday_close_outcome_anchor,
@@ -2401,7 +2417,16 @@ def run_production_export_pipeline(
             "premarket_detail_rows": 0,
         }
     else:
-        _progress(f"Step 8/10: Collecting open-window detail, close-window detail, and close trade metadata ({second_detail_scope})...")
+        if smc_base_only:
+            _progress(
+                f"Step 8/10: Collecting full-universe symbol-day detail for SMC feature derivation "
+                f"(open-window, close-window, close-trade metadata; {second_detail_scope})..."
+            )
+        else:
+            _progress(
+                f"Step 8/10: Collecting research/export detail "
+                f"(open-window, close-window, close-trade metadata; {second_detail_scope})..."
+            )
         full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
             databento_api_key,
             dataset=dataset,
@@ -2485,6 +2510,7 @@ def run_production_export_pipeline(
         premarket_anchor_et=premarket_anchor_et,
         ranking_metric=ranking_metric,
         top_fraction=top_fraction,
+        smc_base_only=smc_base_only,
     )
     full_universe_second_detail_open = _prepare_full_universe_second_detail_export(
         full_universe_second_detail_raw,
@@ -2647,6 +2673,8 @@ def run_production_export_pipeline(
         "rank_within_trade_date_rule": "rank eligible symbol-days within each trade_date by window_range_pct descending, ties by symbol ascending",
         "take_n_for_trade_date_rule": f"ceil(eligible_count_for_trade_date * {top_fraction:.2f})",
         "selected_top20pct_rule": "rank_within_trade_date <= take_n_for_trade_date for eligible symbol-days",
+        "selected_top20pct_0400_enabled": not smc_base_only,
+        "fixed_1000_et_outcome_snapshot_enabled": not smc_base_only,
         "prev_close_to_premarket_pct_formula": "((premarket_last / previous_close) - 1) * 100, where premarket_last is the last premarket 1s close before the regular open",
         "premarket_to_open_pct_formula": "((market_open_price / premarket_last) - 1) * 100",
         "premarket_last_rule": "last 1-second close in the premarket session before 09:30 ET",
@@ -2704,7 +2732,11 @@ def run_production_export_pipeline(
         "close_to_next_open_return_pct_formula": "((next_day_open_price / close_auction_reference_price) - 1) * 100",
         "next_open_to_window_end_return_pct_formula": "((next_day_window_end_price / next_day_open_price) - 1) * 100",
         "close_to_next_window_end_return_pct_formula": "((next_day_window_end_price / close_auction_reference_price) - 1) * 100",
-        "next_day_window_end_semantics": f"Derived from a dedicated next-trade-date intraday snapshot with fixed window_end={DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET.strftime('%H:%M:%S')} ET; exact_1000_price is only populated when the 1-second intraday summary contains a bar exactly at that boundary, and next_day_window_end_price prefers that exact label before falling back row-wise to the latest in-window current_price",
+        "next_day_window_end_semantics": (
+            f"Derived from a dedicated next-trade-date intraday snapshot with fixed window_end={DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET.strftime('%H:%M:%S')} ET; exact_1000_price is only populated when the 1-second intraday summary contains a bar exactly at that boundary, and next_day_window_end_price prefers that exact label before falling back row-wise to the latest in-window current_price"
+            if not smc_base_only
+            else "SMC base-only mode disabled the dedicated fixed 10:00 ET outcome snapshot; exact_1000_price remains unpopulated and any next-day outcome fields depend only on other exported outcome sources."
+        ),
         "next_day_window_end_time_et": DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET.strftime("%H:%M:%S"),
         "min_market_cap": min_market_cap,
         "cache_dir": str(resolved_cache_dir),
@@ -2838,6 +2870,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help="Opt in to the Databento cost-estimate step before the export pipeline runs.",
     )
+    parser.add_argument(
+        "--smc-base-only",
+        action="store_true",
+        help="Disable preopen 04:00 scope selection and the fixed 10:00 ET outcome snapshot for SMC base-generation focused exports.",
+    )
     parser.add_argument("--force-refresh", action="store_true")
     args = parser.parse_args(list(argv) if argv is not None else [])
 
@@ -2869,6 +2906,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         force_refresh=bool(args.force_refresh),
         bullish_score_profile=str(args.bullish_score_profile),
         skip_cost_estimate=not bool(args.estimate_costs),
+        smc_base_only=bool(args.smc_base_only),
     )
 
     print("EXPORT_DIR", result["manifest"]["export_dir"])

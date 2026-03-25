@@ -1,9 +1,10 @@
 // This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © preuss_steffen
+// DEPRECATED: legacy split prototype. Use SMC_Core_Engine.pine as the active producer.
 
 //@version=6
 
-indicator("Smart Money Concepts (Highly Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 500)
+indicator("DEPRECATED SMC Core Prototype", "SMC Core OLD", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 500)
 
 import preuss_steffen/smc_core_types/1 as ct
 import preuss_steffen/smc_utils/1 as u

@@ -1,0 +1,347 @@
+{
+  "workbook_path": "databento_volatility_production_20260307_114724.xlsx",
+  "asof_date": "2026-03-06",
+  "row_count": 97,
+  "direct_fields": [
+    "asof_date",
+    "symbol",
+    "exchange"
+  ],
+  "derived_fields": [
+    "asset_type",
+    "universe_bucket",
+    "history_coverage_days_20d",
+    "adv_dollar_rth_20d"
+  ],
+  "missing_fields": [
+    "avg_spread_bps_rth_20d",
+    "rth_active_minutes_share_20d",
+    "open_30m_dollar_share_20d",
+    "close_60m_dollar_share_20d",
+    "clean_intraday_score_20d",
+    "consistency_score_20d",
+    "close_hygiene_20d",
+    "wickiness_20d",
+    "pm_dollar_share_20d",
+    "pm_trades_share_20d",
+    "pm_active_minutes_share_20d",
+    "pm_spread_bps_20d",
+    "pm_wickiness_20d",
+    "midday_dollar_share_20d",
+    "midday_trades_share_20d",
+    "midday_active_minutes_share_20d",
+    "midday_spread_bps_20d",
+    "midday_efficiency_20d",
+    "ah_dollar_share_20d",
+    "ah_trades_share_20d",
+    "ah_active_minutes_share_20d",
+    "ah_spread_bps_20d",
+    "ah_wickiness_20d",
+    "reclaim_respect_rate_20d",
+    "reclaim_failure_rate_20d",
+    "reclaim_followthrough_r_20d",
+    "ob_sweep_reversal_rate_20d",
+    "ob_sweep_depth_p75_20d",
+    "fvg_sweep_reversal_rate_20d",
+    "fvg_sweep_depth_p75_20d",
+    "stop_hunt_rate_20d",
+    "setup_decay_half_life_bars_20d",
+    "early_vs_late_followthrough_ratio_20d",
+    "stale_fail_rate_20d"
+  ],
+  "mapping_status": [
+    {
+      "field": "asof_date",
+      "status": "direct",
+      "source_sheet": "summary",
+      "source_columns": [
+        "trade_date"
+      ],
+      "note": "Latest trade_date snapshot selected from workbook summary."
+    },
+    {
+      "field": "symbol",
+      "status": "direct",
+      "source_sheet": "summary",
+      "source_columns": [
+        "symbol"
+      ],
+      "note": "Copied from workbook summary."
+    },
+    {
+      "field": "exchange",
+      "status": "direct",
+      "source_sheet": "summary",
+      "source_columns": [
+        "exchange"
+      ],
+      "note": "Copied from workbook summary."
+    },
+    {
+      "field": "asset_type",
+      "status": "derived",
+      "source_sheet": "summary,daily_bars",
+      "source_columns": [],
+      "note": "Derived heuristically from company_name ETF/fund keywords; defaults to stock when no ETF marker is present."
+    },
+    {
+      "field": "universe_bucket",
+      "status": "derived",
+      "source_sheet": "summary,daily_bars",
+      "source_columns": [],
+      "note": "Derived from asset_type plus market_cap bands: ETF -> us_etf, else large/mid/small-cap buckets."
+    },
+    {
+      "field": "history_coverage_days_20d",
+      "status": "derived",
+      "source_sheet": "summary,daily_bars",
+      "source_columns": [],
+      "note": "Derived as trailing daily_bars row count up to the selected asof_date, capped at 20 sessions."
+    },
+    {
+      "field": "adv_dollar_rth_20d",
+      "status": "derived",
+      "source_sheet": "summary,daily_bars",
+      "source_columns": [],
+      "note": "Derived as mean(close * volume) over trailing daily_bars rows up to the selected asof_date, capped at 20 sessions."
+    },
+    {
+      "field": "avg_spread_bps_rth_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "rth_active_minutes_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "open_30m_dollar_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "close_60m_dollar_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "clean_intraday_score_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "consistency_score_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "close_hygiene_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "wickiness_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "pm_dollar_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "pm_trades_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "pm_active_minutes_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "pm_spread_bps_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "pm_wickiness_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "midday_dollar_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "midday_trades_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "midday_active_minutes_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "midday_spread_bps_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "midday_efficiency_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ah_dollar_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ah_trades_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ah_active_minutes_share_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ah_spread_bps_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ah_wickiness_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "reclaim_respect_rate_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "reclaim_failure_rate_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "reclaim_followthrough_r_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ob_sweep_reversal_rate_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "ob_sweep_depth_p75_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "fvg_sweep_reversal_rate_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "fvg_sweep_depth_p75_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "stop_hunt_rate_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "setup_decay_half_life_bars_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "early_vs_late_followthrough_ratio_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    },
+    {
+      "field": "stale_fail_rate_20d",
+      "status": "missing",
+      "source_sheet": "",
+      "source_columns": [],
+      "note": "Current production workbook does not expose this 20-day microstructure feature; it must be added or derived from richer Databento/market-structure source data."
+    }
+  ]
+}

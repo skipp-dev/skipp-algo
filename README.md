@@ -22,6 +22,52 @@ SkippALGO is a modular trading intelligence platform combining three core system
 - Optional local scripts may generate or submit user-authorized broker orders only when they are explicitly invoked from the command line.
 - Users remain solely responsible for their own investment decisions, risk management, and regulatory compliance.
 
+### TradingView Automation
+
+This repo now includes a small Playwright-based TradingView automation layer under `automation/tradingview/` for repeatable script open, save, publish, and settings validation flows.
+
+Setup:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
+Create a reusable authenticated storage state:
+
+```bash
+npx tsx scripts/create_tradingview_storage_state.ts \
+  --out automation/tradingview/auth/storage-state.json
+```
+
+The capture step now validates that the saved state actually looks authenticated and that the active page is a TradingView chart. If it still detects an anonymous session or sign-in page, it fails instead of writing a misleading storage-state file. In non-interactive runs it waits and polls for a real logged-in chart session instead of immediately failing on the old Enter prompt path.
+
+If TradingView still does not persist enough auth state into `storage-state.json`, use a persistent Chromium profile instead:
+
+```bash
+npm run tv:profile-login
+TV_PERSISTENT_PROFILE_DIR="$PWD/automation/tradingview/auth/chromium-profile" npm run tv:preflight
+TV_PERSISTENT_PROFILE_DIR="$PWD/automation/tradingview/auth/chromium-profile" npm run tv:publish-micro-library
+```
+
+In that mode the automation reuses the browser profile directory directly instead of relying only on exported storage-state heuristics.
+
+Run the shared validation and release jobs:
+
+```bash
+npm run tv:preflight
+npm run tv:publish-micro-library
+```
+
+Required environment variables for automation jobs:
+
+- `TV_STORAGE_STATE`
+- `TV_PERSISTENT_PROFILE_DIR` (optional alternative to `TV_STORAGE_STATE`)
+- `TV_CHART_URL` (optional, defaults to TradingView chart)
+- `TV_LOGIN_URL` (optional, defaults to TradingView sign-in)
+- `TV_HEADLESS` (optional)
+- `TV_TIMEOUT_MS` (optional)
+
 ---
 
 ## Table of Contents

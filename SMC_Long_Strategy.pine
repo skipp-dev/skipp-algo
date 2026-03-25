@@ -1,0 +1,79 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+strategy("SMC Long Strategy", overlay = true, pyramiding = 0, process_orders_on_close = true)
+
+src_armed = input.source(close, "BUS Armed")
+src_confirmed = input.source(close, "BUS Confirmed")
+src_ready = input.source(close, "BUS Ready")
+src_entry_best = input.source(close, "BUS EntryBest")
+src_entry_strict = input.source(close, "BUS EntryStrict")
+src_trigger = input.source(close, "BUS Trigger")
+src_invalidation = input.source(close, "BUS Invalidation")
+src_quality_score = input.source(close, "BUS QualityScore")
+
+entry_mode = input.string("Strict", "Entry Mode", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"])
+min_quality_score = input.float(0.0, "Min Quality Score", step = 0.25)
+take_profit_r = input.float(2.0, "Take Profit R", minval = 0.0, step = 0.25)
+use_take_profit = input.bool(true, "Use Take Profit")
+
+state_on(float value) =>
+    not na(value) and value > 0.5
+
+bool armed = state_on(src_armed)
+bool confirmed = state_on(src_confirmed)
+bool ready = state_on(src_ready)
+bool entry_best = state_on(src_entry_best)
+bool entry_strict = state_on(src_entry_strict)
+
+bool selected_state = false
+if entry_mode == "Armed"
+    selected_state := armed
+else if entry_mode == "Confirmed"
+    selected_state := confirmed
+else if entry_mode == "Ready"
+    selected_state := ready
+else if entry_mode == "Best"
+    selected_state := entry_best
+else
+    selected_state := entry_strict
+
+bool risk_levels_ok = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
+bool quality_ok = na(src_quality_score) ? false : src_quality_score >= min_quality_score
+bool can_stage_entry = selected_state and quality_ok and risk_levels_ok
+
+float risk_per_unit = risk_levels_ok ? src_trigger - src_invalidation : na
+float take_profit_price = na
+if use_take_profit and risk_levels_ok
+    take_profit_price := src_trigger + risk_per_unit * take_profit_r
+
+var float active_entry_stop = na
+var float active_invalidation = na
+var float active_take_profit = na
+
+if strategy.position_size <= 0
+    if can_stage_entry
+        strategy.entry("L", strategy.long, stop = src_trigger)
+    else
+        strategy.cancel("L")
+
+if strategy.position_size > 0 and strategy.position_size[1] <= 0
+    active_entry_stop := src_trigger
+    active_invalidation := src_invalidation
+    active_take_profit := use_take_profit ? take_profit_price : na
+
+if strategy.position_size > 0
+    float exit_stop = na(active_invalidation) ? src_invalidation : active_invalidation
+    float exit_limit = use_take_profit ? active_take_profit : na
+    if not na(exit_stop)
+        strategy.exit("L Exit", "L", stop = exit_stop, limit = exit_limit)
+else
+    active_entry_stop := na
+    active_invalidation := na
+    active_take_profit := na
+
+plot(src_trigger, "Core Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
+plot(src_invalidation, "Core Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
+plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Strategy Take Profit", color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)

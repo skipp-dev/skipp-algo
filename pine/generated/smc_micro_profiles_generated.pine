@@ -1,0 +1,21 @@
+//@version=6
+library("smc_micro_profiles_generated")
+
+export const string ASOF_DATE = "2026-03-23"
+export const string UNIVERSE_ID = "us_equities_v1"
+export const int LOOKBACK_DAYS = 20
+export const int UNIVERSE_SIZE = 3
+
+export const string CLEAN_RECLAIM_TICKERS = "AAPL,SPY"
+
+export const string STOP_HUNT_PRONE_TICKERS = "TSLA"
+
+export const string MIDDAY_DEAD_TICKERS = ""
+
+export const string RTH_ONLY_TICKERS = ""
+
+export const string WEAK_PREMARKET_TICKERS = ""
+
+export const string WEAK_AFTERHOURS_TICKERS = ""
+
+export const string FAST_DECAY_TICKERS = "TSLA"

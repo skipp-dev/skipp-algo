@@ -1,0 +1,220 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  containsAnchoredCodeBlockAfterLine,
+  containsOrderedCodeBlock,
+  detectPublishedVersionFromContextTexts,
+  detectPublishedVersionFromBody,
+  isScriptVisibleOnChartState,
+  parseInputSourceLabels,
+  resolvePublishedVersionEvidence,
+  scriptNameAppearsInUiText,
+  uiTextContainsExactScriptName,
+  verifyOpenScriptIdentity,
+} from "../lib/tv_shared.js";
+
+test("generic script-name text alone does not count as chart presence", () => {
+  assert.equal(isScriptVisibleOnChartState({
+    hasLegendMatch: false,
+    hasStrategyReportMatch: false,
+    hasScriptNameMatch: true,
+  }), false);
+});
+
+test("legend or strategy report confirm chart presence", () => {
+  assert.equal(isScriptVisibleOnChartState({
+    hasLegendMatch: true,
+    hasStrategyReportMatch: false,
+    hasScriptNameMatch: false,
+  }), true);
+
+  assert.equal(isScriptVisibleOnChartState({
+    hasLegendMatch: false,
+    hasStrategyReportMatch: true,
+    hasScriptNameMatch: false,
+  }), true);
+});
+
+test("parseInputSourceLabels supports arbitrary expressions and nested calls", () => {
+  const code = `
+indicator("Test")
+alpha = input.source(high, "Alpha")
+beta = input.source(hlc3, "Beta")
+gamma = input.source(nz(request.security(syminfo.tickerid, "15", close), close), "Gamma")
+delta = input.source(close, title="Ignored because label is not second positional arg")
+epsilon = input.source(open, 'Epsilon')
+`;
+
+  assert.deepEqual(parseInputSourceLabels(code), ["Alpha", "Beta", "Gamma", "Epsilon"]);
+});
+
+test("ordered code block verification requires exact contiguous lines", () => {
+  const haystack = `
+import owner/lib/7 as micro
+alpha = micro.alpha()
+beta = micro.beta()
+gamma = micro.gamma()
+`;
+
+  assert.equal(containsOrderedCodeBlock(haystack, `
+beta = micro.beta()
+gamma = micro.gamma()
+`), true);
+  assert.equal(containsOrderedCodeBlock(haystack, `
+alpha = micro.alpha()
+gamma = micro.gamma()
+`), false);
+});
+
+test("anchored code block verification ignores comment-only matches", () => {
+  const haystack = `
+// import owner/lib/7 as micro
+// beta = micro.beta()
+// gamma = micro.gamma()
+import owner/lib/7 as micro
+alpha = micro.alpha()
+`;
+
+  assert.equal(containsAnchoredCodeBlockAfterLine(
+    haystack,
+    "import owner/lib/7 as micro",
+    `
+beta = micro.beta()
+gamma = micro.gamma()
+`,
+  ), false);
+});
+
+test("anchored code block verification uses the block directly after the matching import anchor", () => {
+  const haystack = `
+import other/lib/7 as micro
+beta = micro.beta()
+gamma = micro.gamma()
+import owner/lib/7 as micro
+beta = micro.beta()
+gamma = micro.gamma()
+`;
+
+  assert.equal(containsAnchoredCodeBlockAfterLine(
+    haystack,
+    "import owner/lib/7 as micro",
+    `
+beta = micro.beta()
+gamma = micro.gamma()
+`,
+  ), true);
+});
+
+test("anchored code block verification fails when anchored block is not contiguous", () => {
+  const haystack = `
+import owner/lib/7 as micro
+beta = micro.beta()
+delta = micro.delta()
+gamma = micro.gamma()
+`;
+
+  assert.equal(containsAnchoredCodeBlockAfterLine(
+    haystack,
+    "import owner/lib/7 as micro",
+    `
+beta = micro.beta()
+gamma = micro.gamma()
+`,
+  ), false);
+});
+
+test("scriptNameAppearsInUiText matches normalized UI text", () => {
+  assert.equal(scriptNameAppearsInUiText("SMC Core Engine", "Editor tab: SMC   Core Engine"), true);
+  assert.equal(scriptNameAppearsInUiText("SMC Core Engine", "Editor tab: unrelated script"), false);
+});
+
+test("uiTextContainsExactScriptName rejects similar names", () => {
+  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine"), true);
+  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core"), false);
+  assert.equal(uiTextContainsExactScriptName("SMC Core", "SMC Core Engine"), true);
+});
+
+test("verifyOpenScriptIdentity fails when dialog closes but wrong script is open", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Dashboard"],
+    bodyText: "SMC Core Engine appears in the scripts list",
+  }), false);
+});
+
+test("verifyOpenScriptIdentity fails for similar-name match only", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core"],
+    bodyText: "SMC Core Engine",
+  }), false);
+});
+
+test("verifyOpenScriptIdentity passes for exact name in editor context", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["Editor Header SMC Core Engine"],
+    bodyText: "Workspace body SMC Core Engine",
+  }), true);
+});
+
+test("verifyOpenScriptIdentity fails when body text matches accidentally but editor context is missing", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: [],
+    bodyText: "Search results still mention SMC Core Engine",
+  }), false);
+});
+
+test("detectPublishedVersionFromBody anchors version to the target script when provided", () => {
+  const bodyText = "Release notes version 99. Published SMC Core Engine version 7 successfully.";
+
+  assert.equal(detectPublishedVersionFromBody(bodyText, "SMC Core Engine"), 7);
+  assert.equal(detectPublishedVersionFromBody(bodyText, "SMC Dashboard"), null);
+});
+
+test("detectPublishedVersionFromContextTexts only accepts target-script context", () => {
+  assert.equal(detectPublishedVersionFromContextTexts([
+    "Published SMC Core Engine version 7 successfully.",
+  ], "SMC Core Engine"), 7);
+  assert.equal(detectPublishedVersionFromContextTexts([
+    "Generic publish version 7 successfully.",
+  ], "SMC Core Engine"), null);
+});
+
+test("resolvePublishedVersionEvidence marks generic body-only evidence as fallback", () => {
+  assert.deepEqual(resolvePublishedVersionEvidence({
+    scriptName: "SMC Core Engine",
+    contextTexts: [],
+    bodyText: "Release notes version 99. Published SMC Core Engine version 7 successfully.",
+  }), {
+    publishedVersion: 7,
+    verificationMode: "body_fallback",
+    fallbackVersion: 7,
+  });
+});
+
+test("resolvePublishedVersionEvidence prefers script-context version evidence", () => {
+  assert.deepEqual(resolvePublishedVersionEvidence({
+    scriptName: "SMC Core Engine",
+    contextTexts: ["SMC Core Engine version 7"],
+    bodyText: "Release notes version 99.",
+  }), {
+    publishedVersion: 7,
+    verificationMode: "script_context",
+    fallbackVersion: null,
+  });
+});
+
+test("resolvePublishedVersionEvidence fails closed when no reliable evidence exists", () => {
+  assert.deepEqual(resolvePublishedVersionEvidence({
+    scriptName: "SMC Core Engine",
+    contextTexts: [],
+    bodyText: "Published successfully.",
+  }), {
+    publishedVersion: null,
+    verificationMode: "not_verified",
+    fallbackVersion: null,
+  });
+});

@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-03-24)
+
+- **TradingView validation-layer storage-state hardening:**
+  - Fixed portable `TV_STORAGE_STATE` reuse by exporting Playwright storage state with IndexedDB included, instead of relying on cookies and localStorage alone.
+  - Fixed false chart-presence detection so generic script-name text and non-actionable editor containers no longer count as proof that a script is already on the chart.
+  - Fixed settings-surface targeting to prefer actionable legend wrappers, preventing Dashboard and Strategy checks from landing on unrelated chart or volume settings.
+  - Fixed Pine editor reuse under portable auth by auto-restoring TradingView's read-only historical-version state before attempting to write code.
+  - Fixed staged target aggregation so any populated runtime/editor error forces `overall_preflight_ok = false` for that target.
+  - The latest fully green portable-auth evidence is `automation/tradingview/reports/preflight-2026-03-24T09-10-25-787Z.json`.
+
 ### Fixed (2026-03-21)
 
 - **SMC++ intrabar invalidation and watchlist-level consistency:**

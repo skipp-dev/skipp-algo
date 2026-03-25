@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0.0",
+  "asof_date": "2026-03-23",
+  "library_name": "smc_micro_profiles_generated",
+  "library_owner": "preuss_steffen",
+  "library_version": 1,
+  "recommended_import_path": "preuss_steffen/smc_micro_profiles_generated/1",
+  "library_publish_required": true,
+  "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
+  "input_path": "data/input/microstructure_base_snapshot_2026-03-23.csv",
+  "schema_path": "schema/schema.json",
+  "features_csv": "data/derived/microstructure_features_2026-03-23.csv",
+  "lists_csv": "data/output/microstructure_lists_2026-03-23.csv",
+  "state_csv": "state/microstructure_membership_state.csv",
+  "diff_report_md": "reports/microstructure_lists_diff_2026-03-23.md",
+  "pine_library": "pine/generated/smc_micro_profiles_generated.pine",
+  "core_import_snippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
+  "universe_size": 3,
+  "exported_lists": {
+    "clean_reclaim": "CLEAN_RECLAIM_TICKERS",
+    "stop_hunt_prone": "STOP_HUNT_PRONE_TICKERS",
+    "midday_dead": "MIDDAY_DEAD_TICKERS",
+    "rth_only": "RTH_ONLY_TICKERS",
+    "weak_premarket": "WEAK_PREMARKET_TICKERS",
+    "weak_afterhours": "WEAK_AFTERHOURS_TICKERS",
+    "fast_decay": "FAST_DECAY_TICKERS"
+  },
+  "list_counts": {
+    "clean_reclaim": 2,
+    "stop_hunt_prone": 1,
+    "midday_dead": 0,
+    "rth_only": 0,
+    "weak_premarket": 0,
+    "weak_afterhours": 0,
+    "fast_decay": 1
+  }
+}
