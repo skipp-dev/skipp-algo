@@ -101,13 +101,19 @@ class BenzingaFinancialAdapter:
             logger.warning("Benzinga financial HTTP %d", r.status_code)
             return []
         try:
-            return r.json()
+            data = r.json()
         except Exception:
             ct = r.headers.get("content-type", "")
             raise ValueError(
                 f"Benzinga returned non-JSON (content-type={ct!r}, "
                 f"status={r.status_code}, url={_sanitize_url(str(r.url))})"
             ) from None
+
+        if isinstance(data, dict):
+            api_error = data.get("error") or data.get("errors")
+            if api_error:
+                raise RuntimeError(f"Benzinga financial API error: {api_error}")
+        return data
 
     def _extract_list(self, data: Any, *keys: str) -> list[dict[str, Any]]:
         """Extract a list of dicts from *data* trying *keys* in order."""

@@ -66,3 +66,47 @@ def test_start_telemetry_server_falls_back_to_ephemeral_port(monkeypatch, tmp_pa
     assert telemetry["enabled"] is True
     assert telemetry["active_port"] == 8123
     assert "requested port 8099 unavailable" in telemetry["error"].lower()
+
+
+def test_technical_scorer_uses_stale_cache_when_call_spacing_blocks_fetch(monkeypatch) -> None:
+    scorer = rs.TechnicalScorer()
+    now = 10_000.0
+    key = "AAPL:1D"
+    stale_payload = {
+        "rsi": 42.0,
+        "macd_signal": "BUY",
+        "adx": 25.0,
+        "williams": -35.0,
+        "summary_signal": "BUY",
+        "summary_buy": 8,
+        "summary_sell": 2,
+        "summary_neutral": 5,
+        "ma_buy": 10,
+        "ma_sell": 2,
+        "technical_score": 0.77,
+        "technical_signal": "BUY",
+        "osc_detail": [],
+        "ma_detail": [],
+        "error": "",
+    }
+    scorer._cache[key] = (now - scorer._CACHE_TTL - 5.0, stale_payload)
+    scorer._last_call_ts = now - 1.0
+    monkeypatch.setattr(rs.time, "time", lambda: now)
+
+    got = scorer.get_technical_data("AAPL", "1D")
+    assert got == stale_payload
+
+
+def test_volume_regime_warns_when_all_avg_volumes_missing(caplog) -> None:
+    detector = rs.VolumeRegimeDetector()
+    quotes = {
+        "AAA": {"symbol": "AAA", "volume": 10_000, "avgVolume": 0},
+        "BBB": {"symbol": "BBB", "volume": 20_000, "avgVolume": 0},
+    }
+
+    with caplog.at_level("WARNING"):
+        regime = detector.update(quotes)
+
+    assert regime == "NORMAL"
+    assert detector.thin_fraction == 0.0
+    assert "avgvolume unavailable" in caplog.text.lower()

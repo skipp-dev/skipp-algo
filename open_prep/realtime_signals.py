@@ -934,6 +934,8 @@ class VolumeRegimeDetector:
     def __init__(self) -> None:
         self.regime: str = "NORMAL"  # "NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"
         self.thin_fraction: float = 0.0
+        self._wl_avg_volumes: dict[str, float] = {}
+        self._last_missing_avg_warn_ts: float = 0.0
 
     def update(self, quotes: dict[str, dict[str, Any]]) -> str:
         if not quotes:
@@ -957,6 +959,15 @@ class VolumeRegimeDetector:
                 thin_count += 1
 
         self.thin_fraction = (thin_count / total) if total > 0 else 0.0
+        if total == 0 and quotes:
+            now = time.monotonic()
+            if (now - self._last_missing_avg_warn_ts) >= 300.0:
+                logger.warning(
+                    "Volume regime fallback: avgVolume unavailable for %d/%d symbols; treating regime as NORMAL",
+                    len(quotes),
+                    len(quotes),
+                )
+                self._last_missing_avg_warn_ts = now
 
         if self.thin_fraction >= THIN_VOLUME_FRACTION_SUSPEND:
             new_regime = "HOLIDAY_SUSPECT"
@@ -1061,19 +1072,22 @@ class TechnicalScorer:
         """
         now = time.time()
         key = f"{symbol}:{interval}"
+        cached_data: dict[str, Any] | None = None
 
         # Fast path — return cached if fresh
         with self._lock:
             cached = self._cache.get(key)
+            if cached:
+                cached_data = cached[1]
             if cached and (now - cached[0]) < self._CACHE_TTL:
                 return cached[1]
 
         # Rate limit guard
         with self._lock:
             if (now - self._last_call_ts) < self._MIN_CALL_SPACING:
-                if cached:
-                    return cached[1]
-                return self._empty_result(symbol)
+                if cached_data is not None:
+                    return cached_data
+                return self._empty_result(symbol, error="rate limited and no cached technicals")
             self._last_call_ts = now
 
         # Fetch

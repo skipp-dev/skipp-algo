@@ -116,17 +116,22 @@ class TVHeadline:
     def to_feed_dict(self) -> dict[str, Any]:
         """Convert to a dict compatible with the terminal feed format."""
         # Compute recency-based actionability from published timestamp
-        _age_min = max((time.time() - self.published) / 60.0, 0.0) if self.published > 0 else 999.0
-        if _age_min <= 5:
-            _recency = "ULTRA_FRESH"
-        elif _age_min <= 15:
-            _recency = "FRESH"
-        elif _age_min <= 60:
-            _recency = "WARM"
-        elif _age_min <= 1440:
-            _recency = "AGING"
+        if self.published > 0:
+            _age_min = max((time.time() - self.published) / 60.0, 0.0)
+            if _age_min <= 5:
+                _recency = "ULTRA_FRESH"
+            elif _age_min <= 15:
+                _recency = "FRESH"
+            elif _age_min <= 60:
+                _recency = "WARM"
+            elif _age_min <= 1440:
+                _recency = "AGING"
+            else:
+                _recency = "STALE"
+            _age_minutes: float | None = round(_age_min, 1)
         else:
-            _recency = "STALE"
+            _recency = "UNKNOWN"
+            _age_minutes = None
         _is_act = _recency in {"ULTRA_FRESH", "FRESH", "WARM"}
 
         return {
@@ -158,7 +163,7 @@ class TVHeadline:
             "event_label": "",
             "materiality": "MEDIUM",
             "recency_bucket": _recency,
-            "age_minutes": round(_age_min, 1),
+            "age_minutes": _age_minutes,
             "is_actionable": _is_act,
             "source_tier": _source_tier(self.provider),
             "source_rank": _source_rank(self.provider),
