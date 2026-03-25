@@ -78,6 +78,38 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(status["warnings"][0]["code"], "PARTIAL_DATA")
         self.assertEqual(status["warnings"][0]["symbols"], ["AMD", "NVDA"])
 
+    def test_build_runtime_status_with_quote_partial_data(self):
+        status = _build_runtime_status(
+            news_fetch_error=None,
+            atr_fetch_errors={},
+            quote_fetch_diagnostics={
+                "quote_fetch_mode": "fmp_stable_quote_per_symbol",
+                "requested_symbols": ["AAPL", "MSFT", "BAD"],
+                "requested_symbol_count": 3,
+                "deduped_symbols": ["AAPL", "MSFT", "BAD"],
+                "deduped_symbol_count": 3,
+                "fetched_quote_rows": 2,
+                "fetched_unique_symbols": ["AAPL", "MSFT"],
+                "fetched_unique_symbol_count": 2,
+                "failed_quote_symbols": ["BAD"],
+                "failed_quote_symbol_count": 1,
+                "quote_fetch_error_summary": "BAD: empty quote response",
+                "partial_quote_fetch": True,
+                "quote_fetch_all_failed": False,
+                "quote_fetch_duration_ms": 12,
+                "quote_fetch_workers": 2,
+                "endpoint_used": "/stable/quote",
+            },
+            fatal_stage=None,
+        )
+
+        self.assertTrue(status["degraded_mode"])
+        self.assertEqual(status["warnings"][0]["stage"], "quote_fetch")
+        self.assertEqual(status["warnings"][0]["code"], "PARTIAL_DATA")
+        self.assertEqual(status["warnings"][0]["symbols"], ["BAD"])
+        self.assertTrue(status["quote_telemetry"]["partial_quote_fetch"])
+        self.assertEqual(status["quote_telemetry"]["failed_quote_symbol_count"], 1)
+
     def test_filter_events_by_cutoff_utc_keeps_only_earlier_times(self):
         events = [
             {"date": "2026-02-20 13:30:00", "event": "GDP"},
@@ -989,25 +1021,87 @@ class TestOpenPrep(unittest.TestCase):
 
     def test_get_batch_quotes_uses_stable_quote_endpoint_per_symbol(self):
         client = FMPClient(api_key="test")
-        with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "NVDA"}], [{"symbol": "PLTR"}]]) as mock_get:
+        with patch.object(FMPClient, "_execute_get", side_effect=[[{"symbol": "NVDA"}], [{"symbol": "PLTR"}]]) as mock_get:
             quotes = client.get_batch_quotes(["NVDA", "PLTR"])
 
         self.assertEqual(
             mock_get.call_args_list,
             [
-                unittest.mock.call("/stable/quote", {"symbol": "NVDA"}),
-                unittest.mock.call("/stable/quote", {"symbol": "PLTR"}),
+                unittest.mock.call("/stable/quote", {"symbol": "NVDA"}, use_circuit_breaker=False),
+                unittest.mock.call("/stable/quote", {"symbol": "PLTR"}, use_circuit_breaker=False),
             ],
         )
         self.assertEqual(quotes, [{"symbol": "NVDA"}, {"symbol": "PLTR"}])
 
     def test_get_batch_quotes_dedupes_blank_and_duplicate_symbols(self):
         client = FMPClient(api_key="test")
-        with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "NVDA"}]]) as mock_get:
+        with patch.object(FMPClient, "_execute_get", side_effect=[[{"symbol": "NVDA"}]]) as mock_get:
             quotes = client.get_batch_quotes(["nvda", "", "NVDA", "  "])
 
-        mock_get.assert_called_once_with("/stable/quote", {"symbol": "NVDA"})
+        mock_get.assert_called_once_with("/stable/quote", {"symbol": "NVDA"}, use_circuit_breaker=False)
         self.assertEqual(quotes, [{"symbol": "NVDA"}])
+
+    def test_get_batch_quotes_partial_failure_keeps_successful_symbols(self):
+        client = FMPClient(api_key="test")
+
+        def side_effect(path, params, *, use_circuit_breaker):
+            self.assertFalse(use_circuit_breaker)
+            symbol = params["symbol"]
+            if symbol == "BAD":
+                raise RuntimeError("symbol outage")
+            return [{"symbol": symbol, "price": 100.0}]
+
+        with patch.object(FMPClient, "_execute_get", side_effect=side_effect):
+            quotes = client.get_batch_quotes(["AAPL", "BAD", "MSFT"])
+
+        diagnostics = client.get_last_quote_fetch_diagnostics()
+        self.assertEqual([row["symbol"] for row in quotes], ["AAPL", "MSFT"])
+        self.assertEqual(diagnostics["failed_quote_symbols"], ["BAD"])
+        self.assertEqual(diagnostics["fetched_unique_symbols"], ["AAPL", "MSFT"])
+        self.assertEqual(diagnostics["failed_quote_symbol_count"], 1)
+        self.assertTrue(diagnostics["partial_quote_fetch"])
+
+    def test_get_batch_quotes_multiple_failures_report_partial_telemetry(self):
+        client = FMPClient(api_key="test")
+
+        def side_effect(path, params, *, use_circuit_breaker):
+            symbol = params["symbol"]
+            if symbol in {"BAD1", "BAD2"}:
+                raise RuntimeError(f"{symbol} outage")
+            if symbol == "EMPTY":
+                return []
+            return [{"symbol": symbol, "price": 100.0}]
+
+        with patch.object(FMPClient, "_execute_get", side_effect=side_effect):
+            quotes = client.get_batch_quotes(["AAPL", "BAD1", "EMPTY", "BAD2", "MSFT"])
+
+        diagnostics = client.get_last_quote_fetch_diagnostics()
+        self.assertEqual([row["symbol"] for row in quotes], ["AAPL", "MSFT"])
+        self.assertEqual(diagnostics["failed_quote_symbols"], ["BAD1", "EMPTY", "BAD2"])
+        self.assertEqual(diagnostics["failed_quote_symbol_count"], 3)
+        self.assertIn("BAD1", str(diagnostics["quote_fetch_error_summary"]))
+        self.assertIn("EMPTY", str(diagnostics["quote_fetch_error_summary"]))
+        self.assertTrue(diagnostics["partial_quote_fetch"])
+
+    def test_get_batch_quotes_parallel_path_preserves_deduped_order(self):
+        client = FMPClient(api_key="test")
+
+        def side_effect(path, params, *, use_circuit_breaker):
+            symbol = params["symbol"]
+            if symbol == "AAPL":
+                time.sleep(0.02)
+            elif symbol == "MSFT":
+                time.sleep(0.01)
+            return [{"symbol": symbol, "price": 100.0}]
+
+        with patch.dict(os.environ, {"OPEN_PREP_FMP_QUOTE_WORKERS": "3"}, clear=False):
+            with patch.object(FMPClient, "_execute_get", side_effect=side_effect):
+                quotes = client.get_batch_quotes(["AAPL", "MSFT", "NVDA"])
+
+        diagnostics = client.get_last_quote_fetch_diagnostics()
+        self.assertEqual([row["symbol"] for row in quotes], ["AAPL", "MSFT", "NVDA"])
+        self.assertEqual(diagnostics["quote_fetch_workers"], 3)
+        self.assertEqual(diagnostics["deduped_symbols"], ["AAPL", "MSFT", "NVDA"])
 
     def test_build_url_routes_stable_paths_to_root_host(self):
         client = FMPClient(api_key="test")
@@ -2951,6 +3045,55 @@ class TestMacroHelpers(unittest.TestCase):
         self.assertEqual(rows, [{"symbol": "AAPL"}])
         mock_tls_context.assert_called_once_with()
         self.assertEqual(mock_urlopen.call_args.kwargs["context"], ssl_context)
+
+    def test_fetch_quotes_with_atr_keeps_partial_quotes_for_larger_scope(self):
+        client = MagicMock()
+        client.get_batch_quotes.return_value = [
+            {"symbol": "AAA", "exchange": "NASDAQ", "previousClose": 10.0, "price": 11.0},
+            {"symbol": "CCC", "exchange": "NASDAQ", "previousClose": 20.0, "price": 21.0},
+            {"symbol": "EEE", "exchange": "NASDAQ", "previousClose": 30.0, "price": 31.0},
+        ]
+        client.get_last_quote_fetch_diagnostics.return_value = {
+            "quote_fetch_mode": "fmp_stable_quote_per_symbol",
+            "requested_symbols": ["AAA", "BBB", "CCC", "DDD", "EEE"],
+            "requested_symbol_count": 5,
+            "deduped_symbols": ["AAA", "BBB", "CCC", "DDD", "EEE"],
+            "deduped_symbol_count": 5,
+            "fetched_quote_rows": 3,
+            "fetched_unique_symbols": ["AAA", "CCC", "EEE"],
+            "fetched_unique_symbol_count": 3,
+            "failed_quote_symbols": ["BBB", "DDD"],
+            "failed_quote_symbol_count": 2,
+            "quote_fetch_error_summary": "BBB: outage; DDD: outage",
+            "partial_quote_fetch": True,
+            "quote_fetch_all_failed": False,
+            "quote_fetch_duration_ms": 18,
+            "quote_fetch_workers": 4,
+            "endpoint_used": "/stable/quote",
+        }
+
+        with patch("open_prep.run_open_prep.apply_gap_mode_to_quotes", side_effect=lambda quotes, **kwargs: quotes), \
+             patch("open_prep.run_open_prep._atr14_by_symbol", return_value=({}, {}, {}, {}, {})), \
+             patch("open_prep.run_open_prep._enrich_quote_with_hvb"), \
+             patch("open_prep.run_open_prep._add_pdh_pdl_context"):
+            quotes, atr_map, mom_map, vwap_map, errors, diagnostics = run_open_prep._fetch_quotes_with_atr(
+                client=client,
+                symbols=["AAA", "BBB", "CCC", "DDD", "EEE"],
+                run_dt_utc=datetime(2026, 3, 25, 12, 0, tzinfo=UTC),
+                as_of=date(2026, 3, 25),
+                gap_mode=GAP_MODE_OFF,
+                atr_lookback_days=250,
+                atr_period=14,
+                atr_parallel_workers=1,
+            )
+
+        self.assertEqual([row["symbol"] for row in quotes], ["AAA", "CCC", "EEE"])
+        self.assertEqual(atr_map, {})
+        self.assertEqual(mom_map, {})
+        self.assertEqual(vwap_map, {})
+        self.assertEqual(errors, {})
+        self.assertTrue(diagnostics["partial_quote_fetch"])
+        self.assertEqual(diagnostics["failed_quote_symbol_count"], 2)
 
     def test_get_sector_performance_uses_prev_trading_day_helper(self):
         client = FMPClient(api_key="test")

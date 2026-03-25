@@ -332,6 +332,22 @@ CORE_BENZINGA_NEWS_SIDE_BY_SIDE_COLUMNS = [
     "benzinga_status_bucket",
     "overlap_bucket",
 ]
+def _coalesce_optional_merge_column(frame: pd.DataFrame, column: str) -> pd.DataFrame:
+    candidate_columns = [name for name in (column, f"{column}_x", f"{column}_y") if name in frame.columns]
+    if not candidate_columns:
+        frame[column] = pd.Series(pd.NA, index=frame.index)
+        return frame
+
+    merged: pd.Series | None = None
+    for candidate in candidate_columns:
+        series = frame[candidate]
+        merged = series if merged is None else merged.combine_first(series)
+    frame[column] = merged if merged is not None else pd.Series(pd.NA, index=frame.index)
+
+    suffix_columns = [name for name in (f"{column}_x", f"{column}_y") if name in frame.columns]
+    if suffix_columns:
+        frame = frame.drop(columns=suffix_columns)
+    return frame
 
 CORE_BENZINGA_NEWS_OVERLAP_COLUMNS = [
     "trade_date",
@@ -3305,6 +3321,7 @@ def run_production_export_pipeline(
         how="left",
     )
     for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        daily_symbol_features_full_universe = _coalesce_optional_merge_column(daily_symbol_features_full_universe, column)
         daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="boolean")
     daily_symbol_features_full_universe = daily_symbol_features_full_universe.merge(
         research_news_flags_full_universe,
@@ -3312,8 +3329,10 @@ def run_production_export_pipeline(
         how="left",
     )
     for column in RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS:
+        daily_symbol_features_full_universe = _coalesce_optional_merge_column(daily_symbol_features_full_universe, column)
         daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="boolean")
     for column in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
+        daily_symbol_features_full_universe = _coalesce_optional_merge_column(daily_symbol_features_full_universe, column)
         daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="Int64")
     research_event_flag_coverage = _build_research_event_flag_coverage(research_event_flags_full_universe)
     research_event_flag_trade_date_distribution = _build_research_event_flag_trade_date_distribution(research_event_flags_full_universe)

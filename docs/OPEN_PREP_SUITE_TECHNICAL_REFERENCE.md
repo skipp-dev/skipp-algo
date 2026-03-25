@@ -148,6 +148,45 @@ Datei: `open_prep/news.py`
   - `build_core_news_shadow_comparison(...)`
   - vergleicht OFF vs ON fuer denselben Scope, inklusive Symbol-News-Deltas und Candidate-Rank-Deltas
 
+### 4.4.1 FMP-Quote-Fetch ueber Stable
+
+Dateien: `open_prep/macro.py`, `open_prep/run_open_prep.py`
+
+Aktueller Stand:
+
+- `stable/...`-Pfade werden im gemeinsamen FMP-Client ueber den Root-Host gebaut, nicht ueber `/api/v3`
+- `get_batch_quotes(...)` bleibt als Sammel-API erhalten, nutzt intern aber `/stable/quote` pro Symbol
+- der Quote-Pfad ist partial-failure-tolerant:
+  - einzelne Symbolfehler brechen den gesamten Fetch nicht mehr ab
+  - erfolgreiche Symbol-Quotes bleiben fuer den restlichen Run nutzbar
+  - fehlgeschlagene Symbole werden separat diagnostiziert
+
+Maschinenlesbare Telemetrie:
+
+- `quote_fetch_diagnostics`
+- `run_status.quote_telemetry`
+
+Wichtige Felder:
+
+- `quote_fetch_mode`
+- `requested_symbols`
+- `deduped_symbols`
+- `fetched_quote_rows`
+- `fetched_unique_symbols`
+- `failed_quote_symbols`
+- `failed_quote_symbol_count`
+- `quote_fetch_error_summary`
+- `partial_quote_fetch`
+- `quote_fetch_duration_ms`
+- `quote_fetch_workers`
+- `endpoint_used`
+
+Trade-off:
+
+- der per-symbol Pfad ist robuster gegen Einzelfehler, kann bei groesseren Universen aber langsamer sein als ein echter Batch-Endpoint
+- deshalb nutzt der Client bounded parallelism mit konservativer Worker-Zahl (`OPEN_PREP_FMP_QUOTE_WORKERS`, optional `FMP_QUOTE_WORKERS`)
+- groessere Universen sollten ueber die Quote-Telemetrie beobachtet werden, statt von einer impliziten Vollstaendigkeit auszugehen
+
 ### 4.5 Historische Benzinga-Newsflags im Exportpfad
 
 Datei: `scripts/databento_production_export.py`

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
 import io
 import json
@@ -508,6 +509,7 @@ class FMPClient:
     base_url: str = "https://financialmodelingprep.com/api/v3"
     stable_base_url: str = "https://financialmodelingprep.com"
     _circuit_breaker: _CircuitBreaker = field(default_factory=_CircuitBreaker, init=False, repr=False)
+    _last_quote_fetch_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     @classmethod
     def from_env(cls) -> "FMPClient":
@@ -544,14 +546,15 @@ class FMPClient:
             payload = response.read().decode("utf-8")
         return self._parse_payload(path, payload)
 
-    def _get(self, path: str, params: dict[str, Any]) -> Any:
-        if not self._circuit_breaker.allow_request():
+    def _execute_get(self, path: str, params: dict[str, Any], *, use_circuit_breaker: bool) -> Any:
+        if use_circuit_breaker and not self._circuit_breaker.allow_request():
             raise RuntimeError(f"FMP API circuit open for {path}")
         max_attempts = max(self.retry_attempts, 1)
         for attempt in range(max_attempts):
             try:
                 data = self._request_once(path, params)
-                self._circuit_breaker.on_success()
+                if use_circuit_breaker:
+                    self._circuit_breaker.on_success()
                 return data
             except urllib.error.HTTPError as exc:
                 transient = exc.code in {429, 500, 502, 503, 504}
@@ -561,7 +564,8 @@ class FMPClient:
                     delay = retry_after if retry_after is not None else self.retry_backoff_seconds * (attempt + 1)
                     time.sleep(max(delay, 0.0))
                     continue
-                self._circuit_breaker.on_failure()
+                if use_circuit_breaker:
+                    self._circuit_breaker.on_failure()
                 body = ""
                 if getattr(exc, "fp", None) is not None:
                     try:
@@ -573,13 +577,42 @@ class FMPClient:
                 if attempt + 1 < max_attempts:
                     time.sleep(self.retry_backoff_seconds * (attempt + 1))
                     continue
-                self._circuit_breaker.on_failure()
+                if use_circuit_breaker:
+                    self._circuit_breaker.on_failure()
                 raise RuntimeError(f"FMP API network error on {path}: {exc}") from exc
             except RuntimeError:
-                self._circuit_breaker.on_failure()
+                if use_circuit_breaker:
+                    self._circuit_breaker.on_failure()
                 raise
-        self._circuit_breaker.on_failure()
+        if use_circuit_breaker:
+            self._circuit_breaker.on_failure()
         raise RuntimeError(f"FMP API request exhausted retries on {path}")
+
+    def _get(self, path: str, params: dict[str, Any]) -> Any:
+        return self._execute_get(path, params, use_circuit_breaker=True)
+
+    def _resolve_quote_fetch_workers(self, symbol_count: int) -> int:
+        configured_raw = str(
+            os.environ.get("OPEN_PREP_FMP_QUOTE_WORKERS")
+            or os.environ.get("FMP_QUOTE_WORKERS")
+            or "4"
+        ).strip()
+        try:
+            configured = int(configured_raw)
+        except ValueError:
+            configured = 4
+        return max(1, min(configured, 8, max(symbol_count, 1)))
+
+    def get_last_quote_fetch_diagnostics(self) -> dict[str, Any]:
+        diagnostics = dict(self._last_quote_fetch_diagnostics)
+        for key in (
+            "requested_symbols",
+            "deduped_symbols",
+            "fetched_unique_symbols",
+            "failed_quote_symbols",
+        ):
+            diagnostics[key] = list(diagnostics.get(key) or [])
+        return diagnostics
 
     def get_profile_bulk(self) -> list[dict[str, Any]]:
         try:
@@ -604,16 +637,97 @@ class FMPClient:
         return self.get_company_screener(**kwargs)
 
     def get_batch_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
+        requested_symbols: list[str] = []
+        deduped_symbols: list[str] = []
         seen_symbols: set[str] = set()
         for raw_symbol in symbols:
             symbol = str(raw_symbol or "").strip().upper()
-            if not symbol or symbol in seen_symbols:
+            if not symbol:
+                continue
+            requested_symbols.append(symbol)
+            if symbol in seen_symbols:
                 continue
             seen_symbols.add(symbol)
-            data = self._get("/stable/quote", {"symbol": symbol})
-            if isinstance(data, list):
-                rows.extend(data)
+            deduped_symbols.append(symbol)
+
+        started_at = time.perf_counter()
+        rows_by_symbol: dict[str, list[dict[str, Any]]] = {}
+        failed_symbol_errors: dict[str, str] = {}
+        worker_count = self._resolve_quote_fetch_workers(len(deduped_symbols)) if deduped_symbols else 1
+
+        def fetch_symbol_quote(symbol: str) -> tuple[str, list[dict[str, Any]], str | None]:
+            data = self._execute_get("/stable/quote", {"symbol": symbol}, use_circuit_breaker=False)
+            if not isinstance(data, list) or not data:
+                return symbol, [], "empty quote response"
+            matching_rows = [
+                row
+                for row in data
+                if str(row.get("symbol") or "").strip().upper() == symbol
+            ]
+            if not matching_rows:
+                return symbol, [], "quote response missing requested symbol"
+            return symbol, matching_rows, None
+
+        if worker_count == 1:
+            for symbol in deduped_symbols:
+                try:
+                    fetched_symbol, symbol_rows, error = fetch_symbol_quote(symbol)
+                except Exception as exc:  # pragma: no cover - defensive catch
+                    fetched_symbol, symbol_rows, error = symbol, [], str(exc)
+                if error:
+                    failed_symbol_errors[fetched_symbol] = error
+                    continue
+                rows_by_symbol[fetched_symbol] = symbol_rows
+        else:
+            with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="fmp-quote") as executor:
+                future_map = {
+                    executor.submit(fetch_symbol_quote, symbol): symbol
+                    for symbol in deduped_symbols
+                }
+                for future in as_completed(future_map):
+                    requested_symbol = future_map[future]
+                    try:
+                        fetched_symbol, symbol_rows, error = future.result()
+                    except Exception as exc:  # pragma: no cover - defensive catch
+                        fetched_symbol, symbol_rows, error = requested_symbol, [], str(exc)
+                    if error:
+                        failed_symbol_errors[fetched_symbol] = error
+                        continue
+                    rows_by_symbol[fetched_symbol] = symbol_rows
+
+        rows: list[dict[str, Any]] = []
+        fetched_unique_symbols: list[str] = []
+        for symbol in deduped_symbols:
+            symbol_rows = rows_by_symbol.get(symbol, [])
+            if not symbol_rows:
+                continue
+            fetched_unique_symbols.append(symbol)
+            rows.extend(symbol_rows)
+
+        failed_quote_symbols = [symbol for symbol in deduped_symbols if symbol in failed_symbol_errors]
+        error_summary = "; ".join(
+            f"{symbol}: {failed_symbol_errors[symbol]}"
+            for symbol in failed_quote_symbols
+        ) or None
+        duration_ms = int(round((time.perf_counter() - started_at) * 1000.0))
+        self._last_quote_fetch_diagnostics = {
+            "quote_fetch_mode": "fmp_stable_quote_per_symbol",
+            "requested_symbols": requested_symbols,
+            "requested_symbol_count": len(requested_symbols),
+            "deduped_symbols": deduped_symbols,
+            "deduped_symbol_count": len(deduped_symbols),
+            "fetched_quote_rows": len(rows),
+            "fetched_unique_symbols": fetched_unique_symbols,
+            "fetched_unique_symbol_count": len(fetched_unique_symbols),
+            "failed_quote_symbols": failed_quote_symbols,
+            "failed_quote_symbol_count": len(failed_quote_symbols),
+            "quote_fetch_error_summary": error_summary,
+            "partial_quote_fetch": bool(failed_quote_symbols) and bool(fetched_unique_symbols),
+            "quote_fetch_all_failed": bool(deduped_symbols) and not fetched_unique_symbols,
+            "quote_fetch_duration_ms": duration_ms,
+            "quote_fetch_workers": worker_count,
+            "endpoint_used": "/stable/quote",
+        }
         return rows
 
     def get_fmp_articles(self, limit: int = 250) -> list[dict[str, Any]]:

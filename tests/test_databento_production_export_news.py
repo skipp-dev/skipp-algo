@@ -7,6 +7,7 @@ import scripts.databento_production_export as export_mod
 
 from newsstack_fmp.common_types import NewsItem
 from scripts.databento_production_export import (
+    _coalesce_optional_merge_column,
     _build_core_vs_benzinga_news_side_by_side,
     _build_research_news_flag_coverage,
     _build_research_news_flag_outcome_slices,
@@ -14,6 +15,23 @@ from scripts.databento_production_export import (
     _build_research_news_flags_full_universe_export,
 )
 
+def test_coalesce_optional_merge_column_handles_missing_and_suffix_columns() -> None:
+    frame = pd.DataFrame(
+        {
+            "symbol": ["AAA", "BBB"],
+            "is_earnings_day_x": [pd.NA, True],
+            "is_earnings_day_y": [False, pd.NA],
+        }
+    )
+
+    frame = _coalesce_optional_merge_column(frame, "is_earnings_day")
+    frame = _coalesce_optional_merge_column(frame, "earnings_timing_pre_open")
+
+    assert list(frame["is_earnings_day"]) == [False, True]
+    assert "is_earnings_day_x" not in frame.columns
+    assert "is_earnings_day_y" not in frame.columns
+    assert "earnings_timing_pre_open" in frame.columns
+    assert frame["earnings_timing_pre_open"].isna().all()
 
 def _news_item(item_id: str, created_at: str, tickers: list[str]) -> NewsItem:
     published_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00")).astimezone(UTC)

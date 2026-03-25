@@ -304,7 +304,7 @@ class TestNoSystemExit:
         mock_client = MagicMock()
         mock_client.get_batch_quotes.side_effect = RuntimeError("API down")
 
-        quotes, atr_map, mom_map, vwap_map, errors = _fetch_quotes_with_atr(
+        quotes, atr_map, mom_map, vwap_map, errors, quote_diagnostics = _fetch_quotes_with_atr(
             client=mock_client,
             symbols=["AAPL"],
             run_dt_utc=datetime(2025, 6, 16, 13, 0, tzinfo=UTC),
@@ -317,6 +317,7 @@ class TestNoSystemExit:
         assert quotes == []
         assert isinstance(errors, dict)
         assert "__batch__" in errors
+        assert quote_diagnostics["failed_quote_symbol_count"] == 1
 
     def test_invalid_cutoff_does_not_crash(self):
         """Arrange: invalid cutoff format. Assert: returns unfiltered

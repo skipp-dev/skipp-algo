@@ -3121,6 +3121,7 @@ def _build_runtime_status(
     *,
     news_fetch_error: str | None,
     atr_fetch_errors: dict[str, str],
+    quote_fetch_diagnostics: dict[str, Any] | None = None,
     atr_candidate_symbols: list[str] | None = None,
     premarket_fetch_error: str | None = None,
     fatal_stage: str | None = None,
@@ -3136,6 +3137,26 @@ def _build_runtime_status(
                 "message": str(news_fetch_error),
             }
         )
+
+    quote_diagnostics = dict(quote_fetch_diagnostics or {})
+    quote_failed_symbols = sorted(
+        {
+            str(symbol).strip().upper()
+            for symbol in quote_diagnostics.get("failed_quote_symbols", []) or []
+            if str(symbol).strip()
+        }
+    )
+    quote_error_summary = str(quote_diagnostics.get("quote_fetch_error_summary") or "").strip() or None
+    partial_quote_fetch = bool(quote_diagnostics.get("partial_quote_fetch"))
+    if quote_failed_symbols or quote_error_summary:
+        warning: dict[str, Any] = {
+            "stage": "quote_fetch",
+            "code": "PARTIAL_DATA" if partial_quote_fetch else "DATA_SOURCE_DEGRADED",
+            "message": quote_error_summary or f"Quote fetch failed for {len(quote_failed_symbols)} symbols.",
+        }
+        if quote_failed_symbols:
+            warning["symbols"] = quote_failed_symbols
+        warnings.append(warning)
 
     atr_candidate_set = {
         str(s).strip().upper()
@@ -3184,6 +3205,24 @@ def _build_runtime_status(
         "degraded_mode": bool(warnings),
         "fatal_stage": fatal_stage,
         "warnings": warnings,
+        "quote_telemetry": {
+            "quote_fetch_mode": quote_diagnostics.get("quote_fetch_mode"),
+            "requested_symbols": list(quote_diagnostics.get("requested_symbols") or []),
+            "requested_symbol_count": int(quote_diagnostics.get("requested_symbol_count") or 0),
+            "deduped_symbols": list(quote_diagnostics.get("deduped_symbols") or []),
+            "deduped_symbol_count": int(quote_diagnostics.get("deduped_symbol_count") or 0),
+            "fetched_quote_rows": int(quote_diagnostics.get("fetched_quote_rows") or 0),
+            "fetched_unique_symbols": list(quote_diagnostics.get("fetched_unique_symbols") or []),
+            "fetched_unique_symbol_count": int(quote_diagnostics.get("fetched_unique_symbol_count") or 0),
+            "failed_quote_symbols": quote_failed_symbols,
+            "failed_quote_symbol_count": len(quote_failed_symbols),
+            "quote_fetch_error_summary": quote_error_summary,
+            "partial_quote_fetch": partial_quote_fetch,
+            "quote_fetch_all_failed": bool(quote_diagnostics.get("quote_fetch_all_failed")),
+            "quote_fetch_duration_ms": int(quote_diagnostics.get("quote_fetch_duration_ms") or 0),
+            "quote_fetch_workers": int(quote_diagnostics.get("quote_fetch_workers") or 0),
+            "endpoint_used": quote_diagnostics.get("endpoint_used"),
+        },
         "atr_telemetry": {
             "atr_candidate_symbols": sorted(atr_candidate_set),
             "atr_candidate_count": atr_attempted_count,
@@ -3878,15 +3917,40 @@ def _fetch_quotes_with_atr(
     atr_lookback_days: int,
     atr_period: int,
     atr_parallel_workers: int,
-) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, float | None], dict[str, str]]:
+) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, float | None], dict[str, str], dict[str, Any]]:
+    quote_fetch_diagnostics: dict[str, Any] = {}
     try:
         quotes = client.get_batch_quotes(symbols)
+        get_quote_diagnostics = getattr(client, "get_last_quote_fetch_diagnostics", None)
+        if callable(get_quote_diagnostics):
+            diagnostics = get_quote_diagnostics()
+            if isinstance(diagnostics, dict):
+                quote_fetch_diagnostics = diagnostics
     except (RuntimeError, TypeError) as exc:
         # Fail-open: quote fetch failure is critical but must not crash.
         # Return empty quotes so pipeline produces a degraded result with
         # runtime_status explaining the failure, rather than SystemExit.
+        requested_symbols = _normalize_symbols(symbols)
+        message = _APIKEY_RE.sub(r"\1=***", str(exc))
         logger.error("Quote fetch failed (fail-open, returning empty quotes): %s", exc, exc_info=True)
-        return [], {}, {}, {}, {"__batch__": _APIKEY_RE.sub(r"\1=***", str(exc))}
+        return [], {}, {}, {}, {"__batch__": message}, {
+            "quote_fetch_mode": "fmp_stable_quote_per_symbol",
+            "requested_symbols": requested_symbols,
+            "requested_symbol_count": len(requested_symbols),
+            "deduped_symbols": requested_symbols,
+            "deduped_symbol_count": len(requested_symbols),
+            "fetched_quote_rows": 0,
+            "fetched_unique_symbols": [],
+            "fetched_unique_symbol_count": 0,
+            "failed_quote_symbols": requested_symbols,
+            "failed_quote_symbol_count": len(requested_symbols),
+            "quote_fetch_error_summary": message,
+            "partial_quote_fetch": False,
+            "quote_fetch_all_failed": bool(requested_symbols),
+            "quote_fetch_duration_ms": 0,
+            "quote_fetch_workers": 0,
+            "endpoint_used": "/stable/quote",
+        }
 
     # Filter to US exchanges only — the batch-quote response may contain
     # entries for symbols that are listed on non-US exchanges (e.g. OTC,
@@ -3946,7 +4010,7 @@ def _fetch_quotes_with_atr(
             _enrich_quote_with_hvb(q)
             _add_pdh_pdl_context(q)
 
-    return quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors
+    return quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors, quote_fetch_diagnostics
 
 
 def _build_result_payload(
@@ -3958,6 +4022,7 @@ def _build_result_payload(
     news_metrics: dict[str, dict],
     news_fetch_error: str | None,
     news_source_diagnostics: dict[str, Any],
+    quote_fetch_diagnostics: dict[str, Any],
     atr_by_symbol: dict[str, float],
     momentum_z_by_symbol: dict[str, float],
     vwap_by_symbol: dict[str, float | None],
@@ -4057,6 +4122,7 @@ def _build_result_payload(
         "news_catalyst_by_symbol": news_metrics,
         "news_fetch_error": news_fetch_error,
         "news_source_diagnostics": news_source_diagnostics,
+        "quote_fetch_diagnostics": quote_fetch_diagnostics,
         "atr14_by_symbol": atr_by_symbol,
         "momentum_z_by_symbol": momentum_z_by_symbol,
         "vwap_by_symbol": vwap_by_symbol,
@@ -4066,6 +4132,7 @@ def _build_result_payload(
         "run_status": _build_runtime_status(
             news_fetch_error=news_fetch_error,
             atr_fetch_errors=atr_fetch_errors,
+            quote_fetch_diagnostics=quote_fetch_diagnostics,
             atr_candidate_symbols=atr_candidate_symbols,
             premarket_fetch_error=premarket_fetch_error,
             fatal_stage=None,
@@ -4233,7 +4300,7 @@ def generate_open_prep_result(
         )
     _progress(5, TOTAL_STAGES, f"Quotes + ATR für {len(symbol_list)} Symbole laden …")
     with _profiler.stage("Quotes + ATR laden"):
-        quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _fetch_quotes_with_atr(
+        quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors, quote_fetch_diagnostics = _fetch_quotes_with_atr(
             client=data_client,
             symbols=symbol_list,
             run_dt_utc=run_dt,
@@ -4919,6 +4986,7 @@ def generate_open_prep_result(
         news_metrics=news_metrics,
         news_fetch_error=news_fetch_error,
         news_source_diagnostics=news_source_diagnostics,
+        quote_fetch_diagnostics=quote_fetch_diagnostics,
         atr_by_symbol=atr_by_symbol,
         momentum_z_by_symbol=momentum_z_by_symbol,
         vwap_by_symbol=vwap_by_symbol,
