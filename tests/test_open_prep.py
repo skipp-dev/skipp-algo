@@ -987,13 +987,41 @@ class TestOpenPrep(unittest.TestCase):
             "Atlanta Fed GDPNow", DEFAULT_HIGH_IMPACT_EVENTS
         ))
 
-    def test_get_batch_quotes_uses_stable_batch_quote_endpoint(self):
+    def test_get_batch_quotes_uses_stable_quote_endpoint_per_symbol(self):
         client = FMPClient(api_key="test")
-        with patch.object(FMPClient, "_get", return_value=[{"symbol": "NVDA"}]) as mock_get:
+        with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "NVDA"}], [{"symbol": "PLTR"}]]) as mock_get:
             quotes = client.get_batch_quotes(["NVDA", "PLTR"])
 
-        mock_get.assert_called_once_with("/stable/batch-quote", {"symbols": "NVDA,PLTR"})
+        self.assertEqual(
+            mock_get.call_args_list,
+            [
+                unittest.mock.call("/stable/quote", {"symbol": "NVDA"}),
+                unittest.mock.call("/stable/quote", {"symbol": "PLTR"}),
+            ],
+        )
+        self.assertEqual(quotes, [{"symbol": "NVDA"}, {"symbol": "PLTR"}])
+
+    def test_get_batch_quotes_dedupes_blank_and_duplicate_symbols(self):
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", side_effect=[[{"symbol": "NVDA"}]]) as mock_get:
+            quotes = client.get_batch_quotes(["nvda", "", "NVDA", "  "])
+
+        mock_get.assert_called_once_with("/stable/quote", {"symbol": "NVDA"})
         self.assertEqual(quotes, [{"symbol": "NVDA"}])
+
+    def test_build_url_routes_stable_paths_to_root_host(self):
+        client = FMPClient(api_key="test")
+
+        url = client._build_url("/stable/quote", {"symbol": "AAPL"})
+
+        self.assertEqual(url, "https://financialmodelingprep.com/stable/quote?symbol=AAPL&apikey=test")
+
+    def test_build_url_keeps_api_v3_for_non_stable_paths(self):
+        client = FMPClient(api_key="test")
+
+        url = client._build_url("/quote/AAPL", {})
+
+        self.assertEqual(url, "https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=test")
 
     def test_get_batch_aftermarket_trade_uses_stable_endpoint(self):
         client = FMPClient(api_key="test")

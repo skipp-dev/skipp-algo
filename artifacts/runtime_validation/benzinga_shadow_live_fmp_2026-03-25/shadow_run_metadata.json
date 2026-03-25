@@ -1,0 +1,64 @@
+{
+  "scope_symbols": [
+    "NVDA",
+    "AAPL",
+    "PLTR",
+    "TSLA",
+    "AMD",
+    "MSTR"
+  ],
+  "quote_rows": 6,
+  "quote_mode": "real_fmp_quote_endpoint",
+  "before": {
+    "news_fetch_error": null,
+    "news_source_diagnostics": {
+      "benzinga_enabled": false,
+      "source_articles_fmp_raw": 200,
+      "source_articles_tradingview_raw": 24,
+      "source_articles_benzinga_raw": 0,
+      "merged_articles_before_dedupe": 224,
+      "merged_articles_after_dedupe": 224,
+      "benzinga_unique_articles_after_dedupe_estimate": 0,
+      "fmp_fetch_error": null,
+      "tradingview_fetch_error": null,
+      "benzinga_fetch_error": null
+    },
+    "ranked_candidate_count": 4
+  },
+  "after": {
+    "news_fetch_error": null,
+    "news_source_diagnostics": {
+      "benzinga_enabled": true,
+      "source_articles_fmp_raw": 200,
+      "source_articles_tradingview_raw": 24,
+      "source_articles_benzinga_raw": 12,
+      "merged_articles_before_dedupe": 236,
+      "merged_articles_after_dedupe": 236,
+      "benzinga_unique_articles_after_dedupe_estimate": 12,
+      "fmp_fetch_error": null,
+      "tradingview_fetch_error": null,
+      "benzinga_fetch_error": null
+    },
+    "ranked_candidate_count": 4
+  },
+  "summary": {
+    "added_candidates": 0,
+    "removed_candidates": 0,
+    "changed_candidates": 4,
+    "unchanged_candidates": 0,
+    "added_candidate_symbols": [],
+    "removed_candidate_symbols": [],
+    "changed_candidate_symbols": [
+      "AAPL",
+      "NVDA",
+      "PLTR",
+      "TSLA"
+    ],
+    "unchanged_candidate_symbols": []
+  },
+  "paths": {
+    "shadow_core_news_delta": "artifacts/runtime_validation/benzinga_shadow_live_fmp_2026-03-25/shadow_core_news_delta.csv",
+    "shadow_candidate_delta": "artifacts/runtime_validation/benzinga_shadow_live_fmp_2026-03-25/shadow_candidate_delta.csv",
+    "shadow_run_metadata": "artifacts/runtime_validation/benzinga_shadow_live_fmp_2026-03-25/shadow_run_metadata.json"
+  }
+}

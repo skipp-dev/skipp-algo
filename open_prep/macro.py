@@ -506,6 +506,7 @@ class FMPClient:
     retry_backoff_seconds: float = 0.5
     timeout_seconds: float = 30.0
     base_url: str = "https://financialmodelingprep.com/api/v3"
+    stable_base_url: str = "https://financialmodelingprep.com"
     _circuit_breaker: _CircuitBreaker = field(default_factory=_CircuitBreaker, init=False, repr=False)
 
     @classmethod
@@ -516,9 +517,10 @@ class FMPClient:
         query = {key: value for key, value in params.items() if value is not None}
         if self.api_key:
             query.setdefault("apikey", self.api_key)
+        base_url = self.stable_base_url if str(path).startswith("/stable/") else self.base_url
         if not query:
-            return f"{self.base_url}{path}"
-        return f"{self.base_url}{path}?{urlencode(query, doseq=True)}"
+            return f"{base_url}{path}"
+        return f"{base_url}{path}?{urlencode(query, doseq=True)}"
 
     def _parse_payload(self, path: str, payload: str) -> Any:
         text = payload.strip()
@@ -602,8 +604,17 @@ class FMPClient:
         return self.get_company_screener(**kwargs)
 
     def get_batch_quotes(self, symbols: list[str]) -> list[dict[str, Any]]:
-        data = self._get("/stable/batch-quote", {"symbols": ",".join(symbols)})
-        return list(data) if isinstance(data, list) else []
+        rows: list[dict[str, Any]] = []
+        seen_symbols: set[str] = set()
+        for raw_symbol in symbols:
+            symbol = str(raw_symbol or "").strip().upper()
+            if not symbol or symbol in seen_symbols:
+                continue
+            seen_symbols.add(symbol)
+            data = self._get("/stable/quote", {"symbol": symbol})
+            if isinstance(data, list):
+                rows.extend(data)
+        return rows
 
     def get_fmp_articles(self, limit: int = 250) -> list[dict[str, Any]]:
         params: dict[str, Any] = {

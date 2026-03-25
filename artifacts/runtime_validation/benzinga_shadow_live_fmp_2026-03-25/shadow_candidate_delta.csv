@@ -1,0 +1,5 @@
+symbol,candidate_status,before_rank,after_rank,candidate_rank_delta,score_before,score_after,news_catalyst_score_before,news_catalyst_score_after,news_event_class_before,news_event_class_after,news_materiality_before,news_materiality_after,news_recency_bucket_before,news_recency_bucket_after,news_source_tier_before,news_source_tier_after
+AAPL,changed,4,1,-3,0.72,1.6,0.9,2.0,UNKNOWN,UNKNOWN,LOW,LOW,AGING,WARM,TIER_2,TIER_3
+NVDA,changed,1,2,1,1.56,1.6,1.95,2.0,UNKNOWN,UNKNOWN,LOW,LOW,FRESH,FRESH,TIER_3,TIER_3
+PLTR,changed,2,3,1,1.0,1.12,1.25,1.4,UNKNOWN,UNKNOWN,LOW,LOW,AGING,AGING,TIER_2,TIER_2
+TSLA,changed,3,4,1,1.0,1.12,1.25,1.4,SCHEDULED,SCHEDULED,LOW,LOW,WARM,WARM,TIER_3,TIER_3
