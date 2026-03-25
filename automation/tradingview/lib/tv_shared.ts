@@ -687,6 +687,21 @@ export function verifyOpenScriptIdentity(scriptName: string, options: {
   return true;
 }
 
+export function resolveOpenScriptIdentityEvidence(scriptName: string, options: {
+  dialogStillVisible: boolean;
+  editorContextTexts: string[];
+  bodyText?: string;
+}): {
+  verified: boolean;
+  verificationMode: "script_context" | "not_verified";
+} {
+  const verified = verifyOpenScriptIdentity(scriptName, options);
+  return {
+    verified,
+    verificationMode: verified ? "script_context" : "not_verified",
+  };
+}
+
 export function detectPublishedVersionFromBody(bodyText: string, scriptName?: string): number | null {
   const versions = collectPublishedVersionsFromBody(bodyText, scriptName);
   return versions.length === 1 ? versions[0] : null;
@@ -699,18 +714,18 @@ export function detectPublishedVersionFromContextTexts(contextTexts: string[], s
 
 export function resolvePublishedVersionEvidence(options: {
   scriptName: string;
-  contextTexts: string[];
+  versionContextTexts: string[];
   bodyText: string;
 }): {
   publishedVersion: number | null;
-  verificationMode: "script_context" | "body_fallback" | "not_verified";
+  verificationMode: "version_context" | "body_fallback" | "not_verified";
   fallbackVersion: number | null;
 } {
-  const contextVersions = collectPublishedVersionsFromContextTexts(options.contextTexts, options.scriptName);
+  const contextVersions = collectPublishedVersionsFromContextTexts(options.versionContextTexts, options.scriptName);
   if (contextVersions.length === 1) {
     return {
       publishedVersion: contextVersions[0],
-      verificationMode: "script_context",
+      verificationMode: "version_context",
       fallbackVersion: null,
     };
   }
@@ -927,26 +942,69 @@ async function firstVisibleLocator(locator: Locator, timeoutMs = 2_500): Promise
   return null;
 }
 
-export async function collectOpenScriptIdentityTexts(page: Page, scriptName: string): Promise<string[]> {
-  const texts: string[] = [];
+export async function collectVisibleLocatorMetadata(locator: Locator, timeoutMs = 750): Promise<Array<{
+  text: string;
+  ariaLabel: string;
+  title: string;
+}>> {
+  const results: Array<{ text: string; ariaLabel: string; title: string }> = [];
+  const total = await locator.count().catch(() => 0);
 
-  for (const candidate of tvSelectors.openScriptIdentity(page, scriptName)) {
-    const visible = await firstVisibleLocator(candidate, 750);
-    if (!visible) {
+  for (let index = 0; index < total; index += 1) {
+    const candidate = locator.nth(index);
+    try {
+      if (!(await candidate.isVisible({ timeout: timeoutMs }))) {
+        continue;
+      }
+    } catch {
       continue;
     }
-    const text = await visible.innerText().catch(() => "");
-    const ariaLabel = await visible.getAttribute("aria-label").catch(() => "");
-    const title = await visible.getAttribute("title").catch(() => "");
-    for (const value of [text, ariaLabel ?? "", title ?? ""]) {
+
+    results.push({
+      text: await candidate.innerText().catch(() => ""),
+      ariaLabel: (await candidate.getAttribute("aria-label").catch(() => "")) ?? "",
+      title: (await candidate.getAttribute("title").catch(() => "")) ?? "",
+    });
+  }
+
+  return results;
+}
+
+function normalizeVisibleEvidenceValues(entries: Array<{
+  text: string;
+  ariaLabel: string;
+  title: string;
+}>): string[] {
+  const texts: string[] = [];
+  for (const entry of entries) {
+    for (const value of [entry.text, entry.ariaLabel, entry.title]) {
       const normalized = normalizeUiText(value);
       if (normalized) {
         texts.push(normalized);
       }
     }
   }
+  return uniqueNormalizedTexts(texts);
+}
 
-  return [...new Set(texts)];
+export async function collectOpenScriptIdentityTexts(page: Page, scriptName: string): Promise<string[]> {
+  const texts: string[] = [];
+
+  for (const candidate of tvSelectors.openScriptIdentity(page, scriptName)) {
+    texts.push(...normalizeVisibleEvidenceValues(await collectVisibleLocatorMetadata(candidate, 750)));
+  }
+
+  return uniqueNormalizedTexts(texts);
+}
+
+export async function collectPublishedVersionContextTexts(page: Page, scriptName: string): Promise<string[]> {
+  const texts: string[] = [];
+
+  for (const candidate of tvSelectors.publishedVersionContext(page, scriptName)) {
+    texts.push(...normalizeVisibleEvidenceValues(await collectVisibleLocatorMetadata(candidate, 750)));
+  }
+
+  return uniqueNormalizedTexts(texts);
 }
 
 async function firstVisibleLocatorFast(locator: Locator, timeoutMs = 500): Promise<Locator | null> {

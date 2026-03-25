@@ -83,6 +83,16 @@ def _contains_ordered_code_block(haystack: list[str], needle: list[str]) -> bool
     return False
 
 
+def _count_ordered_code_block_occurrences(haystack: list[str], needle: list[str]) -> int:
+    if not needle:
+        return 0
+    matches = 0
+    for start in range(0, len(haystack) - len(needle) + 1):
+        if haystack[start : start + len(needle)] == needle:
+            matches += 1
+    return matches
+
+
 def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, str]:
     repo_root = core_path.resolve().parent
     manifest = json.loads(_read_text(manifest_path))
@@ -124,6 +134,12 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
         raise RuntimeError(
             "Core file is missing the generated import snippet as a contiguous alias block. "
             f"Expected block: {snippet_lines}"
+        )
+    occurrence_count = _count_ordered_code_block_occurrences(core_code_lines, snippet_lines[1:])
+    if occurrence_count != 1:
+        raise RuntimeError(
+            "Core file must contain the generated import snippet alias block exactly once as real contiguous code. "
+            f"Observed occurrences: {occurrence_count}"
         )
 
     return {

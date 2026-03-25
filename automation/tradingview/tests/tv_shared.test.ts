@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  collectVisibleLocatorMetadata,
+  collectPublishedVersionContextTexts,
+  resolveOpenScriptIdentityEvidence,
   containsAnchoredCodeBlockAfterLine,
   containsOrderedCodeBlock,
   detectPublishedVersionFromContextTexts,
@@ -177,6 +180,23 @@ test("verifyOpenScriptIdentity fails when body text matches accidentally but edi
   }), false);
 });
 
+test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
+  assert.deepEqual(resolveOpenScriptIdentityEvidence("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine"],
+  }), {
+    verified: true,
+    verificationMode: "script_context",
+  });
+  assert.deepEqual(resolveOpenScriptIdentityEvidence("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Dashboard"],
+  }), {
+    verified: false,
+    verificationMode: "not_verified",
+  });
+});
+
 test("detectPublishedVersionFromBody anchors version to the target script when provided", () => {
   const bodyText = "Release notes version 99. Published SMC Core Engine version 7 successfully.";
 
@@ -213,7 +233,7 @@ test("detectPublishedVersionFromBody fails closed on multiple target versions", 
 test("resolvePublishedVersionEvidence marks generic body-only evidence as fallback", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
     scriptName: "SMC Core Engine",
-    contextTexts: [],
+    versionContextTexts: [],
     bodyText: "Release notes version 99. Published SMC Core Engine version 7 successfully.",
   }), {
     publishedVersion: 7,
@@ -225,11 +245,11 @@ test("resolvePublishedVersionEvidence marks generic body-only evidence as fallba
 test("resolvePublishedVersionEvidence prefers script-context version evidence", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
     scriptName: "SMC Core Engine",
-    contextTexts: ["SMC Core Engine version 7"],
+    versionContextTexts: ["SMC Core Engine version 7"],
     bodyText: "Release notes version 99.",
   }), {
     publishedVersion: 7,
-    verificationMode: "script_context",
+    verificationMode: "version_context",
     fallbackVersion: null,
   });
 });
@@ -237,7 +257,7 @@ test("resolvePublishedVersionEvidence prefers script-context version evidence", 
 test("resolvePublishedVersionEvidence fails closed when no reliable evidence exists", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
     scriptName: "SMC Core Engine",
-    contextTexts: [],
+    versionContextTexts: [],
     bodyText: "Published successfully.",
   }), {
     publishedVersion: null,
@@ -249,7 +269,7 @@ test("resolvePublishedVersionEvidence fails closed when no reliable evidence exi
 test("resolvePublishedVersionEvidence fails closed on conflicting script-context versions", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
     scriptName: "SMC Core Engine",
-    contextTexts: [
+    versionContextTexts: [
       "Published SMC Core Engine version 7 successfully.",
       "Published SMC Core Engine version 8 successfully.",
     ],
@@ -259,4 +279,33 @@ test("resolvePublishedVersionEvidence fails closed on conflicting script-context
     verificationMode: "not_verified",
     fallbackVersion: null,
   });
+});
+
+test("collectVisibleLocatorMetadata samples all visible candidates instead of first-hit only", async () => {
+  const nodes = [
+    { visible: true, text: "SMC Core Engine", ariaLabel: "", title: "" },
+    { visible: true, text: "SMC Dashboard", ariaLabel: "", title: "Dashboard" },
+    { visible: false, text: "ignored", ariaLabel: "", title: "" },
+  ];
+  const locator = {
+    count: async () => nodes.length,
+    nth: (index: number) => ({
+      isVisible: async () => nodes[index].visible,
+      innerText: async () => nodes[index].text,
+      getAttribute: async (name: string) => {
+        if (name === "aria-label") {
+          return nodes[index].ariaLabel;
+        }
+        if (name === "title") {
+          return nodes[index].title;
+        }
+        return "";
+      },
+    }),
+  };
+
+  assert.deepEqual(await collectVisibleLocatorMetadata(locator as never, 5), [
+    { text: "SMC Core Engine", ariaLabel: "", title: "" },
+    { text: "SMC Dashboard", ariaLabel: "", title: "Dashboard" },
+  ]);
 });

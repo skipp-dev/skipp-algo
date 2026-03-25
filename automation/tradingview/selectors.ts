@@ -18,6 +18,20 @@ function scriptNamePatterns(scriptName: string): RegExp[] {
   return [exact, loose, fuzzy];
 }
 
+export type ScriptRowLocatorSpec = {
+  scope: "dialog" | "menu_inner";
+  matchKind: "exact" | "loose";
+};
+
+export function describeScriptRowLocatorSpecs(): ScriptRowLocatorSpec[] {
+  return [
+    { scope: "dialog", matchKind: "exact" },
+    { scope: "menu_inner", matchKind: "exact" },
+    { scope: "dialog", matchKind: "loose" },
+    { scope: "menu_inner", matchKind: "loose" },
+  ];
+}
+
 export const tvSelectors = {
   pineEditor(page: Page): Locator[] {
     return [
@@ -75,13 +89,24 @@ export const tvSelectors = {
     const [exact, loose] = scriptNamePatterns(scriptName);
     const dialog = page.locator('[role="dialog"]');
     const menuInner = page.locator('[data-name="menu-inner"]');
+    const patterns = { exact, loose } as const;
+    const scopes = {
+      dialog,
+      menu_inner: menuInner,
+    } as const;
+
+    return describeScriptRowLocatorSpecs().map((spec) => scopes[spec.scope].getByText(patterns[spec.matchKind]));
+  },
+
+  publishedVersionContext(page: Page, scriptName: string): Locator[] {
+    const [exact, loose] = scriptNamePatterns(scriptName);
 
     return [
-      dialog.getByText(exact),
-      menuInner.getByText(exact),
-      page.getByText(exact),
-      dialog.getByText(loose),
-      menuInner.getByText(loose),
+      page.locator('[role="dialog"]').filter({ hasText: exact }),
+      page.locator('[role="dialog"]').filter({ hasText: loose }),
+      page.locator('[data-name="menu-inner"]').filter({ hasText: loose }),
+      page.locator('[role="status"], [role="alert"], [aria-live="polite"], [aria-live="assertive"], [data-name*="toast" i], [class*="toast" i], [class*="notification" i]').filter({ hasText: loose }),
+      page.locator('[data-name*="title" i], [class*="title" i], [data-name*="header" i], [class*="header" i]').filter({ hasText: loose }),
     ];
   },
 

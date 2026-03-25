@@ -59,13 +59,16 @@ Preferred path:
 2. Use the UI button `Publish To TradingView` to run the contract check, publish the generated library, and run the post-publish core validation.
 3. Review `artifacts/tradingview/library_release_manifest.json` and the emitted publish report for the final release status.
 
-`tv:publish-micro-library` now applies the same hard open-existing requirement as preflight before any editor mutation. If the exact target script cannot be reopened first, the publish run aborts before writing to the editor.
+`tv:publish-micro-library` now applies the same hard open-existing requirement as preflight before any editor mutation. If the exact target script cannot be reopened first, the publish run aborts before writing to the editor and records the attempt as an automation failure rather than a manual-publish state.
 
 The automated publish report now distinguishes two separate facts:
 
 - `publishedScriptVerified`: the TradingView library script could be reopened after publish
-- `publishVerificationMode`: publish proof is only release-green when the reopened script identity matches exactly in canonical editor context and that same context proves the expected version; `body_fallback` is diagnostic only and fails closed
+- `identityVerificationMode`: exact reopened script identity from canonical editor context
+- `versionVerificationMode`: version proof from dedicated version-bearing UI context; `body_fallback` is diagnostic only and fails closed
 - `repoCoreValidationReport`: the local repo core consumer was revalidated in mutating preflight mode after publish
+
+`--no-open-existing` remains a deliberate Sonderpfad for a fresh untitled draft and is not treated as the default hardened release path.
 
 Legacy note:
 

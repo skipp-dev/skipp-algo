@@ -4,17 +4,20 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import {
   assertNoVisibleCompileError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
+  collectPublishedVersionContextTexts,
   containsOrderedCodeBlock,
   ensurePineEditor,
   gotoChart,
   newTradingViewSession,
   openExistingScript,
   publishPrivateScript,
+  resolveOpenScriptIdentityEvidence,
   resolvePublishedVersionEvidence,
   saveScript,
   setEditorContent,
@@ -27,6 +30,9 @@ import {
   reportProvidesRepoSourceCompileEvidence,
   type LibraryReleaseManifest,
 } from "../automation/tradingview/lib/tv_validation_model.js";
+
+export type IdentityVerificationMode = "script_context" | "not_verified";
+export type VersionVerificationMode = "version_context" | "body_fallback" | "not_verified";
 
 type GeneratedLibraryManifest = {
   library_name: string;
@@ -76,16 +82,22 @@ type PublishReport = {
   generatedAt: string;
   ok: boolean;
   contractOk: boolean;
+  openGateAttempted: boolean;
+  openGateVerified: boolean;
   publishAttempted: boolean;
   publishOk: boolean;
   openedExistingScript: boolean;
   publishedScriptVerified: boolean;
-  publishVerificationMode: "script_context" | "body_fallback" | "not_verified";
+  identityVerificationMode: IdentityVerificationMode;
+  versionVerificationMode: VersionVerificationMode;
+  publishVerificationMode: VersionVerificationMode;
   publishStatus: LibraryReleaseManifest["library"]["publishStatus"];
   expectedImportPath: string;
   expectedVersion: number;
   publishedVersion: number | null;
   fallbackPublishedVersion: number | null;
+  identityEvidenceContext: string[];
+  versionEvidenceContext: string[];
   publishEvidenceContext: string[];
   repoCoreValidationOk: boolean;
   repoCoreValidationReport: string | null;
@@ -350,18 +362,90 @@ function runRepoCorePreflightValidation(reportPath: string): { ok: boolean; repo
   return { ok: true, reportPath };
 }
 
-async function main(): Promise<number> {
+export function resolvePreMutationOpenGate(options: {
+  openExisting: boolean;
+  openGateVerified: boolean;
+  scriptName: string;
+}): {
+  openGateAttempted: boolean;
+  openGateVerified: boolean;
+  allowEditorMutation: boolean;
+  error: string | null;
+} {
+  if (!options.openExisting) {
+    return {
+      openGateAttempted: false,
+      openGateVerified: false,
+      allowEditorMutation: true,
+      error: null,
+    };
+  }
+
+  if (options.openGateVerified) {
+    return {
+      openGateAttempted: true,
+      openGateVerified: true,
+      allowEditorMutation: true,
+      error: null,
+    };
+  }
+
+  return {
+    openGateAttempted: true,
+    openGateVerified: false,
+    allowEditorMutation: false,
+    error: `Could not open existing TradingView script: ${options.scriptName}. Aborted before first editor mutation at the exact-open gate. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
+  };
+}
+
+export function resolvePublishReportState(options: {
+  openGateAttempted: boolean;
+  publishAttempted: boolean;
+  identityVerificationMode: IdentityVerificationMode;
+  versionVerificationMode: VersionVerificationMode;
+  publishedVersion: number | null;
+  expectedVersion: number | null;
+  repoCoreValidationOk: boolean;
+}): {
+  ok: boolean;
+  publishOk: boolean;
+  publishStatus: LibraryReleaseManifest["library"]["publishStatus"];
+} {
+  const publishOk = options.identityVerificationMode === "script_context"
+    && options.versionVerificationMode === "version_context"
+    && options.publishedVersion !== null
+    && options.publishedVersion === options.expectedVersion;
+
+  const publishStatus = publishOk && options.repoCoreValidationOk
+    ? "published"
+    : options.openGateAttempted || options.publishAttempted
+      ? "not_verified"
+      : "manual_publish_required";
+
+  return {
+    ok: publishOk && options.repoCoreValidationOk,
+    publishOk,
+    publishStatus,
+  };
+}
+
+export async function runPublishMicroLibraryCli(): Promise<number> {
   const cli = parseArgs();
   const runId = utcNow().replace(/[:.]/g, "-");
   const screenshots: string[] = [];
   const preflightReportPath = path.resolve(`automation/tradingview/reports/preflight-micro-library-${runId}.json`);
   let details: ContractDetails | null = null;
+  let openGateAttempted = false;
+  let openGateVerified = false;
   let openedExistingScript = false;
   let publishAttempted = false;
   let publishedScriptVerified = false;
-  let publishVerificationMode: PublishReport["publishVerificationMode"] = "not_verified";
+  let identityVerificationMode: PublishReport["identityVerificationMode"] = "not_verified";
+  let versionVerificationMode: PublishReport["versionVerificationMode"] = "not_verified";
   let publishedVersion: number | null = null;
   let fallbackPublishedVersion: number | null = null;
+  let identityEvidenceContext: string[] = [];
+  let versionEvidenceContext: string[] = [];
   let publishEvidenceContext: string[] = [];
   let publishStatus: LibraryReleaseManifest["library"]["publishStatus"] = "manual_publish_required";
   let repoCoreValidationOk = false;
@@ -380,11 +464,16 @@ async function main(): Promise<number> {
       await ensurePineEditor(session.page);
 
       if (cli.openExisting) {
+        openGateAttempted = true;
         openedExistingScript = await openExistingScript(session.page, details.libraryName).catch(() => false);
-        if (!openedExistingScript) {
-          throw new Error(
-            `Could not open existing TradingView script: ${details.libraryName}. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
-          );
+        openGateVerified = openedExistingScript;
+        const preMutationOpenGate = resolvePreMutationOpenGate({
+          openExisting: cli.openExisting,
+          openGateVerified,
+          scriptName: details.libraryName,
+        });
+        if (!preMutationOpenGate.allowEditorMutation) {
+          throw new Error(preMutationOpenGate.error ?? `Could not open existing TradingView script: ${details.libraryName}`);
         }
       }
 
@@ -402,19 +491,27 @@ async function main(): Promise<number> {
       await takeScreenshot(session.page, runId, `${details.libraryName}-published`, screenshots);
 
       publishedScriptVerified = await openExistingScript(session.page, details.libraryName).catch(() => false);
-      publishEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
+      identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
+      versionEvidenceContext = await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => []);
+      publishEvidenceContext = versionEvidenceContext;
       const bodyText = await session.page.locator("body").innerText().catch(() => "");
-      const publishEvidence = resolvePublishedVersionEvidence({
-        scriptName: details.libraryName,
-        contextTexts: publishEvidenceContext,
+      const identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
+        dialogStillVisible: false,
+        editorContextTexts: identityEvidenceContext,
         bodyText,
       });
-      publishVerificationMode = publishEvidence.verificationMode;
+      const publishEvidence = resolvePublishedVersionEvidence({
+        scriptName: details.libraryName,
+        versionContextTexts: versionEvidenceContext,
+        bodyText,
+      });
+      identityVerificationMode = identityEvidence.verificationMode;
+      versionVerificationMode = publishEvidence.verificationMode;
       publishedVersion = publishEvidence.publishedVersion;
       fallbackPublishedVersion = publishEvidence.fallbackVersion;
-      if (!publishedScriptVerified || publishVerificationMode !== "script_context" || publishedVersion !== details.libraryVersion) {
+      if (!publishedScriptVerified || identityVerificationMode !== "script_context" || versionVerificationMode !== "version_context" || publishedVersion !== details.libraryVersion) {
         throw new Error(
-          `Published TradingView library could not be verified exactly: live_script_verified=${publishedScriptVerified}, verification_mode=${publishVerificationMode}, expected_version=${details.libraryVersion}, detected_version=${publishedVersion ?? "unknown"}`,
+          `Published TradingView library could not be verified exactly: live_script_verified=${publishedScriptVerified}, identity_mode=${identityVerificationMode}, version_mode=${versionVerificationMode}, expected_version=${details.libraryVersion}, detected_version=${publishedVersion ?? "unknown"}`,
         );
       }
     } finally {
@@ -424,7 +521,16 @@ async function main(): Promise<number> {
     const repoCoreValidation = runRepoCorePreflightValidation(preflightReportPath);
     repoCoreValidationOk = repoCoreValidation.ok;
     repoCoreValidationError = repoCoreValidation.error;
-    publishStatus = repoCoreValidation.ok ? "published" : "not_verified";
+    const publishState = resolvePublishReportState({
+      openGateAttempted,
+      publishAttempted,
+      identityVerificationMode,
+      versionVerificationMode,
+      publishedVersion,
+      expectedVersion: details.libraryVersion,
+      repoCoreValidationOk,
+    });
+    publishStatus = publishState.publishStatus;
 
     writeReleaseManifest(cli.releaseManifest, details, {
       publishMode: "automated",
@@ -435,20 +541,24 @@ async function main(): Promise<number> {
 
     const report: PublishReport = {
       generatedAt: utcNow(),
-      ok: repoCoreValidation.ok,
+      ok: publishState.ok,
       contractOk: true,
+      openGateAttempted,
+      openGateVerified,
       publishAttempted,
-      publishOk: publishedScriptVerified
-        && publishVerificationMode === "script_context"
-        && publishedVersion === details.libraryVersion,
+      publishOk: publishState.publishOk,
       openedExistingScript,
       publishedScriptVerified,
-      publishVerificationMode,
+      identityVerificationMode,
+      versionVerificationMode,
+      publishVerificationMode: versionVerificationMode,
       publishStatus,
       expectedImportPath: details.recommendedImportPath,
       expectedVersion: details.libraryVersion,
       publishedVersion,
       fallbackPublishedVersion,
+      identityEvidenceContext,
+      versionEvidenceContext,
       publishEvidenceContext,
       repoCoreValidationOk,
       repoCoreValidationReport: repoCoreValidation.reportPath,
@@ -465,10 +575,19 @@ async function main(): Promise<number> {
     return repoCoreValidation.ok ? 0 : 1;
   } catch (error: unknown) {
     if (details) {
-      publishStatus = publishAttempted ? "not_verified" : "manual_publish_required";
+      const publishState = resolvePublishReportState({
+        openGateAttempted,
+        publishAttempted,
+        identityVerificationMode,
+        versionVerificationMode,
+        publishedVersion,
+        expectedVersion: details.libraryVersion,
+        repoCoreValidationOk,
+      });
+      publishStatus = publishState.publishStatus;
       try {
         writeReleaseManifest(cli.releaseManifest, details, {
-          publishMode: publishAttempted ? "automated" : "manual",
+          publishMode: openGateAttempted || publishAttempted ? "automated" : "manual",
           publishStatus,
           publishedVersion,
           lastPreflightReport: fs.existsSync(preflightReportPath) ? preflightReportPath : null,
@@ -479,20 +598,35 @@ async function main(): Promise<number> {
     }
 
     const message = error instanceof Error ? error.stack || error.message : String(error);
+    const publishState = resolvePublishReportState({
+      openGateAttempted,
+      publishAttempted,
+      identityVerificationMode,
+      versionVerificationMode,
+      publishedVersion,
+      expectedVersion: details?.libraryVersion ?? null,
+      repoCoreValidationOk,
+    });
     const report: PublishReport = {
       generatedAt: utcNow(),
       ok: false,
       contractOk: Boolean(details),
+      openGateAttempted,
+      openGateVerified,
       publishAttempted,
-      publishOk: false,
+      publishOk: publishState.publishOk,
       openedExistingScript,
       publishedScriptVerified,
-      publishVerificationMode,
-      publishStatus,
+      identityVerificationMode,
+      versionVerificationMode,
+      publishVerificationMode: versionVerificationMode,
+      publishStatus: publishState.publishStatus,
       expectedImportPath: details?.recommendedImportPath ?? "",
       expectedVersion: details?.libraryVersion ?? 0,
       publishedVersion,
       fallbackPublishedVersion,
+      identityEvidenceContext,
+      versionEvidenceContext,
       publishEvidenceContext,
       repoCoreValidationOk,
       repoCoreValidationReport: fs.existsSync(preflightReportPath) ? preflightReportPath : null,
@@ -509,9 +643,11 @@ async function main(): Promise<number> {
   }
 }
 
-main()
-  .then((code) => process.exit(code))
-  .catch((error: unknown) => {
-    console.error(error instanceof Error ? error.stack || error.message : String(error));
-    process.exit(1);
-  });
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  runPublishMicroLibraryCli()
+    .then((code) => process.exit(code))
+    .catch((error: unknown) => {
+      console.error(error instanceof Error ? error.stack || error.message : String(error));
+      process.exit(1);
+    });
+}
