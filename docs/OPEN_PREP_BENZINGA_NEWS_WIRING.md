@@ -45,6 +45,22 @@ Wichtige Konsequenz:
 - Opt-in: Bei gesetztem Flag wird Benzinga in denselben Artikelvertrag transformiert und ueber denselben Scoring-Pfad verarbeitet.
 - Alles, was in `news_catalyst_by_symbol` landet, stammt damit weiterhin aus genau einem gemeinsamen `build_news_scores(...)`-Pfad, nicht aus einem separaten Benzinga-Scorer.
 
+Fuer Shadow-/Rollout-Vorbereitung existiert zusaetzlich ein kleiner Diagnostics-Layer im Core-Pfad.
+
+Er liefert nur Metadaten, keine alternative Score-Logik, insbesondere:
+
+- `source_articles_fmp_raw`
+- `source_articles_tradingview_raw`
+- `source_articles_benzinga_raw`
+- `merged_articles_before_dedupe`
+- `merged_articles_after_dedupe`
+- `benzinga_unique_articles_after_dedupe_estimate`
+- `fmp_fetch_error`
+- `tradingview_fetch_error`
+- `benzinga_fetch_error`
+
+Diese Diagnostics werden getrennt von den eigentlichen News-Scores gehalten.
+
 Relevante Stellen:
 
 - `open_prep/run_open_prep.py` `_fetch_news_context(...)`
@@ -279,6 +295,11 @@ Wichtig fuer die Feldsemantik:
 - `company_news_item_count_24h` wird unter Truncation bewusst auf missing gesetzt, damit kein Lower-Bound still als Vollzaehlung interpretiert wird
 - `has_company_news_preopen_window` bleibt unter Truncation nur dann `True`, wenn das Preopen-Fenster direkt beobachtet wurde; sonst missing
 
+Dieser Pfad ist bewusst nicht dasselbe wie der optionale Core-Benzinga-Pfad:
+
+- historischer Exportpfad: symbol-day, ET-windowed, research-orientiert
+- optionaler Core-Pfad: live/recent supplement, merged in `_fetch_news_context(...)`, default OFF
+
 ### 5.2 Benzinga Intelligence Tabs
 
 Die Benzinga-Intelligence-Tabs in `open_prep/streamlit_monitor.py` nutzen Wrapper aus `terminal_poller.py`.
@@ -358,3 +379,9 @@ Stand jetzt gilt damit eindeutig:
 Falls Benzinga kuenftig die bestehenden Open-Prep-News-Felder speisen soll, ist der richtige Integrationspunkt nicht `streamlit_monitor.py`, sondern `open_prep/run_open_prep.py` in `_fetch_news_context(...)`.
 
 Diese Vorbereitung existiert jetzt bereits opt-in: Benzinga wird in artikelartige Dicts fuer `build_news_scores(...)` adaptiert, analog zum bestehenden TradingView-Supplement, aber standardmaessig deaktiviert.
+
+Fuer belastbare OFF-vs-ON-Vergleiche existiert ausserdem ein separater Shadow-Helper:
+
+- `build_core_news_shadow_comparison(...)`
+
+Er vergleicht denselben Scope einmal mit Benzinga OFF und einmal mit Benzinga ON, ohne einen Default-Switch vorzunehmen.

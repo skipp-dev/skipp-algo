@@ -546,6 +546,156 @@ class TestOpenPrep(unittest.TestCase):
         self.assertIn("NVDA", scores)
         self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
 
+    def test_fetch_news_context_with_diagnostics_keeps_benzinga_disabled_by_default(self):
+        client = MagicMock()
+        client.get_fmp_articles.return_value = [
+            {
+                "tickers": "NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20T14:30:00+00:00",
+                "source": "FMP",
+                "url": "https://example.test/fmp-story",
+            }
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "0",
+        }, clear=False), patch("open_prep.run_open_prep._fetch_benzinga_core_news_articles", side_effect=AssertionError("benzinga should stay disabled")):
+            scores, metrics, fetch_error, diagnostics = run_open_prep._fetch_news_context_with_diagnostics(
+                client=client,
+                symbols=["NVDA"],
+                include_benzinga=False,
+            )
+
+        self.assertIsNone(fetch_error)
+        self.assertIn("NVDA", scores)
+        self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
+        self.assertFalse(diagnostics["benzinga_enabled"])
+        self.assertEqual(diagnostics["source_articles_fmp_raw"], 1)
+        self.assertEqual(diagnostics["source_articles_tradingview_raw"], 0)
+        self.assertEqual(diagnostics["source_articles_benzinga_raw"], 0)
+        self.assertEqual(diagnostics["merged_articles_before_dedupe"], 1)
+        self.assertEqual(diagnostics["merged_articles_after_dedupe"], 1)
+        self.assertEqual(diagnostics["benzinga_unique_articles_after_dedupe_estimate"], 0)
+        self.assertIsNone(diagnostics["benzinga_fetch_error"])
+
+    def test_fetch_news_context_with_diagnostics_reports_source_contributions_when_enabled(self):
+        client = MagicMock()
+        client.get_fmp_articles.return_value = [
+            {
+                "tickers": "NVDA",
+                "title": "Shared story",
+                "content": "",
+                "date": "2026-02-20T14:30:00+00:00",
+                "source": "FMP",
+                "url": "https://example.test/shared-story",
+            }
+        ]
+        benzinga_articles = [
+            {
+                "tickers": "NVDA",
+                "title": "Shared story",
+                "content": "",
+                "date": "2026-02-20T14:30:00+00:00",
+                "source": "Benzinga",
+                "provider": "benzinga_rest",
+                "url": "https://example.test/shared-story",
+            },
+            {
+                "tickers": "NVDA",
+                "title": "Unique Benzinga story",
+                "content": "",
+                "date": "2026-02-20T15:00:00+00:00",
+                "source": "Benzinga",
+                "provider": "benzinga_rest",
+                "url": "https://example.test/benzinga-only",
+            },
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "0",
+        }, clear=False), patch("open_prep.run_open_prep._fetch_benzinga_core_news_articles", return_value=(benzinga_articles, None)):
+            scores, metrics, fetch_error, diagnostics = run_open_prep._fetch_news_context_with_diagnostics(
+                client=client,
+                symbols=["NVDA"],
+                include_benzinga=True,
+            )
+
+        self.assertIsNone(fetch_error)
+        self.assertIn("NVDA", scores)
+        self.assertEqual(metrics["NVDA"]["mentions_total"], 2)
+        self.assertTrue(diagnostics["benzinga_enabled"])
+        self.assertEqual(diagnostics["source_articles_fmp_raw"], 1)
+        self.assertEqual(diagnostics["source_articles_benzinga_raw"], 2)
+        self.assertEqual(diagnostics["merged_articles_before_dedupe"], 3)
+        self.assertEqual(diagnostics["merged_articles_after_dedupe"], 2)
+        self.assertEqual(diagnostics["benzinga_unique_articles_after_dedupe_estimate"], 1)
+        self.assertIsNone(diagnostics["benzinga_fetch_error"])
+
+    def test_build_core_news_shadow_comparison_summarizes_before_after_deltas(self):
+        client = MagicMock()
+        quotes = [
+            {"symbol": "AAA", "price": 10.0, "previousClose": 9.5},
+            {"symbol": "BBB", "price": 11.0, "previousClose": 10.0},
+        ]
+
+        with patch(
+            "open_prep.run_open_prep._fetch_news_context_with_diagnostics",
+            side_effect=[
+                (
+                    {"AAA": 0.0, "BBB": 0.2},
+                    {
+                        "AAA": {"mentions_total": 0, "event_class": "UNKNOWN", "materiality": "LOW", "recency_bucket": "UNKNOWN", "source_tier": "TIER_3", "latest_article_utc": None},
+                        "BBB": {"mentions_total": 1, "event_class": "NONE", "materiality": "LOW", "recency_bucket": "AGING", "source_tier": "TIER_3", "latest_article_utc": "2026-02-20T14:00:00+00:00"},
+                    },
+                    None,
+                    {"source_articles_benzinga_raw": 0, "benzinga_enabled": False},
+                ),
+                (
+                    {"AAA": 0.5, "BBB": 0.2},
+                    {
+                        "AAA": {"mentions_total": 1, "event_class": "EARNINGS", "materiality": "HIGH", "recency_bucket": "LT_2H", "source_tier": "TIER_1", "latest_article_utc": "2026-02-20T15:00:00+00:00"},
+                        "BBB": {"mentions_total": 1, "event_class": "NONE", "materiality": "LOW", "recency_bucket": "AGING", "source_tier": "TIER_3", "latest_article_utc": "2026-02-20T14:00:00+00:00"},
+                    },
+                    None,
+                    {"source_articles_benzinga_raw": 2, "benzinga_enabled": True},
+                ),
+            ],
+        ), patch(
+            "open_prep.run_open_prep.rank_candidates",
+            side_effect=[
+                [
+                    {"symbol": "BBB", "score": 2.0, "news_catalyst_score": 0.2, "news_event_class": "NONE", "news_materiality": "LOW", "news_recency_bucket": "AGING", "news_source_tier": "TIER_3", "news_age_minutes": 60},
+                ],
+                [
+                    {"symbol": "AAA", "score": 3.0, "news_catalyst_score": 0.5, "news_event_class": "EARNINGS", "news_materiality": "HIGH", "news_recency_bucket": "LT_2H", "news_source_tier": "TIER_1", "news_age_minutes": 5},
+                    {"symbol": "BBB", "score": 2.0, "news_catalyst_score": 0.2, "news_event_class": "NONE", "news_materiality": "LOW", "news_recency_bucket": "AGING", "news_source_tier": "TIER_3", "news_age_minutes": 60},
+                ],
+            ],
+        ):
+            comparison = run_open_prep.build_core_news_shadow_comparison(
+                client=client,
+                symbols=["AAA", "BBB"],
+                quotes=quotes,
+                bias=0.0,
+                top_n=2,
+            )
+
+        self.assertEqual(comparison["before"]["news_source_diagnostics"]["source_articles_benzinga_raw"], 0)
+        self.assertEqual(comparison["after"]["news_source_diagnostics"]["source_articles_benzinga_raw"], 2)
+        symbol_rows = {row["symbol"]: row for row in comparison["symbol_news_delta"]}
+        self.assertTrue(symbol_rows["AAA"]["changed"])
+        self.assertEqual(symbol_rows["AAA"]["news_catalyst_score_before"], 0.0)
+        self.assertEqual(symbol_rows["AAA"]["news_catalyst_score_after"], 0.5)
+        candidate_rows = {row["symbol"]: row for row in comparison["candidate_delta"]}
+        self.assertEqual(candidate_rows["AAA"]["candidate_status"], "added")
+        self.assertEqual(candidate_rows["BBB"]["candidate_status"], "changed")
+        self.assertEqual(comparison["summary"]["added_candidates"], 1)
+        self.assertEqual(comparison["summary"]["removed_candidates"], 0)
+        self.assertEqual(comparison["summary"]["changed_candidates"], 1)
+        self.assertEqual(comparison["summary"]["unchanged_candidates"], 0)
+
     def test_benzinga_news_item_to_article_matches_existing_contract(self):
         item = type("FakeBenzingaItem", (), {
             "headline": "NVIDIA expands AI footprint",
@@ -1927,7 +2077,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
                     "bea_audit": {},
                 },
             ),
-            patch("open_prep.run_open_prep._fetch_news_context", return_value=({}, {}, None)),
+            patch("open_prep.run_open_prep._fetch_news_context_with_diagnostics", return_value=({}, {}, None, {"benzinga_enabled": False, "source_articles_benzinga_raw": 0})),
             patch(
                 "open_prep.run_open_prep._fetch_quotes_with_atr",
                 return_value=(
@@ -1964,6 +2114,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
         self.assertIn("NVDA", result["premarket_context"])
         self.assertEqual(result["premarket_context"]["NVDA"]["premarket_high"], 150.0)
         self.assertEqual(result["premarket_context"]["NVDA"]["premarket_low"], 145.0)
+        self.assertEqual(result["news_source_diagnostics"]["source_articles_benzinga_raw"], 0)
 
     def test_generate_result_forwards_pmh_timeout_env(self):
         with (
@@ -1983,7 +2134,7 @@ class TestOpenPrepRegressions(unittest.TestCase):
                     "bea_audit": {},
                 },
             ),
-            patch("open_prep.run_open_prep._fetch_news_context", return_value=({}, {}, None)),
+            patch("open_prep.run_open_prep._fetch_news_context_with_diagnostics", return_value=({}, {}, None, {"benzinga_enabled": False, "source_articles_benzinga_raw": 0})),
             patch(
                 "open_prep.run_open_prep._fetch_quotes_with_atr",
                 return_value=(
@@ -2737,6 +2888,41 @@ class TestMacroHelpers(unittest.TestCase):
 
     def test_parse_retry_after_seconds_invalid(self):
         self.assertIsNone(_parse_retry_after_seconds("not-a-date"))
+
+    def test_normalize_tls_certificate_env_replaces_invalid_bundle_path(self):
+        from open_prep import macro
+
+        with patch.object(macro, "certifi") as mock_certifi:
+            mock_certifi.where.return_value = "/tmp/certifi.pem"
+            with patch.dict(
+                "os.environ",
+                {"SSL_CERT_FILE": "/tmp/missing.pem"},
+                clear=False,
+            ):
+                with patch("open_prep.macro.Path.exists", return_value=False):
+                    cafile = macro._normalize_tls_certificate_env()
+                self.assertEqual(os.environ["SSL_CERT_FILE"], "/tmp/certifi.pem")
+
+        self.assertEqual(cafile, "/tmp/certifi.pem")
+
+    def test_request_once_uses_certifi_backed_tls_context(self):
+        from open_prep.macro import FMPClient
+
+        client = FMPClient(api_key="test")
+        response = MagicMock()
+        response.read.return_value = b'[{"symbol": "AAPL"}]'
+        cm = MagicMock()
+        cm.__enter__.return_value = response
+        cm.__exit__.return_value = False
+        ssl_context = object()
+
+        with patch("open_prep.macro._build_tls_context", return_value=ssl_context) as mock_tls_context:
+            with patch("open_prep.macro.urlopen", return_value=cm) as mock_urlopen:
+                rows = client._request_once("/stable/batch-quote", {"symbols": "AAPL"})
+
+        self.assertEqual(rows, [{"symbol": "AAPL"}])
+        mock_tls_context.assert_called_once_with()
+        self.assertEqual(mock_urlopen.call_args.kwargs["context"], ssl_context)
 
     def test_get_sector_performance_uses_prev_trading_day_helper(self):
         client = FMPClient(api_key="test")

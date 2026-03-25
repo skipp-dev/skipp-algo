@@ -141,6 +141,12 @@ Datei: `open_prep/news.py`
   - `OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS=1`
   - mappt Benzinga-`NewsItem` auf denselben Artikelvertrag und laeuft bewusst ueber denselben `build_news_scores(...)`-Pfad
   - bleibt standardmaessig deaktiviert, damit sich das Produktionsverhalten nicht still aendert
+- zusaetzliche Source-Transparency-Diagnostics im Result-Payload:
+  - `news_source_diagnostics`
+  - enthaelt nur Quell- und Dedupe-Metadaten, keine neue Score-Semantik
+- Shadow-Comparison-Helper:
+  - `build_core_news_shadow_comparison(...)`
+  - vergleicht OFF vs ON fuer denselben Scope, inklusive Symbol-News-Deltas und Candidate-Rank-Deltas
 
 ### 4.5 Historische Benzinga-Newsflags im Exportpfad
 
@@ -167,6 +173,9 @@ Wichtige Guardrail:
 
 - unter Truncation werden Count-Felder bewusst auf missing gesetzt, damit Lower-Bounds nicht als vollstaendige Coverage erscheinen
 - Bool-Felder bleiben nur dann `True`, wenn das positive Signal direkt beobachtet wurde; sonst missing statt `False`
+- Dieser Exportpfad ist semantisch getrennt vom optionalen Core-Benzinga-Supplement:
+  - Exportpfad: symbol-day, ET-windowed, research/export diagnostics
+  - Core-Pfad: live/recent article supplement fuer `build_news_scores(...)`, default OFF
 
 ---
 

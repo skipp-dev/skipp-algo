@@ -5,15 +5,22 @@ import io
 import json
 import logging
 import os
+import ssl
 import time
 import urllib.error
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
+
+try:
+    import certifi
+except Exception:  # pragma: no cover
+    certifi = None
 
 _prev_trading_day: Any = None
 
@@ -111,6 +118,33 @@ def _parse_retry_after_seconds(raw_value: str | None) -> float | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return max((parsed.astimezone(UTC) - datetime.now(UTC)).total_seconds(), 0.0)
+
+
+def _normalize_tls_certificate_env() -> str | None:
+    if certifi is None:
+        return None
+    cafile = str(certifi.where())
+    for env_name in ("SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
+        current = str(os.getenv(env_name) or "").strip()
+        if not current or current == cafile:
+            continue
+        if Path(current).exists():
+            continue
+        logger.warning(
+            "Replacing invalid TLS CA bundle path from %s=%s with certifi bundle %s.",
+            env_name,
+            current,
+            cafile,
+        )
+        os.environ[env_name] = cafile
+    return cafile
+
+
+def _build_tls_context() -> ssl.SSLContext:
+    cafile = _normalize_tls_certificate_env()
+    if cafile:
+        return ssl.create_default_context(cafile=cafile)
+    return ssl.create_default_context()
 
 
 def _normalize_event_name(event_name: str) -> str:
@@ -504,7 +538,7 @@ class FMPClient:
 
     def _request_once(self, path: str, params: dict[str, Any]) -> Any:
         request = Request(self._build_url(path, params), headers={"User-Agent": "skipp-algo/1.0"})
-        with urlopen(request, timeout=self.timeout_seconds) as response:
+        with urlopen(request, timeout=self.timeout_seconds, context=_build_tls_context()) as response:
             payload = response.read().decode("utf-8")
         return self._parse_payload(path, payload)
 

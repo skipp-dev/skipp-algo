@@ -3412,38 +3412,269 @@ def _fetch_news_context(
     client: FMPClient,
     symbols: list[str],
 ) -> tuple[dict[str, float], dict[str, dict], str | None]:
+    news_scores, news_metrics, news_fetch_error, _ = _fetch_news_context_with_diagnostics(
+        client=client,
+        symbols=symbols,
+    )
+    return news_scores, news_metrics, news_fetch_error
+
+
+def _news_article_dedupe_key(article: dict[str, Any]) -> tuple[str, str, str] | None:
+    title = str(article.get("title") or "").strip().lower()
+    published = str(article.get("date") or "").strip()
+    url = str(article.get("url") or article.get("link") or "").strip().lower()
+    if not title:
+        return None
+    return title, published, url
+
+
+def _estimate_incremental_unique_articles(
+    *,
+    base_batches: list[list[dict[str, Any]]],
+    incremental_batch: list[dict[str, Any]],
+) -> int:
+    seen: set[tuple[str, str, str]] = set()
+    for batch in base_batches:
+        for article in batch:
+            key = _news_article_dedupe_key(article)
+            if key is not None:
+                seen.add(key)
+
+    unique_count = 0
+    for article in incremental_batch:
+        key = _news_article_dedupe_key(article)
+        if key is None or key in seen:
+            continue
+        seen.add(key)
+        unique_count += 1
+    return unique_count
+
+
+def _fetch_news_context_with_diagnostics(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    include_benzinga: bool | None = None,
+) -> tuple[dict[str, float], dict[str, dict], str | None, dict[str, Any]]:
     news_scores: dict[str, float] = {}
     news_metrics: dict[str, dict] = {}
     news_fetch_errors: list[str] = []
-    articles: list[dict[str, Any]] = []
+    fmp_articles: list[dict[str, Any]] = []
+    tradingview_articles: list[dict[str, Any]] = []
+    benzinga_articles: list[dict[str, Any]] = []
+    fmp_fetch_error: str | None = None
+    tradingview_fetch_error: str | None = None
+    benzinga_fetch_error: str | None = None
 
-    # Primary: FMP articles. Secondary: capped TradingView supplement via the
-    # existing terminal fetcher. Both degrade fail-open and share the same
-    # article scoring path in open_prep.news.
     try:
-        articles.extend(client.get_fmp_articles(limit=250))
+        fmp_articles.extend(client.get_fmp_articles(limit=250))
     except Exception as exc:
-        news_fetch_errors.append(f"fmp:{_APIKEY_RE.sub(r'\1=***', str(exc))}")
+        fmp_fetch_error = _APIKEY_RE.sub(r'\1=***', str(exc))
+        news_fetch_errors.append(f"fmp:{fmp_fetch_error}")
         logger.warning("FMP news fetch failed, continuing with remaining sources: %s", type(exc).__name__, exc_info=True)
 
     tradingview_articles, tradingview_fetch_error = _fetch_tradingview_news_articles(symbols=symbols)
     if tradingview_fetch_error:
         news_fetch_errors.append(f"tradingview:{tradingview_fetch_error}")
 
-    benzinga_articles: list[dict[str, Any]] = []
-    if _bool_env("OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS", False):
+    benzinga_enabled = _bool_env("OPEN_PREP_ENABLE_BENZINGA_CORE_NEWS", False) if include_benzinga is None else bool(include_benzinga)
+    if benzinga_enabled:
         benzinga_articles, benzinga_fetch_error = _fetch_benzinga_core_news_articles(symbols=symbols)
         if benzinga_fetch_error:
             news_fetch_errors.append(f"benzinga:{benzinga_fetch_error}")
 
-    articles = _dedupe_news_articles([articles, tradingview_articles, benzinga_articles])
+    merged_before_dedupe = [*fmp_articles, *tradingview_articles, *benzinga_articles]
+    merged_articles = _dedupe_news_articles([fmp_articles, tradingview_articles, benzinga_articles])
 
-    if articles:
-        news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
+    if merged_articles:
+        news_scores, news_metrics = build_news_scores(symbols=symbols, articles=merged_articles)
 
     news_fetch_error = "; ".join(news_fetch_errors) if news_fetch_errors else None
+    diagnostics = {
+        "benzinga_enabled": benzinga_enabled,
+        "source_articles_fmp_raw": len(fmp_articles),
+        "source_articles_tradingview_raw": len(tradingview_articles),
+        "source_articles_benzinga_raw": len(benzinga_articles),
+        "merged_articles_before_dedupe": len(merged_before_dedupe),
+        "merged_articles_after_dedupe": len(merged_articles),
+        "benzinga_unique_articles_after_dedupe_estimate": _estimate_incremental_unique_articles(
+            base_batches=[fmp_articles, tradingview_articles],
+            incremental_batch=benzinga_articles,
+        ) if benzinga_enabled else 0,
+        "fmp_fetch_error": fmp_fetch_error,
+        "tradingview_fetch_error": tradingview_fetch_error,
+        "benzinga_fetch_error": benzinga_fetch_error if benzinga_enabled else None,
+    }
+    return news_scores, news_metrics, news_fetch_error, diagnostics
 
-    return news_scores, news_metrics, news_fetch_error
+
+def build_core_news_shadow_comparison(
+    *,
+    client: FMPClient,
+    symbols: list[str],
+    quotes: list[dict[str, Any]],
+    bias: float,
+    top_n: int,
+) -> dict[str, Any]:
+    normalized_symbols = _normalize_symbols(symbols)
+    resolved_top_n = max(int(top_n), 1)
+
+    before_scores, before_metrics, before_error, before_diagnostics = _fetch_news_context_with_diagnostics(
+        client=client,
+        symbols=normalized_symbols,
+        include_benzinga=False,
+    )
+    after_scores, after_metrics, after_error, after_diagnostics = _fetch_news_context_with_diagnostics(
+        client=client,
+        symbols=normalized_symbols,
+        include_benzinga=True,
+    )
+
+    before_ranked = rank_candidates(
+        quotes=[dict(row) for row in quotes],
+        bias=bias,
+        top_n=resolved_top_n,
+        news_scores=before_scores,
+        news_metrics=before_metrics,
+    )
+    after_ranked = rank_candidates(
+        quotes=[dict(row) for row in quotes],
+        bias=bias,
+        top_n=resolved_top_n,
+        news_scores=after_scores,
+        news_metrics=after_metrics,
+    )
+
+    symbol_scope = sorted({*normalized_symbols, *before_metrics.keys(), *after_metrics.keys()})
+    symbol_news_delta: list[dict[str, Any]] = []
+    for symbol in symbol_scope:
+        before_metric = before_metrics.get(symbol, {}) or {}
+        after_metric = after_metrics.get(symbol, {}) or {}
+        row = {
+            "symbol": symbol,
+            "news_catalyst_score_before": float(before_scores.get(symbol, 0.0) or 0.0),
+            "news_catalyst_score_after": float(after_scores.get(symbol, 0.0) or 0.0),
+            "event_class_before": before_metric.get("event_class", "UNKNOWN"),
+            "event_class_after": after_metric.get("event_class", "UNKNOWN"),
+            "materiality_before": before_metric.get("materiality", "LOW"),
+            "materiality_after": after_metric.get("materiality", "LOW"),
+            "recency_bucket_before": before_metric.get("recency_bucket", "UNKNOWN"),
+            "recency_bucket_after": after_metric.get("recency_bucket", "UNKNOWN"),
+            "source_tier_before": before_metric.get("source_tier", "TIER_3"),
+            "source_tier_after": after_metric.get("source_tier", "TIER_3"),
+            "mentions_total_before": int(before_metric.get("mentions_total", 0) or 0),
+            "mentions_total_after": int(after_metric.get("mentions_total", 0) or 0),
+            "latest_article_utc_before": before_metric.get("latest_article_utc"),
+            "latest_article_utc_after": after_metric.get("latest_article_utc"),
+        }
+        row["changed"] = any(
+            row[left] != row[right]
+            for left, right in (
+                ("news_catalyst_score_before", "news_catalyst_score_after"),
+                ("event_class_before", "event_class_after"),
+                ("materiality_before", "materiality_after"),
+                ("recency_bucket_before", "recency_bucket_after"),
+                ("source_tier_before", "source_tier_after"),
+                ("mentions_total_before", "mentions_total_after"),
+                ("latest_article_utc_before", "latest_article_utc_after"),
+            )
+        )
+        symbol_news_delta.append(row)
+
+    before_rank_map = {str(row.get("symbol") or "").strip().upper(): (index + 1, row) for index, row in enumerate(before_ranked) if row.get("symbol")}
+    after_rank_map = {str(row.get("symbol") or "").strip().upper(): (index + 1, row) for index, row in enumerate(after_ranked) if row.get("symbol")}
+    candidate_symbols = sorted({*before_rank_map.keys(), *after_rank_map.keys()})
+    candidate_delta: list[dict[str, Any]] = []
+    added_candidates: list[str] = []
+    removed_candidates: list[str] = []
+    changed_candidates: list[str] = []
+    unchanged_candidates: list[str] = []
+
+    for symbol in candidate_symbols:
+        before_rank_entry = before_rank_map.get(symbol)
+        after_rank_entry = after_rank_map.get(symbol)
+        before_rank = before_rank_entry[0] if before_rank_entry else None
+        after_rank = after_rank_entry[0] if after_rank_entry else None
+        before_row = before_rank_entry[1] if before_rank_entry else {}
+        after_row = after_rank_entry[1] if after_rank_entry else {}
+        before_metric = before_metrics.get(symbol, {}) or {}
+        after_metric = after_metrics.get(symbol, {}) or {}
+
+        status = "unchanged"
+        if before_rank_entry is None:
+            status = "added"
+            added_candidates.append(symbol)
+        elif after_rank_entry is None:
+            status = "removed"
+            removed_candidates.append(symbol)
+        else:
+            changed = any(
+                before_row.get(field) != after_row.get(field)
+                for field in (
+                    "score",
+                    "news_catalyst_score",
+                    "news_event_class",
+                    "news_materiality",
+                    "news_recency_bucket",
+                    "news_source_tier",
+                    "news_age_minutes",
+                )
+            ) or before_rank != after_rank
+            if changed:
+                status = "changed"
+                changed_candidates.append(symbol)
+            else:
+                unchanged_candidates.append(symbol)
+
+        candidate_delta.append(
+            {
+                "symbol": symbol,
+                "candidate_status": status,
+                "before_rank": before_rank,
+                "after_rank": after_rank,
+                "candidate_rank_delta": (after_rank - before_rank) if before_rank is not None and after_rank is not None else None,
+                "score_before": before_row.get("score"),
+                "score_after": after_row.get("score"),
+                "news_catalyst_score_before": before_row.get("news_catalyst_score"),
+                "news_catalyst_score_after": after_row.get("news_catalyst_score"),
+                "news_event_class_before": before_row.get("news_event_class") or before_metric.get("event_class"),
+                "news_event_class_after": after_row.get("news_event_class") or after_metric.get("event_class"),
+                "news_materiality_before": before_row.get("news_materiality") or before_metric.get("materiality"),
+                "news_materiality_after": after_row.get("news_materiality") or after_metric.get("materiality"),
+                "news_recency_bucket_before": before_row.get("news_recency_bucket") or before_metric.get("recency_bucket"),
+                "news_recency_bucket_after": after_row.get("news_recency_bucket") or after_metric.get("recency_bucket"),
+                "news_source_tier_before": before_row.get("news_source_tier") or before_metric.get("source_tier"),
+                "news_source_tier_after": after_row.get("news_source_tier") or after_metric.get("source_tier"),
+            }
+        )
+
+    return {
+        "scope_symbols": normalized_symbols,
+        "quote_scope_symbols": [str(row.get("symbol") or "").strip().upper() for row in quotes if row.get("symbol")],
+        "top_n": resolved_top_n,
+        "before": {
+            "news_fetch_error": before_error,
+            "news_source_diagnostics": before_diagnostics,
+            "ranked_candidate_count": len(before_ranked),
+        },
+        "after": {
+            "news_fetch_error": after_error,
+            "news_source_diagnostics": after_diagnostics,
+            "ranked_candidate_count": len(after_ranked),
+        },
+        "symbol_news_delta": symbol_news_delta,
+        "candidate_delta": candidate_delta,
+        "summary": {
+            "added_candidates": len(added_candidates),
+            "removed_candidates": len(removed_candidates),
+            "changed_candidates": len(changed_candidates),
+            "unchanged_candidates": len(unchanged_candidates),
+            "added_candidate_symbols": added_candidates,
+            "removed_candidate_symbols": removed_candidates,
+            "changed_candidate_symbols": changed_candidates,
+            "unchanged_candidate_symbols": unchanged_candidates,
+        },
+    }
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -3726,6 +3957,7 @@ def _build_result_payload(
     macro_context: dict[str, Any],
     news_metrics: dict[str, dict],
     news_fetch_error: str | None,
+    news_source_diagnostics: dict[str, Any],
     atr_by_symbol: dict[str, float],
     momentum_z_by_symbol: dict[str, float],
     vwap_by_symbol: dict[str, float | None],
@@ -3824,6 +4056,7 @@ def _build_result_payload(
         "macro_us_mid_impact_events_today": macro_context["macro_us_mid_impact_events_today"],
         "news_catalyst_by_symbol": news_metrics,
         "news_fetch_error": news_fetch_error,
+        "news_source_diagnostics": news_source_diagnostics,
         "atr14_by_symbol": atr_by_symbol,
         "momentum_z_by_symbol": momentum_z_by_symbol,
         "vwap_by_symbol": vwap_by_symbol,
@@ -3994,7 +4227,10 @@ def generate_open_prep_result(
 
     _progress(4, TOTAL_STAGES, f"News für {len(symbol_list)} Symbole laden …")
     with _profiler.stage("News laden"):
-        news_scores, news_metrics, news_fetch_error = _fetch_news_context(client=data_client, symbols=symbol_list)
+        news_scores, news_metrics, news_fetch_error, news_source_diagnostics = _fetch_news_context_with_diagnostics(
+            client=data_client,
+            symbols=symbol_list,
+        )
     _progress(5, TOTAL_STAGES, f"Quotes + ATR für {len(symbol_list)} Symbole laden …")
     with _profiler.stage("Quotes + ATR laden"):
         quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors = _fetch_quotes_with_atr(
@@ -4682,6 +4918,7 @@ def generate_open_prep_result(
         macro_context=macro_context,
         news_metrics=news_metrics,
         news_fetch_error=news_fetch_error,
+        news_source_diagnostics=news_source_diagnostics,
         atr_by_symbol=atr_by_symbol,
         momentum_z_by_symbol=momentum_z_by_symbol,
         vwap_by_symbol=vwap_by_symbol,
