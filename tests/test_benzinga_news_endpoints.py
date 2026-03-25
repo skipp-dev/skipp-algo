@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from newsstack_fmp.ingest_benzinga import (
+    BenzingaRestAdapter,
     fetch_benzinga_channels,
     fetch_benzinga_quantified_news,
     fetch_benzinga_top_news,
@@ -240,3 +241,45 @@ class TestFetchBenzingaQuantifiedNews:
 
             result = fetch_benzinga_quantified_news("test_key")
             assert len(result) == 1
+
+
+class TestBenzingaRestAdapterHistoricalFilters:
+    def _mock_response(self, data: Any) -> MagicMock:
+        r = MagicMock(spec=httpx.Response)
+        r.status_code = 200
+        r.json.return_value = data
+        r.headers = {"content-type": "application/json"}
+        r.raise_for_status = MagicMock()
+        r.url = "https://api.benzinga.com/api/v2/news"
+        return r
+
+    def test_fetch_news_passes_historical_filters(self):
+        adapter = BenzingaRestAdapter("test_key")
+        try:
+            with patch.object(adapter.client, "get", return_value=self._mock_response([])) as mock_get:
+                adapter.fetch_news(
+                    updated_since="1700000000",
+                    page_size=50,
+                    channels="Markets",
+                    topics="Earnings",
+                    page=2,
+                    date_from="2026-03-19T13:30:00Z",
+                    date_to="2026-03-20T13:30:00Z",
+                    publish_since="2026-03-19T13:30:00Z",
+                    tickers="AAPL,NVDA",
+                    display_output="full",
+                )
+        finally:
+            adapter.close()
+
+        params = mock_get.call_args.kwargs["params"]
+        assert params["updatedSince"] == "1700000000"
+        assert params["pageSize"] == 50
+        assert params["page"] == 2
+        assert params["dateFrom"] == "2026-03-19T13:30:00Z"
+        assert params["dateTo"] == "2026-03-20T13:30:00Z"
+        assert params["publishSince"] == "2026-03-19T13:30:00Z"
+        assert params["tickers"] == "AAPL,NVDA"
+        assert params["channels"] == "Markets"
+        assert params["topics"] == "Earnings"
+        assert params["displayOutput"] == "full"

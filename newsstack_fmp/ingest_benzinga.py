@@ -66,6 +66,13 @@ class BenzingaRestAdapter:
         page_size: int = 100,
         channels: str | None = None,
         topics: str | None = None,
+        *,
+        page: int = 0,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        publish_since: str | None = None,
+        tickers: str | None = None,
+        display_output: str | None = None,
     ) -> list[NewsItem]:
         """Fetch latest news, optionally only items updated since *updated_since*.
 
@@ -84,13 +91,24 @@ class BenzingaRestAdapter:
         params: dict[str, Any] = {
             "token": self.api_key,
             "pageSize": page_size,
+            "page": page,
         }
         if updated_since:
             params["updatedSince"] = updated_since
+        if date_from:
+            params["dateFrom"] = date_from
+        if date_to:
+            params["dateTo"] = date_to
+        if publish_since:
+            params["publishSince"] = publish_since
+        if tickers:
+            params["tickers"] = tickers
         if channels:
             params["channels"] = channels
         if topics:
             params["topics"] = topics
+        if display_output:
+            params["displayOutput"] = display_output
 
         _RETRYABLE = {429, 500, 502, 503, 504}
         _MAX_ATTEMPTS = 3

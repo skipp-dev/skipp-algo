@@ -56,6 +56,7 @@ from databento_volatility_screener import (
     resolve_display_timezone,
     run_intraday_screen,
 )
+from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from open_prep.macro import FMPClient
 from scripts.bullish_quality_config import (
     BullishQualityConfig,
@@ -286,6 +287,27 @@ RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS = [
     "mean_close_last_1m_volume_share",
     "mean_close_to_next_open_return_pct",
 ]
+
+RESEARCH_NEWS_FLAG_COLUMNS = [
+    "trade_date",
+    "symbol",
+    "has_company_news_24h",
+    "company_news_item_count_24h",
+    "has_company_news_preopen_window",
+]
+
+RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS = [
+    "has_company_news_24h",
+    "has_company_news_preopen_window",
+]
+
+RESEARCH_NEWS_FLAG_COUNT_COLUMNS = [
+    "company_news_item_count_24h",
+]
+
+RESEARCH_NEWS_FLAG_COVERAGE_COLUMNS = RESEARCH_EVENT_FLAG_COVERAGE_COLUMNS.copy()
+RESEARCH_NEWS_FLAG_TRADE_DATE_COLUMNS = RESEARCH_EVENT_FLAG_TRADE_DATE_COLUMNS.copy()
+RESEARCH_NEWS_FLAG_OUTCOME_SLICE_COLUMNS = RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS.copy()
 
 CLOSE_IMBALANCE_FEATURE_COLUMNS = [
     "trade_date",
@@ -2297,6 +2319,51 @@ def _normalize_earnings_timing(value: Any) -> str:
     return " ".join(str(value or "").strip().lower().replace("_", " ").replace("-", " ").split())
 
 
+def _normalize_research_symbol(value: Any) -> str:
+    raw_symbol = str(value or "").strip()
+    if not raw_symbol:
+        return ""
+    normalized = normalize_symbol_for_databento(raw_symbol)
+    return str(normalized or raw_symbol).strip().upper()
+
+
+def _research_news_window_bounds_for_trade_date(trade_day: Any) -> dict[str, pd.Timestamp]:
+    trade_ts = pd.Timestamp(trade_day)
+    trade_open_et = pd.Timestamp.combine(trade_ts.date(), time(9, 30)).tz_localize(US_EASTERN_TZ)
+    preopen_start_et = pd.Timestamp.combine(trade_ts.date(), time(4, 0)).tz_localize(US_EASTERN_TZ)
+    window_24h_start_et = trade_open_et - pd.Timedelta(hours=24)
+    return {
+        "window_24h_start_et": window_24h_start_et,
+        "preopen_start_et": preopen_start_et,
+        "trade_open_et": trade_open_et,
+        "window_24h_start_utc": window_24h_start_et.tz_convert(UTC),
+        "preopen_start_utc": preopen_start_et.tz_convert(UTC),
+        "trade_open_utc": trade_open_et.tz_convert(UTC),
+    }
+
+
+def _iso8601_utc(value: pd.Timestamp) -> str:
+    timestamp = value.tz_convert(UTC) if value.tzinfo is not None else value.tz_localize(UTC)
+    return timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _iter_symbol_batches(symbols: Sequence[str], *, batch_size: int) -> list[list[str]]:
+    ordered = [symbol for symbol in symbols if str(symbol).strip()]
+    if batch_size <= 0:
+        return [ordered]
+    return [ordered[index:index + batch_size] for index in range(0, len(ordered), batch_size)]
+
+
+def _research_news_article_key(item: Any) -> str:
+    item_id = str(getattr(item, "item_id", "") or "").strip()
+    if item_id:
+        return item_id
+    url = str(getattr(item, "url", "") or "").strip()
+    headline = str(getattr(item, "headline", "") or "").strip().lower()
+    published_ts = int(float(getattr(item, "published_ts", 0.0) or 0.0))
+    return "|".join(part for part in (url, headline, str(published_ts)) if part)
+
+
 def _timing_is_pre_open(value: Any) -> bool:
     normalized = _normalize_earnings_timing(value)
     return normalized in {"bmo", "before market open", "before open", "pre market", "premarket"}
@@ -2314,6 +2381,272 @@ def _empty_research_event_flags(scope: pd.DataFrame, *, missing: bool) -> pd.Dat
     for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
         out[column] = pd.Series([fill_value] * len(out), dtype=dtype)
     return out[RESEARCH_EVENT_FLAG_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True)
+
+
+def _empty_research_news_flags(scope: pd.DataFrame, *, missing: bool) -> pd.DataFrame:
+    out = scope[["trade_date", "symbol"]].drop_duplicates(subset=["trade_date", "symbol"]).copy()
+    bool_fill_value = pd.NA if missing else False
+    count_fill_value = pd.NA if missing else 0
+    for column in RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS:
+        out[column] = pd.Series([bool_fill_value] * len(out), dtype="boolean")
+    for column in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
+        out[column] = pd.Series([count_fill_value] * len(out), dtype="Int64")
+    return out[RESEARCH_NEWS_FLAG_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True)
+
+
+def _research_news_positive_mask(frame: pd.DataFrame, column: str) -> pd.Series:
+    if column in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
+        numeric = pd.to_numeric(frame.get(column, pd.Series(dtype=float)), errors="coerce")
+        return numeric.gt(0).fillna(False)
+    return pd.Series(frame.get(column, pd.Series(dtype="boolean")), dtype="boolean").fillna(False)
+
+
+def _build_research_news_flags_full_universe_export(
+    *,
+    daily_features: pd.DataFrame,
+    benzinga_api_key: str,
+    symbol_batch_size: int = 100,
+    page_size: int = 100,
+    max_pages_per_request: int = 10,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    scope = daily_features[["trade_date", "symbol"]].copy()
+    scope["trade_date"] = pd.to_datetime(scope["trade_date"], errors="coerce").dt.date
+    scope["symbol"] = scope["symbol"].map(_normalize_research_symbol)
+    scope = scope.dropna(subset=["trade_date", "symbol"])
+    scope = scope[scope["symbol"].astype(str).str.len() > 0]
+    scope = scope.drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    if scope.empty:
+        return pd.DataFrame(columns=RESEARCH_NEWS_FLAG_COLUMNS), {
+            "enabled": False,
+            "source": "benzinga_news",
+            "status": "empty_scope",
+        }
+    if not benzinga_api_key:
+        return _empty_research_news_flags(scope, missing=True), {
+            "enabled": False,
+            "source": "benzinga_news",
+            "status": "missing_api_key",
+            "window_24h_anchor_et": "09:30:00",
+            "preopen_window_et": "04:00:00-09:30:00",
+        }
+
+    adapter = BenzingaRestAdapter(benzinga_api_key)
+    resolved_symbol_days: set[tuple[date, str]] = set()
+    failed_symbol_days: set[tuple[date, str]] = set()
+    article_rows: list[dict[str, Any]] = []
+    fetched_items = 0
+    ignored_items_missing_timestamp = 0
+    truncated_requests = 0
+    sample_errors: list[str] = []
+
+    try:
+        for trade_day, symbol_frame in scope.groupby("trade_date", sort=True):
+            if pd.isna(trade_day):
+                continue
+            windows = _research_news_window_bounds_for_trade_date(trade_day)
+            date_from = _iso8601_utc(windows["window_24h_start_utc"])
+            date_to = _iso8601_utc(windows["trade_open_utc"])
+            symbols = sorted({_normalize_research_symbol(value) for value in symbol_frame["symbol"].tolist() if _normalize_research_symbol(value)})
+            for batch in _iter_symbol_batches(symbols, batch_size=symbol_batch_size):
+                batch_keys = {(trade_day, symbol) for symbol in batch}
+                try:
+                    for page in range(max_pages_per_request):
+                        items = adapter.fetch_news(
+                            page_size=page_size,
+                            page=page,
+                            date_from=date_from,
+                            date_to=date_to,
+                            tickers=",".join(batch),
+                        )
+                        fetched_items += len(items)
+                        if not items:
+                            break
+                        for item in items:
+                            published_ts = float(getattr(item, "published_ts", 0.0) or 0.0)
+                            if published_ts <= 0:
+                                ignored_items_missing_timestamp += 1
+                                continue
+                            published_at_utc = pd.Timestamp(datetime.fromtimestamp(published_ts, tz=UTC))
+                            if not (windows["window_24h_start_utc"] <= published_at_utc < windows["trade_open_utc"]):
+                                continue
+                            article_key = _research_news_article_key(item)
+                            for raw_symbol in getattr(item, "tickers", []) or []:
+                                normalized_symbol = _normalize_research_symbol(raw_symbol)
+                                if (trade_day, normalized_symbol) not in batch_keys:
+                                    continue
+                                article_rows.append(
+                                    {
+                                        "trade_date": trade_day,
+                                        "symbol": normalized_symbol,
+                                        "article_key": article_key,
+                                        "published_at_utc": published_at_utc,
+                                        "is_preopen_window": bool(windows["preopen_start_utc"] <= published_at_utc < windows["trade_open_utc"]),
+                                    }
+                                )
+                        if len(items) < page_size:
+                            break
+                        if page == max_pages_per_request - 1:
+                            truncated_requests += 1
+                    resolved_symbol_days.update(batch_keys)
+                except Exception as exc:
+                    logger.warning(
+                        "Research news flag fetch failed for %s (%d symbols); leaving symbol-days missing: %s",
+                        trade_day,
+                        len(batch),
+                        exc,
+                    )
+                    sample_errors.append(str(exc))
+                    failed_symbol_days.update(batch_keys)
+    finally:
+        adapter.close()
+
+    if article_rows:
+        article_frame = pd.DataFrame(article_rows)
+        article_frame["trade_date"] = pd.to_datetime(article_frame["trade_date"], errors="coerce").dt.date
+        article_frame["symbol"] = article_frame["symbol"].map(_normalize_research_symbol)
+        article_frame["published_at_utc"] = pd.to_datetime(article_frame["published_at_utc"], errors="coerce", utc=True)
+        article_frame = article_frame.dropna(subset=["trade_date", "symbol", "article_key", "published_at_utc"])
+        article_frame = article_frame.drop_duplicates(subset=["trade_date", "symbol", "article_key"]).reset_index(drop=True)
+        aggregated = (
+            article_frame.groupby(["trade_date", "symbol"], as_index=False)
+            .agg(
+                company_news_item_count_24h=("article_key", "size"),
+                has_company_news_preopen_window=("is_preopen_window", "max"),
+            )
+        )
+        aggregated["has_company_news_24h"] = aggregated["company_news_item_count_24h"].gt(0)
+        aggregated["company_news_item_count_24h"] = pd.Series(aggregated["company_news_item_count_24h"], dtype="Int64")
+        aggregated["has_company_news_24h"] = pd.Series(aggregated["has_company_news_24h"], dtype="boolean")
+        aggregated["has_company_news_preopen_window"] = pd.Series(aggregated["has_company_news_preopen_window"], dtype="boolean")
+    else:
+        article_frame = pd.DataFrame(columns=["trade_date", "symbol", "article_key", "published_at_utc", "is_preopen_window"])
+        aggregated = pd.DataFrame(columns=RESEARCH_NEWS_FLAG_COLUMNS)
+
+    merged = scope.merge(aggregated, on=["trade_date", "symbol"], how="left")
+    key_series = merged.apply(lambda row: (row["trade_date"], row["symbol"]), axis=1)
+    resolved_mask = key_series.isin(resolved_symbol_days)
+    failed_mask = key_series.isin(failed_symbol_days)
+    for column in RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS:
+        merged[column] = pd.Series(merged[column], dtype="boolean")
+        merged.loc[resolved_mask & ~failed_mask & merged[column].isna(), column] = False
+        merged.loc[failed_mask, column] = pd.NA
+    for column in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
+        merged[column] = pd.Series(merged[column], dtype="Int64")
+        merged.loc[resolved_mask & ~failed_mask & merged[column].isna(), column] = 0
+        merged.loc[failed_mask, column] = pd.NA
+
+    if failed_symbol_days and not resolved_symbol_days:
+        status = "fetch_failed"
+    elif failed_symbol_days:
+        status = "partial_fetch_failed"
+    elif aggregated.empty:
+        status = "ok_empty"
+    else:
+        status = "ok"
+
+    return merged[RESEARCH_NEWS_FLAG_COLUMNS].sort_values(["trade_date", "symbol"]).reset_index(drop=True), {
+        "enabled": True,
+        "source": "benzinga_news",
+        "status": status,
+        "window_24h_anchor_et": "09:30:00",
+        "window_24h_rule": "[trade_date 09:30 ET - 24h, trade_date 09:30 ET)",
+        "preopen_window_et": "04:00:00-09:30:00",
+        "request_mode": "dateFrom/dateTo+ticker_batches",
+        "requested_symbol_days": int(len(scope)),
+        "resolved_symbol_days": int(len(resolved_symbol_days)),
+        "failed_symbol_days": int(len(failed_symbol_days)),
+        "fetched_provider_items": int(fetched_items),
+        "matched_symbol_articles": int(len(article_frame)),
+        "ignored_items_missing_timestamp": int(ignored_items_missing_timestamp),
+        "truncated_requests": int(truncated_requests),
+        "sample_errors": sample_errors[:3],
+    }
+
+
+def _build_research_news_flag_coverage(flags_frame: pd.DataFrame) -> pd.DataFrame:
+    if flags_frame.empty:
+        return pd.DataFrame(columns=RESEARCH_NEWS_FLAG_COVERAGE_COLUMNS)
+    rows: list[dict[str, Any]] = []
+    total_rows = int(len(flags_frame))
+    for flag_name in RESEARCH_NEWS_FLAG_COLUMNS[2:]:
+        series = flags_frame.get(flag_name, pd.Series(dtype=object))
+        non_null_rows = int(pd.Series(series).notna().sum())
+        positive_mask = _research_news_positive_mask(flags_frame, flag_name)
+        true_rows = int(positive_mask.sum())
+        rows.append(
+            {
+                "flag_name": flag_name,
+                "symbol_day_rows": total_rows,
+                "non_null_rows": non_null_rows,
+                "null_rows": total_rows - non_null_rows,
+                "non_null_rate": float(non_null_rows / total_rows) if total_rows else 0.0,
+                "true_rows": true_rows,
+                "true_rate": float(true_rows / non_null_rows) if non_null_rows else 0.0,
+                "affected_trade_dates": int(flags_frame.loc[positive_mask, "trade_date"].nunique()),
+                "all_false_bug": bool(non_null_rows > 0 and true_rows == 0),
+                "all_true_bug": bool(non_null_rows > 0 and true_rows == non_null_rows),
+            }
+        )
+    return pd.DataFrame(rows, columns=RESEARCH_NEWS_FLAG_COVERAGE_COLUMNS)
+
+
+def _build_research_news_flag_trade_date_distribution(flags_frame: pd.DataFrame) -> pd.DataFrame:
+    if flags_frame.empty:
+        return pd.DataFrame(columns=RESEARCH_NEWS_FLAG_TRADE_DATE_COLUMNS)
+    rows: list[dict[str, Any]] = []
+    total_by_date = flags_frame.groupby("trade_date")["symbol"].size().to_dict()
+    for flag_name in RESEARCH_NEWS_FLAG_COLUMNS[2:]:
+        positive_mask = _research_news_positive_mask(flags_frame, flag_name)
+        grouped = (
+            flags_frame.assign(_flag_value=positive_mask)
+            .groupby("trade_date", sort=True)["_flag_value"]
+            .sum()
+            .to_dict()
+        )
+        for trade_day, symbol_day_rows in total_by_date.items():
+            true_rows = int(grouped.get(trade_day, 0))
+            rows.append(
+                {
+                    "trade_date": trade_day,
+                    "flag_name": flag_name,
+                    "symbol_day_rows": int(symbol_day_rows),
+                    "true_rows": true_rows,
+                    "true_rate": float(true_rows / symbol_day_rows) if symbol_day_rows else 0.0,
+                }
+            )
+    return pd.DataFrame(rows, columns=RESEARCH_NEWS_FLAG_TRADE_DATE_COLUMNS).sort_values(["trade_date", "flag_name"]).reset_index(drop=True)
+
+
+def _build_research_news_flag_outcome_slices(daily_features: pd.DataFrame, flags_frame: pd.DataFrame) -> pd.DataFrame:
+    if daily_features.empty or flags_frame.empty:
+        return pd.DataFrame(columns=RESEARCH_NEWS_FLAG_OUTCOME_SLICE_COLUMNS)
+    merged = daily_features.merge(flags_frame, on=["trade_date", "symbol"], how="left")
+    rows: list[dict[str, Any]] = []
+    metric_columns = {
+        "mean_window_range_pct": "window_range_pct",
+        "mean_realized_vol_pct": "realized_vol_pct",
+        "mean_close_trade_hygiene_score": "close_trade_hygiene_score",
+        "mean_close_last_1m_volume_share": "close_last_1m_volume_share",
+        "mean_close_to_next_open_return_pct": "close_to_next_open_return_pct",
+    }
+    for flag_name in RESEARCH_NEWS_FLAG_COLUMNS[2:]:
+        positive_mask = _research_news_positive_mask(merged, flag_name)
+        for selected in (False, True):
+            selected_slice = merged[merged["selected_top20pct"].astype(bool) == selected]
+            selected_positive_mask = positive_mask.loc[selected_slice.index]
+            for flag_value in (False, True):
+                cohort = selected_slice[selected_positive_mask == flag_value]
+                row: dict[str, Any] = {
+                    "flag_name": flag_name,
+                    "selected_top20pct": bool(selected),
+                    "flag_value": bool(flag_value),
+                    "row_count": int(len(cohort)),
+                }
+                for output_name, source_name in metric_columns.items():
+                    numeric = pd.to_numeric(cohort.get(source_name, pd.Series(dtype=float)), errors="coerce")
+                    row[output_name] = float(numeric.mean()) if not numeric.dropna().empty else 0.0
+                rows.append(row)
+    return pd.DataFrame(rows, columns=RESEARCH_NEWS_FLAG_OUTCOME_SLICE_COLUMNS)
 
 
 def _build_research_event_flags_full_universe_export(
@@ -2502,6 +2835,7 @@ def run_production_export_pipeline(
     *,
     databento_api_key: str,
     fmp_api_key: str = "",
+    benzinga_api_key: str = "",
     dataset: str,
     quality_window_early_exchange_datasets: dict[str, str] | None = None,
     lookback_days: int = 30,
@@ -2762,6 +3096,10 @@ def run_production_export_pipeline(
         daily_features=daily_symbol_features_full_universe,
         fmp_api_key=fmp_api_key,
     )
+    research_news_flags_full_universe, research_news_flag_metadata = _build_research_news_flags_full_universe_export(
+        daily_features=daily_symbol_features_full_universe,
+        benzinga_api_key=benzinga_api_key,
+    )
     daily_symbol_features_full_universe = daily_symbol_features_full_universe.merge(
         research_event_flags_full_universe,
         on=["trade_date", "symbol"],
@@ -2769,11 +3107,26 @@ def run_production_export_pipeline(
     )
     for column in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
         daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="boolean")
+    daily_symbol_features_full_universe = daily_symbol_features_full_universe.merge(
+        research_news_flags_full_universe,
+        on=["trade_date", "symbol"],
+        how="left",
+    )
+    for column in RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS:
+        daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="boolean")
+    for column in RESEARCH_NEWS_FLAG_COUNT_COLUMNS:
+        daily_symbol_features_full_universe[column] = pd.Series(daily_symbol_features_full_universe[column], dtype="Int64")
     research_event_flag_coverage = _build_research_event_flag_coverage(research_event_flags_full_universe)
     research_event_flag_trade_date_distribution = _build_research_event_flag_trade_date_distribution(research_event_flags_full_universe)
     research_event_flag_outcome_slices = _build_research_event_flag_outcome_slices(
         daily_symbol_features_full_universe,
         research_event_flags_full_universe,
+    )
+    research_news_flag_coverage = _build_research_news_flag_coverage(research_news_flags_full_universe)
+    research_news_flag_trade_date_distribution = _build_research_news_flag_trade_date_distribution(research_news_flags_full_universe)
+    research_news_flag_outcome_slices = _build_research_news_flag_outcome_slices(
+        daily_symbol_features_full_universe,
+        research_news_flags_full_universe,
     )
     full_universe_second_detail_open = _prepare_full_universe_second_detail_export(
         full_universe_second_detail_raw,
@@ -2884,6 +3237,7 @@ def run_production_export_pipeline(
         "close_imbalance_symbol_day_rows": int(close_imbalance_features_full_universe["has_close_window_detail"].sum()) if not close_imbalance_features_full_universe.empty else 0,
         "close_imbalance_outcome_rows": int(len(close_imbalance_outcomes_full_universe)),
         "research_event_flag_rows": int(len(research_event_flags_full_universe)),
+        "research_news_flag_rows": int(len(research_news_flags_full_universe)),
         "batl": batl_debug,
     }
 
@@ -3031,6 +3385,11 @@ def run_production_export_pipeline(
         "research_event_flag_trade_date_distribution_rows": len(research_event_flag_trade_date_distribution),
         "research_event_flag_outcome_slices_rows": len(research_event_flag_outcome_slices),
         "research_event_flags_source": research_event_flag_metadata,
+        "research_news_flags_full_universe_rows": len(research_news_flags_full_universe),
+        "research_news_flag_coverage_rows": len(research_news_flag_coverage),
+        "research_news_flag_trade_date_distribution_rows": len(research_news_flag_trade_date_distribution),
+        "research_news_flag_outcome_slices_rows": len(research_news_flag_outcome_slices),
+        "research_news_flags_source": research_news_flag_metadata,
         "detail_symbol_count": int(summary["symbol"].nunique()) if not summary.empty else 0,
         "expected_symbol_day_rows": int(len(daily_symbol_features_full_universe)),
         "covered_symbol_day_rows": int(daily_symbol_features_full_universe["has_intraday"].sum()) if not daily_symbol_features_full_universe.empty else 0,
@@ -3071,6 +3430,10 @@ def run_production_export_pipeline(
             "research_event_flag_coverage": research_event_flag_coverage,
             "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
             "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+            "research_news_flags_full_universe": research_news_flags_full_universe,
+            "research_news_flag_coverage": research_news_flag_coverage,
+            "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+            "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
             "quality_window_status_latest": quality_window_status,
         },
         cost_estimate=cost_estimate,
@@ -3094,6 +3457,10 @@ def run_production_export_pipeline(
             "research_event_flag_coverage": research_event_flag_coverage,
             "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
             "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+            "research_news_flags_full_universe": research_news_flags_full_universe,
+            "research_news_flag_coverage": research_news_flag_coverage,
+            "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+            "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
             "quality_window_status_latest": quality_window_status,
         },
     )
@@ -3127,6 +3494,10 @@ def run_production_export_pipeline(
         "research_event_flag_coverage": research_event_flag_coverage,
         "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
         "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+        "research_news_flags_full_universe": research_news_flags_full_universe,
+        "research_news_flag_coverage": research_news_flag_coverage,
+        "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+        "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
         "cost_estimate": cost_estimate,
         "output_checks": output_summary,
         "batl_debug": batl_debug,
@@ -3161,6 +3532,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     databento_api_key = os.getenv("DATABENTO_API_KEY", "")
     fmp_api_key = os.getenv("FMP_API_KEY", "")
+    benzinga_api_key = os.getenv("BENZINGA_API_KEY", "")
     if not databento_api_key:
         raise SystemExit("DATABENTO_API_KEY must be set in .env")
     if not fmp_api_key:
@@ -3172,6 +3544,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     result = run_production_export_pipeline(
         databento_api_key=databento_api_key,
         fmp_api_key=fmp_api_key,
+        benzinga_api_key=benzinga_api_key,
         dataset=dataset,
         lookback_days=int(args.lookback_days),
         top_fraction=float(args.top_fraction),

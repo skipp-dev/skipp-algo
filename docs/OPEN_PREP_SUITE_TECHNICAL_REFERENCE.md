@@ -134,6 +134,8 @@ Datei: `open_prep/news.py`
   - `classify_news_event`, `classify_recency`, `classify_source_quality`.
 - Per-Symbol-Output:
   - `news_catalyst_score`, `sentiment_*`, `event_*`, `source_tier`, `articles[]` (max 5, newest-first).
+- Exakte Benzinga-Abgrenzung und Feld-Verdrahtung:
+  - siehe `docs/OPEN_PREP_BENZINGA_NEWS_WIRING.md`
 
 ---
 
