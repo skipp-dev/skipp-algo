@@ -1103,6 +1103,42 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(diagnostics["quote_fetch_workers"], 3)
         self.assertEqual(diagnostics["deduped_symbols"], ["AAPL", "MSFT", "NVDA"])
 
+    def test_get_historical_price_eod_full_uses_stable_endpoint(self):
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", return_value=[{"date": "2026-03-01"}]) as mock_get:
+            rows = client.get_historical_price_eod_full("NVDA", date(2026, 3, 1), date(2026, 3, 25))
+
+        mock_get.assert_called_once_with(
+            "/stable/historical-price-eod/full",
+            {"symbol": "NVDA", "from": "2026-03-01", "to": "2026-03-25"},
+        )
+        self.assertEqual(rows, [{"date": "2026-03-01"}])
+
+    def test_get_company_profile_returns_matching_profile_row(self):
+        client = FMPClient(api_key="test")
+        with patch.object(
+            FMPClient,
+            "_get",
+            return_value=[{"symbol": "MSFT", "sector": "Software"}, {"symbol": "NVDA", "sector": "Semiconductors"}],
+        ) as mock_get:
+            row = client.get_company_profile("NVDA")
+
+        mock_get.assert_called_once_with("/stable/profile", {"symbol": "NVDA"})
+        self.assertEqual(row["symbol"], "NVDA")
+        self.assertEqual(row["sector"], "Semiconductors")
+
+    def test_get_index_quote_returns_matching_symbol(self):
+        client = FMPClient(api_key="test")
+        with patch.object(
+            FMPClient,
+            "_get",
+            return_value=[{"symbol": "SPY", "price": 500.0}, {"symbol": "^VIX", "price": 18.2}],
+        ) as mock_get:
+            row = client.get_index_quote("^VIX")
+
+        mock_get.assert_called_once_with("/stable/quote", {"symbol": "^VIX"})
+        self.assertEqual(row, {"symbol": "^VIX", "price": 18.2})
+
     def test_build_url_routes_stable_paths_to_root_host(self):
         client = FMPClient(api_key="test")
 

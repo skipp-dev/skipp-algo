@@ -26,6 +26,7 @@ _ET = _ZoneInfo("America/New_York")
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp._bz_http import _sanitize_exc, log_fetch_warning
+from open_prep.macro import FMPClient
 from newsstack_fmp.ingest_benzinga import (
     BenzingaRestAdapter,
     fetch_benzinga_channels,
@@ -701,12 +702,11 @@ def fetch_defense_watchlist(
         ``change``, ``changesPercentage``, ``volume``, ``avgVolume``,
         ``marketCap``, ``pe``, ``yearHigh``, ``yearLow``.
     """
-    url = "https://financialmodelingprep.com/stable/batch-quote"
     try:
-        r = _get_fmp_client().get(url, params={"apikey": fmp_api_key, "symbols": tickers})
-        r.raise_for_status()
-        data = r.json()
-        return data if isinstance(data, list) else []
+        symbols = [sym.strip().upper() for sym in tickers.split(",") if sym.strip()]
+        if not symbols:
+            return []
+        return FMPClient(api_key=fmp_api_key, retry_attempts=1, timeout_seconds=12.0).get_batch_quotes(symbols)
     except Exception as exc:
         log_fetch_warning("FMP defense watchlist", exc)
         return []

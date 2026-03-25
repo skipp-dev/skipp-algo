@@ -782,6 +782,240 @@ class FMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_macro_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        params = {
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+        }
+        try:
+            data = self._get("/stable/economic-calendar", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_premarket_movers(self) -> list[dict[str, Any]]:
+        try:
+            data = self._get("/stable/most-actives", {})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_batch_aftermarket_quote(self, symbols: list[str]) -> list[dict[str, Any]]:
+        try:
+            data = self._get("/stable/batch-aftermarket-quote", {"symbols": ",".join(symbols)})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_splits_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        params = {
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+        }
+        try:
+            data = self._get("/stable/splits-calendar", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_dividends_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        params = {
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+        }
+        try:
+            data = self._get("/stable/dividends-calendar", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_ipos_calendar(self, date_from: date, date_to: date) -> list[dict[str, Any]]:
+        params = {
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+        }
+        try:
+            data = self._get("/stable/ipos-calendar", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_upgrades_downgrades(
+        self,
+        symbol: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if symbol:
+            params["symbol"] = str(symbol).strip().upper()
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/grades", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_insider_trading_latest(self, symbol: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"limit": max(int(limit), 1)}
+        if symbol:
+            params["symbol"] = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/insider-trading", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_institutional_ownership(self, symbol: str, limit: int = 100) -> list[dict[str, Any]]:
+        params = {
+            "symbol": str(symbol).strip().upper(),
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/institutional-ownership", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_treasury_rates(self, date_from: date | None = None, date_to: date | None = None) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {}
+        if date_from is not None:
+            params["from"] = date_from.isoformat()
+        if date_to is not None:
+            params["to"] = date_to.isoformat()
+        try:
+            data = self._get("/stable/treasury-rates", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_house_trading(self, limit: int = 100) -> list[dict[str, Any]]:
+        params = {"limit": max(int(limit), 1)}
+        try:
+            data = self._get("/stable/house-latest", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_dcf(self, symbol: str) -> dict[str, Any]:
+        params = {"symbol": str(symbol).strip().upper()}
+        try:
+            data = self._get("/stable/discounted-cash-flow", params)
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
+    def get_company_profile(self, symbol: str) -> dict[str, Any]:
+        requested_symbol = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/profile", {"symbol": requested_symbol})
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("symbol") or "").strip().upper() == requested_symbol:
+                    return dict(row)
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
+    def get_price_target_summary(self, symbol: str) -> dict[str, Any]:
+        requested_symbol = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/price-target-summary", {"symbol": requested_symbol})
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("symbol") or "").strip().upper() == requested_symbol:
+                    return dict(row)
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
+    def get_earnings_report(self, symbol: str, limit: int = 12) -> list[dict[str, Any]]:
+        params = {
+            "symbol": str(symbol).strip().upper(),
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/earnings", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_historical_price_eod_full(self, symbol: str, date_from: date, date_to: date) -> list[dict[str, Any]] | dict[str, Any]:
+        params = {
+            "symbol": str(symbol).strip().upper(),
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+        }
+        try:
+            data = self._get("/stable/historical-price-eod/full", params)
+        except RuntimeError:
+            return []
+        if isinstance(data, dict):
+            return dict(data)
+        return list(data) if isinstance(data, list) else []
+
+    def get_intraday_chart(
+        self,
+        symbol: str,
+        interval: str = "1min",
+        day: date | None = None,
+        limit: int = 5000,
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {
+            "symbol": str(symbol).strip().upper(),
+            "limit": max(int(limit), 1),
+        }
+        if day is not None:
+            params["from"] = day.isoformat()
+            params["to"] = day.isoformat()
+        try:
+            data = self._get(f"/stable/historical-chart/{interval}", params)
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_index_quote(self, symbol: str = "^VIX") -> dict[str, Any]:
+        requested_symbol = str(symbol).strip().upper()
+        try:
+            data = self._get("/stable/quote", {"symbol": requested_symbol})
+        except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("symbol") or "").strip().upper() == requested_symbol:
+                    return dict(row)
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
     def get_sector_performance(self) -> list[dict[str, Any]]:
         today = _today_et_date()
         current = self._get("/stable/sector-performance", {"date": today.isoformat()})

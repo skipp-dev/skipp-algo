@@ -23,6 +23,8 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from open_prep.macro import FMPClient
+
 logger = logging.getLogger(__name__)
 
 # ── Regex to strip API keys from error messages ──────────────────
@@ -258,10 +260,10 @@ def enrich_with_batch_quote(
     api_key: str,
     items: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Enrich gainer/loser/active items with volume & market cap from batch-quote.
+    """Enrich gainer/loser/active items with volume & market cap from shared quotes.
 
     The ``/stable/biggest-gainers`` etc. endpoints return only price/change data.
-    This function calls ``/stable/batch-quote`` to backfill ``volume``,
+    This function calls the shared FMP client quote path to backfill ``volume``,
     ``marketCap``, ``yearHigh``, ``yearLow``, ``previousClose``, etc.,
     and ``/stable/profile`` to backfill ``averageVolume`` and ``sector``.
     """
@@ -274,23 +276,16 @@ def enrich_with_batch_quote(
 
     sym_str = ",".join(symbols)
 
-    # batch-quote supports comma-separated symbols via 'symbols' param
     quote_map: dict[str, dict[str, Any]] = {}
     try:
-        r = _get_fmp_client().get(
-            "https://financialmodelingprep.com/stable/batch-quote",
-            params={"apikey": api_key, "symbols": sym_str},
-        )
-        r.raise_for_status()
-        quotes = r.json()
-        if isinstance(quotes, list):
-            for q in quotes:
-                sym = (q.get("symbol") or "").upper().strip()
-                if sym:
-                    quote_map[sym] = q
+        quotes = FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=10.0).get_batch_quotes(symbols)
+        for q in quotes:
+            sym = (q.get("symbol") or "").upper().strip()
+            if sym:
+                quote_map[sym] = q
     except Exception as exc:
         _msg = _APIKEY_RE.sub(r"\1=***", str(exc))
-        logger.warning("FMP batch-quote enrichment failed: %s", _msg)
+        logger.warning("FMP quote enrichment failed: %s", _msg)
 
     # Also fetch profile for averageVolume and sector
     profile_map: dict[str, dict[str, Any]] = {}
@@ -316,11 +311,11 @@ def enrich_with_batch_quote(
                     "priceAvg50", "priceAvg200")
     for item in items:
         sym = (item.get("symbol") or "").upper().strip()
-        q = quote_map.get(sym)
-        if q:
+        quote_row = quote_map.get(sym)
+        if quote_row is not None:
             for k in _enrich_keys:
                 if k not in item or item[k] is None:
-                    item[k] = q.get(k)
+                    item[k] = quote_row.get(k)
         p = profile_map.get(sym)
         if p:
             # backfill averageVolume and sector from profile

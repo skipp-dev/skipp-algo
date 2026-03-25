@@ -31,6 +31,8 @@ from typing import Any
 
 import httpx
 
+from open_prep.macro import FMPClient
+
 log = logging.getLogger(__name__)
 
 _FMP_BASE = "https://financialmodelingprep.com/stable"
@@ -69,12 +71,12 @@ def _get_api_key() -> str:
 
 
 # ── Cache (separate from TradingView cache) ─────────────────────────
-_fmp_cache: dict[tuple[str, str], tuple[float, Any]] = {}
+_fmp_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
 _FMP_CACHE_TTL = 180.0  # 3 minutes
 _fmp_cache_lock = threading.Lock()
 
 
-def _cache_get(sym: str, interval: str) -> Any | None:
+def _cache_get(sym: str, interval: str) -> dict[str, Any] | None:
     key = (sym.upper(), interval)
     with _fmp_cache_lock:
         entry = _fmp_cache.get(key)
@@ -83,7 +85,7 @@ def _cache_get(sym: str, interval: str) -> Any | None:
     return None
 
 
-def _cache_set(sym: str, interval: str, result: Any) -> None:
+def _cache_set(sym: str, interval: str, result: dict[str, Any]) -> None:
     key = (sym.upper(), interval)
     with _fmp_cache_lock:
         _fmp_cache[key] = (time.time(), result)
@@ -126,7 +128,8 @@ def _fetch_indicator(
         r.raise_for_status()
         data = r.json()
         if isinstance(data, list) and data:
-            return data[0]  # most recent
+            first_row = data[0]
+            return dict(first_row) if isinstance(first_row, dict) else None
         return None
     except Exception as exc:
         log.debug("FMP indicator %s/%s(%s) failed: %s", symbol, timeframe, indicator_type, exc)
@@ -134,19 +137,17 @@ def _fetch_indicator(
 
 
 def _fetch_price(symbol: str, api_key: str) -> float | None:
-    """Fetch current price via FMP quote-short endpoint."""
+    """Fetch current price via the shared FMP quote path."""
     try:
-        r = _get_client().get(
-            f"{_FMP_BASE}/quote-short",
-            params={"apikey": api_key, "symbol": symbol.upper()},
-        )
-        r.raise_for_status()
-        data = r.json()
-        if isinstance(data, list) and data:
-            return float(data[0].get("price", 0))
-        return None
+        row = FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT).get_index_quote(symbol.upper())
+        price_raw = row.get("price")
+        if price_raw in (None, ""):
+            return None
+        if not isinstance(price_raw, (int, float, str)):
+            return None
+        return float(price_raw)
     except Exception as exc:
-        log.debug("FMP quote-short(%s) failed: %s", symbol, exc)
+        log.debug("FMP quote(%s) failed: %s", symbol, exc)
         return None
 
 

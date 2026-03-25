@@ -21,6 +21,8 @@ from typing import Any
 
 import httpx
 
+from open_prep.macro import FMPClient
+
 logger = logging.getLogger(__name__)
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
@@ -65,33 +67,26 @@ def _set_cached(key: str, text: str) -> None:
 # ---------------------------------------------------------------------------
 _FMP_BASE = "https://financialmodelingprep.com/stable"
 _FMP_TIMEOUT = 12.0
+_fmp_client: httpx.Client | None = None
 
 
 def _get_fmp_client() -> httpx.Client:
     """Return a module-level reusable httpx client for FMP calls."""
     global _fmp_client  # noqa: PLW0603
-    try:
-        return _fmp_client  # type: ignore[name-defined]
-    except NameError:
+    if _fmp_client is None:
         _fmp_client = httpx.Client(timeout=_FMP_TIMEOUT)
-        return _fmp_client
+    return _fmp_client
 
 
 def fetch_fmp_quotes(api_key: str, tickers: list[str]) -> list[dict[str, Any]]:
-    """Fetch batch quotes from FMP for a list of tickers."""
+    """Fetch quotes from FMP for a list of tickers via the shared client."""
     if not api_key or not tickers:
         return []
-    sym_str = ",".join(t.upper().strip() for t in tickers[:20])
     try:
-        r = _get_fmp_client().get(
-            f"{_FMP_BASE}/batch-quote",
-            params={"apikey": api_key, "symbols": sym_str},
-        )
-        r.raise_for_status()
-        data = r.json()
-        return data if isinstance(data, list) else []
+        symbols = [t.upper().strip() for t in tickers[:20] if t and t.strip()]
+        return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT).get_batch_quotes(symbols)
     except Exception as exc:
-        logger.warning("FMP batch-quote failed: %s", exc)
+        logger.warning("FMP quote fetch failed: %s", exc)
         return []
 
 
