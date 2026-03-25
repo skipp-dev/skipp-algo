@@ -571,6 +571,21 @@ class FMPClient:
         data = self._get("/stable/batch-quote", {"symbols": ",".join(symbols)})
         return list(data) if isinstance(data, list) else []
 
+    def get_fmp_articles(self, limit: int = 250) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {
+            "page": 0,
+            "limit": max(int(limit), 1),
+        }
+        try:
+            data = self._get("/stable/fmp-articles", params)
+        except RuntimeError:
+            _log_feature_unavailable_once(
+                "stable/fmp-articles",
+                "FMP feature unavailable (stable/fmp-articles); continuing without FMP article data.",
+            )
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_batch_aftermarket_trade(self, symbols: list[str]) -> list[dict[str, Any]]:
         data = self._get("/stable/batch-aftermarket-trade", {"symbols": ",".join(symbols)})
         return list(data) if isinstance(data, list) else []

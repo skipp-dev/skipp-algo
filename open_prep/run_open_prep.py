@@ -3414,18 +3414,134 @@ def _fetch_news_context(
 ) -> tuple[dict[str, float], dict[str, dict], str | None]:
     news_scores: dict[str, float] = {}
     news_metrics: dict[str, dict] = {}
-    news_fetch_error: str | None = None
+    news_fetch_errors: list[str] = []
+    articles: list[dict[str, Any]] = []
 
-    # Optional catalyst boost from latest FMP articles (stable endpoint).
-    # If news fetch fails, ranking still proceeds with pure market+macro features.
+    # Primary: FMP articles. Secondary: capped TradingView supplement via the
+    # existing terminal fetcher. Both degrade fail-open and share the same
+    # article scoring path in open_prep.news.
     try:
-        articles = client.get_fmp_articles(limit=250)
-        news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
+        articles.extend(client.get_fmp_articles(limit=250))
     except Exception as exc:
-        news_fetch_error = _APIKEY_RE.sub(r"\1=***", str(exc))
-        logger.warning("News fetch failed, continuing without news scores: %s", type(exc).__name__, exc_info=True)
+        news_fetch_errors.append(f"fmp:{_APIKEY_RE.sub(r'\1=***', str(exc))}")
+        logger.warning("FMP news fetch failed, continuing with remaining sources: %s", type(exc).__name__, exc_info=True)
+
+    tradingview_articles, tradingview_fetch_error = _fetch_tradingview_news_articles(symbols=symbols)
+    if tradingview_fetch_error:
+        news_fetch_errors.append(f"tradingview:{tradingview_fetch_error}")
+    articles = _dedupe_news_articles([articles, tradingview_articles])
+
+    if articles:
+        news_scores, news_metrics = build_news_scores(symbols=symbols, articles=articles)
+
+    news_fetch_error = "; ".join(news_fetch_errors) if news_fetch_errors else None
 
     return news_scores, news_metrics, news_fetch_error
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "off", "no"}
+
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _normalize_tradingview_article_date(published: Any) -> str:
+    try:
+        published_float = float(published)
+    except (TypeError, ValueError):
+        return ""
+    if published_float <= 0:
+        return ""
+    return datetime.fromtimestamp(published_float, tz=UTC).isoformat()
+
+
+def _tradingview_headline_to_article(headline: Any) -> dict[str, Any] | None:
+    title = str(getattr(headline, "title", "") or "").strip()
+    if not title:
+        return None
+    tickers = _normalize_symbols(list(getattr(headline, "tickers", []) or []))
+    if not tickers:
+        return None
+    return {
+        "tickers": ",".join(tickers),
+        "title": title,
+        "content": "",
+        "date": _normalize_tradingview_article_date(getattr(headline, "published", None)),
+        "source": str(getattr(headline, "source", "") or getattr(headline, "provider", "") or "TradingView").strip(),
+        "url": str(getattr(headline, "story_url", "") or "").strip(),
+        "provider": str(getattr(headline, "provider", "") or "tradingview").strip(),
+    }
+
+
+def _dedupe_news_articles(batches: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for batch in batches:
+        for article in batch:
+            title = str(article.get("title") or "").strip().lower()
+            published = str(article.get("date") or "").strip()
+            url = str(article.get("url") or article.get("link") or "").strip().lower()
+            if not title:
+                continue
+            key = (title, published, url)
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(article)
+    return merged
+
+
+def _fetch_tradingview_news_articles(*, symbols: list[str]) -> tuple[list[dict[str, Any]], str | None]:
+    if not _bool_env("OPEN_PREP_ENABLE_TRADINGVIEW_NEWS", True):
+        return [], None
+
+    max_symbols = max(_int_env("OPEN_PREP_TV_NEWS_MAX_SYMBOLS", 8), 0)
+    if max_symbols == 0:
+        return [], None
+
+    limited_symbols = _normalize_symbols(symbols)[:max_symbols]
+    if not limited_symbols:
+        return [], None
+
+    max_per_symbol = max(_int_env("OPEN_PREP_TV_NEWS_MAX_PER_SYMBOL", 6), 1)
+    max_total = max(_int_env("OPEN_PREP_TV_NEWS_MAX_TOTAL", 24), 1)
+
+    try:
+        from terminal_tradingview_news import fetch_tv_multi
+    except Exception as exc:
+        message = _APIKEY_RE.sub(r"\1=***", str(exc))
+        logger.warning("TradingView news import failed, continuing without supplement: %s", type(exc).__name__, exc_info=True)
+        return [], message
+
+    try:
+        headlines = fetch_tv_multi(
+            limited_symbols,
+            max_per_ticker=max_per_symbol,
+            max_total=max_total,
+        )
+    except Exception as exc:
+        message = _APIKEY_RE.sub(r"\1=***", str(exc))
+        logger.warning("TradingView news fetch failed, continuing without supplement: %s", type(exc).__name__, exc_info=True)
+        return [], message
+
+    articles: list[dict[str, Any]] = []
+    for headline in headlines:
+        article = _tradingview_headline_to_article(headline)
+        if article is not None:
+            articles.append(article)
+
+    return articles, None
 
 
 def _fetch_quotes_with_atr(

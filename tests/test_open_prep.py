@@ -387,6 +387,75 @@ class TestOpenPrep(unittest.TestCase):
         self.assertEqual(metrics["NVDA"]["mentions_2h"], 1)
         self.assertEqual(metrics["PLTR"]["mentions_24h"], 1)
 
+    def test_fetch_news_context_merges_fmp_and_tradingview_articles(self):
+        from terminal_tradingview_news import TVHeadline
+
+        client = MagicMock()
+        client.get_fmp_articles.return_value = [
+            {
+                "tickers": "NASDAQ:NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20 14:30:00",
+                "source": "FMP",
+            }
+        ]
+        tv_headlines = [
+            TVHeadline(
+                id="tv-1",
+                title="Palantir wins major defense contract",
+                provider="reuters",
+                source="Reuters",
+                published=datetime(2026, 2, 20, 14, 45, tzinfo=UTC).timestamp(),
+                urgency=2,
+                tickers=["PLTR"],
+                story_url="https://www.tradingview.com/news/story-1",
+            )
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "1",
+            "OPEN_PREP_TV_NEWS_MAX_SYMBOLS": "2",
+            "OPEN_PREP_TV_NEWS_MAX_PER_SYMBOL": "4",
+            "OPEN_PREP_TV_NEWS_MAX_TOTAL": "8",
+        }, clear=False), patch("terminal_tradingview_news.fetch_tv_multi", return_value=tv_headlines):
+            scores, metrics, fetch_error = run_open_prep._fetch_news_context(
+                client=client,
+                symbols=["NVDA", "PLTR", "AAPL"],
+            )
+
+        self.assertIsNone(fetch_error)
+        self.assertIn("NVDA", scores)
+        self.assertIn("PLTR", scores)
+        self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
+        self.assertEqual(metrics["PLTR"]["mentions_total"], 1)
+
+    def test_fetch_news_context_keeps_fmp_scores_when_tradingview_fails(self):
+        client = MagicMock()
+        client.get_fmp_articles.return_value = [
+            {
+                "tickers": "NASDAQ:NVDA",
+                "title": "NVIDIA sees strong demand",
+                "content": "",
+                "date": "2026-02-20 14:30:00",
+                "source": "FMP",
+            }
+        ]
+
+        with patch.dict(os.environ, {
+            "OPEN_PREP_ENABLE_TRADINGVIEW_NEWS": "1",
+            "OPEN_PREP_TV_NEWS_MAX_SYMBOLS": "2",
+        }, clear=False), patch("terminal_tradingview_news.fetch_tv_multi", side_effect=RuntimeError("tv timeout")):
+            scores, metrics, fetch_error = run_open_prep._fetch_news_context(
+                client=client,
+                symbols=["NVDA", "PLTR"],
+            )
+
+        assert fetch_error is not None
+        self.assertIn("tradingview:tv timeout", fetch_error)
+        self.assertIn("NVDA", scores)
+        self.assertEqual(metrics["NVDA"]["mentions_total"], 1)
+
     def test_news_score_does_not_double_count_2h_articles(self):
         """A single article from < 2h ago must score exactly 0.5, not 0.65."""
         symbols = ["AAPL"]
@@ -2404,6 +2473,42 @@ class TestFMPEarningsCalendarFallback(unittest.TestCase):
         self.assertEqual(first, [])
         self.assertEqual(second, [])
         msgs = [line for line in logs.output if "stable/earnings-calendar" in line]
+        self.assertEqual(len(msgs), 1)
+
+
+class TestFMPArticlesFallback(unittest.TestCase):
+    def test_get_fmp_articles_uses_stable_endpoint_and_limit(self):
+        from open_prep.macro import FMPClient
+
+        client = FMPClient(api_key="test")
+        with patch.object(FMPClient, "_get", return_value=[{"title": "Article"}]) as mock_get:
+            result = client.get_fmp_articles(limit=42)
+
+        self.assertEqual(result, [{"title": "Article"}])
+        mock_get.assert_called_once_with(
+            "/stable/fmp-articles",
+            {"page": 0, "limit": 42},
+        )
+
+    def test_get_fmp_articles_http_400_logs_once_and_returns_empty(self):
+        from open_prep import macro
+        from open_prep.macro import FMPClient
+
+        macro._FMP_FEATURE_UNAVAILABLE_LOGGED.clear()
+        client = FMPClient(api_key="test")
+
+        with patch.object(
+            FMPClient,
+            "_get",
+            side_effect=RuntimeError("FMP API HTTP 400 on /stable/fmp-articles: Bad Request"),
+        ):
+            with self.assertLogs("open_prep.macro", level="INFO") as logs:
+                first = client.get_fmp_articles(limit=10)
+                second = client.get_fmp_articles(limit=10)
+
+        self.assertEqual(first, [])
+        self.assertEqual(second, [])
+        msgs = [line for line in logs.output if "stable/fmp-articles" in line]
         self.assertEqual(len(msgs), 1)
 
 
