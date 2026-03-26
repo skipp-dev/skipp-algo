@@ -142,11 +142,9 @@ def discover_structure_source_candidates() -> list[dict[str, Any]]:
 
 
 def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
-    from .provider_matrix import discover_provider_matrix
+    from .sources import structure_artifact_json
 
-    matrix = discover_provider_matrix()
-    by_name = {entry.name: entry for entry in matrix}
-    artifact_entry = by_name.get("structure_artifact_json")
+    summary = structure_artifact_json.discover_normalized_contract_summary()
 
     mapped_categories = {
         category: False
@@ -155,11 +153,9 @@ def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
     mapped_fields: list[str] = []
     producer_name: str | None = None
 
-    if artifact_entry is not None:
-        mapped_categories.update(artifact_entry.current.mapped_structure_categories)
-        mapped_fields = list(artifact_entry.current.mapped_structure_fields)
-        if artifact_entry.current.currently_maps_structure:
-            producer_name = artifact_entry.name
+    mapped_categories.update(summary.get("mapped_structure_categories", {}))
+    if any(mapped_categories.values()):
+        producer_name = "structure_artifact_json"
 
     evidence_by_category: dict[str, list[str]] = {
         "bos": [
@@ -244,7 +240,7 @@ def build_structure_gap_report() -> dict[str, Any]:
     category_coverage = discover_structure_category_coverage()
     from .sources import structure_artifact_json
 
-    contract = structure_artifact_json.discover_contract_capabilities()
+    contract = structure_artifact_json.discover_normalized_contract_summary()
     registered_structure_sources = [
         {
             "name": source.name,

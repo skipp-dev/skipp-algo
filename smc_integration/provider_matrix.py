@@ -141,8 +141,8 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
     ]
 
     if name == "structure_artifact_json":
-        category_coverage = structure_artifact_json.discover_category_coverage()
-        contract = structure_artifact_json.discover_contract_capabilities()
+        contract = structure_artifact_json.discover_normalized_contract_summary()
+        category_coverage = dict(contract.get("mapped_structure_categories", {}))
 
         mapped_fields: list[str] = []
         if category_coverage.get("bos"):

@@ -5,6 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from .base import SourceCapabilities, SourceDescriptor
+from smc_integration.structure_contract import (
+    contract_to_dict,
+    normalize_structure_contract,
+    normalize_structure_contracts,
+    summarize_structure_contracts,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRUCTURE_ARTIFACT_JSON = REPO_ROOT / "reports" / "smc_structure_artifact.json"
@@ -138,59 +144,42 @@ def _iter_manifest_artifacts() -> list[Path]:
     return sorted(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json"))
 
 
-def _iter_structure_payloads() -> list[dict[str, Any]]:
-    payloads = _iter_artifact_payloads()
-    structures: list[dict[str, Any]] = []
-    for payload in payloads:
-        structure = payload.get("structure")
-        if isinstance(structure, dict):
-            structures.append(structure)
-    return structures
-
-
-def _iter_artifact_payloads() -> list[dict[str, Any]]:
-    payloads: list[dict[str, Any]] = []
+def _iter_normalized_contracts() -> list[dict[str, Any]]:
+    contracts: list[dict[str, Any]] = []
 
     for artifact_path in _iter_manifest_artifacts():
         try:
             payload = _load_json(artifact_path)
+            normalized = normalize_structure_contract(payload)
         except Exception:
             continue
-        structure = payload.get("structure")
-        if isinstance(structure, dict):
-            payloads.append(payload)
+        contracts.append(contract_to_dict(normalized))
 
-    if payloads:
-        return payloads
+    if contracts:
+        return contracts
 
-    # Backward-compatible fallback: legacy single artifact with entries[].
     if STRUCTURE_ARTIFACT_JSON.exists():
-        legacy = _load_payload()
-        entries = legacy.get("entries")
-        if isinstance(entries, list):
-            for row in entries:
-                if not isinstance(row, dict):
-                    continue
-                structure = row.get("structure")
-                if isinstance(structure, dict):
-                    payloads.append({
-                        "symbol": row.get("symbol"),
-                        "timeframe": row.get("timeframe"),
-                        "structure": structure,
-                        "auxiliary": row.get("auxiliary", {}),
-                        "diagnostics": row.get("diagnostics", {}),
-                    })
-    return payloads
+        try:
+            legacy = _load_payload()
+            for contract in normalize_structure_contracts(legacy):
+                contracts.append(contract_to_dict(contract))
+        except Exception:
+            pass
+
+    return contracts
 
 
-def discover_contract_capabilities() -> dict[str, Any]:
-    payloads = _iter_artifact_payloads()
-    if not payloads:
+def discover_normalized_contract_summary() -> dict[str, Any]:
+    contracts = _iter_normalized_contracts()
+    if not contracts:
         return {
-            "structure_profile_supported": False,
-            "diagnostics_available": False,
-            "auxiliary_available": False,
-            "mapped_structure_categories": discover_category_coverage(),
+            "mapped_structure_categories": {
+                "bos": True,
+                "choch": True,
+                "orderblocks": False,
+                "fvg": False,
+                "liquidity_sweeps": False,
+            },
             "mapped_auxiliary_categories": {
                 "liquidity_lines": False,
                 "session_ranges": False,
@@ -199,141 +188,83 @@ def discover_contract_capabilities() -> dict[str, Any]:
                 "htf_fvg_bias": False,
                 "broken_fractal_signals": False,
             },
+            "structure_profile_supported": False,
+            "diagnostics_available": False,
+            "auxiliary_available": False,
             "structure_profiles_seen": [],
             "event_logic_versions_seen": [],
         }
 
-    structure_categories = discover_category_coverage()
-    aux_categories = {
-        "liquidity_lines": False,
-        "session_ranges": False,
-        "session_pivots": False,
-        "ipda_range": False,
-        "htf_fvg_bias": False,
-        "broken_fractal_signals": False,
-    }
-    profiles_seen: set[str] = set()
-    versions_seen: set[str] = set()
-    diagnostics_available = False
-    auxiliary_available = False
+    summary = summarize_structure_contracts(
+        [
+            normalize_structure_contract(
+                {
+                    "symbol": contract.get("symbol"),
+                    "timeframe": contract.get("timeframe"),
+                    "structure": contract.get("canonical_structure", {}),
+                    "auxiliary": contract.get("auxiliary", {}),
+                    "diagnostics": {
+                        "structure_profile_used": contract.get("structure_profile_used"),
+                        "event_logic_version": contract.get("event_logic_version"),
+                        "warnings": contract.get("warnings", []),
+                    },
+                }
+            )
+            for contract in contracts
+        ]
+    )
 
-    for payload in payloads:
-        diagnostics = payload.get("diagnostics", {}) if isinstance(payload.get("diagnostics"), dict) else {}
-        auxiliary = payload.get("auxiliary", {}) if isinstance(payload.get("auxiliary"), dict) else {}
-
-        if diagnostics:
-            diagnostics_available = True
-        if auxiliary:
-            auxiliary_available = True
-
-        profile = diagnostics.get("structure_profile_used")
-        if isinstance(profile, str) and profile.strip():
-            profiles_seen.add(profile.strip())
-
-        version = diagnostics.get("event_logic_version")
-        if isinstance(version, str) and version.strip():
-            versions_seen.add(version.strip())
-
-        for key in aux_categories:
-            value = auxiliary.get(key)
-            if isinstance(value, list) and value:
-                aux_categories[key] = True
-            elif isinstance(value, dict) and value:
-                aux_categories[key] = True
-
-    return {
-        "structure_profile_supported": bool(profiles_seen),
-        "diagnostics_available": diagnostics_available,
-        "auxiliary_available": auxiliary_available,
-        "mapped_structure_categories": structure_categories,
-        "mapped_auxiliary_categories": aux_categories,
-        "structure_profiles_seen": sorted(profiles_seen),
-        "event_logic_versions_seen": sorted(versions_seen),
-    }
-
-
-def load_structure_context_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
-    artifact_file = _resolve_artifact_file(symbol, timeframe)
-    if artifact_file is None:
-        return None
-
-    payload = _load_json(artifact_file)
-    structure = payload.get("structure", {}) if isinstance(payload.get("structure"), dict) else {}
-    diagnostics = payload.get("diagnostics", {}) if isinstance(payload.get("diagnostics"), dict) else {}
-    coverage = payload.get("coverage", {}) if isinstance(payload.get("coverage"), dict) else {}
-
-    if not diagnostics and not coverage:
-        return None
-
-    counts = diagnostics.get("counts", {}) if isinstance(diagnostics.get("counts"), dict) else {
-        "bos": len(structure.get("bos", [])),
-        "orderblocks": len(structure.get("orderblocks", [])),
-        "fvg": len(structure.get("fvg", [])),
-        "liquidity_sweeps": len(structure.get("liquidity_sweeps", [])),
-    }
-
-    return {
-        "structure_profile_used": diagnostics.get("structure_profile_used"),
-        "event_logic_version": diagnostics.get("event_logic_version"),
-        "coverage": {
-            "has_bos": bool(coverage.get("has_bos", bool(structure.get("bos")))),
-            "has_orderblocks": bool(coverage.get("has_orderblocks", bool(structure.get("orderblocks")))),
-            "has_fvg": bool(coverage.get("has_fvg", bool(structure.get("fvg")))),
-            "has_liquidity_sweeps": bool(coverage.get("has_liquidity_sweeps", bool(structure.get("liquidity_sweeps")))),
-        },
-        "counts": {
-            "bos": int(counts.get("bos", 0)),
-            "orderblocks": int(counts.get("orderblocks", 0)),
-            "fvg": int(counts.get("fvg", 0)),
-            "liquidity_sweeps": int(counts.get("liquidity_sweeps", 0)),
-        },
-    }
-
-
-def discover_category_coverage() -> dict[str, bool]:
-    categories = {
-        "bos": False,
-        "choch": False,
-        "orderblocks": False,
-        "fvg": False,
-        "liquidity_sweeps": False,
-    }
-
-    structures = _iter_structure_payloads()
-    if not structures:
-        # No local artifact evidence: expose conservative mapping baseline without file dependency.
-        return {
-            "bos": True,
-            "choch": True,
-            "orderblocks": False,
-            "fvg": False,
-            "liquidity_sweeps": False,
-        }
-
-    for structure in structures:
-        bos_items = structure.get("bos")
-        if isinstance(bos_items, list) and bos_items:
-            # BOS/CHOCH share the same explicit event family (`bos` with `kind`).
-            categories["bos"] = True
-            if any(str(item.get("kind", "")).upper() == "CHOCH" for item in bos_items if isinstance(item, dict)):
-                categories["choch"] = True
-
-        if isinstance(structure.get("orderblocks"), list) and structure.get("orderblocks"):
-            categories["orderblocks"] = True
-        if isinstance(structure.get("fvg"), list) and structure.get("fvg"):
-            categories["fvg"] = True
-        if isinstance(structure.get("liquidity_sweeps"), list) and structure.get("liquidity_sweeps"):
-            categories["liquidity_sweeps"] = True
-
-    if not any(categories.values()):
+    mapped_structure_categories = dict(summary.mapped_structure_categories)
+    if not any(mapped_structure_categories.values()):
         default_artifacts_dir = REPO_ROOT / "reports" / "smc_structure_artifacts"
         default_single_path = REPO_ROOT / "reports" / "smc_structure_artifact.json"
         if STRUCTURE_ARTIFACTS_DIR == default_artifacts_dir and STRUCTURE_ARTIFACT_JSON == default_single_path:
-            # Keep repo-default discovery deterministic even when local artifact files are empty.
-            categories["bos"] = True
-            categories["choch"] = True
+            # Preserve deterministic repo-default capabilities even when current local artifacts are empty.
+            mapped_structure_categories["bos"] = True
+            mapped_structure_categories["choch"] = True
 
-    return categories
+    return {
+        "mapped_structure_categories": mapped_structure_categories,
+        "mapped_auxiliary_categories": summary.mapped_auxiliary_categories,
+        "structure_profile_supported": summary.structure_profile_supported,
+        "diagnostics_available": summary.diagnostics_available,
+        "auxiliary_available": summary.auxiliary_available,
+        "structure_profiles_seen": summary.structure_profiles_seen,
+        "event_logic_versions_seen": summary.event_logic_versions_seen,
+    }
+
+
+def discover_contract_capabilities() -> dict[str, Any]:
+    return discover_normalized_contract_summary()
+
+
+def load_structure_context_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
+    normalized = load_normalized_structure_contract_input(symbol, timeframe)
+    if normalized is None:
+        return None
+    return dict(normalized.get("structure_context", {}))
+
+
+def load_normalized_structure_contract_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
+    artifact_file = _resolve_artifact_file(symbol, timeframe)
+    try:
+        if artifact_file is not None:
+            payload = _load_json(artifact_file)
+            contract = normalize_structure_contract(payload)
+            return contract_to_dict(contract)
+
+        if STRUCTURE_ARTIFACT_JSON.exists():
+            payload = _load_payload()
+            contract = normalize_structure_contract(payload, symbol=symbol, timeframe=timeframe)
+            return contract_to_dict(contract)
+    except Exception:
+        return None
+    return None
+
+
+def discover_category_coverage() -> dict[str, bool]:
+    summary = discover_normalized_contract_summary()
+    return dict(summary.get("mapped_structure_categories", {}))
 
 
 def _entry_matches_timeframe(entry: dict[str, Any], timeframe: str) -> bool:
@@ -366,32 +297,16 @@ def _select_symbol_entry(payload: dict[str, Any], symbol: str, timeframe: str) -
 
 
 def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
-    artifact_file = _resolve_artifact_file(symbol, timeframe)
-    if artifact_file is not None:
-        artifact_payload = _load_json(artifact_file)
-        structure = artifact_payload.get("structure")
-        if not isinstance(structure, dict):
-            raise ValueError(f"structure artifact file missing structure object: {artifact_file}")
-        return {
-            "bos": list(structure.get("bos", [])),
-            "orderblocks": list(structure.get("orderblocks", [])),
-            "fvg": list(structure.get("fvg", [])),
-            "liquidity_sweeps": list(structure.get("liquidity_sweeps", [])),
-        }
+    normalized = load_normalized_structure_contract_input(symbol, timeframe)
+    if normalized is None:
+        raise FileNotFoundError("no structure artifact available for requested symbol/timeframe")
 
-    # Backward-compatibility: legacy single artifact with entries array.
-    payload = _load_payload()
-    entry = _select_symbol_entry(payload, symbol, timeframe)
-
-    structure = entry.get("structure")
-    if not isinstance(structure, dict):
-        raise ValueError("structure artifact entry is missing structure object")
-
+    canonical = normalized.get("canonical_structure", {})
     return {
-        "bos": list(structure.get("bos", [])),
-        "orderblocks": list(structure.get("orderblocks", [])),
-        "fvg": list(structure.get("fvg", [])),
-        "liquidity_sweeps": list(structure.get("liquidity_sweeps", [])),
+        "bos": list(canonical.get("bos", [])),
+        "orderblocks": list(canonical.get("orderblocks", [])),
+        "fvg": list(canonical.get("fvg", [])),
+        "liquidity_sweeps": list(canonical.get("liquidity_sweeps", [])),
     }
 
 

@@ -82,6 +82,29 @@ def _build_snapshot_from_loaded_raw(
     return apply_layering(structure, meta, generated_at=generated_at)
 
 
+def _load_structure_input_and_context(
+    symbol: str,
+    timeframe: str,
+    *,
+    source: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
+    structure_source = composite["structure"]
+    structure_load_source = "auto" if source.strip().lower() == "auto" else structure_source
+
+    raw_structure = load_raw_structure_input(
+        symbol,
+        timeframe,
+        source=structure_load_source,
+    )
+
+    if structure_source == "structure_artifact_json":
+        structure_context = structure_artifact_json.load_structure_context_input(symbol, timeframe)
+        return raw_structure, structure_context
+
+    return raw_structure, None
+
+
 def build_snapshot_for_symbol_timeframe(
     symbol: str,
     timeframe: str,
@@ -89,14 +112,7 @@ def build_snapshot_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> SmcSnapshot:
-    composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
-    structure_source = composite["structure"]
-    structure_load_source = "auto" if source.strip().lower() == "auto" else structure_source
-    raw_structure = load_raw_structure_input(
-        symbol,
-        timeframe,
-        source=structure_load_source,
-    )
+    raw_structure, _ = _load_structure_input_and_context(symbol, timeframe, source=source)
     raw_meta = load_raw_meta_input_composite(
         symbol,
         timeframe,
@@ -159,12 +175,13 @@ def build_snapshot_bundle_for_symbol_timeframe(
     selected = select_best_structure_source() if source.strip().lower() == "auto" else None
     composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
-    snapshot = build_snapshot_for_symbol_timeframe(
+    raw_structure, normalized_structure_context = _load_structure_input_and_context(symbol, timeframe, source=source)
+    raw_meta = load_raw_meta_input_composite(
         symbol,
         timeframe,
         source=source,
-        generated_at=generated_at,
     )
+    snapshot = _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
     dashboard_payload = snapshot_to_dashboard_payload(
         snapshot,
         source_plan=composite,
@@ -197,7 +214,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         session_context = build_session_liquidity_context(bars, tz="America/New_York")
         htf_context = build_htf_bias_context(bars, timeframe=timeframe, htf_frames=None)
 
-    structure_context = structure_artifact_json.load_structure_context_input(symbol, timeframe)
+    structure_context = normalized_structure_context
 
     out = {
         "source_plan": composite,
