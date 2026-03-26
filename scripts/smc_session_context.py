@@ -100,8 +100,9 @@ def build_dwm_levels(df: pd.DataFrame) -> dict:
 
     bars["_dt"] = pd.to_datetime(bars["timestamp"], unit="s", utc=True)
     bars["_day"] = bars["_dt"].dt.floor("D")
-    bars["_week"] = bars["_dt"].dt.to_period("W").astype(str)
-    bars["_month"] = bars["_dt"].dt.to_period("M").astype(str)
+    dt_naive = bars["_dt"].dt.tz_localize(None)
+    bars["_week"] = dt_naive.dt.strftime("%G-W%V")
+    bars["_month"] = dt_naive.dt.strftime("%Y-%m")
 
     for col in ["open", "high", "low", "close"]:
         bars[col] = pd.to_numeric(bars[col], errors="coerce")

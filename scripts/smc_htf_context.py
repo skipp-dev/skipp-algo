@@ -70,10 +70,13 @@ def build_ipda_range(htf_current: dict, htf_prev: dict) -> dict:
 def compute_calendar_boundaries(df: pd.DataFrame) -> dict:
     bars = normalize_bars(df)
     ts = pd.to_datetime(bars["timestamp"], unit="s", utc=True)
+    ts_naive = ts.dt.tz_localize(None)
 
     day_change_idx = ts.dt.floor("D").ne(ts.dt.floor("D").shift())
-    week_change_idx = ts.dt.to_period("W").astype(str).ne(ts.dt.to_period("W").astype(str).shift())
-    month_change_idx = ts.dt.to_period("M").astype(str).ne(ts.dt.to_period("M").astype(str).shift())
+    week_key = ts_naive.dt.strftime("%G-W%V")
+    month_key = ts_naive.dt.strftime("%Y-%m")
+    week_change_idx = week_key.ne(week_key.shift())
+    month_change_idx = month_key.ne(month_key.shift())
 
     return {
         "day_boundaries": [int(bars.iloc[i]["timestamp"]) for i in bars.index[day_change_idx].tolist()],
