@@ -1,0 +1,71 @@
+{
+  "symbol": "AAPL",
+  "timeframe": "15m",
+  "generated_at": 1709300000,
+  "schema_version": "1.0.0",
+  "structure": {
+    "bos": [],
+    "orderblocks": [
+      {
+        "id": "ob:AAPL:15m:1709298000:BULL:183.00:183.80",
+        "low": 183.0,
+        "high": 183.8,
+        "dir": "BULL",
+        "valid": true
+      }
+    ],
+    "fvg": [],
+    "liquidity_sweeps": []
+  },
+  "meta": {
+    "symbol": "AAPL",
+    "timeframe": "15m",
+    "asof_ts": 1709299980,
+    "volume": {
+      "value": {
+        "regime": "HOLIDAY_SUSPECT",
+        "thin_fraction": 0.85
+      },
+      "asof_ts": 1709299980,
+      "stale": false
+    },
+    "technical": {
+      "value": {
+        "strength": 0.6,
+        "bias": "BULLISH"
+      },
+      "asof_ts": 1709299900,
+      "stale": false
+    },
+    "news": {
+      "value": {
+        "strength": 0.2,
+        "bias": "BEARISH",
+        "category": "macro"
+      },
+      "asof_ts": 1709299500,
+      "stale": false
+    },
+    "provenance": ["FMP_TECHNICALS", "BENZINGA_NEWS"]
+  },
+  "layered": {
+    "zone_styles": {
+      "ob:AAPL:15m:1709298000:BULL:183.00:183.80": {
+        "opacity": 0.1,
+        "line_width": 1,
+        "render_state": "DIMMED",
+        "trade_state": "BLOCKED",
+        "bias": "NEUTRAL",
+        "strength": 0.3,
+        "heat": 0.0,
+        "tone": "NEUTRAL",
+        "emphasis": "LOW",
+        "reason_codes": [
+          "REGIME_HOLIDAY_SUSPECT",
+          "NEWS_BEARISH",
+          "TECH_BULLISH"
+        ]
+      }
+    }
+  }
+}

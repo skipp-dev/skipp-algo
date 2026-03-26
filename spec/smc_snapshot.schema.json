@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skipp-algo.local/spec/smc_snapshot.schema.json",
+  "title": "SmcSnapshot",
+  "type": "object",
+  "required": ["symbol", "timeframe", "generated_at", "schema_version", "structure", "meta", "layered"],
+  "additionalProperties": false,
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timeframe": {
+      "type": "string",
+      "enum": ["5m", "15m", "1H", "4H", "1D"]
+    },
+    "generated_at": {
+      "type": "number"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "structure": {
+      "type": "object",
+      "required": ["bos", "orderblocks", "fvg", "liquidity_sweeps"],
+      "additionalProperties": false,
+      "properties": {
+        "bos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "time", "price", "kind", "dir"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "time": { "type": "number" },
+              "price": { "type": "number" },
+              "kind": { "type": "string", "enum": ["BOS", "CHOCH"] },
+              "dir": { "type": "string", "enum": ["UP", "DOWN"] }
+            }
+          }
+        },
+        "orderblocks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "low", "high", "dir", "valid"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "low": { "type": "number" },
+              "high": { "type": "number" },
+              "dir": { "type": "string", "enum": ["BULL", "BEAR"] },
+              "valid": { "type": "boolean" }
+            }
+          }
+        },
+        "fvg": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "low", "high", "dir", "valid"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "low": { "type": "number" },
+              "high": { "type": "number" },
+              "dir": { "type": "string", "enum": ["BULL", "BEAR"] },
+              "valid": { "type": "boolean" }
+            }
+          }
+        },
+        "liquidity_sweeps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "time", "price", "side"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "time": { "type": "number" },
+              "price": { "type": "number" },
+              "side": { "type": "string", "enum": ["BUY_SIDE", "SELL_SIDE"] }
+            }
+          }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["symbol", "timeframe", "asof_ts", "volume"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "type": "string", "minLength": 1 },
+        "timeframe": { "type": "string" },
+        "asof_ts": { "type": "number" },
+        "volume": {
+          "type": "object",
+          "required": ["value", "asof_ts", "stale"],
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["regime", "thin_fraction"],
+              "additionalProperties": false,
+              "properties": {
+                "regime": {
+                  "type": "string",
+                  "enum": ["NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"]
+                },
+                "thin_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            },
+            "asof_ts": { "type": "number" },
+            "stale": { "type": "boolean" }
+          }
+        },
+        "technical": {
+          "type": "object",
+          "required": ["value", "asof_ts", "stale"],
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["strength", "bias"],
+              "additionalProperties": false,
+              "properties": {
+                "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+                "bias": { "type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"] }
+              }
+            },
+            "asof_ts": { "type": "number" },
+            "stale": { "type": "boolean" }
+          }
+        },
+        "news": {
+          "type": "object",
+          "required": ["value", "asof_ts", "stale"],
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "type": "object",
+              "required": ["strength", "bias"],
+              "additionalProperties": false,
+              "properties": {
+                "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+                "bias": { "type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"] },
+                "category": { "type": "string" }
+              }
+            },
+            "asof_ts": { "type": "number" },
+            "stale": { "type": "boolean" }
+          }
+        },
+        "provenance": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "layered": {
+      "type": "object",
+      "required": ["zone_styles"],
+      "additionalProperties": false,
+      "properties": {
+        "zone_styles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "opacity",
+              "line_width",
+              "render_state",
+              "trade_state",
+              "bias",
+              "strength",
+              "heat",
+              "tone",
+              "emphasis",
+              "reason_codes"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "line_width": { "type": "number", "minimum": 0 },
+              "render_state": { "type": "string", "enum": ["NORMAL", "DIMMED", "HIDDEN"] },
+              "trade_state": { "type": "string", "enum": ["ALLOWED", "DISCOURAGED", "BLOCKED"] },
+              "bias": { "type": "string", "enum": ["LONG", "SHORT", "NEUTRAL"] },
+              "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+              "heat": { "type": "number", "minimum": -1, "maximum": 1 },
+              "tone": { "type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL", "WARNING"] },
+              "emphasis": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+              "reason_codes": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "REGIME_NORMAL",
+                    "REGIME_LOW_VOLUME",
+                    "REGIME_HOLIDAY_SUSPECT",
+                    "VOLUME_STALE",
+                    "TECH_MISSING",
+                    "TECH_STALE",
+                    "NEWS_MISSING",
+                    "NEWS_STALE",
+                    "TECH_BULLISH",
+                    "TECH_BEARISH",
+                    "NEWS_BULLISH",
+                    "NEWS_BEARISH",
+                    "OB_INVALID",
+                    "FVG_INVALID",
+                    "BOS",
+                    "CHOCH",
+                    "SWEEP_BUY_SIDE",
+                    "SWEEP_SELL_SIDE"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

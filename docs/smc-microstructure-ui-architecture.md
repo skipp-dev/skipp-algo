@@ -8,6 +8,24 @@ Use it together with:
 
 - [smc-microstructure-ui-audit.md](smc-microstructure-ui-audit.md)
 - [smc-microstructure-ui-operator-runbook.md](smc-microstructure-ui-operator-runbook.md)
+- [smc-snapshot-target-architecture.md](smc-snapshot-target-architecture.md)
+
+## Canonical Contract Note
+
+The Streamlit/publish pipeline described below is not the canonical contract for the new SMC snapshot and TradingView bridge work.
+
+For all future structure/meta/layering/transport decisions, use:
+
+- [smc-snapshot-target-architecture.md](smc-snapshot-target-architecture.md)
+
+That document defines the target architecture for:
+
+1. `SmcStructure`
+2. `SmcMeta`
+3. `ZoneStyle`
+4. `SmcSnapshot`
+5. the layering invariants
+6. the JSON schema and reference examples
 
 ## Mermaid Diagram
 

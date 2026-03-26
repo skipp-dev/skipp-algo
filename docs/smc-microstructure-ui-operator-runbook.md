@@ -10,6 +10,12 @@ Use this file for day-to-day operation of the Streamlit UI.
 
 Use the audit document for architecture review, control validation, and implementation details.
 
+For the canonical target contract of the SMC snapshot, layering semantics, and TradingView bridge payloads, use:
+
+- [smc-snapshot-target-architecture.md](smc-snapshot-target-architecture.md)
+
+If implementation behavior and that target architecture disagree, the target architecture takes precedence.
+
 ## Entry Point
 
 Start the UI with the project’s Streamlit entry script:

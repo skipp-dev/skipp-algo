@@ -1,0 +1,141 @@
+// @version=5
+indicator("SMC + Regime + News (skipp)", overlay = true, max_lines_count = 500, max_boxes_count = 500, max_labels_count = 500)
+
+// ── Inputs ─────────────────────────────────────────────
+i_sym     = input.symbol(syminfo.tickerid, "Backend Symbol")
+i_tf      = input.string("15m", "SMC TF", options = ["5m", "15m", "1H", "4H"])
+i_apiUrl  = input.string("https://your-node-host/smc_tv", "Backend URL")
+i_enabled = input.bool(true, "Enable overlay")
+i_refresh = input.int(10, "Refresh (sec)", minval = 5, maxval = 120)
+
+// ── Persistent state ──────────────────────────────────
+var string lastBody  = ""
+var float  lastFetch = 0.0
+
+// ── Fetch logic ───────────────────────────────────────
+f_fetch() =>
+    string result = lastBody
+    if i_enabled
+        bool shouldFetch = (timenow - lastFetch * 1000.0) > i_refresh * 1000.0
+        if shouldFetch
+            string url = i_apiUrl + "?symbol=" + str.tostring(i_sym) + "&tf=" + i_tf
+            // NOTE: request.* requires TradingView Premium or higher plan
+            // and only works with HTTPS endpoints that return valid JSON.
+            // Uncomment below when your endpoint is publicly reachable:
+            //
+            // [status, headers, body] = request.get(url)
+            // if status == 200
+            //     lastBody  := body
+            //     lastFetch := timenow / 1000.0
+            //     result    := body
+            na  // placeholder – remove when uncommenting above
+    result
+
+body = f_fetch()
+
+// ── JSON field extractor (flat key:"value" pairs) ─────
+f_getField(string src, string key) =>
+    string prefix = '"' + key + '":'
+    int start = str.pos(src, prefix)
+    string out = ""
+    if start >= 0
+        int from = start + str.length(prefix)
+        // skip optional whitespace + opening quote
+        string rest = str.substring(src, from)
+        if str.startswith(rest, '"')
+            // string value → find closing quote
+            string inner = str.substring(rest, 1)
+            int qEnd = str.pos(inner, '"')
+            out := qEnd >= 0 ? str.substring(inner, 0, qEnd) : ""
+        else
+            // numeric or unquoted value → take until comma / }
+            int cEnd = str.pos(rest, ',')
+            int bEnd = str.pos(rest, '}')
+            int endPos = cEnd >= 0 and (bEnd < 0 or cEnd < bEnd) ? cEnd : bEnd
+            out := endPos >= 0 ? str.substring(rest, 0, endPos) : rest
+    out
+
+// ── Extract fields ────────────────────────────────────
+bosStr    = f_getField(body, "bos")
+obStr     = f_getField(body, "ob")
+fvgStr    = f_getField(body, "fvg")
+sweepStr  = f_getField(body, "sweeps")
+regimeStr = f_getField(body, "regime")
+techStr   = f_getField(body, "tech")
+newsStr   = f_getField(body, "news")
+
+tech = str.tonumber(techStr, 0.5)
+news = str.tonumber(newsStr, 0.0)
+heat = (tech - 0.5) * 0.7 + (news - 0.5) * 0.3
+
+// ── Background colour (regime + heat) ─────────────────
+bgCol = regimeStr == "HOLIDAY_SUSPECT" ? color.new(color.gray, 92) :
+     heat > 0 ? color.new(color.green, 90 - int(math.min(40, heat * 80))) :
+                color.new(color.red,   90 - int(math.min(40, -heat * 80)))
+bgcolor(bgCol, title = "Regime / Heat BG")
+
+// ── Draw BOS labels ───────────────────────────────────
+if barstate.islast and bosStr != ""
+    bosRows = str.split(bosStr, ";")
+    for i = 0 to array.size(bosRows) - 1
+        row = array.get(bosRows, i)
+        cols = str.split(row, "|")
+        if array.size(cols) == 3
+            pr  = str.tonumber(array.get(cols, 1))
+            dir = array.get(cols, 2)
+            clr = dir == "UP" ? color.green : color.red
+            label.new(bar_index, pr, "BOS " + dir,
+                 style = label.style_label_left, color = clr,
+                 textcolor = color.white, size = size.small)
+
+// ── Draw OB boxes ─────────────────────────────────────
+if barstate.islast and obStr != ""
+    obRows = str.split(obStr, ";")
+    for i = 0 to array.size(obRows) - 1
+        row = array.get(obRows, i)
+        cols = str.split(row, "|")
+        if array.size(cols) >= 3
+            lo  = str.tonumber(array.get(cols, 0))
+            hi  = str.tonumber(array.get(cols, 1))
+            dir = array.get(cols, 2)
+            clr = dir == "BULL" ? color.new(color.green, 80) : color.new(color.red, 80)
+            box.new(bar_index - 5, hi, bar_index, lo, bgcolor = clr, border_color = clr)
+
+// ── Draw FVG boxes ────────────────────────────────────
+if barstate.islast and fvgStr != ""
+    fvgRows = str.split(fvgStr, ";")
+    for i = 0 to array.size(fvgRows) - 1
+        row = array.get(fvgRows, i)
+        cols = str.split(row, "|")
+        if array.size(cols) >= 3
+            lo  = str.tonumber(array.get(cols, 0))
+            hi  = str.tonumber(array.get(cols, 1))
+            dir = array.get(cols, 2)
+            clr = dir == "BULL" ? color.new(color.teal, 85) : color.new(color.orange, 85)
+            box.new(bar_index - 3, hi, bar_index, lo, bgcolor = clr,
+                 border_color = color.new(clr, 60), border_style = line.style_dashed)
+
+// ── Draw Sweep markers ────────────────────────────────
+if barstate.islast and sweepStr != ""
+    swRows = str.split(sweepStr, ";")
+    for i = 0 to array.size(swRows) - 1
+        row = array.get(swRows, i)
+        cols = str.split(row, "|")
+        if array.size(cols) == 3
+            pr   = str.tonumber(array.get(cols, 1))
+            side = array.get(cols, 2)
+            clr  = side == "BUY" ? color.lime : color.fuchsia
+            stl  = side == "BUY" ? label.style_triangleup : label.style_triangledown
+            label.new(bar_index, pr, "", style = stl, color = clr, size = size.tiny)
+
+// ── Dashboard table ───────────────────────────────────
+var table dash = table.new(position.top_right, 2, 4, bgcolor = color.new(color.black, 80))
+if barstate.islast
+    table.cell(dash, 0, 0, "Regime",    text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 0, regimeStr != "" ? regimeStr : "–", text_color = color.yellow, text_size = size.small)
+    table.cell(dash, 0, 1, "Tech",      text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 1, techStr != "" ? techStr : "–", text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 2, "News",      text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 2, newsStr != "" ? newsStr : "–", text_color = color.aqua, text_size = size.small)
+    table.cell(dash, 0, 3, "Heat",      text_color = color.white, text_size = size.small)
+    table.cell(dash, 1, 3, str.tostring(math.round(heat, 2)), text_color = heat > 0 ? color.lime : color.red, text_size = size.small)

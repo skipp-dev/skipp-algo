@@ -60,7 +60,7 @@ ignore = [
 "streamlit_terminal.py" = ["E402"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["newsstack_fmp", "open_prep", "terminal_poller", "terminal_export"]
+known-first-party = ["newsstack_fmp", "open_prep", "smc_core", "terminal_poller", "terminal_export"]
 
 [tool.mypy]
 python_version = "3.12"

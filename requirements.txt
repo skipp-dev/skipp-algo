@@ -13,3 +13,6 @@ databento>=0.39.0
 ib_insync>=0.9.86
 openpyxl>=3.1.0
 pyarrow>=18.0.0
+fastapi>=0.115.0
+uvicorn>=0.30.0
+jsonschema>=4.0.0

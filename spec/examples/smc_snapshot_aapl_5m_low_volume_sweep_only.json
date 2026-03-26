@@ -1,0 +1,54 @@
+{
+  "symbol": "AAPL",
+  "timeframe": "5m",
+  "generated_at": 1709350000,
+  "schema_version": "1.0.0",
+  "structure": {
+    "bos": [],
+    "orderblocks": [],
+    "fvg": [],
+    "liquidity_sweeps": [
+      {
+        "id": "sweep:AAPL:5m:1709349600:SELL_SIDE:189.80",
+        "time": 1709349600,
+        "price": 189.8,
+        "side": "SELL_SIDE"
+      }
+    ]
+  },
+  "meta": {
+    "symbol": "AAPL",
+    "timeframe": "5m",
+    "asof_ts": 1709349980,
+    "volume": {
+      "value": {
+        "regime": "LOW_VOLUME",
+        "thin_fraction": 0.6
+      },
+      "asof_ts": 1709349980,
+      "stale": false
+    },
+    "provenance": ["VOLUME_ONLY"]
+  },
+  "layered": {
+    "zone_styles": {
+      "sweep:AAPL:5m:1709349600:SELL_SIDE:189.80": {
+        "opacity": 0.4,
+        "line_width": 1,
+        "render_state": "DIMMED",
+        "trade_state": "DISCOURAGED",
+        "bias": "NEUTRAL",
+        "strength": 0.5,
+        "heat": 0.0,
+        "tone": "WARNING",
+        "emphasis": "MEDIUM",
+        "reason_codes": [
+          "REGIME_LOW_VOLUME",
+          "SWEEP_SELL_SIDE",
+          "TECH_MISSING",
+          "NEWS_MISSING"
+        ]
+      }
+    }
+  }
+}

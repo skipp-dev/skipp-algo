@@ -1,0 +1,95 @@
+{
+  "symbol": "AAPL",
+  "timeframe": "15m",
+  "generated_at": 1709253600,
+  "schema_version": "1.0.0",
+  "structure": {
+    "bos": [
+      {
+        "id": "bos:AAPL:15m:1709250000:BOS:UP:185.25",
+        "time": 1709250000,
+        "price": 185.25,
+        "kind": "BOS",
+        "dir": "UP"
+      }
+    ],
+    "orderblocks": [
+      {
+        "id": "ob:AAPL:15m:1709250000:BULL:184.50:185.10",
+        "low": 184.5,
+        "high": 185.1,
+        "dir": "BULL",
+        "valid": true
+      }
+    ],
+    "fvg": [],
+    "liquidity_sweeps": []
+  },
+  "meta": {
+    "symbol": "AAPL",
+    "timeframe": "15m",
+    "asof_ts": 1709253580,
+    "volume": {
+      "value": {
+        "regime": "NORMAL",
+        "thin_fraction": 0.1
+      },
+      "asof_ts": 1709253580,
+      "stale": false
+    },
+    "technical": {
+      "value": {
+        "strength": 0.8,
+        "bias": "BULLISH"
+      },
+      "asof_ts": 1709253550,
+      "stale": false
+    },
+    "news": {
+      "value": {
+        "strength": 0.5,
+        "bias": "NEUTRAL",
+        "category": "none"
+      },
+      "asof_ts": 1709253000,
+      "stale": false
+    },
+    "provenance": ["FMP_TECHNICALS", "TV_NEWS"]
+  },
+  "layered": {
+    "zone_styles": {
+      "ob:AAPL:15m:1709250000:BULL:184.50:185.10": {
+        "opacity": 0.6,
+        "line_width": 2,
+        "render_state": "NORMAL",
+        "trade_state": "ALLOWED",
+        "bias": "LONG",
+        "strength": 0.9,
+        "heat": 0.7,
+        "tone": "BULLISH",
+        "emphasis": "HIGH",
+        "reason_codes": [
+          "REGIME_NORMAL",
+          "TECH_BULLISH",
+          "NEWS_MISSING"
+        ]
+      },
+      "bos:AAPL:15m:1709250000:BOS:UP:185.25": {
+        "opacity": 0.5,
+        "line_width": 1,
+        "render_state": "NORMAL",
+        "trade_state": "ALLOWED",
+        "bias": "LONG",
+        "strength": 0.8,
+        "heat": 0.7,
+        "tone": "BULLISH",
+        "emphasis": "MEDIUM",
+        "reason_codes": [
+          "REGIME_NORMAL",
+          "BOS",
+          "TECH_BULLISH"
+        ]
+      }
+    }
+  }
+}
