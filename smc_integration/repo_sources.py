@@ -185,8 +185,28 @@ def discover_repo_source_paths() -> dict[str, Any]:
     }
 
 
-def discover_structure_source_status(*, source: str = "auto") -> dict[str, Any]:
-    plan = discover_composite_source_plan(source=source)
+def _resolve_auto_structure_source_for_symbol_timeframe(symbol: str, timeframe: str) -> str:
+    wanted_symbol = symbol.strip().upper()
+    wanted_timeframe = str(timeframe).strip()
+    wants_specific_artifact = bool(wanted_symbol and wanted_timeframe)
+
+    for name in _DOMAIN_SOURCE_ORDER["structure"]:
+        provider = _SOURCE_PROVIDERS.get(name)
+        if provider is None:
+            continue
+        if name == "structure_artifact_json" and wants_specific_artifact:
+            try:
+                if not structure_artifact_json.has_artifact_for_symbol_timeframe(wanted_symbol, wanted_timeframe):
+                    continue
+            except Exception:
+                continue
+        if _can_supply_domain(provider, "structure"):
+            return provider.descriptor.name
+    raise ValueError("no integration source can supply domain=structure")
+
+
+def discover_structure_source_status(*, source: str = "auto", symbol: str = "", timeframe: str = "") -> dict[str, Any]:
+    plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_name = plan["structure"]
     structure_provider = _SOURCE_PROVIDERS[structure_name]
     structure_descriptor = structure_provider.descriptor
@@ -218,10 +238,10 @@ def discover_structure_source_status(*, source: str = "auto") -> dict[str, Any]:
     }
 
 
-def discover_composite_source_plan(*, source: str = "auto") -> dict[str, str]:
+def discover_composite_source_plan(*, source: str = "auto", symbol: str = "", timeframe: str = "") -> dict[str, str]:
     normalized = source.strip().lower()
     if normalized == "auto":
-        structure = select_best_structure_source().name
+        structure = _resolve_auto_structure_source_for_symbol_timeframe(symbol, timeframe)
         volume = select_best_volume_source().name
         technical = select_best_technical_source().name
         news = select_best_news_source().name

@@ -28,6 +28,7 @@ def test_structure_source_status_is_deterministic() -> None:
 
 def test_structure_status_and_provider_summary_are_honest() -> None:
     status = discover_structure_source_status()
+    symbol_status = discover_structure_source_status(symbol=_first_symbol(), timeframe="15m")
     summary = build_provider_summary()
 
     if status["any_registered_explicit_structure_provider"]:
@@ -35,6 +36,8 @@ def test_structure_status_and_provider_summary_are_honest() -> None:
     else:
         assert summary["best_current_structure_provider"] is None
         assert status["selected_structure_mode"] in {"partial", "none"}
+
+    assert symbol_status["selected_structure_source"] in {"structure_artifact_json", "databento_watchlist_csv", "fmp_watchlist_json", "tradingview_watchlist_json", "benzinga_watchlist_json"}
 
 
 def test_no_fabricated_structure_for_partial_source() -> None:

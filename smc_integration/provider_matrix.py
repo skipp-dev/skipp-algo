@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Literal
 
 from .repo_sources import discover_repo_sources
+from .sources import structure_artifact_json
 
 Mode = Literal["full", "partial", "none"]
 
@@ -135,13 +136,14 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
     ]
 
     if name == "structure_artifact_json":
+        has_any = structure_artifact_json.has_any_structure_artifact()
         return ProviderCurrentMapping(
-            currently_maps_structure=True,
+            currently_maps_structure=has_any,
             currently_maps_meta=False,
             currently_maps_volume=False,
             currently_maps_technical=False,
             currently_maps_news=False,
-            snapshot_structure_mode="partial",
+            snapshot_structure_mode="partial" if has_any else "none",
             snapshot_meta_mode="none",
             mapped_structure_fields=[
                 "bos.id",
@@ -149,7 +151,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
                 "bos.price",
                 "bos.kind",
                 "bos.dir",
-            ],
+            ] if has_any else [],
             mapped_meta_fields=[],
         )
 

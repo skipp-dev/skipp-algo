@@ -23,6 +23,9 @@ def test_structure_candidates_are_real_paths_with_evidence() -> None:
     candidates = discover_structure_source_candidates()
     assert candidates
 
+    paths = {candidate["path"] for candidate in candidates}
+    assert "scripts/export_smc_structure_artifacts_from_workbook.py" in paths or "scripts/export_smc_structure_artifact.py" in paths
+
     for candidate in candidates:
         assert candidate["path"]
         assert candidate["evidence"]

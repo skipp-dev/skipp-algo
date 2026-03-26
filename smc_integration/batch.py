@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .repo_sources import discover_repo_sources, select_best_source
+from .repo_sources import discover_repo_sources, select_best_source, select_best_volume_source
 from .service import build_snapshot_bundle_for_symbol_timeframe
 
 
@@ -33,7 +33,7 @@ def _descriptor_for_source_name(name: str) -> Any:
 def _resolve_source_name(source: str) -> str:
     normalized = source.strip().lower()
     if normalized == "auto":
-        return select_best_source().name
+        return select_best_volume_source().name
     return normalized
 
 

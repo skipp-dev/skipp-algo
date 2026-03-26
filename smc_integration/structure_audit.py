@@ -88,6 +88,7 @@ def _notes_for(path: Path, evidence: list[str]) -> list[str]:
 def _candidate_paths() -> list[Path]:
     explicit: list[Path] = [
         _REPO_ROOT / "SMC_Core_Engine.pine",
+        _REPO_ROOT / "scripts" / "export_smc_structure_artifacts_from_workbook.py",
         _REPO_ROOT / "scripts" / "export_smc_structure_artifact.py",
         _REPO_ROOT / "scripts" / "market_structure_features.py",
         _REPO_ROOT / "scripts" / "smc_microstructure_base_runtime.py",

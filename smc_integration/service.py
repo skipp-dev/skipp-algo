@@ -35,7 +35,7 @@ def build_snapshot_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> SmcSnapshot:
-    composite = discover_composite_source_plan(source=source)
+    composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_source = composite["structure"]
     structure_load_source = "auto" if source.strip().lower() == "auto" else structure_source
     raw_structure = load_raw_structure_input(
@@ -91,8 +91,8 @@ def build_snapshot_bundle_for_symbol_timeframe(
     generated_at: float | None = None,
 ) -> dict:
     selected = select_best_structure_source() if source.strip().lower() == "auto" else None
-    composite = discover_composite_source_plan(source=source)
-    structure_status = discover_structure_source_status(source=source)
+    composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
+    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,

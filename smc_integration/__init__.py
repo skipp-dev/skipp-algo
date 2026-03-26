@@ -29,6 +29,11 @@ from .structure_audit import (
     discover_structure_source_candidates,
     structure_gap_report_to_dict,
 )
+from .structure_batch import (
+    build_single_symbol_structure_artifact,
+    build_structure_artifact_manifest,
+    write_structure_artifacts_from_workbook,
+)
 from .service import (
     build_dashboard_payload_for_symbol_timeframe,
     build_snapshot_bundle_for_symbol_timeframe,
@@ -48,6 +53,9 @@ __all__ = [
     "discover_structure_source_candidates",
     "build_structure_gap_report",
     "structure_gap_report_to_dict",
+    "build_single_symbol_structure_artifact",
+    "build_structure_artifact_manifest",
+    "write_structure_artifacts_from_workbook",
     "discover_composite_source_plan",
     "discover_repo_sources",
     "discover_repo_source_paths",

@@ -11,6 +11,7 @@ from smc_core.types import SmcSnapshot
 from smc_integration.repo_sources import load_raw_meta_input_composite, load_raw_structure_input
 from smc_integration.service import (
     build_dashboard_payload_for_symbol_timeframe,
+    build_snapshot_bundle_for_symbol_timeframe,
     build_pine_payload_for_symbol_timeframe,
     build_snapshot_for_symbol_timeframe,
 )
@@ -84,3 +85,12 @@ def test_service_matches_direct_adapter_pipeline() -> None:
 def test_missing_symbol_fails_with_clear_error() -> None:
     with pytest.raises(ValueError, match="not present"):
         build_snapshot_for_symbol_timeframe("__MISSING__", "15m", generated_at=1709253600.0)
+
+
+def test_snapshot_bundle_source_plan_and_structure_status_are_present() -> None:
+    symbol = _first_symbol()
+    bundle = build_snapshot_bundle_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
+
+    assert set(["source_plan", "structure_status", "source", "snapshot", "dashboard_payload", "pine_payload"]).issubset(set(bundle.keys()))
+    assert bundle["source_plan"]["volume"] == "databento_watchlist_csv"
+    assert "selected_structure_source" in bundle["structure_status"]

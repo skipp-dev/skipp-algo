@@ -49,6 +49,7 @@ Current first real integration entries are:
 
 1. `reports/databento_watchlist_top5_pre1530.csv`
 2. `reports/smc_structure_artifact.json`
+3. `reports/smc_structure_artifacts/*.structure.json` + `reports/smc_structure_artifacts/manifest_<timeframe>.json`
 
 The watchlist source is symbol/meta oriented and does not contain explicit
 `bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows.
@@ -57,8 +58,21 @@ The structure artifact source is generated from real workbook `daily_bars` using
 `scripts.market_structure_features.build_market_structure_feature_frame` and currently maps
 explicit BOS/CHOCH events (partial structure coverage).
 
+The structure artifact path now supports watchlist/batch scale exports:
+
+1. `scripts/export_smc_structure_artifacts_from_workbook.py`
+2. one artifact per `symbol + timeframe`
+3. deterministic manifest (`manifest_<timeframe>.json`) with explicit counts/errors
+
+`smc_integration.sources.structure_artifact_json` is manifest-aware and resolves artifacts by
+`symbol + timeframe` from manifest entries or deterministic directory conventions, with backward
+compatible fallback to the legacy single-artifact file.
+
 Orderblocks/FVG/liquidity sweeps remain unmapped in current artifact output. The integration
 keeps this gap explicit and does not fabricate missing structure event families.
+
+First batch/export consumer rewiring is now in `scripts/export_smc_snapshot_watchlist_bundles.py`:
+the script produces/refreshes structure artifact batches first, then exports snapshot bundles.
 
 Current registered sources are intentionally capability-aware and honest partial/meta-oriented.
 Structure-rich sources can be added later, but must still map into `smc_core` through the

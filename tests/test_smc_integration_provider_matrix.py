@@ -40,6 +40,7 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
     by_name = {entry.name: entry for entry in discover_provider_matrix()}
 
     structure_artifact = by_name["structure_artifact_json"]
+    assert "manifest_{timeframe}.json" in structure_artifact.path_hint
     assert structure_artifact.current.currently_maps_structure is True
     assert structure_artifact.current.snapshot_structure_mode == "partial"
     assert any(field.startswith("bos.") for field in structure_artifact.current.mapped_structure_fields)
