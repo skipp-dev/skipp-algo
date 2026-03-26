@@ -20,9 +20,11 @@ def test_apply_layering_does_not_mutate_inputs() -> None:
     before_structure = deepcopy(structure)
     before_meta = deepcopy(meta)
 
-    layered = apply_layering(structure, meta)
+    snapshot = apply_layering(structure, meta, generated_at=1709253600.0)
 
     assert structure == before_structure
     assert meta == before_meta
-    assert layered is not structure
-    assert set(layered.zone_styles.keys()) == {"bos:AAPL:15m:1709250000:BOS:UP:185.25"}
+    assert snapshot.structure == before_structure
+    assert snapshot.meta == before_meta
+    assert snapshot.generated_at == 1709253600.0
+    assert set(snapshot.layered.zone_styles.keys()) == {"bos:AAPL:15m:1709250000:BOS:UP:185.25"}

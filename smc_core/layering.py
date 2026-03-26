@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+import time
+from typing import Literal, TypedDict
 
+from .schema_version import SCHEMA_VERSION
 from .types import (
     BosEvent,
     Fvg,
@@ -10,25 +12,27 @@ from .types import (
     ReasonCode,
     SmcLayered,
     SmcMeta,
+    SmcSnapshot,
     SmcStructure,
+    VolumeRegime,
     ZoneStyle,
 )
 
 
 class NormalizedMeta(TypedDict):
-    volume_regime: Literal["NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"]
-    liquidity_pressure: float
-    volume_zscore: float
-    event_risk: float
-    options_pin_pressure: float
-    gamma_tilt: float
+    symbol: str
+    timeframe: str
+    asof_ts: float
+    volume_regime: VolumeRegime
+    volume_stale: bool
+    thin_fraction: float
     signed_tech: float
-    signed_news: float
     tech_present: bool
     tech_stale: bool
+    signed_news: float
     news_present: bool
     news_stale: bool
-    net_bias: Literal["bullish", "bearish", "neutral"]
+    provenance: list[str]
 
 
 class BaseLayerSignals(TypedDict):
@@ -37,7 +41,7 @@ class BaseLayerSignals(TypedDict):
     base_reasons: list[ReasonCode]
 
 
-# Regime-to-style mapping kept compact and deterministic for phase-1.
+# Regime style anchors remain available for compact coverage checks.
 REGIME_STYLE = {
     "NORMAL": ZoneStyle(
         opacity=0.4,
@@ -79,13 +83,6 @@ def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, float(value)))
 
 
-def _to_float(value: Any, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
 def _signed_strength(strength: float, bias: str) -> float:
     s = _clamp(strength, 0.0, 1.0)
     if bias == "BULLISH":
@@ -105,8 +102,10 @@ def _dedupe_reasons(reasons: list[ReasonCode]) -> list[ReasonCode]:
     return out
 
 
-def normalize_meta(meta: SmcMeta | dict) -> NormalizedMeta:
-    regime: Literal["NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"]
+def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
+    regime: VolumeRegime = meta.volume.value.regime
+    thin_fraction = _clamp(meta.volume.value.thin_fraction, 0.0, 1.0)
+
     signed_tech = 0.0
     signed_news = 0.0
     tech_present = False
@@ -114,112 +113,45 @@ def normalize_meta(meta: SmcMeta | dict) -> NormalizedMeta:
     news_present = False
     news_stale = False
 
-    if isinstance(meta, SmcMeta):
-        regime = meta.volume.value.regime
-        liquidity_pressure = _to_float(meta.volume.value.thin_fraction, 0.0)
-        volume_zscore = _to_float(meta.volume.value.thin_fraction, 0.0)
-        event_risk = 1.0 if (meta.news is not None and meta.news.stale) else 0.0
-        options_pin_pressure = 0.0
-        gamma_tilt = 0.0
+    if meta.technical is not None:
+        tech_present = True
+        tech_stale = meta.technical.stale
+        if not meta.technical.stale:
+            signed_tech = _signed_strength(meta.technical.value.strength, meta.technical.value.bias)
 
-        if meta.technical is not None:
-            tech_present = True
-            tech_stale = meta.technical.stale
-            if not meta.technical.stale:
-                signed_tech = _signed_strength(meta.technical.value.strength, meta.technical.value.bias)
-
-        if meta.news is not None:
-            news_present = True
-            news_stale = meta.news.stale
-            if not meta.news.stale:
-                signed_news = _signed_strength(meta.news.value.strength, meta.news.value.bias)
-
-    elif isinstance(meta, dict):
-        volume_data = meta.get("volume", {})
-        if isinstance(volume_data, dict):
-            raw_regime = str(volume_data.get("regime", "NORMAL"))
-            if raw_regime == "LOW_VOLUME":
-                regime = "LOW_VOLUME"
-            elif raw_regime == "HOLIDAY_SUSPECT":
-                regime = "HOLIDAY_SUSPECT"
-            else:
-                regime = "NORMAL"
-            liquidity_pressure = _to_float(volume_data.get("thin_fraction", 0.0), 0.0)
-            volume_zscore = _to_float(volume_data.get("thin_fraction", 0.0), 0.0)
-        else:
-            regime = "NORMAL"
-            liquidity_pressure = 0.0
-            volume_zscore = 0.0
-
-        technical_data = meta.get("technical")
-        if isinstance(technical_data, dict):
-            tech_present = True
-            tech_stale = bool(technical_data.get("stale", False))
-            if not tech_stale:
-                tech_val = technical_data.get("value")
-                if isinstance(tech_val, dict):
-                    signed_tech = _signed_strength(
-                        _to_float(tech_val.get("strength", 0.0), 0.0),
-                        str(tech_val.get("bias", "NEUTRAL")),
-                    )
-
-        news_data = meta.get("news")
-        if isinstance(news_data, dict):
-            news_present = True
-            news_stale = bool(news_data.get("stale", False))
-            if not news_stale:
-                news_val = news_data.get("value")
-                if isinstance(news_val, dict):
-                    signed_news = _signed_strength(
-                        _to_float(news_val.get("strength", 0.0), 0.0),
-                        str(news_val.get("bias", "NEUTRAL")),
-                    )
-
-        event_risk = _to_float(meta.get("eventRisk", 0.0), 0.0)
-        options_pin_pressure = 0.0
-        gamma_tilt = 0.0
-    else:
-        regime = "NORMAL"
-        liquidity_pressure = 0.0
-        volume_zscore = 0.0
-        event_risk = 0.0
-        options_pin_pressure = 0.0
-        gamma_tilt = 0.0
-
-    if regime == "NORMAL":
-        net_bias: Literal["bullish", "bearish", "neutral"] = "bullish"
-    elif regime == "LOW_VOLUME":
-        net_bias = "bearish"
-    else:
-        net_bias = "neutral"
+    if meta.news is not None:
+        news_present = True
+        news_stale = meta.news.stale
+        if not meta.news.stale:
+            signed_news = _signed_strength(meta.news.value.strength, meta.news.value.bias)
 
     return NormalizedMeta(
+        symbol=meta.symbol,
+        timeframe=meta.timeframe,
+        asof_ts=meta.asof_ts,
         volume_regime=regime,
-        liquidity_pressure=_clamp(liquidity_pressure, -1.0, 1.0),
-        volume_zscore=_clamp(volume_zscore, -1.0, 1.0),
-        event_risk=_clamp(event_risk, -1.0, 1.0),
-        options_pin_pressure=_clamp(options_pin_pressure, -1.0, 1.0),
-        gamma_tilt=_clamp(gamma_tilt, -1.0, 1.0),
+        volume_stale=meta.volume.stale,
+        thin_fraction=thin_fraction,
         signed_tech=_clamp(signed_tech, -1.0, 1.0),
-        signed_news=_clamp(signed_news, -1.0, 1.0),
         tech_present=tech_present,
         tech_stale=tech_stale,
+        signed_news=_clamp(signed_news, -1.0, 1.0),
         news_present=news_present,
         news_stale=news_stale,
-        net_bias=net_bias,
+        provenance=list(meta.provenance),
     )
 
 
-def derive_base_signals(normalized: NormalizedMeta) -> BaseLayerSignals:
-    signed_tech = normalized["signed_tech"]
-    signed_news = normalized["signed_news"]
-    liquidity_pressure = normalized["liquidity_pressure"]
+def derive_base_signals(nm: NormalizedMeta) -> BaseLayerSignals:
+    signed_tech = nm["signed_tech"]
+    signed_news = nm["signed_news"]
+    thin_fraction = nm["thin_fraction"]
 
     global_heat = _clamp(signed_tech * 0.7 + signed_news * 0.3, -1.0, 1.0)
-    global_strength = _clamp(max(abs(global_heat), abs(liquidity_pressure)), 0.0, 1.0)
+    global_strength = _clamp(max(abs(global_heat), thin_fraction), 0.0, 1.0)
 
     base_reasons: list[ReasonCode] = []
-    regime = normalized["volume_regime"]
+    regime = nm["volume_regime"]
     if regime == "LOW_VOLUME":
         base_reasons.append("REGIME_LOW_VOLUME")
     elif regime == "HOLIDAY_SUSPECT":
@@ -227,14 +159,17 @@ def derive_base_signals(normalized: NormalizedMeta) -> BaseLayerSignals:
     else:
         base_reasons.append("REGIME_NORMAL")
 
-    if not normalized["tech_present"]:
+    if nm["volume_stale"]:
+        base_reasons.append("VOLUME_STALE")
+
+    if not nm["tech_present"]:
         base_reasons.append("TECH_MISSING")
-    elif normalized["tech_stale"]:
+    elif nm["tech_stale"]:
         base_reasons.append("TECH_STALE")
 
-    if not normalized["news_present"]:
+    if not nm["news_present"]:
         base_reasons.append("NEWS_MISSING")
-    elif normalized["news_stale"]:
+    elif nm["news_stale"]:
         base_reasons.append("NEWS_STALE")
 
     return BaseLayerSignals(
@@ -242,21 +177,6 @@ def derive_base_signals(normalized: NormalizedMeta) -> BaseLayerSignals:
         global_strength=global_strength,
         base_reasons=_dedupe_reasons(base_reasons),
     )
-
-
-def _meta_regime(meta: SmcMeta | dict | None) -> str:
-    if isinstance(meta, SmcMeta):
-        return meta.volume.value.regime
-    if isinstance(meta, dict):
-        volume_data = meta.get("volume")
-        if isinstance(volume_data, dict):
-            return str(volume_data.get("regime", "NORMAL"))
-    return "NORMAL"
-
-
-def _style_for_regime(regime: str) -> ZoneStyle:
-    return REGIME_STYLE.get(regime, REGIME_STYLE["NORMAL"])
-
 
 def _tone_from_heat(global_heat: float) -> Literal["BULLISH", "BEARISH", "NEUTRAL"]:
     if global_heat > 0.15:
@@ -476,7 +396,12 @@ def _style_for_sweep(item: LiquiditySweep, normalized: NormalizedMeta, signals: 
     return _apply_regime_overlay(style, normalized["volume_regime"])
 
 
-def apply_layering(structure: SmcStructure, meta: SmcMeta | dict) -> SmcLayered:
+def apply_layering(
+    structure: SmcStructure,
+    meta: SmcMeta,
+    *,
+    generated_at: float | None = None,
+) -> SmcSnapshot:
     normalized = normalize_meta(meta)
     signals = derive_base_signals(normalized)
 
@@ -491,4 +416,12 @@ def apply_layering(structure: SmcStructure, meta: SmcMeta | dict) -> SmcLayered:
     for item_sweep in structure.liquidity_sweeps:
         zone_styles[item_sweep.id] = _style_for_sweep(item_sweep, normalized, signals)
 
-    return SmcLayered(zone_styles=zone_styles)
+    return SmcSnapshot(
+        symbol=meta.symbol,
+        timeframe=meta.timeframe,
+        generated_at=generated_at if generated_at is not None else time.time(),
+        schema_version=SCHEMA_VERSION,
+        structure=structure,
+        meta=meta,
+        layered=SmcLayered(zone_styles=zone_styles),
+    )

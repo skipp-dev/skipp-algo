@@ -6,19 +6,19 @@ from smc_core import derive_base_signals
 def test_derive_base_signals_shape_and_bounds() -> None:
     signals = derive_base_signals(
         {
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "asof_ts": 1709253580.0,
             "volume_regime": "NORMAL",
-            "liquidity_pressure": 0.8,
-            "volume_zscore": 0.2,
-            "event_risk": 0.1,
-            "options_pin_pressure": 0.0,
-            "gamma_tilt": 0.0,
+            "volume_stale": False,
+            "thin_fraction": 0.2,
             "signed_tech": 0.6,
             "signed_news": 0.2,
             "tech_present": True,
             "tech_stale": False,
             "news_present": True,
             "news_stale": False,
-            "net_bias": "neutral",
+            "provenance": ["TEST"],
         }
     )
 

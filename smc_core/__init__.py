@@ -1,5 +1,6 @@
 from .schema_version import SCHEMA_VERSION
 from .layering import apply_layering, derive_base_signals, normalize_meta
+from .serialization import snapshot_to_dict
 from .types import (
     BaseLayerSignals,
     BosDir,
@@ -50,4 +51,5 @@ __all__ = [
     "apply_layering",
     "derive_base_signals",
     "normalize_meta",
+    "snapshot_to_dict",
 ]
