@@ -12,6 +12,9 @@ def test_discover_repo_sources_includes_watchlist_csv_source() -> None:
     sources = discover_repo_sources()
     names = [item.name for item in sources]
     assert "databento_watchlist_csv" in names
+    assert "tradingview_watchlist_json" in names
+    assert "fmp_watchlist_json" in names
+    assert "benzinga_watchlist_json" in names
 
 
 def test_discover_repo_sources_names_are_unique() -> None:
@@ -43,6 +46,15 @@ def test_unknown_source_raises_clear_error() -> None:
         assert "unknown source" in str(exc)
     else:
         raise AssertionError("expected ValueError for unknown source")
+
+
+def test_ibkr_source_name_is_rejected() -> None:
+    try:
+        _ = load_raw_meta_input("IBG", "15m", source="ibkr_watchlist_preview_json")
+    except ValueError as exc:
+        assert "unknown source" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for disabled ibkr source")
 
 
 

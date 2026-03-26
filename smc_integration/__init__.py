@@ -1,3 +1,10 @@
+from .batch import (
+    build_snapshot_bundles_for_symbols,
+    build_snapshot_manifest,
+    load_symbols_from_source,
+    load_symbols_from_watchlist_source,
+    write_snapshot_bundles_for_symbols,
+)
 from .repo_sources import (
     discover_repo_sources,
     discover_repo_source_paths,
@@ -13,6 +20,11 @@ from .service import (
 )
 
 __all__ = [
+    "build_snapshot_bundles_for_symbols",
+    "write_snapshot_bundles_for_symbols",
+    "build_snapshot_manifest",
+    "load_symbols_from_watchlist_source",
+    "load_symbols_from_source",
     "discover_repo_sources",
     "discover_repo_source_paths",
     "select_best_source",

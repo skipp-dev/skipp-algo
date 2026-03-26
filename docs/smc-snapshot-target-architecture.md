@@ -40,7 +40,10 @@ repo-specific integration layer is used:
 2. `smc_adapters` remains the boundary layer (raw ingest + dashboard/pine projections)
 3. `smc_integration.sources` is the repo upstream layer (named source providers, capabilities, honest partial behavior)
 4. `smc_integration.service` is the orchestration layer (build snapshot + dashboard/pine payloads + bundle)
-5. `scripts/export_smc_snapshot_bundle.py` is the first productive export/consumer entrypoint for bundle output
+5. `smc_integration.batch` is the multi-symbol/watchlist orchestration and manifest writing layer
+6. `scripts/export_smc_snapshot_bundle.py` is a single-symbol productive export entrypoint
+7. `scripts/export_smc_snapshot_watchlist_bundles.py` is a watchlist/batch export entrypoint
+8. first rewired existing consumer: `scripts/execute_ibkr_watchlist.py` now emits snapshot bundles/manifest via `smc_integration.batch`
 
 Current first real integration entry is:
 
@@ -50,6 +53,10 @@ This source is currently symbol/watchlist oriented and does not contain explicit
 `bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows. The integration therefore uses
 an explicit partial-structure mapping (empty structure lists) plus mapped meta input,
 with clear provenance and no additional SMC logic in the integration layer.
+
+Current registered sources are intentionally capability-aware and honest partial/meta-oriented.
+Structure-rich sources can be added later, but must still map into `smc_core` through the
+same adapter and integration boundaries.
 
 ## Official Home
 

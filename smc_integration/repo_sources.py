@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .sources import databento_watchlist_csv, ibkr_watchlist_preview_json
+from .sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, tradingview_watchlist_json
 from .sources.base import SourceDescriptor
 
 
@@ -15,15 +15,25 @@ class _SourceProvider:
 
 
 _SOURCE_PROVIDERS: dict[str, _SourceProvider] = {
+    "benzinga_watchlist_json": _SourceProvider(
+        descriptor=benzinga_watchlist_json.describe_source(),
+        load_structure=benzinga_watchlist_json.load_raw_structure_input,
+        load_meta=benzinga_watchlist_json.load_raw_meta_input,
+    ),
     "databento_watchlist_csv": _SourceProvider(
         descriptor=databento_watchlist_csv.describe_source(),
         load_structure=databento_watchlist_csv.load_raw_structure_input,
         load_meta=databento_watchlist_csv.load_raw_meta_input,
     ),
-    "ibkr_watchlist_preview_json": _SourceProvider(
-        descriptor=ibkr_watchlist_preview_json.describe_source(),
-        load_structure=ibkr_watchlist_preview_json.load_raw_structure_input,
-        load_meta=ibkr_watchlist_preview_json.load_raw_meta_input,
+    "fmp_watchlist_json": _SourceProvider(
+        descriptor=fmp_watchlist_json.describe_source(),
+        load_structure=fmp_watchlist_json.load_raw_structure_input,
+        load_meta=fmp_watchlist_json.load_raw_meta_input,
+    ),
+    "tradingview_watchlist_json": _SourceProvider(
+        descriptor=tradingview_watchlist_json.describe_source(),
+        load_structure=tradingview_watchlist_json.load_raw_structure_input,
+        load_meta=tradingview_watchlist_json.load_raw_meta_input,
     ),
 }
 

@@ -20,6 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from strategy_config import LONG_DIP_MAX_GAP_PCT, LONG_DIP_MIN_GAP_PCT, LONG_DIP_MIN_PREMARKET_ACTIVE_SECONDS, LONG_DIP_MIN_PREMARKET_DOLLAR_VOLUME, LONG_DIP_MIN_PREMARKET_TRADE_COUNT, LONG_DIP_MIN_PREMARKET_VOLUME, LONG_DIP_MIN_PREVIOUS_CLOSE, LONG_DIP_POSITION_BUDGET_USD, LONG_DIP_TOP_N
 from scripts.generate_databento_watchlist import LongDipConfig, build_daily_watchlists, load_watchlist_inputs
+from smc_integration.batch import write_snapshot_bundles_for_symbols
 
 
 DEFAULT_WATCHLIST_CSV = REPO_ROOT / "reports" / "databento_watchlist_top5_pre1530.csv"
@@ -320,6 +321,24 @@ def load_watchlist_frame(
     daily, prem, diagnostics, metadata = load_watchlist_inputs(bundle=bundle, export_dir=export_dir)
     watchlist = build_daily_watchlists(daily=daily, prem=prem, diagnostics=diagnostics, cfg=watchlist_cfg)
     return watchlist, metadata
+
+
+def export_smc_snapshot_bundles_for_watchlist(
+    watchlist: pd.DataFrame,
+    *,
+    timeframe: str,
+    source: str,
+    output_dir: str | Path,
+    generated_at: float | None,
+) -> dict:
+    symbols = watchlist["symbol"].dropna().astype(str).str.strip().str.upper().tolist()
+    return write_snapshot_bundles_for_symbols(
+        symbols,
+        timeframe,
+        source=source,
+        output_dir=Path(output_dir).expanduser(),
+        generated_at=generated_at,
+    )
 
 
 def resolve_trade_date(watchlist: pd.DataFrame, requested_trade_date: str | None) -> date:
@@ -987,6 +1006,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=LONG_DIP_POSITION_BUDGET_USD,
     )
     parser.add_argument("--watchlist-top-n", type=int, default=LONG_DIP_TOP_N, help="Top-N candidates per day when generating watchlists from a bundle.")
+    parser.add_argument("--smc-timeframe", default="15m", help="SMC timeframe used for snapshot bundle export.")
+    parser.add_argument("--smc-source", default="auto", help="SMC integration source used for snapshot bundle export.")
+    parser.add_argument("--smc-output-dir", default=str(REPO_ROOT / "reports" / "smc_snapshot_bundles"), help="Output directory for SMC snapshot bundles and manifest.")
+    parser.add_argument("--smc-generated-at", type=float, default=None, help="Optional fixed generated_at for SMC snapshot bundle export.")
+    parser.add_argument("--no-smc-bundles", action="store_true", help="Disable SMC snapshot bundle export for the filtered watchlist.")
     return parser
 
 
@@ -1013,7 +1037,7 @@ def main() -> None:
     max_gap_pct = None if args.max_gap_pct is not None and args.max_gap_pct < 0 else args.max_gap_pct
     watchlist_cfg = LongDipConfig(
         min_gap_pct=args.min_gap_pct,
-        max_gap_pct=max_gap_pct,
+        max_gap_pct=cast(Any, max_gap_pct),
         min_previous_close=args.min_previous_close,
         min_premarket_dollar_volume=args.min_premarket_dollar_volume,
         min_premarket_volume=args.min_premarket_volume,
@@ -1062,6 +1086,16 @@ def main() -> None:
     print("FILTERED_ROWS", len(filtered_watchlist))
     print("ORDER_INTENTS", len(intents))
     print("PREVIEW_JSON", output_json)
+
+    if not args.no_smc_bundles and not filtered_watchlist.empty:
+        smc_manifest = export_smc_snapshot_bundles_for_watchlist(
+            filtered_watchlist,
+            timeframe=args.smc_timeframe,
+            source=args.smc_source,
+            output_dir=args.smc_output_dir,
+            generated_at=args.smc_generated_at,
+        )
+        print("SMC_BUNDLE_MANIFEST", smc_manifest.get("manifest_path"))
 
     if args.check_connection:
         connection_payload = check_ibkr_connection(connection_cfg)
