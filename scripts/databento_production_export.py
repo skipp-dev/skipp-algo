@@ -338,10 +338,7 @@ def _coalesce_optional_merge_column(frame: pd.DataFrame, column: str) -> pd.Data
         frame[column] = pd.Series(pd.NA, index=frame.index)
         return frame
 
-    merged: pd.Series | None = None
-    for candidate in candidate_columns:
-        series = frame[candidate]
-        merged = series if merged is None else merged.combine_first(series)
+    merged = frame[candidate_columns].bfill(axis=1).iloc[:, 0]
     frame[column] = merged if merged is not None else pd.Series(pd.NA, index=frame.index)
 
     suffix_columns = [name for name in (f"{column}_x", f"{column}_y") if name in frame.columns]
@@ -2836,6 +2833,8 @@ def _build_research_news_flag_outcome_slices(daily_features: pd.DataFrame, flags
     if daily_features.empty or flags_frame.empty:
         return pd.DataFrame(columns=RESEARCH_NEWS_FLAG_OUTCOME_SLICE_COLUMNS)
     merged = daily_features.merge(flags_frame, on=["trade_date", "symbol"], how="left")
+    for flag_name in RESEARCH_NEWS_FLAG_COLUMNS[2:]:
+        merged = _coalesce_optional_merge_column(merged, flag_name)
     rows: list[dict[str, Any]] = []
     metric_columns = {
         "mean_window_range_pct": "window_range_pct",
@@ -3010,6 +3009,8 @@ def _build_research_event_flag_outcome_slices(daily_features: pd.DataFrame, flag
     if daily_features.empty or flags_frame.empty:
         return pd.DataFrame(columns=RESEARCH_EVENT_FLAG_OUTCOME_SLICE_COLUMNS)
     merged = daily_features.merge(flags_frame, on=["trade_date", "symbol"], how="left")
+    for flag_name in RESEARCH_EVENT_FLAG_COLUMNS[2:]:
+        merged = _coalesce_optional_merge_column(merged, flag_name)
     rows: list[dict[str, Any]] = []
     metric_columns = {
         "mean_window_range_pct": "window_range_pct",
