@@ -75,13 +75,18 @@ def test_gap_report_is_honest_for_current_repo_state() -> None:
 
     assert report["has_real_structure_provider"] is True
     assert isinstance(report["gaps"], list)
-    assert any("orderblocks" in gap for gap in report["gaps"])
-    assert any("FVG" in gap or "fvg" in gap for gap in report["gaps"])
+
+    coverage = report["category_coverage"]
     assert "bos" in report["available_categories"]
     assert "choch" in report["available_categories"]
-    assert "orderblocks" in report["missing_categories"]
-    assert "fvg" in report["missing_categories"]
-    assert "liquidity_sweeps" in report["missing_categories"]
+
+    for category in ("orderblocks", "fvg", "liquidity_sweeps"):
+        is_available = bool(coverage[category]["available"])
+        if is_available:
+            assert category in report["available_categories"]
+            assert category not in report["missing_categories"]
+        else:
+            assert category in report["missing_categories"]
 
 
 def test_structure_gap_report_is_json_serializable_and_stable() -> None:

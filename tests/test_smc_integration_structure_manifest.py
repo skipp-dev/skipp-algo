@@ -52,10 +52,10 @@ def test_structure_manifest_counts_and_flags_are_correct() -> None:
 
     assert [row["symbol"] for row in manifest["artifacts"]] == sorted(symbols)
     for row in manifest["artifacts"]:
-        assert row["coverage_mode"] in {"partial", "none"}
-        assert row["has_orderblocks"] is False
-        assert row["has_fvg"] is False
-        assert row["has_liquidity_sweeps"] is False
+        assert row["coverage_mode"] in {"full", "partial", "none"}
+        assert isinstance(row["has_orderblocks"], bool)
+        assert isinstance(row["has_fvg"], bool)
+        assert isinstance(row["has_liquidity_sweeps"], bool)
 
 
 def test_structure_manifest_category_flags_match_artifact_payload() -> None:

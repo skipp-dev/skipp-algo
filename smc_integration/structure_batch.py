@@ -3,23 +3,85 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any
 
 import pandas as pd
 
-from smc_core.ids import bos_id
+from scripts.explicit_structure_from_bars import build_full_structure_from_bars
+from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.databento_production_workbook import resolve_production_workbook_path
-from scripts.market_structure_features import build_market_structure_feature_frame
 
 SCHEMA_VERSION = "1.0.0"
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
+DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 
 
 def _resolve_workbook_path(workbook: Path) -> Path:
     return resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
+
+
+def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str) -> pd.DataFrame | None:
+    try:
+        bundle = load_export_bundle(DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
+    except Exception:
+        return None
+
+    frames = bundle.get("frames", {})
+    symbol_name = str(symbol).strip().upper()
+    canonical_tf = str(timeframe).strip()
+
+    if canonical_tf == "1D":
+        daily = frames.get("daily_bars")
+        if isinstance(daily, pd.DataFrame) and not daily.empty:
+            bars = daily.copy()
+            bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+            bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
+            if bars.empty:
+                return None
+            bars["timestamp"] = pd.to_datetime(bars.get("trade_date"), errors="coerce", utc=True)
+            for column in ("open", "high", "low", "close"):
+                bars[column] = pd.to_numeric(bars.get(column), errors="coerce")
+            return bars[["symbol", "timestamp", "open", "high", "low", "close"]].dropna().reset_index(drop=True)
+        return None
+
+    intraday = frames.get("full_universe_second_detail_open")
+    if isinstance(intraday, pd.DataFrame) and not intraday.empty:
+        bars = intraday.copy()
+        bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+        bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
+        if bars.empty:
+            return None
+        bars["timestamp"] = pd.to_datetime(bars.get("timestamp"), errors="coerce", utc=True)
+        for column in ("open", "high", "low", "close"):
+            bars[column] = pd.to_numeric(bars.get(column), errors="coerce")
+        if "volume" in bars.columns:
+            bars["volume"] = pd.to_numeric(bars.get("volume"), errors="coerce").fillna(0.0)
+            return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].dropna().reset_index(drop=True)
+        return bars[["symbol", "timestamp", "open", "high", "low", "close"]].dropna().reset_index(drop=True)
+    return None
+
+
+def _load_symbol_bars_from_workbook(workbook: Path, symbol: str) -> pd.DataFrame:
+    daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
+    bars = daily_bars.copy()
+    bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+    bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
+    if bars.empty:
+        raise ValueError(f"symbol {symbol} not present in workbook daily_bars")
+    bars["timestamp"] = pd.to_datetime(bars.get("trade_date"), errors="coerce", utc=True)
+    for column in ("open", "high", "low", "close"):
+        bars[column] = pd.to_numeric(bars.get(column), errors="coerce")
+    if "volume" in bars.columns:
+        bars["volume"] = pd.to_numeric(bars.get("volume"), errors="coerce").fillna(0.0)
+        cols = ["symbol", "timestamp", "open", "high", "low", "close", "volume"]
+    else:
+        cols = ["symbol", "timestamp", "open", "high", "low", "close"]
+    bars = bars[cols].dropna(subset=["timestamp", "open", "high", "low", "close"]).reset_index(drop=True)
+    if bars.empty:
+        raise ValueError(f"symbol {symbol} has no usable OHLC rows in workbook daily_bars")
+    return bars
 
 
 @dataclass(frozen=True)
@@ -55,41 +117,6 @@ def _normalize_symbols(symbols: list[str]) -> list[str]:
         seen.add(symbol)
         out.append(symbol)
     return out
-
-
-def _daily_asof_ts(value: Any) -> float:
-    parsed = pd.to_datetime(value, errors="coerce")
-    if pd.isna(parsed):
-        raise ValueError(f"invalid trade_date: {value}")
-    date_value = parsed.date()
-    return datetime(date_value.year, date_value.month, date_value.day, tzinfo=UTC).timestamp()
-
-
-def _event_from_last_event(*, symbol: str, timeframe: str, last_event: str, asof_ts: float, close_price: float) -> list[dict[str, Any]]:
-    normalized = str(last_event).strip().lower()
-    if normalized not in {"bos_up", "bos_down", "choch_up", "choch_down"}:
-        return []
-
-    kind = cast(Literal["BOS", "CHOCH"], "BOS" if normalized.startswith("bos") else "CHOCH")
-    direction = cast(Literal["UP", "DOWN"], "UP" if normalized.endswith("up") else "DOWN")
-    price = float(close_price)
-
-    return [
-        {
-            "id": bos_id(
-                symbol=symbol,
-                timeframe=timeframe,
-                anchor_ts=asof_ts,
-                kind=kind,
-                dir=direction,
-                price=price,
-            ),
-            "time": asof_ts,
-            "price": price,
-            "kind": kind,
-            "dir": direction,
-        }
-    ]
 
 
 def _coverage_from_structure(structure: dict[str, Any], *, mode: str) -> dict[str, Any]:
@@ -128,30 +155,6 @@ def _derive_symbols_from_workbook(daily_bars: pd.DataFrame) -> list[str]:
     return resolved
 
 
-def _build_latest_rows(daily_bars: pd.DataFrame) -> pd.DataFrame:
-    bars = daily_bars.copy()
-    bars["trade_date"] = pd.to_datetime(bars.get("trade_date"), errors="coerce")
-    bars["timestamp"] = pd.to_datetime(bars.get("trade_date"), errors="coerce")
-    bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
-    bars["close"] = pd.to_numeric(bars.get("close"), errors="coerce")
-    bars = bars.dropna(subset=["trade_date", "timestamp", "symbol", "close"]).copy()
-    if bars.empty:
-        raise ValueError("daily_bars sheet has no usable rows")
-    latest_rows = bars.sort_values(["symbol", "trade_date"]).groupby("symbol", as_index=False).tail(1)
-    return bars, latest_rows
-
-
-def _structure_features(daily_bars: pd.DataFrame) -> pd.DataFrame:
-    features = build_market_structure_feature_frame(
-        daily_bars,
-        group_keys=["symbol"],
-        prefix="structure",
-    )
-    if features.empty:
-        raise ValueError("no structure features could be computed from daily_bars")
-    return features
-
-
 def build_single_symbol_structure_artifact(
     *,
     workbook: Path,
@@ -161,45 +164,37 @@ def build_single_symbol_structure_artifact(
 ) -> dict[str, Any]:
     workbook = _resolve_workbook_path(workbook)
 
-    daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
-    bars, latest_rows = _build_latest_rows(daily_bars)
-    features = _structure_features(bars)
-
     resolved_symbol = _normalize_symbol(symbol)
-    latest_by_symbol = {
-        str(row.symbol).strip().upper(): row
-        for row in latest_rows[["symbol", "trade_date", "close"]].itertuples(index=False)
-    }
-    feature_by_symbol = {
-        _normalize_symbol(getattr(row, "symbol", "")): row
-        for row in features.itertuples(index=False)
-    }
+    canonical_bars = _load_symbol_bars_from_canonical_exports(resolved_symbol, timeframe)
+    source_mode = "canonical_export_bundle"
+    if canonical_bars is None or canonical_bars.empty:
+        canonical_bars = _load_symbol_bars_from_workbook(workbook, resolved_symbol)
+        source_mode = "workbook_fallback"
 
-    if resolved_symbol not in latest_by_symbol or resolved_symbol not in feature_by_symbol:
-        raise ValueError(f"symbol {resolved_symbol} not present in workbook daily_bars")
+    structure_payload = build_full_structure_from_bars(canonical_bars, symbol=resolved_symbol, timeframe=timeframe)
+    latest_ts = pd.to_datetime(canonical_bars["timestamp"], errors="coerce", utc=True).dropna().max()
+    latest_close = pd.to_numeric(canonical_bars["close"], errors="coerce").dropna().iloc[-1]
+    asof_ts = float(pd.Timestamp(latest_ts).timestamp()) if pd.notna(latest_ts) else float(generated_at)
 
-    latest = latest_by_symbol[resolved_symbol]
-    feat = feature_by_symbol[resolved_symbol]
+    last_event = "none"
+    trend_state = 0
+    if structure_payload["bos"]:
+        last = structure_payload["bos"][-1]
+        kind = str(last.get("kind", "BOS")).upper()
+        direction = str(last.get("dir", "UP")).upper()
+        trend_state = 1 if direction == "UP" else -1
+        if kind == "CHOCH" and direction == "UP":
+            last_event = "choch_up"
+        elif kind == "CHOCH" and direction == "DOWN":
+            last_event = "choch_down"
+        elif direction == "UP":
+            last_event = "bos_up"
+        else:
+            last_event = "bos_down"
 
-    asof_ts = _daily_asof_ts(latest.trade_date)
-    last_event = str(getattr(feat, "structure_last_event", "none") or "none").strip().lower()
-    trend_state_raw = int(getattr(feat, "structure_trend_state", 0) or 0)
-    trend_state = 1 if trend_state_raw > 0 else -1 if trend_state_raw < 0 else 0
-
-    bos_events = _event_from_last_event(
-        symbol=resolved_symbol,
-        timeframe=timeframe,
-        last_event=last_event,
-        asof_ts=asof_ts,
-        close_price=float(latest.close),
-    )
-    coverage_mode = "partial" if bos_events else "none"
-    structure_payload = {
-        "bos": bos_events,
-        "orderblocks": [],
-        "fvg": [],
-        "liquidity_sweeps": [],
-    }
+    has_any = any(bool(structure_payload[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+    has_all = all(bool(structure_payload[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+    coverage_mode = "full" if has_all else "partial" if has_any else "none"
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -208,14 +203,16 @@ def build_single_symbol_structure_artifact(
         "timeframe": timeframe,
         "source": {
             "workbook_path": str(workbook.as_posix()),
+            "canonical_upstream": source_mode,
             "sheet": "daily_bars",
-            "event_logic": "scripts.market_structure_features.build_market_structure_feature_frame",
+            "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
         },
         "coverage_mode": coverage_mode,
         "coverage": _coverage_from_structure(structure_payload, mode=coverage_mode),
         "event_evidence": {
             "last_event": last_event if last_event else "none",
             "trend_state": trend_state,
+            "reference_close": float(latest_close),
         },
         "structure": structure_payload,
     }

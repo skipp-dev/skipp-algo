@@ -163,28 +163,35 @@ def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
 
     evidence_by_category: dict[str, list[str]] = {
         "bos": [
-            "scripts.market_structure_features.build_market_structure_feature_frame",
+            "scripts.explicit_structure_from_bars.build_bos_events_from_bars",
             "structure_artifact_json:bos.kind",
             "smc_core.ids.bos_id",
         ],
         "choch": [
-            "scripts.market_structure_features.build_market_structure_feature_frame",
+            "scripts.explicit_structure_from_bars.build_bos_events_from_bars",
             "structure_artifact_json:bos.kind=CHOCH",
             "smc_core.ids.bos_id",
         ],
-        "orderblocks": [],
-        "fvg": [],
-        "liquidity_sweeps": [],
+        "orderblocks": [
+            "scripts.explicit_structure_from_bars.build_orderblocks_from_bars",
+            "smc_core.ids.ob_id",
+        ],
+        "fvg": [
+            "scripts.explicit_structure_from_bars.build_fvg_from_bars",
+            "smc_core.ids.fvg_id",
+        ],
+        "liquidity_sweeps": [
+            "scripts.explicit_structure_from_bars.build_liquidity_sweeps_from_bars",
+            "smc_core.ids.sweep_id",
+        ],
     }
 
     notes_by_category: dict[str, list[str]] = {
         "bos": [],
         "choch": ["CHOCH is exported via the explicit bos event family (`kind=CHOCH`)."],
-        "orderblocks": ["No explicit orderblock objects are currently exported by registered providers."],
-        "fvg": ["No explicit FVG objects are currently exported by registered providers."],
-        "liquidity_sweeps": [
-            "Microstructure scripts expose aggregated rates/flags only (e.g., *_sweep_*_20d), not explicit per-event time/price/side payloads for snapshot structure."
-        ],
+        "orderblocks": [],
+        "fvg": [],
+        "liquidity_sweeps": [],
     }
 
     if producer_name is None:
@@ -204,7 +211,7 @@ def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
             notes.append(f"Mapped fields include: {', '.join(mapped_fields)}")
 
         if not available and category in {"orderblocks", "fvg", "liquidity_sweeps"}:
-            notes.append("Category remains explicitly empty in structure artifacts.")
+            notes.append("Category is currently not populated in discovered structure artifacts.")
 
         report[category] = {
             "available": available,

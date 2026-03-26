@@ -29,7 +29,7 @@
         "timeframe": { "type": "string", "enum": ["1D"] },
         "event_logic": {
           "type": "string",
-          "const": "scripts.market_structure_features.build_market_structure_feature_frame"
+          "const": "scripts.explicit_structure_from_bars.build_full_structure_from_bars"
         }
       }
     },

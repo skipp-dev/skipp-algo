@@ -4,25 +4,16 @@ import argparse
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, Sequence, cast
+from typing import Any, Sequence
 
 import pandas as pd
 
-from smc_core.ids import bos_id
 from scripts.databento_production_workbook import resolve_production_workbook_path
-from scripts.market_structure_features import build_market_structure_feature_frame
+from scripts.explicit_structure_from_bars import build_full_structure_from_bars
 
 SCHEMA_VERSION = "1.0.0"
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT = Path("reports") / "smc_structure_artifact.json"
-
-
-def _daily_asof_ts(trade_date: Any) -> float:
-    parsed = pd.to_datetime(trade_date, errors="coerce")
-    if pd.isna(parsed):
-        raise ValueError(f"invalid trade_date value: {trade_date}")
-    date_value = parsed.date()
-    return datetime(date_value.year, date_value.month, date_value.day, tzinfo=UTC).timestamp()
 
 
 def _normalize_symbol(value: Any) -> str:
@@ -32,33 +23,6 @@ def _normalize_symbol(value: Any) -> str:
     if not text:
         raise ValueError("empty symbol after normalization")
     return text
-
-
-def _event_from_last_event(symbol: str, last_event: str, asof_ts: float, close_price: float) -> list[dict[str, Any]]:
-    normalized = str(last_event).strip().lower()
-    if normalized not in {"bos_up", "bos_down", "choch_up", "choch_down"}:
-        return []
-
-    kind = cast(Literal["BOS", "CHOCH"], "BOS" if normalized.startswith("bos") else "CHOCH")
-    direction = cast(Literal["UP", "DOWN"], "UP" if normalized.endswith("up") else "DOWN")
-    event_price = float(close_price)
-
-    return [
-        {
-            "id": bos_id(
-                symbol=symbol,
-                timeframe="1D",
-                anchor_ts=asof_ts,
-                kind=kind,
-                dir=direction,
-                price=event_price,
-            ),
-            "time": asof_ts,
-            "price": event_price,
-            "kind": kind,
-            "dir": direction,
-        }
-    ]
 
 
 def _coverage_from_structure(structure: dict[str, Any], *, coverage_mode: str) -> dict[str, Any]:
@@ -81,40 +45,34 @@ def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
     if bars.empty:
         raise ValueError("daily_bars sheet has no usable rows")
 
-    features = build_market_structure_feature_frame(
-        bars,
-        group_keys=["symbol"],
-        prefix="structure",
-    )
-    if features.empty:
-        raise ValueError("no structure features could be computed from daily_bars")
-
-    latest_rows = bars.sort_values(["symbol", "trade_date"]).groupby("symbol", as_index=False).tail(1)
-    latest_by_symbol = {
-        str(row.symbol).strip().upper(): row
-        for row in latest_rows[["symbol", "trade_date", "close"]].itertuples(index=False)
-    }
-
     entries: list[dict[str, Any]] = []
-    for row in features.itertuples(index=False):
-        symbol = _normalize_symbol(getattr(row, "symbol"))
-        latest = latest_by_symbol.get(symbol)
-        if latest is None:
+    for symbol in sorted({_normalize_symbol(item) for item in bars["symbol"].tolist()}):
+        symbol_bars = bars.loc[bars["symbol"].eq(symbol)].copy()
+        if symbol_bars.empty:
             continue
+        structure_payload = build_full_structure_from_bars(symbol_bars, symbol=symbol, timeframe="1D")
+        last_ts = pd.to_datetime(symbol_bars["timestamp"], errors="coerce", utc=True).dropna().max()
+        asof_ts = float(pd.Timestamp(last_ts).timestamp()) if pd.notna(last_ts) else datetime.now(UTC).timestamp()
 
-        asof_ts = _daily_asof_ts(latest.trade_date)
-        last_event_raw = str(getattr(row, "structure_last_event", "none") or "none").strip().lower()
-        trend_state_raw = int(getattr(row, "structure_trend_state", 0) or 0)
-        trend_state = 1 if trend_state_raw > 0 else -1 if trend_state_raw < 0 else 0
+        last_event_raw = "none"
+        trend_state = 0
+        if structure_payload["bos"]:
+            last = structure_payload["bos"][-1]
+            kind = str(last.get("kind", "BOS")).upper()
+            direction = str(last.get("dir", "UP")).upper()
+            trend_state = 1 if direction == "UP" else -1
+            if kind == "CHOCH" and direction == "UP":
+                last_event_raw = "choch_up"
+            elif kind == "CHOCH" and direction == "DOWN":
+                last_event_raw = "choch_down"
+            elif direction == "UP":
+                last_event_raw = "bos_up"
+            else:
+                last_event_raw = "bos_down"
 
-        bos_events = _event_from_last_event(symbol, last_event_raw, asof_ts, float(latest.close))
-        coverage = "partial" if bos_events else "none"
-        structure_payload = {
-            "bos": bos_events,
-            "orderblocks": [],
-            "fvg": [],
-            "liquidity_sweeps": [],
-        }
+        has_any = any(bool(structure_payload[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+        has_all = all(bool(structure_payload[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+        coverage = "full" if has_all else "partial" if has_any else "none"
 
         entries.append(
             {
@@ -141,15 +99,15 @@ def build_structure_artifact_payload(*, workbook: Path, generated_at: float | No
     daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
     entries = _build_entries(daily_bars)
 
-    has_bos = any(entry["structure"]["bos"] for entry in entries)
-    coverage = "partial" if has_bos else "none"
-
     aggregate_structure = {
         "bos": [item for entry in entries for item in entry["structure"]["bos"]],
         "orderblocks": [item for entry in entries for item in entry["structure"]["orderblocks"]],
         "fvg": [item for entry in entries for item in entry["structure"]["fvg"]],
         "liquidity_sweeps": [item for entry in entries for item in entry["structure"]["liquidity_sweeps"]],
     }
+    has_any = any(bool(aggregate_structure[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+    has_all = all(bool(aggregate_structure[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+    coverage = "full" if has_all else "partial" if has_any else "none"
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -158,7 +116,7 @@ def build_structure_artifact_payload(*, workbook: Path, generated_at: float | No
             "workbook_path": str(workbook.as_posix()),
             "sheet": "daily_bars",
             "timeframe": "1D",
-            "event_logic": "scripts.market_structure_features.build_market_structure_feature_frame",
+            "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
         },
         "structure_coverage": coverage,
         "coverage": _coverage_from_structure(aggregate_structure, coverage_mode=coverage),

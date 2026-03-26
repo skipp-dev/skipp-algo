@@ -22,8 +22,8 @@ def describe_source() -> SourceDescriptor:
             meta_mode="none",
         ),
         notes=[
-            "Manifest-aware explicit structure artifacts generated from real workbook daily_bars using existing market_structure_features logic.",
-            "Current mapping emits BOS/CHOCH events only; orderblocks/fvg/liquidity_sweeps remain empty.",
+            "Manifest-aware explicit structure artifacts generated from canonical Databento bars with workbook fallback.",
+            "Current mapping emits deterministic BOS/CHOCH/orderblocks/FVG/liquidity-sweeps when detectable from available bars.",
             "Falls back to legacy single-artifact source when batch artifact-set is unavailable.",
         ],
     )

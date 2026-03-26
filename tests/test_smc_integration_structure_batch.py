@@ -101,9 +101,11 @@ def test_structure_batch_keeps_categories_honest() -> None:
 
     payload = json.loads((output_dir / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
     structure = payload["structure"]
+    coverage = payload["coverage"]
 
     assert set(structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
-    assert structure["orderblocks"] == []
-    assert structure["fvg"] == []
-    assert structure["liquidity_sweeps"] == []
-    assert payload["coverage_mode"] in {"partial", "none"}
+    assert payload["coverage_mode"] in {"full", "partial", "none"}
+    assert coverage["has_bos"] == bool(structure["bos"])
+    assert coverage["has_orderblocks"] == bool(structure["orderblocks"])
+    assert coverage["has_fvg"] == bool(structure["fvg"])
+    assert coverage["has_liquidity_sweeps"] == bool(structure["liquidity_sweeps"])

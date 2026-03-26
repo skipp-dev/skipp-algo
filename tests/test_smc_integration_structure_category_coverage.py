@@ -14,13 +14,16 @@ def test_structure_category_coverage_is_deterministic() -> None:
     assert one == two
 
 
-def test_unavailable_categories_are_explicitly_marked_not_omitted() -> None:
+def test_categories_are_explicitly_marked_not_omitted() -> None:
     coverage = discover_structure_category_coverage()
 
     for category in ("orderblocks", "fvg", "liquidity_sweeps"):
         assert category in coverage
-        assert coverage[category]["available"] is False
-        assert coverage[category]["producer"] is None
+        assert isinstance(coverage[category]["available"], bool)
+        if coverage[category]["available"]:
+            assert coverage[category]["producer"] == "structure_artifact_json"
+        else:
+            assert coverage[category]["producer"] is None
 
 
 def test_bos_choch_are_explicitly_marked_available() -> None:

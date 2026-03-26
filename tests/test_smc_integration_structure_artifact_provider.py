@@ -32,9 +32,9 @@ def test_structure_artifact_provider_loads_explicit_structure(monkeypatch, tmp_p
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert isinstance(structure.bos, list)
-    assert structure.orderblocks == []
-    assert structure.fvg == []
-    assert structure.liquidity_sweeps == []
+    assert isinstance(structure.orderblocks, list)
+    assert isinstance(structure.fvg, list)
+    assert isinstance(structure.liquidity_sweeps, list)
 
 
 def test_structure_artifact_provider_has_no_meta_domain() -> None:
@@ -86,6 +86,6 @@ def test_structure_artifact_provider_category_coverage_is_honest(monkeypatch, tm
     assert set(coverage.keys()) == {"bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"}
     assert coverage["bos"] is True
     assert coverage["choch"] is True
-    assert coverage["orderblocks"] is False
-    assert coverage["fvg"] is False
-    assert coverage["liquidity_sweeps"] is False
+    assert isinstance(coverage["orderblocks"], bool)
+    assert isinstance(coverage["fvg"], bool)
+    assert isinstance(coverage["liquidity_sweeps"], bool)
