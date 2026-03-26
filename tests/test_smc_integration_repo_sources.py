@@ -7,12 +7,11 @@ import pytest
 
 from smc_adapters import build_meta_from_raw, build_structure_from_raw
 from smc_integration.repo_sources import (
+    discover_repo_sources,
     discover_repo_source_paths,
     load_raw_meta_input,
     load_raw_structure_input,
 )
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def _first_symbol_from_watchlist(csv_path: Path) -> str:
@@ -25,21 +24,23 @@ def _first_symbol_from_watchlist(csv_path: Path) -> str:
 
 
 def test_discover_repo_source_paths_returns_transparent_mapping() -> None:
-    info = discover_repo_source_paths(repo_root=ROOT)
+    info = discover_repo_source_paths()
 
-    assert info["integration_entry"] == "reports/databento_watchlist_top5_pre1530.csv"
-    assert info["meta_source"] == "watchlist_csv"
-    assert info["structure_source"] == "watchlist_csv_partial"
-    assert set(info["structure_capabilities"].keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
+    assert "selected_source" in info
+    assert "sources" in info
+    assert info["selected_source"]["name"] == "databento_watchlist_csv"
 
 
 
 def test_load_raw_structure_input_is_ingest_compatible() -> None:
-    info = discover_repo_source_paths(repo_root=ROOT)
-    csv_path = Path(info["watchlist_csv"])
+    info = discover_repo_source_paths()
+    selected = info["selected_source"]
+    csv_path = Path(selected["path_hint"])
+    if not csv_path.is_absolute():
+        csv_path = Path(__file__).resolve().parents[1] / selected["path_hint"]
     symbol = _first_symbol_from_watchlist(csv_path)
 
-    raw_structure = load_raw_structure_input(symbol, "15m", repo_root=ROOT)
+    raw_structure = load_raw_structure_input(symbol, "15m")
     structure = build_structure_from_raw(raw_structure)
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
@@ -51,11 +52,14 @@ def test_load_raw_structure_input_is_ingest_compatible() -> None:
 
 
 def test_load_raw_meta_input_is_ingest_compatible() -> None:
-    info = discover_repo_source_paths(repo_root=ROOT)
-    csv_path = Path(info["watchlist_csv"])
+    info = discover_repo_source_paths()
+    selected = info["selected_source"]
+    csv_path = Path(selected["path_hint"])
+    if not csv_path.is_absolute():
+        csv_path = Path(__file__).resolve().parents[1] / selected["path_hint"]
     symbol = _first_symbol_from_watchlist(csv_path)
 
-    raw_meta = load_raw_meta_input(symbol, "15m", repo_root=ROOT)
+    raw_meta = load_raw_meta_input(symbol, "15m")
     meta = build_meta_from_raw(raw_meta)
 
     assert meta.symbol == symbol
@@ -65,10 +69,15 @@ def test_load_raw_meta_input_is_ingest_compatible() -> None:
 
 
 
-def test_missing_symbol_and_missing_source_fail_loudly(tmp_path: Path) -> None:
+def test_missing_symbol_and_missing_source_fail_loudly() -> None:
     with pytest.raises(ValueError, match="not present"):
-        load_raw_structure_input("__MISSING__", "15m", repo_root=ROOT)
+        load_raw_structure_input("__MISSING__", "15m")
 
-    missing_csv = tmp_path / "does-not-exist.csv"
-    with pytest.raises(FileNotFoundError, match="watchlist source not found"):
-        load_raw_meta_input("AAPL", "15m", repo_root=ROOT, source_csv_path=missing_csv)
+    with pytest.raises(ValueError, match="unknown source"):
+        load_raw_meta_input("AAPL", "15m", source="does_not_exist")
+
+
+def test_discover_repo_sources_returns_descriptors() -> None:
+    sources = discover_repo_sources()
+    assert sources
+    assert all(source.name for source in sources)

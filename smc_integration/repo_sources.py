@@ -1,97 +1,91 @@
 from __future__ import annotations
 
-import csv
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable
 
-DEFAULT_WATCHLIST_CSV = Path("reports/databento_watchlist_top5_pre1530.csv")
-
-
-def _resolve_repo_root(repo_root: Path | str | None) -> Path:
-    if repo_root is None:
-        return Path(__file__).resolve().parents[1]
-    return Path(repo_root).resolve()
+from .sources import databento_watchlist_csv, ibkr_watchlist_preview_json
+from .sources.base import SourceDescriptor
 
 
-def _resolve_source_csv_path(*, repo_root: Path, source_csv_path: Path | str | None) -> Path:
-    if source_csv_path is None:
-        return repo_root / DEFAULT_WATCHLIST_CSV
-    path = Path(source_csv_path)
-    if not path.is_absolute():
-        path = repo_root / path
-    return path.resolve()
+@dataclass(frozen=True)
+class _SourceProvider:
+    descriptor: SourceDescriptor
+    load_structure: Callable[[str, str], dict[str, Any]]
+    load_meta: Callable[[str, str], dict[str, Any]]
 
 
-def _load_watchlist_rows(csv_path: Path) -> list[dict[str, str]]:
-    if not csv_path.exists():
-        raise FileNotFoundError(f"watchlist source not found: {csv_path}")
-
-    with csv_path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        rows = [dict(row) for row in reader]
-
-    if not rows:
-        raise ValueError(f"watchlist source is empty: {csv_path}")
-    return rows
-
-
-def _select_symbol_row(rows: list[dict[str, str]], symbol: str) -> dict[str, str]:
-    wanted = symbol.strip().upper()
-    if not wanted:
-        raise ValueError("symbol must not be empty")
-
-    matching = [row for row in rows if str(row.get("symbol", "")).strip().upper() == wanted]
-    if not matching:
-        raise ValueError(f"symbol {wanted} not present in watchlist source")
-
-    # Keep source selection deterministic: latest trade_date, then lowest watchlist_rank.
-    def _sort_key(row: dict[str, str]) -> tuple[str, int]:
-        trade_date = str(row.get("trade_date", ""))
-        raw_rank = str(row.get("watchlist_rank", "")).strip()
-        try:
-            rank = int(raw_rank)
-        except ValueError:
-            rank = 10**9
-        return (trade_date, -rank)
-
-    latest_trade_date = max(str(row.get("trade_date", "")) for row in matching)
-    latest_rows = [row for row in matching if str(row.get("trade_date", "")) == latest_trade_date]
-    return sorted(latest_rows, key=_sort_key, reverse=True)[0]
+_SOURCE_PROVIDERS: dict[str, _SourceProvider] = {
+    "databento_watchlist_csv": _SourceProvider(
+        descriptor=databento_watchlist_csv.describe_source(),
+        load_structure=databento_watchlist_csv.load_raw_structure_input,
+        load_meta=databento_watchlist_csv.load_raw_meta_input,
+    ),
+    "ibkr_watchlist_preview_json": _SourceProvider(
+        descriptor=ibkr_watchlist_preview_json.describe_source(),
+        load_structure=ibkr_watchlist_preview_json.load_raw_structure_input,
+        load_meta=ibkr_watchlist_preview_json.load_raw_meta_input,
+    ),
+}
 
 
-def _asof_ts_from_trade_date(trade_date: str) -> float:
-    parsed = datetime.fromisoformat(trade_date).date()
-    return datetime(parsed.year, parsed.month, parsed.day, tzinfo=UTC).timestamp()
+def discover_repo_sources() -> list[SourceDescriptor]:
+    return [
+        _SOURCE_PROVIDERS[name].descriptor
+        for name in sorted(_SOURCE_PROVIDERS)
+    ]
 
 
-def _safe_float(value: Any, *, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+def _source_priority_key(descriptor: SourceDescriptor) -> tuple[int, int, int, str]:
+    structure_mode_rank = {
+        "full": 3,
+        "partial": 2,
+        "none": 1,
+    }
+    meta_mode_rank = {
+        "full": 3,
+        "partial": 2,
+        "none": 1,
+    }
+    return (
+        1 if descriptor.capabilities.has_structure else 0,
+        structure_mode_rank[descriptor.capabilities.structure_mode],
+        meta_mode_rank[descriptor.capabilities.meta_mode],
+        descriptor.name,
+    )
 
 
-def discover_repo_source_paths(*, repo_root: Path | str | None = None) -> dict[str, Any]:
-    root = _resolve_repo_root(repo_root)
-    csv_path = _resolve_source_csv_path(repo_root=root, source_csv_path=None)
+def select_best_source() -> SourceDescriptor:
+    sources = discover_repo_sources()
+    if not sources:
+        raise ValueError("no integration sources registered")
+    return sorted(sources, key=_source_priority_key, reverse=True)[0]
+
+
+def _resolve_provider(source: str) -> _SourceProvider:
+    normalized = source.strip().lower()
+    if normalized == "auto":
+        best = select_best_source()
+        return _SOURCE_PROVIDERS[best.name]
+    if normalized not in _SOURCE_PROVIDERS:
+        known = ", ".join(sorted(_SOURCE_PROVIDERS))
+        raise ValueError(f"unknown source {source}; expected one of: {known}, auto")
+    return _SOURCE_PROVIDERS[normalized]
+
+def discover_repo_source_paths() -> dict[str, Any]:
+    best = select_best_source()
+    all_sources = discover_repo_sources()
 
     return {
-        "integration_entry": "reports/databento_watchlist_top5_pre1530.csv",
-        "repo_root": str(root),
-        "watchlist_csv": str(csv_path),
-        "meta_source": "watchlist_csv",
-        "structure_source": "watchlist_csv_partial",
+        "selected_source": best.to_dict(),
+        "sources": [item.to_dict() for item in all_sources],
+        "source_names": [item.name for item in all_sources],
+        "integration_entry": best.path_hint,
+        "meta_source": best.name,
+        "structure_source": f"{best.name}:{best.capabilities.structure_mode}",
         "structure_capabilities": {
-            "bos": False,
-            "orderblocks": False,
-            "fvg": False,
-            "liquidity_sweeps": False,
+            "mode": best.capabilities.structure_mode,
+            "has_structure": best.capabilities.has_structure,
         },
-        "notes": [
-            "Current source is symbol/watchlist-centric and does not publish explicit BOS/OB/FVG/sweep events.",
-            "Phase-5 integration therefore wires a real repo source with explicit partial-structure output (empty lists).",
-        ],
     }
 
 
@@ -99,59 +93,17 @@ def load_raw_structure_input(
     symbol: str,
     timeframe: str,
     *,
-    repo_root: Path | str | None = None,
-    source_csv_path: Path | str | None = None,
+    source: str = "auto",
 ) -> dict[str, Any]:
-    del timeframe
-    root = _resolve_repo_root(repo_root)
-    csv_path = _resolve_source_csv_path(repo_root=root, source_csv_path=source_csv_path)
-    rows = _load_watchlist_rows(csv_path)
-    _select_symbol_row(rows, symbol)
-
-    return {
-        "bos": [],
-        "orderblocks": [],
-        "fvg": [],
-        "liquidity_sweeps": [],
-    }
+    provider = _resolve_provider(source)
+    return provider.load_structure(symbol, timeframe)
 
 
 def load_raw_meta_input(
     symbol: str,
     timeframe: str,
     *,
-    repo_root: Path | str | None = None,
-    source_csv_path: Path | str | None = None,
+    source: str = "auto",
 ) -> dict[str, Any]:
-    root = _resolve_repo_root(repo_root)
-    csv_path = _resolve_source_csv_path(repo_root=root, source_csv_path=source_csv_path)
-    rows = _load_watchlist_rows(csv_path)
-    row = _select_symbol_row(rows, symbol)
-
-    trade_date = str(row.get("trade_date", "")).strip()
-    if not trade_date:
-        raise ValueError("watchlist row is missing trade_date")
-
-    asof_ts = _asof_ts_from_trade_date(trade_date)
-    premarket_volume = _safe_float(row.get("premarket_volume"), default=0.0)
-
-    return {
-        "symbol": str(row.get("symbol", symbol)).strip().upper(),
-        "timeframe": str(timeframe).strip(),
-        "asof_ts": asof_ts,
-        "volume": {
-            "value": {
-                "regime": "NORMAL",
-                "thin_fraction": 0.0,
-            },
-            "asof_ts": asof_ts,
-            "stale": False,
-        },
-        "provenance": [
-            "repo:reports/databento_watchlist_top5_pre1530.csv",
-            f"repo:reports/databento_watchlist_top5_pre1530.csv#symbol={str(row.get('symbol', symbol)).strip().upper()}",
-            f"repo:reports/databento_watchlist_top5_pre1530.csv#trade_date={trade_date}",
-            f"repo:reports/databento_watchlist_top5_pre1530.csv#premarket_volume={premarket_volume}",
-            "smc_integration:partial_structure_only",
-        ],
-    }
+    provider = _resolve_provider(source)
+    return provider.load_meta(symbol, timeframe)

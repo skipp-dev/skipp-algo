@@ -38,7 +38,9 @@ repo-specific integration layer is used:
 
 1. `smc_core` remains the domain truth (`SmcStructure`, `SmcMeta`, `SmcSnapshot`, layering)
 2. `smc_adapters` remains the boundary layer (raw ingest + dashboard/pine projections)
-3. `smc_integration` is the repo orchestration/source layer (real source loading + adapter calls)
+3. `smc_integration.sources` is the repo upstream layer (named source providers, capabilities, honest partial behavior)
+4. `smc_integration.service` is the orchestration layer (build snapshot + dashboard/pine payloads + bundle)
+5. `scripts/export_smc_snapshot_bundle.py` is the first productive export/consumer entrypoint for bundle output
 
 Current first real integration entry is:
 

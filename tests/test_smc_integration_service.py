@@ -32,7 +32,7 @@ def _first_symbol() -> str:
 def test_build_snapshot_for_symbol_timeframe_returns_snapshot() -> None:
     symbol = _first_symbol()
 
-    snapshot = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+    snapshot = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
     assert isinstance(snapshot, SmcSnapshot)
     assert snapshot.symbol == symbol
@@ -43,8 +43,8 @@ def test_build_snapshot_for_symbol_timeframe_returns_snapshot() -> None:
 def test_build_dashboard_and_pine_payloads_return_expected_shapes() -> None:
     symbol = _first_symbol()
 
-    dashboard = build_dashboard_payload_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
-    pine = build_pine_payload_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+    dashboard = build_dashboard_payload_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
+    pine = build_pine_payload_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
     assert dashboard["symbol"] == symbol
     assert dashboard["timeframe"] == "15m"
@@ -61,8 +61,8 @@ def test_build_dashboard_and_pine_payloads_return_expected_shapes() -> None:
 def test_build_snapshot_is_deterministic_for_fixed_generated_at() -> None:
     symbol = _first_symbol()
 
-    one = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
-    two = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+    one = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
+    two = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
     assert snapshot_to_dict(one) == snapshot_to_dict(two)
 
@@ -71,11 +71,11 @@ def test_build_snapshot_is_deterministic_for_fixed_generated_at() -> None:
 def test_service_matches_direct_adapter_pipeline() -> None:
     symbol = _first_symbol()
 
-    raw_structure = load_raw_structure_input(symbol, "15m", repo_root=ROOT)
-    raw_meta = load_raw_meta_input(symbol, "15m", repo_root=ROOT)
+    raw_structure = load_raw_structure_input(symbol, "15m")
+    raw_meta = load_raw_meta_input(symbol, "15m")
     direct = build_snapshot_from_raw(raw_structure, raw_meta, generated_at=1709253600.0)
 
-    via_service = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+    via_service = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
     assert snapshot_to_dict(direct) == snapshot_to_dict(via_service)
 
@@ -83,4 +83,4 @@ def test_service_matches_direct_adapter_pipeline() -> None:
 
 def test_missing_symbol_fails_with_clear_error() -> None:
     with pytest.raises(ValueError, match="not present"):
-        build_snapshot_for_symbol_timeframe("__MISSING__", "15m", generated_at=1709253600.0, repo_root=ROOT)
+        build_snapshot_for_symbol_timeframe("__MISSING__", "15m", generated_at=1709253600.0)
