@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pandas as pd
 
-from scripts.explicit_structure_from_bars import build_full_structure_from_bars, resample_bars_to_timeframe
+from scripts.explicit_structure_from_bars import (
+    build_explicit_structure_from_bars,
+    build_full_structure_from_bars,
+    resample_bars_to_timeframe,
+)
 
 
 def _bars(symbol: str = "AAPL") -> pd.DataFrame:
@@ -41,6 +45,17 @@ def test_build_full_structure_from_bars_returns_expected_shape() -> None:
     assert isinstance(structure["orderblocks"], list)
     assert isinstance(structure["fvg"], list)
     assert isinstance(structure["liquidity_sweeps"], list)
+
+
+def test_explicit_structure_contains_auxiliary_but_full_stays_canonical() -> None:
+    bars = _bars()
+    explicit = build_explicit_structure_from_bars(bars, symbol="AAPL", timeframe="1D", structure_profile="hybrid_default")
+    full = build_full_structure_from_bars(bars, symbol="AAPL", timeframe="1D", structure_profile="hybrid_default")
+
+    assert "auxiliary" in explicit
+    assert "diagnostics" in explicit
+    assert "producer_debug" in explicit
+    assert set(full.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
 
 
 def test_resample_excludes_incomplete_last_bucket() -> None:

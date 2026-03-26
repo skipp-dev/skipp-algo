@@ -48,3 +48,12 @@ def test_structure_producer_can_write_json_artifact(tmp_path: Path) -> None:
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "1.0.0"
     assert payload["source"]["sheet"] == "daily_bars"
+
+
+def test_structure_producer_records_selected_profile() -> None:
+    payload = build_structure_artifact_payload(
+        workbook=WORKBOOK_PATH,
+        generated_at=1709253600.0,
+        structure_profile="conservative",
+    )
+    assert payload["source"]["structure_profile"] == "conservative"

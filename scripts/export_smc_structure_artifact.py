@@ -35,7 +35,7 @@ def _coverage_from_structure(structure: dict[str, Any], *, coverage_mode: str) -
     }
 
 
-def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
+def _build_entries(daily_bars: pd.DataFrame, *, structure_profile: str) -> list[dict[str, Any]]:
     bars = daily_bars.copy()
     bars["trade_date"] = pd.to_datetime(bars.get("trade_date"), errors="coerce")
     bars["timestamp"] = pd.to_datetime(bars.get("trade_date"), errors="coerce")
@@ -50,7 +50,12 @@ def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
         symbol_bars = bars.loc[bars["symbol"].eq(symbol)].copy()
         if symbol_bars.empty:
             continue
-        structure_payload = build_full_structure_from_bars(symbol_bars, symbol=symbol, timeframe="1D")
+        structure_payload = build_full_structure_from_bars(
+            symbol_bars,
+            symbol=symbol,
+            timeframe="1D",
+            structure_profile=structure_profile,
+        )
         last_ts = pd.to_datetime(symbol_bars["timestamp"], errors="coerce", utc=True).dropna().max()
         asof_ts = float(pd.Timestamp(last_ts).timestamp()) if pd.notna(last_ts) else datetime.now(UTC).timestamp()
 
@@ -93,11 +98,16 @@ def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
     return entries
 
 
-def build_structure_artifact_payload(*, workbook: Path, generated_at: float | None = None) -> dict[str, Any]:
+def build_structure_artifact_payload(
+    *,
+    workbook: Path,
+    generated_at: float | None = None,
+    structure_profile: str = "hybrid_default",
+) -> dict[str, Any]:
     workbook = resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
 
     daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
-    entries = _build_entries(daily_bars)
+    entries = _build_entries(daily_bars, structure_profile=structure_profile)
 
     aggregate_structure = {
         "bos": [item for entry in entries for item in entry["structure"]["bos"]],
@@ -122,6 +132,7 @@ def build_structure_artifact_payload(*, workbook: Path, generated_at: float | No
             "sheet": "daily_bars",
             "timeframe": "1D",
             "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
+            "structure_profile": str(structure_profile),
         },
         "structure_coverage": coverage,
         "coverage": _coverage_from_structure(aggregate_structure, coverage_mode=coverage),
@@ -134,8 +145,13 @@ def export_structure_artifact(
     workbook: Path = DEFAULT_WORKBOOK,
     output: Path = DEFAULT_OUTPUT,
     generated_at: float | None = None,
+    structure_profile: str = "hybrid_default",
 ) -> Path:
-    payload = build_structure_artifact_payload(workbook=workbook, generated_at=generated_at)
+    payload = build_structure_artifact_payload(
+        workbook=workbook,
+        generated_at=generated_at,
+        structure_profile=structure_profile,
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return output
@@ -146,6 +162,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--workbook", default=str(DEFAULT_WORKBOOK), help="Workbook path containing daily_bars sheet")
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT), help="Output JSON path")
     parser.add_argument("--generated-at", type=float, default=None, help="Optional fixed generated_at timestamp")
+    parser.add_argument(
+        "--structure-profile",
+        default="hybrid_default",
+        help="Structure profile name (classic_makuchaku, session_liquidity, hybrid_default, conservative)",
+    )
     return parser
 
 
@@ -157,6 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         workbook=Path(args.workbook).expanduser(),
         output=Path(args.output).expanduser(),
         generated_at=args.generated_at,
+        structure_profile=str(args.structure_profile),
     )
     print(written)
     return 0

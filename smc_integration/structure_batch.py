@@ -159,6 +159,7 @@ def build_single_symbol_structure_artifact(
     symbol: str,
     timeframe: str,
     generated_at: float,
+    structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
     resolved_symbol = _normalize_symbol(symbol)
     canonical_bars = _load_symbol_bars_from_canonical_exports(resolved_symbol, timeframe, export_bundle_root)
@@ -169,7 +170,12 @@ def build_single_symbol_structure_artifact(
         canonical_bars = _load_symbol_bars_from_workbook(workbook, resolved_symbol)
         source_mode = "workbook_fallback"
 
-    structure_payload = build_full_structure_from_bars(canonical_bars, symbol=resolved_symbol, timeframe=timeframe)
+    structure_payload = build_full_structure_from_bars(
+        canonical_bars,
+        symbol=resolved_symbol,
+        timeframe=timeframe,
+        structure_profile=structure_profile,
+    )
     latest_ts = pd.to_datetime(canonical_bars["timestamp"], errors="coerce", utc=True).dropna().max()
     latest_close = pd.to_numeric(canonical_bars["close"], errors="coerce").dropna().iloc[-1]
     asof_ts = float(pd.Timestamp(latest_ts).timestamp()) if pd.notna(latest_ts) else float(generated_at)
@@ -209,6 +215,7 @@ def build_single_symbol_structure_artifact(
             "canonical_upstream": source_mode,
             "sheet": "daily_bars",
             "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
+            "structure_profile": str(structure_profile),
         },
         "coverage_mode": coverage_mode,
         "coverage": _coverage_from_structure(structure_payload, mode=coverage_mode),
@@ -319,6 +326,7 @@ def write_structure_artifacts_from_workbook(
     export_bundle_root: Path | None = None,
     generated_at: float | None = None,
     allow_missing_inputs: bool = True,
+    structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
     resolved_inputs = resolve_structure_artifact_inputs(
         explicit_workbook_path=str(workbook) if workbook is not None else None,
@@ -413,6 +421,7 @@ def write_structure_artifacts_from_workbook(
                 symbol=symbol,
                 timeframe=resolved_timeframe,
                 generated_at=effective_generated_at,
+                structure_profile=structure_profile,
             )
             artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 

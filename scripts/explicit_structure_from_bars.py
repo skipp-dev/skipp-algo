@@ -4,12 +4,9 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.smc_liquidity_engine import detect_liquidity_levels, detect_liquidity_sweeps
+from scripts.explicit_structure_profiles import build_structure_profile
 from scripts.smc_price_action_engine import (
     canonical_timeframe,
-    detect_bos_from_pivots,
-    detect_fvg_three_candle,
-    detect_orderblocks_two_candle,
     normalize_bars,
 )
 
@@ -91,85 +88,55 @@ def _dedupe_by_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def build_bos_events_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def _prepare_symbol_resampled_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[pd.DataFrame, str]:
     canonical_tf = _canonical_timeframe(timeframe)
     bars = resample_bars_to_timeframe(df, canonical_tf)
     bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
     if bars.empty:
-        return []
+        return bars, canonical_tf
     bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True).astype("int64") // 10**9
-    events = detect_bos_from_pivots(
-        bars,
-        symbol=str(symbol),
-        timeframe=canonical_tf,
-        pivot_lookup=1,
-        use_high_low_for_bullish=False,
-        use_high_low_for_bearish=False,
-    )
-    return _dedupe_by_id(events)
+    return bars, canonical_tf
+
+
+def build_bos_events_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+    bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
+    if bars.empty:
+        return []
+    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    return _dedupe_by_id(payload.bos)
 
 
 def build_liquidity_sweeps_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
-    canonical_tf = _canonical_timeframe(timeframe)
-    bars = resample_bars_to_timeframe(df, canonical_tf)
-    bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
+    bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True).astype("int64") // 10**9
-    levels = detect_liquidity_levels(bars, symbol=str(symbol), timeframe=canonical_tf, pivot_lookup=1)
-    sweeps = detect_liquidity_sweeps(bars, levels, symbol=str(symbol), timeframe=canonical_tf)
-    if not sweeps:
-        # Backward-compatible fallback: treat prior candle highs/lows as candidate liquidity.
-        legacy_levels: list[dict[str, Any]] = []
-        for i in range(len(bars) - 1):
-            row = bars.iloc[i]
-            ts = int(row["timestamp"])
-            high = float(row["high"])
-            low = float(row["low"])
-            sym = str(symbol).strip().upper()
-            legacy_levels.append(
-                {
-                    "id": f"liq:{sym}:{canonical_tf}:{ts}:BUY_SIDE:{high:.2f}",
-                    "time": ts,
-                    "price": high,
-                    "side": "BUY_SIDE",
-                }
-            )
-            legacy_levels.append(
-                {
-                    "id": f"liq:{sym}:{canonical_tf}:{ts}:SELL_SIDE:{low:.2f}",
-                    "time": ts,
-                    "price": low,
-                    "side": "SELL_SIDE",
-                }
-            )
-        sweeps = detect_liquidity_sweeps(bars, legacy_levels, symbol=str(symbol), timeframe=canonical_tf)
-    return _dedupe_by_id(sweeps)
+    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    return _dedupe_by_id(payload.liquidity_sweeps)
 
 
 def build_fvg_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
-    canonical_tf = _canonical_timeframe(timeframe)
-    bars = resample_bars_to_timeframe(df, canonical_tf)
-    bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
+    bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True).astype("int64") // 10**9
-    events = detect_fvg_three_candle(bars, symbol=str(symbol), timeframe=canonical_tf)
-    return _dedupe_by_id(events)
+    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    return _dedupe_by_id(payload.fvg)
 
 
 def build_orderblocks_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
-    canonical_tf = _canonical_timeframe(timeframe)
-    bars = resample_bars_to_timeframe(df, canonical_tf)
-    bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
+    bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True).astype("int64") // 10**9
-    events = detect_orderblocks_two_candle(bars, symbol=str(symbol), timeframe=canonical_tf)
-    return _dedupe_by_id(events)
+    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    return _dedupe_by_id(payload.orderblocks)
 
 
-def build_explicit_structure_from_bars(df: pd.DataFrame, symbol: str, timeframe: str, pivot_lookup: int = 1) -> dict:
+def build_explicit_structure_from_bars(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    pivot_lookup: int = 1,
+    structure_profile: str = "hybrid_default",
+) -> dict:
     canonical_tf = _canonical_timeframe(timeframe)
     bars = _coerce_bars(df)
     symbol_name = str(symbol).strip().upper()
@@ -180,33 +147,36 @@ def build_explicit_structure_from_bars(df: pd.DataFrame, symbol: str, timeframe:
     resampled = resample_bars_to_timeframe(symbol_bars, canonical_tf)
     resampled["timestamp"] = pd.to_datetime(resampled["timestamp"], utc=True).astype("int64") // 10**9
 
-    orderblocks = detect_orderblocks_two_candle(resampled, symbol=symbol_name, timeframe=canonical_tf)
-    fvg = detect_fvg_three_candle(resampled, symbol=symbol_name, timeframe=canonical_tf)
-    bos = detect_bos_from_pivots(
+    profile_result = build_structure_profile(
         resampled,
         symbol=symbol_name,
         timeframe=canonical_tf,
+        profile=structure_profile,
         pivot_lookup=pivot_lookup,
-        use_high_low_for_bullish=False,
-        use_high_low_for_bearish=False,
     )
 
-    liquidity_levels = detect_liquidity_levels(resampled, symbol=symbol_name, timeframe=canonical_tf, pivot_lookup=pivot_lookup)
-    liquidity_sweeps = detect_liquidity_sweeps(resampled, liquidity_levels, symbol=symbol_name, timeframe=canonical_tf)
-
     return {
-        "bos": _dedupe_by_id(bos),
-        "orderblocks": _dedupe_by_id(orderblocks),
-        "fvg": _dedupe_by_id(fvg),
-        "liquidity_sweeps": _dedupe_by_id(liquidity_sweeps),
+        "bos": _dedupe_by_id(profile_result.bos),
+        "orderblocks": _dedupe_by_id(profile_result.orderblocks),
+        "fvg": _dedupe_by_id(profile_result.fvg),
+        "liquidity_sweeps": _dedupe_by_id(profile_result.liquidity_sweeps),
+        "auxiliary": profile_result.auxiliary,
+        "diagnostics": profile_result.diagnostics,
         "producer_debug": {
-            "liquidity_levels_count": len(liquidity_levels),
+            "liquidity_levels_count": int(profile_result.diagnostics.get("liquidity_levels_count", 0)),
+            "structure_profile": str(structure_profile),
         },
     }
 
 
-def build_full_structure_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> dict:
-    payload = build_explicit_structure_from_bars(df, symbol=symbol, timeframe=timeframe, pivot_lookup=1)
+def build_full_structure_from_bars(df: pd.DataFrame, symbol: str, timeframe: str, structure_profile: str = "hybrid_default") -> dict:
+    payload = build_explicit_structure_from_bars(
+        df,
+        symbol=symbol,
+        timeframe=timeframe,
+        pivot_lookup=1,
+        structure_profile=structure_profile,
+    )
     return {
         "bos": payload["bos"],
         "orderblocks": payload["orderblocks"],

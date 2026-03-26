@@ -109,3 +109,21 @@ def test_structure_batch_keeps_categories_honest() -> None:
     assert coverage["has_orderblocks"] == bool(structure["orderblocks"])
     assert coverage["has_fvg"] == bool(structure["fvg"])
     assert coverage["has_liquidity_sweeps"] == bool(structure["liquidity_sweeps"])
+
+
+def test_structure_batch_records_selected_profile_in_source() -> None:
+    symbols = _sample_symbols(limit=1)
+    output_dir = ROOT / "reports" / "_tmp_structure_batch_profile"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    write_structure_artifacts_from_workbook(
+        workbook=WORKBOOK,
+        timeframe="15m",
+        symbols=symbols,
+        output_dir=output_dir,
+        generated_at=1709254000.0,
+        structure_profile="conservative",
+    )
+
+    payload = json.loads((output_dir / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
+    assert payload["source"]["structure_profile"] == "conservative"
