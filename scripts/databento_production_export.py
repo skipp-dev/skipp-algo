@@ -338,7 +338,12 @@ def _coalesce_optional_merge_column(frame: pd.DataFrame, column: str) -> pd.Data
         frame[column] = pd.Series(pd.NA, index=frame.index)
         return frame
 
-    merged = frame[candidate_columns].bfill(axis=1).iloc[:, 0]
+    merged = frame[candidate_columns[0]].copy()
+    for candidate in candidate_columns[1:]:
+        missing_mask = merged.isna()
+        if not missing_mask.any():
+            break
+        merged.loc[missing_mask] = frame.loc[missing_mask, candidate]
     frame[column] = merged if merged is not None else pd.Series(pd.NA, index=frame.index)
 
     suffix_columns = [name for name in (f"{column}_x", f"{column}_y") if name in frame.columns]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime
+import warnings
 
 import pandas as pd
 import scripts.databento_production_export as export_mod
@@ -24,8 +25,10 @@ def test_coalesce_optional_merge_column_handles_missing_and_suffix_columns() -> 
         }
     )
 
-    frame = _coalesce_optional_merge_column(frame, "is_earnings_day")
-    frame = _coalesce_optional_merge_column(frame, "earnings_timing_pre_open")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        frame = _coalesce_optional_merge_column(frame, "is_earnings_day")
+        frame = _coalesce_optional_merge_column(frame, "earnings_timing_pre_open")
 
     assert list(frame["is_earnings_day"]) == [False, True]
     assert "is_earnings_day_x" not in frame.columns
