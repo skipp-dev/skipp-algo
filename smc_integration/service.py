@@ -6,11 +6,12 @@ from pathlib import Path
 import pandas as pd
 
 from smc_adapters import (
-    build_snapshot_from_raw,
+    build_meta_from_raw,
+    build_structure_from_raw,
     snapshot_to_dashboard_payload,
     snapshot_to_pine_payload,
 )
-from smc_core import snapshot_to_dict
+from smc_core import apply_layering, snapshot_to_dict
 from smc_core.types import SmcSnapshot
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_htf_context import build_htf_bias_context
@@ -75,7 +76,9 @@ def _build_snapshot_from_loaded_raw(
     *,
     generated_at: float | None = None,
 ) -> SmcSnapshot:
-    return build_snapshot_from_raw(raw_structure, raw_meta, generated_at=generated_at)
+    structure = build_structure_from_raw(raw_structure)
+    meta = build_meta_from_raw(raw_meta)
+    return apply_layering(structure, meta, generated_at=generated_at)
 
 
 def build_snapshot_for_symbol_timeframe(

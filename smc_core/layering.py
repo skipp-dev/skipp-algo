@@ -103,8 +103,18 @@ def _dedupe_reasons(reasons: list[ReasonCode]) -> list[ReasonCode]:
 
 
 def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
-    regime: VolumeRegime = meta.volume.value.regime
+    raw_regime = str(meta.volume.value.regime)
+    regime: VolumeRegime
+    unknown_regime = False
+    if raw_regime in {"NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"}:
+        regime = raw_regime  # type: ignore[assignment]
+    else:
+        # Unknown regimes degrade to neutral-normal handling instead of failing deep in layering.
+        regime = "NORMAL"
+        unknown_regime = True
+
     thin_fraction = _clamp(meta.volume.value.thin_fraction, 0.0, 1.0)
+    volume_stale = bool(meta.volume.stale) or unknown_regime
 
     signed_tech = 0.0
     signed_news = 0.0
@@ -130,7 +140,7 @@ def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
         timeframe=meta.timeframe,
         asof_ts=meta.asof_ts,
         volume_regime=regime,
-        volume_stale=meta.volume.stale,
+        volume_stale=volume_stale,
         thin_fraction=thin_fraction,
         signed_tech=_clamp(signed_tech, -1.0, 1.0),
         tech_present=tech_present,
@@ -148,6 +158,9 @@ def derive_base_signals(nm: NormalizedMeta) -> BaseLayerSignals:
     thin_fraction = nm["thin_fraction"]
 
     global_heat = _clamp(signed_tech * 0.7 + signed_news * 0.3, -1.0, 1.0)
+    if nm["volume_stale"]:
+        # Missing or stale volume forces neutral fallback regardless of directional inputs.
+        global_heat = 0.0
     global_strength = _clamp(max(abs(global_heat), thin_fraction), 0.0, 1.0)
 
     base_reasons: list[ReasonCode] = []
@@ -404,6 +417,12 @@ def apply_layering(
 ) -> SmcSnapshot:
     normalized = normalize_meta(meta)
     signals = derive_base_signals(normalized)
+    structure_ids = {
+        *(item.id for item in structure.orderblocks),
+        *(item.id for item in structure.fvg),
+        *(item.id for item in structure.bos),
+        *(item.id for item in structure.liquidity_sweeps),
+    }
 
     # Keep deterministic style generation order across entity types.
     zone_styles: dict[str, ZoneStyle] = {}
@@ -415,6 +434,16 @@ def apply_layering(
         zone_styles[item_bos.id] = _style_for_bos(item_bos, normalized, signals)
     for item_sweep in structure.liquidity_sweeps:
         zone_styles[item_sweep.id] = _style_for_sweep(item_sweep, normalized, signals)
+
+    style_ids = set(zone_styles.keys())
+    missing = structure_ids - style_ids
+    orphan = style_ids - structure_ids
+    if missing:
+        missing_preview = ", ".join(sorted(missing)[:5])
+        raise ValueError(f"layering missing zone styles for ids: {missing_preview}")
+    if orphan:
+        orphan_preview = ", ".join(sorted(orphan)[:5])
+        raise ValueError(f"layering produced orphan zone styles for ids: {orphan_preview}")
 
     return SmcSnapshot(
         symbol=meta.symbol,
