@@ -27,6 +27,7 @@ from scripts.load_databento_export_bundle import load_export_bundle
 DEFAULT_PRODUCTION_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 CANONICAL_PRODUCTION_WORKBOOK_NAME = "databento_volatility_production_workbook.xlsx"
 LEGACY_WORKBOOK_GLOB = "databento_volatility_production_*.xlsx"
+EXCEL_MAX_ROWS_PER_SHEET = 1_048_576
 
 
 @dataclass(frozen=True)
@@ -111,19 +112,34 @@ def create_excel_workbook_bytes(
     second_detail: pd.DataFrame | None = None,
     additional_sheets: dict[str, pd.DataFrame] | None = None,
 ) -> bytes:
+    def _write_chunked_sheet(writer: pd.ExcelWriter, frame: pd.DataFrame, *, sheet_name: str) -> None:
+        prepared = prepare_frame_for_excel(frame)
+        if prepared.empty:
+            prepared.to_excel(writer, sheet_name=sheet_name, index=False)
+            return
+        base_name = str(sheet_name)[:31]
+        for chunk_index, start_row in enumerate(range(0, len(prepared), EXCEL_MAX_ROWS_PER_SHEET), start=1):
+            end_row = start_row + EXCEL_MAX_ROWS_PER_SHEET
+            if chunk_index == 1:
+                chunk_sheet_name = base_name
+            else:
+                suffix = f"_{chunk_index:03d}"
+                chunk_sheet_name = f"{base_name[: max(0, 31 - len(suffix))]}{suffix}"
+            prepared.iloc[start_row:end_row].to_excel(writer, sheet_name=chunk_sheet_name, index=False)
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        prepare_frame_for_excel(summary).to_excel(writer, sheet_name="summary", index=False)
+        _write_chunked_sheet(writer, summary, sheet_name="summary")
         if additional_sheets:
             for sheet_name, frame in additional_sheets.items():
                 if frame is None or frame.empty:
                     continue
                 safe_sheet_name = str(sheet_name)[:31]
-                prepare_frame_for_excel(frame).to_excel(writer, sheet_name=safe_sheet_name, index=False)
+                _write_chunked_sheet(writer, frame, sheet_name=safe_sheet_name)
         if minute_detail is not None and not minute_detail.empty:
-            prepare_frame_for_excel(minute_detail).to_excel(writer, sheet_name="minute_detail", index=False)
+            _write_chunked_sheet(writer, minute_detail, sheet_name="minute_detail")
         if second_detail is not None and not second_detail.empty:
-            prepare_frame_for_excel(second_detail).to_excel(writer, sheet_name="second_detail", index=False)
+            _write_chunked_sheet(writer, second_detail, sheet_name="second_detail")
 
         workbook = writer.book
         for worksheet in workbook.worksheets:

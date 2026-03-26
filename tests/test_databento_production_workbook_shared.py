@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
+from openpyxl import load_workbook
 
 import databento_volatility_screener as dvs
 import scripts.databento_production_export as export_mod
+import scripts.databento_production_workbook as workbook_mod
 from scripts.databento_production_workbook import WorkbookWriteResult, write_databento_production_workbook_from_frames
 
 
@@ -70,6 +73,34 @@ def test_streamlit_create_excel_workbook_reuses_shared_helper(monkeypatch) -> No
     assert payload == b"xlsx-bytes"
     assert len(calls) == 1
     assert calls[0]["summary_rows"] == 1
+
+
+def test_create_excel_workbook_bytes_splits_oversized_sheets(monkeypatch) -> None:
+    monkeypatch.setattr(workbook_mod, "EXCEL_MAX_ROWS_PER_SHEET", 3)
+
+    summary = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-06",
+                "symbol": f"SYM{idx}",
+                "window_range_pct": 1.0,
+                "realized_vol_pct": 1.0,
+                "window_return_pct": 1.0,
+                "prev_close_to_premarket_pct": 1.0,
+                "premarket_to_open_pct": 1.0,
+                "open_to_current_pct": 1.0,
+            }
+            for idx in range(4)
+        ]
+    )
+    second_detail = pd.DataFrame({"symbol": ["A", "B", "C", "D", "E"], "value": [1, 2, 3, 4, 5]})
+    payload = workbook_mod.create_excel_workbook_bytes(summary=summary, second_detail=second_detail)
+
+    workbook = load_workbook(filename=BytesIO(payload))
+    assert "summary" in workbook.sheetnames
+    assert "summary_002" in workbook.sheetnames
+    assert "second_detail" in workbook.sheetnames
+    assert "second_detail_002" in workbook.sheetnames
 
 
 def test_production_pipeline_canonical_workbook_helper_invokes_shared_writer(monkeypatch, tmp_path: Path) -> None:
