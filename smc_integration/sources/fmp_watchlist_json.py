@@ -60,6 +60,64 @@ def _coerce_optional_float(value: Any) -> float | None:
     return None
 
 
+def _coerce_optional_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y"}:
+            return True
+        if normalized in {"false", "0", "no", "n"}:
+            return False
+    return None
+
+
+def _coerce_bias(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().upper()
+    if normalized in {"BULLISH", "BEARISH", "NEUTRAL"}:
+        return normalized
+    return None
+
+
+def _extract_technical(row: dict[str, Any], *, fallback_asof_ts: float) -> dict[str, Any] | None:
+    direct = row.get("technical")
+    direct_map = direct if isinstance(direct, dict) else {}
+
+    strength = _coerce_optional_float(direct_map.get("strength"))
+    if strength is None:
+        strength = _coerce_optional_float(row.get("technical_strength"))
+
+    bias = _coerce_bias(direct_map.get("bias"))
+    if bias is None:
+        bias = _coerce_bias(row.get("technical_bias"))
+
+    if strength is None or bias is None:
+        return None
+
+    asof_ts = _coerce_optional_float(direct_map.get("asof_ts"))
+    if asof_ts is None:
+        asof_ts = _coerce_optional_float(row.get("technical_asof_ts"))
+    if asof_ts is None:
+        asof_ts = fallback_asof_ts
+
+    stale = _coerce_optional_bool(direct_map.get("stale"))
+    if stale is None:
+        stale = _coerce_optional_bool(row.get("technical_stale"))
+    if stale is None:
+        stale = False
+
+    return {
+        "value": {
+            "strength": strength,
+            "bias": bias,
+        },
+        "asof_ts": asof_ts,
+        "stale": stale,
+    }
+
+
 def _select_symbol_row(payload: dict[str, Any], symbol: str) -> dict[str, Any]:
     wanted = symbol.strip().upper()
     if not wanted:
@@ -114,7 +172,7 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         thin_fraction = 0.0
 
     resolved_symbol = str(row.get("symbol", symbol)).strip().upper()
-    return {
+    payload = {
         "symbol": resolved_symbol,
         "timeframe": str(timeframe).strip(),
         "asof_ts": asof_ts,
@@ -132,3 +190,10 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
             "smc_integration:partial_structure_only",
         ],
     }
+
+    technical = _extract_technical(row, fallback_asof_ts=asof_ts)
+    if technical is not None:
+        payload["technical"] = technical
+        payload["provenance"].append("smc_integration:technical_mapped_from_fmp")
+
+    return payload

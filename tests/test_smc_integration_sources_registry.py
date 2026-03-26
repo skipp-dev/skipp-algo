@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from smc_integration.repo_sources import (
+    discover_composite_source_plan,
     discover_repo_source_paths,
     discover_repo_sources,
     load_raw_meta_input,
+    select_best_news_source,
+    select_best_structure_source,
+    select_best_technical_source,
+    select_best_volume_source,
     load_raw_structure_input,
 )
 
@@ -27,6 +32,28 @@ def test_source_auto_selection_is_deterministic() -> None:
     one = discover_repo_source_paths()
     two = discover_repo_source_paths()
     assert one["selected_source"]["name"] == two["selected_source"]["name"]
+
+
+def test_domain_selectors_return_expected_providers() -> None:
+    assert select_best_structure_source().name == "databento_watchlist_csv"
+    assert select_best_volume_source().name == "databento_watchlist_csv"
+    assert select_best_technical_source().name in {"fmp_watchlist_json", "tradingview_watchlist_json"}
+    assert select_best_news_source().name == "benzinga_watchlist_json"
+
+
+def test_discover_composite_source_plan_auto_and_explicit() -> None:
+    auto_plan = discover_composite_source_plan(source="auto")
+    assert auto_plan["structure"] == "databento_watchlist_csv"
+    assert auto_plan["volume"] == "databento_watchlist_csv"
+    assert auto_plan["news"] == "benzinga_watchlist_json"
+
+    single = discover_composite_source_plan(source="fmp_watchlist_json")
+    assert single == {
+        "structure": "fmp_watchlist_json",
+        "volume": "fmp_watchlist_json",
+        "technical": "fmp_watchlist_json",
+        "news": "fmp_watchlist_json",
+    }
 
 
 

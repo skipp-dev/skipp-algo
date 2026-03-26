@@ -23,7 +23,15 @@ def test_tradingview_source_loads_meta_and_structure(monkeypatch, tmp_path: Path
     _write_rows(
         source_path,
         [
-            {"symbol": "AAPL", "trade_date": "2026-03-01", "asof_ts": 1709254000.0, "volume_regime": "NORMAL", "thin_fraction": 0.1},
+            {
+                "symbol": "AAPL",
+                "trade_date": "2026-03-01",
+                "asof_ts": 1709254000.0,
+                "volume_regime": "NORMAL",
+                "thin_fraction": 0.1,
+                "technical_strength": 0.81,
+                "technical_bias": "BULLISH",
+            },
             {"symbol": "MSFT", "trade_date": "2026-03-01", "asof_ts": 1709254001.0, "volume_regime": "LOW_VOLUME", "thin_fraction": 0.2},
         ],
     )
@@ -34,6 +42,8 @@ def test_tradingview_source_loads_meta_and_structure(monkeypatch, tmp_path: Path
 
     assert structure == {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
     _assert_common_payload(meta, "AAPL", "15m")
+    assert meta["technical"]["value"]["bias"] == "BULLISH"
+    assert float(meta["technical"]["value"]["strength"]) == 0.81
 
 
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:
@@ -41,7 +51,18 @@ def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> Non
     _write_rows(
         source_path,
         [
-            {"symbol": "NVDA", "trade_date": "2026-03-02", "asof_ts": 1709255000.0, "volume_regime": "HOLIDAY_SUSPECT", "thin_fraction": 0.05},
+            {
+                "symbol": "NVDA",
+                "trade_date": "2026-03-02",
+                "asof_ts": 1709255000.0,
+                "volume_regime": "HOLIDAY_SUSPECT",
+                "thin_fraction": 0.05,
+                "technical": {
+                    "strength": 0.4,
+                    "bias": "NEUTRAL",
+                    "stale": True,
+                },
+            },
         ],
     )
     monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", source_path)
@@ -51,6 +72,8 @@ def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> Non
 
     assert structure == {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
     _assert_common_payload(meta, "NVDA", "1h")
+    assert meta["technical"]["value"]["bias"] == "NEUTRAL"
+    assert bool(meta["technical"]["stale"]) is True
 
 
 def test_benzinga_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:
@@ -58,7 +81,15 @@ def test_benzinga_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -
     _write_rows(
         source_path,
         [
-            {"symbol": "TSLA", "trade_date": "2026-03-03", "asof_ts": 1709256000.0, "volume_regime": "NORMAL", "thin_fraction": 0.0},
+            {
+                "symbol": "TSLA",
+                "trade_date": "2026-03-03",
+                "asof_ts": 1709256000.0,
+                "volume_regime": "NORMAL",
+                "thin_fraction": 0.0,
+                "news_strength": 0.55,
+                "news_bias": "BEARISH",
+            },
         ],
     )
     monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", source_path)
@@ -68,3 +99,5 @@ def test_benzinga_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -
 
     assert structure == {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
     _assert_common_payload(meta, "TSLA", "4h")
+    assert meta["news"]["value"]["bias"] == "BEARISH"
+    assert float(meta["news"]["value"]["strength"]) == 0.55

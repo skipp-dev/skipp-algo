@@ -10,7 +10,12 @@ from smc_adapters import (
 from smc_core import snapshot_to_dict
 from smc_core.types import SmcSnapshot
 
-from .repo_sources import load_raw_meta_input, load_raw_structure_input, select_best_source
+from .repo_sources import (
+    discover_composite_source_plan,
+    load_raw_meta_input_composite,
+    load_raw_structure_input,
+    select_best_structure_source,
+)
 
 
 def _build_snapshot_from_loaded_raw(
@@ -29,12 +34,14 @@ def build_snapshot_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> SmcSnapshot:
+    composite = discover_composite_source_plan(source=source)
+    structure_source = composite["structure"]
     raw_structure = load_raw_structure_input(
         symbol,
         timeframe,
-        source=source,
+        source=structure_source,
     )
-    raw_meta = load_raw_meta_input(
+    raw_meta = load_raw_meta_input_composite(
         symbol,
         timeframe,
         source=source,
@@ -81,7 +88,8 @@ def build_snapshot_bundle_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> dict:
-    selected = select_best_source() if source.strip().lower() == "auto" else None
+    selected = select_best_structure_source() if source.strip().lower() == "auto" else None
+    composite = discover_composite_source_plan(source=source)
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
@@ -103,6 +111,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         source_descriptor = by_name[source_key]
 
     return {
+        "source_plan": composite,
         "source": source_descriptor.to_dict(),
         "snapshot": snapshot_to_dict(snapshot),
         "dashboard_payload": dashboard_payload,

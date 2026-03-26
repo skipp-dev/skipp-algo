@@ -58,6 +58,34 @@ Current registered sources are intentionally capability-aware and honest partial
 Structure-rich sources can be added later, but must still map into `smc_core` through the
 same adapter and integration boundaries.
 
+### Provider Capability Transparency
+
+The integration layer now tracks provider transparency in three explicit views:
+
+1. provider potential (what a provider can theoretically supply)
+2. current source-module mapping (what this repo currently maps)
+3. current snapshot output (what reaches `SmcSnapshot` today)
+
+This is intentionally conservative and must not be interpreted as future capability delivery.
+The matrix exists to prioritize the next highest-value mapping step without overstating
+structure, technical, or news coverage.
+
+### Composite Meta Assembly
+
+`smc_integration` now supports domain-wise provider composition for `raw_meta` in auto mode:
+
+1. one source is selected for `structure`
+2. one source is selected for `volume`
+3. one source is selected for `technical`
+4. one source is selected for `news`
+
+`smc_integration.service` keeps structure loading single-source, then assembles meta with a
+deterministic merge step. Optional domains (`technical`, `news`) are included only when explicit
+fields exist in source artifacts. No inferred sentiment or synthetic technical bias is injected.
+
+Merged meta provenance includes the underlying source provenance plus a composite merge marker so
+bundle consumers can audit exactly which provider was selected per domain.
+
 ## Official Home
 
 The official home for this contract is a dedicated root-level Python package:

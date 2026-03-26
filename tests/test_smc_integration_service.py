@@ -8,7 +8,7 @@ import pytest
 from smc_adapters import build_snapshot_from_raw
 from smc_core import snapshot_to_dict
 from smc_core.types import SmcSnapshot
-from smc_integration.repo_sources import load_raw_meta_input, load_raw_structure_input
+from smc_integration.repo_sources import load_raw_meta_input_composite, load_raw_structure_input
 from smc_integration.service import (
     build_dashboard_payload_for_symbol_timeframe,
     build_pine_payload_for_symbol_timeframe,
@@ -72,7 +72,7 @@ def test_service_matches_direct_adapter_pipeline() -> None:
     symbol = _first_symbol()
 
     raw_structure = load_raw_structure_input(symbol, "15m")
-    raw_meta = load_raw_meta_input(symbol, "15m")
+    raw_meta = load_raw_meta_input_composite(symbol, "15m")
     direct = build_snapshot_from_raw(raw_structure, raw_meta, generated_at=1709253600.0)
 
     via_service = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
