@@ -5,6 +5,7 @@ This index anchors the current producer/consumer contract documentation for the 
 Use these files as the starting point before changing the split architecture or the bus contract:
 
 - [smc-validation-status.md](smc-validation-status.md)
+- [structure_contract_architecture.md](structure_contract_architecture.md)
 - [tradingview-status-model.md](tradingview-status-model.md)
 - [tradingview-auth-modes.md](tradingview-auth-modes.md)
 - [smc-bus-v2-audit.md](smc-bus-v2-audit.md)
