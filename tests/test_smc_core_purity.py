@@ -25,3 +25,4 @@ def test_apply_layering_does_not_mutate_inputs() -> None:
     assert structure == before_structure
     assert meta == before_meta
     assert layered is not structure
+    assert set(layered.zone_styles.keys()) == {"bos:AAPL:15m:1709250000:BOS:UP:185.25"}
