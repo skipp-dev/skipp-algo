@@ -3582,6 +3582,51 @@ def test_deduplicate_daily_symbol_rows_aggregates_ohlcv() -> None:
     assert float(deduped.iloc[0]["volume"]) == 2_500.0
 
 
+def test_deduplicate_daily_symbol_rows_treats_multi_publisher_rows_as_expected_composite(caplog) -> None:
+    trade_day = date(2026, 3, 6)
+    frame = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "AAA"],
+            "publisher_id": [39, 41],
+            "open": [10.0, 10.1],
+            "high": [10.4, 10.5],
+            "low": [9.8, 9.7],
+            "close": [10.2, 10.3],
+            "volume": [1_000.0, 1_500.0],
+        }
+    )
+
+    with caplog.at_level(logging.INFO):
+        deduped = _deduplicate_daily_symbol_rows(frame)
+
+    assert len(deduped) == 1
+    assert any("multi-publisher trade_date-symbol rows into composite OHLCV" in msg for msg in caplog.messages)
+    assert not any("duplicate trade_date-symbol rows by aggregating OHLCV" in msg for msg in caplog.messages)
+
+
+def test_deduplicate_daily_symbol_rows_warns_for_same_publisher_duplicates(caplog) -> None:
+    trade_day = date(2026, 3, 6)
+    frame = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day],
+            "symbol": ["AAA", "AAA"],
+            "publisher_id": [39, 39],
+            "open": [10.0, 10.1],
+            "high": [10.4, 10.5],
+            "low": [9.8, 9.7],
+            "close": [10.2, 10.3],
+            "volume": [1_000.0, 1_500.0],
+        }
+    )
+
+    with caplog.at_level(logging.WARNING):
+        deduped = _deduplicate_daily_symbol_rows(frame)
+
+    assert len(deduped) == 1
+    assert any("duplicate trade_date-symbol rows by aggregating OHLCV" in msg for msg in caplog.messages)
+
+
 def test_estimate_databento_costs_uses_exclusive_daily_and_intraday_ends(monkeypatch) -> None:
     cost_calls: list[dict[str, str]] = []
     size_calls: list[dict[str, str]] = []

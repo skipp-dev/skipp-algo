@@ -1163,11 +1163,26 @@ def _deduplicate_daily_symbol_rows(frame: pd.DataFrame) -> pd.DataFrame:
     if not duplicate_mask.any():
         return frame
 
-    duplicate_keys = int(frame.loc[duplicate_mask, ["trade_date", "symbol"]].drop_duplicates().shape[0])
-    logger.warning(
-        "load_daily_bars: consolidating %d duplicate trade_date-symbol rows by aggregating OHLCV.",
-        duplicate_keys,
-    )
+    duplicate_rows = frame.loc[duplicate_mask].copy()
+    duplicate_keys = int(duplicate_rows[["trade_date", "symbol"]].drop_duplicates().shape[0])
+    publisher_sharded_keys = 0
+    anomalous_keys = duplicate_keys
+    if "publisher_id" in duplicate_rows.columns:
+        publisher_counts = duplicate_rows.groupby(["trade_date", "symbol"], sort=False)["publisher_id"].nunique(dropna=False)
+        row_counts = duplicate_rows.groupby(["trade_date", "symbol"], sort=False).size()
+        publisher_sharded_keys = int(((publisher_counts > 1) & publisher_counts.eq(row_counts)).sum())
+        anomalous_keys = max(0, duplicate_keys - publisher_sharded_keys)
+
+    if anomalous_keys > 0:
+        logger.warning(
+            "load_daily_bars: consolidating %d duplicate trade_date-symbol rows by aggregating OHLCV.",
+            anomalous_keys,
+        )
+    if publisher_sharded_keys > 0:
+        logger.info(
+            "load_daily_bars: consolidating %d multi-publisher trade_date-symbol rows into composite OHLCV.",
+            publisher_sharded_keys,
+        )
 
     ordered = frame.reset_index(drop=True).copy()
     ordered["_row_order"] = np.arange(len(ordered))
@@ -1188,7 +1203,7 @@ def _deduplicate_daily_symbol_rows(frame: pd.DataFrame) -> pd.DataFrame:
     passthrough_columns = [
         column
         for column in ordered.columns
-        if column not in {"trade_date", "symbol", "_row_order", *aggregations.keys()}
+        if column not in {"trade_date", "symbol", "publisher_id", "_row_order", *aggregations.keys()}
     ]
     for column in passthrough_columns:
         aggregations[column] = "last"
@@ -1313,12 +1328,14 @@ def load_daily_bars(
     frame["symbol"] = frame.get("symbol", "").map(normalize_symbol_for_databento)
     frame = frame[frame["symbol"].isin(normalized_universe_symbols)].copy()
     frame["trade_date"] = frame["ts"].dt.date
-    keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume"] if col in frame.columns]
+    keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume", "publisher_id"] if col in frame.columns]
     frame = frame[keep_cols].copy()
     for col in ["open", "high", "low", "close", "volume"]:
         if col in frame.columns:
             frame[col] = pd.to_numeric(frame[col], errors="coerce")
     frame = _deduplicate_daily_symbol_rows(frame)
+    keep_cols = [col for col in ["trade_date", "symbol", "open", "high", "low", "close", "volume"] if col in frame.columns]
+    frame = frame[keep_cols].copy()
     frame = frame.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
     frame["previous_close"] = frame.groupby("symbol")["close"].shift(1)
     frame = frame[frame["trade_date"].isin(trading_days)].reset_index(drop=True)
