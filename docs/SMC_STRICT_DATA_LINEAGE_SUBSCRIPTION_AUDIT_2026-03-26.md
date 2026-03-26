@@ -8,6 +8,7 @@
 - SMC base run inherits this workbook via [scripts/smc_microstructure_base_runtime.py](scripts/smc_microstructure_base_runtime.py#L1384) and records workbook lineage in base manifest metadata.
 - Streamlit remains a consumer: workbook write path in [databento_volatility_screener.py](databento_volatility_screener.py#L3565) delegates to the shared helper, rather than owning unique workbook-construction logic.
 - Structure exporters now default to canonical workbook path with legacy fallback via [smc_integration/structure_batch.py](smc_integration/structure_batch.py#L16) and [scripts/export_smc_structure_artifact.py](scripts/export_smc_structure_artifact.py#L16).
+- Base workbook writer now protects against Excel row-cap failures by splitting oversized `base_snapshot` exports across numbered sheets (`base_snapshot`, `base_snapshot_002`, ...) in [scripts/smc_microstructure_base_runtime.py](scripts/smc_microstructure_base_runtime.py#L1293).
 - IBKR remains execution/preview only.
 - L2/DOM requirement remains not evidenced in current producer path.
 

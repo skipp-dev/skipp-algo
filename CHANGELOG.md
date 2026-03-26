@@ -17,6 +17,9 @@ All notable changes to this project are documented in this file.
   - Fixed `scripts/smc_microstructure_base_runtime.py` so Databento symbols explicitly reported as unresolved at runtime are excluded from the hard session-minute completeness check instead of causing false `incomplete symbol coverage` failures.
   - Added regression coverage in `tests/test_smc_microstructure_base_runtime.py` for runtime-unsupported symbols.
 
+- **SMC base workbook Excel row-limit hardening:**
+  - Fixed `scripts/smc_microstructure_base_runtime.py` workbook export to split oversized `base_snapshot` outputs across numbered sheets when row count exceeds Excel's per-sheet limit, preventing `This sheet is too large` failures during base scan exports.
+
 - **Databento open-window second-detail duplicate handling:**
   - Fixed `databento_volatility_screener.py` duplicate symbol-second logging to distinguish expected multi-publisher `ohlcv-1s` shards from anomalous duplicate rows.
   - Expected venue-level shards are now consolidated into composite OHLCV with info-level logging, while same-publisher anomalies remain warning-level.

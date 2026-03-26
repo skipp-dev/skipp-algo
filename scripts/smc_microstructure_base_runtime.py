@@ -1291,14 +1291,17 @@ def write_mapping_report(path: Path, payload: dict[str, Any]) -> None:
 
 
 def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload: dict[str, Any]) -> None:
+    excel_max_rows = 1_048_576
     path.parent.mkdir(parents=True, exist_ok=True)
     mapping_frame = pd.DataFrame(mapping_payload["mapping_status"])
+    base_sheet_count = max(1, int(math.ceil(len(base_snapshot) / excel_max_rows)))
     summary_frame = pd.DataFrame(
         [
             {
                 "bundle_manifest_path": mapping_payload["bundle_manifest_path"],
                 "asof_date": mapping_payload["asof_date"],
                 "row_count": mapping_payload["row_count"],
+                "base_snapshot_sheet_count": base_sheet_count,
                 "direct_fields": len(mapping_payload["direct_fields"]),
                 "derived_fields": len(mapping_payload["derived_fields"]),
                 "missing_fields": len(mapping_payload["missing_fields"]),
@@ -1306,7 +1309,18 @@ def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload
         ]
     )
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        base_snapshot.to_excel(writer, sheet_name="base_snapshot", index=False)
+        for sheet_index, start_row in enumerate(range(0, len(base_snapshot), excel_max_rows), start=1):
+            end_row = start_row + excel_max_rows
+            sheet_name = "base_snapshot" if sheet_index == 1 else f"base_snapshot_{sheet_index:03d}"
+            base_snapshot.iloc[start_row:end_row].to_excel(writer, sheet_name=sheet_name, index=False)
+        if base_snapshot.empty:
+            base_snapshot.to_excel(writer, sheet_name="base_snapshot", index=False)
+        elif base_sheet_count > 1:
+            logger.warning(
+                "Base snapshot exceeded Excel row limit; wrote %d rows across %d sheets.",
+                len(base_snapshot),
+                base_sheet_count,
+            )
         summary_frame.to_excel(writer, sheet_name="summary", index=False)
         mapping_frame.to_excel(writer, sheet_name="mapping_status", index=False)
 
