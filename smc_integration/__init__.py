@@ -14,6 +14,7 @@ from .repo_sources import (
     discover_composite_source_plan,
     discover_repo_sources,
     discover_repo_source_paths,
+    discover_structure_source_status,
     load_raw_meta_input_composite,
     load_raw_meta_input,
     load_raw_structure_input,
@@ -22,6 +23,11 @@ from .repo_sources import (
     select_best_structure_source,
     select_best_technical_source,
     select_best_volume_source,
+)
+from .structure_audit import (
+    build_structure_gap_report,
+    discover_structure_source_candidates,
+    structure_gap_report_to_dict,
 )
 from .service import (
     build_dashboard_payload_for_symbol_timeframe,
@@ -39,9 +45,13 @@ __all__ = [
     "discover_provider_matrix",
     "provider_matrix_to_dict",
     "build_provider_summary",
+    "discover_structure_source_candidates",
+    "build_structure_gap_report",
+    "structure_gap_report_to_dict",
     "discover_composite_source_plan",
     "discover_repo_sources",
     "discover_repo_source_paths",
+    "discover_structure_source_status",
     "select_best_source",
     "select_best_structure_source",
     "select_best_volume_source",

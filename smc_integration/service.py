@@ -12,6 +12,7 @@ from smc_core.types import SmcSnapshot
 
 from .repo_sources import (
     discover_composite_source_plan,
+    discover_structure_source_status,
     load_raw_meta_input_composite,
     load_raw_structure_input,
     select_best_structure_source,
@@ -90,6 +91,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
 ) -> dict:
     selected = select_best_structure_source() if source.strip().lower() == "auto" else None
     composite = discover_composite_source_plan(source=source)
+    structure_status = discover_structure_source_status(source=source)
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
@@ -112,6 +114,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
 
     return {
         "source_plan": composite,
+        "structure_status": structure_status,
         "source": source_descriptor.to_dict(),
         "snapshot": snapshot_to_dict(snapshot),
         "dashboard_payload": dashboard_payload,

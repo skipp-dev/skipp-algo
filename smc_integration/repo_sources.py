@@ -173,6 +173,39 @@ def discover_repo_source_paths() -> dict[str, Any]:
     }
 
 
+def discover_structure_source_status(*, source: str = "auto") -> dict[str, Any]:
+    plan = discover_composite_source_plan(source=source)
+    structure_name = plan["structure"]
+    structure_provider = _SOURCE_PROVIDERS[structure_name]
+    structure_descriptor = structure_provider.descriptor
+
+    # Import lazily to avoid a module import cycle.
+    from .provider_matrix import discover_provider_matrix
+
+    matrix_by_name = {entry.name: entry for entry in discover_provider_matrix()}
+    selected_entry = matrix_by_name.get(structure_name)
+
+    any_explicit = any(entry.current.currently_maps_structure for entry in matrix_by_name.values())
+    explicit_names = sorted(
+        entry.name
+        for entry in matrix_by_name.values()
+        if entry.current.currently_maps_structure
+    )
+
+    selected_notes = list(structure_descriptor.notes)
+    if selected_entry is not None:
+        selected_notes.extend(selected_entry.known_gaps)
+
+    return {
+        "selected_structure_source": structure_name,
+        "selected_structure_mode": structure_descriptor.capabilities.structure_mode,
+        "selected_has_structure_capability": structure_descriptor.capabilities.has_structure,
+        "any_registered_explicit_structure_provider": any_explicit,
+        "explicit_structure_provider_names": explicit_names,
+        "notes": selected_notes,
+    }
+
+
 def discover_composite_source_plan(*, source: str = "auto") -> dict[str, str]:
     normalized = source.strip().lower()
     if normalized == "auto":

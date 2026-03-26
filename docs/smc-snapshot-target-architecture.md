@@ -86,6 +86,19 @@ fields exist in source artifacts. No inferred sentiment or synthetic technical b
 Merged meta provenance includes the underlying source provenance plus a composite merge marker so
 bundle consumers can audit exactly which provider was selected per domain.
 
+### Structure Source Audit Layer
+
+`smc_integration.structure_audit` provides a deterministic audit of structure-bearing candidates in
+the checked-out repo. It distinguishes three categories:
+
+1. structure-rich provider: registered source that currently maps explicit `bos`/`orderblocks`/`fvg`/`liquidity_sweeps`
+2. meta-only provider: registered source that may carry volume/technical/news context but not explicit structure events
+3. candidate-not-yet-integrated source: real file/module evidence in repo that still lacks an honest provider mapping path
+
+Current repo state is still explicit-gap on structure integration: no registered source currently maps
+non-empty explicit structure arrays into `raw_structure`. The audit report makes this gap reproducible
+without fabricating structure events.
+
 ## Official Home
 
 The official home for this contract is a dedicated root-level Python package:
