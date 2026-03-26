@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+
+import pytest
+
+from smc_adapters import build_snapshot_from_raw
+from smc_core import snapshot_to_dict
+from smc_core.types import SmcSnapshot
+from smc_integration.repo_sources import load_raw_meta_input, load_raw_structure_input
+from smc_integration.service import (
+    build_dashboard_payload_for_symbol_timeframe,
+    build_pine_payload_for_symbol_timeframe,
+    build_snapshot_for_symbol_timeframe,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _first_symbol() -> str:
+    csv_path = ROOT / "reports" / "databento_watchlist_top5_pre1530.csv"
+    with csv_path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        row = next(reader, None)
+    if row is None or not row.get("symbol"):
+        raise AssertionError("watchlist CSV must contain at least one symbol row for integration tests")
+    return str(row["symbol"]).strip().upper()
+
+
+
+def test_build_snapshot_for_symbol_timeframe_returns_snapshot() -> None:
+    symbol = _first_symbol()
+
+    snapshot = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+
+    assert isinstance(snapshot, SmcSnapshot)
+    assert snapshot.symbol == symbol
+    assert snapshot.timeframe == "15m"
+
+
+
+def test_build_dashboard_and_pine_payloads_return_expected_shapes() -> None:
+    symbol = _first_symbol()
+
+    dashboard = build_dashboard_payload_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+    pine = build_pine_payload_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+
+    assert dashboard["symbol"] == symbol
+    assert dashboard["timeframe"] == "15m"
+    assert "summary" in dashboard
+    assert "zones" in dashboard
+    assert "markers" in dashboard
+
+    assert pine["symbol"] == symbol
+    assert pine["timeframe"] == "15m"
+    assert set(["bos", "orderblocks", "fvg", "liquidity_sweeps"]).issubset(set(pine.keys()))
+
+
+
+def test_build_snapshot_is_deterministic_for_fixed_generated_at() -> None:
+    symbol = _first_symbol()
+
+    one = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+    two = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+
+    assert snapshot_to_dict(one) == snapshot_to_dict(two)
+
+
+
+def test_service_matches_direct_adapter_pipeline() -> None:
+    symbol = _first_symbol()
+
+    raw_structure = load_raw_structure_input(symbol, "15m", repo_root=ROOT)
+    raw_meta = load_raw_meta_input(symbol, "15m", repo_root=ROOT)
+    direct = build_snapshot_from_raw(raw_structure, raw_meta, generated_at=1709253600.0)
+
+    via_service = build_snapshot_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0, repo_root=ROOT)
+
+    assert snapshot_to_dict(direct) == snapshot_to_dict(via_service)
+
+
+
+def test_missing_symbol_fails_with_clear_error() -> None:
+    with pytest.raises(ValueError, match="not present"):
+        build_snapshot_for_symbol_timeframe("__MISSING__", "15m", generated_at=1709253600.0, repo_root=ROOT)

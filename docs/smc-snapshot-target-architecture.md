@@ -31,6 +31,24 @@ Downstream consumers include:
 
 The target architecture is split into four layers.
 
+## Repo Integration Layer
+
+To connect canonical snapshot logic to this repository's real upstream data, a small
+repo-specific integration layer is used:
+
+1. `smc_core` remains the domain truth (`SmcStructure`, `SmcMeta`, `SmcSnapshot`, layering)
+2. `smc_adapters` remains the boundary layer (raw ingest + dashboard/pine projections)
+3. `smc_integration` is the repo orchestration/source layer (real source loading + adapter calls)
+
+Current first real integration entry is:
+
+1. `reports/databento_watchlist_top5_pre1530.csv`
+
+This source is currently symbol/watchlist oriented and does not contain explicit
+`bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows. The integration therefore uses
+an explicit partial-structure mapping (empty structure lists) plus mapped meta input,
+with clear provenance and no additional SMC logic in the integration layer.
+
 ## Official Home
 
 The official home for this contract is a dedicated root-level Python package:
