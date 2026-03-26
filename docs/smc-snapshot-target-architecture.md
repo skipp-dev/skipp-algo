@@ -12,6 +12,7 @@ Use this document together with:
 
 - [smc-microstructure-ui-architecture.md](smc-microstructure-ui-architecture.md)
 - [smc-microstructure-ui-operator-runbook.md](smc-microstructure-ui-operator-runbook.md)
+- [structure_contract_architecture.md](structure_contract_architecture.md)
 - [../spec/smc_snapshot.schema.json](../spec/smc_snapshot.schema.json)
 
 ## Goal
@@ -110,6 +111,10 @@ Delivery contracts are now explicit at consumer boundary level:
 2. pine payloads carry the same coverage/status truth without assuming OB/FVG/sweeps are populated
 3. snapshot bundle (`source_plan`, `structure_status`, `snapshot`, `dashboard_payload`, `pine_payload`) is the canonical delivery artifact
 4. watchlist manifests aggregate per-category coverage counts (`symbols_with_bos`, `symbols_with_orderblocks`, `symbols_with_fvg`, `symbols_with_liquidity_sweeps`)
+
+`snapshot.structure` remains canonical-only (`bos`, `orderblocks`, `fvg`, `liquidity_sweeps`).
+Contract and transparency metadata is additive via `structure_context`; detailed ingress
+normalization and guardrails are documented in [structure_contract_architecture.md](structure_contract_architecture.md).
 
 Explicit structure coverage can be `full`, `partial`, or `none` per artifact and remains fully
 data-driven. The delivery layer must continue to surface missing categories explicitly instead of
