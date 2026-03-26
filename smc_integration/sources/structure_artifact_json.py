@@ -182,10 +182,11 @@ def discover_category_coverage() -> dict[str, bool]:
 
     for structure in structures:
         bos_items = structure.get("bos")
-        if isinstance(bos_items, list):
+        if isinstance(bos_items, list) and bos_items:
             # BOS/CHOCH share the same explicit event family (`bos` with `kind`).
             categories["bos"] = True
-            categories["choch"] = True
+            if any(str(item.get("kind", "")).upper() == "CHOCH" for item in bos_items if isinstance(item, dict)):
+                categories["choch"] = True
 
         if isinstance(structure.get("orderblocks"), list) and structure.get("orderblocks"):
             categories["orderblocks"] = True

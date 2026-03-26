@@ -89,3 +89,81 @@ def test_structure_artifact_provider_category_coverage_is_honest(monkeypatch, tm
     assert isinstance(coverage["orderblocks"], bool)
     assert isinstance(coverage["fvg"], bool)
     assert isinstance(coverage["liquidity_sweeps"], bool)
+
+
+def test_structure_artifact_provider_coverage_ignores_empty_bos_lists(monkeypatch, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        artifact_path = artifact_dir / "AAPL_15m.structure.json"
+        artifact_path.write_text(
+                """
+{
+    "schema_version": "1.0.0",
+    "generated_at": 1709253600.0,
+    "symbol": "AAPL",
+    "timeframe": "15m",
+    "source": {
+        "workbook_path": "x",
+        "canonical_upstream": "workbook_fallback",
+        "sheet": "daily_bars",
+        "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars"
+    },
+    "coverage_mode": "none",
+    "coverage": {
+        "mode": "none",
+        "has_bos": false,
+        "has_orderblocks": false,
+        "has_fvg": false,
+        "has_liquidity_sweeps": false
+    },
+    "event_evidence": {
+        "last_event": "none",
+        "trend_state": 0,
+        "reference_close": 100.0
+    },
+    "structure": {
+        "bos": [],
+        "orderblocks": [],
+        "fvg": [],
+        "liquidity_sweeps": []
+    }
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+        )
+
+        manifest_path = artifact_dir / "manifest_15m.json"
+        manifest_path.write_text(
+                """
+{
+    "schema_version": "1.0.0",
+    "generated_at": 1709253600.0,
+    "timeframe": "15m",
+    "producer": {"name": "test", "upstream": "x"},
+    "counts": {"symbols_requested": 1, "artifacts_written": 1, "errors": 0},
+    "artifacts": [{
+        "symbol": "AAPL",
+        "timeframe": "15m",
+        "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
+        "coverage_mode": "none",
+        "has_bos": false,
+        "has_orderblocks": false,
+        "has_fvg": false,
+        "has_liquidity_sweeps": false
+    }],
+    "errors": []
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
+
+        coverage = structure_artifact_json.discover_category_coverage()
+        assert coverage["bos"] is False
+        assert coverage["choch"] is False

@@ -19,6 +19,19 @@
     "generated_at": {
       "type": "number"
     },
+    "producer": {
+      "type": "object",
+      "required": ["name", "primary_reference", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "primary_reference": { "type": "string", "minLength": 1 },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      }
+    },
     "source": {
       "type": "object",
       "required": ["workbook_path", "sheet", "timeframe", "event_logic"],
@@ -107,7 +120,8 @@
                     "time": { "type": "number" },
                     "price": { "type": "number" },
                     "kind": { "type": "string", "enum": ["BOS", "CHOCH"] },
-                    "dir": { "type": "string", "enum": ["UP", "DOWN"] }
+                    "dir": { "type": "string", "enum": ["UP", "DOWN"] },
+                    "source": { "type": "string", "minLength": 1 }
                   }
                 }
               },
@@ -122,7 +136,9 @@
                     "low": { "type": "number" },
                     "high": { "type": "number" },
                     "dir": { "type": "string", "enum": ["BULL", "BEAR"] },
-                    "valid": { "type": "boolean" }
+                    "valid": { "type": "boolean" },
+                    "anchor_ts": { "type": "number" },
+                    "source": { "type": "string", "minLength": 1 }
                   }
                 }
               },
@@ -137,7 +153,9 @@
                     "low": { "type": "number" },
                     "high": { "type": "number" },
                     "dir": { "type": "string", "enum": ["BULL", "BEAR"] },
-                    "valid": { "type": "boolean" }
+                    "valid": { "type": "boolean" },
+                    "anchor_ts": { "type": "number" },
+                    "source": { "type": "string", "minLength": 1 }
                   }
                 }
               },
@@ -151,7 +169,8 @@
                     "id": { "type": "string", "minLength": 1 },
                     "time": { "type": "number" },
                     "price": { "type": "number" },
-                    "side": { "type": "string", "enum": ["BUY_SIDE", "SELL_SIDE"] }
+                    "side": { "type": "string", "enum": ["BUY_SIDE", "SELL_SIDE"] },
+                    "source_liquidity_id": { "type": "string", "minLength": 1 }
                   }
                 }
               }

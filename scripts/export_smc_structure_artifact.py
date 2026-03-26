@@ -112,6 +112,11 @@ def build_structure_artifact_payload(*, workbook: Path, generated_at: float | No
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": float(generated_at) if generated_at is not None else datetime.now(UTC).timestamp(),
+        "producer": {
+            "name": "smc_price_action_engine_v2",
+            "primary_reference": "super_orderblock_fvg_bos_tools",
+            "version": "2.0.0",
+        },
         "source": {
             "workbook_path": str(workbook.as_posix()),
             "sheet": "daily_bars",

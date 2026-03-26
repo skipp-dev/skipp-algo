@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
+
+import pandas as pd
 
 from smc_adapters import (
     build_snapshot_from_raw,
@@ -9,6 +12,10 @@ from smc_adapters import (
 )
 from smc_core import snapshot_to_dict
 from smc_core.types import SmcSnapshot
+from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_htf_context import build_htf_bias_context
+from scripts.smc_session_context import build_session_liquidity_context
+from scripts.smc_structure_qualifiers import build_structure_qualifiers
 
 from .repo_sources import (
     discover_composite_source_plan,
@@ -17,6 +24,49 @@ from .repo_sources import (
     load_raw_structure_input,
     select_best_structure_source,
 )
+
+
+_DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+
+
+def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
+    try:
+        bundle = load_export_bundle(_DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
+    except Exception:
+        return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"]) 
+
+    frames = bundle.get("frames", {})
+    symbol_name = str(symbol).strip().upper()
+    tf = str(timeframe).strip()
+
+    if tf == "1D":
+        daily = frames.get("daily_bars")
+        if isinstance(daily, pd.DataFrame) and not daily.empty:
+            bars = daily.copy()
+            bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+            bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
+            if bars.empty:
+                return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
+            bars["timestamp"] = pd.to_datetime(bars.get("trade_date"), utc=True, errors="coerce").astype("int64") // 10**9
+            for col in ("open", "high", "low", "close"):
+                bars[col] = pd.to_numeric(bars.get(col), errors="coerce")
+            bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
+            return bars[["timestamp", "open", "high", "low", "close", "volume", "symbol"]].dropna().reset_index(drop=True)
+
+    intraday = frames.get("full_universe_second_detail_open")
+    if isinstance(intraday, pd.DataFrame) and not intraday.empty:
+        bars = intraday.copy()
+        bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
+        bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
+        if bars.empty:
+            return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
+        bars["timestamp"] = pd.to_datetime(bars.get("timestamp"), utc=True, errors="coerce").astype("int64") // 10**9
+        for col in ("open", "high", "low", "close"):
+            bars[col] = pd.to_numeric(bars.get(col), errors="coerce")
+        bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
+        return bars[["timestamp", "open", "high", "low", "close", "volume", "symbol"]].dropna().reset_index(drop=True)
+
+    return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
 
 
 def _build_snapshot_from_loaded_raw(
@@ -133,6 +183,16 @@ def build_snapshot_bundle_for_symbol_timeframe(
             raise ValueError(f"unknown source {source}; expected one of: {known}, auto")
         source_descriptor = by_name[source_key]
 
+    bars = _load_symbol_bars_for_context(symbol, timeframe)
+    if bars.empty:
+        structure_qualifiers: dict[str, Any] = {}
+        session_context: dict[str, Any] = {}
+        htf_context: dict[str, Any] = {}
+    else:
+        structure_qualifiers = build_structure_qualifiers(bars, pivot_lookup=1)
+        session_context = build_session_liquidity_context(bars, tz="America/New_York")
+        htf_context = build_htf_bias_context(bars, timeframe=timeframe, htf_frames=None)
+
     return {
         "source_plan": composite,
         "structure_status": structure_status,
@@ -140,4 +200,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "snapshot": snapshot_to_dict(snapshot),
         "dashboard_payload": dashboard_payload,
         "pine_payload": pine_payload,
+        "structure_qualifiers": structure_qualifiers,
+        "session_context": session_context,
+        "htf_context": htf_context,
     }

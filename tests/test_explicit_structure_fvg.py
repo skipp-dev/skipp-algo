@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from scripts.explicit_structure_from_bars import build_fvg_from_bars
+from smc_core.ids import fvg_id
 
 
 def _fvg_bars() -> pd.DataFrame:
@@ -27,3 +28,20 @@ def test_build_fvg_detects_bull_and_bear_gaps() -> None:
     assert "BEAR" in directions
     assert all(item["high"] > item["low"] for item in fvgs)
     assert all(str(item["id"]).startswith("fvg:") for item in fvgs)
+
+
+def test_fvg_id_is_anchored_to_confirmation_bar() -> None:
+    bars = _fvg_bars()
+    fvgs = build_fvg_from_bars(bars, symbol="AAPL", timeframe="1D")
+    bullish = next(item for item in fvgs if item["dir"] == "BULL")
+
+    confirm_ts = float(pd.Timestamp(bars.iloc[2]["timestamp"]).timestamp())
+    expected = fvg_id(
+        symbol="AAPL",
+        timeframe="1D",
+        anchor_ts=confirm_ts,
+        dir="BULL",
+        low=float(bullish["low"]),
+        high=float(bullish["high"]),
+    )
+    assert bullish["id"] == expected

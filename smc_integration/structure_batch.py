@@ -201,6 +201,11 @@ def build_single_symbol_structure_artifact(
         "generated_at": float(generated_at),
         "symbol": resolved_symbol,
         "timeframe": timeframe,
+        "producer": {
+            "name": "smc_price_action_engine_v2",
+            "primary_reference": "super_orderblock_fvg_bos_tools",
+            "version": "2.0.0",
+        },
         "source": {
             "workbook_path": str(workbook.as_posix()),
             "canonical_upstream": source_mode,
@@ -246,7 +251,9 @@ def build_structure_artifact_manifest(
         "generated_at": float(generated_at),
         "timeframe": timeframe,
         "producer": {
-            "name": "export_smc_structure_artifacts_from_workbook",
+            "name": "smc_price_action_engine_v2",
+            "primary_reference": "super_orderblock_fvg_bos_tools",
+            "version": "2.0.0",
             "upstream": str(workbook.as_posix()),
         },
         "counts": {

@@ -65,9 +65,15 @@ Phase 15 workbook lineage contract:
 The watchlist source is symbol/meta oriented and does not contain explicit
 `bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows.
 
-The structure artifact source is generated from real workbook `daily_bars` using
-`scripts.market_structure_features.build_market_structure_feature_frame` and currently maps
-explicit BOS/CHOCH events (partial structure coverage).
+The structure artifact source is generated from real bar data via the canonical facade
+`scripts/explicit_structure_from_bars.py`, which now delegates structure logic into modular
+engines:
+
+1. `scripts/smc_price_action_engine.py` (pivot BOS/CHOCH, two-candle OB, three-candle FVG)
+2. `scripts/smc_liquidity_engine.py` (pivot liquidity levels and sweep detection)
+3. `scripts/smc_structure_qualifiers.py` (additive qualifiers)
+4. `scripts/smc_session_context.py` (additive session/killzone context)
+5. `scripts/smc_htf_context.py` (additive HTF bias/range context)
 
 The structure artifact path now supports watchlist/batch scale exports:
 
@@ -79,16 +85,17 @@ The structure artifact path now supports watchlist/batch scale exports:
 `symbol + timeframe` from manifest entries or deterministic directory conventions, with backward
 compatible fallback to the legacy single-artifact file.
 
-Orderblocks/FVG/liquidity sweeps remain unmapped in current artifact output. The integration
-keeps this gap explicit and does not fabricate missing structure event families.
+Orderblocks/FVG/liquidity sweeps are now produced from deterministic OHLCV bar rules without
+adding providers or introducing DOM/L2 assumptions.
 
-Current explicit structure category coverage (provider-backed) is:
+Current explicit structure category coverage (provider-backed) is dynamically derived from
+artifact payload contents and is expected to evolve by symbol/timeframe:
 
 1. `bos`: available
 2. `choch`: available (via `bos.kind=CHOCH` in explicit BOS event family)
-3. `orderblocks`: unavailable (explicitly empty)
-4. `fvg`: unavailable (explicitly empty)
-5. `liquidity_sweeps`: unavailable (explicitly empty)
+3. `orderblocks`: available when detected by two-candle displacement rules
+4. `fvg`: available when detected by three-candle gap rules
+5. `liquidity_sweeps`: available when pivot-liquidity sweeps are detected
 
 Batch manifests and artifacts now expose category-level coverage booleans (`has_bos`,
 `has_orderblocks`, `has_fvg`, `has_liquidity_sweeps`) so partial-vs-full status remains
@@ -104,9 +111,15 @@ Delivery contracts are now explicit at consumer boundary level:
 3. snapshot bundle (`source_plan`, `structure_status`, `snapshot`, `dashboard_payload`, `pine_payload`) is the canonical delivery artifact
 4. watchlist manifests aggregate per-category coverage counts (`symbols_with_bos`, `symbols_with_orderblocks`, `symbols_with_fvg`, `symbols_with_liquidity_sweeps`)
 
-Explicit structure coverage remains partial until additional real, provider-backed categories
-are mapped. The delivery layer must continue to surface missing categories explicitly instead of
+Explicit structure coverage can be `full`, `partial`, or `none` per artifact and remains fully
+data-driven. The delivery layer must continue to surface missing categories explicitly instead of
 inferring or fabricating them.
+
+Additive enrichment is now part of bundle delivery (without changing `SmcStructure`):
+
+1. `structure_qualifiers`
+2. `session_context`
+3. `htf_context`
 
 Current registered sources are intentionally capability-aware and honest partial/meta-oriented.
 Structure-rich sources can be added later, but must still map into `smc_core` through the
