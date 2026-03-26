@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skipp-algo.local/spec/smc_structure_artifact.schema.json",
+  "title": "SmcStructureArtifact",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "source",
+    "structure_coverage",
+    "entries"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "generated_at": {
+      "type": "number"
+    },
+    "source": {
+      "type": "object",
+      "required": ["workbook_path", "sheet", "timeframe", "event_logic"],
+      "additionalProperties": false,
+      "properties": {
+        "workbook_path": { "type": "string", "minLength": 1 },
+        "sheet": { "type": "string", "const": "daily_bars" },
+        "timeframe": { "type": "string", "enum": ["1D"] },
+        "event_logic": {
+          "type": "string",
+          "const": "scripts.market_structure_features.build_market_structure_feature_frame"
+        }
+      }
+    },
+    "structure_coverage": {
+      "type": "string",
+      "enum": ["full", "partial", "none"]
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "symbol",
+          "timeframe",
+          "asof_ts",
+          "coverage",
+          "structure",
+          "event_evidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "symbol": { "type": "string", "minLength": 1 },
+          "timeframe": { "type": "string", "enum": ["1D"] },
+          "asof_ts": { "type": "number" },
+          "coverage": { "type": "string", "enum": ["full", "partial", "none"] },
+          "event_evidence": {
+            "type": "object",
+            "required": ["last_event", "trend_state"],
+            "additionalProperties": false,
+            "properties": {
+              "last_event": {
+                "type": "string",
+                "enum": ["bos_up", "bos_down", "choch_up", "choch_down", "range", "none"]
+              },
+              "trend_state": { "type": "integer", "enum": [-1, 0, 1] }
+            }
+          },
+          "structure": {
+            "type": "object",
+            "required": ["bos", "orderblocks", "fvg", "liquidity_sweeps"],
+            "additionalProperties": false,
+            "properties": {
+              "bos": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "time", "price", "kind", "dir"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "time": { "type": "number" },
+                    "price": { "type": "number" },
+                    "kind": { "type": "string", "enum": ["BOS", "CHOCH"] },
+                    "dir": { "type": "string", "enum": ["UP", "DOWN"] }
+                  }
+                }
+              },
+              "orderblocks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "low", "high", "dir", "valid"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "low": { "type": "number" },
+                    "high": { "type": "number" },
+                    "dir": { "type": "string", "enum": ["BULL", "BEAR"] },
+                    "valid": { "type": "boolean" }
+                  }
+                }
+              },
+              "fvg": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "low", "high", "dir", "valid"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "low": { "type": "number" },
+                    "high": { "type": "number" },
+                    "dir": { "type": "string", "enum": ["BULL", "BEAR"] },
+                    "valid": { "type": "boolean" }
+                  }
+                }
+              },
+              "liquidity_sweeps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "time", "price", "side"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1 },
+                    "time": { "type": "number" },
+                    "price": { "type": "number" },
+                    "side": { "type": "string", "enum": ["BUY_SIDE", "SELL_SIDE"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

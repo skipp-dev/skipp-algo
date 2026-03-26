@@ -58,6 +58,17 @@ def _source_module_for_name(name: str) -> str:
 
 
 def _potential_for_provider(name: str) -> ProviderPotential:
+    if name == "structure_artifact_json":
+        return ProviderPotential(
+            can_supply_symbols=True,
+            can_supply_volume_meta=False,
+            can_supply_technical_meta=False,
+            can_supply_news_meta=False,
+            can_supply_raw_bars=False,
+            can_supply_microstructure=True,
+            can_supply_precomputed_structure=True,
+        )
+
     if name == "databento_watchlist_csv":
         return ProviderPotential(
             can_supply_symbols=True,
@@ -122,6 +133,25 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
         "volume.thin_fraction",
         "provenance",
     ]
+
+    if name == "structure_artifact_json":
+        return ProviderCurrentMapping(
+            currently_maps_structure=True,
+            currently_maps_meta=False,
+            currently_maps_volume=False,
+            currently_maps_technical=False,
+            currently_maps_news=False,
+            snapshot_structure_mode="partial",
+            snapshot_meta_mode="none",
+            mapped_structure_fields=[
+                "bos.id",
+                "bos.time",
+                "bos.price",
+                "bos.kind",
+                "bos.dir",
+            ],
+            mapped_meta_fields=[],
+        )
 
     if name == "databento_watchlist_csv":
         return ProviderCurrentMapping(
@@ -190,6 +220,14 @@ def _known_gaps_for_provider(name: str) -> list[str]:
         "No explicit BOS/OB/FVG/Sweep events in source artifact",
         "Technical/news fields are not currently mapped into raw_meta",
     ]
+
+    if name == "structure_artifact_json":
+        return [
+            "Orderblocks are not currently mapped in artifact structure output",
+            "FVG events are not currently mapped in artifact structure output",
+            "Liquidity sweeps are not currently mapped in artifact structure output",
+            "Provider is structure-only and does not expose raw meta domains",
+        ]
 
     if name == "databento_watchlist_csv":
         return [

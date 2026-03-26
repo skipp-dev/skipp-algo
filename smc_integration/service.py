@@ -37,10 +37,11 @@ def build_snapshot_for_symbol_timeframe(
 ) -> SmcSnapshot:
     composite = discover_composite_source_plan(source=source)
     structure_source = composite["structure"]
+    structure_load_source = "auto" if source.strip().lower() == "auto" else structure_source
     raw_structure = load_raw_structure_input(
         symbol,
         timeframe,
-        source=structure_source,
+        source=structure_load_source,
     )
     raw_meta = load_raw_meta_input_composite(
         symbol,

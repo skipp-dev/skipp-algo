@@ -47,10 +47,10 @@ def test_build_structure_gap_report_has_required_keys() -> None:
 def test_gap_report_is_honest_for_current_repo_state() -> None:
     report = build_structure_gap_report()
 
-    assert report["has_real_structure_provider"] is False
+    assert report["has_real_structure_provider"] is True
     assert isinstance(report["gaps"], list)
-    assert any("BOS" in gap or "bos" in gap for gap in report["gaps"])
     assert any("orderblocks" in gap for gap in report["gaps"])
+    assert any("FVG" in gap or "fvg" in gap for gap in report["gaps"])
 
 
 def test_structure_gap_report_is_json_serializable_and_stable() -> None:

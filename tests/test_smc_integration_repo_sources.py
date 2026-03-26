@@ -28,23 +28,20 @@ def test_discover_repo_source_paths_returns_transparent_mapping() -> None:
 
     assert "selected_source" in info
     assert "sources" in info
-    assert info["selected_source"]["name"] == "databento_watchlist_csv"
+    assert info["selected_source"]["name"] == "structure_artifact_json"
 
 
 
 def test_load_raw_structure_input_is_ingest_compatible() -> None:
     info = discover_repo_source_paths()
     selected = info["selected_source"]
-    csv_path = Path(selected["path_hint"])
-    if not csv_path.is_absolute():
-        csv_path = Path(__file__).resolve().parents[1] / selected["path_hint"]
-    symbol = _first_symbol_from_watchlist(csv_path)
+    symbol = "AAPL"
 
     raw_structure = load_raw_structure_input(symbol, "15m")
     structure = build_structure_from_raw(raw_structure)
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
-    assert structure.bos == []
+    assert isinstance(structure.bos, list)
     assert structure.orderblocks == []
     assert structure.fvg == []
     assert structure.liquidity_sweeps == []
@@ -52,11 +49,7 @@ def test_load_raw_structure_input_is_ingest_compatible() -> None:
 
 
 def test_load_raw_meta_input_is_ingest_compatible() -> None:
-    info = discover_repo_source_paths()
-    selected = info["selected_source"]
-    csv_path = Path(selected["path_hint"])
-    if not csv_path.is_absolute():
-        csv_path = Path(__file__).resolve().parents[1] / selected["path_hint"]
+    csv_path = Path(__file__).resolve().parents[1] / "reports" / "databento_watchlist_top5_pre1530.csv"
     symbol = _first_symbol_from_watchlist(csv_path)
 
     raw_meta = load_raw_meta_input(symbol, "15m")

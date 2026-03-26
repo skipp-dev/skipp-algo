@@ -88,12 +88,14 @@ def _notes_for(path: Path, evidence: list[str]) -> list[str]:
 def _candidate_paths() -> list[Path]:
     explicit: list[Path] = [
         _REPO_ROOT / "SMC_Core_Engine.pine",
+        _REPO_ROOT / "scripts" / "export_smc_structure_artifact.py",
         _REPO_ROOT / "scripts" / "market_structure_features.py",
         _REPO_ROOT / "scripts" / "smc_microstructure_base_runtime.py",
         _REPO_ROOT / "scripts" / "generate_smc_micro_profiles.py",
         _REPO_ROOT / "scripts" / "load_databento_export_bundle.py",
         _REPO_ROOT / "scripts" / "generate_databento_watchlist.py",
         _REPO_ROOT / "scripts" / "generate_bullish_quality_scanner.py",
+        _REPO_ROOT / "reports" / "smc_structure_artifact.json",
         _REPO_ROOT / "reports" / "databento_volatility_production_20260307_114724_microstructure_mapping_2026-03-06.json",
     ]
 
@@ -168,6 +170,13 @@ def build_structure_gap_report() -> dict[str, Any]:
 
     best_candidate = candidates[0] if candidates else None
     has_real_structure_provider = bool(status.get("any_registered_explicit_structure_provider", False))
+    selected_source_name = str(status.get("selected_structure_source") or "")
+
+    from .provider_matrix import discover_provider_matrix
+
+    matrix = {entry.name: entry for entry in discover_provider_matrix()}
+    selected_entry = matrix.get(selected_source_name)
+    selected_mapped_fields = set(selected_entry.current.mapped_structure_fields) if selected_entry is not None else set()
 
     gaps: list[str] = []
     if not has_real_structure_provider:
@@ -179,6 +188,15 @@ def build_structure_gap_report() -> dict[str, Any]:
                 "No registered source currently maps explicit liquidity sweeps into raw_structure.liquidity_sweeps.",
             ]
         )
+    else:
+        if not any(field.startswith("bos.") for field in selected_mapped_fields):
+            gaps.append("Selected structure provider does not currently map explicit BOS/CHOCH event fields.")
+        if not any(field.startswith("orderblocks.") for field in selected_mapped_fields):
+            gaps.append("Selected structure provider does not currently map explicit orderblocks.")
+        if not any(field.startswith("fvg.") for field in selected_mapped_fields):
+            gaps.append("Selected structure provider does not currently map explicit FVG events.")
+        if not any(field.startswith("liquidity_sweeps.") for field in selected_mapped_fields):
+            gaps.append("Selected structure provider does not currently map explicit liquidity sweeps.")
 
     if best_candidate is not None and best_candidate["path"].startswith("spec/examples/"):
         gaps.append("Best explicit-structure files are schema examples, not live/watchlist provider artifacts.")

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .meta_merge import merge_raw_meta_domains
-from .sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, tradingview_watchlist_json
+from .sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, structure_artifact_json, tradingview_watchlist_json
 from .sources.base import SourceDescriptor
 
 
@@ -30,6 +30,11 @@ _SOURCE_PROVIDERS: dict[str, _SourceProvider] = {
         descriptor=fmp_watchlist_json.describe_source(),
         load_structure=fmp_watchlist_json.load_raw_structure_input,
         load_meta=fmp_watchlist_json.load_raw_meta_input,
+    ),
+    "structure_artifact_json": _SourceProvider(
+        descriptor=structure_artifact_json.describe_source(),
+        load_structure=structure_artifact_json.load_raw_structure_input,
+        load_meta=structure_artifact_json.load_raw_meta_input,
     ),
     "tradingview_watchlist_json": _SourceProvider(
         descriptor=tradingview_watchlist_json.describe_source(),
@@ -67,6 +72,7 @@ def _source_priority_key(descriptor: SourceDescriptor) -> tuple[int, int, int, s
 
 _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
     "structure": [
+        "structure_artifact_json",
         "databento_watchlist_csv",
         "fmp_watchlist_json",
         "tradingview_watchlist_json",
@@ -143,10 +149,15 @@ def select_best_source() -> SourceDescriptor:
     return select_best_structure_source()
 
 
-def _resolve_provider(source: str) -> _SourceProvider:
+def _resolve_provider(source: str, *, domain: str) -> _SourceProvider:
     normalized = source.strip().lower()
     if normalized == "auto":
-        best = select_best_source()
+        if domain == "structure":
+            best = select_best_structure_source()
+        elif domain == "meta":
+            best = select_best_volume_source()
+        else:
+            raise ValueError(f"unknown resolve domain: {domain}")
         return _SOURCE_PROVIDERS[best.name]
     if normalized not in _SOURCE_PROVIDERS:
         known = ", ".join(sorted(_SOURCE_PROVIDERS))
@@ -155,6 +166,7 @@ def _resolve_provider(source: str) -> _SourceProvider:
 
 def discover_repo_source_paths() -> dict[str, Any]:
     best = select_best_structure_source()
+    best_meta = select_best_volume_source()
     all_sources = discover_repo_sources()
     composite = discover_composite_source_plan()
 
@@ -163,7 +175,7 @@ def discover_repo_source_paths() -> dict[str, Any]:
         "sources": [item.to_dict() for item in all_sources],
         "source_names": [item.name for item in all_sources],
         "integration_entry": best.path_hint,
-        "meta_source": best.name,
+        "meta_source": best_meta.name,
         "structure_source": f"{best.name}:{best.capabilities.structure_mode}",
         "composite_source_plan": composite,
         "structure_capabilities": {
@@ -239,7 +251,23 @@ def load_raw_structure_input(
     *,
     source: str = "auto",
 ) -> dict[str, Any]:
-    provider = _resolve_provider(source)
+    normalized = source.strip().lower()
+    if normalized == "auto":
+        last_error: Exception | None = None
+        for name in _DOMAIN_SOURCE_ORDER["structure"]:
+            provider = _SOURCE_PROVIDERS.get(name)
+            if provider is None or not _can_supply_domain(provider, "structure"):
+                continue
+            try:
+                return provider.load_structure(symbol, timeframe)
+            except (FileNotFoundError, ValueError) as exc:
+                last_error = exc
+                continue
+        if last_error is not None:
+            raise last_error
+        raise ValueError("no structure provider available in auto mode")
+
+    provider = _resolve_provider(source, domain="structure")
     return provider.load_structure(symbol, timeframe)
 
 
@@ -249,7 +277,7 @@ def load_raw_meta_input(
     *,
     source: str = "auto",
 ) -> dict[str, Any]:
-    provider = _resolve_provider(source)
+    provider = _resolve_provider(source, domain="meta")
     return provider.load_meta(symbol, timeframe)
 
 

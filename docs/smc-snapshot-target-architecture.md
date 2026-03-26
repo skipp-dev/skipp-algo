@@ -45,14 +45,20 @@ repo-specific integration layer is used:
 7. `scripts/export_smc_snapshot_watchlist_bundles.py` is a watchlist/batch export entrypoint
 8. first rewired existing consumer: `scripts/execute_ibkr_watchlist.py` now emits snapshot bundles/manifest via `smc_integration.batch`
 
-Current first real integration entry is:
+Current first real integration entries are:
 
 1. `reports/databento_watchlist_top5_pre1530.csv`
+2. `reports/smc_structure_artifact.json`
 
-This source is currently symbol/watchlist oriented and does not contain explicit
-`bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows. The integration therefore uses
-an explicit partial-structure mapping (empty structure lists) plus mapped meta input,
-with clear provenance and no additional SMC logic in the integration layer.
+The watchlist source is symbol/meta oriented and does not contain explicit
+`bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows.
+
+The structure artifact source is generated from real workbook `daily_bars` using
+`scripts.market_structure_features.build_market_structure_feature_frame` and currently maps
+explicit BOS/CHOCH events (partial structure coverage).
+
+Orderblocks/FVG/liquidity sweeps remain unmapped in current artifact output. The integration
+keeps this gap explicit and does not fabricate missing structure event families.
 
 Current registered sources are intentionally capability-aware and honest partial/meta-oriented.
 Structure-rich sources can be added later, but must still map into `smc_core` through the
@@ -95,9 +101,9 @@ the checked-out repo. It distinguishes three categories:
 2. meta-only provider: registered source that may carry volume/technical/news context but not explicit structure events
 3. candidate-not-yet-integrated source: real file/module evidence in repo that still lacks an honest provider mapping path
 
-Current repo state is still explicit-gap on structure integration: no registered source currently maps
-non-empty explicit structure arrays into `raw_structure`. The audit report makes this gap reproducible
-without fabricating structure events.
+Current repo state now has a first explicit structure provider with partial mapping:
+registered source `structure_artifact_json` maps non-empty explicit BOS/CHOCH events into
+`raw_structure.bos`, while orderblocks/FVG/liquidity sweeps remain explicit open gaps.
 
 ## Official Home
 

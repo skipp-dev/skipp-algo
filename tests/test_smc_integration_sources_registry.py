@@ -16,6 +16,7 @@ from smc_integration.repo_sources import (
 def test_discover_repo_sources_includes_watchlist_csv_source() -> None:
     sources = discover_repo_sources()
     names = [item.name for item in sources]
+    assert "structure_artifact_json" in names
     assert "databento_watchlist_csv" in names
     assert "tradingview_watchlist_json" in names
     assert "fmp_watchlist_json" in names
@@ -35,7 +36,7 @@ def test_source_auto_selection_is_deterministic() -> None:
 
 
 def test_domain_selectors_return_expected_providers() -> None:
-    assert select_best_structure_source().name == "databento_watchlist_csv"
+    assert select_best_structure_source().name == "structure_artifact_json"
     assert select_best_volume_source().name == "databento_watchlist_csv"
     assert select_best_technical_source().name in {"fmp_watchlist_json", "tradingview_watchlist_json"}
     assert select_best_news_source().name == "benzinga_watchlist_json"
@@ -43,7 +44,7 @@ def test_domain_selectors_return_expected_providers() -> None:
 
 def test_discover_composite_source_plan_auto_and_explicit() -> None:
     auto_plan = discover_composite_source_plan(source="auto")
-    assert auto_plan["structure"] == "databento_watchlist_csv"
+    assert auto_plan["structure"] == "structure_artifact_json"
     assert auto_plan["volume"] == "databento_watchlist_csv"
     assert auto_plan["news"] == "benzinga_watchlist_json"
 

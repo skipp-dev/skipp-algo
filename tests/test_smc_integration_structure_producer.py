@@ -1,0 +1,41 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from scripts.export_smc_structure_artifact import (
+    build_structure_artifact_payload,
+    export_structure_artifact,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+WORKBOOK_PATH = ROOT / "databento_volatility_production_20260307_114724.xlsx"
+
+
+def test_structure_producer_emits_honest_partial_structure_payload() -> None:
+    payload = build_structure_artifact_payload(workbook=WORKBOOK_PATH, generated_at=1709253600.0)
+
+    assert payload["structure_coverage"] in {"partial", "none"}
+    assert isinstance(payload["entries"], list)
+    assert payload["entries"]
+
+    first = payload["entries"][0]
+    structure = first["structure"]
+    assert set(structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
+    assert structure["orderblocks"] == []
+    assert structure["fvg"] == []
+    assert structure["liquidity_sweeps"] == []
+
+
+def test_structure_producer_can_write_json_artifact(tmp_path: Path) -> None:
+    output = tmp_path / "smc_structure_artifact.json"
+    written = export_structure_artifact(
+        workbook=WORKBOOK_PATH,
+        output=output,
+        generated_at=1709253600.0,
+    )
+
+    assert written == output
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.0.0"
+    assert payload["source"]["sheet"] == "daily_bars"
