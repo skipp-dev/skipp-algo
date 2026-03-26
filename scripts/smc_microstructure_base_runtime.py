@@ -1273,6 +1273,7 @@ def write_base_manifest(
     micro_day_parquet_path: Path,
     mapping_md_path: Path,
     mapping_json_path: Path,
+    production_workbook_path: Path | None,
     library_owner: str,
     library_version: int,
     core_ready: bool = False,
@@ -1286,6 +1287,8 @@ def write_base_manifest(
         "micro_day_parquet_path": str(micro_day_parquet_path),
         "mapping_md_path": str(mapping_md_path),
         "mapping_json_path": str(mapping_json_path),
+        "production_workbook_path": str(production_workbook_path) if production_workbook_path is not None else None,
+        "canonical_upstream_artifact": "databento_production_export_bundle",
         "recommended_library_import": f"{library_owner}/smc_micro_profiles_generated/{library_version}",
         "core_ready": core_ready,
         "core_ready_note": "core_ready only describes the generated base snapshot artifact state; TradingView contract readiness is validated later via verify_publish_contract and tv_publish_micro_library.",
@@ -1366,6 +1369,7 @@ def generate_base_from_bundle(
         micro_day_parquet_path=output_paths["micro_day_parquet"],
         mapping_md_path=output_paths["mapping_md"],
         mapping_json_path=output_paths["mapping_json"],
+        production_workbook_path=None,
         library_owner=library_owner,
         library_version=library_version,
         core_ready=False,
@@ -1484,6 +1488,7 @@ def run_databento_base_scan_pipeline(
         bundle_payload["frames"]["session_minute_detail_full_universe"] = session_minute_detail
 
     _progress("Step 12/12: Building SMC microstructure base snapshot...")
+    canonical_production_workbook = export_result.get("exported_paths", {}).get("canonical_production_workbook")
     base_result = generate_base_from_bundle(
         bundle_payload,
         schema_path=schema_path,
@@ -1493,6 +1498,17 @@ def run_databento_base_scan_pipeline(
         library_owner=library_owner,
         library_version=library_version,
     )
+    base_manifest_path = base_result["output_paths"].get("base_manifest")
+    if base_manifest_path is not None:
+        try:
+            manifest_payload = json.loads(Path(base_manifest_path).read_text(encoding="utf-8"))
+            if isinstance(manifest_payload, dict):
+                manifest_payload["production_workbook_path"] = str(canonical_production_workbook) if canonical_production_workbook else None
+                manifest_payload["canonical_upstream_artifact"] = "databento_production_export_bundle"
+                Path(base_manifest_path).write_text(json.dumps(manifest_payload, indent=2) + "\n", encoding="utf-8")
+        except Exception:
+            logger.warning("Failed to enrich base manifest with production workbook lineage", exc_info=True)
+    base_result["production_workbook_path"] = Path(canonical_production_workbook) if canonical_production_workbook else None
     base_result["export_result"] = export_result
     return base_result
 

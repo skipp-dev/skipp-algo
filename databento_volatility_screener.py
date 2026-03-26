@@ -24,12 +24,12 @@ import certifi
 
 import numpy as np
 import pandas as pd
-from openpyxl.formatting.rule import ColorScaleRule
-from openpyxl.styles import Alignment, Font, PatternFill
-from openpyxl.utils import get_column_letter
-from pandas.api.types import is_datetime64_any_dtype
 
 from open_prep.macro import FMPClient
+from scripts.databento_production_workbook import (
+    create_excel_workbook_bytes,
+    prepare_frame_for_excel,
+)
 from strategy_config import (
     LONG_DIP_ENTRY_EARLY_DIP_MAX_SECONDS,
     LONG_DIP_ENTRY_EARLY_DIP_MIN_PCT,
@@ -3555,22 +3555,7 @@ def build_run_manifest_frame(manifest: dict[str, Any]) -> pd.DataFrame:
 
 
 def _prepare_frame_for_excel(frame: pd.DataFrame) -> pd.DataFrame:
-    sanitized = frame.copy()
-    for column in sanitized.columns:
-        series = sanitized[column]
-        if isinstance(series.dtype, pd.DatetimeTZDtype):
-            sanitized[column] = series.dt.tz_localize(None)
-        elif is_datetime64_any_dtype(series):
-            continue
-        elif series.dtype == object:
-            sanitized[column] = series.map(
-                lambda value: (
-                    value.tz_localize(None) if isinstance(value, pd.Timestamp) and value.tzinfo is not None
-                    else value.replace(tzinfo=None) if isinstance(value, datetime) and value.tzinfo is not None
-                    else value
-                )
-            )
-    return sanitized
+    return prepare_frame_for_excel(frame)
 
 
 def create_excel_workbook(
@@ -3580,64 +3565,12 @@ def create_excel_workbook(
     second_detail: pd.DataFrame | None = None,
     additional_sheets: dict[str, pd.DataFrame] | None = None,
 ) -> bytes:
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        _prepare_frame_for_excel(summary).to_excel(writer, sheet_name="summary", index=False)
-        if additional_sheets:
-            for sheet_name, frame in additional_sheets.items():
-                if frame is None or frame.empty:
-                    continue
-                safe_sheet_name = str(sheet_name)[:31]
-                _prepare_frame_for_excel(frame).to_excel(writer, sheet_name=safe_sheet_name, index=False)
-        if minute_detail is not None and not minute_detail.empty:
-            _prepare_frame_for_excel(minute_detail).to_excel(writer, sheet_name="minute_detail", index=False)
-        if second_detail is not None and not second_detail.empty:
-            _prepare_frame_for_excel(second_detail).to_excel(writer, sheet_name="second_detail", index=False)
-
-        workbook = writer.book
-        for worksheet in workbook.worksheets:
-            worksheet.freeze_panes = "A2"
-            worksheet.auto_filter.ref = worksheet.dimensions
-            header_fill = PatternFill(fill_type="solid", fgColor="1F4E78")
-            header_font = Font(color="FFFFFF", bold=True)
-            for cell in worksheet[1]:
-                cell.fill = header_fill
-                cell.font = header_font
-                cell.alignment = Alignment(horizontal="center")
-            for column_cells in worksheet.columns:
-                max_length = max(len(str(cell.value or "")) for cell in column_cells)
-                worksheet.column_dimensions[get_column_letter(column_cells[0].column)].width = min(max(max_length + 2, 12), 28)
-
-        summary_sheet = workbook["summary"]
-        headers = {cell.value: idx + 1 for idx, cell in enumerate(summary_sheet[1])}
-        heat_columns = [
-            "window_range_pct",
-            "realized_vol_pct",
-            "window_return_pct",
-            "prev_close_to_premarket_pct",
-            "premarket_to_open_pct",
-            "open_to_current_pct",
-        ]
-        for col_name in heat_columns:
-            col_idx = headers.get(col_name)
-            if col_idx is None or summary_sheet.max_row < 2:
-                continue
-            letter = get_column_letter(col_idx)
-            summary_sheet.conditional_formatting.add(
-                f"{letter}2:{letter}{summary_sheet.max_row}",
-                ColorScaleRule(
-                    start_type="num",
-                    start_value=-10,
-                    start_color="C00000",
-                    mid_type="num",
-                    mid_value=0,
-                    mid_color="FFF2CC",
-                    end_type="num",
-                    end_value=10,
-                    end_color="63BE7B",
-                ),
-            )
-    return output.getvalue()
+    return create_excel_workbook_bytes(
+        summary,
+        minute_detail=minute_detail,
+        second_detail=second_detail,
+        additional_sheets=additional_sheets,
+    )
 
 
 def _normalize_tradingview_exchange_prefix(value: object) -> str:

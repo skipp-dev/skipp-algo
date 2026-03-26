@@ -10,11 +10,16 @@ from typing import Any, Literal, cast
 import pandas as pd
 
 from smc_core.ids import bos_id
+from scripts.databento_production_workbook import resolve_production_workbook_path
 from scripts.market_structure_features import build_market_structure_feature_frame
 
 SCHEMA_VERSION = "1.0.0"
-DEFAULT_WORKBOOK = Path("databento_volatility_production_20260307_114724.xlsx")
+DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
+
+
+def _resolve_workbook_path(workbook: Path) -> Path:
+    return resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
 
 
 @dataclass(frozen=True)
@@ -154,8 +159,7 @@ def build_single_symbol_structure_artifact(
     timeframe: str,
     generated_at: float,
 ) -> dict[str, Any]:
-    if not workbook.exists():
-        raise FileNotFoundError(f"workbook not found: {workbook}")
+    workbook = _resolve_workbook_path(workbook)
 
     daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
     bars, latest_rows = _build_latest_rows(daily_bars)
@@ -266,8 +270,7 @@ def write_structure_artifacts_from_workbook(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     generated_at: float | None = None,
 ) -> dict[str, Any]:
-    if not workbook.exists():
-        raise FileNotFoundError(f"workbook not found: {workbook}")
+    workbook = _resolve_workbook_path(workbook)
 
     effective_generated_at = float(generated_at) if generated_at is not None else float(time.time())
     resolved_timeframe = str(timeframe).strip()

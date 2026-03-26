@@ -5,7 +5,7 @@ import logging
 import math
 import os
 import sys
-from datetime import UTC, datetime, time
+from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -36,6 +36,7 @@ from databento_volatility_screener import (
     _write_cached_frame,
     build_cache_path,
     build_export_basename,
+    build_run_manifest_frame,
     build_daily_features_full_universe,
     build_summary_table,
     choose_default_dataset,
@@ -63,6 +64,10 @@ from scripts.bullish_quality_config import (
     DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     PremarketWindowDefinition,
     build_default_bullish_quality_config,
+)
+from scripts.databento_production_workbook import (
+    canonical_production_workbook_path,
+    write_databento_production_workbook_from_frames,
 )
 from scripts.market_structure_features import build_market_structure_feature_frame
 
@@ -2393,7 +2398,7 @@ def _research_news_window_bounds_for_trade_date(trade_day: Any) -> dict[str, pd.
 
 def _benzinga_date_utc(value: pd.Timestamp) -> str:
     timestamp = value.tz_convert(UTC) if value.tzinfo is not None else value.tz_localize(UTC)
-    return timestamp.strftime("%Y-%m-%d")
+    return str(timestamp.strftime("%Y-%m-%d"))
 
 
 def _iter_symbol_batches(symbols: Sequence[str], *, batch_size: int) -> list[list[str]]:
@@ -3052,6 +3057,81 @@ def _filter_ranked_symbol_day_scope(frame: pd.DataFrame, ranked_scope: pd.DataFr
     return scoped.merge(ranked_scope, on=["trade_date", "symbol"], how="inner").reset_index(drop=True)
 
 
+def _write_canonical_production_workbook(
+    *,
+    export_dir: Path,
+    summary: pd.DataFrame,
+    minute_detail: pd.DataFrame,
+    second_detail: pd.DataFrame,
+    manifest: dict[str, Any],
+    raw_universe: pd.DataFrame,
+    daily_bars: pd.DataFrame,
+    intraday: pd.DataFrame,
+    ranked: pd.DataFrame,
+    daily_symbol_features_full_universe: pd.DataFrame,
+    full_universe_second_detail_open: pd.DataFrame,
+    full_universe_second_detail_close: pd.DataFrame,
+    full_universe_close_trade_detail: pd.DataFrame,
+    full_universe_close_outcome_minute: pd.DataFrame,
+    close_imbalance_features_full_universe: pd.DataFrame,
+    close_imbalance_outcomes_full_universe: pd.DataFrame,
+    premarket_features_full_universe: pd.DataFrame,
+    premarket_window_features_full_universe: pd.DataFrame,
+    symbol_day_diagnostics: pd.DataFrame,
+    research_event_flags_full_universe: pd.DataFrame,
+    research_event_flag_coverage: pd.DataFrame,
+    research_event_flag_trade_date_distribution: pd.DataFrame,
+    research_event_flag_outcome_slices: pd.DataFrame,
+    research_news_flags_full_universe: pd.DataFrame,
+    research_news_flag_coverage: pd.DataFrame,
+    research_news_flag_trade_date_distribution: pd.DataFrame,
+    research_news_flag_outcome_slices: pd.DataFrame,
+    core_vs_benzinga_news_side_by_side: pd.DataFrame,
+    core_vs_benzinga_news_overlap_stats: pd.DataFrame,
+    quality_window_status: pd.DataFrame,
+    batl_debug: dict[str, Any],
+    output_summary: dict[str, Any],
+) -> Path:
+    canonical_workbook = canonical_production_workbook_path(export_dir=export_dir)
+    workbook_result = write_databento_production_workbook_from_frames(
+        summary=summary,
+        output_path=canonical_workbook,
+        minute_detail=minute_detail,
+        second_detail=second_detail,
+        additional_sheets={
+            "manifest": build_run_manifest_frame(manifest),
+            "universe": raw_universe,
+            "daily_bars": daily_bars,
+            "intraday_all": intraday,
+            "ranked": ranked,
+            "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+            "full_universe_second_detail_open": full_universe_second_detail_open,
+            "full_universe_second_detail_close": full_universe_second_detail_close,
+            "full_universe_close_trade_detail": full_universe_close_trade_detail,
+            "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+            "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+            "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
+            "premarket_features_full_universe": premarket_features_full_universe,
+            "premarket_window_features_full_universe": premarket_window_features_full_universe,
+            "symbol_day_diagnostics": symbol_day_diagnostics,
+            "research_event_flags_full_universe": research_event_flags_full_universe,
+            "research_event_flag_coverage": research_event_flag_coverage,
+            "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+            "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+            "research_news_flags_full_universe": research_news_flags_full_universe,
+            "research_news_flag_coverage": research_news_flag_coverage,
+            "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+            "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+            "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+            "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
+            "quality_window_status_latest": quality_window_status,
+            "batl_debug": pd.DataFrame([batl_debug]),
+            "output_checks": pd.DataFrame([output_summary]),
+        },
+    )
+    return workbook_result.output_path
+
+
 def run_production_export_pipeline(
     *,
     databento_api_key: str,
@@ -3632,6 +3712,9 @@ def run_production_export_pipeline(
         "unsupported_symbols": unsupported,
         "output_checks": output_summary,
         "batl_debug": batl_debug,
+        "canonical_production_artifact": "export_bundle",
+        "derived_workbook_artifact": "databento_volatility_production_workbook.xlsx",
+        "workbook_freshness_model": "per_daily_run_overwrite",
     }
     paths = export_run_artifacts(
         export_dir=resolved_export_dir,
@@ -3675,6 +3758,40 @@ def run_production_export_pipeline(
         cost_estimate=cost_estimate,
         unsupported_symbols=unsupported,
         manifest=manifest,
+    )
+    paths["canonical_production_workbook"] = _write_canonical_production_workbook(
+        export_dir=resolved_export_dir,
+        summary=summary,
+        minute_detail=minute_detail,
+        second_detail=second_detail,
+        manifest=manifest,
+        raw_universe=raw_universe,
+        daily_bars=daily_bars,
+        intraday=intraday,
+        ranked=ranked,
+        daily_symbol_features_full_universe=daily_symbol_features_full_universe,
+        full_universe_second_detail_open=full_universe_second_detail_open,
+        full_universe_second_detail_close=full_universe_second_detail_close,
+        full_universe_close_trade_detail=full_universe_close_trade_detail,
+        full_universe_close_outcome_minute=full_universe_close_outcome_minute,
+        close_imbalance_features_full_universe=close_imbalance_features_full_universe,
+        close_imbalance_outcomes_full_universe=close_imbalance_outcomes_full_universe,
+        premarket_features_full_universe=premarket_features_full_universe,
+        premarket_window_features_full_universe=premarket_window_features_full_universe,
+        symbol_day_diagnostics=symbol_day_diagnostics,
+        research_event_flags_full_universe=research_event_flags_full_universe,
+        research_event_flag_coverage=research_event_flag_coverage,
+        research_event_flag_trade_date_distribution=research_event_flag_trade_date_distribution,
+        research_event_flag_outcome_slices=research_event_flag_outcome_slices,
+        research_news_flags_full_universe=research_news_flags_full_universe,
+        research_news_flag_coverage=research_news_flag_coverage,
+        research_news_flag_trade_date_distribution=research_news_flag_trade_date_distribution,
+        research_news_flag_outcome_slices=research_news_flag_outcome_slices,
+        core_vs_benzinga_news_side_by_side=core_vs_benzinga_news_side_by_side,
+        core_vs_benzinga_news_overlap_stats=core_vs_benzinga_news_overlap_stats,
+        quality_window_status=quality_window_status,
+        batl_debug=batl_debug,
+        output_summary=output_summary,
     )
     exact_named_paths = _write_exact_named_exports(
         resolved_export_dir,

@@ -51,6 +51,17 @@ Current first real integration entries are:
 2. `reports/smc_structure_artifact.json`
 3. `reports/smc_structure_artifacts/*.structure.json` + `reports/smc_structure_artifacts/manifest_<timeframe>.json`
 
+Phase 15 workbook lineage contract:
+
+1. canonical Databento production artifact is the export bundle (manifest + parquet frames)
+2. production workbook is derived from that canonical bundle through shared helper logic in [../scripts/databento_production_workbook.py](../scripts/databento_production_workbook.py)
+3. authoritative producer path is daily export in [../scripts/databento_production_export.py](../scripts/databento_production_export.py)
+4. canonical workbook path is deterministic: `artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx`
+5. Streamlit scanner is a consumer of shared workbook logic, not an owner of private workbook generation
+6. structure artifact producers consume the canonical workbook path first and retain legacy fallback compatibility
+7. IBKR remains execution/preview oriented and is not promoted to an SMC upstream data provider
+8. L2/DOM is not evidenced as required by the current production-to-structure lineage
+
 The watchlist source is symbol/meta oriented and does not contain explicit
 `bos`/`orderblocks`/`fvg`/`liquidity_sweeps` event rows.
 

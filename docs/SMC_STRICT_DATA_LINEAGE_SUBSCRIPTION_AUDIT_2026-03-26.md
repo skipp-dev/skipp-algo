@@ -1,5 +1,16 @@
 # Strict SMC Data Lineage and Subscription Audit (2026-03-26)
 
+## Phase 15 Update (Workbook Producer Unification)
+
+- Canonical upstream artifact is now explicitly the Databento production export bundle.
+- Production workbook is now a derived artifact produced by shared helper logic in [scripts/databento_production_workbook.py](scripts/databento_production_workbook.py).
+- Authoritative producer path is daily export in [scripts/databento_production_export.py](scripts/databento_production_export.py#L3060), which now emits canonical workbook output at [artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx](artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx).
+- SMC base run inherits this workbook via [scripts/smc_microstructure_base_runtime.py](scripts/smc_microstructure_base_runtime.py#L1384) and records workbook lineage in base manifest metadata.
+- Streamlit remains a consumer: workbook write path in [databento_volatility_screener.py](databento_volatility_screener.py#L3565) delegates to the shared helper, rather than owning unique workbook-construction logic.
+- Structure exporters now default to canonical workbook path with legacy fallback via [smc_integration/structure_batch.py](smc_integration/structure_batch.py#L16) and [scripts/export_smc_structure_artifact.py](scripts/export_smc_structure_artifact.py#L16).
+- IBKR remains execution/preview only.
+- L2/DOM requirement remains not evidenced in current producer path.
+
 ## A) Executive Answers (strict, evidence-backed)
 
 1. Is the current structure path explicit BOS/CHOCH or still summary-only?

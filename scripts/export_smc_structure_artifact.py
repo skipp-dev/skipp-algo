@@ -9,10 +9,11 @@ from typing import Any, Literal, Sequence, cast
 import pandas as pd
 
 from smc_core.ids import bos_id
+from scripts.databento_production_workbook import resolve_production_workbook_path
 from scripts.market_structure_features import build_market_structure_feature_frame
 
 SCHEMA_VERSION = "1.0.0"
-DEFAULT_WORKBOOK = Path("databento_volatility_production_20260307_114724.xlsx")
+DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT = Path("reports") / "smc_structure_artifact.json"
 
 
@@ -135,8 +136,7 @@ def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def build_structure_artifact_payload(*, workbook: Path, generated_at: float | None = None) -> dict[str, Any]:
-    if not workbook.exists():
-        raise FileNotFoundError(f"workbook not found: {workbook}")
+    workbook = resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
 
     daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
     entries = _build_entries(daily_bars)
