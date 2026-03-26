@@ -137,14 +137,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
     ]
 
     if name == "structure_artifact_json":
-        has_any = structure_artifact_json.has_any_structure_artifact()
-        category_coverage = structure_artifact_json.discover_category_coverage() if has_any else {
-            "bos": False,
-            "choch": False,
-            "orderblocks": False,
-            "fvg": False,
-            "liquidity_sweeps": False,
-        }
+        category_coverage = structure_artifact_json.discover_category_coverage()
 
         mapped_fields: list[str] = []
         if category_coverage.get("bos"):
@@ -179,7 +172,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
                 "liquidity_sweeps.side",
             ])
 
-        has_structure_now = has_any and any(category_coverage.values())
+        has_structure_now = any(category_coverage.values())
         return ProviderCurrentMapping(
             currently_maps_structure=has_structure_now,
             currently_maps_meta=False,
@@ -290,13 +283,7 @@ def _known_gaps_for_provider(name: str) -> list[str]:
     ]
 
     if name == "structure_artifact_json":
-        coverage = structure_artifact_json.discover_category_coverage() if structure_artifact_json.has_any_structure_artifact() else {
-            "bos": False,
-            "choch": False,
-            "orderblocks": False,
-            "fvg": False,
-            "liquidity_sweeps": False,
-        }
+        coverage = structure_artifact_json.discover_category_coverage()
         gaps: list[str] = []
         if not coverage.get("bos"):
             gaps.append("BOS events are not currently mapped in artifact structure output")

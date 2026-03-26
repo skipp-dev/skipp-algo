@@ -12,7 +12,8 @@ def test_watchlist_export_script_calls_structure_batch_path(monkeypatch) -> None
         assert source == "auto"
         return ["AAPL", "MSFT"]
 
-    def _fake_structure_batch(*, workbook, timeframe, symbols, output_dir, generated_at):
+    def _fake_structure_batch(*, workbook, timeframe, symbols, output_dir, generated_at, **kwargs):
+        del kwargs
         calls.append(
             (
                 "structure",

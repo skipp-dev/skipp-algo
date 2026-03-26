@@ -10,21 +10,18 @@ import pandas as pd
 
 from scripts.explicit_structure_from_bars import build_full_structure_from_bars
 from scripts.load_databento_export_bundle import load_export_bundle
-from scripts.databento_production_workbook import resolve_production_workbook_path
+from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 
 SCHEMA_VERSION = "1.0.0"
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 
-
-def _resolve_workbook_path(workbook: Path) -> Path:
-    return resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
-
-
-def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str) -> pd.DataFrame | None:
+def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
+    if export_dir is None:
+        return None
     try:
-        bundle = load_export_bundle(DEFAULT_EXPORT_DIR, manifest_prefix="databento_volatility_production_")
+        bundle = load_export_bundle(export_dir, manifest_prefix="databento_volatility_production_")
     except Exception:
         return None
 
@@ -157,17 +154,18 @@ def _derive_symbols_from_workbook(daily_bars: pd.DataFrame) -> list[str]:
 
 def build_single_symbol_structure_artifact(
     *,
-    workbook: Path,
+    workbook: Path | None,
+    export_bundle_root: Path | None,
     symbol: str,
     timeframe: str,
     generated_at: float,
 ) -> dict[str, Any]:
-    workbook = _resolve_workbook_path(workbook)
-
     resolved_symbol = _normalize_symbol(symbol)
-    canonical_bars = _load_symbol_bars_from_canonical_exports(resolved_symbol, timeframe)
+    canonical_bars = _load_symbol_bars_from_canonical_exports(resolved_symbol, timeframe, export_bundle_root)
     source_mode = "canonical_export_bundle"
     if canonical_bars is None or canonical_bars.empty:
+        if workbook is None:
+            raise ValueError("missing structure input: neither export bundle root nor workbook is available")
         canonical_bars = _load_symbol_bars_from_workbook(workbook, resolved_symbol)
         source_mode = "workbook_fallback"
 
@@ -207,7 +205,7 @@ def build_single_symbol_structure_artifact(
             "version": "2.0.0",
         },
         "source": {
-            "workbook_path": str(workbook.as_posix()),
+            "workbook_path": str(workbook.as_posix()) if workbook is not None else None,
             "canonical_upstream": source_mode,
             "sheet": "daily_bars",
             "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
@@ -227,9 +225,12 @@ def build_structure_artifact_manifest(
     *,
     timeframe: str,
     generated_at: float,
-    workbook: Path,
+    workbook: Path | None,
+    export_bundle_root: Path | None,
     artifacts: list[StructureArtifactRow],
     errors: list[dict[str, Any]],
+    warnings: list[dict[str, Any]],
+    resolution_mode: str,
     symbols_requested: list[str],
 ) -> dict[str, Any]:
     artifacts_rows = [
@@ -254,7 +255,12 @@ def build_structure_artifact_manifest(
             "name": "smc_price_action_engine_v2",
             "primary_reference": "super_orderblock_fvg_bos_tools",
             "version": "2.0.0",
-            "upstream": str(workbook.as_posix()),
+            "upstream": str(workbook.as_posix()) if workbook is not None else None,
+        },
+        "resolution_mode": resolution_mode,
+        "resolved_inputs": {
+            "workbook_path": str(workbook.as_posix()) if workbook is not None else None,
+            "export_bundle_root": str(export_bundle_root.as_posix()) if export_bundle_root is not None else None,
         },
         "counts": {
             "symbols_requested": len(_normalize_symbols(symbols_requested)),
@@ -263,37 +269,147 @@ def build_structure_artifact_manifest(
         },
         "artifacts": artifacts_rows,
         "errors": list(errors),
+        "warnings": list(warnings),
     }
+
+
+def _row_from_existing_artifact(path: Path, symbol: str, timeframe: str) -> StructureArtifactRow | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    coverage = payload.get("coverage", {}) if isinstance(payload.get("coverage"), dict) else {}
+    mode = str(payload.get("coverage_mode", "none"))
+    structure = payload.get("structure", {}) if isinstance(payload.get("structure"), dict) else {}
+
+    return StructureArtifactRow(
+        symbol=symbol,
+        timeframe=timeframe,
+        artifact_path=_relative_repo_path(path),
+        coverage_mode=mode,
+        has_bos=bool(coverage.get("has_bos", bool(structure.get("bos")))),
+        has_orderblocks=bool(coverage.get("has_orderblocks", bool(structure.get("orderblocks")))),
+        has_fvg=bool(coverage.get("has_fvg", bool(structure.get("fvg")))),
+        has_liquidity_sweeps=bool(coverage.get("has_liquidity_sweeps", bool(structure.get("liquidity_sweeps")))),
+    )
+
+
+def _existing_artifact_rows(output_dir: Path, symbols: list[str], timeframe: str) -> list[StructureArtifactRow]:
+    rows: list[StructureArtifactRow] = []
+    for symbol in symbols:
+        candidate = output_dir / _artifact_file_name(symbol, timeframe)
+        if not candidate.exists():
+            continue
+        row = _row_from_existing_artifact(candidate, symbol, timeframe)
+        if row is not None:
+            rows.append(row)
+    return rows
 
 
 def write_structure_artifacts_from_workbook(
     *,
-    workbook: Path,
+    workbook: Path | None,
     timeframe: str,
     symbols: list[str] | None = None,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
+    export_bundle_root: Path | None = None,
     generated_at: float | None = None,
+    allow_missing_inputs: bool = True,
 ) -> dict[str, Any]:
-    workbook = _resolve_workbook_path(workbook)
+    resolved_inputs = resolve_structure_artifact_inputs(
+        explicit_workbook_path=str(workbook) if workbook is not None else None,
+        explicit_export_bundle_root=str(export_bundle_root) if export_bundle_root is not None else None,
+        explicit_structure_artifacts_dir=str(output_dir),
+    )
+
+    resolved_workbook = resolved_inputs.get("workbook_path")
+    if resolved_workbook is not None and not isinstance(resolved_workbook, Path):
+        resolved_workbook = Path(str(resolved_workbook))
+    resolved_bundle_root = resolved_inputs.get("export_bundle_root")
+    if resolved_bundle_root is not None and not isinstance(resolved_bundle_root, Path):
+        resolved_bundle_root = Path(str(resolved_bundle_root))
+    warnings: list[dict[str, Any]] = list(resolved_inputs.get("warnings", []))
+    resolver_errors: list[dict[str, Any]] = list(resolved_inputs.get("errors", []))
 
     effective_generated_at = float(generated_at) if generated_at is not None else float(time.time())
     resolved_timeframe = str(timeframe).strip()
     if not resolved_timeframe:
         raise ValueError("timeframe must not be empty")
 
-    daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
-    requested_symbols = _normalize_symbols(symbols) if symbols else _derive_symbols_from_workbook(daily_bars)
-
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    requested_symbols = _normalize_symbols(symbols) if symbols else []
+    if not requested_symbols and resolved_workbook is not None:
+        daily_bars = pd.read_excel(resolved_workbook, sheet_name="daily_bars")
+        requested_symbols = _derive_symbols_from_workbook(daily_bars)
+    if not requested_symbols:
+        raise ValueError("symbols must not be empty when workbook is unavailable")
 
     artifact_rows: list[StructureArtifactRow] = []
     errors: list[dict[str, Any]] = []
+
+    if resolved_workbook is None and resolved_bundle_root is None:
+        existing = _existing_artifact_rows(output_dir, requested_symbols, resolved_timeframe)
+        if existing:
+            warnings.append(
+                {
+                    "code": "USING_PREEXISTING_STRUCTURE_ARTIFACTS",
+                    "message": "No workbook/export bundle found; reusing preexisting structure artifacts.",
+                }
+            )
+            manifest = build_structure_artifact_manifest(
+                timeframe=resolved_timeframe,
+                generated_at=effective_generated_at,
+                workbook=None,
+                export_bundle_root=None,
+                artifacts=existing,
+                errors=[],
+                warnings=warnings,
+                resolution_mode="preexisting_artifacts",
+                symbols_requested=requested_symbols,
+            )
+            manifest_path = output_dir / _manifest_file_name(resolved_timeframe)
+            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            manifest["manifest_path"] = _relative_repo_path(manifest_path)
+            return manifest
+
+        errors.extend(resolver_errors)
+        errors.append(
+            {
+                "code": "MISSING_STRUCTURE_INPUTS",
+                "message": "No workbook/export bundle available and no preexisting artifacts found.",
+                "timeframe": resolved_timeframe,
+            }
+        )
+
+        manifest = build_structure_artifact_manifest(
+            timeframe=resolved_timeframe,
+            generated_at=effective_generated_at,
+            workbook=None,
+            export_bundle_root=None,
+            artifacts=[],
+            errors=errors,
+            warnings=warnings,
+            resolution_mode=str(resolved_inputs.get("resolution_mode", "missing")),
+            symbols_requested=requested_symbols,
+        )
+        manifest_path = output_dir / _manifest_file_name(resolved_timeframe)
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        manifest["manifest_path"] = _relative_repo_path(manifest_path)
+        if not allow_missing_inputs:
+            raise ValueError("missing structure inputs: workbook/export bundle and preexisting artifacts are unavailable")
+        return manifest
 
     for symbol in requested_symbols:
         artifact_path = output_dir / _artifact_file_name(symbol, resolved_timeframe)
         try:
             payload = build_single_symbol_structure_artifact(
-                workbook=workbook,
+                workbook=resolved_workbook,
+                export_bundle_root=resolved_bundle_root,
                 symbol=symbol,
                 timeframe=resolved_timeframe,
                 generated_at=effective_generated_at,
@@ -315,6 +431,7 @@ def write_structure_artifacts_from_workbook(
             )
         except Exception as exc:
             errors.append({
+                "code": "BUILD_SYMBOL_ARTIFACT_FAILED",
                 "symbol": symbol,
                 "timeframe": resolved_timeframe,
                 "error": str(exc),
@@ -323,9 +440,12 @@ def write_structure_artifacts_from_workbook(
     manifest = build_structure_artifact_manifest(
         timeframe=resolved_timeframe,
         generated_at=effective_generated_at,
-        workbook=workbook,
+        workbook=resolved_workbook,
+        export_bundle_root=resolved_bundle_root,
         artifacts=artifact_rows,
         errors=errors,
+        warnings=warnings,
+        resolution_mode=str(resolved_inputs.get("resolution_mode", "canonical")),
         symbols_requested=requested_symbols,
     )
 

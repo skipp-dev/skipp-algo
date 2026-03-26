@@ -682,6 +682,38 @@ Reference examples are:
 2. [../spec/examples/smc_snapshot_aapl_15m_holiday_suspect.json](../spec/examples/smc_snapshot_aapl_15m_holiday_suspect.json)
 3. [../spec/examples/smc_snapshot_aapl_5m_low_volume_sweep_only.json](../spec/examples/smc_snapshot_aapl_5m_low_volume_sweep_only.json)
 
+## Canonical Input Resolution
+
+Batch and export entrypoints must use one canonical input-resolution layer before any IO-heavy
+producer work starts.
+
+Resolution precedence is:
+
+1. explicit CLI/API override paths
+2. canonical repo defaults
+3. structured missing-input state
+
+This applies to:
+
+1. production workbook path
+2. export bundle root
+3. structure artifacts directory
+4. watchlist symbols source path
+
+Hidden workspace dependencies are forbidden. Export code must not assume that local developer
+files happen to exist at implicit paths.
+
+When required inputs are missing, producers must emit structured errors in manifest/bundle output
+instead of leaking raw filesystem exceptions. Missing-input handling policy (allow/fail) is a
+caller-level choice and must be explicitly configurable.
+
+Resolver outputs must be deterministic and include:
+
+1. resolved input paths
+2. resolution mode (`explicit`, `canonical`, `missing`, or explicit reuse modes)
+3. structured `errors`
+4. structured `warnings`
+
 ## Implementation Rule
 
 Future work on the SMC snapshot, layering, and TradingView bridge must follow this precedence order:
