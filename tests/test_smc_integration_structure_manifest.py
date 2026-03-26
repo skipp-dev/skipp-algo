@@ -31,6 +31,9 @@ def test_structure_manifest_contains_required_keys() -> None:
     )
 
     assert set(["schema_version", "generated_at", "timeframe", "producer", "counts", "artifacts", "errors"]).issubset(set(manifest.keys()))
+    assert "coverage_summary" in manifest
+    assert "profile_summary" in manifest
+    assert "event_logic_versions" in manifest
 
 
 def test_structure_manifest_counts_and_flags_are_correct() -> None:
@@ -53,9 +56,22 @@ def test_structure_manifest_counts_and_flags_are_correct() -> None:
     assert [row["symbol"] for row in manifest["artifacts"]] == sorted(symbols)
     for row in manifest["artifacts"]:
         assert row["coverage_mode"] in {"full", "partial", "none"}
+        assert row["structure_profile_used"] == "hybrid_default"
+        assert row["event_logic_version"] == "v2"
         assert isinstance(row["has_orderblocks"], bool)
         assert isinstance(row["has_fvg"], bool)
         assert isinstance(row["has_liquidity_sweeps"], bool)
+        assert isinstance(row["bos_count"], int)
+        assert isinstance(row["warnings_count"], int)
+
+    assert set(manifest["coverage_summary"].keys()) == {
+        "symbols_with_bos",
+        "symbols_with_orderblocks",
+        "symbols_with_fvg",
+        "symbols_with_liquidity_sweeps",
+    }
+    assert manifest["profile_summary"] == {"hybrid_default": 2}
+    assert manifest["event_logic_versions"] == ["v2"]
 
 
 def test_structure_manifest_category_flags_match_artifact_payload() -> None:
@@ -80,6 +96,10 @@ def test_structure_manifest_category_flags_match_artifact_payload() -> None:
     assert row["has_orderblocks"] == coverage["has_orderblocks"]
     assert row["has_fvg"] == coverage["has_fvg"]
     assert row["has_liquidity_sweeps"] == coverage["has_liquidity_sweeps"]
+    assert row["bos_count"] == payload["diagnostics"]["counts"]["bos"]
+    assert row["orderblocks_count"] == payload["diagnostics"]["counts"]["orderblocks"]
+    assert row["fvg_count"] == payload["diagnostics"]["counts"]["fvg"]
+    assert row["liquidity_sweeps_count"] == payload["diagnostics"]["counts"]["liquidity_sweeps"]
 
 
 def test_structure_manifest_paths_are_deterministic() -> None:

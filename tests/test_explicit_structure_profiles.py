@@ -40,21 +40,32 @@ def test_hybrid_profile_emits_auxiliary_and_diagnostics() -> None:
         "session_ranges",
         "session_pivots",
         "liquidity_lines",
-        "ipda_operating_range",
+        "ipda_range",
         "htf_fvg_bias",
         "broken_fractal_signals",
     }
-    assert result.diagnostics["profile"] == "hybrid_default"
+    assert result.diagnostics["structure_profile_used"] == "hybrid_default"
+    assert result.diagnostics["event_logic_version"] == "v2"
+    assert set(result.diagnostics["counts"].keys()) == {
+        "bos",
+        "orderblocks",
+        "fvg",
+        "liquidity_sweeps",
+        "liquidity_lines",
+        "session_ranges",
+        "session_pivots",
+        "broken_fractal_signals",
+    }
 
 
 def test_session_liquidity_profile_suppresses_orderblocks() -> None:
     result = build_structure_profile(_bars(), symbol="AAPL", timeframe="15m", profile="session_liquidity")
-    assert result.diagnostics["profile"] == "session_liquidity"
+    assert result.diagnostics["structure_profile_used"] == "session_liquidity"
     assert result.orderblocks == []
 
 
 def test_conservative_profile_filters_invalid_zones() -> None:
     result = build_structure_profile(_bars(), symbol="AAPL", timeframe="15m", profile="conservative")
-    assert result.diagnostics["profile"] == "conservative"
+    assert result.diagnostics["structure_profile_used"] == "conservative"
     assert all(bool(row.get("valid", True)) for row in result.orderblocks)
     assert all(bool(row.get("valid", True)) for row in result.fvg)

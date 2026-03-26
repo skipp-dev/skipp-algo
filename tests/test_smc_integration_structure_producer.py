@@ -22,6 +22,17 @@ def test_structure_producer_emits_honest_structure_payload() -> None:
     first = payload["entries"][0]
     structure = first["structure"]
     assert set(structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
+    assert set(first["auxiliary"].keys()) == {
+        "liquidity_lines",
+        "session_ranges",
+        "session_pivots",
+        "ipda_range",
+        "htf_fvg_bias",
+        "broken_fractal_signals",
+    }
+    assert first["diagnostics"]["structure_profile_used"] == "hybrid_default"
+    assert first["diagnostics"]["event_logic_version"] == "v2"
+    assert first["diagnostics"]["counts"]["bos"] == len(structure["bos"])
 
     assert payload["coverage"]["mode"] in {"full", "partial", "none"}
     assert payload["coverage"]["has_bos"] == any(entry["structure"]["bos"] for entry in payload["entries"])
@@ -57,3 +68,4 @@ def test_structure_producer_records_selected_profile() -> None:
         structure_profile="conservative",
     )
     assert payload["source"]["structure_profile"] == "conservative"
+    assert payload["entries"][0]["diagnostics"]["structure_profile_used"] == "conservative"

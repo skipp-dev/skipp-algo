@@ -9,7 +9,8 @@ from typing import Any, Sequence
 import pandas as pd
 
 from scripts.databento_production_workbook import resolve_production_workbook_path
-from scripts.explicit_structure_from_bars import build_full_structure_from_bars
+from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
+from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
 
 SCHEMA_VERSION = "1.0.0"
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
@@ -35,6 +36,52 @@ def _coverage_from_structure(structure: dict[str, Any], *, coverage_mode: str) -
     }
 
 
+def _canonical_structure(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "bos": list(payload.get("bos", [])),
+        "orderblocks": list(payload.get("orderblocks", [])),
+        "fvg": list(payload.get("fvg", [])),
+        "liquidity_sweeps": list(payload.get("liquidity_sweeps", [])),
+    }
+
+
+def _auxiliary_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    aux = payload.get("auxiliary", {}) if isinstance(payload.get("auxiliary"), dict) else {}
+    return {
+        "liquidity_lines": list(aux.get("liquidity_lines", [])),
+        "session_ranges": list(aux.get("session_ranges", [])),
+        "session_pivots": list(aux.get("session_pivots", [])),
+        "ipda_range": dict(aux.get("ipda_range", {})) if isinstance(aux.get("ipda_range"), dict) else {},
+        "htf_fvg_bias": dict(aux.get("htf_fvg_bias", {})) if isinstance(aux.get("htf_fvg_bias"), dict) else {},
+        "broken_fractal_signals": list(aux.get("broken_fractal_signals", [])),
+    }
+
+
+def _diagnostics_from_payload(payload: dict[str, Any], *, structure_profile_used: str) -> dict[str, Any]:
+    diagnostics = payload.get("diagnostics", {}) if isinstance(payload.get("diagnostics"), dict) else {}
+    structure = _canonical_structure(payload)
+    auxiliary = _auxiliary_from_payload(payload)
+    counts = {
+        "bos": len(structure["bos"]),
+        "orderblocks": len(structure["orderblocks"]),
+        "fvg": len(structure["fvg"]),
+        "liquidity_sweeps": len(structure["liquidity_sweeps"]),
+        "liquidity_lines": len(auxiliary.get("liquidity_lines", [])),
+        "session_ranges": len(auxiliary.get("session_ranges", [])),
+        "session_pivots": len(auxiliary.get("session_pivots", [])),
+        "broken_fractal_signals": len(auxiliary.get("broken_fractal_signals", [])),
+    }
+    warnings = list(diagnostics.get("warnings", []))
+    notes = list(diagnostics.get("notes", []))
+    return {
+        "structure_profile_used": structure_profile_used,
+        "event_logic_version": str(diagnostics.get("event_logic_version", EVENT_LOGIC_VERSION)),
+        "counts": counts,
+        "warnings": warnings,
+        "notes": notes,
+    }
+
+
 def _build_entries(daily_bars: pd.DataFrame, *, structure_profile: str) -> list[dict[str, Any]]:
     bars = daily_bars.copy()
     bars["trade_date"] = pd.to_datetime(bars.get("trade_date"), errors="coerce")
@@ -50,12 +97,15 @@ def _build_entries(daily_bars: pd.DataFrame, *, structure_profile: str) -> list[
         symbol_bars = bars.loc[bars["symbol"].eq(symbol)].copy()
         if symbol_bars.empty:
             continue
-        structure_payload = build_full_structure_from_bars(
+        explicit_payload = build_explicit_structure_from_bars(
             symbol_bars,
             symbol=symbol,
             timeframe="1D",
             structure_profile=structure_profile,
         )
+        structure_payload = _canonical_structure(explicit_payload)
+        auxiliary_payload = _auxiliary_from_payload(explicit_payload)
+        diagnostics_payload = _diagnostics_from_payload(explicit_payload, structure_profile_used=structure_profile)
         last_ts = pd.to_datetime(symbol_bars["timestamp"], errors="coerce", utc=True).dropna().max()
         asof_ts = float(pd.Timestamp(last_ts).timestamp()) if pd.notna(last_ts) else datetime.now(UTC).timestamp()
 
@@ -91,6 +141,8 @@ def _build_entries(daily_bars: pd.DataFrame, *, structure_profile: str) -> list[
                     "trend_state": trend_state,
                 },
                 "structure": structure_payload,
+                "auxiliary": auxiliary_payload,
+                "diagnostics": diagnostics_payload,
             }
         )
 
@@ -104,6 +156,7 @@ def build_structure_artifact_payload(
     generated_at: float | None = None,
     structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
+    structure_profile = validate_structure_profile(structure_profile)
     workbook = resolve_production_workbook_path(workbook=workbook, repo_root=Path(__file__).resolve().parents[1])
 
     daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
@@ -131,8 +184,9 @@ def build_structure_artifact_payload(
             "workbook_path": str(workbook.as_posix()),
             "sheet": "daily_bars",
             "timeframe": "1D",
-            "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
+            "event_logic": "scripts.explicit_structure_from_bars.build_explicit_structure_from_bars",
             "structure_profile": str(structure_profile),
+            "event_logic_version": EVENT_LOGIC_VERSION,
         },
         "structure_coverage": coverage,
         "coverage": _coverage_from_structure(aggregate_structure, coverage_mode=coverage),

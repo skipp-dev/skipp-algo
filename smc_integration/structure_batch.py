@@ -8,7 +8,8 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.explicit_structure_from_bars import build_full_structure_from_bars
+from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
+from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
 from scripts.load_databento_export_bundle import load_export_bundle
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 
@@ -86,11 +87,18 @@ class StructureArtifactRow:
     symbol: str
     timeframe: str
     artifact_path: str
+    structure_profile_used: str
+    event_logic_version: str
     coverage_mode: str
     has_bos: bool
     has_orderblocks: bool
     has_fvg: bool
     has_liquidity_sweeps: bool
+    bos_count: int
+    orderblocks_count: int
+    fvg_count: int
+    liquidity_sweeps_count: int
+    warnings_count: int
 
 
 def _normalize_symbol(value: Any) -> str:
@@ -123,6 +131,40 @@ def _coverage_from_structure(structure: dict[str, Any], *, mode: str) -> dict[st
         "has_orderblocks": bool(structure.get("orderblocks")),
         "has_fvg": bool(structure.get("fvg")),
         "has_liquidity_sweeps": bool(structure.get("liquidity_sweeps")),
+    }
+
+
+def _canonical_structure(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "bos": list(payload.get("bos", [])),
+        "orderblocks": list(payload.get("orderblocks", [])),
+        "fvg": list(payload.get("fvg", [])),
+        "liquidity_sweeps": list(payload.get("liquidity_sweeps", [])),
+    }
+
+
+def _auxiliary_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    aux = payload.get("auxiliary", {}) if isinstance(payload.get("auxiliary"), dict) else {}
+    return {
+        "liquidity_lines": list(aux.get("liquidity_lines", [])),
+        "session_ranges": list(aux.get("session_ranges", [])),
+        "session_pivots": list(aux.get("session_pivots", [])),
+        "ipda_range": dict(aux.get("ipda_range", {})) if isinstance(aux.get("ipda_range"), dict) else {},
+        "htf_fvg_bias": dict(aux.get("htf_fvg_bias", {})) if isinstance(aux.get("htf_fvg_bias"), dict) else {},
+        "broken_fractal_signals": list(aux.get("broken_fractal_signals", [])),
+    }
+
+
+def _counts_from_payload(structure: dict[str, Any], auxiliary: dict[str, Any]) -> dict[str, int]:
+    return {
+        "bos": len(structure.get("bos", [])),
+        "orderblocks": len(structure.get("orderblocks", [])),
+        "fvg": len(structure.get("fvg", [])),
+        "liquidity_sweeps": len(structure.get("liquidity_sweeps", [])),
+        "liquidity_lines": len(auxiliary.get("liquidity_lines", [])),
+        "session_ranges": len(auxiliary.get("session_ranges", [])),
+        "session_pivots": len(auxiliary.get("session_pivots", [])),
+        "broken_fractal_signals": len(auxiliary.get("broken_fractal_signals", [])),
     }
 
 
@@ -161,6 +203,7 @@ def build_single_symbol_structure_artifact(
     generated_at: float,
     structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
+    normalized_profile = validate_structure_profile(structure_profile)
     resolved_symbol = _normalize_symbol(symbol)
     canonical_bars = _load_symbol_bars_from_canonical_exports(resolved_symbol, timeframe, export_bundle_root)
     source_mode = "canonical_export_bundle"
@@ -170,12 +213,24 @@ def build_single_symbol_structure_artifact(
         canonical_bars = _load_symbol_bars_from_workbook(workbook, resolved_symbol)
         source_mode = "workbook_fallback"
 
-    structure_payload = build_full_structure_from_bars(
+    explicit_payload = build_explicit_structure_from_bars(
         canonical_bars,
         symbol=resolved_symbol,
         timeframe=timeframe,
-        structure_profile=structure_profile,
+        structure_profile=normalized_profile,
     )
+    structure_payload = _canonical_structure(explicit_payload)
+    auxiliary_payload = _auxiliary_from_payload(explicit_payload)
+    raw_diagnostics = explicit_payload.get("diagnostics", {}) if isinstance(explicit_payload.get("diagnostics"), dict) else {}
+    counts = _counts_from_payload(structure_payload, auxiliary_payload)
+    warnings = list(raw_diagnostics.get("warnings", []))
+    diagnostics_payload = {
+        "structure_profile_used": normalized_profile,
+        "event_logic_version": str(raw_diagnostics.get("event_logic_version", EVENT_LOGIC_VERSION)),
+        "counts": counts,
+        "warnings": warnings,
+        "notes": list(raw_diagnostics.get("notes", [])),
+    }
     latest_ts = pd.to_datetime(canonical_bars["timestamp"], errors="coerce", utc=True).dropna().max()
     latest_close = pd.to_numeric(canonical_bars["close"], errors="coerce").dropna().iloc[-1]
     asof_ts = float(pd.Timestamp(latest_ts).timestamp()) if pd.notna(latest_ts) else float(generated_at)
@@ -214,8 +269,9 @@ def build_single_symbol_structure_artifact(
             "workbook_path": str(workbook.as_posix()) if workbook is not None else None,
             "canonical_upstream": source_mode,
             "sheet": "daily_bars",
-            "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars",
-            "structure_profile": str(structure_profile),
+            "event_logic": "scripts.explicit_structure_from_bars.build_explicit_structure_from_bars",
+            "structure_profile": normalized_profile,
+            "event_logic_version": str(diagnostics_payload["event_logic_version"]),
         },
         "coverage_mode": coverage_mode,
         "coverage": _coverage_from_structure(structure_payload, mode=coverage_mode),
@@ -225,6 +281,8 @@ def build_single_symbol_structure_artifact(
             "reference_close": float(latest_close),
         },
         "structure": structure_payload,
+        "auxiliary": auxiliary_payload,
+        "diagnostics": diagnostics_payload,
     }
 
 
@@ -240,16 +298,35 @@ def build_structure_artifact_manifest(
     resolution_mode: str,
     symbols_requested: list[str],
 ) -> dict[str, Any]:
+    coverage_summary = {
+        "symbols_with_bos": sum(1 for row in artifacts if row.has_bos),
+        "symbols_with_orderblocks": sum(1 for row in artifacts if row.has_orderblocks),
+        "symbols_with_fvg": sum(1 for row in artifacts if row.has_fvg),
+        "symbols_with_liquidity_sweeps": sum(1 for row in artifacts if row.has_liquidity_sweeps),
+    }
+    profile_summary: dict[str, int] = {}
+    event_logic_versions: set[str] = set()
+    for row in artifacts:
+        profile_summary[row.structure_profile_used] = profile_summary.get(row.structure_profile_used, 0) + 1
+        event_logic_versions.add(row.event_logic_version)
+
     artifacts_rows = [
         {
             "symbol": row.symbol,
             "timeframe": row.timeframe,
             "artifact_path": row.artifact_path,
+            "structure_profile_used": row.structure_profile_used,
+            "event_logic_version": row.event_logic_version,
             "coverage_mode": row.coverage_mode,
             "has_bos": row.has_bos,
             "has_orderblocks": row.has_orderblocks,
             "has_fvg": row.has_fvg,
             "has_liquidity_sweeps": row.has_liquidity_sweeps,
+            "bos_count": row.bos_count,
+            "orderblocks_count": row.orderblocks_count,
+            "fvg_count": row.fvg_count,
+            "liquidity_sweeps_count": row.liquidity_sweeps_count,
+            "warnings_count": row.warnings_count,
         }
         for row in sorted(artifacts, key=lambda item: (item.symbol, item.timeframe))
     ]
@@ -274,6 +351,13 @@ def build_structure_artifact_manifest(
             "artifacts_written": len(artifacts_rows),
             "errors": len(errors),
         },
+        "coverage_summary": coverage_summary,
+        "profile_summary": dict(sorted(profile_summary.items())),
+        "event_logic_versions": sorted(event_logic_versions),
+        "symbols_with_bos": coverage_summary["symbols_with_bos"],
+        "symbols_with_orderblocks": coverage_summary["symbols_with_orderblocks"],
+        "symbols_with_fvg": coverage_summary["symbols_with_fvg"],
+        "symbols_with_liquidity_sweeps": coverage_summary["symbols_with_liquidity_sweeps"],
         "artifacts": artifacts_rows,
         "errors": list(errors),
         "warnings": list(warnings),
@@ -292,16 +376,27 @@ def _row_from_existing_artifact(path: Path, symbol: str, timeframe: str) -> Stru
     coverage = payload.get("coverage", {}) if isinstance(payload.get("coverage"), dict) else {}
     mode = str(payload.get("coverage_mode", "none"))
     structure = payload.get("structure", {}) if isinstance(payload.get("structure"), dict) else {}
+    diagnostics = payload.get("diagnostics", {}) if isinstance(payload.get("diagnostics"), dict) else {}
+    counts = diagnostics.get("counts", {}) if isinstance(diagnostics.get("counts"), dict) else {}
+    warnings = diagnostics.get("warnings", []) if isinstance(diagnostics.get("warnings"), list) else []
+    source = payload.get("source", {}) if isinstance(payload.get("source"), dict) else {}
 
     return StructureArtifactRow(
         symbol=symbol,
         timeframe=timeframe,
         artifact_path=_relative_repo_path(path),
+        structure_profile_used=str(diagnostics.get("structure_profile_used", source.get("structure_profile", "hybrid_default"))),
+        event_logic_version=str(diagnostics.get("event_logic_version", source.get("event_logic_version", EVENT_LOGIC_VERSION))),
         coverage_mode=mode,
         has_bos=bool(coverage.get("has_bos", bool(structure.get("bos")))),
         has_orderblocks=bool(coverage.get("has_orderblocks", bool(structure.get("orderblocks")))),
         has_fvg=bool(coverage.get("has_fvg", bool(structure.get("fvg")))),
         has_liquidity_sweeps=bool(coverage.get("has_liquidity_sweeps", bool(structure.get("liquidity_sweeps")))),
+        bos_count=int(counts.get("bos", len(structure.get("bos", [])))),
+        orderblocks_count=int(counts.get("orderblocks", len(structure.get("orderblocks", [])))),
+        fvg_count=int(counts.get("fvg", len(structure.get("fvg", [])))),
+        liquidity_sweeps_count=int(counts.get("liquidity_sweeps", len(structure.get("liquidity_sweeps", [])))),
+        warnings_count=len(warnings),
     )
 
 
@@ -328,6 +423,7 @@ def write_structure_artifacts_from_workbook(
     allow_missing_inputs: bool = True,
     structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
+    structure_profile = validate_structure_profile(structure_profile)
     resolved_inputs = resolve_structure_artifact_inputs(
         explicit_workbook_path=str(workbook) if workbook is not None else None,
         explicit_export_bundle_root=str(export_bundle_root) if export_bundle_root is not None else None,
@@ -431,11 +527,18 @@ def write_structure_artifacts_from_workbook(
                     symbol=symbol,
                     timeframe=resolved_timeframe,
                     artifact_path=_relative_repo_path(artifact_path),
+                    structure_profile_used=str(payload.get("diagnostics", {}).get("structure_profile_used", structure_profile)),
+                    event_logic_version=str(payload.get("diagnostics", {}).get("event_logic_version", EVENT_LOGIC_VERSION)),
                     coverage_mode=str(payload.get("coverage_mode", "none")),
                     has_bos=bool(payload.get("coverage", {}).get("has_bos", bool(structure.get("bos")))),
                     has_orderblocks=bool(payload.get("coverage", {}).get("has_orderblocks", bool(structure.get("orderblocks")))),
                     has_fvg=bool(payload.get("coverage", {}).get("has_fvg", bool(structure.get("fvg")))),
                     has_liquidity_sweeps=bool(payload.get("coverage", {}).get("has_liquidity_sweeps", bool(structure.get("liquidity_sweeps")))),
+                    bos_count=int(payload.get("diagnostics", {}).get("counts", {}).get("bos", len(structure.get("bos", [])))),
+                    orderblocks_count=int(payload.get("diagnostics", {}).get("counts", {}).get("orderblocks", len(structure.get("orderblocks", [])))),
+                    fvg_count=int(payload.get("diagnostics", {}).get("counts", {}).get("fvg", len(structure.get("fvg", [])))),
+                    liquidity_sweeps_count=int(payload.get("diagnostics", {}).get("counts", {}).get("liquidity_sweeps", len(structure.get("liquidity_sweeps", [])))),
+                    warnings_count=len(payload.get("diagnostics", {}).get("warnings", [])) if isinstance(payload.get("diagnostics", {}).get("warnings", []), list) else 0,
                 )
             )
         except Exception as exc:

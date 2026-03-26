@@ -50,6 +50,37 @@
     },
     "pine_payload": {
       "$ref": "./smc_pine_payload.schema.json"
+    },
+    "structure_context": {
+      "type": "object",
+      "required": ["coverage", "counts"],
+      "additionalProperties": true,
+      "properties": {
+        "structure_profile_used": { "type": ["string", "null"] },
+        "event_logic_version": { "type": ["string", "null"] },
+        "coverage": {
+          "type": "object",
+          "required": ["has_bos", "has_orderblocks", "has_fvg", "has_liquidity_sweeps"],
+          "additionalProperties": false,
+          "properties": {
+            "has_bos": { "type": "boolean" },
+            "has_orderblocks": { "type": "boolean" },
+            "has_fvg": { "type": "boolean" },
+            "has_liquidity_sweeps": { "type": "boolean" }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "required": ["bos", "orderblocks", "fvg", "liquidity_sweeps"],
+          "additionalProperties": false,
+          "properties": {
+            "bos": { "type": "integer", "minimum": 0 },
+            "orderblocks": { "type": "integer", "minimum": 0 },
+            "fvg": { "type": "integer", "minimum": 0 },
+            "liquidity_sweeps": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
     }
   }
 }

@@ -242,6 +242,9 @@ def build_structure_gap_report() -> dict[str, Any]:
         }
     candidates = discover_structure_source_candidates()
     category_coverage = discover_structure_category_coverage()
+    from .sources import structure_artifact_json
+
+    contract = structure_artifact_json.discover_contract_capabilities()
     registered_structure_sources = [
         {
             "name": source.name,
@@ -320,6 +323,12 @@ def build_structure_gap_report() -> dict[str, Any]:
         "available_categories": available_categories,
         "missing_categories": missing_categories,
         "provider_by_category": provider_by_category,
+        "auxiliary_category_coverage": dict(contract.get("mapped_auxiliary_categories", {})),
+        "structure_profile_supported": bool(contract.get("structure_profile_supported", False)),
+        "structure_profiles_seen": list(contract.get("structure_profiles_seen", [])),
+        "diagnostics_available": bool(contract.get("diagnostics_available", False)),
+        "auxiliary_available": bool(contract.get("auxiliary_available", False)),
+        "event_logic_versions_seen": list(contract.get("event_logic_versions_seen", [])),
         "gaps": gaps,
         "structure_status": status,
         "extended_discovery": build_extended_structure_discovery_report(),

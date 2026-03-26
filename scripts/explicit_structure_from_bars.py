@@ -4,7 +4,8 @@ from typing import Any
 
 import pandas as pd
 
-from scripts.explicit_structure_profiles import build_structure_profile
+from scripts.explicit_structure_detectors import detect_liquidity_sweeps_from_lines
+from scripts.explicit_structure_profiles import build_structure_profile, validate_structure_profile
 from scripts.smc_price_action_engine import (
     canonical_timeframe,
     normalize_bars,
@@ -111,7 +112,47 @@ def build_liquidity_sweeps_from_bars(df: pd.DataFrame, symbol: str, timeframe: s
     if bars.empty:
         return []
     payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
-    return _dedupe_by_id(payload.liquidity_sweeps)
+    sweeps = _dedupe_by_id(payload.liquidity_sweeps)
+    if sweeps:
+        return sweeps
+
+    symbol_name = str(symbol).strip().upper()
+    legacy_lines: list[dict[str, Any]] = []
+    for i in range(len(bars) - 1):
+        row = bars.iloc[i]
+        ts = int(row["timestamp"])
+        high = float(row["high"])
+        low = float(row["low"])
+        legacy_lines.append(
+            {
+                "id": f"liq:{symbol_name}:{canonical_tf}:{ts}:BUY_SIDE:{high:.2f}",
+                "anchor_ts": ts,
+                "price": high,
+                "side": "BUY_SIDE",
+                "source": "legacy_high_low",
+                "active": True,
+                "consumed": False,
+            }
+        )
+        legacy_lines.append(
+            {
+                "id": f"liq:{symbol_name}:{canonical_tf}:{ts}:SELL_SIDE:{low:.2f}",
+                "anchor_ts": ts,
+                "price": low,
+                "side": "SELL_SIDE",
+                "source": "legacy_high_low",
+                "active": True,
+                "consumed": False,
+            }
+        )
+
+    fallback = detect_liquidity_sweeps_from_lines(
+        bars,
+        liquidity_lines=legacy_lines,
+        symbol=symbol_name,
+        timeframe=canonical_tf,
+    )
+    return _dedupe_by_id(fallback)
 
 
 def build_fvg_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
@@ -127,7 +168,10 @@ def build_orderblocks_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -
     if bars.empty:
         return []
     payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
-    return _dedupe_by_id(payload.orderblocks)
+    orderblocks = _dedupe_by_id(payload.orderblocks)
+    # Backward-compatible ordering for helper callers that inspect the first zone.
+    orderblocks.sort(key=lambda row: (bool(row.get("valid", True)), int(row.get("anchor_ts", 0))), reverse=True)
+    return orderblocks
 
 
 def build_explicit_structure_from_bars(
@@ -138,6 +182,7 @@ def build_explicit_structure_from_bars(
     structure_profile: str = "hybrid_default",
 ) -> dict:
     canonical_tf = _canonical_timeframe(timeframe)
+    normalized_profile = validate_structure_profile(structure_profile)
     bars = _coerce_bars(df)
     symbol_name = str(symbol).strip().upper()
     symbol_bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
@@ -151,7 +196,7 @@ def build_explicit_structure_from_bars(
         resampled,
         symbol=symbol_name,
         timeframe=canonical_tf,
-        profile=structure_profile,
+        profile=normalized_profile,
         pivot_lookup=pivot_lookup,
     )
 
@@ -164,7 +209,8 @@ def build_explicit_structure_from_bars(
         "diagnostics": profile_result.diagnostics,
         "producer_debug": {
             "liquidity_levels_count": int(profile_result.diagnostics.get("liquidity_levels_count", 0)),
-            "structure_profile": str(structure_profile),
+            "structure_profile_used": normalized_profile,
+            "event_logic_version": str(profile_result.diagnostics.get("event_logic_version", "v2")),
         },
     }
 

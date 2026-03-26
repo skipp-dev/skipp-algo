@@ -30,6 +30,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--symbols-source", default="", help="Optional explicit symbols CSV path")
     parser.add_argument("--allow-missing-structure-inputs", action="store_true", help="Allow missing workbook/export-bundle and report structured errors")
     parser.add_argument("--fail-on-missing-structure-inputs", action="store_true", help="Fail export when required structure inputs are missing")
+    parser.add_argument(
+        "--structure-profile",
+        default="hybrid_default",
+        help="Structure profile name (classic_makuchaku, session_liquidity, hybrid_default, conservative)",
+    )
     return parser
 
 
@@ -86,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             export_bundle_root=Path(resolved_inputs["export_bundle_root"]).expanduser() if resolved_inputs.get("export_bundle_root") is not None else None,
             generated_at=args.generated_at,
             allow_missing_inputs=allow_missing_inputs,
+            structure_profile=str(args.structure_profile),
         )
     except ValueError as exc:
         print(json.dumps({

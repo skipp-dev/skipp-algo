@@ -21,6 +21,14 @@ from scripts.explicit_structure_detectors import (
 )
 from scripts.smc_price_action_engine import canonical_timeframe, normalize_bars
 
+SUPPORTED_STRUCTURE_PROFILES = {
+    "classic_makuchaku",
+    "session_liquidity",
+    "hybrid_default",
+    "conservative",
+}
+EVENT_LOGIC_VERSION = "v2"
+
 
 @dataclass
 class ProfileResult:
@@ -45,14 +53,64 @@ def _dedupe_by_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _empty_result() -> ProfileResult:
+    diagnostics = {
+        "structure_profile_used": "hybrid_default",
+        "event_logic_version": EVENT_LOGIC_VERSION,
+        "counts": {
+            "bos": 0,
+            "orderblocks": 0,
+            "fvg": 0,
+            "liquidity_sweeps": 0,
+            "liquidity_lines": 0,
+            "session_ranges": 0,
+            "session_pivots": 0,
+            "broken_fractal_signals": 0,
+        },
+        "warnings": [],
+        "notes": [],
+        "orderblock_diagnostics": [],
+        "fvg_diagnostics": [],
+        "liquidity_levels_count": 0,
+    }
     return ProfileResult(
         bos=[],
         orderblocks=[],
         fvg=[],
         liquidity_sweeps=[],
         auxiliary={},
-        diagnostics={},
+        diagnostics=diagnostics,
     )
+
+
+def validate_structure_profile(profile: str) -> str:
+    normalized = str(profile).strip().lower() or "hybrid_default"
+    if normalized not in SUPPORTED_STRUCTURE_PROFILES:
+        known = ", ".join(sorted(SUPPORTED_STRUCTURE_PROFILES))
+        raise ValueError(f"unknown structure profile {profile!r}; expected one of: {known}")
+    return normalized
+
+
+def _diagnostics_counts(
+    *,
+    bos: list[dict[str, Any]],
+    orderblocks: list[dict[str, Any]],
+    fvg: list[dict[str, Any]],
+    liquidity_sweeps: list[dict[str, Any]],
+    liquidity_lines: list[dict[str, Any]],
+    session_ranges: list[dict[str, Any]],
+    session_pivots: list[dict[str, Any]],
+    broken_fractals: list[dict[str, Any]],
+) -> dict[str, int]:
+    return {
+        "bos": len(bos),
+        "orderblocks": len(orderblocks),
+        "fvg": len(fvg),
+        "liquidity_sweeps": len(liquidity_sweeps),
+        "liquidity_lines": len(liquidity_lines),
+        "session_ranges": len(session_ranges),
+        "session_pivots": len(session_pivots),
+        "broken_fractal_signals": len(broken_fractals),
+    }
 
 
 def _compose_common(bars: pd.DataFrame, symbol: str, timeframe: str, pivot_lookup: int) -> ProfileResult:
@@ -80,12 +138,25 @@ def _compose_common(bars: pd.DataFrame, symbol: str, timeframe: str, pivot_looku
             "session_ranges": session_ranges,
             "session_pivots": session_pivots,
             "liquidity_lines": liquidity_lines,
-            "ipda_operating_range": ipda_range,
+            "ipda_range": ipda_range,
             "htf_fvg_bias": htf_bias,
             "broken_fractal_signals": broken_fractals,
         },
         diagnostics={
-            "profile": "base",
+            "structure_profile_used": "base",
+            "event_logic_version": EVENT_LOGIC_VERSION,
+            "counts": _diagnostics_counts(
+                bos=bos,
+                orderblocks=orderblocks,
+                fvg=fvg,
+                liquidity_sweeps=liquidity_sweeps,
+                liquidity_lines=liquidity_lines,
+                session_ranges=session_ranges,
+                session_pivots=session_pivots,
+                broken_fractals=broken_fractals,
+            ),
+            "warnings": [],
+            "notes": [],
             "orderblock_diagnostics": ob_diag,
             "fvg_diagnostics": fvg_diag,
             "liquidity_levels_count": len(liquidity_lines),
@@ -122,29 +193,59 @@ def build_structure_profile(
         return _empty_result()
 
     tf = canonical_timeframe(timeframe)
-    profile_name = str(profile).strip().lower() or "hybrid_default"
+    profile_name = validate_structure_profile(profile)
 
     base = _compose_common(bars, symbol=symbol, timeframe=tf, pivot_lookup=pivot_lookup)
 
     if profile_name == "classic_makuchaku":
-        base.diagnostics["profile"] = "classic_makuchaku"
+        base.diagnostics["structure_profile_used"] = "classic_makuchaku"
         return base
 
     if profile_name == "session_liquidity":
         base.orderblocks = []
         base.fvg = _take_recent(base.fvg, limit=50)
         base.liquidity_sweeps = _take_recent(base.liquidity_sweeps, limit=75)
-        base.diagnostics["profile"] = "session_liquidity"
+        base.diagnostics["structure_profile_used"] = "session_liquidity"
+        base.diagnostics["counts"] = _diagnostics_counts(
+            bos=base.bos,
+            orderblocks=base.orderblocks,
+            fvg=base.fvg,
+            liquidity_sweeps=base.liquidity_sweeps,
+            liquidity_lines=list(base.auxiliary.get("liquidity_lines", [])),
+            session_ranges=list(base.auxiliary.get("session_ranges", [])),
+            session_pivots=list(base.auxiliary.get("session_pivots", [])),
+            broken_fractals=list(base.auxiliary.get("broken_fractal_signals", [])),
+        )
         return base
 
     if profile_name == "conservative":
         base.orderblocks = _filter_confirmed_only(base.orderblocks)
         base.fvg = _filter_confirmed_only(base.fvg)
         base.liquidity_sweeps = _take_recent(base.liquidity_sweeps, limit=50)
-        base.diagnostics["profile"] = "conservative"
+        base.diagnostics["structure_profile_used"] = "conservative"
+        base.diagnostics["counts"] = _diagnostics_counts(
+            bos=base.bos,
+            orderblocks=base.orderblocks,
+            fvg=base.fvg,
+            liquidity_sweeps=base.liquidity_sweeps,
+            liquidity_lines=list(base.auxiliary.get("liquidity_lines", [])),
+            session_ranges=list(base.auxiliary.get("session_ranges", [])),
+            session_pivots=list(base.auxiliary.get("session_pivots", [])),
+            broken_fractals=list(base.auxiliary.get("broken_fractal_signals", [])),
+        )
         return base
 
     # hybrid_default keeps all canonical families while trimming tail-heavy sweep noise.
     base.liquidity_sweeps = _take_recent(base.liquidity_sweeps, limit=100)
-    base.diagnostics["profile"] = "hybrid_default"
+    base.diagnostics["structure_profile_used"] = "hybrid_default"
+    base.diagnostics["counts"] = _diagnostics_counts(
+        bos=base.bos,
+        orderblocks=base.orderblocks,
+        fvg=base.fvg,
+        liquidity_sweeps=base.liquidity_sweeps,
+        liquidity_lines=list(base.auxiliary.get("liquidity_lines", [])),
+        session_ranges=list(base.auxiliary.get("session_ranges", [])),
+        session_pivots=list(base.auxiliary.get("session_pivots", [])),
+        broken_fractals=list(base.auxiliary.get("broken_fractal_signals", [])),
+    )
     return base

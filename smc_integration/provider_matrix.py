@@ -31,6 +31,10 @@ class ProviderCurrentMapping:
     snapshot_meta_mode: Mode
     mapped_structure_fields: list[str] = field(default_factory=list)
     mapped_structure_categories: dict[str, bool] = field(default_factory=dict)
+    structure_profile_supported: bool = False
+    diagnostics_available: bool = False
+    auxiliary_available: bool = False
+    mapped_auxiliary_categories: dict[str, bool] = field(default_factory=dict)
     mapped_meta_fields: list[str] = field(default_factory=list)
 
 
@@ -138,6 +142,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
 
     if name == "structure_artifact_json":
         category_coverage = structure_artifact_json.discover_category_coverage()
+        contract = structure_artifact_json.discover_contract_capabilities()
 
         mapped_fields: list[str] = []
         if category_coverage.get("bos"):
@@ -183,6 +188,10 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             snapshot_meta_mode="none",
             mapped_structure_fields=mapped_fields,
             mapped_structure_categories=category_coverage,
+            structure_profile_supported=bool(contract.get("structure_profile_supported", False)),
+            diagnostics_available=bool(contract.get("diagnostics_available", False)),
+            auxiliary_available=bool(contract.get("auxiliary_available", False)),
+            mapped_auxiliary_categories=dict(contract.get("mapped_auxiliary_categories", {})),
             mapped_meta_fields=[],
         )
 
@@ -203,6 +212,10 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
                 "fvg": False,
                 "liquidity_sweeps": False,
             },
+            structure_profile_supported=False,
+            diagnostics_available=False,
+            auxiliary_available=False,
+            mapped_auxiliary_categories={},
             mapped_meta_fields=mapped_meta_fields,
         )
 
@@ -223,6 +236,10 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
                 "fvg": False,
                 "liquidity_sweeps": False,
             },
+            structure_profile_supported=False,
+            diagnostics_available=False,
+            auxiliary_available=False,
+            mapped_auxiliary_categories={},
             mapped_meta_fields=mapped_meta_fields + [
                 "technical.value.strength",
                 "technical.value.bias",
@@ -248,6 +265,10 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
                 "fvg": False,
                 "liquidity_sweeps": False,
             },
+            structure_profile_supported=False,
+            diagnostics_available=False,
+            auxiliary_available=False,
+            mapped_auxiliary_categories={},
             mapped_meta_fields=mapped_meta_fields + [
                 "news.value.strength",
                 "news.value.bias",
@@ -272,6 +293,10 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             "fvg": False,
             "liquidity_sweeps": False,
         },
+        structure_profile_supported=False,
+        diagnostics_available=False,
+        auxiliary_available=False,
+        mapped_auxiliary_categories={},
         mapped_meta_fields=mapped_meta_fields,
     )
 

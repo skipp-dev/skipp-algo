@@ -139,6 +139,16 @@ def _iter_manifest_artifacts() -> list[Path]:
 
 
 def _iter_structure_payloads() -> list[dict[str, Any]]:
+    payloads = _iter_artifact_payloads()
+    structures: list[dict[str, Any]] = []
+    for payload in payloads:
+        structure = payload.get("structure")
+        if isinstance(structure, dict):
+            structures.append(structure)
+    return structures
+
+
+def _iter_artifact_payloads() -> list[dict[str, Any]]:
     payloads: list[dict[str, Any]] = []
 
     for artifact_path in _iter_manifest_artifacts():
@@ -148,7 +158,7 @@ def _iter_structure_payloads() -> list[dict[str, Any]]:
             continue
         structure = payload.get("structure")
         if isinstance(structure, dict):
-            payloads.append(structure)
+            payloads.append(payload)
 
     if payloads:
         return payloads
@@ -163,8 +173,121 @@ def _iter_structure_payloads() -> list[dict[str, Any]]:
                     continue
                 structure = row.get("structure")
                 if isinstance(structure, dict):
-                    payloads.append(structure)
+                    payloads.append({
+                        "symbol": row.get("symbol"),
+                        "timeframe": row.get("timeframe"),
+                        "structure": structure,
+                        "auxiliary": row.get("auxiliary", {}),
+                        "diagnostics": row.get("diagnostics", {}),
+                    })
     return payloads
+
+
+def discover_contract_capabilities() -> dict[str, Any]:
+    payloads = _iter_artifact_payloads()
+    if not payloads:
+        return {
+            "structure_profile_supported": False,
+            "diagnostics_available": False,
+            "auxiliary_available": False,
+            "mapped_structure_categories": discover_category_coverage(),
+            "mapped_auxiliary_categories": {
+                "liquidity_lines": False,
+                "session_ranges": False,
+                "session_pivots": False,
+                "ipda_range": False,
+                "htf_fvg_bias": False,
+                "broken_fractal_signals": False,
+            },
+            "structure_profiles_seen": [],
+            "event_logic_versions_seen": [],
+        }
+
+    structure_categories = discover_category_coverage()
+    aux_categories = {
+        "liquidity_lines": False,
+        "session_ranges": False,
+        "session_pivots": False,
+        "ipda_range": False,
+        "htf_fvg_bias": False,
+        "broken_fractal_signals": False,
+    }
+    profiles_seen: set[str] = set()
+    versions_seen: set[str] = set()
+    diagnostics_available = False
+    auxiliary_available = False
+
+    for payload in payloads:
+        diagnostics = payload.get("diagnostics", {}) if isinstance(payload.get("diagnostics"), dict) else {}
+        auxiliary = payload.get("auxiliary", {}) if isinstance(payload.get("auxiliary"), dict) else {}
+
+        if diagnostics:
+            diagnostics_available = True
+        if auxiliary:
+            auxiliary_available = True
+
+        profile = diagnostics.get("structure_profile_used")
+        if isinstance(profile, str) and profile.strip():
+            profiles_seen.add(profile.strip())
+
+        version = diagnostics.get("event_logic_version")
+        if isinstance(version, str) and version.strip():
+            versions_seen.add(version.strip())
+
+        for key in aux_categories:
+            value = auxiliary.get(key)
+            if isinstance(value, list) and value:
+                aux_categories[key] = True
+            elif isinstance(value, dict) and value:
+                aux_categories[key] = True
+
+    return {
+        "structure_profile_supported": bool(profiles_seen),
+        "diagnostics_available": diagnostics_available,
+        "auxiliary_available": auxiliary_available,
+        "mapped_structure_categories": structure_categories,
+        "mapped_auxiliary_categories": aux_categories,
+        "structure_profiles_seen": sorted(profiles_seen),
+        "event_logic_versions_seen": sorted(versions_seen),
+    }
+
+
+def load_structure_context_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
+    artifact_file = _resolve_artifact_file(symbol, timeframe)
+    if artifact_file is None:
+        return None
+
+    payload = _load_json(artifact_file)
+    structure = payload.get("structure", {}) if isinstance(payload.get("structure"), dict) else {}
+    diagnostics = payload.get("diagnostics", {}) if isinstance(payload.get("diagnostics"), dict) else {}
+    coverage = payload.get("coverage", {}) if isinstance(payload.get("coverage"), dict) else {}
+
+    if not diagnostics and not coverage:
+        return None
+
+    counts = diagnostics.get("counts", {}) if isinstance(diagnostics.get("counts"), dict) else {
+        "bos": len(structure.get("bos", [])),
+        "orderblocks": len(structure.get("orderblocks", [])),
+        "fvg": len(structure.get("fvg", [])),
+        "liquidity_sweeps": len(structure.get("liquidity_sweeps", [])),
+    }
+
+    return {
+        "structure_profile_used": diagnostics.get("structure_profile_used"),
+        "event_logic_version": diagnostics.get("event_logic_version"),
+        "coverage": {
+            "has_bos": bool(coverage.get("has_bos", bool(structure.get("bos")))),
+            "has_orderblocks": bool(coverage.get("has_orderblocks", bool(structure.get("orderblocks")))),
+            "has_fvg": bool(coverage.get("has_fvg", bool(structure.get("fvg")))),
+            "has_liquidity_sweeps": bool(coverage.get("has_liquidity_sweeps", bool(structure.get("liquidity_sweeps")))),
+        },
+        "counts": {
+            "bos": int(counts.get("bos", 0)),
+            "orderblocks": int(counts.get("orderblocks", 0)),
+            "fvg": int(counts.get("fvg", 0)),
+            "liquidity_sweeps": int(counts.get("liquidity_sweeps", 0)),
+        },
+    }
 
 
 def discover_category_coverage() -> dict[str, bool]:

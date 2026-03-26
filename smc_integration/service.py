@@ -17,6 +17,7 @@ from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_htf_context import build_htf_bias_context
 from scripts.smc_session_context import build_session_liquidity_context
 from scripts.smc_structure_qualifiers import build_structure_qualifiers
+from smc_integration.sources import structure_artifact_json
 
 from .repo_sources import (
     discover_composite_source_plan,
@@ -196,7 +197,9 @@ def build_snapshot_bundle_for_symbol_timeframe(
         session_context = build_session_liquidity_context(bars, tz="America/New_York")
         htf_context = build_htf_bias_context(bars, timeframe=timeframe, htf_frames=None)
 
-    return {
+    structure_context = structure_artifact_json.load_structure_context_input(symbol, timeframe)
+
+    out = {
         "source_plan": composite,
         "structure_status": structure_status,
         "source": source_descriptor.to_dict(),
@@ -207,3 +210,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "session_context": session_context,
         "htf_context": htf_context,
     }
+    if structure_context is not None:
+        out["structure_context"] = structure_context
+
+    return out

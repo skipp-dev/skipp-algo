@@ -46,6 +46,12 @@ def test_build_structure_gap_report_has_required_keys() -> None:
         "available_categories",
         "missing_categories",
         "provider_by_category",
+        "auxiliary_category_coverage",
+        "structure_profile_supported",
+        "structure_profiles_seen",
+        "diagnostics_available",
+        "auxiliary_available",
+        "event_logic_versions_seen",
         "gaps",
         "structure_status",
     }
@@ -87,6 +93,18 @@ def test_gap_report_is_honest_for_current_repo_state() -> None:
             assert category not in report["missing_categories"]
         else:
             assert category in report["missing_categories"]
+
+    assert isinstance(report["structure_profile_supported"], bool)
+    assert isinstance(report["structure_profiles_seen"], list)
+    assert isinstance(report["event_logic_versions_seen"], list)
+    assert set(report["auxiliary_category_coverage"].keys()) == {
+        "liquidity_lines",
+        "session_ranges",
+        "session_pivots",
+        "ipda_range",
+        "htf_fvg_bias",
+        "broken_fractal_signals",
+    }
 
 
 def test_structure_gap_report_is_json_serializable_and_stable() -> None:

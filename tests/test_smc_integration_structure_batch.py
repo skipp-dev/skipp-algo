@@ -101,6 +101,8 @@ def test_structure_batch_keeps_categories_honest() -> None:
 
     payload = json.loads((output_dir / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
     structure = payload["structure"]
+    diagnostics = payload["diagnostics"]
+    auxiliary = payload["auxiliary"]
     coverage = payload["coverage"]
 
     assert set(structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
@@ -109,6 +111,10 @@ def test_structure_batch_keeps_categories_honest() -> None:
     assert coverage["has_orderblocks"] == bool(structure["orderblocks"])
     assert coverage["has_fvg"] == bool(structure["fvg"])
     assert coverage["has_liquidity_sweeps"] == bool(structure["liquidity_sweeps"])
+    assert diagnostics["counts"]["bos"] == len(structure["bos"])
+    assert diagnostics["counts"]["liquidity_lines"] == len(auxiliary.get("liquidity_lines", []))
+    assert diagnostics["structure_profile_used"] == "hybrid_default"
+    assert diagnostics["event_logic_version"] == "v2"
 
 
 def test_structure_batch_records_selected_profile_in_source() -> None:
@@ -127,3 +133,4 @@ def test_structure_batch_records_selected_profile_in_source() -> None:
 
     payload = json.loads((output_dir / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
     assert payload["source"]["structure_profile"] == "conservative"
+    assert payload["diagnostics"]["structure_profile_used"] == "conservative"
