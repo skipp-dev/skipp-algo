@@ -1678,10 +1678,6 @@ def run_streamlit_micro_base_app() -> None:
             help="Disables the preopen 04:00 seed selection and the fixed 10:00 ET outcome snapshot when the export is used only to derive the SMC microstructure base.",
         )
         write_xlsx = st.checkbox("Write Base workbook (.xlsx)", value=True)
-        if smc_base_only:
-            st.caption("Base-only mode is active: the export skips the 04:00 preopen seed scope and the fixed 10:00 ET outcome snapshot.")
-        else:
-            st.caption("Full research export mode is active: the export also keeps the 04:00 preopen seed scope and the fixed 10:00 ET outcome snapshot.")
         library_owner = st.text_input("TradingView owner", value="preuss_steffen")
         library_version = st.number_input("TradingView library version", min_value=1, max_value=99, value=1)
         st.caption("SMC_Core_Engine.pine is already wired to import the generated TradingView library path.")
