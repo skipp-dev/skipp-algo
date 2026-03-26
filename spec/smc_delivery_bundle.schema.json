@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skipp-algo.local/spec/smc_delivery_bundle.schema.json",
+  "title": "SmcDeliveryBundle",
+  "type": "object",
+  "required": ["source_plan", "structure_status", "snapshot", "dashboard_payload", "pine_payload"],
+  "additionalProperties": true,
+  "properties": {
+    "source_plan": {
+      "type": "object",
+      "required": ["structure", "volume", "technical", "news"],
+      "additionalProperties": false,
+      "properties": {
+        "structure": { "type": "string", "minLength": 1 },
+        "volume": { "type": "string", "minLength": 1 },
+        "technical": { "type": "string", "minLength": 1 },
+        "news": { "type": "string", "minLength": 1 }
+      }
+    },
+    "structure_status": {
+      "type": "object",
+      "required": ["selected_structure_source", "selected_structure_mode", "selected_category_coverage", "selected_missing_categories"],
+      "additionalProperties": true,
+      "properties": {
+        "selected_structure_source": { "type": "string", "minLength": 1 },
+        "selected_structure_mode": { "type": "string", "enum": ["full", "partial", "none"] },
+        "selected_category_coverage": {
+          "type": "object",
+          "required": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"],
+          "additionalProperties": false,
+          "properties": {
+            "bos": { "type": "boolean" },
+            "choch": { "type": "boolean" },
+            "orderblocks": { "type": "boolean" },
+            "fvg": { "type": "boolean" },
+            "liquidity_sweeps": { "type": "boolean" }
+          }
+        },
+        "selected_missing_categories": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] }
+        }
+      }
+    },
+    "snapshot": {
+      "$ref": "./smc_snapshot.schema.json"
+    },
+    "dashboard_payload": {
+      "$ref": "./smc_dashboard_payload.schema.json"
+    },
+    "pine_payload": {
+      "$ref": "./smc_pine_payload.schema.json"
+    }
+  }
+}

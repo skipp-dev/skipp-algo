@@ -86,6 +86,17 @@ machine-checkable and honest.
 First batch/export consumer rewiring is now in `scripts/export_smc_snapshot_watchlist_bundles.py`:
 the script produces/refreshes structure artifact batches first, then exports snapshot bundles.
 
+Delivery contracts are now explicit at consumer boundary level:
+
+1. dashboard payloads carry `source_plan`, `structure_status`, and `structure_coverage`
+2. pine payloads carry the same coverage/status truth without assuming OB/FVG/sweeps are populated
+3. snapshot bundle (`source_plan`, `structure_status`, `snapshot`, `dashboard_payload`, `pine_payload`) is the canonical delivery artifact
+4. watchlist manifests aggregate per-category coverage counts (`symbols_with_bos`, `symbols_with_orderblocks`, `symbols_with_fvg`, `symbols_with_liquidity_sweeps`)
+
+Explicit structure coverage remains partial until additional real, provider-backed categories
+are mapped. The delivery layer must continue to surface missing categories explicitly instead of
+inferring or fabricating them.
+
 Current registered sources are intentionally capability-aware and honest partial/meta-oriented.
 Structure-rich sources can be added later, but must still map into `smc_core` through the
 same adapter and integration boundaries.

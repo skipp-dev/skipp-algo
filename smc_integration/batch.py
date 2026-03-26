@@ -63,6 +63,37 @@ def _has_meta(snapshot_payload: dict[str, Any]) -> bool:
     return isinstance(snapshot_payload.get("meta"), dict)
 
 
+def _category_flags(bundle: dict[str, Any]) -> dict[str, bool]:
+    payload = bundle.get("dashboard_payload")
+    if isinstance(payload, dict):
+        coverage = payload.get("structure_coverage")
+        if isinstance(coverage, dict):
+            return {
+                "has_bos": bool(coverage.get("has_bos")),
+                "has_orderblocks": bool(coverage.get("has_orderblocks")),
+                "has_fvg": bool(coverage.get("has_fvg")),
+                "has_liquidity_sweeps": bool(coverage.get("has_liquidity_sweeps")),
+            }
+
+    snapshot = bundle.get("snapshot")
+    if isinstance(snapshot, dict):
+        structure = snapshot.get("structure")
+        if isinstance(structure, dict):
+            return {
+                "has_bos": bool(structure.get("bos")),
+                "has_orderblocks": bool(structure.get("orderblocks")),
+                "has_fvg": bool(structure.get("fvg")),
+                "has_liquidity_sweeps": bool(structure.get("liquidity_sweeps")),
+            }
+
+    return {
+        "has_bos": False,
+        "has_orderblocks": False,
+        "has_fvg": False,
+        "has_liquidity_sweeps": False,
+    }
+
+
 def build_snapshot_bundles_for_symbols(
     symbols: list[str],
     timeframe: str,
@@ -99,7 +130,23 @@ def build_snapshot_manifest(
     source_descriptor = _descriptor_for_source_name(source_name)
 
     rows: list[dict[str, Any]] = []
+    coverage_summary = {
+        "symbols_with_bos": 0,
+        "symbols_with_orderblocks": 0,
+        "symbols_with_fvg": 0,
+        "symbols_with_liquidity_sweeps": 0,
+    }
     for symbol, bundle in zip(symbols_built, bundles):
+        category_flags = _category_flags(bundle)
+        if category_flags["has_bos"]:
+            coverage_summary["symbols_with_bos"] += 1
+        if category_flags["has_orderblocks"]:
+            coverage_summary["symbols_with_orderblocks"] += 1
+        if category_flags["has_fvg"]:
+            coverage_summary["symbols_with_fvg"] += 1
+        if category_flags["has_liquidity_sweeps"]:
+            coverage_summary["symbols_with_liquidity_sweeps"] += 1
+
         rows.append(
             {
                 "symbol": symbol,
@@ -107,6 +154,10 @@ def build_snapshot_manifest(
                 "bundle_path": str(output_dir / _bundle_file_name(symbol, timeframe)),
                 "has_structure": _has_structure(bundle.get("snapshot", {})),
                 "has_meta": _has_meta(bundle.get("snapshot", {})),
+                "has_bos": category_flags["has_bos"],
+                "has_orderblocks": category_flags["has_orderblocks"],
+                "has_fvg": category_flags["has_fvg"],
+                "has_liquidity_sweeps": category_flags["has_liquidity_sweeps"],
                 "source": source_name,
             }
         )
@@ -126,6 +177,7 @@ def build_snapshot_manifest(
             "symbols_built": len(symbols_built),
             "errors": len(errors),
         },
+        "coverage_summary": coverage_summary,
         "bundles": rows,
         "errors": errors,
     }

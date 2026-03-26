@@ -58,13 +58,19 @@ def build_dashboard_payload_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> dict:
+    source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
+    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
         source=source,
         generated_at=generated_at,
     )
-    return snapshot_to_dashboard_payload(snapshot)
+    return snapshot_to_dashboard_payload(
+        snapshot,
+        source_plan=source_plan,
+        structure_status=structure_status,
+    )
 
 
 def build_pine_payload_for_symbol_timeframe(
@@ -74,13 +80,19 @@ def build_pine_payload_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> dict:
+    source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
+    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
         source=source,
         generated_at=generated_at,
     )
-    return snapshot_to_pine_payload(snapshot)
+    return snapshot_to_pine_payload(
+        snapshot,
+        source_plan=source_plan,
+        structure_status=structure_status,
+    )
 
 
 def build_snapshot_bundle_for_symbol_timeframe(
@@ -99,8 +111,16 @@ def build_snapshot_bundle_for_symbol_timeframe(
         source=source,
         generated_at=generated_at,
     )
-    dashboard_payload = snapshot_to_dashboard_payload(snapshot)
-    pine_payload = snapshot_to_pine_payload(snapshot)
+    dashboard_payload = snapshot_to_dashboard_payload(
+        snapshot,
+        source_plan=composite,
+        structure_status=structure_status,
+    )
+    pine_payload = snapshot_to_pine_payload(
+        snapshot,
+        source_plan=composite,
+        structure_status=structure_status,
+    )
 
     source_descriptor = selected if selected is not None else None
     if source_descriptor is None:

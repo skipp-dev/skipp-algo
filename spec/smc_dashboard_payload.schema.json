@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skipp-algo.local/spec/smc_dashboard_payload.schema.json",
+  "title": "SmcDashboardPayload",
+  "type": "object",
+  "required": [
+    "symbol",
+    "timeframe",
+    "generated_at",
+    "schema_version",
+    "structure_coverage",
+    "summary",
+    "zones",
+    "markers"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "symbol": { "type": "string", "minLength": 1 },
+    "timeframe": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "number" },
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "source_plan": {
+      "type": "object",
+      "required": ["structure", "volume", "technical", "news"],
+      "additionalProperties": false,
+      "properties": {
+        "structure": { "type": "string", "minLength": 1 },
+        "volume": { "type": "string", "minLength": 1 },
+        "technical": { "type": "string", "minLength": 1 },
+        "news": { "type": "string", "minLength": 1 }
+      }
+    },
+    "structure_status": {
+      "type": "object",
+      "required": ["selected_structure_source", "selected_structure_mode", "selected_category_coverage", "selected_missing_categories"],
+      "additionalProperties": true,
+      "properties": {
+        "selected_structure_source": { "type": "string", "minLength": 1 },
+        "selected_structure_mode": { "type": "string", "enum": ["full", "partial", "none"] },
+        "selected_category_coverage": {
+          "type": "object",
+          "required": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"],
+          "additionalProperties": false,
+          "properties": {
+            "bos": { "type": "boolean" },
+            "choch": { "type": "boolean" },
+            "orderblocks": { "type": "boolean" },
+            "fvg": { "type": "boolean" },
+            "liquidity_sweeps": { "type": "boolean" }
+          }
+        },
+        "selected_missing_categories": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] }
+        }
+      }
+    },
+    "structure_coverage": {
+      "type": "object",
+      "required": ["available_categories", "missing_categories", "has_bos", "has_orderblocks", "has_fvg", "has_liquidity_sweeps"],
+      "additionalProperties": false,
+      "properties": {
+        "available_categories": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] }
+        },
+        "missing_categories": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] }
+        },
+        "has_bos": { "type": "boolean" },
+        "has_orderblocks": { "type": "boolean" },
+        "has_fvg": { "type": "boolean" },
+        "has_liquidity_sweeps": { "type": "boolean" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["zone_count", "marker_count", "blocked_count", "discouraged_count", "long_bias_count", "short_bias_count", "neutral_bias_count"],
+      "additionalProperties": false,
+      "properties": {
+        "zone_count": { "type": "integer", "minimum": 0 },
+        "marker_count": { "type": "integer", "minimum": 0 },
+        "blocked_count": { "type": "integer", "minimum": 0 },
+        "discouraged_count": { "type": "integer", "minimum": 0 },
+        "long_bias_count": { "type": "integer", "minimum": 0 },
+        "short_bias_count": { "type": "integer", "minimum": 0 },
+        "neutral_bias_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "style"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["ORDERBLOCK", "FVG"] }
+        }
+      }
+    },
+    "markers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "style"],
+        "additionalProperties": true,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["BOS", "CHOCH", "LIQUIDITY_SWEEP"] }
+        }
+      }
+    }
+  }
+}

@@ -45,5 +45,12 @@ def test_watchlist_export_script_writes_manifest_and_bundles(tmp_path: Path) -> 
     assert manifest_path.exists()
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert payload["counts"]["symbols_requested"] == 2
+    assert "coverage_summary" in payload
+    assert set(payload["coverage_summary"].keys()) == {
+        "symbols_with_bos",
+        "symbols_with_orderblocks",
+        "symbols_with_fvg",
+        "symbols_with_liquidity_sweeps",
+    }
     assert "structure_manifest" in payload
     assert payload["structure_manifest"]["counts"]["symbols_requested"] == 2

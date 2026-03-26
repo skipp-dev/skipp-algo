@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from smc_core.types import BosEvent, Fvg, LiquiditySweep, Orderblock, SmcSnapshot, ZoneStyle
 
 
@@ -72,7 +74,40 @@ def _marker_from_sweep(snapshot: SmcSnapshot, item: LiquiditySweep) -> dict:
     }
 
 
-def snapshot_to_dashboard_payload(snapshot: SmcSnapshot) -> dict:
+def _structure_coverage(snapshot: SmcSnapshot) -> dict[str, Any]:
+    has_bos = bool(snapshot.structure.bos)
+    has_choch = any(item.kind == "CHOCH" for item in snapshot.structure.bos)
+    has_orderblocks = bool(snapshot.structure.orderblocks)
+    has_fvg = bool(snapshot.structure.fvg)
+    has_liquidity_sweeps = bool(snapshot.structure.liquidity_sweeps)
+
+    category_pairs = [
+        ("bos", has_bos),
+        ("choch", has_choch),
+        ("orderblocks", has_orderblocks),
+        ("fvg", has_fvg),
+        ("liquidity_sweeps", has_liquidity_sweeps),
+    ]
+
+    available_categories = [name for name, available in category_pairs if available]
+    missing_categories = [name for name, available in category_pairs if not available]
+
+    return {
+        "available_categories": available_categories,
+        "missing_categories": missing_categories,
+        "has_bos": has_bos,
+        "has_orderblocks": has_orderblocks,
+        "has_fvg": has_fvg,
+        "has_liquidity_sweeps": has_liquidity_sweeps,
+    }
+
+
+def snapshot_to_dashboard_payload(
+    snapshot: SmcSnapshot,
+    *,
+    source_plan: dict[str, Any] | None = None,
+    structure_status: dict[str, Any] | None = None,
+) -> dict:
     zones = [
         *[_zone_from_orderblock(snapshot, item) for item in snapshot.structure.orderblocks],
         *[_zone_from_fvg(snapshot, item) for item in snapshot.structure.fvg],
@@ -88,6 +123,7 @@ def snapshot_to_dashboard_payload(snapshot: SmcSnapshot) -> dict:
     all_styles = list(snapshot.layered.zone_styles.values())
     summary = {
         "zone_count": len(zones),
+        "marker_count": len(markers),
         "blocked_count": sum(1 for s in all_styles if s.trade_state == "BLOCKED"),
         "discouraged_count": sum(1 for s in all_styles if s.trade_state == "DISCOURAGED"),
         "long_bias_count": sum(1 for s in all_styles if s.bias == "LONG"),
@@ -95,12 +131,20 @@ def snapshot_to_dashboard_payload(snapshot: SmcSnapshot) -> dict:
         "neutral_bias_count": sum(1 for s in all_styles if s.bias == "NEUTRAL"),
     }
 
-    return {
+    payload = {
         "symbol": snapshot.symbol,
         "timeframe": snapshot.timeframe,
         "generated_at": snapshot.generated_at,
         "schema_version": snapshot.schema_version,
+        "structure_coverage": _structure_coverage(snapshot),
         "summary": summary,
         "zones": zones,
         "markers": markers,
     }
+
+    if source_plan is not None:
+        payload["source_plan"] = dict(source_plan)
+    if structure_status is not None:
+        payload["structure_status"] = dict(structure_status)
+
+    return payload

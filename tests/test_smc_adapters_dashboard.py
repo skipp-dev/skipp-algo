@@ -37,6 +37,7 @@ def _snapshot():
 
 def test_dashboard_payload_contains_summary_zones_markers() -> None:
     payload = snapshot_to_dashboard_payload(_snapshot())
+    assert "structure_coverage" in payload
     assert "summary" in payload
     assert "zones" in payload
     assert "markers" in payload
@@ -53,6 +54,19 @@ def test_dashboard_zones_and_markers_kind_partition() -> None:
 def test_dashboard_summary_zone_count_matches_zones() -> None:
     payload = snapshot_to_dashboard_payload(_snapshot())
     assert payload["summary"]["zone_count"] == len(payload["zones"])
+    assert payload["summary"]["marker_count"] == len(payload["markers"])
+
+
+def test_dashboard_structure_coverage_matches_snapshot_content() -> None:
+    payload = snapshot_to_dashboard_payload(_snapshot())
+    coverage = payload["structure_coverage"]
+
+    assert coverage["has_bos"] is True
+    assert coverage["has_orderblocks"] is True
+    assert coverage["has_fvg"] is True
+    assert coverage["has_liquidity_sweeps"] is True
+    assert "bos" in coverage["available_categories"]
+    assert "choch" in coverage["available_categories"]
 
 
 def test_dashboard_style_fields_are_projected() -> None:

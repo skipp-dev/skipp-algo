@@ -25,10 +25,22 @@ def _snapshot():
 
 def test_pine_payload_contains_all_structure_sections() -> None:
     payload = snapshot_to_pine_payload(_snapshot())
+    assert "structure_coverage" in payload
     assert "bos" in payload
     assert "orderblocks" in payload
     assert "fvg" in payload
     assert "liquidity_sweeps" in payload
+
+
+def test_pine_structure_coverage_matches_snapshot_content() -> None:
+    payload = snapshot_to_pine_payload(_snapshot())
+    coverage = payload["structure_coverage"]
+
+    assert coverage["has_bos"] is True
+    assert coverage["has_orderblocks"] is True
+    assert coverage["has_fvg"] is True
+    assert coverage["has_liquidity_sweeps"] is True
+    assert "choch" not in coverage["available_categories"]
 
 
 def test_each_entity_contains_style() -> None:

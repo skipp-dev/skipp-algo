@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from smc_core.types import BosEvent, Fvg, LiquiditySweep, Orderblock, SmcSnapshot, ZoneStyle
 
 
@@ -65,7 +67,37 @@ def _sweep_entry(snapshot: SmcSnapshot, item: LiquiditySweep) -> dict:
     }
 
 
-def snapshot_to_pine_payload(snapshot: SmcSnapshot) -> dict:
+def _structure_coverage(snapshot: SmcSnapshot) -> dict[str, Any]:
+    has_bos = bool(snapshot.structure.bos)
+    has_choch = any(item.kind == "CHOCH" for item in snapshot.structure.bos)
+    has_orderblocks = bool(snapshot.structure.orderblocks)
+    has_fvg = bool(snapshot.structure.fvg)
+    has_liquidity_sweeps = bool(snapshot.structure.liquidity_sweeps)
+
+    category_pairs = [
+        ("bos", has_bos),
+        ("choch", has_choch),
+        ("orderblocks", has_orderblocks),
+        ("fvg", has_fvg),
+        ("liquidity_sweeps", has_liquidity_sweeps),
+    ]
+
+    return {
+        "available_categories": [name for name, available in category_pairs if available],
+        "missing_categories": [name for name, available in category_pairs if not available],
+        "has_bos": has_bos,
+        "has_orderblocks": has_orderblocks,
+        "has_fvg": has_fvg,
+        "has_liquidity_sweeps": has_liquidity_sweeps,
+    }
+
+
+def snapshot_to_pine_payload(
+    snapshot: SmcSnapshot,
+    *,
+    source_plan: dict[str, Any] | None = None,
+    structure_status: dict[str, Any] | None = None,
+) -> dict:
     bos = [_bos_entry(snapshot, item) for item in snapshot.structure.bos]
     orderblocks = [_ob_entry(snapshot, item) for item in snapshot.structure.orderblocks]
     fvg = [_fvg_entry(snapshot, item) for item in snapshot.structure.fvg]
@@ -76,13 +108,21 @@ def snapshot_to_pine_payload(snapshot: SmcSnapshot) -> dict:
     fvg.sort(key=lambda x: x["id"])
     liquidity_sweeps.sort(key=lambda x: x["id"])
 
-    return {
+    payload = {
         "symbol": snapshot.symbol,
         "timeframe": snapshot.timeframe,
         "generated_at": snapshot.generated_at,
         "schema_version": snapshot.schema_version,
+        "structure_coverage": _structure_coverage(snapshot),
         "bos": bos,
         "orderblocks": orderblocks,
         "fvg": fvg,
         "liquidity_sweeps": liquidity_sweeps,
     }
+
+    if source_plan is not None:
+        payload["source_plan"] = dict(source_plan)
+    if structure_status is not None:
+        payload["structure_status"] = dict(structure_status)
+
+    return payload
