@@ -108,6 +108,95 @@ def has_any_structure_artifact() -> bool:
     return False
 
 
+def _iter_manifest_artifacts() -> list[Path]:
+    if not STRUCTURE_ARTIFACTS_DIR.exists():
+        return []
+
+    artifacts: list[Path] = []
+    for manifest_path in sorted(STRUCTURE_ARTIFACTS_DIR.glob("manifest_*.json")):
+        try:
+            payload = _load_json(manifest_path)
+        except Exception:
+            continue
+        rows = payload.get("artifacts")
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            raw_path = str(row.get("artifact_path", "")).strip()
+            if not raw_path:
+                continue
+            resolved = (REPO_ROOT / raw_path).resolve()
+            if resolved.exists() and resolved not in artifacts:
+                artifacts.append(resolved)
+
+    if artifacts:
+        return artifacts
+
+    # Fallback for deterministic artifact naming when manifest rows are missing.
+    return sorted(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json"))
+
+
+def _iter_structure_payloads() -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+
+    for artifact_path in _iter_manifest_artifacts():
+        try:
+            payload = _load_json(artifact_path)
+        except Exception:
+            continue
+        structure = payload.get("structure")
+        if isinstance(structure, dict):
+            payloads.append(structure)
+
+    if payloads:
+        return payloads
+
+    # Backward-compatible fallback: legacy single artifact with entries[].
+    if STRUCTURE_ARTIFACT_JSON.exists():
+        legacy = _load_payload()
+        entries = legacy.get("entries")
+        if isinstance(entries, list):
+            for row in entries:
+                if not isinstance(row, dict):
+                    continue
+                structure = row.get("structure")
+                if isinstance(structure, dict):
+                    payloads.append(structure)
+    return payloads
+
+
+def discover_category_coverage() -> dict[str, bool]:
+    categories = {
+        "bos": False,
+        "choch": False,
+        "orderblocks": False,
+        "fvg": False,
+        "liquidity_sweeps": False,
+    }
+
+    structures = _iter_structure_payloads()
+    if not structures:
+        return categories
+
+    for structure in structures:
+        bos_items = structure.get("bos")
+        if isinstance(bos_items, list):
+            # BOS/CHOCH share the same explicit event family (`bos` with `kind`).
+            categories["bos"] = True
+            categories["choch"] = True
+
+        if isinstance(structure.get("orderblocks"), list) and structure.get("orderblocks"):
+            categories["orderblocks"] = True
+        if isinstance(structure.get("fvg"), list) and structure.get("fvg"):
+            categories["fvg"] = True
+        if isinstance(structure.get("liquidity_sweeps"), list) and structure.get("liquidity_sweeps"):
+            categories["liquidity_sweeps"] = True
+
+    return categories
+
+
 def _entry_matches_timeframe(entry: dict[str, Any], timeframe: str) -> bool:
     return str(entry.get("timeframe", "")).strip().upper() == str(timeframe).strip().upper()
 

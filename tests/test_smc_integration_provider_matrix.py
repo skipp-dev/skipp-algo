@@ -44,6 +44,11 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
     assert structure_artifact.current.currently_maps_structure is True
     assert structure_artifact.current.snapshot_structure_mode == "partial"
     assert any(field.startswith("bos.") for field in structure_artifact.current.mapped_structure_fields)
+    assert structure_artifact.current.mapped_structure_categories["bos"] is True
+    assert structure_artifact.current.mapped_structure_categories["choch"] is True
+    assert structure_artifact.current.mapped_structure_categories["orderblocks"] is False
+    assert structure_artifact.current.mapped_structure_categories["fvg"] is False
+    assert structure_artifact.current.mapped_structure_categories["liquidity_sweeps"] is False
 
     assert by_name["tradingview_watchlist_json"].current.currently_maps_technical is True
     assert by_name["tradingview_watchlist_json"].current.currently_maps_news is False
@@ -80,6 +85,17 @@ def test_provider_summary_is_conservative() -> None:
     assert summary["best_current_news_candidate"] == "benzinga_watchlist_json"
     assert summary["best_current_technical_candidate"] in {"fmp_watchlist_json", "tradingview_watchlist_json"}
     assert summary["best_current_microstructure_candidate"] in {"databento_watchlist_csv", None}
+
+
+def test_structure_provider_remains_partial_until_all_categories_exist() -> None:
+    by_name = {entry.name: entry for entry in discover_provider_matrix()}
+    structure_artifact = by_name["structure_artifact_json"]
+    categories = structure_artifact.current.mapped_structure_categories
+
+    if all(categories.values()):
+        assert structure_artifact.current.snapshot_structure_mode == "full"
+    else:
+        assert structure_artifact.current.snapshot_structure_mode in {"partial", "none"}
 
 
 def test_provider_matrix_to_dict_is_json_serializable_and_stable() -> None:

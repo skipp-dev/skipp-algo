@@ -26,6 +26,7 @@ from .repo_sources import (
 )
 from .structure_audit import (
     build_structure_gap_report,
+    discover_structure_category_coverage,
     discover_structure_source_candidates,
     structure_gap_report_to_dict,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "provider_matrix_to_dict",
     "build_provider_summary",
     "discover_structure_source_candidates",
+    "discover_structure_category_coverage",
     "build_structure_gap_report",
     "structure_gap_report_to_dict",
     "build_single_symbol_structure_artifact",

@@ -30,6 +30,7 @@ class ProviderCurrentMapping:
     snapshot_structure_mode: Mode
     snapshot_meta_mode: Mode
     mapped_structure_fields: list[str] = field(default_factory=list)
+    mapped_structure_categories: dict[str, bool] = field(default_factory=dict)
     mapped_meta_fields: list[str] = field(default_factory=list)
 
 
@@ -137,21 +138,58 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
 
     if name == "structure_artifact_json":
         has_any = structure_artifact_json.has_any_structure_artifact()
-        return ProviderCurrentMapping(
-            currently_maps_structure=has_any,
-            currently_maps_meta=False,
-            currently_maps_volume=False,
-            currently_maps_technical=False,
-            currently_maps_news=False,
-            snapshot_structure_mode="partial" if has_any else "none",
-            snapshot_meta_mode="none",
-            mapped_structure_fields=[
+        category_coverage = structure_artifact_json.discover_category_coverage() if has_any else {
+            "bos": False,
+            "choch": False,
+            "orderblocks": False,
+            "fvg": False,
+            "liquidity_sweeps": False,
+        }
+
+        mapped_fields: list[str] = []
+        if category_coverage.get("bos"):
+            mapped_fields.extend([
                 "bos.id",
                 "bos.time",
                 "bos.price",
                 "bos.kind",
                 "bos.dir",
-            ] if has_any else [],
+            ])
+        if category_coverage.get("orderblocks"):
+            mapped_fields.extend([
+                "orderblocks.id",
+                "orderblocks.low",
+                "orderblocks.high",
+                "orderblocks.dir",
+                "orderblocks.valid",
+            ])
+        if category_coverage.get("fvg"):
+            mapped_fields.extend([
+                "fvg.id",
+                "fvg.low",
+                "fvg.high",
+                "fvg.dir",
+                "fvg.valid",
+            ])
+        if category_coverage.get("liquidity_sweeps"):
+            mapped_fields.extend([
+                "liquidity_sweeps.id",
+                "liquidity_sweeps.time",
+                "liquidity_sweeps.price",
+                "liquidity_sweeps.side",
+            ])
+
+        has_structure_now = has_any and any(category_coverage.values())
+        return ProviderCurrentMapping(
+            currently_maps_structure=has_structure_now,
+            currently_maps_meta=False,
+            currently_maps_volume=False,
+            currently_maps_technical=False,
+            currently_maps_news=False,
+            snapshot_structure_mode="full" if has_structure_now and all(category_coverage.values()) else "partial" if has_structure_now else "none",
+            snapshot_meta_mode="none",
+            mapped_structure_fields=mapped_fields,
+            mapped_structure_categories=category_coverage,
             mapped_meta_fields=[],
         )
 
@@ -165,6 +203,13 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             snapshot_structure_mode="partial",
             snapshot_meta_mode="partial",
             mapped_structure_fields=[],
+            mapped_structure_categories={
+                "bos": False,
+                "choch": False,
+                "orderblocks": False,
+                "fvg": False,
+                "liquidity_sweeps": False,
+            },
             mapped_meta_fields=mapped_meta_fields,
         )
 
@@ -178,6 +223,13 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             snapshot_structure_mode="none",
             snapshot_meta_mode="partial",
             mapped_structure_fields=[],
+            mapped_structure_categories={
+                "bos": False,
+                "choch": False,
+                "orderblocks": False,
+                "fvg": False,
+                "liquidity_sweeps": False,
+            },
             mapped_meta_fields=mapped_meta_fields + [
                 "technical.value.strength",
                 "technical.value.bias",
@@ -196,6 +248,13 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
             snapshot_structure_mode="none",
             snapshot_meta_mode="partial",
             mapped_structure_fields=[],
+            mapped_structure_categories={
+                "bos": False,
+                "choch": False,
+                "orderblocks": False,
+                "fvg": False,
+                "liquidity_sweeps": False,
+            },
             mapped_meta_fields=mapped_meta_fields + [
                 "news.value.strength",
                 "news.value.bias",
@@ -213,6 +272,13 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
         snapshot_structure_mode="none",
         snapshot_meta_mode="partial",
         mapped_structure_fields=[],
+        mapped_structure_categories={
+            "bos": False,
+            "choch": False,
+            "orderblocks": False,
+            "fvg": False,
+            "liquidity_sweeps": False,
+        },
         mapped_meta_fields=mapped_meta_fields,
     )
 
@@ -224,12 +290,26 @@ def _known_gaps_for_provider(name: str) -> list[str]:
     ]
 
     if name == "structure_artifact_json":
-        return [
-            "Orderblocks are not currently mapped in artifact structure output",
-            "FVG events are not currently mapped in artifact structure output",
-            "Liquidity sweeps are not currently mapped in artifact structure output",
-            "Provider is structure-only and does not expose raw meta domains",
-        ]
+        coverage = structure_artifact_json.discover_category_coverage() if structure_artifact_json.has_any_structure_artifact() else {
+            "bos": False,
+            "choch": False,
+            "orderblocks": False,
+            "fvg": False,
+            "liquidity_sweeps": False,
+        }
+        gaps: list[str] = []
+        if not coverage.get("bos"):
+            gaps.append("BOS events are not currently mapped in artifact structure output")
+        if not coverage.get("choch"):
+            gaps.append("CHOCH events are not currently mapped in artifact structure output")
+        if not coverage.get("orderblocks"):
+            gaps.append("Orderblocks are not currently mapped in artifact structure output")
+        if not coverage.get("fvg"):
+            gaps.append("FVG events are not currently mapped in artifact structure output")
+        if not coverage.get("liquidity_sweeps"):
+            gaps.append("Liquidity sweeps are not currently mapped in artifact structure output")
+        gaps.append("Provider is structure-only and does not expose raw meta domains")
+        return gaps
 
     if name == "databento_watchlist_csv":
         return [

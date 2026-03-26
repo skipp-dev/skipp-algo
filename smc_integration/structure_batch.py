@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import pandas as pd
 
@@ -65,8 +65,8 @@ def _event_from_last_event(*, symbol: str, timeframe: str, last_event: str, asof
     if normalized not in {"bos_up", "bos_down", "choch_up", "choch_down"}:
         return []
 
-    kind = "BOS" if normalized.startswith("bos") else "CHOCH"
-    direction = "UP" if normalized.endswith("up") else "DOWN"
+    kind = cast(Literal["BOS", "CHOCH"], "BOS" if normalized.startswith("bos") else "CHOCH")
+    direction = cast(Literal["UP", "DOWN"], "UP" if normalized.endswith("up") else "DOWN")
     price = float(close_price)
 
     return [
@@ -85,6 +85,16 @@ def _event_from_last_event(*, symbol: str, timeframe: str, last_event: str, asof
             "dir": direction,
         }
     ]
+
+
+def _coverage_from_structure(structure: dict[str, Any], *, mode: str) -> dict[str, Any]:
+    return {
+        "mode": mode,
+        "has_bos": bool(structure.get("bos")),
+        "has_orderblocks": bool(structure.get("orderblocks")),
+        "has_fvg": bool(structure.get("fvg")),
+        "has_liquidity_sweeps": bool(structure.get("liquidity_sweeps")),
+    }
 
 
 def _artifact_file_name(symbol: str, timeframe: str) -> str:
@@ -180,6 +190,12 @@ def build_single_symbol_structure_artifact(
         close_price=float(latest.close),
     )
     coverage_mode = "partial" if bos_events else "none"
+    structure_payload = {
+        "bos": bos_events,
+        "orderblocks": [],
+        "fvg": [],
+        "liquidity_sweeps": [],
+    }
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -192,16 +208,12 @@ def build_single_symbol_structure_artifact(
             "event_logic": "scripts.market_structure_features.build_market_structure_feature_frame",
         },
         "coverage_mode": coverage_mode,
+        "coverage": _coverage_from_structure(structure_payload, mode=coverage_mode),
         "event_evidence": {
             "last_event": last_event if last_event else "none",
             "trend_state": trend_state,
         },
-        "structure": {
-            "bos": bos_events,
-            "orderblocks": [],
-            "fvg": [],
-            "liquidity_sweeps": [],
-        },
+        "structure": structure_payload,
     }
 
 
@@ -288,10 +300,10 @@ def write_structure_artifacts_from_workbook(
                     timeframe=resolved_timeframe,
                     artifact_path=_relative_repo_path(artifact_path),
                     coverage_mode=str(payload.get("coverage_mode", "none")),
-                    has_bos=bool(structure.get("bos")),
-                    has_orderblocks=bool(structure.get("orderblocks")),
-                    has_fvg=bool(structure.get("fvg")),
-                    has_liquidity_sweeps=bool(structure.get("liquidity_sweeps")),
+                    has_bos=bool(payload.get("coverage", {}).get("has_bos", bool(structure.get("bos")))),
+                    has_orderblocks=bool(payload.get("coverage", {}).get("has_orderblocks", bool(structure.get("orderblocks")))),
+                    has_fvg=bool(payload.get("coverage", {}).get("has_fvg", bool(structure.get("fvg")))),
+                    has_liquidity_sweeps=bool(payload.get("coverage", {}).get("has_liquidity_sweeps", bool(structure.get("liquidity_sweeps")))),
                 )
             )
         except Exception as exc:

@@ -4,7 +4,7 @@ import argparse
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence, cast
 
 import pandas as pd
 
@@ -38,8 +38,8 @@ def _event_from_last_event(symbol: str, last_event: str, asof_ts: float, close_p
     if normalized not in {"bos_up", "bos_down", "choch_up", "choch_down"}:
         return []
 
-    kind = "BOS" if normalized.startswith("bos") else "CHOCH"
-    direction = "UP" if normalized.endswith("up") else "DOWN"
+    kind = cast(Literal["BOS", "CHOCH"], "BOS" if normalized.startswith("bos") else "CHOCH")
+    direction = cast(Literal["UP", "DOWN"], "UP" if normalized.endswith("up") else "DOWN")
     event_price = float(close_price)
 
     return [
@@ -58,6 +58,16 @@ def _event_from_last_event(symbol: str, last_event: str, asof_ts: float, close_p
             "dir": direction,
         }
     ]
+
+
+def _coverage_from_structure(structure: dict[str, Any], *, coverage_mode: str) -> dict[str, Any]:
+    return {
+        "mode": coverage_mode,
+        "has_bos": bool(structure.get("bos")),
+        "has_orderblocks": bool(structure.get("orderblocks")),
+        "has_fvg": bool(structure.get("fvg")),
+        "has_liquidity_sweeps": bool(structure.get("liquidity_sweeps")),
+    }
 
 
 def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
@@ -98,6 +108,12 @@ def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
 
         bos_events = _event_from_last_event(symbol, last_event_raw, asof_ts, float(latest.close))
         coverage = "partial" if bos_events else "none"
+        structure_payload = {
+            "bos": bos_events,
+            "orderblocks": [],
+            "fvg": [],
+            "liquidity_sweeps": [],
+        }
 
         entries.append(
             {
@@ -105,16 +121,12 @@ def _build_entries(daily_bars: pd.DataFrame) -> list[dict[str, Any]]:
                 "timeframe": "1D",
                 "asof_ts": asof_ts,
                 "coverage": coverage,
+                "coverage_detail": _coverage_from_structure(structure_payload, coverage_mode=coverage),
                 "event_evidence": {
                     "last_event": last_event_raw if last_event_raw else "none",
                     "trend_state": trend_state,
                 },
-                "structure": {
-                    "bos": bos_events,
-                    "orderblocks": [],
-                    "fvg": [],
-                    "liquidity_sweeps": [],
-                },
+                "structure": structure_payload,
             }
         )
 
@@ -132,6 +144,13 @@ def build_structure_artifact_payload(*, workbook: Path, generated_at: float | No
     has_bos = any(entry["structure"]["bos"] for entry in entries)
     coverage = "partial" if has_bos else "none"
 
+    aggregate_structure = {
+        "bos": [item for entry in entries for item in entry["structure"]["bos"]],
+        "orderblocks": [item for entry in entries for item in entry["structure"]["orderblocks"]],
+        "fvg": [item for entry in entries for item in entry["structure"]["fvg"]],
+        "liquidity_sweeps": [item for entry in entries for item in entry["structure"]["liquidity_sweeps"]],
+    }
+
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": float(generated_at) if generated_at is not None else datetime.now(UTC).timestamp(),
@@ -142,6 +161,7 @@ def build_structure_artifact_payload(*, workbook: Path, generated_at: float | No
             "event_logic": "scripts.market_structure_features.build_market_structure_feature_frame",
         },
         "structure_coverage": coverage,
+        "coverage": _coverage_from_structure(aggregate_structure, coverage_mode=coverage),
         "entries": entries,
     }
 

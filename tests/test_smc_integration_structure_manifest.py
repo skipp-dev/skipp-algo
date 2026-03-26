@@ -58,6 +58,30 @@ def test_structure_manifest_counts_and_flags_are_correct() -> None:
         assert row["has_liquidity_sweeps"] is False
 
 
+def test_structure_manifest_category_flags_match_artifact_payload() -> None:
+    symbols = _sample_symbols(limit=1)
+    output_dir = ROOT / "reports" / "_tmp_structure_manifest_match"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = write_structure_artifacts_from_workbook(
+        workbook=WORKBOOK,
+        timeframe="15m",
+        symbols=symbols,
+        output_dir=output_dir,
+        generated_at=1709254000.0,
+    )
+
+    row = manifest["artifacts"][0]
+    payload = json.loads((ROOT / row["artifact_path"]).read_text(encoding="utf-8"))
+    coverage = payload["coverage"]
+
+    assert row["coverage_mode"] == coverage["mode"]
+    assert row["has_bos"] == coverage["has_bos"]
+    assert row["has_orderblocks"] == coverage["has_orderblocks"]
+    assert row["has_fvg"] == coverage["has_fvg"]
+    assert row["has_liquidity_sweeps"] == coverage["has_liquidity_sweeps"]
+
+
 def test_structure_manifest_paths_are_deterministic() -> None:
     symbols = _sample_symbols(limit=1)
     output_dir = ROOT / "reports" / "_tmp_structure_manifest_paths"

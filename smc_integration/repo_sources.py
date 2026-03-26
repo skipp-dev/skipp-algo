@@ -228,10 +228,28 @@ def discover_structure_source_status(*, source: str = "auto", symbol: str = "", 
     if selected_entry is not None:
         selected_notes.extend(selected_entry.known_gaps)
 
+    category_coverage = {
+        "bos": False,
+        "choch": False,
+        "orderblocks": False,
+        "fvg": False,
+        "liquidity_sweeps": False,
+    }
+    if selected_entry is not None:
+        category_coverage.update(selected_entry.current.mapped_structure_categories)
+
+    missing_categories = [
+        category
+        for category, available in category_coverage.items()
+        if not bool(available)
+    ]
+
     return {
         "selected_structure_source": structure_name,
         "selected_structure_mode": structure_descriptor.capabilities.structure_mode,
         "selected_has_structure_capability": structure_descriptor.capabilities.has_structure,
+        "selected_category_coverage": category_coverage,
+        "selected_missing_categories": missing_categories,
         "any_registered_explicit_structure_provider": any_explicit,
         "explicit_structure_provider_names": explicit_names,
         "notes": selected_notes,

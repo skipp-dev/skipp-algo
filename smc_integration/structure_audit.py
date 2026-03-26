@@ -19,6 +19,7 @@ _TOKEN_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 _EXPLICIT_STRUCTURE_KEYS = {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
+_CATEGORY_ORDER = ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"]
 
 
 def _kind_for_path(path: Path) -> str:
@@ -140,6 +141,81 @@ def discover_structure_source_candidates() -> list[dict[str, Any]]:
     return candidates
 
 
+def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
+    from .provider_matrix import discover_provider_matrix
+
+    matrix = discover_provider_matrix()
+    by_name = {entry.name: entry for entry in matrix}
+    artifact_entry = by_name.get("structure_artifact_json")
+
+    mapped_categories = {
+        category: False
+        for category in _CATEGORY_ORDER
+    }
+    mapped_fields: list[str] = []
+    producer_name: str | None = None
+
+    if artifact_entry is not None:
+        mapped_categories.update(artifact_entry.current.mapped_structure_categories)
+        mapped_fields = list(artifact_entry.current.mapped_structure_fields)
+        if artifact_entry.current.currently_maps_structure:
+            producer_name = artifact_entry.name
+
+    evidence_by_category: dict[str, list[str]] = {
+        "bos": [
+            "scripts.market_structure_features.build_market_structure_feature_frame",
+            "structure_artifact_json:bos.kind",
+            "smc_core.ids.bos_id",
+        ],
+        "choch": [
+            "scripts.market_structure_features.build_market_structure_feature_frame",
+            "structure_artifact_json:bos.kind=CHOCH",
+            "smc_core.ids.bos_id",
+        ],
+        "orderblocks": [],
+        "fvg": [],
+        "liquidity_sweeps": [],
+    }
+
+    notes_by_category: dict[str, list[str]] = {
+        "bos": [],
+        "choch": ["CHOCH is exported via the explicit bos event family (`kind=CHOCH`)."],
+        "orderblocks": ["No explicit orderblock objects are currently exported by registered providers."],
+        "fvg": ["No explicit FVG objects are currently exported by registered providers."],
+        "liquidity_sweeps": [
+            "Microstructure scripts expose aggregated rates/flags only (e.g., *_sweep_*_20d), not explicit per-event time/price/side payloads for snapshot structure."
+        ],
+    }
+
+    if producer_name is None:
+        notes_by_category["bos"].append("No live explicit structure artifact provider is currently available.")
+        notes_by_category["choch"].append("No live explicit structure artifact provider is currently available.")
+
+    if not mapped_categories.get("choch") and mapped_categories.get("bos"):
+        mapped_categories["choch"] = True
+
+    report: dict[str, dict[str, Any]] = {}
+    for category in _CATEGORY_ORDER:
+        available = bool(mapped_categories.get(category, False))
+        source_evidence = list(evidence_by_category[category]) if available else []
+        notes = list(notes_by_category[category])
+
+        if available and mapped_fields:
+            notes.append(f"Mapped fields include: {', '.join(mapped_fields)}")
+
+        if not available and category in {"orderblocks", "fvg", "liquidity_sweeps"}:
+            notes.append("Category remains explicitly empty in structure artifacts.")
+
+        report[category] = {
+            "available": available,
+            "producer": producer_name if available else None,
+            "source_evidence": source_evidence,
+            "notes": notes,
+        }
+
+    return report
+
+
 def build_structure_gap_report() -> dict[str, Any]:
     from . import repo_sources as _repo_sources
     from .repo_sources import discover_repo_sources
@@ -157,6 +233,7 @@ def build_structure_gap_report() -> dict[str, Any]:
             "notes": ["discover_structure_source_status is unavailable in repo_sources"],
         }
     candidates = discover_structure_source_candidates()
+    category_coverage = discover_structure_category_coverage()
     registered_structure_sources = [
         {
             "name": source.name,
@@ -202,6 +279,23 @@ def build_structure_gap_report() -> dict[str, Any]:
     if best_candidate is not None and best_candidate["path"].startswith("spec/examples/"):
         gaps.append("Best explicit-structure files are schema examples, not live/watchlist provider artifacts.")
 
+    missing_categories = [
+        category
+        for category in _CATEGORY_ORDER
+        if not bool(category_coverage[category]["available"])
+    ]
+    available_categories = [
+        category
+        for category in _CATEGORY_ORDER
+        if bool(category_coverage[category]["available"])
+    ]
+
+    provider_by_category = {
+        category: category_coverage[category]["producer"]
+        for category in _CATEGORY_ORDER
+        if category_coverage[category]["producer"] is not None
+    }
+
     report = {
         "has_real_structure_provider": has_real_structure_provider,
         "best_candidate": best_candidate,
@@ -211,7 +305,13 @@ def build_structure_gap_report() -> dict[str, Any]:
             "candidate_count": len(candidates),
             "registered_structure_source_count": len(registered_structure_sources),
             "current_structure_mode": status.get("selected_structure_mode", "none"),
+            "available_categories": available_categories,
+            "missing_categories": missing_categories,
         },
+        "category_coverage": category_coverage,
+        "available_categories": available_categories,
+        "missing_categories": missing_categories,
+        "provider_by_category": provider_by_category,
         "gaps": gaps,
         "structure_status": status,
     }

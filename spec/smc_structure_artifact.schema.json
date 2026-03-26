@@ -37,6 +37,18 @@
       "type": "string",
       "enum": ["full", "partial", "none"]
     },
+    "coverage": {
+      "type": "object",
+      "required": ["mode", "has_bos", "has_orderblocks", "has_fvg", "has_liquidity_sweeps"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["full", "partial", "none"] },
+        "has_bos": { "type": "boolean" },
+        "has_orderblocks": { "type": "boolean" },
+        "has_fvg": { "type": "boolean" },
+        "has_liquidity_sweeps": { "type": "boolean" }
+      }
+    },
     "entries": {
       "type": "array",
       "items": {
@@ -55,6 +67,18 @@
           "timeframe": { "type": "string", "enum": ["1D"] },
           "asof_ts": { "type": "number" },
           "coverage": { "type": "string", "enum": ["full", "partial", "none"] },
+          "coverage_detail": {
+            "type": "object",
+            "required": ["mode", "has_bos", "has_orderblocks", "has_fvg", "has_liquidity_sweeps"],
+            "additionalProperties": false,
+            "properties": {
+              "mode": { "type": "string", "enum": ["full", "partial", "none"] },
+              "has_bos": { "type": "boolean" },
+              "has_orderblocks": { "type": "boolean" },
+              "has_fvg": { "type": "boolean" },
+              "has_liquidity_sweeps": { "type": "boolean" }
+            }
+          },
           "event_evidence": {
             "type": "object",
             "required": ["last_event", "trend_state"],

@@ -71,6 +71,18 @@ compatible fallback to the legacy single-artifact file.
 Orderblocks/FVG/liquidity sweeps remain unmapped in current artifact output. The integration
 keeps this gap explicit and does not fabricate missing structure event families.
 
+Current explicit structure category coverage (provider-backed) is:
+
+1. `bos`: available
+2. `choch`: available (via `bos.kind=CHOCH` in explicit BOS event family)
+3. `orderblocks`: unavailable (explicitly empty)
+4. `fvg`: unavailable (explicitly empty)
+5. `liquidity_sweeps`: unavailable (explicitly empty)
+
+Batch manifests and artifacts now expose category-level coverage booleans (`has_bos`,
+`has_orderblocks`, `has_fvg`, `has_liquidity_sweeps`) so partial-vs-full status remains
+machine-checkable and honest.
+
 First batch/export consumer rewiring is now in `scripts/export_smc_snapshot_watchlist_bundles.py`:
 the script produces/refreshes structure artifact batches first, then exports snapshot bundles.
 

@@ -26,6 +26,18 @@ def test_structure_producer_emits_honest_partial_structure_payload() -> None:
     assert structure["fvg"] == []
     assert structure["liquidity_sweeps"] == []
 
+    assert payload["coverage"]["mode"] in {"partial", "none"}
+    assert payload["coverage"]["has_bos"] == any(entry["structure"]["bos"] for entry in payload["entries"])
+    assert payload["coverage"]["has_orderblocks"] is False
+    assert payload["coverage"]["has_fvg"] is False
+    assert payload["coverage"]["has_liquidity_sweeps"] is False
+
+    assert first["coverage_detail"]["mode"] == first["coverage"]
+    assert first["coverage_detail"]["has_bos"] == bool(structure["bos"])
+    assert first["coverage_detail"]["has_orderblocks"] is False
+    assert first["coverage_detail"]["has_fvg"] is False
+    assert first["coverage_detail"]["has_liquidity_sweeps"] is False
+
 
 def test_structure_producer_can_write_json_artifact(tmp_path: Path) -> None:
     output = tmp_path / "smc_structure_artifact.json"

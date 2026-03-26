@@ -64,3 +64,28 @@ def test_structure_artifact_provider_resolves_manifest_artifact(monkeypatch, tmp
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert isinstance(structure.bos, list)
+
+
+def test_structure_artifact_provider_category_coverage_is_honest(monkeypatch, tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    write_structure_artifacts_from_workbook(
+        workbook=WORKBOOK_PATH,
+        timeframe="15m",
+        symbols=["AAPL"],
+        output_dir=artifact_dir,
+        generated_at=1709253600.0,
+    )
+
+    monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+    monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
+
+    coverage = structure_artifact_json.discover_category_coverage()
+    assert set(coverage.keys()) == {"bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"}
+    assert coverage["bos"] is True
+    assert coverage["choch"] is True
+    assert coverage["orderblocks"] is False
+    assert coverage["fvg"] is False
+    assert coverage["liquidity_sweeps"] is False
