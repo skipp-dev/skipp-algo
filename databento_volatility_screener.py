@@ -466,16 +466,21 @@ def _symbols_requiring_support_check(symbols: set[str] | list[str] | tuple[str, 
 
 def _extract_unresolved_symbols_from_warning_messages(messages: list[str]) -> set[str]:
     unresolved: set[str] = set()
+    patterns = (
+        r"did not resolve:\s*(.+?)(?:$|\\.)",
+        r"unresolved symbols?:\s*(.+?)(?:$|\\.)",
+        r"symbols? (?:were )?not (?:resolved|found|available):\s*(.+?)(?:$|\\.)",
+    )
     for message in messages:
-        match = re.search(r"did not resolve:\s*(.+)$", str(message), flags=re.IGNORECASE)
-        if not match:
-            continue
-        for raw_symbol in match.group(1).split(","):
-            cleaned = raw_symbol.replace("...", "").strip().upper()
-            cleaned = cleaned.strip(" .;:\t\n\r\"'")
-            normalized = normalize_symbol_for_databento(cleaned)
-            if normalized:
-                unresolved.add(normalized)
+        raw_text = str(message)
+        for pattern in patterns:
+            for match in re.finditer(pattern, raw_text, flags=re.IGNORECASE):
+                payload = match.group(1).replace("...", "")
+                for raw_symbol in re.split(r"[,\s]+", payload):
+                    cleaned = raw_symbol.strip().upper().strip(" .;:\t\n\r\"'[](){}")
+                    normalized = normalize_symbol_for_databento(cleaned)
+                    if normalized:
+                        unresolved.add(normalized)
     return unresolved
 
 

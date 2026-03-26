@@ -469,6 +469,7 @@ def collect_full_universe_session_minute_detail(
             day_parts: list[pd.DataFrame] = []
             active_symbols = set(day_expected_symbols)
             for symbols_batch in _iter_symbol_batches(active_symbols):
+                unresolved_symbols: set[str] = set()
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")
@@ -482,24 +483,71 @@ def collect_full_universe_session_minute_detail(
                             end=fetch_end_utc.isoformat(),
                         )
                     frame = _store_to_frame(store, count=250_000, context="collect_full_universe_session_minute_detail")
-                    unresolved_symbols = _extract_unresolved_symbols_from_warning_messages(
+                    unresolved_symbols.update(_extract_unresolved_symbols_from_warning_messages(
                         [str(item.message) for item in caught_warnings]
-                    )
-                    day_runtime_unsupported_symbols.update(unresolved_symbols)
-                    runtime_unsupported_symbols_seen_global.update(unresolved_symbols)
-                    if not frame.empty:
-                        _validate_frame_columns(
-                            frame,
-                            required={"symbol", "open", "high", "low", "close", "volume"},
-                            context="collect_full_universe_session_minute_detail",
-                        )
+                    ))
                 except Exception as exc:
-                    _warn_with_redacted_exception(
-                        f"Session minute detail fetch failed for batch on {trade_day}, skipping",
-                        exc,
-                        include_traceback=True,
+                    unresolved_from_exception = _extract_unresolved_symbols_from_warning_messages([str(exc)])
+                    unresolved_in_batch = {
+                        symbol for symbol in unresolved_from_exception if symbol in set(symbols_batch)
+                    }
+                    if not unresolved_in_batch:
+                        _warn_with_redacted_exception(
+                            f"Session minute detail fetch failed for batch on {trade_day}, skipping",
+                            exc,
+                            include_traceback=True,
+                        )
+                        continue
+
+                    unresolved_symbols.update(unresolved_in_batch)
+                    retry_symbols = [symbol for symbol in symbols_batch if symbol not in unresolved_in_batch]
+                    logger.warning(
+                        "Session minute detail fetch for %s excluded %d runtime-unresolved symbols from a failing batch and retried the remaining %d symbols.",
+                        trade_day,
+                        len(unresolved_in_batch),
+                        len(retry_symbols),
                     )
-                    continue
+                    if not retry_symbols:
+                        frame = pd.DataFrame(columns=output_columns)
+                    else:
+                        try:
+                            with warnings.catch_warnings(record=True) as retry_caught_warnings:
+                                warnings.simplefilter("always")
+                                retry_store = _databento_get_range_with_retry(
+                                    client,
+                                    context="collect_full_universe_session_minute_detail",
+                                    dataset=dataset,
+                                    symbols=retry_symbols,
+                                    schema="ohlcv-1m",
+                                    start=fetch_start_utc.isoformat(),
+                                    end=fetch_end_utc.isoformat(),
+                                )
+                            frame = _store_to_frame(
+                                retry_store,
+                                count=250_000,
+                                context="collect_full_universe_session_minute_detail",
+                            )
+                            unresolved_symbols.update(
+                                _extract_unresolved_symbols_from_warning_messages(
+                                    [str(item.message) for item in retry_caught_warnings]
+                                )
+                            )
+                        except Exception as retry_exc:
+                            _warn_with_redacted_exception(
+                                f"Session minute detail retry failed for filtered batch on {trade_day}, skipping",
+                                retry_exc,
+                                include_traceback=True,
+                            )
+                            continue
+
+                day_runtime_unsupported_symbols.update(unresolved_symbols)
+                runtime_unsupported_symbols_seen_global.update(unresolved_symbols)
+                if not frame.empty:
+                    _validate_frame_columns(
+                        frame,
+                        required={"symbol", "open", "high", "low", "close", "volume"},
+                        context="collect_full_universe_session_minute_detail",
+                    )
                 if frame.empty or "symbol" not in frame.columns:
                     continue
 
