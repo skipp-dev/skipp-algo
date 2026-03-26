@@ -391,10 +391,14 @@ def _pick_best_candidate(entries: list[ProviderMatrixEntry], *, domain: str) -> 
 
 
 def build_provider_summary() -> dict:
+    from .extended_structure_discovery import build_extended_structure_discovery_report
+
     entries = discover_provider_matrix()
 
     structure_modes = [entry.current.snapshot_structure_mode for entry in entries]
     meta_modes = [entry.current.snapshot_meta_mode for entry in entries]
+
+    extended_discovery = build_extended_structure_discovery_report()
 
     summary = {
         "providers": provider_matrix_to_dict(entries),
@@ -411,5 +415,6 @@ def build_provider_summary() -> dict:
         "best_current_news_candidate": _pick_best_candidate(entries, domain="news"),
         "best_current_technical_candidate": _pick_best_candidate(entries, domain="technical"),
         "best_current_microstructure_candidate": _pick_best_candidate(entries, domain="microstructure"),
+        "extended_structure_evidence": extended_discovery.get("strongest_evidence_type", {}),
     }
     return summary

@@ -218,6 +218,7 @@ def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
 
 def build_structure_gap_report() -> dict[str, Any]:
     from . import repo_sources as _repo_sources
+    from .extended_structure_discovery import build_extended_structure_discovery_report
     from .repo_sources import discover_repo_sources
 
     status_fn = getattr(_repo_sources, "discover_structure_source_status", None)
@@ -314,6 +315,7 @@ def build_structure_gap_report() -> dict[str, Any]:
         "provider_by_category": provider_by_category,
         "gaps": gaps,
         "structure_status": status,
+        "extended_discovery": build_extended_structure_discovery_report(),
     }
     return report
 

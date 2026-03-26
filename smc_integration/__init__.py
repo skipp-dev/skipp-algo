@@ -10,6 +10,11 @@ from .provider_matrix import (
     discover_provider_matrix,
     provider_matrix_to_dict,
 )
+from .extended_structure_discovery import (
+    build_extended_structure_discovery_report,
+    discover_extended_structure_by_category,
+    discover_extended_structure_candidates,
+)
 from .repo_sources import (
     discover_composite_source_plan,
     discover_repo_sources,
@@ -51,6 +56,9 @@ __all__ = [
     "discover_provider_matrix",
     "provider_matrix_to_dict",
     "build_provider_summary",
+    "discover_extended_structure_candidates",
+    "discover_extended_structure_by_category",
+    "build_extended_structure_discovery_report",
     "discover_structure_source_candidates",
     "discover_structure_category_coverage",
     "build_structure_gap_report",
