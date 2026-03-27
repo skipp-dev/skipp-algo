@@ -18,7 +18,9 @@ from smc_integration.release_policy import (
     RELEASE_REFERENCE_TIMEFRAMES,
     RELEASE_STALE_AFTER_SECONDS,
     csv_from_values,
+    diagnose_gate_failure,
     parse_csv,
+    resolve_release_policy,
     runtime_metadata,
 )
 from smc_integration.provider_health import run_provider_health_check
@@ -203,14 +205,22 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     checked_at = float(time.time())
-    symbols = _normalize_symbols(args.symbols) or list(RELEASE_REFERENCE_SYMBOLS)
-    timeframes = _parse_csv(args.timeframes) or ["15m"]
+
+    # Resolve effective policy: CLI args > env vars > defaults.
+    policy = resolve_release_policy(
+        symbols=args.symbols if args.symbols != csv_from_values(RELEASE_REFERENCE_SYMBOLS) else None,
+        timeframes=args.timeframes if args.timeframes != csv_from_values(RELEASE_REFERENCE_TIMEFRAMES) else None,
+        stale_after_seconds=args.stale_after_seconds if args.stale_after_seconds != RELEASE_STALE_AFTER_SECONDS else None,
+    )
+    symbols = policy["symbols"] or list(RELEASE_REFERENCE_SYMBOLS)
+    timeframes = policy["timeframes"] or list(RELEASE_REFERENCE_TIMEFRAMES)
+    stale_seconds = int(policy["stale_after_seconds"])
     fail_on_warn = bool(args.fail_on_warn) and not bool(args.allow_warn)
 
     provider_report = run_provider_health_check(
         symbols=symbols,
         timeframes=timeframes,
-        stale_after_seconds=args.stale_after_seconds,
+        stale_after_seconds=stale_seconds,
         checked_at=checked_at,
         strict_release_policy=True,
     )
@@ -256,7 +266,7 @@ def main() -> int:
         "overall_status": overall_status,
         "reference_symbols": symbols,
         "reference_timeframes": timeframes,
-        "stale_after_seconds": int(args.stale_after_seconds),
+        "stale_after_seconds": stale_seconds,
         "fail_on_warn": fail_on_warn,
         "gates": gates,
         "runner": {
@@ -267,6 +277,10 @@ def main() -> int:
         },
         "runtime_metadata": runtime_metadata(),
     }
+
+    # Attach structured failure diagnostics so operators see *why* a gate failed.
+    if overall_status == "fail":
+        report["failure_reasons"] = diagnose_gate_failure(report)
 
     _render(report, args.output)
     return exit_code

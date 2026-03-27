@@ -69,12 +69,49 @@ Optional zusaetzlich:
 Die strikten Release-Gates und der Pre-Release-Refresh nutzen eine zentrale Default-Referenzmenge aus
 `smc_integration/release_policy.py`:
 
-- Referenzsymbole: `USAR`, `TMQ`
-- Referenz-Timeframes: `5m`, `15m`
-- Harte Frische-Schwelle (default): `7776000` Sekunden (`90d`)
+- Referenzsymbole (12 liquide US-Equities ueber 10 Sektoren):
+  `AAPL`, `MSFT`, `AMZN`, `JPM`, `JNJ`, `XOM`, `CAT`, `PG`, `NEE`, `AMT`, `META`, `LIN`
+- Referenz-Timeframes: `5m`, `15m`, `1H`, `4H`
+- Harte Frische-Schwelle (default): `604800` Sekunden (`7d`)
 
-Diese Defaults koennen per CLI-Argumenten ueberschrieben werden, sind aber die verbindliche
-operative Baseline fuer den Standard-Releasepfad.
+### Konfiguration per Umgebungsvariable oder CLI
+
+Die Defaults koennen auf drei Ebenen ueberschrieben werden (Prioritaet: CLI > Env > Default):
+
+| Parameter | Env-Variable | CLI-Argument |
+|---|---|---|
+| Symbole | `SMC_RELEASE_SYMBOLS` (CSV) | `--symbols` |
+| Timeframes | `SMC_RELEASE_TIMEFRAMES` (CSV) | `--timeframes` |
+| Stale-Schwelle | `SMC_RELEASE_STALE_SECONDS` (int) | `--stale-after-seconds` |
+
+Beispiel: `SMC_RELEASE_SYMBOLS=TSLA,NVDA python scripts/run_smc_release_gates.py`
+
+### Evidence-Coverage-Schwellen
+
+Die Gate-Evidence-Auswertung (`scripts/collect_smc_gate_evidence.py`) prueft zusaetzlich zur
+Run-Anzahl auch die Breite der abgedeckten Symbole und Timeframes:
+
+- `EVIDENCE_MIN_SYMBOL_COVERAGE = 5` — mindestens 5 verschiedene Symbole in OK-Runs.
+- `EVIDENCE_MIN_TIMEFRAME_COVERAGE = 2` — mindestens 2 verschiedene Timeframes in OK-Runs.
+
+`green_ready` wird nur `true`, wenn alle Kriterien erfuellt sind.
+
+### Failure-Diagnostik
+
+Wenn ein Release-Gate fehlschlaegt, enthaelt der Report ein `failure_reasons`-Array mit
+strukturierten Ursachen-Codes:
+
+| Reason-Code | Bedeutung |
+|---|---|
+| `STALE_DATA` | Manifest/Meta-Timestamps ueberschreiten die Frische-Schwelle. |
+| `MISSING_ARTIFACT` | Erwartetes Artifact/Manifest fehlt. |
+| `SMOKE_FAILURE` | Smoke-Check fuer ein Symbol/Timeframe-Paar fehlt oder fehlgeschlagen. |
+| `INSUFFICIENT_SYMBOL_BREADTH` | Zu wenige verschiedene Symbole in der Referenzmenge. |
+| `INSUFFICIENT_TIMEFRAME_BREADTH` | Zu wenige verschiedene Timeframes in der Referenzmenge. |
+| `INSUFFICIENT_SUCCESSFUL_RUNS` | Zu wenige OK-Runs im Lookback-Fenster. |
+| `PROVIDER_FAILURE` | Provider/Bundle/Refresh-Fehler. |
+
+Die Evidence-Auswertung liefert analog ein `not_ready_reasons`-Array, wenn `green_ready = false`.
 
 ## 4) Fail vs Warn
 

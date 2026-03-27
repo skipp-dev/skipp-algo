@@ -19,6 +19,10 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+_BROAD_SYMBOLS = ["AAPL", "MSFT", "AMZN", "JPM", "JNJ", "XOM", "CAT"]
+_BROAD_TIMEFRAMES = ["5m", "15m", "1H", "4H"]
+
+
 def test_gate_evidence_marks_green_ready_for_minimum_success_series(monkeypatch, tmp_path: Path) -> None:
     now_ts = 1_700_000_000.0
     monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
@@ -30,8 +34,8 @@ def test_gate_evidence_marks_green_ready_for_minimum_success_series(monkeypatch,
                 "report_kind": "ci_health",
                 "checked_at": now_ts - 60.0 * (idx + 1),
                 "overall_status": "ok",
-                "reference_symbols": ["USAR", "TMQ"],
-                "reference_timeframes": ["5m", "15m"],
+                "reference_symbols": _BROAD_SYMBOLS,
+                "reference_timeframes": _BROAD_TIMEFRAMES,
                 "runtime_metadata": {"git_commit": f"sha-deeper-{idx}"},
             },
         )
@@ -43,8 +47,8 @@ def test_gate_evidence_marks_green_ready_for_minimum_success_series(monkeypatch,
                 "report_kind": "release_gates",
                 "checked_at": now_ts - 500.0 - 60.0 * idx,
                 "overall_status": "ok",
-                "reference_symbols": ["USAR", "TMQ"],
-                "reference_timeframes": ["5m", "15m"],
+                "reference_symbols": _BROAD_SYMBOLS,
+                "reference_timeframes": _BROAD_TIMEFRAMES,
                 "runtime_metadata": {"git_commit": f"sha-release-{idx}"},
                 "gates": [{"name": "provider_health", "status": "ok", "details": {}}],
             },
@@ -434,3 +438,117 @@ def test_gate_evidence_no_smoke_results_produces_empty_diagnostics(monkeypatch, 
 
     evidence_script.main()
     assert captured[-1]["latest_domain_diagnostics"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Coverage breadth checks
+# ---------------------------------------------------------------------------
+
+
+def test_gate_evidence_not_green_when_symbol_breadth_insufficient(monkeypatch, tmp_path: Path) -> None:
+    """Enough runs, but only 2 symbols — should fail green_ready due to breadth."""
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    for idx in range(3):
+        _write_json(
+            tmp_path / f"deeper_{idx}.json",
+            {
+                "report_kind": "ci_health",
+                "checked_at": now_ts - 60.0 * (idx + 1),
+                "overall_status": "ok",
+                "reference_symbols": ["AAPL", "MSFT"],
+                "reference_timeframes": ["5m", "15m", "1H", "4H"],
+            },
+        )
+    for idx in range(2):
+        _write_json(
+            tmp_path / f"release_{idx}.json",
+            {
+                "report_kind": "release_gates",
+                "checked_at": now_ts - 500.0 - 60.0 * idx,
+                "overall_status": "ok",
+                "reference_symbols": ["AAPL", "MSFT"],
+                "reference_timeframes": ["5m", "15m", "1H", "4H"],
+                "gates": [{"name": "provider_health", "status": "ok", "details": {}}],
+            },
+        )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=3,
+                min_release_ok_runs=2,
+                fail_on_not_ready=True,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+    assert rc == 1
+    assert captured[-1]["green_ready"] is False
+    assert captured[-1]["symbol_breadth_ok"] is False
+    assert any(r["reason"] == "INSUFFICIENT_SYMBOL_BREADTH" for r in captured[-1]["not_ready_reasons"])
+
+
+def test_gate_evidence_includes_coverage_fields_when_green(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    for idx in range(3):
+        _write_json(
+            tmp_path / f"deeper_{idx}.json",
+            {
+                "report_kind": "ci_health",
+                "checked_at": now_ts - 60.0 * (idx + 1),
+                "overall_status": "ok",
+                "reference_symbols": _BROAD_SYMBOLS,
+                "reference_timeframes": _BROAD_TIMEFRAMES,
+            },
+        )
+    for idx in range(2):
+        _write_json(
+            tmp_path / f"release_{idx}.json",
+            {
+                "report_kind": "release_gates",
+                "checked_at": now_ts - 500.0 - 60.0 * idx,
+                "overall_status": "ok",
+                "reference_symbols": _BROAD_SYMBOLS,
+                "reference_timeframes": _BROAD_TIMEFRAMES,
+                "gates": [{"name": "provider_health", "status": "ok", "details": {}}],
+            },
+        )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=3,
+                min_release_ok_runs=2,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+    assert rc == 0
+    summary = captured[-1]
+    assert summary["green_ready"] is True
+    assert summary["symbol_breadth_ok"] is True
+    assert summary["timeframe_breadth_ok"] is True
+    assert set(summary["covered_symbols"]) == set(s.upper() for s in _BROAD_SYMBOLS)
+    assert set(summary["covered_timeframes"]) == set(_BROAD_TIMEFRAMES)
+    assert summary["not_ready_reasons"] == []

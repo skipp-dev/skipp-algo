@@ -18,6 +18,12 @@ from smc_integration.release_policy import (
     EVIDENCE_LOOKBACK_DAYS,
     EVIDENCE_MIN_DEEPER_OK_RUNS,
     EVIDENCE_MIN_RELEASE_OK_RUNS,
+    EVIDENCE_MIN_SYMBOL_COVERAGE,
+    EVIDENCE_MIN_TIMEFRAME_COVERAGE,
+    REASON_INSUFFICIENT_RUNS,
+    REASON_INSUFFICIENT_SYMBOLS,
+    REASON_INSUFFICIENT_TIMEFRAMES,
+    REASON_STALE_DATA,
 )
 
 
@@ -300,17 +306,62 @@ def main() -> int:
     last_ok_at = next((row.get("checked_at") for row in runs if row.get("status") == "ok"), None)
     last_fail_at = next((row.get("checked_at") for row in runs if row.get("status") == "fail"), None)
 
+    # Coverage analysis: which symbols and timeframes appeared in successful runs?
+    covered_symbols: set[str] = set()
+    covered_timeframes: set[str] = set()
+    for row in runs_in_window:
+        if row.get("status") == "ok":
+            for sym in row.get("reference_symbols", []):
+                covered_symbols.add(str(sym).upper())
+            for tf in row.get("reference_timeframes", []):
+                covered_timeframes.add(str(tf).strip())
+
+    symbol_breadth_ok = len(covered_symbols) >= EVIDENCE_MIN_SYMBOL_COVERAGE
+    timeframe_breadth_ok = len(covered_timeframes) >= EVIDENCE_MIN_TIMEFRAME_COVERAGE
+
     criteria = {
         "lookback_days": int(args.lookback_days),
         "min_deeper_ok_runs": int(args.min_deeper_ok_runs),
         "min_release_ok_runs": int(args.min_release_ok_runs),
+        "min_symbol_coverage": EVIDENCE_MIN_SYMBOL_COVERAGE,
+        "min_timeframe_coverage": EVIDENCE_MIN_TIMEFRAME_COVERAGE,
     }
 
     green_ready = (
         len(deeper_ok_in_window) >= int(args.min_deeper_ok_runs)
         and len(release_ok_in_window) >= int(args.min_release_ok_runs)
         and len(unresolved_core_failures) == 0
+        and symbol_breadth_ok
+        and timeframe_breadth_ok
     )
+
+    # Build structured not-ready reasons for operator clarity.
+    not_ready_reasons: list[dict[str, str]] = []
+    if len(deeper_ok_in_window) < int(args.min_deeper_ok_runs):
+        not_ready_reasons.append({
+            "reason": REASON_INSUFFICIENT_RUNS,
+            "detail": f"deeper OK runs: {len(deeper_ok_in_window)}/{args.min_deeper_ok_runs}",
+        })
+    if len(release_ok_in_window) < int(args.min_release_ok_runs):
+        not_ready_reasons.append({
+            "reason": REASON_INSUFFICIENT_RUNS,
+            "detail": f"release OK runs: {len(release_ok_in_window)}/{args.min_release_ok_runs}",
+        })
+    if not symbol_breadth_ok:
+        not_ready_reasons.append({
+            "reason": REASON_INSUFFICIENT_SYMBOLS,
+            "detail": f"covered {len(covered_symbols)} symbol(s), need >= {EVIDENCE_MIN_SYMBOL_COVERAGE}",
+        })
+    if not timeframe_breadth_ok:
+        not_ready_reasons.append({
+            "reason": REASON_INSUFFICIENT_TIMEFRAMES,
+            "detail": f"covered {len(covered_timeframes)} timeframe(s), need >= {EVIDENCE_MIN_TIMEFRAME_COVERAGE}",
+        })
+    if unresolved_core_failures:
+        not_ready_reasons.append({
+            "reason": REASON_STALE_DATA,
+            "detail": f"{len(unresolved_core_failures)} unresolved core failure(s)",
+        })
 
     summary = {
         "generated_at": now_ts,
@@ -332,6 +383,10 @@ def main() -> int:
         "deeper_ok_runs_in_window": len(deeper_ok_in_window),
         "release_ok_runs_in_window": len(release_ok_in_window),
         "unresolved_core_failures_in_window": len(unresolved_core_failures),
+        "covered_symbols": sorted(covered_symbols),
+        "covered_timeframes": sorted(covered_timeframes),
+        "symbol_breadth_ok": symbol_breadth_ok,
+        "timeframe_breadth_ok": timeframe_breadth_ok,
         "recurring_failure_codes": dict(recurring_failures.most_common()),
         "stale_trend": dict(stale_trend),
         "stale_domain_trend": dict(stale_domain_trend),
@@ -339,6 +394,7 @@ def main() -> int:
         "missing_trend": dict(missing_trend),
         "smoke_trend": dict(smoke_trend),
         "green_ready": bool(green_ready),
+        "not_ready_reasons": not_ready_reasons,
         "latest_domain_diagnostics": {
             key: {k: v for k, v in diag.items() if k != "_checked_at"}
             for key, diag in sorted(latest_domain_diag.items())
