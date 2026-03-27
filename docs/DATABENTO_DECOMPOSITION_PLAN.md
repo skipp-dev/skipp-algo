@@ -1,6 +1,6 @@
 # Databento Monolith Decomposition Plan
 
-Status: **Tranche 1 complete** — provider protocol + first utility extraction.
+Status: **Tranche 1b complete** — base runtime fully decoupled from screener.
 
 ## Completed — Tranche 1
 
@@ -12,6 +12,20 @@ Status: **Tranche 1 complete** — provider protocol + first utility extraction.
 | Utility extraction (cache, symbols, TZ, frames, warnings, datasets) | `databento_utils.py` |
 | First consumer refactored (`collect_full_universe_session_minute_detail`) | `scripts/smc_microstructure_base_runtime.py` |
 | Tests (54 unit tests: protocol, implementations, utilities, injection) | `tests/test_databento_provider.py` |
+
+## Completed — Tranche 1b (base-runtime boundary)
+
+| Deliverable | File |
+|---|---|
+| Public (non-underscore) aliases for 9 extracted helpers | `databento_utils.py` |
+| `list_accessible_datasets` convenience function | `databento_provider.py` |
+| Base runtime migrated to public-only imports | `scripts/smc_microstructure_base_runtime.py` |
+| Boundary facade tests (28 tests: alias parity, constants, screener-free) | `tests/test_databento_boundary.py` |
+| Developer note: underscore helpers are internal | `databento_volatility_screener.py` |
+
+The base runtime now imports **zero** symbols from `databento_volatility_screener`.
+All helpers come via `databento_utils` (public aliases) and `databento_provider`
+(`list_accessible_datasets`).
 
 ### Design decisions
 

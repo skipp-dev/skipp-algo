@@ -14,24 +14,23 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from databento_provider import DabentoProvider, MarketDataProvider
+from databento_provider import DabentoProvider, MarketDataProvider, list_accessible_datasets
 from databento_utils import (
     PREFERRED_DATABENTO_DATASETS,
     US_EASTERN_TZ,
-    _clamp_request_end,
-    _extract_unresolved_symbols_from_warning_messages,
-    _iter_symbol_batches,
-    _read_cached_frame,
-    _store_to_frame,
-    _trade_day_cache_max_age_seconds,
-    _validate_frame_columns,
-    _warn_with_redacted_exception,
-    _write_cached_frame,
     build_cache_path,
     choose_default_dataset,
+    clamp_request_end,
+    extract_unresolved_symbols_from_warning_messages,
+    iter_symbol_batches,
+    read_cached_frame,
     resolve_display_timezone,
+    store_to_frame,
+    trade_day_cache_max_age_seconds,
+    validate_frame_columns,
+    warn_with_redacted_exception,
+    write_cached_frame,
 )
-from databento_volatility_screener import list_accessible_datasets  # UI helper; next tranche
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
 from scripts.load_databento_export_bundle import load_export_bundle
@@ -420,7 +419,7 @@ def collect_full_universe_session_minute_detail(
         local_start = datetime.combine(trade_day, PREMARKET_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         local_end = datetime.combine(trade_day, AFTERHOURS_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         fetch_start_utc = pd.Timestamp(local_start.astimezone(UTC))
-        fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
+        fetch_end_utc = clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
         if fetch_end_utc <= fetch_start_utc:
             continue
 
@@ -439,9 +438,9 @@ def collect_full_universe_session_minute_detail(
         cache_meta_path = cache_path.with_suffix(f"{cache_path.suffix}.meta.json")
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:
-            day_frame = _read_cached_frame(
+            day_frame = read_cached_frame(
                 cache_path,
-                max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
+                max_age_seconds=trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
             )
             if day_frame is not None:
                 try:
@@ -473,7 +472,7 @@ def collect_full_universe_session_minute_detail(
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
             active_symbols = set(day_expected_symbols)
-            for symbols_batch in _iter_symbol_batches(active_symbols):
+            for symbols_batch in iter_symbol_batches(active_symbols):
                 unresolved_symbols: set[str] = set()
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
@@ -486,17 +485,17 @@ def collect_full_universe_session_minute_detail(
                             start=fetch_start_utc.isoformat(),
                             end=fetch_end_utc.isoformat(),
                         )
-                    frame = _store_to_frame(store, count=250_000, context="collect_full_universe_session_minute_detail")
-                    unresolved_symbols.update(_extract_unresolved_symbols_from_warning_messages(
+                    frame = store_to_frame(store, count=250_000, context="collect_full_universe_session_minute_detail")
+                    unresolved_symbols.update(extract_unresolved_symbols_from_warning_messages(
                         [str(item.message) for item in caught_warnings]
                     ))
                 except Exception as exc:
-                    unresolved_from_exception = _extract_unresolved_symbols_from_warning_messages([str(exc)])
+                    unresolved_from_exception = extract_unresolved_symbols_from_warning_messages([str(exc)])
                     unresolved_in_batch = {
                         symbol for symbol in unresolved_from_exception if symbol in set(symbols_batch)
                     }
                     if not unresolved_in_batch:
-                        _warn_with_redacted_exception(
+                        warn_with_redacted_exception(
                             f"Session minute detail fetch failed for batch on {trade_day}, skipping",
                             exc,
                             include_traceback=True,
@@ -525,18 +524,18 @@ def collect_full_universe_session_minute_detail(
                                     start=fetch_start_utc.isoformat(),
                                     end=fetch_end_utc.isoformat(),
                                 )
-                            frame = _store_to_frame(
+                            frame = store_to_frame(
                                 retry_store,
                                 count=250_000,
                                 context="collect_full_universe_session_minute_detail",
                             )
                             unresolved_symbols.update(
-                                _extract_unresolved_symbols_from_warning_messages(
+                                extract_unresolved_symbols_from_warning_messages(
                                     [str(item.message) for item in retry_caught_warnings]
                                 )
                             )
                         except Exception as retry_exc:
-                            _warn_with_redacted_exception(
+                            warn_with_redacted_exception(
                                 f"Session minute detail retry failed for filtered batch on {trade_day}, skipping",
                                 retry_exc,
                                 include_traceback=True,
@@ -546,7 +545,7 @@ def collect_full_universe_session_minute_detail(
                 day_runtime_unsupported_symbols.update(unresolved_symbols)
                 runtime_unsupported_symbols_seen_global.update(unresolved_symbols)
                 if not frame.empty:
-                    _validate_frame_columns(
+                    validate_frame_columns(
                         frame,
                         required={"symbol", "open", "high", "low", "close", "volume"},
                         context="collect_full_universe_session_minute_detail",
@@ -602,7 +601,7 @@ def collect_full_universe_session_minute_detail(
             )
             if use_file_cache:
                 if not day_frame.empty:
-                    _write_cached_frame(cache_path, day_frame)
+                    write_cached_frame(cache_path, day_frame)
                 cache_meta_payload = {
                     "trade_day": trade_day.isoformat(),
                     "runtime_unsupported_symbols": sorted(day_runtime_unsupported_symbols),

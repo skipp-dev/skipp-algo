@@ -1,3 +1,10 @@
+# NOTE FOR DEVELOPERS: Underscore-prefixed helpers in this module (e.g.
+# ``_make_databento_client``, ``_clamp_request_end``, ``_read_cached_frame``)
+# are **internal** to the screener monolith.  External consumers should import
+# the public API from ``databento_utils`` (cache / frame / symbol helpers) or
+# ``databento_provider`` (client / dataset helpers).  Backward-compatibility
+# re-exports are preserved here but should NOT be relied upon by new code.
+
 from __future__ import annotations
 
 import hashlib

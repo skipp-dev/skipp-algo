@@ -133,3 +133,14 @@ class DegradedProvider:
 
     def list_datasets(self) -> list[str]:
         return []
+
+
+# ── Module-level convenience ────────────────────────────────────────────────
+
+def list_accessible_datasets(api_key: str | None = None) -> list[str]:
+    """Return sorted list of datasets the API key can access.
+
+    Thin wrapper around ``DabentoProvider.list_datasets`` so that callers
+    don't need to instantiate a provider just to enumerate datasets.
+    """
+    return DabentoProvider(api_key).list_datasets()

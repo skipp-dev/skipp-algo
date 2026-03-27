@@ -312,6 +312,24 @@ PREFERRED_DATABENTO_DATASETS = (
 )
 
 
+# ── Public aliases ───────────────────────────────────────────────────────
+#
+# The helpers below were originally extracted with underscore prefixes to
+# preserve backward-compatibility with the screener monolith.  These
+# unprefixed aliases are the **stable public API** that external consumers
+# (e.g. smc_microstructure_base_runtime) should use.
+
+clamp_request_end = _clamp_request_end
+extract_unresolved_symbols_from_warning_messages = _extract_unresolved_symbols_from_warning_messages
+iter_symbol_batches = _iter_symbol_batches
+read_cached_frame = _read_cached_frame
+store_to_frame = _store_to_frame
+trade_day_cache_max_age_seconds = _trade_day_cache_max_age_seconds
+validate_frame_columns = _validate_frame_columns
+warn_with_redacted_exception = _warn_with_redacted_exception
+write_cached_frame = _write_cached_frame
+
+
 def choose_default_dataset(
     available_datasets: list[str],
     requested_dataset: str | None = None,
