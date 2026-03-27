@@ -84,6 +84,20 @@ def merge_raw_meta_domains(
     if news is not None:
         merged["news"] = news
 
+    # --- Domain visibility: track which meta domains are present vs missing ---
+    meta_domains_present: list[str] = ["volume"]
+    meta_domains_missing: list[str] = []
+    if technical is not None:
+        meta_domains_present.append("technical")
+    else:
+        meta_domains_missing.append("technical")
+    if news is not None:
+        meta_domains_present.append("news")
+    else:
+        meta_domains_missing.append("news")
+    merged["meta_domains_present"] = meta_domains_present
+    merged["meta_domains_missing"] = meta_domains_missing
+
     provenance: list[str] = []
     for raw in (volume_raw, technical_raw, news_raw):
         items = raw.get("provenance", [])

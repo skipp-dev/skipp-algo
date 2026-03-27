@@ -136,7 +136,49 @@ def _resolve_artifact_file(symbol: str, timeframe: str) -> Path | None:
 
 
 def has_artifact_for_symbol_timeframe(symbol: str, timeframe: str) -> bool:
-    return _resolve_artifact_file(symbol, timeframe) is not None
+    if _resolve_artifact_file(symbol, timeframe) is not None:
+        return True
+    # Legacy single-artifact fallback: verify the symbol is actually present.
+    if STRUCTURE_ARTIFACT_JSON.exists():
+        return _legacy_artifact_has_symbol(symbol)
+    return False
+
+
+def _legacy_artifact_has_symbol(symbol: str) -> bool:
+    """Check if the legacy single artifact contains entries for the given symbol."""
+    try:
+        payload = _load_json(STRUCTURE_ARTIFACT_JSON)
+        entries = payload.get("entries")
+        if not isinstance(entries, list):
+            return False
+        wanted = symbol.strip().upper()
+        return any(
+            str(e.get("symbol", "")).strip().upper() == wanted
+            for e in entries
+            if isinstance(e, dict)
+        )
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def resolve_artifact_mode(symbol: str, timeframe: str) -> str:
+    """Return the resolution mode that the loader would use.
+
+    Possible values:
+    - ``"manifest"`` — resolved via a timeframe manifest file
+    - ``"deterministic"`` — resolved via ``SYMBOL_TIMEFRAME.structure.json``
+    - ``"legacy_single"`` — resolved via the legacy single-file artifact
+    - ``"none"`` — no artifact available
+    """
+    from_manifest = _resolve_from_manifest(symbol, timeframe)
+    if from_manifest is not None:
+        return "manifest"
+    deterministic = _artifact_path_for_symbol_timeframe(symbol, timeframe)
+    if deterministic.exists():
+        return "deterministic"
+    if STRUCTURE_ARTIFACT_JSON.exists() and _legacy_artifact_has_symbol(symbol):
+        return "legacy_single"
+    return "none"
 
 
 def has_any_structure_artifact() -> bool:

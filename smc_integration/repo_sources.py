@@ -276,11 +276,17 @@ def discover_composite_source_plan(*, source: str = "auto", symbol: str = "", ti
         volume = select_best_volume_source().name
         technical = select_best_technical_source().name
         news = select_best_news_source().name
+        resolution_mode = "n/a"
+        if structure == "structure_artifact_json":
+            resolution_mode = structure_artifact_json.resolve_artifact_mode(
+                symbol.strip().upper(), str(timeframe).strip()
+            )
         return {
             "structure": structure,
             "volume": volume,
             "technical": technical,
             "news": news,
+            "structure_resolution_mode": resolution_mode,
         }
 
     if normalized not in _SOURCE_PROVIDERS:
@@ -288,11 +294,17 @@ def discover_composite_source_plan(*, source: str = "auto", symbol: str = "", ti
         raise ValueError(f"unknown source {source}; expected one of: {known}, auto")
 
     # Explicit source keeps single-provider behavior for all domains.
+    resolution_mode = "n/a"
+    if normalized == "structure_artifact_json":
+        resolution_mode = structure_artifact_json.resolve_artifact_mode(
+            symbol.strip().upper(), str(timeframe).strip()
+        )
     return {
         "structure": normalized,
         "volume": normalized,
         "technical": normalized,
         "news": normalized,
+        "structure_resolution_mode": resolution_mode,
     }
 
 
@@ -344,6 +356,50 @@ def load_raw_meta_input(
     return provider.load_meta(symbol, timeframe)
 
 
+def _try_load_meta_domain(
+    domain: str,
+    symbol: str,
+    timeframe: str,
+    primary_name: str,
+    *,
+    auto_mode: bool,
+) -> tuple[dict[str, Any] | None, str, str]:
+    """Load a meta domain from the primary provider, falling back through
+    other domain-capable providers when *auto_mode* is ``True``.
+
+    Returns ``(meta_dict | None, status, actual_provider_name)``.
+    """
+    candidates = [primary_name]
+    if auto_mode:
+        for name in _DOMAIN_SOURCE_ORDER.get(domain, []):
+            if name != primary_name and name in _SOURCE_PROVIDERS and _can_supply_domain(_SOURCE_PROVIDERS[name], domain):
+                candidates.append(name)
+
+    last_status = "not_attempted"
+    for name in candidates:
+        provider = _SOURCE_PROVIDERS.get(name)
+        if provider is None:
+            continue
+        try:
+            meta = provider.load_meta(symbol, timeframe)
+        except FileNotFoundError:
+            last_status = "source_file_not_found"
+            if not auto_mode:
+                raise
+            continue
+        except ValueError:
+            last_status = "source_validation_error"
+            if not auto_mode:
+                raise
+            continue
+        if domain not in meta:
+            last_status = "domain_key_absent"
+            continue
+        return meta, "present", name
+
+    return None, last_status, primary_name
+
+
 def load_raw_meta_input_composite(
     symbol: str,
     timeframe: str,
@@ -351,36 +407,20 @@ def load_raw_meta_input_composite(
     source: str = "auto",
 ) -> dict[str, Any]:
     normalized = source.strip().lower()
+    auto_mode = normalized == "auto"
     plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
 
     structure_provider = _SOURCE_PROVIDERS[plan["structure"]]
     volume_provider = _SOURCE_PROVIDERS[plan["volume"]]
-    technical_provider = _SOURCE_PROVIDERS[plan["technical"]]
-    news_provider = _SOURCE_PROVIDERS[plan["news"]]
 
     volume_meta = volume_provider.load_meta(symbol, timeframe)
 
-    technical_meta: dict[str, Any] | None
-    try:
-        technical_meta = technical_provider.load_meta(symbol, timeframe)
-    except (FileNotFoundError, ValueError):
-        if normalized == "auto":
-            technical_meta = None
-        else:
-            raise
-    if technical_meta is not None and "technical" not in technical_meta:
-        technical_meta = None
-
-    news_meta: dict[str, Any] | None
-    try:
-        news_meta = news_provider.load_meta(symbol, timeframe)
-    except (FileNotFoundError, ValueError):
-        if normalized == "auto":
-            news_meta = None
-        else:
-            raise
-    if news_meta is not None and "news" not in news_meta:
-        news_meta = None
+    technical_meta, technical_domain_status, actual_technical_source = _try_load_meta_domain(
+        "technical", symbol, timeframe, plan["technical"], auto_mode=auto_mode,
+    )
+    news_meta, news_domain_status, actual_news_source = _try_load_meta_domain(
+        "news", symbol, timeframe, plan["news"], auto_mode=auto_mode,
+    )
 
     merged = merge_raw_meta_domains(
         volume_meta=volume_meta,
@@ -389,10 +429,22 @@ def load_raw_meta_input_composite(
         domain_sources={
             "structure": structure_provider.descriptor.name,
             "volume": volume_provider.descriptor.name,
-            "technical": technical_provider.descriptor.name,
-            "news": news_provider.descriptor.name,
+            "technical": actual_technical_source,
+            "news": actual_news_source,
         },
     )
+
+    # Per-domain diagnostics: status, which provider actually delivered,
+    # and whether a fallback was used.
+    merged["meta_domain_diagnostics"] = {
+        "volume": "present",
+        "technical": technical_domain_status,
+        "technical_source": actual_technical_source,
+        "technical_fallback_used": actual_technical_source != plan["technical"] and technical_domain_status == "present",
+        "news": news_domain_status,
+        "news_source": actual_news_source,
+        "news_fallback_used": actual_news_source != plan["news"] and news_domain_status == "present",
+    }
 
     merged_asof_ts = merged.get("asof_ts")
     if not isinstance(merged_asof_ts, (int, float)):

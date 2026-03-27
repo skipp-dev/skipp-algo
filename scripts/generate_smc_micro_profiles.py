@@ -777,7 +777,8 @@ def run_generation(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate microstructure profile membership lists and Pine library exports.")
-    parser.add_argument("--schema", type=Path, default=Path("schema/schema.json"), help="Path to the schema file.")
+    from scripts.smc_schema_resolver import resolve_microstructure_schema_path
+    parser.add_argument("--schema", type=Path, default=resolve_microstructure_schema_path(), help="Path to the schema file.")
     parser.add_argument(
         "--input",
         type=Path,

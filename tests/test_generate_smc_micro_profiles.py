@@ -21,8 +21,10 @@ from scripts.generate_smc_micro_profiles import (
     write_readiness_report,
 )
 
+from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
-SCHEMA_PATH = "schema/schema.json"
+
+SCHEMA_PATH = str(resolve_microstructure_schema_path())
 
 
 def _base_rows() -> list[dict[str, object]]:

@@ -1603,11 +1603,6 @@ def list_generated_base_csvs(export_dir: Path) -> list[Path]:
     )
 
 
-def resolve_latest_base_csv(export_dir: Path) -> Path | None:
-    candidates = list_generated_base_csvs(export_dir)
-    return candidates[0] if candidates else None
-
-
 def resolve_base_csv_selection(candidates: list[Path], selected_label: str | None) -> Path | None:
     if not candidates:
         return None

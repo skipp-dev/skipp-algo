@@ -22,8 +22,10 @@ from scripts.smc_microstructure_base_runtime import (
     resolve_base_csv_selection,
 )
 
+from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
-SCHEMA_PATH = Path("schema/schema.json")
+
+SCHEMA_PATH = resolve_microstructure_schema_path()
 
 
 def test_build_base_snapshot_from_workbook_maps_direct_and_derived_fields(tmp_path) -> None:

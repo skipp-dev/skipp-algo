@@ -21,8 +21,10 @@ from scripts.smc_microstructure_base_runtime import (
     write_base_manifest,
 )
 
+from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
-SCHEMA_PATH = Path("schema/schema.json")
+
+SCHEMA_PATH = resolve_microstructure_schema_path()
 
 
 def _make_bundle_payload(tmp_path: Path) -> tuple[dict[str, object], pd.DataFrame]:

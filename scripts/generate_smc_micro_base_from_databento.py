@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -16,26 +15,14 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.generate_smc_micro_profiles import load_schema
 from scripts.smc_microstructure_base_runtime import (
+    ETF_KEYWORDS,
+    MappingStatus,
     generate_base_from_bundle,
+    infer_asset_type,
+    infer_universe_bucket,
     run_databento_base_scan_pipeline,
 )
 
-
-ETF_KEYWORDS = (
-    " ETF",
-    " TRUST",
-    " FUND",
-    " ISHARES",
-    " SPDR",
-    " VANGUARD",
-    " INVESCO",
-    " PROSHARES",
-    " DIREXION",
-    " GLOBAL X",
-    " WISDOMTREE",
-    " VANECK",
-    " ETN",
-)
 
 DERIVED_FIELD_NOTES = {
     "asset_type": "Derived heuristically from company_name ETF/fund keywords; defaults to stock when no ETF marker is present.",
@@ -43,32 +30,6 @@ DERIVED_FIELD_NOTES = {
     "history_coverage_days_20d": "Derived as trailing daily_bars row count up to the selected asof_date, capped at 20 sessions.",
     "adv_dollar_rth_20d": "Derived as mean(close * volume) over trailing daily_bars rows up to the selected asof_date, capped at 20 sessions.",
 }
-
-
-@dataclass(frozen=True)
-class MappingStatus:
-    field: str
-    status: str
-    source_sheet: str
-    source_columns: list[str]
-    note: str
-
-
-def infer_asset_type(company_name: str) -> str:
-    upper_name = str(company_name or "").upper()
-    return "etf" if any(keyword in upper_name for keyword in ETF_KEYWORDS) else "stock"
-
-
-def infer_universe_bucket(asset_type: str, market_cap: float | None) -> str:
-    if asset_type == "etf":
-        return "us_etf"
-    if market_cap is None or pd.isna(market_cap):
-        return "us_unknown"
-    if market_cap >= 10_000_000_000:
-        return "us_largecap"
-    if market_cap >= 2_000_000_000:
-        return "us_midcap"
-    return "us_smallcap"
 
 
 def load_workbook_frames(path: Path) -> dict[str, pd.DataFrame]:
@@ -254,7 +215,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--write-xlsx", action="store_true", help="Also emit an .xlsx base workbook for bundle/scan generation")
     parser.add_argument("--library-owner", default="preuss_steffen", help="TradingView owner for the generated library import path metadata")
     parser.add_argument("--library-version", type=int, default=1, help="TradingView library version for generated import metadata")
-    parser.add_argument("--schema", type=Path, default=Path("schema/schema.json"), help="Path to the microstructure schema")
+    from scripts.smc_schema_resolver import resolve_microstructure_schema_path
+    parser.add_argument("--schema", type=Path, default=resolve_microstructure_schema_path(), help="Path to the microstructure schema")
     parser.add_argument("--asof-date", help="Optional YYYY-MM-DD trade date to extract; defaults to the latest workbook trade_date")
     parser.add_argument("--output-csv", type=Path, help="Output path for the generated partial base snapshot CSV")
     parser.add_argument("--report-md", type=Path, help="Output path for the markdown mapping report")

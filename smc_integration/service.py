@@ -226,6 +226,9 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "structure_qualifiers": structure_qualifiers,
         "session_context": session_context,
         "htf_context": htf_context,
+        "meta_domains_present": raw_meta.get("meta_domains_present", []),
+        "meta_domains_missing": raw_meta.get("meta_domains_missing", []),
+        "meta_domain_diagnostics": raw_meta.get("meta_domain_diagnostics", {}),
     }
     if structure_context is not None:
         out["structure_context"] = structure_context
