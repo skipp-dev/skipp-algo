@@ -5182,5 +5182,19 @@ def run_streamlit_app() -> None:
             st.caption("No actions executed in this session yet.")
 
 
+# ── Canonical sources ──────────────────────────────────────────────────────
+#
+# The following function clusters have been extracted into dedicated modules:
+#
+#   databento_client.py   — SDK import, client construction, TLS, retry
+#   databento_session.py  — WindowDefinition, market-relative window builders
+#   databento_universe.py — universe resolution (FMP / Nasdaq Trader / probe)
+#
+# The definitions in THIS file are retained so that existing
+# ``from databento_volatility_screener import X`` statements and
+# monkey-patch targets continue to resolve.  New consumers should
+# import from the extracted modules directly.
+
+
 if __name__ == "__main__" and sys.argv and sys.argv[0].endswith("databento_volatility_screener.py"):
     run_streamlit_app()

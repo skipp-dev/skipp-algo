@@ -68,7 +68,7 @@ class DabentoProvider:
     def __init__(self, api_key: str | None = None) -> None:
         # Lazy import so the databento package is only required when
         # this provider is actually instantiated.
-        from databento_volatility_screener import _make_databento_client
+        from databento_client import _make_databento_client
         self._client = _make_databento_client(api_key)
 
     # -- protocol methods --------------------------------------------------
@@ -83,7 +83,7 @@ class DabentoProvider:
         start: str,
         end: str,
     ) -> Any:
-        from databento_volatility_screener import _databento_get_range_with_retry
+        from databento_client import _databento_get_range_with_retry
         return _databento_get_range_with_retry(
             self._client,
             context=context,
@@ -95,7 +95,7 @@ class DabentoProvider:
         )
 
     def get_schema_available_end(self, dataset: str, schema: str) -> pd.Timestamp | None:
-        from databento_volatility_screener import _get_schema_available_end
+        from databento_client import _get_schema_available_end
         return _get_schema_available_end(self._client, dataset, schema)
 
     def list_datasets(self) -> list[str]:
