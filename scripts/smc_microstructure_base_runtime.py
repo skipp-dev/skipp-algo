@@ -183,7 +183,12 @@ def evaluate_micro_library_publish_guard(
 
     contract["owner_version_ready"] = True
     try:
-        verify_publish_contract(Path(contract["manifest_path"]), repo_root / "SMC_Core_Engine.pine")
+        from scripts.smc_micro_validator import validate_publish_readiness
+
+        validate_publish_readiness(
+            manifest_path=Path(contract["manifest_path"]),
+            core_path=repo_root / "SMC_Core_Engine.pine",
+        )
     except Exception as exc:
         contract["full_contract_ready"] = False
         return {

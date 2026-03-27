@@ -712,69 +712,43 @@ def run_generation(
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
 ) -> dict[str, Path]:
+    """Orchestrate generate → validate → publish in sequence.
+
+    This is the backward-compatible entry point.  For finer control,
+    use :mod:`scripts.smc_micro_generator`,
+    :mod:`scripts.smc_micro_validator`, and
+    :mod:`scripts.smc_micro_publisher` directly.
+    """
+    from scripts.smc_micro_generator import generate
+    from scripts.smc_micro_publisher import publish_generation_result
+    from scripts.smc_micro_validator import validate_generation_input
+
     root = output_root or Path(".")
     schema = load_schema(schema_path)
     raw_df = pd.read_csv(input_path)
     df = coerce_input_frame(raw_df)
-    validate_schema(df, schema)
-    df = add_bucket_features(df, schema)
-    df = apply_candidate_rules(df, schema)
 
-    asof_date = str(df["asof_date"].iloc[0])
-    outputs = schema["generator_outputs"]
-    state_path = root / outputs["state_csv"]
-    features_path = render_output_path(root, outputs["features_csv"], asof_date)
-    lists_path = render_output_path(root, outputs["lists_csv"], asof_date)
-    diff_report_path = render_output_path(root, outputs["diff_report_md"], asof_date)
-    pine_path = root / outputs["pine_library"]
-    manifest_path = root / outputs["manifest_json"]
-    core_import_snippet_path = root / outputs["core_import_snippet"]
+    # 1. Validate
+    validate_generation_input(df, schema)
 
-    previous_state = load_state(state_path)
-    state = update_membership_state(df, previous_state, asof_date, schema)
-    overrides = load_overrides(overrides_path, asof_date)
-    state = apply_overrides(state, overrides, asof_date)
-    lists = build_lists_from_state(state)
-
-    features_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(features_path, index=False)
-    state.to_csv(state_path, index=False)
-    write_lists_csv(lists_path, state, asof_date)
-    write_diff_report(diff_report_path, previous_state, state, asof_date)
-    write_pine_library(pine_path, lists, asof_date, df["symbol"].nunique())
-    recommended_import_path = write_core_import_snippet(
-        core_import_snippet_path,
-        library_owner=library_owner,
-        library_name="smc_micro_profiles_generated",
-        library_version=library_version,
-    )
-    write_manifest(
-        manifest_path,
-        asof_date=asof_date,
-        input_path=input_path,
+    # 2. Generate (pure computation)
+    state_path_resolved = root / schema["generator_outputs"]["state_csv"]
+    result = generate(
+        schema=schema,
+        input_df=df,
         schema_path=schema_path,
-        features_path=features_path,
-        lists_path=lists_path,
-        state_path=state_path,
-        diff_report_path=diff_report_path,
-        pine_path=pine_path,
-        core_import_snippet_path=core_import_snippet_path,
-        universe_size=df["symbol"].nunique(),
-        lists=lists,
+        input_path=input_path,
+        state_path=state_path_resolved if state_path_resolved.exists() else None,
+        overrides_path=overrides_path,
+    )
+
+    # 3. Publish (file I/O)
+    return publish_generation_result(
+        result,
+        output_root=root,
         library_owner=library_owner,
         library_version=library_version,
-        recommended_import_path=recommended_import_path,
     )
-    return {
-        "features_path": features_path,
-        "lists_path": lists_path,
-        "state_path": state_path,
-        "diff_report_path": diff_report_path,
-        "pine_path": pine_path,
-        "manifest_path": manifest_path,
-        "core_import_snippet_path": core_import_snippet_path,
-    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -808,10 +782,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     if args.assess_input is not None:
+        from scripts.smc_micro_publisher import publish_readiness_report
+        from scripts.smc_micro_validator import assess_input_coverage
+
         schema = load_schema(args.schema)
-        assessment = assess_csv_against_schema(schema, args.assess_input)
+        assessment = assess_input_coverage(schema, args.assess_input)
         output_path = args.assess_output or Path("reports") / f"{args.assess_input.stem}_microstructure_readiness.md"
-        write_readiness_report(output_path, assessment)
+        publish_readiness_report(assessment, output_path=output_path)
         return
     run_generation(
         schema_path=args.schema,
