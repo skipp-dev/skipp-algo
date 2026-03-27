@@ -1,0 +1,122 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+library("skipp_math", overlay = true)
+
+// --------------------------------------------------
+// Constants
+// --------------------------------------------------
+
+export PROB_EPS()    => 0.0001
+export LOGIT_CLAMP() => 20.0
+export PRICE_EPS()   => 0.0001
+export Z_95()        => 1.96
+
+// --------------------------------------------------
+// Clamping
+// --------------------------------------------------
+
+export clamp01(float x) =>
+    math.max(0.0, math.min(1.0, x))
+
+export clamp(float val, float lo, float hi) =>
+    math.max(lo, math.min(hi, val))
+
+export eps_clamp(float p) =>
+    float eps = PROB_EPS()
+    math.max(eps, math.min(1.0 - eps, p))
+
+// --------------------------------------------------
+// Probability / logit
+// --------------------------------------------------
+
+export logit(float p) =>
+    float pc = math.max(PROB_EPS(), math.min(1.0 - PROB_EPS(), p))
+    math.max(-LOGIT_CLAMP(), math.min(LOGIT_CLAMP(), math.log(pc / (1.0 - pc))))
+
+export sigmoid(float x) =>
+    x < -500.0 ? 0.0 : x > 500.0 ? 1.0 : 1.0 / (1.0 + math.exp(-x))
+
+export platt_prob(float pRaw, float a, float b) =>
+    sigmoid(a * logit(pRaw) + b)
+
+export safe_log(float p) =>
+    math.log(math.max(PROB_EPS(), p))
+
+// --------------------------------------------------
+// Percentile / rank
+// --------------------------------------------------
+
+export pct_rank(series float x, simple int len) =>
+    float lo = ta.lowest(x, len)
+    float hi = ta.highest(x, len)
+    hi == lo ? 0.5 : (x - lo) / (hi - lo)
+
+// --------------------------------------------------
+// Statistics
+// --------------------------------------------------
+
+export ci95_halfwidth(float p, float n) =>
+    if na(p) or na(n) or n <= 0.0
+        float(na)
+    else
+        float z2  = Z_95() * Z_95()
+        float den = 1.0 + z2 / n
+        float half = (Z_95() * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
+        half
+
+export brier(float p, float y) =>
+    float d = p - y
+    d * d
+
+export logloss(float p, float y) =>
+    float pc = eps_clamp(p)
+    if na(pc) or na(y)
+        float(na)
+    else
+        -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
+
+// --------------------------------------------------
+// Array safety
+// --------------------------------------------------
+
+export safe_remove_float(float[] arr, int idx) =>
+    if idx >= 0 and idx < array.size(arr)
+        array.remove(arr, idx)
+
+export safe_remove_int(int[] arr, int idx) =>
+    if idx >= 0 and idx < array.size(arr)
+        array.remove(arr, idx)
+
+export safe_remove_bool(bool[] arr, int idx) =>
+    if idx >= 0 and idx < array.size(arr)
+        array.remove(arr, idx)
+
+export safe_get_float(float[] arr, int idx, float fallback) =>
+    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+
+export safe_get_int(int[] arr, int idx, int fallback) =>
+    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+
+export safe_get_bool(bool[] arr, int idx, bool fallback) =>
+    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+
+// --------------------------------------------------
+// Misc helpers
+// --------------------------------------------------
+
+export min_sec(float a, float b) =>
+    na(a) ? b : na(b) ? a : math.min(a, b)
+
+export soft(bool x) =>
+    (x == true) ? true : (x == false) ? false : true
+
+export fail_open(bool _cond) =>
+    _cond == true ? true : (_cond == false) ? false : true
+
+export score_add(bool cond, int points) =>
+    cond ? points : 0
+
+export penalty(bool cond, int penalties) =>
+    cond ? penalties : 0

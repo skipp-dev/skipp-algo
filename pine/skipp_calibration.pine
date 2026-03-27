@@ -1,0 +1,267 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+library("skipp_calibration", overlay = true)
+
+import preuss_steffen/skipp_math/1 as m
+
+// --------------------------------------------------
+// Rolling accumulators
+// --------------------------------------------------
+
+// @function Add value to rolling buffer with running sum recalculation guard
+export roll_add(float[] buf, float[] sumArr, float v, int maxLen, int recalcInterval) =>
+    array.push(buf, v)
+    array.set(sumArr, 0, array.get(sumArr, 0) + v)
+    if array.size(buf) > maxLen
+        float old = array.shift(buf)
+        array.set(sumArr, 0, array.get(sumArr, 0) - old)
+    if bar_index % recalcInterval == 0 and array.size(buf) > 0
+        array.set(sumArr, 0, array.sum(buf))
+
+// @function Update accumulator stats (sum + count)
+export update_accum_stats(float[] statsArr, float val) =>
+    if not na(val)
+        float curSum = array.get(statsArr, 0)
+        float curCnt = array.get(statsArr, 1)
+        array.set(statsArr, 0, curSum + val)
+        array.set(statsArr, 1, curCnt + 1.0)
+
+// @function Reset single-element sum arrays safely
+export reset_sum1(float[] sumArr) =>
+    if array.size(sumArr) == 0
+        array.push(sumArr, 0.0)
+    else
+        array.set(sumArr, 0, 0.0)
+
+// --------------------------------------------------
+// 3-way probability
+// --------------------------------------------------
+
+// @function 3-way posterior with Laplace smoothing
+export prob3(float u, float f, float d, float n, float alpha) =>
+    float denom = n + 3.0 * alpha
+    if denom == 0.0
+        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
+    else
+        [(u + alpha) / denom, (f + alpha) / denom, (d + alpha) / denom]
+
+// @function Binary posterior with Laplace smoothing
+export prob(float up, float n, float alpha) =>
+    float denom = n + 2.0 * alpha
+    denom == 0.0 ? 0.5 : (up + alpha) / denom
+
+// @function Softmax over 3 logits (numerically stable)
+export softmax3(float zU, float zF, float zD) =>
+    float zMax = math.max(zU, math.max(zF, zD))
+    float eU = math.exp(zU - zMax)
+    float eF = math.exp(zF - zMax)
+    float eD = math.exp(zD - zMax)
+    float s = eU + eF + eD
+    if s == 0.0
+        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
+    else
+        [eU / s, eF / s, eD / s]
+
+// --------------------------------------------------
+// 3-way scoring
+// --------------------------------------------------
+
+// @function 3-way Brier score
+export brier3(float pU, float pF, float pD, int outcome) =>
+    float yU = outcome == 1  ? 1.0 : 0.0
+    float yF = outcome == 0  ? 1.0 : 0.0
+    float yD = outcome == -1 ? 1.0 : 0.0
+    ((pU - yU) * (pU - yU) + (pF - yF) * (pF - yF) + (pD - yD) * (pD - yD)) / 3.0
+
+// @function 3-way log-loss
+export logloss3(float pU, float pF, float pD, int outcome) =>
+    float pTrue = outcome == 1 ? pU : outcome == 0 ? pF : pD
+    -math.log(m.eps_clamp(pTrue))
+
+// --------------------------------------------------
+// Calibration count updates
+// --------------------------------------------------
+
+// @function Decay all calibration bin counts by factor
+export decay_counts(float[] cntArr, float[] upArr, float[] dnArr, float decay) =>
+    if decay < 0.9999
+        for i = 0 to array.size(cntArr) - 1
+            array.set(cntArr, i, array.get(cntArr, i) * decay)
+            array.set(upArr,  i, array.get(upArr,  i) * decay)
+            array.set(dnArr,  i, array.get(dnArr,  i) * decay)
+
+// @function Update 3-way calibration counts
+export cal_update3(float[] cntArr, float[] upArr, float[] dnArr, float bin, int outcome) =>
+    if na(bin) or array.size(cntArr) == 0
+        na
+    else
+        int b = int(bin)
+        int maxIdx = array.size(cntArr) - 1
+        b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
+        float n0 = array.get(cntArr, b)
+        float u0 = array.get(upArr,  b)
+        float d0 = array.get(dnArr,  b)
+        array.set(cntArr, b, n0 + 1.0)
+        array.set(upArr,  b, u0 + (outcome == 1 ? 1.0 : 0.0))
+        array.set(dnArr,  b, d0 + (outcome == -1 ? 1.0 : 0.0))
+
+// @function Rolling calibration update for binary calibration
+export cal_roll_update(int[] calCnt, float[] calSumP, float[] calSumY,
+     int[] bBuf, float[] pBuf, float[] yBuf,
+     float p, float y, int maxLen) =>
+    int B = array.size(calCnt)
+    int bi = m.safe_get_int(array.new_int(1, int(math.floor(p * B))), 0, 0)
+    bi := bi < 0 ? 0 : bi > (B - 1) ? (B - 1) : bi
+    array.push(bBuf, bi)
+    array.push(pBuf, p)
+    array.push(yBuf, y)
+    array.set(calCnt,  bi, array.get(calCnt,  bi) + 1)
+    array.set(calSumP, bi, array.get(calSumP, bi) + p)
+    array.set(calSumY, bi, array.get(calSumY, bi) + y)
+    if array.size(bBuf) > maxLen
+        int bOld = array.shift(bBuf)
+        float pOld = array.shift(pBuf)
+        float yOld = array.shift(yBuf)
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+// @function Rolling calibration update for 3-way calibration
+export cal_roll_update3(int[] calCnt, float[] calSumP, float[] calSumY,
+     int[] bBuf, float[] pBuf, float[] yBuf,
+     float pU, float pF, float pD, int outcome,
+     int evalBuckets, int maxLen) =>
+    int B = evalBuckets
+    float yU = outcome == 1  ? 1.0 : 0.0
+    float yF = outcome == 0  ? 1.0 : 0.0
+    float yD = outcome == -1 ? 1.0 : 0.0
+    int biU = int(math.floor(pU * B))
+    biU := biU < 0 ? 0 : biU > (B - 1) ? (B - 1) : biU
+    int biF = int(math.floor(pF * B))
+    biF := biF < 0 ? 0 : biF > (B - 1) ? (B - 1) : biF
+    int biD = int(math.floor(pD * B))
+    biD := biD < 0 ? 0 : biD > (B - 1) ? (B - 1) : biD
+    int idxU = 0 * B + biU
+    int idxF = 1 * B + biF
+    int idxD = 2 * B + biD
+    array.push(bBuf, idxU), array.push(pBuf, pU), array.push(yBuf, yU)
+    array.push(bBuf, idxF), array.push(pBuf, pF), array.push(yBuf, yF)
+    array.push(bBuf, idxD), array.push(pBuf, pD), array.push(yBuf, yD)
+    array.set(calCnt,  idxU, array.get(calCnt,  idxU) + 1)
+    array.set(calSumP, idxU, array.get(calSumP, idxU) + pU)
+    array.set(calSumY, idxU, array.get(calSumY, idxU) + yU)
+    array.set(calCnt,  idxF, array.get(calCnt,  idxF) + 1)
+    array.set(calSumP, idxF, array.get(calSumP, idxF) + pF)
+    array.set(calSumY, idxF, array.get(calSumY, idxF) + yF)
+    array.set(calCnt,  idxD, array.get(calCnt,  idxD) + 1)
+    array.set(calSumP, idxD, array.get(calSumP, idxD) + pD)
+    array.set(calSumY, idxD, array.get(calSumY, idxD) + yD)
+    int maxLen3 = maxLen * 3
+    while array.size(bBuf) > maxLen3
+        int bOld = array.shift(bBuf)
+        float pOld = array.shift(pBuf)
+        float yOld = array.shift(yBuf)
+        array.set(calCnt,  bOld, math.max(0, array.get(calCnt,  bOld) - 1))
+        array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
+        array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
+
+// --------------------------------------------------
+// Blending
+// --------------------------------------------------
+
+// @function Blend posterior with prior using sample-weight ramp
+export blend_prior(float pU, float pF, float pD,
+     float pUpr, float pFpr, float pDpr,
+     float nRaw, int calMinSamples) =>
+    float eff = na(nRaw) ? 0.0 : nRaw
+    float w = calMinSamples <= 0 ? 1.0 : math.min(1.0, math.max(0.0, eff / calMinSamples))
+    [pU * w + pUpr * (1.0 - w),
+     pF * w + pFpr * (1.0 - w),
+     pD * w + pDpr * (1.0 - w)]
+
+// --------------------------------------------------
+// Eval stats
+// --------------------------------------------------
+
+// @function Compute Brier, LogLoss, ECE, drift from rolling buffers
+export eval_stats_one(float[] brierBuf, float[] sumBrier, float[] logBuf, float[] sumLog,
+     float[] ySBuf, float[] sumYS, float[] yLBuf, float[] sumYL,
+     int[] calCnt, float[] calSumP, float[] calSumY, int evalBuckets) =>
+    int nScore = array.size(brierBuf)
+    float brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
+    float logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
+    int nS = array.size(ySBuf)
+    int nL = array.size(yLBuf)
+    float wS = nS == 0 ? na : array.get(sumYS, 0) / nS
+    float wL = nL == 0 ? na : array.get(sumYL, 0) / nL
+    float drift = (na(wS) or na(wL)) ? na : (wS - wL)
+    float ece = float(na)
+    float maxErr = float(na)
+    int B = evalBuckets
+    int sizeCnt = array.size(calCnt)
+    if sizeCnt == B
+        int tot = 0
+        for i = 0 to sizeCnt - 1
+            tot += array.get(calCnt, i)
+        if tot > 0
+            float e = 0.0
+            float mx = 0.0
+            for i = 0 to sizeCnt - 1
+                int c = array.get(calCnt, i)
+                if c > 0
+                    float ap = array.get(calSumP, i) / c
+                    float ay = array.get(calSumY, i) / c
+                    float err = math.abs(ap - ay)
+                    e += err * (c / tot)
+                    mx := math.max(mx, err)
+            ece := e
+            maxErr := mx
+    else if sizeCnt == B * 3
+        float eTot = 0.0
+        float mTot = 0.0
+        for cls = 0 to 2
+            int totC = 0
+            for i = 0 to B - 1
+                totC += array.get(calCnt, cls * B + i)
+            if totC > 0
+                float eC = 0.0
+                float mC = 0.0
+                for i = 0 to B - 1
+                    int idx = cls * B + i
+                    int c = array.get(calCnt, idx)
+                    if c > 0
+                        float ap = array.get(calSumP, idx) / c
+                        float ay = array.get(calSumY, idx) / c
+                        float err = math.abs(ap - ay)
+                        eC += err * (c / totC)
+                        mC := math.max(mC, err)
+                eTot += eC
+                mTot := math.max(mTot, mC)
+        ece := eTot / 3.0
+        maxErr := mTot
+    [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
+
+// @function Reliability label text based on CI-based quality
+export rel_label(float p, int nBin, int total, bool canCal, int calMinSamples) =>
+    string lbl = "off"
+    if not canCal
+        lbl := "off"
+    else if total <= 0
+        lbl := "n/a"
+    else if nBin < calMinSamples
+        lbl := "warmup"
+    else
+        float ci = m.ci95_halfwidth(p, float(nBin))
+        if na(ci)
+            lbl := "n/a"
+        else if ci < 0.05
+            lbl := "A"
+        else if ci < 0.10
+            lbl := "B"
+        else if ci < 0.20
+            lbl := "C"
+        else
+            lbl := "D"
+    lbl

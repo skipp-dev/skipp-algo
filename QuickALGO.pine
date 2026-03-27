@@ -12,6 +12,11 @@
 // v6.3.4: Final Parity Sync (Strategy Scope Fix)
 
 indicator("QuickALGO v6.3.5", overlay=true, max_labels_count=500, max_lines_count=500)
+import preuss_steffen/skipp_math/1       as m
+import preuss_steffen/skipp_scoring/1    as sc
+import preuss_steffen/skipp_indicators/1 as ind
+import preuss_steffen/skipp_calibration/1 as cal
+import preuss_steffen/skipp_labels/1     as lbl
 
 //====================
 // Inputs — Core / Engine
@@ -153,10 +158,7 @@ tfLong3       = input.timeframe("10D", "Long TF 3")
 //====================
 // Internal Global Helpers
 //====================
-f_zl_src(src, len) =>
-    e1 = ta.ema(src, len)
-    e2 = ta.ema(e1, len)
-    2.0 * e1 - e2
+f_zl_src(src, len) => ind.zl_src(src, len)
 
 tfF1 = input.timeframe("1",   "Forecast 1")   // 1M
 tfF2 = input.timeframe("5",   "Forecast 2")   // 5M
@@ -176,42 +178,9 @@ trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, s
 //====================
 // Custom Logic: Regression Slope Oscillator
 //====================
-f_log_regression_single(src, length) =>
-    if length < 2
-        0.0
-    else
-        float sumX      = 0.0
-        float sumY      = 0.0
-        float sumXSqr   = 0.0
-        float sumXY     = 0.0
-        bool failed     = false
-        for i = 0 to length - 1
-            v = src[i]
-            if na(v) or v <= 0
-                failed := true
-                break
-            val = math.log(v)
-            per = i + 1.0
-            sumX += per
-            sumY += val
-            sumXSqr += per * per
-            sumXY += val * per
-        
-        if failed
-            float(na)
-        else
-            slope = (length * sumXY - sumX * sumY) / (length * sumXSqr - sumX * sumX)
-            slope * -1
+f_log_regression_single(src, length) => ind.log_regression_single(src, length)
 
-f_calc_reg_slope_osc(src, minR, maxR, stepV) =>
-    float slopeSum = 0.0
-    int slopeCount = 0
-    for i = minR to maxR by stepV
-        res = f_log_regression_single(src, i)
-        if not na(res)
-            slopeSum += res
-            slopeCount += 1
-    slopeCount > 0 ? slopeSum / slopeCount : 0.0
+f_calc_reg_slope_osc(src, minR, maxR, stepV) => ind.calc_reg_slope_osc(src, minR, maxR, stepV)
 
 //====================
 // Constants — Avoid Magic Numbers
@@ -929,43 +898,24 @@ f_sum_int_array(a) =>
     s
 
 // --- Safe array removal helpers
-f_safe_remove_float(float[] arr, int idx) =>
-    if idx >= 0 and idx < array.size(arr)
-        array.remove(arr, idx)
+f_safe_remove_float(float[] arr, int idx) => m.safe_remove_float(float[] arr, int idx)
 
-f_safe_remove_int(int[] arr, int idx) =>
-    if idx >= 0 and idx < array.size(arr)
-        array.remove(arr, idx)
+f_safe_remove_int(int[] arr, int idx) => m.safe_remove_int(int[] arr, int idx)
 
 // --- Safe array access helpers
-f_safe_get_float(float[] arr, int idx, float fallback) =>
-    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+f_safe_get_float(float[] arr, int idx, float fallback) => m.safe_get_float(float[] arr, int idx, float fallback)
 
-f_safe_get_int(int[] arr, int idx, int fallback) =>
-    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+f_safe_get_int(int[] arr, int idx, int fallback) => m.safe_get_int(int[] arr, int idx, int fallback)
 
-f_safe_remove_bool(bool[] arr, int idx) =>
-    if idx >= 0 and idx < array.size(arr)
-        array.remove(arr, idx)
+f_safe_remove_bool(bool[] arr, int idx) => m.safe_remove_bool(bool[] arr, int idx)
 
-f_safe_get_bool(bool[] arr, int idx, bool fallback) =>
-    idx >= 0 and idx < array.size(arr) ? array.get(arr, idx) : fallback
+f_safe_get_bool(bool[] arr, int idx, bool fallback) => m.safe_get_bool(bool[] arr, int idx, bool fallback)
 
 // --- Update quantile cutpoints (score dimension)
-f_fill_cuts(sorted, cuts, bins) =>
-    cutCount = bins - 1
-    if cutCount > 0
-        n = array.size(sorted)
-        for i = 0 to cutCount - 1
-            frac = (i + 1.0) / bins
-            idx = int(math.floor(frac * (n - 1)))
-            array.set(cuts, i, array.get(sorted, idx))
+f_fill_cuts(sorted, cuts, bins) => sc.fill_cuts(sorted, cuts, bins)
 
 // Forecast binning / calibration
-f_bin(score, bins) =>
-    u = (score + 1.0) * 0.5
-    b = int(math.floor(u * bins))
-    b < 0 ? 0 : b > (bins - 1) ? (bins - 1) : b
+f_bin(score, bins) => sc.bin(score, bins)
 
 // Quantile cutpoints are recalculated every `quantileUpdate` bars once
 // `quantileMinSamples` scores have been collected. Until then, uniform
@@ -994,32 +944,13 @@ f_bin_quantile(score, cuts, bins) =>
                 b := i + 1
         math.max(0, math.min(bins - 1, b))
 
-f_regime_bin(trendScore) =>
-    trendScore > 0.5 ? 2 : trendScore < -0.5 ? 0 : 1
+f_regime_bin(trendScore) => sc.regime_bin(trendScore)
 
 // --- 95% CI half-width (approx) for Bernoulli p with n samples
-f_ci95_halfwidth(p, n) =>
-    if na(p) or na(n) or n <= 0
-        na
-    else
-        z2 = Z_95 * Z_95
-        den = 1.0 + z2 / n
-        half = (Z_95 * math.sqrt((p * (1.0 - p) / n) + (z2 / (4.0 * n * n)))) / den
-        half
+f_ci95_halfwidth(p, n) => m.ci95_halfwidth(p, n)
 
 // --- Reliability label based on CI half-width
-f_rel_label(p, nBin, total, canCal) =>
-    string lbl = "off"
-    if not canCal
-        lbl := "off"
-    else if total <= 0
-        lbl := "n/a"
-    else if nBin < calMinSamples
-        lbl := "warmup"
-    else
-        hw = f_ci95_halfwidth(p, nBin)
-        lbl := na(hw) ? "warmup" : hw <= HW_STRONG ? "strong" : hw <= HW_OK ? "ok" : "weak"
-    lbl
+f_rel_label(p, nBin, total, canCal) => cal.rel_label(p, nBin, total, canCal, calMinSamples)
 
 //====================
 // Forecast display helpers (human formatting)
@@ -1032,56 +963,23 @@ f_rel_label(p, nBin, total, canCal) =>
 //====================
 // Helpers — Evaluation (proper scoring + rolling stats)
 //====================
-f_epsClamp(p) =>
-    eps = PROB_EPS
-    math.max(eps, math.min(1.0 - eps, p))
+f_epsClamp(p) => m.eps_clamp(p)
 
-f_brier(p, y) =>
-    // y in {0.0, 1.0}
-    d = p - y
-    d * d
+f_brier(p, y) => m.brier(p, y)
 
-f_logloss(p, y) =>
-    // y in {0.0, 1.0}
-    pc = f_epsClamp(p)
-    if na(pc) or na(y)
-        float(na)
-    else
-        -(y * math.log(pc) + (1.0 - y) * math.log(1.0 - pc))
+f_logloss(p, y) => m.logloss(p, y)
 
-f_update_accum_stats(statsArr, val) =>
-    if not na(val)
-        curSum = array.get(statsArr, 0)
-        curCnt = array.get(statsArr, 1)
-        array.set(statsArr, 0, curSum + val)
-        array.set(statsArr, 1, curCnt + 1.0)
+f_update_accum_stats(statsArr, val) => cal.update_accum_stats(statsArr, val)
 
-f_roll_add(buf, sumArr, v, maxLen) =>
-    array.push(buf, v)
-    array.set(sumArr, 0, array.get(sumArr, 0) + v)
-    if array.size(buf) > maxLen
-        old = array.shift(buf)
-        array.set(sumArr, 0, array.get(sumArr, 0) - old)
-    // Periodic recalculation to prevent floating-point drift
-    if bar_index % ROLL_RECALC_INTERVAL == 0 and array.size(buf) > 0
-        array.set(sumArr, 0, array.sum(buf))
+f_roll_add(buf, sumArr, v, maxLen) => cal.roll_add(buf, sumArr, v, maxLen, ROLL_RECALC_INTERVAL)
 
 // @function Reset single-element sum arrays safely
 // @param sumArr Single-element array holding running sum
-f_reset_sum1(sumArr) =>
-    if array.size(sumArr) == 0
-        array.push(sumArr, 0.0)
-    else
-        array.set(sumArr, 0, 0.0)
+f_reset_sum1(sumArr) => cal.reset_sum1(sumArr)
 
-f_bucket(p, B) =>
-    // p in [0,1], B buckets
-    b = int(math.floor(p * B))
-    b < 0 ? 0 : b > (B - 1) ? (B - 1) : b
+f_bucket(p, B) => sc.bucket(p, B)
 
-f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
-    B = array.size(calCnt)
-    bi = f_bucket(p, B)
+f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) => cal.cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen)
 
     // push
     array.push(bBuf, bi)
@@ -1103,11 +1001,7 @@ f_cal_roll_update(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, p, y, maxLen) =>
         array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
         array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
 
-f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) =>
-    B = evalBuckets
-    yU = outcome == 1 ? 1.0 : 0.0
-    yF = outcome == 0 ? 1.0 : 0.0
-    yD = outcome == -1 ? 1.0 : 0.0
+f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen) => cal.cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outcome, maxLen, evalBuckets)
 
     biU = f_bucket(pU, B)
     biF = f_bucket(pF, B)
@@ -1143,10 +1037,7 @@ f_cal_roll_update3(calCnt, calSumP, calSumY, bBuf, pBuf, yBuf, pU, pF, pD, outco
         array.set(calSumP, bOld, array.get(calSumP, bOld) - pOld)
         array.set(calSumY, bOld, array.get(calSumY, bOld) - yOld)
 
-f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) =>
-    nScore = array.size(brierBuf)
-    brierAvg = nScore == 0 ? na : array.get(sumBrier, 0) / nScore
-    logAvg   = nScore == 0 ? na : array.get(sumLog,   0) / nScore
+f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY) => cal.eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL, calCnt, calSumP, calSumY, evalBuckets)
 
     nS = array.size(ySBuf)
     nL = array.size(yLBuf)
@@ -1202,19 +1093,13 @@ f_eval_stats_one(brierBuf, sumBrier, logBuf, sumLog, ySBuf, sumYS, yLBuf, sumYL,
 
     [brierAvg, logAvg, ece, maxErr, wS, wL, drift, nScore]
 
-f_clamp01(x) =>
-    math.max(0.0, math.min(1.0, x))
+f_clamp01(x) => m.clamp01(x)
 
-f_clamp(val, lo, hi) =>
-    math.max(lo, math.min(hi, val))
+f_clamp(val, lo, hi) => m.clamp(val, lo, hi)
 
-f_pct_rank(x, len) =>
-    lo = ta.lowest(x, len)
-    hi = ta.highest(x, len)
-    hi == lo ? 0.5 : (x - lo) / (hi - lo)
+f_pct_rank(x, len) => m.pct_rank(x, len)
 
-f_min_sec(a, b) =>
-    na(a) ? b : na(b) ? a : math.min(a, b)
+f_min_sec(a, b) => m.min_sec(a, b)
 
 f_forecast_allowed() =>
     baseSec = timeframe.in_seconds(timeframe.period)
@@ -1257,16 +1142,9 @@ f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
 // D1 – Continuous trend strength [-1, 1] (smooth alternative to discrete f_trend_regime)
-f_trend_strength(emaF, emaS) =>
-    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
-    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH, PRICE_EPS)))
+f_trend_strength(emaF, emaS) => sc.trend_strength(emaF, emaS)
 
-f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
-    // B1 – Continuous trend: smooth EMA gap vs binary
-    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
-    mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
-    loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
-    f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
+f_state_score(c, emaF_tf, emaS_tf, r_tf) => sc.state_score(c, emaF_tf, emaS_tf, r_tf, useSmoothTrend)
 
 f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
     t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
@@ -1288,53 +1166,25 @@ f_get_params(tf) =>
      isFast ? slATRF    : isMid ? slATRM    : slATRS]
 
 // --- Phase 4 Helpers: Platt Scaling ---
-f_logit(p) =>
-    pc = math.max(PROB_EPS, math.min(1.0 - PROB_EPS, p))
-    // Clamp output to prevent extreme values
-    math.max(-LOGIT_CLAMP, math.min(LOGIT_CLAMP, math.log(pc / (1.0 - pc))))
+f_logit(p) => m.logit(p)
 
-f_sigmoid(x) =>
-    // Prevent overflow for extreme x values
-    x < -500 ? 0.0 : x > 500 ? 1.0 : 1.0 / (1.0 + math.exp(-x))
+f_sigmoid(x) => m.sigmoid(x)
 
-f_platt_prob(pRaw, a, b) =>
-    usePlatt ? f_sigmoid(a * f_logit(pRaw) + b) : pRaw
+f_platt_prob(pRaw, a, b) => m.platt_prob(pRaw, a, b)
 
 // --- Phase 3 Helpers: Ensemble ---
-f_pullback_score(c, ef, es, bias) =>
-    // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
-    // Bias -1 (Bear): mirror logic
-    bias == 1 ? (c > ef ? 0.5 : c > es ? 1.0 : -1.0) : bias == -1 ? (c < ef ? 0.5 : c < es ? 1.0 : -1.0) : 0.0
+f_pullback_score(c, ef, es, bias) => sc.pullback_score(c, ef, es, bias)
 
-f_trend_regime(emaF, emaS, atrNorm) =>
-    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
-    isSideways = math.abs(emaDiff) < SIDEWAYS_EMA_THRESH and atrNorm < SIDEWAYS_ATR_THRESH
-    isBull = emaF > emaS and not isSideways
-    isBear = emaF < emaS and not isSideways
-    isBull ? 1.0 : isBear ? -1.0 : 0.0
+f_trend_regime(emaF, emaS, atrNorm) => sc.trend_regime(emaF, emaS, atrNorm)
 
 // Extended ensemble with trend regime (4 factors)
-f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
-    num = wA * sA + wB * sB + wC * sC + wD * sD
-    den = wA + wB + wC + wD
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
+f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) => sc.ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)
 
 // B2 – ROC (Rate of Change) score: momentum via price change [-1, 1]
-f_roc_score(c, rocL) =>
-    roc = ta.roc(c, rocL)
-    r = na(roc) ? 0.0 : roc
-    // Normalise: ±5% => ±1
-    math.max(-1.0, math.min(1.0, r / 5.0))
+f_roc_score(c, rocL) => sc.roc_score(c, rocL)
 
 // B4 – Volume score: above/below SMA [-1, 1]
-f_vol_score(vol, volSmaLen) =>
-    sma = ta.sma(vol, volSmaLen)
-    if na(vol) or vol == 0
-        0.0
-    else
-        ratio = na(sma) or sma == 0.0 ? 0.0 : (vol / sma - 1.0)
-        math.max(-1.0, math.min(1.0, ratio))
+f_vol_score(vol, volSmaLen) => sc.vol_score(vol, volSmaLen)
 
 
 f_tf_pack(tf) =>
@@ -1373,40 +1223,15 @@ f_db_mult(tf) =>
 f_outcome3(delta, db) =>
     delta > db ? 1 : delta < -db ? -1 : 0
 
-f_bias_from_score(score) =>
-    score > 0 ? 1 : score < 0 ? -1 : 0
+f_bias_from_score(score) => sc.bias_from_score(score)
 
-f_is_bull_bias(score, emaF_tf, emaS_tf) =>
-    b = f_bias_from_score(score)
-    b == 0 ? (emaF_tf >= emaS_tf) : b == 1
+f_is_bull_bias(score, emaF_tf, emaS_tf) => sc.is_bull_bias(score, emaF_tf, emaS_tf)
 
-f_decay_counts(cntArr, upArr, dnArr, decay) =>
-    if decay < 0.9999
-        for i = 0 to array.size(cntArr) - 1
-            array.set(cntArr, i, array.get(cntArr, i) * decay)
-            array.set(upArr,  i, array.get(upArr,  i) * decay)
-            array.set(dnArr,  i, array.get(dnArr,  i) * decay)
+f_decay_counts(cntArr, upArr, dnArr, decay) => cal.decay_counts(cntArr, upArr, dnArr, decay)
 
-f_cal_update3(cntArr, upArr, dnArr, bin, outcome) =>
-    if na(bin) or array.size(cntArr) == 0
-        na
-    else
-        b = int(bin)
-        maxIdx = array.size(cntArr) - 1
-        b := b < 0 ? 0 : b > maxIdx ? maxIdx : b
-        n0 = array.get(cntArr, b)
-        u0 = array.get(upArr,  b)
-        d0 = array.get(dnArr,  b)
-        array.set(cntArr, b, n0 + 1.0)
-        array.set(upArr,  b, u0 + (outcome == 1 ? 1.0 : 0.0))
-        array.set(dnArr,  b, d0 + (outcome == -1 ? 1.0 : 0.0))
+f_cal_update3(cntArr, upArr, dnArr, bin, outcome) => cal.cal_update3(cntArr, upArr, dnArr, bin, outcome)
 
-f_prob3(u, f, d, n, alpha) =>
-    denom = n + 3.0 * alpha
-    if denom == 0.0
-        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
-    else
-        [(u + alpha) / denom, (f + alpha) / denom, (d + alpha) / denom]
+f_prob3(u, f, d, n, alpha) => cal.prob3(u, f, d, n, alpha)
 
 f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
     if na(bin) or array.size(cntArr) == 0
@@ -1467,19 +1292,9 @@ f_cal_cur3(cntArr, upArr, dnArr, bin, alpha, shrinkK, shrinkReg) =>
         else
             [pU / s, pF / s, pD / s, n]
 
-f_safe_log(p) =>
-    math.log(math.max(PROB_EPS, p))
+f_safe_log(p) => m.safe_log(p)
 
-f_softmax3(zU, zF, zD) =>
-    zMax = math.max(zU, math.max(zF, zD))
-    eU = math.exp(zU - zMax)
-    eF = math.exp(zF - zMax)
-    eD = math.exp(zD - zMax)
-    s = eU + eF + eD
-    if s == 0.0
-        [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0]
-    else
-        [eU / s, eF / s, eD / s]
+f_softmax3(zU, zF, zD) => cal.softmax3(zU, zF, zD)
 
 f_can_cal3(nBin) =>
     calibratorMode != "Off" and (not cal3AutoFallback or nBin >= cal3MinSamples)
@@ -1506,15 +1321,9 @@ f_cal_apply(zU, zF, zD, tempArr, aArr, bArr) =>
         zDo := aD * zD + bD
     f_softmax3(zUo, zFo, zDo)
 
-f_brier3(pU, pF, pD, outcome) =>
-    yU = outcome == 1 ? 1.0 : 0.0
-    yF = outcome == 0 ? 1.0 : 0.0
-    yD = outcome == -1 ? 1.0 : 0.0
-    ((pU - yU) * (pU - yU) + (pF - yF) * (pF - yF) + (pD - yD) * (pD - yD)) / 3.0
+f_brier3(pU, pF, pD, outcome) => cal.brier3(pU, pF, pD, outcome)
 
-f_logloss3(pU, pF, pD, outcome) =>
-    pTrue = outcome == 1 ? pU : outcome == 0 ? pF : pD
-    -math.log(f_epsClamp(pTrue))
+f_logloss3(pU, pF, pD, outcome) => cal.logloss3(pU, pF, pD, outcome)
 
 f_prior3(tf, outScore) =>
     sec = timeframe.in_seconds(tf)
@@ -3509,9 +3318,7 @@ confGate = evalSoftHit ? f_clamp01(confidence * (1.0 - evalPenalty)) : confidenc
 
 // Gate requires: Confidence Logic + MTF Vote + Macro + Drawdown (+ eval penalty)
 // Fail-Open Helper: If missing (na), assume Safe (true). Only return false if explicitly false.
-f_fail_open(bool _cond) => 
-    // Fix for "na() expects float" error in strict contexts:
-    (_cond == true) ? true : (_cond == false) ? false : true
+f_fail_open(bool _cond) => m.fail_open(bool _cond)
 
 // Fail-closed coercions: any na => deny
 // confOk      = (not na(confGate)) and (confGate >= minTrust) // REMOVED: Softened below
@@ -3886,10 +3693,7 @@ engulfShortOkSafe = (engulfShortOk == true)
 // All these were previously "Safe" (na -> false). Now convert to Fail-Open (na -> true).
 // Important: Liquidity, Momentum, USI should be primary drivers, so we keep `safe` checks only if they are critical.
 // But per request: "Features should help when present, but fail-open when absent".
-f_soft(bool x) => 
-    // Fix for "na() expects float" error in strict contexts:
-    // We check if the boolean is neither true nor false.
-    (x == true) ? true : (x == false) ? false : true
+f_soft(bool x) => m.soft(bool x)
 
 enhLongOk  = f_soft(adxOk) and f_soft(rocLongOk) and f_soft(volEnsLongOk) and f_soft(preMomLongOk) and f_soft(emaAccelLongOk) and f_soft(vwapLongOk) and f_soft(regSlopeLongOk)
 enhShortOk = f_soft(adxOk) and f_soft(rocShortOk) and f_soft(volEnsShortOk) and f_soft(preMomShortOk) and f_soft(emaAccelShortOk) and f_soft(vwapShortOk) and f_soft(regSlopeShortOk)
@@ -4527,10 +4331,7 @@ plotshape(showLongLabels and showStrictIcon and strictBuyConfirmedVis, title="ST
 plotshape(showShortLabels and showStrictIcon and strictShortConfirmedVis, title="STRICT-CONF SHORT", style=shape.triangledown, location=location.abovebar, size=size.tiny, text="S", textcolor=color.black, color=color.new(color.fuchsia, 0))
 
 // Defensive label text guard: prevents accidental oversized/raw text dumps on chart
-f_safe_label_text(txt) =>
-    _len = str.length(txt)
-    _max = 120
-    _len > _max ? str.substring(txt, 0, _max) + "…" : txt
+f_safe_label_text(txt) => lbl.safe_label_text(txt)
 
 var label[] _strictLabels = array.new_label(0)
 MAX_STRICT_LABELS = 80

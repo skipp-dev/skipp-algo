@@ -6,6 +6,36 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added — Pine Library Modularization (Task 3)
+
+- **Five new Pine Script v6 libraries** (`pine/` folder) extracting shared logic
+  from the SkippALGO family:
+  - `skipp_math` — constants, clamping, probability/logit, percentile,
+    statistics, array safety, scoring helpers (24 exports).
+  - `skipp_scoring` — trend/regime detection, ensemble scoring, binning,
+    quantile helpers, decision quality (20 exports).
+  - `skipp_indicators` — zero-lag EMA variants, log regression oscillator
+    (5 exports).
+  - `skipp_calibration` — rolling accumulators, 3-way probability,
+    calibration engine, eval stats (16 exports).
+  - `skipp_labels` — label text truncation, capped label buffer (2 exports).
+
+- **Consumer slimming** — 6 Pine scripts now delegate shared functions to the
+  libraries via thin wrappers (`f_xxx(…) => lib.xxx(…)`):
+  - `SkippALGO.pine`: ~50 functions delegated (4 545 → 4 178 lines, −367).
+  - `QuickALGO.pine`: 50 functions delegated (4 908 → 4 709 lines, −199).
+  - `SkippALGO_Strategy.pine`: 48 functions (4 839 → 4 642, −197).
+  - `SkippALGO_Mid.pine`: 18 functions (2 930 → 2 847, −83).
+  - `SkippALGO_Mid_Strategy.pine`: 18 functions (2 954 → 2 871, −83).
+  - `SkippALGO_Mid_Indicator.pine`: 18 functions (2 948 → 2 865, −83).
+  - **Total: ~1 012 duplicated lines removed** across consumers.
+
+- **Bulk slimming script** `scripts/pine_slim.py` — automates import injection
+  and function body→delegate replacement for future Pine library extraction.
+
+- Functions with heavy global/UDT dependencies (TfState, input-bound
+  parameters) intentionally kept inline to preserve semantic safety.
+
 ### Fixed (2026-03-25)
 
 - **Historical Benzinga symbol-day export hardening:**

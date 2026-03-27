@@ -1,0 +1,27 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+library("skipp_labels", overlay = true)
+
+// --------------------------------------------------
+// Label text safety
+// --------------------------------------------------
+
+// @function Truncate label text to max length with ellipsis
+export safe_label_text(string txt) =>
+    int _len = str.length(txt)
+    int _max = 120
+    _len > _max ? str.substring(txt, 0, _max) + "…" : txt
+
+// --------------------------------------------------
+// Capped label helpers
+// --------------------------------------------------
+
+// @function Create a label and push to capped buffer (oldest deleted on overflow)
+export capped_label(label[] buffer, int x, float y, string txt,
+     string sty, color txtCol, color bgCol, int maxKeep, string sz = size.small) =>
+    label lbl = label.new(x, y, safe_label_text(txt), style = sty, textcolor = txtCol, color = bgCol, size = sz)
+    array.push(buffer, lbl)
+    if array.size(buffer) > maxKeep
+        label.delete(array.shift(buffer))

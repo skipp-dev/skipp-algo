@@ -12,6 +12,11 @@
 // v6.3.4: Final Parity Sync (Indicator Scope)
 
 indicator("SkippALGO_Mid_Indicator", overlay=true, max_labels_count=500, max_lines_count=500)
+import preuss_steffen/skipp_math/1       as m
+import preuss_steffen/skipp_scoring/1    as sc
+import preuss_steffen/skipp_indicators/1 as ind
+import preuss_steffen/skipp_calibration/1 as cal
+import preuss_steffen/skipp_labels/1     as lbl
 
 //====================
 // Inputs — Core / Engine
@@ -186,25 +191,12 @@ tfLong3       = input.timeframe("10D", "Long TF 3")
 // Internal Global Helpers
 //====================
 // Standard ZLEMA (DEMA style) for USI Lines 1-4
-f_zl_src(src, len) =>
-    e1 = ta.ema(src, len)
-    e2 = ta.ema(e1, len)
-    2.0 * e1 - e2
+f_zl_src(src, len) => ind.zl_src(src, len)
 
 // New safe helper for Red Line (Option 2)
-f_zl_src_pct(_src, _len, _pct) =>
-    // pct=100 => full zero-lag. pct=0 => disabled (returns src).
-    // lag is based on classic ZLEMA idea.
-    int lag = math.max(1, int(math.floor((_len - 1) / 2)))
-    float lead = na(_src) or na(_src[lag]) ? na : (_src - _src[lag])
-    float k = float(_pct) / 100.0
-    float out = na(lead) ? _src : (_src + k * lead)
-    out
+f_zl_src_pct(_src, _len, _pct) => ind.zl_src_pct(_src, _len, _pct)
 
-f_zl_trend_core(_src, _len, _aggr) =>
-    emaBase = ta.ema(_src, _len)
-    zlBase = f_zl_src(_src, _len)
-    na(zlBase) ? emaBase : (emaBase + _aggr * (zlBase - emaBase))
+f_zl_trend_core(_src, _len, _aggr) => ind.zl_trend_core(_src, _len, _aggr)
 
 f_hurst_proxy(_src, _len) =>
     l = math.max(10, _len)
@@ -234,42 +226,9 @@ trustWMacro     = input.float(0.10, "Trust weight: macro context", minval=0.0, s
 //====================
 // Custom Logic: Regression Slope Oscillator
 //====================
-f_log_regression_single(src, length) =>
-    if length < 2
-        0.0
-    else
-        float sumX      = 0.0
-        float sumY      = 0.0
-        float sumXSqr   = 0.0
-        float sumXY     = 0.0
-        bool failed     = false
-        for i = 0 to length - 1
-            v = src[i]
-            if na(v) or v <= 0
-                failed := true
-                break
-            val = math.log(v)
-            per = i + 1.0
-            sumX += per
-            sumY += val
-            sumXSqr += per * per
-            sumXY += val * per
-        
-        if failed
-            float(na)
-        else
-            slope = (length * sumXY - sumX * sumY) / (length * sumXSqr - sumX * sumX)
-            slope * -1
+f_log_regression_single(src, length) => ind.log_regression_single(src, length)
 
-f_calc_reg_slope_osc(src, minR, maxR, stepV) =>
-    float slopeSum = 0.0
-    int slopeCount = 0
-    for i = minR to maxR by stepV
-        res = f_log_regression_single(src, i)
-        if not na(res)
-            slopeSum += res
-            slopeCount += 1
-    slopeCount > 0 ? slopeSum / slopeCount : float(na)
+f_calc_reg_slope_osc(src, minR, maxR, stepV) => ind.calc_reg_slope_osc(src, minR, maxR, stepV)
 
 //====================
 // Constants — Avoid Magic Numbers
@@ -604,16 +563,11 @@ exitConfTP    = input.float(1.0, "Hold TP (Min Trend Conf)", minval=0.0, maxval=
 //====================
 // Mid Helpers (Forecast block removed)
 //====================
-f_clamp01(x) =>
-    math.max(0.0, math.min(1.0, x))
+f_clamp01(x) => m.clamp01(x)
 
-f_clamp(val, lo, hi) =>
-    math.max(lo, math.min(hi, val))
+f_clamp(val, lo, hi) => m.clamp(val, lo, hi)
 
-f_pct_rank(x, len) =>
-    lo = ta.lowest(x, len)
-    hi = ta.highest(x, len)
-    hi == lo ? 0.5 : (x - lo) / (hi - lo)
+f_pct_rank(x, len) => m.pct_rank(x, len)
 
 f_tfLabel(tf) =>
     tf == "1"   ? "1M"  : tf == "5"   ? "5M"  : tf == "15"  ? "15M" : tf == "30"  ? "30M" : tf == "60"  ? "1H"  : tf == "240" ? "4H"  : tf == "D"   ? "1D"  : tf
@@ -625,16 +579,9 @@ f_fmtVol(v) =>
     na(v) ? "—" : v >= 1000000000.0 ? (str.tostring(v / 1000000000.0, "#.###") + "B") : v >= 1000000.0    ? (str.tostring(v / 1000000.0, "#.###") + "M") : v >= 1000.0       ? (str.tostring(v / 1000.0, "#.###") + "K") : str.tostring(v, "#")
 
 // D1 – Continuous trend strength [-1, 1] (smooth alternative to discrete f_trend_regime)
-f_trend_strength(emaF, emaS) =>
-    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
-    math.max(-1.0, math.min(1.0, emaDiff / math.max(SIDEWAYS_EMA_THRESH, PRICE_EPS)))
+f_trend_strength(emaF, emaS) => sc.trend_strength(emaF, emaS)
 
-f_state_score(c, emaF_tf, emaS_tf, r_tf) =>
-    // B1 – Continuous trend: smooth EMA gap vs binary
-    trend = useSmoothTrend ? f_trend_strength(emaF_tf, emaS_tf) : (emaF_tf > emaS_tf ? 1.0 : emaF_tf < emaS_tf ? -1.0 : 0.0)
-    mom   = r_tf > 55 ? 1.0 : r_tf < 45 ? -1.0 : 0.0
-    loc   = c > emaS_tf ? 0.5 : c < emaS_tf ? -0.5 : 0.0
-    f_clamp01((trend + mom + loc + 2.0) / 4.0) * 2.0 - 1.0
+f_state_score(c, emaF_tf, emaS_tf, r_tf) => sc.state_score(c, emaF_tf, emaS_tf, r_tf, useSmoothTrend)
 
 f_state_tml(c, emaF_tf, emaS_tf, r_tf) =>
     t = emaF_tf > emaS_tf ? 1 : emaF_tf < emaS_tf ? -1 : 0
@@ -670,40 +617,18 @@ f_get_params(tf) =>
      slEff]
 
 // --- Phase 3 Helpers: Ensemble ---
-f_pullback_score(c, ef, es, bias) =>
-    // Bias 1 (Bull): shallow PB to EMAF is good (+1), deep to EMAS is neutral (0), below is bad (-1)
-    // Bias -1 (Bear): mirror logic
-    bias == 1 ? (c > ef ? 0.5 : c > es ? 1.0 : -1.0) : bias == -1 ? (c < ef ? 0.5 : c < es ? 1.0 : -1.0) : 0.0
+f_pullback_score(c, ef, es, bias) => sc.pullback_score(c, ef, es, bias)
 
-f_trend_regime(emaF, emaS, atrNorm) =>
-    emaDiff = (emaF - emaS) / math.max(nz(emaS, 1), PRICE_EPS)
-    isSideways = math.abs(emaDiff) < SIDEWAYS_EMA_THRESH and atrNorm < SIDEWAYS_ATR_THRESH
-    isBull = emaF > emaS and not isSideways
-    isBear = emaF < emaS and not isSideways
-    isBull ? 1.0 : isBear ? -1.0 : 0.0
+f_trend_regime(emaF, emaS, atrNorm) => sc.trend_regime(emaF, emaS, atrNorm)
 
 // Extended ensemble with trend regime (4 factors)
-f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) =>
-    num = wA * sA + wB * sB + wC * sC + wD * sD
-    den = wA + wB + wC + wD
-    val = den == 0 ? 0.0 : num / den
-    math.max(-1.0, math.min(1.0, val))
+f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) => sc.ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)
 
 // B2 – ROC (Rate of Change) score: momentum via price change [-1, 1]
-f_roc_score(c, rocL) =>
-    roc = ta.roc(c, rocL)
-    r = na(roc) ? 0.0 : roc
-    // Normalise: ±5% => ±1
-    math.max(-1.0, math.min(1.0, r / 5.0))
+f_roc_score(c, rocL) => sc.roc_score(c, rocL)
 
 // B4 – Volume score: above/below SMA [-1, 1]
-f_vol_score(vol, volSmaLen) =>
-    sma = ta.sma(vol, volSmaLen)
-    if na(vol) or vol == 0
-        0.0
-    else
-        ratio = na(sma) or sma == 0.0 ? 0.0 : (vol / sma - 1.0)
-        math.max(-1.0, math.min(1.0, ratio))
+f_vol_score(vol, volSmaLen) => sc.vol_score(vol, volSmaLen)
 
 f_tf_pack(tf) =>
     [t, c, h, l, ef, es, r, a, vr] = request.security(
@@ -1380,9 +1305,7 @@ float pD = float(na)
 
 // Gate requires: Confidence Logic + MTF Vote + Macro + Drawdown (+ eval penalty)
 // Fail-Open Helper: If missing (na), assume Safe (true). Only return false if explicitly false.
-f_fail_open(bool _cond) => 
-    // Fix for "na() expects float" error in strict contexts:
-    (_cond == true) ? true : (_cond == false) ? false : true
+f_fail_open(bool _cond) => m.fail_open(bool _cond)
 
 // Fail-closed coercions: any na => deny
 // confOk      = (not na(confGate)) and (confGate >= minTrust) // REMOVED: Softened below
@@ -1847,10 +1770,7 @@ engulfShortOkSafe = (engulfShortOk == true)
 // All these were previously "Safe" (na -> false). Now convert to Fail-Open (na -> true).
 // Important: Liquidity, Momentum, USI should be primary drivers, so we keep `safe` checks only if they are critical.
 // But per request: "Features should help when present, but fail-open when absent".
-f_soft(bool x) => 
-    // Fix for "na() expects float" error in strict contexts:
-    // We check if the boolean is neither true nor false.
-    (x == true) ? true : (x == false) ? false : true
+f_soft(bool x) => m.soft(bool x)
 
 enhLongOk  = f_soft(adxOk) and f_soft(rocLongOk) and f_soft(volEnsLongOk) and f_soft(preMomLongOk) and f_soft(emaAccelLongOk) and f_soft(vwapLongOk) and f_soft(regSlopeLongOk)
 enhShortOk = f_soft(adxOk) and f_soft(rocShortOk) and f_soft(volEnsShortOk) and f_soft(preMomShortOk) and f_soft(emaAccelShortOk) and f_soft(vwapShortOk) and f_soft(regSlopeShortOk)
@@ -2624,10 +2544,7 @@ strictBuyConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and buyE
 strictShortConfirmedVis = strictAlertsEnabledVis and barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
 
 // Defensive label text guard: prevents accidental oversized/raw text dumps on chart
-f_safe_label_text(txt) =>
-    _len = str.length(txt)
-    _max = 120
-    _len > _max ? str.substring(txt, 0, _max) + "…" : txt
+f_safe_label_text(txt) => lbl.safe_label_text(txt)
 
 var label[] _strictLabels = array.new_label(0)
 MAX_STRICT_LABELS = 80
