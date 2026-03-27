@@ -4,6 +4,10 @@
   "type": "module",
   "scripts": {
     "smc:verify-micro-publish": "python3 scripts/verify_smc_micro_publish_contract.py",
+    "smc:ci-health-gates": "python3 scripts/run_smc_ci_health_checks.py --output -",
+    "smc:pre-release-refresh": "python3 scripts/run_smc_pre_release_artifact_refresh.py --output -",
+    "smc:release-gates": "python3 scripts/run_smc_release_gates.py --output -",
+    "smc:collect-gate-evidence": "python3 scripts/collect_smc_gate_evidence.py --output -",
     "tv:publish-micro-library": "tsx scripts/tv_publish_micro_library.ts",
     "tv:storage-state": "tsx scripts/create_tradingview_storage_state.ts",
     "tv:profile-login": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/create_tradingview_storage_state.ts --persistent-profile-dir automation/tradingview/auth/chromium-profile",
