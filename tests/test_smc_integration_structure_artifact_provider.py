@@ -167,3 +167,108 @@ def test_structure_artifact_provider_coverage_ignores_empty_bos_lists(monkeypatc
         coverage = structure_artifact_json.discover_category_coverage()
         assert coverage["bos"] is False
         assert coverage["choch"] is False
+
+
+def test_structure_artifact_provider_manifest_row_with_missing_path_is_not_silent(monkeypatch, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        manifest_path = artifact_dir / "manifest_15m.json"
+        manifest_path.write_text(
+                """
+{
+    "schema_version": "1.0.0",
+    "timeframe": "15m",
+    "artifacts": [
+        {
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "artifact_path": "reports/smc_structure_artifacts/DOES_NOT_EXIST.structure.json"
+        }
+    ]
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
+
+        with pytest.raises(ValueError, match="artifact_path does not exist"):
+                structure_artifact_json.load_raw_structure_input("AAPL", "15m")
+
+
+def test_structure_artifact_provider_detects_symbol_mismatch(monkeypatch, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        artifact_path = artifact_dir / "AAPL_15m.structure.json"
+        artifact_path.write_text(
+                """
+{
+    "symbol": "MSFT",
+    "timeframe": "15m",
+    "structure": {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []},
+    "auxiliary": {},
+    "diagnostics": {}
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
+
+        with pytest.raises(ValueError, match="symbol mismatch"):
+                structure_artifact_json.load_raw_structure_input("AAPL", "15m")
+
+
+def test_structure_artifact_provider_detects_timeframe_mismatch(monkeypatch, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        artifact_path = artifact_dir / "AAPL_15m.structure.json"
+        artifact_path.write_text(
+                """
+{
+    "symbol": "AAPL",
+    "timeframe": "1D",
+    "structure": {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []},
+    "auxiliary": {},
+    "diagnostics": {}
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
+
+        with pytest.raises(ValueError, match="timeframe mismatch"):
+                structure_artifact_json.load_raw_structure_input("AAPL", "15m")
+
+
+def test_discover_normalized_contract_summary_reports_manifest_health_issues(monkeypatch, tmp_path: Path) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        manifest_path = artifact_dir / "manifest_15m.json"
+        manifest_path.write_text("{ not-valid-json", encoding="utf-8")
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
+
+        summary = structure_artifact_json.discover_normalized_contract_summary()
+
+        assert summary["mapped_structure_categories"]["bos"] is False
+        assert summary["mapped_structure_categories"]["choch"] is False
+        assert summary["health"]["issue_count"] >= 1
+        codes = {str(item.get("code", "")) for item in summary["health"]["issues"]}
+        assert "INVALID_MANIFEST_JSON" in codes

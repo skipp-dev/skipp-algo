@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import time
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -195,10 +197,7 @@ def _resolve_auto_structure_source_for_symbol_timeframe(symbol: str, timeframe: 
         if provider is None:
             continue
         if name == "structure_artifact_json" and wants_specific_artifact:
-            try:
-                if not structure_artifact_json.has_artifact_for_symbol_timeframe(wanted_symbol, wanted_timeframe):
-                    continue
-            except Exception:
+            if not structure_artifact_json.has_artifact_for_symbol_timeframe(wanted_symbol, wanted_timeframe):
                 continue
         if _can_supply_domain(provider, "structure"):
             return provider.descriptor.name
@@ -228,6 +227,18 @@ def discover_structure_source_status(*, source: str = "auto", symbol: str = "", 
     if selected_entry is not None:
         selected_notes.extend(selected_entry.known_gaps)
 
+    selected_health_issues: list[dict[str, Any]] = []
+    if structure_name == "structure_artifact_json":
+        contract_summary = structure_artifact_json.discover_normalized_contract_summary()
+        health = contract_summary.get("health", {}) if isinstance(contract_summary, dict) else {}
+        raw_issues = health.get("issues", []) if isinstance(health, dict) else []
+        if isinstance(raw_issues, list):
+            selected_health_issues = [item for item in raw_issues if isinstance(item, dict)]
+        if selected_health_issues:
+            selected_notes.append(
+                f"Structure artifact health issues detected: {len(selected_health_issues)}"
+            )
+
     category_coverage = {
         "bos": False,
         "choch": False,
@@ -250,6 +261,8 @@ def discover_structure_source_status(*, source: str = "auto", symbol: str = "", 
         "selected_has_structure_capability": structure_descriptor.capabilities.has_structure,
         "selected_category_coverage": category_coverage,
         "selected_missing_categories": missing_categories,
+        "selected_health_issue_count": len(selected_health_issues),
+        "selected_health_issues": selected_health_issues,
         "any_registered_explicit_structure_provider": any_explicit,
         "explicit_structure_provider_names": explicit_names,
         "notes": selected_notes,
@@ -296,9 +309,21 @@ def load_raw_structure_input(
             provider = _SOURCE_PROVIDERS.get(name)
             if provider is None or not _can_supply_domain(provider, "structure"):
                 continue
+
+            artifact_expected = False
+            if name == "structure_artifact_json":
+                artifact_expected = structure_artifact_json.has_artifact_for_symbol_timeframe(symbol, timeframe)
+
             try:
                 return provider.load_structure(symbol, timeframe)
-            except (FileNotFoundError, ValueError) as exc:
+            except FileNotFoundError as exc:
+                last_error = exc
+                continue
+            except ValueError as exc:
+                if name == "structure_artifact_json" and artifact_expected:
+                    raise ValueError(
+                        "structure artifact exists for symbol/timeframe but failed validation"
+                    ) from exc
                 last_error = exc
                 continue
         if last_error is not None:
@@ -326,7 +351,7 @@ def load_raw_meta_input_composite(
     source: str = "auto",
 ) -> dict[str, Any]:
     normalized = source.strip().lower()
-    plan = discover_composite_source_plan(source=source)
+    plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
 
     structure_provider = _SOURCE_PROVIDERS[plan["structure"]]
     volume_provider = _SOURCE_PROVIDERS[plan["volume"]]
@@ -357,7 +382,7 @@ def load_raw_meta_input_composite(
     if news_meta is not None and "news" not in news_meta:
         news_meta = None
 
-    return merge_raw_meta_domains(
+    merged = merge_raw_meta_domains(
         volume_meta=volume_meta,
         technical_meta=technical_meta,
         news_meta=news_meta,
@@ -368,3 +393,22 @@ def load_raw_meta_input_composite(
             "news": news_provider.descriptor.name,
         },
     )
+
+    merged_asof_ts = merged.get("asof_ts")
+    if not isinstance(merged_asof_ts, (int, float)):
+        raise ValueError("merged raw_meta has invalid asof_ts type")
+    merged_asof_ts_f = float(merged_asof_ts)
+    if not math.isfinite(merged_asof_ts_f) or merged_asof_ts_f <= 0:
+        raise ValueError("merged raw_meta has invalid asof_ts value")
+
+    stale_threshold_secs = 90 * 24 * 60 * 60
+    if merged_asof_ts_f < (time.time() - stale_threshold_secs):
+        provenance = merged.get("provenance", [])
+        if not isinstance(provenance, list):
+            provenance = []
+        stale_marker = "smc_integration:warning:stale_meta_asof_ts"
+        if stale_marker not in provenance:
+            provenance.append(stale_marker)
+        merged["provenance"] = provenance
+
+    return merged

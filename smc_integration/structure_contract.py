@@ -233,7 +233,9 @@ def normalize_structure_contract(payload: dict[str, Any], *, symbol: str | None 
     return _normalize_single(payload, symbol=symbol, timeframe=timeframe)
 
 
-def normalize_structure_contracts(payload: dict[str, Any]) -> list[NormalizedStructureContract]:
+def normalize_structure_contracts_with_diagnostics(
+    payload: dict[str, Any],
+) -> tuple[list[NormalizedStructureContract], dict[str, int]]:
     if not isinstance(payload, dict):
         raise ValueError("structure contract payload must be an object")
 
@@ -241,16 +243,40 @@ def normalize_structure_contracts(payload: dict[str, Any]) -> list[NormalizedStr
     if isinstance(entries, list):
         source = payload.get("source", {}) if isinstance(payload.get("source"), dict) else None
         out: list[NormalizedStructureContract] = []
+        dropped_non_dict = 0
+        dropped_value_error = 0
         for row in entries:
             if not isinstance(row, dict):
+                dropped_non_dict += 1
                 continue
             try:
                 out.append(_normalize_single(row, inherited_source=source))
             except ValueError:
+                dropped_value_error += 1
                 continue
-        return out
+        diagnostics = {
+            "entries_total": len(entries),
+            "entries_normalized": len(out),
+            "entries_dropped": dropped_non_dict + dropped_value_error,
+            "entries_dropped_non_dict": dropped_non_dict,
+            "entries_dropped_value_error": dropped_value_error,
+        }
+        return out, diagnostics
 
-    return [normalize_structure_contract(payload)]
+    single = normalize_structure_contract(payload)
+    diagnostics = {
+        "entries_total": 1,
+        "entries_normalized": 1,
+        "entries_dropped": 0,
+        "entries_dropped_non_dict": 0,
+        "entries_dropped_value_error": 0,
+    }
+    return [single], diagnostics
+
+
+def normalize_structure_contracts(payload: dict[str, Any]) -> list[NormalizedStructureContract]:
+    contracts, _ = normalize_structure_contracts_with_diagnostics(payload)
+    return contracts
 
 
 def summarize_structure_contracts(contracts: list[NormalizedStructureContract]) -> StructureContractSummary:

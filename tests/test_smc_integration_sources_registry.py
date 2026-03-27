@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import smc_integration.repo_sources as repo_sources_module
+import pytest
+
 from smc_integration.repo_sources import (
     discover_composite_source_plan,
     discover_repo_source_paths,
@@ -94,3 +97,71 @@ def test_source_capabilities_are_set_and_traceable() -> None:
     assert watchlist.capabilities.has_meta is True
     assert watchlist.capabilities.structure_mode in {"full", "partial", "none"}
     assert isinstance(watchlist.notes, list)
+
+
+def test_composite_meta_plan_is_symbol_timeframe_aware(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    def _fake_plan(*, source: str = "auto", symbol: str = "", timeframe: str = "") -> dict[str, str]:
+        captured["source"] = source
+        captured["symbol"] = symbol
+        captured["timeframe"] = timeframe
+        return {
+            "structure": "databento_watchlist_csv",
+            "volume": "databento_watchlist_csv",
+            "technical": "databento_watchlist_csv",
+            "news": "databento_watchlist_csv",
+        }
+
+    monkeypatch.setattr(repo_sources_module, "discover_composite_source_plan", _fake_plan)
+
+    payload = repo_sources_module.load_raw_meta_input_composite("IBG", "15m", source="auto")
+
+    assert payload["symbol"] == "IBG"
+    assert payload["timeframe"] == "15m"
+    assert captured["source"] == "auto"
+    assert captured["symbol"] == "IBG"
+    assert captured["timeframe"] == "15m"
+
+
+def test_composite_meta_rejects_invalid_asof_ts(monkeypatch) -> None:
+    monkeypatch.setattr(
+        repo_sources_module,
+        "merge_raw_meta_domains",
+        lambda **kwargs: {
+            "symbol": "IBG",
+            "timeframe": "15m",
+            "asof_ts": -1.0,
+            "volume": {
+                "value": {"regime": "NORMAL", "thin_fraction": 0.0},
+                "asof_ts": -1.0,
+                "stale": False,
+            },
+            "provenance": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="invalid asof_ts"):
+        repo_sources_module.load_raw_meta_input_composite("IBG", "15m", source="auto")
+
+
+def test_composite_meta_marks_stale_asof_ts_in_provenance(monkeypatch) -> None:
+    monkeypatch.setattr(
+        repo_sources_module,
+        "merge_raw_meta_domains",
+        lambda **kwargs: {
+            "symbol": "IBG",
+            "timeframe": "15m",
+            "asof_ts": 1.0,
+            "volume": {
+                "value": {"regime": "NORMAL", "thin_fraction": 0.0},
+                "asof_ts": 1.0,
+                "stale": False,
+            },
+            "provenance": [],
+        },
+    )
+
+    payload = repo_sources_module.load_raw_meta_input_composite("IBG", "15m", source="auto")
+
+    assert any("stale_meta_asof_ts" in str(item) for item in payload.get("provenance", []))

@@ -3,9 +3,13 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
+import pytest
+
+import smc_integration.repo_sources as repo_sources_module
 from smc_integration.provider_matrix import build_provider_summary
 from smc_integration.repo_sources import discover_structure_source_status, load_raw_structure_input
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
+from smc_integration.sources import structure_artifact_json
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,3 +61,36 @@ def test_snapshot_bundle_includes_structure_status() -> None:
     assert "structure_status" in bundle
     assert isinstance(bundle["structure_status"], dict)
     assert "selected_structure_source" in bundle["structure_status"]
+
+
+def test_auto_structure_loading_does_not_silently_fallback_on_invalid_manifest_row(
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = artifact_dir / "manifest_15m.json"
+        manifest_path.write_text(
+                """
+{
+    "schema_version": "1.0.0",
+    "timeframe": "15m",
+    "artifacts": [
+        {
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "artifact_path": "reports/smc_structure_artifacts/MISSING.structure.json"
+        }
+    ]
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "missing_legacy.json")
+
+        with pytest.raises(ValueError, match="artifact_path does not exist"):
+                repo_sources_module.load_raw_structure_input("AAPL", "15m", source="auto")

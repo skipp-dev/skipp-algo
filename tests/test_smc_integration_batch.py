@@ -84,6 +84,31 @@ def test_write_snapshot_bundles_for_symbols_surfaces_failures(monkeypatch: pytes
     assert manifest["errors"][0]["symbol"] == "BAD"
 
 
+def test_write_snapshot_bundles_for_symbols_auto_keeps_composite_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    seen_sources: list[str] = []
+
+    def _fake(symbol: str, timeframe: str, *, source: str = "auto", generated_at: float | None = None) -> dict:
+        del generated_at
+        seen_sources.append(source)
+        return _bundle(symbol, timeframe)
+
+    monkeypatch.setattr(batch, "build_snapshot_bundle_for_symbol_timeframe", _fake)
+
+    manifest = batch.write_snapshot_bundles_for_symbols(
+        ["AAPL"],
+        "15m",
+        source="auto",
+        output_dir=tmp_path,
+        generated_at=1709254000.0,
+    )
+
+    assert seen_sources == ["auto"]
+    assert manifest["source"]["selected"] == "structure_artifact_json"
+
+
 def test_load_symbols_from_json_watchlist_sources(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     source_path = tmp_path / "fmp_watchlist_snapshot.json"
     source_path.write_text(

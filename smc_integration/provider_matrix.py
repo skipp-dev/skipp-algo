@@ -309,6 +309,8 @@ def _known_gaps_for_provider(name: str) -> list[str]:
 
     if name == "structure_artifact_json":
         coverage = structure_artifact_json.discover_category_coverage()
+        health = structure_artifact_json.discover_contract_health()
+        issues = health.get("issues", []) if isinstance(health, dict) else []
         gaps: list[str] = []
         if not coverage.get("bos"):
             gaps.append("BOS events are not currently mapped in artifact structure output")
@@ -320,6 +322,16 @@ def _known_gaps_for_provider(name: str) -> list[str]:
             gaps.append("FVG events are not currently mapped in artifact structure output")
         if not coverage.get("liquidity_sweeps"):
             gaps.append("Liquidity sweeps are not currently mapped in artifact structure output")
+        if isinstance(issues, list) and issues:
+            for item in issues[:5]:
+                if not isinstance(item, dict):
+                    continue
+                code = str(item.get("code", "UNKNOWN"))
+                message = str(item.get("message", ""))
+                if message:
+                    gaps.append(f"Health issue [{code}]: {message}")
+                else:
+                    gaps.append(f"Health issue [{code}]")
         gaps.append("Provider is structure-only and does not expose raw meta domains")
         return gaps
 

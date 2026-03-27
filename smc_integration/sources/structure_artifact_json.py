@@ -8,13 +8,39 @@ from .base import SourceCapabilities, SourceDescriptor
 from smc_integration.structure_contract import (
     contract_to_dict,
     normalize_structure_contract,
-    normalize_structure_contracts,
+    normalize_structure_contracts_with_diagnostics,
     summarize_structure_contracts,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRUCTURE_ARTIFACT_JSON = REPO_ROOT / "reports" / "smc_structure_artifact.json"
 STRUCTURE_ARTIFACTS_DIR = REPO_ROOT / "reports" / "smc_structure_artifacts"
+
+
+def _health_issue(code: str, message: str, *, path: Path | None = None) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "code": str(code),
+        "message": str(message),
+    }
+    if path is not None:
+        out["path"] = str(path.as_posix())
+    return out
+
+
+def _validate_contract_identity(contract_payload: dict[str, Any], *, symbol: str, timeframe: str, path: Path) -> None:
+    expected_symbol = str(symbol).strip().upper()
+    expected_timeframe = str(timeframe).strip().upper()
+    actual_symbol = str(contract_payload.get("symbol", "")).strip().upper()
+    actual_timeframe = str(contract_payload.get("timeframe", "")).strip().upper()
+
+    if actual_symbol != expected_symbol:
+        raise ValueError(
+            f"artifact symbol mismatch for {path}: expected={expected_symbol} actual={actual_symbol or '<empty>'}"
+        )
+    if actual_timeframe != expected_timeframe:
+        raise ValueError(
+            f"artifact timeframe mismatch for {path}: expected={expected_timeframe} actual={actual_timeframe or '<empty>'}"
+        )
 
 
 def describe_source() -> SourceDescriptor:
@@ -67,10 +93,11 @@ def _resolve_from_manifest(symbol: str, timeframe: str) -> Path | None:
     payload = _load_json(manifest_path)
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
-        return None
+        raise ValueError(f"manifest artifacts must be a list: {manifest_path}")
 
     wanted_symbol = symbol.strip().upper()
     wanted_tf = str(timeframe).strip()
+    saw_symbol_timeframe_row = False
     for row in artifacts:
         if not isinstance(row, dict):
             continue
@@ -78,12 +105,22 @@ def _resolve_from_manifest(symbol: str, timeframe: str) -> Path | None:
         row_tf = str(row.get("timeframe", "")).strip()
         if row_symbol != wanted_symbol or row_tf != wanted_tf:
             continue
+        saw_symbol_timeframe_row = True
         raw_path = str(row.get("artifact_path", "")).strip()
         if not raw_path:
-            continue
+            raise ValueError(
+                f"manifest row is missing artifact_path for symbol={wanted_symbol} timeframe={wanted_tf}: {manifest_path}"
+            )
         path = (REPO_ROOT / raw_path).resolve()
         if path.exists():
             return path
+        raise ValueError(
+            f"manifest artifact_path does not exist for symbol={wanted_symbol} timeframe={wanted_tf}: {raw_path}"
+        )
+    if saw_symbol_timeframe_row:
+        raise ValueError(
+            f"manifest row for symbol/timeframe could not resolve an artifact file: symbol={wanted_symbol} timeframe={wanted_tf}"
+        )
     return None
 
 
@@ -114,18 +151,33 @@ def has_any_structure_artifact() -> bool:
     return False
 
 
-def _iter_manifest_artifacts() -> list[Path]:
+def _iter_manifest_artifacts() -> tuple[list[Path], list[dict[str, Any]]]:
     if not STRUCTURE_ARTIFACTS_DIR.exists():
-        return []
+        return [], []
 
     artifacts: list[Path] = []
+    issues: list[dict[str, Any]] = []
     for manifest_path in sorted(STRUCTURE_ARTIFACTS_DIR.glob("manifest_*.json")):
         try:
             payload = _load_json(manifest_path)
-        except Exception:
+        except Exception as exc:
+            issues.append(
+                _health_issue(
+                    "INVALID_MANIFEST_JSON",
+                    f"failed to parse manifest JSON: {exc}",
+                    path=manifest_path,
+                )
+            )
             continue
         rows = payload.get("artifacts")
         if not isinstance(rows, list):
+            issues.append(
+                _health_issue(
+                    "INVALID_MANIFEST_SHAPE",
+                    "manifest is missing a list-valued artifacts field",
+                    path=manifest_path,
+                )
+            )
             continue
         for row in rows:
             if not isinstance(row, dict):
@@ -136,46 +188,80 @@ def _iter_manifest_artifacts() -> list[Path]:
             resolved = (REPO_ROOT / raw_path).resolve()
             if resolved.exists() and resolved not in artifacts:
                 artifacts.append(resolved)
+            elif not resolved.exists():
+                issues.append(
+                    _health_issue(
+                        "MISSING_ARTIFACT_PATH",
+                        f"manifest artifact_path does not exist: {raw_path}",
+                        path=manifest_path,
+                    )
+                )
 
     if artifacts:
-        return artifacts
+        return artifacts, issues
 
     # Fallback for deterministic artifact naming when manifest rows are missing.
-    return sorted(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json"))
+    return sorted(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json")), issues
 
 
-def _iter_normalized_contracts() -> list[dict[str, Any]]:
+def _iter_normalized_contracts() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     contracts: list[dict[str, Any]] = []
+    health_issues: list[dict[str, Any]] = []
 
-    for artifact_path in _iter_manifest_artifacts():
+    artifact_paths, manifest_issues = _iter_manifest_artifacts()
+    health_issues.extend(manifest_issues)
+
+    for artifact_path in artifact_paths:
         try:
             payload = _load_json(artifact_path)
-            normalized = normalize_structure_contract(payload)
-        except Exception:
+            normalized_contract = normalize_structure_contract(payload)
+        except Exception as exc:
+            health_issues.append(
+                _health_issue(
+                    "INVALID_STRUCTURE_ARTIFACT",
+                    f"failed to normalize structure artifact: {exc}",
+                    path=artifact_path,
+                )
+            )
             continue
-        contracts.append(contract_to_dict(normalized))
+        contracts.append(contract_to_dict(normalized_contract))
 
     if contracts:
-        return contracts
+        return contracts, health_issues
 
     if STRUCTURE_ARTIFACT_JSON.exists():
         try:
             legacy = _load_payload()
-            for contract in normalize_structure_contracts(legacy):
+            normalized_contracts, diagnostics = normalize_structure_contracts_with_diagnostics(legacy)
+            if diagnostics.get("entries_dropped", 0) > 0:
+                health_issues.append(
+                    _health_issue(
+                        "LEGACY_ENTRIES_DROPPED",
+                        "legacy entries payload contained rows that could not be normalized",
+                        path=STRUCTURE_ARTIFACT_JSON,
+                    )
+                )
+            for contract in normalized_contracts:
                 contracts.append(contract_to_dict(contract))
-        except Exception:
-            pass
+        except Exception as exc:
+            health_issues.append(
+                _health_issue(
+                    "INVALID_LEGACY_STRUCTURE_ARTIFACT",
+                    f"failed to normalize legacy structure artifact payload: {exc}",
+                    path=STRUCTURE_ARTIFACT_JSON,
+                )
+            )
 
-    return contracts
+    return contracts, health_issues
 
 
 def discover_normalized_contract_summary() -> dict[str, Any]:
-    contracts = _iter_normalized_contracts()
+    contracts, health_issues = _iter_normalized_contracts()
     if not contracts:
         return {
             "mapped_structure_categories": {
-                "bos": True,
-                "choch": True,
+                "bos": False,
+                "choch": False,
                 "orderblocks": False,
                 "fvg": False,
                 "liquidity_sweeps": False,
@@ -193,6 +279,11 @@ def discover_normalized_contract_summary() -> dict[str, Any]:
             "auxiliary_available": False,
             "structure_profiles_seen": [],
             "event_logic_versions_seen": [],
+            "health": {
+                "issue_count": len(health_issues),
+                "issues": health_issues,
+                "contracts_loaded": 0,
+            },
         }
 
     summary = summarize_structure_contracts(
@@ -214,28 +305,30 @@ def discover_normalized_contract_summary() -> dict[str, Any]:
         ]
     )
 
-    mapped_structure_categories = dict(summary.mapped_structure_categories)
-    if not any(mapped_structure_categories.values()):
-        default_artifacts_dir = REPO_ROOT / "reports" / "smc_structure_artifacts"
-        default_single_path = REPO_ROOT / "reports" / "smc_structure_artifact.json"
-        if STRUCTURE_ARTIFACTS_DIR == default_artifacts_dir and STRUCTURE_ARTIFACT_JSON == default_single_path:
-            # Preserve deterministic repo-default capabilities even when current local artifacts are empty.
-            mapped_structure_categories["bos"] = True
-            mapped_structure_categories["choch"] = True
-
     return {
-        "mapped_structure_categories": mapped_structure_categories,
+        "mapped_structure_categories": dict(summary.mapped_structure_categories),
         "mapped_auxiliary_categories": summary.mapped_auxiliary_categories,
         "structure_profile_supported": summary.structure_profile_supported,
         "diagnostics_available": summary.diagnostics_available,
         "auxiliary_available": summary.auxiliary_available,
         "structure_profiles_seen": summary.structure_profiles_seen,
         "event_logic_versions_seen": summary.event_logic_versions_seen,
+        "health": {
+            "issue_count": len(health_issues),
+            "issues": health_issues,
+            "contracts_loaded": len(contracts),
+        },
     }
 
 
 def discover_contract_capabilities() -> dict[str, Any]:
     return discover_normalized_contract_summary()
+
+
+def discover_contract_health() -> dict[str, Any]:
+    summary = discover_normalized_contract_summary()
+    health = summary.get("health", {})
+    return dict(health) if isinstance(health, dict) else {"issue_count": 0, "issues": [], "contracts_loaded": 0}
 
 
 def load_structure_context_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
@@ -247,18 +340,20 @@ def load_structure_context_input(symbol: str, timeframe: str) -> dict[str, Any] 
 
 def load_normalized_structure_contract_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
     artifact_file = _resolve_artifact_file(symbol, timeframe)
-    try:
-        if artifact_file is not None:
-            payload = _load_json(artifact_file)
-            contract = normalize_structure_contract(payload)
-            return contract_to_dict(contract)
+    if artifact_file is not None:
+        payload = _load_json(artifact_file)
+        contract = normalize_structure_contract(payload)
+        contract_payload = contract_to_dict(contract)
+        _validate_contract_identity(contract_payload, symbol=symbol, timeframe=timeframe, path=artifact_file)
+        return contract_payload
 
-        if STRUCTURE_ARTIFACT_JSON.exists():
-            payload = _load_payload()
-            contract = normalize_structure_contract(payload, symbol=symbol, timeframe=timeframe)
-            return contract_to_dict(contract)
-    except Exception:
-        return None
+    if STRUCTURE_ARTIFACT_JSON.exists():
+        payload = _load_payload()
+        contract = normalize_structure_contract(payload, symbol=symbol, timeframe=timeframe)
+        contract_payload = contract_to_dict(contract)
+        _validate_contract_identity(contract_payload, symbol=symbol, timeframe=timeframe, path=STRUCTURE_ARTIFACT_JSON)
+        return contract_payload
+
     return None
 
 

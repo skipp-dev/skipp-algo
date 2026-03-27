@@ -30,7 +30,14 @@ def _descriptor_for_source_name(name: str) -> Any:
     return by_name[name]
 
 
-def _resolve_source_name(source: str) -> str:
+def _resolve_structure_source_name(source: str) -> str:
+    normalized = source.strip().lower()
+    if normalized == "auto":
+        return select_best_source().name
+    return normalized
+
+
+def _resolve_watchlist_source_name(source: str) -> str:
     normalized = source.strip().lower()
     if normalized == "auto":
         return select_best_volume_source().name
@@ -198,7 +205,8 @@ def write_snapshot_bundles_for_symbols(
     out_dir = Path(output_dir).expanduser()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    resolved_source_name = _resolve_source_name(source)
+    resolved_source_name = _resolve_structure_source_name(source)
+    effective_source = "auto" if source.strip().lower() == "auto" else resolved_source_name
     effective_generated_at = float(generated_at) if generated_at is not None else float(time.time())
 
     bundles: list[dict[str, Any]] = []
@@ -210,7 +218,7 @@ def write_snapshot_bundles_for_symbols(
             bundle = build_snapshot_bundle_for_symbol_timeframe(
                 symbol,
                 timeframe,
-                source=resolved_source_name,
+                  source=effective_source,
                 generated_at=effective_generated_at,
             )
             bundle_path = out_dir / _bundle_file_name(symbol, timeframe)
@@ -238,7 +246,7 @@ def write_snapshot_bundles_for_symbols(
 
 
 def load_symbols_from_watchlist_source(*, source: str = "auto") -> list[str]:
-    source_name = _resolve_source_name(source)
+    source_name = _resolve_watchlist_source_name(source)
     descriptor = _descriptor_for_source_name(source_name)
 
     repo_root = Path(__file__).resolve().parents[1]

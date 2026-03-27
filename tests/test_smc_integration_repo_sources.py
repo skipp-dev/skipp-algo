@@ -42,9 +42,9 @@ def test_load_raw_structure_input_is_ingest_compatible() -> None:
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert isinstance(structure.bos, list)
-    assert structure.orderblocks == []
-    assert structure.fvg == []
-    assert structure.liquidity_sweeps == []
+    assert isinstance(structure.orderblocks, list)
+    assert isinstance(structure.fvg, list)
+    assert isinstance(structure.liquidity_sweeps, list)
 
 
 

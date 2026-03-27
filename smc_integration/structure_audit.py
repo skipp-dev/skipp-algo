@@ -303,6 +303,11 @@ def build_structure_gap_report() -> dict[str, Any]:
         if category_coverage[category]["producer"] is not None
     }
 
+    contract_health = contract.get("health", {}) if isinstance(contract, dict) else {}
+    health_issue_count = int(contract_health.get("issue_count", 0)) if isinstance(contract_health, dict) else 0
+    if health_issue_count > 0:
+        gaps.append(f"Structure artifact discovery reported {health_issue_count} health issue(s).")
+
     report = {
         "has_real_structure_provider": has_real_structure_provider,
         "best_candidate": best_candidate,
@@ -325,6 +330,7 @@ def build_structure_gap_report() -> dict[str, Any]:
         "diagnostics_available": bool(contract.get("diagnostics_available", False)),
         "auxiliary_available": bool(contract.get("auxiliary_available", False)),
         "event_logic_versions_seen": list(contract.get("event_logic_versions_seen", [])),
+          "contract_health": dict(contract_health) if isinstance(contract_health, dict) else {},
         "gaps": gaps,
         "structure_status": status,
         "extended_discovery": build_extended_structure_discovery_report(),
