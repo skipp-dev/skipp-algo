@@ -30,13 +30,16 @@ produce strings that decode back to the canonical structure values.
 ## How to Run
 
 ```bash
-# Run all 46 parity tests
+# Run all 217 parity tests
 pytest tests/test_smc_parity.py -v
 
 # Run a specific parity layer
 pytest tests/test_smc_parity.py::TestCanonicalToBridgeParity -v
 pytest tests/test_smc_parity.py::TestBridgeToPineParity -v
 pytest tests/test_smc_parity.py::TestTvEncodingParity -v
+pytest tests/test_smc_parity.py::TestFixtureFamilyPresence -v
+pytest tests/test_smc_parity.py::TestPineRequiredFields -v
+pytest tests/test_smc_parity.py::TestSnapshotContract -v
 
 # Generate human-readable parity report
 python -m tests.parity.report
@@ -63,13 +66,22 @@ No fuzzy matching is used. All comparisons are exact after normalization.
 
 ## Fixtures
 
-Three synthetic bar datasets in `tests/parity/fixtures.py`:
+Nine synthetic bar datasets in `tests/parity/fixtures.py`:
 
-| Fixture         | Pattern                   | Produces                     |
-|-----------------|---------------------------|------------------------------|
-| `trending_30d`  | Uptrend with pullbacks    | BOS events + FVG gaps        |
-| `reversal_30d`  | Up then down              | CHOCH events + sweeps        |
-| `flat_20d`      | Range-bound               | Empty families (zero events) |
+| Fixture         | Pattern                              | Primary Target          | Families Produced           |
+|-----------------|--------------------------------------|-------------------------|-----------------------------|
+| `bullish_bos`   | Steady uptrend with pullbacks        | BOS UP                  | 4 BOS, 3 FVG               |
+| `bearish_bos`   | Steady downtrend with bounces        | BOS DOWN                | 4 BOS, 3 FVG               |
+| `orderblock`    | Two-candle displacement patterns     | Orderblocks (BULL+BEAR) | 3 OB, 1 BOS, 2 FVG         |
+| `fvg`           | Gapped candle sequences              | FVG (BULL+BEAR)         | 2 FVG                       |
+| `sweep`         | Pivot3 levels + spike-and-reverse    | Sweeps (BUY+SELL)       | 2 sweeps, 1 OB, 1 FVG      |
+| `mixed`         | Multi-phase with all families        | All families populated  | BOS, OB, FVG, sweeps        |
+| `trending_30d`  | Uptrend with pullbacks (30 bars)     | BOS + FVG               | 6 BOS, 5 FVG               |
+| `reversal_30d`  | Up then down (30 bars)               | CHOCH + sweeps          | 5 BOS, 3 FVG, 8 sweeps     |
+| `flat_20d`      | Range-bound (20 bars)                | Empty (zero events)     | —                           |
+
+Each targeted fixture has an entry in `EXPECTED_FAMILIES` that declares which
+families it *must* produce. `TestFixtureFamilyPresence` enforces these guards.
 
 ## File Layout
 
@@ -77,13 +89,39 @@ Three synthetic bar datasets in `tests/parity/fixtures.py`:
 tests/
   parity/
     __init__.py
-    fixtures.py         # deterministic bar generators
-    normalization.py    # approved field-drop rules + TV decoders
+    fixtures.py         # deterministic bar generators + EXPECTED_FAMILIES
+    normalization.py    # approved field-drop rules + TV decoders + required fields
     report.py           # standalone parity report utility
-  test_smc_parity.py    # 46 pytest tests
+  test_smc_parity.py    # 217 pytest tests (7 classes × 9 fixtures)
 docs/
   parity_harness.md     # this file
 ```
+
+## Test Classes
+
+| Class                        | Tests | What it verifies                                              |
+|------------------------------|-------|---------------------------------------------------------------|
+| `TestCanonicalToBridgeParity`| 45    | Canonical dict → bridge `SmcStructure` exact field match      |
+| `TestBridgeToPineParity`     | 54    | Bridge snapshot → pine payload (sans style) + coverage flags  |
+| `TestTvEncodingParity`       | 36    | Pipe-encoded strings decode back to canonical values          |
+| `TestFixtureFamilyPresence`  | 9     | Each fixture produces its declared minimum families           |
+| `TestPineRequiredFields`     | 36    | Every pine entity has all required fields                     |
+| `TestSnapshotContract`       | 36    | schema_version, symbol/timeframe roundtrip, dir normalization |
+| `test_parity_report_all_pass`| 1     | Full parity report produces zero drift                        |
+
+## Required Pine Payload Fields
+
+Defined in `tests/parity/normalization.py`:
+
+| Entity           | Required fields                              |
+|------------------|----------------------------------------------|
+| BOS              | `id`, `time`, `price`, `kind`, `dir`, `style`|
+| Orderblock       | `id`, `low`, `high`, `dir`, `valid`, `style` |
+| FVG              | `id`, `low`, `high`, `dir`, `valid`, `style` |
+| Liquidity sweep  | `id`, `time`, `price`, `side`, `style`       |
+
+If the pine adapter adds a new field, it must be added to the required-field
+set or the parity test will flag it as coverage gap.
 
 ## CI Coverage vs. Pine Runtime
 
@@ -117,3 +155,26 @@ docs/
 
 These smoke steps are documented but not automated — they require either
 a TradingView session or a live server.
+
+## Boundary Summary
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  REPO CI (automated, deterministic)                             │
+│                                                                 │
+│  bars → canonical → bridge → layering → pine payload → TV enc  │
+│         ├─ parity ─┤         ├─ parity ─┤  ├─ roundtrip ─┤    │
+│         ├─ fields ─┤         ├─ fields ─┤                      │
+│         ├─ schema_version ──────────────┤                      │
+│         └─ dir/kind/side normalization ─┘                      │
+│                                                                 │
+│  9 fixtures × 7 test classes = 217 tests                        │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  SMOKE / PREFLIGHT (manual or semi-automated)                   │
+│                                                                 │
+│  • TradingView Pine runtime rendering                           │
+│  • Live /smc_tv endpoint liveness                               │
+│  • Visual overlay spot-checks                                   │
+└─────────────────────────────────────────────────────────────────┘
+```

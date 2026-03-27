@@ -15,11 +15,16 @@ from scripts.explicit_structure_from_bars import build_explicit_structure_from_b
 from smc_adapters.ingest import build_structure_from_raw
 from smc_adapters.pine import snapshot_to_pine_payload
 from smc_core import apply_layering
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_core.types import SmcMeta, TimedVolumeInfo, VolumeInfo
 from smc_tv_bridge.smc_api import encode_levels, encode_sweeps, encode_zones
 
-from tests.parity.fixtures import PARITY_FIXTURES
+from tests.parity.fixtures import EXPECTED_FAMILIES, PARITY_FIXTURES
 from tests.parity.normalization import (
+    PINE_REQUIRED_BOS_FIELDS,
+    PINE_REQUIRED_FVG_FIELDS,
+    PINE_REQUIRED_OB_FIELDS,
+    PINE_REQUIRED_SWEEP_FIELDS,
     bridge_bos_to_dicts,
     bridge_fvg_to_dicts,
     bridge_ob_to_dicts,
@@ -243,3 +248,113 @@ def test_parity_report_all_pass():
             assert fam.normalized_match, f"fixture {r.name} canonical→bridge {fam.family}: drift detected"
         for fam in r.pine_families:
             assert fam.normalized_match, f"fixture {r.name} bridge→pine {fam.family}: drift detected"
+
+
+# ── Fixture family-presence guards ───────────────────────────────
+
+_FAMILY_KEYS = ("bos", "orderblocks", "fvg", "liquidity_sweeps")
+
+_EXPECTED_PARAMS = [
+    pytest.param(name, factory, symbol, tf, id=name)
+    for name, factory, symbol, tf in PARITY_FIXTURES
+    if name in EXPECTED_FAMILIES
+]
+
+
+class TestFixtureFamilyPresence:
+    """Verify each targeted fixture actually produces its expected families."""
+
+    @pytest.mark.parametrize("name,factory,symbol,tf", _EXPECTED_PARAMS)
+    def test_expected_families_populated(self, name, factory, symbol, tf) -> None:
+        expected = EXPECTED_FAMILIES.get(name, set())
+        if not expected:
+            return  # flat fixture — allowed to be empty
+        bars = factory(symbol=symbol)
+        canonical = build_explicit_structure_from_bars(
+            bars, symbol=symbol, timeframe=tf, structure_profile="hybrid_default",
+        )
+        for family in expected:
+            assert len(canonical[family]) > 0, (
+                f"fixture {name!r} must produce ≥1 {family} event but got 0"
+            )
+
+
+# ── Required-field validation ────────────────────────────────────
+
+
+class TestPineRequiredFields:
+    """Verify that every pine payload entity contains all required fields."""
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_bos_fields(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, _, pine = _build_pipeline(bars, symbol, tf)
+        for entry in pine["bos"]:
+            missing = PINE_REQUIRED_BOS_FIELDS - set(entry.keys())
+            assert not missing, f"bos entry {entry.get('id')} missing fields: {missing}"
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_ob_fields(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, _, pine = _build_pipeline(bars, symbol, tf)
+        for entry in pine["orderblocks"]:
+            missing = PINE_REQUIRED_OB_FIELDS - set(entry.keys())
+            assert not missing, f"ob entry {entry.get('id')} missing fields: {missing}"
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_fvg_fields(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, _, pine = _build_pipeline(bars, symbol, tf)
+        for entry in pine["fvg"]:
+            missing = PINE_REQUIRED_FVG_FIELDS - set(entry.keys())
+            assert not missing, f"fvg entry {entry.get('id')} missing fields: {missing}"
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_sweep_fields(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, _, pine = _build_pipeline(bars, symbol, tf)
+        for entry in pine["liquidity_sweeps"]:
+            missing = PINE_REQUIRED_SWEEP_FIELDS - set(entry.keys())
+            assert not missing, f"sweep entry {entry.get('id')} missing fields: {missing}"
+
+
+# ── Snapshot contract checks ─────────────────────────────────────
+
+
+class TestSnapshotContract:
+    """Verify snapshot-level contract properties survive the pipeline."""
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_schema_version_in_pine(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, _, pine = _build_pipeline(bars, symbol, tf)
+        assert pine["schema_version"] == SCHEMA_VERSION
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_symbol_roundtrip(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, snapshot, pine = _build_pipeline(bars, symbol, tf)
+        assert snapshot.symbol == symbol
+        assert pine["symbol"] == symbol
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_timeframe_roundtrip(self, factory, symbol, tf) -> None:
+        bars = factory(symbol=symbol)
+        _, _, snapshot, pine = _build_pipeline(bars, symbol, tf)
+        assert snapshot.timeframe == tf
+        assert pine["timeframe"] == tf
+
+    @pytest.mark.parametrize("factory,symbol,tf", _FIXTURE_PARAMS)
+    def test_directional_values_normalized(self, factory, symbol, tf) -> None:
+        """BOS dir must be UP/DOWN, OB/FVG dir must be BULL/BEAR, sweep side must be BUY_SIDE/SELL_SIDE."""
+        bars = factory(symbol=symbol)
+        canonical, _, _, _ = _build_pipeline(bars, symbol, tf)
+        for b in canonical["bos"]:
+            assert b["dir"] in ("UP", "DOWN"), f"unexpected bos dir {b['dir']}"
+            assert b["kind"] in ("BOS", "CHOCH"), f"unexpected bos kind {b['kind']}"
+        for o in canonical["orderblocks"]:
+            assert o["dir"] in ("BULL", "BEAR"), f"unexpected ob dir {o['dir']}"
+        for f in canonical["fvg"]:
+            assert f["dir"] in ("BULL", "BEAR"), f"unexpected fvg dir {f['dir']}"
+        for s in canonical["liquidity_sweeps"]:
+            assert s["side"] in ("BUY_SIDE", "SELL_SIDE"), f"unexpected sweep side {s['side']}"

@@ -8,6 +8,16 @@ from __future__ import annotations
 from typing import Any
 
 
+# ── Required fields per pine payload entity type ──────────────────
+# If a new field is added to the pine payload, it must be registered here
+# or the required-field parity test will fail.
+
+PINE_REQUIRED_BOS_FIELDS: set[str] = {"id", "time", "price", "kind", "dir", "style"}
+PINE_REQUIRED_OB_FIELDS: set[str] = {"id", "low", "high", "dir", "valid", "style"}
+PINE_REQUIRED_FVG_FIELDS: set[str] = {"id", "low", "high", "dir", "valid", "style"}
+PINE_REQUIRED_SWEEP_FIELDS: set[str] = {"id", "time", "price", "side", "style"}
+
+
 # ── Normalization: canonical structure dict → comparable form ──────
 
 # The canonical builder returns dicts with extra fields the bridge
