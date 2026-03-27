@@ -14,14 +14,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from databento_volatility_screener import (
+from databento_provider import DabentoProvider, MarketDataProvider
+from databento_utils import (
+    PREFERRED_DATABENTO_DATASETS,
     US_EASTERN_TZ,
     _clamp_request_end,
-    _databento_get_range_with_retry,
     _extract_unresolved_symbols_from_warning_messages,
-    _get_schema_available_end,
     _iter_symbol_batches,
-    _make_databento_client,
     _read_cached_frame,
     _store_to_frame,
     _trade_day_cache_max_age_seconds,
@@ -30,10 +29,9 @@ from databento_volatility_screener import (
     _write_cached_frame,
     build_cache_path,
     choose_default_dataset,
-    list_accessible_datasets,
-    PREFERRED_DATABENTO_DATASETS,
     resolve_display_timezone,
 )
+from databento_volatility_screener import list_accessible_datasets  # UI helper; next tranche
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
 from scripts.load_databento_export_bundle import load_export_bundle
@@ -375,6 +373,7 @@ def _build_trade_date_scope(manifest: dict[str, Any]) -> list[date]:
 def collect_full_universe_session_minute_detail(
     databento_api_key: str,
     *,
+    provider: MarketDataProvider | None = None,
     dataset: str,
     trading_days: list[date],
     universe_symbols: set[str],
@@ -399,8 +398,9 @@ def collect_full_universe_session_minute_detail(
     if not trading_days or not universe_symbols:
         return pd.DataFrame(columns=output_columns)
 
-    client = _make_databento_client(databento_api_key)
-    available_end = _get_schema_available_end(client, dataset, "ohlcv-1m")
+    if provider is None:
+        provider = DabentoProvider(databento_api_key)
+    available_end = provider.get_schema_available_end(dataset, "ohlcv-1m")
     display_tz = resolve_display_timezone(display_timezone)
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols_seen_global: set[str] = set()
@@ -478,8 +478,7 @@ def collect_full_universe_session_minute_detail(
                 try:
                     with warnings.catch_warnings(record=True) as caught_warnings:
                         warnings.simplefilter("always")
-                        store = _databento_get_range_with_retry(
-                            client,
+                        store = provider.get_range(
                             context="collect_full_universe_session_minute_detail",
                             dataset=dataset,
                             symbols=symbols_batch,
@@ -518,8 +517,7 @@ def collect_full_universe_session_minute_detail(
                         try:
                             with warnings.catch_warnings(record=True) as retry_caught_warnings:
                                 warnings.simplefilter("always")
-                                retry_store = _databento_get_range_with_retry(
-                                    client,
+                                retry_store = provider.get_range(
                                     context="collect_full_universe_session_minute_detail",
                                     dataset=dataset,
                                     symbols=retry_symbols,
