@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from smc_core.schema_version import SCHEMA_VERSION
+
 from .repo_sources import discover_repo_sources, select_best_source, select_best_volume_source
 from .service import build_snapshot_bundle_for_symbol_timeframe
 
@@ -172,7 +174,7 @@ def build_snapshot_manifest(
     rows.sort(key=lambda item: (item["symbol"], item["timeframe"]))
 
     return {
-        "schema_version": "1.0.0",
+        "schema_version": SCHEMA_VERSION,
         "generated_at": generated_at,
         "timeframe": timeframe,
         "source": {

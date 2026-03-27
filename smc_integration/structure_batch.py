@@ -11,9 +11,8 @@ import pandas as pd
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars
 from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_structure_profile
 from scripts.load_databento_export_bundle import load_export_bundle
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
-
-SCHEMA_VERSION = "1.0.0"
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"

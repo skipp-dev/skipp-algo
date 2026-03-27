@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from smc_core.schema_version import SCHEMA_VERSION
+
 
 def make_minimal_workbook(tmp_path: Path, *, symbols: list[str] | None = None) -> Path:
     values = symbols or ["AAPL", "MSFT"]
@@ -45,7 +47,7 @@ def make_minimal_structure_artifact(tmp_path: Path, *, symbol: str = "AAPL", tim
     out_dir.mkdir(parents=True, exist_ok=True)
 
     payload = {
-        "schema_version": "1.0.0",
+        "schema_version": SCHEMA_VERSION,
         "generated_at": 1709253600.0,
         "symbol": symbol,
         "timeframe": timeframe,
@@ -68,7 +70,7 @@ def make_minimal_structure_artifact(tmp_path: Path, *, symbol: str = "AAPL", tim
     artifact_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     manifest = {
-        "schema_version": "1.0.0",
+        "schema_version": SCHEMA_VERSION,
         "generated_at": 1709253600.0,
         "timeframe": timeframe,
         "counts": {"symbols_requested": 1, "artifacts_written": 1, "errors": 0},

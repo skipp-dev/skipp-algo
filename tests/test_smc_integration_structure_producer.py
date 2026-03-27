@@ -7,6 +7,7 @@ from scripts.export_smc_structure_artifact import (
     build_structure_artifact_payload,
     export_structure_artifact,
 )
+from smc_core.schema_version import SCHEMA_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKBOOK_PATH = ROOT / "databento_volatility_production_20260307_114724.xlsx"
@@ -57,7 +58,7 @@ def test_structure_producer_can_write_json_artifact(tmp_path: Path) -> None:
 
     assert written == output
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["schema_version"] == "1.0.0"
+    assert payload["schema_version"] == SCHEMA_VERSION
     assert payload["source"]["sheet"] == "daily_bars"
 
 

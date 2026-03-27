@@ -8,6 +8,8 @@ from typing import Any, cast
 
 import pandas as pd
 
+from smc_core.schema_version import SCHEMA_VERSION
+
 
 LISTS = [
     "clean_reclaim",
@@ -678,7 +680,7 @@ def write_manifest(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
-        "schema_version": "1.0.0",
+        "schema_version": SCHEMA_VERSION,
         "asof_date": asof_date,
         "library_name": "smc_micro_profiles_generated",
         "library_owner": library_owner,
