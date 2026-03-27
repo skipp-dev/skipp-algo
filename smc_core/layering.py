@@ -6,8 +6,10 @@ from typing import Literal, TypedDict
 from .schema_version import SCHEMA_VERSION
 from .types import (
     BosEvent,
+    EventSeverity,
     Fvg,
     LiquiditySweep,
+    MarketRegime,
     Orderblock,
     ReasonCode,
     SmcLayered,
@@ -32,6 +34,10 @@ class NormalizedMeta(TypedDict):
     signed_news: float
     news_present: bool
     news_stale: bool
+    event_severity: EventSeverity | None
+    event_in_window: bool
+    market_regime: MarketRegime | None
+    enriched_news_heat: float
     provenance: list[str]
 
 
@@ -102,6 +108,30 @@ def _dedupe_reasons(reasons: list[ReasonCode]) -> list[ReasonCode]:
     return out
 
 
+def _extract_event_severity(meta: SmcMeta) -> EventSeverity | None:
+    if meta.event_risk is None:
+        return None
+    return meta.event_risk.severity
+
+
+def _is_event_in_window(meta: SmcMeta) -> bool:
+    if meta.event_risk is None:
+        return False
+    return meta.event_risk.window_start <= meta.asof_ts <= meta.event_risk.window_end
+
+
+def _compute_enriched_news_heat(meta: SmcMeta) -> float:
+    if not meta.enriched_news:
+        return 0.0
+    total = 0.0
+    count = 0
+    for item in meta.enriched_news:
+        if not item.stale:
+            total += _signed_strength(item.value.strength, item.value.bias)
+            count += 1
+    return _clamp(total / count, -1.0, 1.0) if count > 0 else 0.0
+
+
 def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
     raw_regime = str(meta.volume.value.regime)
     regime: VolumeRegime
@@ -148,6 +178,10 @@ def normalize_meta(meta: SmcMeta) -> NormalizedMeta:
         signed_news=_clamp(signed_news, -1.0, 1.0),
         news_present=news_present,
         news_stale=news_stale,
+        event_severity=_extract_event_severity(meta),
+        event_in_window=_is_event_in_window(meta),
+        market_regime=meta.market_regime.regime if meta.market_regime is not None else None,
+        enriched_news_heat=_compute_enriched_news_heat(meta),
         provenance=list(meta.provenance),
     )
 
@@ -184,6 +218,28 @@ def derive_base_signals(nm: NormalizedMeta) -> BaseLayerSignals:
         base_reasons.append("NEWS_MISSING")
     elif nm["news_stale"]:
         base_reasons.append("NEWS_STALE")
+
+    # Event risk
+    if nm["event_in_window"]:
+        sev = nm["event_severity"]
+        if sev == "HIGH":
+            base_reasons.append("EVENT_RISK_HIGH")
+        elif sev == "MODERATE":
+            base_reasons.append("EVENT_RISK_MODERATE")
+
+    # Market regime context
+    mr = nm["market_regime"]
+    if mr == "RISK_ON":
+        base_reasons.append("REGIME_RISK_ON")
+    elif mr == "RISK_OFF":
+        base_reasons.append("REGIME_RISK_OFF")
+    elif mr == "ROTATION":
+        base_reasons.append("REGIME_ROTATION")
+
+    # Enriched news category reason
+    en_heat = nm["enriched_news_heat"]
+    if abs(en_heat) > 0.15:
+        base_reasons.append("NEWS_MACRO" if en_heat < -0.15 else "NEWS_COMPANY")
 
     return BaseLayerSignals(
         global_heat=global_heat,
@@ -272,6 +328,46 @@ def _apply_regime_overlay(style: ZoneStyle, volume_regime: str) -> ZoneStyle:
     )
 
 
+def _apply_event_risk_overlay(style: ZoneStyle, normalized: NormalizedMeta) -> ZoneStyle:
+    if not normalized["event_in_window"]:
+        return style
+    sev = normalized["event_severity"]
+    reasons = list(style.reason_codes)
+    if sev == "HIGH":
+        reasons.append("EVENT_RISK_HIGH")
+        next_trade: Literal["ALLOWED", "DISCOURAGED", "BLOCKED"] = "BLOCKED"
+        return ZoneStyle(
+            opacity=min(style.opacity, 0.15),
+            line_width=style.line_width,
+            render_state="DIMMED",
+            trade_state=next_trade,
+            bias=style.bias,
+            strength=style.strength,
+            heat=style.heat,
+            tone="WARNING",
+            emphasis=style.emphasis,
+            reason_codes=_dedupe_reasons(reasons),
+        )
+    if sev == "MODERATE":
+        reasons.append("EVENT_RISK_MODERATE")
+        next_trade_m: Literal["ALLOWED", "DISCOURAGED", "BLOCKED"] = style.trade_state
+        if next_trade_m == "ALLOWED":
+            next_trade_m = "DISCOURAGED"
+        return ZoneStyle(
+            opacity=min(style.opacity, 0.30),
+            line_width=style.line_width,
+            render_state=style.render_state,
+            trade_state=next_trade_m,
+            bias=style.bias,
+            strength=style.strength,
+            heat=style.heat,
+            tone=style.tone,
+            emphasis=style.emphasis,
+            reason_codes=_dedupe_reasons(reasons),
+        )
+    return style
+
+
 def _style_for_orderblock(item: Orderblock, normalized: NormalizedMeta, signals: BaseLayerSignals) -> ZoneStyle:
     style = _base_zone_style(signals["global_heat"], signals["global_strength"], signals["base_reasons"])
     reasons = list(style.reason_codes)
@@ -330,7 +426,8 @@ def _style_for_orderblock(item: Orderblock, normalized: NormalizedMeta, signals:
         emphasis=style.emphasis,
         reason_codes=_dedupe_reasons(reasons),
     )
-    return _apply_regime_overlay(style, normalized["volume_regime"])
+    style = _apply_regime_overlay(style, normalized["volume_regime"])
+    return _apply_event_risk_overlay(style, normalized)
 
 
 def _style_for_fvg(item: Fvg, normalized: NormalizedMeta, signals: BaseLayerSignals) -> ZoneStyle:
@@ -386,7 +483,8 @@ def _style_for_bos(item: BosEvent, normalized: NormalizedMeta, signals: BaseLaye
         emphasis=base.emphasis,
         reason_codes=_dedupe_reasons(reasons),
     )
-    return _apply_regime_overlay(style, normalized["volume_regime"])
+    style = _apply_regime_overlay(style, normalized["volume_regime"])
+    return _apply_event_risk_overlay(style, normalized)
 
 
 def _style_for_sweep(item: LiquiditySweep, normalized: NormalizedMeta, signals: BaseLayerSignals) -> ZoneStyle:
@@ -406,7 +504,8 @@ def _style_for_sweep(item: LiquiditySweep, normalized: NormalizedMeta, signals: 
         emphasis=base.emphasis,
         reason_codes=_dedupe_reasons(reasons),
     )
-    return _apply_regime_overlay(style, normalized["volume_regime"])
+    style = _apply_regime_overlay(style, normalized["volume_regime"])
+    return _apply_event_risk_overlay(style, normalized)
 
 
 def apply_layering(

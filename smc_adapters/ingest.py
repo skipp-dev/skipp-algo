@@ -9,9 +9,14 @@ from smc_core.types import (
     BosEvent,
     BosEventKind,
     DirectionalStrength,
+    EnrichedNews,
+    EventRisk,
+    EventSeverity,
+    EventType,
     Fvg,
     FvgDir,
     LiquiditySweep,
+    MarketRegimeContext,
     ObDir,
     Orderblock,
     SmcMeta,
@@ -19,6 +24,7 @@ from smc_core.types import (
     SmcStructure,
     SweepSide,
     TimedDirectionalStrength,
+    TimedEnrichedNews,
     TimedVolumeInfo,
     VolumeRegime,
     VolumeInfo,
@@ -192,6 +198,80 @@ def _build_timed_directional(raw: Mapping[str, Any], context: str) -> TimedDirec
     )
 
 
+_VALID_EVENT_TYPES = {"EARNINGS", "FOMC", "CPI", "NFP", "OPEX", "OTHER"}
+_VALID_EVENT_SEVERITIES = {"HIGH", "MODERATE", "LOW"}
+_VALID_NEWS_CATEGORIES = {"MACRO", "SECTOR", "COMPANY", "GEOPOLITICAL", "OTHER"}
+_VALID_MARKET_REGIMES = {"RISK_ON", "RISK_OFF", "ROTATION", "NEUTRAL"}
+
+
+def _build_event_risk(raw: Any) -> EventRisk | None:
+    if not isinstance(raw, Mapping):
+        return None
+    et = str(raw.get("event_type", "")).upper()
+    sev = str(raw.get("severity", "")).upper()
+    if et not in _VALID_EVENT_TYPES or sev not in _VALID_EVENT_SEVERITIES:
+        return None
+    ws = raw.get("window_start")
+    we = raw.get("window_end")
+    if ws is None or we is None:
+        return None
+    return EventRisk(
+        event_type=cast(EventType, et),
+        severity=cast(EventSeverity, sev),
+        window_start=float(ws),
+        window_end=float(we),
+    )
+
+
+def _build_enriched_news_list(raw: Any) -> list[TimedEnrichedNews]:
+    if not isinstance(raw, (list, Sequence)) or isinstance(raw, (str, bytes)):
+        return []
+    items: list[TimedEnrichedNews] = []
+    for entry in raw:
+        if not isinstance(entry, Mapping):
+            continue
+        val = entry.get("value")
+        if not isinstance(val, Mapping):
+            continue
+        bias_str = str(val.get("bias", "NEUTRAL")).upper()
+        if bias_str not in {"BULLISH", "BEARISH", "NEUTRAL"}:
+            bias_str = "NEUTRAL"
+        cat_str = str(val.get("category", "OTHER")).upper()
+        if cat_str not in _VALID_NEWS_CATEGORIES:
+            cat_str = "OTHER"
+        try:
+            en = EnrichedNews(
+                strength=float(val.get("strength", 0)),
+                bias=cast(Literal["BULLISH", "BEARISH", "NEUTRAL"], bias_str),
+                category=cast(Any, cat_str),
+                freshness_minutes=float(val.get("freshness_minutes", 0)),
+                source=str(val.get("source", "")),
+            )
+            items.append(TimedEnrichedNews(
+                value=en,
+                asof_ts=float(entry.get("asof_ts", 0)),
+                stale=bool(entry.get("stale", False)),
+            ))
+        except (TypeError, ValueError):
+            continue
+    return items
+
+
+def _build_market_regime(raw: Any) -> MarketRegimeContext | None:
+    if not isinstance(raw, Mapping):
+        return None
+    regime_str = str(raw.get("regime", "")).upper()
+    if regime_str not in _VALID_MARKET_REGIMES:
+        return None
+    vix = raw.get("vix_level")
+    breadth = raw.get("sector_breadth", 0.5)
+    return MarketRegimeContext(
+        regime=cast(Any, regime_str),
+        vix_level=float(vix) if vix is not None else None,
+        sector_breadth=float(breadth),
+    )
+
+
 def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
     raw = _ensure_mapping(raw_meta, "raw_meta")
 
@@ -231,6 +311,10 @@ def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
     if "news" in raw and raw["news"] is not None:
         news = _build_timed_directional(_ensure_mapping(raw["news"], "raw_meta.news"), "raw_meta.news")
 
+    event_risk = _build_event_risk(raw.get("event_risk"))
+    enriched_news = _build_enriched_news_list(raw.get("enriched_news"))
+    market_regime = _build_market_regime(raw.get("market_regime"))
+
     provenance_raw = raw.get("provenance", [])
     provenance_items = _as_list(provenance_raw, "raw_meta.provenance")
     provenance: list[str] = []
@@ -244,6 +328,9 @@ def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
         volume=volume,
         technical=technical,
         news=news,
+        event_risk=event_risk,
+        enriched_news=enriched_news,
+        market_regime=market_regime,
         provenance=provenance,
     )
 

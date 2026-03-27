@@ -10,7 +10,7 @@ Bump instructions: see docs/schema_versioning.md
 
 from __future__ import annotations
 
-SCHEMA_VERSION = "1.1.0"
+SCHEMA_VERSION = "1.2.0"
 
 
 def parse_semver(version: str) -> tuple[int, int, int]:

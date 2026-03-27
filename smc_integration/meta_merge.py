@@ -43,6 +43,9 @@ def merge_raw_meta_domains(
     technical_meta: Mapping[str, Any] | None,
     news_meta: Mapping[str, Any] | None,
     domain_sources: Mapping[str, str],
+    event_risk: Mapping[str, Any] | None = None,
+    enriched_news: list[Any] | None = None,
+    market_regime: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     volume_raw = _as_mapping(volume_meta)
     technical_raw = _as_mapping(technical_meta) if technical_meta is not None else {}
@@ -83,6 +86,16 @@ def merge_raw_meta_domains(
     news = _domain_payload(news_raw, "news")
     if news is not None:
         merged["news"] = news
+
+    # --- Optional enrichment domains ---
+    if isinstance(event_risk, Mapping):
+        merged["event_risk"] = dict(event_risk)
+
+    if isinstance(enriched_news, list) and enriched_news:
+        merged["enriched_news"] = enriched_news
+
+    if isinstance(market_regime, Mapping):
+        merged["market_regime"] = dict(market_regime)
 
     # --- Domain visibility: track which meta domains are present vs missing ---
     meta_domains_present: list[str] = ["volume"]

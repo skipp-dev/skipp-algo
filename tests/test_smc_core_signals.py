@@ -18,6 +18,10 @@ def test_derive_base_signals_shape_and_bounds() -> None:
             "tech_stale": False,
             "news_present": True,
             "news_stale": False,
+            "event_severity": None,
+            "event_in_window": False,
+            "market_regime": None,
+            "enriched_news_heat": 0.0,
             "provenance": ["TEST"],
         }
     )

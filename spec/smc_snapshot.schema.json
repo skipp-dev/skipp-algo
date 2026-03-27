@@ -156,6 +156,51 @@
         "provenance": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "event_risk": {
+          "type": "object",
+          "required": ["event_type", "severity", "window_start", "window_end"],
+          "additionalProperties": false,
+          "properties": {
+            "event_type": { "type": "string", "enum": ["EARNINGS", "FOMC", "CPI", "NFP", "OPEX", "OTHER"] },
+            "severity": { "type": "string", "enum": ["HIGH", "MODERATE", "LOW"] },
+            "window_start": { "type": "number" },
+            "window_end": { "type": "number" }
+          }
+        },
+        "enriched_news": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["value", "asof_ts", "stale"],
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "object",
+                "required": ["strength", "bias", "category", "freshness_minutes", "source"],
+                "additionalProperties": false,
+                "properties": {
+                  "strength": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "bias": { "type": "string", "enum": ["BULLISH", "BEARISH", "NEUTRAL"] },
+                  "category": { "type": "string", "enum": ["MACRO", "SECTOR", "COMPANY", "GEOPOLITICAL", "OTHER"] },
+                  "freshness_minutes": { "type": "number", "minimum": 0 },
+                  "source": { "type": "string" }
+                }
+              },
+              "asof_ts": { "type": "number" },
+              "stale": { "type": "boolean" }
+            }
+          }
+        },
+        "market_regime": {
+          "type": "object",
+          "required": ["regime"],
+          "additionalProperties": false,
+          "properties": {
+            "regime": { "type": "string", "enum": ["RISK_ON", "RISK_OFF", "ROTATION", "NEUTRAL"] },
+            "vix_level": { "type": ["number", "null"] },
+            "sector_breadth": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
         }
       }
     },
@@ -213,7 +258,14 @@
                     "BOS",
                     "CHOCH",
                     "SWEEP_BUY_SIDE",
-                    "SWEEP_SELL_SIDE"
+                    "SWEEP_SELL_SIDE",
+                    "EVENT_RISK_HIGH",
+                    "EVENT_RISK_MODERATE",
+                    "REGIME_RISK_ON",
+                    "REGIME_RISK_OFF",
+                    "REGIME_ROTATION",
+                    "NEWS_MACRO",
+                    "NEWS_COMPANY"
                   ]
                 }
               }
