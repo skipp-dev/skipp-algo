@@ -163,9 +163,6 @@ Fuer jede Domaene (volume, technical, news) stehen folgende Felder zur Verfuegun
 - `{domain}_asof_ts` – Epoch-Timestamp der Domaenen-Meta (`null` wenn nicht vorhanden).
 - `{domain}_age_hours` – Alter in Stunden seit `asof_ts` (`null` wenn `asof_ts` fehlt).
 - `{domain}_stale` – `true` wenn `age_hours > 48` oder `asof_ts` fehlt/ungueltig.
-
-Technical und News haben zusaetzlich:
-
 - `{domain}_fallback_used` – `true` wenn der primaere Provider nicht geliefert hat und ein Fallback-Provider genutzt wurde.
 
 ## 6.2) Operator-Handbuch: Domain-Staleness
@@ -200,6 +197,7 @@ Technical und News haben zusaetzlich:
   "meta_domain_diagnostics": {
     "volume": "present",
     "volume_source": "databento_watchlist_csv",
+    "volume_fallback_used": false,
     "volume_asof_ts": 1711497600.0,
     "volume_age_hours": 3.2,
     "volume_stale": false,
@@ -227,6 +225,28 @@ Die Domain-Staleness-Codes werden vom Evidence-Collector (`scripts/collect_smc_g
 
 - `stale_domain_trend` – zaehlt je `STALE_META_*_DOMAIN`-Code die Haeufigkeit im Lookback-Fenster.
 - `stale_domain_runs` – listet pro Code die betroffenen Report-Pfade und Timestamps auf.
+
+### Decision Tree: Domain-Staleness beheben
+
+```mermaid
+flowchart TD
+    A[STALE_META_*_DOMAIN im Report] --> B{Welche Domaene?}
+    B -->|volume| C[Databento-Watchlist-CSV pruefen]
+    B -->|technical| D[FMP-Watchlist-JSON pruefen]
+    B -->|news| E[Benzinga-Watchlist-JSON pruefen]
+    C --> F{Pipeline gelaufen?}
+    D --> F
+    E --> F
+    F -->|Nein| G[Export/Poller manuell starten]
+    F -->|Ja, aber stale| H[Quell-API erreichbar? Credentials gueltig?]
+    G --> I[Gate-Lauf wiederholen]
+    H -->|Ja| G
+    H -->|Nein| J[API-Zugang / Credentials fixen]
+    J --> G
+    I --> K{Gate gruen?}
+    K -->|Ja| L[Fertig]
+    K -->|Nein| B
+```
 
 ## 7) Diese Checks in GitHub Branch Protection auswaehlen
 

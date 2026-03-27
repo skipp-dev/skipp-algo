@@ -290,6 +290,7 @@ def test_diagnostics_consistency(monkeypatch, tmp_path: Path) -> None:
 
     # Volume recency fields (symmetric)
     assert "volume_source" in diag
+    assert "volume_fallback_used" in diag
     assert "volume_asof_ts" in diag
     assert "volume_age_hours" in diag
     assert "volume_stale" in diag
@@ -329,6 +330,7 @@ def test_volume_fresh_not_stale(monkeypatch, tmp_path: Path) -> None:
     assert diag["volume_asof_ts"] is not None
     assert isinstance(diag["volume_age_hours"], float)
     assert diag["volume_source"] is not None
+    assert diag["volume_fallback_used"] is False
 
 
 def test_volume_stale_flagged(monkeypatch, tmp_path: Path) -> None:
@@ -358,6 +360,7 @@ def test_volume_stale_flagged(monkeypatch, tmp_path: Path) -> None:
 
     assert diag["volume_stale"] is True
     assert diag["volume_age_hours"] > _META_DOMAIN_STALE_HOURS
+    assert diag["volume_fallback_used"] is False
 
     # Consistency: if domain present and not stale, age must be below threshold
     if diag["technical"] == "present" and not diag["technical_stale"]:

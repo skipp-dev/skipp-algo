@@ -527,6 +527,10 @@ def test_smoke_detects_stale_technical_domain(monkeypatch):
     assert "STALE_META_TECHNICAL_DOMAIN" in codes
     assert "STALE_META_NEWS_DOMAIN" not in codes
 
+    # meta_domain_diagnostics should be surfaced in the smoke result row
+    assert "meta_domain_diagnostics" in smoke["results"][0]
+    assert smoke["results"][0]["meta_domain_diagnostics"]["technical_stale"] is True
+
 
 def test_smoke_detects_stale_news_domain(monkeypatch):
     _patch_smoke_env(monkeypatch, _stub_meta_with_domain_diagnostics(technical_stale=False, news_stale=True))

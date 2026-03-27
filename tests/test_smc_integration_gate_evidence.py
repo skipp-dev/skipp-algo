@@ -309,3 +309,128 @@ def test_gate_evidence_domain_stale_aggregation_is_deterministic(monkeypatch, tm
     import json
     assert json.dumps(results[0]["stale_domain_trend"], sort_keys=True) == json.dumps(results[1]["stale_domain_trend"], sort_keys=True)
     assert json.dumps(results[0]["stale_domain_runs"], sort_keys=True) == json.dumps(results[1]["stale_domain_runs"], sort_keys=True)
+
+
+# ---------------------------------------------------------------------------
+# latest_domain_diagnostics in evidence summary
+# ---------------------------------------------------------------------------
+
+
+def test_gate_evidence_surfaces_latest_domain_diagnostics(monkeypatch, tmp_path: Path) -> None:
+    """Evidence summary should include the most recent meta_domain_diagnostics
+    extracted from smoke_test_results in the input reports."""
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    diag_old = {
+        "volume": "present",
+        "volume_source": "databento_watchlist_csv",
+        "volume_fallback_used": False,
+        "volume_asof_ts": 1_699_990_000.0,
+        "volume_age_hours": 2.8,
+        "volume_stale": False,
+        "technical": "present",
+        "technical_source": "fmp_watchlist_json",
+        "technical_fallback_used": False,
+        "technical_asof_ts": 1_699_800_000.0,
+        "technical_age_hours": 55.6,
+        "technical_stale": True,
+        "news": "present",
+        "news_source": "benzinga_watchlist_json",
+        "news_fallback_used": False,
+        "news_asof_ts": 1_699_992_000.0,
+        "news_age_hours": 2.2,
+        "news_stale": False,
+    }
+    diag_new = {**diag_old, "technical_age_hours": 1.0, "technical_stale": False}
+
+    # Older report
+    _write_json(
+        tmp_path / "health_old.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 300.0,
+            "overall_status": "warn",
+            "runtime_metadata": {"git_commit": "sha-old"},
+            "smoke_test_results": [
+                {"symbol": "USAR", "timeframe": "15m", "status": "warn", "meta_domain_diagnostics": diag_old},
+            ],
+        },
+    )
+    # Newer report with fresh technical
+    _write_json(
+        tmp_path / "health_new.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 60.0,
+            "overall_status": "ok",
+            "runtime_metadata": {"git_commit": "sha-new"},
+            "smoke_test_results": [
+                {"symbol": "USAR", "timeframe": "15m", "status": "ok", "meta_domain_diagnostics": diag_new},
+            ],
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    evidence_script.main()
+    summary = captured[-1]
+
+    assert "latest_domain_diagnostics" in summary
+    usar_diag = summary["latest_domain_diagnostics"].get("USAR/15m")
+    assert usar_diag is not None
+    # Should reflect the newer report (technical not stale)
+    assert usar_diag["technical_stale"] is False
+    assert usar_diag["technical_age_hours"] == 1.0
+    # Internal tracking key must not leak
+    assert "_checked_at" not in usar_diag
+
+
+def test_gate_evidence_no_smoke_results_produces_empty_diagnostics(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "deeper_ok.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 60.0,
+            "overall_status": "ok",
+            "runtime_metadata": {"git_commit": "sha-no-smoke"},
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    evidence_script.main()
+    assert captured[-1]["latest_domain_diagnostics"] == {}

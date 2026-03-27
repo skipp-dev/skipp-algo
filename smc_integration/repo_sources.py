@@ -415,9 +415,18 @@ def load_raw_meta_input_composite(
     plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
 
     structure_provider = _SOURCE_PROVIDERS[plan["structure"]]
-    volume_provider = _SOURCE_PROVIDERS[plan["volume"]]
 
-    volume_meta = volume_provider.load_meta(symbol, timeframe)
+    volume_meta_raw, volume_domain_status, actual_volume_source = _try_load_meta_domain(
+        "volume", symbol, timeframe, plan["volume"], auto_mode=auto_mode,
+    )
+    # volume is mandatory – if _try_load_meta_domain returned None, fall back
+    # to the planned provider so merge_raw_meta_domains raises clearly.
+    if volume_meta_raw is None:
+        volume_provider = _SOURCE_PROVIDERS[plan["volume"]]
+        volume_meta = volume_provider.load_meta(symbol, timeframe)
+        actual_volume_source = plan["volume"]
+    else:
+        volume_meta = volume_meta_raw
 
     technical_meta, technical_domain_status, actual_technical_source = _try_load_meta_domain(
         "technical", symbol, timeframe, plan["technical"], auto_mode=auto_mode,
@@ -432,7 +441,7 @@ def load_raw_meta_input_composite(
         news_meta=news_meta,
         domain_sources={
             "structure": structure_provider.descriptor.name,
-            "volume": volume_provider.descriptor.name,
+            "volume": actual_volume_source,
             "technical": actual_technical_source,
             "news": actual_news_source,
         },
@@ -441,8 +450,9 @@ def load_raw_meta_input_composite(
     # Per-domain diagnostics: status, which provider actually delivered,
     # and whether a fallback was used.
     diagnostics: dict[str, Any] = {
-        "volume": "present",
-        "volume_source": volume_provider.descriptor.name,
+        "volume": volume_domain_status if volume_meta_raw is not None else "present",
+        "volume_source": actual_volume_source,
+        "volume_fallback_used": actual_volume_source != plan["volume"] and (volume_meta_raw is not None),
         "technical": technical_domain_status,
         "technical_source": actual_technical_source,
         "technical_fallback_used": actual_technical_source != plan["technical"] and technical_domain_status == "present",

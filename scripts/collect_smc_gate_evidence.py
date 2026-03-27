@@ -188,6 +188,8 @@ def main() -> int:
 
     runs: list[dict[str, Any]] = []
     parse_failures: list[dict[str, Any]] = []
+    # Track the most recent meta_domain_diagnostics per symbol/timeframe pair.
+    latest_domain_diag: dict[str, dict[str, Any]] = {}  # key: "SYMBOL/TF"
     for path in file_paths:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -234,6 +236,25 @@ def main() -> int:
                 "codes": codes,
             }
         )
+
+        # Collect meta_domain_diagnostics from smoke_test_results, keyed by
+        # symbol/timeframe.  Only the most recent (highest checked_at) wins.
+        smoke_results = payload.get("smoke_test_results")
+        if isinstance(smoke_results, list):
+            for sr in smoke_results:
+                if not isinstance(sr, dict):
+                    continue
+                diag = sr.get("meta_domain_diagnostics")
+                if not isinstance(diag, dict):
+                    continue
+                sym = str(sr.get("symbol", "")).strip().upper()
+                tf = str(sr.get("timeframe", "")).strip()
+                if not sym or not tf:
+                    continue
+                key = f"{sym}/{tf}"
+                existing_ts = latest_domain_diag.get(key, {}).get("_checked_at")
+                if existing_ts is None or (checked_at is not None and checked_at > existing_ts):
+                    latest_domain_diag[key] = {**diag, "_checked_at": checked_at}
 
     runs.sort(key=lambda row: float(row.get("checked_at") or 0.0), reverse=True)
 
@@ -318,6 +339,10 @@ def main() -> int:
         "missing_trend": dict(missing_trend),
         "smoke_trend": dict(smoke_trend),
         "green_ready": bool(green_ready),
+        "latest_domain_diagnostics": {
+            key: {k: v for k, v in diag.items() if k != "_checked_at"}
+            for key, diag in sorted(latest_domain_diag.items())
+        } if latest_domain_diag else {},
         "parse_failures": parse_failures,
         "runs": runs,
     }

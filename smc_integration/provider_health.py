@@ -406,9 +406,10 @@ def _run_smoke_checks(
                         warnings.append(dict(stale_meta_degradation))
                         degradations.append(dict(stale_meta_degradation))
 
-                # Per-domain staleness (technical / news).
+                # Per-domain staleness (volume / technical / news).
                 domain_diag = raw_meta.get("meta_domain_diagnostics")
                 if isinstance(domain_diag, dict):
+                    row["meta_domain_diagnostics"] = domain_diag
                     for domain in ("volume", "technical", "news"):
                         if domain_diag.get(f"{domain}_stale") is True:
                             code = f"STALE_META_{domain.upper()}_DOMAIN"
