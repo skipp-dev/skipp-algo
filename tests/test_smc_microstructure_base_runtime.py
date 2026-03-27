@@ -288,6 +288,7 @@ def test_write_base_manifest_persists_core_ready_false(tmp_path: Path) -> None:
         micro_day_parquet_path=tmp_path / "micro.parquet",
         mapping_md_path=tmp_path / "mapping.md",
         mapping_json_path=tmp_path / "mapping.json",
+        production_workbook_path=None,
         library_owner="preuss_steffen",
         library_version=1,
         core_ready=False,
@@ -296,6 +297,7 @@ def test_write_base_manifest_persists_core_ready_false(tmp_path: Path) -> None:
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     assert payload["core_ready"] is False
+    assert payload["production_workbook_path"] is None
     assert "base snapshot artifact state" in payload["core_ready_note"]
 
 

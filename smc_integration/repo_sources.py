@@ -9,6 +9,10 @@ from .meta_merge import merge_raw_meta_domains
 from .sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, structure_artifact_json, tradingview_watchlist_json
 from .sources.base import SourceDescriptor
 
+# Per-domain staleness threshold for technical / news meta.
+# Data older than this is flagged as stale in diagnostics.
+_META_DOMAIN_STALE_HOURS: float = 48.0
+
 
 @dataclass(frozen=True)
 class _SourceProvider:
@@ -436,7 +440,7 @@ def load_raw_meta_input_composite(
 
     # Per-domain diagnostics: status, which provider actually delivered,
     # and whether a fallback was used.
-    merged["meta_domain_diagnostics"] = {
+    diagnostics: dict[str, Any] = {
         "volume": "present",
         "technical": technical_domain_status,
         "technical_source": actual_technical_source,
@@ -445,6 +449,27 @@ def load_raw_meta_input_composite(
         "news_source": actual_news_source,
         "news_fallback_used": actual_news_source != plan["news"] and news_domain_status == "present",
     }
+
+    # Per-domain recency / staleness (B-F1).
+    now = time.time()
+    for domain, domain_meta in [("technical", technical_meta), ("news", news_meta)]:
+        if domain_meta is None:
+            diagnostics[f"{domain}_asof_ts"] = None
+            diagnostics[f"{domain}_age_hours"] = None
+            diagnostics[f"{domain}_stale"] = True
+        else:
+            domain_asof = domain_meta.get("asof_ts")
+            if isinstance(domain_asof, (int, float)) and math.isfinite(domain_asof) and domain_asof > 0:
+                age_hours = (now - float(domain_asof)) / 3600.0
+                diagnostics[f"{domain}_asof_ts"] = float(domain_asof)
+                diagnostics[f"{domain}_age_hours"] = round(age_hours, 2)
+                diagnostics[f"{domain}_stale"] = age_hours > _META_DOMAIN_STALE_HOURS
+            else:
+                diagnostics[f"{domain}_asof_ts"] = None
+                diagnostics[f"{domain}_age_hours"] = None
+                diagnostics[f"{domain}_stale"] = True
+
+    merged["meta_domain_diagnostics"] = diagnostics
 
     merged_asof_ts = merged.get("asof_ts")
     if not isinstance(merged_asof_ts, (int, float)):
