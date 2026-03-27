@@ -4,7 +4,7 @@ Integrates with the live Python stack:
   - FMPClient for intraday OHLCV candles
   - VolumeRegimeDetector for regime state
   - TechnicalScorer for tech score
-  - Lightweight SMC zone detector (BOS / OB / FVG / sweeps from candles)
+  - Canonical structure producer (scripts/explicit_structure_from_bars)
 
 Start (production):
     uvicorn smc_tv_bridge.smc_api:app --host 0.0.0.0 --port 8000
@@ -18,10 +18,11 @@ import logging
 import os
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -67,206 +68,106 @@ _TF_CANDLE_LIMIT: dict[str, int] = {
 
 
 # ══════════════════════════════════════════════════════════
-# Lightweight SMC Zone Detector
+# Candle timestamp extraction
 # ══════════════════════════════════════════════════════════
-
-def _detect_bos(candles: list[dict[str, Any]], lookback: int = 20) -> list[dict[str, Any]]:
-    """Detect Break of Structure from OHLCV candles.
-
-    A BOS-UP occurs when price closes above a recent swing high.
-    A BOS-DOWN occurs when price closes below a recent swing low.
-    """
-    if len(candles) < 5:
-        return []
-
-    bos_list: list[dict[str, Any]] = []
-    swing_highs: list[tuple[int, float]] = []
-    swing_lows: list[tuple[int, float]] = []
-
-    # Find swing points (simple: higher than neighbors)
-    for i in range(2, len(candles) - 2):
-        h = candles[i]["high"]
-        if h > candles[i - 1]["high"] and h > candles[i - 2]["high"] \
-           and h > candles[i + 1]["high"] and h > candles[i + 2]["high"]:
-            swing_highs.append((i, h))
-
-        lo = candles[i]["low"]
-        if lo < candles[i - 1]["low"] and lo < candles[i - 2]["low"] \
-           and lo < candles[i + 1]["low"] and lo < candles[i + 2]["low"]:
-            swing_lows.append((i, lo))
-
-    # Check for BOS: close breaking recent swing
-    recent_highs = swing_highs[-lookback:]
-    recent_lows = swing_lows[-lookback:]
-
-    for i in range(max(5, len(candles) - lookback), len(candles)):
-        c = candles[i]
-        # BOS UP — close above most recent swing high
-        for _si, sh in reversed(recent_highs):
-            if _si < i and c["close"] > sh:
-                bos_list.append({
-                    "time": _candle_ts(c),
-                    "price": round(sh, 4),
-                    "dir": "UP",
-                })
-                break
-        # BOS DOWN — close below most recent swing low
-        for _si, sl in reversed(recent_lows):
-            if _si < i and c["close"] < sl:
-                bos_list.append({
-                    "time": _candle_ts(c),
-                    "price": round(sl, 4),
-                    "dir": "DOWN",
-                })
-                break
-
-    # Deduplicate: keep last N unique by dir
-    seen: set[str] = set()
-    deduped: list[dict[str, Any]] = []
-    for b in reversed(bos_list):
-        key = f"{b['dir']}_{b['price']}"
-        if key not in seen:
-            seen.add(key)
-            deduped.append(b)
-        if len(deduped) >= 10:
-            break
-    return list(reversed(deduped))
-
-
-def _detect_orderblocks(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Detect order blocks — last candle before a strong impulsive move."""
-    if len(candles) < 3:
-        return []
-
-    obs: list[dict[str, Any]] = []
-    for i in range(1, len(candles) - 1):
-        prev = candles[i - 1]
-        curr = candles[i]
-        nxt = candles[i + 1]
-
-        body_prev = abs(prev["close"] - prev["open"])
-        body_next = abs(nxt["close"] - nxt["open"])
-        range_next = nxt["high"] - nxt["low"]
-
-        if range_next <= 0:
-            continue
-
-        # Bullish OB: bearish candle followed by strong bullish impulse
-        if prev["close"] < prev["open"] and nxt["close"] > nxt["open"] \
-           and body_next > body_prev * 1.5 and body_next / range_next > 0.6:
-            obs.append({
-                "low": round(prev["low"], 4),
-                "high": round(prev["high"], 4),
-                "dir": "BULL",
-                "valid": nxt["close"] > prev["high"],  # validated if impulse clears OB
-            })
-
-        # Bearish OB: bullish candle followed by strong bearish impulse
-        if prev["close"] > prev["open"] and nxt["close"] < nxt["open"] \
-           and body_next > body_prev * 1.5 and body_next / range_next > 0.6:
-            obs.append({
-                "low": round(prev["low"], 4),
-                "high": round(prev["high"], 4),
-                "dir": "BEAR",
-                "valid": nxt["close"] < prev["low"],
-            })
-
-    # Keep only recent, valid ones
-    valid = [ob for ob in obs if ob["valid"]]
-    return valid[-8:]
-
-
-def _detect_fvg(candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Detect Fair Value Gaps (imbalance zones) from 3-candle patterns."""
-    if len(candles) < 3:
-        return []
-
-    fvgs: list[dict[str, Any]] = []
-    for i in range(2, len(candles)):
-        c0 = candles[i - 2]
-        c2 = candles[i]
-
-        # Bullish FVG: gap between candle 0 high and candle 2 low
-        if c2["low"] > c0["high"]:
-            fvgs.append({
-                "low": round(c0["high"], 4),
-                "high": round(c2["low"], 4),
-                "dir": "BULL",
-                "valid": True,
-            })
-        # Bearish FVG: gap between candle 2 high and candle 0 low
-        elif c2["high"] < c0["low"]:
-            fvgs.append({
-                "low": round(c2["high"], 4),
-                "high": round(c0["low"], 4),
-                "dir": "BEAR",
-                "valid": True,
-            })
-
-    # Invalidate FVGs that have been filled by later candles
-    last_price = candles[-1]["close"] if candles else 0
-    for fvg in fvgs:
-        if fvg["dir"] == "BULL" and last_price < fvg["low"]:
-            fvg["valid"] = False
-        elif fvg["dir"] == "BEAR" and last_price > fvg["high"]:
-            fvg["valid"] = False
-
-    valid = [f for f in fvgs if f["valid"]]
-    return valid[-8:]
-
-
-def _detect_sweeps(candles: list[dict[str, Any]], lookback: int = 30) -> list[dict[str, Any]]:
-    """Detect liquidity sweeps — wick beyond recent S/R then close back inside."""
-    if len(candles) < 5:
-        return []
-
-    sweeps: list[dict[str, Any]] = []
-    start = max(5, len(candles) - lookback)
-
-    for i in range(start, len(candles)):
-        c = candles[i]
-        # Recent high/low range
-        window = candles[max(0, i - 20):i]
-        if not window:
-            continue
-        recent_high = max(w["high"] for w in window)
-        recent_low = min(w["low"] for w in window)
-
-        # Buy-side sweep: wick above recent high, close back below
-        if c["high"] > recent_high and c["close"] < recent_high:
-            sweeps.append({
-                "time": _candle_ts(c),
-                "price": round(recent_high, 4),
-                "side": "SELL",  # sell-side liquidity grabbed
-            })
-        # Sell-side sweep: wick below recent low, close back above
-        if c["low"] < recent_low and c["close"] > recent_low:
-            sweeps.append({
-                "time": _candle_ts(c),
-                "price": round(recent_low, 4),
-                "side": "BUY",  # buy-side liquidity grabbed
-            })
-
-    return sweeps[-10:]
-
 
 def _candle_ts(c: dict[str, Any]) -> int:
     """Extract Unix timestamp from a candle dict."""
-    # FMP returns 'date' as ISO string, convert if needed
     ts = c.get("timestamp") or c.get("t")
     if ts and isinstance(ts, (int, float)):
         return int(ts)
     d = c.get("date", "")
     if d:
         try:
-            import datetime as _dt
             if "T" in d:
-                return int(_dt.datetime.fromisoformat(d).timestamp())
-            return int(_dt.datetime.strptime(d, "%Y-%m-%d").timestamp())
+                return int(datetime.fromisoformat(d).timestamp())
+            return int(datetime.strptime(d, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp())
         except Exception:
             pass
     return int(time.time())
 
+
+# ══════════════════════════════════════════════════════════
+# Candle → DataFrame adapter
+# ══════════════════════════════════════════════════════════
+
+def candles_to_dataframe(candles: list[dict[str, Any]], symbol: str) -> pd.DataFrame:
+    """Convert FMP-style candle dicts to the DataFrame shape expected by
+    the canonical structure producer (symbol, timestamp, OHLCV)."""
+    if not candles:
+        return pd.DataFrame(columns=["symbol", "timestamp", "open", "high", "low", "close", "volume"])
+
+    rows: list[dict[str, Any]] = []
+    sym = symbol.strip().upper()
+    for c in candles:
+        ts = _candle_ts(c)
+        rows.append({
+            "symbol": sym,
+            "timestamp": ts,
+            "open": float(c.get("open", 0)),
+            "high": float(c.get("high", 0)),
+            "low": float(c.get("low", 0)),
+            "close": float(c.get("close", 0)),
+            "volume": float(c.get("volume", 0)),
+        })
+    return pd.DataFrame(rows)
+
+
+# ══════════════════════════════════════════════════════════
+# Canonical structure → bridge response adapter
+# ══════════════════════════════════════════════════════════
+
+_SWEEP_SIDE_MAP = {"BUY_SIDE": "BUY", "SELL_SIDE": "SELL"}
+
+
+def _adapt_bos(canonical_bos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Strip canonical extras, keep only {time, price, dir}."""
+    return [
+        {"time": int(b.get("time", b.get("anchor_ts", 0))), "price": b["price"], "dir": b["dir"]}
+        for b in canonical_bos
+    ]
+
+
+def _adapt_zones(canonical_zones: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Strip canonical extras, keep only {low, high, dir, valid}."""
+    return [
+        {"low": z["low"], "high": z["high"], "dir": z["dir"], "valid": z.get("valid", True)}
+        for z in canonical_zones
+    ]
+
+
+def _adapt_sweeps(canonical_sweeps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Strip canonical extras, map SELL_SIDE→SELL / BUY_SIDE→BUY."""
+    return [
+        {
+            "time": int(s.get("time", s.get("anchor_ts", 0))),
+            "price": s["price"],
+            "side": _SWEEP_SIDE_MAP.get(s["side"], s["side"]),
+        }
+        for s in canonical_sweeps
+    ]
+
+
+def _detect_structure_canonical(candles: list[dict[str, Any]], symbol: str, timeframe: str) -> dict[str, list[dict[str, Any]]]:
+    """Run the canonical structure producer and adapt its output to bridge shape."""
+    df = candles_to_dataframe(candles, symbol)
+    if df.empty:
+        return {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
+
+    from scripts.explicit_structure_from_bars import build_full_structure_from_bars
+
+    try:
+        raw = build_full_structure_from_bars(df, symbol=symbol, timeframe=timeframe)
+    except (ValueError, KeyError) as exc:
+        logger.warning("Canonical structure failed for %s/%s: %s", symbol, timeframe, exc)
+        return {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
+
+    return {
+        "bos": _adapt_bos(raw.get("bos", [])),
+        "orderblocks": _adapt_zones(raw.get("orderblocks", [])),
+        "fvg": _adapt_zones(raw.get("fvg", [])),
+        "liquidity_sweeps": _adapt_sweeps(raw.get("liquidity_sweeps", [])),
+    }
 
 # ══════════════════════════════════════════════════════════
 # Provider layer — either real FMP or mock
@@ -369,12 +270,9 @@ def build_smc_snapshot(symbol: str, timeframe: str) -> dict[str, Any]:
     if USE_MOCK:
         return _mock_snapshot(symbol, timeframe)
 
-    # 1) Fetch candles and detect SMC zones
+    # 1) Fetch candles and detect SMC zones via canonical producer
     candles = _fetch_candles(symbol, timeframe)
-    bos = _detect_bos(candles) if candles else []
-    orderblocks = _detect_orderblocks(candles) if candles else []
-    fvg = _detect_fvg(candles) if candles else []
-    sweeps = _detect_sweeps(candles) if candles else []
+    structure = _detect_structure_canonical(candles, symbol, timeframe)
 
     # 2) Volume regime (needs a recent quote to update)
     regime_det = _get_volume_regime()
@@ -397,10 +295,10 @@ def build_smc_snapshot(symbol: str, timeframe: str) -> dict[str, Any]:
     return {
         "symbol": symbol,
         "timeframe": timeframe,
-        "bos": bos,
-        "orderblocks": orderblocks,
-        "fvg": fvg,
-        "liquidity_sweeps": sweeps,
+        "bos": structure["bos"],
+        "orderblocks": structure["orderblocks"],
+        "fvg": structure["fvg"],
+        "liquidity_sweeps": structure["liquidity_sweeps"],
         "regime": {
             "volume_regime": regime_det.regime,
             "thin_fraction": regime_det.thin_fraction,
