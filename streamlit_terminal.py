@@ -188,6 +188,14 @@ from terminal_export import (
     save_vd_snapshot,
 )
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
+from terminal_status_helpers import (
+    api_key_status,
+    cursor_diagnostic,
+    degraded_mode_reasons,
+    feed_staleness_diagnostic,
+    format_poll_ago,
+    poll_failure_count,
+)
 from open_prep.realtime_signals import (
     RealtimeEngine,
     ensure_rt_engine_running,
@@ -878,30 +886,26 @@ with st.sidebar:
     # API key status — re-read env vars directly so keys added after
     # session start are detected without requiring a full server restart.
     _bz_key = os.environ.get("BENZINGA_API_KEY", "") or cfg.benzinga_api_key
-    if _bz_key:
-        st.success("News API: ✅ configured")
-        if not cfg.benzinga_api_key:
-            cfg.benzinga_api_key = _bz_key
-    else:
-        st.error("No BENZINGA_API_KEY found in .env")
-        st.info("Set `BENZINGA_API_KEY=your_key` in `.env` and restart.")
-
-    # Databento key status
-    if databento_available():
-        st.success("Databento: ✅ configured")
-    else:
-        st.caption("Databento: not configured (quote enrichment disabled)")
-
-    # Re-read env var directly — the cached TerminalConfig may have been
-    # created before the user added the key to .env.
     _oai_key = os.environ.get("OPENAI_API_KEY", "") or cfg.openai_api_key
-    if _oai_key:
-        st.success("OpenAI: ✅ configured")
-        # Patch live config so downstream code sees the key too
-        if not cfg.openai_api_key:
-            cfg.openai_api_key = _oai_key
-    else:
-        st.caption("OpenAI: not configured (AI Insights disabled)")
+    _key_statuses = api_key_status(
+        benzinga_key=_bz_key,
+        databento_available=databento_available(),
+        openai_key=_oai_key,
+    )
+    for _ks in _key_statuses:
+        if _ks["configured"]:
+            st.success(f"{_ks['name']}: {_ks['icon']} {_ks['message']}")
+        elif _ks["icon"] == "❌":
+            st.error(_ks["message"])
+            if _ks["name"] == "News API":
+                st.info("Set `BENZINGA_API_KEY=your_key` in `.env` and restart.")
+        else:
+            st.caption(f"{_ks['name']}: {_ks['message']}")
+    # Patch live config so downstream code sees keys added after session start
+    if _bz_key and not cfg.benzinga_api_key:
+        cfg.benzinga_api_key = _bz_key
+    if _oai_key and not cfg.openai_api_key:
+        cfg.openai_api_key = _oai_key
 
     # Poll interval
     interval = st.slider(
@@ -941,42 +945,31 @@ with st.sidebar:
     # Stats
     st.metric("Polls", st.session_state.poll_count)
     _poll_attempts = st.session_state.get("poll_attempts", 0)
-    if _poll_attempts > st.session_state.poll_count:
-        # Distinguish in-progress (no poll completed yet) from actual failures
+    _poll_fails = poll_failure_count(_poll_attempts, st.session_state.poll_count)
+    if _poll_fails is not None:
         if st.session_state.last_poll_status == "—":
             st.caption(f"Attempts: {_poll_attempts} (in progress…)")
         else:
-            st.caption(f"Attempts: {_poll_attempts} (failures: {_poll_attempts - st.session_state.poll_count})")
+            st.caption(f"Attempts: {_poll_attempts} (failures: {_poll_fails})")
     st.metric("Items in feed", len(st.session_state.feed))
     st.metric("Total ingested", st.session_state.total_items_ingested)
-    if st.session_state.last_poll_ts:
-        ago = time.time() - st.session_state.last_poll_ts
-        _dur = st.session_state.get("last_poll_duration_s", 0.0)
-        _dur_txt = f" ({_dur:.1f}s)" if _dur > 0 else ""
-        st.caption(f"Last poll: {ago:.0f}s ago{_dur_txt}")
+    _poll_ago = format_poll_ago(
+        st.session_state.last_poll_ts,
+        last_duration_s=st.session_state.get("last_poll_duration_s", 0.0),
+    )
+    if _poll_ago:
+        st.caption(_poll_ago)
 
     # Feed staleness + cursor diagnostics
     _diag_feed = st.session_state.feed
     _diag_staleness = feed_staleness_minutes(_diag_feed)
-    if _diag_staleness is not None:
-        _stale_label = f"Feed age: {_diag_staleness:.0f}m"
-        if _diag_staleness > 2 and is_market_hours():
-            st.warning(_stale_label)
-        elif _diag_staleness > 15 and not is_market_hours():
-            st.warning(f"{_stale_label} (off-hours)")
-        elif not is_market_hours():
-            st.caption(f"{_stale_label} (off-hours)")
+    _stale_diag = feed_staleness_diagnostic(_diag_staleness, is_market_hours())
+    if _stale_diag["label"]:
+        if _stale_diag["severity"] == "warn":
+            st.warning(_stale_diag["label"])
         else:
-            st.caption(_stale_label)
-    _diag_cursor = st.session_state.cursor
-    if _diag_cursor:
-        try:
-            _cursor_ago = (time.time() - float(_diag_cursor)) / 60
-            st.caption(f"Cursor: {_cursor_ago:.0f}m ago")
-        except (ValueError, TypeError):
-            st.caption(f"Cursor: {str(_diag_cursor)[:20]}")
-    else:
-        st.caption("Cursor: (initial)")
+            st.caption(_stale_diag["label"])
+    st.caption(cursor_diagnostic(st.session_state.cursor))
     _diag_empty = st.session_state.get("consecutive_empty_polls", 0)
     if _diag_empty > 0:
         st.caption(f"Empty polls: {_diag_empty}")

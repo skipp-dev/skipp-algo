@@ -5,6 +5,8 @@ Validates:
 2. Open Prep adapter implementations satisfy the protocols.
 3. Bridge snapshot builder works with injected adapters (no live FMP).
 4. The bridge module has no direct ``from open_prep`` imports.
+5. Stub providers obey contract invariants (golden payloads, error injection).
+6. Payload validation catches bad data.
 """
 from __future__ import annotations
 
@@ -214,3 +216,118 @@ class TestAdapterSignatures:
             inspect.getattr_static(OpenPrepRegimeProvider, "thin_fraction"),
             property,
         )
+
+
+# ── 6. Stub provider contract invariants ────────────────────────────────────
+
+class TestStubProviderContracts:
+    """Stubs in smc_tv_bridge.stubs produce valid contract-conforming data."""
+
+    def test_golden_candle_has_required_keys(self) -> None:
+        from smc_tv_bridge.adapters import CANDLE_REQUIRED_KEYS, CANDLE_TIMESTAMP_KEYS
+        from smc_tv_bridge.stubs import GOLDEN_CANDLE
+        assert CANDLE_REQUIRED_KEYS.issubset(GOLDEN_CANDLE.keys())
+        assert CANDLE_TIMESTAMP_KEYS & GOLDEN_CANDLE.keys(), "needs date or timestamp"
+
+    def test_golden_candles_sorted_oldest_first(self) -> None:
+        from smc_tv_bridge.stubs import GOLDEN_CANDLES_5
+        dates = [c["date"] for c in GOLDEN_CANDLES_5]
+        assert dates == sorted(dates)
+
+    def test_golden_tech_bullish_has_required_keys(self) -> None:
+        from smc_tv_bridge.adapters import TECH_REQUIRED_KEYS, TECH_VALID_SIGNALS
+        from smc_tv_bridge.stubs import GOLDEN_TECH_BULLISH
+        assert TECH_REQUIRED_KEYS.issubset(GOLDEN_TECH_BULLISH.keys())
+        assert GOLDEN_TECH_BULLISH["technical_signal"] in TECH_VALID_SIGNALS
+
+    def test_golden_tech_bearish_valid(self) -> None:
+        from smc_tv_bridge.adapters import TECH_VALID_SIGNALS
+        from smc_tv_bridge.stubs import GOLDEN_TECH_BEARISH
+        assert 0.0 <= GOLDEN_TECH_BEARISH["technical_score"] <= 1.0
+        assert GOLDEN_TECH_BEARISH["technical_signal"] in TECH_VALID_SIGNALS
+
+    def test_golden_tech_neutral_valid(self) -> None:
+        from smc_tv_bridge.stubs import GOLDEN_TECH_NEUTRAL
+        assert GOLDEN_TECH_NEUTRAL["technical_score"] == 0.5
+        assert GOLDEN_TECH_NEUTRAL["technical_signal"] == "NEUTRAL"
+
+    def test_stub_candle_returns_deep_copy(self) -> None:
+        from smc_tv_bridge.stubs import StubCandleProvider
+        p = StubCandleProvider()
+        a = p.fetch_candles("X", "5min", 5)
+        b = p.fetch_candles("X", "5min", 5)
+        assert a == b
+        a[0]["close"] = -999  # mutate
+        assert b[0]["close"] != -999, "must return independent copies"
+
+    def test_stub_candle_respects_limit(self) -> None:
+        from smc_tv_bridge.stubs import StubCandleProvider
+        p = StubCandleProvider()
+        assert len(p.fetch_candles("X", "5min", 2)) == 2
+
+    def test_stub_candle_tracks_calls(self) -> None:
+        from smc_tv_bridge.stubs import StubCandleProvider
+        p = StubCandleProvider()
+        p.fetch_candles("AAPL", "15min", 100)
+        assert p.calls == [("AAPL", "15min", 100)]
+
+    def test_stub_candle_error_injection(self) -> None:
+        from smc_tv_bridge.stubs import StubCandleProvider
+        p = StubCandleProvider(raise_on_call=ConnectionError("down"))
+        with pytest.raises(ConnectionError, match="down"):
+            p.fetch_candles("X", "5min", 5)
+
+    def test_stub_regime_tracks_updates(self) -> None:
+        from smc_tv_bridge.stubs import StubRegimeProvider
+        p = StubRegimeProvider(regime_label="LOW_VOLUME", thin=0.42)
+        assert p.regime == "LOW_VOLUME"
+        assert p.thin_fraction == 0.42
+        p.update({"AAPL": {"price": 150}})
+        assert len(p.update_calls) == 1
+
+    def test_stub_regime_labels_valid(self) -> None:
+        from smc_tv_bridge.adapters import REGIME_VALID_LABELS
+        from smc_tv_bridge.stubs import StubRegimeProvider
+        for label in REGIME_VALID_LABELS:
+            p = StubRegimeProvider(regime_label=label)
+            assert p.regime == label
+
+    def test_stub_tech_error_injection(self) -> None:
+        from smc_tv_bridge.stubs import StubTechProvider
+        p = StubTechProvider(raise_on_call=TimeoutError("slow"))
+        with pytest.raises(TimeoutError, match="slow"):
+            p.get_technical_data("X", "15m")
+
+    def test_stub_tech_returns_deep_copy(self) -> None:
+        from smc_tv_bridge.stubs import StubTechProvider
+        p = StubTechProvider()
+        a = p.get_technical_data("X", "5m")
+        b = p.get_technical_data("X", "5m")
+        a["technical_score"] = -1
+        assert b["technical_score"] != -1
+
+
+# ── 7. Payload validation helpers ──────────────────────────────────────────
+
+class TestPayloadValidation:
+    """Contract key sets are correct and usable for validation."""
+
+    def test_candle_required_keys_complete(self) -> None:
+        from smc_tv_bridge.adapters import CANDLE_REQUIRED_KEYS
+        assert {"open", "high", "low", "close", "volume"} <= CANDLE_REQUIRED_KEYS
+
+    def test_candle_missing_volume_detected(self) -> None:
+        from smc_tv_bridge.adapters import CANDLE_REQUIRED_KEYS
+        bad = {"open": 1, "high": 2, "low": 0.5, "close": 1.5, "date": "2026-01-01"}
+        missing = CANDLE_REQUIRED_KEYS - bad.keys()
+        assert "volume" in missing
+
+    def test_tech_missing_signal_detected(self) -> None:
+        from smc_tv_bridge.adapters import TECH_REQUIRED_KEYS
+        bad = {"technical_score": 0.5}
+        missing = TECH_REQUIRED_KEYS - bad.keys()
+        assert "technical_signal" in missing
+
+    def test_regime_label_unknown_rejected(self) -> None:
+        from smc_tv_bridge.adapters import REGIME_VALID_LABELS
+        assert "UNKNOWN_REGIME" not in REGIME_VALID_LABELS
