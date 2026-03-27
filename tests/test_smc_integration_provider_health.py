@@ -459,3 +459,165 @@ def test_strict_release_policy_passes_on_fresh_reference_artifact(monkeypatch, t
 
     assert report["overall_status"] == "ok"
     assert report["failures"] == []
+
+
+# ---------------------------------------------------------------------------
+# Per-domain staleness (technical / news) via meta_domain_diagnostics
+# ---------------------------------------------------------------------------
+
+def _stub_meta_with_domain_diagnostics(*, technical_stale: bool, news_stale: bool):
+    """Return a load_raw_meta_input_composite stub with controllable domain staleness."""
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                "technical_stale": technical_stale,
+                "technical_age_hours": 72.0 if technical_stale else 1.0,
+                "technical_asof_ts": 100.0 if technical_stale else 990.0,
+                "news_stale": news_stale,
+                "news_age_hours": 96.0 if news_stale else 2.0,
+                "news_asof_ts": 50.0 if news_stale else 988.0,
+            },
+        }
+    return _loader
+
+
+def _stub_smoke_source_plan(**kwargs):
+    return {
+        "snapshot_structure": "artifact_json",
+        "snapshot_meta": "symbol_timeframe",
+        "snapshot_technical": "none",
+        "snapshot_news": "none",
+    }
+
+
+def _stub_smoke_structure(symbol, timeframe, source):
+    return {"bos": [{"id": 1}], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
+
+
+def _stub_smoke_bundle(symbol, timeframe, source, generated_at):
+    return {
+        "snapshot": {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "generated_at": generated_at,
+            "structure": {"bos": [{"id": 1}], "orderblocks": [], "fvg": [], "liquidity_sweeps": []},
+        },
+        "source_plan": _stub_smoke_source_plan(),
+        "dashboard_payload": {},
+        "pine_payload": {},
+    }
+
+
+def _patch_smoke_env(monkeypatch, meta_loader):
+    monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_smoke_source_plan)
+    monkeypatch.setattr(provider_health, "load_raw_structure_input", _stub_smoke_structure)
+    monkeypatch.setattr(provider_health, "load_raw_meta_input_composite", meta_loader)
+    monkeypatch.setattr(provider_health, "build_snapshot_bundle_for_symbol_timeframe", _stub_smoke_bundle)
+
+
+def test_smoke_detects_stale_technical_domain(monkeypatch):
+    _patch_smoke_env(monkeypatch, _stub_meta_with_domain_diagnostics(technical_stale=True, news_stale=False))
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    codes = [r["code"] for r in smoke["degradations"]]
+    assert "STALE_META_TECHNICAL_DOMAIN" in codes
+    assert "STALE_META_NEWS_DOMAIN" not in codes
+
+
+def test_smoke_detects_stale_news_domain(monkeypatch):
+    _patch_smoke_env(monkeypatch, _stub_meta_with_domain_diagnostics(technical_stale=False, news_stale=True))
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    codes = [r["code"] for r in smoke["degradations"]]
+    assert "STALE_META_NEWS_DOMAIN" in codes
+    assert "STALE_META_TECHNICAL_DOMAIN" not in codes
+
+
+def test_smoke_fresh_domains_produce_no_stale_signal(monkeypatch):
+    _patch_smoke_env(monkeypatch, _stub_meta_with_domain_diagnostics(technical_stale=False, news_stale=False))
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    domain_codes = {"STALE_META_TECHNICAL_DOMAIN", "STALE_META_NEWS_DOMAIN"}
+    assert not domain_codes.intersection(r["code"] for r in smoke["degradations"])
+    assert smoke["results"][0]["status"] == "ok"
+
+
+def test_smoke_missing_domain_meta_treated_as_stale(monkeypatch):
+    """When meta_domain_diagnostics marks a domain stale because meta was None."""
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                "technical_stale": True,
+                "technical_age_hours": None,
+                "technical_asof_ts": None,
+                "news_stale": True,
+                "news_age_hours": None,
+                "news_asof_ts": None,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    codes = [r["code"] for r in smoke["degradations"]]
+    assert "STALE_META_TECHNICAL_DOMAIN" in codes
+    assert "STALE_META_NEWS_DOMAIN" in codes
+    # age_hours should NOT be in the record when it was None
+    for row in smoke["degradations"]:
+        if row["code"] in ("STALE_META_TECHNICAL_DOMAIN", "STALE_META_NEWS_DOMAIN"):
+            assert "age_hours" not in row
+
+
+def test_strict_release_promotes_stale_domain_to_failure(monkeypatch, tmp_path):
+    checked_at = 100.0
+    manifest_path = tmp_path / "manifest_15m.json"
+    manifest_path.write_text(
+        json.dumps({"generated_at": 95.0, "timeframe": "15m", "symbols": ["AAPL"]}),
+        encoding="utf-8",
+    )
+    import os
+    os.utime(manifest_path, (checked_at, checked_at))
+
+    monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])
+    monkeypatch.setattr(provider_health, "discover_structure_source_status", _stub_structure_status)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", tmp_path)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "discover_normalized_contract_summary", _stub_contract_summary)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "has_artifact_for_symbol_timeframe", lambda symbol, timeframe: True)
+
+    # Smoke returns stale technical domain as degradation
+    def _stale_smoke(**_):
+        return {
+            "results": [{"symbol": "AAPL", "timeframe": "15m", "status": "warn"}],
+            "warnings": [{"code": "STALE_META_TECHNICAL_DOMAIN", "symbol": "AAPL", "timeframe": "15m"}],
+            "failures": [],
+            "degradations": [{"code": "STALE_META_TECHNICAL_DOMAIN", "symbol": "AAPL", "timeframe": "15m"}],
+        }
+
+    monkeypatch.setattr(provider_health, "_run_smoke_checks", _stale_smoke)
+
+    report = provider_health.run_provider_health_check(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=checked_at,
+        stale_after_seconds=3600,
+        strict_release_policy=True,
+    )
+
+    assert report["overall_status"] == "fail"
+    promoted = [f for f in report["failures"] if f.get("code") == "STALE_META_TECHNICAL_DOMAIN"]
+    assert len(promoted) == 1
+    assert promoted[0].get("promoted_by") == "release_strict_policy"

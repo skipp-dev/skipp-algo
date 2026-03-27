@@ -39,6 +39,8 @@ _STRICT_RELEASE_DEGRADATION_CODES = {
     "STALE_MANIFEST_GENERATED_AT",
     "STALE_MANIFEST_FILE_MTIME",
     "STALE_META_ASOF_TS",
+    "STALE_META_TECHNICAL_DOMAIN",
+    "STALE_META_NEWS_DOMAIN",
 }
 
 
@@ -402,6 +404,24 @@ def _run_smoke_checks(
                         }
                         warnings.append(dict(stale_meta_degradation))
                         degradations.append(dict(stale_meta_degradation))
+
+                # Per-domain staleness (technical / news).
+                domain_diag = raw_meta.get("meta_domain_diagnostics")
+                if isinstance(domain_diag, dict):
+                    for domain in ("technical", "news"):
+                        if domain_diag.get(f"{domain}_stale") is True:
+                            code = f"STALE_META_{domain.upper()}_DOMAIN"
+                            stale_domain_row: dict[str, Any] = {
+                                "code": code,
+                                "symbol": symbol,
+                                "timeframe": timeframe,
+                                "message": f"{domain} domain meta is stale or missing.",
+                            }
+                            age_hours = domain_diag.get(f"{domain}_age_hours")
+                            if age_hours is not None:
+                                stale_domain_row["age_hours"] = age_hours
+                            warnings.append(dict(stale_domain_row))
+                            degradations.append(dict(stale_domain_row))
 
             if failures:
                 row["status"] = "fail"
