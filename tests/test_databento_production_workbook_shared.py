@@ -76,7 +76,7 @@ def test_streamlit_create_excel_workbook_reuses_shared_helper(monkeypatch) -> No
 
 
 def test_create_excel_workbook_bytes_splits_oversized_sheets(monkeypatch) -> None:
-    monkeypatch.setattr(workbook_mod, "EXCEL_MAX_ROWS_PER_SHEET", 3)
+    monkeypatch.setattr(workbook_mod, "EXCEL_MAX_ROWS_PER_SHEET", 4)
 
     summary = pd.DataFrame(
         [
@@ -101,6 +101,36 @@ def test_create_excel_workbook_bytes_splits_oversized_sheets(monkeypatch) -> Non
     assert "summary_002" in workbook.sheetnames
     assert "second_detail" in workbook.sheetnames
     assert "second_detail_002" in workbook.sheetnames
+
+
+def test_create_excel_workbook_bytes_uses_header_aware_row_limit(monkeypatch) -> None:
+    monkeypatch.setattr(workbook_mod, "EXCEL_MAX_ROWS_PER_SHEET", 4)
+
+    rows_fit_with_header = pd.DataFrame(
+        {
+            "trade_date": ["2026-03-06"] * 3,
+            "symbol": ["A", "B", "C"],
+            "window_range_pct": [1.0, 1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0, 1.0],
+            "window_return_pct": [1.0, 1.0, 1.0],
+            "prev_close_to_premarket_pct": [1.0, 1.0, 1.0],
+            "premarket_to_open_pct": [1.0, 1.0, 1.0],
+            "open_to_current_pct": [1.0, 1.0, 1.0],
+        }
+    )
+    payload_fit = workbook_mod.create_excel_workbook_bytes(summary=rows_fit_with_header)
+    workbook_fit = load_workbook(filename=BytesIO(payload_fit))
+    assert "summary" in workbook_fit.sheetnames
+    assert "summary_002" not in workbook_fit.sheetnames
+
+    rows_overflow_by_one = pd.concat(
+        [rows_fit_with_header, rows_fit_with_header.iloc[[0]].assign(symbol="D")],
+        ignore_index=True,
+    )
+    payload_split = workbook_mod.create_excel_workbook_bytes(summary=rows_overflow_by_one)
+    workbook_split = load_workbook(filename=BytesIO(payload_split))
+    assert "summary" in workbook_split.sheetnames
+    assert "summary_002" in workbook_split.sheetnames
 
 
 def test_production_pipeline_canonical_workbook_helper_invokes_shared_writer(monkeypatch, tmp_path: Path) -> None:

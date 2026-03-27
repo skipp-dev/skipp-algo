@@ -117,9 +117,11 @@ def create_excel_workbook_bytes(
         if prepared.empty:
             prepared.to_excel(writer, sheet_name=sheet_name, index=False)
             return
+        # Pandas writes a header row, so data rows must stay below the worksheet max.
+        max_data_rows_per_sheet = max(1, EXCEL_MAX_ROWS_PER_SHEET - 1)
         base_name = str(sheet_name)[:31]
-        for chunk_index, start_row in enumerate(range(0, len(prepared), EXCEL_MAX_ROWS_PER_SHEET), start=1):
-            end_row = start_row + EXCEL_MAX_ROWS_PER_SHEET
+        for chunk_index, start_row in enumerate(range(0, len(prepared), max_data_rows_per_sheet), start=1):
+            end_row = start_row + max_data_rows_per_sheet
             if chunk_index == 1:
                 chunk_sheet_name = base_name
             else:

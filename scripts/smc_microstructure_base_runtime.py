@@ -1292,9 +1292,10 @@ def write_mapping_report(path: Path, payload: dict[str, Any]) -> None:
 
 def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload: dict[str, Any]) -> None:
     excel_max_rows = 1_048_576
+    max_data_rows_per_sheet = max(1, excel_max_rows - 1)
     path.parent.mkdir(parents=True, exist_ok=True)
     mapping_frame = pd.DataFrame(mapping_payload["mapping_status"])
-    base_sheet_count = max(1, int(math.ceil(len(base_snapshot) / excel_max_rows)))
+    base_sheet_count = max(1, int(math.ceil(len(base_snapshot) / max_data_rows_per_sheet)))
     summary_frame = pd.DataFrame(
         [
             {
@@ -1309,8 +1310,8 @@ def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload
         ]
     )
     with pd.ExcelWriter(path, engine="openpyxl") as writer:
-        for sheet_index, start_row in enumerate(range(0, len(base_snapshot), excel_max_rows), start=1):
-            end_row = start_row + excel_max_rows
+        for sheet_index, start_row in enumerate(range(0, len(base_snapshot), max_data_rows_per_sheet), start=1):
+            end_row = start_row + max_data_rows_per_sheet
             sheet_name = "base_snapshot" if sheet_index == 1 else f"base_snapshot_{sheet_index:03d}"
             base_snapshot.iloc[start_row:end_row].to_excel(writer, sheet_name=sheet_name, index=False)
         if base_snapshot.empty:
@@ -1683,7 +1684,8 @@ def run_streamlit_micro_base_app() -> None:
         st.caption("SMC_Core_Engine.pine is already wired to import the generated TradingView library path.")
 
     export_dir = Path(export_dir_raw).expanduser()
-    schema_path = repo_root / "schema" / "schema.json"
+    from scripts.smc_schema_resolver import resolve_microstructure_schema_path
+    schema_path = resolve_microstructure_schema_path()
     overrides_path = repo_root / "data" / "input" / "microstructure_overrides.csv"
     try:
         publish_guard = evaluate_micro_library_publish_guard(
