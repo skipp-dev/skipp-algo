@@ -133,6 +133,41 @@ Im strict Release-Pfad werden diese Klassen nicht mehr als rein informative Sign
 
 PR-/Deeper-Gates duerfen weiterhin warn-orientiert bleiben; Release bleibt fail-closed.
 
+## 6.1) Per-Domain-Staleness-Codes (meta_domain_diagnostics)
+
+Neben den bestehenden Manifest-/Meta-Staleness-Codes (`STALE_MANIFEST_GENERATED_AT`,
+`STALE_MANIFEST_FILE_MTIME`, `STALE_META_ASOF_TS`) gibt es pro Daten-Domaene
+(Volume, Technical, News) eigene Degradation-Codes. Die Schwelle ist einheitlich
+`_META_DOMAIN_STALE_HOURS = 48 h` (konfiguriert in `smc_integration/repo_sources.py`).
+
+### Codes
+
+| Code | Domaene | Bedeutung |
+|---|---|---|
+| `STALE_META_VOLUME_DOMAIN` | Volume | `volume_stale = true` – Volume-Meta (`asof_ts`) ist aelter als 48 h oder fehlt. |
+| `STALE_META_TECHNICAL_DOMAIN` | Technical | `technical_stale = true` – Technical-Meta (`asof_ts`) ist aelter als 48 h oder fehlt. |
+| `STALE_META_NEWS_DOMAIN` | News | `news_stale = true` – News-Meta (`asof_ts`) ist aelter als 48 h oder fehlt. |
+
+### Verhalten nach Gate-Stufe
+
+| Gate-Stufe | Auswirkung |
+|---|---|
+| Deeper / Nightly (`smc-deeper-integration-gates`) | Warnung / Degradation sichtbar; **nicht merge-blocking**. |
+| Strict Release (`smc-release-gates`) | Promotion zu hartem Failure (`promoted_by: release_strict_policy`); **release-blocking**. |
+
+### Felder in `meta_domain_diagnostics`
+
+Fuer jede Domaene (volume, technical, news) stehen folgende Felder zur Verfuegung:
+
+- `{domain}_source` – Name des Providers, der die Daten geliefert hat (z. B. `databento_watchlist_csv`, `fmp_watchlist_json`).
+- `{domain}_asof_ts` – Epoch-Timestamp der Domaenen-Meta (`null` wenn nicht vorhanden).
+- `{domain}_age_hours` – Alter in Stunden seit `asof_ts` (`null` wenn `asof_ts` fehlt).
+- `{domain}_stale` – `true` wenn `age_hours > 48` oder `asof_ts` fehlt/ungueltig.
+
+Technical und News haben zusaetzlich:
+
+- `{domain}_fallback_used` – `true` wenn der primaere Provider nicht geliefert hat und ein Fallback-Provider genutzt wurde.
+
 ## 7) Diese Checks in GitHub Branch Protection auswaehlen
 
 Empfohlene Auswahl fuer `main`:

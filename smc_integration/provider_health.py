@@ -41,6 +41,7 @@ _STRICT_RELEASE_DEGRADATION_CODES = {
     "STALE_META_ASOF_TS",
     "STALE_META_TECHNICAL_DOMAIN",
     "STALE_META_NEWS_DOMAIN",
+    "STALE_META_VOLUME_DOMAIN",
 }
 
 
@@ -408,7 +409,7 @@ def _run_smoke_checks(
                 # Per-domain staleness (technical / news).
                 domain_diag = raw_meta.get("meta_domain_diagnostics")
                 if isinstance(domain_diag, dict):
-                    for domain in ("technical", "news"):
+                    for domain in ("volume", "technical", "news"):
                         if domain_diag.get(f"{domain}_stale") is True:
                             code = f"STALE_META_{domain.upper()}_DOMAIN"
                             stale_domain_row: dict[str, Any] = {

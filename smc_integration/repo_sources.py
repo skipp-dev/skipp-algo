@@ -442,6 +442,7 @@ def load_raw_meta_input_composite(
     # and whether a fallback was used.
     diagnostics: dict[str, Any] = {
         "volume": "present",
+        "volume_source": volume_provider.descriptor.name,
         "technical": technical_domain_status,
         "technical_source": actual_technical_source,
         "technical_fallback_used": actual_technical_source != plan["technical"] and technical_domain_status == "present",
@@ -452,7 +453,7 @@ def load_raw_meta_input_composite(
 
     # Per-domain recency / staleness (B-F1).
     now = time.time()
-    for domain, domain_meta in [("technical", technical_meta), ("news", news_meta)]:
+    for domain, domain_meta in [("volume", volume_meta), ("technical", technical_meta), ("news", news_meta)]:
         if domain_meta is None:
             diagnostics[f"{domain}_asof_ts"] = None
             diagnostics[f"{domain}_age_hours"] = None

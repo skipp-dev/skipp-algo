@@ -288,6 +288,77 @@ def test_diagnostics_consistency(monkeypatch, tmp_path: Path) -> None:
     assert "news_age_hours" in diag
     assert "news_stale" in diag
 
+    # Volume recency fields (symmetric)
+    assert "volume_source" in diag
+    assert "volume_asof_ts" in diag
+    assert "volume_age_hours" in diag
+    assert "volume_stale" in diag
+
+
+# ---------------------------------------------------------------------------
+# 7. Volume diagnostics – fresh / stale / missing asof_ts
+# ---------------------------------------------------------------------------
+
+def test_volume_fresh_not_stale(monkeypatch, tmp_path: Path) -> None:
+    """A recent volume CSV → volume_stale=False."""
+    vol_csv = tmp_path / "vol.csv"
+    # trade_date is recent → asof_ts will be fresh
+    vol_csv.write_text(
+        "symbol,trade_date,watchlist_rank\nAAPL,2026-03-27,1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", vol_csv)
+
+    fmp_path = tmp_path / "fmp.json"
+    _write_source(fmp_path, [{
+        "symbol": "AAPL",
+        "trade_date": "2026-03-27",
+        "asof_ts": _fresh_ts(),
+        "volume_regime": "NORMAL",
+        "thin_fraction": 0.1,
+        "technical_strength": 0.8,
+        "technical_bias": "BULLISH",
+    }])
+    monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+    _setup_news(monkeypatch, tmp_path, asof_ts=_fresh_ts())
+
+    merged = load_raw_meta_input_composite("AAPL", "15m")
+    diag = merged["meta_domain_diagnostics"]
+
+    assert diag["volume_stale"] is False
+    assert diag["volume_asof_ts"] is not None
+    assert isinstance(diag["volume_age_hours"], float)
+    assert diag["volume_source"] is not None
+
+
+def test_volume_stale_flagged(monkeypatch, tmp_path: Path) -> None:
+    """An old volume CSV → volume_stale=True."""
+    vol_csv = tmp_path / "vol.csv"
+    vol_csv.write_text(
+        "symbol,trade_date,watchlist_rank\nAAPL,2025-01-01,1\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", vol_csv)
+
+    fmp_path = tmp_path / "fmp.json"
+    _write_source(fmp_path, [{
+        "symbol": "AAPL",
+        "trade_date": "2025-01-01",
+        "asof_ts": _fresh_ts(),
+        "volume_regime": "NORMAL",
+        "thin_fraction": 0.1,
+        "technical_strength": 0.8,
+        "technical_bias": "BULLISH",
+    }])
+    monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+    _setup_news(monkeypatch, tmp_path, asof_ts=_fresh_ts())
+
+    merged = load_raw_meta_input_composite("AAPL", "15m")
+    diag = merged["meta_domain_diagnostics"]
+
+    assert diag["volume_stale"] is True
+    assert diag["volume_age_hours"] > _META_DOMAIN_STALE_HOURS
+
     # Consistency: if domain present and not stale, age must be below threshold
     if diag["technical"] == "present" and not diag["technical_stale"]:
         assert diag["technical_age_hours"] < _META_DOMAIN_STALE_HOURS
