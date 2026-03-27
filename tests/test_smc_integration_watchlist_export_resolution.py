@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from smc_core.schema_version import SCHEMA_VERSION
 from scripts import export_smc_snapshot_watchlist_bundles as module
 from tests.helpers.smc_test_artifacts import (
     make_minimal_structure_artifact,
@@ -16,7 +17,7 @@ def _fake_snapshot_batch(symbols, timeframe, *, source, output_dir, generated_at
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "schema_version": "1.0.0",
+        "schema_version": SCHEMA_VERSION,
         "timeframe": timeframe,
         "counts": {"symbols_requested": len(symbols), "symbols_built": len(symbols), "errors": 0},
         "coverage_summary": {

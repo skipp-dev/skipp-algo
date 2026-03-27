@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from scripts.export_smc_structure_artifact import export_structure_artifact
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
 from smc_adapters import build_structure_from_raw
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.sources import structure_artifact_json
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,38 +99,38 @@ def test_structure_artifact_provider_coverage_ignores_empty_bos_lists(monkeypatc
 
         artifact_path = artifact_dir / "AAPL_15m.structure.json"
         artifact_path.write_text(
-                """
-{
-    "schema_version": "1.0.0",
+                f"""
+{{
+    "schema_version": "{SCHEMA_VERSION}",
     "generated_at": 1709253600.0,
     "symbol": "AAPL",
     "timeframe": "15m",
-    "source": {
+    "source": {{
         "workbook_path": "x",
         "canonical_upstream": "workbook_fallback",
         "sheet": "daily_bars",
         "event_logic": "scripts.explicit_structure_from_bars.build_full_structure_from_bars"
-    },
+    }},
     "coverage_mode": "none",
-    "coverage": {
+    "coverage": {{
         "mode": "none",
         "has_bos": false,
         "has_orderblocks": false,
         "has_fvg": false,
         "has_liquidity_sweeps": false
-    },
-    "event_evidence": {
+    }},
+    "event_evidence": {{
         "last_event": "none",
         "trend_state": 0,
         "reference_close": 100.0
-    },
-    "structure": {
+    }},
+    "structure": {{
         "bos": [],
         "orderblocks": [],
         "fvg": [],
         "liquidity_sweeps": []
-    }
-}
+    }}
+}}
 """.strip()
                 + "\n",
                 encoding="utf-8",
@@ -136,27 +138,24 @@ def test_structure_artifact_provider_coverage_ignores_empty_bos_lists(monkeypatc
 
         manifest_path = artifact_dir / "manifest_15m.json"
         manifest_path.write_text(
-                """
-{
-    "schema_version": "1.0.0",
-    "generated_at": 1709253600.0,
-    "timeframe": "15m",
-    "producer": {"name": "test", "upstream": "x"},
-    "counts": {"symbols_requested": 1, "artifacts_written": 1, "errors": 0},
-    "artifacts": [{
-        "symbol": "AAPL",
-        "timeframe": "15m",
-        "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
-        "coverage_mode": "none",
-        "has_bos": false,
-        "has_orderblocks": false,
-        "has_fvg": false,
-        "has_liquidity_sweeps": false
-    }],
-    "errors": []
-}
-""".strip()
-                + "\n",
+                json.dumps({
+                    "schema_version": SCHEMA_VERSION,
+                    "generated_at": 1709253600.0,
+                    "timeframe": "15m",
+                    "producer": {"name": "test", "upstream": "x"},
+                    "counts": {"symbols_requested": 1, "artifacts_written": 1, "errors": 0},
+                    "artifacts": [{
+                        "symbol": "AAPL",
+                        "timeframe": "15m",
+                        "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
+                        "coverage_mode": "none",
+                        "has_bos": False,
+                        "has_orderblocks": False,
+                        "has_fvg": False,
+                        "has_liquidity_sweeps": False,
+                    }],
+                    "errors": [],
+                }, indent=4) + "\n",
                 encoding="utf-8",
         )
 
@@ -175,20 +174,17 @@ def test_structure_artifact_provider_manifest_row_with_missing_path_is_not_silen
 
         manifest_path = artifact_dir / "manifest_15m.json"
         manifest_path.write_text(
-                """
-{
-    "schema_version": "1.0.0",
-    "timeframe": "15m",
-    "artifacts": [
-        {
-            "symbol": "AAPL",
-            "timeframe": "15m",
-            "artifact_path": "reports/smc_structure_artifacts/DOES_NOT_EXIST.structure.json"
-        }
-    ]
-}
-""".strip()
-                + "\n",
+                json.dumps({
+                    "schema_version": SCHEMA_VERSION,
+                    "timeframe": "15m",
+                    "artifacts": [
+                        {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "artifact_path": "reports/smc_structure_artifacts/DOES_NOT_EXIST.structure.json",
+                        }
+                    ],
+                }, indent=4) + "\n",
                 encoding="utf-8",
         )
 

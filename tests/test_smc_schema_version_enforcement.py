@@ -93,12 +93,91 @@ def test_no_local_schema_version_constant(rel_path: str) -> None:
 
 # --- spec example stays in sync ---
 
+_SPEC_EXAMPLES = sorted((_REPO_ROOT / "spec" / "examples").glob("smc_snapshot_*.json")) if (_REPO_ROOT / "spec" / "examples").exists() else []
 
-def test_spec_example_uses_current_schema_version() -> None:
-    example = _REPO_ROOT / "spec" / "examples" / "smc_snapshot_aapl_15m_normal.json"
-    if not example.exists():
-        pytest.skip("example not found")
+
+@pytest.mark.parametrize("example", _SPEC_EXAMPLES, ids=lambda p: p.name)
+def test_spec_example_uses_current_schema_version(example: Path) -> None:
     payload = json.loads(example.read_text(encoding="utf-8"))
+    assert "schema_version" in payload, f"{example.name} is missing schema_version"
     assert payload["schema_version"] == SCHEMA_VERSION, (
-        f"spec example has schema_version={payload['schema_version']!r} but canonical is {SCHEMA_VERSION!r}"
+        f"{example.name} has schema_version={payload['schema_version']!r} but canonical is {SCHEMA_VERSION!r}"
     )
+
+
+# --- emitted schema_version must be present ---
+
+
+def test_apply_layering_emits_schema_version() -> None:
+    """SmcSnapshot produced by apply_layering must carry the current SCHEMA_VERSION."""
+    from smc_core.layering import apply_layering
+    from smc_core.types import (
+        SmcMeta,
+        SmcStructure,
+        TimedVolumeInfo,
+        VolumeInfo,
+    )
+
+    structure = SmcStructure()
+    meta = SmcMeta(
+        symbol="TEST",
+        timeframe="15m",
+        asof_ts=1.0,
+        volume=TimedVolumeInfo(
+            value=VolumeInfo(regime="NORMAL", thin_fraction=0.0),
+            asof_ts=1.0,
+            stale=False,
+        ),
+    )
+    snapshot = apply_layering(structure, meta, generated_at=1.0)
+    assert snapshot.schema_version == SCHEMA_VERSION
+
+
+def test_snapshot_serialization_includes_schema_version() -> None:
+    """Serialized snapshot dict must contain schema_version at the top level."""
+    from smc_core.layering import apply_layering
+    from smc_core.serialization import snapshot_to_dict
+    from smc_core.types import (
+        SmcMeta,
+        SmcStructure,
+        TimedVolumeInfo,
+        VolumeInfo,
+    )
+
+    snapshot = apply_layering(
+        SmcStructure(),
+        SmcMeta(
+            symbol="TEST",
+            timeframe="5m",
+            asof_ts=1.0,
+            volume=TimedVolumeInfo(
+                value=VolumeInfo(regime="NORMAL", thin_fraction=0.0),
+                asof_ts=1.0,
+                stale=False,
+            ),
+        ),
+        generated_at=1.0,
+    )
+    d = snapshot_to_dict(snapshot)
+    assert "schema_version" in d, "snapshot_to_dict output is missing schema_version"
+    assert d["schema_version"] == SCHEMA_VERSION
+
+
+# --- no hardcoded stale versions in test fixtures ---
+
+
+def test_no_hardcoded_stale_schema_versions_in_tests() -> None:
+    """Inline test dicts should use SCHEMA_VERSION, not hardcoded old versions."""
+    test_dir = _REPO_ROOT / "tests"
+    violations: list[str] = []
+    for py in test_dir.rglob("*.py"):
+        if py.name == "test_smc_schema_version_enforcement.py":
+            continue  # skip self — we reference old versions in compatibility tests
+        text = py.read_text(encoding="utf-8")
+        for i, line in enumerate(text.splitlines(), 1):
+            # Match "schema_version": "X.Y.Z" where X.Y.Z != SCHEMA_VERSION
+            import re
+            m = re.search(r'"schema_version"\s*:\s*"(\d+\.\d+\.\d+)"', line)
+            if m and m.group(1) != SCHEMA_VERSION:
+                violations.append(f"{py.name}:{i} has stale schema_version={m.group(1)!r}")
+    assert violations == [], "Stale hardcoded schema_version in tests:\n  " + "\n  ".join(violations)

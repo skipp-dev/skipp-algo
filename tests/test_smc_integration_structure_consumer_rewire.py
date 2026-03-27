@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import scripts.export_smc_snapshot_watchlist_bundles as consumer
+from smc_core.schema_version import SCHEMA_VERSION
 
 
 def test_watchlist_export_script_calls_structure_batch_path(monkeypatch) -> None:
@@ -27,7 +28,7 @@ def test_watchlist_export_script_calls_structure_batch_path(monkeypatch) -> None
             )
         )
         return {
-            "schema_version": "1.0.0",
+            "schema_version": SCHEMA_VERSION,
             "timeframe": timeframe,
             "counts": {"symbols_requested": 2, "artifacts_written": 2, "errors": 0},
             "artifacts": [],
@@ -49,7 +50,7 @@ def test_watchlist_export_script_calls_structure_batch_path(monkeypatch) -> None
             )
         )
         return {
-            "schema_version": "1.0.0",
+            "schema_version": SCHEMA_VERSION,
             "timeframe": timeframe,
             "counts": {"symbols_requested": 2, "symbols_built": 2, "errors": 0},
             "bundles": [],
@@ -88,7 +89,7 @@ def test_watchlist_export_script_embeds_structure_manifest(monkeypatch, capsys) 
         consumer,
         "write_structure_artifacts_from_workbook",
         lambda **kwargs: {
-            "schema_version": "1.0.0",
+            "schema_version": SCHEMA_VERSION,
             "timeframe": kwargs["timeframe"],
             "counts": {"symbols_requested": 1, "artifacts_written": 1, "errors": 0},
             "artifacts": [],
@@ -100,7 +101,7 @@ def test_watchlist_export_script_embeds_structure_manifest(monkeypatch, capsys) 
         consumer,
         "write_snapshot_bundles_for_symbols",
         lambda symbols, timeframe, **kwargs: {
-            "schema_version": "1.0.0",
+            "schema_version": SCHEMA_VERSION,
             "timeframe": timeframe,
             "counts": {"symbols_requested": 1, "symbols_built": 1, "errors": 0},
             "bundles": [],

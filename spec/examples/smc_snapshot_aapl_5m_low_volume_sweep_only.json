@@ -2,7 +2,7 @@
   "symbol": "AAPL",
   "timeframe": "5m",
   "generated_at": 1709350000,
-  "schema_version": "1.0.0",
+  "schema_version": "1.2.0",
   "structure": {
     "bos": [],
     "orderblocks": [],

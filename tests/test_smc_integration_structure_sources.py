@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 import smc_integration.repo_sources as repo_sources_module
 from smc_integration.provider_matrix import build_provider_summary
 from smc_integration.repo_sources import discover_structure_source_status, load_raw_structure_input
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
 from smc_integration.sources import structure_artifact_json
 
@@ -71,20 +73,17 @@ def test_auto_structure_loading_does_not_silently_fallback_on_invalid_manifest_r
         artifact_dir.mkdir(parents=True, exist_ok=True)
         manifest_path = artifact_dir / "manifest_15m.json"
         manifest_path.write_text(
-                """
-{
-    "schema_version": "1.0.0",
-    "timeframe": "15m",
-    "artifacts": [
-        {
-            "symbol": "AAPL",
-            "timeframe": "15m",
-            "artifact_path": "reports/smc_structure_artifacts/MISSING.structure.json"
-        }
-    ]
-}
-""".strip()
-                + "\n",
+                json.dumps({
+                    "schema_version": SCHEMA_VERSION,
+                    "timeframe": "15m",
+                    "artifacts": [
+                        {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "artifact_path": "reports/smc_structure_artifacts/MISSING.structure.json",
+                        }
+                    ],
+                }, indent=4) + "\n",
                 encoding="utf-8",
         )
 
