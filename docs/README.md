@@ -12,6 +12,7 @@ Use these files as the starting point before changing the split architecture or 
 - [smc-bus-v2-audit.md](smc-bus-v2-audit.md)
 - [smc-bus-target-matrix.md](smc-bus-target-matrix.md)
 - [smc-bus-roadmap.md](smc-bus-roadmap.md)
+- [smc_branch_protection_and_release_gates.md](smc_branch_protection_and_release_gates.md)
 - [tradingview-validation-checklist.md](tradingview-validation-checklist.md)
 - [tradingview-manual-validation-runbook.md](tradingview-manual-validation-runbook.md)
 - [tradingview-manual-validation-runbook_EN.md](tradingview-manual-validation-runbook_EN.md)
