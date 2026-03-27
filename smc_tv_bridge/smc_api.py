@@ -170,55 +170,46 @@ def _detect_structure_canonical(candles: list[dict[str, Any]], symbol: str, time
     }
 
 # ══════════════════════════════════════════════════════════
-# Provider layer — either real FMP or mock
+# Provider layer — adapter-based (see ADR-001)
 # ══════════════════════════════════════════════════════════
 
-_fmp_client = None
-_volume_regime = None
-_tech_scorer = None
+from smc_tv_bridge.adapters import CandleProvider, RegimeProvider, TechnicalScoreProvider
+
+_candle_provider: CandleProvider | None = None
+_regime_provider: RegimeProvider | None = None
+_tech_provider: TechnicalScoreProvider | None = None
 
 
-def _get_fmp_client():
-    global _fmp_client
-    if _fmp_client is None:
-        from open_prep.macro import FMPClient
-        _fmp_client = FMPClient.from_env()
-        logger.info("FMPClient initialized")
-    return _fmp_client
+def _get_candle_provider() -> CandleProvider:
+    global _candle_provider
+    if _candle_provider is None:
+        from smc_tv_bridge.adapters_open_prep import FMPCandleProvider
+        _candle_provider = FMPCandleProvider()
+    return _candle_provider
 
 
-def _get_volume_regime():
-    global _volume_regime
-    if _volume_regime is None:
-        from open_prep.realtime_signals import VolumeRegimeDetector
-        _volume_regime = VolumeRegimeDetector()
-        logger.info("VolumeRegimeDetector initialized")
-    return _volume_regime
+def _get_regime_provider() -> RegimeProvider:
+    global _regime_provider
+    if _regime_provider is None:
+        from smc_tv_bridge.adapters_open_prep import OpenPrepRegimeProvider
+        _regime_provider = OpenPrepRegimeProvider()
+    return _regime_provider
 
 
-def _get_tech_scorer():
-    global _tech_scorer
-    if _tech_scorer is None:
-        from open_prep.realtime_signals import TechnicalScorer
-        _tech_scorer = TechnicalScorer()
-        logger.info("TechnicalScorer initialized")
-    return _tech_scorer
+def _get_tech_provider() -> TechnicalScoreProvider:
+    global _tech_provider
+    if _tech_provider is None:
+        from smc_tv_bridge.adapters_open_prep import OpenPrepTechnicalScoreProvider
+        _tech_provider = OpenPrepTechnicalScoreProvider()
+    return _tech_provider
 
 
 def _fetch_candles(symbol: str, timeframe: str) -> list[dict[str, Any]]:
-    """Fetch intraday OHLCV candles from FMP."""
-    client = _get_fmp_client()
+    """Fetch intraday OHLCV candles via the candle adapter."""
+    provider = _get_candle_provider()
     interval = _TF_TO_FMP_INTERVAL.get(timeframe, "15min")
     limit = _TF_CANDLE_LIMIT.get(timeframe, 100)
-    try:
-        candles = client.get_intraday_chart(symbol, interval=interval, limit=limit)
-        # FMP returns newest-first; reverse to oldest-first for detection
-        if candles and isinstance(candles, list):
-            candles.sort(key=lambda c: c.get("date", ""))
-        return candles or []
-    except Exception as exc:
-        logger.warning("Failed to fetch candles for %s/%s: %s", symbol, timeframe, exc)
-        return []
+    return provider.fetch_candles(symbol, interval, limit)
 
 
 def _get_news_score(symbol: str) -> float:
@@ -275,19 +266,24 @@ def build_smc_snapshot(symbol: str, timeframe: str) -> dict[str, Any]:
     structure = _detect_structure_canonical(candles, symbol, timeframe)
 
     # 2) Volume regime (needs a recent quote to update)
-    regime_det = _get_volume_regime()
+    regime = _get_regime_provider()
     try:
-        client = _get_fmp_client()
-        quotes_raw = client.get_batch_quotes([symbol])
-        quotes = {q["symbol"]: q for q in quotes_raw} if quotes_raw else {}
-        regime_det.update(quotes)
+        candle_prov = _get_candle_provider()
+        # Use the underlying FMP client for quote data when available
+        fmp_client = getattr(candle_prov, "_client", None)
+        if fmp_client is not None:
+            quotes_raw = fmp_client.get_batch_quotes([symbol])
+            quotes = {q["symbol"]: q for q in quotes_raw} if quotes_raw else {}
+        else:
+            quotes = {}
+        regime.update(quotes)
     except Exception as exc:
         logger.debug("Regime update skipped: %s", exc)
 
     # 3) Technical score
     tech_interval = _TF_TO_TECH_INTERVAL.get(timeframe, "15m")
-    scorer = _get_tech_scorer()
-    tech_data = scorer.get_technical_data(symbol, tech_interval)
+    tech_prov = _get_tech_provider()
+    tech_data = tech_prov.get_technical_data(symbol, tech_interval)
 
     # 4) News score
     news_score = _get_news_score(symbol)
@@ -300,8 +296,8 @@ def build_smc_snapshot(symbol: str, timeframe: str) -> dict[str, Any]:
         "fvg": structure["fvg"],
         "liquidity_sweeps": structure["liquidity_sweeps"],
         "regime": {
-            "volume_regime": regime_det.regime,
-            "thin_fraction": regime_det.thin_fraction,
+            "volume_regime": regime.regime,
+            "thin_fraction": regime.thin_fraction,
         },
         "technicalscore": tech_data.get("technical_score", 0.5),
         "technicalsignal": tech_data.get("technical_signal", "NEUTRAL"),
