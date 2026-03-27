@@ -1,0 +1,23 @@
+{
+  "symbol": "AAPL",
+  "timeframe": "15m",
+  "bos": [
+    {"time": 1709250000, "price": 100.0, "dir": "UP"},
+    {"time": 1709251800, "price": 98.0, "dir": "DOWN"}
+  ],
+  "orderblocks": [
+    {"low": 95.0, "high": 97.0, "dir": "BULL", "valid": true},
+    {"low": 102.0, "high": 104.0, "dir": "BEAR", "valid": true}
+  ],
+  "fvg": [
+    {"low": 97.0, "high": 99.0, "dir": "BULL", "valid": true}
+  ],
+  "liquidity_sweeps": [
+    {"time": 1709252700, "price": 96.5, "side": "BUY"},
+    {"time": 1709253000, "price": 103.2, "side": "SELL"}
+  ],
+  "regime": {"volume_regime": "NORMAL", "thin_fraction": 0.0},
+  "technicalscore": 0.68,
+  "technicalsignal": "BULLISH",
+  "newsscore": 0.42
+}

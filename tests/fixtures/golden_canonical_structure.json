@@ -1,0 +1,21 @@
+{
+  "bos": [
+    {"id": "bos:AAPL:15m:1709250000:BOS:UP:185.25", "time": 1709250000, "price": 185.25, "kind": "BOS", "dir": "UP"}
+  ],
+  "orderblocks": [
+    {"id": "ob:AAPL:15m:1709250000:BULL:184.50:185.10", "low": 184.5, "high": 185.1, "dir": "BULL", "valid": true, "anchor_ts": 1709250000}
+  ],
+  "fvg": [
+    {"id": "fvg:AAPL:15m:1709250000:BULL:186.00:186.50", "low": 186.0, "high": 186.5, "dir": "BULL", "valid": true}
+  ],
+  "liquidity_sweeps": [
+    {"id": "sweep:AAPL:15m:1709250300:SELL_SIDE:184.90", "time": 1709250300, "price": 184.9, "side": "SELL_SIDE"}
+  ],
+  "auxiliary": {},
+  "diagnostics": {},
+  "producer_debug": {
+    "liquidity_levels_count": 0,
+    "structure_profile_used": "hybrid_default",
+    "event_logic_version": "v2"
+  }
+}
