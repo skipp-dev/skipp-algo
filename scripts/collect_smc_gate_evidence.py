@@ -109,6 +109,13 @@ def _is_release_candidate(kind: str) -> bool:
     return kind == "release_gates"
 
 
+_STALE_DOMAIN_CODES = {
+    "STALE_META_VOLUME_DOMAIN",
+    "STALE_META_TECHNICAL_DOMAIN",
+    "STALE_META_NEWS_DOMAIN",
+}
+
+
 def _is_core_failure_code(code: str) -> bool:
     upper = str(code).upper()
     if "MISSING" in upper:
@@ -241,6 +248,8 @@ def main() -> int:
     stale_trend: Counter[str] = Counter()
     missing_trend: Counter[str] = Counter()
     smoke_trend: Counter[str] = Counter()
+    stale_domain_trend: Counter[str] = Counter()
+    stale_domain_runs: dict[str, list[dict[str, Any]]] = {code: [] for code in sorted(_STALE_DOMAIN_CODES)}
 
     for row in runs_in_window:
         codes = [str(code) for code in row.get("codes", [])]
@@ -254,6 +263,12 @@ def main() -> int:
                 missing_trend[code] += 1
             if "SMOKE" in upper:
                 smoke_trend[code] += 1
+            if code in _STALE_DOMAIN_CODES:
+                stale_domain_trend[code] += 1
+                stale_domain_runs[code].append({
+                    "path": str(row.get("path", "")),
+                    "checked_at_iso": row.get("checked_at_iso"),
+                })
 
     unresolved_core_failures = [
         row
@@ -298,6 +313,8 @@ def main() -> int:
         "unresolved_core_failures_in_window": len(unresolved_core_failures),
         "recurring_failure_codes": dict(recurring_failures.most_common()),
         "stale_trend": dict(stale_trend),
+        "stale_domain_trend": dict(stale_domain_trend),
+        "stale_domain_runs": {code: runs_list for code, runs_list in stale_domain_runs.items() if runs_list},
         "missing_trend": dict(missing_trend),
         "smoke_trend": dict(smoke_trend),
         "green_ready": bool(green_ready),

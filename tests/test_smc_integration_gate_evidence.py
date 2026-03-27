@@ -135,3 +135,177 @@ def test_gate_evidence_detects_unresolved_stale_failure(monkeypatch, tmp_path: P
     assert captured[-1]["green_ready"] is False
     assert captured[-1]["unresolved_core_failures_in_window"] >= 1
     assert captured[-1]["stale_trend"].get("STALE_MANIFEST_GENERATED_AT") == 1
+
+
+# ---------------------------------------------------------------------------
+# Domain-Staleness aggregation in evidence summary
+# ---------------------------------------------------------------------------
+
+
+def test_gate_evidence_aggregates_stale_domain_codes(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    # Deeper run with stale technical
+    _write_json(
+        tmp_path / "deeper_stale_tech.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 120.0,
+            "overall_status": "warn",
+            "runtime_metadata": {"git_commit": "sha-1"},
+            "degradations_detected": [{"code": "STALE_META_TECHNICAL_DOMAIN"}],
+        },
+    )
+    # Deeper run with stale volume and news
+    _write_json(
+        tmp_path / "deeper_stale_vol_news.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 60.0,
+            "overall_status": "warn",
+            "runtime_metadata": {"git_commit": "sha-2"},
+            "degradations_detected": [
+                {"code": "STALE_META_VOLUME_DOMAIN"},
+                {"code": "STALE_META_NEWS_DOMAIN"},
+            ],
+        },
+    )
+    # Release run with stale volume (promoted to failure)
+    _write_json(
+        tmp_path / "release_stale_vol.json",
+        {
+            "report_kind": "release_gates",
+            "checked_at": now_ts - 30.0,
+            "overall_status": "fail",
+            "runtime_metadata": {"git_commit": "sha-3"},
+            "gates": [
+                {
+                    "name": "provider_health",
+                    "status": "fail",
+                    "details": {
+                        "failures": [{"code": "STALE_META_VOLUME_DOMAIN", "promoted_by": "release_strict_policy"}],
+                    },
+                }
+            ],
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=1,
+                min_release_ok_runs=1,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    evidence_script.main()
+    summary = captured[-1]
+
+    # stale_domain_trend counts
+    assert summary["stale_domain_trend"]["STALE_META_TECHNICAL_DOMAIN"] == 1
+    assert summary["stale_domain_trend"]["STALE_META_VOLUME_DOMAIN"] == 2
+    assert summary["stale_domain_trend"]["STALE_META_NEWS_DOMAIN"] == 1
+
+    # stale_domain_runs has path info
+    vol_runs = summary["stale_domain_runs"]["STALE_META_VOLUME_DOMAIN"]
+    assert len(vol_runs) == 2
+    assert all("path" in r and "checked_at_iso" in r for r in vol_runs)
+
+    tech_runs = summary["stale_domain_runs"]["STALE_META_TECHNICAL_DOMAIN"]
+    assert len(tech_runs) == 1
+
+    # These codes also appear in the generic stale_trend
+    assert summary["stale_trend"]["STALE_META_VOLUME_DOMAIN"] == 2
+    assert summary["stale_trend"]["STALE_META_TECHNICAL_DOMAIN"] == 1
+
+
+def test_gate_evidence_no_domain_stale_produces_empty_aggregation(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "deeper_ok.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 60.0,
+            "overall_status": "ok",
+            "runtime_metadata": {"git_commit": "sha-clean"},
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=1,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    evidence_script.main()
+    summary = captured[-1]
+
+    assert summary["stale_domain_trend"] == {}
+    assert summary["stale_domain_runs"] == {}
+
+
+def test_gate_evidence_domain_stale_aggregation_is_deterministic(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "deeper_warn.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 60.0,
+            "overall_status": "warn",
+            "runtime_metadata": {"git_commit": "sha-det"},
+            "degradations_detected": [
+                {"code": "STALE_META_NEWS_DOMAIN"},
+                {"code": "STALE_META_VOLUME_DOMAIN"},
+            ],
+        },
+    )
+
+    results = []
+    for _ in range(2):
+        captured: list[dict] = []
+        monkeypatch.setattr(
+            evidence_script,
+            "build_parser",
+            lambda: _Parser(
+                Namespace(
+                    input_glob=str(tmp_path / "*.json"),
+                    lookback_days=14,
+                    min_deeper_ok_runs=0,
+                    min_release_ok_runs=0,
+                    fail_on_not_ready=False,
+                    output="-",
+                )
+            ),
+        )
+        monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+        evidence_script.main()
+        results.append(captured[-1])
+
+    import json
+    assert json.dumps(results[0]["stale_domain_trend"], sort_keys=True) == json.dumps(results[1]["stale_domain_trend"], sort_keys=True)
+    assert json.dumps(results[0]["stale_domain_runs"], sort_keys=True) == json.dumps(results[1]["stale_domain_runs"], sort_keys=True)

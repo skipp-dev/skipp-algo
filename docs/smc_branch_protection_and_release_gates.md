@@ -168,6 +168,66 @@ Technical und News haben zusaetzlich:
 
 - `{domain}_fallback_used` – `true` wenn der primaere Provider nicht geliefert hat und ein Fallback-Provider genutzt wurde.
 
+## 6.2) Operator-Handbuch: Domain-Staleness
+
+### Typische Ursachen
+
+| Code | Typische Ursache |
+|---|---|
+| `STALE_META_VOLUME_DOMAIN` | Databento-Watchlist-CSV nicht aktualisiert (Pipeline-Fehler, Export nicht gelaufen, CSV aelter als 48 h). |
+| `STALE_META_TECHNICAL_DOMAIN` | FMP- oder TradingView-Watchlist-JSON nicht aktualisiert. Primaer-Provider fehlgeschlagen und Fallback ebenfalls veraltet. |
+| `STALE_META_NEWS_DOMAIN` | Benzinga-Watchlist-JSON nicht aktualisiert oder News-Feed-Pipeline nicht gelaufen. |
+
+### Sofortmassnahmen fuer Operatoren
+
+1. **Report pruefen:** Im Health-/Gate-Report die `meta_domain_diagnostics` des betroffenen Symbols/Timeframes lesen. Dort stehen `{domain}_source`, `{domain}_age_hours` und `{domain}_asof_ts`.
+2. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Benzinga) zuletzt erfolgreich gelaufen?
+3. **Manuellen Refresh ausloesen:** Den betroffenen Provider-Export erneut starten (z. B. Databento-Watchlist-Export, FMP-Refresh).
+4. **Gate erneut laufen lassen:** Nach erfolgreichem Refresh den deeper- oder release-Gate-Lauf wiederholen.
+
+### Wann ist es nur ein Warnsignal?
+
+- Im **deeper/nightly**-Pfad: Domain-Staleness erzeugt eine sichtbare Degradation/Warning. Der CI-Lauf bleibt gruen (exit 0), solange `--fail-on-warn` nicht gesetzt ist. Kein Merge-Blocking.
+
+### Wann blockiert es Release?
+
+- Im **strict release**-Pfad (`smc-release-gates`): Jeder `STALE_META_*_DOMAIN`-Code wird zu einem harten Failure promoted (`promoted_by: release_strict_policy`). Release ist blockiert, bis die betroffene Domaene aufgefrischt wurde.
+
+### Beispiel: `meta_domain_diagnostics` in einem Health-Report
+
+```json
+{
+  "meta_domain_diagnostics": {
+    "volume": "present",
+    "volume_source": "databento_watchlist_csv",
+    "volume_asof_ts": 1711497600.0,
+    "volume_age_hours": 3.2,
+    "volume_stale": false,
+    "technical": "present",
+    "technical_source": "tradingview_watchlist_json",
+    "technical_fallback_used": true,
+    "technical_asof_ts": 1711324800.0,
+    "technical_age_hours": 51.2,
+    "technical_stale": true,
+    "news": "present",
+    "news_source": "benzinga_watchlist_json",
+    "news_fallback_used": false,
+    "news_asof_ts": 1711494000.0,
+    "news_age_hours": 4.2,
+    "news_stale": false
+  }
+}
+```
+
+In diesem Beispiel wuerde `STALE_META_TECHNICAL_DOMAIN` emittiert, da `technical_age_hours > 48`.
+
+### Evidence-Aggregation
+
+Die Domain-Staleness-Codes werden vom Evidence-Collector (`scripts/collect_smc_gate_evidence.py`) separat aggregiert:
+
+- `stale_domain_trend` – zaehlt je `STALE_META_*_DOMAIN`-Code die Haeufigkeit im Lookback-Fenster.
+- `stale_domain_runs` – listet pro Code die betroffenen Report-Pfade und Timestamps auf.
+
 ## 7) Diese Checks in GitHub Branch Protection auswaehlen
 
 Empfohlene Auswahl fuer `main`:
