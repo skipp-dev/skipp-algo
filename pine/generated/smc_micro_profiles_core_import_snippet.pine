@@ -1,3 +1,7 @@
+// Core import snippet — microstructure list bindings only.
+// For regime, news, calendar, layering, and event-risk (v5) fields,
+// read mp.FIELD_NAME directly from the library. See the full field
+// inventory in the library header comment.
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
 string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS
 string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS

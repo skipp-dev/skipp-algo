@@ -1,6 +1,23 @@
 //@version=6
 library("smc_micro_profiles_generated")
 
+// ── Usage ──────────────────────────────────────────────────────
+// import preuss_steffen/smc_micro_profiles_generated/1 as mp
+//
+// Fields are grouped into seven sections (v5, 51 fields total):
+//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT
+//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
+//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH
+//   News            — NEWS_*_TICKERS, NEWS_HEAT_GLOBAL, TICKER_HEAT_MAP
+//   Calendar        — EARNINGS_*_TICKERS, HIGH_IMPACT_MACRO_TODAY, MACRO_EVENT_*
+//   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE
+//   Providers       — PROVIDER_COUNT, STALE_PROVIDERS
+//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS
+//   Event Risk (v5) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)
+//
+// All fields are export const — safe to read as mp.FIELD_NAME.
+// ───────────────────────────────────────────────────────────────
+
 export const string ASOF_DATE = "2026-03-23"
 export const string ASOF_TIME = ""
 export const string UNIVERSE_ID = "us_equities_v1"

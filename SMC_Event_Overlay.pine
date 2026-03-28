@@ -1,0 +1,124 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Event Overlay — lightweight optional companion to SMC Core Engine
+//
+// Draws three visual elements for relevant macro/earnings events:
+//   1. Vertical event line at the expected event bar
+//   2. Pre-event / post-event restriction zone (bgcolor shading)
+//   3. Compact event label with name + impact
+//
+// Does NOT duplicate any core logic. Reads:
+//   • smc_micro_profiles_generated library — static event metadata
+//   • BUS EventRiskRow (from Engine) — live runtime block/cooldown state
+//
+// Keep on a separate pane or overlay — it is independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Event Overlay", "Ev.Ov", overlay = true, max_labels_count = 50, max_lines_count = 50, max_boxes_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_ev = "Event Overlay"
+var bool show_event_line       = input.bool(true,  "Show event vertical line",   group = g_ev)
+var bool show_event_zone       = input.bool(true,  "Show pre/post event zone",   group = g_ev)
+var bool show_event_label      = input.bool(true,  "Show event label",           group = g_ev)
+var bool high_impact_only      = input.bool(true,  "High-impact events only",    group = g_ev, tooltip = "When enabled, only HIGH and ELEVATED impact events are shown.")
+var color col_event_line       = input.color(color.new(color.orange, 20), "Event line color",  group = g_ev)
+var color col_zone_pre         = input.color(color.new(color.orange, 88), "Pre-event zone",    group = g_ev)
+var color col_zone_post        = input.color(color.new(color.red, 88),    "Post-event zone",   group = g_ev)
+var color col_label_text       = input.color(color.white,                 "Label text color",  group = g_ev)
+src_event_risk_row             = input.source(close, "BUS EventRiskRow",  group = g_ev, tooltip = "Connect to 'BUS EventRiskRow' output of SMC Core Engine.")
+
+// ── Library fields (static per refresh) ─────────────────────────
+
+string ev_window      = mp.EVENT_WINDOW_STATE      // CLEAR | PRE_EVENT | POST_EVENT | COOLDOWN
+string ev_risk_level  = mp.EVENT_RISK_LEVEL         // NONE | LOW | ELEVATED | HIGH
+string ev_name        = mp.NEXT_EVENT_NAME
+string ev_time        = mp.NEXT_EVENT_TIME
+string ev_impact      = mp.NEXT_EVENT_IMPACT        // NONE | LOW | MEDIUM | HIGH
+int    ev_before_min  = mp.EVENT_RESTRICT_BEFORE_MIN
+int    ev_after_min   = mp.EVENT_RESTRICT_AFTER_MIN
+bool   ev_cooldown    = mp.EVENT_COOLDOWN_ACTIVE
+bool   ev_mkt_block   = mp.MARKET_EVENT_BLOCKED
+bool   ev_sym_block   = mp.SYMBOL_EVENT_BLOCKED
+string ev_earnings    = mp.EARNINGS_SOON_TICKERS
+
+// ── BUS decode helpers ──────────────────────────────────────────
+
+// EventRiskRow packing: pack_bus_row(status, reason)
+// status*10 + reason  (same convention as Engine)
+bus_row()   => int(math.round(nz(src_event_risk_row, 0.0)))
+bus_status() => bus_row() >= 0 ? bus_row() / 10 : -1
+bus_reason() => bus_row() >= 0 ? bus_row() % 10 : math.abs(bus_row()) % 10
+
+// ── Visibility gate ─────────────────────────────────────────────
+
+bool has_event       = ev_name != "" and ev_window != "CLEAR"
+bool is_high_impact  = ev_impact == "HIGH" or ev_impact == "MEDIUM" or ev_risk_level == "HIGH" or ev_risk_level == "ELEVATED"
+bool show_any        = has_event and (not high_impact_only or is_high_impact)
+bool is_symbol_event = str.contains(ev_earnings, syminfo.ticker)
+bool is_blocked      = ev_mkt_block or (ev_sym_block and is_symbol_event)
+
+// ── 1. Pre/Post event zone (bgcolor) ────────────────────────────
+
+color zone_color = show_event_zone and show_any ?
+     ev_window == "PRE_EVENT"  ? col_zone_pre  :
+     ev_window == "POST_EVENT" ? col_zone_post :
+     ev_window == "COOLDOWN"   ? col_zone_post :
+     na :
+     na
+
+bgcolor(zone_color, title = "Event Zone")
+
+// ── 2. Vertical event line ─────────────────────────────────────
+
+// Draw once when window transitions into PRE_EVENT on the current bar
+var bool prev_was_clear = true
+bool window_just_started = show_event_line and show_any and ev_window == "PRE_EVENT" and prev_was_clear
+if window_just_started
+    line.new(bar_index, high, bar_index, low, xloc.bar_index, extend.both,
+         col_event_line, line.style_dashed, 1)
+prev_was_clear := ev_window == "CLEAR"
+
+// ── 3. Compact event label ─────────────────────────────────────
+
+// Show label once per event window start
+if show_event_label and show_any and window_just_started
+    string impact_icon = ev_impact == "HIGH" ? "⚠" : ev_impact == "MEDIUM" ? "●" : "○"
+    string block_flag  = is_blocked ? " 🚫" : ""
+    string lbl_text    = impact_icon + " " + ev_name + block_flag
+    label.new(bar_index, high, lbl_text,
+         xloc.bar_index, yloc.abovebar,
+         color   = is_blocked ? color.red : color.new(color.orange, 30),
+         style   = label.style_label_down,
+         textcolor = col_label_text,
+         size    = size.small)
+
+// ── Status bar (bottom-right compact) ───────────────────────────
+// Minimal real-time status from BUS — no table, just a plotchar
+
+string rt_status = bus_status() >= 4 ? "✓ Clear" :
+     bus_reason() == 2 ? "⏳ Incoming" :
+     bus_reason() == 3 ? "❄ Cooldown" :
+     bus_reason() == 4 ? "🚫 Mkt Block" :
+     bus_reason() == 5 ? "🚫 Earn Block" :
+     bus_reason() == 6 ? "⚠ Macro High" :
+     "—"
+
+plotchar(show_any ? 0 : na, "Event Status", "•", location.bottom, size = size.tiny, display = display.status_line, char = rt_status)
+
+// ── Alerts ──────────────────────────────────────────────────────
+
+alertcondition(show_any and window_just_started and is_blocked,
+     title = "Event Hard Block Started",
+     message = "🚫 Event hard block: {{ticker}} — " + ev_name)
+
+alertcondition(show_any and window_just_started and not is_blocked,
+     title = "Event Window Started",
+     message = "⏳ Event window: {{ticker}} — " + ev_name + " (" + ev_impact + ")")
