@@ -3132,6 +3132,35 @@ string rth_only_tickers_effective = mp.RTH_ONLY_TICKERS
 string weak_premarket_tickers_effective = mp.WEAK_PREMARKET_TICKERS
 string weak_afterhours_tickers_effective = mp.WEAK_AFTERHOURS_TICKERS
 string fast_decay_tickers_effective = mp.FAST_DECAY_TICKERS
+
+// ── Library Freshness Check ──
+asof_year  = str.tonumber(str.substring(mp.ASOF_DATE, 0, 4))
+asof_month = str.tonumber(str.substring(mp.ASOF_DATE, 5, 7))
+asof_day   = str.tonumber(str.substring(mp.ASOF_DATE, 8, 10))
+asof_ts    = timestamp(int(asof_year), int(asof_month), int(asof_day), 0, 0, 0)
+lib_days_old = math.floor((timenow - asof_ts) / 86400000)
+var label stale_label = na
+if barstate.islast and lib_days_old > 2
+    if not na(stale_label)
+        label.delete(stale_label)
+    stale_label := label.new(bar_index, high,
+         "⚠️ Library " + str.tostring(lib_days_old) + "d alt",
+         color = color.red, textcolor = color.white,
+         style = label.style_label_down, size = size.small)
+
+// ── Regime Flags ──
+bool lib_regime_blocked = mp.MARKET_REGIME == "RISK_OFF" or mp.TRADE_STATE == "BLOCKED"
+bool lib_regime_dimmed  = mp.MARKET_REGIME == "ROTATION" or mp.TRADE_STATE == "DISCOURAGED"
+
+// ── Earnings / Macro Shield ──
+bool lib_has_earnings     = str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
+bool lib_has_macro_event  = mp.HIGH_IMPACT_MACRO_TODAY
+
+// ── News & Volume Flags ──
+bool lib_news_bearish = str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker)
+bool lib_news_bullish = str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker)
+bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
+
 var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
 var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
 var string micro_afterhours_session = input.session('1601-2000', 'After-hours', group = g_micro, display = display.none)

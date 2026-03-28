@@ -1586,6 +1586,7 @@ def generate_pine_library_from_base(
     overrides_path: Path | None = None,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
+    enrichment: dict[str, Any] | None = None,
 ) -> dict[str, Path]:
     return run_generation(
         schema_path=schema_path,
@@ -1594,6 +1595,7 @@ def generate_pine_library_from_base(
         output_root=output_root,
         library_owner=library_owner,
         library_version=library_version,
+        enrichment=enrichment,
     )
 
 

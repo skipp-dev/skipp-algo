@@ -29,6 +29,7 @@ def publish_generation_result(
     output_root: Path,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
+    enrichment: dict[str, Any] | None = None,
 ) -> dict[str, Path]:
     """Write all generator output artifacts to disk.
 
@@ -56,7 +57,7 @@ def publish_generation_result(
     write_diff_report(diff_report_path, result.previous_state, result.state_df, result.asof_date)
 
     # Write Pine artifacts
-    write_pine_library(pine_path, result.lists, result.asof_date, result.universe_size)
+    write_pine_library(pine_path, result.lists, result.asof_date, result.universe_size, enrichment=enrichment)
     recommended_import_path = write_core_import_snippet(
         core_import_snippet_path,
         library_owner=library_owner,

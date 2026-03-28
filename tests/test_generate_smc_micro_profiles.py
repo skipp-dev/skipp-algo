@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from scripts.generate_smc_micro_profiles import (
+    LISTS,
     _safe_bool,
     add_bucket_features,
     assess_csv_against_schema,
@@ -18,6 +19,7 @@ from scripts.generate_smc_micro_profiles import (
     shard_csv_string,
     update_membership_state,
     validate_schema,
+    write_pine_library,
     write_readiness_report,
 )
 
@@ -310,3 +312,136 @@ def test_assess_csv_against_schema_reports_missing_columns(tmp_path) -> None:
     assert "premarket_volume" in assessment["extra_columns"]
     assert "## Missing required columns" in report
     assert "- asof_date" in report
+
+
+# ── write_pine_library enrichment tests ─────────────────────────────
+
+_EMPTY_LISTS: dict[str, list[str]] = {name: [] for name in LISTS}
+
+
+def test_write_library_without_enrichment(tmp_path: Path) -> None:
+    out = tmp_path / "lib.pine"
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 100)
+    text = out.read_text(encoding="utf-8")
+    # Core fields present
+    assert 'ASOF_DATE = "2026-03-28"' in text
+    assert "UNIVERSE_SIZE = 100" in text
+    # Enrichment defaults present
+    assert 'MARKET_REGIME = "NEUTRAL"' in text
+    assert "VIX_LEVEL = 0.0" in text
+    assert 'NEWS_BULLISH_TICKERS = ""' in text
+    assert "NEWS_HEAT_GLOBAL = 0.0" in text
+    assert 'EARNINGS_TODAY_TICKERS = ""' in text
+    assert "HIGH_IMPACT_MACRO_TODAY = false" in text
+    assert "GLOBAL_HEAT = 0.0" in text
+    assert 'TONE = "NEUTRAL"' in text
+    assert 'TRADE_STATE = "ALLOWED"' in text
+    assert "PROVIDER_COUNT = 0" in text
+    assert 'VOLUME_LOW_TICKERS = ""' in text
+
+
+def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
+    out = tmp_path / "lib.pine"
+    enrichment = {
+        "regime": {"regime": "RISK_ON", "vix_level": 18.5, "macro_bias": 0.35, "sector_breadth": 0.72},
+        "news": {
+            "bullish_tickers": ["AAPL", "MSFT"],
+            "bearish_tickers": ["TSLA"],
+            "neutral_tickers": ["GOOG"],
+            "news_heat_global": 0.15,
+            "ticker_heat_map": "AAPL:0.72,TSLA:-0.68",
+        },
+        "calendar": {
+            "earnings_today_tickers": "AAPL",
+            "earnings_tomorrow_tickers": "MSFT",
+            "earnings_bmo_tickers": "AAPL",
+            "earnings_amc_tickers": "",
+            "high_impact_macro_today": True,
+            "macro_event_name": "FOMC Minutes",
+            "macro_event_time": "14:00 ET",
+        },
+        "layering": {"global_heat": 0.28, "global_strength": 0.45, "tone": "BULLISH", "trade_state": "ALLOWED"},
+        "providers": {"provider_count": 4, "stale_providers": ""},
+        "volume_regime": {"low_tickers": ["XYZ"], "holiday_suspect_tickers": ["ABC"]},
+    }
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 200, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    assert 'MARKET_REGIME = "RISK_ON"' in text
+    assert "VIX_LEVEL = 18.5" in text
+    assert "MACRO_BIAS = 0.35" in text
+    assert 'NEWS_BULLISH_TICKERS = "AAPL,MSFT"' in text
+    assert 'NEWS_BEARISH_TICKERS = "TSLA"' in text
+    assert "NEWS_HEAT_GLOBAL = 0.15" in text
+    assert 'TICKER_HEAT_MAP = "AAPL:0.72,TSLA:-0.68"' in text
+    assert 'EARNINGS_TODAY_TICKERS = "AAPL"' in text
+    assert 'EARNINGS_TOMORROW_TICKERS = "MSFT"' in text
+    assert "HIGH_IMPACT_MACRO_TODAY = true" in text
+    assert 'MACRO_EVENT_NAME = "FOMC Minutes"' in text
+    assert 'MACRO_EVENT_TIME = "14:00 ET"' in text
+    assert "GLOBAL_HEAT = 0.28" in text
+    assert "GLOBAL_STRENGTH = 0.45" in text
+    assert 'TONE = "BULLISH"' in text
+    assert "PROVIDER_COUNT = 4" in text
+    assert 'VOLUME_LOW_TICKERS = "XYZ"' in text
+    assert 'HOLIDAY_SUSPECT_TICKERS = "ABC"' in text
+
+
+def test_write_library_partial_enrichment(tmp_path: Path) -> None:
+    out = tmp_path / "lib.pine"
+    enrichment = {
+        "regime": {"regime": "RISK_OFF", "vix_level": 35.0, "macro_bias": -0.4, "sector_breadth": 0.25},
+    }
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 50, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    # Regime populated
+    assert 'MARKET_REGIME = "RISK_OFF"' in text
+    assert "VIX_LEVEL = 35.0" in text
+    # News defaults
+    assert 'NEWS_BULLISH_TICKERS = ""' in text
+    assert "NEWS_HEAT_GLOBAL = 0.0" in text
+    # Calendar defaults
+    assert 'EARNINGS_TODAY_TICKERS = ""' in text
+    assert "HIGH_IMPACT_MACRO_TODAY = false" in text
+    # Layering defaults
+    assert 'TONE = "NEUTRAL"' in text
+    # Provider defaults
+    assert "PROVIDER_COUNT = 0" in text
+
+
+def test_write_library_pine_bool_format(tmp_path: Path) -> None:
+    out = tmp_path / "lib.pine"
+    enrichment = {
+        "calendar": {"high_impact_macro_today": True},
+    }
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 10, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    assert "HIGH_IMPACT_MACRO_TODAY = true" in text
+    assert "True" not in text  # Python bool must not leak
+
+    out2 = tmp_path / "lib2.pine"
+    enrichment2 = {
+        "calendar": {"high_impact_macro_today": False},
+    }
+    write_pine_library(out2, _EMPTY_LISTS, "2026-03-28", 10, enrichment=enrichment2)
+    text2 = out2.read_text(encoding="utf-8")
+    assert "HIGH_IMPACT_MACRO_TODAY = false" in text2
+    assert "False" not in text2
+
+
+def test_defaults_always_present(tmp_path: Path) -> None:
+    out = tmp_path / "lib.pine"
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
+    text = out.read_text(encoding="utf-8")
+    required_fields = [
+        "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
+        "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS", "NEWS_NEUTRAL_TICKERS",
+        "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
+        "EARNINGS_TODAY_TICKERS", "EARNINGS_TOMORROW_TICKERS",
+        "EARNINGS_BMO_TICKERS", "EARNINGS_AMC_TICKERS",
+        "HIGH_IMPACT_MACRO_TODAY", "MACRO_EVENT_NAME", "MACRO_EVENT_TIME",
+        "GLOBAL_HEAT", "GLOBAL_STRENGTH", "TONE", "TRADE_STATE",
+        "PROVIDER_COUNT", "STALE_PROVIDERS",
+        "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+    ]
+    for field in required_fields:
+        assert field in text, f"Missing field: {field}"

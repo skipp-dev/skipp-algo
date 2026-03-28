@@ -1,0 +1,129 @@
+# Daily SMC Library Refresh
+#
+# Required secrets:
+#   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
+#   BENZINGA_API_KEY   – Benzinga API key (earnings calendar fallback)
+#   DATABENTO_API_KEY  – Databento API key (base data generation)
+#   TV_STORAGE_STATE   – TradingView Playwright storage-state JSON (publish)
+#   GH_PAT             – GitHub PAT with push rights (auto-commit)
+
+name: smc-library-refresh
+
+on:
+  schedule:
+    # Mo-Fr 12:30 UTC = 13:30 CET, before US pre-market
+    - cron: "30 12 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── Checkout ────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      # ── Python + Node setup ─────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # ── Library generation with enrichment ──────────────────────
+      - name: Generate SMC library with enrichment
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          python scripts/generate_smc_micro_base_from_databento.py \
+            --run-scan \
+            --enrich-all
+
+      # ── Evidence gates ──────────────────────────────────────────
+      - name: Run evidence gate tests
+        id: gates
+        continue-on-error: true
+        run: |
+          shopt -s nullglob
+          tests=(
+            tests/test_smc_integration_*.py
+            tests/test_explicit_structure_*.py
+            tests/test_smc_core_*.py
+          )
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No gate tests matched." >&2
+            exit 1
+          fi
+          python -m pytest -q --maxfail=1 "${tests[@]}"
+
+      - name: Collect gate evidence
+        if: always()
+        run: |
+          python scripts/collect_smc_gate_evidence.py \
+            --input-glob "artifacts/ci/smc_*_report.json" \
+            --output artifacts/ci/smc_refresh_evidence_summary.json
+
+      - name: Upload gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-library-refresh-evidence
+          path: |
+            artifacts/ci/
+            pine/generated/
+
+      - name: Abort on gate failure
+        if: steps.gates.outcome == 'failure'
+        run: |
+          echo "::error::Evidence gates failed — library will NOT be published."
+          exit 1
+
+      # ── Publish to TradingView ──────────────────────────────────
+      - name: Write TradingView storage state
+        run: |
+          mkdir -p automation/tradingview/auth
+          echo '${{ secrets.TV_STORAGE_STATE }}' > automation/tradingview/auth/storage-state.json
+
+      - name: Publish library to TradingView
+        env:
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+        run: |
+          npx tsx scripts/tv_publish_micro_library.ts \
+            --manifest pine/generated/smc_micro_profiles_generated.json \
+            --core SMC_Core_Engine.pine \
+            --release-manifest artifacts/tradingview/library_release_manifest.json
+
+      # ── Version bump + commit ───────────────────────────────────
+      - name: Bump library version in SMC_Core_Engine.pine
+        run: |
+          NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
+          sed -i "s|import preuss_steffen/smc_micro_profiles_generated/[0-9]*|import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}|" SMC_Core_Engine.pine
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pine/generated/ SMC_Core_Engine.pine
+          git diff --cached --quiet || git commit -m "chore: daily library refresh $(date -u +%Y-%m-%d)"
+          git push

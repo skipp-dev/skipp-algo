@@ -494,8 +494,15 @@ def shard_csv_string(symbols: list[str], max_chars: int = 35000) -> list[str]:
     return chunks
 
 
-def write_pine_library(path: Path, lists: dict[str, list[str]], asof_date: str, universe_size: int) -> None:
+def write_pine_library(
+    path: Path,
+    lists: dict[str, list[str]],
+    asof_date: str,
+    universe_size: int,
+    enrichment: dict[str, Any] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    enr = enrichment or {}
 
     def render_list(name: str, symbols: list[str]) -> str:
         const_name = name.upper()
@@ -508,6 +515,9 @@ def write_pine_library(path: Path, lists: dict[str, list[str]], asof_date: str, 
         join_expression = " + ".join(f"{const_name}_PART_{index}" for index in range(1, len(shards) + 1))
         lines.append(f"export const string {const_name}_TICKERS = {join_expression}")
         return "\n".join(lines)
+
+    def _pine_bool(val: Any) -> str:
+        return "true" if val else "false"
 
     content = [
         "//@version=6",
@@ -522,6 +532,60 @@ def write_pine_library(path: Path, lists: dict[str, list[str]], asof_date: str, 
     for list_name in LISTS:
         content.append(render_list(list_name, lists[list_name]))
         content.append("")
+
+    # ── Regime enrichment ───────────────────────────────────────
+    regime = enr.get("regime") or {}
+    content.append("// ── Market Regime ──")
+    content.append(f'export const string MARKET_REGIME = "{regime.get("regime", "NEUTRAL")}"')
+    content.append(f'export const float VIX_LEVEL = {float(regime.get("vix_level") or 0.0)}')
+    content.append(f'export const float MACRO_BIAS = {float(regime.get("macro_bias") or 0.0)}')
+    content.append(f'export const float SECTOR_BREADTH = {float(regime.get("sector_breadth") or 0.0)}')
+    content.append("")
+
+    # ── News enrichment ─────────────────────────────────────────
+    news = enr.get("news") or {}
+    content.append("// ── News Sentiment ──")
+    content.append(f'export const string NEWS_BULLISH_TICKERS = "{",".join(news.get("bullish_tickers") or [])}"')
+    content.append(f'export const string NEWS_BEARISH_TICKERS = "{",".join(news.get("bearish_tickers") or [])}"')
+    content.append(f'export const string NEWS_NEUTRAL_TICKERS = "{",".join(news.get("neutral_tickers") or [])}"')
+    content.append(f'export const float NEWS_HEAT_GLOBAL = {float(news.get("news_heat_global") or 0.0)}')
+    content.append(f'export const string TICKER_HEAT_MAP = "{news.get("ticker_heat_map") or ""}"')
+    content.append("")
+
+    # ── Calendar enrichment ─────────────────────────────────────
+    cal = enr.get("calendar") or {}
+    content.append("// ── Earnings & Macro Calendar ──")
+    content.append(f'export const string EARNINGS_TODAY_TICKERS = "{cal.get("earnings_today_tickers") or ""}"')
+    content.append(f'export const string EARNINGS_TOMORROW_TICKERS = "{cal.get("earnings_tomorrow_tickers") or ""}"')
+    content.append(f'export const string EARNINGS_BMO_TICKERS = "{cal.get("earnings_bmo_tickers") or ""}"')
+    content.append(f'export const string EARNINGS_AMC_TICKERS = "{cal.get("earnings_amc_tickers") or ""}"')
+    content.append(f'export const bool HIGH_IMPACT_MACRO_TODAY = {_pine_bool(cal.get("high_impact_macro_today"))}')
+    content.append(f'export const string MACRO_EVENT_NAME = "{cal.get("macro_event_name") or ""}"')
+    content.append(f'export const string MACRO_EVENT_TIME = "{cal.get("macro_event_time") or ""}"')
+    content.append("")
+
+    # ── Layering enrichment ─────────────────────────────────────
+    lay = enr.get("layering") or {}
+    content.append("// ── Layering / Global Tone ──")
+    content.append(f'export const float GLOBAL_HEAT = {float(lay.get("global_heat") or 0.0)}')
+    content.append(f'export const float GLOBAL_STRENGTH = {float(lay.get("global_strength") or 0.0)}')
+    content.append(f'export const string TONE = "{lay.get("tone") or "NEUTRAL"}"')
+    content.append(f'export const string TRADE_STATE = "{lay.get("trade_state") or "ALLOWED"}"')
+    content.append("")
+
+    # ── Provider status ─────────────────────────────────────────
+    prov = enr.get("providers") or {}
+    content.append("// ── Provider Status ──")
+    content.append(f'export const int PROVIDER_COUNT = {int(prov.get("provider_count") or 0)}')
+    content.append(f'export const string STALE_PROVIDERS = "{prov.get("stale_providers") or ""}"')
+    content.append("")
+
+    # ── Volume regime ───────────────────────────────────────────
+    vol = enr.get("volume_regime") or {}
+    content.append("// ── Volume Regime ──")
+    content.append(f'export const string VOLUME_LOW_TICKERS = "{",".join(vol.get("low_tickers") or [])}"')
+    content.append(f'export const string HOLIDAY_SUSPECT_TICKERS = "{",".join(vol.get("holiday_suspect_tickers") or [])}"')
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 
@@ -711,6 +775,7 @@ def run_generation(
     output_root: Path | None = None,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
+    enrichment: dict[str, Any] | None = None,
 ) -> dict[str, Path]:
     """Orchestrate generate → validate → publish in sequence.
 
@@ -748,6 +813,7 @@ def run_generation(
         output_root=root,
         library_owner=library_owner,
         library_version=library_version,
+        enrichment=enrichment,
     )
 
 
