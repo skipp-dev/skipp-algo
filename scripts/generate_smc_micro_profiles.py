@@ -588,6 +588,27 @@ def write_pine_library(
     content.append("// ── Volume Regime ──")
     content.append(f'export const string VOLUME_LOW_TICKERS = "{",".join(vol.get("low_tickers") or [])}"')
     content.append(f'export const string HOLIDAY_SUSPECT_TICKERS = "{",".join(vol.get("holiday_suspect_tickers") or [])}"')
+    content.append("")
+
+    # ── Event Risk (v5) ─────────────────────────────────────────
+    from scripts.smc_event_risk_builder import DEFAULTS as _ER_DEFAULTS
+
+    er = enr.get("event_risk") or {}
+    content.append("// ── Event Risk ──")
+    content.append(f'export const string EVENT_WINDOW_STATE = "{er.get("EVENT_WINDOW_STATE", _ER_DEFAULTS["EVENT_WINDOW_STATE"])}"')
+    content.append(f'export const string EVENT_RISK_LEVEL = "{er.get("EVENT_RISK_LEVEL", _ER_DEFAULTS["EVENT_RISK_LEVEL"])}"')
+    content.append(f'export const string NEXT_EVENT_CLASS = "{er.get("NEXT_EVENT_CLASS", _ER_DEFAULTS["NEXT_EVENT_CLASS"])}"')
+    content.append(f'export const string NEXT_EVENT_NAME = "{er.get("NEXT_EVENT_NAME", _ER_DEFAULTS["NEXT_EVENT_NAME"])}"')
+    content.append(f'export const string NEXT_EVENT_TIME = "{er.get("NEXT_EVENT_TIME", _ER_DEFAULTS["NEXT_EVENT_TIME"])}"')
+    content.append(f'export const string NEXT_EVENT_IMPACT = "{er.get("NEXT_EVENT_IMPACT", _ER_DEFAULTS["NEXT_EVENT_IMPACT"])}"')
+    content.append(f'export const int EVENT_RESTRICT_BEFORE_MIN = {int(er.get("EVENT_RESTRICT_BEFORE_MIN", _ER_DEFAULTS["EVENT_RESTRICT_BEFORE_MIN"]))}')
+    content.append(f'export const int EVENT_RESTRICT_AFTER_MIN = {int(er.get("EVENT_RESTRICT_AFTER_MIN", _ER_DEFAULTS["EVENT_RESTRICT_AFTER_MIN"]))}')
+    content.append(f'export const bool EVENT_COOLDOWN_ACTIVE = {_pine_bool(er.get("EVENT_COOLDOWN_ACTIVE", _ER_DEFAULTS["EVENT_COOLDOWN_ACTIVE"]))}')
+    content.append(f'export const bool MARKET_EVENT_BLOCKED = {_pine_bool(er.get("MARKET_EVENT_BLOCKED", _ER_DEFAULTS["MARKET_EVENT_BLOCKED"]))}')
+    content.append(f'export const bool SYMBOL_EVENT_BLOCKED = {_pine_bool(er.get("SYMBOL_EVENT_BLOCKED", _ER_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))}')
+    content.append(f'export const string EARNINGS_SOON_TICKERS = "{er.get("EARNINGS_SOON_TICKERS", _ER_DEFAULTS["EARNINGS_SOON_TICKERS"])}"')
+    content.append(f'export const string HIGH_RISK_EVENT_TICKERS = "{er.get("HIGH_RISK_EVENT_TICKERS", _ER_DEFAULTS["HIGH_RISK_EVENT_TICKERS"])}"')
+    content.append(f'export const string EVENT_PROVIDER_STATUS = "{er.get("EVENT_PROVIDER_STATUS", _ER_DEFAULTS["EVENT_PROVIDER_STATUS"])}"')
 
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
@@ -794,7 +815,8 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((enrichment or {}).keys()),
-        "library_field_version": "v4",
+        "library_field_version": "v5",
+        "event_risk_source": "smc_event_risk_builder" if (enrichment or {}).get("event_risk") else "defaults",
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((enrichment or {}).get("meta") or {}).get("asof_time", ""),
         "refresh_count": int(((enrichment or {}).get("meta") or {}).get("refresh_count", 0)),

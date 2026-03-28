@@ -442,6 +442,194 @@ def test_defaults_always_present(tmp_path: Path) -> None:
         "GLOBAL_HEAT", "GLOBAL_STRENGTH", "TONE", "TRADE_STATE",
         "PROVIDER_COUNT", "STALE_PROVIDERS",
         "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+        # v5 event-risk fields
+        "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
+        "NEXT_EVENT_CLASS", "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
+        "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
+        "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
+        "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS", "EVENT_PROVIDER_STATUS",
     ]
     for field in required_fields:
         assert field in text, f"Missing field: {field}"
+
+
+# ── Anti-drift tests ────────────────────────────────────────────────
+
+_COMMITTED_PINE = Path("pine/generated/smc_micro_profiles_generated.pine")
+_COMMITTED_MANIFEST = Path("pine/generated/smc_micro_profiles_generated.json")
+
+
+def test_committed_pine_matches_generator_output(tmp_path: Path) -> None:
+    """Fail if committed .pine diverges from a fresh generator run."""
+    if not _COMMITTED_PINE.exists():
+        pytest.skip("committed pine artifact not found")
+
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+    )
+    fresh = outputs["pine_path"].read_text(encoding="utf-8")
+    committed = _COMMITTED_PINE.read_text(encoding="utf-8")
+    assert fresh == committed, (
+        "Committed Pine library has drifted from generator output. "
+        "Re-run the generator to update pine/generated/."
+    )
+
+
+def test_committed_manifest_matches_generator_output(tmp_path: Path) -> None:
+    """Fail if committed manifest diverges from a fresh generator run."""
+    if not _COMMITTED_MANIFEST.exists():
+        pytest.skip("committed manifest not found")
+
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+    )
+    fresh = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
+    committed = json.loads(_COMMITTED_MANIFEST.read_text(encoding="utf-8"))
+
+    # Paths are relative to output root, so normalise them away for comparison
+    path_keys = {"input_path", "schema_path", "features_csv", "lists_csv",
+                 "state_csv", "diff_report_md", "pine_library",
+                 "core_import_snippet"}
+    for k in path_keys:
+        fresh.pop(k, None)
+        committed.pop(k, None)
+    # schema_version_previous may differ between in-place and fresh runs
+    fresh.pop("schema_version_previous", None)
+    committed.pop("schema_version_previous", None)
+    fresh.pop("version_change_type", None)
+    committed.pop("version_change_type", None)
+
+    assert fresh == committed, (
+        "Committed manifest has drifted from generator output. "
+        "Re-run the generator to update pine/generated/."
+    )
+
+
+def test_manifest_declares_v5(tmp_path: Path) -> None:
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+    )
+    manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
+    assert manifest["library_field_version"] == "v5"
+
+
+# ── Event-risk fixture coverage ─────────────────────────────────────
+
+
+def test_write_library_event_risk_defaults(tmp_path: Path) -> None:
+    """Without event_risk enrichment, all 14 fields fall back to safe defaults."""
+    out = tmp_path / "lib.pine"
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
+    text = out.read_text(encoding="utf-8")
+    assert 'EVENT_WINDOW_STATE = "CLEAR"' in text
+    assert 'EVENT_RISK_LEVEL = "NONE"' in text
+    assert 'NEXT_EVENT_CLASS = ""' in text
+    assert 'NEXT_EVENT_NAME = ""' in text
+    assert 'NEXT_EVENT_TIME = ""' in text
+    assert 'NEXT_EVENT_IMPACT = "NONE"' in text
+    assert "EVENT_RESTRICT_BEFORE_MIN = 0" in text
+    assert "EVENT_RESTRICT_AFTER_MIN = 0" in text
+    assert "EVENT_COOLDOWN_ACTIVE = false" in text
+    assert "MARKET_EVENT_BLOCKED = false" in text
+    assert "SYMBOL_EVENT_BLOCKED = false" in text
+    assert 'EARNINGS_SOON_TICKERS = ""' in text
+    assert 'HIGH_RISK_EVENT_TICKERS = ""' in text
+    assert 'EVENT_PROVIDER_STATUS = "ok"' in text
+
+
+def test_write_library_active_macro_block(tmp_path: Path) -> None:
+    """A HIGH macro event with ACTIVE window should emit blocked state."""
+    out = tmp_path / "lib.pine"
+    enrichment = {
+        "event_risk": {
+            "EVENT_WINDOW_STATE": "ACTIVE",
+            "EVENT_RISK_LEVEL": "HIGH",
+            "NEXT_EVENT_CLASS": "MACRO",
+            "NEXT_EVENT_NAME": "FOMC Rate Decision",
+            "NEXT_EVENT_TIME": "14:00",
+            "NEXT_EVENT_IMPACT": "HIGH",
+            "EVENT_RESTRICT_BEFORE_MIN": 30,
+            "EVENT_RESTRICT_AFTER_MIN": 15,
+            "EVENT_COOLDOWN_ACTIVE": False,
+            "MARKET_EVENT_BLOCKED": True,
+            "SYMBOL_EVENT_BLOCKED": False,
+            "EARNINGS_SOON_TICKERS": "",
+            "HIGH_RISK_EVENT_TICKERS": "",
+            "EVENT_PROVIDER_STATUS": "ok",
+        },
+    }
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    assert 'EVENT_WINDOW_STATE = "ACTIVE"' in text
+    assert 'EVENT_RISK_LEVEL = "HIGH"' in text
+    assert 'NEXT_EVENT_CLASS = "MACRO"' in text
+    assert 'NEXT_EVENT_NAME = "FOMC Rate Decision"' in text
+    assert 'NEXT_EVENT_TIME = "14:00"' in text
+    assert 'NEXT_EVENT_IMPACT = "HIGH"' in text
+    assert "EVENT_RESTRICT_BEFORE_MIN = 30" in text
+    assert "EVENT_RESTRICT_AFTER_MIN = 15" in text
+    assert "MARKET_EVENT_BLOCKED = true" in text
+    assert "SYMBOL_EVENT_BLOCKED = false" in text
+
+
+def test_write_library_symbol_event_block(tmp_path: Path) -> None:
+    """Earnings-only event should block at symbol level, not market level."""
+    out = tmp_path / "lib.pine"
+    enrichment = {
+        "event_risk": {
+            "EVENT_WINDOW_STATE": "CLEAR",
+            "EVENT_RISK_LEVEL": "ELEVATED",
+            "NEXT_EVENT_CLASS": "EARNINGS",
+            "NEXT_EVENT_NAME": "Earnings",
+            "NEXT_EVENT_TIME": "",
+            "NEXT_EVENT_IMPACT": "MEDIUM",
+            "EVENT_RESTRICT_BEFORE_MIN": 15,
+            "EVENT_RESTRICT_AFTER_MIN": 5,
+            "EVENT_COOLDOWN_ACTIVE": False,
+            "MARKET_EVENT_BLOCKED": False,
+            "SYMBOL_EVENT_BLOCKED": True,
+            "EARNINGS_SOON_TICKERS": "AAPL,MSFT,TSLA",
+            "HIGH_RISK_EVENT_TICKERS": "AAPL,MSFT,TSLA",
+            "EVENT_PROVIDER_STATUS": "ok",
+        },
+    }
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    assert 'NEXT_EVENT_CLASS = "EARNINGS"' in text
+    assert 'NEXT_EVENT_IMPACT = "MEDIUM"' in text
+    assert "MARKET_EVENT_BLOCKED = false" in text
+    assert "SYMBOL_EVENT_BLOCKED = true" in text
+    assert 'EARNINGS_SOON_TICKERS = "AAPL,MSFT,TSLA"' in text
+    assert 'HIGH_RISK_EVENT_TICKERS = "AAPL,MSFT,TSLA"' in text
+
+
+def test_manifest_event_risk_provenance(tmp_path: Path) -> None:
+    """Manifest records event_risk_source when enrichment provides it."""
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+        enrichment={"event_risk": {"EVENT_WINDOW_STATE": "CLEAR"}},
+    )
+    manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
+    assert manifest["library_field_version"] == "v5"
+    assert manifest["event_risk_source"] == "smc_event_risk_builder"
+    assert "event_risk" in manifest["enrichment_blocks"]
+
+
+def test_manifest_event_risk_defaults_provenance(tmp_path: Path) -> None:
+    """Without event_risk enrichment, manifest notes 'defaults' source."""
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+    )
+    manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
+    assert manifest["library_field_version"] == "v5"
+    assert manifest["event_risk_source"] == "defaults"

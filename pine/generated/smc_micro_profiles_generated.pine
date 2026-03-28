@@ -57,3 +57,19 @@ export const string STALE_PROVIDERS = ""
 // ── Volume Regime ──
 export const string VOLUME_LOW_TICKERS = ""
 export const string HOLIDAY_SUSPECT_TICKERS = ""
+
+// ── Event Risk ──
+export const string EVENT_WINDOW_STATE = "CLEAR"
+export const string EVENT_RISK_LEVEL = "NONE"
+export const string NEXT_EVENT_CLASS = ""
+export const string NEXT_EVENT_NAME = ""
+export const string NEXT_EVENT_TIME = ""
+export const string NEXT_EVENT_IMPACT = "NONE"
+export const int EVENT_RESTRICT_BEFORE_MIN = 0
+export const int EVENT_RESTRICT_AFTER_MIN = 0
+export const bool EVENT_COOLDOWN_ACTIVE = false
+export const bool MARKET_EVENT_BLOCKED = false
+export const bool SYMBOL_EVENT_BLOCKED = false
+export const string EARNINGS_SOON_TICKERS = ""
+export const string HIGH_RISK_EVENT_TICKERS = ""
+export const string EVENT_PROVIDER_STATUS = "ok"

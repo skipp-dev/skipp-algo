@@ -51,7 +51,7 @@ from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 SCHEMA_PATH = resolve_microstructure_schema_path()
 
 
-# ── Canonical v4 field inventory (must stay in sync with contract) ──
+# ── Canonical v4+v5 field inventory (must stay in sync with contract) ──
 
 V4_FIELD_INVENTORY = [
     # Core + Meta
@@ -77,6 +77,12 @@ V4_FIELD_INVENTORY = [
     "PROVIDER_COUNT", "STALE_PROVIDERS",
     # Volume
     "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+    # Event Risk (v5)
+    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
+    "NEXT_EVENT_CLASS", "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
+    "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
+    "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
+    "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS", "EVENT_PROVIDER_STATUS",
 ]
 
 
@@ -509,7 +515,7 @@ class TestFinalizePipelineE2E:
         assert "fmp_vix" in result["stale_providers"]
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_manifest_written_with_v4_marker(self, mock_make, base_result, tmp_path):
+    def test_manifest_written_with_v5_marker(self, mock_make, base_result, tmp_path):
         mock_make.return_value = _make_mock_fmp()
         finalize_pipeline(
             base_result=base_result,
@@ -521,7 +527,7 @@ class TestFinalizePipelineE2E:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files, "No manifest file written by finalize_pipeline"
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v4"
+        assert manifest.get("library_field_version") == "v5"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_no_enrichment_still_generates_pine(self, mock_make, base_result, tmp_path):
@@ -879,4 +885,4 @@ class TestSmokeFullV4Pipeline:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v4"
+        assert manifest.get("library_field_version") == "v5"

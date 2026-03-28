@@ -37,7 +37,8 @@
     "fast_decay": 1
   },
   "enrichment_blocks": [],
-  "library_field_version": "v4",
+  "library_field_version": "v5",
+  "event_risk_source": "defaults",
   "auto_commit_allowed": true,
   "asof_time": "",
   "refresh_count": 0
